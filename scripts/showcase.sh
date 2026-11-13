@@ -31,7 +31,6 @@ milestones="
 0.1 physics_overlays
 0.1 physics_collapse
 0.1 networking_faults
-0.1 save_settings
 0.1 locale_settings
 0.1 sprite_inspector
 0.1 export_sheet
@@ -397,7 +396,6 @@ shot workspace_ui        examples/angrynerds "ui,select:Restart,play"
 shot physics_overlays  examples/angrynerds "physics,select:Bird"
 shot editor_profiler   examples/angrynerds "scene,select:Bird,play,dock:profiler"
 shot networking_faults examples/angrynerds "scene,settings:netcode"
-shot save_settings     examples/angrynerds "scene,settings:save"
 shot locale_settings   examples/angrynerds "scene,settings:locale"
 shot log_settings      examples/angrynerds "scene,settings:log"
 shot editor_assets     examples/angrynerds "scene,select:Bird,dock:assets"

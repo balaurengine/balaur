@@ -738,18 +738,6 @@ strict = { type = "bool", host = true, default = false, applies = "restart", hel
     );
     define_group(
         eng,
-        words::modules::SAVE,
-        Scope::Project,
-        &parse(
-            "settings.save",
-            r#"
-version = { type = "int", default = 1, min = 1, max = 9999, help = "The save version this build writes. A lower file is migrated; a higher one is refused." }
-migrate_script = { type = "string", default = "", help = "A script whose migrate_save(version, data) brings a file forward one version per call." }
-"#,
-        ),
-    );
-    define_group(
-        eng,
         words::functions::LOCALE,
         Scope::Project,
         &parse(

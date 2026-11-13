@@ -62,7 +62,7 @@ fn ROOTS() -> [str] {
 
 /// Where the person's own themes live.
 pub fn user_directory() -> str {
-    engine::user_data_directory() + "/themes"
+    util::editor_data() + "/themes"
 }
 
 pub fn is_bundled(name: str) -> bool {

@@ -186,7 +186,7 @@ Spline's event and action lists, and where each lands.
 | Particles control | `particles.emitting` (have) |
 | Set variable, variable control | step 3 |
 | Conditional | `when`, step 3 |
-| Clear local storage | `save.remove` (have) |
+| Clear local storage | `save::remove`, the save addon (have) |
 | API request | `http.request` (have), with the response into a variable, step 3 |
 | Code tab | a script (have) |
 

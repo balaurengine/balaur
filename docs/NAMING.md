@@ -628,7 +628,7 @@ A command is a verb, a long flag is kebab-case, and an environment variable spel
 | Positional argument | what the command acts on; a destination is `--project <DIR>` | Cargo |
 | Environment variable | `BALAUR_` and the settings path in capitals | Cargo |
 | A setting with a unit | the unit last: `timeout_seconds`, `delay_ticks`, `long_press_slop_pixels`, `narrow_below_pixels`, `max_rate_hz`, `min_ccd_seconds` | none |
-| A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[save] migrate_script`, `[locale] initial`, `[import.audio] force_mono` | none |
+| A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[locale] initial`, `[import.audio] force_mono` | none |
 | Signing identities | `[apple] macos_identity`, `notarize`, `ios_identity`, `ios_provisioning_profile`; `[android] keystore`, `key`, `bundletool`; `[windows] certificate`, `timestamp_url` | none |
 | How an export re-encodes | `[export] image_recode`, `font_recode`, `audio_recode` and a file's `recode`, `original` among the values; `image_quality`, `audio_quality` | none |
 | Globs an export takes whatever it decides | `[export] include`, `font_original` | none |
@@ -686,7 +686,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | A node's script, named whether or not it runs | `node.set_script`, `node.script_path`, `node.script_props`; `scene.attach_scripts` runs them | none |
 | Free a node now, not at the frame's end | `node.free`, beside `queue_free` | Godot |
 | Cameras that drive no view while held | `render.hold_cameras` | none |
-| Directories | `fs.create_directory`, `fs.modified_time`, `engine.user_data_directory`, `save.directory`, `project.pick_directory` | none |
+| Directories | `fs.create_directory`, `fs.modified_time`, `engine.user_data_directory`, `project.pick_directory` | none |
 | What ships beside the editor, read and not written; a project copied, a path taken | `project.examples_directory`, `project.copy`, `project.exists` | none |
 | The seeded stream | `random.seed`, `random.float`, `random.range`, `random.int`, `random.uuid` | Godot, Unity |
 | Angle units and infinity | `math.to_degrees`, `math.to_radians`, `math.INFINITY` | Rust |

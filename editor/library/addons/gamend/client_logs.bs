@@ -9,7 +9,7 @@
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
 // left out when the call has nothing to put in it. It answers the id
-// `gamend::rest` answers, to await with `task::wait`. With a path
+// `core::rest` answers, to await with `task::wait`. With a path
 // parameter empty or a required field left out it sends nothing and
 // logs which, and the id answers an `error` naming it.
 
@@ -18,7 +18,7 @@ use core;
 /// Client log capture policy
 /// `GET /api/v1/client_logs/policy`
 pub fn get_client_log_policy() -> int {
-    gamend::rest("GET", "/api/v1/client_logs/policy")
+    core::rest("GET", "/api/v1/client_logs/policy")
 }
 
 /// Upload a batch of client log entries
@@ -30,5 +30,5 @@ pub fn upload_client_logs(params: any) -> int {
     if !core::given(params, "entries") {
         return core::missing("gamend::client_logs::upload_client_logs", "entries");
     }
-    gamend::rest("POST", "/api/v1/client_logs", params)
+    core::rest("POST", "/api/v1/client_logs", params)
 }

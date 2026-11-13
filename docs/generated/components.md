@@ -1247,7 +1247,7 @@ A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` 
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>The body&#x27;s total mass; 0 sums what its colliders weigh At least 0.0.</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the extra mass sits, in the node&#x27;s own space; only read when mass is set</td></tr>
 <tr><td><code>inertia</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Resistance to spin about each axis, read when mass is set; 0 derives it from the colliders&#x27; shapes scaled to the mass, about center_of_mass when that is set</td></tr>
-<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file</td></tr>
+<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, as `rotation_euler` does; read with a non-zero inertia. Euler radians in the file</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on travel: how fast the body loses speed with nothing touching it At least 0.0.</td></tr>
 <tr><td><code>angular_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on spin, in the same terms as linear_damping At least 0.0.</td></tr>
 <tr><td><code>lock_rotation</code></td><td>flags</td><td><code>[]</code></td><td>World axes the body may not turn about; locking all three keeps a character upright One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
@@ -1319,7 +1319,7 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>teleport(float, float, float, physics3d::TeleportOptions?)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>time_since_can_sleep()</code></td><td><code>float</code></td><td>Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>total_inertia()</code></td><td><code>Vec3</code></td><td>The body&#x27;s resistance to spin about each of its principal axes, colliders included.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>total_inertia_rotation()</code></td><td><code>Vec3</code></td><td>How those principal axes are turned in the body&#x27;s own space, as Euler radians, x first.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>total_inertia_rotation()</code></td><td><code>Vec3</code></td><td>How those principal axes are turned in the body&#x27;s own space, as Euler radians as `rotation_euler` reads them.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>total_mass()</code></td><td><code>float</code></td><td>The body&#x27;s total mass: its `mass` when it states one, or what its colliders weigh.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>velocity_at_point(float, float, float)</code></td><td><code>Vec3</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>wake_up()</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics3d</code></td></tr>
@@ -1470,7 +1470,7 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>physics_material</code></td><td>asset · <code>physics_material</code></td><td>—</td><td>What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults</td></tr>
 <tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the shape sits relative to the node</td></tr>
-<tr><td><code>offset_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How the shape is turned relative to the node, x first; Euler radians in the file</td></tr>
+<tr><td><code>offset_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How the shape is turned relative to the node, as `rotation_euler` turns one; Euler radians in the file</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_test</code></td><td>enum</td><td><code>both</code></td><td>Whether a pair is tested when both colliders&#x27; layers accept the other, or when either does; two colliders that differ use both One of <code>both</code>, <code>either</code>.</td></tr>
@@ -1487,7 +1487,7 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where this collider&#x27;s mass sits, in its own space; read with inertia, and both 0 keep the shape&#x27;s own</td></tr>
 <tr><td><code>inertia</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>This collider&#x27;s resistance to spin about each axis; 0 with a center_of_mass takes the shape&#x27;s own about that centre</td></tr>
-<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file</td></tr>
+<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, as `rotation_euler` does; read with a non-zero inertia. Euler radians in the file</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -1621,7 +1621,7 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>connected_anchor</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where it attaches on the other node, in that node&#x27;s space</td></tr>
 <tr><td><code>axis</code></td><td>vec3</td><td><code>[0.0, 0.0, 1.0]</code></td><td>The joint frame&#x27;s x axis: what a hinge turns about, a slider slides along, and a generic joint&#x27;s x and rotation_x name</td></tr>
 <tr><td><code>connected_axis</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>The same axis in the other node&#x27;s space, for a hinge, a slider or a generic joint; zero takes axis</td></tr>
-<tr><td><code>anchor_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns this end&#x27;s joint frame about its own axes, x first: what a hinge&#x27;s angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file</td></tr>
+<tr><td><code>anchor_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns this end&#x27;s joint frame about its own axes, as `rotation_euler` turns a node: what a hinge&#x27;s angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file</td></tr>
 <tr><td><code>connected_anchor_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>The same for the other end&#x27;s frame</td></tr>
 <tr><td><code>softness_hz</code></td><td>float</td><td><code>1000000.0</code></td><td>How stiffly the joint&#x27;s locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back At least 0.0.</td></tr>
 <tr><td><code>softness_damping_ratio</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting At least 0.0.</td></tr>
@@ -2241,7 +2241,7 @@ On a node carrying `wheel3d`, as `node.wheel3d.<method>`:
 
 `physics` · 2 properties
 
-Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.
+Drives a rig's bones from `bodies`, one body per bone and named after it, which the editor's Create Physical Skeleton builds. `influence` is how much of the simulated pose the bones take, 0 to 1.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>

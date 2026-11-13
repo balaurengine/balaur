@@ -51,7 +51,7 @@ pub struct Body3d {
     /// Resistance to spin about each axis, read when mass is set; 0 derives it from the colliders' shapes scaled to the mass, about center_of_mass when that is set
     #[property(group = "mass")]
     pub inertia: [f32; 3],
-    /// Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file
+    /// Turns the axes inertia is measured about, as `rotation_euler` does; read with a non-zero inertia. Euler radians in the file
     #[property(unit = "degrees", group = "mass")]
     pub inertia_rotation: [f32; 3],
     /// Drag on travel: how fast the body loses speed with nothing touching it
@@ -203,15 +203,15 @@ fn start_body(body: &mut RigidBody, authored: &crate::shared::body::Authored, ma
     }
 }
 
-/// A rotation from the Euler radians a schema property holds, x first.
+/// A rotation from the Euler radians a schema property holds, read as a
+/// transform's `rotation_euler` is.
 pub(crate) fn rotation_from_euler(r: [f32; 3]) -> scalar::Rotation {
-    glamx::Quat::from_euler(glamx::EulerRot::XYZ, r[0], r[1], r[2])
+    balaur_geometry::skeleton::quat_from_euler(glamx::Vec3::from_array(r))
 }
 
 /// The inverse of [`rotation_from_euler`].
 pub(crate) fn euler_of(rotation: scalar::Rotation) -> [f32; 3] {
-    let (x, y, z) = rotation.to_euler(glamx::EulerRot::XYZ);
-    [x, y, z]
+    balaur_geometry::skeleton::euler_from_quat(rotation).to_array()
 }
 
 /// The inertia rapier's `Mass` variant would derive, about the stated centre of
@@ -698,7 +698,7 @@ fn install_body_readers(m: &mut Module<Engine>) {
 }
 
 /// A pose as a script reads one: `{ position, rotation }`, the rotation in
-/// Euler radians, x first, as `offset_rotation` spells it.
+/// Euler radians, as `rotation_euler` spells them.
 fn pose_value(pose: &scalar::Pose) -> balaur_script::Value {
     crate::vocabulary::map([
         (
@@ -727,12 +727,12 @@ pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
         (
             "Pose",
             "{ position: Vec3, rotation: Vec3 }",
-            "Where something stands and how it is turned, in Euler radians, x first.",
+            "Where something stands and how it is turned, in Euler radians as `rotation_euler` reads them.",
         ),
         (
             "TeleportOptions",
             "{ rotation: Vec3? }",
-            "How `teleport` turns the body as it moves it: Euler radians, x first.",
+            "How `teleport` turns the body as it moves it: Euler radians as `rotation_euler` reads them.",
         ),
     ]);
     m.function(
@@ -797,7 +797,7 @@ pub(crate) fn install_body_mass_api(m: &mut Module<Engine>) {
         (words::functions::WORLD_CENTER_OF_MASS, &[c::BODY_3D], "(node: node) -> Vec3", "Where the body's whole mass sits, in world space."),
         (words::functions::LOCAL_CENTER_OF_MASS, &[c::BODY_3D], "(node: node) -> Vec3", "Where the body's whole mass sits, in the body's own space."),
         (words::functions::TOTAL_INERTIA, &[c::BODY_3D], "(node: node) -> Vec3", "The body's resistance to spin about each of its principal axes, colliders included."),
-        (TOTAL_INERTIA_ROTATION, &[c::BODY_3D], "(node: node) -> Vec3", "How those principal axes are turned in the body's own space, as Euler radians, x first."),
+        (TOTAL_INERTIA_ROTATION, &[c::BODY_3D], "(node: node) -> Vec3", "How those principal axes are turned in the body's own space, as Euler radians as `rotation_euler` reads them."),
         (words::functions::EFFECTIVE_MASS, &[c::BODY_3D], "(node: node) -> Vec3", "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic."),
         (words::functions::EFFECTIVE_ANGULAR_INERTIA, &[c::BODY_3D], "(node: node) -> [Vec3]", "The world-space inertia the solver turns, rotation locks applied, as its three rows."),
     ]);

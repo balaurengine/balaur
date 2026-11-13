@@ -22,7 +22,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
 | [`fs`](#fs) | 9 | 0 |
-| [`gamend`](#gamend) | 20 | 9 |
+| [`gamend`](#gamend) | 18 | 9 |
 | [`geometry2d`](#geometry2d) | 12 | 0 |
 | [`geometry3d`](#geometry3d) | 7 | 0 |
 | [`hash`](#hash) | 2 | 0 |
@@ -37,8 +37,8 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`multiplayer`](#multiplayer) | 14 | 18 |
 | [`node`](#node) | 55 | 0 |
 | [`physics`](#physics) | 13 | 0 |
-| [`physics2d`](#physics2d) | 17 | 111 |
-| [`physics3d`](#physics3d) | 17 | 118 |
+| [`physics2d`](#physics2d) | 16 | 108 |
+| [`physics3d`](#physics3d) | 16 | 115 |
 | [`picture`](#picture) | 1 | 0 |
 | [`platform`](#platform) | 11 | 7 |
 | [`project`](#project) | 15 | 0 |
@@ -49,7 +49,6 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`render`](#render) | 43 | 41 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
-| [`save`](#save) | 6 | 0 |
 | [`scene`](#scene) | 32 | 0 |
 | [`script`](#script) | 15 | 0 |
 | [`settings`](#settings) | 12 | 0 |
@@ -368,13 +367,11 @@ Files on disk, project-relative unless the path is absolute. A packed build's co
 
 ## `gamend`
 
-The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).
+The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; a `login`, `rest` or `reply` answer carries `ms`, its round trip in milliseconds, recorded with it. What a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).
 
 | Function | Signature |
 | --- | --- |
-| `activity` | `() -> [gamend::Entry]` |
 | `call_hook` | `(int, str, str, any) -> int` |
-| `clear_activity` | `()` |
 | `close` | `(int) -> bool` |
 | `configure` | `(str?) -> str` |
 | `connect` | `(Node?, events::ListenOptions?) -> int` |
@@ -791,7 +788,6 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `overlap_aabb` | `(physics2d::BoxQuery) -> [Node]` |
 | `overlap_point` | `(physics2d::PointQuery) -> [Node]` |
 | `overlap_shape` | `(physics2d::ShapeQuery) -> [Node]` |
-| `ragdoll` | `(Node, physics2d::RagdollOptions?) -> [Node]` |
 | `raycast` | `(physics2d::RayQuery) -> physics2d::Hit?` |
 | `raycast_all` | `(physics2d::RayQuery) -> [physics2d::Hit]` |
 | `set_gravity` | `(float, float)` |
@@ -801,7 +797,7 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 
 Called on a node's component: `body2d`, `character2d`, `collider2d`, `follow2d`, `joint2d`, `softbody2d`. See [components](components.md).
 
-**Constants** (111):
+**Constants** (108):
 
 | Name | Value |
 | --- | --- |
@@ -830,7 +826,7 @@ Called on a node's component: `body2d`, `character2d`, `collider2d`, `follow2d`,
 | `COMBINE_MAX` | `"max"` |
 | `COMBINE_MIN` | `"min"` |
 
-…and 87 more.
+…and 84 more.
 
 ## `physics3d`
 
@@ -848,7 +844,6 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `overlap_aabb` | `(physics3d::BoxQuery) -> [Node]` |
 | `overlap_point` | `(physics3d::PointQuery) -> [Node]` |
 | `overlap_shape` | `(physics3d::ShapeQuery) -> [Node]` |
-| `ragdoll` | `(Node, physics3d::RagdollOptions?) -> [Node]` |
 | `raycast` | `(physics3d::RayQuery) -> physics3d::Hit?` |
 | `raycast_all` | `(physics3d::RayQuery) -> [physics3d::Hit]` |
 | `set_gravity` | `(float, float, float)` |
@@ -858,7 +853,7 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 
 Called on a node's component: `body3d`, `character3d`, `collider3d`, `follow3d`, `joint3d`, `softbody3d`, `vehicle3d`, `wheel3d`. See [components](components.md).
 
-**Constants** (118):
+**Constants** (115):
 
 | Name | Value |
 | --- | --- |
@@ -887,7 +882,7 @@ Called on a node's component: `body3d`, `character3d`, `collider3d`, `follow3d`,
 | `COLLIDE_KINEMATIC_KINEMATIC` | `"kinematic_kinematic"` |
 | `COLLIDE_KINEMATIC_STATIC` | `"kinematic_static"` |
 
-…and 94 more.
+…and 91 more.
 
 ## `picture`
 
@@ -1125,19 +1120,6 @@ Rollback netcode from a script's side. `input` reads this tick's input, real or 
 | --- | --- |
 | `input` | `(int) -> any` |
 | `is_resimulating` | `() -> bool` |
-
-## `save`
-
-Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate_script` names the script whose `migrate_save(version, data)` upgrades older ones.
-
-| Function | Signature |
-| --- | --- |
-| `directory` | `() -> str` |
-| `read` | `(str) -> any` |
-| `remove` | `(str)` |
-| `slots` | `() -> [str]` |
-| `version` | `() -> int` |
-| `write` | `(str, any)` |
 
 ## `scene`
 

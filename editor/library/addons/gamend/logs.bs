@@ -2,6 +2,7 @@
 // `log_sink.bs` keeps it on its node, pumps it, and settles what it asked in a
 // `settle_reply` method; a game with its own loop writes the same.
 
+use addons::save::save;
 use core;
 
 const DEBUG: str = "debug";

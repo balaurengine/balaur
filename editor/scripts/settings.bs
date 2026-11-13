@@ -172,12 +172,12 @@ pub fn load_files(state: &mut editor::State) {
 
 // The editor's own settings are the person's, in the folder every project shares.
 pub fn preferences_path() -> str {
-    engine::user_data_directory() + "/editor.toml"
+    util::editor_data() + "/editor.toml"
 }
 
 // The size the window last closed at: the person's, as the preferences are.
 fn window_size_path() -> str {
-    engine::user_data_directory() + "/window.toml"
+    util::editor_data() + "/window.toml"
 }
 
 // A run told what to do opens at the stated size, the same on every machine,

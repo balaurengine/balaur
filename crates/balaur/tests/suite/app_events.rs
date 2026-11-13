@@ -187,29 +187,6 @@ fn a_script_listening_for_assets_reloaded_hears_an_invalidate() {
     assert!(said(&app).contains("reloaded;"), "{}", said(&app));
 }
 
-/// A view of a game's saves listens for `saved` instead of listing the
-/// folder each frame: a slot written is heard at the next pump.
-#[test]
-fn a_script_listening_for_saved_hears_a_slot_written() {
-    let script = ear(r#"
-    fn init() { events::listen(self.node, "saved"); }
-    fn update(dt: float) {
-        if scene::variable("said").as_str() == "" {
-            scene::set_variable("said", "asked;");
-            save::write("probe", { "n": 1 });
-        }
-    }
-    pub fn on_saved(count: any) { tell("saved"); }
-"#);
-    let (dir, mut app) = app_with(&script);
-    // Kept in the test's own folder, not the user's data directory.
-    balaur_core::save::set_home(&app.engine, Some(dir.path().join("data")));
-    for _ in 0..3 {
-        app.tick(1.0 / 60.0);
-    }
-    assert!(said(&app).contains("saved;"), "{}", said(&app));
-}
-
 /// An editor's views listen for `changed` instead of comparing the scene
 /// each frame: the writes of a frame are heard at the next pump, one entry
 /// for each node and component however often it was written, a component a

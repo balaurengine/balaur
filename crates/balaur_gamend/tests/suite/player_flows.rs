@@ -15,13 +15,17 @@ use serde_json::json;
 const FLOWS: &str = include_str!("../player_flows.bs");
 
 /// The SDK addon `editor/library/addons/gamend` holds, as a game requires it:
-/// every `.bs` module, `events/` among them, under `addons/gamend/`.
+/// every `.bs` module, `events/` among them, under `addons/gamend/`, with the
+/// save addon it keeps its session in.
 fn gamend_addon() -> Vec<(String, String)> {
-    let root =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/library/addons/gamend");
+    let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/library");
     let mut files = Vec::new();
-    modules_under(&root, "addons/gamend", &mut files);
-    assert!(!files.is_empty(), "no SDK addon at {}", root.display());
+    for addon in ["addons/gamend", "addons/save"] {
+        let root = library.join(addon);
+        let before = files.len();
+        modules_under(&root, addon, &mut files);
+        assert!(files.len() > before, "no addon at {}", root.display());
+    }
     files
 }
 
@@ -442,6 +446,10 @@ fn a_dropped_socket_comes_back_rejoins_its_lobby_and_routes_what_follows() {
             "rename=200",
             "heard_after=yes",
             "hook_after=yes",
+            "logged=yes",
+            "unlogged=yes",
+            "kept=yes",
+            "forgot=yes",
             "closed=yes",
             "leave=200",
             "delete=200",

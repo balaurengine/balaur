@@ -8,6 +8,7 @@ use gizmo;
 use history;
 use model;
 use polygon;
+use ragdoll;
 use selection;
 use shell;
 use util;
@@ -741,17 +742,15 @@ pub fn physical_bones(state: &mut editor::State) {
     if !found.is_valid() {
         return;
     }
+    let segments = ragdoll::segments(found);
+    if segments.len() == 0 {
+        log::warn("no physical skeleton: this node carries no bones long enough to hold a shape, and a tip bone needs a `length`");
+        return;
+    }
     history::record(state, "create physical skeleton");
-    // Kept in the scene, so they land in the tree and in the file; the rig
-    // itself gains the `ragdoll` component that drives its bones from them.
-    let root = state.scene_root.unwrap();
-    let made = if state.mode2d {
-        physics2d::ragdoll(found, physics2d::RagdollOptions { parent: root })
-    } else {
-        physics3d::ragdoll(found, physics3d::RagdollOptions { parent: root })
-    };
+    let made = ragdoll::build(found, segments, state.scene_root.unwrap(), ragdoll::Options {});
     model::reindex(state);
-    log::info("{util::list_or_empty(made).len()} physical bones built");
+    log::info("{made.len()} physical bones built");
 }
 
 // Reset to Rest Pose, for every bone under the selection.

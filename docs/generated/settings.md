@@ -119,8 +119,6 @@ question as an old one is a second way to say it.
 <tr><td><code>local_url</code></td><td>string</td><td><code>&quot;http://localhost:4000&quot;</code></td><td></td><td>A Gamend running on this machine, as <code>mix dev.start</code> serves it.</td></tr>
 <tr><td><code>plugin</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>The server plugin a game&#x27;s hooks are called in.</td></tr>
 <tr><td><code>server</code></td><td>enum</td><td><code>&quot;local&quot;</code></td><td>editor</td><td>Which of the project&#x27;s two servers a game played from this editor talks to. Kept in the editor&#x27;s own file, so it never ships.</td></tr>
-<tr><td><code>cloud</code></td><td>string</td><td><code>&quot;https://gamend.org&quot;</code></td><td>editor</td><td>Where your Gamend Cloud account is: the Gamend dock lists your servers from it.</td></tr>
-<tr><td><code>cloud_token</code></td><td>string</td><td><code>&quot;&quot;</code></td><td>editor</td><td>What the Gamend dock got when you connected it to your Gamend Cloud account. Kept in the editor&#x27;s own file; empty disconnects it.</td></tr>
 </tbody>
 </table>
 
@@ -428,16 +426,6 @@ question as an old one is a second way to say it.
 <tr><td><code>cluster_grid</code></td><td>vec3</td><td><code>[16.0, 9.0, 24.0]</code></td><td></td><td>Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute.</td></tr>
 <tr><td><code>cluster_max_lights</code></td><td>int</td><td><code>256</code></td><td></td><td>Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device&#x27;s largest storage buffer.</td></tr>
 <tr><td><code>probe_capture_size_pixels</code></td><td>int</td><td><code>256</code></td><td></td><td>Side of each cube face a <code>reflection_probe</code> captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again.</td></tr>
-</tbody>
-</table>
-
-## save
-
-<table>
-<thead><tr><th>key</th><th>type</th><th>default</th><th>notes</th><th>what it does</th></tr></thead>
-<tbody>
-<tr><td><code>migrate_script</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>A script whose migrate_save(version, data) brings a file forward one version per call.</td></tr>
-<tr><td><code>version</code></td><td>int</td><td><code>1</code></td><td></td><td>The save version this build writes. A lower file is migrated; a higher one is refused.</td></tr>
 </tbody>
 </table>
 

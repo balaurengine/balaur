@@ -992,20 +992,22 @@ is placed by its `sound` component or per call.
 
 ## Save games
 
-`save.write(slot, data)` and `save.read(slot)`, per user, under
-`user_data_dir()`. A save is whatever the game puts in the table, so a parked
-scene reaches one only if a script writes it there; the engine decides three
-things.
+The library's `save` addon, in script: `save::write(slot, data)` and
+`save::read(slot)` under `saves/` in `engine::user_data_directory()`. A save
+is whatever the game puts in the table. The engine supplies the one piece a
+script cannot: `fs::write` writes beside the target, syncs the file and
+renames it over, so a crash or a power cut mid-save keeps the old file. The
+addon decides the rest.
 
 - **Where it lives.** A slot name is letters, digits, `-` and `_`, so
   `../../id_rsa` is refused.
-- **That a half-written file cannot replace a good one.** Written beside the
-  target and renamed over it.
-- **What version wrote it.** `[save] version` is what this build writes;
-  `migrate` names a script whose `migrate_save(version, data)` runs once per
-  version step, so a migration only knows adjacent shapes. A file from a newer
-  build is refused. `ScriptHost::call_in(path, function, args)` is the seam: a
-  function in a script *file*, with no instance.
+- **What version wrote it.** `[save] version` is what this build writes, and
+  `save::migrate_with(step)` names the function that brings a file forward one
+  version per call, so a migration only knows adjacent shapes. A file from a
+  newer build is refused.
+- **Whose folder.** A game the editor plays keeps its slots in the folder it
+  has when run alone: `project::use_data` points `engine::user_data_directory()`
+  there, and the device id with it.
 
 ## Store and platform services
 

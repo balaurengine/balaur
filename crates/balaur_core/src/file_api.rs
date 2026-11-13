@@ -238,8 +238,22 @@ pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// `animations/` should not fail because the project has never had one.
 pub(crate) fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
     let path = writable(eng, args, 0)?;
-    files::backend(eng).write(&path, text(args, 1)?.as_bytes())?;
+    write_whole(&*files::backend(eng), &path, text(args, 1)?.as_bytes())?;
     Ok(Value::Nil)
+}
+
+/// Write `bytes` beside `path` and rename them over it, so a crash or a power
+/// cut mid-write leaves the old file whole, never a truncated one.
+pub fn write_whole(fs: &dyn FileBackend, path: &Path, bytes: &[u8]) -> Result<()> {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".part");
+    let part = path.with_file_name(name);
+    fs.write(&part, bytes)
+        .with_context(|| format!("writing {}", part.display()))?;
+    // A rename alone survives a crash; the bytes survive a power cut only once synced.
+    fs.sync(&part);
+    fs.rename(&part, path)
+        .with_context(|| format!("replacing {}", path.display()))
 }
 
 pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -559,6 +573,77 @@ fn json_number_list(a: &[f32]) -> Result<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A memory backend that also lists what was asked of it, in order.
+    #[derive(Default)]
+    struct Recording {
+        fs: files::MemoryFs,
+        asked: std::cell::RefCell<Vec<String>>,
+    }
+
+    impl Recording {
+        fn note(&self, what: &str, path: &Path) {
+            self.asked
+                .borrow_mut()
+                .push(format!("{what} {}", path.display()));
+        }
+    }
+
+    impl FileBackend for Recording {
+        fn read(&self, path: &Path) -> Result<Vec<u8>> {
+            self.fs.read(path)
+        }
+        fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+            self.note("write", path);
+            self.fs.write(path, bytes)
+        }
+        fn exists(&self, path: &Path) -> bool {
+            self.fs.exists(path)
+        }
+        fn is_dir(&self, path: &Path) -> bool {
+            self.fs.is_dir(path)
+        }
+        fn remove(&self, path: &Path) -> Result<bool> {
+            self.fs.remove(path)
+        }
+        fn mkdir(&self, path: &Path) -> Result<()> {
+            self.fs.mkdir(path)
+        }
+        fn rename(&self, from: &Path, to: &Path) -> Result<()> {
+            self.note("rename", from);
+            self.fs.rename(from, to)
+        }
+        fn mtime(&self, path: &Path) -> Option<f64> {
+            self.fs.mtime(path)
+        }
+        fn list(&self, path: &Path) -> Vec<(String, bool)> {
+            self.fs.list(path)
+        }
+        fn canonicalize(&self, path: &Path) -> PathBuf {
+            self.fs.canonicalize(path)
+        }
+        fn sync(&self, path: &Path) {
+            self.note("sync", path);
+        }
+    }
+
+    #[test]
+    fn a_whole_write_lands_beside_the_file_is_synced_then_renamed_over_it() {
+        let fs = Recording::default();
+        let path = Path::new("/data/saves/slot.toml");
+        fs.fs.write(path, b"old").unwrap();
+        write_whole(&fs, path, b"new").unwrap();
+        assert_eq!(
+            *fs.asked.borrow(),
+            [
+                "write /data/saves/slot.toml.part",
+                "sync /data/saves/slot.toml.part",
+                "rename /data/saves/slot.toml.part",
+            ]
+        );
+        assert_eq!(fs.read(path).unwrap(), b"new");
+        assert!(!fs.exists(Path::new("/data/saves/slot.toml.part")));
+    }
 
     fn patched(existing: &str, table: &str) -> String {
         let value =

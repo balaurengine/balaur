@@ -1,6 +1,6 @@
 # A 2D rig: three skinned bones and an arm, with two clips a state machine
-# crossfades, `two_bone_ik`, `jiggle`, a `polygon/deform` track, and the
-# ragdoll `scripts/fall.bs` builds.
+# crossfades, `two_bone_ik`, `jiggle`, a `polygon/deform` track, and a
+# ragdoll that `scripts/fall.bs` tweens in and out.
 
 [[nodes]]
 id = "n_main"
@@ -42,6 +42,12 @@ script = { source = "scripts/fall.bs" }
 
 [nodes.transform]
 position = [0, -1.25, 0]
+
+# The bones follow the bodies under Hero_ragdoll by this much. Zero: the
+# bodies simulate from the first frame unseen, so the pose is one they fell into.
+[nodes.ragdoll]
+bodies = "../Hero_ragdoll"
+influence = 0.0
 
 [nodes.animation]
 autoplay = "wave"
@@ -384,6 +390,112 @@ weights = [0, 0, 0.5, 0.6, 0.2, 0.6, 0.5]
 [[nodes.polygon.mesh.skin.bones]]
 path = "Hip/Thigh/Shin/Plume/Plume2/Plume3"
 weights = [0, 0, 0, 0.4, 0.8, 0.4, 0]
+
+# One body per bone, as Create Physical Skeleton builds them: a capsule along
+# the bone, hinged to its parent's where the two meet. The hinge limits keep
+# a collapse a body, not a bag.
+[[nodes]]
+id = "n_hero_ragdoll"
+name = "Hero_ragdoll"
+parent = "n_main"
+
+[[nodes]]
+id = "n_hip_body"
+name = "Hip"
+parent = "n_hero_ragdoll"
+body2d = {}
+collider2d = { shape = { kind = "capsule", radius = 0.187, height = 0.85 }, offset = [0, 0.425], physics_material = { friction = 0.9 } }
+
+[nodes.transform]
+position = [0, -1.25, 0]
+
+[[nodes]]
+id = "n_thigh_body"
+name = "Thigh"
+parent = "n_hero_ragdoll"
+body2d = {}
+collider2d = { shape = { kind = "capsule", radius = 0.187, height = 0.85 }, offset = [0, 0.425], physics_material = { friction = 0.9 } }
+joint2d = { kind = "hinge", connected_body = "../Hip", connected_anchor = [0, 0.85], axes = [{ axis = "rotation", limits = [-0.7, 0.7] }] }
+
+[nodes.transform]
+position = [0, -0.4, 0]
+
+[[nodes]]
+id = "n_shin_body"
+name = "Shin"
+parent = "n_hero_ragdoll"
+body2d = {}
+collider2d = { shape = { kind = "capsule", radius = 0.1892, height = 0.86 }, offset = [0, 0.43], physics_material = { friction = 0.9 } }
+joint2d = { kind = "hinge", connected_body = "../Thigh", connected_anchor = [0, 0.85], axes = [{ axis = "rotation", limits = [-0.7, 0.7] }] }
+
+[nodes.transform]
+position = [0, 0.45, 0]
+
+[[nodes]]
+id = "n_plume_body"
+name = "Plume"
+parent = "n_hero_ragdoll"
+body2d = {}
+collider2d = { shape = { kind = "capsule", radius = 0.066, height = 0.3 }, offset = [0, 0.15], physics_material = { friction = 0.9 } }
+joint2d = { kind = "hinge", connected_body = "../Shin", connected_anchor = [0, 0.86], axes = [{ axis = "rotation", limits = [-0.7, 0.7] }] }
+
+[nodes.transform]
+position = [0, 1.31, 0]
+
+[[nodes]]
+id = "n_plume2_body"
+name = "Plume2"
+parent = "n_hero_ragdoll"
+body2d = {}
+collider2d = { shape = { kind = "capsule", radius = 0.066, height = 0.3 }, offset = [0, 0.15], physics_material = { friction = 0.9 } }
+joint2d = { kind = "hinge", connected_body = "../Plume", connected_anchor = [0, 0.3], axes = [{ axis = "rotation", limits = [-0.7, 0.7] }] }
+
+[nodes.transform]
+position = [0, 1.61, 0]
+
+[[nodes]]
+id = "n_plume3_body"
+name = "Plume3"
+parent = "n_hero_ragdoll"
+body2d = {}
+collider2d = { shape = { kind = "capsule", radius = 0.066, height = 0.3 }, offset = [0, 0.15], physics_material = { friction = 0.9 } }
+joint2d = { kind = "hinge", connected_body = "../Plume2", connected_anchor = [0, 0.3], axes = [{ axis = "rotation", limits = [-0.7, 0.7] }] }
+
+[nodes.transform]
+position = [0, 1.91, 0]
+
+[[nodes]]
+id = "n_shoulder_body"
+name = "Shoulder"
+parent = "n_hero_ragdoll"
+body2d = {}
+collider2d = { shape = { kind = "capsule", radius = 0.154, height = 0.7 }, offset = [0.35, 0], offset_rotation = -1.5708, physics_material = { friction = 0.9 } }
+joint2d = { kind = "hinge", connected_body = "../Shin", connected_anchor = [0.4, 0.4], axes = [{ axis = "rotation", limits = [-0.7, 0.7] }] }
+
+[nodes.transform]
+position = [0.4, 0.85, 0]
+
+[[nodes]]
+id = "n_elbow_body"
+name = "Elbow"
+parent = "n_hero_ragdoll"
+body2d = {}
+collider2d = { shape = { kind = "capsule", radius = 0.154, height = 0.7 }, offset = [0.35, 0], offset_rotation = -1.5708, physics_material = { friction = 0.9 } }
+joint2d = { kind = "hinge", connected_body = "../Shoulder", connected_anchor = [0.7, 0], axes = [{ axis = "rotation", limits = [-0.7, 0.7] }] }
+
+[nodes.transform]
+position = [1.1, 0.85, 0]
+
+[[nodes]]
+id = "n_hand_body"
+name = "Hand"
+parent = "n_hero_ragdoll"
+body2d = {}
+collider2d = { shape = { kind = "capsule", radius = 0.055, height = 0.25 }, offset = [0.125, 0], offset_rotation = -1.5708, physics_material = { friction = 0.9 } }
+joint2d = { kind = "hinge", connected_body = "../Elbow", connected_anchor = [0.7, 0], axes = [{ axis = "rotation", limits = [-0.7, 0.7] }] }
+
+[nodes.transform]
+position = [1.8, 0.85, 0]
 
 [[nodes]]
 id = "n_hud"

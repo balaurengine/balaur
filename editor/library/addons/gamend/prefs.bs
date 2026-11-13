@@ -2,6 +2,8 @@
 // addon kept in a ConfigFile under `user://`. Never synced; a value that should
 // follow the player belongs in the server's key-value store.
 
+use addons::save::save;
+
 /// The save slot, which the Gamend dock's Data tab edits too.
 pub const SLOT: str = "gamend_prefs";
 

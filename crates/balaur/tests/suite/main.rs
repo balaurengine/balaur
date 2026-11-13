@@ -25,6 +25,7 @@ mod parked_scenes;
 mod presets;
 mod replay;
 mod rotations;
+mod save_addon;
 mod screenshot_events;
 mod script_check;
 mod script_pause;

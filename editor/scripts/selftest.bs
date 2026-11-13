@@ -38,6 +38,7 @@ use physics;
 use polygon;
 use pool;
 use populate;
+use ragdoll;
 use scatter;
 use recipes;
 use rig;
@@ -57,6 +58,8 @@ use util;
 use viewport;
 use weights;
 use window;
+use words::components;
+use words::fields;
 use words::project_fields;
 
 pub struct WritableFloat {
@@ -879,9 +882,11 @@ fn inline_polygon(state: editor::State) -> int? {
     nil
 }
 
-/// Create Physical Skeleton: one engine call, and the nodes it spawns kept in
-/// the scene, so they are in the tree and in the saved file.
+/// Create Physical Skeleton: the rig tool on the scene's own rig, and the
+/// builder behind it on rigs this test makes, in 2D and in 3D.
 pub fn physical_bones(state: &mut editor::State) {
+    ragdoll_builder(state, false);
+    ragdoll_builder(state, true);
     let rig_index: int? = nil;
     for index in 0..state.nodes.len() {
         if rig::bone_count(state, index) > 1 && !rig::is_bone(model::node(state, index)) {
@@ -896,24 +901,152 @@ pub fn physical_bones(state: &mut editor::State) {
     let rig_index = rig_index.unwrap();
     shell::choose(state, rig_index);
     let start = state.nodes.len();
+    let bodies_before = body_count(state);
     let bones = rig::bone_count(state, rig_index);
     rig::physical_bones(state);
     check(state.nodes.len() > start, "building a ragdoll adds nodes to the scene ({start} to {state.nodes.len()})");
     // A body per bone, plus the container they hang from.
     check(state.nodes.len() <= start + bones + 1, "and no more than one per bone ({bones} bones, {state.nodes.len() - start} nodes)");
     check(mirror_resolves(state), "every new node resolves in the mirror");
-    let ragdoll = model::node(state, rig_index).authored("ragdoll");
+    let ragdoll = model::node(state, rig_index).authored(RAGDOLL_COMPONENT);
     check(ragdoll != nil && ragdoll.kind() == "map", "the rig carries the ragdoll component that drives its bones back");
-    let bodies = 0;
-    for node in state.nodes {
-        if node.has_component("body2d") || node.has_component("body3d") {
-            bodies += 1;
-        }
-    }
-    check(bodies > 0, "and every bone got a body ({bodies})");
+    check(body_count(state) > bodies_before, "and every bone got a body ({body_count(state) - bodies_before})");
     undo_all(state);
     check(mirror_resolves(state), "the undone scene resolves");
     log::info("selftest physical bones: done");
+}
+
+const RAGDOLL_COMPONENT: str = "ragdoll";
+const BUILDER_RIG: str = "RagdollCheck";
+const BUILDER_CONTAINER: str = "RagdollCheck_ragdoll";
+const KNEE_BEND: float = 0.5;
+
+fn body_count(state: editor::State) -> int {
+    let bodies = 0;
+    for node in state.nodes {
+        if node.has_component(components::BODY2D) || node.has_component(components::BODY3D) {
+            bodies += 1;
+        }
+    }
+    bodies
+}
+
+fn check_bone(parent: Node, name: str, three: bool, at: Vec3, turn: Vec3, reach: float) -> Node {
+    let made = parent.add_child(name);
+    made.transform.position = at;
+    made.transform.rotation_euler = turn;
+    made.set_component(if three { components::BONE3D } else { components::BONE2D }, { fields::LENGTH: reach });
+    made
+}
+
+// Three bones along +x, the knee bent about z in 2D and about two axes in 3D,
+// under a node of their own at the scene root.
+fn check_rig(root: Node, three: bool) -> Node {
+    let made = root.add_child(BUILDER_RIG);
+    made.transform.position = vec3(0.5, 1.0, 0.0);
+    let hip = check_bone(made, "Hip", three, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), 0.0);
+    let bend = if three { vec3(0.3, 0.0, KNEE_BEND) } else { vec3(0.0, 0.0, KNEE_BEND) };
+    let knee = check_bone(hip, "Knee", three, vec3(1.0, 0.0, 0.0), bend, 0.0);
+    check_bone(knee, "Foot", three, vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), 1.0);
+    made
+}
+
+// What the builder writes, on a rig of its own, then gone again.
+fn ragdoll_builder(state: &mut editor::State, three: bool) {
+    if state.scene_root == nil {
+        log::info("selftest ragdoll builder: no scene; skipped");
+        return;
+    }
+    let root = state.scene_root.unwrap();
+    let plain = root.add_child(BUILDER_RIG);
+    check(ragdoll::segments(plain).len() == 0, "a node with no bones has nothing to build a ragdoll from");
+    plain.free();
+    let made = check_rig(root, three);
+    let knee_bone = made.get_node("Hip/Knee");
+    let built = ragdoll::build(made, ragdoll::segments(made), root, ragdoll::Options { influence: 0.0 });
+    let container = root.get_node(BUILDER_CONTAINER);
+    let joint_name = if three { "joint3d" } else { "joint2d" };
+    check(built.len() == 3 && container.is_valid() && container.children().len() == 3, "the builder makes a body per bone in a container beside the rig ({built.len()}, 3D {three})");
+    check(!container.get_node("Hip").has_component(joint_name), "the root of the chain hangs from nothing");
+    let knee = container.get_node("Knee").get_component(joint_name);
+    let kind = if three { physics3d::JOINT_BALL_SOCKET } else { physics2d::JOINT_HINGE };
+    let jointed = knee["connected_body"].as_str();
+    check(knee["kind"].as_str() == kind && jointed == "../Hip", "the knee's body is jointed to the hip's ({jointed})");
+    let ragdoll_table = made.get_component(RAGDOLL_COMPONENT);
+    check(made.get_node(ragdoll_table["bodies"].as_str()).path() == container.path() && ragdoll_table["influence"].as_float() == 0.0, "the rig names its bodies at the influence asked ({ragdoll_table})");
+    // The joint's zero is the pose the rig was built in.
+    let rest = knee["connected_anchor_rotation"];
+    if three {
+        let turned: Vec3 = rest;
+        let wanted = knee_bone.transform.rotation_euler;
+        check(util::abs(turned.x - wanted.x) + util::abs(turned.y - wanted.y) + util::abs(turned.z - wanted.z) < 0.0001, "the knee's joint holds the bend it was built in ({turned})");
+        // A capsule stands along its own y, turned to lie along the bone.
+        let collider = container.get_node("Knee").get_component(components::COLLIDER3D);
+        let along: Vec3 = collider["offset"];
+        let turned_shape: Vec3 = collider["offset_rotation"];
+        let up = quat::rotate(quat::from_euler(turned_shape), vec3(0.0, 1.0, 0.0));
+        let size = math::sqrt(along.x * along.x + along.y * along.y + along.z * along.z);
+        check(util::abs(up.x - along.x / size) + util::abs(up.y - along.y / size) + util::abs(up.z - along.z / size) < 0.0001, "the knee's capsule lies along the bone ({up})");
+    } else {
+        check(util::abs(rest.as_float() - KNEE_BEND) < 0.0001, "the knee's joint holds the bend it was built in ({rest})");
+    }
+    container.free();
+    made.remove_component(RAGDOLL_COMPONENT);
+    ragdoll_options(made, root, three);
+    made.free();
+    model::reindex(state);
+    check(mirror_resolves(state), "the scene resolves once the builder's rigs are gone");
+    log::info("selftest ragdoll builder: done (3D {three})");
+}
+
+// Every option lands on the component it names, and a motor drive keeps the
+// options' own limits.
+fn ragdoll_options(made: Node, root: Node, three: bool) {
+    let turn = if three { physics3d::AXIS_ROTATION_Z } else { physics2d::AXIS_ROTATION };
+    ragdoll::build(made, ragdoll::segments(made), root, ragdoll::Options {
+        influence: 0.0,
+        shape: if three { physics3d::SHAPE_BOX } else { physics2d::SHAPE_RECTANGLE },
+        restitution: 0.3,
+        collision_layer: [2],
+        linear_damping: 0.5,
+        gravity_scale: 0.25,
+        continuous_collision: true,
+        articulation: true,
+        collide_connected: true,
+        drive: ragdoll::DRIVE_MOTORS,
+        stiffness: 40.0,
+        axes: [{ "axis": turn, "limits": [-0.5, 0.5] }],
+    });
+    let container = root.get_node(BUILDER_CONTAINER);
+    let knee = container.get_node("Knee");
+    let body = knee.get_component(if three { components::BODY3D } else { components::BODY2D });
+    check(body["gravity_scale"].as_float() == 0.25 && body["linear_damping"].as_float() == 0.5 && body["continuous_collision"].as_bool(), "a body takes the damping, gravity and sweep asked ({body})");
+    let collider = knee.get_component(if three { components::COLLIDER3D } else { components::COLLIDER2D });
+    let wanted = if three { physics3d::SHAPE_BOX } else { physics2d::SHAPE_RECTANGLE };
+    let shape_kind = collider["shape"]["kind"].as_str();
+    // A component reads its inline material back as a handle; the table is what was authored.
+    let bounce = knee.authored(if three { components::COLLIDER3D } else { components::COLLIDER2D })["physics_material"]["restitution"].as_float();
+    check(shape_kind == wanted && collider["collision_layer"][0].as_str() == "2" && util::abs(bounce - 0.3) < 0.0001, "a shape takes the kind, layer and bounce asked ({shape_kind}, {bounce})");
+    let joint = knee.get_component(if three { "joint3d" } else { "joint2d" });
+    check(knee.has_component(if three { "articulation3d" } else { "articulation2d" }) && joint["collide_connected"].as_bool(), "a joint is an articulation that collides with its neighbour");
+    let axes = joint["axes"];
+    let found: any = nil;
+    for i in 0..axes.len() {
+        if axes[i]["axis"].as_str() == turn {
+            found = axes[i];
+        }
+    }
+    check(found != nil && found["motor"].as_str() == physics3d::MOTOR_POSITION && found["stiffness"].as_float() == 40.0 && found["limits"][1].as_float() == 0.5, "a motor drive keeps the limit it was given ({found})");
+    container.free();
+    made.remove_component(RAGDOLL_COMPONENT);
+    ragdoll::build(made, ragdoll::segments(made), root, ragdoll::Options { influence: 0.0, drive: ragdoll::DRIVE_FOLLOW, follow: { "kind": physics3d::FOLLOW_PID } });
+    let container = root.get_node(BUILDER_CONTAINER);
+    let foot = container.get_node("Foot");
+    let follow = foot.get_component(if three { "follow3d" } else { "follow2d" });
+    let target = follow["target"].as_str();
+    check(follow["kind"].as_str() == physics3d::FOLLOW_PID && foot.get_node(target).path() == made.get_node("Hip/Knee/Foot").path(), "a follow drive sends each body after its own bone ({target})");
+    container.free();
+    made.remove_component(RAGDOLL_COMPONENT);
 }
 
 /// The mouse camera the editor drives, whatever tool is picked.
@@ -2176,7 +2309,7 @@ pub fn font_catalogue(state: &mut editor::State) {
         return;
     }
     // The download lands under the user directory, as `save_to` puts it.
-    let saved = engine::user_data_directory() + "/fonts/Probe-Regular.ttf";
+    let saved = util::editor_data() + "/fonts/Probe-Regular.ttf";
     fs::copy("fonts/SourceSans3-Regular.ttf", saved);
     answer(state, "face", { "path": saved, "body": "" });
     answer(state, "licence", { "body": "SIL Open Font License" });
@@ -2464,7 +2597,7 @@ const CHECK_AT: int = 28;
 /// leaves in the list, and the row forgotten again. Writes under the editor's
 /// own data directory, which is the one place it owns on every machine.
 pub fn manager_screen(state: &mut editor::State) {
-    let home = engine::user_data_directory() + "/selftest-project";
+    let home = util::editor_data() + "/selftest-project";
     let made = util::map_or_empty(project::create(home, "empty"));
     let failed = made["error"];
     if failed != nil {
@@ -2574,7 +2707,7 @@ fn example_projects(state: editor::State) {
     }
     let one = util::map_or_empty(hello);
     check(one["note"].as_str() != "", "and each says what it is ({one["note"]})");
-    let into = engine::user_data_directory() + "/selftest-copies";
+    let into = util::editor_data() + "/selftest-copies";
     let made = util::map_or_empty(shipped::copy_example("hello", into));
     let failed = made["error"];
     if failed != nil {

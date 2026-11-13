@@ -131,10 +131,6 @@ pub(crate) mod words {
     pub(crate) const WAITING: &str = "waiting";
 
     pub(crate) const NONE: &str = "none";
-    pub(crate) const MOTORS: &str = "motors";
-    pub(crate) const FOLLOW: &str = "follow";
-    /// What pulls a ragdoll's bodies, beyond gravity and contacts.
-    pub(crate) const RAGDOLL_DRIVES: &[&str] = &[NONE, MOTORS, FOLLOW];
 
     pub(crate) const DRAW_COLLIDERS: &str = "colliders";
     pub(crate) const DRAW_AABBS: &str = "aabbs";
@@ -258,7 +254,6 @@ pub(crate) mod keys {
     pub(crate) const ALLOWED_LINEAR_ERROR: &str = "allowed_linear_error";
     pub(crate) const ANCHOR: &str = "anchor";
     pub(crate) const ANGLE: &str = "angle";
-    pub(crate) const ANGULAR_DAMPING: &str = "angular_damping";
     pub(crate) const APPLIED: &str = "applied";
     pub(crate) const AT: &str = "at";
     pub(crate) const AXES: &str = "axes";
@@ -285,13 +280,9 @@ pub(crate) mod keys {
     pub(crate) const CENTER: &str = "center";
     pub(crate) const CENTER_OF_MASS: &str = "center_of_mass";
     pub(crate) const COLLIDERS: &str = "colliders";
-    pub(crate) const COLLIDE_CONNECTED: &str = "collide_connected";
     pub(crate) const COLLISIONS: &str = "collisions";
     pub(crate) const COLLISION_DETECTION_MS: &str = "collision_detection_ms";
-    pub(crate) const COLLISION_LAYER: &str = "collision_layer";
     pub(crate) const COLLISION_MASK: &str = "collision_mask";
-    pub(crate) const CONNECTED_ANCHOR: &str = "connected_anchor";
-    pub(crate) const CONNECTED_ANCHOR_ROTATION: &str = "connected_anchor_rotation";
     pub(crate) const CONNECTED_BODY: &str = "connected_body";
     pub(crate) const CONSTRAIN: &str = "constrain";
     pub(crate) const CONSTRAINT_COUNT: &str = "constraint_count";
@@ -307,7 +298,6 @@ pub(crate) mod keys {
     pub(crate) const CONTACT_POINT: &str = "contact_point";
     pub(crate) const CONTACT_RECYCLE_DISTANCE: &str = "contact_recycle_distance";
     pub(crate) const CONTACT_RECYCLING: &str = "contact_recycling";
-    pub(crate) const CONTINUOUS_COLLISION: &str = "continuous_collision";
     pub(crate) const COORDINATES: &str = "coordinates";
     pub(crate) const DISTANCE: &str = "distance";
     pub(crate) const DYNAMIC_COLOR: &str = "dynamic_color";
@@ -315,12 +305,8 @@ pub(crate) mod keys {
     /// A contact force's or a broken joint's size, in an event payload.
     pub(crate) const FORCE: &str = "force";
     pub(crate) const DAMPING: &str = "damping";
-    pub(crate) const DENSITY: &str = "density";
     pub(crate) const DIRECTION: &str = "direction";
     pub(crate) const DISABLED_TINT: &str = "disabled_tint";
-    pub(crate) const DRIVE: &str = "drive";
-    /// A ragdoll's `follow3d`/`follow2d` table, with `drive = "follow"`.
-    pub(crate) const FOLLOW: &str = "follow";
     pub(crate) const EDGE_NORMAL_COLOR: &str = "edge_normal_color";
     pub(crate) const ENABLED: &str = "enabled";
     pub(crate) const ENGINE_FORCE: &str = "engine_force";
@@ -336,9 +322,7 @@ pub(crate) mod keys {
     pub(crate) const FRICTION_MODEL: &str = "friction_model";
     pub(crate) const GRAVITY_2D: &str = "gravity_2d";
     pub(crate) const GRAVITY_3D: &str = "gravity_3d";
-    pub(crate) const GRAVITY_SCALE: &str = "gravity_scale";
     pub(crate) const GROUND: &str = "ground";
-    pub(crate) const HEIGHT: &str = "height";
     pub(crate) const HIT_FROM_INSIDE: &str = "hit_from_inside";
     pub(crate) const HIT_SENSORS: &str = "hit_sensors";
     pub(crate) const HIT_SOLIDS: &str = "hit_solids";
@@ -359,7 +343,6 @@ pub(crate) mod keys {
     pub(crate) const LENGTH_UNIT: &str = "length_unit";
     pub(crate) const LIMITS: &str = "limits";
     pub(crate) const LIMIT_IMPULSES: &str = "limit_impulses";
-    pub(crate) const LINEAR_DAMPING: &str = "linear_damping";
     pub(crate) const MASS: &str = "mass";
     pub(crate) const MAX: &str = "max";
     pub(crate) const MAX_CONCAVITY: &str = "max_concavity";
@@ -386,15 +369,12 @@ pub(crate) mod keys {
     pub(crate) const NORMALS: &str = "normals";
     pub(crate) const OFFSET: &str = "offset";
     pub(crate) const OTHER: &str = "other";
-    pub(crate) const OFFSET_ROTATION: &str = "offset_rotation";
     pub(crate) const ONLY: &str = "only";
     pub(crate) const ON_FLOOR: &str = "on_floor";
     pub(crate) const ORIGIN: &str = "origin";
     pub(crate) const OVERLAP: &str = "overlap";
     pub(crate) const OWN_NORMAL: &str = "own_normal";
     pub(crate) const OWN_POINT: &str = "own_point";
-    /// The node a ragdoll keeps its bodies under.
-    pub(crate) const PARENT: &str = "parent";
     /// A world's entry in what `physics` reports for both, named for its module.
     pub(crate) const PHYSICS_2D: &str = "physics2d";
     pub(crate) const PHYSICS_3D: &str = "physics3d";
@@ -415,7 +395,6 @@ pub(crate) mod keys {
     pub(crate) const POINTS: &str = "points";
     pub(crate) const POSITION: &str = "position";
     pub(crate) const PREDICTION_DISTANCE: &str = "prediction_distance";
-    pub(crate) const RADIUS: &str = "radius";
     pub(crate) const RAY_ORIGIN: &str = "ray_origin";
     pub(crate) const REMAINING: &str = "remaining";
     /// Whether a collision ended because a collider went away.
@@ -460,7 +439,6 @@ pub(crate) mod keys {
     pub(crate) const SUBSHAPE: &str = "subshape";
     pub(crate) const SUSPENSION_FORCE: &str = "suspension_force";
     pub(crate) const SUSPENSION_LENGTH: &str = "suspension_length";
-    pub(crate) const THICKNESS: &str = "thickness";
     /// `[physics] threads`: how many the solver may take.
     pub(crate) const THREADS: &str = "threads";
     pub(crate) const TOLERANCE: &str = "tolerance";

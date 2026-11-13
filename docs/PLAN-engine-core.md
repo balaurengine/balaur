@@ -38,19 +38,23 @@ determinism. `AGENTS.md` states the rule.
 - `settings::edit_project`, `edit_set` and `edit_clear`: the editor's
   `settings.bs` holds the game's manifest. `toml::patch` now changes a table
   key by key, so a saved key keeps the comments around it.
-
-## Left, in order
-
-Each waits on the primitive named.
-
-1. **The ragdoll builder** (`physics2d.ragdoll`, `physics3d.ragdoll`) moves to
-   an addon in `editor/library` on `quat`, which `examples/rig` takes as a
-   path dependency; the blend stays native.
-2. **The save-game policy** (`save.rs`, `[save]`) waits on an atomic file
-   write. The Gamend addon that calls `save` is generated in the Gamend
-   repository.
-3. **The Gamend activity log and `gamend/cloud`** move with the dock, which
-   is copied from the Gamend repository.
+- `physics2d.ragdoll` and `physics3d.ragdoll`: the editor's `ragdoll.bs`
+  builds the bodies into the scene once, as Godot's Create Physical Skeleton
+  does, and `examples/rig` ships them authored. The `ragdoll` component's
+  blend stays native. Physics now reads every Euler field in
+  `rotation_euler`'s order.
+- `save.*`, `[save] migrate_script` and the engine's `saved` event: the
+  library's `save` addon, `use addons::save::save;`. It reads `[save]
+  version`, and `save::migrate_with(step)` names the migration. `fs::write`
+  is now atomic: a file beside the target, synced, then renamed over it.
+- The save home `project::use_data` set: `engine::user_data_directory()`
+  answers the played game's own folder, and the editor names its folder
+  with `engine::user_data_directory_of`.
+- `gamend::activity` and `clear_activity`: the Gamend addon's `activity.bs`,
+  fed by `core.bs`, which every generated call goes through. A `login`,
+  `rest` or `reply` answer carries its round trip as `ms`.
+- `gamend/cloud` and `gamend/cloud_token`: the Gamend dock declares
+  `editor/gamend/cloud` and `editor/gamend/cloud_token` itself.
 
 ## Not planned here
 

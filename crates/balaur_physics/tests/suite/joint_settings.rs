@@ -106,7 +106,7 @@ fn a_fixed_joint_holds_the_turn_its_anchor_rotation_names() {
         "kind = \"fixed\"\nanchor_rotation = [0.0, 0.0, 0.5]",
     );
     tick(&mut app, 60);
-    let (_, _, z) = pose(&app, ball).rotation.to_euler(glamx::EulerRot::XYZ);
+    let (z, _, _) = pose(&app, ball).rotation.to_euler(glamx::EulerRot::ZYX);
     // This end's frame is turned by 0.5, so the body turns back by as much.
     assert!((z + 0.5).abs() < 0.05, "the fixed joint held a turn of {z}");
 }

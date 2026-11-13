@@ -6,6 +6,14 @@ use words::components;
 
 const FOV: str = "fov";
 const ID: str = "id";
+/// The editor's manifest name, which names its per-user folder.
+const EDITOR_NAME: str = "balaur-editor";
+
+/// The editor's own per-user folder, for its preferences, themes and
+/// recordings: `engine::user_data_directory()` answers the open game's.
+pub fn editor_data() -> str {
+    engine::user_data_directory_of(EDITOR_NAME)
+}
 
 /// A vector's direction and length.
 pub struct Norm {

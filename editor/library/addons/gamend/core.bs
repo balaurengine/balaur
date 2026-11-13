@@ -1,8 +1,17 @@
-// What every generated call needs: query strings, required fields, refused
-// calls and reply helpers. `use core;` inside the addon,
-// `use addons::gamend::core;` from a game's script.
+// What every generated call needs: query strings, required fields, reply
+// helpers, and the engine's calls, each kept in the activity log.
+
+use activity;
 
 const OK: str = "ok";
+const CONNECT: str = "connect";
+const HOOK: str = "hook";
+const JOIN: str = "join";
+const LEAVE: str = "leave";
+const LOGIN: str = "login";
+const PUSH: str = "push";
+const REFUSED: str = "refused";
+const REST: str = "rest";
 internal const BODY: str = "body";
 internal const DATA: str = "data";
 internal const EMAIL: str = "email";
@@ -21,7 +30,41 @@ pub fn given(table: any, key: str) -> bool {
 pub fn missing(call: str, field: str) -> int {
     let message = "gamend: {call} needs `{field}`";
     log::error(message);
-    gamend::refuse(message)
+    activity::started(gamend::refuse(message), REFUSED, message, nil)
+}
+
+// The engine's calls, each kept in the activity log as it goes out: what the
+// generated modules, `client` and the dock send through.
+
+/// `gamend::rest`: a path on the server over HTTP.
+pub fn rest(method: str, path: str, body: any) -> int {
+    activity::started(gamend::rest(method, path, body), REST, method + " " + path, body)
+}
+
+/// `gamend::login`; `who` is what the row shows: "device", or the email.
+pub fn login(credentials: gamend::Credentials, who: str) -> int {
+    activity::started(gamend::login(credentials), LOGIN, who, nil)
+}
+
+/// `gamend::connect`: the realtime socket, its events to `node`.
+pub fn connect(node: Node) -> int {
+    activity::started(gamend::connect(node), CONNECT, "realtime", nil)
+}
+
+pub fn join(socket: int, topic: str) -> int {
+    activity::started(gamend::join(socket, topic), JOIN, topic, nil)
+}
+
+pub fn leave(socket: int, topic: str) -> int {
+    activity::started(gamend::leave(socket, topic), LEAVE, topic, nil)
+}
+
+pub fn push(socket: int, topic: str, event: str, payload: any) -> int {
+    activity::started(gamend::push(socket, topic, event, payload), PUSH, topic + " " + event, payload)
+}
+
+pub fn call_hook(socket: int, plugin: str, name: str, args: any) -> int {
+    activity::started(gamend::call_hook(socket, plugin, name, args), HOOK, plugin + "." + name, args)
 }
 
 /// `?a=1&b=2` for the keys an operation declares, in the order it declares

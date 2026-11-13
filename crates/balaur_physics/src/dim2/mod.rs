@@ -726,7 +726,6 @@ fn install_physics2d_api(m: &mut Module<Engine>) {
         (words::functions::MAX_CONTACT_IMPULSE, &[c::BODY_2D], "", "The hardest contact this body took in the last step, zero when nothing touched it."),
         (words::functions::OVERLAPS, &[c::COLLIDER_2D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
     ]);
-    crate::ragdoll::install_ragdoll_api(m, false);
     // No reader by design (N8): the rapier world holds the gravity vector;
     // add `physics2d.gravity` when a caller needs to read it back.
     m.function(

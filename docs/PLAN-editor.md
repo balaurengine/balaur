@@ -186,9 +186,10 @@ against that list. What is there now:
   rig's own bones, a guess by name that ignores case, separators and an
   exporter's prefix, and a `bone_map` asset written out for
   `node.animation.play(clip, { retarget = … })`.
-- **Physical bones.** Godot's Create Physical Skeleton, as one call to
-  `physics2d.ragdoll` and one `model::adopt` of what it built, so the bodies
-  land in the tree and in the saved scene like anything the editor makes.
+- **Physical bones.** Godot's Create Physical Skeleton, in `ragdoll.bs`: a
+  body, a shape and a joint per bone written into the scene, and the
+  `ragdoll` component on the rig that blends the bones back from them
+  (`test:ragdoll`).
 
 - **Not planned:** slots, attachments and skins as Spine has them — a
   node with a `sprite` and `visible` is the same thing here; a separate

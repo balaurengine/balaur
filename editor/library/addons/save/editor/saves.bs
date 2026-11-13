@@ -1,0 +1,27 @@
+// Lists `[save] version` in the editor's Settings window while the game
+// carries this addon. A run reads it with `settings::get`, declared or not.
+
+use addons::save::save;
+
+const TYPE: str = "type";
+const DEFAULT: str = "default";
+const MIN: str = "min";
+const MAX: str = "max";
+const HELP: str = "help";
+
+pub class Saves {
+    node: Node,
+}
+
+impl Saves {
+    pub fn register() -> any {
+        settings::define(save::VERSION_SETTING, {
+            TYPE: "int",
+            DEFAULT: 1,
+            MIN: 1,
+            MAX: 9999,
+            HELP: "The save version this build writes. An older file is brought forward by the step `save::migrate_with` names; a newer one is refused.",
+        });
+        {}
+    }
+}

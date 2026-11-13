@@ -1359,9 +1359,6 @@
       "physics2d::COMBINE_MAX": "max",
       "physics2d::COMBINE_MIN": "min",
       "physics2d::COMBINE_MULTIPLY": "multiply",
-      "physics2d::DRIVE_FOLLOW": "follow",
-      "physics2d::DRIVE_MOTORS": "motors",
-      "physics2d::DRIVE_NONE": "none",
       "physics2d::EDGES_CHAIN": "chain",
       "physics2d::EDGES_MESH": "mesh",
       "physics2d::EDGES_OUTLINE": "outline",
@@ -1476,9 +1473,6 @@
       "physics3d::COMBINE_MAX": "max",
       "physics3d::COMBINE_MIN": "min",
       "physics3d::COMBINE_MULTIPLY": "multiply",
-      "physics3d::DRIVE_FOLLOW": "follow",
-      "physics3d::DRIVE_MOTORS": "motors",
-      "physics3d::DRIVE_NONE": "none",
       "physics3d::EDGES_CHAIN": "chain",
       "physics3d::EDGES_MESH": "mesh",
       "physics3d::FILL_SOLID": "solid",
@@ -2226,17 +2220,9 @@
         "least": 2,
         "signature": "(str, str)"
       },
-      "gamend::activity": {
-        "least": 0,
-        "signature": "() -> [gamend::Entry]"
-      },
       "gamend::call_hook": {
         "least": 3,
         "signature": "(int, str, str, any) -> int"
-      },
-      "gamend::clear_activity": {
-        "least": 0,
-        "signature": "()"
       },
       "gamend::close": {
         "least": 1,
@@ -4270,10 +4256,6 @@
         "least": 1,
         "signature": "(physics2d::ShapeQuery) -> [Node]"
       },
-      "physics2d::ragdoll": {
-        "least": 1,
-        "signature": "(Node, physics2d::RagdollOptions?) -> [Node]"
-      },
       "physics2d::raycast": {
         "least": 1,
         "signature": "(physics2d::RayQuery) -> physics2d::Hit?"
@@ -4337,10 +4319,6 @@
       "physics3d::overlap_shape": {
         "least": 1,
         "signature": "(physics3d::ShapeQuery) -> [Node]"
-      },
-      "physics3d::ragdoll": {
-        "least": 1,
-        "signature": "(Node, physics3d::RagdollOptions?) -> [Node]"
       },
       "physics3d::raycast": {
         "least": 1,
@@ -4869,30 +4847,6 @@
       "rollback::is_resimulating": {
         "least": 0,
         "signature": "() -> bool"
-      },
-      "save::directory": {
-        "least": 0,
-        "signature": "() -> str"
-      },
-      "save::read": {
-        "least": 1,
-        "signature": "(str) -> any"
-      },
-      "save::remove": {
-        "least": 1,
-        "signature": "(str)"
-      },
-      "save::slots": {
-        "least": 0,
-        "signature": "() -> [str]"
-      },
-      "save::version": {
-        "least": 0,
-        "signature": "() -> int"
-      },
-      "save::write": {
-        "least": 1,
-        "signature": "(str, any)"
       },
       "scene::added_since": {
         "least": 2,
@@ -5621,16 +5575,6 @@
         "password": "str?",
         "username": "str?"
       },
-      "gamend::Entry": {
-        "args": "any",
-        "kind": "str",
-        "ms": "float?",
-        "reply": "any",
-        "request": "int",
-        "seq": "int",
-        "status": "str",
-        "what": "str"
-      },
       "gamend::Server": {
         "local": "str",
         "name": "str",
@@ -5893,19 +5837,6 @@
         "normal": "Vec2",
         "point": "Vec2"
       },
-      "physics2d::FollowOptions": {
-        "integral_gain": "Vec2?",
-        "kind": "str?",
-        "position_gain": "Vec2?",
-        "rotation_axes": "[str]?",
-        "rotation_gain": "float?",
-        "rotation_integral_gain": "float?",
-        "spin_gain": "float?",
-        "target_angular_velocity": "float?",
-        "target_linear_velocity": "Vec2?",
-        "translation_axes": "[str]?",
-        "velocity_gain": "Vec2?"
-      },
       "physics2d::Handles": {
         "body": "[int]?",
         "colliders": "[[int]]"
@@ -5933,17 +5864,6 @@
         "stop_at_penetration": "bool?",
         "velocity_a": "Vec2?",
         "velocity_b": "Vec2?"
-      },
-      "physics2d::JointAxis": {
-        "axis": "str",
-        "damping": "float?",
-        "limits": "[float]?",
-        "motor": "str?",
-        "motor_max_force": "float?",
-        "motor_model": "str?",
-        "motor_target": "float?",
-        "motor_target_velocity": "float?",
-        "stiffness": "float?"
       },
       "physics2d::JointForce": {
         "force": "float",
@@ -5979,28 +5899,6 @@
         "hit_sensors": "bool?",
         "hit_solids": "bool?",
         "only": "str?"
-      },
-      "physics2d::RagdollOptions": {
-        "angular_damping": "float?",
-        "articulation": "bool?",
-        "axes": "[physics2d::JointAxis]?",
-        "collide_connected": "bool?",
-        "collision_layer": "[int]?",
-        "collision_mask": "[int]?",
-        "continuous_collision": "bool?",
-        "damping": "float?",
-        "density": "float?",
-        "drive": "str?",
-        "follow": "physics2d::FollowOptions?",
-        "friction": "float?",
-        "gravity_scale": "float?",
-        "influence": "float?",
-        "linear_damping": "float?",
-        "parent": "Node?",
-        "restitution": "float?",
-        "shape": "str?",
-        "stiffness": "float?",
-        "thickness": "float?"
       },
       "physics2d::RayQuery": {
         "direction": "Vec2?",
@@ -6172,19 +6070,6 @@
         "normal": "Vec3",
         "point": "Vec3"
       },
-      "physics3d::FollowOptions": {
-        "integral_gain": "Vec3?",
-        "kind": "str?",
-        "position_gain": "Vec3?",
-        "rotation_axes": "[str]?",
-        "rotation_gain": "Vec3?",
-        "rotation_integral_gain": "Vec3?",
-        "spin_gain": "Vec3?",
-        "target_angular_velocity": "Vec3?",
-        "target_linear_velocity": "Vec3?",
-        "translation_axes": "[str]?",
-        "velocity_gain": "Vec3?"
-      },
       "physics3d::Handles": {
         "body": "[int]?",
         "colliders": "[[int]]"
@@ -6212,17 +6097,6 @@
         "stop_at_penetration": "bool?",
         "velocity_a": "Vec3?",
         "velocity_b": "Vec3?"
-      },
-      "physics3d::JointAxis": {
-        "axis": "str",
-        "damping": "float?",
-        "limits": "[float]?",
-        "motor": "str?",
-        "motor_max_force": "float?",
-        "motor_model": "str?",
-        "motor_target": "float?",
-        "motor_target_velocity": "float?",
-        "stiffness": "float?"
       },
       "physics3d::JointForce": {
         "force": "float",
@@ -6259,28 +6133,6 @@
         "hit_sensors": "bool?",
         "hit_solids": "bool?",
         "only": "str?"
-      },
-      "physics3d::RagdollOptions": {
-        "angular_damping": "float?",
-        "articulation": "bool?",
-        "axes": "[physics3d::JointAxis]?",
-        "collide_connected": "bool?",
-        "collision_layer": "[int]?",
-        "collision_mask": "[int]?",
-        "continuous_collision": "bool?",
-        "damping": "float?",
-        "density": "float?",
-        "drive": "str?",
-        "follow": "physics3d::FollowOptions?",
-        "friction": "float?",
-        "gravity_scale": "float?",
-        "influence": "float?",
-        "linear_damping": "float?",
-        "parent": "Node?",
-        "restitution": "float?",
-        "shape": "str?",
-        "stiffness": "float?",
-        "thickness": "float?"
       },
       "physics3d::RayQuery": {
         "direction": "Vec3?",
@@ -7019,7 +6871,7 @@
     "particles2d": "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.",
     "particles3d": "A visual-only 3D emitter at the node, drawn as instances of one quad: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity` in world space. The live particles are renderer state the simulation never sees; a sprite sheet does not reach them, because a 3D instance carries no texture rectangle.",
     "polygon": "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
-    "ragdoll": "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.",
+    "ragdoll": "Drives a rig's bones from `bodies`, one body per bone and named after it, which the editor's Create Physical Skeleton builds. `influence` is how much of the simulated pose the bones take, 0 to 1.",
     "reflection_probe": "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
     "rope_joint2d": "How long a `joint2d` of kind rope may stretch.",
     "rope_joint3d": "How long a `joint3d` of kind rope may stretch.",
@@ -9504,7 +9356,7 @@
           0.0,
           0.0
         ],
-        "description": "Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file",
+        "description": "Turns the axes inertia is measured about, as `rotation_euler` does; read with a non-zero inertia. Euler radians in the file",
         "group": "mass",
         "type": "vec3",
         "unit": "degrees"
@@ -11132,7 +10984,7 @@
           0.0,
           0.0
         ],
-        "description": "Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file",
+        "description": "Turns the axes inertia is measured about, as `rotation_euler` does; read with a non-zero inertia. Euler radians in the file",
         "group": "mass",
         "type": "vec3",
         "unit": "degrees"
@@ -11160,7 +11012,7 @@
           0.0,
           0.0
         ],
-        "description": "How the shape is turned relative to the node, x first; Euler radians in the file",
+        "description": "How the shape is turned relative to the node, as `rotation_euler` turns one; Euler radians in the file",
         "group": "shape",
         "type": "vec3",
         "unit": "degrees"
@@ -12735,7 +12587,7 @@
           0.0,
           0.0
         ],
-        "description": "Turns this end's joint frame about its own axes, x first: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file",
+        "description": "Turns this end's joint frame about its own axes, as `rotation_euler` turns a node: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file",
         "group": "anchors",
         "type": "vec3",
         "unit": "degrees"
@@ -21073,7 +20925,7 @@
         "time_scale": "What time is being multiplied by; 1.0 is real time.",
         "timings": "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it.",
         "unix_time": "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw.",
-        "user_data_directory": "A writable per-user directory for saves and settings, created on first call and named after the project.",
+        "user_data_directory": "A writable per-user directory for saves and settings, created on first call and named after the project. A game the editor plays answers with its own, the folder it has when run alone.",
         "user_data_directory_of": "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs.",
         "watch": "Follow a directory outside the project the way a run follows the project: a script loaded from it hot reloads when its file changes. A script hears each burst of changes once with `events::listen(this.node, \"files_changed\")`, as `on_files_changed(paths)`, each path spelled from `directory` and with one of `extensions`, or any file when that is empty. An empty list is more than the watcher could name, so what is held has to be checked again. Answers false where nothing can be followed: a pack, a browser, a run with watching off. The directory has to be one `fs` may reach."
       },
@@ -21240,7 +21092,7 @@
         "read": "A whole file as text, project-relative unless absolute and found inside the pack in a packed run; nil when it cannot be read.",
         "remove": "Delete a project-relative file, or a directory and everything under it; false when there was nothing there.",
         "rename": "Move a project-relative file or directory, creating the destination's parent first.",
-        "write": "Write text to a project-relative file, creating the directory it goes in."
+        "write": "Write text to a project-relative file, creating the directory it goes in. The text lands in a file beside it, synced, then renamed over it, so a crash mid-write keeps the old file whole."
       },
       "functions": [
         "copy",
@@ -21307,11 +21159,9 @@
           "value": "\"rest\""
         }
       ],
-      "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).",
+      "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; a `login`, `rest` or `reply` answer carries `ms`, its round trip in milliseconds, recorded with it. What a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).",
       "docs": {
-        "activity": "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it.",
         "call_hook": "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`.",
-        "clear_activity": "Forget the calls and messages `activity` holds.",
         "close": "Shut the socket down; false when the connection was already gone.",
         "configure": "Point the plugin at another server and answer its url; with none, the one `server` answers. The first call that reaches a server does this on its own.",
         "connect": "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up.",
@@ -21331,9 +21181,7 @@
         "session": "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."
       },
       "functions": [
-        "activity",
         "call_hook",
-        "clear_activity",
         "close",
         "configure",
         "connect",
@@ -21354,9 +21202,7 @@
       ],
       "name": "gamend",
       "signatures": {
-        "activity": "() -> [gamend::Entry]",
         "call_hook": "(int, str, str, any) -> int",
-        "clear_activity": "()",
         "close": "(int) -> bool",
         "configure": "(str?) -> str",
         "connect": "(Node?, events::ListenOptions?) -> int",
@@ -23684,18 +23530,6 @@
           "value": "\"multiply\""
         },
         {
-          "name": "DRIVE_FOLLOW",
-          "value": "\"follow\""
-        },
-        {
-          "name": "DRIVE_MOTORS",
-          "value": "\"motors\""
-        },
-        {
-          "name": "DRIVE_NONE",
-          "value": "\"none\""
-        },
-        {
           "name": "EDGES_CHAIN",
           "value": "\"chain\""
         },
@@ -24095,7 +23929,6 @@
         "potential_energy": "The body's gravitational potential energy over one step.",
         "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
         "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
-        "ragdoll": "Build a 2D ragdoll from the rig under this node: a body and a shape per bone, hinged to its parent's with the hinge's zero at the pose the rig is in. Options as in 3D, with `shape` one of `capsule`, `rectangle` or `circle` and `axes` records on `rotation`. Answers the body nodes it made.",
         "raycast": "The first collider a ray meets, or nothing.",
         "raycast_all": "Every collider a ray meets, nearest first.",
         "remove_joint": "Undo the node's joint, leaving both bodies free.",
@@ -24227,7 +24060,6 @@
         "potential_energy",
         "predict_position",
         "predict_position_with_forces",
-        "ragdoll",
         "raycast",
         "raycast_all",
         "remove_joint",
@@ -24360,7 +24192,6 @@
         "potential_energy": "(Node) -> float",
         "predict_position": "(Node, float) -> physics2d::Pose",
         "predict_position_with_forces": "(Node, float) -> physics2d::Pose",
-        "ragdoll": "(Node, physics2d::RagdollOptions?) -> [Node]",
         "raycast": "(physics2d::RayQuery) -> physics2d::Hit?",
         "raycast_all": "(physics2d::RayQuery) -> [physics2d::Hit]",
         "remove_joint": "(Node)",
@@ -24932,18 +24763,6 @@
           "value": "\"multiply\""
         },
         {
-          "name": "DRIVE_FOLLOW",
-          "value": "\"follow\""
-        },
-        {
-          "name": "DRIVE_MOTORS",
-          "value": "\"motors\""
-        },
-        {
-          "name": "DRIVE_NONE",
-          "value": "\"none\""
-        },
-        {
           "name": "EDGES_CHAIN",
           "value": "\"chain\""
         },
@@ -25347,7 +25166,6 @@
         "potential_energy": "The body's gravitational potential energy over one step.",
         "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
         "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
-        "ragdoll": "Build a 3D ragdoll from the rig under this node: a body and a shape per bone, held to its parent's by a ball socket whose zero is the pose the rig is in. Options: `shape` (`capsule`, `box` or `sphere`), `thickness` (the capsule's radius and the box's half width, as a fraction of bone length), `density`, `friction`, `restitution`, `collision_layer` and `collision_mask` (layer numbers) for the shapes; `linear_damping`, `angular_damping`, `gravity_scale` and `continuous_collision` for the bodies; `axes` (joint3d `axes` records, on `rotation_x`, `rotation_y`, `rotation_z`: twist and swing limits), `articulation` and `collide_connected` for the joints; `drive` (`none`, or `motors`: a position motor on every turn towards the built pose, of `stiffness` 100 and `damping` 20 unless given; or `follow`: a `follow3d` on every body towards its bone, so the bodies chase the clip, its keys in a `follow` table); `influence`; and `parent`, the node the bodies' container is kept under, the root unless given. Answers the body nodes it made.",
         "raycast": "The first collider a ray meets, or nothing.",
         "raycast_all": "Every collider a ray meets, nearest first.",
         "remove_joint": "Undo the node's joint, leaving both bodies free.",
@@ -25408,7 +25226,7 @@
         "time_of_impact": "When two moving colliders would meet, given each one's velocity. Nothing when they never do.",
         "time_since_can_sleep": "Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.",
         "total_inertia": "The body's resistance to spin about each of its principal axes, colliders included.",
-        "total_inertia_rotation": "How those principal axes are turned in the body's own space, as Euler radians, x first.",
+        "total_inertia_rotation": "How those principal axes are turned in the body's own space, as Euler radians as `rotation_euler` reads them.",
         "total_mass": "The body's total mass: its `mass` when it states one, or what its colliders weigh.",
         "unpin_particle": "Let a held particle go; it keeps the velocity it had.",
         "vehicle_speed": "How fast the chassis is going along its forward axis, in units per second.",
@@ -25488,7 +25306,6 @@
         "potential_energy",
         "predict_position",
         "predict_position_with_forces",
-        "ragdoll",
         "raycast",
         "raycast_all",
         "remove_joint",
@@ -25630,7 +25447,6 @@
         "potential_energy": "(Node) -> float",
         "predict_position": "(Node, float) -> physics3d::Pose",
         "predict_position_with_forces": "(Node, float) -> physics3d::Pose",
-        "ragdoll": "(Node, physics3d::RagdollOptions?) -> [Node]",
         "raycast": "(physics3d::RayQuery) -> physics3d::Hit?",
         "raycast_all": "(physics3d::RayQuery) -> [physics3d::Hit]",
         "remove_joint": "(Node)",
@@ -25816,7 +25632,7 @@
         "pick_directory": "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
         "recent": "The projects opened on this machine, newest first: `{ path, name, opened, exists }` each, where `opened` is a Unix time in seconds and `exists` says whether the folder is still there.",
         "system_fonts": "The faces this machine has installed, by family and style: what the font picker offers to copy into a project, since an exported game cannot count on a face being installed. Empty in a browser tab.",
-        "use_data": "Keep `save::` slots and the device id in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share saves and a device login. Nil goes back to the editor's own. Answers the directory, or nil.",
+        "use_data": "Answer `engine::user_data_directory()` with the user data directory of the game named `name`, keep the device id there, and let `fs` reach it, so a game played here and run alone share saves and a device login. The editor names its own folder with `engine::user_data_directory_of`. Nil goes back to the editor's own. Answers the directory, or nil.",
         "version": "The version of the binary the editor is running in."
       },
       "functions": [
@@ -26438,37 +26254,6 @@
       "signatures": {
         "input": "(int) -> any",
         "is_resimulating": "() -> bool"
-      }
-    },
-    {
-      "acts_on": {},
-      "components": [],
-      "constants": [],
-      "doc": "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate_script` names the script whose `migrate_save(version, data)` upgrades older ones.",
-      "docs": {
-        "directory": "The directory slots are kept in, not created until something is written.",
-        "read": "The table in a slot, brought forward to this build's version; nil when the slot was never written. An error when the file was written by a newer build, or when it needs a migration the project declares no script for.",
-        "remove": "Delete a slot. Not an error when it was not there.",
-        "slots": "Every slot that has been written, in name order.",
-        "version": "The save version this build writes, from `[save] version`.",
-        "write": "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one. A script hears this and every `remove` with `events::listen(this.node, \"saved\")`, as `on_saved(count)`."
-      },
-      "functions": [
-        "directory",
-        "read",
-        "remove",
-        "slots",
-        "version",
-        "write"
-      ],
-      "name": "save",
-      "signatures": {
-        "directory": "() -> str",
-        "read": "(str) -> any",
-        "remove": "(str)",
-        "slots": "() -> [str]",
-        "version": "() -> int",
-        "write": "(str, any)"
       }
     },
     {
@@ -27717,28 +27502,6 @@
     },
     {
       "host": false,
-      "path": "save/version",
-      "scope": "project",
-      "spec": {
-        "default": 1,
-        "help": "The save version this build writes. A lower file is migrated; a higher one is refused.",
-        "max": 9999,
-        "min": 1,
-        "type": "int"
-      }
-    },
-    {
-      "host": false,
-      "path": "save/migrate_script",
-      "scope": "project",
-      "spec": {
-        "default": "",
-        "help": "A script whose migrate_save(version, data) brings a file forward one version per call.",
-        "type": "string"
-      }
-    },
-    {
-      "host": false,
       "path": "locale/initial",
       "scope": "project",
       "spec": {
@@ -28196,29 +27959,6 @@
         ],
         "order": 4,
         "type": "enum"
-      }
-    },
-    {
-      "host": false,
-      "path": "gamend/cloud",
-      "scope": "editor",
-      "spec": {
-        "default": "https://gamend.org",
-        "help": "Where your Gamend Cloud account is: the Gamend dock lists your servers from it.",
-        "order": 5,
-        "type": "string"
-      }
-    },
-    {
-      "host": false,
-      "path": "gamend/cloud_token",
-      "scope": "editor",
-      "spec": {
-        "default": "",
-        "help": "What the Gamend dock got when you connected it to your Gamend Cloud account. Kept in the editor's own file; empty disconnects it.",
-        "order": 6,
-        "secret": true,
-        "type": "string"
       }
     },
     {

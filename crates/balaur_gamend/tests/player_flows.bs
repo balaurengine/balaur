@@ -2,6 +2,8 @@
 // calls it. `player_flows.rs` fills the `@...@` slots: player B signed in
 // there and answers over plain `http::request`.
 
+use addons::gamend::activity;
+use addons::gamend::auth;
 use addons::gamend::authentication;
 use addons::gamend::chat;
 use addons::gamend::client;
@@ -446,11 +448,39 @@ async fn realtime(r: Run, me: str) {
     let args: [any] = ["hi"];
     let hook = await task::wait(gamend::call_hook(r.socket, "sdk_probe", "echo", args));
     check(r, "hook_after", same(hook["status"], "error"));
+    // The addon's own log: each call `core` sent, timed, and what `route` heard.
+    let rows = activity::rows();
+    check(r, "logged", timed(rows, "rest", "POST /api/v1/lobbies") && timed(rows, "join", "lobby:" + id) && noted(rows, "reconnecting"));
+    check(r, "unlogged", !noted(rows, "hook"));
+    auth::keep({ "access_token": "kept-{TAG}" });
+    check(r, "kept", same(auth::saved()["access_token"], "kept-{TAG}"));
+    auth::forget();
+    check(r, "forgot", auth::saved() == nil);
     client::close(r.socket);
     let closed = await heard(r, "routed_socket_closed");
     check(r, "closed", closed);
     await call0(r, "leave", lobbies::leave_lobby);
     await goodbye(r, me);
+}
+
+/// Whether the log holds a finished `kind` row for `what`, with its round trip.
+fn timed(rows: [activity::Entry], kind: str, what: str) -> bool {
+    for row in rows {
+        if row.kind == kind && row.what == what && row.status != activity::WAITING && row.ms != nil {
+            return row.ms.unwrap() > 0.0;
+        }
+    }
+    false
+}
+
+/// Whether the log holds any row of `kind`.
+fn noted(rows: [activity::Entry], kind: str) -> bool {
+    for row in rows {
+        if row.kind == kind {
+            return true;
+        }
+    }
+    false
 }
 
 /// A player the host kicks loses the lobby's channel, which the server

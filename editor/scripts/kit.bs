@@ -64,9 +64,9 @@ pub fn relay(data: any, value: any) {
     }
 }
 
-/// Point `save::` at the game's own user data directory, and let `fs` reach
-/// it, so a game played here and the same game run alone keep one set of
-/// saves, and the User data dock can open them.
+/// Point `engine::user_data_directory()` at the game's own, and let `fs`
+/// reach it, so a game played here and the same game run alone keep one set
+/// of saves, and the User data dock can open them.
 pub fn adopt_game_data(state: editor::State) {
     if state.game_root == "" {
         project::use_data(nil);

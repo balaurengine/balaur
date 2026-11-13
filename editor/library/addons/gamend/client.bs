@@ -1,6 +1,8 @@
 // The session, the socket and the server's hooks over `gamend::`. Rows,
 // topics and keys live in the script store, so every script sees one cache.
 
+use activity;
+use auth;
 use core;
 use events;
 use events::user;
@@ -10,6 +12,8 @@ use users;
 use lobbies;
 
 const CLOSED: str = "closed";
+const ERROR: str = "error";
+const REASON: str = "reason";
 const MESSAGE: str = "message";
 const OPEN: str = "open";
 const RECONNECTING: str = "reconnecting";
@@ -18,7 +22,9 @@ const FAILED: str = "failed";
 const KEY: str = "key";
 const KIND: str = "kind";
 const PAYLOAD: str = "payload";
-const USER: str = "user";
+const SOCKET: str = "socket";
+const TOPIC: str = "topic";
+const EVENT: str = "event";
 const USERNAME: str = "username";
 
 /// A hook's reply: what the call answered, or why it did not.
@@ -69,12 +75,12 @@ pub fn plugin() -> str {
 /// Open a session from a device id. The returned id awaits a reply of
 /// `kind = "login"`.
 pub fn login_device(device_id: str) -> int {
-    gamend::login(gamend::Credentials { device_id: device_id })
+    core::login(gamend::Credentials { device_id: device_id }, "device")
 }
 
 /// Open a session from an email and a password.
 pub fn login_email(email: str, password: str) -> int {
-    gamend::login(gamend::Credentials { email: email, password: password })
+    core::login(gamend::Credentials { email: email, password: password }, email)
 }
 
 /// Make an account from an email, with no password yet. Not a sign-in, as
@@ -102,7 +108,7 @@ pub fn resend_confirmation(email: str) -> int {
 /// connection comes back on its own and joins its topics again: `route`
 /// hands the node `on_socket_reconnecting`, then `on_socket_reopened`.
 pub fn connect(node: Node) -> int {
-    gamend::connect(node)
+    core::connect(node)
 }
 
 /// Hand an event to the node's own handler for it. A server message goes to
@@ -110,17 +116,21 @@ pub fn connect(node: Node) -> int {
 /// with the decoded event; the socket's own to `on_socket_<kind>` (`open`,
 /// `reconnecting`, `reopened`, `closed`, `error`); a call's result to
 /// `on_<kind>`. Call it from `on_gamend_event`; answers whether a handler
-/// took the event.
+/// took the event. What it routes is kept in the activity log.
 pub fn route(node: Node, e: any) -> bool {
     let kind = e[KIND].text();
-    let socket = e.has("socket");
+    let socket = e.has(SOCKET);
     if socket {
         note_socket(kind);
+        keep_socket_event(kind, e);
+        if kind == REOPENED {
+            subscribe_again(e[SOCKET].as_int());
+        }
     }
     let event = e;
     let method = if socket { "on_socket_" + kind } else { "on_" + kind };
     if kind == MESSAGE {
-        event = events::decode(e["topic"].text(), e["event"].text(), e[PAYLOAD]);
+        event = events::decode(e[TOPIC].text(), e[EVENT].text(), e[PAYLOAD]);
         method = "on_" + event[KIND].text();
     }
     if !node.has_method(method) {
@@ -132,6 +142,7 @@ pub fn route(node: Node, e: any) -> bool {
 
 pub fn close(socket: int) -> bool {
     script::store(TOPICS_KEY, {});
+    script::store(KEYS_KEY, {});
     gamend::close(socket)
 }
 
@@ -144,13 +155,13 @@ pub fn join(socket: int, topic: str) -> int {
         held.push(topic);
         script::store(TOPICS_KEY, held);
     }
-    gamend::join(socket, topic)
+    core::join(socket, topic)
 }
 
 /// Leave a topic and drop it from the record.
 pub fn leave(socket: int, topic: str) -> int {
     script::store(TOPICS_KEY, without(joined(), topic));
-    gamend::leave(socket, topic)
+    core::leave(socket, topic)
 }
 
 /// Every topic this session joined, in the order it joined them.
@@ -164,7 +175,7 @@ pub async fn call(socket: int, name: str, args: any) -> HookReply {
     if socket <= 0 {
         return HookReply { ok: false, data: nil, error: "gamend: {name} needs a connection" };
     }
-    let reply = await task::wait(gamend::call_hook(socket, plugin(), name, args));
+    let reply = await task::wait(core::call_hook(socket, plugin(), name, args));
     unpack_hook(name, reply)
 }
 
@@ -175,7 +186,7 @@ pub fn send(socket: int, name: str, args: any) -> bool {
     if socket <= 0 {
         return false;
     }
-    gamend::push(socket, USER, "hook", { "plugin": plugin(), "fn": name, "args": args }) > 0
+    core::call_hook(socket, plugin(), name, args) > 0
 }
 
 /// A hook reply as a `HookReply`.
@@ -193,7 +204,8 @@ pub fn unpack_hook(name: str, reply: any) -> HookReply {
 }
 
 /// Subscribe to a key-value row and keep it. The server pushes `kv_updated`
-/// when it changes, which `absorb` files into the cache.
+/// when it changes, which `absorb` files into the cache. A dropped connection
+/// subscribes it again when `route` sees the socket reopen.
 pub fn register_kv(socket: int, key: str) -> bool {
     if socket <= 0 {
         return false;
@@ -203,7 +215,7 @@ pub fn register_kv(socket: int, key: str) -> bool {
         held.push(key);
         script::store(KEYS_KEY, held);
     }
-    gamend::push(socket, USER, "kv:subscribe", { KEY: key }) > 0
+    core::push(socket, user_topic(), "kv:subscribe", { KEY: key }) > 0
 }
 
 pub fn unregister_kv(socket: int, key: str) -> bool {
@@ -211,7 +223,7 @@ pub fn unregister_kv(socket: int, key: str) -> bool {
         return false;
     }
     script::store(KEYS_KEY, without(registered(), key));
-    gamend::push(socket, USER, "kv:unsubscribe", { KEY: key }) > 0
+    core::push(socket, user_topic(), "kv:unsubscribe", { KEY: key }) > 0
 }
 
 /// Every key this session subscribed, in the order it asked for them.
@@ -365,6 +377,35 @@ pub fn fail_network() {
 pub fn retry_network(socket: int) -> bool {
     script::store(NETWORK_KEY, RECONNECTING);
     gamend::interrupt(socket)
+}
+
+/// The session's own channel, which `connect` joins before reporting `open`.
+fn user_topic() -> str {
+    "user:" + auth::user_id()
+}
+
+/// A channel the server brought back holds none of the last one's
+/// subscriptions, so every key is asked for again.
+fn subscribe_again(socket: int) {
+    for key in registered() {
+        core::push(socket, user_topic(), "kv:subscribe", { KEY: key });
+    }
+}
+
+/// What the socket said on its own, for the activity log: a message, a drop
+/// and the way back, or its end. Its `open` is the reply to `connect`.
+fn keep_socket_event(kind: str, e: any) {
+    if kind == MESSAGE {
+        activity::noted(kind, e[TOPIC].text() + " " + e[EVENT].text(), e[PAYLOAD]);
+    } else if kind == RECONNECTING {
+        activity::noted(kind, "try {e["attempt"].as_int()} in {e["wait"].as_float()}s: {e[REASON].text()}", nil);
+    } else if kind == REOPENED {
+        let lost = e["lost"];
+        let what = if lost.len() == 0 { "every topic joined again" } else { "refused again: " + json::encode(lost) };
+        activity::noted(kind, what, nil);
+    } else if kind == CLOSED || kind == ERROR {
+        activity::noted(kind, e[REASON].text(), nil);
+    }
 }
 
 fn note_socket(kind: str) {

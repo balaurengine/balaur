@@ -44,6 +44,7 @@ pub(crate) mod words {
 #[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod keys {
     pub(crate) const KIND: &str = "kind";
+    pub(crate) const MS: &str = "ms";
     pub(crate) const REASON: &str = "reason";
     pub(crate) const REQUEST: &str = "request";
     pub(crate) const SOCKET: &str = "socket";

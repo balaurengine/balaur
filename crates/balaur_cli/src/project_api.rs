@@ -207,7 +207,7 @@ fn describe_project_api(m: &mut Module<Engine>) {
             USE_DATA,
             &[],
             "(name: string?) -> string?",
-            "Keep `save::` slots and the device id in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share saves and a device login. Nil goes back to the editor's own. Answers the directory, or nil.",
+            "Answer `engine::user_data_directory()` with the user data directory of the game named `name`, keep the device id there, and let `fs` reach it, so a game played here and run alone share saves and a device login. The editor names its own folder with `engine::user_data_directory_of`. Nil goes back to the editor's own. Answers the directory, or nil.",
         ),
     ]);
 }
@@ -312,7 +312,7 @@ fn install_project_verbs(m: &mut Module<Engine>) {
             balaur::file_api::add_root(eng, &dir);
             dir
         });
-        balaur::save::set_home(eng, home.clone());
+        balaur::engine_api::set_data_home(eng, home.clone());
         balaur::facts::reread(eng);
         Ok(home.map_or(Value::Nil, |dir| {
             Value::Str(dir.to_string_lossy().into_owned())

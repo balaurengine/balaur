@@ -168,8 +168,16 @@ needs = ["scripts/platformer_rig.bs"]
 note = "Left, right and jump in 2D, with a camera that trails the player."
 
 [[entries]]
+id = "save"
+kind = "addon"
+name = "Save games"
+file = "addons/save"
+note = "A table per slot in the player's folder, versioned, and brought forward when older."
+
+[[entries]]
 id = "gamend"
 kind = "addon"
 name = "Gamend"
 file = "addons/gamend"
+needs = ["addons/save"]
 note = "The Gamend backend: every operation, the realtime events, sign-in and the hook calls."

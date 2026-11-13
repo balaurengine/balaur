@@ -70,9 +70,10 @@ pub(crate) fn spawn_login(
 ) {
     let events = events.clone();
     let credentials = Credentials::from(credentials);
+    let started = started();
     client.run(move |client| {
         let outcome = auth::login(client, &credentials).map_err(|err| err.to_string());
-        balaur_core::replay::report(&events, GamendEvent::logged_in(request, outcome));
+        balaur_core::replay::report(&events, GamendEvent::logged_in(request, outcome, started));
     });
 }
 
@@ -85,12 +86,23 @@ pub(crate) fn spawn_rest(
     events: &Sender<GamendEvent>,
 ) {
     let events = events.clone();
+    let started = started();
     client.run(move |client| {
         let outcome = client
             .call(&method, &path, body.as_ref())
             .map_err(|err| err.to_string());
-        balaur_core::replay::report(&events, GamendEvent::rest_done(request, outcome));
+        balaur_core::replay::report(&events, GamendEvent::rest_done(request, outcome, started));
     });
+}
+
+/// When a call was made, so its reply says how long it took, the wait in the
+/// queue included.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a round trip recorded with its reply, never read by a tick"
+)]
+fn started() -> balaur_core::time::Instant {
+    balaur_core::time::Instant::now()
 }
 
 /// Trade the refresh token for a new session, answering on `done`.

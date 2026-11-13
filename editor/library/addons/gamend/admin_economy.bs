@@ -9,7 +9,7 @@
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
 // left out when the call has nothing to put in it. It answers the id
-// `gamend::rest` answers, to await with `task::wait`. With a path
+// `core::rest` answers, to await with `task::wait`. With a path
 // parameter empty or a required field left out it sends nothing and
 // logs which, and the id answers an `error` naming it.
 
@@ -18,7 +18,7 @@ use core;
 /// Consume items from a user (admin)
 /// `POST /api/v1/admin/economy/consume_item`
 pub fn consume_item() -> int {
-    gamend::rest("POST", "/api/v1/admin/economy/consume_item")
+    core::rest("POST", "/api/v1/admin/economy/consume_item")
 }
 
 /// Grant currency to a user (admin)
@@ -33,7 +33,7 @@ pub fn grant_currency(params: any) -> int {
     if !core::given(params, "amount") {
         return core::missing("gamend::admin_economy::grant_currency", "amount");
     }
-    gamend::rest("POST", "/api/v1/admin/economy/grant", params)
+    core::rest("POST", "/api/v1/admin/economy/grant", params)
 }
 
 /// Grant items to a user (admin)
@@ -48,28 +48,28 @@ pub fn grant_item(params: any) -> int {
     if !core::given(params, "quantity") {
         return core::missing("gamend::admin_economy::grant_item", "quantity");
     }
-    gamend::rest("POST", "/api/v1/admin/economy/grant_item", params)
+    core::rest("POST", "/api/v1/admin/economy/grant_item", params)
 }
 
 /// List inventory item stacks (admin)
 /// `GET /api/v1/admin/economy/items`
 pub fn list_inventory(options: any) -> int {
     let query = core::query(options, ["user_id", "item", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/economy/items{query}")
+    core::rest("GET", "/api/v1/admin/economy/items{query}")
 }
 
 /// List ledger entries (admin)
 /// `GET /api/v1/admin/economy/ledger`
 pub fn list_ledger(options: any) -> int {
     let query = core::query(options, ["user_id", "currency", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/economy/ledger{query}")
+    core::rest("GET", "/api/v1/admin/economy/ledger{query}")
 }
 
 /// List wallets (admin)
 /// `GET /api/v1/admin/economy/wallets`
 pub fn list_wallets(options: any) -> int {
     let query = core::query(options, ["user_id", "currency", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/economy/wallets{query}")
+    core::rest("GET", "/api/v1/admin/economy/wallets{query}")
 }
 
 /// Spend currency from a user (admin)
@@ -84,5 +84,5 @@ pub fn spend_currency(params: any) -> int {
     if !core::given(params, "amount") {
         return core::missing("gamend::admin_economy::spend_currency", "amount");
     }
-    gamend::rest("POST", "/api/v1/admin/economy/spend", params)
+    core::rest("POST", "/api/v1/admin/economy/spend", params)
 }

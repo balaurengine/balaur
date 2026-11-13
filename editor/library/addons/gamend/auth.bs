@@ -1,6 +1,7 @@
 // Signing in and staying signed in: a device id, an email, or an OAuth
 // session asked after until it resolves, then kept in a `save::` slot.
 
+use addons::save::save;
 use core;
 use authentication;
 
@@ -139,7 +140,7 @@ fn data_of(body: any) -> any {
 }
 
 /// Keep a session for the next run. Not `save`: a function of that name
-/// would read as the engine's `save::` module.
+/// would read as the save addon's `save::` module.
 pub fn keep(session: any) {
     save::write(SLOT, session);
 }

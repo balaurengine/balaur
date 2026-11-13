@@ -9,7 +9,7 @@
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
 // left out when the call has nothing to put in it. It answers the id
-// `gamend::rest` answers, to await with `task::wait`. With a path
+// `core::rest` answers, to await with `task::wait`. With a path
 // parameter empty or a required field left out it sends nothing and
 // logs which, and the id answers an `error` naming it.
 
@@ -24,13 +24,25 @@ pub fn claim_quest(params: any) -> int {
     if !core::given(params, "key") {
         return core::missing("gamend::admin_quests::claim_quest", "key");
     }
-    gamend::rest("POST", "/api/v1/admin/quests/claim", params)
+    core::rest("POST", "/api/v1/admin/quests/claim", params)
 }
 
 /// Create quest (admin)
 /// `POST /api/v1/admin/quests`
 pub fn create_quest(params: any) -> int {
-    gamend::rest("POST", "/api/v1/admin/quests", params)
+    core::rest("POST", "/api/v1/admin/quests", params)
+}
+
+/// Add one redemption code with a chosen token (admin)
+/// `POST /api/v1/admin/quests/{id}/codes`
+pub fn create_quest_code(id: str, params: any) -> int {
+    if id == "" {
+        return core::missing("gamend::admin_quests::create_quest_code", "id");
+    }
+    if !core::given(params, "token") {
+        return core::missing("gamend::admin_quests::create_quest_code", "token");
+    }
+    core::rest("POST", "/api/v1/admin/quests/{id}/codes", params)
 }
 
 /// Delete quest and all user progress (admin)
@@ -39,7 +51,19 @@ pub fn delete_quest(id: str) -> int {
     if id == "" {
         return core::missing("gamend::admin_quests::delete_quest", "id");
     }
-    gamend::rest("DELETE", "/api/v1/admin/quests/{id}")
+    core::rest("DELETE", "/api/v1/admin/quests/{id}")
+}
+
+/// Generate random redemption codes (admin)
+/// `POST /api/v1/admin/quests/{id}/codes/generate`
+pub fn generate_quest_codes(id: str, params: any) -> int {
+    if id == "" {
+        return core::missing("gamend::admin_quests::generate_quest_codes", "id");
+    }
+    if !core::given(params, "count") {
+        return core::missing("gamend::admin_quests::generate_quest_codes", "count");
+    }
+    core::rest("POST", "/api/v1/admin/quests/{id}/codes/generate", params)
 }
 
 /// Force-complete a quest for a user (admin)
@@ -51,21 +75,31 @@ pub fn grant_quest(params: any) -> int {
     if !core::given(params, "key") {
         return core::missing("gamend::admin_quests::grant_quest", "key");
     }
-    gamend::rest("POST", "/api/v1/admin/quests/grant", params)
+    core::rest("POST", "/api/v1/admin/quests/grant", params)
+}
+
+/// List a quest's redemption codes (admin)
+/// `GET /api/v1/admin/quests/{id}/codes`
+pub fn list_quest_codes(id: str, options: any) -> int {
+    if id == "" {
+        return core::missing("gamend::admin_quests::list_quest_codes", "id");
+    }
+    let query = core::query(options, ["search", "page", "page_size"]);
+    core::rest("GET", "/api/v1/admin/quests/{id}/codes{query}")
 }
 
 /// List quest progress rows (admin)
 /// `GET /api/v1/admin/quests/progress`
 pub fn list_quest_progress(options: any) -> int {
     let query = core::query(options, ["user_id", "quest_key", "status", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/quests/progress{query}")
+    core::rest("GET", "/api/v1/admin/quests/progress{query}")
 }
 
 /// List all quest definitions (admin, includes inactive/hidden)
 /// `GET /api/v1/admin/quests`
 pub fn list_quests(options: any) -> int {
     let query = core::query(options, ["category", "search", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/quests{query}")
+    core::rest("GET", "/api/v1/admin/quests{query}")
 }
 
 /// Per-status progress counts for one quest (admin)
@@ -74,7 +108,7 @@ pub fn quest_funnel(key: str) -> int {
     if key == "" {
         return core::missing("gamend::admin_quests::quest_funnel", "key");
     }
-    gamend::rest("GET", "/api/v1/admin/quests/{key}/funnel")
+    core::rest("GET", "/api/v1/admin/quests/{key}/funnel")
 }
 
 /// Request an upload ticket for a quest icon (admin)
@@ -86,7 +120,7 @@ pub fn quest_icon_upload_url(id: str, params: any) -> int {
     if !core::given(params, "content_type") {
         return core::missing("gamend::admin_quests::quest_icon_upload_url", "content_type");
     }
-    gamend::rest("POST", "/api/v1/admin/quests/{id}/icon/upload_url", params)
+    core::rest("POST", "/api/v1/admin/quests/{id}/icon/upload_url", params)
 }
 
 /// Reset a user's current-period quest progress (admin)
@@ -98,7 +132,7 @@ pub fn reset_quest(params: any) -> int {
     if !core::given(params, "key") {
         return core::missing("gamend::admin_quests::reset_quest", "key");
     }
-    gamend::rest("POST", "/api/v1/admin/quests/reset", params)
+    core::rest("POST", "/api/v1/admin/quests/reset", params)
 }
 
 /// Confirm an uploaded quest icon (admin)
@@ -110,7 +144,7 @@ pub fn set_quest_icon(id: str, params: any) -> int {
     if !core::given(params, "key") {
         return core::missing("gamend::admin_quests::set_quest_icon", "key");
     }
-    gamend::rest("POST", "/api/v1/admin/quests/{id}/icon", params)
+    core::rest("POST", "/api/v1/admin/quests/{id}/icon", params)
 }
 
 /// Update quest (admin)
@@ -119,5 +153,17 @@ pub fn update_quest(id: str, params: any) -> int {
     if id == "" {
         return core::missing("gamend::admin_quests::update_quest", "id");
     }
-    gamend::rest("PATCH", "/api/v1/admin/quests/{id}", params)
+    core::rest("PATCH", "/api/v1/admin/quests/{id}", params)
+}
+
+/// Revoke or restore a redemption code (admin)
+/// `PATCH /api/v1/admin/quest_codes/{id}`
+pub fn update_quest_code(id: str, params: any) -> int {
+    if id == "" {
+        return core::missing("gamend::admin_quests::update_quest_code", "id");
+    }
+    if !core::given(params, "status") {
+        return core::missing("gamend::admin_quests::update_quest_code", "status");
+    }
+    core::rest("PATCH", "/api/v1/admin/quest_codes/{id}", params)
 }
