@@ -102,6 +102,30 @@ fn an_out_of_range_button_does_not_panic() {
 }
 
 #[test]
+fn the_first_position_and_the_way_back_in_move_nothing() {
+    let mut input = InputSnapshot::default();
+    input.begin_frame();
+    input.set_mouse_pos(400.0, 300.0);
+    assert_eq!(
+        input.mouse_delta(),
+        (0.0, 0.0),
+        "the first position is a jump from (0, 0)"
+    );
+    input.set_mouse_pos(405.0, 300.0);
+    assert_eq!(input.mouse_delta(), (5.0, 0.0));
+
+    input.begin_frame();
+    input.mouse_exited();
+    input.set_mouse_pos(0.0, 120.0);
+    assert_eq!(
+        input.mouse_delta(),
+        (0.0, 0.0),
+        "coming back in at another edge is a jump"
+    );
+    assert_eq!(input.mouse_pos(), (0.0, 120.0));
+}
+
+#[test]
 fn mouse_delta_is_per_frame_and_position_is_absolute() {
     let mut input = InputSnapshot::default();
     input.set_mouse_pos(10.0, 10.0);
@@ -151,4 +175,42 @@ fn scroll_accumulates_within_a_frame_and_resets_between() {
     );
     input.begin_frame();
     assert_eq!(input.scroll_delta(), (0.0, 0.0), "scroll did not reset");
+}
+
+#[test]
+fn a_held_cursor_moves_by_its_raw_motion_alone() {
+    let mut input = InputSnapshot::default();
+    input.begin_frame();
+    input.set_mouse_pos(300.0, 200.0);
+    input.begin_frame();
+    input.hold_mouse(true);
+    input.add_mouse_motion(4.0, -2.0);
+    input.set_mouse_pos(302.0, 200.0);
+    input.add_mouse_motion(1.0, 0.5);
+    assert_eq!(
+        input.mouse_delta(),
+        (5.0, -1.5),
+        "the position's own move is not counted"
+    );
+    input.begin_frame();
+    input.hold_mouse(false);
+    input.set_mouse_pos(600.0, 400.0);
+    assert_eq!(
+        input.mouse_delta(),
+        (0.0, 0.0),
+        "released, the jump to the cursor is not a move"
+    );
+}
+
+#[test]
+fn the_mouse_is_outside_from_leaving_until_it_next_moves_in() {
+    let mut input = InputSnapshot::default();
+    input.begin_frame();
+    input.set_mouse_pos(10.0, 10.0);
+    assert!(input.mouse_inside());
+    input.mouse_exited();
+    input.begin_frame();
+    assert!(!input.mouse_inside(), "a frame later it is still outside");
+    input.set_mouse_pos(0.0, 50.0);
+    assert!(input.mouse_inside());
 }

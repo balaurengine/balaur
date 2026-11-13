@@ -589,6 +589,7 @@ fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
     // Beside the pack: this executable is the CLI, not the game.
     config.extensions = Some(pack.with_file_name(balaur::standalone::EXTENSIONS_DIR));
     let mut app = balaur::standard_app(config)?;
+    balaur::seed_device(&app);
     app.load_project()?;
     if let Some(frames) = frames {
         for _ in 0..frames {
@@ -771,11 +772,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     if let Some(scene) = scene {
         app.set_main_scene(scene.clone());
     }
-    // Before the project loads: a script that themes itself in `init` asks
-    // for this, and the frame that publishes it has not run yet.
-    balaur_core::facts::update_device(&app.engine, |facts| {
-        facts.dark_mode = balaur::render::dark_mode();
-    });
+    balaur::seed_device(&app);
     if *touch {
         pretend_touchscreen(&app);
     }
@@ -825,7 +822,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         // The game's own window size, so a shot is framed as a player sees it:
         // a portrait phone game rendered 16:9 is a picture of the wrong game.
         // `--size` is for the shot that is not the game's screen: a poster.
-        let window = balaur_core::project::WindowSettings::from_settings(&app.engine);
+        let window = balaur_core::project::WindowSettings::of(&app.engine);
         let (width, height) = size.unwrap_or((window.width, window.height));
         balaur::run_offscreen(app, &title, width, height)
     } else {
@@ -989,6 +986,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     }
     // Before the project loads: the editor's scripts read the platform at
     // init, and a fact that lands after that is a frame of the wrong shell.
+    balaur::seed_device(&app);
     if *touch {
         pretend_touchscreen(&app);
     }

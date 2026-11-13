@@ -90,6 +90,24 @@ Where a `balaur run` puts its frames, chosen once at start. Source: `balaur_cli/
 | 1 | `engine.quit` with an integer outside 32 bits, or any error returned from `main`: a bad `--size`, a port in use, a project that does not load |
 | 2 | A command line clap cannot parse |
 
+### Edited project
+
+The settings an engine runs with, and the manifest of a project it edits rather than runs, as the editor edits the game.
+
+Source: `crates/balaur_core/src/settings.rs`, `SettingsValues` and `EditedProject`.
+
+| State | What is true |
+|---|---|
+| None open | `base`, `edit_set`, `edit_clear`, `overrides` and `to_toml` work on what this run holds. |
+| Open | For a project's setting they work on the edited manifest. This run holds every value in it but a host setting: the window, `[check]`, the application's own files and the `[ui]` class lines. `set` and `clear` change this run only, so a game played in the editor never writes its manifest. |
+
+| From | Trigger | To | What it does |
+|---|---|---|---|
+| any | `settings.edit_project(text)` | Open | Replaces the edited manifest and folds its values, but the host's, into this run's. |
+| Open | `settings.edit_set` or `edit_clear` on a project's setting | Open | Changes the edited manifest, and this run's value unless it is a host setting. |
+
+Starts with none open. Never ends.
+
 ## A frame
 
 `App::advance` runs one frame, and its first question is the replay player's plan.

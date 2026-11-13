@@ -1,6 +1,7 @@
 // The settings screen: every setting the engine, its plugins and this game
 // declare, grouped by the first segment of its path and searchable by any.
 
+use autosave;
 use editor;
 use pool;
 use search;
@@ -23,6 +24,10 @@ use words::verbs;
 
 const EDITOR: str = "editor";
 const PROJECT: str = "project";
+/// The person's UI scale: Settings, ⌘= and ⌘− and the palette all write it.
+pub const UI_SCALE: str = "editor/appearance/ui_scale";
+const WINDOW_WIDTH: str = "window/width";
+const WINDOW_HEIGHT: str = "window/height";
 
 pub class SettingsState {
     at: str,
@@ -89,7 +94,7 @@ pub fn load_files(state: &mut editor::State) {
     if state.game_root != "" {
         let manifest = fs::read(state.game_root + "/project.toml");
         if manifest != nil {
-            settings::merge_toml(manifest.unwrap());
+            settings::edit_project(manifest.unwrap());
         }
     }
     let preferences = fs::read(preferences_path());
@@ -102,6 +107,57 @@ pub fn load_files(state: &mut editor::State) {
 // The editor's own settings are the person's, in the folder every project shares.
 pub fn preferences_path() -> str {
     project::editor_data_directory() + "/editor.toml"
+}
+
+// The size the window last closed at: the person's, as the preferences are.
+fn window_size_path() -> str {
+    project::editor_data_directory() + "/window.toml"
+}
+
+// A run told what to do opens at the stated size, the same on every machine,
+// and a page or a phone takes the screen it is given.
+fn keeps_window_size(state: editor::State) -> bool {
+    let target = engine::target();
+    !autosave::scripted(state) && !target.web && !target.mobile
+}
+
+/// Open at the size the window last closed at. Called from `init`, which runs
+/// before the window opens; a file that does not read leaves the stated size.
+pub fn recall_window_size(state: editor::State) {
+    if !keeps_window_size(state) {
+        return;
+    }
+    let text = fs::read(window_size_path());
+    if text == nil {
+        return;
+    }
+    let kept = toml::parse(text.unwrap());
+    if kept == nil || kept.kind() != types::KIND_MAP {
+        return;
+    }
+    let width = kept[layout_fields::WIDTH];
+    let height = kept[layout_fields::HEIGHT];
+    if width == nil || height == nil || width.kind() != types::KIND_INT || height.kind() != types::KIND_INT {
+        return;
+    }
+    if width.as_int() > 0 && height.as_int() > 0 {
+        settings::set(WINDOW_WIDTH, width.as_int());
+        settings::set(WINDOW_HEIGHT, height.as_int());
+    }
+}
+
+/// Keep the window's size in the logical pixels `[window]` states it in, for
+/// the next run to open at.
+pub fn keep_window_size(state: editor::State) {
+    if !keeps_window_size(state) {
+        return;
+    }
+    let size = ui::window_size();
+    let width = math::round(size.x * ui::scale()) as int;
+    let height = math::round(size.y * ui::scale()) as int;
+    if width > 0 && height > 0 {
+        fs::write(window_size_path(), "{layout_fields::WIDTH} = {width}\n{layout_fields::HEIGHT} = {height}\n");
+    }
 }
 
 // Categories in definition order, project first: a game author looks for what
@@ -441,7 +497,7 @@ fn on_theme_edit_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_override_reset_clicked(state: &mut editor::State, data: any, _value: any) {
-    settings::clear(data[layout_fields::AT].as_str());
+    settings::edit_clear(data[layout_fields::AT].as_str());
     state.settings.dirty = true;
 }
 
@@ -621,7 +677,7 @@ fn split_commas(text: str) -> [str] {
 }
 
 pub fn write(state: &mut editor::State, path: str, value: any) {
-    settings::set(path, value);
+    settings::edit_set(path, value);
     state.settings.dirty = true;
     apply(state);
     window::changed(state);
@@ -634,10 +690,7 @@ pub fn apply(state: &mut editor::State) {
     if theme_name.kind() == types::KIND_STRING {
         theme::use_named(state, theme_name.as_str());
     }
-    let scale = settings::get("editor/appearance/ui_scale");
-    if !(scale == nil) {
-        shell::ask_ui_scale(state, scale.as_float());
-    }
+    shell::apply_ui_scale(state);
     // Kept apart from `state.compact`, which the window width also writes: the
     // setting forces compact on, it never forces it off.
     let compact = settings::get("editor/appearance/compact");

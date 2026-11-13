@@ -6,10 +6,12 @@ main_scene = "scenes/main.toml"
 splash = "assets/balaur-logo-dark.png"
 splash_seconds = 0.0
 
-# The editor sits still between edits, so it draws a frame only when input,
-# a log line, a changed file or a scheduled repaint asks for one.
+# Draw only when input, a log line or a changed file asks. The scripts open
+# at the last closed size, else this one, which a 13-inch laptop holds.
 [window]
 low_processor = true
+width = 1280
+height = 800
 
 # The editor holds itself to its own checker: a warning here is a failure,
 # not a line in the output someone might read.

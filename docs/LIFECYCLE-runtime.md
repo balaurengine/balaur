@@ -900,12 +900,36 @@ stateDiagram-v2
 |---|---|---|---|
 | Up, Just released | `key_event` or `mouse_button_event`, pressed | Just pressed | Adds to `down` and `just_pressed`. |
 | Just pressed, Held | `key_event` or `mouse_button_event`, released | Just released | Removes from `down` and adds to `just_released`. |
+| Just pressed, Held | the window loses focus | Just released | kiss3d sends a release for each key and button it holds, since no platform but Windows and X11 sends one after the release happens elsewhere. |
 | Just pressed | `begin_frame` | Held | Clears the edge. |
 | Just released | `begin_frame` | Up | Clears the edge. |
 
 Starts in Up. Never ends.
 
 Refused or ignored: a press on a key already down and a release on one already up do nothing. A button past the eighth is ignored.
+
+### Pointer placed
+
+`InputSnapshot` holds where the mouse is as far as the window knows, so a position that arrives from outside moves nothing and nothing is under a mouse that left.
+
+Source: `crates/balaur_input/src/lib.rs`, `InputSnapshot.mouse_place`.
+
+| State | What is true |
+|---|---|
+| `Unplaced` | No position yet. The next one places the mouse and leaves `mouse_delta` alone. |
+| `Placed` | A position adds its move from the last one to `mouse_delta`. |
+| `Outside` (script: no node is under it) | Left the window. `interact` treats it as over nothing, so the node it was over hears `pointer_exit`. |
+| `Held` | A grab holds the cursor. A position moves nothing; the delta is the raw motion. |
+
+| From | Trigger | To | What it does |
+|---|---|---|---|
+| any | `set_mouse_pos` | `Placed` | Sets `mouse_pos`, and adds to `mouse_delta` only from `Placed`. |
+| any | `mouse_exited`, from kiss3d's `CursorEnter(false)` | `Outside` | Keeps `mouse_pos`. |
+| any | `hold_mouse(true)`, each frame kiss3d says a grab holds the cursor | `Held` | Positions stop counting toward `mouse_delta`. |
+| `Held` | `hold_mouse(false)` | `Unplaced` | The jump to wherever the cursor is released is not a move. |
+| `Held` | `add_mouse_motion`, from kiss3d's `MouseMotion` | `Held` | Adds to `mouse_delta` and leaves `mouse_pos`. |
+
+Starts `Unplaced`. Recorded, and `Unplaced` in a session recorded before it existed.
 
 ### Finger
 

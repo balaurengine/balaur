@@ -21,25 +21,30 @@ pub struct RailDrag {
     internal node: Node,
 }
 
-/// Window pixels, as the input snapshot counts them, in design px: `dpi`
-/// window pixels to a logical one, and `ui_scale` logical ones to a design
-/// one. A distance converts the same way as a place.
-pub fn design_pixels(state: editor::State, window_x: float, window_y: float) -> Vec2 {
-    let per_design = util::max(render::camera_pose()[7], 0.01) * util::max(state.ui_scale, 0.01);
+/// Window pixels, as the input snapshot counts them, in design px, by the
+/// engine's own figure: the UI zoom, the display's scale and the reader's text
+/// size. A distance converts the same way as a place.
+pub fn design_pixels(window_x: float, window_y: float) -> Vec2 {
+    let per_design = util::max(ui::pixels_per_design(), 0.01);
     vec2(window_x / per_design, window_y / per_design)
+}
+
+/// Logical pixels per design pixel: the engine's figure without the display.
+pub fn logical_per_design() -> float {
+    util::max(ui::pixels_per_design(), 0.01) / util::max(render::camera_pose()[7], 0.01)
 }
 
 /// Where the pointer is, in design px.
 pub fn pointer(state: editor::State) -> Vec2 {
     let at = input::mouse_position();
-    design_pixels(state, at.x, at.y)
+    design_pixels(at.x, at.y)
 }
 
 /// A 2D world point in design px, through the camera the viewport draws with:
 /// centred on the window, `zoom` logical pixels to a world unit, y up.
 pub fn screen_of_2d(state: editor::State, world_x: float, world_y: float) -> Vec2 {
     let camera = render::camera_2d();
-    let scale = util::max(state.ui_scale, 0.01);
+    let scale = logical_per_design();
     vec2(state.screen_width / 2.0 + (world_x - camera.x) * camera.z / scale, state.screen_height / 2.0 - (world_y - camera.y) * camera.z / scale)
 }
 
@@ -48,7 +53,7 @@ pub fn screen_of_2d(state: editor::State, world_x: float, world_y: float) -> Vec
 /// taking it.
 pub fn rail_drag(state: &mut editor::State) -> RailDrag? {
     let moved = input::mouse_delta();
-    let travel = design_pixels(state, moved.x, moved.y);
+    let travel = design_pixels(moved.x, moved.y);
     if travel.x == 0.0 && travel.y == 0.0 {
         return nil;
     }
@@ -83,7 +88,7 @@ pub fn camera_gesture(state: editor::State) -> bool {
     }
     // Where the fingers are, not where a mouse is: a sheet under them owns
     // them, the way a pointer over a sheet is the sheet's.
-    let at = if scale > 0.0 { design_pixels(state, pinch.x.or(0.0), pinch.y.or(0.0)) } else { pointer(state) };
+    let at = if scale > 0.0 { design_pixels(pinch.x.or(0.0), pinch.y.or(0.0)) } else { pointer(state) };
     if !owns_pointer(state, at.x, at.y) {
         return false;
     }
@@ -234,7 +239,7 @@ fn slide_axes(state: editor::State, unit: [float], distance: float, fov: any) ->
     ];
     let tall = util::max(state.screen_height, 1.0);
     let per_pixel = 2.0 * distance * math::tan(util::max(fov.as_float(), 0.01) / 2.0) / tall;
-    let step = per_pixel / util::max(state.ui_scale, 0.01);
+    let step = per_pixel / logical_per_design();
     let out = [
         right[0] * step,
         right[1] * step,
@@ -294,7 +299,7 @@ fn orbit_3d(state: editor::State, scale: float, delta_x: float, delta_y: float) 
     // window the scene draws across: the finger keeps the ground it started on.
     let tall = util::max(state.screen_height, 1.0);
     let per_pixel = 2.0 * want * math::tan(util::max(fov, 0.01) / 2.0) / tall;
-    let step = per_pixel / util::max(state.ui_scale, 0.01);
+    let step = per_pixel / logical_per_design();
     let new_target_x = target_x + slide(delta_x, delta_y, right, up, step, 0);
     let new_target_y = target_y + slide(delta_x, delta_y, right, up, step, 1);
     let new_target_z = target_z + slide(delta_x, delta_y, right, up, step, 2);
@@ -316,11 +321,11 @@ pub fn hover_color() -> [float] {
     [0.118, 0.314, 0.784]
 }
 
-/// World units per design pixel (design px = logical px / ui scale).
-pub fn world_per_pixel(state: editor::State) -> float {
+/// World units per design pixel.
+pub fn world_per_pixel() -> float {
     let camera = render::camera_2d();
     let zoom = camera.z;
-    state.ui_scale / util::max(zoom, 0.01)
+    logical_per_design() / util::max(zoom, 0.01)
 }
 
 /// Whether the Snap chip is on.

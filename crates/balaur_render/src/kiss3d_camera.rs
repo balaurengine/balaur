@@ -120,9 +120,10 @@ impl Camera3d for Eye {
     }
 }
 
-/// The 2D camera, given the frame's size and nothing else, as [`Eye`] is.
+/// The 2D camera, given the frame's size and nothing else, as [`Eye`] is, and
+/// the display scale its zoom was set at.
 #[derive(Default)]
-pub(crate) struct Flat(PanZoomCamera2d);
+pub(crate) struct Flat(PanZoomCamera2d, f32);
 
 impl kiss3d::camera::Camera2d for Flat {
     fn handle_event(&mut self, canvas: &Canvas, event: &WindowEvent) {
@@ -223,11 +224,13 @@ pub(crate) fn apply_camera_2d(app: &App, camera: &mut Flat, window: &Window) {
     } else {
         1.0
     };
-    if config.changed {
+    // A window dragged to a display with another scale draws at that scale.
+    if config.changed || (scale - camera.1).abs() > f32::EPSILON {
         camera.0.look_at(
             Vec2::new(config.center[0], config.center[1]),
             config.zoom * scale,
         );
+        camera.1 = scale;
         config.changed = false;
     }
 }

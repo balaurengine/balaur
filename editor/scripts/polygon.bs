@@ -894,7 +894,7 @@ fn world_points(state: &mut editor::State, mesh: any, node_frame: util::Frame, i
 
 fn pick(state: &mut editor::State, mesh: any, node_frame: util::Frame, world_x: float, world_y: float, in_uv: bool) -> int? {
     let best: int? = nil;
-    let best_distance = PICK_PIXELS * viewport::world_per_pixel(state);
+    let best_distance = PICK_PIXELS * viewport::world_per_pixel();
     let points = world_points(state, mesh, node_frame, in_uv);
     for at in 0..points.len() {
         let point = points[at];
@@ -912,7 +912,7 @@ fn line(from: [float], to: [float], color: [float]) {
 }
 
 fn marker(state: editor::State, world_x: float, world_y: float, color: [float], filled: bool) {
-    let half = MARK_PIXELS * viewport::world_per_pixel(state);
+    let half = MARK_PIXELS * viewport::world_per_pixel();
     let width = if filled { 2.0 * MARK_PIXELS } else { LINE_WIDTH };
     render::draw_line_2d(world_x - half, world_y - half, world_x + half, world_y - half, color[0], color[1], color[2], width);
     render::draw_line_2d(world_x + half, world_y - half, world_x + half, world_y + half, color[0], color[1], color[2], width);
@@ -1134,7 +1134,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, wo
             0.0
         };
         if sign != 0.0 {
-            let radius = state.polygon.radius * viewport::world_per_pixel(state);
+            let radius = state.polygon.radius * viewport::world_per_pixel();
             let amount = sign * state.polygon.strength * engine::delta() * 2.0;
             let points = world_points(state, mesh, node_frame, false);
             for at in 0..points.len() {

@@ -23,7 +23,7 @@ edit this one.
 | [docs/EDITOR-SCREENS.md](docs/EDITOR-SCREENS.md) | every editor surface: mockup, code, screenshot |
 | [docs/actions.md](docs/actions.md) | the GitHub Actions a game's repository uses |
 | [docs/language/](docs/language/index.md) | the Balaur Script chapter of the site's manual, every example run by the tests; forge copies it |
-| [docs/generated/](docs/generated/README.md) | script API, components, assets, crates, features; `scripts/gen_docs.py` writes it |
+| [docs/generated/](docs/generated/README.md) | script API, components, assets, settings, crates, features; `scripts/gen_docs.py` writes it. Check `settings.md` before declaring a setting |
 | [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | every bundled package's licence; `scripts/third_party_notices.py` writes it |
 | [editors/code/README.md](editors/code/README.md) | the VS Code extension over `balaur lsp` |
 | [editor/library/addons/gamend/README.md](editor/library/addons/gamend/README.md) | the generated Gamend SDK addon |

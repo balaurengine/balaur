@@ -167,9 +167,14 @@ impl Default for WindowSettings {
 }
 
 impl WindowSettings {
-    /// `[window]` as this run resolves it, overrides and all.
+    /// `[window]` as this run resolves it, overrides and all, worked out once
+    /// per change of a setting.
     #[must_use]
-    pub fn from_settings(eng: &Engine) -> Self {
+    pub fn of(eng: &Engine) -> std::rc::Rc<Self> {
+        crate::settings::kept(eng, Self::from_settings)
+    }
+
+    fn from_settings(eng: &Engine) -> Self {
         let fallback = Self::default();
         Self {
             width: setting_u32(eng, "window/width", fallback.width),

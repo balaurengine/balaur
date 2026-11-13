@@ -164,7 +164,7 @@ pub fn honour_lazy(eng: &Engine) {
     if let Some(pacing) = eng.try_resource::<Pacing>() {
         let mut pacing = pacing.borrow_mut();
         pacing.honoured = true;
-        pacing.lazy = balaur_core::project::WindowSettings::from_settings(eng).low_processor;
+        pacing.lazy = balaur_core::project::WindowSettings::of(eng).low_processor;
     }
 }
 

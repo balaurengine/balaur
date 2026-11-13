@@ -86,6 +86,8 @@ pub(crate) fn is_dark() -> bool {
         DARK.store(first.as_ref().is_some_and(dark), Ordering::Relaxed);
         mundy::Preferences::subscribe(mundy::Interest::ColorScheme, move |prefs| {
             DARK.store(dark(&prefs), Ordering::Relaxed);
+            // A loop asleep between inputs draws the new look only once woken.
+            balaur_core::wake::wake();
         })
     });
     DARK.load(Ordering::Relaxed)

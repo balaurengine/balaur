@@ -181,6 +181,27 @@ pub struct InputSnapshot {
     /// again and clear the events the backend fed.
     #[serde(skip)]
     begun: bool,
+    /// Where the mouse is as far as the window knows. Defaulted, so a session
+    /// recorded before this field existed still restores.
+    #[serde(default)]
+    mouse_place: MousePlace,
+}
+
+/// Where the mouse is as far as the window knows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+enum MousePlace {
+    /// No position yet: the first one places it and moves nothing, since it
+    /// came from nowhere rather than from `(0, 0)`.
+    #[default]
+    Unplaced,
+    /// A position adds its move from the last one to the delta.
+    Placed,
+    /// Left the window: nothing in it is under the mouse, and where it comes
+    /// back in is a new place rather than a move from the edge it left by.
+    Outside,
+    /// A grab holds the cursor: a position moves nothing, and the delta is the
+    /// raw motion `add_mouse_motion` brings, which keeps counting at the edge.
+    Held,
 }
 
 /// One event a script fed, held until the next frame begins.
@@ -449,9 +470,43 @@ impl InputSnapshot {
     }
 
     pub fn set_mouse_pos(&mut self, x: f32, y: f32) {
-        self.mouse_delta.0 += x - self.mouse_pos.0;
-        self.mouse_delta.1 += y - self.mouse_pos.1;
+        match self.mouse_place {
+            MousePlace::Placed => {
+                self.mouse_delta.0 += x - self.mouse_pos.0;
+                self.mouse_delta.1 += y - self.mouse_pos.1;
+            }
+            MousePlace::Held => {}
+            MousePlace::Unplaced | MousePlace::Outside => self.mouse_place = MousePlace::Placed,
+        }
         self.mouse_pos = (x, y);
+    }
+
+    /// Whether a grab holds the cursor this frame. Released, the next position
+    /// places the mouse afresh rather than counting the jump to it.
+    pub fn hold_mouse(&mut self, held: bool) {
+        if held {
+            self.mouse_place = MousePlace::Held;
+        } else if self.mouse_place == MousePlace::Held {
+            self.mouse_place = MousePlace::Unplaced;
+        }
+    }
+
+    /// The mouse left the window.
+    pub fn mouse_exited(&mut self) {
+        self.mouse_place = MousePlace::Outside;
+    }
+
+    /// Whether the mouse is over the window: false once it leaves, until it
+    /// next moves inside.
+    #[must_use]
+    pub fn mouse_inside(&self) -> bool {
+        self.mouse_place != MousePlace::Outside
+    }
+
+    /// How far a held mouse moved: its delta while a grab holds the cursor.
+    pub fn add_mouse_motion(&mut self, dx: f32, dy: f32) {
+        self.mouse_delta.0 += dx;
+        self.mouse_delta.1 += dy;
     }
 
     pub fn add_scroll(&mut self, dx: f32, dy: f32) {

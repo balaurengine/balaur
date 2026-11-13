@@ -442,9 +442,9 @@ fn run_verb(state: &mut editor::State, data: any) {
     } else if verb == EMBED_CLIP {
         anim::make_inline(state);
     } else if verb == SCALE_UP {
-        shell::set_ui_scale(state, state.ui_scale + 0.125);
+        shell::step_ui_scale(state, shell::UI_SCALE_STEP);
     } else if verb == SCALE_DOWN {
-        shell::set_ui_scale(state, state.ui_scale - 0.125);
+        shell::step_ui_scale(state, -shell::UI_SCALE_STEP);
     } else if verb == OPEN_PROJECT {
         manager::pick(state);
     } else if verb == verbs::PROJECTS {

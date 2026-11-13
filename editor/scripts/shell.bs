@@ -300,15 +300,34 @@ pub fn open_palette(state: &mut editor::State, query: str) {
     window::picker_changed(state);
 }
 
-/// The reader asking for a scale, which outranks what the screen wanted.
-pub fn ask_ui_scale(state: &mut editor::State, scale: float) {
-    state.asked_scale = util::clamp(scale, 0.75, 2.5);
-    set_ui_scale(state, state.asked_scale);
+/// The range the UI scale setting takes.
+const UI_SCALE_LEAST: float = 0.75;
+const UI_SCALE_MOST: float = 2.5;
+
+/// How far one ⌘= or ⌘− moves the UI scale.
+pub const UI_SCALE_STEP: float = 0.125;
+
+/// Put the scale this screen wants on the whole UI: the reader's setting, and
+/// a touch screen's floor under it.
+pub fn apply_ui_scale(state: editor::State) {
+    set_ui_scale(scale_for_screen(state));
 }
 
-pub fn set_ui_scale(state: &mut editor::State, scale: float) {
-    state.ui_scale = util::clamp(scale, 0.75, 2.5);
-    ui::set_scale(state.ui_scale);
+/// ⌘= and ⌘−, from the keys or the palette: a change to the setting, saved as
+/// one made in Settings is, so the next run opens at it.
+pub fn step_ui_scale(state: &mut editor::State, step: float) {
+    settings::set(settings::UI_SCALE, asked_ui_scale() + step);
+    apply_ui_scale(state);
+    settings::commit_preferences(state);
+}
+
+pub fn set_ui_scale(scale: float) {
+    ui::set_scale(util::clamp(scale, UI_SCALE_LEAST, UI_SCALE_MOST));
+}
+
+/// What the reader set, in range.
+fn asked_ui_scale() -> float {
+    util::clamp(settings::get(settings::UI_SCALE).as_float(), UI_SCALE_LEAST, UI_SCALE_MOST)
 }
 
 // What a finger needs, and the box the theme's `touch` tables state for a
@@ -324,7 +343,7 @@ fn touch_scale() -> float {
 /// The scale this screen wants: what the reader set, and at least enough on a
 /// touch screen that the smallest control clears a finger.
 pub fn scale_for_screen(state: editor::State) -> float {
-    let asked = state.asked_scale;
+    let asked = asked_ui_scale();
     let wanted = touch_scale();
     if state.touchscreen && asked < wanted {
         return wanted;
@@ -401,6 +420,9 @@ pub fn stop_play(state: &mut editor::State) {
     state.debug.paused = nil;
     // A stop in the frame play started must not release the rebuilt scene.
     state.release_at = -1;
+    // The UI scale is one for the whole window, so a game's `ui::set_scale`
+    // scaled the shell too; the editor's own comes back with the edit.
+    apply_ui_scale(state);
     session::end(state, statuses::STOP);
     if state.played != "" {
         model::build(state, state.played);
@@ -1178,8 +1200,8 @@ fn state_menudemo(state: &mut editor::State) {
 
 // `scale:<f>`: the UI scale, which is what decides how many design pixels the
 // window has. A narrow layout is reachable no other way from a fixed capture.
-fn state_scale(state: &mut editor::State, argument: str) {
-    set_ui_scale(state, argument.parse_float());
+fn state_scale(_state: &mut editor::State, argument: str) {
+    set_ui_scale(argument.parse_float());
 }
 
 fn state_shut(state: &mut editor::State, side: str) {

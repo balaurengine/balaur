@@ -66,9 +66,54 @@ pub(crate) fn touchscreen() -> bool {
         .is_some_and(|points| points > 0.0)
 }
 
-#[cfg(not(target_family = "wasm"))]
+/// A phone or a tablet has one.
+#[cfg(mobile)]
 pub(crate) const fn touchscreen() -> bool {
-    cfg!(mobile)
+    true
+}
+
+/// A laptop or a monitor may: Windows counts the touch points it can take.
+#[cfg(windows)]
+pub(crate) fn touchscreen() -> bool {
+    /// `SM_MAXIMUMTOUCHES`: touch points the digitizers take, zero for none.
+    const MAXIMUM_TOUCHES: i32 = 95;
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetSystemMetrics(index: i32) -> i32;
+    }
+    // SAFETY: a plain query with no pointers, valid from any thread.
+    unsafe { GetSystemMetrics(MAXIMUM_TOUCHES) > 0 }
+}
+
+/// udev marks every touch screen it knows of in its device database, one
+/// file per input device. Read once: the facts are read again on every play.
+#[cfg(target_os = "linux")]
+pub(crate) fn touchscreen() -> bool {
+    static FOUND: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *FOUND.get_or_init(udev_touchscreen)
+}
+
+#[cfg(target_os = "linux")]
+fn udev_touchscreen() -> bool {
+    const DATABASE: &str = "/run/udev/data";
+    /// The device class udev's files name input devices under.
+    const INPUT_CLASS: &str = "c13:";
+    const MARK: &str = "E:ID_INPUT_TOUCHSCREEN=1";
+    let listing = std::fs::read_dir(DATABASE); // os files: udev's device database
+    let Ok(entries) = listing else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        entry.file_name().to_string_lossy().starts_with(INPUT_CLASS)
+            && std::fs::read_to_string(entry.path()) // os files: one udev device entry
+                .is_ok_and(|text| text.lines().any(|line| line == MARK))
+    })
+}
+
+/// A Mac has none.
+#[cfg(not(any(target_family = "wasm", mobile, windows, target_os = "linux")))]
+pub(crate) const fn touchscreen() -> bool {
+    false
 }
 
 /// The facts once read, or restored from a recording's header. Read lazily,

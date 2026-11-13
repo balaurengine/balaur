@@ -256,8 +256,6 @@ impl Frontend {
         crate::app_icon::apply_app_icon(app, window, self.on_screen, self.frame);
         apply_window_config(app, window);
         self.present.apply(app, window);
-        publish_camera(app, &self.camera, window);
-        publish_camera_2d(app, &self.camera_2d, window);
         apply_clear_color(app, window);
         crate::post_material::apply_post(app, window);
         // After `apply_post`, which is what reads the camera's list.
@@ -265,6 +263,9 @@ impl Frontend {
             .sync(app, window.canvas().surface_format(), self.asset_generation);
         crate::post_material::feed_gi(&mut self.post, app);
         let input_seen = crate::kiss3d_input::pump_input(app, window);
+        // After the input: the picking ray goes through this frame's pointer.
+        publish_camera(app, &self.camera, window);
+        publish_camera_2d(app, &self.camera_2d, window);
         apply_ui_zoom(app, window);
         self.device.publish(app, window, dt);
         app.advance(dt);
@@ -323,10 +324,17 @@ impl Frontend {
             });
         }
         crate::access::answer_reader(&app.engine, window);
-        // On-screen keyboard follows ui keyboard focus, edge-detected after
-        // the ui pass has settled focus. A no-op on desktop.
+        // The on-screen keyboard follows UI focus, and a tap in a focused field
+        // asks again: Android's back key hides it and tells the field nothing.
         let wants_keyboard = window.is_egui_capturing_keyboard();
-        if wants_keyboard != self.keyboard_shown {
+        let tapped = app
+            .engine
+            .try_resource::<balaur_input::InputSnapshot>()
+            .is_some_and(|input| {
+                let input = input.borrow();
+                !input.touches_just_started().is_empty() || input.any_mouse_just_pressed()
+            });
+        if wants_keyboard != self.keyboard_shown || (wants_keyboard && tapped) {
             self.keyboard_shown = wants_keyboard;
             window.set_keyboard_visible(wants_keyboard);
         }
@@ -347,10 +355,7 @@ impl Frontend {
 /// it, its own widgets included, which is why nothing multiplies a size by
 /// hand any more.
 fn apply_ui_zoom(app: &App, window: &mut Window) {
-    let want = app
-        .engine
-        .try_resource::<balaur_ui::UiConfig>()
-        .map_or(1.0, |config| config.borrow().scale);
+    let want = balaur_ui::scale(&app.engine);
     // The reader's own text size multiplies it, so a game that never touches
     // the scale still grows for someone who asked their phone for large type.
     let asked = if balaur_ui::takes_system_text_size(&app.engine) {
@@ -429,7 +434,7 @@ pub async fn run_windowed_async(
     // `[window]` as this platform resolves it, or its defaults when a project
     // says nothing. Read before the window exists, so it cannot come from a
     // resource the first frame inserts.
-    let window_settings = balaur_core::project::WindowSettings::from_settings(&app.engine);
+    let window_settings = balaur_core::project::WindowSettings::of(&app.engine);
     let setup = CanvasSetup {
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
         vsync: window_settings.vsync,
@@ -603,7 +608,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
         let phase = boot_cost::window_opening();
         // A headless window draws at the sample count its setup asks, so a
         // shot is antialiased as `[window] msaa` says.
-        let window_settings = balaur_core::project::WindowSettings::from_settings(&app.engine);
+        let window_settings = balaur_core::project::WindowSettings::of(&app.engine);
         let setup = CanvasSetup {
             samples: present::samples_of(&window_settings),
             ..CanvasSetup::default()
@@ -686,8 +691,9 @@ fn apply_window_config(app: &App, window: &Window) {
     // A window mode is a window-manager idea: on a phone the app already owns
     // the screen, and kiss3d exposes no toggle there.
     #[cfg(not(mobile))]
-    {
+    if config.mode != config.applied_mode {
         use balaur_core::project::WindowMode;
+        config.applied_mode = config.mode;
         // Left only when in it: a browser rejects leaving a fullscreen the
         // page never entered.
         if !matches!(config.mode, WindowMode::Fullscreen | WindowMode::Exclusive)

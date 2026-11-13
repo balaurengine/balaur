@@ -28,6 +28,7 @@ const FOCUSED_WIDGET: &str = "focused_widget";
 const HEIGHT_CLASS: &str = "height_class";
 const PASTED_TEXT: &str = "pasted_text";
 const SAVE_PASTED_IMAGE: &str = "save_pasted_image";
+const PIXELS_PER_DESIGN: &str = "pixels_per_design";
 const SCALE: &str = "scale";
 const SET_CLIPBOARD: &str = "set_clipboard";
 const SET_FOCUS: &str = "set_focus";
@@ -464,22 +465,31 @@ fn install_scale(m: &mut Module<Engine>) {
             "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
         ),
         (
+            PIXELS_PER_DESIGN,
+            &[],
+            "() -> float",
+            "How many of the window's own pixels a design pixel covers this frame: the UI scale, the display's scale and the reader's text size together. Divide `input::mouse_position()` by it for design pixels.",
+        ),
+        (
             SET_SCALE,
             &[],
             "",
             "Set the global UI scale, clamped to between 0.25 and 3.0. It is egui's zoom factor, so it grows every control and every font; `screen_size` already answers in the design pixels it leaves.",
         ),
     ]);
-    m.function(SCALE, |eng: &Engine, ()| {
-        let config = eng.resource::<UiConfig>();
-        let v = config.borrow().scale;
-        Ok(v)
+    m.function(SCALE, |eng: &Engine, ()| Ok(crate::scale(eng)));
+    m.function(PIXELS_PER_DESIGN, |eng: &Engine, ()| {
+        Ok(balaur_core::facts::device(eng).ui_scale)
     });
     m.function(SET_SCALE, |eng: &Engine, f: f32| {
-        let config = eng.resource::<UiConfig>();
-        let mut config = config.borrow_mut();
-        config.scale = f.clamp(0.25, 3.0);
-        config.asked = true;
+        {
+            let config = eng.resource::<UiConfig>();
+            let mut config = config.borrow_mut();
+            config.scale = f.clamp(0.25, 3.0);
+            config.asked = true;
+        }
+        // The new zoom is drawn by a pass, which a lazy loop runs only when asked.
+        crate::pacing::ask(eng);
         Ok(())
     });
 }
@@ -487,7 +497,7 @@ fn install_scale(m: &mut Module<Engine>) {
 /// `ui.*` bindings: queries.
 fn install_queries(m: &mut Module<Engine>) {
     m.describe(&[
-        (WINDOW_SIZE, &[], "", "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."),
+        (WINDOW_SIZE, &[], "", "The window's width and height, in design pixels; a headless run, and a script's `init` before the window opens, answer the `[window]` size the project states at the UI scale."),
         (SET_CLIPBOARD, &[], "", "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself."),
         (PASTED_TEXT, &[], "", "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives."),
         (SAVE_PASTED_IMAGE, &[], "(path: string) -> bool", "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already."),
@@ -509,9 +519,12 @@ fn install_queries(m: &mut Module<Engine>) {
             Ok((rect.width(), rect.height()))
         })
         .or_else(|_| {
-            let window = balaur_core::project::WindowSettings::from_settings(eng);
+            // Logical pixels as `[window]` states them, in the design pixels a
+            // window would leave at this scale.
+            let window = balaur_core::project::WindowSettings::of(eng);
+            let scale = crate::scale(eng).max(f32::EPSILON);
             #[allow(clippy::cast_precision_loss, reason = "a window's size in pixels")]
-            Ok((window.width as f32, window.height as f32))
+            Ok((window.width as f32 / scale, window.height as f32 / scale))
         })
     });
     install_clipboard(m);

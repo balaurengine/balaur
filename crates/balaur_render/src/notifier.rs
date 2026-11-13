@@ -76,7 +76,7 @@ fn view(eng: &Engine) -> [f32; 4] {
     });
     let (width, height) = match crate::viewport_size(eng) {
         (0, _) | (_, 0) => {
-            let window = balaur_core::project::WindowSettings::from_settings(eng);
+            let window = balaur_core::project::WindowSettings::of(eng);
             (window.width, window.height)
         }
         size => size,
