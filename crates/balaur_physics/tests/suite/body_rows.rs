@@ -313,7 +313,7 @@ impl Scenario {
     assert_eq!(booted.position(crate_node), [1.0, 2.0, 3.0]);
     let world = booted.app.engine.world();
     let rotation = world.get::<&Transform>(crate_node).unwrap().rotation;
-    let (x, y, z) = rotation.to_euler(glamx::EulerRot::XYZ);
+    let (z, y, x) = rotation.to_euler(glamx::EulerRot::ZYX);
     assert!(
         x.abs() < 1e-5 && (y - 0.5).abs() < 1e-5 && z.abs() < 1e-5,
         "teleport left the crate turned ({x}, {y}, {z})"

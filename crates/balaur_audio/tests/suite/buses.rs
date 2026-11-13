@@ -318,103 +318,50 @@ fn a_sound_on_a_bus_nobody_declared_is_left_at_unity() {
     assert_eq!(state.borrow().effective_volume(handle), Some(1.0));
 }
 
-fn with_cues(cues: &str) -> (tempfile::TempDir, App) {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        format!("[application]\nname = \"a\"\nmain_scene = \"main.toml\"\n{NESTED}"),
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("main.toml"), "").unwrap();
-    std::fs::create_dir_all(dir.path().join("audio")).unwrap();
-    std::fs::write(dir.path().join("audio/cues.toml"), cues).unwrap();
-    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut AudioPlugin).unwrap();
-    app.load_project().unwrap();
-    (dir, app)
+fn play(app: &App, dir: &std::path::Path, options: &str) -> u64 {
+    crate::sound_component::write_wav_of(dir, "hit.wav", 800);
+    let options: FileOptions = toml::from_str(options).unwrap();
+    play_file(&app.engine, "hit.wav", &options).unwrap()
 }
 
-const CUES: &str = r#"
-[hit]
-files = ["sfx/hit1.wav", "sfx/hit2.wav", "sfx/hit3.wav"]
-bus = "sfx"
-volume_linear = 0.9
+use balaur_audio::play_file::{FileOptions, play_file};
+use balaur_core::glamx::Vec3;
 
-[music]
-files = ["music/theme.ogg"]
-bus = "music"
-loop = true
-"#;
-
-use balaur_audio::cue::{self, Cues};
-
-/// A rotation, not a draw: variations exist so the same sample is not heard
-/// twice running, and taking them in turn guarantees it.
+/// A sound no node carries still goes through the bus it names.
 #[test]
-fn variations_are_taken_in_turn_and_wrap() {
-    let (_dir, app) = with_cues(CUES);
-    cue::ensure_loaded(&app.engine);
-    let cues = app.engine.resource::<Cues>();
-    let cues = cues.borrow();
-    let next = || cues.next_file("hit").expect("hit is declared");
-    assert_eq!(next(), "sfx/hit1.wav");
-    assert_eq!(next(), "sfx/hit2.wav");
-    assert_eq!(next(), "sfx/hit3.wav");
-    assert_eq!(next(), "sfx/hit1.wav", "the rotation wraps");
-}
-
-#[test]
-fn one_variation_is_a_sound_with_no_variation() {
-    let (_dir, app) = with_cues(CUES);
-    cue::ensure_loaded(&app.engine);
-    let cues = app.engine.resource::<Cues>();
-    let cues = cues.borrow();
-    assert_eq!(cues.next_file("music").as_deref(), Some("music/theme.ogg"));
-    assert_eq!(cues.next_file("music").as_deref(), Some("music/theme.ogg"));
-}
-
-#[test]
-fn a_cue_carries_its_bus_volume_and_loop() {
-    let (_dir, app) = with_cues(CUES);
-    cue::ensure_loaded(&app.engine);
-    let cues = app.engine.resource::<Cues>();
-    let cues = cues.borrow();
-    let hit = cues.get("hit").expect("declared");
-    assert_eq!(hit.bus, "sfx");
-    assert!((hit.volume_linear - 0.9).abs() < 1e-6);
-    assert!(!hit.looped);
-    assert!(cues.get("music").expect("declared").looped);
-}
-
-#[test]
-fn cues_are_listed_in_name_order() {
-    let (_dir, app) = with_cues(CUES);
-    cue::ensure_loaded(&app.engine);
+fn a_played_file_goes_through_its_bus_at_its_volume() {
+    let (dir, app) = app(NESTED);
+    let handle = play(&app, dir.path(), "bus = \"sfx\"\nvolume_linear = 0.9\n");
     assert_eq!(
-        app.engine.resource::<Cues>().borrow().names(),
-        vec!["hit", "music"]
+        app.engine
+            .resource::<AudioState>()
+            .borrow()
+            .routing_of(handle),
+        Some((String::from("sfx"), 0.9))
     );
 }
 
 #[test]
-fn a_project_with_no_cues_file_is_empty() {
-    let (_dir, app) = app(NESTED);
-    cue::ensure_loaded(&app.engine);
-    assert!(app.engine.resource::<Cues>().borrow().names().is_empty());
+fn a_played_file_is_unplaced_until_given_a_position() {
+    let (dir, app) = app(NESTED);
+    let flat = play(&app, dir.path(), "");
+    let placed = play(
+        &app,
+        dir.path(),
+        "position = [3.0, 0.0, 0.0]\nmax_distance = 10.0\n",
+    );
+    let state = app.engine.resource::<AudioState>();
+    assert!(state.borrow().emitter(flat).is_none());
     assert_eq!(
-        app.engine.resource::<Cues>().borrow().next_file("hit"),
-        None
+        state.borrow().emitter_position(placed),
+        Some(Vec3::new(3.0, 0.0, 0.0))
     );
 }
 
-/// Rotations are per cue, so one sound playing does not advance another's.
 #[test]
-fn each_cue_keeps_its_own_place() {
-    let (_dir, app) = with_cues(CUES);
-    cue::ensure_loaded(&app.engine);
-    let cues = app.engine.resource::<Cues>();
-    let cues = cues.borrow();
-    assert_eq!(cues.next_file("hit").as_deref(), Some("sfx/hit1.wav"));
-    let _ = cues.next_file("music");
-    assert_eq!(cues.next_file("hit").as_deref(), Some("sfx/hit2.wav"));
+fn a_play_option_the_sound_component_does_not_spell_is_refused() {
+    assert!(
+        toml::from_str::<FileOptions>("volume = 0.5\n").is_err(),
+        "the key is volume_linear"
+    );
 }

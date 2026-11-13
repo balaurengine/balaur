@@ -21,7 +21,7 @@ with no alias and no migration, as `one way to do a thing` asks.
   and the physics and shape words (`sphere`, `box`, `rectangle`,
   `world_boundary`, `triangle_mesh`, the Godot joint kinds, `collision_layer`,
   `collision_mask`, the character, wheel and soft body keys, the query options,
-  `add_constant_force`, `overlap_*`, `on_collision_enter`, `set_ragdoll_influence`),
+  `add_constant_force`, `overlap_*`, `on_collision_enter`),
   and the render keys (`light_layers`, `cast_shadow`, `shadow_enabled`, `range`,
   the spot's `*_angle_degrees`, `ambient_color`, `fog_mode`, `sky_enabled`,
   `sky_rotation_degrees`, `pixels_per_unit`, `operation`, terrain `kind`, the
@@ -36,7 +36,7 @@ with no alias and no migration, as `one way to do a thing` asks.
   and the widget's `image`, `sheet` and `language`, with `enabled` and
   `interactive` on unless turned off, and every node reference typed `node`,
   with a leading `/` starting from the root. The script API is done too: the
-  names `NAMING.md` lists under engine, files and scripts, audio's cues and
+  names `NAMING.md` lists under engine, files and scripts, audio's
   linear levels, radians and seconds throughout, `listen` and
   `on_<module>_event`, the `on_<reader>_changed` hooks, and options tables in
   place of positional booleans.

@@ -3,6 +3,7 @@
 // theme is read-only; a copy of it in the person's themes folder edits live.
 
 use editor;
+use form;
 use settings;
 use style;
 use theme;
@@ -207,7 +208,7 @@ pub fn fill(state: &mut editor::State) {
     if stacked {
         specs.insert(0, page_picker(state));
     }
-    ui::fill_rows(hosts.form, specs, label_width(state), stacked);
+    form::fill(hosts.form, specs, label_width(state), stacked);
 }
 
 fn label_width(state: editor::State) -> float {
@@ -273,8 +274,8 @@ fn on_page_button_clicked(state: &mut editor::State, data: any, _value: any) {
     state.themewin.page = page;
 }
 
-fn page_picker(state: editor::State) -> ui::Row {
-    ui::Row {
+fn page_picker(state: editor::State) -> form::Row {
+    form::Row {
         height: style::row_height(state),
         controls: [
             ui::Control {
@@ -361,7 +362,7 @@ fn alike(state: editor::State) -> [ui::ColorsApart] {
     out
 }
 
-fn form_specs(state: editor::State) -> [ui::Row] {
+fn form_specs(state: editor::State) -> [form::Row] {
     let doc = state.theme[fields::DOC];
     let out = head_specs(state);
     let page = state.themewin.page;
@@ -383,7 +384,7 @@ fn form_specs(state: editor::State) -> [ui::Row] {
     out
 }
 
-fn head_specs(state: editor::State) -> [ui::Row] {
+fn head_specs(state: editor::State) -> [form::Row] {
     let row_height = style::row_height(state);
     let name = state.theme[fields::NAME].as_str();
     let own: any = state.themewin.own;
@@ -441,9 +442,9 @@ fn head_specs(state: editor::State) -> [ui::Row] {
             data: { fields::FN: on_delete_clicked },
         });
     }
-    let out: [ui::Row] = [ui::Row { height: row_height, slot_role: roles::LAYOUT_ACTIONS, controls: controls }];
+    let out: [form::Row] = [form::Row { height: row_height, slot_role: roles::LAYOUT_ACTIONS, controls: controls }];
     if mine {
-        out.push(ui::Row {
+        out.push(form::Row {
             height: row_height,
             controls: [
                 ui::Control {
@@ -495,8 +496,8 @@ fn on_name_submitted(state: &mut editor::State, data: any, text: any) {
     rename(state, text);
 }
 
-fn note_spec(text: str) -> ui::Row {
-    ui::Row {
+fn note_spec(text: str) -> form::Row {
+    form::Row {
         height: 0,
         controls: [
             ui::Control {
@@ -510,7 +511,7 @@ fn note_spec(text: str) -> ui::Row {
     }
 }
 
-fn color_specs(state: editor::State, doc: any, out: [ui::Row]) {
+fn color_specs(state: editor::State, doc: any, out: [form::Row]) {
     let row_height = style::row_height(state);
     let mine = editable(state);
     let stated = util::map_or_empty(doc[COLORS]);
@@ -526,7 +527,7 @@ fn color_specs(state: editor::State, doc: any, out: [ui::Row]) {
         let hex = if colors[name] == nil { "#000000" } else { colors[name].as_str() };
         // A stated token reads as the theme's own; a derived one is quieter.
         let own = stated.has(name);
-        out.push(ui::Row {
+        out.push(form::Row {
             height: row_height,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
@@ -578,12 +579,12 @@ fn on_hex_submitted(state: &mut editor::State, data: any, text: any) {
     edit_hex(state, data[fields::NAME].as_str(), text.as_str());
 }
 
-fn size_specs(state: editor::State, doc: any, out: [ui::Row]) {
+fn size_specs(state: editor::State, doc: any, out: [form::Row]) {
     let row_height = style::row_height(state);
     let mine = editable(state);
     let stated = util::map_or_empty(doc[SIZES]);
     for name in sorted_keys(state.theme[SIZES]) {
-        out.push(ui::Row {
+        out.push(form::Row {
             height: row_height,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
@@ -701,11 +702,11 @@ fn on_sample_clicked(state: &mut editor::State, data: any, _value: any) {
     pick(state, path);
 }
 
-fn entry_specs(state: editor::State, doc: any, path: [str], out: [ui::Row]) {
+fn entry_specs(state: editor::State, doc: any, path: [str], out: [form::Row]) {
     let name = path[path.len() - 1];
     let table = table_at(doc, path);
     let picked = same_path(state.themewin.path, path);
-    out.push(ui::Row {
+    out.push(form::Row {
         height: height_of(state, table),
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
@@ -769,11 +770,11 @@ fn on_state_chip_clicked(state: &mut editor::State, data: any, _value: any) {
     state.themewin.table = word;
 }
 
-fn inspector_specs(state: editor::State, doc: any, path: [str], out: [ui::Row]) {
+fn inspector_specs(state: editor::State, doc: any, path: [str], out: [form::Row]) {
     let row_height = style::row_height(state);
     let mine = editable(state);
     let role_table = table_at(doc, path);
-    out.push(ui::Row {
+    out.push(form::Row {
         height: row_height,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: state_chips(state, role_table),
@@ -794,7 +795,7 @@ fn inspector_specs(state: editor::State, doc: any, path: [str], out: [ui::Row]) 
         }
     }
     if mine && missing.len() > 0 {
-        out.push(ui::Row {
+        out.push(form::Row {
             height: row_height,
             controls: [
                 ui::Control {
@@ -834,7 +835,7 @@ fn on_key_added(state: &mut editor::State, data: any, picked: any) {
     edit(state, at, picked.as_str(), default_of(picked));
 }
 
-fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, stated: bool, mine: bool) -> ui::Row {
+fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, stated: bool, mine: bool) -> form::Row {
     let controls = control_for(state, doc, at, key, value, mine);
     if mine && stated {
         controls.push(ui::Control {
@@ -848,7 +849,7 @@ fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, sta
     }
     // A key this theme states reads as its own; one it leaves to its base is
     // quieter, so what the file says stands out from what it inherits.
-    ui::Row {
+    form::Row {
         height: control_height(state),
         slot_role: roles::LAYOUT_ACTIONS,
         controls: controls,
@@ -1027,7 +1028,7 @@ fn key_value_listed(key: any, items: [str]) -> bool {
     false
 }
 
-fn problem_specs(state: editor::State, out: [ui::Row]) {
+fn problem_specs(state: editor::State, out: [form::Row]) {
     let found = problems(state);
     let same = alike(state);
     if found.len() == 0 && same.len() == 0 {
@@ -1036,7 +1037,7 @@ fn problem_specs(state: editor::State, out: [ui::Row]) {
     }
     let row_height = style::row_height(state);
     for pair in same {
-        out.push(ui::Row {
+        out.push(form::Row {
             height: row_height,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
@@ -1061,7 +1062,7 @@ fn problem_specs(state: editor::State, out: [ui::Row]) {
         let parts = pair[ROLE].as_str().split(".");
         let name = parts[0];
         let table = if parts.len() > 1 { parts[1] } else { "" };
-        out.push(ui::Row {
+        out.push(form::Row {
             height: row_height,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [

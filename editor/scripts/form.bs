@@ -1,0 +1,161 @@
+//! A form: rows of a label beside, or above, the controls it names. A row is
+//! plain controls, so `ui::fill_strip` lays a form out and `ui::fill_slot`
+//! keeps the few rows of a long one on screen. Under the host, a row's label
+//! is `C<row>/C0` and its controls `C<row>/C1/C<n>`.
+
+use words::roles;
+
+/// One row: its `label` and `controls`, with no label across both columns;
+/// `height`, 24 when unset and 0 to hug what is in it; `tooltip`; the roles
+/// that dress the label and the control column; and `y`, the height it sits
+/// at in a host laid out by hand.
+pub class Row {
+    internal label: str?,
+    internal controls: [ui::Control],
+    internal height: float?,
+    internal tooltip: str?,
+    internal label_role: str?,
+    internal slot_role: str?,
+    internal y: float?,
+}
+
+const DEFAULT_HEIGHT: float = 24.0;
+
+// A stacked label's line: the label role's text and its air.
+const LABEL_LINE: float = 16.0;
+const BESIDE_GAP: float = 6.0;
+const STACKED_GAP: float = 2.0;
+// Below zero on an axis, a gap is the theme's: the cell role's own.
+const THEME_GAP: float = -1.0;
+
+/// The control column's place in a row, as `ui::patch_control` takes it.
+pub const CELLS: int = 1;
+
+/// One row as a control: its label, then its controls in a row taking what
+/// is left, or under the label when `stacked`.
+pub fn control(row: Row, label_width: float, stacked: bool) -> ui::Control {
+    let label = row.label.or("");
+    let labelled = label != "";
+    let stack = stacked && labelled;
+    let height = row.height.or(DEFAULT_HEIGHT);
+    let tall = if height <= 0.0 { 0.0 } else if stack { height + LABEL_LINE + STACKED_GAP } else { height };
+    let label_role = row.label_role.or("");
+    let slot_role = row.slot_role.or("");
+    let gap = if stack { STACKED_GAP } else { BESIDE_GAP };
+    let out = ui::Control {
+        kind: if stack { ui::WIDGET_COLUMN } else { ui::WIDGET_ROW },
+        gap: vec2(gap, gap),
+        height: tall,
+        controls: [
+            ui::Control {
+                kind: ui::WIDGET_LABEL,
+                visible: labelled,
+                text: label,
+                width: if stack { 0.0 } else { label_width },
+                height: if stack { LABEL_LINE } else { 0.0 },
+                role: if label_role == "" { roles::TEXT_LABEL } else { label_role },
+                tooltip: row.tooltip.or(""),
+            },
+            ui::Control {
+                kind: ui::WIDGET_ROW,
+                grow: 1.0,
+                gap: vec2(THEME_GAP, THEME_GAP),
+                role: if slot_role == "" { roles::LAYOUT_CELLS } else { slot_role },
+                controls: row.controls,
+            },
+        ],
+    };
+    if row.y != nil {
+        out.absolute = true;
+        out.inset = ui::sides(0.0, row.y.unwrap(), 0.0, -1.0);
+    }
+    out
+}
+
+/// Every row of a form as the controls `ui::fill_strip` takes.
+pub fn controls(rows: [Row], label_width: float, stacked: bool) -> [ui::Control] {
+    let out: [ui::Control] = [];
+    for row in rows {
+        out.push(control(row, label_width, stacked));
+    }
+    out
+}
+
+/// Fill the node at `host` with `rows`, the labels `label_width` wide or
+/// above their controls when `stacked`: true when a control's table changed.
+pub fn fill(host: str, rows: [Row], label_width: float?, stacked: bool?) -> bool {
+    ui::fill_strip(host, controls(rows, width_of(label_width), stacked == true))
+}
+
+/// The row at `slot` under `host`, or that row hidden for nil.
+pub fn fill_slot(host: Node, slot: int, row: Row?, label_width: float?, stacked: bool?) -> bool {
+    if row == nil {
+        return ui::fill_slot(host, slot);
+    }
+    ui::fill_slot(host, slot, control(row.unwrap(), width_of(label_width), stacked == true))
+}
+
+fn width_of(label_width: float?) -> float {
+    if label_width == nil { 0.0 } else { label_width.unwrap() }
+}
+
+/// What moved of the row at `slot`: each patch written to the control at its
+/// place among the row's controls, nil for one that stands.
+pub fn patch(host: Node, slot: int, patches: [any]) -> bool {
+    let wrote = false;
+    for index in 0..patches.len() {
+        let patch = patches[index];
+        if patch != nil && ui::patch_control(host, [slot, CELLS, index], patch) {
+            wrote = true;
+        }
+    }
+    wrote
+}
+
+/// A row a plugin hands over: a plain table, or a row the kit made for it.
+pub fn row_of(table: any) -> Row {
+    let out = Row { controls: [] };
+    if table == nil {
+        return out;
+    }
+    if table.kind() != types::KIND_MAP {
+        let made: Row = table;
+        return made;
+    }
+    for key in table.keys() {
+        let value = table[key];
+        if value == nil {
+            continue;
+        }
+        out = with_field(out, key, value);
+    }
+    out
+}
+
+const LABEL: str = "label";
+const CONTROLS: str = "controls";
+const HEIGHT: str = "height";
+const TOOLTIP: str = "tooltip";
+const LABEL_ROLE: str = "label_role";
+const SLOT_ROLE: str = "slot_role";
+const Y: str = "y";
+
+fn with_field(row: Row, key: str, value: any) -> Row {
+    if key == LABEL {
+        row.label = value.as_str();
+    } else if key == CONTROLS {
+        let controls: [ui::Control] = value;
+        row.controls = controls;
+    } else if key == HEIGHT {
+        row.height = value.as_float();
+    } else if key == TOOLTIP {
+        row.tooltip = value.as_str();
+    } else if key == LABEL_ROLE {
+        row.label_role = value.as_str();
+    } else if key == SLOT_ROLE {
+        row.slot_role = value.as_str();
+    } else if key == Y {
+        row.y = value.as_float();
+    }
+    row
+}

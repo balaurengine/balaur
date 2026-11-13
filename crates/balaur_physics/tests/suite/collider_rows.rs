@@ -850,3 +850,33 @@ impl Scenario {
         "no event said the force had just started"
     );
 }
+
+#[test]
+fn a_collider_turns_its_shape_as_a_transform_turns_a_node() {
+    let app = app();
+    let euler = "[0.3, 0.5, 0.2]";
+    let shape = node_with(
+        &app,
+        "Shape",
+        &[(
+            "collider3d",
+            &format!("shape = {{ kind = \"box\" }}\noffset_rotation = {euler}"),
+        )],
+    );
+    let node = node_with(
+        &app,
+        "Node",
+        &[("transform", &format!("rotation_euler = {euler}"))],
+    );
+    let turned = collider3d(&app, shape, |c| c.position().rotation);
+    let wanted = app
+        .engine
+        .world()
+        .get::<&scene::Transform>(node)
+        .unwrap()
+        .rotation;
+    assert!(
+        turned.angle_between(wanted) < 1e-5,
+        "the shape turned to {turned:?}, the node to {wanted:?}"
+    );
+}

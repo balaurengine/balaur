@@ -350,9 +350,8 @@ impl WidgetTheme {
         // A stack is a panel that lays its children over one another, so
         // either takes the other's entry when the theme names only one.
         let sibling = match kind {
-            // A stack is a panel that lays its children over one another,
-            // and a toast one that leaves on its own.
-            w::STACK | w::TOAST => w::PANEL,
+            // A stack is a panel that lays its children over one another.
+            w::STACK => w::PANEL,
             w::PANEL => w::STACK,
             _ => return Style::default(),
         };

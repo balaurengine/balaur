@@ -1,0 +1,132 @@
+// Save games: one table per slot in the player's user data folder, stamped
+// with the version this build writes and brought forward when it is older.
+// `use addons::save::save;`, then `save::write("slot1", data)`.
+
+/// What `write` and `remove` emit from no node, with a running count:
+/// `events::listen(node, save::SAVED)`, heard as `on_saved(count)`.
+pub const SAVED: str = "saved";
+
+/// The setting that holds the version this build writes: `[save] version`.
+pub const VERSION_SETTING: str = "save/version";
+
+const VERSION: str = "version";
+const DATA: str = "data";
+const EXTENSION: str = ".toml";
+const SLOT_NAME: str = "^[A-Za-z0-9_-]+$";
+/// The game's migration and the running count of writes, in the script store.
+const MIGRATE_KEY: str = "save:migrate";
+const WRITES_KEY: str = "save:writes";
+
+/// Where every slot is kept: `saves/` in the user data folder, which for a
+/// game the editor plays is the game's own.
+pub fn directory() -> str {
+    engine::user_data_directory() + "/saves"
+}
+
+/// The version this build writes, from `[save] version`; 1 when unset.
+pub fn version() -> int {
+    let set = settings::get(VERSION_SETTING);
+    if set.kind() == types::KIND_INT { set.as_int() } else { 1 }
+}
+
+/// How an older file is brought forward: `step(version, data)` answers the
+/// data one version on, and runs once per step, 1 to 2 then 2 to 3. Call it
+/// before the first `read` of a file older than this build.
+pub fn migrate_with(step: fn(int, any) -> any) {
+    script::store(MIGRATE_KEY, step);
+}
+
+/// Write `data` to `slot`, stamped with this build's version. `fs::write`
+/// lands it beside the file and renames it over, so a crash mid-save keeps the
+/// last one. False for a slot name other than letters, digits, `-` and `_`.
+pub fn write(slot: str, data: any) -> bool {
+    if !named(slot) {
+        return false;
+    }
+    fs::write(path_of(slot), toml::encode({ VERSION: version(), DATA: data }));
+    moved();
+    true
+}
+
+/// The table in `slot`, at this build's version: nil when it was never
+/// written. A file a newer build wrote, or an older one with no
+/// `migrate_with` to bring it forward, logs an error and answers nil.
+pub fn read(slot: str) -> any {
+    if !named(slot) {
+        return nil;
+    }
+    let path = path_of(slot);
+    let text = fs::read(path);
+    if text == nil {
+        return nil;
+    }
+    let doc = toml::parse(text.unwrap());
+    if doc.kind() != types::KIND_MAP {
+        log::error("{path} is not a save: it does not parse as TOML");
+        return nil;
+    }
+    let from = if doc[VERSION].kind() == types::KIND_INT { doc[VERSION].as_int() } else { 1 };
+    let data = if doc.has(DATA) { doc[DATA] } else { {} };
+    let to = version();
+    if from > to {
+        log::error("{path} was written by a newer build (save version {from}, this build writes {to})");
+        return nil;
+    }
+    if from == to {
+        return data;
+    }
+    if script::stored(MIGRATE_KEY) == nil {
+        log::error("{path} is at save version {from} and this build writes {to}: call save::migrate_with first");
+        return nil;
+    }
+    let step: fn(int, any) -> any = script::stored(MIGRATE_KEY);
+    for at in from..to {
+        data = step(at, data);
+    }
+    data
+}
+
+/// Every slot that has been written, in name order.
+pub fn slots() -> [str] {
+    let out: [str] = [];
+    for entry in fs::list(directory()) {
+        if !entry.is_dir && entry.name.ends_with(EXTENSION) {
+            out.push(entry.name.slice(0, entry.name.len() - EXTENSION.len()));
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Delete a slot. Not an error when it was not there: answers whether it was.
+pub fn remove(slot: str) -> bool {
+    if !named(slot) {
+        return false;
+    }
+    let removed = fs::remove(path_of(slot));
+    if removed {
+        moved();
+    }
+    removed
+}
+
+/// A slot is named by the game, so the name is checked rather than trusted:
+/// a save called `../../id_rsa` is a bug or an attack.
+fn named(slot: str) -> bool {
+    if regex::matches(SLOT_NAME, slot) {
+        return true;
+    }
+    log::error("'{slot}' is not a slot name: letters, digits, '-' and '_' only");
+    false
+}
+
+fn path_of(slot: str) -> str {
+    directory() + "/" + slot + EXTENSION
+}
+
+fn moved() {
+    let held = script::stored(WRITES_KEY);
+    let count = if held.kind() == types::KIND_INT { held.as_int() + 1 } else { 1 };
+    script::store(WRITES_KEY, count);
+    events::emit(SAVED, count);
+}

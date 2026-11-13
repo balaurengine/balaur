@@ -100,8 +100,8 @@ pub struct Tween {
     /// Scales the whole sequence. Always positive: a tween that ran backwards
     /// would never reach its end and never be cleaned up.
     pub speed: f32,
-    /// Whether the playhead is advancing. False once the last loop has played:
-    /// a tween goes at once, and a value tween on the next frame.
+    /// Whether the playhead is advancing. False once the last loop has played,
+    /// and the tween goes at once.
     pub running: bool,
     /// How many times to play the sequence; zero is forever (Godot's
     /// `set_loops(0)`).
@@ -114,8 +114,6 @@ pub struct Tween {
     /// The specification of a waiting tween, rebuilt when its turn comes so
     /// its start values are read then rather than when it was asked for.
     pub pending: Option<String>,
-    /// Drives no node: a script reads it with [`float_of`].
-    pub value: bool,
     /// When each of the `steps` is over, in the order they were written.
     pub step_ends: Vec<f32>,
 }
@@ -164,90 +162,10 @@ pub fn start(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<TweenId> 
             played: 0,
             after,
             pending,
-            value: false,
             step_ends,
         },
     );
     Ok(id)
-}
-
-/// A tween over a number that drives no node: a script reads it each frame
-/// with [`float_of`] and writes it wherever it likes. The method tween without
-/// a callback into the middle of a tick.
-///
-/// # Errors
-/// If the seconds are not a length of time, or the curve is unknown.
-pub fn start_float(
-    eng: &Engine,
-    from: f32,
-    to: f32,
-    duration: f32,
-    ease: Option<&str>,
-) -> Result<TweenId> {
-    if !duration.is_finite() || duration < 0.0 {
-        bail!("a value tween lasts a number of seconds, and cannot last fewer than none");
-    }
-    let ease = ease
-        .filter(|name| !name.is_empty())
-        .map(Easing::parse)
-        .transpose()?;
-    let mut track = Track {
-        target: String::new(),
-        property: VALUE_PROPERTY,
-        channels: 1,
-        interpolation: Interpolation::Linear,
-        keys: Vec::new(),
-    };
-    let channel = |number| Vec4::new(number, 0.0, 0.0, 0.0);
-    push_segment(&mut track, 0.0, duration, channel(from), channel(to), ease);
-    let clip = Clip {
-        length: duration.max(fixed_dt()),
-        loop_mode: LoopMode::None,
-        tracks: vec![track],
-    };
-    let state = eng.resource::<AnimationState>();
-    let mut state = state.borrow_mut();
-    state.next_tween += 1;
-    let id = state.next_tween;
-    state.tweens.insert(
-        id,
-        Tween {
-            node: eng.root(),
-            clip: Rc::new(clip),
-            time: 0.0,
-            speed: 1.0,
-            running: true,
-            loops: 1,
-            played: 0,
-            after: None,
-            pending: None,
-            value: true,
-            step_ends: Vec::new(),
-        },
-    );
-    Ok(id)
-}
-
-/// The property a value tween's one track is filed under. Never written:
-/// the step skips the pose of a value tween.
-const VALUE_PROPERTY: Property = Property::Component {
-    component: String::new(),
-    property: String::new(),
-};
-
-/// Where a value tween has got to. `None` once it is over or when `id` names
-/// no value tween.
-#[must_use]
-pub fn float_of(eng: &Engine, id: TweenId) -> Option<f64> {
-    let state = eng.try_resource::<AnimationState>()?;
-    let state = state.borrow();
-    let tween = state.tweens.get(&id).filter(|tween| tween.value)?;
-    let (time, _) = sampler::clip_time(&tween.clip, tween.time);
-    let pose = sampler::sample(&tween.clip, time);
-    let sampler::TrackValue::Property { value, .. } = *pose.first()? else {
-        return None;
-    };
-    Some(f64::from(value.x))
 }
 
 /// Rebuild a waiting tween's clip now that its turn has come, so `by` and
@@ -364,29 +282,25 @@ pub(crate) fn advance(
     tween: &mut Tween,
     effects: &mut Vec<Effect>,
 ) -> bool {
-    // A value tween over is kept until the next tick, so a script reading
-    // it each frame sees where it landed; the tick's start lets it go.
     if !tween.running {
-        return !tween.value;
+        return true;
     }
     let clip = tween.clip.clone();
     let was = tween.time;
     tween.time += fixed_dt() * tween.speed;
     let (time, over) = sampler::clip_time(&clip, tween.time);
-    if !tween.value {
-        let pose = sampler::sample(&clip, time);
-        // A tween is generated against the node it plays on, so there is
-        // nothing to retarget: its tracks already name that rig.
-        crate::system::write_pose(
-            world,
-            tween.node,
-            "",
-            None,
-            clip.tracks.iter().zip(pose),
-            effects,
-        );
-        crate::system::collect_calls(world, tween.node, "", &clip, was, tween.time, effects);
-    }
+    let pose = sampler::sample(&clip, time);
+    // A tween is generated against the node it plays on, so there is
+    // nothing to retarget: its tracks already name that rig.
+    crate::system::write_pose(
+        world,
+        tween.node,
+        "",
+        None,
+        clip.tracks.iter().zip(pose),
+        effects,
+    );
+    crate::system::collect_calls(world, tween.node, "", &clip, was, tween.time, effects);
     for (step, &end) in tween.step_ends.iter().enumerate() {
         if was < end && end <= tween.time {
             let entity = tween.node;
@@ -404,7 +318,7 @@ pub(crate) fn advance(
         return false;
     }
     tween.running = false;
-    !tween.value
+    true
 }
 
 /// The tracks a specification's steps add up to, in the order the steps first

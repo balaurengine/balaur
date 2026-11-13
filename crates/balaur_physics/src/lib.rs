@@ -273,7 +273,6 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
             install_world_controls(&mut m);
             debug::install_debug_api(&mut m);
             tuning::install_tuning_api(&mut m);
-            ragdoll::install_blend_api(&mut m);
         }
         balaur_core::events::watch_hearers(reg.engine(), &vocabulary::hook::RAISED_BY_THE_STEP);
         reg.add_system(Stage::FixedUpdate, follow_hearers_system);
@@ -345,7 +344,6 @@ fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
     character::install_character_api(&mut m);
     vehicle::install_vehicle_api(&mut m);
     follow::install_follow_api(&mut m);
-    ragdoll::install_ragdoll_api(&mut m, true);
     body::register_body_component(reg);
     collider::register_collider_component(reg);
     joint::register_joint_component(reg);
@@ -1049,13 +1047,6 @@ pub const ORIENTATIONS: &[(&str, &str)] = &[
     ("ORIENTATION_SHELL", w::SHELL),
 ];
 
-/// What pulls a ragdoll's bodies, as `ragdoll`'s `drive` option names it.
-pub const RAGDOLL_DRIVES: &[(&str, &str)] = &[
-    ("DRIVE_NONE", w::NONE),
-    ("DRIVE_MOTORS", w::MOTORS),
-    ("DRIVE_FOLLOW", w::FOLLOW),
-];
-
 /// Which of a soft body's edges resist stretching only.
 pub const TENSION_MODES: &[(&str, &str)] = &[
     ("TENSION_NONE", w::NONE),
@@ -1107,7 +1098,6 @@ pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
     ORIENTATIONS,
     SHAPE_MATCHING_MODES,
     TENSION_MODES,
-    RAGDOLL_DRIVES,
     IGNORES,
     FOLLOW_KINDS,
     COLLISION_BINDINGS,
@@ -1140,7 +1130,6 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     ORIENTATIONS,
     SHAPE_MATCHING_MODES,
     TENSION_MODES,
-    RAGDOLL_DRIVES,
     IGNORES,
     FOLLOW_KINDS,
     COLLISION_BINDINGS,

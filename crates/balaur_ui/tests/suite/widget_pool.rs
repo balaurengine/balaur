@@ -185,8 +185,7 @@ impl Root {
             scene::get_node(\"Root/Bar\").set_visible(false);
         } else {
             let label: [any] = [{ \"kind\": \"label\", \"text\": \"x\" }];
-            let rows: [any] = [{ \"label\": \"a\", \"controls\": label }];
-            ui::fill_rows(\"Root/Bar\", rows, 40.0, false);
+            ui::fill_strip(\"Root/Bar\", label);
         }
     }
 }
@@ -234,8 +233,7 @@ impl Root {
         } else {
             { \"kind\": \"number_field\", \"grow\": 1, \"value\": -24.0, \"on_change\": \"edited\" }
         };
-        let rows: [any] = [{ \"label\": \"x\", \"controls\": [control] }];
-        ui::fill_rows(\"Root/Bar\", rows, 40.0, false);
+        ui::fill_strip(\"Root/Bar\", [control]);
     }
     pub fn edited(data: any, v: any) { self.edits += 1; }
 }
@@ -286,51 +284,59 @@ fn number_fields(app: &App) -> Vec<Entity> {
     out
 }
 
-/// The text of a row's first control, "" for a row with none.
-fn row_text(app: &App, row: Entity) -> String {
-    let world = app.engine.world();
-    let control = balaur_core::scene::find_node(&world, row, "H/C/C0");
-    drop(world);
-    control
-        .and_then(|control| prop(app, control, "text"))
+/// What a slot's control says, "" for one that says nothing.
+fn row_text(app: &App, slot: Entity) -> String {
+    prop(app, slot, "text")
         .and_then(|text| text.as_str().map(ToOwned::to_owned))
         .unwrap_or_default()
 }
 
-/// One row a frame: the third on the first, then the first, then the third
+/// What a group's first control says.
+fn first_text(app: &App, group: Entity) -> String {
+    let world = app.engine.world();
+    let first = balaur_core::scene::find_node(&world, group, "C0");
+    drop(world);
+    first.map(|first| row_text(app, first)).unwrap_or_default()
+}
+
+/// One slot a frame: the third on the first, then the first, then the third
 /// hidden, then the third again.
 const ONE_ROW_A_FRAME: &str = "pub class Root { node: Node, frame: int }
 fn row(said: str, y: float) -> any {
-    { \"label\": \"L\", \"y\": y, \"controls\": [{ \"kind\": \"label\", \"text\": said }] }
+    { \"kind\": \"label\", \"text\": said, \"absolute\": true, \"inset\": ui::sides(0.0, y, 0.0, -1.0) }
 }
 impl Root {
     fn update(dt: float) {
         self.frame += 1;
         let host = scene::get_node(\"Root/Bar\");
         if self.frame == 1 {
-            ui::fill_row(host, 2, row(\"third\", 20.0), 40.0, false);
+            ui::fill_slot(host, 2, row(\"third\", 20.0));
         } else if self.frame == 2 {
-            ui::fill_row(host, 0, row(\"first\", 0.0), 40.0, false);
+            ui::fill_slot(host, 0, row(\"first\", 0.0));
         } else if self.frame == 3 {
-            ui::fill_row(host, 2, nil);
+            ui::fill_slot(host, 2);
         } else if self.frame == 4 {
-            ui::fill_row(host, 2, row(\"back\", 20.0), 40.0, false);
+            ui::fill_slot(host, 2, row(\"back\", 20.0));
         }
     }
 }
 ";
 
 #[test]
-fn one_row_is_made_with_those_before_it_and_placed_at_its_height() {
+fn one_slot_is_made_with_those_before_it_and_placed_where_it_says() {
     let (_dir, mut app) = app_with(ONE_ROW_A_FRAME);
     app.tick(1.0 / 60.0);
     let rows = kids(&app);
-    assert_eq!(rows.len(), 3, "row 2 needs rows 0 and 1 to stand before it");
+    assert_eq!(
+        rows.len(),
+        3,
+        "slot 2 needs slots 0 and 1 to stand before it"
+    );
     assert_eq!(row_text(&app, rows[2]), "third");
     assert_eq!(
         prop(&app, rows[2], "absolute"),
         Some(toml::Value::Boolean(true)),
-        "a row with a `y` is placed by hand"
+        "a control placed by hand"
     );
     let inset = prop(&app, rows[2], "inset").expect("its inset");
     assert_eq!(
@@ -340,7 +346,7 @@ fn one_row_is_made_with_those_before_it_and_placed_at_its_height() {
 }
 
 #[test]
-fn writing_one_row_leaves_the_others_as_they_are() {
+fn writing_one_slot_leaves_the_others_as_they_are() {
     let (_dir, mut app) = app_with(ONE_ROW_A_FRAME);
     app.tick(1.0 / 60.0);
     let rows = kids(&app);
@@ -351,7 +357,7 @@ fn writing_one_row_leaves_the_others_as_they_are() {
 }
 
 #[test]
-fn a_row_given_nothing_is_hidden_and_shows_again_when_it_is_filled() {
+fn a_slot_given_nothing_is_hidden_and_shows_again_when_it_is_filled() {
     let (_dir, mut app) = app_with(ONE_ROW_A_FRAME);
     app.tick(1.0 / 60.0);
     app.tick(1.0 / 60.0);
@@ -373,22 +379,20 @@ fn a_row_given_nothing_is_hidden_and_shows_again_when_it_is_filled() {
 const PATCHED_THEN_FILLED: &str =
     "pub class Root { node: Node, frame: int, wrote: bool, again: bool }
 fn row(said: str) -> any {
-    { \"label\": \"L\", \"controls\": [{ \"kind\": \"label\", \"text\": said }] }
+    { \"kind\": \"row\", \"controls\": [{ \"kind\": \"label\", \"text\": said }] }
 }
 impl Root {
     fn update(dt: float) {
         self.frame += 1;
         let host = scene::get_node(\"Root/Bar\");
         if self.frame == 1 {
-            ui::fill_row(host, 0, row(\"first\"), 40.0, false);
+            ui::fill_slot(host, 0, row(\"first\"));
         } else if self.frame == 2 {
-            let patches: [ui::Control] = [ui::Control { text: \"moved\" }];
-            self.wrote = ui::patch_row(host, 0, patches);
+            self.wrote = ui::patch_control(host, [0, 0], ui::Control { text: \"moved\" });
         } else if self.frame == 3 {
-            let patches: [ui::Control] = [ui::Control { text: \"moved\" }];
-            self.again = ui::patch_row(host, 0, patches);
+            self.again = ui::patch_control(host, [0, 0], ui::Control { text: \"moved\" });
         } else if self.frame == 4 {
-            ui::fill_row(host, 0, row(\"first\"), 40.0, false);
+            ui::fill_slot(host, 0, row(\"first\"));
         }
     }
 }
@@ -399,9 +403,9 @@ fn a_patch_writes_what_moved_and_the_next_fill_compares_against_it() {
     let (_dir, mut app) = app_with(PATCHED_THEN_FILLED);
     app.tick(1.0 / 60.0);
     let rows = kids(&app);
-    assert_eq!(row_text(&app, rows[0]), "first");
+    assert_eq!(first_text(&app, rows[0]), "first");
     app.tick(1.0 / 60.0);
-    assert_eq!(row_text(&app, rows[0]), "moved");
+    assert_eq!(first_text(&app, rows[0]), "moved");
     let root =
         balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Root").unwrap();
     let flag = |app: &App, name: &str| {
@@ -418,7 +422,7 @@ fn a_patch_writes_what_moved_and_the_next_fill_compares_against_it() {
     );
     app.tick(1.0 / 60.0);
     assert_eq!(
-        row_text(&app, rows[0]),
+        first_text(&app, rows[0]),
         "first",
         "a fill reads the patch, not what it last wrote itself"
     );

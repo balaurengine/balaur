@@ -1,0 +1,194 @@
+// What `core`'s calls and `client::route` saw lately, for the Gamend dock.
+// One script-store key per row: a call copies a row, never the whole log.
+
+/// How many rows are kept, oldest dropped first, and how many of the newest
+/// keep their arguments and reply.
+pub const KEPT: int = 200;
+pub const DETAILED: int = 50;
+
+/// The status of a call no reply has reached yet.
+pub const WAITING: str = "waiting";
+
+/// One call or socket message: `seq` counts every row ever kept, so a reader
+/// that saw one knows anything above it is new. `ms` is nil while it waits.
+pub struct Entry {
+    pub seq: int,
+    pub request: int,
+    pub kind: str,
+    pub what: str,
+    pub status: str,
+    pub ms: float?,
+    pub args: any,
+    pub reply: any,
+}
+
+/// A payload past this many bytes of JSON is kept as its size alone.
+const LARGEST: int = 16384;
+
+const ARGS: str = "args";
+const ERROR: str = "error";
+const KIND: str = "kind";
+const LOGIN: str = "login";
+const MS: str = "ms";
+const OK: str = "ok";
+const REASON: str = "reason";
+const REPLY: str = "reply";
+const REQUEST: str = "request";
+const REST: str = "rest";
+const SEQ: str = "seq";
+const STATUS: str = "status";
+const WHAT: str = "what";
+
+/// How many rows were ever kept, the first a `clear` left, the waiting
+/// calls by request, and each row by its place in the ring.
+const COUNT_KEY: str = "gamend:activity";
+const FROM_KEY: str = "gamend:activity:from";
+const WAITING_KEY: str = "gamend:activity:waiting";
+const ROW_KEY: str = "gamend:activity:row:";
+
+/// Keep a call that just went out, waiting for its reply. Answers `request`,
+/// so a sender keeps the id it hands back.
+pub fn started(request: int, kind: str, what: str, args: any) -> int {
+    settle();
+    let seq = push({ REQUEST: request, KIND: kind, WHAT: what, STATUS: WAITING, MS: nil, ARGS: kept(args), REPLY: nil });
+    let waiting = waiting();
+    waiting["{request}"] = seq;
+    script::store(WAITING_KEY, waiting);
+    request
+}
+
+/// Keep something the connection did on its own, not the answer to a call.
+pub fn noted(kind: str, what: str, payload: any) {
+    push({ REQUEST: 0, KIND: kind, WHAT: what, STATUS: "", MS: nil, ARGS: nil, REPLY: kept(payload) });
+}
+
+/// Finish each waiting call whose reply the engine still holds: it keeps the
+/// newest sixty-four, which is why every `started` settles first.
+pub fn settle() {
+    let waiting = waiting();
+    if waiting.len() == 0 {
+        return;
+    }
+    let oldest = count() - KEPT;
+    let left: any = {};
+    for key in waiting.keys() {
+        let seq = waiting[key].as_int();
+        if seq <= oldest {
+            continue;
+        }
+        let reply = gamend::reply(key.parse_int());
+        if reply == nil {
+            left[key] = seq;
+        } else {
+            finish(seq, reply);
+        }
+    }
+    script::store(WAITING_KEY, left);
+}
+
+/// Every row, newest first.
+pub fn rows() -> [Entry] {
+    settle();
+    let out: [Entry] = [];
+    let last = count();
+    let first = max(stored_int(FROM_KEY), last - KEPT);
+    let seq = last;
+    while seq > first {
+        let row = script::stored(ROW_KEY + "{seq % KEPT}");
+        if row.kind() == types::KIND_MAP && row[SEQ].as_int() == seq {
+            out.push(entry(row));
+        }
+        seq -= 1;
+    }
+    out
+}
+
+/// Forget the rows kept so far; calls still waiting are forgotten too.
+pub fn clear() {
+    script::store(FROM_KEY, count());
+    script::store(WAITING_KEY, {});
+}
+
+fn push(row: any) -> int {
+    let seq = count() + 1;
+    row[SEQ] = seq;
+    script::store(ROW_KEY + "{seq % KEPT}", row);
+    script::store(COUNT_KEY, seq);
+    let plain = seq - DETAILED;
+    let older = script::stored(ROW_KEY + "{plain % KEPT}");
+    if plain > 0 && older.kind() == types::KIND_MAP && older[SEQ].as_int() == plain {
+        older[ARGS] = nil;
+        older[REPLY] = nil;
+        script::store(ROW_KEY + "{plain % KEPT}", older);
+    }
+    seq
+}
+
+/// A reply's status in a word: the HTTP status, a socket reply's, `ok` for a
+/// login, or why it failed; and its round trip where the engine measured one.
+fn finish(seq: int, reply: any) {
+    let key = ROW_KEY + "{seq % KEPT}";
+    let row = script::stored(key);
+    if row.kind() != types::KIND_MAP || row[SEQ].as_int() != seq {
+        return;
+    }
+    let kind = reply[KIND].text();
+    row[STATUS] = if kind == ERROR {
+        if reply.has(ERROR) { reply[ERROR].text() } else { reply[REASON].text() }
+    } else if reply.has(STATUS) {
+        reply[STATUS].text()
+    } else if kind == LOGIN {
+        OK
+    } else {
+        kind
+    };
+    row[MS] = reply[MS];
+    if seq > count() - DETAILED {
+        row[REPLY] = kept(if kind == REST { reply["body"] } else { reply });
+    }
+    script::store(key, row);
+}
+
+fn entry(row: any) -> Entry {
+    let ms: float? = nil;
+    if row[MS].kind() == types::KIND_FLOAT {
+        ms = row[MS].as_float();
+    }
+    Entry {
+        seq: row[SEQ].as_int(),
+        request: row[REQUEST].as_int(),
+        kind: row[KIND].text(),
+        what: row[WHAT].text(),
+        status: row[STATUS].text(),
+        ms: ms,
+        args: row[ARGS],
+        reply: row[REPLY],
+    }
+}
+
+/// A payload as the dock shows it, or its size when it is too big to keep.
+fn kept(payload: any) -> any {
+    if payload == nil {
+        return nil;
+    }
+    let size = json::encode(payload).len();
+    if size > LARGEST { "{size} bytes, not kept" } else { payload }
+}
+
+fn waiting() -> any {
+    let held = script::stored(WAITING_KEY);
+    if held.kind() == types::KIND_MAP { held } else { {} }
+}
+
+fn count() -> int {
+    stored_int(COUNT_KEY)
+}
+
+fn stored_int(key: str) -> int {
+    let held = script::stored(key);
+    if held.kind() == types::KIND_INT { held.as_int() } else { 0 }
+}
+
+fn max(a: int, b: int) -> int {
+    if a > b { a } else { b }
+}

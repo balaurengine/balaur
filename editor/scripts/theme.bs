@@ -22,8 +22,8 @@ pub struct Resolve {
     doc: any,
 }
 
-/// The pairs the editor ships, which every other one is based on. The same
-/// list is the setting's `options`, and the self-test holds the two together.
+/// The pairs the editor ships, which every other one is based on, and the
+/// options `editor/appearance/theme` offers.
 pub fn BUNDLED() -> [str] {
     [
         "balaur",
@@ -62,7 +62,7 @@ fn ROOTS() -> [str] {
 
 /// Where the person's own themes live.
 pub fn user_directory() -> str {
-    project::editor_data_directory() + "/themes"
+    util::editor_data() + "/themes"
 }
 
 pub fn is_bundled(name: str) -> bool {
@@ -234,6 +234,10 @@ pub fn flat(name: str, half: str, doc: any) -> any {
         let value = colors[key];
         flattened[key] = value;
     }
+    // A node with no kind of its own wears the quietest text tier.
+    if flattened[theme_tokens::NODE_DEFAULT] == nil {
+        flattened[theme_tokens::NODE_DEFAULT] = colors[theme_tokens::TEXT_SUBTLE];
+    }
     flattened
 }
 
@@ -315,9 +319,6 @@ pub fn apply(state: editor::State) {
     }
     let background = util::hex_to_rgb(tokens["bg_app"].as_str());
     render::set_background(background.red, background.green, background.blue);
-    let minor = util::hex_to_rgb(tokens["grid_minor"].as_str());
-    let major = util::hex_to_rgb(tokens["grid_major"].as_str());
-    render::set_grid_colors(minor.red, minor.green, minor.blue, major.red, major.green, major.blue);
 }
 
 /// Wear the named pair, in the half the mode and the system pick. The same

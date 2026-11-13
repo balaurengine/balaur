@@ -38,6 +38,8 @@ use physics;
 use polygon;
 use pool;
 use populate;
+use ragdoll;
+use scatter;
 use recipes;
 use rig;
 use search;
@@ -45,6 +47,7 @@ use selection;
 use session;
 use settings;
 use shell;
+use shipped;
 use statemachine;
 use style;
 use textedit;
@@ -55,6 +58,8 @@ use util;
 use viewport;
 use weights;
 use window;
+use words::components;
+use words::fields;
 use words::project_fields;
 
 pub struct WritableFloat {
@@ -877,9 +882,11 @@ fn inline_polygon(state: editor::State) -> int? {
     nil
 }
 
-/// Create Physical Skeleton: one engine call, and the nodes it spawns kept in
-/// the scene, so they are in the tree and in the saved file.
+/// Create Physical Skeleton: the rig tool on the scene's own rig, and the
+/// builder behind it on rigs this test makes, in 2D and in 3D.
 pub fn physical_bones(state: &mut editor::State) {
+    ragdoll_builder(state, false);
+    ragdoll_builder(state, true);
     let rig_index: int? = nil;
     for index in 0..state.nodes.len() {
         if rig::bone_count(state, index) > 1 && !rig::is_bone(model::node(state, index)) {
@@ -894,24 +901,152 @@ pub fn physical_bones(state: &mut editor::State) {
     let rig_index = rig_index.unwrap();
     shell::choose(state, rig_index);
     let start = state.nodes.len();
+    let bodies_before = body_count(state);
     let bones = rig::bone_count(state, rig_index);
     rig::physical_bones(state);
     check(state.nodes.len() > start, "building a ragdoll adds nodes to the scene ({start} to {state.nodes.len()})");
     // A body per bone, plus the container they hang from.
     check(state.nodes.len() <= start + bones + 1, "and no more than one per bone ({bones} bones, {state.nodes.len() - start} nodes)");
     check(mirror_resolves(state), "every new node resolves in the mirror");
-    let ragdoll = model::node(state, rig_index).authored("ragdoll");
+    let ragdoll = model::node(state, rig_index).authored(RAGDOLL_COMPONENT);
     check(ragdoll != nil && ragdoll.kind() == "map", "the rig carries the ragdoll component that drives its bones back");
-    let bodies = 0;
-    for node in state.nodes {
-        if node.has_component("body2d") || node.has_component("body3d") {
-            bodies += 1;
-        }
-    }
-    check(bodies > 0, "and every bone got a body ({bodies})");
+    check(body_count(state) > bodies_before, "and every bone got a body ({body_count(state) - bodies_before})");
     undo_all(state);
     check(mirror_resolves(state), "the undone scene resolves");
     log::info("selftest physical bones: done");
+}
+
+const RAGDOLL_COMPONENT: str = "ragdoll";
+const BUILDER_RIG: str = "RagdollCheck";
+const BUILDER_CONTAINER: str = "RagdollCheck_ragdoll";
+const KNEE_BEND: float = 0.5;
+
+fn body_count(state: editor::State) -> int {
+    let bodies = 0;
+    for node in state.nodes {
+        if node.has_component(components::BODY2D) || node.has_component(components::BODY3D) {
+            bodies += 1;
+        }
+    }
+    bodies
+}
+
+fn check_bone(parent: Node, name: str, three: bool, at: Vec3, turn: Vec3, reach: float) -> Node {
+    let made = parent.add_child(name);
+    made.transform.position = at;
+    made.transform.rotation_euler = turn;
+    made.set_component(if three { components::BONE3D } else { components::BONE2D }, { fields::LENGTH: reach });
+    made
+}
+
+// Three bones along +x, the knee bent about z in 2D and about two axes in 3D,
+// under a node of their own at the scene root.
+fn check_rig(root: Node, three: bool) -> Node {
+    let made = root.add_child(BUILDER_RIG);
+    made.transform.position = vec3(0.5, 1.0, 0.0);
+    let hip = check_bone(made, "Hip", three, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), 0.0);
+    let bend = if three { vec3(0.3, 0.0, KNEE_BEND) } else { vec3(0.0, 0.0, KNEE_BEND) };
+    let knee = check_bone(hip, "Knee", three, vec3(1.0, 0.0, 0.0), bend, 0.0);
+    check_bone(knee, "Foot", three, vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), 1.0);
+    made
+}
+
+// What the builder writes, on a rig of its own, then gone again.
+fn ragdoll_builder(state: &mut editor::State, three: bool) {
+    if state.scene_root == nil {
+        log::info("selftest ragdoll builder: no scene; skipped");
+        return;
+    }
+    let root = state.scene_root.unwrap();
+    let plain = root.add_child(BUILDER_RIG);
+    check(ragdoll::segments(plain).len() == 0, "a node with no bones has nothing to build a ragdoll from");
+    plain.free();
+    let made = check_rig(root, three);
+    let knee_bone = made.get_node("Hip/Knee");
+    let built = ragdoll::build(made, ragdoll::segments(made), root, ragdoll::Options { influence: 0.0 });
+    let container = root.get_node(BUILDER_CONTAINER);
+    let joint_name = if three { "joint3d" } else { "joint2d" };
+    check(built.len() == 3 && container.is_valid() && container.children().len() == 3, "the builder makes a body per bone in a container beside the rig ({built.len()}, 3D {three})");
+    check(!container.get_node("Hip").has_component(joint_name), "the root of the chain hangs from nothing");
+    let knee = container.get_node("Knee").get_component(joint_name);
+    let kind = if three { physics3d::JOINT_BALL_SOCKET } else { physics2d::JOINT_HINGE };
+    let jointed = knee["connected_body"].as_str();
+    check(knee["kind"].as_str() == kind && jointed == "../Hip", "the knee's body is jointed to the hip's ({jointed})");
+    let ragdoll_table = made.get_component(RAGDOLL_COMPONENT);
+    check(made.get_node(ragdoll_table["bodies"].as_str()).path() == container.path() && ragdoll_table["influence"].as_float() == 0.0, "the rig names its bodies at the influence asked ({ragdoll_table})");
+    // The joint's zero is the pose the rig was built in.
+    let rest = knee["connected_anchor_rotation"];
+    if three {
+        let turned: Vec3 = rest;
+        let wanted = knee_bone.transform.rotation_euler;
+        check(util::abs(turned.x - wanted.x) + util::abs(turned.y - wanted.y) + util::abs(turned.z - wanted.z) < 0.0001, "the knee's joint holds the bend it was built in ({turned})");
+        // A capsule stands along its own y, turned to lie along the bone.
+        let collider = container.get_node("Knee").get_component(components::COLLIDER3D);
+        let along: Vec3 = collider["offset"];
+        let turned_shape: Vec3 = collider["offset_rotation"];
+        let up = quat::rotate(quat::from_euler(turned_shape), vec3(0.0, 1.0, 0.0));
+        let size = math::sqrt(along.x * along.x + along.y * along.y + along.z * along.z);
+        check(util::abs(up.x - along.x / size) + util::abs(up.y - along.y / size) + util::abs(up.z - along.z / size) < 0.0001, "the knee's capsule lies along the bone ({up})");
+    } else {
+        check(util::abs(rest.as_float() - KNEE_BEND) < 0.0001, "the knee's joint holds the bend it was built in ({rest})");
+    }
+    container.free();
+    made.remove_component(RAGDOLL_COMPONENT);
+    ragdoll_options(made, root, three);
+    made.free();
+    model::reindex(state);
+    check(mirror_resolves(state), "the scene resolves once the builder's rigs are gone");
+    log::info("selftest ragdoll builder: done (3D {three})");
+}
+
+// Every option lands on the component it names, and a motor drive keeps the
+// options' own limits.
+fn ragdoll_options(made: Node, root: Node, three: bool) {
+    let turn = if three { physics3d::AXIS_ROTATION_Z } else { physics2d::AXIS_ROTATION };
+    ragdoll::build(made, ragdoll::segments(made), root, ragdoll::Options {
+        influence: 0.0,
+        shape: if three { physics3d::SHAPE_BOX } else { physics2d::SHAPE_RECTANGLE },
+        restitution: 0.3,
+        collision_layer: [2],
+        linear_damping: 0.5,
+        gravity_scale: 0.25,
+        continuous_collision: true,
+        articulation: true,
+        collide_connected: true,
+        drive: ragdoll::DRIVE_MOTORS,
+        stiffness: 40.0,
+        axes: [{ "axis": turn, "limits": [-0.5, 0.5] }],
+    });
+    let container = root.get_node(BUILDER_CONTAINER);
+    let knee = container.get_node("Knee");
+    let body = knee.get_component(if three { components::BODY3D } else { components::BODY2D });
+    check(body["gravity_scale"].as_float() == 0.25 && body["linear_damping"].as_float() == 0.5 && body["continuous_collision"].as_bool(), "a body takes the damping, gravity and sweep asked ({body})");
+    let collider = knee.get_component(if three { components::COLLIDER3D } else { components::COLLIDER2D });
+    let wanted = if three { physics3d::SHAPE_BOX } else { physics2d::SHAPE_RECTANGLE };
+    let shape_kind = collider["shape"]["kind"].as_str();
+    // A component reads its inline material back as a handle; the table is what was authored.
+    let bounce = knee.authored(if three { components::COLLIDER3D } else { components::COLLIDER2D })["physics_material"]["restitution"].as_float();
+    check(shape_kind == wanted && collider["collision_layer"][0].as_str() == "2" && util::abs(bounce - 0.3) < 0.0001, "a shape takes the kind, layer and bounce asked ({shape_kind}, {bounce})");
+    let joint = knee.get_component(if three { "joint3d" } else { "joint2d" });
+    check(knee.has_component(if three { "articulation3d" } else { "articulation2d" }) && joint["collide_connected"].as_bool(), "a joint is an articulation that collides with its neighbour");
+    let axes = joint["axes"];
+    let found: any = nil;
+    for i in 0..axes.len() {
+        if axes[i]["axis"].as_str() == turn {
+            found = axes[i];
+        }
+    }
+    check(found != nil && found["motor"].as_str() == physics3d::MOTOR_POSITION && found["stiffness"].as_float() == 40.0 && found["limits"][1].as_float() == 0.5, "a motor drive keeps the limit it was given ({found})");
+    container.free();
+    made.remove_component(RAGDOLL_COMPONENT);
+    ragdoll::build(made, ragdoll::segments(made), root, ragdoll::Options { influence: 0.0, drive: ragdoll::DRIVE_FOLLOW, follow: { "kind": physics3d::FOLLOW_PID } });
+    let container = root.get_node(BUILDER_CONTAINER);
+    let foot = container.get_node("Foot");
+    let follow = foot.get_component(if three { "follow3d" } else { "follow2d" });
+    let target = follow["target"].as_str();
+    check(follow["kind"].as_str() == physics3d::FOLLOW_PID && foot.get_node(target).path() == made.get_node("Hip/Knee/Foot").path(), "a follow drive sends each body after its own bone ({target})");
+    container.free();
+    made.remove_component(RAGDOLL_COMPONENT);
 }
 
 /// The mouse camera the editor drives, whatever tool is picked.
@@ -2174,7 +2309,7 @@ pub fn font_catalogue(state: &mut editor::State) {
         return;
     }
     // The download lands under the user directory, as `save_to` puts it.
-    let saved = engine::user_data_directory() + "/fonts/Probe-Regular.ttf";
+    let saved = util::editor_data() + "/fonts/Probe-Regular.ttf";
     fs::copy("fonts/SourceSans3-Regular.ttf", saved);
     answer(state, "face", { "path": saved, "body": "" });
     answer(state, "licence", { "body": "SIL Open Font License" });
@@ -2462,7 +2597,7 @@ const CHECK_AT: int = 28;
 /// leaves in the list, and the row forgotten again. Writes under the editor's
 /// own data directory, which is the one place it owns on every machine.
 pub fn manager_screen(state: &mut editor::State) {
-    let home = engine::user_data_directory() + "/selftest-project";
+    let home = util::editor_data() + "/selftest-project";
     let made = util::map_or_empty(project::create(home, "empty"));
     let failed = made["error"];
     if failed != nil {
@@ -2476,7 +2611,7 @@ pub fn manager_screen(state: &mut editor::State) {
     check(first["exists"].as_bool() == true, "and its folder is there");
     project::forget(home);
     check(!lists_path(util::list_or_empty(project::recent()), home), "forgetting it drops the row and leaves the folder");
-    check(util::list_or_empty(project::templates()).len() > 0, "the library offers templates to start from");
+    check(util::list_or_empty(shipped::templates()).len() > 0, "the library offers templates to start from");
     check(project::home() != "", "and a folder to put a new project in");
     // A tab opens a project through the page, and the screen's own commands
     // are hidden there. This run is a process, so it says so.
@@ -2563,7 +2698,7 @@ fn names(items: any, name: str) -> bool {
 // The examples that ship beside the editor, and a copy of one. The copy is
 // what the screen opens, so the shipped example stays as it was.
 fn example_projects(state: editor::State) {
-    let rows = util::list_or_empty(project::examples());
+    let rows = util::list_or_empty(shipped::examples());
     check(rows.len() > 0, "{rows.len()} examples ship beside this build");
     let hello = row_with_id(rows, "hello");
     if hello == nil {
@@ -2572,8 +2707,8 @@ fn example_projects(state: editor::State) {
     }
     let one = util::map_or_empty(hello);
     check(one["note"].as_str() != "", "and each says what it is ({one["note"]})");
-    let into = engine::user_data_directory() + "/selftest-copies";
-    let made = util::map_or_empty(project::copy_example("hello", into));
+    let into = util::editor_data() + "/selftest-copies";
+    let made = util::map_or_empty(shipped::copy_example("hello", into));
     let failed = made["error"];
     if failed != nil {
         check(false, "a copy of an example is a project of its own ({failed})");
@@ -3223,7 +3358,7 @@ pub fn plugin_step(state: &mut editor::State) {
     check(shown > 1, "the dock's files are rows on it ({shown})");
     let labels: [str] = [];
     for row in rows.children() {
-        let label = row.get_node("L");
+        let label = row.get_node("C0");
         if label.is_valid() && label.visible() == true {
             labels.push(label.widget.text);
         }
@@ -3261,7 +3396,7 @@ pub fn palette_step(state: &mut editor::State) {
     let shown: [bool] = [];
     for row in host.children() {
         if row.visible() == true {
-            let slot = row.get_node("H").get_node("C").get_node("C0");
+            let slot = row.get_node("C1").get_node("C0");
             shown.push(slot.widget_check.checked == true);
         }
     }
@@ -3386,7 +3521,7 @@ pub fn settings_step(state: &mut editor::State) {
     }
     state.settings.demo = -1;
     check(settings::query(state) == "scale", "typing in the field is the query ('{settings::query(state)}')");
-    let note = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm/R0/H/C/C0");
+    let note = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm/C0/C1/C0");
     let said = if note.is_valid() { note.widget.text } else { "" };
     check(said.contains("matching \"scale\"") && !said.starts_with("0 "), "and the list is the matches for it ({said})");
     settings_round_trip(state);
@@ -3416,8 +3551,45 @@ fn settings_round_trip(state: &mut editor::State) {
     } else {
         fs::remove(settings::preferences_path());
     }
+    plugin_saves_a_project_setting(state);
+    the_game_s_manifest_stays_apart(state);
     state.settings.dirty = false;
     log::info("selftest settings: done");
+}
+
+// The editor runs with its own window and checker and edits the game's: a
+// game's `[window]` is held, not run, and saving writes none of the editor's.
+fn the_game_s_manifest_stays_apart(state: &mut editor::State) {
+    let manifest = state.game_root + "/project.toml";
+    let kept = fs::read(manifest).or("");
+    fs::write(manifest, kept + "\n[window]\nwidth = 640\n");
+    let running = settings::get("window/width");
+    settings::load_files(state);
+    check(settings::stated(state, "window/width").as_int() == 640, "the game's window width is what the screen shows ({settings::stated(state, "window/width")})");
+    check(settings::get("window/width") == running, "and not what this run's window takes ({settings::get("window/width")})");
+    settings::set("time/tick_hz", 20);
+    settings::commit_project(state);
+    let written = fs::read(manifest).or("");
+    check(written.contains("width = 640") && !written.contains("tick_hz") && !written.contains("strict"), "saving writes the game's own values and none of this run's");
+    fs::write(manifest, kept);
+    settings::clear("time/tick_hz");
+    settings::load_files(state);
+}
+
+// What the Gamend dock does with its server picker: a plain `settings::set`,
+// then the kit's save.
+fn plugin_saves_a_project_setting(state: &mut editor::State) {
+    let manifest = state.game_root + "/project.toml";
+    let kept = fs::read(manifest);
+    let was = settings::stated(state, "export/runtime");
+    let pick = if was.as_str() == "2d" { "3d" } else { "2d" };
+    settings::set("export/runtime", pick);
+    kit::save_project(state);
+    check(fs::read(manifest).or("").contains("runtime = \"{pick}\""), "a plugin's set, then the kit's save, reaches project.toml ({pick})");
+    settings::write(state, "export/runtime", was);
+    if kept != nil {
+        fs::write(manifest, kept.unwrap());
+    }
 }
 
 /// `--state test:export_runtime`: the Export sheet's Runtime choice is the
@@ -3426,7 +3598,7 @@ fn settings_round_trip(state: &mut editor::State) {
 pub fn export_runtime(state: &mut editor::State) {
     let path = state.game_root + "/project.toml";
     let kept = fs::read(path);
-    let was = settings::base("export/runtime");
+    let was = settings::stated(state, "export/runtime");
     exporter::open(state);
     // Whichever the project does not already name, so the write is seen.
     let pick = if was.as_str() == "2d" { "3d" } else { "2d" };
@@ -3611,7 +3783,7 @@ pub fn theme_edit_step(state: &mut editor::State) {
     let roles: [str] = [];
     for row in host.children() {
         if row.visible() == true {
-            let slot = row.get_node("H").get_node("C").get_node("C0");
+            let slot = row.get_node("C1").get_node("C0");
             roles.push(slot.widget.role);
         }
     }
@@ -4345,7 +4517,7 @@ fn drawn_label(state: editor::State, key: str) -> str {
     if !row.is_valid() {
         return "";
     }
-    row.get_node("L").widget.text
+    row.get_node("C0").widget.text
 }
 
 /// A run of `test:inspector_rows`.
@@ -4415,7 +4587,7 @@ pub fn form_check_step(state: &mut editor::State) {
     } else if stage == 6 {
         let head = inspector::line_named(state, "body2d.enabled");
         check(head != nil && head.unwrap().kind == inspector::HEAD, "a section's head carries its component's enabled");
-        ui::edit_bool(inspector::row_of_line(state, "body2d.enabled").get_node("H/C/C2"), false);
+        ui::edit_bool(inspector::row_of_line(state, "body2d.enabled").get_node("C1/C2"), false);
     } else {
         form_check_rows(state, run, node, stage);
     }
@@ -4434,7 +4606,7 @@ fn form_check_rows(state: &mut editor::State, run: FormCheck, node: Node, stage:
         model::add_component(state, "character2d");
         form_search("lock_translation");
     } else if stage == 8 {
-        let pill = inspector::row_of_line(state, "body2d.lock_translation").get_node("H/C/C0");
+        let pill = inspector::row_of_line(state, "body2d.lock_translation").get_node("C1/C0");
         check(pill.widget.role == "chip_flag", "a set's row is a pill an option");
         run.past = util::list_or_empty(node.component_property("body2d", "lock_translation")).len();
         ui::click(pill);
@@ -4443,22 +4615,22 @@ fn form_check_rows(state: &mut editor::State, run: FormCheck, node: Node, stage:
         check(held.len() == run.past + 1, "and a pill turns its option round ({held})");
         form_search("rotation_euler");
     } else if stage == 10 {
-        let channel = inspector::row_of_line(state, "transform.rotation_euler").get_node("H/C/C1");
+        let channel = inspector::row_of_line(state, "transform.rotation_euler").get_node("C1/C1");
         ui::edit_number(channel, 90.0);
     } else if stage == 11 {
         let held = node.transform.rotation_euler;
         check(util::abs(held.y - 1.5707963) < 0.001, "a channel shown in degrees is stored in radians ({held})");
         check(held.x == 0.0 && held.z == 0.0, "and the channels beside it stay");
-        let channel = inspector::row_of_line(state, "transform.rotation_euler").get_node("H/C/C1");
+        let channel = inspector::row_of_line(state, "transform.rotation_euler").get_node("C1/C1");
         check(util::abs(channel.widget_range.value - 90.0) < 0.001, "the row shows degrees ({channel.widget_range.value})");
         form_search("ignore_nodes");
     } else if stage == 12 {
         check(inspector::line_named(state, "character2d.ignore_nodes").unwrap().count == 1, "an empty list is its head alone");
-        ui::click(inspector::row_of_line(state, "character2d.ignore_nodes").get_node("H/C/C1"));
+        ui::click(inspector::row_of_line(state, "character2d.ignore_nodes").get_node("C1/C1"));
     } else if stage == 13 {
         check(node.character2d.ignore_nodes.len() == 1, "a list's chip adds an entry");
         check(inspector::line_named(state, "character2d.ignore_nodes").unwrap().count == 2, "and the entry is a row");
-        ui::click(inspector::row_of_line(state, "character2d.ignore_nodes/0").get_node("H/C/C2"));
+        ui::click(inspector::row_of_line(state, "character2d.ignore_nodes/0").get_node("C1/C2"));
     } else if stage == 14 {
         check(node.character2d.ignore_nodes.len() == 0, "the entry's chip takes it out");
         check(inspector::line_named(state, "character2d.ignore_nodes").unwrap().count == 1, "and its row goes");
@@ -4833,6 +5005,17 @@ fn count(state: &mut editor::State) -> int {
 }
 
 // How many instances the selected multimesh holds on its live node.
+// Where the selected multimesh's last instance stands, as its asset spells it.
+fn last_instance_position(state: editor::State) -> [float] {
+    let found = model::node(state, state.selected);
+    let listed = util::list_or_empty(if found.has_component("multimesh2d") { found.multimesh2d.instances() } else { found.multimesh3d.instances() });
+    if listed.len() == 0 {
+        return [];
+    }
+    let position: [float] = util::list_or_empty(util::map_or_empty(listed[listed.len() - 1])["position"]);
+    position
+}
+
 fn instance_count(state: editor::State) -> int {
     let found = model::node(state, state.selected);
     if populate::component(model::selected_node(state)) == nil || !found.is_valid() {
@@ -4893,11 +5076,13 @@ pub fn populate(state: &mut editor::State) {
     shell::choose(state, at);
     let before = instance_count(state);
     check(before >= 0, "the multimesh resolves in the mirror ({before})");
-    state.populate.kind = render::POPULATE_GRID;
+    state.populate.kind = scatter::GRID;
     state.populate.columns = 3;
     state.populate.rows = 2;
     populate::apply(state);
     check(instance_count(state) == 6, "a 3 by 2 grid writes six instances ({instance_count(state)})");
+    let last = last_instance_position(state);
+    check(last.len() == 3 && last[0] == 2.0 && last[2] == 1.0, "the last stands two steps across and one down the grid ({last})");
     check(history::dirty(state), "populating marks the scene dirty");
     check(mirror_resolves(state), "populating resolves every node in the mirror");
     let surface = "";
@@ -4907,7 +5092,7 @@ pub fn populate(state: &mut editor::State) {
         }
     }
     if surface != "" {
-        state.populate.kind = render::POPULATE_SURFACE;
+        state.populate.kind = scatter::SURFACE;
         state.populate.surface = surface;
         state.populate.count = 20;
         populate::apply(state);

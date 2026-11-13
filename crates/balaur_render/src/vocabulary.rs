@@ -253,10 +253,6 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("AOV_NORMALS", words::AOV_NORMALS),
     ("AOV_CAMERA_NORMALS", words::AOV_CAMERA_NORMALS),
     ("AOV_SEGMENTATION", words::AOV_SEGMENTATION),
-    ("POPULATE_SURFACE", words::SURFACE),
-    ("POPULATE_ROW", words::ROW),
-    ("POPULATE_RING", words::RING),
-    ("POPULATE_GRID", words::GRID),
 ];
 
 /// Every property key the render components spell, so a schema line and the

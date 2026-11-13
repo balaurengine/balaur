@@ -7,6 +7,7 @@ use editor;
 use lint;
 use model;
 use selftest;
+use settings;
 use shell;
 use signals;
 use util;
@@ -63,7 +64,7 @@ pub struct Mark {
 // How many sessions are kept per game before the oldest is pruned; a kept
 // one is renamed out of the ring. Set on the settings screen.
 fn ring_size() -> int {
-    let keep = settings::get("editor/recordings/keep");
+    let keep = settings::get(settings::RECORDINGS_KEEP);
     if keep == nil { 10 } else { keep.as_float() as int }
 }
 
@@ -94,7 +95,7 @@ pub fn state() -> SessionState {
 // Where this game's sessions live: in the per-user folder, one per project
 // name, so nothing lands in the project or its version control.
 pub fn directory(state: editor::State) -> str {
-    project::editor_data_directory() + "/recordings/" + state.game_name
+    util::editor_data() + "/recordings/" + state.game_name
 }
 
 // A fingerprint of the scripts the session is about to run, so a replay can

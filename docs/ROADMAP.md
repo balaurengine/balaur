@@ -154,7 +154,7 @@ being built, marked `done`, never back in the shipped one.
 | --- | :-: | --- |
 | **Widgets, text and the batteries** — thirty-one widget kinds over cosmic-text, containers that hand out rects, text, and the batteries: audio buses, input actions, saves, localisation. | 0.1 done | no plan |
 | **Lists, trees and tables** — `list`, `tree` and `table` kinds with many rows selected, columns a drag resizes, and only the rows in view built. | 0.2 done | [PLAN-widgets.md#data-views](PLAN-widgets.md#data-views) |
-| **Menus, popups and tooltips** — a menu bar with submenus, a context menu a right click or a long press opens, shortcuts on rows, and a toast. | 0.2 done | [PLAN-widgets.md#menus-and-popups](PLAN-widgets.md#menus-and-popups) |
+| **Menus, popups and tooltips** — a menu bar with submenus, a context menu a right click or a long press opens, and shortcuts on rows. | 0.2 done | [PLAN-widgets.md#menus-and-popups](PLAN-widgets.md#menus-and-popups) |
 | **Text a game can edit** — a `text_area`, a `code` kind with the editor's gutter, a `drag_value` with arrows and units, labels a drag selects, and `[url]` and `[hint]` marks. | 0.2 done | [PLAN-widgets.md#text](PLAN-widgets.md#text) |
 | **Theme states and icons** — `disabled` and `focus` tables in a `widget_theme`, and the icons a check, a spin box, a tab and a slider draw. | 0.3 | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
 | **egui as the painter** — the immediate `ui` draw calls go, each kind paints its face from the theme, and one seam holds every shape. | 0.3 done | [PLAN-egui-as-painter.md](PLAN-egui-as-painter.md) |

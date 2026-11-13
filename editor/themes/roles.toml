@@ -8,6 +8,30 @@ type = "widget_theme"
 font_size = 12
 control_height = 24
 
+# Kinds of node and the axes keep their own hue whatever the brand colour is,
+# so an orange primary cannot make a 3D node read as a bone.
+[hues]
+node_2d = 83.0
+node_3d = 249.0
+node_ui = 300.0
+node_physics = 182.0
+node_bone = 51.0
+node_modifier = 315.0
+axis_x = 19.0
+axis_y = 131.0
+axis_z = 254.0
+
+# The viewport grid, this far from the background towards the foreground.
+[mixes]
+grid_minor = 0.05
+grid_major = 0.15
+
+# The disc behind the engine's mark and the rings a touch leaves, the same in
+# both halves.
+[colors]
+brand_plate = "#e9edf2"
+input_ripple = "#ffffff"
+
 # The editor's faces. A role names one by its name here, as it names a
 # colour by its token; `default` is every text that names none, `icon` the
 # glyphs a button or a row draws beside its caption.

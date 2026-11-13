@@ -58,20 +58,6 @@ const FAMILY_HUES: &[(&str, f64)] = &[
     (t::DANGER, 25.0),
 ];
 
-/// Categories that keep their own hue whatever the brand colour is, so an
-/// orange primary cannot make a 3D node read as a bone.
-const FIXED_HUES: &[(&str, f64)] = &[
-    ("node_2d", 83.0),
-    ("node_3d", 249.0),
-    ("node_ui", 300.0),
-    ("node_physics", 182.0),
-    ("node_bone", 51.0),
-    ("node_modifier", 315.0),
-    ("axis_x", 19.0),
-    ("axis_y", 131.0),
-    ("axis_z", 254.0),
-];
-
 /// The background a theme that states none gets: a dark slate.
 const DEFAULT_BACKGROUND: Lab = Lab {
     l: 0.24,
@@ -94,8 +80,6 @@ const MUTED_MIX: f64 = 0.30;
 const SUBTLE_MIX: f64 = 0.38;
 const FILL_HOVER_MIX: f64 = 0.15;
 const TINT_MIX: f64 = 0.12;
-const GRID_MINOR_MIX: f64 = 0.05;
-const GRID_MAJOR_MIX: f64 = 0.15;
 const SYNTAX_MIX: f64 = 0.35;
 /// The lightness and most chroma an ink takes, dark and light.
 const INK_L_DARK: f64 = 0.73;
@@ -112,10 +96,6 @@ const FOREGROUND_LIGHT: (f64, f64) = (0.2, 0.01);
 /// The two inks a family's fill may carry, whichever reads better on it.
 const ON_LIGHT: (f64, f64) = (0.98, 0.005);
 const ON_DARK: (f64, f64) = (0.16, 0.01);
-/// Constants in both modes: the disc behind the engine's mark, and the
-/// rings a touch leaves.
-const BRAND_PLATE: &str = "#e9edf2";
-const INPUT_RIPPLE: &str = "#ffffff";
 
 #[derive(Clone, Copy, Debug)]
 struct Lab {
@@ -288,6 +268,10 @@ impl Work {
 /// `doc` with its `[colors]` and `[sizes]` filled in, and `dark` stated. A
 /// document with no `[colors]` at all keeps none: a game theme that only
 /// restyles kinds has nothing to derive.
+///
+/// `[hues]` names tokens of the theme's own, each an ink at that hue in
+/// degrees whatever the brand colour is, and `[mixes]` tokens that far from
+/// the background towards the foreground.
 #[must_use]
 pub fn complete(doc: &toml::Value) -> toml::Value {
     let Some(table) = doc.as_table() else {
@@ -296,7 +280,11 @@ pub fn complete(doc: &toml::Value) -> toml::Value {
     let mut out = table.clone();
     if let Some(colors) = table.get(k::COLORS).and_then(toml::Value::as_table) {
         let stated_dark = table.get(k::DARK).and_then(toml::Value::as_bool);
-        let (colors, dark) = derive_colors(colors, stated_dark);
+        let extra = Extra {
+            hues: table.get(k::HUES).and_then(toml::Value::as_table),
+            mixes: table.get(k::MIXES).and_then(toml::Value::as_table),
+        };
+        let (colors, dark) = derive_colors(colors, stated_dark, &extra);
         out.insert(k::COLORS.into(), toml::Value::Table(colors));
         out.insert(k::DARK.into(), toml::Value::Boolean(dark));
     }
@@ -305,7 +293,13 @@ pub fn complete(doc: &toml::Value) -> toml::Value {
     toml::Value::Table(out)
 }
 
-fn derive_colors(stated: &Table, stated_dark: Option<bool>) -> (Table, bool) {
+/// The tokens a theme adds to the derived ones, by rule.
+struct Extra<'a> {
+    hues: Option<&'a Table>,
+    mixes: Option<&'a Table>,
+}
+
+fn derive_colors(stated: &Table, stated_dark: Option<bool>, extra: &Extra<'_>) -> (Table, bool) {
     let mut work = Work {
         colors: stated.clone(),
         dark: true,
@@ -389,18 +383,21 @@ fn derive_colors(stated: &Table, stated_dark: Option<bool>) -> (Table, bool) {
         }
         work.put(&t::of(family, t::BG), mix(panel, own, tint.max(0.0)));
     }
-    work.put(t::GRID_MINOR, mix(bg, fg, GRID_MINOR_MIX));
-    work.put(t::GRID_MAJOR, mix(bg, fg, GRID_MAJOR_MIX));
     derive_syntax(&mut work, fg);
-    work.put(t::NODE_DEFAULT, work.at(t::TEXT_SUBTLE));
-    for (name, degrees) in FIXED_HUES {
-        work.put(
-            name,
-            work.legible(work.ink(degrees.to_radians(), FIXED_CHROMA)),
-        );
+    let number = balaur_core::components::as_f64;
+    for (name, amount) in extra.mixes.into_iter().flatten() {
+        if let Some(amount) = number(amount) {
+            work.put(name, mix(bg, fg, amount));
+        }
     }
-    work.put(t::BRAND_PLATE, parse(BRAND_PLATE).unwrap_or(fg));
-    work.put(t::INPUT_RIPPLE, parse(INPUT_RIPPLE).unwrap_or(fg));
+    for (name, degrees) in extra.hues.into_iter().flatten() {
+        if let Some(degrees) = number(degrees) {
+            work.put(
+                name,
+                work.legible(work.ink(degrees.to_radians(), FIXED_CHROMA)),
+            );
+        }
+    }
     (work.colors, work.dark)
 }
 
@@ -479,7 +476,8 @@ mod tests {
     fn seven_colours_make_a_whole_theme_whose_inks_read_at_aa() {
         for background in ["#151f2a", "#ebe9e3", "#000000", "#ffffff", "#3a2f4f"] {
             let done = colors(&format!(
-                "[colors]\nbackground = \"{background}\"\nprimary = \"#4287cc\"\n"
+                "[colors]\nbackground = \"{background}\"\nprimary = \"#4287cc\"\n\
+                 [hues]\nnode_bone = 51.0\naxis_x = 19.0\n"
             ));
             let inks: Vec<&String> = done
                 .keys()
@@ -491,7 +489,7 @@ mod tests {
                         || name.starts_with("axis_")
                 })
                 .collect();
-            assert!(inks.len() > 20, "the inks were derived: {inks:?}");
+            assert!(inks.len() > 16, "the inks were derived: {inks:?}");
             for ink in inks {
                 for ground in ["bg_app", "bg_panel", "bg_control", "bg_control_hover"] {
                     let r = ratio(
@@ -502,6 +500,22 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_theme_names_its_own_tokens_by_hue_and_by_mix() {
+        let done = colors(
+            "[colors]\nbackground = \"#151f2a\"\nprimary = \"#e07020\"\n\
+             [hues]\nkind = 249.0\n[mixes]\nline = 0.15\n",
+        );
+        let kind = parse(done["kind"].as_str().unwrap()).unwrap();
+        assert!(
+            (super::hue(kind).to_degrees().rem_euclid(360.0) - 249.0).abs() < 10.0,
+            "an orange primary leaves the kind blue"
+        );
+        let line = parse(done["line"].as_str().unwrap()).unwrap();
+        let background = parse(done["background"].as_str().unwrap()).unwrap();
+        assert!(line.l > background.l, "a mix moves off the background");
     }
 
     #[test]

@@ -9,7 +9,7 @@
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
 // left out when the call has nothing to put in it. It answers the id
-// `gamend::rest` answers, to await with `task::wait`. With a path
+// `core::rest` answers, to await with `task::wait`. With a path
 // parameter empty or a required field left out it sends nothing and
 // logs which, and the id answers an `error` naming it.
 
@@ -21,7 +21,7 @@ pub fn accept_group_invite(invite_id: str) -> int {
     if invite_id == "" {
         return core::missing("gamend::groups::accept_group_invite", "invite_id");
     }
-    gamend::rest("POST", "/api/v1/groups/invitations/{invite_id}/accept")
+    core::rest("POST", "/api/v1/groups/invitations/{invite_id}/accept")
 }
 
 /// Approve a join request (admin only)
@@ -33,7 +33,7 @@ pub fn approve_join_request(id: str, request_id: str) -> int {
     if request_id == "" {
         return core::missing("gamend::groups::approve_join_request", "request_id");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/join_requests/{request_id}/approve")
+    core::rest("POST", "/api/v1/groups/{id}/join_requests/{request_id}/approve")
 }
 
 /// Cancel a pending group invitation
@@ -42,7 +42,7 @@ pub fn cancel_group_invite(invite_id: str) -> int {
     if invite_id == "" {
         return core::missing("gamend::groups::cancel_group_invite", "invite_id");
     }
-    gamend::rest("DELETE", "/api/v1/groups/sent_invitations/{invite_id}")
+    core::rest("DELETE", "/api/v1/groups/sent_invitations/{invite_id}")
 }
 
 /// Cancel your own pending join request
@@ -54,7 +54,7 @@ pub fn cancel_join_request(id: str, request_id: str) -> int {
     if request_id == "" {
         return core::missing("gamend::groups::cancel_join_request", "request_id");
     }
-    gamend::rest("DELETE", "/api/v1/groups/{id}/join_requests/{request_id}")
+    core::rest("DELETE", "/api/v1/groups/{id}/join_requests/{request_id}")
 }
 
 /// Create a group
@@ -63,7 +63,7 @@ pub fn create_group(params: any) -> int {
     if !core::given(params, "title") {
         return core::missing("gamend::groups::create_group", "title");
     }
-    gamend::rest("POST", "/api/v1/groups", params)
+    core::rest("POST", "/api/v1/groups", params)
 }
 
 /// Request a group icon upload ticket (admin only)
@@ -75,7 +75,7 @@ pub fn create_group_icon_upload_url(id: str, params: any) -> int {
     if !core::given(params, "content_type") {
         return core::missing("gamend::groups::create_group_icon_upload_url", "content_type");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/icon/upload_url", params)
+    core::rest("POST", "/api/v1/groups/{id}/icon/upload_url", params)
 }
 
 /// Make a group's invite link (admin only)
@@ -84,7 +84,7 @@ pub fn create_group_invite_link(id: str) -> int {
     if id == "" {
         return core::missing("gamend::groups::create_group_invite_link", "id");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/invite_link")
+    core::rest("POST", "/api/v1/groups/{id}/invite_link")
 }
 
 /// Decline a group invitation
@@ -93,7 +93,7 @@ pub fn decline_group_invite(invite_id: str) -> int {
     if invite_id == "" {
         return core::missing("gamend::groups::decline_group_invite", "invite_id");
     }
-    gamend::rest("POST", "/api/v1/groups/invitations/{invite_id}/decline")
+    core::rest("POST", "/api/v1/groups/invitations/{invite_id}/decline")
 }
 
 /// Delete a group (admin only)
@@ -102,7 +102,7 @@ pub fn delete_group(id: str) -> int {
     if id == "" {
         return core::missing("gamend::groups::delete_group", "id");
     }
-    gamend::rest("DELETE", "/api/v1/groups/{id}")
+    core::rest("DELETE", "/api/v1/groups/{id}")
 }
 
 /// Turn a group's invite link off (admin only)
@@ -111,7 +111,7 @@ pub fn delete_group_invite_link(id: str) -> int {
     if id == "" {
         return core::missing("gamend::groups::delete_group_invite_link", "id");
     }
-    gamend::rest("DELETE", "/api/v1/groups/{id}/invite_link")
+    core::rest("DELETE", "/api/v1/groups/{id}/invite_link")
 }
 
 /// Demote admin to member
@@ -123,7 +123,7 @@ pub fn demote_group_member(id: str, params: any) -> int {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::groups::demote_group_member", "target_user_id");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/demote", params)
+    core::rest("POST", "/api/v1/groups/{id}/demote", params)
 }
 
 /// Get group details
@@ -132,7 +132,7 @@ pub fn get_group(id: str) -> int {
     if id == "" {
         return core::missing("gamend::groups::get_group", "id");
     }
-    gamend::rest("GET", "/api/v1/groups/{id}")
+    core::rest("GET", "/api/v1/groups/{id}")
 }
 
 /// Get a group's invite link (admin only)
@@ -141,7 +141,7 @@ pub fn get_group_invite_link(id: str) -> int {
     if id == "" {
         return core::missing("gamend::groups::get_group_invite_link", "id");
     }
-    gamend::rest("GET", "/api/v1/groups/{id}/invite_link")
+    core::rest("GET", "/api/v1/groups/{id}/invite_link")
 }
 
 /// Invite a user to a group (admin only)
@@ -153,7 +153,7 @@ pub fn invite_to_group(id: str, params: any) -> int {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::groups::invite_to_group", "target_user_id");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/invite", params)
+    core::rest("POST", "/api/v1/groups/{id}/invite", params)
 }
 
 /// Join a group
@@ -162,7 +162,7 @@ pub fn join_group(id: str) -> int {
     if id == "" {
         return core::missing("gamend::groups::join_group", "id");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/join")
+    core::rest("POST", "/api/v1/groups/{id}/join")
 }
 
 /// Join a group through its invite link
@@ -171,7 +171,7 @@ pub fn join_group_by_invite_link(token: str) -> int {
     if token == "" {
         return core::missing("gamend::groups::join_group_by_invite_link", "token");
     }
-    gamend::rest("POST", "/api/v1/groups/invite_links/{token}/join")
+    core::rest("POST", "/api/v1/groups/invite_links/{token}/join")
 }
 
 /// Kick a member (admin only)
@@ -183,7 +183,7 @@ pub fn kick_group_member(id: str, params: any) -> int {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::groups::kick_group_member", "target_user_id");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/kick", params)
+    core::rest("POST", "/api/v1/groups/{id}/kick", params)
 }
 
 /// Leave a group
@@ -192,14 +192,14 @@ pub fn leave_group(id: str) -> int {
     if id == "" {
         return core::missing("gamend::groups::leave_group", "id");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/leave")
+    core::rest("POST", "/api/v1/groups/{id}/leave")
 }
 
 /// List my group invitations
 /// `GET /api/v1/groups/invitations`
 pub fn list_group_invitations(options: any) -> int {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/groups/invitations{query}")
+    core::rest("GET", "/api/v1/groups/invitations{query}")
 }
 
 /// List a group's pending invitations (admin only)
@@ -209,7 +209,7 @@ pub fn list_group_invites(id: str, options: any) -> int {
         return core::missing("gamend::groups::list_group_invites", "id");
     }
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/groups/{id}/invites{query}")
+    core::rest("GET", "/api/v1/groups/{id}/invites{query}")
 }
 
 /// List group members
@@ -219,14 +219,14 @@ pub fn list_group_members(id: str, options: any) -> int {
         return core::missing("gamend::groups::list_group_members", "id");
     }
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/groups/{id}/members{query}")
+    core::rest("GET", "/api/v1/groups/{id}/members{query}")
 }
 
 /// List groups
 /// `GET /api/v1/groups`
 pub fn list_groups(options: any) -> int {
     let query = core::query(options, ["title", "type", "min_members", "max_members", "metadata_key", "metadata_value", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/groups{query}")
+    core::rest("GET", "/api/v1/groups{query}")
 }
 
 /// List pending join requests (admin only)
@@ -236,21 +236,21 @@ pub fn list_join_requests(id: str, options: any) -> int {
         return core::missing("gamend::groups::list_join_requests", "id");
     }
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/groups/{id}/join_requests{query}")
+    core::rest("GET", "/api/v1/groups/{id}/join_requests{query}")
 }
 
 /// List groups I belong to
 /// `GET /api/v1/groups/me`
 pub fn list_my_groups(options: any) -> int {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/groups/me{query}")
+    core::rest("GET", "/api/v1/groups/me{query}")
 }
 
 /// List group invitations I have sent
 /// `GET /api/v1/groups/sent_invitations`
 pub fn list_sent_invitations(options: any) -> int {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/groups/sent_invitations{query}")
+    core::rest("GET", "/api/v1/groups/sent_invitations{query}")
 }
 
 /// See the group an invite link opens
@@ -259,7 +259,7 @@ pub fn preview_group_invite_link(token: str) -> int {
     if token == "" {
         return core::missing("gamend::groups::preview_group_invite_link", "token");
     }
-    gamend::rest("GET", "/api/v1/groups/invite_links/{token}")
+    core::rest("GET", "/api/v1/groups/invite_links/{token}")
 }
 
 /// Promote member to admin
@@ -271,7 +271,7 @@ pub fn promote_group_member(id: str, params: any) -> int {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::groups::promote_group_member", "target_user_id");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/promote", params)
+    core::rest("POST", "/api/v1/groups/{id}/promote", params)
 }
 
 /// Reject a join request (admin only)
@@ -283,7 +283,7 @@ pub fn reject_join_request(id: str, request_id: str) -> int {
     if request_id == "" {
         return core::missing("gamend::groups::reject_join_request", "request_id");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/join_requests/{request_id}/reject")
+    core::rest("POST", "/api/v1/groups/{id}/join_requests/{request_id}/reject")
 }
 
 /// Confirm an uploaded group icon (admin only)
@@ -295,7 +295,7 @@ pub fn set_group_icon(id: str, params: any) -> int {
     if !core::given(params, "key") {
         return core::missing("gamend::groups::set_group_icon", "key");
     }
-    gamend::rest("POST", "/api/v1/groups/{id}/icon", params)
+    core::rest("POST", "/api/v1/groups/{id}/icon", params)
 }
 
 /// Update a group (admin only)
@@ -304,5 +304,5 @@ pub fn update_group(id: str, params: any) -> int {
     if id == "" {
         return core::missing("gamend::groups::update_group", "id");
     }
-    gamend::rest("PATCH", "/api/v1/groups/{id}", params)
+    core::rest("PATCH", "/api/v1/groups/{id}", params)
 }

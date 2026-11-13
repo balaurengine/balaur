@@ -9,7 +9,7 @@
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
 // left out when the call has nothing to put in it. It answers the id
-// `gamend::rest` answers, to await with `task::wait`. With a path
+// `core::rest` answers, to await with `task::wait`. With a path
 // parameter empty or a required field left out it sends nothing and
 // logs which, and the id answers an `error` naming it.
 
@@ -24,7 +24,7 @@ pub fn create_leaderboard(params: any) -> int {
     if !core::given(params, "title") {
         return core::missing("gamend::admin_leaderboards::create_leaderboard", "title");
     }
-    gamend::rest("POST", "/api/v1/admin/leaderboards", params)
+    core::rest("POST", "/api/v1/admin/leaderboards", params)
 }
 
 /// Delete leaderboard (admin)
@@ -33,7 +33,7 @@ pub fn delete_leaderboard(id: str) -> int {
     if id == "" {
         return core::missing("gamend::admin_leaderboards::delete_leaderboard", "id");
     }
-    gamend::rest("DELETE", "/api/v1/admin/leaderboards/{id}")
+    core::rest("DELETE", "/api/v1/admin/leaderboards/{id}")
 }
 
 /// Delete leaderboard record (admin)
@@ -45,7 +45,7 @@ pub fn delete_leaderboard_record(id: str, record_id: str) -> int {
     if record_id == "" {
         return core::missing("gamend::admin_leaderboards::delete_leaderboard_record", "record_id");
     }
-    gamend::rest("DELETE", "/api/v1/admin/leaderboards/{id}/records/{record_id}")
+    core::rest("DELETE", "/api/v1/admin/leaderboards/{id}/records/{record_id}")
 }
 
 /// Delete a user's record (admin)
@@ -57,7 +57,7 @@ pub fn delete_leaderboard_user_record(id: str, user_id: str) -> int {
     if user_id == "" {
         return core::missing("gamend::admin_leaderboards::delete_leaderboard_user_record", "user_id");
     }
-    gamend::rest("DELETE", "/api/v1/admin/leaderboards/{id}/records/user/{user_id}")
+    core::rest("DELETE", "/api/v1/admin/leaderboards/{id}/records/user/{user_id}")
 }
 
 /// End leaderboard (admin)
@@ -66,7 +66,7 @@ pub fn end_leaderboard(id: str) -> int {
     if id == "" {
         return core::missing("gamend::admin_leaderboards::end_leaderboard", "id");
     }
-    gamend::rest("POST", "/api/v1/admin/leaderboards/{id}/end")
+    core::rest("POST", "/api/v1/admin/leaderboards/{id}/end")
 }
 
 /// Request an upload ticket for a leaderboard icon (admin)
@@ -78,7 +78,7 @@ pub fn leaderboard_icon_upload_url(id: str, params: any) -> int {
     if !core::given(params, "content_type") {
         return core::missing("gamend::admin_leaderboards::leaderboard_icon_upload_url", "content_type");
     }
-    gamend::rest("POST", "/api/v1/admin/leaderboards/{id}/icon/upload_url", params)
+    core::rest("POST", "/api/v1/admin/leaderboards/{id}/icon/upload_url", params)
 }
 
 /// Confirm an uploaded leaderboard icon (admin)
@@ -90,7 +90,7 @@ pub fn set_leaderboard_icon(id: str, params: any) -> int {
     if !core::given(params, "key") {
         return core::missing("gamend::admin_leaderboards::set_leaderboard_icon", "key");
     }
-    gamend::rest("POST", "/api/v1/admin/leaderboards/{id}/icon", params)
+    core::rest("POST", "/api/v1/admin/leaderboards/{id}/icon", params)
 }
 
 /// Submit score (admin)
@@ -102,7 +102,7 @@ pub fn submit_leaderboard_score(id: str, params: any) -> int {
     if !core::given(params, "score") {
         return core::missing("gamend::admin_leaderboards::submit_leaderboard_score", "score");
     }
-    gamend::rest("POST", "/api/v1/admin/leaderboards/{id}/records", params)
+    core::rest("POST", "/api/v1/admin/leaderboards/{id}/records", params)
 }
 
 /// Update leaderboard (admin)
@@ -111,7 +111,7 @@ pub fn update_leaderboard(id: str, params: any) -> int {
     if id == "" {
         return core::missing("gamend::admin_leaderboards::update_leaderboard", "id");
     }
-    gamend::rest("PATCH", "/api/v1/admin/leaderboards/{id}", params)
+    core::rest("PATCH", "/api/v1/admin/leaderboards/{id}", params)
 }
 
 /// Update leaderboard record (admin)
@@ -123,5 +123,5 @@ pub fn update_leaderboard_record(id: str, record_id: str, params: any) -> int {
     if record_id == "" {
         return core::missing("gamend::admin_leaderboards::update_leaderboard_record", "record_id");
     }
-    gamend::rest("PATCH", "/api/v1/admin/leaderboards/{id}/records/{record_id}", params)
+    core::rest("PATCH", "/api/v1/admin/leaderboards/{id}/records/{record_id}", params)
 }

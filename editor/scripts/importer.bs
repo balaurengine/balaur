@@ -3,6 +3,7 @@
 // `[import.<kind>]` in project.toml, then `<file>.toml`.
 
 use editor;
+use form;
 use inspector;
 use recipes;
 use util;
@@ -301,7 +302,7 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
     } else {
         ui::Control { kind: ui::WIDGET_LABEL, text: source, role: roles::TEXT_CAPTION, width: 52 }
     };
-    state.form.push(ui::Row { label: key, controls: [control, note] });
+    state.form.push(form::Row { label: key, controls: [control, note] });
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
@@ -439,9 +440,9 @@ pub fn fill(state: &mut editor::State) -> Fill {
     }
     if kind == asset_kinds::TEXTURE || kind == asset_kinds::AUDIO {
         for pair in shipped(state, image) {
-            state.form.push(ui::Row { label: pair[0], controls: [ui::Control { kind: ui::WIDGET_LABEL, text: pair[1], tooltip: pair[2], role: roles::TEXT_CAPTION, grow: 1 }] });
+            state.form.push(form::Row { label: pair[0], controls: [ui::Control { kind: ui::WIDGET_LABEL, text: pair[1], tooltip: pair[2], role: roles::TEXT_CAPTION, grow: 1 }] });
         }
     }
-    ui::fill_rows(FORM, state.form, inspector::label_width(state), inspector::stacked(state));
+    form::fill(FORM, state.form, inspector::label_width(state), inspector::stacked(state));
     Fill { ready: true, says: "", name: util::last_segment(rel), from: "{kind}  ·  {from}" }
 }

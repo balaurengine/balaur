@@ -16,8 +16,9 @@ use crate::batteries_api::{
     assets_invalidate, assets_kind_of, assets_load, assets_path, assets_reload, assets_rename,
     assets_save, assets_schema, dark_mode, device_id, encoding_base64, encoding_base64_text,
     encoding_from_base64, environment, focused, hash_sha256, hash_sha256_text, log_clear,
-    log_error, log_file, log_info, log_print, log_recent, log_since, log_warn, platform, rng_int,
-    rng_random, rng_range, rng_seed, rng_uuid, scene_tagged, strings_system_locale, unix_time,
+    log_error, log_file, log_info, log_print, log_recent, log_since, log_warn, platform, rng_at,
+    rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged, strings_system_locale,
+    unix_time,
 };
 use crate::engine::Engine;
 use crate::file_api::{
@@ -324,36 +325,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
     ],
     &[
         EngineOp {
-            module: words::modules::SAVE,
-            name: words::functions::WRITE,
-            call: save_write,
-        },
-        EngineOp {
-            module: words::modules::SAVE,
-            name: words::functions::READ,
-            call: save_read,
-        },
-        EngineOp {
-            module: words::modules::SAVE,
-            name: "slots",
-            call: save_slots,
-        },
-        EngineOp {
-            module: words::modules::SAVE,
-            name: words::functions::REMOVE,
-            call: save_remove,
-        },
-        EngineOp {
-            module: words::modules::SAVE,
-            name: words::functions::VERSION,
-            call: save_version,
-        },
-        EngineOp {
-            module: words::modules::SAVE,
-            name: words::functions::DIRECTORY,
-            call: save_folder,
-        },
-        EngineOp {
             module: words::modules::ENGINE,
             name: "user_data_directory_of",
             call: user_data_dir_of_project,
@@ -551,6 +522,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             call: rng_uuid,
         },
         EngineOp {
+            module: words::modules::RANDOM,
+            name: "at",
+            call: rng_at,
+        },
+        EngineOp {
             module: words::modules::HASH,
             name: "sha256",
             call: hash_sha256,
@@ -684,7 +660,7 @@ pub fn kernel_api() -> Vec<ApiPart> {
 }
 
 /// The kernel's modules filled by an installer of their own, after its calls.
-pub const KERNEL_MODULES: [ApiPart; 6] = [
+pub const KERNEL_MODULES: [ApiPart; 7] = [
     ApiPart::Module(words::datatypes::NODE, crate::node_api::install_node_api),
     ApiPart::Module(
         "dependency",
@@ -692,6 +668,7 @@ pub const KERNEL_MODULES: [ApiPart; 6] = [
     ),
     ApiPart::Module("replay", crate::replay_api::install_replay_api),
     ApiPart::Module("math", crate::math_api::install_math_api),
+    ApiPart::Module("quat", crate::quat_api::install_quat_api),
     ApiPart::Module("settings", crate::settings_api::install_settings_api),
     ApiPart::Module("events", crate::events::install_events_api),
 ];
@@ -748,7 +725,6 @@ fn document(module: &str, m: &mut balaur_script::Module<Engine>) {
         words::modules::SKELETON => crate::engine_docs::document_skeleton(m),
         words::modules::ASSETS => crate::engine_docs::document_assets(m),
         words::modules::LOG => crate::engine_docs::document_log(m),
-        words::modules::SAVE => crate::engine_docs::document_save(m),
         words::modules::STRINGS => crate::engine_docs::document_strings(m),
         words::modules::REGEX => crate::engine_docs::document_regex(m),
         words::modules::RANDOM => crate::engine_docs::document_random(m),
@@ -858,8 +834,11 @@ fn args(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// storage on Android. A platform with none falls back to `user_data/` inside
 /// the project root. The project directory itself is deliberately not the
 /// default: a shipped game may live somewhere read-only.
+///
+/// A host may point it at another project's: the editor answers a game it
+/// plays with the game's own folder, so both runs share saves and a device id.
 fn user_data_dir(eng: &Engine, _: &[Value]) -> Result<Value> {
-    let dir = user_data_dir_of(eng);
+    let dir = data_home(eng);
     crate::files::backend(eng).mkdir(&dir)?;
     Ok(Value::Str(dir.to_string_lossy().into_owned()))
 }
@@ -873,6 +852,27 @@ pub fn user_data_dir_of(eng: &Engine) -> std::path::PathBuf {
         .map(|m| m.borrow().name.clone())
         .unwrap_or_default();
     user_data_dir_named(eng, &name)
+}
+
+/// The user data directory a host pointed scripts at in place of this run's.
+#[derive(Default)]
+pub struct DataHome(pub Option<std::path::PathBuf>);
+
+/// What `engine::user_data_directory()` answers: this run's own, or the one
+/// [`set_data_home`] named. The device id lives under it too.
+pub fn data_home(eng: &Engine) -> std::path::PathBuf {
+    eng.try_resource::<DataHome>()
+        .and_then(|home| home.borrow().0.clone())
+        .unwrap_or_else(|| user_data_dir_of(eng))
+}
+
+/// Answer `engine::user_data_directory()` with `home` from now on; `None`
+/// goes back to this run's own.
+pub fn set_data_home(eng: &Engine, home: Option<std::path::PathBuf>) {
+    match eng.try_resource::<DataHome>() {
+        Some(held) => held.borrow_mut().0 = home,
+        None => eng.insert_resource(DataHome(home)),
+    }
 }
 
 /// The manifest name the editor's own project carries. Its per-user folder
@@ -1082,44 +1082,9 @@ fn strings_locales(eng: &Engine, _: &[Value]) -> Result<Value> {
     ))
 }
 
-fn save_write(eng: &Engine, args: &[Value]) -> Result<Value> {
-    crate::save::write(eng, text(args, 0)?, args.get(1).unwrap_or(&Value::Nil))?;
-    Ok(Value::Nil)
-}
-
-fn save_read(eng: &Engine, args: &[Value]) -> Result<Value> {
-    crate::save::read(eng, text(args, 0)?)
-}
-
-fn save_slots(eng: &Engine, _: &[Value]) -> Result<Value> {
-    Ok(Value::List(
-        crate::save::slots(eng)
-            .into_iter()
-            .map(Value::text)
-            .collect(),
-    ))
-}
-
-fn save_remove(eng: &Engine, args: &[Value]) -> Result<Value> {
-    crate::save::remove(eng, text(args, 0)?)?;
-    Ok(Value::Nil)
-}
-
-fn save_folder(eng: &Engine, _: &[Value]) -> Result<Value> {
-    Ok(Value::Str(
-        crate::save::folder(eng).to_string_lossy().into_owned(),
-    ))
-}
-
 fn user_data_dir_of_project(eng: &Engine, args: &[Value]) -> Result<Value> {
     let dir = user_data_dir_named(eng, text(args, 0)?);
     Ok(Value::Str(dir.to_string_lossy().into_owned()))
-}
-
-fn save_version(eng: &Engine, _: &[Value]) -> Result<Value> {
-    Ok(Value::Int(i64::from(
-        crate::save::SaveConfig::load(eng).version,
-    )))
 }
 
 /// `engine.timings()`: what the last frame cost.

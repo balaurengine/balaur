@@ -3,6 +3,7 @@
 
 use autosave;
 use editor;
+use form;
 use pool;
 use search;
 use shell;
@@ -20,12 +21,17 @@ use words::layout_fields;
 use words::project_fields;
 use words::roles;
 use words::schema_fields;
+use words::theme_modes;
 use words::verbs;
 
 const EDITOR: str = "editor";
 const PROJECT: str = "project";
 /// The person's UI scale: Settings, ⌘= and ⌘− and the palette all write it.
 pub const UI_SCALE: str = "editor/appearance/ui_scale";
+const COMPACT: str = "editor/appearance/compact";
+/// How many recordings a game keeps before the oldest is pruned.
+pub const RECORDINGS_KEEP: str = "editor/recordings/keep";
+const RECORDINGS_VERIFY: str = "editor/recordings/verify";
 const WINDOW_WIDTH: str = "window/width";
 const WINDOW_HEIGHT: str = "window/height";
 
@@ -35,6 +41,9 @@ pub class SettingsState {
     internal compact: bool,
     internal demo: int,
     internal target: str,
+    internal manifest: any,
+    internal scopes: any,
+    internal specs: any,
 }
 
 // The search field this screen filters with; `crate::search` keys its own
@@ -54,6 +63,12 @@ pub fn state() -> SettingsState {
         // The tag the header offers an override for, "" for none: one choice
         // for the page, as Godot's "Override For", not a picker per row.
         target: "",
+        // The game's `project.toml`, held apart from what this run holds:
+        // nil with no game open.
+        manifest: nil,
+        // Each declared path's scope and spec, read when the files are.
+        scopes: {},
+        specs: {},
     }
 }
 
@@ -85,16 +100,67 @@ pub fn open(state: &mut editor::State) {
     load_files(state);
 }
 
+/// The editor's own settings, the person's. The engine reads none of them, so
+/// the editor declares them, before it reads `editor.toml`.
+pub fn declare() {
+    settings::define(theme::SETTING, {
+        fields::TYPE: datatypes::ENUM,
+        schema_fields::DEFAULT: theme::DEFAULT,
+        schema_fields::OPTIONS: theme::BUNDLED(),
+        fields::ORDER: 1,
+        fields::HELP: "Which theme the editor wears: a bundled one, or a folder in the per-user themes folder, which Settings lists by name. Each has a dark and a light half.",
+    });
+    settings::define(theme::MODE_SETTING, {
+        fields::TYPE: datatypes::ENUM,
+        schema_fields::DEFAULT: theme_modes::SYSTEM,
+        schema_fields::OPTIONS: [theme_modes::SYSTEM, theme_modes::DARK, theme_modes::LIGHT],
+        fields::ORDER: 2,
+        fields::HELP: "Which half of the theme the editor wears: the one the system is in, or always dark or always light.",
+    });
+    settings::define(UI_SCALE, {
+        fields::TYPE: datatypes::FLOAT,
+        schema_fields::DEFAULT: 1.25,
+        schema_fields::MIN: 0.75,
+        schema_fields::MAX: 2.5,
+        fields::ORDER: 3,
+        fields::HELP: "How large the editor's own text and controls are drawn.",
+    });
+    settings::define(COMPACT, {
+        fields::TYPE: datatypes::BOOL,
+        schema_fields::DEFAULT: false,
+        fields::ORDER: 4,
+        fields::HELP: "Drop labels the icon already says, for a narrow window.",
+    });
+    settings::define(RECORDINGS_KEEP, {
+        fields::TYPE: datatypes::INT,
+        schema_fields::DEFAULT: 10,
+        schema_fields::MIN: 1,
+        schema_fields::MAX: 200,
+        fields::ORDER: 10,
+        fields::HELP: "How many recordings are kept per game before the oldest is pruned.",
+    });
+    settings::define(RECORDINGS_VERIFY, {
+        fields::TYPE: datatypes::BOOL,
+        schema_fields::DEFAULT: false,
+        fields::ORDER: 11,
+        fields::HELP: "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame.",
+    });
+}
+
 /// Read both settings files and apply what the editor acts on. Called at boot
 /// and again when the window opens, so a hand edit between the two is not
 /// silently reverted on the next write.
 pub fn load_files(state: &mut editor::State) {
     // With no project open there is no manifest to read: a relative path off
     // an empty root is a path outside every root there is.
+    learn_definitions(state);
+    state.settings.manifest = nil;
     if state.game_root != "" {
-        let manifest = fs::read(state.game_root + "/project.toml");
-        if manifest != nil {
-            settings::edit_project(manifest.unwrap());
+        let text = fs::read(state.game_root + "/project.toml");
+        let parsed = if text == nil { nil } else { toml::parse(text.unwrap()) };
+        if parsed != nil && parsed.kind() == types::KIND_MAP {
+            state.settings.manifest = parsed;
+            settings::merge_toml(toml::encode(run_part(state, parsed)));
         }
     }
     let preferences = fs::read(preferences_path());
@@ -106,12 +172,12 @@ pub fn load_files(state: &mut editor::State) {
 
 // The editor's own settings are the person's, in the folder every project shares.
 pub fn preferences_path() -> str {
-    project::editor_data_directory() + "/editor.toml"
+    util::editor_data() + "/editor.toml"
 }
 
 // The size the window last closed at: the person's, as the preferences are.
 fn window_size_path() -> str {
-    project::editor_data_directory() + "/window.toml"
+    util::editor_data() + "/window.toml"
 }
 
 // A run told what to do opens at the stated size, the same on every machine,
@@ -262,10 +328,183 @@ pub fn commit(state: &mut editor::State) {
     state.settings.dirty = false;
 }
 
+const OVERRIDE: str = "override";
+
+fn learn_definitions(state: &mut editor::State) {
+    let scopes: any = {};
+    let specs: any = {};
+    for setting in settings::all() {
+        scopes[setting.path] = setting.scope;
+        specs[setting.path] = util::map_or_empty(setting.spec);
+    }
+    state.settings.scopes = scopes;
+    state.settings.specs = specs;
+}
+
+fn segments(path: str) -> [str] {
+    let out: [str] = [];
+    for part in path.split("/") {
+        out.push(part);
+    }
+    out
+}
+
+// The setting a path answers for: an override's, under its `override/<tag>/`.
+fn setting_path(path: str) -> str {
+    let parts = segments(path);
+    if parts.len() < 3 || parts[0] != OVERRIDE {
+        return path;
+    }
+    let out = parts[2];
+    for index in 3..parts.len() {
+        out += "/" + parts[index];
+    }
+    out
+}
+
+// Whether the game's manifest holds `path` rather than this run: a game is
+// open and the path is a project's, or a table of the game's own.
+fn in_manifest(state: editor::State, path: str) -> bool {
+    if state.settings.manifest == nil {
+        return false;
+    }
+    let scope = state.settings.scopes[setting_path(path)];
+    scope == nil || scope.as_str() == PROJECT
+}
+
+fn is_host(state: editor::State, path: str) -> bool {
+    let spec = state.settings.specs[setting_path(path)];
+    if spec == nil {
+        return false;
+    }
+    let flag = spec[schema_fields::HOST];
+    flag != nil && flag.as_bool()
+}
+
+fn held(table: any, path: str) -> any {
+    let at = table;
+    for part in segments(path) {
+        if at == nil || at.kind() != types::KIND_MAP {
+            return nil;
+        }
+        at = at[part];
+    }
+    at
+}
+
+// A copy of `table` with `value` at `parts`, from `index` on; nil removes it.
+fn with_value(table: any, parts: [str], index: int, value: any) -> any {
+    let out: any = {};
+    if table != nil && table.kind() == types::KIND_MAP {
+        for key in table.keys() {
+            out[key] = table[key];
+        }
+    }
+    let key = parts[index];
+    if index == parts.len() - 1 {
+        if value == nil {
+            if out.has(key) {
+                out.remove(key);
+            }
+        } else {
+            out[key] = value;
+        }
+    } else {
+        out[key] = with_value(out[key], parts, index + 1, value);
+    }
+    out
+}
+
+// The game's manifest as this run takes it: every value but a host setting's,
+// so playing here runs on the game's physics while the window stays the editor's.
+fn run_part(state: editor::State, manifest: any) -> any {
+    let out = manifest;
+    for path in state.settings.specs.keys() {
+        if !is_host(state, path) {
+            continue;
+        }
+        if held(out, path) != nil {
+            out = with_value(out, segments(path), 0);
+        }
+        for tag in settings::known_tags() {
+            let at = override_path(tag, path);
+            if held(out, at) != nil {
+                out = with_value(out, segments(at), 0);
+            }
+        }
+    }
+    out
+}
+
+/// What the file says at `path`, whichever platform reads it: the game's
+/// manifest for its settings while one is open, else what this run holds.
+pub fn stated(state: editor::State, path: str) -> any {
+    if !in_manifest(state, path) {
+        return settings::base(path);
+    }
+    let found = held(state.settings.manifest, path);
+    let spec = state.settings.specs[path];
+    if found != nil || spec == nil {
+        return found;
+    }
+    spec[schema_fields::DEFAULT]
+}
+
+/// The tags the file holds an override of `path` for.
+pub fn stated_overrides(state: editor::State, path: str) -> [str] {
+    if !in_manifest(state, path) {
+        return settings::overrides(path);
+    }
+    let out: [str] = [];
+    for tag in settings::known_tags() {
+        if held(state.settings.manifest, override_path(tag, path)) != nil {
+            out.push(tag);
+        }
+    }
+    out
+}
+
+// Set `path`, or clear it with nil, where the screen keeps it: the game's
+// manifest for its settings, and this run too unless the setting is the host's.
+fn put(state: &mut editor::State, path: str, value: any) {
+    if in_manifest(state, path) {
+        state.settings.manifest = with_value(state.settings.manifest, segments(path), 0, value);
+        if is_host(state, path) {
+            return;
+        }
+    }
+    if value == nil {
+        settings::clear(path);
+    } else {
+        settings::set(path, value);
+    }
+}
+
+/// Carry into the game's manifest a project setting a plugin changed in this
+/// run, which `settings::set` alone does not reach. A host setting stays the
+/// editor's, and one with overrides is the screen's to edit.
+pub fn carry_run_changes(state: &mut editor::State) {
+    if state.settings.manifest == nil {
+        return;
+    }
+    for path in state.settings.specs.keys() {
+        if !in_manifest(state, path) || is_host(state, path) || stated_overrides(state, path).len() > 0 {
+            continue;
+        }
+        let now = settings::get(path);
+        if now != nil && now != stated(state, path) {
+            state.settings.manifest = with_value(state.settings.manifest, segments(path), 0, now);
+        }
+    }
+}
+
 /// The game's half alone: what a choice made outside this screen saves.
 pub fn commit_project(state: editor::State) {
+    if state.settings.manifest == nil {
+        return;
+    }
     let path = state.game_root + "/project.toml";
-    fs::write(path, settings::to_toml(PROJECT, fs::read(path).or("")));
+    fs::write(path, toml::patch(fs::read(path).or(""), state.settings.manifest));
 }
 
 /// The editor's half alone: what a self-test can round-trip without rewriting
@@ -313,7 +552,7 @@ pub fn fill(state: &mut editor::State) {
     if stacked {
         specs.insert(0, picker_spec(state));
     }
-    ui::fill_rows(hosts.form, specs, label_width, stacked);
+    form::fill(hosts.form, specs, label_width, stacked);
 }
 
 /// The label column a settings row keeps, and the picker a narrow sheet
@@ -322,7 +561,7 @@ fn label_column_width(state: editor::State) -> float {
     util::clamp(row_width(state) * 0.42, 120.0, 260.0)
 }
 
-fn picker_spec(state: editor::State) -> ui::Row {
+fn picker_spec(state: editor::State) -> form::Row {
     let picker: ui::Control = ui::Control {
         kind: ui::WIDGET_DROPDOWN,
         role: roles::CHOICE_FORM,
@@ -330,7 +569,7 @@ fn picker_spec(state: editor::State) -> ui::Row {
         text: current(state),
         options: categories(),
     };
-    ui::Row { height: style::row_height(state), controls: [pool::on(picker, on_category_picked, {})] }
+    form::Row { height: style::row_height(state), controls: [pool::on(picker, on_category_picked, {})] }
 }
 
 fn on_category_picked(state: &mut editor::State, data: any, picked: any) {
@@ -400,14 +639,14 @@ fn on_category_clicked(state: &mut editor::State, data: any, _value: any) {
 
 /// Every row the form shows: a note at its head, a heading per group, and a
 /// row per setting with its help under it.
-fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
+fn form_specs(state: editor::State, tokens: any) -> [form::Row] {
     let rows = showing(state);
-    let out: [ui::Row] = [];
+    let out: [form::Row] = [];
     let row_height = style::row_height(state);
     if query(state) != "" {
         out.push(note_spec("{rows.len()} matching \"{query(state)}\""));
     } else if scope_of(current(state)) == PROJECT {
-        out.push(ui::Row {
+        out.push(form::Row {
             height: 34,
             controls: [
                 ui::Control {
@@ -458,7 +697,7 @@ fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
                 data: { fields::FN: on_theme_edit_clicked },
             });
         }
-        out.push(ui::Row {
+        out.push(form::Row {
             height: row_height,
             controls: controls,
             slot_role: roles::LAYOUT_ACTIONS,
@@ -469,9 +708,9 @@ fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
             let tail = if setting.applies_now { "" } else { "  ·  takes effect on the next run" };
             out.push(note_spec(help + tail));
         }
-        for on in settings::overrides(path) {
+        for on in stated_overrides(state, path) {
             let at = override_path(on, path);
-            out.push(ui::Row {
+            out.push(form::Row {
                 height: row_height,
                 controls: [
                     editor_control(state, setting, at),
@@ -497,13 +736,13 @@ fn on_theme_edit_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_override_reset_clicked(state: &mut editor::State, data: any, _value: any) {
-    settings::edit_clear(data[layout_fields::AT].as_str());
+    put(state, data[layout_fields::AT].as_str());
     state.settings.dirty = true;
 }
 
 /// A line of prose across both columns, and a group's heading.
-fn note_spec(text: str) -> ui::Row {
-    ui::Row {
+fn note_spec(text: str) -> form::Row {
+    form::Row {
         height: 0,
         controls: [
             ui::Control {
@@ -517,8 +756,8 @@ fn note_spec(text: str) -> ui::Row {
     }
 }
 
-fn head_spec(text: str) -> ui::Row {
-    ui::Row {
+fn head_spec(text: str) -> form::Row {
+    form::Row {
         height: 24,
         controls: [
             ui::Control {
@@ -558,14 +797,14 @@ fn override_path(tag: str, path: str) -> str {
     "override/" + tag + "/" + path
 }
 
-// `base`, never `get`: the editor edits what the file says. A screen showing
+// `stated`, never `get`: the editor edits what the file says. A screen showing
 // the override this machine happened to match would write it onto the key it
 // overrides.
 /// The control one setting's row carries, by the schema's datatype.
 fn editor_control(state: editor::State, setting: settings::Setting, path: str) -> ui::Control {
     let spec = util::map_or_empty(setting.spec);
     let datatype = if spec[fields::TYPE] == nil { datatypes::STRING } else { spec[fields::TYPE].as_str() };
-    let value = settings::base(path);
+    let value = stated(state, path);
     if datatype == datatypes::BOOL {
         return ui::Control {
             kind: ui::WIDGET_SWITCH,
@@ -677,7 +916,7 @@ fn split_commas(text: str) -> [str] {
 }
 
 pub fn write(state: &mut editor::State, path: str, value: any) {
-    settings::edit_set(path, value);
+    put(state, path, value);
     state.settings.dirty = true;
     apply(state);
     window::changed(state);
@@ -693,11 +932,11 @@ pub fn apply(state: &mut editor::State) {
     shell::apply_ui_scale(state);
     // Kept apart from `state.compact`, which the window width also writes: the
     // setting forces compact on, it never forces it off.
-    let compact = settings::get("editor/appearance/compact");
+    let compact = settings::get(COMPACT);
     if compact.kind() == types::KIND_BOOL {
         state.settings.compact = compact.as_bool();
     }
-    let verify = settings::get("editor/recordings/verify");
+    let verify = settings::get(RECORDINGS_VERIFY);
     if verify.kind() == types::KIND_BOOL {
         state.session.verify = verify.as_bool();
         signals::changed(state, changes::RECORDINGS);

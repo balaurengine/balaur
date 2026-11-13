@@ -114,11 +114,6 @@ pub struct SettingsValues(pub toml::value::Table);
 #[derive(Default)]
 pub struct SettingsRevision(pub u64);
 
-/// The manifest of a project this engine edits rather than runs, as the
-/// editor holds the game's: what the settings screen reads and writes once
-/// [`edit_project`] opens one, apart from what this process runs with.
-pub struct EditedProject(pub toml::value::Table);
-
 fn moved(eng: &Engine) {
     if let Some(revision) = eng.try_resource::<SettingsRevision>() {
         revision.borrow_mut().0 += 1;
@@ -332,8 +327,7 @@ pub fn table(eng: &Engine, path: &str) -> toml::value::Table {
 /// happened to match would write that value back onto the base key.
 #[must_use]
 pub fn base(eng: &Engine, path: &str) -> Option<toml::Value> {
-    screen_stored(eng, path)
-        .or_else(|| def(eng, path).and_then(|d| d.spec.get(keys::DEFAULT).cloned()))
+    stored(eng, path).or_else(|| def(eng, path).and_then(|d| d.spec.get(keys::DEFAULT).cloned()))
 }
 
 /// One path's value as loaded, with no definition behind it: what an override
@@ -351,70 +345,6 @@ fn stored_in(root: &toml::value::Table, path: &str) -> Option<toml::Value> {
         at = at.get(table).and_then(toml::Value::as_table)?;
     }
     at.get(key).cloned()
-}
-
-/// Where the settings screen reads `path` from: the project open for editing
-/// when there is one and `path` is a project's, else what this run holds.
-fn screen_stored(eng: &Engine, path: &str) -> Option<toml::Value> {
-    match edited(eng) {
-        Some(edited) if project_and_host(eng, path).0 => stored_in(&edited.borrow().0, path),
-        _ => stored(eng, path),
-    }
-}
-
-fn edited(eng: &Engine) -> Option<Rc<RefCell<EditedProject>>> {
-    eng.try_resource::<EditedProject>()
-}
-
-/// Whether `path`, or the setting an override at `path` answers for, is a
-/// project's, and whether it is a host setting. A path nothing declares is in
-/// the game's own table.
-fn project_and_host(eng: &Engine, path: &str) -> (bool, bool) {
-    let path = without_tag(path);
-    eng.try_resource::<SettingsRegistry>()
-        .and_then(|registry| {
-            registry
-                .borrow()
-                .0
-                .iter()
-                .find(|d| d.path == path)
-                .map(|d| (d.scope == Scope::Project, d.host()))
-        })
-        .unwrap_or((true, false))
-}
-
-/// Open `text` as the manifest of a project this engine edits rather than
-/// runs, as the editor does with the game. The settings screen reads and
-/// writes it from then on: [`base`], [`edit_set`], [`edit_clear`],
-/// [`overrides`] and [`to_toml`] for the project's scope. What this process runs with takes
-/// every value in it but a host setting, so playing the game here runs on the
-/// game's physics while the window and the checker stay the editor's.
-///
-/// # Errors
-/// When the text is not valid TOML.
-pub fn edit_project(eng: &Engine, text: &str) -> Result<()> {
-    let parsed: toml::value::Table = toml::from_str(text).context("parsing settings")?;
-    let mut ran_with = parsed.clone();
-    let host: Vec<String> = all(eng)
-        .borrow()
-        .0
-        .iter()
-        .filter(|d| d.host())
-        .map(|d| d.path.clone())
-        .collect();
-    let tags = known_tags(eng);
-    for path in &host {
-        remove_in(&mut ran_with, path);
-        for tag in &tags {
-            remove_in(&mut ran_with, &format!("{OVERRIDE}/{tag}/{path}"));
-        }
-    }
-    if let Some(values) = eng.try_resource::<SettingsValues>() {
-        merge(&mut values.borrow_mut().0, ran_with);
-    }
-    eng.insert_resource(EditedProject(parsed));
-    moved(eng);
-    Ok(())
 }
 
 fn remove_in(root: &mut toml::value::Table, path: &str) {
@@ -437,37 +367,10 @@ pub fn set(eng: &Engine, path: &str, value: toml::Value) {
     change_live(eng, |root| insert_in(root, path, value));
 }
 
-/// Change one setting as the settings screen does: with a project open for
-/// editing, a project's setting is changed there, and in this run too unless
-/// it is a host setting. A script's own [`set`] only ever reaches this run.
-pub fn edit_set(eng: &Engine, path: &str, value: &toml::Value) {
-    change_screen(eng, path, |root| insert_in(root, path, value.clone()));
-}
-
-/// [`clear`] as the settings screen does it; see [`edit_set`].
-pub fn edit_clear(eng: &Engine, path: &str) {
-    change_screen(eng, path, |root| remove_in(root, path));
-}
-
 fn change_live(eng: &Engine, change: impl FnOnce(&mut toml::value::Table)) {
     if let Some(values) = eng.try_resource::<SettingsValues>() {
         change(&mut values.borrow_mut().0);
         moved(eng);
-    }
-}
-
-fn change_screen(eng: &Engine, path: &str, change: impl Fn(&mut toml::value::Table)) {
-    let (project, host) = project_and_host(eng, path);
-    match edited(eng) {
-        Some(edited) if project => {
-            change(&mut edited.borrow_mut().0);
-            if host {
-                moved(eng);
-            } else {
-                change_live(eng, change);
-            }
-        }
-        _ => change_live(eng, change),
     }
 }
 
@@ -544,16 +447,9 @@ pub fn answer_to_built_tags(eng: &Engine) {
 /// besides the one in front of you.
 #[must_use]
 pub fn overrides(eng: &Engine, path: &str) -> Vec<String> {
-    let edited = edited(eng).filter(|_| project_and_host(eng, path).0);
     known_tags(eng)
         .into_iter()
-        .filter(|tag| {
-            let at = format!("{OVERRIDE}/{tag}/{path}");
-            match &edited {
-                Some(edited) => stored_in(&edited.borrow().0, &at).is_some(),
-                None => stored(eng, &at).is_some(),
-            }
-        })
+        .filter(|tag| stored(eng, &format!("{OVERRIDE}/{tag}/{path}")).is_some())
         .collect()
 }
 
@@ -687,7 +583,7 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         .collect();
     let tags = known_tags(eng);
     for path in paths {
-        if let Some(value) = screen_stored(eng, &path) {
+        if let Some(value) = stored(eng, &path) {
             write_at(&mut doc, &path, &value);
         }
         // An override is a key the project either holds or does not, so a
@@ -697,7 +593,7 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         }
         for tag in &tags {
             let at = format!("{OVERRIDE}/{tag}/{path}");
-            match screen_stored(eng, &at) {
+            match stored(eng, &at) {
                 Some(value) => write_at(&mut doc, &at, &value),
                 None => remove_at(&mut doc, &at),
             }
@@ -842,18 +738,6 @@ strict = { type = "bool", host = true, default = false, applies = "restart", hel
     );
     define_group(
         eng,
-        words::modules::SAVE,
-        Scope::Project,
-        &parse(
-            "settings.save",
-            r#"
-version = { type = "int", default = 1, min = 1, max = 9999, help = "The save version this build writes. A lower file is migrated; a higher one is refused." }
-migrate_script = { type = "string", default = "", help = "A script whose migrate_save(version, data) brings a file forward one version per call." }
-"#,
-        ),
-    );
-    define_group(
-        eng,
         words::functions::LOCALE,
         Scope::Project,
         &parse(
@@ -879,34 +763,6 @@ loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help =
         ),
     );
     build_import_settings(eng, &parse);
-    // A prefix may nest, so a subsystem with many settings declares them a
-    // group at a time and the editor shows each group under its own heading.
-    define_group(
-        eng,
-        "editor/appearance",
-        Scope::Editor,
-        &parse(
-            "settings.editor.appearance",
-            r#"
-theme = { type = "enum", default = "balaur", options = ["balaur", "atom-one", "catppuccin", "dracula", "everforest", "github", "gruvbox", "kanagawa", "rose-pine", "solarized", "tokyo-night"], order = 1, help = "Which theme the editor wears: a bundled one, or a folder in the per-user themes folder, which Settings lists by name. Each has a dark and a light half." }
-mode = { type = "enum", default = "system", options = ["system", "dark", "light"], order = 2, help = "Which half of the theme the editor wears: the one the system is in, or always dark or always light." }
-ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 3, help = "How large the editor's own text and controls are drawn." }
-compact = { type = "bool", default = false, order = 4, help = "Drop labels the icon already says, for a narrow window." }
-"#,
-        ),
-    );
-    define_group(
-        eng,
-        "editor/recordings",
-        Scope::Editor,
-        &parse(
-            "settings.editor.recordings",
-            r#"
-keep = { type = "int", default = 10, min = 1, max = 200, order = 10, help = "How many recordings are kept per game before the oldest is pruned." }
-verify = { type = "bool", default = false, order = 11, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
-"#,
-        ),
-    );
 }
 
 /// `[import.<kind>]`: the defaults every file of a kind is read with, which a

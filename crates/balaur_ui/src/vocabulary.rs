@@ -34,7 +34,6 @@ pub(crate) mod words {
     pub(crate) const SEPARATOR: &str = "separator";
     pub(crate) const CODE: &str = "code";
     pub(crate) const TABLE: &str = "table";
-    pub(crate) const TOAST: &str = "toast";
     /// The widget kinds, in the order the picker offers them.
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL,
@@ -62,7 +61,6 @@ pub(crate) mod words {
         FLOW,
         FOLD,
         DIALOG,
-        TOAST,
         WINDOW,
         SEPARATOR,
         CODE,
@@ -419,6 +417,8 @@ pub(crate) mod keys {
     pub(crate) const ARROW: &str = "arrow";
     pub(crate) const BODY: &str = "body";
     pub(crate) const COLORS: &str = "colors";
+    pub(crate) const HUES: &str = "hues";
+    pub(crate) const MIXES: &str = "mixes";
     /// The theme document's asset type, the theme it is written over, its
     /// mode flag, and its table of named sizes.
     pub(crate) const TYPE: &str = "type";
@@ -484,6 +484,8 @@ pub(crate) mod keys {
     /// Whether an overlay answers the pointer. Off for one that is read over
     /// what is behind it, which must keep its clicks.
     pub(crate) const INTERACTIVE: &str = "interactive";
+    pub(crate) const ON_TOP: &str = "on_top";
+    pub(crate) const ANNOUNCE: &str = "announce";
     pub(crate) const ENABLED: &str = "enabled";
     pub(crate) const ROLE: &str = "role";
     /// The row a `fold` event names.
@@ -558,7 +560,7 @@ pub(crate) mod keys {
 }
 
 /// What a pooled control's spec names beside the `widget` properties it
-/// carries, which `ui::fill_strip` and `ui::fill_rows` read.
+/// carries, which `ui::fill_strip` and `ui::fill_slot` read.
 pub(crate) mod pool {
     /// The component every pooled node carries.
     pub(crate) const WIDGET: &str = "widget";
@@ -568,17 +570,6 @@ pub(crate) mod pool {
     pub(crate) const DATA: &str = "data";
     /// A spec's children: the spec is a group, one node holding them.
     pub(crate) const CONTROLS: &str = "controls";
-    /// A row's label, and the roles its label and control column wear.
-    pub(crate) const LABEL: &str = "label";
-    pub(crate) const LABEL_ROLE: &str = "label_role";
-    pub(crate) const SLOT_ROLE: &str = "slot_role";
-    /// The roles a row wears where its spec names none.
-    pub(crate) const TEXT_LABEL: &str = "text_label";
-    pub(crate) const LAYOUT_CELLS: &str = "layout_cells";
-    /// A row placed at a height of its own in a host laid out by hand.
-    pub(crate) const TOP: &str = "y";
-    /// Where a row keeps its controls, from the row.
-    pub(crate) const CELLS_PATH: &str = "H/C";
 }
 
 /// The state tables a theme entry holds, by CSS's words. `checked` answers
@@ -637,11 +628,6 @@ pub(crate) mod tokens {
     pub(crate) const SECONDARY_TEXT: &str = "secondary_text";
     pub(crate) const WARNING_TEXT: &str = "warning_text";
     pub(crate) const DANGER_TEXT: &str = "danger_text";
-    pub(crate) const GRID_MINOR: &str = "grid_minor";
-    pub(crate) const GRID_MAJOR: &str = "grid_major";
-    pub(crate) const NODE_DEFAULT: &str = "node_default";
-    pub(crate) const BRAND_PLATE: &str = "brand_plate";
-    pub(crate) const INPUT_RIPPLE: &str = "input_ripple";
 
     /// The fonts a theme's `[fonts]` names that egui's own text draws in:
     /// the default every text without one takes, the one its headings and

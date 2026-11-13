@@ -38,6 +38,15 @@ fn now() -> f64 {
     START.get_or_init(Instant::now).elapsed().as_secs_f64()
 }
 
+/// When a frame left, so its reply says how long the server took.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a round trip recorded with its reply, never read by a tick"
+)]
+fn sent_now() -> Instant {
+    Instant::now()
+}
+
 /// Wake the loop when the socket's clock reads `at`.
 #[allow(
     clippy::disallowed_methods,
@@ -125,8 +134,8 @@ pub(crate) struct LiveSocket {
     /// A refused token is renewed once per dial, not forever.
     renewed_after_refusal: bool,
     tries: u32,
-    /// ref → the request id whose reply it will carry.
-    pending: Vec<(String, u64)>,
+    /// ref → the request id whose reply it will carry, and when it was sent.
+    pending: Vec<(String, u64, Instant)>,
     /// ref → the topic a join asked for, forgotten if the server refuses it.
     joining: Vec<(String, String)>,
     /// What the game joined, with its payload: what a reconnect joins again.
@@ -332,6 +341,7 @@ impl LiveSocket {
                         request,
                         status: words::OK.into(),
                         response: Json::Null,
+                        ms: 0.0,
                     });
                 }
                 SocketCommand::Join { request, .. }
@@ -486,12 +496,13 @@ impl LiveSocket {
                         self.topics.retain(|(joined, _)| *joined != topic);
                     }
                 }
-                if let Some(at) = self.pending.iter().position(|(r, _)| *r == reference) {
-                    let (_, request) = self.pending.remove(at);
+                if let Some(at) = self.pending.iter().position(|(r, ..)| *r == reference) {
+                    let (_, request, sent) = self.pending.remove(at);
                     let _ = self.events.send(GamendEvent::Replied {
                         request,
                         status,
                         response,
+                        ms: crate::millis_since(sent),
                     });
                 }
                 Next::Stay
@@ -579,6 +590,7 @@ impl LiveSocket {
                             request,
                             status: words::OK.into(),
                             response: Json::Null,
+                            ms: 0.0,
                         });
                     } else {
                         self.refuse(request, &format!("not joined to {topic}"));
@@ -609,7 +621,7 @@ impl LiveSocket {
         };
         // Before the send: one that fails drops the link, and `fail_pending`
         // answers what is listed here.
-        self.pending.push((reference, request));
+        self.pending.push((reference, request, sent_now()));
         link.send(&frame).map_err(anyhow::Error::msg)?;
         Ok(true)
     }
@@ -627,7 +639,7 @@ impl LiveSocket {
     /// task suspended forever.
     fn fail_pending(&mut self) {
         self.joining.clear();
-        for (_, request) in self.pending.drain(..) {
+        for (_, request, _) in self.pending.drain(..) {
             let _ = self.events.send(GamendEvent::Failed {
                 request,
                 message: "the connection ended before the reply".into(),

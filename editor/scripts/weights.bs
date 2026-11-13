@@ -3,6 +3,7 @@
 // here writes through `history`, so one undo takes back a whole Normalise.
 
 use editor;
+use form;
 use history;
 use model;
 use polygon;
@@ -316,11 +317,11 @@ pub fn fill(state: editor::State) {
     util::set_text(PANEL + "/Body/Verbs/Scope", if picked { "{listing.at.len()} picked" } else { "all {listing.at.len()}" });
     util::set_visible(PANEL + "/Body/Verbs/all", picked);
     ui::fill_strip(PANEL + "/Body/Header", header(state, listing));
-    let rows: [ui::Row] = [];
+    let rows: [form::Row] = [];
     for at in listing.at {
         rows.push(vertex_row(state, listing, at));
     }
-    ui::fill_rows(PANEL + "/Body/Scroll/Rows", rows);
+    form::fill(PANEL + "/Body/Scroll/Rows", rows);
 }
 
 /// A verb by the name of its button.
@@ -372,7 +373,7 @@ fn pick_bone(state: &mut editor::State, data: any, _value: any) {
     signals::inspector(state);
 }
 
-fn vertex_row(state: editor::State, listing: Table, at: int) -> ui::Row {
+fn vertex_row(state: editor::State, listing: Table, at: int) -> form::Row {
     let hover = state.polygon.hover != nil && state.polygon.hover.unwrap() == at;
     let controls: [ui::Control] = [
         ui::Control {
@@ -408,7 +409,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> ui::Row {
     // than silently corrected.
     let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
     controls.push(label(util::fixed(total, 2), CELL_WIDTH, if off { "text_caption_primary" } else { roles::TEXT_CODE_QUIET }));
-    ui::Row { height: ROW_HEIGHT, controls: controls }
+    form::Row { height: ROW_HEIGHT, controls: controls }
 }
 
 fn show_vertex_alone(state: &mut editor::State, data: any, _value: any) {

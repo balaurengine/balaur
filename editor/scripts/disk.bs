@@ -4,6 +4,7 @@
 
 use center;
 use editor;
+use form;
 use lint;
 use model;
 use pool;
@@ -194,12 +195,12 @@ pub fn fill(state: &mut editor::State) {
     let specs = rows(state);
     let seen = if specs.len() > IN_VIEW { IN_VIEW } else { specs.len() };
     window::fit(WIDTH, HEAD_HEIGHT + (seen as float) * ROW_HEIGHT);
-    ui::fill_rows(hosts.unwrap().form, specs, LABEL_WIDTH, false);
+    form::fill(hosts.unwrap().form, specs, LABEL_WIDTH, false);
 }
 
-fn rows(state: editor::State) -> [ui::Row] {
+fn rows(state: editor::State) -> [form::Row] {
     let held = util::keys_sorted(state.script_held);
-    let out: [ui::Row] = [];
+    let out: [form::Row] = [];
     for at in 0..(if held.len() > LISTED { LISTED } else { held.len() }) {
         out.push(file_row(state, held[at]));
     }
@@ -209,7 +210,7 @@ fn rows(state: editor::State) -> [ui::Row] {
     out
 }
 
-fn file_row(state: editor::State, path: str) -> ui::Row {
+fn file_row(state: editor::State, path: str) -> form::Row {
     let name = relative(state, path) + (if fs::exists(path) { "" } else { " (deleted)" });
     let about: any = { project_fields::PATH: path };
     row([
@@ -219,8 +220,8 @@ fn file_row(state: editor::State, path: str) -> ui::Row {
     ])
 }
 
-fn row(controls: [ui::Control]) -> ui::Row {
-    ui::Row { height: 28, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
+fn row(controls: [ui::Control]) -> form::Row {
+    form::Row { height: 28, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 fn chip(text: str, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {

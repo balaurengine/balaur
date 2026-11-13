@@ -3,6 +3,7 @@
 // from first. Esc, a scrim click or a pick closes it.
 
 use editor;
+use form;
 use icons;
 use model;
 use pool;
@@ -188,7 +189,7 @@ pub fn fill(state: &mut editor::State) {
         form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
         fields::DATA: { fields::FN: on_query_typed, project_fields::SUBMIT: on_query_submitted },
     });
-    ui::fill_rows(host, specs);
+    form::fill(host, specs);
 }
 
 fn on_query_typed(state: &mut editor::State, data: any, text: any) {
@@ -201,10 +202,10 @@ fn on_query_submitted(state: &mut editor::State, data: any, text: any) {
 
 /// Every row the picker shows: the empty node ahead of the groups, then a
 /// heading and its matches per group.
-fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [ui::Row] {
+fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [form::Row] {
     let query = state.newnode_query.to_lower();
     let rows = catalogue(state);
-    let out: [ui::Row] = [];
+    let out: [form::Row] = [];
     // Ahead of the groups and in none of them: a node with no components has
     // no dimension to be filed under.
     if !state.newnode_change && (query == "" || "empty node".contains(query)) {
@@ -239,9 +240,9 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [ui::
     out
 }
 
-fn caption_row(text: str, height: float, wrap: bool) -> ui::Row {
+fn caption_row(text: str, height: float, wrap: bool) -> form::Row {
     let label: ui::Control = ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, text: text, wrap: wrap };
-    ui::Row { height: height, controls: [label] }
+    form::Row { height: height, controls: [label] }
 }
 
 // A component's own colour token, or the plain text colour.
@@ -262,7 +263,7 @@ fn place_row(state: &mut editor::State, data: any, _value: any) {
 
 /// The soft body's second step: a shape, or a file in the project, to build
 /// it from.
-fn source_specs(state: &mut editor::State, tokens: any, row_height: float) -> [ui::Row] {
+fn source_specs(state: &mut editor::State, tokens: any, row_height: float) -> [form::Row] {
     let query = state.newnode_query.to_lower();
     let out = [caption_row("Soft body from", 20.0, false)];
     for source in catalogue(state) {
@@ -284,7 +285,7 @@ fn place_source_row(state: &mut editor::State, data: any, _value: any) {
 
 // `icon_color` is the component's own mark colour, which is data rather than
 // styling: the tree and the inspector draw the same pair.
-fn row_spec(row_height: float, caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> ui::Row {
+fn row_spec(row_height: float, caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> form::Row {
     let button = pool::on(ui::Control {
         kind: ui::WIDGET_BUTTON,
         role: roles::ITEM_PICKER,
@@ -293,5 +294,5 @@ fn row_spec(row_height: float, caption: str, mark: str, color: str, handler: fn(
         icon: mark,
         icon_color: color,
     }, handler, data);
-    ui::Row { height: row_height, controls: [button] }
+    form::Row { height: row_height, controls: [button] }
 }

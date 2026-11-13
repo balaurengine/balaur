@@ -1,0 +1,97 @@
+// Written by clients/sdkgen (balaur) from the OpenAPI document.
+// Do not edit; edit the generator or the spec and run
+// clients/generate_balaur.sh.
+
+// Every event a channel answers, one function each, from
+// `clients/commands.json`. A call answers the id `core::push` answers,
+// to await with `task::wait`.
+
+use auth;
+use core;
+
+/// `call_hook` on the user channel.
+/// `params`: `plugin` (required), `fn` (required), `args`.
+pub fn call_hook(socket: int, params: any) -> int {
+    core::push(socket, "user:" + auth::user_id(), "call_hook", params)
+}
+
+/// `kv:subscribe` on the user channel.
+/// `params`: `key` (required), `user_id`, `lobby_id`.
+pub fn kv_subscribe(socket: int, params: any) -> int {
+    core::push(socket, "user:" + auth::user_id(), "kv:subscribe", params)
+}
+
+/// `kv:unsubscribe` on the user channel.
+/// `params`: `key` (required), `user_id`, `lobby_id`.
+pub fn kv_unsubscribe(socket: int, params: any) -> int {
+    core::push(socket, "user:" + auth::user_id(), "kv:unsubscribe", params)
+}
+
+/// `results:list` on the user channel.
+/// `params`: `kind`, `status`, `page`, `page_size`.
+pub fn results_list(socket: int, params: any) -> int {
+    core::push(socket, "user:" + auth::user_id(), "results:list", params)
+}
+
+/// `results:get` on the user channel.
+/// `params`: `id` (required).
+pub fn results_get(socket: int, params: any) -> int {
+    core::push(socket, "user:" + auth::user_id(), "results:get", params)
+}
+
+/// `results:events` on the user channel.
+/// `params`: `id` (required), `after`, `limit`.
+pub fn results_events(socket: int, params: any) -> int {
+    core::push(socket, "user:" + auth::user_id(), "results:events", params)
+}
+
+/// `webrtc:offer` on the user channel.
+/// `params`: `sdp` (required), `type`.
+pub fn webrtc_offer(socket: int, params: any) -> int {
+    core::push(socket, "user:" + auth::user_id(), "webrtc:offer", params)
+}
+
+/// `webrtc:ice` on the user channel.
+/// `params`: `candidate` (required), `sdpMid`, `sdpMLineIndex`.
+pub fn webrtc_ice(socket: int, params: any) -> int {
+    core::push(socket, "user:" + auth::user_id(), "webrtc:ice", params)
+}
+
+/// `webrtc:close` on the user channel.
+pub fn webrtc_close(socket: int) -> int {
+    core::push(socket, "user:" + auth::user_id(), "webrtc:close", {})
+}
+
+/// `get_server_time` on `lobby:<id>`.
+pub fn lobby_get_server_time(socket: int, id: str) -> int {
+    core::push(socket, "lobby:" + id, "get_server_time", {})
+}
+
+/// `offer` on `signaling:<id>`.
+/// `params`: `target` (required), `sdp` (required).
+pub fn signaling_offer(socket: int, id: str, params: any) -> int {
+    core::push(socket, "signaling:" + id, "offer", params)
+}
+
+/// `answer` on `signaling:<id>`.
+/// `params`: `target` (required), `sdp` (required).
+pub fn signaling_answer(socket: int, id: str, params: any) -> int {
+    core::push(socket, "signaling:" + id, "answer", params)
+}
+
+/// `ice` on `signaling:<id>`.
+/// `params`: `target` (required), `candidate` (required).
+pub fn signaling_ice(socket: int, id: str, params: any) -> int {
+    core::push(socket, "signaling:" + id, "ice", params)
+}
+
+/// `broadcast_offer` on `signaling:<id>`.
+/// `params`: `sdp` (required).
+pub fn signaling_broadcast_offer(socket: int, id: str, params: any) -> int {
+    core::push(socket, "signaling:" + id, "broadcast_offer", params)
+}
+
+/// `list_users` on `signaling:<id>`.
+pub fn signaling_list_users(socket: int, id: str) -> int {
+    core::push(socket, "signaling:" + id, "list_users", {})
+}

@@ -171,9 +171,8 @@ pub(crate) fn joint_of(ask: &JointAsk3d) -> Result<GenericJoint> {
     if matches!(kind, w::HINGE | w::SLIDER | w::GENERIC) && connected.length_squared() >= 1.0e-12 {
         joint.set_local_axis2(connected.normalize());
     }
-    let turn = |[x, y, z]: [f32; 3]| glamx::Quat::from_euler(glamx::EulerRot::XYZ, x, y, z);
-    joint.local_frame1.rotation *= turn(held.anchor_rotation);
-    joint.local_frame2.rotation *= turn(held.connected_anchor_rotation);
+    joint.local_frame1.rotation *= crate::body::rotation_from_euler(held.anchor_rotation);
+    joint.local_frame2.rotation *= crate::body::rotation_from_euler(held.connected_anchor_rotation);
     let (hz, ratio) = crate::shared::joint::softness(held.softness_hz, held.softness_damping_ratio);
     joint.softness = SpringCoefficients::new(hz, ratio);
     joint.coupled_axes |= mask_of(
@@ -240,7 +239,7 @@ pub struct Joint3d {
     /// The same axis in the other node's space, for a hinge, a slider or a generic joint; zero takes axis
     #[property(group = "anchors")]
     pub connected_axis: [f32; 3],
-    /// Turns this end's joint frame about its own axes, x first: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file
+    /// Turns this end's joint frame about its own axes, as `rotation_euler` turns a node: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file
     #[property(group = "anchors", unit = "degrees")]
     pub anchor_rotation: [f32; 3],
     /// The same for the other end's frame
@@ -834,10 +833,9 @@ pub(crate) fn install_joint_api(m: &mut Module<Engine>) {
 /// Impulse joints have no such thing — there are no generalised coordinates to
 /// solve for — so this is a joint with an `articulation3d` only, and says so.
 fn solve_ik(eng: &Engine, entity: Entity, target: Vector, opts: &v::Opts<'_>) -> Result<()> {
-    let rotation = opts.get(k::ROTATION).map(|_| {
-        let [x, y, z] = opts.vec3(k::ROTATION, [0.0; 3]);
-        glamx::Quat::from_euler(glamx::EulerRot::ZYX, z, y, x)
-    });
+    let rotation = opts
+        .get(k::ROTATION)
+        .map(|_| crate::body::rotation_from_euler(opts.vec3(k::ROTATION, [0.0; 3])));
     let options = ik_options(opts, rotation.is_some())?;
     let pose = scalar::Pose::from_parts(target, rotation.unwrap_or(scalar::Rotation::IDENTITY));
     let state = eng.resource::<PhysicsState3d>();

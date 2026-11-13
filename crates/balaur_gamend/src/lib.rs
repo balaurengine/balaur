@@ -36,6 +36,7 @@ use crate::vocabulary::words;
 use anyhow::{Result, anyhow};
 use balaur_core::engine_api::from_json;
 use balaur_core::replay::ExternalIo;
+use balaur_core::time::Instant;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Module, NodeId, Value};
 use serde_json::Value as Json;
@@ -50,11 +51,11 @@ const PUSH: &str = "push";
 const REFUSE: &str = "refuse";
 const REGISTER: &str = "register";
 
-mod activity;
 #[cfg(target_family = "wasm")]
 mod browser;
 mod channels;
 pub mod client;
+mod connection;
 mod inspect;
 mod realtime;
 mod target;
@@ -127,11 +128,16 @@ pub(crate) enum GamendEvent {
         user_id: String,
         username: String,
         display_name: String,
+        /// The round trip in milliseconds, measured where it was made.
+        #[serde(default)]
+        ms: f64,
     },
     RestDone {
         request: u64,
         status: u16,
         body: Json,
+        #[serde(default)]
+        ms: f64,
     },
     /// A one-shot operation that could not produce a result at all.
     Failed {
@@ -143,6 +149,8 @@ pub(crate) enum GamendEvent {
         request: u64,
         status: String,
         response: Json,
+        #[serde(default)]
+        ms: f64,
     },
     SocketOpen {
         socket: u64,
@@ -176,6 +184,15 @@ pub(crate) enum GamendEvent {
     },
 }
 
+/// Milliseconds since `started`, for the reply that ends a round trip.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "measured where the reply is made and recorded with it, so a replay reads the same"
+)]
+pub(crate) fn millis_since(started: Instant) -> f64 {
+    started.elapsed().as_secs_f64() * 1000.0
+}
+
 /// How many times a dropped socket tries to come back before it gives up.
 pub(crate) const RECONNECT_TRIES: u32 = 8;
 
@@ -186,25 +203,35 @@ pub(crate) fn backoff(attempt: u32) -> f64 {
 
 impl GamendEvent {
     /// A login's outcome, as the frame loop hears it.
-    pub(crate) fn logged_in(request: u64, outcome: Result<client::Session, String>) -> Self {
+    pub(crate) fn logged_in(
+        request: u64,
+        outcome: Result<client::Session, String>,
+        started: Instant,
+    ) -> Self {
         match outcome {
             Ok(session) => Self::LoggedIn {
                 request,
                 user_id: session.user_id,
                 username: session.username,
                 display_name: session.display_name,
+                ms: millis_since(started),
             },
             Err(message) => Self::Failed { request, message },
         }
     }
 
     /// A REST call's outcome, as the frame loop hears it.
-    pub(crate) fn rest_done(request: u64, outcome: Result<client::rest::Reply, String>) -> Self {
+    pub(crate) fn rest_done(
+        request: u64,
+        outcome: Result<client::rest::Reply, String>,
+        started: Instant,
+    ) -> Self {
         match outcome {
             Ok(reply) => Self::RestDone {
                 request,
                 status: reply.status,
                 body: reply.body,
+                ms: millis_since(started),
             },
             Err(message) => Self::Failed { request, message },
         }
@@ -250,8 +277,8 @@ pub struct GamendState {
     live: Vec<realtime::LiveSocket>,
     request_handlers: DetHashMap<u64, Handler>,
     socket_handlers: DetHashMap<u64, Handler>,
-    /// Recent calls and sockets, for a dock to show.
-    activity: activity::Activity,
+    /// The server, the session's user and each socket, for a dock to show.
+    connection: connection::Connection,
 }
 
 impl GamendState {
@@ -259,7 +286,7 @@ impl GamendState {
     /// forgets the session).
     pub fn configure(&mut self, base_url: &str) {
         self.client = Some(backend::SharedClient::new(base_url));
-        self.activity.configured(base_url);
+        self.connection.configured(base_url);
     }
 
     /// The client, on the server `[gamend]` names until a script picks another.
@@ -277,12 +304,6 @@ impl GamendState {
         credentials: LoginCredentials,
     ) -> Result<()> {
         let client = self.client(eng);
-        let (kind, who) = match &credentials {
-            LoginCredentials::Device { .. } => (kind::LOGIN, String::from("device")),
-            LoginCredentials::EmailPassword { email, .. } => (kind::LOGIN, email.clone()),
-            LoginCredentials::Register { email, .. } => (REGISTER, email.clone()),
-        };
-        self.activity.started(request, None, kind, who, None);
         self.io.start(eng, |report| {
             backend::spawn_login(&client, request, credentials, report);
         });
@@ -298,13 +319,6 @@ impl GamendState {
         body: Option<Json>,
     ) -> Result<()> {
         let client = self.client(eng);
-        self.activity.started(
-            request,
-            None,
-            kind::REST,
-            format!("{method} {path}"),
-            body.as_ref(),
-        );
         self.io.start(eng, |report| {
             backend::spawn_rest(&client, request, method, path, body, report);
         });
@@ -314,8 +328,6 @@ impl GamendState {
     /// A call nothing will send: it shows as refused, and whatever awaits
     /// `request` wakes to its `error` on a later tick, as any failure does.
     pub fn refuse(&mut self, eng: &Engine, request: u64, message: String) {
-        self.activity
-            .started(request, None, "refused", message.clone(), None);
         self.io.start(eng, |report| {
             balaur_core::replay::report(report, GamendEvent::Failed { request, message });
         });
@@ -328,8 +340,7 @@ impl GamendState {
         if let Some(handler) = handler {
             self.socket_handlers.insert(socket, handler);
         }
-        self.activity
-            .started(socket, None, words::CONNECT, String::from("realtime"), None);
+        self.connection.connecting(socket);
         let (commands, receiver) = channel();
         let mut opened = None;
         self.io.start(eng, |report| {
@@ -369,7 +380,7 @@ impl GamendState {
         // No reply comes for this one, so what waits on a reply goes too.
         if let Err(why) = &sent {
             self.request_handlers.shift_remove(&request);
-            self.activity.heard(&GamendEvent::Failed {
+            self.connection.heard(&GamendEvent::Failed {
                 request,
                 message: why.to_string(),
             });
@@ -378,13 +389,7 @@ impl GamendState {
     }
 
     pub fn join(&mut self, socket: u64, request: u64, topic: String, payload: Json) -> Result<()> {
-        self.activity.started(
-            request,
-            Some(socket),
-            words::general::JOIN,
-            topic.clone(),
-            Some(&payload),
-        );
+        self.connection.moving(request, socket, topic.clone(), true);
         self.command(
             socket,
             request,
@@ -404,13 +409,6 @@ impl GamendState {
         event: String,
         payload: Json,
     ) -> Result<()> {
-        self.activity.started(
-            request,
-            Some(socket),
-            PUSH,
-            format!("{topic} {event}"),
-            Some(&payload),
-        );
         self.command(
             socket,
             request,
@@ -424,8 +422,8 @@ impl GamendState {
     }
 
     pub fn leave(&mut self, socket: u64, request: u64, topic: String) -> Result<()> {
-        self.activity
-            .started(request, Some(socket), words::LEAVE, topic.clone(), None);
+        self.connection
+            .moving(request, socket, topic.clone(), false);
         self.command(socket, request, SocketCommand::Leave { request, topic })
     }
 
@@ -437,13 +435,6 @@ impl GamendState {
         function: String,
         args: Json,
     ) -> Result<()> {
-        self.activity.started(
-            request,
-            Some(socket),
-            "hook",
-            format!("{plugin}.{function}"),
-            Some(&args),
-        );
         self.command(
             socket,
             request,
@@ -502,7 +493,7 @@ fn pump_gamend_system(eng: &Engine, _: f32) {
         let mut snapshot = snapshot.borrow_mut();
         snapshot.events.clear();
         for event in state.io.drain() {
-            state.activity.heard(&event);
+            state.connection.heard(&event);
             let (handler, wake) = match &event {
                 GamendEvent::LoggedIn { request, .. }
                 | GamendEvent::RestDone { request, .. }
@@ -531,7 +522,7 @@ fn pump_gamend_system(eng: &Engine, _: f32) {
             };
             let value = event_value(event);
             if let Some(request) = wake {
-                state.activity.keep_reply(request, value.clone());
+                state.connection.keep_reply(request, value.clone());
             }
             if handler.is_some() || wake.is_some() {
                 dispatches.push((handler, wake, value.clone()));
@@ -583,6 +574,7 @@ fn event_value(event: GamendEvent) -> Value {
             user_id,
             username,
             display_name,
+            ms,
         } => vec![
             (keys::REQUEST.into(), int(request)),
             (keys::KIND.into(), Value::Str(kind::LOGIN.into())),
@@ -592,16 +584,19 @@ fn event_value(event: GamendEvent) -> Value {
                 words::inspect::DISPLAY_NAME.into(),
                 Value::Str(display_name),
             ),
+            (keys::MS.into(), Value::Num(ms)),
         ],
         GamendEvent::RestDone {
             request,
             status,
             body,
+            ms,
         } => vec![
             (keys::REQUEST.into(), int(request)),
             (keys::KIND.into(), Value::Str(kind::REST.into())),
             (keys::STATUS.into(), Value::Int(i64::from(status))),
             ("body".into(), json_or_nil(&body)),
+            (keys::MS.into(), Value::Num(ms)),
         ],
         GamendEvent::Failed { request, message } => vec![
             (keys::REQUEST.into(), int(request)),
@@ -612,11 +607,13 @@ fn event_value(event: GamendEvent) -> Value {
             request,
             status,
             response,
+            ms,
         } => vec![
             (keys::REQUEST.into(), int(request)),
             (keys::KIND.into(), Value::Str(kind::REPLY.into())),
             (keys::STATUS.into(), Value::Str(status)),
             ("response".into(), json_or_nil(&response)),
+            (keys::MS.into(), Value::Num(ms)),
         ],
         GamendEvent::SocketOpen { socket } => vec![
             (keys::SOCKET.into(), int(socket)),
@@ -767,7 +764,7 @@ fn json_of(value: Option<&Value>) -> Result<Json> {
 /// connect call's handler method (default `on_gamend_event`).
 fn install_gamend_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).",
+        "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; a `login`, `rest` or `reply` answer carries `ms`, its round trip in milliseconds, recorded with it. What a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.records(&[(
@@ -812,7 +809,7 @@ fn install_gamend_api(m: &mut Module<Engine>) {
         Ok(int(id))
     });
     // `gamend.rest(method, path, body?)` -> id. Completion:
-    // `{ request, status, body }` or `{ request, error }`.
+    // `{ request, status, body, ms }` or `{ request, error }`.
     m.function(
         kind::REST,
         |eng: &Engine, (method, path, body): (String, String, Option<Value>)| {
@@ -867,7 +864,7 @@ fn install_gamend_socket_api(m: &mut Module<Engine>) {
         (INTERRUPT, &[], "(socket: int) -> bool", "Cut the connection as a network failure would, to try a game's reconnect path: the socket reports `reconnecting`, then `reopened`. False when it is already gone."),
     ]);
     // `gamend.join(socket, topic, payload?)` -> id; reply arrives as
-    // `{ request, kind = "reply", status, response }`.
+    // `{ request, kind = "reply", status, response, ms }`.
     m.function(
         words::general::JOIN,
         |eng: &Engine, (socket, topic, payload): (i64, String, Option<Value>)| {
@@ -956,12 +953,6 @@ mod tests {
                 .is_err()
         );
         assert!(state.request_handlers.is_empty());
-        let rows = state.activity.entries();
-        let balaur_script::Value::List(rows) = rows else {
-            panic!("the rows are a list");
-        };
-        let text = format!("{rows:?}");
-        assert!(!text.contains("waiting"), "{text}");
     }
 
     #[test]

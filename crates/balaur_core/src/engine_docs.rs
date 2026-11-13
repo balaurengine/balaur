@@ -62,7 +62,7 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
         ("environment", &[], "(name: string) -> string?", "An environment variable's value, nil when it is unset. Nil on the web, which has none. Outside the simulation, like `args`: a replay does not record it."),
         ("reload_scripts", &[], "(keys: [string]) -> string", "Recompile scripts by their project-relative keys in one build, however many there are, for a tool editing files outside the watched root; answers what kept them from compiling, empty when they did."),
         ("watch", &[], "(directory: string, extensions: [string]) -> bool", "Follow a directory outside the project the way a run follows the project: a script loaded from it hot reloads when its file changes. A script hears each burst of changes once with `events::listen(this.node, \"files_changed\")`, as `on_files_changed(paths)`, each path spelled from `directory` and with one of `extensions`, or any file when that is empty. An empty list is more than the watcher could name, so what is held has to be checked again. Answers false where nothing can be followed: a pack, a browser, a run with watching off. The directory has to be one `fs` may reach."),
-        ("user_data_directory", &[], "() -> string", "A writable per-user directory for saves and settings, created on first call and named after the project."),
+        ("user_data_directory", &[], "() -> string", "A writable per-user directory for saves and settings, created on first call and named after the project. A game the editor plays answers with its own, the folder it has when run alone."),
         ("user_data_directory_of", &[], "(project: string) -> string", "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."),
         ("open_url", &[], "(url: string)", "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays."),
         ("reveal", &[], "(path: string)", "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`."),
@@ -250,20 +250,6 @@ pub(crate) fn document_strings(m: &mut balaur_script::Module<Engine>) {
     ]);
 }
 
-pub(crate) fn document_save(m: &mut balaur_script::Module<Engine>) {
-    m.module_doc(
-        "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate_script` names the script whose `migrate_save(version, data)` upgrades older ones.",
-    );
-    m.describe(&[
-        (words::functions::WRITE, &[], "(slot: string, data: any)", "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one. A script hears this and every `remove` with `events::listen(this.node, \"saved\")`, as `on_saved(count)`."),
-        (words::functions::READ, &[], "(slot: string) -> map?", "The table in a slot, brought forward to this build's version; nil when the slot was never written. An error when the file was written by a newer build, or when it needs a migration the project declares no script for."),
-        ("slots", &[], "() -> [string]", "Every slot that has been written, in name order."),
-        (words::functions::REMOVE, &[], "(slot: string)", "Delete a slot. Not an error when it was not there."),
-        (words::functions::VERSION, &[], "() -> int", "The save version this build writes, from `[save] version`."),
-        (words::functions::DIRECTORY, &[], "() -> string", "The directory slots are kept in, not created until something is written."),
-    ]);
-}
-
 pub(crate) fn document_log(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "The `info`, `warn` and `error` levels a script writes at, and the buffer behind them. Lines go through the engine's own `tracing` stream.",
@@ -304,6 +290,7 @@ pub(crate) fn document_random(m: &mut balaur_script::Module<Engine>) {
     m.describe(&[
         ("seed", &[], "(seed: int)", "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
         (words::datatypes::FLOAT, &[], "() -> float", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
+        ("at", &[], "(seed: int, index: int) -> float", "The `index`th number of the stream `seed` names, uniform in `[0, 1)`: the same for the same two on every platform, and apart from the engine stream, so a tool's layout draws nothing a game would."),
         ("uuid", &[], "() -> string", "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."),
         ("range", &[], "(low: float, high: float) -> float", "A float from the deterministic engine stream, uniform in `[low, high)`: the two arguments."),
         (words::datatypes::INT, &[], "(low: int, high: int) -> int", "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
@@ -321,7 +308,7 @@ pub(crate) fn document_fs(m: &mut balaur_script::Module<Engine>) {
     )]);
     m.describe(&[
         (words::functions::READ, &[], "(path: string) -> string?", "A whole file as text, project-relative unless absolute and found inside the pack in a packed run; nil when it cannot be read."),
-        (words::functions::WRITE, &[], "(path: string, text: string)", "Write text to a project-relative file, creating the directory it goes in."),
+        (words::functions::WRITE, &[], "(path: string, text: string)", "Write text to a project-relative file, creating the directory it goes in. The text lands in a file beside it, synced, then renamed over it, so a crash mid-write keeps the old file whole."),
         (words::functions::EXISTS, &[], "(path: string) -> bool", "Whether a project-relative path has anything at it, file or directory."),
         (words::datatypes::LIST, &[], "(path: string) -> [Entry]", "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there."),
         (words::functions::REMOVE, &[], "(path: string) -> bool", "Delete a project-relative file, or a directory and everything under it; false when there was nothing there."),

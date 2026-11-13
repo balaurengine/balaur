@@ -1,6 +1,6 @@
 //! What a dock or a game's own debug screen reads: the session, the server
-//! target, each reply by its request, and the recent calls. Observers all,
-//! except `restore`, which signs in from a kept session.
+//! target, the sockets, and each reply by its request. Observers all, except
+//! `restore`, which signs in from a kept session.
 
 use anyhow::Result;
 use balaur_core::Engine;
@@ -10,8 +10,6 @@ use crate::GamendState;
 use crate::client::Session;
 use crate::vocabulary::words;
 
-const ACTIVITY: &str = "activity";
-const CLEAR_ACTIVITY: &str = "clear_activity";
 const CONNECTION: &str = "connection";
 const RESTORE: &str = "restore";
 const RUN_ID: &str = "run_id";
@@ -20,11 +18,6 @@ const SESSION: &str = "session";
 
 pub(crate) fn install(m: &mut Module<Engine>) {
     m.records(&[
-        (
-            "Entry",
-            "{ seq: int, request: int, kind: string, what: string, status: string, ms: float?, args: any, reply: any }",
-            "One call or socket message the plugin kept.",
-        ),
         (
             "Socket",
             "{ socket: int, open: bool, topics: [string], reason: string? }",
@@ -47,20 +40,15 @@ pub(crate) fn install(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        (ACTIVITY, &[], "() -> [Entry]", "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it."),
         (CONNECTION, &[], "() -> Connection", "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`."),
         (SESSION, &[], "() -> Session?", "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."),
         (RESTORE, &[], "(session: Session?) -> bool", "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`."),
         (words::functions::REPLY, &[], "(request: int) -> any", "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame."),
-        (CLEAR_ACTIVITY, &[], "()", "Forget the calls and messages `activity` holds."),
         (SERVER, &[], "() -> Server", "The server this run talks to until a script names another: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
         (RUN_ID, &[], "() -> string", "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it."),
     ]);
-    m.function(ACTIVITY, |eng: &Engine, (): ()| {
-        Ok(eng.resource::<GamendState>().borrow().activity.entries())
-    });
     m.function(CONNECTION, |eng: &Engine, (): ()| {
-        Ok(eng.resource::<GamendState>().borrow().activity.connection())
+        Ok(eng.resource::<GamendState>().borrow().connection.value())
     });
     m.function(SESSION, |eng: &Engine, (): ()| {
         let state = eng.resource::<GamendState>();
@@ -77,12 +65,8 @@ pub(crate) fn install(m: &mut Module<Engine>) {
     m.function(words::functions::REPLY, |eng: &Engine, request: i64| {
         let reply = u64::try_from(request)
             .ok()
-            .and_then(|id| eng.resource::<GamendState>().borrow().activity.reply(id));
+            .and_then(|id| eng.resource::<GamendState>().borrow().connection.reply(id));
         Ok(reply.unwrap_or(Value::Nil))
-    });
-    m.function(CLEAR_ACTIVITY, |eng: &Engine, (): ()| {
-        eng.resource::<GamendState>().borrow_mut().activity.clear();
-        Ok(Value::Nil)
     });
     m.function(SERVER, |eng: &Engine, (): ()| Ok(crate::target::value(eng)));
     m.function(RUN_ID, |_: &Engine, (): ()| {
@@ -103,7 +87,7 @@ fn restore(eng: &Engine, value: Option<&Value>) -> bool {
             Err(_) => return false,
         },
     };
-    state.activity.signed_in(
+    state.connection.signed_in(
         session
             .as_ref()
             .map(|s| (s.user_id.clone(), s.username.clone())),

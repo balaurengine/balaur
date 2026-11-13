@@ -5,6 +5,7 @@
 
 use dropin;
 use editor;
+use form;
 use icons;
 use inspector;
 use model;
@@ -164,7 +165,7 @@ pub fn fill(state: &mut editor::State) {
         form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
         fields::DATA: { fields::FN: typed, project_fields::SUBMIT: typed },
     });
-    ui::fill_rows(host, specs);
+    form::fill(host, specs);
 }
 
 fn typed(state: &mut editor::State, _data: any, text: any) {
@@ -172,13 +173,13 @@ fn typed(state: &mut editor::State, _data: any, text: any) {
     state.font_finding = Finding { at: finding.at, query: text.as_str() };
 }
 
-fn rows(state: &mut editor::State, row_height: float) -> [ui::Row] {
+fn rows(state: &mut editor::State, row_height: float) -> [form::Row] {
     if state.font_families == nil {
         let said = if waiting_on(state, FAMILIES) { "Asking Forge for its fonts…" } else { "The catalogue did not answer." };
         return [caption_row(said)];
     }
     let query = state.font_finding.unwrap().query.to_lower();
-    let out: [ui::Row] = [];
+    let out: [form::Row] = [];
     for family in util::list_or_empty(state.font_families) {
         if out.len() >= SHOWN {
             break;
@@ -194,7 +195,7 @@ fn rows(state: &mut editor::State, row_height: float) -> [ui::Row] {
             grow: 1,
             text: "{name}  ·  {category}",
         }, take_family, { FAMILY: family });
-        out.push(ui::Row { height: row_height, controls: [button] });
+        out.push(form::Row { height: row_height, controls: [button] });
     }
     if out.len() == 0 {
         out.push(caption_row(search::nothing_says(state.font_finding.unwrap().query)));
@@ -202,9 +203,9 @@ fn rows(state: &mut editor::State, row_height: float) -> [ui::Row] {
     out
 }
 
-fn caption_row(text: str) -> ui::Row {
+fn caption_row(text: str) -> form::Row {
     let label: ui::Control = ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, text: text, wrap: true };
-    ui::Row { height: 0.0, controls: [label] }
+    form::Row { height: 0.0, controls: [label] }
 }
 
 fn take_family(state: &mut editor::State, data: any, _value: any) {

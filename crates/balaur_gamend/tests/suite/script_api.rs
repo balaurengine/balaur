@@ -85,7 +85,8 @@ impl Scenario {{
         let a = me["status"];
         let b = hook["status"];
         let c = gone["status"];
-        log::info("gamend-live {{a}} {{b}} {{c}}");
+        let timed = me["ms"].as_float() > 0.0 && hook["ms"].as_float() > 0.0;
+        log::info("gamend-live {{a}} {{b}} {{c}} timed {{timed}}");
     }}
 }}
 "#
@@ -95,7 +96,7 @@ impl Scenario {{
     run_until_within(
         &[],
         &source,
-        &["gamend-live 200 error 200"],
+        &["gamend-live 200 error 200 timed true"],
         std::time::Duration::from_secs(300),
     );
 }
@@ -111,12 +112,12 @@ impl Scenario {
         let reply = await task::wait(id);
         let kind = reply["kind"];
         let error = reply["error"];
-        let seen: gamend::Entry = gamend::activity()[0];
-        log::info("refused {kind} {error} {seen.kind} {seen.status}");
+        let kept = gamend::reply(id);
+        log::info("refused {kind} {error} kept {kept["error"]}");
     }
 }
 "#,
-        &["refused error no such thing refused no such thing"],
+        &["refused error no such thing kept no such thing"],
     );
 }
 

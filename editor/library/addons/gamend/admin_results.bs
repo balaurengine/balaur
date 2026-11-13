@@ -9,7 +9,7 @@
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
 // left out when the call has nothing to put in it. It answers the id
-// `gamend::rest` answers, to await with `task::wait`. With a path
+// `core::rest` answers, to await with `task::wait`. With a path
 // parameter empty or a required field left out it sends nothing and
 // logs which, and the id answers an `error` naming it.
 
@@ -21,7 +21,7 @@ pub fn delete_result(id: str) -> int {
     if id == "" {
         return core::missing("gamend::admin_results::delete_result", "id");
     }
-    gamend::rest("DELETE", "/api/v1/admin/results/{id}")
+    core::rest("DELETE", "/api/v1/admin/results/{id}")
 }
 
 /// Get a result (admin)
@@ -30,7 +30,7 @@ pub fn get_result(id: str) -> int {
     if id == "" {
         return core::missing("gamend::admin_results::get_result", "id");
     }
-    gamend::rest("GET", "/api/v1/admin/results/{id}")
+    core::rest("GET", "/api/v1/admin/results/{id}")
 }
 
 /// List a result's events (admin)
@@ -40,12 +40,12 @@ pub fn list_result_events(id: str, options: any) -> int {
         return core::missing("gamend::admin_results::list_result_events", "id");
     }
     let query = core::query(options, ["after", "limit"]);
-    gamend::rest("GET", "/api/v1/admin/results/{id}/events{query}")
+    core::rest("GET", "/api/v1/admin/results/{id}/events{query}")
 }
 
 /// List results (admin)
 /// `GET /api/v1/admin/results`
 pub fn list_results(options: any) -> int {
     let query = core::query(options, ["kind", "status", "user_id", "lobby_id", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/results{query}")
+    core::rest("GET", "/api/v1/admin/results{query}")
 }

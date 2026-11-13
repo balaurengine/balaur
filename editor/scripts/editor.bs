@@ -20,6 +20,7 @@ use dropin;
 use events;
 use fonts;
 use exporter;
+use form;
 use gizmo;
 use history;
 use importer;
@@ -135,7 +136,7 @@ pub class State {
     internal code_revision: int,
     internal layout_seen: float,
     /// The rows the Import tab's form was last filled with.
-    internal form: [ui::Row],
+    internal form: [form::Row],
     /// The Inspector's lines and which of them are on screen.
     internal inspect: inspector::Form,
     /// When the Inspector's whole form is filled again after a run of edits
@@ -588,13 +589,13 @@ pub fn boot(state: &mut State, editor: Node, listen: bool) {
     }
     // Before the theme and the scale are pushed: the preferences decide both,
     // and until this ran they only took effect once Settings was opened.
+    settings::declare();
     settings::load_files(state);
     theme::apply(state);
     chrome::set_app_icon(engine::dark_mode());
     state.touchscreen = engine::target().touchscreen;
     signals::inspector(state);
     shell::apply_ui_scale(state);
-    render::set_grid(true, 1.0, 5, 20);
     shell::apply_camera(state);
     log::info("editing {state.game_name} ({state.nodes.len()} nodes)");
     signals::outline(state);
@@ -917,7 +918,6 @@ fn follow_document(state: &mut State) {
     let is2d = model::is_2d(state);
     if is2d != state.mode2d {
         state.mode2d = is2d;
-        render::set_grid(!is2d, 1.0, 5, 20);
         shell::apply_camera(state);
         draw_overlays(state);
     }
@@ -970,6 +970,8 @@ fn draw_overlays(state: &mut State) {
     render::begin_retained(VIEWPORT);
     if state.mode2d {
         overlays::grid2d(state);
+    } else {
+        overlays::grid3d(state);
     }
     gizmo::draw(state);
     plugins::draw_overlays(state);
@@ -1245,7 +1247,7 @@ impl Editor {
         kit::bar(host, part, controls);
     }
 
-    pub fn kit_rows(host: str, part: str, specs: [ui::Row]) {
+    pub fn kit_rows(host: str, part: str, specs: [any]) {
         kit::rows(host, part, specs);
     }
 
@@ -1253,15 +1255,15 @@ impl Editor {
         kit::pages(self.state, host, id, groups)
     }
 
-    pub fn kit_heading(title: str) -> ui::Row {
+    pub fn kit_heading(title: str) -> form::Row {
         kit::heading(title)
     }
 
-    pub fn kit_empty(text: str) -> ui::Row {
+    pub fn kit_empty(text: str) -> form::Row {
         kit::empty(text)
     }
 
-    pub fn kit_field(label: str, value: any, options: any) -> ui::Row {
+    pub fn kit_field(label: str, value: any, options: any) -> form::Row {
         kit::field(self.state, label, value, options)
     }
 
@@ -1269,7 +1271,7 @@ impl Editor {
         kit::tree(self.state, id, value, options)
     }
 
-    pub fn kit_files(id: str, options: any) -> [ui::Row] {
+    pub fn kit_files(id: str, options: any) -> [form::Row] {
         kit::files(self.state, id, options)
     }
 

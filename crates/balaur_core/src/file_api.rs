@@ -36,6 +36,23 @@ pub fn add_root(eng: &Engine, root: impl AsRef<Path>) {
     }
 }
 
+/// Directories `fs.*` may read inside but not write: what an install ships.
+#[derive(Default)]
+pub struct ReadOnlyRoots(pub Vec<PathBuf>);
+
+/// Declare a directory `fs.*` may read inside but never write.
+pub fn add_read_only_root(eng: &Engine, root: impl AsRef<Path>) {
+    let root = root.as_ref().to_path_buf();
+    if eng.try_resource::<ReadOnlyRoots>().is_none() {
+        eng.insert_resource(ReadOnlyRoots::default());
+    }
+    let roots = eng.resource::<ReadOnlyRoots>();
+    let mut roots = roots.borrow_mut();
+    if !roots.0.contains(&root) {
+        roots.0.push(root);
+    }
+}
+
 /// The project's own root and any a host added, for a reader resolving a
 /// project-relative path. `fs.*` also reaches the user-data directory; a
 /// scene file does not live there.
@@ -50,8 +67,8 @@ pub fn project_roots(eng: &Engine) -> Vec<PathBuf> {
     out
 }
 
-/// Every directory `fs.*` may reach, in the order they are checked.
-fn roots(eng: &Engine) -> Vec<PathBuf> {
+/// Every directory `fs.*` may write inside, in the order they are checked.
+fn writable_roots(eng: &Engine) -> Vec<PathBuf> {
     let mut out = Vec::new();
     if let Some(root) = eng.try_resource::<crate::project::ProjectRoot>() {
         out.push(root.borrow().0.clone());
@@ -59,6 +76,16 @@ fn roots(eng: &Engine) -> Vec<PathBuf> {
     out.push(crate::engine_api::user_data_dir_of(eng));
     if let Some(extra) = eng.try_resource::<FileRoots>() {
         out.extend(extra.borrow().0.iter().cloned());
+    }
+    out
+}
+
+/// Every directory `fs.*` may read inside: the writable ones, then the
+/// read-only ones.
+fn roots(eng: &Engine) -> Vec<PathBuf> {
+    let mut out = writable_roots(eng);
+    if let Some(shipped) = eng.try_resource::<ReadOnlyRoots>() {
+        out.extend(shipped.borrow().0.iter().cloned());
     }
     out
 }
@@ -130,10 +157,21 @@ fn named<'a>(eng: &Engine, args: &'a [Value], at: usize) -> Result<std::borrow::
     Ok(crate::dependencies::scoped(eng, text(args, at)?))
 }
 
-/// A path a script writes to: resolved, and refused inside a dependency.
+/// A path a script writes to: resolved, and refused inside a dependency or a
+/// root that is only read.
 fn writable(eng: &Engine, args: &[Value], at: usize) -> Result<PathBuf> {
     let path = resolve(eng, &named(eng, args, at)?)?;
     crate::dependencies::refuse_write(eng, &path)?;
+    let fs = files::backend(eng);
+    if !writable_roots(eng)
+        .iter()
+        .any(|root| path.starts_with(real_path(fs.as_ref(), root)))
+    {
+        bail!(
+            "'{}' is read only: it ships with the install",
+            path.display()
+        );
+    }
     Ok(path)
 }
 
@@ -200,8 +238,22 @@ pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// `animations/` should not fail because the project has never had one.
 pub(crate) fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
     let path = writable(eng, args, 0)?;
-    files::backend(eng).write(&path, text(args, 1)?.as_bytes())?;
+    write_whole(&*files::backend(eng), &path, text(args, 1)?.as_bytes())?;
     Ok(Value::Nil)
+}
+
+/// Write `bytes` beside `path` and rename them over it, so a crash or a power
+/// cut mid-write leaves the old file whole, never a truncated one.
+pub fn write_whole(fs: &dyn FileBackend, path: &Path, bytes: &[u8]) -> Result<()> {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".part");
+    let part = path.with_file_name(name);
+    fs.write(&part, bytes)
+        .with_context(|| format!("writing {}", part.display()))?;
+    // A rename alone survives a crash; the bytes survive a power cut only once synced.
+    fs.sync(&part);
+    fs.rename(&part, path)
+        .with_context(|| format!("replacing {}", path.display()))
 }
 
 pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -317,13 +369,53 @@ pub(crate) fn toml_patch(_: &Engine, args: &[Value]) -> Result<Value> {
     let toml::Value::Table(table) = crate::node_api::to_toml(value)? else {
         bail!("toml.patch writes a table over a document");
     };
+    let before: toml::Table = toml::from_str(existing).context("parsing the document")?;
     let mut doc: toml_edit::DocumentMut = existing.parse().context("parsing the document")?;
-    for (key, value) in table {
-        let mut item = as_item(&value);
-        keep_leading_comment(doc.get(&key), &mut item);
-        doc[&key] = item;
+    for (key, value) in &table {
+        patch_key(doc.as_table_mut(), key, before.get(key), value);
     }
     Ok(Value::Str(doc.to_string()))
+}
+
+/// Write `value` at `key`, `was` being what the document held there. A table
+/// both hold is patched key by key: a key it no longer holds goes, a changed
+/// one is written with the comment beside it, and a table left empty goes.
+fn patch_key(
+    table: &mut toml_edit::Table,
+    key: &str,
+    was: Option<&toml::Value>,
+    value: &toml::Value,
+) {
+    if was == Some(value) {
+        return;
+    }
+    if let (Some(toml::Value::Table(was)), toml::Value::Table(now)) = (was, value)
+        && let Some(existing) = table.get_mut(key).and_then(toml_edit::Item::as_table_mut)
+    {
+        let gone: Vec<String> = was
+            .keys()
+            .filter(|k| !now.contains_key(*k))
+            .cloned()
+            .collect();
+        for name in gone {
+            existing.remove(&name);
+        }
+        for (name, inner) in now {
+            patch_key(existing, name, was.get(name), inner);
+        }
+        if now.is_empty() {
+            table.remove(key);
+        }
+        return;
+    }
+    let mut item = as_item(value);
+    match (table.get(key), &mut item) {
+        (Some(toml_edit::Item::Value(old)), toml_edit::Item::Value(new)) => {
+            *new.decor_mut() = old.decor().clone();
+        }
+        (old, _) => keep_leading_comment(old, &mut item),
+    }
+    table[key] = item;
 }
 
 /// A whole document written over `existing`: a key `table` no longer holds
@@ -345,12 +437,7 @@ pub(crate) fn rewritten(
         doc.remove(&key);
     }
     for (key, value) in table {
-        if before.get(key) == Some(value) {
-            continue;
-        }
-        let mut item = as_item(value);
-        keep_leading_comment(doc.get(key), &mut item);
-        doc[key] = item;
+        patch_key(doc.as_table_mut(), key, before.get(key), value);
     }
     Ok(doc.to_string())
 }
@@ -487,6 +574,75 @@ fn json_number_list(a: &[f32]) -> Result<serde_json::Value> {
 mod tests {
     use super::*;
 
+    /// A memory backend that also lists what was asked of it, in order.
+    #[derive(Default)]
+    struct Recording {
+        fs: files::MemoryFs,
+        asked: std::cell::RefCell<Vec<String>>,
+    }
+
+    impl Recording {
+        fn note(&self, what: &str, path: &Path) {
+            self.asked
+                .borrow_mut()
+                .push(format!("{what} {}", path.display()));
+        }
+    }
+
+    impl FileBackend for Recording {
+        fn read(&self, path: &Path) -> Result<Vec<u8>> {
+            self.fs.read(path)
+        }
+        fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+            self.note("write", path);
+            self.fs.write(path, bytes)
+        }
+        fn exists(&self, path: &Path) -> bool {
+            self.fs.exists(path)
+        }
+        fn is_dir(&self, path: &Path) -> bool {
+            self.fs.is_dir(path)
+        }
+        fn remove(&self, path: &Path) -> Result<bool> {
+            self.fs.remove(path)
+        }
+        fn mkdir(&self, path: &Path) -> Result<()> {
+            self.fs.mkdir(path)
+        }
+        fn rename(&self, from: &Path, to: &Path) -> Result<()> {
+            self.note("rename", from);
+            self.fs.rename(from, to)
+        }
+        fn mtime(&self, path: &Path) -> Option<f64> {
+            self.fs.mtime(path)
+        }
+        fn list(&self, path: &Path) -> Vec<(String, bool)> {
+            self.fs.list(path)
+        }
+        fn canonicalize(&self, path: &Path) -> PathBuf {
+            self.fs.canonicalize(path)
+        }
+        fn sync(&self, path: &Path) {
+            self.note("sync", path);
+        }
+    }
+
+    #[test]
+    fn a_whole_write_lands_beside_the_file_is_synced_then_renamed_over_it() {
+        let fs = Recording::default();
+        let path = Path::new("/data/saves/slot.toml");
+        // Joined as the code joins it: Windows puts its own separator there.
+        let part = Path::new("/data/saves").join("slot.toml.part");
+        fs.fs.write(path, b"old").unwrap();
+        write_whole(&fs, path, b"new").unwrap();
+        assert_eq!(
+            *fs.asked.borrow(),
+            ["write", "sync", "rename"].map(|step| format!("{step} {}", part.display()))
+        );
+        assert_eq!(fs.read(path).unwrap(), b"new");
+        assert!(!fs.exists(&part));
+    }
+
     fn patched(existing: &str, table: &str) -> String {
         let value =
             crate::node_api::from_toml(&toml::from_str::<toml::Value>(table).unwrap()).unwrap();
@@ -495,6 +651,29 @@ mod tests {
             Value::Str(text) => text,
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn a_changed_key_is_written_alone_and_the_table_keeps_its_comments() {
+        let text = patched(
+            "# The window.\n[window]\n# Wide enough.\nwidth = 1280 # points\nheight = 800\n",
+            "[window]\nwidth = 900\nheight = 800\n",
+        );
+        assert_eq!(
+            text,
+            "# The window.\n[window]\n# Wide enough.\nwidth = 900 # points\nheight = 800\n"
+        );
+    }
+
+    #[test]
+    fn a_key_the_table_no_longer_holds_goes_and_so_does_an_emptied_table() {
+        let text = patched(
+            "[app]\nname = \"g\"\n\n[override.android.window]\nwidth = 400\n",
+            "[app]\nname = \"g\"\n[override]\n",
+        );
+        let back: toml::Value = toml::from_str(&text).unwrap();
+        assert!(back.get("override").is_none(), "{text}");
+        assert_eq!(back["app"]["name"].as_str(), Some("g"));
     }
 
     /// A list written whole keeps the comment its first block carried, which

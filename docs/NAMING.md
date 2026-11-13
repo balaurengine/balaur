@@ -243,7 +243,8 @@ A widget kind and the `ui::*` function that draws it share one word.
 | Collapsible section | `fold` | Godot, Unity |
 | Modal form and OS window | `dialog`, `window` | ARIA, Godot |
 | Data views | `list`, `tree`, `table` | ARIA, Godot |
-| Menu, rule, brief message | `menu`, `separator`, `toast` | ARIA, Radix |
+| Menu, rule | `menu`, `separator` | ARIA, Radix |
+| A root drawn above the others, a widget a screen reader reads as it changes | `on_top`, `announce` | ARIA (`status`) |
 | Picture, code, free drawing | `image`, `code`, `draw` | none |
 
 | Concept | Balaur name | Follows |
@@ -268,6 +269,7 @@ Every other token derives from seven source colours, a `contrast` step and four 
 | Accents | `primary`, `secondary` | shadcn, daisyUI |
 | Good outcome, caution, error | `success`, `warning`, `danger` | daisyUI, Primer |
 | Lightness step between surfaces | `contrast` | Godot |
+| A theme's own token at a fixed hue, or mixed off the background | `[hues]`, `[mixes]` | none |
 | Body text size | `font_size`, and `font_size_small`, `font_size_large`, `font_size_title` | Godot |
 | Fonts by name, in `[fonts]` | `default`, and `heading`, `mono`, `icon` where egui's own text and a widget's glyphs draw | Godot (`default_font`), Tailwind |
 | Corner rounding | `radius`, and `radius_small`, `radius_large` | shadcn |
@@ -282,11 +284,11 @@ Every other token derives from seven source colours, a `contrast` step and four 
 | A family's ink on any sheet | `X_text` | Primer |
 | A family's tinted surface | `X_bg` | Primer, Material |
 | Text on a family's fill | `text_on_X` | shadcn, Primer |
-| Viewport grid | `grid_minor`, `grid_major` | Godot |
+| Viewport grid, the editor's `[mixes]` | `grid_minor`, `grid_major` | Godot |
 | Code colours | `syntax_keyword`, `syntax_string`, `syntax_number`, `syntax_comment`, `syntax_identifier`, `syntax_type`, `syntax_punctuation` | none |
-| Node kind icons | `node_default`, `node_2d`, `node_3d`, `node_ui`, `node_physics`, `node_bone`, `node_modifier` | Godot |
-| Viewport axes | `axis_x`, `axis_y`, `axis_z` | Godot |
-| The engine mark's disc, touch rings | `brand_plate`, `input_ripple` | none |
+| Node kind icons, the editor's `[hues]` | `node_default`, `node_2d`, `node_3d`, `node_ui`, `node_physics`, `node_bone`, `node_modifier` | Godot |
+| Viewport axes, the editor's `[hues]` | `axis_x`, `axis_y`, `axis_z` | Godot |
+| The engine mark's disc, touch rings, stated in the editor's roles | `brand_plate`, `input_ripple` | none |
 | List rows | `row_selected`, `row_selected_text`, `row_hover`, `row_active`, `row_stripe` | none |
 | Tables and trees | `table_header`, `table_rule`, `tree_guide` | none |
 
@@ -486,7 +488,7 @@ A physics word follows Godot where the importer maps it, and otherwise the word 
 | Soft body solver | `solver_iterations`, `solver_substeps` | Jolt |
 | Soft body shapes | `box`, `sphere`, `triangle_mesh`, `circle`, with `size` | Godot, Unity |
 | Soft body material | `mass`, `edge_*`, `bend_*`, `young_modulus`, `poisson_ratio`, `tear_*`, `shape_matching` (`auto`, `on`, `off`) | Box2D, Jolt, Godot |
-| Ragdoll weight, 0 to 1 | `influence`, `set_ragdoll_influence` | Godot, Unreal |
+| Ragdoll weight, 0 to 1 | `ragdoll` `influence` | Godot, Unreal |
 | Soft body parts | `regions`, `collision_mesh`, `collision_binding` (`nearest`, `particles`, `cells`) | rapier |
 | Pulling a body to a pose | `follow3d`, `follow2d`: `kind` (`pd`, `pid`), `target`, `*_gain`, `translation_axes`, `rotation_axes` (in 2D the one `rotation`, as a 2D joint names it), `reset_follow` | rapier |
 | Ray | `origin`, `direction`, `max_distance`, `hit_from_inside` | Unity, PhysX, Godot |
@@ -525,6 +527,8 @@ Most names match Godot 4. A clip is Unity's word, because `animation` is already
 | Jiggle | `stiffness`, `mass`, `damping`, `use_gravity`, `gravity` | Godot |
 | Retargeting | `bone_map`, `skeleton_profile`, play option `retarget` | Godot |
 | Tween | `animation.tween`, steps `property`, `to`, `from`, `by`, `duration`, `delay`, `parallel`, `interval`, `call`, `loops`, `then` | Godot |
+| A curve applied to a number a script moves itself | `animation.ease(name, t)`, `ease_names` | Godot (`ease`) |
+| A rotation a script composes; a number apart from the game's stream; what a node draws | `quat` (`from_axis_angle`, `from_arc`, `from_euler`, `to_euler`, `mul`, `inverse`, `rotate`), `random.at`, `render.triangles_of` | Godot (`Quaternion`) |
 | Tween rate and state | `speed_scale`, `is_tween_running` | Godot |
 | Easing | `<mode>_<transition>`, as `in_out_sine`; a straight line is `linear` alone | Godot |
 | Timer | `timer`, with `wait_time`, `one_shot`, `autostart`, `time_left`, `running` | Godot |
@@ -545,7 +549,7 @@ A volume names its unit, because Godot reads a bare `volume` as decibels. A cue 
 | Buses | `[audio.buses]`, `master`, `parent`, `buses` | Godot, Unity, FMOD |
 | Bus loudness | `bus_volume_linear`, `set_bus_volume_linear` | Godot |
 | Reserved: mixing | `mute`, `solo`, `snapshot` | Godot, Unity, FMOD |
-| Named sounds | `audio/cues.toml`, `cues`, `play_cue` | Unreal |
+| A sound no node carries | `play_file` | none |
 | A cue | `files`, `volume_linear`, `pitch_scale`, `doppler_level`, `bus`, `loop`, option `position` | Godot |
 | Reserved: variations in turn | `sequential` | Godot |
 
@@ -624,7 +628,7 @@ A command is a verb, a long flag is kebab-case, and an environment variable spel
 | Positional argument | what the command acts on; a destination is `--project <DIR>` | Cargo |
 | Environment variable | `BALAUR_` and the settings path in capitals | Cargo |
 | A setting with a unit | the unit last: `timeout_seconds`, `delay_ticks`, `long_press_slop_pixels`, `narrow_below_pixels`, `max_rate_hz`, `min_ccd_seconds` | none |
-| A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[save] migrate_script`, `[locale] initial`, `[import.audio] force_mono` | none |
+| A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[locale] initial`, `[import.audio] force_mono` | none |
 | Signing identities | `[apple] macos_identity`, `notarize`, `ios_identity`, `ios_provisioning_profile`; `[android] keystore`, `key`, `bundletool`; `[windows] certificate`, `timestamp_url` | none |
 | How an export re-encodes | `[export] image_recode`, `font_recode`, `audio_recode` and a file's `recode`, `original` among the values; `image_quality`, `audio_quality` | none |
 | Globs an export takes whatever it decides | `[export] include`, `font_original` | none |
@@ -676,21 +680,22 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | Jobs in flight | `export.running_count`, `import.running_count` | none |
 | The tick rollback cannot pass, the first one a replay missed | `multiplayer.settled_tick`, `replay.divergence_tick` | none |
 | Fold TOML text into the settings, write it back | `settings.merge_toml`, `settings.to_toml` | none |
-| Open another project's manifest to edit apart from this run's, and change it as a settings screen does | `settings.edit_project`, `settings.edit_set`, `settings.edit_clear` | none |
 | A setting of the process rather than the game, kept from an edited project | `host = true` in its spec | none |
 | A scene written back from its nodes | `scene.to_toml`, a node's `authored` table; `instantiate`'s `root` and `to_toml`'s are the project its files are spelled from | none |
 | What a write replaced, kept for an undo | `scene.keep_changes`, `scene.take_changes`; each change's `was` | none |
 | A node's script, named whether or not it runs | `node.set_script`, `node.script_path`, `node.script_props`; `scene.attach_scripts` runs them | none |
 | Free a node now, not at the frame's end | `node.free`, beside `queue_free` | Godot |
 | Cameras that drive no view while held | `render.hold_cameras` | none |
-| Directories | `fs.create_directory`, `fs.modified_time`, `engine.user_data_directory`, `save.directory`, `project.pick_directory` | none |
+| Directories | `fs.create_directory`, `fs.modified_time`, `engine.user_data_directory`, `project.pick_directory` | none |
+| What ships beside the editor, read and not written; a project copied, a path taken | `project.examples_directory`, `project.copy`, `project.exists` | none |
 | The seeded stream | `random.seed`, `random.float`, `random.range`, `random.int`, `random.uuid` | Godot, Unity |
 | Angle units and infinity | `math.to_degrees`, `math.to_radians`, `math.INFINITY` | Rust |
 | A view other than colour | `render.debug_view`, `render.set_debug_view`, `render.debug_views` | Godot |
 | A node's named look | `node.states.set_state` | none |
-| Binding actions | `set_state`, `set_variable`, `add_variable`, `play`, `play_sound`, `instantiate`, `free`, `switch`, `open_url`, `emit`, `call`, `visible`, `toast` | none |
+| Binding actions | `set_state`, `set_variable`, `add_variable`, `play`, `play_sound`, `instantiate`, `free`, `switch`, `open_url`, `emit`, `call`, `visible` | none |
 | A boolean beside the value | an options key: `set_z_index(z, #{ z_as_relative: false })`, `release.install(channel, tag, #{ allow_downgrade: true })` | N9 |
-| A function's options table, as a script's struct | a record named for the function, `<Function>Options`, in its module: `ui::ClickOptions`, `ui::RepaintOptions`; a pooled control `ui::Control`, a form's row `ui::Row` | none |
+| A function's options table, as a script's struct | a record named for the function, `<Function>Options`, in its module: `ui::ClickOptions`, `ui::RepaintOptions`; a pooled control `ui::Control` | none |
+| Fill one child of a pooled host; patch one pooled control in place | `ui::fill_slot`, `ui::patch_control` | none |
 
 ### Lifecycle and events
 

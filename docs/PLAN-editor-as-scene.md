@@ -836,13 +836,14 @@ nodes now, each a scene with one script that fills on a word.
 Built 2026-10-18, phase 8. A plugin's dock subtree carries
 `scripts/panels/plugin.bs`, which has the plugin fill it on
 `plugins_changed` (the kit's `changed`), the outline's and the Inspector's
-words, `debugger_changed`, the engine's `saved` and `assets_reloaded`, and
+words, `debugger_changed`, the save addon's `saved`, the engine's
+`assets_reloaded`, and
 after one of its own controls; the dock fills it when it shows it. A plugin's
 `draw(S, k, host)` is called on those and never each pass. An Inspector section
 is not a dock: it is a component of the plugin's own, rows like any other (9.4).
 
-- **`saved`** is the engine's, from no node, when a save slot was written
-  or removed: what the User data dock fills on instead of asking for a
+- **`saved`** is the save addon's, emitted from no node when a slot was
+  written or removed: what the User data dock fills on instead of asking for a
   repaint every frame.
 - **The kit** remembers a tab or a page in the click's own handler, and a
   tree's edit is handed whole to the caller's `write`: with the rows filled

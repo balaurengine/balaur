@@ -116,11 +116,17 @@ pub fn run_until_within(
     // an error logged at load would scroll out before the first look.
     let mut seen: Vec<Option<String>> = markers.iter().map(|_| None).collect();
     let mut cursor = 0;
+    let mut heard_at = 0;
     let deadline = Instant::now() + deadline;
     while Instant::now() < deadline {
         app.tick(1.0 / 60.0);
-        let (fresh, next, _) = balaur_core::logbuf::since(cursor);
+        let (mut fresh, next, _) = balaur_core::logbuf::since(cursor);
         cursor = next;
+        // The script logs on this thread, which keeps every line: an error
+        // logged at boot can leave the 500-line ring before the first look.
+        let heard = balaur_core::logbuf::heard();
+        fresh.extend(heard.iter().skip(heard_at).cloned());
+        heard_at = heard.len();
         let errors: Vec<_> = fresh
             .iter()
             .filter(|e| e.level.eq_ignore_ascii_case("error"))

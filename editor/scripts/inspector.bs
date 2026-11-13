@@ -5,6 +5,7 @@ use anim;
 use drawers;
 use editor;
 use events;
+use form;
 use icons;
 use lint;
 use model;
@@ -89,7 +90,7 @@ pub class Line {
     internal holder: AtTop?,
     internal step: any,
     /// A row the walk built whole: a note, or a pointer at another view.
-    internal row: ui::Row?,
+    internal row: form::Row?,
     drawn: bool = false,
     shown: any,
 }
@@ -243,9 +244,9 @@ pub fn control_of(state: editor::State, label: str) -> Node {
     let form = state.inspect;
     for index in form.first..form.last {
         if form.lines[index].at.label == label {
-            let row = scene::get_node("{FORM}/R{index % form.capacity}");
+            let row = scene::get_node("{FORM}/C{index % form.capacity}");
             if row.is_valid() {
-                return row.get_node("H/C/C0");
+                return row.get_node("C1/C0");
             }
         }
     }
@@ -259,7 +260,7 @@ pub fn row_of_line(state: editor::State, key: str) -> Node {
     if at == nil || at.unwrap() < form.first || at.unwrap() >= form.last {
         return nil;
     }
-    scene::get_node("{FORM}/R{at.unwrap() % form.capacity}")
+    scene::get_node("{FORM}/C{at.unwrap() % form.capacity}")
 }
 
 /// The line named `key`, or nil: what a self-test asks of a row.
@@ -556,14 +557,14 @@ fn push_line(state: &mut editor::State, line: Line) -> Line {
 
 // A row built whole, a note or a pointer at another view; `key` is what an
 // edit on one of its controls names it by.
-fn fixed_line(state: &mut editor::State, key: str, row: ui::Row) {
+fn fixed_line(state: &mut editor::State, key: str, row: form::Row) {
     let labelled = row.label != nil && row.label.unwrap() != "";
     push_line(state, Line { kind: FIXED, at: blank(), key: key, row: row, height: row.height.or(row_height(state)), labelled: labelled });
 }
 
 /// A line of text spanning both columns.
 fn note_line(state: &mut editor::State, height: float, role: str, text: str) {
-    fixed_line(state, "", ui::Row {
+    fixed_line(state, "", form::Row {
         height: height,
         controls: [ui::Control { kind: ui::WIDGET_LABEL, role: role, grow: 1, truncate: true, text: text, tooltip: text }],
     });
@@ -596,7 +597,7 @@ fn multi_note(state: &mut editor::State) {
     if count < 2 {
         return;
     }
-    fixed_line(state, "", ui::Row {
+    fixed_line(state, "", form::Row {
         height: row_height(state) + 4.0,
         controls: [
             ui::Control {
@@ -622,7 +623,7 @@ fn instance_note(state: &mut editor::State, node: Node) {
         return;
     }
     let key = "@prefab";
-    fixed_line(state, key, ui::Row {
+    fixed_line(state, key, form::Row {
         height: row_height(state),
         label: "Prefab",
         controls: [
@@ -740,7 +741,7 @@ fn component_sections(state: &mut editor::State) {
 fn bindings_section(state: &mut editor::State) {
     head_line(state, verbs::BINDINGS, false);
     let key = "@bindings";
-    fixed_line(state, key, ui::Row {
+    fixed_line(state, key, form::Row {
         height: row_height(state) + 2.0,
         controls: [
             ui::Control {
@@ -1238,7 +1239,7 @@ fn set_window(state: &mut editor::State, whole: bool) {
                 if slot == typing {
                     ui::clear_focus();
                 }
-                ui::fill_row(form.host, slot);
+                form::fill_slot(form.host, slot);
                 form.slots[slot] = SLOT_EMPTY;
                 form.slot_keys[slot] = "";
             }
@@ -1293,7 +1294,7 @@ fn draw_line(state: &mut editor::State, index: int) {
         let patches = drawers::patches_of(state, line, value);
         if patches != nil {
             line.shown = value;
-            ui::patch_row(form.host, slot, patches.unwrap());
+            form::patch(form.host, slot, patches.unwrap());
             form.written += 1;
             return;
         }
@@ -1305,7 +1306,7 @@ fn draw_line(state: &mut editor::State, index: int) {
         return;
     }
     row.y = line.top;
-    ui::fill_row(form.host, slot, row, form.label_width, form.stacked);
+    form::fill_slot(form.host, slot, row, form.label_width, form.stacked);
     form.slot_keys[slot] = line.key;
     form.written += 1;
 }

@@ -9,10 +9,10 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 
 | Module | Functions | Constants |
 | --- | ---: | ---: |
-| [`animation`](#animation) | 6 | 80 |
+| [`animation`](#animation) | 5 | 80 |
 | [`apple`](#apple) | 19 | 25 |
 | [`assets`](#assets) | 13 | 0 |
-| [`audio`](#audio) | 19 | 1 |
+| [`audio`](#audio) | 18 | 1 |
 | [`browser`](#browser) | 5 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
@@ -22,7 +22,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
 | [`fs`](#fs) | 9 | 0 |
-| [`gamend`](#gamend) | 20 | 9 |
+| [`gamend`](#gamend) | 18 | 9 |
 | [`geometry2d`](#geometry2d) | 12 | 0 |
 | [`geometry3d`](#geometry3d) | 7 | 0 |
 | [`hash`](#hash) | 2 | 0 |
@@ -37,27 +37,27 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`multiplayer`](#multiplayer) | 14 | 18 |
 | [`node`](#node) | 55 | 0 |
 | [`physics`](#physics) | 13 | 0 |
-| [`physics2d`](#physics2d) | 17 | 111 |
-| [`physics3d`](#physics3d) | 17 | 118 |
+| [`physics2d`](#physics2d) | 16 | 108 |
+| [`physics3d`](#physics3d) | 16 | 115 |
 | [`picture`](#picture) | 1 | 0 |
 | [`platform`](#platform) | 11 | 7 |
-| [`project`](#project) | 16 | 0 |
-| [`random`](#random) | 5 | 0 |
+| [`project`](#project) | 15 | 0 |
+| [`quat`](#quat) | 8 | 0 |
+| [`random`](#random) | 6 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 4 | 0 |
-| [`render`](#render) | 44 | 45 |
+| [`render`](#render) | 43 | 41 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
-| [`save`](#save) | 6 | 0 |
 | [`scene`](#scene) | 32 | 0 |
 | [`script`](#script) | 15 | 0 |
-| [`settings`](#settings) | 15 | 0 |
+| [`settings`](#settings) | 12 | 0 |
 | [`skeleton`](#skeleton) | 3 | 0 |
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 44 | 65 |
+| [`ui`](#ui) | 43 | 64 |
 | [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -67,12 +67,11 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 
 | Function | Signature |
 | --- | --- |
+| `ease` | `(str, float) -> float` |
 | `ease_names` | `() -> [str]` |
 | `is_tween_running` | `(int) -> bool` |
 | `stop_tween` | `(int)` |
 | `tween` | `(Node, animation::Tween) -> int` |
-| `tween_float` | `(float, float, float, str?) -> int` |
-| `tween_float_of` | `(int) -> float?` |
 
 Called on a node's component: `animation`, `state_machine`. See [components](components.md).
 
@@ -186,7 +185,7 @@ Asset definitions by reference: a project path, `file#entry` for one entry, `#id
 
 ## `audio`
 
-Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_cue` plays a sound named in `audio/cues.toml`, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.
+Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.
 
 | Function | Signature |
 | --- | --- |
@@ -194,7 +193,6 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `bus_limit` | `(str) -> audio::BusLimit?` |
 | `bus_volume_linear` | `(str) -> float` |
 | `buses` | `() -> [str]` |
-| `cues` | `() -> [str]` |
 | `device_ready` | `() -> bool` |
 | `devices` | `() -> [str]` |
 | `distance_gain` | `(int) -> float?` |
@@ -202,7 +200,7 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `is_playing` | `(int) -> bool` |
 | `listener_position` | `() -> Vec3` |
 | `pan` | `(int) -> float?` |
-| `play_cue` | `(str, audio::CueOptions?) -> int?` |
+| `play_file` | `(str, audio::PlayFileOptions?) -> int` |
 | `set_bus_volume_linear` | `(str, float)` |
 | `set_emitter_position` | `(int, Vec3)` |
 | `set_pitch_scale` | `(int, float)` |
@@ -369,13 +367,11 @@ Files on disk, project-relative unless the path is absolute. A packed build's co
 
 ## `gamend`
 
-The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).
+The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; a `login`, `rest` or `reply` answer carries `ms`, its round trip in milliseconds, recorded with it. What a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).
 
 | Function | Signature |
 | --- | --- |
-| `activity` | `() -> [gamend::Entry]` |
 | `call_hook` | `(int, str, str, any) -> int` |
-| `clear_activity` | `()` |
 | `close` | `(int) -> bool` |
 | `configure` | `(str?) -> str` |
 | `connect` | `(Node?, events::ListenOptions?) -> int` |
@@ -776,8 +772,6 @@ What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies a
 | `threads` | `() -> int` |
 | `tuning` | `() -> physics::WorldTunings` |
 
-Called on a node's component: `ragdoll`. See [components](components.md).
-
 ## `physics2d`
 
 The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.
@@ -794,7 +788,6 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `overlap_aabb` | `(physics2d::BoxQuery) -> [Node]` |
 | `overlap_point` | `(physics2d::PointQuery) -> [Node]` |
 | `overlap_shape` | `(physics2d::ShapeQuery) -> [Node]` |
-| `ragdoll` | `(Node, physics2d::RagdollOptions?) -> [Node]` |
 | `raycast` | `(physics2d::RayQuery) -> physics2d::Hit?` |
 | `raycast_all` | `(physics2d::RayQuery) -> [physics2d::Hit]` |
 | `set_gravity` | `(float, float)` |
@@ -804,7 +797,7 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 
 Called on a node's component: `body2d`, `character2d`, `collider2d`, `follow2d`, `joint2d`, `softbody2d`. See [components](components.md).
 
-**Constants** (111):
+**Constants** (108):
 
 | Name | Value |
 | --- | --- |
@@ -833,7 +826,7 @@ Called on a node's component: `body2d`, `character2d`, `collider2d`, `follow2d`,
 | `COMBINE_MAX` | `"max"` |
 | `COMBINE_MIN` | `"min"` |
 
-…and 87 more.
+…and 84 more.
 
 ## `physics3d`
 
@@ -851,7 +844,6 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `overlap_aabb` | `(physics3d::BoxQuery) -> [Node]` |
 | `overlap_point` | `(physics3d::PointQuery) -> [Node]` |
 | `overlap_shape` | `(physics3d::ShapeQuery) -> [Node]` |
-| `ragdoll` | `(Node, physics3d::RagdollOptions?) -> [Node]` |
 | `raycast` | `(physics3d::RayQuery) -> physics3d::Hit?` |
 | `raycast_all` | `(physics3d::RayQuery) -> [physics3d::Hit]` |
 | `set_gravity` | `(float, float, float)` |
@@ -861,7 +853,7 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 
 Called on a node's component: `body3d`, `character3d`, `collider3d`, `follow3d`, `joint3d`, `softbody3d`, `vehicle3d`, `wheel3d`. See [components](components.md).
 
-**Constants** (118):
+**Constants** (115):
 
 | Name | Value |
 | --- | --- |
@@ -890,7 +882,7 @@ Called on a node's component: `body3d`, `character3d`, `collider3d`, `follow3d`,
 | `COLLIDE_KINEMATIC_KINEMATIC` | `"kinematic_kinematic"` |
 | `COLLIDE_KINEMATIC_STATIC` | `"kinematic_static"` |
 
-…and 94 more.
+…and 91 more.
 
 ## `picture`
 
@@ -936,11 +928,11 @@ The projects this machine has opened, the templates a new one starts from, and t
 
 | Function | Signature |
 | --- | --- |
-| `copy_example` | `(str, str) -> project::Project` |
+| `copy` | `(str, str) -> project::Project` |
 | `copy_system_font` | `(str, str) -> bool` |
 | `create` | `(str, str) -> project::Project` |
-| `editor_data_directory` | `() -> str` |
-| `examples` | `() -> [project::Example]` |
+| `examples_directory` | `() -> str?` |
+| `exists` | `(str) -> bool` |
 | `forget` | `(str)` |
 | `home` | `() -> str` |
 | `in_tab` | `() -> bool` |
@@ -949,9 +941,23 @@ The projects this machine has opened, the templates a new one starts from, and t
 | `pick_directory` | `() -> str?` |
 | `recent` | `() -> [project::Recent]` |
 | `system_fonts` | `() -> [project::SystemFont]` |
-| `templates` | `() -> [project::Template]` |
 | `use_data` | `(str?) -> str?` |
 | `version` | `() -> str` |
+
+## `quat`
+
+Rotations as quaternions `{ x, y, z, w }`: from an axis and an angle, from one direction to another or from a `rotation_euler`, composed, inverted and applied to a vector. Through `glamx` on `libm`, so every platform turns alike.
+
+| Function | Signature |
+| --- | --- |
+| `from_arc` | `(Vec3, Vec3) -> quat::Quat` |
+| `from_axis_angle` | `(Vec3, float) -> quat::Quat` |
+| `from_euler` | `(Vec3) -> quat::Quat` |
+| `identity` | `() -> quat::Quat` |
+| `inverse` | `(quat::Quat) -> quat::Quat` |
+| `mul` | `(quat::Quat, quat::Quat) -> quat::Quat` |
+| `rotate` | `(quat::Quat, Vec3) -> Vec3` |
+| `to_euler` | `(quat::Quat) -> Vec3` |
 
 ## `random`
 
@@ -959,6 +965,7 @@ The engine's one deterministic PCG32 stream: the same seed draws the same number
 
 | Function | Signature |
 | --- | --- |
+| `at` | `(int, int) -> float` |
 | `float` | `() -> float` |
 | `int` | `(int, int) -> int` |
 | `range` | `(float, float) -> float` |
@@ -1028,8 +1035,6 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `screenshot` | `(str)` |
 | `set_background` | `(float, float, float)` |
 | `set_debug_view` | `(str)` |
-| `set_grid` | `(bool, float?, int?, int?)` |
-| `set_grid_colors` | `(float, float, float, float, float, float)` |
 | `set_shader_preview` | `(str, int)` |
 | `set_shader_probe` | `(float, float)` |
 | `shader_probe` | `() -> Color?` |
@@ -1039,10 +1044,11 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `texture_pixels_per_unit` | `(str) -> float` |
 | `texture_size` | `(str) -> [int]` |
 | `trace_texture` | `(str, render::TraceOptions?) -> [[Vec2]]` |
+| `triangles_of` | `(Node, Node?) -> [Vec3]` |
 
 Called on a node's component: `boolean3d`, `occluder2d`, `screen_notifier2d`, `tilemap`. See [components](components.md).
 
-**Constants** (45):
+**Constants** (41):
 
 | Name | Value |
 | --- | --- |
@@ -1066,12 +1072,12 @@ Called on a node's component: `boolean3d`, `occluder2d`, `screen_notifier2d`, `t
 | `LIGHT_DIRECTIONAL` | `"directional"` |
 | `LIGHT_POINT` | `"point"` |
 | `LIGHT_SPOT` | `"spot"` |
-| `POPULATE_GRID` | `"grid"` |
-| `POPULATE_RING` | `"ring"` |
-| `POPULATE_ROW` | `"row"` |
-| `POPULATE_SURFACE` | `"surface"` |
+| `SHAPE_BOX` | `"box"` |
+| `SHAPE_CAPSULE` | `"capsule"` |
+| `SHAPE_CIRCLE` | `"circle"` |
+| `SHAPE_CONE` | `"cone"` |
 
-…and 21 more.
+…and 17 more.
 
 ## `replay`
 
@@ -1114,19 +1120,6 @@ Rollback netcode from a script's side. `input` reads this tick's input, real or 
 | --- | --- |
 | `input` | `(int) -> any` |
 | `is_resimulating` | `() -> bool` |
-
-## `save`
-
-Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate_script` names the script whose `migrate_save(version, data)` upgrades older ones.
-
-| Function | Signature |
-| --- | --- |
-| `directory` | `() -> str` |
-| `read` | `(str) -> any` |
-| `remove` | `(str)` |
-| `slots` | `() -> [str]` |
-| `version` | `() -> int` |
-| `write` | `(str, any)` |
 
 ## `scene`
 
@@ -1199,9 +1192,6 @@ Every setting the engine, its plugins and the game declare, by path: `physics/so
 | `base` | `(str) -> any` |
 | `clear` | `(str)` |
 | `define` | `(str, any)` |
-| `edit_clear` | `(str)` |
-| `edit_project` | `(str)` |
-| `edit_set` | `(str, any)` |
 | `get` | `(str) -> any` |
 | `known_tags` | `() -> [str]` |
 | `merge_toml` | `(str)` |
@@ -1288,8 +1278,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `edit_color` | `(Node, Color) -> bool` |
 | `edit_number` | `(Node, float) -> bool` |
 | `edit_text` | `(Node, str) -> bool` |
-| `fill_row` | `(Node, int, ui::Row?, float?, bool?) -> bool` |
-| `fill_rows` | `(str, [ui::Row], float?, bool?) -> bool` |
+| `fill_slot` | `(Node, int, ui::Control?) -> bool` |
 | `fill_strip` | `(str, [ui::Control]) -> bool` |
 | `finish_loading` | `()` |
 | `focus_down` | `()` |
@@ -1301,7 +1290,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `focused_widget` | `() -> Node` |
 | `height_class` | `() -> str` |
 | `pasted_text` | `() -> str` |
-| `patch_row` | `(Node, int, [ui::Control]) -> bool` |
+| `patch_control` | `(Node, [int], ui::Control) -> bool` |
 | `pixels_per_design` | `() -> float` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
 | `save_pasted_image` | `(str) -> bool` |
@@ -1321,7 +1310,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `width_class` | `() -> str` |
 | `window_size` | `() -> Vec2` |
 
-**Constants** (65):
+**Constants** (64):
 
 | Name | Value |
 | --- | --- |
@@ -1350,7 +1339,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `FONT_STYLE_NORMAL` | `"normal"` |
 | `FONT_STYLE_OBLIQUE` | `"oblique"` |
 
-…and 41 more.
+…and 40 more.
 
 ## `websocket`
 

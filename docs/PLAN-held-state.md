@@ -136,11 +136,12 @@ the editor's own `low_processor`, `strict` and `[ui]` lines into the game's
 `project.toml` wherever the game left them out, and the game's `msaa` and
 `vsync` drove the editor's window.
 
-`settings::edit_project` opens the game's manifest as an edited project, and
-the screen changes it with `edit_set` and `edit_clear`; a script's own `set`
-changes this run only, so a game played in the editor never writes its file.
-The editor runs with every value in it but a setting marked `host = true`: the
-window, `[check]`, the application's own files and the `[ui]` class lines.
+The editor's `settings.bs` holds the game's manifest apart from this run and
+writes it back with `toml::patch`, which changes only the keys that moved; a
+script's own `set` changes this run only, so a game played in the editor
+never writes its file. The editor runs with every value in it but a setting
+marked `host = true`: the window, `[check]`, the application's own files and
+the `[ui]` class lines.
 Play in the editor still runs on the game's physics and time. Every setting is
 listed in `docs/generated/settings.md`, to check before declaring another.
 

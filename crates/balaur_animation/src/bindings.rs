@@ -16,6 +16,7 @@ use crate::tween::{self, TweenId};
 const ADD_CLIP: &str = "add_clip";
 const CURRENT_CLIP: &str = "current_clip";
 const CURRENT_STATE: &str = "current_state";
+const EASE: &str = "ease";
 const EASE_NAMES: &str = "ease_names";
 const IS_PLAYING: &str = "is_playing";
 const IS_TWEEN_RUNNING: &str = "is_tween_running";
@@ -31,8 +32,6 @@ const STOP_TWEEN: &str = "stop_tween";
 const TIME: &str = "time";
 const TRAVEL: &str = "travel";
 const TWEEN: &str = "tween";
-const TWEEN_FLOAT: &str = "tween_float";
-const TWEEN_FLOAT_OF: &str = "tween_float_of";
 
 /// Declare `animation` into a binding group.
 pub fn install_animation_api(m: &mut Module<Engine>) {
@@ -43,12 +42,23 @@ pub fn install_animation_api(m: &mut Module<Engine>) {
     install_playhead_api(m);
     install_tween_api(m);
     install_machine_api(m);
-    m.describe(&[(
-        EASE_NAMES,
-        &[],
-        "() -> [string]",
-        "Every curve an `ease` takes, by name: the bare `linear`, then eleven transitions in four modes each.",
-    )]);
+    m.describe(&[
+        (
+            EASE_NAMES,
+            &[],
+            "() -> [string]",
+            "Every curve an `ease` takes, by name: the bare `linear`, then eleven transitions in four modes each.",
+        ),
+        (
+            EASE,
+            &[],
+            "(name: string, t: float) -> float",
+            "The named curve at `t`, from 0 to 1: what a tween's `ease` does to its progress, for a number a script moves itself.",
+        ),
+    ]);
+    m.function(EASE, |_: &Engine, (name, t): (String, f32)| {
+        Ok(Easing::parse(&name)?.apply(t))
+    });
     m.function(EASE_NAMES, |_: &Engine, (): ()| {
         Ok(Value::List(
             crate::ease::names()
@@ -249,8 +259,6 @@ fn install_tween_api(m: &mut Module<Engine>) {
         (TWEEN, &[], "(node: node, spec: Tween) -> int", "Generate a clip on the node from a table of steps and run it, returning the handle `stop_tween` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method; the node's `on_tween_finished(handle)` is called when it runs out."),
         (STOP_TWEEN, &[], "(handle: int)", "End the tween a handle names, leaving the pose where it is."),
         (IS_TWEEN_RUNNING, &[], "(handle: int) -> bool", "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip."),
-        (TWEEN_FLOAT, &[], "(from: float, to: float, seconds: float, ease: string?) -> int", "A tween over a number that drives no node: read it each frame with `tween_float_of` and write it wherever you like. Returns a handle `stop_tween` takes."),
-        (TWEEN_FLOAT_OF, &[], "(handle: int) -> float?", "Where a number tween has got to; nil once it is over."),
     ]);
     m.records(&[
         (
@@ -270,17 +278,6 @@ fn install_tween_api(m: &mut Module<Engine>) {
             entity_of(node)?,
             &balaur_core::node_api::to_toml(&spec)?,
         )
-    });
-    // The 90% case without a table: one property, one destination, one
-    // duration, and the curve to get there on.
-    m.function(
-        TWEEN_FLOAT,
-        |eng: &Engine, (from, to, duration, ease): (f32, f32, f32, Option<String>)| {
-            tween::start_float(eng, from, to, duration, ease.as_deref())
-        },
-    );
-    m.function(TWEEN_FLOAT_OF, |eng: &Engine, handle: i64| {
-        Ok(tween::float_of(eng, tween_id(handle)?))
     });
     m.function(STOP_TWEEN, |eng: &Engine, handle: i64| {
         tween::stop(eng, tween_id(handle)?);

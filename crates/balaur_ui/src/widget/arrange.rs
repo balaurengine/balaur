@@ -86,12 +86,6 @@ pub(crate) fn tab_head_at(entity: Entity) -> Option<egui::Rect> {
     TAB_HEADS.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
 }
 
-/// The rect a widget took in the pass being drawn now, for what has to
-/// follow it within the same pass: a toast stacking under the last one.
-pub(crate) fn placing_at(entity: Entity) -> Option<egui::Rect> {
-    PLACING.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
-}
-
 pub(crate) fn record_rect(entity: Entity, rect: egui::Rect) {
     PLACING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), rect);

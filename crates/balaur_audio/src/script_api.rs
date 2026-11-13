@@ -7,18 +7,13 @@ use balaur_core::{Engine, entity_of};
 use balaur_script::{Module, NodeId, Value};
 
 use crate::bus::{self, Buses, Effects, Limiter};
-use crate::cue;
-use crate::spatial::Emitter;
 use crate::vocabulary::keys as k;
-use crate::{
-    AudioState, Playback, play_on, publish_playback_times, read_sound, seek_on, skip_on, stop_on,
-};
+use crate::{AudioState, play_on, publish_playback_times, seek_on, skip_on, stop_on};
 
 const BUS_EFFECTS: &str = "bus_effects";
 const BUS_LIMIT: &str = "bus_limit";
 const BUS_VOLUME_LINEAR: &str = "bus_volume_linear";
 const BUSES: &str = "buses";
-const CUES: &str = "cues";
 const DEVICE_READY: &str = "device_ready";
 const DEVICES: &str = "devices";
 const DISTANCE_GAIN: &str = "distance_gain";
@@ -27,7 +22,7 @@ const IS_PLAYING: &str = "is_playing";
 const LISTENER_POSITION: &str = "listener_position";
 const PAN: &str = "pan";
 const PLAY: &str = "play";
-const PLAY_CUE: &str = "play_cue";
+const PLAY_FILE: &str = "play_file";
 const SEEK: &str = "seek";
 const SET_BUS_VOLUME_LINEAR: &str = "set_bus_volume_linear";
 const SET_EMITTER_POSITION: &str = "set_emitter_position";
@@ -38,15 +33,6 @@ const SOUND: &str = "sound";
 const STOP: &str = "stop";
 const STOP_ALL: &str = "stop_all";
 const STOP_PLAYBACK: &str = "stop_playback";
-
-/// One key out of a script options table, or `None` if the table, the key or
-/// its type is missing. A typo in an options table should not stop the frame.
-fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
-    match opts? {
-        Value::Map(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
-        _ => None,
-    }
-}
 
 fn point(value: Option<&Value>) -> Option<Vec3> {
     match value? {
@@ -64,7 +50,7 @@ const fn handle_of(raw: i64) -> u64 {
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
 pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_cue` plays a sound named in `audio/cues.toml`, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
+        "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
     );
     m.constant(
         "EVENT_FINISHED",
@@ -166,21 +152,13 @@ fn install_mixing_api(m: &mut Module<Engine>) {
         (SET_BUS_VOLUME_LINEAR, &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
         (BUS_LIMIT, &[], "(bus: string) -> BusLimit?", "One bus's limiter as `[audio.buses]` declares it. Nil for a bus with none."),
         (BUS_EFFECTS, &[], "(bus: string) -> BusEffects?", "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes. Built when the output device opens, as the limiter is. Nil for a bus with none switched on."),
-        (CUES, &[], "() -> [string]", "Every sound named in `audio/cues.toml`, in name order."),
-        (PLAY_CUE, &[], "(name: string, options: CueOptions?) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
+        (PLAY_FILE, &[], "(path: string, options: PlayFileOptions?) -> int", "Play a sound file no node carries, through `bus` at `volume_linear` and `pitch_scale`, looping when `loop` is true. Returns the handle `stop_playback` takes."),
     ]);
-    m.function(CUES, |eng: &Engine, ()| {
-        cue::ensure_loaded(eng);
-        let names = eng.resource::<cue::Cues>().borrow().names();
-        Ok(Value::List(names.into_iter().map(Value::text).collect()))
-    });
-    // The script says *what happened*; the cues file says what that sounds
-    // like. Tuning one never touches the other.
     m.records(&[
         (
-            "CueOptions",
-            "{ position: Vec3? }",
-            "Where `play_cue` places a sound, heard from the `listener`; unplaced when left out.",
+            "PlayFileOptions",
+            "{ bus: string?, volume_linear: float?, pitch_scale: float?, loop: bool?, position: Vec3?, min_distance: float?, max_distance: float?, doppler_level: float? }",
+            "How `play_file` plays, under the `sound` component's keys: a `position` places it, heard from the `listener` over `min_distance` to `max_distance`.",
         ),
         (
             "BusLimit",
@@ -194,45 +172,13 @@ fn install_mixing_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.function(
-        PLAY_CUE,
-        |eng: &Engine, (name, opts): (String, Option<Value>)| {
-            cue::ensure_loaded(eng);
-            crate::ensure_loaded(eng);
-            let played = {
-                let cues = eng.resource::<cue::Cues>();
-                let cues = cues.borrow();
-                cues.get(&name)
-                    .map(|cue| (cue.clone(), cues.next_file(&name)))
+        PLAY_FILE,
+        |eng: &Engine, (path, opts): (String, Option<Value>)| {
+            let options: crate::play_file::FileOptions = match opts {
+                Some(opts) => balaur_core::node_api::to_toml(&opts)?.try_into()?,
+                None => crate::play_file::FileOptions::default(),
             };
-            let Some((cue, Some(file))) = played else {
-                tracing::warn!("audio cue '{name}' is not declared, or names no files");
-                return Ok(Value::Nil);
-            };
-            let bytes = read_sound(eng, &file)?;
-            let gain = eng.resource::<bus::Buses>().borrow().gain(&cue.bus);
-            // Where an impact happened is the caller's to say; how far it
-            // carries is the cues file's.
-            let emitter = point(opt(opts.as_ref(), "position")).map(|position| {
-                Emitter::new(
-                    position,
-                    cue.min_distance,
-                    cue.max_distance,
-                    cue.doppler_level,
-                )
-            });
-            let handle = eng.resource::<AudioState>().borrow_mut().play_with(
-                bytes,
-                Playback {
-                    volume: cue.volume_linear,
-                    pitch: cue.pitch_scale,
-                    looped: cue.looped,
-                    bus: cue.bus,
-                    gain,
-                    emitter,
-                    file: crate::FileSettings::of(eng, &file),
-                    ..Playback::default()
-                },
-            );
+            let handle = crate::play_file::play_file(eng, &path, &options)?;
             Ok(Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)))
         },
     );
@@ -459,7 +405,7 @@ mod tests {
             include_str!("lib.rs"),
             include_str!("script_api.rs"),
             include_str!("spatial.rs"),
-            include_str!("cue.rs"),
+            include_str!("play_file.rs"),
             include_str!("bus.rs"),
             include_str!("cache.rs"),
         ];
@@ -476,7 +422,7 @@ mod tests {
             "stop_playback",
             "set_volume_linear",
             "set_pitch_scale",
-            "play_cue",
+            "play_file",
             "seek",
             "skip",
             "devices",

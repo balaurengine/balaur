@@ -179,6 +179,9 @@ pub fn place(state: &mut editor::State, entry: any) {
     // path or not at all: a numbered copy would answer no `require`.
     let kind = entry[fields::KIND].as_str();
     if kind == ADDON {
+        for needed in util::list_or_empty(entry[NEEDS]) {
+            install_tree(state, needed.as_str());
+        }
         install_tree(state, entry[project_fields::FILE].as_str());
         return;
     }

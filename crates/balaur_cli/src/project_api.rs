@@ -9,16 +9,16 @@
 use std::path::{Path, PathBuf};
 
 use crate::vocabulary::keys;
-use crate::vocabulary::words;
 use anyhow::Result;
 use balaur::{Engine, Stage};
 use balaur_script::{Module, Value};
 
-const COPY_EXAMPLE: &str = "copy_example";
+const COPY: &str = "copy";
 const COPY_SYSTEM_FONT: &str = "copy_system_font";
 const CREATE: &str = "create";
-const EDITOR_DATA_DIRECTORY: &str = "editor_data_directory";
 const EXAMPLES: &str = "examples";
+const EXAMPLES_DIRECTORY: &str = "examples_directory";
+const EXISTS: &str = "exists";
 const FORGET: &str = "forget";
 const HOME: &str = "home";
 const IN_TAB: &str = "in_tab";
@@ -95,18 +95,8 @@ fn project_records(m: &mut Module<Engine>) {
     m.records(&[
         (
             "Recent",
-            "{ path: string, name: string, opened: float, when: string, version: string, exists: bool }",
+            "{ path: string, name: string, opened: float, version: string, exists: bool }",
             "A project this machine has opened.",
-        ),
-        (
-            "Template",
-            "{ id: string, note: string }",
-            "A template a new project may start from.",
-        ),
-        (
-            "Example",
-            "{ id: string, name: string, note: string, cover: string, path: string }",
-            "An example project shipped beside the editor.",
         ),
         (
             "Project",
@@ -134,12 +124,6 @@ fn describe_project_api(m: &mut Module<Engine>) {
             &[],
             "-> [Recent]",
             "The projects opened on this machine, newest first: `{ path, name, opened, exists }` each, where `opened` is a Unix time in seconds and `exists` says whether the folder is still there.",
-        ),
-        (
-            words::project_api::TEMPLATES,
-            &[],
-            "-> [Template]",
-            "What a new project may start from: `{ id, note }` each, read from the editor's own library.",
         ),
         (
             CREATE,
@@ -172,12 +156,6 @@ fn describe_project_api(m: &mut Module<Engine>) {
             "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
         ),
         (
-            EDITOR_DATA_DIRECTORY,
-            &[],
-            "-> string",
-            "The editor's per-user folder, `<data>/balaur-editor` beside the games' `<data>/balaur/<name>`: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
-        ),
-        (
             IN_TAB,
             &[],
             "-> bool",
@@ -190,16 +168,22 @@ fn describe_project_api(m: &mut Module<Engine>) {
             "The version of the binary the editor is running in.",
         ),
         (
-            EXAMPLES,
+            EXAMPLES_DIRECTORY,
             &[],
-            "-> [Example]",
-            "The example projects shipped beside the editor: `{ id, name, note, cover, path }` each, where `cover` is a picture the editor's own project holds, or empty.",
+            "-> string?",
+            "The folder of example projects shipped beside the editor, which `fs.*` may read and not write from then on. Nil where none ship.",
         ),
         (
-            COPY_EXAMPLE,
+            COPY,
             &[],
-            "(id: string, into: string) -> Project",
-            "Copy one example into `into` under its own name, so the shipped one stays as it is. Answers `{ path, name }`, or `{ error }`.",
+            "(from: string, into: string) -> Project",
+            "Copy the project folder at `from`, one `fs.*` may read, to `into`, which must not exist yet, and remember the copy. Answers `{ path, name }`, or `{ error }`.",
+        ),
+        (
+            EXISTS,
+            &[],
+            "(path: string) -> bool",
+            "Whether anything is at `path`, wherever it is: how a new project's folder is picked clear of one already there.",
         ),
         (
             PICK_DIRECTORY,
@@ -223,7 +207,7 @@ fn describe_project_api(m: &mut Module<Engine>) {
             USE_DATA,
             &[],
             "(name: string?) -> string?",
-            "Keep `save::` slots and the device id in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share saves and a device login. Nil goes back to the editor's own. Answers the directory, or nil.",
+            "Answer `engine::user_data_directory()` with the user data directory of the game named `name`, keep the device id there, and let `fs` reach it, so a game played here and run alone share saves and a device login. The editor names its own folder with `engine::user_data_directory_of`. Nil goes back to the editor's own. Answers the directory, or nil.",
         ),
     ]);
 }
@@ -265,9 +249,6 @@ fn install_font_verbs(m: &mut Module<Engine>) {
 
 fn install_project_verbs(m: &mut Module<Engine>) {
     m.function(RECENT, |eng: &Engine, ()| Ok(Value::List(recent_rows(eng))));
-    m.function(words::project_api::TEMPLATES, |_: &Engine, ()| {
-        Ok(Value::List(templates()))
-    });
     m.function(
         CREATE,
         |eng: &Engine, (path, template): (String, String)| {
@@ -296,14 +277,19 @@ fn install_project_verbs(m: &mut Module<Engine>) {
         forget(eng, Path::new(&path));
         Ok(Value::Nil)
     });
-    m.function(EXAMPLES, |_: &Engine, ()| Ok(Value::List(examples())));
-    m.function(
-        COPY_EXAMPLE,
-        |eng: &Engine, (id, into): (String, String)| {
-            let home = home_of(eng);
-            Ok(copy_example(&home, &id, Path::new(&into)))
-        },
-    );
+    m.function(EXAMPLES_DIRECTORY, |eng: &Engine, ()| {
+        Ok(examples_dir().map_or(Value::Nil, |dir| {
+            balaur::file_api::add_read_only_root(eng, &dir);
+            Value::Str(dir.to_string_lossy().into_owned())
+        }))
+    });
+    m.function(COPY, |eng: &Engine, (from, into): (String, String)| {
+        let home = home_of(eng);
+        Ok(copy(eng, &home, &from, Path::new(&into)))
+    });
+    m.function(EXISTS, |_: &Engine, path: String| {
+        Ok(Value::Bool(Path::new(&path).exists()))
+    });
     m.function(HOME, |eng: &Engine, ()| {
         Ok(Value::Str(
             user_home()
@@ -311,13 +297,6 @@ fn install_project_verbs(m: &mut Module<Engine>) {
                 .to_string_lossy()
                 .into_owned(),
         ))
-    });
-    m.function(EDITOR_DATA_DIRECTORY, |eng: &Engine, ()| {
-        let dir = home_of(eng);
-        balaur_core::files::backend(eng).mkdir(&dir)?;
-        // `fs.*` reaches only declared roots, and this one is the editor's.
-        balaur::file_api::add_root(eng, &dir);
-        Ok(Value::Str(dir.to_string_lossy().into_owned()))
     });
     m.function(IN_TAB, |_: &Engine, ()| {
         Ok(Value::Bool(cfg!(target_family = "wasm")))
@@ -333,7 +312,7 @@ fn install_project_verbs(m: &mut Module<Engine>) {
             balaur::file_api::add_root(eng, &dir);
             dir
         });
-        balaur::save::set_home(eng, home.clone());
+        balaur::engine_api::set_data_home(eng, home.clone());
         balaur::facts::reread(eng);
         Ok(home.map_or(Value::Nil, |dir| {
             Value::Str(dir.to_string_lossy().into_owned())
@@ -350,30 +329,6 @@ fn install_project_verbs(m: &mut Module<Engine>) {
     });
 }
 
-/// The same words for a time this machine wrote down itself.
-pub(crate) fn said_ago(seconds: i64) -> String {
-    let minutes = seconds / 60;
-    let hours = minutes / 60;
-    let days = hours / 24;
-    if minutes < 2 {
-        "just now".to_string()
-    } else if hours < 1 {
-        format!("{minutes} minutes ago")
-    } else if hours < 2 {
-        "an hour ago".to_string()
-    } else if days < 1 {
-        format!("{hours} hours ago")
-    } else if days < 2 {
-        "yesterday".to_string()
-    } else if days < 30 {
-        format!("{days} days ago")
-    } else if days < 60 {
-        "last month".to_string()
-    } else {
-        format!("{} months ago", days / 30)
-    }
-}
-
 /// Where the example projects are, looked for the way the library is: an
 /// install ships them beside the binary, a macOS bundle under `Resources`, and
 /// a checkout holds them at the repository root.
@@ -384,111 +339,32 @@ fn examples_dir() -> Option<PathBuf> {
         .find(|examples| examples.join("hello/project.toml").is_file())
 }
 
-/// The line under each example's name, from the editor's own library rather
-/// than from the example, which has nowhere in its manifest to say it.
-fn example_notes() -> toml::Table {
-    let Some(library) = crate::new_project::library_dir() else {
-        return toml::Table::new();
+/// A copy of the project at `from` at `into`, remembered: what the start
+/// screen opens, so a shipped example stays as it is.
+fn copy(eng: &Engine, home: &Path, from: &str, into: &Path) -> Value {
+    let failed = |why: String| Value::Map(vec![(keys::ERROR.into(), Value::text(why))]);
+    let from = match balaur::file_api::resolve(eng, from) {
+        Ok(path) => path,
+        Err(e) => return failed(format!("{e:#}")),
     };
-    std::fs::read_to_string(library.join("examples.toml"))
-        .ok()
-        .and_then(|text| text.parse::<toml::Table>().ok())
-        .unwrap_or_default()
-}
-
-fn examples() -> Vec<Value> {
-    let Some(dir) = examples_dir() else {
-        return Vec::new();
-    };
-    let notes = example_notes();
-    let library = crate::new_project::library_dir();
-    let Ok(entries) = std::fs::read_dir(&dir) else {
-        return Vec::new();
-    };
-    let mut rows: Vec<(String, Value)> = entries
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            let path = entry.path();
-            if !path.join("project.toml").is_file() {
-                return None;
-            }
-            let id = entry.file_name().to_string_lossy().into_owned();
-            let note = notes
-                .get(&id)
-                .and_then(|table| table.get(keys::NOTE))
-                .and_then(toml::Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            // The picture is the editor's own file, since that is the project
-            // `ui.image` reads from; a missing one draws the name alone.
-            let cover = library
-                .as_ref()
-                .filter(|lib| lib.join(EXAMPLES).join(format!("{id}.png")).is_file())
-                .map(|_| format!("library/examples/{id}.png"))
-                .unwrap_or_default();
-            let row = Value::Map(vec![
-                (keys::ID.into(), Value::Str(id.clone())),
-                (keys::NAME.into(), Value::Str(name_of(&path))),
-                (keys::NOTE.into(), Value::Str(note)),
-                ("cover".into(), Value::Str(cover)),
-                (
-                    keys::PATH.into(),
-                    Value::Str(path.to_string_lossy().into_owned()),
-                ),
-            ]);
-            Some((id, row))
-        })
-        .collect();
-    rows.sort_by(|a, b| a.0.cmp(&b.0));
-    rows.into_iter().map(|(_, row)| row).collect()
-}
-
-/// Copy an example into the reader's own folder. The shipped one is read
-/// only in an install and is the engine's in a checkout; either way it is not
-/// the copy somebody is about to edit.
-fn copy_example(home: &Path, id: &str, into: &Path) -> Value {
-    let Some(dir) = examples_dir() else {
-        return Value::Map(vec![(
-            keys::ERROR.into(),
-            Value::Str("no examples ship beside this build".into()),
-        )]);
-    };
-    let from = dir.join(id);
     if !from.join("project.toml").is_file() {
-        return Value::Map(vec![(
-            keys::ERROR.into(),
-            Value::text(format!("no example named {id}")),
-        )]);
+        return failed(format!("no project.toml in {}", from.display()));
     }
-    let to = free_name(into, id);
-    if let Err(e) = copy_tree(&from, &to) {
-        return Value::Map(vec![(keys::ERROR.into(), Value::text(format!("{e:#}")))]);
+    if into.exists() {
+        return failed(format!("{} is there already", into.display()));
     }
-    let name = name_of(&to);
-    remember(home, &to, &name);
+    if let Err(e) = copy_tree(&from, into) {
+        return failed(format!("{e:#}"));
+    }
+    let name = name_of(into);
+    remember(home, into, &name);
     Value::Map(vec![
         (
             keys::PATH.into(),
-            Value::Str(to.to_string_lossy().into_owned()),
+            Value::Str(into.to_string_lossy().into_owned()),
         ),
         (keys::NAME.into(), Value::Str(name)),
     ])
-}
-
-/// `hello`, then `hello-2`: a second copy of an example is a second project,
-/// not an overwrite of the first.
-fn free_name(into: &Path, id: &str) -> PathBuf {
-    let first = into.join(id);
-    if !first.exists() {
-        return first;
-    }
-    for n in 2..100 {
-        let next = into.join(format!("{id}-{n}"));
-        if !next.exists() {
-            return next;
-        }
-    }
-    first
 }
 
 fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
@@ -612,22 +488,14 @@ fn write_list(home: &Path, rows: &[Row]) {
     );
 }
 
-#[allow(
-    clippy::disallowed_methods,
-    reason = "orders a list a person reads, not simulation"
-)]
 fn row_value(row: Row) -> Value {
     let exists = Path::new(&row.path).join("project.toml").is_file();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs().cast_signed());
     Value::Map(vec![
         (keys::PATH.into(), Value::Str(row.path)),
         (keys::NAME.into(), Value::Str(row.name)),
         (keys::OPENED.into(), Value::Num(row.opened as f64)),
-        (keys::WHEN.into(), Value::Str(said_ago(now - row.opened))),
         (keys::VERSION.into(), Value::Str(row.version)),
-        ("exists".into(), Value::Bool(exists)),
+        (EXISTS.into(), Value::Bool(exists)),
     ])
 }
 
@@ -676,35 +544,6 @@ fn name_of(project: &Path) -> String {
         })
         .filter(|name| !name.is_empty())
         .unwrap_or_else(fallback)
-}
-
-fn templates() -> Vec<Value> {
-    let Some(library) = crate::new_project::library_dir() else {
-        return Vec::new();
-    };
-    let Ok(entries) = std::fs::read_dir(library.join(words::project_api::TEMPLATES)) else {
-        return Vec::new();
-    };
-    let mut rows: Vec<(String, String)> = entries
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            if !entry.file_type().ok()?.is_dir() {
-                return None;
-            }
-            let id = entry.file_name().to_string_lossy().into_owned();
-            let note = name_of(&entry.path());
-            Some((id, note))
-        })
-        .collect();
-    rows.sort_by(|a, b| a.0.cmp(&b.0));
-    rows.into_iter()
-        .map(|(id, note)| {
-            Value::Map(vec![
-                (keys::ID.into(), Value::Str(id)),
-                (keys::NOTE.into(), Value::Str(note)),
-            ])
-        })
-        .collect()
 }
 
 fn create(home: &Path, path: &Path, template: &str) -> Value {

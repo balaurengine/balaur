@@ -38,6 +38,14 @@ fn core_defines_settings_in_both_scopes() {
 #[test]
 fn a_nested_path_reads_and_writes_where_it_says() {
     let app = app();
+    settings::define(
+        &app.engine,
+        SettingDef {
+            path: "editor/appearance/theme".into(),
+            scope: Scope::Editor,
+            spec: toml::Value::Table(toml::value::Table::new()),
+        },
+    );
     settings::set(
         &app.engine,
         "editor/appearance/theme",
@@ -453,87 +461,4 @@ fn every_offered_asset_source_is_one_the_boot_reader_accepts() {
         let parsed: Result<balaur_core::project::AssetSource, _> = option.clone().try_into();
         assert!(parsed.is_ok(), "{option} is offered and not accepted");
     }
-}
-
-/// A project whose manifest is `manifest`, loaded, with a scene of one node.
-fn loaded(manifest: &str) -> App {
-    let mut pack = balaur_core::Pack {
-        manifest: manifest.to_string(),
-        ..balaur_core::Pack::default()
-    };
-    pack.scenes.insert(
-        "main.toml".to_string(),
-        "[[nodes]]\nid = \"r\"\nname = \"Root\"\n".to_string(),
-    );
-    let mut app = App::new(AppConfig::packed(pack)).unwrap();
-    app.load_project().unwrap();
-    app
-}
-
-const EDITOR_MANIFEST: &str = "[application]\nname = \"editor\"\nmain_scene = \"main.toml\"\n\n\
-     [window]\nwidth = 1280\nheight = 800\nlow_processor = true\n\n[check]\nstrict = true\n";
-const GAME_MANIFEST: &str = "[application]\nname = \"game\"\nmain_scene = \"level.toml\"\n\n\
-     [window]\nvsync = false\n\n[time]\ntick_hz = 30\n";
-
-/// Saving the game's settings from the editor writes the game's own values
-/// and none of the editor's, which the editor's process also holds.
-#[test]
-fn saving_an_edited_project_writes_none_of_the_running_project_s_values() {
-    let app = loaded(EDITOR_MANIFEST);
-    settings::edit_project(&app.engine, GAME_MANIFEST).unwrap();
-
-    let written = settings::to_toml(&app.engine, Scope::Project, GAME_MANIFEST).unwrap();
-    for editor_only in ["low_processor", "strict", "1280", "\"editor\""] {
-        assert!(
-            !written.contains(editor_only),
-            "{editor_only} leaked into:\n{written}"
-        );
-    }
-    assert!(written.contains("vsync = false"), "{written}");
-    assert!(written.contains("tick_hz = 30"), "{written}");
-}
-
-/// Playing the game in the editor runs on its time settings, while the window
-/// and the checker stay the editor's; the screen shows the game's values.
-#[test]
-fn an_edited_project_runs_here_except_for_the_host_s_own_settings() {
-    let app = loaded(EDITOR_MANIFEST);
-    settings::edit_project(&app.engine, GAME_MANIFEST).unwrap();
-
-    let int = |value: Option<toml::Value>| value.and_then(|v| v.as_integer());
-    let flag = |value: Option<toml::Value>| value.and_then(|v| v.as_bool());
-    assert_eq!(int(settings::get(&app.engine, "time/tick_hz")), Some(30));
-    assert_eq!(flag(settings::get(&app.engine, "window/vsync")), Some(true));
-    assert_eq!(flag(settings::get(&app.engine, "check/strict")), Some(true));
-    assert_eq!(
-        flag(settings::base(&app.engine, "window/vsync")),
-        Some(false)
-    );
-    assert_eq!(
-        int(settings::base(&app.engine, "window/width")),
-        Some(1600),
-        "the schema's"
-    );
-
-    settings::edit_set(&app.engine, "window/msaa", &toml::Value::Integer(4));
-    assert_eq!(int(settings::get(&app.engine, "window/msaa")), Some(1));
-    assert_eq!(int(settings::base(&app.engine, "window/msaa")), Some(4));
-    settings::edit_set(&app.engine, "time/tick_hz", &toml::Value::Integer(20));
-    assert_eq!(int(settings::get(&app.engine, "time/tick_hz")), Some(20));
-    assert_eq!(int(settings::base(&app.engine, "time/tick_hz")), Some(20));
-}
-
-/// A game played in the editor changes its settings for this run, as its own
-/// options menu would; none of that reaches the manifest the screen saves.
-#[test]
-fn a_script_s_set_while_a_project_is_edited_changes_only_this_run() {
-    let app = loaded(EDITOR_MANIFEST);
-    settings::edit_project(&app.engine, GAME_MANIFEST).unwrap();
-
-    settings::set(&app.engine, "time/tick_hz", toml::Value::Integer(90));
-    let int = |value: Option<toml::Value>| value.and_then(|v| v.as_integer());
-    assert_eq!(int(settings::get(&app.engine, "time/tick_hz")), Some(90));
-    assert_eq!(int(settings::base(&app.engine, "time/tick_hz")), Some(30));
-    let written = settings::to_toml(&app.engine, Scope::Project, GAME_MANIFEST).unwrap();
-    assert!(written.contains("tick_hz = 30"), "{written}");
 }

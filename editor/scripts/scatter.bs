@@ -1,0 +1,190 @@
+//! Godot's MultiMesh › Populate Surface, and a row, a ring and a grid beside
+//! it: the instances a `multimesh` asset is written with. Worked out from a
+//! seed through `random::at`, so the same fields write the same list and the
+//! game's own stream is left alone.
+
+use util;
+
+/// The layouts.
+pub const SURFACE: str = "surface";
+pub const ROW: str = "row";
+pub const RING: str = "ring";
+pub const GRID: str = "grid";
+
+pub fn LAYOUTS() -> [str] {
+    [SURFACE, ROW, RING, GRID]
+}
+
+/// What a layout is asked for. `rotation` and `tilt` are how far each
+/// instance may turn about its up axis and lean off it, as a fraction of a
+/// half turn either way; `random_scale` how far its size may wander from
+/// `scale`, as a fraction of it.
+pub class Asked {
+    internal layout: str,
+    internal count: int,
+    internal counts: [int],
+    internal step: Vec3,
+    internal radius: float,
+    internal rotation: float,
+    internal tilt: float,
+    internal scale: float,
+    internal random_scale: float,
+    internal seed: int,
+    // Laid out in the xy plane and turned about z, for a `multimesh2d`.
+    internal flat: bool,
+}
+
+// What a multimesh holds at most.
+const MOST: int = 1048576;
+// The smallest an instance's size wanders down to.
+const SMALLEST: float = 0.01;
+
+// The asset's keys for one instance.
+const POSITION: str = "position";
+const ROTATION_EULER: str = "rotation_euler";
+const SCALE: str = "scale";
+const COLOR: str = "color";
+const CUSTOM: str = "custom";
+
+// The seed's numbers, drawn in turn.
+class Draws {
+    seed: int,
+    next: int,
+}
+
+fn draw(draws: Draws) -> float {
+    let n = random::at(draws.seed, draws.next);
+    draws.next += 1;
+    n
+}
+
+// A number from -1 to 1.
+fn signed(draws: Draws) -> float {
+    draw(draws) * 2.0 - 1.0
+}
+
+fn add(a: Vec3, b: Vec3) -> Vec3 { vec3(a.x + b.x, a.y + b.y, a.z + b.z) }
+fn sub(a: Vec3, b: Vec3) -> Vec3 { vec3(a.x - b.x, a.y - b.y, a.z - b.z) }
+fn times(v: Vec3, k: float) -> Vec3 { vec3(v.x * k, v.y * k, v.z * k) }
+fn cross(a: Vec3, b: Vec3) -> Vec3 { vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x) }
+fn length(v: Vec3) -> float { math::sqrt(v.x * v.x + v.y * v.y + v.z * v.z) }
+
+fn up() -> Vec3 { vec3(0.0, 1.0, 0.0) }
+fn out_of_screen() -> Vec3 { vec3(0.0, 0.0, 1.0) }
+fn across() -> Vec3 { vec3(1.0, 0.0, 0.0) }
+
+/// The instances for a row, a ring or a grid.
+pub fn laid_out(asked: Asked) -> [any] {
+    let placed: [any] = [];
+    if asked.layout == ROW {
+        for i in 0..util::int_min(asked.count, MOST) {
+            placed.push([times(asked.step, i as float), quat::identity()]);
+        }
+    } else if asked.layout == RING {
+        let count = util::int_max(1, util::int_min(asked.count, MOST));
+        for i in 0..count {
+            let turn = math::TAU * (i as float) / (count as float);
+            if asked.flat {
+                placed.push([vec3(asked.radius * math::cos(turn), asked.radius * math::sin(turn), 0.0), quat::from_axis_angle(out_of_screen(), turn)]);
+            } else {
+                placed.push([vec3(asked.radius * math::cos(turn), 0.0, asked.radius * math::sin(turn)), quat::from_axis_angle(up(), -turn)]);
+            }
+        }
+    } else if asked.layout == GRID {
+        let columns = util::int_max(1, asked.counts[0]);
+        let rows = util::int_max(1, asked.counts[1]);
+        let layers = util::int_max(1, asked.counts[2]);
+        for i in 0..columns {
+            for j in 0..rows {
+                for l in 0..layers {
+                    if placed.len() < MOST {
+                        placed.push([vec3(asked.step.x * (i as float), asked.step.y * (j as float), asked.step.z * (l as float)), quat::identity()]);
+                    }
+                }
+            }
+        }
+    }
+    let draws = Draws { seed: asked.seed, next: 0 };
+    let out: [any] = [];
+    for each in placed {
+        out.push(varied(asked, each[0], each[1], up(), draws));
+    }
+    out
+}
+
+/// The instances scattered over `corners`, three to a triangle in the
+/// multimesh node's space: each at a point picked by area, standing on its
+/// triangle.
+pub fn on_surface(asked: Asked, corners: [Vec3]) -> [any] {
+    let areas: [float] = [];
+    let total = 0.0;
+    let triangles = corners.len() / 3;
+    for t in 0..triangles {
+        let a = corners[t * 3];
+        let area = length(cross(sub(corners[t * 3 + 1], a), sub(corners[t * 3 + 2], a))) / 2.0;
+        areas.push(area);
+        total += area;
+    }
+    let out: [any] = [];
+    if total <= 0.0 {
+        return out;
+    }
+    let draws = Draws { seed: asked.seed, next: 0 };
+    for _n in 0..util::int_min(asked.count, MOST) {
+        let pick = draw(draws) * total;
+        let index = triangles - 1;
+        for t in 0..triangles {
+            if pick < areas[t] {
+                index = t;
+                break;
+            }
+            pick -= areas[t];
+        }
+        let a = corners[index * 3];
+        let b = corners[index * 3 + 1];
+        let c = corners[index * 3 + 2];
+        // Two uniform numbers folded into the triangle, which spreads points
+        // evenly over it rather than towards a corner.
+        let u = draw(draws);
+        let v = draw(draws);
+        if u + v > 1.0 {
+            u = 1.0 - u;
+            v = 1.0 - v;
+        }
+        let position = add(a, add(times(sub(b, a), u), times(sub(c, a), v)));
+        let normal = cross(sub(b, a), sub(c, a));
+        let size = length(normal);
+        let standing = if size > 0.0 { times(normal, 1.0 / size) } else { up() };
+        let facing = if asked.flat { out_of_screen() } else { standing };
+        let turned = if asked.flat { quat::identity() } else { quat::from_arc(up(), facing) };
+        out.push(varied(asked, position, turned, facing, draws));
+    }
+    out
+}
+
+// Turn, lean and size one instance by the seed's next four numbers. Every
+// instance draws the same count, so one change of a setting does not
+// reshuffle the rest.
+fn varied(asked: Asked, position: Vec3, rotation: quat::Quat, facing: Vec3, draws: Draws) -> any {
+    let turn = signed(draws);
+    let lean_a = signed(draws);
+    let lean_b = signed(draws);
+    let grow = signed(draws);
+    let spin_axis = if asked.flat { out_of_screen() } else { facing };
+    let spin = quat::from_axis_angle(spin_axis, turn * asked.rotation * math::PI);
+    let lean = if asked.flat {
+        quat::identity()
+    } else {
+        quat::mul(quat::from_axis_angle(across(), lean_a * asked.tilt * math::PI), quat::from_axis_angle(out_of_screen(), lean_b * asked.tilt * math::PI))
+    };
+    let turned = quat::to_euler(quat::mul(quat::mul(spin, rotation), lean));
+    let size = math::max(SMALLEST, asked.scale * (1.0 + grow * asked.random_scale));
+    let depth = if asked.flat { 1.0 } else { size };
+    {
+        POSITION: [position.x, position.y, position.z],
+        ROTATION_EULER: [turned.x, turned.y, turned.z],
+        SCALE: [size, size, depth],
+        COLOR: [1.0, 1.0, 1.0, 1.0],
+        CUSTOM: [0.0, 0.0, 0.0, 0.0],
+    }
+}

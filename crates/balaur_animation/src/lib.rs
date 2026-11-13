@@ -38,7 +38,6 @@
 pub mod bindings;
 pub mod clip;
 pub mod ease;
-mod gizmo;
 pub mod machine;
 pub mod modifier;
 mod modifier_solve;

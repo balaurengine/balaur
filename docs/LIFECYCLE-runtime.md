@@ -162,9 +162,7 @@ stateDiagram-v2
     waiting --> running: awaited tween gone, begin
     waiting --> gone: begin fails, stop, node freed
     running --> running: loop, step over
-    running --> spent: value tween runs out
     running --> gone: runs out, stop, node freed
-    spent --> gone: next frame
     gone --> [*]
 ```
 
@@ -172,28 +170,25 @@ stateDiagram-v2
 |---|---|
 | Waiting: `after=Some(id)` with `id` in `tweens`, `pending=Some(spec)`, `running=true` | Sits out every step. `is_tween_running` answers true. |
 | Running: `running=true`, `after` empty or naming nothing | `time` moves by `fixed_dt * speed`. A node tween writes its pose and fires its calls. |
-| Spent: `running=false`, `value=true` | A value tween that ran out, kept to the next frame. `is_tween_running` answers false, and `tween_float_of` answers where it landed. |
-| Gone: no entry in `tweens` | `is_tween_running` false, `tween_float_of` nil, `stop_tween` a no-op. |
+| Gone: no entry in `tweens` | `is_tween_running` false, `stop_tween` a no-op. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | none | `start`, spec `then` names a live tween | Waiting | Keeps the spec in `pending`. |
-| none | `start`, `start_to`, `start_script`, `start_float` | Running | Builds the clip and reads the start values. The handle counts up and is never reused. |
+| none | `start`, `start_to`, `start_script` | Running | Builds the clip and reads the start values. The handle counts up and is never reused. |
 | Waiting | `advance_system` finds `after` names nothing, then `begin` | Running | Rebuilds the clip, so `by` and a captured `from` read the node now. |
 | Waiting | `begin` fails | Gone | Warns. No event. |
 | Running | `advance` passes a step's end | Running | Announces `tween_step` `#{ tween, step }`. |
 | Running | `advance`, clip over, `loops` is 0 or `played < loops` | Running | Sets `time` to 0 and announces `tween_looped` `#{ tween, played }`. |
-| Running | `advance`, clip over, loops done, a node tween | Gone | Announces `tween_finished` with the handle. |
-| Running | `advance`, clip over, loops done, a value tween | Spent | No event. |
-| Spent | Top of the next `advance_system` | Gone | Dropped. |
+| Running | `advance`, clip over, loops done | Gone | Announces `tween_finished` with the handle. |
 | any | `tween::stop`, script `animation.stop_tween(handle)` | Gone | No event. |
 | any | The node freed (`advance_system`) | Gone | No event. |
 
 Starts in Running or Waiting. Ends in Gone. `release_unheld` then lets go of script functions no live tween names.
 
-Refused or ignored: `start` errors on no steps, an unknown property, a target that names no node, or a `speed` not above 0. `start_float` errors on a negative length. `stop_tween` on an unknown handle is a no-op.
+Refused or ignored: `start` errors on no steps, an unknown property, a target that names no node, or a `speed` not above 0. `stop_tween` on an unknown handle is a no-op.
 
-Held by a pause, a `process` mode or a parked scene: `advance_system` skips the tween through `process::ticks` on `tween.node`, which for a value tween is the root. A freeze returns early. A `call` step aimed at a held script still runs.
+Held by a pause, a `process` mode or a parked scene: `advance_system` skips the tween through `process::ticks` on `tween.node`. A freeze returns early. A `call` step aimed at a held script still runs.
 
 ### State machine run
 
@@ -447,27 +442,15 @@ Starts in Delayed or In file. Ends in Past end.
 
 Held by a pause, a `process` mode or a parked scene: `count_down_system` skips a clock while `Routed.paused` is set, so a clock holds with its sound. A freeze stops the stage, so every clock stands.
 
-### Cue
+### A played file
 
-The `Cues` resource holds the named sounds of `audio/cues.toml` and where each rotation has got to. A cue's play is then an ordinary handle.
+`audio.play_file` starts an ordinary handle with no node and no voice behind it.
 
-Source: `crates/balaur_audio/src/cue.rs`, `Cues.loaded` and `Cues.turn`.
+Source: `crates/balaur_audio/src/play_file.rs`, `play_file`.
 
-| State | What is true |
-|---|---|
-| `loaded=false` | The file is unread. |
-| `loaded=true` | `cues` holds what parsed. `turn[name]` is the next variation's count, taken modulo the file count. |
+Refused or ignored: an option the `sound` component does not spell ends the call. No voice owns its handle, so `finished` is never announced for it. `Playback::default` gives it a `fade_out_time` of 0, so `stop_playback` stops it at once.
 
-| From | Trigger | To | What it does |
-|---|---|---|---|
-| `loaded=false` | `ensure_loaded`, from script `cues` or `play_cue` | `loaded=true` | A bad file warns and declares none. |
-| `loaded=true` | `next_file`, from script `play_cue` | same | Takes the next file and adds one to `turn`. `play_with` then starts a handle at the cue's volume, pitch, loop and bus. |
-
-Starts in `loaded=false`. Never ends.
-
-Refused or ignored: `play_cue` warns and answers nil for a name nothing declared or a cue with no files. No voice owns its handle, so `finished` is never announced for it. `Playback::default` gives it a `fade_out_time` of 0, so `stop_playback` stops it at once.
-
-Held by a pause, a `process` mode or a parked scene: no voice owns the handle, so `hold_sounds` never reaches it. A cue plays through all three, so a pause menu's click still sounds. A freeze stops its clock and leaves its sink playing.
+Held by a pause, a `process` mode or a parked scene: no voice owns the handle, so `hold_sounds` never reaches it. A played file sounds through all three, so a pause menu's click still sounds. A freeze stops its clock and leaves its sink playing.
 
 ### Output device
 
@@ -1895,38 +1878,6 @@ Source: `crates/balaur_ui/src/widget/arrange.rs` and `crates/balaur_ui/src/widge
 | any | A scene or script write, or `ui.edit` with text | as asked | A write emits nothing. |
 
 Starts as authored. Ends when the component is removed.
-
-### Toast
-
-A `toast` root stacks in a corner and leaves on its own. `BORN` holds when each was first drawn, in engine time, and the phase is derived from that.
-
-Source: `crates/balaur_ui/src/widget/toast.rs`, `BORN`, `Stack`, `fade` and `clear`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> whole: first drawn
-    whole --> fading: last half second
-    fading --> expired: duration reached
-    expired --> [*]: defer_free
-```
-
-| State | What is true |
-|---|---|
-| Whole | Drawn solid, pushed clear of the toasts at its anchor. Takes no pointer. |
-| Fading: under 0.5 seconds of `duration` left | `multiply_opacity` thins it. |
-| Expired: `age >= duration` | Listed by `Stack::expired` and freed at the end of the frame. |
-
-| From | Trigger | To | What it does |
-|---|---|---|---|
-| none | `Stack::place`, first draw | Whole | Stamps `eng.time()`. |
-| Whole | `fade`, as `age` grows | Fading | No event. |
-| Fading | `Stack::place`, `age` reaches `duration` | Expired | `clear` calls `defer_free`. |
-
-Starts in Whole. Ends in Expired.
-
-Refused or ignored: a `duration` of 0 stays until the game frees it. A toast not drawn is dropped from `BORN`, so its clock starts again when it next shows.
-
-Held by a pause, a `process` mode or a parked scene: `eng.time()` runs on through a pause and a freeze, so the clock does too. A paused replay holds it.
 
 ### Splash
 

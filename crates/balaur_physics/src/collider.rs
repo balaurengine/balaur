@@ -52,7 +52,7 @@ pub struct Collider3d {
     /// Where the shape sits relative to the node
     #[property(group = "shape")]
     pub offset: [f32; 3],
-    /// How the shape is turned relative to the node, x first; Euler radians in the file
+    /// How the shape is turned relative to the node, as `rotation_euler` turns one; Euler radians in the file
     #[property(group = "shape", unit = "degrees")]
     pub offset_rotation: [f32; 3],
     /// The layers this collider is on
@@ -109,7 +109,7 @@ pub struct Collider3d {
     /// This collider's resistance to spin about each axis; 0 with a center_of_mass takes the shape's own about that centre
     #[property(group = "mass")]
     pub inertia: [f32; 3],
-    /// Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file
+    /// Turns the axes inertia is measured about, as `rotation_euler` does; read with a non-zero inertia. Euler radians in the file
     #[property(group = "mass", unit = "degrees")]
     pub inertia_rotation: [f32; 3],
     /// How hard a contact must be before on_contact_force is called
@@ -490,10 +490,10 @@ pub(crate) fn reread_materials(eng: &Engine) {
 /// (attached to the entity's body when it has one).
 pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &Asked3d) -> Result<()> {
     let builder = collider_builder(eng, asked)?;
-    let offset = Pose::from_parts(scalar::v3a(asked.collider.offset), {
-        let r = asked.collider.offset_rotation;
-        glamx::Quat::from_euler(glamx::EulerRot::XYZ, r[0], r[1], r[2])
-    });
+    let offset = Pose::from_parts(
+        scalar::v3a(asked.collider.offset),
+        crate::body::rotation_from_euler(asked.collider.offset_rotation),
+    );
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)?;
     {
@@ -807,7 +807,7 @@ const READER_RECORDS: &[balaur_script::RecordDoc] = &[
     (
         "MassProperties",
         "{ mass: float, center_of_mass: Vec3, inertia: Vec3, inertia_rotation: Vec3 }",
-        "What a collider adds to its body, in its own space: its mass and where it sits, its inertia about each principal axis, and how those axes are turned, in Euler radians, x first.",
+        "What a collider adds to its body, in its own space: its mass and where it sits, its inertia about each principal axis, and how those axes are turned, in Euler radians as `rotation_euler` reads them.",
     ),
 ];
 

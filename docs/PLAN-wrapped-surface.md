@@ -854,19 +854,17 @@ force with its linear and angular parts apart: `break_force` and
 
 ### `ragdoll`
 
-Exposed: `bodies`, `influence`; the build call `physics3d.ragdoll` takes
-`thickness`, `density`, `friction`, `limits`, `influence`. rapier has no
-ragdoll type: it is a composition of `body3d`, `collider3d` and `joint3d`.
+Exposed: `bodies`, `influence`. rapier has no ragdoll type: it is a
+composition of `body3d`, `collider3d` and `joint3d`, which the editor's
+Create Physical Skeleton (`editor/scripts/ragdoll.bs`) writes into the scene.
+Its `ragdoll::Options` are the rows below.
 
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |
-| Multibody joints | build option `articulation` | false | Never set today (`crates/balaur_physics/src/ragdoll.rs:351-369`) |
-| Twist and swing limits | per-axis `axes` on each joint | | Waits on the joint rows above; one pair lands on three axes today |
-| `PdController`, joint motors | build option `drive` (`none`/`motors`/`follow`) | none | `influence` blends bone transforms after the step; nothing pulls the bodies toward the clip |
-| Body, collider and joint settings | build options `restitution`, `linear_damping`, `angular_damping`, `collision_layer`, `collision_mask`, `continuous_collision`, `gravity_scale`, `collide_connected`, `shape` | | The generated nodes carry ordinary components, each reachable after the build |
-
-The `physics3d.ragdoll` doc says "hinged to its parent's"; 3D builds a
-`ball_socket` (`ragdoll.rs:352`).
+| Multibody joints | builder option `articulation` | false | |
+| Twist and swing limits | per-axis `axes` on each joint | | |
+| `PdController`, joint motors | builder option `drive` (`none`/`motors`/`follow`) | none | `influence` blends bone transforms after the step |
+| Body, collider and joint settings | builder options `restitution`, `linear_damping`, `angular_damping`, `collision_layer`, `collision_mask`, `continuous_collision`, `gravity_scale`, `collide_connected`, `shape` | | The generated nodes carry ordinary components, each editable after the build |
 
 ## 9. Characters, vehicles and a follow controller
 
@@ -948,7 +946,7 @@ new component pair, run each fixed step as the vehicle system is
 | `follow_rotation` in 2D, for the one turn | `AxesMask::ANG_Z` | true |
 
 Built. A script `reset_follow()` maps to `reset_integrals` (`pid_controller.rs:277-300`).
-A ragdoll's `drive = "follow"` puts a `follow3d` or `follow2d` on every body,
+The ragdoll builder's `drive = "follow"` puts a `follow3d` or `follow2d` on every body,
 its keys in a `follow` table, aimed at the bone the body was built from.
 The PID integrals change each step: **digest**. The gains are tied to the
 fixed step.
@@ -1239,7 +1237,8 @@ painted and laid out by Balaur, with no egui widget behind them.
 `modifier2d` and `modifier3d` (Balaur's own solvers), `timer`, `states`,
 `meta`, `bindings` and `transform` (`crates/balaur_core`) wrap no crate. The
 one choice `transform` takes from glam is the Euler order, ZYX
-(`crates/balaur_core/src/transform.rs:52,57`).
+(`crates/balaur_core/src/transform.rs:52,57`). Physics reads `offset_rotation`,
+`anchor_rotation`, `inertia_rotation` and a pose's `rotation` in the same order.
 
 ## 16. Changes outside this repository
 

@@ -1,5 +1,10 @@
-// The Gamend dock: the engine's `gamend` state, and GETs whose replies
-// `await_reply` keeps, which refills it. Nothing runs on a clock.
+// The Gamend dock: the engine's `gamend` state, the addon's activity log, and
+// GETs whose replies `await_reply` keeps, which refills it. Nothing runs on a
+// clock.
+
+use activity;
+use addons::save::save;
+use core;
 
 const CALLS: str = "calls";
 const CLAIM: str = "claim";
@@ -12,7 +17,6 @@ const MESSAGES: str = "messages";
 const OK: str = "ok";
 const OPEN: str = "open";
 const PRODUCTION: str = "production";
-const WAITING: str = "waiting";
 const ACCEPTED: str = "accepted";
 const ALL: str = "all";
 const APPROVE_URL: str = "approve_url";
@@ -74,10 +78,15 @@ const FLUSH_KEY: str = "gamend:logs_flush";
 /// Where `client.bs` keeps the key-value rows a game subscribed to.
 const ROWS_KEY: str = "gamend:rows";
 
-/// The person's Gamend Cloud account, kept in the editor's own file
-/// (`target.rs`), and the editor API on it.
-const CLOUD: str = "gamend/cloud";
-const CLOUD_TOKEN: str = "gamend/cloud_token";
+/// The person's Gamend Cloud account, which this dock declares as editor
+/// settings, kept in the editor's own file, and the editor API on it.
+const CLOUD: str = "editor/gamend/cloud";
+const CLOUD_TOKEN: str = "editor/gamend/cloud_token";
+const DEFAULT: str = "default";
+const HELP: str = "help";
+const ORDER: str = "order";
+const TYPE: str = "type";
+const STRING: str = "string";
 const LINKS_PATH: str = "/api/v1/cloud/editor/links";
 const CLAIM_PATH: str = "/api/v1/cloud/editor/links/claim";
 const SERVERS_PATH: str = "/api/v1/cloud/editor/servers";
@@ -186,6 +195,20 @@ fn groups() -> [any] {
 
 impl Gamend {
     pub fn register() -> any {
+        settings::define(CLOUD, {
+            TYPE: STRING,
+            DEFAULT: "https://gamend.org",
+            ORDER: 1,
+            HELP: "Where your Gamend Cloud account is: the Gamend dock lists your servers from it.",
+        });
+        // The settings window draws a `secret` setting as dots.
+        settings::define(CLOUD_TOKEN, {
+            TYPE: STRING,
+            DEFAULT: "",
+            SECRET: true,
+            ORDER: 2,
+            HELP: "What the Gamend dock got when you connected it to your Gamend Cloud account. Kept in the editor's own file; empty disconnects it.",
+        });
         { "panels": [{ ID: GAMEND, TITLE: "Gamend", "tall": true, "draw": "fill" }] }
     }
 
@@ -521,7 +544,7 @@ impl Gamend {
         }
         chips.push(button(self.node, "Clear", "clear_activity", {}));
         let out: [any] = [buttons(chips)];
-        let rows = gamend::activity();
+        let rows = activity::rows();
         if rows.len() == 0 {
             out.push(empty("no calls yet"));
         }
@@ -533,7 +556,7 @@ impl Gamend {
         out
     }
 
-    fn activity_row(out: [any], row: gamend::Entry) {
+    fn activity_row(out: [any], row: activity::Entry) {
         let key = "{row.seq}";
         let open = self.open[key].as_bool();
         let took = "";
@@ -595,7 +618,7 @@ impl Gamend {
             return held;
         }
         if !self.requests.has(key) {
-            let asked = gamend::rest("GET", path);
+            let asked = core::rest("GET", path);
             self.requests[key] = asked;
             self.node.call("await_reply", asked);
         }
@@ -689,7 +712,7 @@ impl Gamend {
 
     pub fn sign_in(_data: any, _value: any) {
         self.forget(LOGIN);
-        let asked = gamend::login(gamend::Credentials { device_id: engine::device_id() });
+        let asked = core::login(gamend::Credentials { device_id: engine::device_id() }, "device");
         self.requests[LOGIN] = asked;
         self.node.call("await_reply", asked);
     }
@@ -759,7 +782,7 @@ impl Gamend {
     }
 
     pub fn clear_activity(_data: any, _value: any) {
-        gamend::clear_activity();
+        activity::clear();
     }
 
     pub fn toggle_row(data: any, _value: any) {
@@ -839,7 +862,7 @@ fn logs(to: Node) -> [any] {
 /// The newest message's `seq` on each topic.
 fn newest_messages() -> any {
     let out: any = {};
-    for row in gamend::activity() {
+    for row in activity::rows() {
         if row.kind != MESSAGE {
             continue;
         }
@@ -852,7 +875,7 @@ fn newest_messages() -> any {
     out
 }
 
-fn kept(filter: str, row: gamend::Entry) -> bool {
+fn kept(filter: str, row: activity::Entry) -> bool {
     if filter == CALLS {
         return row.kind != MESSAGE;
     }
@@ -867,9 +890,9 @@ fn kept(filter: str, row: gamend::Entry) -> bool {
 
 /// A call that came back refused or not at all: anything but a 1xx-3xx
 /// status, a socket reply of "ok", or one still waiting.
-fn failed(row: gamend::Entry) -> bool {
+fn failed(row: activity::Entry) -> bool {
     let status = row.status;
-    if row.kind == MESSAGE || status == WAITING || status == OK || status == OPEN {
+    if row.kind == MESSAGE || status == activity::WAITING || status == OK || status == OPEN {
         return false;
     }
     !(status.starts_with("1") || status.starts_with("2") || status.starts_with("3"))

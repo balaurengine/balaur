@@ -58,10 +58,6 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
         ),
         (words::FOLD, "A header that shows or hides what is under it"),
         (
-            words::TOAST,
-            "A message that stacks at its anchor and leaves when its `duration` is up",
-        ),
-        (
             words::DIALOG,
             "A panel over everything, with the screen behind it dimmed and deaf",
         ),

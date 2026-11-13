@@ -554,7 +554,7 @@ Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bo
 
 ### `multimesh2d`
 
-`2d` · `render` · 5 properties · 17 methods
+`2d` · `render` · 5 properties · 16 methods
 
 Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 
@@ -581,7 +581,6 @@ On a node carrying `multimesh2d`, as `node.multimesh2d.<method>`:
 <tr><td><code>instance_region(int)</code></td><td><code>render::InstanceRegion?</code></td><td>One instance&#x27;s texture rectangle in pixels, or nil when it draws the whole texture.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instance_transform(int)</code></td><td><code>Transform2d</code></td><td>One instance&#x27;s transform.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instances()</code></td><td><code>[render::MultimeshInstance]</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>multimesh2d</code></td></tr>
-<tr><td><code>populate(render::PopulateOptions)</code></td><td><code>[render::MultimeshInstance]</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>set_buffer([float])</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>set_instance_color(int, Color)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>multimesh2d</code></td></tr>
@@ -1248,7 +1247,7 @@ A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` 
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>The body&#x27;s total mass; 0 sums what its colliders weigh At least 0.0.</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the extra mass sits, in the node&#x27;s own space; only read when mass is set</td></tr>
 <tr><td><code>inertia</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Resistance to spin about each axis, read when mass is set; 0 derives it from the colliders&#x27; shapes scaled to the mass, about center_of_mass when that is set</td></tr>
-<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file</td></tr>
+<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, as `rotation_euler` does; read with a non-zero inertia. Euler radians in the file</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on travel: how fast the body loses speed with nothing touching it At least 0.0.</td></tr>
 <tr><td><code>angular_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on spin, in the same terms as linear_damping At least 0.0.</td></tr>
 <tr><td><code>lock_rotation</code></td><td>flags</td><td><code>[]</code></td><td>World axes the body may not turn about; locking all three keeps a character upright One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
@@ -1320,7 +1319,7 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>teleport(float, float, float, physics3d::TeleportOptions?)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>time_since_can_sleep()</code></td><td><code>float</code></td><td>Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>total_inertia()</code></td><td><code>Vec3</code></td><td>The body&#x27;s resistance to spin about each of its principal axes, colliders included.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>total_inertia_rotation()</code></td><td><code>Vec3</code></td><td>How those principal axes are turned in the body&#x27;s own space, as Euler radians, x first.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>total_inertia_rotation()</code></td><td><code>Vec3</code></td><td>How those principal axes are turned in the body&#x27;s own space, as Euler radians as `rotation_euler` reads them.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>total_mass()</code></td><td><code>float</code></td><td>The body&#x27;s total mass: its `mass` when it states one, or what its colliders weigh.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>velocity_at_point(float, float, float)</code></td><td><code>Vec3</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>wake_up()</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics3d</code></td></tr>
@@ -1471,7 +1470,7 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>physics_material</code></td><td>asset · <code>physics_material</code></td><td>—</td><td>What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults</td></tr>
 <tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the shape sits relative to the node</td></tr>
-<tr><td><code>offset_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How the shape is turned relative to the node, x first; Euler radians in the file</td></tr>
+<tr><td><code>offset_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How the shape is turned relative to the node, as `rotation_euler` turns one; Euler radians in the file</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_test</code></td><td>enum</td><td><code>both</code></td><td>Whether a pair is tested when both colliders&#x27; layers accept the other, or when either does; two colliders that differ use both One of <code>both</code>, <code>either</code>.</td></tr>
@@ -1488,7 +1487,7 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where this collider&#x27;s mass sits, in its own space; read with inertia, and both 0 keep the shape&#x27;s own</td></tr>
 <tr><td><code>inertia</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>This collider&#x27;s resistance to spin about each axis; 0 with a center_of_mass takes the shape&#x27;s own about that centre</td></tr>
-<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file</td></tr>
+<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, as `rotation_euler` does; read with a non-zero inertia. Euler radians in the file</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -1622,7 +1621,7 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>connected_anchor</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where it attaches on the other node, in that node&#x27;s space</td></tr>
 <tr><td><code>axis</code></td><td>vec3</td><td><code>[0.0, 0.0, 1.0]</code></td><td>The joint frame&#x27;s x axis: what a hinge turns about, a slider slides along, and a generic joint&#x27;s x and rotation_x name</td></tr>
 <tr><td><code>connected_axis</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>The same axis in the other node&#x27;s space, for a hinge, a slider or a generic joint; zero takes axis</td></tr>
-<tr><td><code>anchor_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns this end&#x27;s joint frame about its own axes, x first: what a hinge&#x27;s angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file</td></tr>
+<tr><td><code>anchor_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns this end&#x27;s joint frame about its own axes, as `rotation_euler` turns a node: what a hinge&#x27;s angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file</td></tr>
 <tr><td><code>connected_anchor_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>The same for the other end&#x27;s frame</td></tr>
 <tr><td><code>softness_hz</code></td><td>float</td><td><code>1000000.0</code></td><td>How stiffly the joint&#x27;s locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back At least 0.0.</td></tr>
 <tr><td><code>softness_damping_ratio</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting At least 0.0.</td></tr>
@@ -1747,7 +1746,7 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 
 ### `multimesh3d`
 
-`3d` · `render` · 9 properties · 15 methods
+`3d` · `render` · 9 properties · 14 methods
 
 Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 
@@ -1777,7 +1776,6 @@ On a node carrying `multimesh3d`, as `node.multimesh3d.<method>`:
 <tr><td><code>instance_custom_data(int)</code></td><td><code>Color</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>instance_transform(int)</code></td><td><code>Transform3d</code></td><td>One instance&#x27;s transform.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>instances()</code></td><td><code>[render::MultimeshInstance]</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>multimesh3d</code></td></tr>
-<tr><td><code>populate(render::PopulateOptions)</code></td><td><code>[render::MultimeshInstance]</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>set_buffer([float])</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>set_instance_color(int, Color)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>multimesh3d</code></td></tr>
@@ -2241,24 +2239,15 @@ On a node carrying `wheel3d`, as `node.wheel3d.<method>`:
 
 ### `ragdoll`
 
-`physics` · 2 properties · 1 method
+`physics` · 2 properties
 
-Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.
+Drives a rig's bones from `bodies`, one body per bone and named after it, which the editor's Create Physical Skeleton builds. `influence` is how much of the simulated pose the bones take, 0 to 1.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>bodies</code></td><td>node</td><td>—</td><td>The node holding the bodies, one per bone, named after it</td></tr>
 <tr><td><code>influence</code></td><td>float</td><td><code>1.0</code></td><td>How much of the simulated pose the bones take Range 0.0–1.0.</td></tr>
-</tbody>
-</table>
-
-On a node carrying `ragdoll`, as `node.ragdoll.<method>`:
-
-<table>
-<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
-<tbody>
-<tr><td><code>set_ragdoll_influence(float)</code></td><td>—</td><td>How much of the ragdoll&#x27;s simulated pose the rig&#x27;s bones take, 0 to 1: 0 leaves the clip in charge while the bodies simulate unseen, 1 goes limp. Tween it to fall over and get back up.</td><td><code>physics</code></td></tr>
 </tbody>
 </table>
 
@@ -2508,17 +2497,18 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 60 properties
+`ui` · 62 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button calls `on_click`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>toast</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td>—</td><td>Label or button caption</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Off, the widget is greyed out and swallows its clicks</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Corner, edge or middle the offset is measured from: of the surface for a root, of the parent&#x27;s box inside a `stack`; `fill` takes the whole of it less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>, <code>fill_top</code>, <code>fill_bottom</code>, <code>fill_left</code>, <code>fill_right</code>, <code>fill_across</code>, <code>fill_down</code>.</td></tr>
+<tr><td><code>on_top</code></td><td>bool</td><td><code>false</code></td><td>A root drawn above every root that is not, as a message read over whatever is on screen</td></tr>
 <tr><td><code>x</code></td><td>float</td><td><code>16.0</code></td><td>Horizontal offset from the anchor, in design pixels</td></tr>
 <tr><td><code>y</code></td><td>float</td><td><code>16.0</code></td><td>Vertical offset from the anchor, in design pixels</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>
@@ -2562,6 +2552,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>text_style</code></td><td>asset · <code>text_style</code></td><td>—</td><td>How it is dressed past its font: line height and spacing, the lines drawn with the glyphs, an outline and a shadow. Empty draws it plain</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why</td></tr>
+<tr><td><code>announce</code></td><td>bool</td><td><code>false</code></td><td>A screen reader reads its text out as it arrives and as it changes, as a status line</td></tr>
 <tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
 <tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text after every edit, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called when focus arrives, on this node or the nearest ancestor whose script declares it</td></tr>
@@ -3030,19 +3021,6 @@ The rows a kind drawing a caption reads: how its lines sit, break and are cut, a
 <tr><td><code>selectable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag over this label select its text, and the platform&#x27;s copy key take it</td></tr>
 <tr><td><code>on_link</code></td><td>string</td><td>—</td><td>Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>text_background</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>A wash behind the text of the kinds egui draws, a `checkbox`, `dropdown`, `menu`, `tabs`, `panel` and the like, where a `label` and a `button` shape their own; alpha 0 is none</td></tr>
-</tbody>
-</table>
-
-### `widget_toast`
-
-`ui` · 1 property
-
-The row a `toast` reads: how long it stays.
-
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>duration</code></td><td>float</td><td><code>3.0</code></td><td>How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away At least 0.0.</td></tr>
 </tbody>
 </table>
 

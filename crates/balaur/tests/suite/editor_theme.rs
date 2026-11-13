@@ -24,7 +24,6 @@ const INKS: &[&str] = &[
     "syntax_identifier",
     "syntax_type",
     "syntax_punctuation",
-    "node_default",
     "node_2d",
     "node_3d",
     "node_ui",
@@ -160,9 +159,16 @@ fn a_bundled_theme_states_colours_and_the_roles_file_states_none() {
             );
         }
     }
-    assert!(
-        !file("roles").contains_key("colors"),
-        "a colour in the shared roles would be the same in both themes"
+    // The mark's plate and the touch rings are the same in both on purpose.
+    let shared: Vec<String> = file("roles")
+        .get("colors")
+        .and_then(toml::Value::as_table)
+        .map(|colors| colors.keys().cloned().collect())
+        .unwrap_or_default();
+    assert_eq!(
+        shared,
+        ["brand_plate", "input_ripple"],
+        "a colour in the shared roles is the same in both themes"
     );
 }
 

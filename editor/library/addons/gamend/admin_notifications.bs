@@ -9,7 +9,7 @@
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
 // left out when the call has nothing to put in it. It answers the id
-// `gamend::rest` answers, to await with `task::wait`. With a path
+// `core::rest` answers, to await with `task::wait`. With a path
 // parameter empty or a required field left out it sends nothing and
 // logs which, and the id answers an `error` naming it.
 
@@ -27,7 +27,7 @@ pub fn create_notification(params: any) -> int {
     if !core::given(params, "title") {
         return core::missing("gamend::admin_notifications::create_notification", "title");
     }
-    gamend::rest("POST", "/api/v1/admin/notifications", params)
+    core::rest("POST", "/api/v1/admin/notifications", params)
 }
 
 /// Delete a notification (admin)
@@ -36,12 +36,12 @@ pub fn delete_notification(id: str) -> int {
     if id == "" {
         return core::missing("gamend::admin_notifications::delete_notification", "id");
     }
-    gamend::rest("DELETE", "/api/v1/admin/notifications/{id}")
+    core::rest("DELETE", "/api/v1/admin/notifications/{id}")
 }
 
 /// List all notifications (admin)
 /// `GET /api/v1/admin/notifications`
 pub fn list_notifications(options: any) -> int {
     let query = core::query(options, ["user_id", "sender_id", "title", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/notifications{query}")
+    core::rest("GET", "/api/v1/admin/notifications{query}")
 }

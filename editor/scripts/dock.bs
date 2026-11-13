@@ -5,6 +5,7 @@ use anim;
 use defs;
 use dropin;
 use editor;
+use form;
 use history;
 use icons;
 use importer;
@@ -736,7 +737,7 @@ pub fn timeline_fill(state: &mut editor::State) {
     util::fill(TIMELINE + "/Body/Lanes/Playhead", {
         dock_fields::INSET: [lane_at(lane_x, length, lane_width, util::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0],
     });
-    let rows: [ui::Row] = [];
+    let rows: [form::Row] = [];
     for index in 0..tracks.len() {
         let track = tracks[index];
         let color = (if index % 2 == 0 { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] }).as_str();
@@ -759,7 +760,7 @@ pub fn timeline_fill(state: &mut editor::State) {
                 data: { fields::FN: on_key_pressed, fields::WHEN: when },
             });
         }
-        rows.push(ui::Row {
+        rows.push(form::Row {
             height: LANE_HEIGHT,
             controls: [
                 ui::Control {
@@ -789,7 +790,7 @@ pub fn timeline_fill(state: &mut editor::State) {
             ],
         });
     }
-    ui::fill_rows(TIMELINE + "/Body/Lanes/Scroll/Tracks", rows);
+    form::fill(TIMELINE + "/Body/Lanes/Scroll/Tracks", rows);
     util::fill(TIMELINE + "/Body/ScrubRow", { layout_fields::PADDING: [8.0 + lane_x, 0.0, 0.0, 0.0] });
     let filled = scene::get_node(TIMELINE + "/Body/ScrubRow/Scrub");
     if filled.is_valid() {
@@ -1040,7 +1041,7 @@ pub fn lanes_fill(state: editor::State) {
         filled.set_visible(parted != "");
         filled.widget.text = parted;
     }
-    let rows: [ui::Row] = [];
+    let rows: [form::Row] = [];
     for lane in state.session.lanes {
         let marks: [ui::Control] = [];
         for mark in lane.marks {
@@ -1060,7 +1061,7 @@ pub fn lanes_fill(state: editor::State) {
                 data: { fields::FN: on_mark_pressed, log_fields::TICK: tick },
             });
         }
-        rows.push(ui::Row {
+        rows.push(form::Row {
             height: 20,
             controls: [
                 ui::Control {
@@ -1083,7 +1084,7 @@ pub fn lanes_fill(state: editor::State) {
     // Everything recorded at the tick the playhead is on, in the order it
     // happened.
     for event in replay::events(state.session.at, state.session.at) {
-        rows.push(ui::Row {
+        rows.push(form::Row {
             height: 20,
             controls: [
                 ui::Control {
@@ -1108,7 +1109,7 @@ pub fn lanes_fill(state: editor::State) {
             ],
         });
     }
-    ui::fill_rows(LANES + "/Scroll/Rows", rows);
+    form::fill(LANES + "/Scroll/Rows", rows);
 }
 
 fn on_mark_pressed(state: &mut editor::State, data: any, _value: any) {
@@ -1142,11 +1143,11 @@ const RECORDINGS: str = "Editor/Shell/Body/Centre/Bottom/Recordings/Rows/Column"
 /// returning to survives the next ten runs.
 pub fn recordings_fill(state: &mut editor::State) -> RecordingsFill {
     let rows = session::listing(state);
-    let specs: [ui::Row] = [];
+    let specs: [form::Row] = [];
     for recording in rows {
-        specs.push(ui::Row { height: 24, slot_role: roles::LAYOUT_ACTIONS, controls: session_row(state, recording) });
+        specs.push(form::Row { height: 24, slot_role: roles::LAYOUT_ACTIONS, controls: session_row(state, recording) });
     }
-    ui::fill_rows(RECORDINGS, specs);
+    form::fill(RECORDINGS, specs);
     RecordingsFill { verify: state.session.verify, count: rows.len() }
 }
 

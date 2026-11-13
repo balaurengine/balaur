@@ -875,7 +875,7 @@ stateDiagram-v2
 | `Live(Link)`, `joined == true` | Commands, rejoins and heartbeats run. |
 | removed | `step` answered false, and the socket left `GamendState.live`. |
 
-No script reads this directly. Scripts hear the events below and read `gamend.connection()`, the activity row further down.
+No script reads this directly. Scripts hear the events below and read `gamend.connection()`, the connection row further down.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -1115,8 +1115,8 @@ stateDiagram-v2
 | any | `auth::login`, or the browser's `spawn_login`, succeeds | `Some(new)` | `LoggedIn`. |
 | `Some` | `Client::call` gets a 401 with a refresh token, `renew` succeeds | `Some(new)` | The call is retried once. |
 | `Some` | `LiveSocket::renew`, `spawn_renew` succeeds | `Some(new)` | Answers on the socket's channel. |
-| any | `gamend.restore(map)` with an `access_token` | `Some` | `activity.signed_in`. Answers true. |
-| any | `gamend.restore(nil)` | `None` | `activity.signed_in(None)`. Answers true. |
+| any | `gamend.restore(map)` with an `access_token` | `Some` | `connection.signed_in`. Answers true. |
+| any | `gamend.restore(nil)` | `None` | `connection.signed_in(None)`. Answers true. |
 
 Starts in `None`. Never ends.
 
@@ -1146,9 +1146,9 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `login`, `rest` | queued | `activity.started`. Queues through `io.start`. |
-| none | `join`, `push`, `leave`, `call_hook` | queued | `activity.started`, then `command` queues it. |
-| none | `command`, the socket is gone | none | Returns "no such gamend socket" or "the gamend connection is gone". Removes the handler. `activity.heard` finishes the row with `Failed`. |
+| none | `login`, `rest` | queued | Queues through `io.start`. |
+| none | `join`, `push`, `leave`, `call_hook` | queued | A join or a leave is noted by `connection.moving`, then `command` queues it. |
+| none | `command`, the socket is gone | none | Returns "no such gamend socket" or "the gamend connection is gone". Removes the handler. `connection.heard` drops the noted join or leave with `Failed`. |
 | queued | `run` | in `pending` | Adds the row, then sends the frame. |
 | queued | `run`, `Push`, `Leave` or `CallHook` with no join ref | answered | `refuse` sends `Failed`, "not joined to …". A `Leave` of a topic waiting to join again gets `Replied` with `ok`. |
 | queued | `spawn_login`, `spawn_rest` finish | answered | `LoggedIn`, `RestDone` or `Failed`. |
@@ -1162,7 +1162,7 @@ Starts queued. Ends answered.
 
 ### Activity row status
 
-The activity log holds this for each call it shows, and `gamend.activity()` reads it. Source: `crates/balaur_gamend/src/activity.rs`, `Entry.status`.
+The Gamend addon's activity log holds this for each call `core.bs` sent, and `activity::rows()` reads it. It lives in the script store, one key per row. Source: `editor/library/addons/gamend/activity.bs`, written in Gamend's `clients/balaur_template/`, `Entry.status`.
 
 ```mermaid
 stateDiagram-v2
@@ -1174,12 +1174,12 @@ stateDiagram-v2
     state "waiting" as RowWaiting
     state "empty" as RowEmpty
     [*] --> RowWaiting: started
-    [*] --> RowEmpty: message or note row
-    RowWaiting --> RowOk: LoggedIn
-    RowWaiting --> RowStatus: RestDone
-    RowWaiting --> RowReply: Replied
-    RowWaiting --> RowText: Failed, SocketClosed, SocketError
-    RowWaiting --> RowOpen: SocketOpen
+    [*] --> RowEmpty: noted
+    RowWaiting --> RowOk: login answer
+    RowWaiting --> RowStatus: rest answer
+    RowWaiting --> RowReply: reply answer
+    RowWaiting --> RowText: error answer
+    RowWaiting --> RowOpen: open answer
 ```
 
 | State | What is true |
@@ -1188,23 +1188,23 @@ stateDiagram-v2
 | `"ok"` | A login answered. |
 | status digits | A REST call answered with this HTTP status. |
 | reply's `status` | A socket reply answered. |
-| message or reason text | `Failed`, or a socket closed or failed on its connect row. |
+| message or reason text | The call failed, or a connect row's socket failed to open. |
 | `"open"` | A connect row opened. |
-| `""` | A `message`, `reconnecting` or `reopened` row, fixed when made. |
+| `""` | A `message`, `reconnecting`, `reopened`, `closed` or `error` row from `client::route`, fixed when made. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `Activity::started` | `"waiting"` | Stamps the start. |
-| none | `SocketMessage`, or `note` | `""` | Keeps the payload or the text. |
-| `"waiting"` | `heard` calls `finish`, newest row for the request still waiting | the answer | Sets `ms` and `reply`. |
+| none | `activity::started`, from a `core` call | `"waiting"` | Lists the request as waiting. |
+| none | `activity::noted`, from `client::route` | `""` | Keeps the payload or the text. |
+| `"waiting"` | `settle` finds the request's answer in `gamend::reply` | the answer | Sets `ms` from the answer's own and keeps `reply`. |
 
-Starts in `"waiting"` or `""`. Ends when `push` evicts the row past 200, or `gamend.clear_activity()` runs.
+`settle` runs at every `started` and every `rows`. Starts in `"waiting"` or `""`. Ends when the push 200 rows later takes its key, or `activity::clear()` runs.
 
-Refused or ignored: rows past the newest 50 lose `args` and `reply`. A socket's later close does not touch a connect row that already opened.
+Refused or ignored: rows past the newest 50 lose `args` and `reply`. A row whose answer left the engine's newest 64 replies before a settle stays `"waiting"`. A call made on `gamend::` directly makes no row.
 
-### Activity socket row
+### Connection socket row
 
-The activity log holds what scripts read about each socket, in `gamend.connection().sockets`. It follows the drained events and is separate from the socket itself. Source: `crates/balaur_gamend/src/activity.rs`, `Socket.open`, `Socket.reason`, `Socket.topics`.
+The connection holds what scripts read about each socket, in `gamend.connection().sockets`. It follows the drained events and is separate from the socket itself. Source: `crates/balaur_gamend/src/connection.rs`, `Socket.open`, `Socket.reason`, `Socket.topics`.
 
 ```mermaid
 stateDiagram-v2
@@ -1230,22 +1230,22 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `started` with kind `connect` | `open == false` | Adds the row. |
+| none | `connecting` | `open == false` | Adds the row. |
 | any | `heard`, `SocketOpen` | `open == true` | Leaves `reason`. |
-| any | `heard`, `SocketReconnecting` | `open == false`, `reason` set | Adds a `reconnecting` row. |
-| any | `heard`, `SocketReopened` | `open == true`, `reason == nil` | Removes `lost` from `topics`. Adds a `reopened` row. |
-| any | `heard`, `SocketClosed`, `SocketError` | `open == false`, `reason` set, `ended == true` | Finishes the connect row. |
-| any | `replied`, `ok` to a join or a leave | same | Adds to or removes from `topics`. |
+| any | `heard`, `SocketReconnecting` | `open == false`, `reason` set | Nothing else. |
+| any | `heard`, `SocketReopened` | `open == true`, `reason == nil` | Removes `lost` from `topics`. |
+| any | `heard`, `SocketClosed`, `SocketError` | `open == false`, `reason` set, `ended == true` | Nothing else. |
+| any | `heard`, `Replied` `ok` to a join or a leave `moving` noted | same | Adds to or removes from `topics`. |
 | any | `heard`, `SocketMessage` with `phx_close` | same | Removes the topic. |
-| `ended == true` | `started` with kind `connect`, for any socket | row gone | Runs before the new row is added. A socket still reconnecting keeps its row and its topics. |
+| `ended == true` | `connecting`, for any socket | row gone | Runs before the new row is added. A socket still reconnecting keeps its row and its topics. |
 | any | `configured` | row gone | Clears every row. |
-| no row | `heard` or `replied` for that socket | a new row | `or_default` starts it with no topics. |
+| no row | `heard` for that socket | a new row | `or_default` starts it with no topics. |
 
 Starts with `open == false`. Ends when `configured` clears the rows, or a later `connect` drops an ended row.
 
-### Activity user
+### Connection user
 
-The activity log holds who `gamend.connection()` names. Source: `crates/balaur_gamend/src/activity.rs`, `Activity.user`.
+The connection holds who `gamend.connection()` names. Source: `crates/balaur_gamend/src/connection.rs`, `Connection.user`.
 
 | State | What is true |
 |---|---|
@@ -1255,7 +1255,7 @@ The activity log holds who `gamend.connection()` names. Source: `crates/balaur_g
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `configured` | `None` | Sets the url and clears `sockets`. |
-| any | `heard`, `LoggedIn` | `Some` | Finishes the login row. |
+| any | `heard`, `LoggedIn` | `Some` | Nothing else. |
 | any | `signed_in`, from `gamend.restore` | `Some` or `None` | Nothing else. |
 
 Starts in `None`. Never ends.

@@ -21,7 +21,7 @@ window that shows every control the theme dresses.
   the scheme's value in a comment beside it. Nord has no light half and is
   not ported.
 - A person's own theme is a folder in `<data>/balaur-editor/themes/`, where
-  `project::editor_data_directory()` names the root. A half states
+  `engine::user_data_directory()` names the root. A half states
   `base = "<bundled pair>"` and only the keys that differ from that pair's
   same half; a half the folder lacks is the base's.
 - `editor/appearance/theme` names the pair, `balaur` by default, and

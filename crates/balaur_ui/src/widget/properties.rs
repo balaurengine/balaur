@@ -269,6 +269,9 @@ pub(crate) struct WidgetProperties {
     /// Corner, edge or middle the offset is measured from: of the surface for a root, of the parent's box inside a `stack`; `fill` takes the whole of it less `inset`
     #[property(default = Anchor::new(w::TOP_LEFT), group = "placement")]
     pub(crate) anchor: Anchor,
+    /// A root drawn above every root that is not, as a message read over whatever is on screen
+    #[property(group = "placement")]
+    pub(crate) on_top: bool,
     /// Horizontal offset from the anchor, in design pixels
     #[property(default = 16.0, group = "placement")]
     pub(crate) x: f32,
@@ -398,6 +401,9 @@ pub(crate) struct WidgetProperties {
     /// Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why
     #[property(group = "text")]
     pub(crate) tooltip: SmolStr,
+    /// A screen reader reads its text out as it arrives and as it changes, as a status line
+    #[property(group = "text")]
+    pub(crate) announce: bool,
     /// Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button
     #[property(group = "events")]
     pub(crate) on_click: SmolStr,

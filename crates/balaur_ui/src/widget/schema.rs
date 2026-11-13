@@ -409,6 +409,8 @@ cache_fields! {
         k::ON_DOUBLE_CLICK => widget.on_double_click = asked.on_double_click.clone();
         k::ON_BLUR => widget.on_blur = asked.on_blur.clone();
         k::INTERACTIVE => widget.pointer_through = !asked.interactive;
+        k::ON_TOP => widget.on_top = asked.on_top;
+        k::ANNOUNCE => widget.announce = asked.announce;
         k::FOCUSABLE => widget.focusable = asked.focusable;
         k::NEIGHBOUR_UP => widget.neighbours[0] = asked.neighbour_up.clone();
         k::NEIGHBOUR_DOWN => widget.neighbours[1] = asked.neighbour_down.clone();

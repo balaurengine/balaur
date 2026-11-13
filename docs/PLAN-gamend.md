@@ -267,10 +267,10 @@ reference. `docs/PLAN-editor-as-scene.md` §8 is the host's own design.
 
 | Call | Answers |
 | --- | --- |
-| `gamend::connection()`, `activity()` | Built. `activity` rows gain `args` and `reply`, kept for the newest fifty and cut at a few kilobytes each |
+| `gamend::connection()` | Built. The activity rows are the addon's `activity::rows()`, kept by `core.bs`: `args` and `reply` for the newest fifty, cut at 16 KB each |
 | `gamend::session()` | `{ user_id, username, display_name, access_token, refresh_token, expires_at }`, or nil. What the token row and the log shipper read. A game already holds its own token in every other SDK; the dock masks it by default |
 | `gamend::restore(session)` | Sign in from a kept session without asking the server for a new one, which is what `auth.rn`'s `saved()` needs to be useful |
-| `gamend::clear_activity()` | The Activity tab's clear |
+| `activity::clear()` | The Activity tab's clear, in the addon |
 
 Lobby, profile and key-value values need no engine call: the dock asks the
 server through `gamend::rest` with the session the game made, and reads the
@@ -283,11 +283,11 @@ only and never synced; a value that should follow the player to another
 device goes in the server's key-value store. The Data tab edits the same
 slot, so a developer sees and changes what the game reads.
 
-**Where saves are while the editor plays.** `save::` files live under the
-user data directory named after the project. A game played inside the
-editor runs in the editor's engine, whose directory is the editor's own, so
-the editor points `save::` at the game's with `project::use_data` when it
-loads a project. A game played there and the same game run alone keep one
+**Where saves are while the editor plays.** The save addon's files live
+under `engine::user_data_directory()`, named after the project. A game played
+inside the editor runs in the editor's engine, so the editor points that
+directory at the game's with `project::use_data` when it loads a project,
+and names its own with `engine::user_data_directory_of`. A game played there and the same game run alone keep one
 set of saves, and the dock reads what either wrote.
 
 **The server target.** A `[gamend]` settings group the engine plugin
@@ -361,7 +361,8 @@ no server dependency and can start now.
     `clear_activity`. `editor/plugins/counter.bs` is on the kit as the
     worked example, and `editor/plugins/userdata.bs` is the generic User
     data dock. Every verb answers a row on the dock's own node since
-    2026-09-22; the dock draws nothing.
+    2026-09-22; the dock draws nothing. The log is the addon's
+    `activity.bs` now, fed by `core.bs`, and a reply carries its own `ms`.
   - **E3c, built.** The `[gamend]` settings, `configure()` reading them,
     the two chips and the two links.
   - **E3d, built.** `gamend::session()` and `restore()`, `prefs.rn`, the
@@ -374,13 +375,13 @@ no server dependency and can start now.
     a `seq`). Checked on a local Gamend: a rename shows in the dock.
   - **E3f, built.** A tab per server feature, each a list of `GET` views.
   - **E3g, built.** The Cloud tab. The editor connects to the person's
-    Gamend Cloud account (`gamend/cloud`, gamend.org by default) the way a
+    Gamend Cloud account (`editor/gamend/cloud`, gamend.org by default) the way a
     television does: it asks for a code (`POST /api/v1/cloud/editor/links`),
     opens `/editor/connect` where the person, signed in, approves it, and
     holds one request (`/links/claim`) that answers a token on approval, so
-    nothing polls. The token is `gamend/cloud_token`, an editor setting
-    drawn as dots (`secret = true`, which the settings screen honours for
-    any string setting). The servers come from `GET
+    nothing polls. The token is `editor/gamend/cloud_token`, an editor
+    setting the dock declares, drawn as dots (`secret = true`, which the
+    settings screen honours for any string setting). The servers come from `GET
     /api/v1/cloud/editor/servers`; Use for this project sets `gamend/url`
     and writes `project.toml` (`kit_save_project`). Forge only shows which
     server a project names. The server side is `../gamend_cloud`
@@ -452,7 +453,7 @@ can: a real NAT, a real region, a phone.
    (`docs/PLAN-steam.md` step 8) or the WebRTC relay answers it without a
    game server. Both stay.
 5. **Whose user data a played game writes.** Answered: the game's. The
-   editor points `save::` at the game's directory (`project::use_data`), so a
+   editor points `engine::user_data_directory()` at the game's directory (`project::use_data`), so a
    session kept while playing in the editor is found by `balaur run`.
 6. **The default server.** Answered: `https://gamend.org`, a hosted Gamend
    a new game tests against until it names its own.

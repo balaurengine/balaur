@@ -1,0 +1,443 @@
+//! Create Physical Skeleton, as Godot's is: a rig's bones walked once into
+//! bodies, shapes and joints that the scene keeps as ordinary nodes. The
+//! engine's `ragdoll` component on the rig blends the bones back from them.
+
+use util;
+use words::components;
+use words::fields;
+use words::layout_fields;
+use words::schema_fields;
+use words::inspector_fields;
+
+/// What pulls the bodies once they are built: nothing, a position motor on
+/// every turn of each joint towards the built pose, or a follow on every
+/// body towards its bone.
+internal const DRIVE_NONE: str = "none";
+internal const DRIVE_MOTORS: str = "motors";
+internal const DRIVE_FOLLOW: str = "follow";
+
+/// How a ragdoll is built. `shape` is a capsule unless named: `box` or
+/// `sphere` in 3D, `rectangle` or `circle` in 2D. `thickness` is the
+/// capsule's radius and the box's half width, as a fraction of the bone's
+/// length. `axes` are joint `axes` records; `stiffness` and `damping` are
+/// the motors' when `drive` is `motors`, and `follow` the follow
+/// component's table when it is `follow`.
+internal struct Options {
+    internal shape: str?,
+    internal thickness: float = 0.25,
+    internal density: float = 1.0,
+    internal friction: float = 0.5,
+    internal restitution: float?,
+    internal collision_layer: [int]?,
+    internal collision_mask: [int]?,
+    internal linear_damping: float?,
+    internal angular_damping: float?,
+    internal gravity_scale: float?,
+    internal continuous_collision: bool?,
+    internal axes: [any]?,
+    internal articulation: bool = false,
+    internal collide_connected: bool = false,
+    internal drive: str?,
+    internal stiffness: float = 100.0,
+    internal damping: float = 20.0,
+    internal follow: any,
+    internal influence: float = 1.0,
+}
+
+/// One bone in world space: where it starts and ends, how it is turned, and
+/// the bone it hangs from when that is a bone of the same rig.
+internal struct Segment {
+    internal bone: Node,
+    internal parent: Node?,
+    internal from: Vec3,
+    internal to: Vec3,
+    internal rotation: quat::Quat,
+}
+
+const RAGDOLL: str = "ragdoll";
+const BODIES: str = "bodies";
+const INFLUENCE: str = "influence";
+const JOINT2D: str = "joint2d";
+const JOINT3D: str = "joint3d";
+const FOLLOW2D: str = "follow2d";
+const FOLLOW3D: str = "follow3d";
+const ARTICULATION2D: str = "articulation2d";
+const ARTICULATION3D: str = "articulation3d";
+
+const ANGLE: str = "angle";
+const DENSITY: str = "density";
+const OFFSET: str = "offset";
+const OFFSET_ROTATION: str = "offset_rotation";
+const PHYSICS_MATERIAL: str = "physics_material";
+const FRICTION: str = "friction";
+const RESTITUTION: str = "restitution";
+const COLLISION_LAYER: str = "collision_layer";
+const COLLISION_MASK: str = "collision_mask";
+const LINEAR_DAMPING: str = "linear_damping";
+const ANGULAR_DAMPING: str = "angular_damping";
+const GRAVITY_SCALE: str = "gravity_scale";
+const CONTINUOUS_COLLISION: str = "continuous_collision";
+const CONNECTED_BODY: str = "connected_body";
+const ANCHOR: str = "anchor";
+const CONNECTED_ANCHOR: str = "connected_anchor";
+const CONNECTED_ANCHOR_ROTATION: str = "connected_anchor_rotation";
+const COLLIDE_CONNECTED: str = "collide_connected";
+const AXES: str = "axes";
+const AXIS: str = "axis";
+const LIMITS: str = "limits";
+const MOTOR: str = "motor";
+const MOTOR_TARGET: str = "motor_target";
+const MOTOR_TARGET_VELOCITY: str = "motor_target_velocity";
+const MOTOR_MAX_FORCE: str = "motor_max_force";
+const MOTOR_MODEL: str = "motor_model";
+const STIFFNESS: str = "stiffness";
+const DAMPING: str = "damping";
+
+// The container takes the rig's name and this after it.
+const CONTAINER_SUFFIX: str = "_ragdoll";
+const UP: str = "..";
+const SEPARATOR: str = "/";
+// A bone shorter than this has no room for a shape: a tip bone with no
+// gizmo length is the usual one.
+const MIN_BONE: float = 0.0001;
+const MIN_THICKNESS: float = 0.001;
+// An axis record's damping when nothing names one, as a joint's own is.
+const RECORD_DAMPING: float = 1.0;
+
+fn add(a: Vec3, b: Vec3) -> Vec3 { vec3(a.x + b.x, a.y + b.y, a.z + b.z) }
+fn sub(a: Vec3, b: Vec3) -> Vec3 { vec3(a.x - b.x, a.y - b.y, a.z - b.z) }
+fn times(v: Vec3, k: float) -> Vec3 { vec3(v.x * k, v.y * k, v.z * k) }
+fn each_times(a: Vec3, b: Vec3) -> Vec3 { vec3(a.x * b.x, a.y * b.y, a.z * b.z) }
+fn length(v: Vec3) -> float { math::sqrt(v.x * v.x + v.y * v.y + v.z * v.z) }
+fn zero() -> Vec3 { vec3(0.0, 0.0, 0.0) }
+fn flat(v: Vec3) -> Vec2 { vec2(v.x, v.y) }
+
+struct Pose {
+    position: Vec3,
+    rotation: quat::Quat,
+    scale: Vec3,
+}
+
+// A node's world pose composed from the local transforms up its chain. A
+// node placed this frame has not had its global pose worked out yet.
+fn world_pose(node: Node) -> Pose {
+    let chain: [Node] = [];
+    let at = node;
+    while at.is_valid() {
+        chain.push(at);
+        at = at.parent();
+    }
+    let pose = Pose { position: zero(), rotation: quat::identity(), scale: vec3(1.0, 1.0, 1.0) };
+    let i = chain.len();
+    while i > 0 {
+        i -= 1;
+        let link = chain[i];
+        if link.has_component(components::TRANSFORM) {
+            pose.position = add(pose.position, quat::rotate(pose.rotation, each_times(link.transform.position, pose.scale)));
+            pose.rotation = quat::mul(pose.rotation, quat::from_euler(link.transform.rotation_euler));
+            pose.scale = each_times(pose.scale, link.transform.scale);
+        }
+    }
+    pose
+}
+
+fn is_bone(node: Node) -> bool {
+    node.has_component(components::BONE2D) || node.has_component(components::BONE3D)
+}
+
+fn first_child_bone(node: Node) -> Node? {
+    for child in node.children() {
+        if is_bone(child) {
+            return child;
+        }
+    }
+    nil
+}
+
+fn holds(bones: [Node], node: Node) -> bool {
+    if !node.is_valid() {
+        return false;
+    }
+    for bone in bones {
+        if bone.path() == node.path() {
+            return true;
+        }
+    }
+    false
+}
+
+/// Every bone under `rig` long enough to hold a shape, parents first. A tip
+/// bone reaches as far as its gizmo `length`, along its `angle` in 2D and
+/// its own x axis in 3D. Empty when the rig has none.
+internal fn segments(rig: Node) -> [Segment] {
+    let bones = skeleton::bones(rig);
+    let out: [Segment] = [];
+    for bone in bones {
+        let pose = world_pose(bone);
+        let to = pose.position;
+        let child = first_child_bone(bone);
+        if child != nil {
+            to = world_pose(child.unwrap()).position;
+        } else {
+            let three = bone.has_component(components::BONE3D);
+            let gizmo = bone.get_component(if three { components::BONE3D } else { components::BONE2D });
+            let reach = gizmo[fields::LENGTH].as_float();
+            if reach <= MIN_BONE {
+                continue;
+            }
+            let turn = gizmo[ANGLE].as_float();
+            let direction = if three { vec3(1.0, 0.0, 0.0) } else { vec3(math::cos(turn), math::sin(turn), 0.0) };
+            to = add(pose.position, times(quat::rotate(pose.rotation, direction), reach));
+        }
+        if length(sub(to, pose.position)) <= MIN_BONE {
+            continue;
+        }
+        let parent: Node? = nil;
+        if holds(bones, bone.parent()) {
+            parent = bone.parent();
+        }
+        out.push(Segment { bone: bone, parent: parent, from: pose.position, to: to, rotation: pose.rotation });
+    }
+    out
+}
+
+/// Build a body per segment in a container under `under`, which the editor
+/// passes its scene root, joint each to its parent bone's, and give the rig
+/// the `ragdoll` component that names them. Answers the body nodes.
+internal fn build(rig: Node, segments: [Segment], under: Node, opts: Options) -> [Node] {
+    let made: [Node] = [];
+    if segments.len() == 0 {
+        return made;
+    }
+    let three = segments[0].bone.has_component(components::BONE3D);
+    let container = under.add_child(rig.name() + CONTAINER_SUFFIX);
+    cancel_pose(container, under);
+    // Bodies first, every one of them, and joints after: a joint names the
+    // node at its other end, and that node has to exist to be named.
+    for segment in segments {
+        made.push(spawn_body(container, segment, opts, three));
+    }
+    for i in 0..segments.len() {
+        let hangs = segments[i].parent;
+        if hangs == nil {
+            continue;
+        }
+        let parent_path = hangs.unwrap().path();
+        for j in 0..segments.len() {
+            if segments[j].bone.path() == parent_path {
+                add_joint(made[i], made[j], segments[i], segments[j], opts, three);
+            }
+        }
+    }
+    if opts.drive.or(DRIVE_NONE) == DRIVE_FOLLOW {
+        for i in 0..segments.len() {
+            let table: any = util::copy(opts.follow.or({}));
+            table[inspector_fields::TARGET] = relative_path(made[i], segments[i].bone);
+            made[i].set_component(if three { FOLLOW3D } else { FOLLOW2D }, table);
+        }
+    }
+    rig.set_component(RAGDOLL, {
+        BODIES: relative_path(rig, container),
+        INFLUENCE: util::clamp(opts.influence, 0.0, 1.0),
+    });
+    made
+}
+
+// Physics writes a simulated pose into a body's transform as a world pose,
+// so the container the bodies hang from sits at the world's origin.
+fn cancel_pose(container: Node, under: Node) {
+    let pose = world_pose(under);
+    let back = quat::inverse(pose.rotation);
+    let s = pose.scale;
+    let shift = quat::rotate(back, times(pose.position, -1.0));
+    container.transform.position = vec3(shift.x / s.x, shift.y / s.y, shift.z / s.z);
+    container.transform.rotation_euler = quat::to_euler(back);
+    container.transform.scale = vec3(1.0 / s.x, 1.0 / s.y, 1.0 / s.z);
+}
+
+// One bone's body, on the bone's own pose so the blend copies it back as it
+// is, with the shape turned inside it to lie along the bone.
+fn spawn_body(container: Node, segment: Segment, opts: Options, three: bool) -> Node {
+    let node = container.add_child(segment.bone.name());
+    let reach = length(sub(segment.to, segment.from));
+    let along = quat::rotate(quat::inverse(segment.rotation), sub(segment.to, segment.from));
+    node.transform.position = segment.from;
+    node.transform.rotation_euler = quat::to_euler(segment.rotation);
+    let body: any = { fields::KIND: physics3d::BODY_DYNAMIC };
+    if opts.linear_damping != nil {
+        body[LINEAR_DAMPING] = opts.linear_damping.unwrap();
+    }
+    if opts.angular_damping != nil {
+        body[ANGULAR_DAMPING] = opts.angular_damping.unwrap();
+    }
+    if opts.gravity_scale != nil {
+        body[GRAVITY_SCALE] = opts.gravity_scale.unwrap();
+    }
+    if opts.continuous_collision != nil {
+        body[CONTINUOUS_COLLISION] = opts.continuous_collision.unwrap();
+    }
+    node.set_component(if three { components::BODY3D } else { components::BODY2D }, body);
+    let collider: any = {
+        schema_fields::SHAPE: shape_of(opts, reach, three),
+        DENSITY: util::max(opts.density, 0.0),
+        PHYSICS_MATERIAL: surface_of(opts),
+    };
+    let middle = times(along, 0.5);
+    // A capsule stands along its own y.
+    if three {
+        collider[OFFSET] = middle;
+        collider[OFFSET_ROTATION] = quat::to_euler(quat::from_arc(vec3(0.0, 1.0, 0.0), along));
+    } else {
+        collider[OFFSET] = flat(middle);
+        collider[OFFSET_ROTATION] = math::atan2(-along.x, along.y);
+    }
+    if opts.collision_layer != nil {
+        collider[COLLISION_LAYER] = layers(opts.collision_layer.unwrap());
+    }
+    if opts.collision_mask != nil {
+        collider[COLLISION_MASK] = layers(opts.collision_mask.unwrap());
+    }
+    node.set_component(if three { components::COLLIDER3D } else { components::COLLIDER2D }, collider);
+    node
+}
+
+// The collider's `shape`: a capsule tip to tip, a ball spanning the bone, or
+// a box as long as the bone and as thick as the capsule would be.
+fn shape_of(opts: Options, reach: float, three: bool) -> any {
+    let kind = opts.shape.or(physics3d::SHAPE_CAPSULE);
+    let radius = reach * util::max(opts.thickness, MIN_THICKNESS);
+    let shape: any = { fields::KIND: kind };
+    if kind == physics3d::SHAPE_CAPSULE {
+        shape[layout_fields::RADIUS] = radius;
+        shape[layout_fields::HEIGHT] = reach;
+    } else if kind == physics3d::SHAPE_SPHERE || kind == physics2d::SHAPE_CIRCLE {
+        shape[layout_fields::RADIUS] = reach * 0.5;
+    } else if three {
+        shape[layout_fields::SIZE] = vec3(radius * 2.0, reach, radius * 2.0);
+    } else {
+        shape[layout_fields::SIZE] = vec2(radius * 2.0, reach);
+    }
+    shape
+}
+
+// What every bone's surface is made of, written inline on each collider.
+fn surface_of(opts: Options) -> any {
+    let surface: any = { FRICTION: util::max(opts.friction, 0.0) };
+    if opts.restitution != nil {
+        surface[RESTITUTION] = util::clamp(opts.restitution.unwrap(), 0.0, 1.0);
+    }
+    surface
+}
+
+// Layer numbers as the strings a `flags` property holds.
+fn layers(numbers: [int]) -> [str] {
+    let out: [str] = [];
+    for n in numbers {
+        out.push("{n}");
+    }
+    out
+}
+
+// A ball socket in 3D and a hinge in 2D, where the two bones meet, its zero
+// the turn between them as built: the limits and the drive measure from it.
+fn add_joint(node: Node, other: Node, segment: Segment, parent: Segment, opts: Options, three: bool) {
+    let theirs = quat::rotate(quat::inverse(parent.rotation), sub(segment.from, parent.from));
+    let rest = quat::to_euler(quat::mul(quat::inverse(parent.rotation), segment.rotation));
+    let joint: any = { CONNECTED_BODY: relative_path(node, other) };
+    if three {
+        joint[fields::KIND] = physics3d::JOINT_BALL_SOCKET;
+        joint[ANCHOR] = zero();
+        joint[CONNECTED_ANCHOR] = theirs;
+        joint[CONNECTED_ANCHOR_ROTATION] = rest;
+    } else {
+        joint[fields::KIND] = physics2d::JOINT_HINGE;
+        joint[ANCHOR] = vec2(0.0, 0.0);
+        joint[CONNECTED_ANCHOR] = flat(theirs);
+        joint[CONNECTED_ANCHOR_ROTATION] = rest.z;
+    }
+    if opts.collide_connected {
+        joint[COLLIDE_CONNECTED] = true;
+    }
+    let records = axis_records(opts, three);
+    if records.len() > 0 {
+        joint[AXES] = records;
+    }
+    // Beside the joint before it, so the joint is made in its chain at once.
+    if opts.articulation {
+        node.set_component(if three { ARTICULATION3D } else { ARTICULATION2D }, {});
+    }
+    node.set_component(if three { JOINT3D } else { JOINT2D }, joint);
+}
+
+// Each joint's `axes`: the options' own records, with a position motor
+// towards the built pose on every turn when `drive` is `motors`.
+fn axis_records(opts: Options, three: bool) -> [any] {
+    let records: [any] = [];
+    for record in opts.axes.or([]) {
+        records.push(util::copy(record));
+    }
+    if opts.drive.or(DRIVE_NONE) != DRIVE_MOTORS {
+        return records;
+    }
+    let turns = if three {
+        [physics3d::AXIS_ROTATION_X, physics3d::AXIS_ROTATION_Y, physics3d::AXIS_ROTATION_Z]
+    } else {
+        [physics2d::AXIS_ROTATION]
+    };
+    for turn in turns {
+        let found: any = nil;
+        let rest: [any] = [];
+        for record in records {
+            if found == nil && record[AXIS].as_str() == turn {
+                found = record;
+            } else {
+                rest.push(record);
+            }
+        }
+        if found == nil {
+            found = default_record(turn);
+        }
+        found[MOTOR] = physics3d::MOTOR_POSITION;
+        found[MOTOR_TARGET] = 0.0;
+        found[MOTOR_TARGET_VELOCITY] = 0.0;
+        found[STIFFNESS] = util::max(opts.stiffness, 0.0);
+        found[DAMPING] = util::max(opts.damping, 0.0);
+        rest.push(found);
+        records = rest;
+    }
+    records
+}
+
+// An `axes` record with every key at a joint's own default.
+fn default_record(turn: str) -> any {
+    {
+        AXIS: turn,
+        LIMITS: [0.0, 0.0],
+        MOTOR: physics3d::MOTOR_OFF,
+        MOTOR_TARGET: 0.0,
+        MOTOR_TARGET_VELOCITY: 0.0,
+        MOTOR_MAX_FORCE: 0.0,
+        MOTOR_MODEL: physics3d::MOTOR_MODEL_AUTO,
+        STIFFNESS: 0.0,
+        DAMPING: RECORD_DAMPING,
+    }
+}
+
+// The path a node lookup walks from `from` to reach `to`: as many `..` as it
+// takes to climb to the two nodes' common ancestor, then the names down.
+fn relative_path(from: Node, to: Node) -> str {
+    let here = from.path().split(SEPARATOR);
+    let there = to.path().split(SEPARATOR);
+    let shared = 0;
+    while shared < here.len() && shared < there.len() && here[shared] == there[shared] {
+        shared += 1;
+    }
+    let parts: [str] = [];
+    for _up in shared..here.len() {
+        parts.push(UP);
+    }
+    for i in shared..there.len() {
+        parts.push(there[i]);
+    }
+    util::join(parts, SEPARATOR)
+}

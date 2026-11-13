@@ -133,6 +133,7 @@ pub(crate) fn spawn_login(
     let client = client.clone();
     let events = events.clone();
     let credentials = Credentials::from(credentials);
+    let started = started();
     spawn_local(async move {
         let (path, body) = login_request(&credentials);
         let prepared = client.0.borrow().prepare("POST", path, Some(&body), false);
@@ -144,7 +145,7 @@ pub(crate) fn spawn_login(
         if let Ok(session) = &outcome {
             client.0.borrow_mut().set_session(Some(session.clone()));
         }
-        let _ = events.send(GamendEvent::logged_in(request, outcome));
+        let _ = events.send(GamendEvent::logged_in(request, outcome, started));
     });
 }
 
@@ -158,10 +159,20 @@ pub(crate) fn spawn_rest(
 ) {
     let client = client.clone();
     let events = events.clone();
+    let started = started();
     spawn_local(async move {
         let outcome = call(&client, &method, &path, body.as_ref()).await;
-        let _ = events.send(GamendEvent::rest_done(request, outcome));
+        let _ = events.send(GamendEvent::rest_done(request, outcome, started));
     });
+}
+
+/// When a call was made, so its reply says how long it took.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a round trip recorded with its reply, never read by a tick"
+)]
+fn started() -> balaur_core::time::Instant {
+    balaur_core::time::Instant::now()
 }
 
 /// Trade the refresh token for a new session, answering on `done`.

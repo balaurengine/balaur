@@ -933,49 +933,38 @@ fn a_dialog_closes_on_escape_and_on_the_dim_behind_it() {
     }
 }
 
-/// Toasts at one anchor stack rather than cover each other, and a toast
-/// leaves on its own once its `duration` is up.
+/// A root marked `on_top` draws above the roots that are not, so where two
+/// overlap the press is its, whatever order the scene made them in.
 #[test]
-fn toasts_stack_at_their_anchor_and_leave_when_their_time_is_up() {
+fn an_on_top_root_takes_the_press_where_it_overlaps_another() {
     let (_dir, mut app) = app();
-    let one = toml::toml! {
-        kind = "toast" text = "Saved" anchor = "top_right"
-        width = 120.0 height = 30.0
-        widget_toast = { duration = 0.2 }
-    };
-    let first = add_widget(&app, &one.into());
-    let two = toml::toml! {
-        kind = "toast" text = "Copied" anchor = "top_right"
-        width = 120.0 height = 30.0
-        widget_toast = { duration = 0.2 }
-    };
-    let second = add_widget(&app, &two.into());
+    let raised = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "raised" x = 0.0 y = 0.0 width = 200.0 height = 60.0 on_top = true }
+            .into(),
+    );
+    let later = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "later" x = 0.0 y = 0.0 width = 200.0 height = 60.0 }
+            .into(),
+    );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    let above = balaur_ui::widget_rect(first).expect("the first toast drew");
-    let below = balaur_ui::widget_rect(second).expect("the second toast drew");
+    let at = pos2(40.0, 20.0);
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    consume_input(&mut app);
     assert!(
-        below.min.y >= above.max.y,
-        "the second toast covers the first: {above:?} against {below:?}"
+        clicked(&app, raised),
+        "the on_top button did not take the press"
     );
-    // Time is the engine's, so the toast goes when the ticks say so.
-    for _ in 0..20 {
-        app.tick(1.0 / 60.0);
-        pass(&app, &ctx, vec![]);
-    }
-    assert!(
-        !app.engine.world().contains(first),
-        "the toast outstayed its duration"
-    );
-    assert!(
-        !app.engine.world().contains(second),
-        "the second toast outstayed its duration"
-    );
+    assert!(!clicked(&app, later), "the button made later took it");
 }
 
-/// A toast is read, not used: a click goes through it to whatever it covers.
+/// A notice over the screen that the pointer passes through: `interactive`
+/// off leaves the press to the button it covers.
 #[test]
-fn a_toast_takes_no_click_from_what_is_under_it() {
+fn an_on_top_notice_the_pointer_passes_through_leaves_the_press_below() {
     let (_dir, mut app) = app();
     let behind = add_widget(
         &app,
@@ -985,9 +974,8 @@ fn a_toast_takes_no_click_from_what_is_under_it() {
     add_widget(
         &app,
         &toml::toml! {
-            kind = "toast" text = "Saved" anchor = "top_left"
-            width = 200.0 height = 60.0
-            widget_toast = { duration = 0.0 }
+            kind = "panel" text = "Saved" x = 0.0 y = 0.0
+            width = 200.0 height = 60.0 on_top = true interactive = false
         }
         .into(),
     );
@@ -999,7 +987,7 @@ fn a_toast_takes_no_click_from_what_is_under_it() {
     consume_input(&mut app);
     assert!(
         clicked(&app, behind),
-        "the toast swallowed the click meant for the button under it"
+        "the notice swallowed the press meant for the button under it"
     );
 }
 

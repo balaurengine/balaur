@@ -16,9 +16,6 @@ use crate::vocabulary::words;
 const ALL: &str = "all";
 const BASE: &str = "base";
 const DEFINE: &str = "define";
-const EDIT_CLEAR: &str = "edit_clear";
-const EDIT_PROJECT: &str = "edit_project";
-const EDIT_SET: &str = "edit_set";
 const GET: &str = "get";
 const KNOWN_TAGS: &str = "known_tags";
 const MERGE_TOML: &str = "merge_toml";
@@ -61,9 +58,6 @@ pub fn install_settings_api(m: &mut Module<Engine>) {
         (SET, &[], "(path: string, value: any) -> ()", "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`."),
         (DEFINE, &[], "(path: string, spec: table)", "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game."),
         (MERGE_TOML, &[], "(text: string) -> ()", "Read values out of a TOML text, folding them onto what is already loaded."),
-        (EDIT_PROJECT, &[], "(text: string) -> ()", "Open another project's manifest to edit, as the editor opens the game's: `base`, `edit_set`, `edit_clear`, `overrides` and `to_toml(\"project\")` work on it from then on, and this run takes every value in it but the host's own, such as `[window]` and `[check]`."),
-        (EDIT_SET, &[], "(path: string, value: any) -> ()", "Change one setting as a settings screen does: in the project `edit_project` opened, and in this run unless it is a host setting. `set` only ever changes this run."),
-        (EDIT_CLEAR, &[], "(path: string) -> ()", "Forget one value as a settings screen does, in the project `edit_project` opened: how an override is removed from it."),
         (words::functions::TO_TOML, &[], "(scope: string, existing: string) -> string", "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."),
     ]);
     m.function(ALL, |eng: &Engine, (): ()| {
@@ -112,19 +106,6 @@ pub fn install_settings_api(m: &mut Module<Engine>) {
     });
     m.function(MERGE_TOML, |eng: &Engine, text: String| {
         settings::load(eng, &text)?;
-        Ok(Value::Nil)
-    });
-    m.function(EDIT_PROJECT, |eng: &Engine, text: String| {
-        settings::edit_project(eng, &text)?;
-        Ok(Value::Nil)
-    });
-    m.function(EDIT_SET, |eng: &Engine, (path, value): (String, Value)| {
-        settings::edit_set(eng, &path, &to_toml(&value)?);
-        notice_change(eng, path, value);
-        Ok(Value::Nil)
-    });
-    m.function(EDIT_CLEAR, |eng: &Engine, path: String| {
-        settings::edit_clear(eng, &path);
         Ok(Value::Nil)
     });
     m.function(

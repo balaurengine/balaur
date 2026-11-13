@@ -4,6 +4,7 @@ internal const ASSET: str = "asset";
 internal const DATATYPE: str = "datatype";
 internal const DEFAULT: str = "default";
 internal const FIELDS: str = "fields";
+internal const HOST: str = "host";
 internal const LOOP_MODE: str = "loop_mode";
 internal const MAX: str = "max";
 internal const MIN: str = "min";

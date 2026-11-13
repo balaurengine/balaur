@@ -17,6 +17,7 @@ internal const ITEM_MENU: str = "item_menu";
 internal const ITEM_PICKER: str = "item_picker";
 internal const ITEM_SIDEBAR: str = "item_sidebar";
 internal const LAYOUT_ACTIONS: str = "layout_actions";
+internal const LAYOUT_CELLS: str = "layout_cells";
 internal const NODE_2D: str = "node_2d";
 internal const NODE_BONE: str = "node_bone";
 internal const NODE_DEFAULT: str = "node_default";

@@ -28,8 +28,8 @@ anyhow.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
 toml.workspace = true
-# A ragdoll aims a tip bone along its gizmo angle, and that angle has to
-# resolve the same way on every platform.
+# A rope's wire and a decomposed circle turn by angles that have to resolve
+# the same way on every platform.
 libm.workspace = true
 rayon = { version = "1", optional = true }
 

@@ -30,17 +30,13 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::vocabulary::{keys as k, pool as p, words as w};
 
 const ALL_SIDES: &str = "all_sides";
-const FILL_ROW: &str = "fill_row";
-const FILL_ROWS: &str = "fill_rows";
+const FILL_SLOT: &str = "fill_slot";
 const FILL_STRIP: &str = "fill_strip";
-const PATCH_ROW: &str = "patch_row";
+const PATCH_CONTROL: &str = "patch_control";
 const SIDES_WORD: &str = "sides";
 
 type Spec = BTreeMap<String, Value>;
 type Op = fn(&Engine, &[Value]) -> Result<Value>;
-
-/// A label's line where a row is stacked: the label role's text and its air.
-const LABEL_H: f64 = 16.0;
 
 /// What each host was last asked for, by host node, and who hears each
 /// control, by control node.
@@ -158,14 +154,6 @@ fn as_value(spec: &Spec) -> Value {
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect(),
     )
-}
-
-fn number(value: Option<&Value>, fallback: f64) -> f64 {
-    match value {
-        Some(Value::Num(n)) => *n,
-        Some(Value::Int(i)) => *i as f64,
-        _ => fallback,
-    }
 }
 
 fn list(value: Option<&Value>) -> &[Value] {
@@ -444,7 +432,7 @@ impl Pool<'_> {
     fn control(&self, key: &str, node: &Value, want: Spec) -> Result<()> {
         self.listen(key, node, &want);
         let mut set = want;
-        set.insert(p::VISIBLE.into(), Value::Bool(true));
+        set.entry(p::VISIBLE.into()).or_insert(Value::Bool(true));
         set.remove(p::DATA);
         self.patched(key, node, &set)
     }
@@ -463,7 +451,7 @@ impl Pool<'_> {
     fn group(&self, key: &str, node: &Value, want: Spec, inner: &Value) -> Result<()> {
         let mut set = table(&[(k::KIND, Value::text(w::ROW)), (k::GAP, both(0))]);
         set.extend(want);
-        set.insert(p::VISIBLE.into(), Value::Bool(true));
+        set.entry(p::VISIBLE.into()).or_insert(Value::Bool(true));
         set.remove(p::CONTROLS);
         self.patched(key, node, &set)?;
         let inner = list(Some(inner));
@@ -499,194 +487,22 @@ impl Pool<'_> {
         Ok(())
     }
 
-    /// A row: a label of a fixed width, then the control column taking what
-    /// is left.
-    fn make_row(&self, host: &Value, index: usize) -> Result<()> {
-        let row = self.make(
-            host,
-            &format!("R{index}"),
-            &[
-                (k::KIND, Value::text(w::ROW)),
-                (k::GAP, both(6)),
-                (k::HEIGHT, Value::Int(24)),
-            ],
-        )?;
-        self.make(
-            &row,
-            "L",
-            &[
-                (k::KIND, Value::text(w::LABEL)),
-                (k::ROLE, Value::text(p::TEXT_LABEL)),
-            ],
-        )?;
-        let column = self.make(
-            &row,
-            "H",
-            &[
-                (k::KIND, Value::text(w::ROW)),
-                (k::GAP, both(0)),
-                (k::GROW, Value::Int(1)),
-            ],
-        )?;
-        // No `gap`: the row's `slot_role` carries it, and a number here
-        // would win over the theme.
-        self.make(
-            &column,
-            "C",
-            &[(k::KIND, Value::text(w::ROW)), (k::GROW, Value::Int(1))],
-        )?;
-        Ok(())
-    }
-
-    /// Controls are made as a row needs them: a vec3 takes three, and a row
-    /// that never held a vector never grows the other two.
-    fn control_at(&self, slot: &Value, index: usize) -> Result<Value> {
-        let name = format!("C{index}");
-        let held = self.child(slot, &name);
-        if held != Value::Nil {
-            return Ok(held);
-        }
-        self.make(slot, &name, &[(k::KIND, Value::text(w::LABEL))])
-    }
-
-    /// One row of a form: its box, its label and its controls.
-    fn row(
-        &self,
-        i: usize,
-        row: &Value,
-        spec: &Value,
-        label_w: &Value,
-        stacked: bool,
-    ) -> Result<()> {
-        let Value::Map(entries) = spec else {
-            return Err(anyhow!("a pooled row is a table, got {spec:?}"));
-        };
-        let spec: Spec = entries.iter().cloned().collect();
-        let text = spec
-            .get(p::LABEL)
-            .cloned()
-            .unwrap_or_else(|| Value::text(""));
-        let labelled = text != Value::text("");
-        let stack = stacked && labelled;
-        // A spec naming no height hugs what is in it, which is what a line of
-        // help needs: how tall it is follows from the width it got.
-        let h = number(spec.get(k::HEIGHT), 24.0);
-        let tall = if h <= 0.0 {
-            0.0
-        } else if stack {
-            h + LABEL_H + 2.0
-        } else {
-            h
-        };
-        let prefix = format!("r{i}");
-        let mut boxed = table(&[
-            (p::VISIBLE, Value::Bool(true)),
-            (k::KIND, Value::text(if stack { w::COLUMN } else { w::ROW })),
-            (k::GAP, both(if stack { 2 } else { 6 })),
-            (k::HEIGHT, Value::Num(tall)),
-        ]);
-        if let Some(top) = spec.get(p::TOP) {
-            boxed.insert(k::ABSOLUTE.into(), Value::Bool(true));
-            boxed.insert(
-                k::INSET.into(),
-                Value::List(vec![
-                    Value::Num(0.0),
-                    Value::Num(number(Some(top), 0.0)),
-                    Value::Num(0.0),
-                    Value::Num(-1.0),
-                ]),
-            );
-        }
-        self.patched(&prefix, row, &boxed)?;
-        let label = self.child(row, "L");
-        if label != Value::Nil {
-            let width = if stack {
-                Value::Num(0.0)
-            } else {
-                label_w.clone()
-            };
-            let or = |key: &str, fallback: &str| {
-                spec.get(key)
-                    .cloned()
-                    .unwrap_or_else(|| Value::text(fallback))
-            };
-            self.patched(
-                &format!("{prefix}:L"),
-                &label,
-                &table(&[
-                    (p::VISIBLE, Value::Bool(labelled)),
-                    (k::TEXT, text.clone()),
-                    (k::WIDTH, width),
-                    (k::HEIGHT, Value::Num(if stack { LABEL_H } else { 0.0 })),
-                    (k::ROLE, or(p::LABEL_ROLE, p::TEXT_LABEL)),
-                    (k::TOOLTIP, or(k::TOOLTIP, "")),
-                ]),
-            )?;
-        }
-        let column = self.child(row, "H");
-        if column == Value::Nil {
-            return Ok(());
-        }
-        let slot = self.child(&column, "C");
-        if slot == Value::Nil {
-            return Ok(());
-        }
-        let role = spec
-            .get(p::SLOT_ROLE)
-            .cloned()
-            .unwrap_or_else(|| Value::text(p::LAYOUT_CELLS));
-        self.patched(
-            &format!("{prefix}:C"),
-            &slot,
-            &table(&[(p::VISIBLE, Value::Bool(true)), (k::ROLE, role)]),
-        )?;
-        let controls = list(spec.get(p::CONTROLS));
-        if self.children(&slot).len() < controls.len() {
-            self.forget();
-        }
-        for (n, control) in controls.iter().enumerate() {
-            let node = self.control_at(&slot, n)?;
-            self.one(&format!("{i}:{n}"), &node, control)?;
-        }
-        // Whatever a longer row left behind. Hidden, not freed: the next
-        // selection may be a vector again.
-        for (c, node) in self.children(&slot).iter().enumerate().skip(controls.len()) {
-            self.hidden(&format!("{i}:{c}"), node)?;
-        }
-        Ok(())
-    }
-
-    /// The row node at `slot`, made with any before it that are missing.
-    fn row_at(&self, host: &Value, slot: usize) -> Result<Value> {
-        let name = format!("R{slot}");
+    /// The child at `slot`, made with any before it that are missing.
+    fn slot_at(&self, host: &Value, slot: usize) -> Result<Value> {
+        let name = format!("C{slot}");
         let held = self.child(host, &name);
         if held != Value::Nil {
             return Ok(held);
         }
+        self.forget();
         for index in self.children(host).len()..=slot {
-            self.make_row(host, index)?;
+            self.make(
+                host,
+                &format!("C{index}"),
+                &[(k::KIND, Value::text(w::LABEL))],
+            )?;
         }
         Ok(self.child(host, &name))
-    }
-
-    /// Put one row a spec on the host's children, making what is missing and
-    /// hiding what is spare; true when a control's table changed.
-    fn rows(&self, host: &Value, specs: &[Value], label_w: &Value, stacked: bool) -> Result<bool> {
-        let mut made = self.children(host).len();
-        if made < specs.len() {
-            self.forget();
-        }
-        while made < specs.len() {
-            self.make_row(host, made)?;
-            made += 1;
-        }
-        for (i, row) in self.children(host).iter().enumerate() {
-            match specs.get(i) {
-                Some(spec) => self.row(i, row, spec, label_w, stacked)?,
-                None => self.hidden(&format!("r{i}"), row)?,
-            }
-        }
-        Ok(self.changed.get())
     }
 }
 
@@ -788,65 +604,47 @@ fn fill_strip(eng: &Engine, ops: Ops, path: &str, controls: &Value) -> Result<bo
     Ok(pool.changed.get())
 }
 
-fn fill_rows(
-    eng: &Engine,
-    ops: Ops,
-    path: &str,
-    specs: &Value,
-    label_w: &Value,
-    stacked: bool,
-) -> Result<bool> {
-    let Some((pool, host)) = open(eng, ops, path)? else {
-        return Ok(false);
-    };
-    pool.rows(&host, list(Some(specs)), label_w, stacked)
-}
-
-/// One row of a host a script lays out by hand: the row at `slot`, or that
-/// row hidden for no spec. A node of hundreds of rows keeps those on screen.
-fn fill_row(
+/// One child of `host`, the one at `slot`, filled as `fill_strip` fills each,
+/// made with any before it that are missing, or hidden for no spec. A host of
+/// hundreds of children writes the few on screen.
+fn fill_slot(
     eng: &Engine,
     ops: Ops,
     host: Value,
     slot: usize,
     spec: Option<&Value>,
-    label_w: f64,
-    stacked: bool,
 ) -> Result<bool> {
     let Some((pool, host)) = open_node(eng, ops, host)? else {
         return Ok(false);
     };
-    let row = pool.row_at(&host, slot)?;
+    let kid = pool.slot_at(&host, slot)?;
+    let key = format!("{slot}");
     match spec {
-        Some(spec) => pool.row(slot, &row, spec, &Value::Num(label_w), stacked)?,
-        None => pool.hidden(&format!("r{slot}"), &row)?,
+        Some(spec) => pool.one(&key, &kid, spec)?,
+        None => pool.hidden(&key, &kid)?,
     }
     Ok(pool.changed.get())
 }
 
-/// What moved of a row a fill made: each table of `patches` written to the
-/// control at its place, nil for one that stands. False where the row is not
-/// there, which a whole fill answers.
-fn patch_row(eng: &Engine, ops: Ops, host: Value, slot: usize, patches: &[Value]) -> Result<bool> {
-    let Some((pool, host)) = open_node(eng, ops, host)? else {
+/// What `patch` names written to the control at `at`, child indices down from
+/// `host`, and noted, so the next fill compares against it. False where no
+/// control is there or nothing moved.
+fn patch_control(eng: &Engine, ops: Ops, host: Value, at: &[usize], patch: &Value) -> Result<bool> {
+    let Some((pool, mut node)) = open_node(eng, ops, host)? else {
         return Ok(false);
     };
-    let cells = pool.child(&pool.child(&host, &format!("R{slot}")), p::CELLS_PATH);
-    if cells == Value::Nil {
-        return Ok(false);
-    }
-    let mut wrote = false;
-    for (index, patch) in patches.iter().enumerate() {
-        if *patch == Value::Nil {
-            continue;
-        }
-        let control = pool.child(&cells, &format!("C{index}"));
-        if control == Value::Nil {
+    for index in at {
+        node = pool.child(&node, &format!("C{index}"));
+        if node == Value::Nil {
             return Ok(false);
         }
-        wrote |= pool.patch_held(&format!("{slot}:{index}"), &control, patch)?;
     }
-    Ok(wrote)
+    let key = at
+        .iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join(":");
+    pool.patch_held(&key, &node, patch)
 }
 
 /// A pooled control's fields: the pool's own, then the widget rows a script
@@ -882,7 +680,7 @@ const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?,
     absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, \
     options: [string]?, items: [Item]?, value: any, text_color: string?, picked_color: Color?, padding: Sides?, inset: Sides?, margin: Sides?, gap: Vec2? }";
 
-/// `ui.fill_strip` and `ui.fill_rows`.
+/// `ui.fill_strip` and `ui.fill_slot`.
 pub(crate) fn install_pool(m: &mut Module<Engine>) {
     m.describe(&[
         (
@@ -904,22 +702,16 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
             "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on_click` or `on_change` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         ),
         (
-            FILL_ROWS,
+            FILL_SLOT,
             &[],
-            "(host: string, rows: [Row], label_width: float?, stacked: bool?) -> bool",
-            "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. A row with no `label` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
+            "(host: node, slot: int, control: Control?) -> bool",
+            "One child of `host`, the one at `slot`, filled as `fill_strip` fills each, made with any before it that are missing, or hidden for nil. The others are left as they are, so a list of hundreds of rows writes the few on screen and, as they scroll, the ones entering. True when the control's table differed from the last one written to it.",
         ),
         (
-            FILL_ROW,
+            PATCH_CONTROL,
             &[],
-            "(host: node, slot: int, row: Row?, label_width: float?, stacked: bool?) -> bool",
-            "One row of `fill_rows`, on the row node at `slot` under `host`, made with any before it that are missing, or that node hidden for nil. The others are left as they are, so a form of hundreds of rows writes the few on screen and, as they scroll, the ones entering: a row's `y` places it at that height in a host as tall as the whole form.",
-        ),
-        (
-            PATCH_ROW,
-            &[],
-            "(host: node, slot: int, patches: [Control]) -> bool",
-            "What moved of a row `fill_row` made: what each of `patches` names written to the control at its place in the row, and remembered, so the next fill compares against it. For a value that follows the node: what a patch leaves out is not asked about. False where the row is not there or nothing moved.",
+            "(host: node, at: [int], patch: Control) -> bool",
+            "What `patch` names written to the pooled control at `at`, child indices down from `host`, and remembered, so the next fill compares against it. For a value that follows the node: what the patch leaves out is not asked about. False where no control is there or nothing moved.",
         ),
     ]);
     m.records(&[
@@ -932,11 +724,6 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
             "Control",
             CONTROL,
             "One pooled control: its `kind`, the `widget` rows it sets and those of the component beside it that holds them, what hears its edit (`on_click`, `on_change`, `on_submit`, a method on the nearest node above it) and the `data` that handler is called with; a control with `controls` is a row holding them.",
-        ),
-        (
-            "Row",
-            "{ label: string?, controls: [Control], height: float?, tooltip: string?, label_role: string?, slot_role: string?, y: float? }",
-            "One row of a form: its `label` and `controls`, with no label across both columns, `height` and `tooltip`, the roles that dress the label and the control column, and `y`, the height it sits at where its host is laid out by hand.",
         ),
         (
             "Item",
@@ -966,50 +753,36 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
             fill_strip(eng, ops, &host, &controls)
         },
     );
-    m.function(
-        FILL_ROWS,
-        move |eng: &Engine,
-              (host, rows, label_w, stacked): (String, Value, Option<f64>, Option<bool>)| {
-            let label_w = Value::Num(label_w.unwrap_or(0.0));
-            fill_rows(eng, ops, &host, &rows, &label_w, stacked.unwrap_or(false))
-        },
-    );
     install_one_row(m, ops);
 }
 
-/// `ui.fill_row` and `ui.patch_row`: a form that keeps the rows on screen.
+/// `ui.fill_slot` and `ui.patch_control`: a long list that keeps what is on screen.
 fn install_one_row(m: &mut Module<Engine>, ops: Ops) {
     m.function(
-        FILL_ROW,
-        move |eng: &Engine,
-              (host, slot, row, label_w, stacked): (
-            balaur_script::NodeId,
-            i64,
-            Option<Value>,
-            Option<f64>,
-            Option<bool>,
-        )| {
-            fill_row(
+        FILL_SLOT,
+        move |eng: &Engine, (host, slot, control): (balaur_script::NodeId, i64, Option<Value>)| {
+            fill_slot(
                 eng,
                 ops,
                 Value::Node(host.0),
                 usize::try_from(slot)?,
-                row.as_ref(),
-                label_w.unwrap_or(0.0),
-                stacked.unwrap_or(false),
+                control.as_ref(),
             )
         },
     );
     m.function(
-        PATCH_ROW,
-        move |eng: &Engine, (host, slot, patches): (balaur_script::NodeId, i64, Value)| {
-            patch_row(
-                eng,
-                ops,
-                Value::Node(host.0),
-                usize::try_from(slot)?,
-                list(Some(&patches)),
-            )
+        PATCH_CONTROL,
+        move |eng: &Engine, (host, at, patch): (balaur_script::NodeId, Value, Value)| {
+            let at = list(Some(&at))
+                .iter()
+                .map(|index| match index {
+                    Value::Int(n) => usize::try_from(*n).map_err(anyhow::Error::from),
+                    other => Err(anyhow!(
+                        "a control's place is a list of ints, got {other:?}"
+                    )),
+                })
+                .collect::<Result<Vec<_>>>()?;
+            patch_control(eng, ops, Value::Node(host.0), &at, &patch)
         },
     );
 }
