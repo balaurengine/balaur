@@ -631,18 +631,16 @@ mod tests {
     fn a_whole_write_lands_beside_the_file_is_synced_then_renamed_over_it() {
         let fs = Recording::default();
         let path = Path::new("/data/saves/slot.toml");
+        // Joined as the code joins it: Windows puts its own separator there.
+        let part = Path::new("/data/saves").join("slot.toml.part");
         fs.fs.write(path, b"old").unwrap();
         write_whole(&fs, path, b"new").unwrap();
         assert_eq!(
             *fs.asked.borrow(),
-            [
-                "write /data/saves/slot.toml.part",
-                "sync /data/saves/slot.toml.part",
-                "rename /data/saves/slot.toml.part",
-            ]
+            ["write", "sync", "rename"].map(|step| format!("{step} {}", part.display()))
         );
         assert_eq!(fs.read(path).unwrap(), b"new");
-        assert!(!fs.exists(Path::new("/data/saves/slot.toml.part")));
+        assert!(!fs.exists(&part));
     }
 
     fn patched(existing: &str, table: &str) -> String {
