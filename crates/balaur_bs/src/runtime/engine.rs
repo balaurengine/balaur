@@ -81,6 +81,16 @@ pub(crate) trait Wasm {
     fn make(&mut self, _unit: usize) -> Result<(), String> {
         Ok(())
     }
+    /// The function `fn` table slot `slot` holds, by its key: what a reload
+    /// finds a held `fn` again by. `None` off every made unit's slots, and on
+    /// a script not built as units, which names none.
+    fn fn_at(&self, _slot: u32) -> Option<String> {
+        None
+    }
+    /// The slot that holds function `name`, its unit made now if it is not.
+    fn fn_value(&mut self, _name: &str) -> Option<u32> {
+        None
+    }
     fn set_fuel(&mut self, fuel: u64);
     /// What the engine's fuel has left, on one that meters it.
     fn fuel(&mut self) -> Option<u64> {

@@ -1,15 +1,11 @@
-// A build as bytes, so a host can keep each unit's between runs and skip
-// the compiler when nothing it was built from changed. Lengths and counts are
-// little-endian u32s, a type a tag byte and its parts; `linked` is not kept.
+// A build as bytes, opened by the hash of the compiler's source: a host skips
+// the compiler when nothing changed, and reads any other compiler's as none.
+// Lengths are little-endian u32s, a type a tag byte and its parts; no `linked`.
 
 use crate::{
     Compiled, ExternInfo, FnInfo, HostSignature, Import, Link, Literal, Meta, Probe, Slot, Ty,
     Unit, VarInfo,
 };
-
-/// Changes whenever the layout below does. A build kept by another compiler,
-/// told by the hash of its source, is read as none too.
-const FORMAT: u32 = 2;
 
 impl Compiled {
     /// This build as bytes: [`Compiled::from_bytes`] reads it back. `linked`
@@ -17,7 +13,6 @@ impl Compiled {
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut w = Writer(Vec::with_capacity(self.wasm.len() + 4096));
-        w.u32(FORMAT);
         w.str(env!("BALAUR_BS_SOURCE"));
         w.bytes(&self.wasm);
         w.str(&self.key);
@@ -83,7 +78,7 @@ impl Compiled {
         w.bool(m.unit.is_some());
         if let Some(u) = &m.unit {
             w.u32(u.data_len);
-            w.u32(u.refs);
+            w.list(&u.fns, |w, f| w.str(f));
             w.list(&u.links, |w, l| {
                 w.str(&l.file);
                 w.str(&l.export);
@@ -101,7 +96,7 @@ impl Compiled {
     #[must_use]
     pub fn from_bytes(bytes: &[u8]) -> Option<Compiled> {
         let mut r = Reader(bytes);
-        if r.u32()? != FORMAT || r.str()? != env!("BALAUR_BS_SOURCE") {
+        if r.str()? != env!("BALAUR_BS_SOURCE") {
             return None;
         }
         let wasm = r.bytes()?.to_vec();
@@ -159,7 +154,7 @@ impl Compiled {
         let unit = if r.bool()? {
             Some(Unit {
                 data_len: r.u32()?,
-                refs: r.u32()?,
+                fns: r.list(Reader::str)?,
                 links: r.list(|r| {
                     Some(Link {
                         file: r.str()?,

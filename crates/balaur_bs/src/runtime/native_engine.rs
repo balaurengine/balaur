@@ -251,6 +251,8 @@ struct Unit {
     c: *mut CUnit,
     /// What the host numbers its engine calls by.
     numbered: usize,
+    /// The function each of its `fn` table slots holds, by key.
+    fns: Vec<String>,
 }
 
 impl Drop for Unit {
@@ -438,7 +440,7 @@ fn make_unit(
         .ok_or_else(|| e("not a unit of a native build"))?;
     // SAFETY: the `Ctx` is live; nothing else touches it while this runs.
     let (root, inst, index) = unsafe { ((*ctx).module, (*ctx).inst, (*ctx).units.len()) };
-    let grow = unit.refs + unit.links.len() as u32;
+    let grow = unit.refs() + unit.links.len() as u32;
     let mut len = 0u64;
     // SAFETY: a live instance; the table grows by `grow` empty slots.
     if unsafe { (root.table)(inst, grow, &raw mut len) }.is_null() {
@@ -446,7 +448,7 @@ fn make_unit(
     }
     let table_base = u32::try_from(len).map_err(|_| e("the table is too long"))? - grow;
     let c = Box::into_raw(Box::new(CUnit {
-        base: [memory_base, table_base, table_base + unit.refs],
+        base: [memory_base, table_base, table_base + unit.refs()],
         number: index as u32,
     }));
     // SAFETY: a live instance, and `c` lives as long as it (`Unit::drop`).
@@ -456,6 +458,7 @@ fn make_unit(
         tables: Rc::new(Tables::of(module)),
         c,
         numbered,
+        fns: unit.fns.clone(),
     };
     if code != 0 {
         return Err(e(&message(code, None)));
@@ -465,7 +468,7 @@ fn make_unit(
         (*ctx).units.push(held);
         (*ctx).by_key.insert(key.to_string(), index);
     }
-    let link_base = u64::from(table_base + unit.refs);
+    let link_base = u64::from(table_base + unit.refs());
     for (k, link) in unit.links.iter().enumerate() {
         let slot = link_base + k as u64;
         // SAFETY: as above.
@@ -671,6 +674,29 @@ impl ImportCtx for View {
     }
 }
 
+// The function `slot` holds, by its key, off the unit whose slots it is in.
+fn fn_at(ctx: *mut Ctx, slot: u32) -> Option<String> {
+    // SAFETY: the `Ctx` is live, and each unit's bases live as long as it.
+    unsafe {
+        (*ctx).units.iter().find_map(|u| {
+            u.fns
+                .get(slot.checked_sub((*u.c).base[1])? as usize)
+                .cloned()
+        })
+    }
+}
+
+// The slot that holds function `name`: every unit is made with the instance.
+fn fn_value(ctx: *mut Ctx, name: &str) -> Option<u32> {
+    // SAFETY: as in `fn_at`.
+    unsafe {
+        (*ctx).units.iter().find_map(|u| {
+            let at = u.fns.iter().position(|f| f == name)?;
+            Some((*u.c).base[1] + at as u32)
+        })
+    }
+}
+
 fn message(code: i32, host: Option<String>) -> String {
     match code {
         1 => "wasm `unreachable` instruction executed".into(),
@@ -766,6 +792,12 @@ impl Wasm for Native {
     }
     fn set_global(&mut self, name: &str, value: i32) {
         view(self.ctx).set_global(name, value);
+    }
+    fn fn_at(&self, slot: u32) -> Option<String> {
+        fn_at(self.ctx, slot)
+    }
+    fn fn_value(&mut self, name: &str) -> Option<u32> {
+        fn_value(self.ctx, name)
     }
     // Native code counts no fuel; a module built to meter itself still does.
     fn set_fuel(&mut self, _fuel: u64) {}

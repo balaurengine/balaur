@@ -198,8 +198,9 @@ pub(crate) struct Gen {
     data: RefCell<(Vec<u8>, HashMap<String, u32>)>,
     dyns: RefCell<Dyn>,
     probes: RefCell<Vec<Probe>>,
-    /// The functions a `fn` value names, in table order from slot 1.
-    fn_refs: RefCell<Vec<u32>>,
+    /// The functions a `fn` value names, in table order from slot 1: each
+    /// one's index and its key.
+    fn_refs: RefCell<Vec<(u32, String)>>,
     /// A call goes through a `fn` value: the module needs a table, even with
     /// no function of its own named as one (the value came out of an `any`).
     pub(crate) calls_indirect: std::cell::Cell<bool>,
@@ -263,13 +264,21 @@ impl Gen {
     /// Where function `idx` sits in the table a `fn` value indexes; slot 0
     /// is empty, so a `fn` never set traps when called. A unit's are from
     /// its table base, which the runtime keeps off slot 0.
-    pub(crate) fn fn_ref(&self, idx: u32) -> u32 {
+    pub(crate) fn fn_ref(&self, idx: u32, name: &str) -> u32 {
         let mut refs = self.fn_refs.borrow_mut();
-        let at = refs.iter().position(|i| *i == idx).unwrap_or_else(|| {
-            refs.push(idx);
+        let at = refs.iter().position(|(i, _)| *i == idx).unwrap_or_else(|| {
+            refs.push((idx, name.to_string()));
             refs.len() - 1
         });
         at as u32 + u32::from(!self.unit)
+    }
+    /// The function each `fn` slot holds, in table order, by key.
+    fn ref_names(&self) -> Vec<String> {
+        self.fn_refs
+            .borrow()
+            .iter()
+            .map(|(_, name)| name.clone())
+            .collect()
     }
     pub(crate) fn elem_size(&self, ty: &Ty) -> u32 {
         8 * self.slots(ty).len() as u32
@@ -993,7 +1002,7 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
         defaults,
         unit: g.unit.then(|| crate::Unit {
             data_len,
-            refs: g.fn_refs.borrow().len() as u32,
+            fns: g.ref_names(),
             links: link_list(&g, prog),
             breaks_at,
             rows_at,

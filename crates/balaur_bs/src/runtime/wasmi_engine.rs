@@ -51,6 +51,10 @@ struct LinkUnit {
     /// Where its static data goes.
     base: u32,
     inst: Option<Instance>,
+    /// The function each of its `fn` slots holds, and where those slots start
+    /// once it is made: what a held `fn` is found again by.
+    fns: Vec<String>,
+    table: Option<u32>,
 }
 
 // One of the globals every unit of a linked script shares.
@@ -59,6 +63,38 @@ fn shared(cx: impl wasmi::AsContext<Data = Data>, name: &str) -> Option<Global> 
     let cx = cx.as_context();
     let links = cx.data().links.as_ref()?.borrow();
     Some(links.globals[at])
+}
+
+fn unit_fns(meta: &crate::Meta) -> Vec<String> {
+    meta.unit
+        .as_ref()
+        .map(|u| u.fns.clone())
+        .unwrap_or_default()
+}
+
+// The function `slot` holds, by its key, off the made unit whose slots it is in.
+fn fn_at(cx: impl wasmi::AsContext<Data = Data>, slot: u32) -> Option<String> {
+    let cx = cx.as_context();
+    let links = cx.data().links.as_ref()?.borrow();
+    links
+        .units
+        .iter()
+        .find_map(|u| u.fns.get(slot.checked_sub(u.table?)? as usize).cloned())
+}
+
+// The slot that holds function `name`, its unit made now if it is not.
+fn fn_value(mut cx: impl AsContextMut<Data = Data>, name: &str) -> Option<u32> {
+    let links = cx.as_context().data().links.clone()?;
+    let found = links.borrow().units.iter().enumerate().find_map(|(i, u)| {
+        u.fns
+            .iter()
+            .position(|f| f == name)
+            .map(|at| (i, at as u32))
+    });
+    let (unit, at) = found?;
+    unit_instance(&mut cx, unit).ok()?;
+    let base = links.borrow().units[unit].table?;
+    Some(base + at)
 }
 
 // Global `name` of unit `unit`, when it is made: an export of its own.
@@ -407,15 +443,19 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
         compiled: None,
         base: bases[0],
         inst: None,
+        fns: unit_fns(setup.meta),
+        table: None,
     }];
     let mut by_key = FxHashMap::default();
     by_key.insert(setup.key.to_string(), 0);
     for ((key, compiled), base) in setup.linked.iter().zip(&bases[1..]) {
         by_key.insert(key.clone(), units.len());
         units.push(LinkUnit {
+            fns: unit_fns(&compiled.meta),
             compiled: Some(compiled.clone()),
             base: *base,
             inst: None,
+            table: None,
         });
     }
     store.data_mut().mem = Some(memory);
@@ -489,9 +529,11 @@ fn link_unit(
     let index = links.units.len();
     links.by_key.insert(key.to_string(), index);
     links.units.push(LinkUnit {
+        fns: unit_fns(&unit.meta),
         compiled: Some(unit),
         base,
         inst: None,
+        table: None,
     });
     Ok(index)
 }
@@ -549,13 +591,14 @@ fn make_unit(
         index: i as u32,
         memory: links.borrow().units[i].base,
         table: table_base,
-        link: table_base + unit.refs,
+        link: table_base + unit.refs(),
         host_ctx: 0,
     };
+    links.borrow_mut().units[i].table = Some(table_base);
     table
         .grow(
             &mut cx,
-            u64::from(unit.refs) + unit.links.len() as u64,
+            u64::from(unit.refs()) + unit.links.len() as u64,
             Ref::Func(Nullable::Null),
         )
         .map_err(|e| format!("{key}: {e}"))?;
@@ -828,6 +871,12 @@ impl Wasm for Wasmi {
     }
     fn make(&mut self, unit: usize) -> Result<(), String> {
         self.instance_of(unit).map(|_| ())
+    }
+    fn fn_at(&self, slot: u32) -> Option<String> {
+        fn_at(&self.store, slot)
+    }
+    fn fn_value(&mut self, name: &str) -> Option<u32> {
+        fn_value(&mut self.store, name)
     }
     fn set_fuel(&mut self, fuel: u64) {
         let _ = self.store.set_fuel(fuel);

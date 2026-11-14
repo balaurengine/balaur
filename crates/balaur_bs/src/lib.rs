@@ -344,8 +344,9 @@ pub struct Meta {
 pub struct Unit {
     /// The bytes of static data it places at its memory base.
     pub data_len: u32,
-    /// The `fn` table slots its own functions fill, from its table base.
-    pub refs: u32,
+    /// The function each of its `fn` table slots holds, from its table base,
+    /// by key: what a reload finds a held `fn` again by.
+    pub fns: Vec<String>,
     /// Each function of another unit it calls, in link slot order.
     pub links: Vec<Link>,
     /// A debug build's breakpoint table, a byte per probe, in its static data.
@@ -362,6 +363,14 @@ pub struct Link {
     pub export: String,
     pub params: Vec<Slot>,
     pub results: Vec<Slot>,
+}
+
+impl Unit {
+    /// The `fn` table slots its own functions fill.
+    #[must_use]
+    pub fn refs(&self) -> u32 {
+        self.fns.len() as u32
+    }
 }
 
 impl Meta {

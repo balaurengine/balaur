@@ -991,3 +991,77 @@ fn node_script_reads_only_as_a_scripts_class() {
         "{bare}"
     );
 }
+
+// The function a held `fn` names is its own unit's, which a reload may make
+// later than it was made before, or at another place in the table.
+const PICKS: &str = r"
+fn triple(x: int) -> int { x * 3 }
+pub fn picked() -> fn(int) -> int { triple }
+";
+
+const HOLDER: &str = r"
+use picks;
+pub class Holder { run: fn(int) -> int }
+impl Holder {
+    pub fn pick() { self.run = picks::picked(); }
+    pub fn call(x: int) -> int { let f = self.run; f(x) }
+}
+";
+
+#[test]
+fn a_function_a_field_holds_still_answers_after_a_reload() {
+    let files = [("scripts/main.bs", HOLDER), ("scripts/picks.bs", PICKS)];
+    let units = linked("scripts/main.bs", &files);
+    for engine in engines() {
+        let mut rt = runtime(&units, engine);
+        let mut holder = rt.object("Holder", &[]).unwrap();
+        rt.call_method(&holder, "pick", &[]).unwrap();
+        assert_eq!(
+            rt.call_method(&holder, "call", &[Value::Int(2)]),
+            Ok(Value::Int(6)),
+            "{engine:?}"
+        );
+        rt.reload(&units, HostFns::default(), &mut [&mut holder])
+            .unwrap();
+        assert_eq!(
+            rt.call_method(&holder, "call", &[Value::Int(5)]),
+            Ok(Value::Int(15)),
+            "{engine:?}: the held function after a reload"
+        );
+        rt.drop_object(holder);
+    }
+}
+
+// `double` takes the place `triple` had in the table, so a held `fn` kept by
+// its slot would answer for a function the new code no longer has.
+const PICKS_LATER: &str = r"
+fn double(x: int) -> int { x * 2 }
+pub fn picked() -> fn(int) -> int { double }
+";
+
+#[test]
+fn a_held_function_the_new_code_dropped_holds_none_after_a_reload() {
+    let before = [("scripts/main.bs", HOLDER), ("scripts/picks.bs", PICKS)];
+    let after = [
+        ("scripts/main.bs", HOLDER),
+        ("scripts/picks.bs", PICKS_LATER),
+    ];
+    let (old, new) = (
+        linked("scripts/main.bs", &before),
+        linked("scripts/main.bs", &after),
+    );
+    for engine in engines() {
+        let mut rt = runtime(&old, engine);
+        let mut holder = rt.object("Holder", &[]).unwrap();
+        rt.call_method(&holder, "pick", &[]).unwrap();
+        native(engine, with_uses(&new));
+        rt.reload(&new, HostFns::default(), &mut [&mut holder])
+            .unwrap();
+        assert_eq!(rt.get(&holder, "run"), Some(Value::Int(0)), "{engine:?}");
+        assert!(
+            rt.call_method(&holder, "call", &[Value::Int(5)]).is_err(),
+            "{engine:?}"
+        );
+        rt.drop_object(holder);
+    }
+}

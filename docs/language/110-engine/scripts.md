@@ -92,5 +92,6 @@ impl Menu {
 ## Reloading
 
 Saving a script recompiles it, and each object carries over every field that kept its name and type. A field
-the new code adds starts at its default, and a field it dropped goes. A running [task](../async.md) does not carry
-over.
+the new code adds starts at its default, and a field it dropped goes. A field holding a `fn` still names the same
+function, found by its name in the new code, and holds none once the new code drops it. A running
+[task](../async.md) does not carry over.

@@ -8,7 +8,7 @@
 mod corpus;
 
 use balaur_bs::runtime::{EngineKind, HostFns, Limits, Object, Runtime, Value};
-use balaur_bs::{Modules, Options, Parsed, compile};
+use balaur_bs::{Compiled, Modules, Options, Parsed, compile};
 use corpus::{Expected, Program, build, engines, read_expectations, run};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -120,6 +120,66 @@ fn find_in(key: &str) -> Option<&'static str> {
         "panel.bs" => Some(PANEL),
         _ => None,
     }
+}
+
+const HOLDER: &str = "use picks;
+pub class Holder { run: fn(int) -> int }
+impl Holder {
+    pub fn pick() { self.run = picks::picked(); }
+    pub fn call(x: int) -> int { let f = self.run; f(x) }
+}
+";
+
+const PICKS: &str = "fn triple(x: int) -> int { x * 3 }
+pub fn picked() -> fn(int) -> int { triple }
+";
+
+// `double` takes the table slot `triple` had.
+const PICKS_LATER: &str = "fn double(x: int) -> int { x * 2 }
+pub fn picked() -> fn(int) -> int { double }
+";
+
+/// The holder built as units, with `picks` as the unit it uses.
+fn holder(picks: &'static str) -> Compiled {
+    let parsed = Parsed::default();
+    let unit = |key: &str, source: &str| {
+        let options = Options {
+            modules: Some(Modules(Rc::new(move |_: &str, name: &str| {
+                (name == "picks").then(|| ("picks.bs".to_string(), picks.to_string()))
+            }))),
+            path: key.into(),
+            unit: true,
+            parsed: Some(parsed.clone()),
+            ..Options::default()
+        };
+        compile(source, &options).unwrap_or_else(|e| panic!("{key}: {e}"))
+    };
+    let mut root = unit("holder.bs", HOLDER);
+    root.linked = vec![("picks.bs".into(), Arc::new(unit("picks.bs", picks)))];
+    root
+}
+
+#[wasm_bindgen_test]
+fn a_held_function_follows_its_name_across_a_reload_on_the_browsers_engine() {
+    let limits = Limits {
+        engine: EngineKind::Browser,
+        ..Limits::default()
+    };
+    let (before, after) = (holder(PICKS), holder(PICKS_LATER));
+    let mut rt = Runtime::new(&before, HostFns::default(), limits).unwrap();
+    let mut held = rt.object("Holder", &[]).unwrap();
+    rt.call_method(&held, "pick", &[]).unwrap();
+    rt.reload(&before, HostFns::default(), &mut [&mut held])
+        .unwrap();
+    assert_eq!(
+        rt.call_method(&held, "call", &[Value::Int(5)]),
+        Ok(Value::Int(15))
+    );
+    rt.reload(&after, HostFns::default(), &mut [&mut held])
+        .unwrap();
+    assert_eq!(rt.get(&held, "run"), Some(Value::Int(0)));
+    assert!(rt.call_method(&held, "call", &[Value::Int(5)]).is_err());
+    rt.drop_object(held);
 }
 
 // Whichever way it reaches the engine, a panel holds the editor as its class,

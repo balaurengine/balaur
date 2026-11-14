@@ -44,7 +44,7 @@ impl FnGen<'_> {
                 ),
             );
         }
-        let slot = self.g.fn_ref(sig.idx);
+        let slot = self.g.fn_ref(sig.idx, name);
         self.e(I::I32Const(slot as i32));
         // A unit's slots start at its table base.
         if self.g.unit {

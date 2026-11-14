@@ -57,6 +57,10 @@ struct LinkUnit {
     exports: Option<Object>,
     /// Its id for the engine's entry points, as a direct unit.
     direct: Option<usize>,
+    /// The function each of its `fn` slots holds, and where those slots start
+    /// once it is made: what a held `fn` is found again by.
+    fns: Vec<String>,
+    table: Option<u32>,
 }
 
 thread_local! {
@@ -110,6 +114,8 @@ impl Links {
             links: vec![],
             exports: None,
             direct: None,
+            fns: vec![],
+            table: None,
         });
         self.pending.set(true);
         Ok(index)
@@ -159,14 +165,36 @@ impl Links {
         Ok(())
     }
 
+    // The function `slot` holds, by its key, off the made unit whose slots it is in.
+    fn fn_at(&self, slot: u32) -> Option<String> {
+        self.units
+            .borrow()
+            .iter()
+            .find_map(|u| u.fns.get(slot.checked_sub(u.table?)? as usize).cloned())
+    }
+
+    // The slot that holds function `name`, every linked unit made first.
+    fn fn_value(self: &Rc<Self>, name: &str) -> Option<u32> {
+        self.make_pending().ok()?;
+        self.units
+            .borrow()
+            .iter()
+            .find_map(|u| Some(u.table? + u.fns.iter().position(|f| f == name)? as u32))
+    }
+
     // Instantiates unit `at` from `wasm`: its slots reserved, not yet filled.
     fn make(self: &Rc<Self>, at: usize, wasm: &[u8], meta: &crate::Meta) -> Result<(), String> {
         let unit = meta.unit.as_ref().ok_or("not a unit")?;
         let module = unit_module(wasm)?;
         let table_base = self.table.length();
         self.table
-            .grow(unit.refs + unit.links.len() as u32)
+            .grow(unit.refs() + unit.links.len() as u32)
             .map_err(|error| js_err(&error))?;
+        {
+            let mut units = self.units.borrow_mut();
+            units[at].fns.clone_from(&unit.fns);
+            units[at].table = Some(table_base);
+        }
         let direct = meta.direct.then(|| {
             register(Direct {
                 host: self.host.clone(),
@@ -179,7 +207,7 @@ impl Links {
             index: at as u32,
             memory: self.units.borrow()[at].base,
             table: table_base,
-            link: table_base + unit.refs,
+            link: table_base + unit.refs(),
             host_ctx: direct.unwrap_or(0) as u32,
         };
         let env = Object::new();
@@ -563,6 +591,8 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
         links: vec![],
         exports: None,
         direct: None,
+        fns: vec![],
+        table: None,
     };
     let mut units = vec![unit(None, layout.bases[0])];
     let mut by_key = FxHashMap::default();
@@ -793,6 +823,12 @@ impl Wasm for Browser {
             Some(links) => links.make_pending(),
             None => Ok(()),
         }
+    }
+    fn fn_at(&self, slot: u32) -> Option<String> {
+        self.with(|live| live.links.as_ref().and_then(|l| l.fn_at(slot)), None)
+    }
+    fn fn_value(&mut self, name: &str) -> Option<u32> {
+        self.with(|live| live.links.clone(), None)?.fn_value(name)
     }
     // The page's engine has no fuel; a runaway script is the tab's to stop.
     fn set_fuel(&mut self, _fuel: u64) {}

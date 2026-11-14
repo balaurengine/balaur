@@ -75,7 +75,7 @@ pub(super) fn table_sections(
         if refs.is_empty() {
             return (None, None);
         }
-        let funcs: Vec<u32> = refs.iter().map(|i| i + shift).collect();
+        let funcs: Vec<u32> = refs.iter().map(|(i, _)| i + shift).collect();
         let mut elements = ElementSection::new();
         elements.active(
             Some(0),
@@ -99,7 +99,7 @@ pub(super) fn table_sections(
     if refs.is_empty() {
         return (Some(table), None);
     }
-    let funcs: Vec<u32> = refs.iter().map(|i| i + shift).collect();
+    let funcs: Vec<u32> = refs.iter().map(|(i, _)| i + shift).collect();
     let mut elements = ElementSection::new();
     elements.active(
         Some(0),

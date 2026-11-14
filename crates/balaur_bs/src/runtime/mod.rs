@@ -773,10 +773,19 @@ impl Runtime {
             let mut values: Vec<(&str, Value)> = vec![];
             for name in &carried {
                 let held = self.in_unit(obj.unit, |rt| rt.held_object(obj, name));
-                match held.and_then(|pointer| carried_at.get(&pointer)) {
-                    Some(target) => links.push((index, (*name).clone(), *target)),
-                    None => values.extend(self.get(obj, name).map(|value| (name.as_str(), value))),
+                if let Some(target) = held.and_then(|pointer| carried_at.get(&pointer)) {
+                    links.push((index, (*name).clone(), *target));
+                    continue;
                 }
+                let Some(value) = self.get(obj, name) else {
+                    continue;
+                };
+                let ty = old_fields.iter().find(|(k, _)| k == *name).map(|(_, t)| t);
+                let value = match ty {
+                    Some(ty) => self.refit_fns(into, obj.unit, &ty.clone(), value),
+                    None => value,
+                };
+                values.push((name.as_str(), value));
             }
             replacements.push(into.in_unit(*unit, |rt| rt.object(&obj.ty, &values))?);
             kept_all.push(carried.into_iter().cloned().collect());
@@ -793,6 +802,49 @@ impl Runtime {
             obj.unit = replacement.unit;
         }
         Ok(kept_all)
+    }
+
+    // `value`, of type `ty` in unit `unit` here, with each `fn` in it the slot
+    // its function has in `into`: a slot is where its unit was made, and
+    // `into` may make that unit later, or at another place in its table.
+    fn refit_fns(&mut self, into: &mut Runtime, unit: usize, ty: &Ty, value: Value) -> Value {
+        match (ty, value) {
+            // Carried by its function's name. One `into` has no function by
+            // that name reads as none, as a `fn` field never set does.
+            (Ty::Fn(..), Value::Int(slot)) => {
+                let moved = u32::try_from(slot)
+                    .ok()
+                    .and_then(|slot| self.wasm.fn_at(slot))
+                    .and_then(|name| into.wasm.fn_value(&name));
+                Value::Int(moved.map_or(0, i64::from))
+            }
+            (Ty::Optional(inner), value) => self.refit_fns(into, unit, inner, value),
+            (Ty::Array(inner), Value::Array(items)) => Value::Array(
+                items
+                    .into_iter()
+                    .map(|item| self.refit_fns(into, unit, inner, item))
+                    .collect(),
+            ),
+            (Ty::Struct(name), Value::Struct(named, fields)) => {
+                let types = self
+                    .in_unit(unit, |rt| rt.meta.fields(name).map(<[_]>::to_vec))
+                    .unwrap_or_default();
+                let fields = fields
+                    .into_iter()
+                    .map(
+                        |(field, value)| match types.iter().find(|(k, _)| *k == field) {
+                            Some((_, field_ty)) => {
+                                let value = self.refit_fns(into, unit, field_ty, value);
+                                (field, value)
+                            }
+                            None => (field, value),
+                        },
+                    )
+                    .collect();
+                Value::Struct(named, fields)
+            }
+            (_, value) => value,
+        }
     }
 
     // The object field `field` of `obj` holds, a class or a class that is
