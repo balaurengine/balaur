@@ -91,6 +91,40 @@ fn a_one_world_runtime_named_as_a_target_points_at_the_setting() {
 }
 
 #[test]
+fn a_bare_runtime_named_as_a_target_points_at_the_setting() {
+    let dir = project("");
+    let why = format!("{:#}", export_for(dir.path(), "web-bare").unwrap_err());
+    assert!(why.contains("runtime = \"bare\""), "{why}");
+}
+
+#[test]
+fn a_bare_runtime_refuses_a_game_with_a_body() {
+    let dir = project("[export]\nruntime = \"bare\"\n");
+    install(dir.path(), "balaur-runtime-linux-x64-bare");
+    std::fs::create_dir(dir.path().join("scenes")).unwrap();
+    std::fs::write(
+        dir.path().join("scenes/main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Ball\"\n\n[nodes.body2d]\nkind = \"dynamic\"\n",
+    )
+    .unwrap();
+    let why = format!("{:#}", export_for(dir.path(), "linux-x64").unwrap_err());
+    assert!(why.contains("node \"Ball\" has body2d"), "{why}");
+    assert!(!dir.path().join("game").exists());
+}
+
+#[test]
+fn a_game_with_no_physics_exports_onto_the_bare_runtime() {
+    let dir = project("");
+    install(dir.path(), "balaur-runtime-linux-x64-bare");
+    export_for(dir.path(), "linux-x64").unwrap();
+    assert!(
+        std::fs::read(dir.path().join("game"))
+            .unwrap()
+            .starts_with(b"a runtime")
+    );
+}
+
+#[test]
 fn a_2d_runtime_refuses_a_game_with_a_3d_body() {
     let dir = project("[export]\nruntime = \"2d\"\n");
     install(dir.path(), "balaur-runtime-linux-x64-2d");
@@ -120,7 +154,7 @@ fn a_game_goes_on_the_smallest_runtime_it_fits() {
         )
         .unwrap()
     };
-    assert_eq!(runtime(&with_scene("")), "web-2d", "no physics at all");
+    assert_eq!(runtime(&with_scene("")), "web-bare", "no physics at all");
     let flat = "[[nodes]]\nid = \"a\"\nname = \"A\"\n[nodes.body2d]\nkind = \"dynamic\"\n";
     assert_eq!(runtime(&with_scene(flat)), "web-2d");
     let deep = "[[nodes]]\nid = \"b\"\nname = \"B\"\n[nodes.body3d]\nkind = \"dynamic\"\n";

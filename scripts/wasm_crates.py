@@ -5,8 +5,10 @@ Usage: wasm_crates.py module.wasm [--top N] [--crate NAME]
 
 The module must keep its `name` section: build with
 `CARGO_PROFILE_WEB_STRIP=false`, run `wasm-bindgen --keep-debug`, then
-`wasm-opt -Oz -g --strip-dwarf`. Sizes are code bytes; `shipped` is the module
-less its name section, which `wasm-opt --strip-debug` removes.
+`wasm-opt --strip-dwarf -g` and `wasm-opt -Oz -g` as two runs: with DWARF
+still in the module, `-Oz` leaves it 5% larger than the one a game ships.
+Sizes are code bytes; `shipped` is the module less its name section, which
+`wasm-opt --strip-debug` removes.
 """
 import re
 import sys

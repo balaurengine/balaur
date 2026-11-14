@@ -148,9 +148,10 @@ pub const TARGETS: [&str; 13] = [
 ];
 
 /// What a runtime's name may end in: `web-2d`, `windows-x64-server`. `2d` and
-/// `3d` carry one physics world and come from `[export] runtime`; `server`
-/// (desktops) has no window or sound, and `threads` (web) a shared memory.
-pub const VARIANTS: [&str; 4] = ["2d", "3d", "server", "threads"];
+/// `3d` carry one physics world, `bare` neither, and all three come from
+/// `[export] runtime`; `server` (desktops) has no window or sound, and
+/// `threads` (web) a shared memory.
+pub const VARIANTS: [&str; 5] = ["2d", "3d", words::runtimes::BARE, "server", "threads"];
 
 /// The runtime `target` puts a game on under `runtime`: `web` with `2d` is
 /// `web-2d`. A target naming a variant of its own keeps it.
@@ -301,7 +302,7 @@ fn runtime_name(
     project: &Path,
     pack: &balaur::Pack,
 ) -> Result<String> {
-    if let (base, Some(variant @ ("2d" | "3d"))) = split_variant(target) {
+    if let (base, Some(variant @ ("2d" | "3d" | words::runtimes::BARE))) = split_variant(target) {
         anyhow::bail!(
             "{target} names a runtime, not a target: export for {base} with \
              `[export] runtime = \"{variant}\"`, or `[override.{base}.export] runtime` for {base} alone"

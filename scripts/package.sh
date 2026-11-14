@@ -6,7 +6,7 @@
 #                            template so `balaur export --target ...` works
 #                            the moment it is unzipped
 #   balaur-runtime-<target>  the runtime template: what a game gets fused onto
-# Usage: [VARIANT=2d|3d|server] package.sh <target>   e.g. linux-x64, windows-arm64
+# Usage: [VARIANT=2d|3d|bare|server] package.sh <target>   e.g. linux-x64, windows-arm64
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/features.sh
@@ -46,13 +46,13 @@ if [ -n "$variant" ]; then
   defaults=(--no-default-features)
   case "$variant" in
   server) features=${BALAUR_FEATURES:-$SERVER_FEATURES,extensions} ;;
-  2d | 3d)
+  2d | 3d | bare)
     features=${BALAUR_FEATURES:-window,extensions,parallel,$(game_features "$variant")}
     if [ "$target" = macos-universal ] && [ -z "${BALAUR_FEATURES:-}" ]; then
       features="$features,apple"
     fi
     ;;
-  *) printf '::error::unknown variant %s (2d, 3d or server)\n' "$variant"; exit 1 ;;
+  *) printf '::error::unknown variant %s (2d, 3d, bare or server)\n' "$variant"; exit 1 ;;
   esac
 fi
 
@@ -84,10 +84,12 @@ if [ -n "$variant" ]; then
   cp "$bin" "$out"
   step "smoke: export a game onto the $variant template and run it"
   exporter=${BALAUR_EXPORTER:?set BALAUR_EXPORTER to an editor binary to export with}
+  # One that uses the template's world and no other: `auto` then lands on it.
   example=examples/hello
-  if [ "$variant" = 2d ]; then
-    example=examples/angrynerds
-  fi
+  case "$variant" in
+  2d) example=examples/angrynerds ;;
+  bare) example=examples/interface ;;
+  esac
   smoke="$dist/.smoke-$variant"
   rm -rf "$smoke"
   mkdir -p "$smoke"

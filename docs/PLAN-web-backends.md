@@ -25,7 +25,11 @@ the runtime chooses.
 4. **Measure the module.** One wasm carrying both backends is simpler to ship
    and larger to download; two modules with a picker is the opposite. Measure
    against the current web runtime before choosing, and keep the comparison
-   next to the numbers in `docs/BENCHMARKS.md`.
+   next to the numbers in `docs/BENCHMARKS.md`. A third shape is
+   `docs/PLAN-build-size.md`'s: the GL backend as a part only a browser
+   without WebGPU fetches. kiss3d's `webgl` feature holds the backend, and
+   the web template leaves it off until step 1 here draws with it: 1.00 MB
+   of `glow`, `wgpu-core` and naga that no page can use yet.
 
 ## What does not change
 
@@ -42,6 +46,6 @@ render targets, and the finishing passes are the first place that will show.
 The honest shape is a good picture on WebGPU and a working picture on WebGL2,
 not parity.
 
-Related: `docs/PLAN-embed.md` covers the web module and how a page loads it,
-and the roadmap's `A game on a small machine` row wants the same GL backend for
+Related: `docs/PLAN-embed.md` covers how a page loads the web module,
+`docs/PLAN-build-size.md` what the module weighs, and the roadmap's `A game on a small machine` row wants the same GL backend for
 `linux-arm64`, so the two share whatever this turns up.

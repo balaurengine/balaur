@@ -3,12 +3,13 @@
 # shape that platform installs or serves. Why it stops there:
 # docs/PLAN-mobile-export.md.
 #
-# Usage: export_check.sh <ios|android|web>[-2d|-3d]
+# Usage: export_check.sh <ios|android|web>[-2d|-3d|-bare]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-platform=${1:?usage: export_check.sh <ios|android|web>[-2d|-3d]}
+platform=${1:?usage: export_check.sh <ios|android|web>[-2d|-3d|-bare]}
 base=${platform%-[23]d}
+base=${base%-bare}
 # What a variant's examples are written to, beside the platform's own.
 suffix=${platform#"$base"}
 # The bundletool a release is proven against. One line, so the version and the
@@ -41,6 +42,7 @@ step "export a game"
 case $platform in
 *-2d) cp -R examples/angrynerds "$work/project" ;;
 *-3d) cp -R examples/hello "$work/project" ;;
+*-bare) cp -R examples/interface "$work/project" ;;
 *) "$balaur" new "$work/project" --template viewer >/dev/null ;;
 esac
 ./scripts/with_icon.sh "$work/project"
@@ -199,7 +201,7 @@ web)
   printf '\nexported %s\n' "$out"
   (cd "$work" && tar -czf "$dist/balaur-example-$platform.tar.gz" "project-web")
   ;;
-*) fail "unknown platform \"$platform\" (expected ios, android or web, each with -2d or -3d)" ;;
+*) fail "unknown platform \"$platform\" (expected ios, android or web, each with -2d, -3d or -bare)" ;;
 esac
 
 rm -rf "$work"

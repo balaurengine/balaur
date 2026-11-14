@@ -24,6 +24,10 @@ pub(crate) mod words {
         pub(crate) const X86_64: &str = "x86_64";
     }
 
+    pub(crate) mod runtimes {
+        pub(crate) const BARE: &str = "bare";
+    }
+
     pub(crate) mod android {
         pub(crate) const LIB: &str = "lib";
     }

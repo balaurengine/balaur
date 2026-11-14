@@ -12,11 +12,14 @@ WEB_THREADS_TOOLCHAIN=${WEB_THREADS_TOOLCHAIN:-nightly-2026-10-30}
 # script host is also what reads the pack's scenes.
 SERVER_FEATURES=http,websocket,webtransport,gamend,multiplayer,physics2d,physics3d,parallel,bs,bs-jit
 
-# GAME_FEATURES less what a `2d` or `3d` variant leaves out.
+# GAME_FEATURES less what a `2d`, `3d` or `bare` variant leaves out: one
+# physics world, or both.
 game_features() {
+  local one=${GAME_FEATURES/,physics3d/}
   case "${1:-}" in
-  2d) echo "${GAME_FEATURES/,physics3d/}" ;;
+  2d) echo "$one" ;;
   3d) echo "${GAME_FEATURES/,physics2d/}" ;;
+  bare) echo "${one/,physics2d/}" ;;
   *) echo "$GAME_FEATURES" ;;
   esac
 }

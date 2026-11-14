@@ -247,15 +247,15 @@ waits for its tick to settle.
 | --- | :-: | --- |
 | **Export, the web and the CLI** — `balaur export` for native and web with a size report, `balaur test`, a browser editor over IndexedDB, and a benchmark suite. | 0.1 done | no plan |
 | **A splash while a game loads** — a picture over the first frames on every target, held past its seconds while a script reports what it is loading. | 0.2 done | no plan |
-| **A smaller web template** — a game ships without the editor, the script compiler or egui's fonts, and `[export] runtime` leaves out a physics world. | 0.2 done | [PLAN-embed.md](PLAN-embed.md) |
+| **A smaller web template** — a game ships without the editor, the script compiler or egui's fonts, and `[export] runtime` leaves out a physics world. | 0.2 done | [PLAN-build-size.md](PLAN-build-size.md) |
 | **The shell a phone has** — opening a link works on every desktop and in a browser tab, and on neither phone, which each want a call of their own. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
 | **What a phone lends a game** — the share sheet, the camera, geolocation, biometrics, the clipboard, keep-awake and vibration, behind one `device` module. | 0.8 | [PLAN-2d-games.md](PLAN-2d-games.md) |
-| **A web module that loads in parts** — the wasm split so a game fetches the physics, audio or networking it uses, with an export pack arriving in pieces beside it. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
+| **A web module that loads in parts** — a core under 8 MB every game fetches and a part per feature it uses, cut by `wasm-split`, with the export pack arriving in pieces. | 0.6 | [PLAN-build-size.md](PLAN-build-size.md) |
 | **A game on a small machine** — `linux-arm64` is an export target that has never run, so a Raspberry Pi wants the GL backend and a measured frame budget. | 0.8 | [PLAN-release.md](PLAN-release.md) |
 | **Per-platform project settings** — one settings screen over every table in `project.toml`, with an override per platform, architecture or build. | 0.7 | [PLAN-per-platform.md](PLAN-per-platform.md) |
 | **Suspend and resume** — hooks a script answers on a phone call or a console's suspend, audio released and taken back, and a tick that pauses. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
-| **Embedding on a page** — an npm runtime with a `<balaur-viewer>` element and a React wrapper, a typed page API, and a web module sized to the game. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
+| **Embedding on a page** — an npm runtime with a `<balaur-viewer>` element and a React wrapper, and a typed page API the page calls. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
 | **Sealed export packs and stripped binaries** — bytecode on the web too, and an export pack sealed with ChaCha20-Poly1305 under a project key, never a DRM wrapper. | 0.6 | [PLAN-protection.md](PLAN-protection.md) |
 | **Console export** — Switch, PlayStation and Xbox, each an NDA SDK that is not wgpu, winit or gilrs. | 0.8 | no plan |
 | **XR** — OpenXR on desktop and standalone headsets, WebXR in the browser, and ARKit and ARCore behind the same seam. | 0.8 | no plan |

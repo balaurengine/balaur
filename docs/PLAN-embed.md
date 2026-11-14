@@ -2,7 +2,7 @@
 > leaves out the editor, the Rune compiler, the WESL linker and egui's fonts; `physics2d`,
 > `physics3d` and each audio codec gate their code; a `-2d` and `-3d` template
 > of every target is built and exported in CI, and `[export] runtime` picks
-> one. The site's examples play on theirs. The budget gate is left; steps 1–3, 5 and 6 not started. Written down on 2026-09-05. Web export exists:
+> one. The site's examples play on theirs. Size is `docs/PLAN-build-size.md`'s; steps 1–3, 5 and 6 not started. Written down on 2026-09-05. Web export exists:
 > `balaur export --target web` writes a page, the module and an export pack, and the
 > site runs every example and the editor on it. What Spline has and this
 > does not is the shape of the thing on someone else's page: an element to
@@ -15,10 +15,10 @@
 # Plan: embedding
 
 A runtime package on npm, a `<balaur-viewer>` element and a React wrapper, a
-typed page API over the existing message bridge, a web module sized to the
-game, and image, video and glTF export from the editor.
-`docs/PLAN-deploy.md` puts the result at a URL; `docs/PLAN-interactivity.md`
-owns the variables the page sets.
+typed page API over the existing message bridge, and image, video and glTF
+export from the editor. `docs/PLAN-deploy.md` puts the result at a URL,
+`docs/PLAN-interactivity.md` owns the variables the page sets, and
+`docs/PLAN-build-size.md` owns what the module weighs.
 
 ## 0. Where the tree is today
 
@@ -53,10 +53,6 @@ Missing:
   dependency.
 - **An API.** The bridge carries JSON both ways, and nothing on either side
   agrees what the JSON means.
-- **A module per game.** The template is 18.9 MB raw, 5.1 MB brotli, with
-  audio, HTTP, websockets and Gamend in it whether a game uses them or not.
-  A one-world template is picked by naming its target; nothing picks one
-  from what the project uses.
 - **WebGL2.** `hasWebGpu` gates the page; a browser without WebGPU gets a
   message.
 - **A transparent canvas.** The backend clears opaque, so a scene cannot sit
@@ -104,16 +100,9 @@ is.
 anywhere; `postMessage` to the frame reaches `on_browser_event` today, and the
 protocol above is what it carries.
 
-**The module fits the game.** The template is built in CI as variants over
-`WEB_FEATURES` — `window` alone; with `audio`; with `http,websocket`; with
-`gamend` — and `balaur export --target web` picks the smallest that satisfies
-the project's `[plugins]`, since a browser cannot build one. The Rune
-compiler goes behind a `compile` feature that a compiled export pack does not need,
-which is the single largest item after the renderer. `wasm-opt -Oz` and
-brotli are already in the packaging; physics split into `physics2d` and
-`physics3d` features is the next cut. The first budget is the `window`-only
-variant under 8 MB raw, measured in `features.md` and gated in CI rather
-than promised.
+**The module fits the game.** `docs/PLAN-build-size.md` holds how: a
+template per physics world on a diet, and later a part per plugin beside
+it. The element fetches whatever the export listed.
 
 **WebGL2 is a tier, decided by measurement.** wgpu's `webgl` feature is on;
 what is not known is which of the fork's passes need compute — clustered
@@ -139,9 +128,7 @@ boolean or a text mesh leaves the engine.
 | `@balaurengine/react` | Step 3 |
 | Vue, Svelte, Angular packages | Not planned; the element is the integration |
 | Iframe embed: Notion, Webflow, Framer | `docs/PLAN-deploy.md`'s URL plus the protocol; no work of its own |
-| Template variants | Built: `-2d` and `-3d` on every target, `-server` on desktops |
-| The variant picked at export from what the project uses | Not planned: a script can add a body the export never sees, so the project names it and the export checks |
-| A `compile` feature; `physics2d` and `physics3d` features | Built |
+| Template variants, features and the module's budget | `docs/PLAN-build-size.md` |
 | WebGL2 fallback | Step 5, measured; not promised |
 | Transparent canvas | Step 2, a backend alpha clear |
 | A progressive web app: manifest and service worker around the exported shell | Step 2, `balaur export --target web --pwa` |
@@ -161,8 +148,7 @@ boolean or a text mesh leaves the engine.
    poster, transparent, the `--pwa` shell. Ends with: the site's examples
    page using the element instead of `Player`.
 3. **React.**
-4. **Size.** The budget gate; the features, the one-world variants and the
-   `[export] runtime` pick are built.
+4. **Size.** `docs/PLAN-build-size.md`.
 5. **WebGL2.** One build with the compute passes off; keep the tier or close
    the question.
 6. **Exports.** Image, video, glTF, `render.stats`.
@@ -173,8 +159,6 @@ boolean or a text mesh leaves the engine.
   same digest.
 - The element loads under Playwright on the site's example page and reports
   `ready`.
-- Every variant links, and the `window`-only one stays under budget, in
-  `features.md` per push.
 - A glTF written by step 6 re-imports through `balaur import` to the same
   mesh digest.
 - What it cannot: Safari and Firefox, WebGL2 on a runner that has WebGPU,

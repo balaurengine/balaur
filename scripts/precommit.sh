@@ -138,10 +138,10 @@ features_stream() {
   if [ "$(uname)" = "Darwin" ]; then
     step 'clippy apple' shape apple clippy -p balaur_apple -p balaur --features balaur/apple --all-targets -- -D warnings || bad=1
   fi
-  # The game templates package.sh builds: one physics world each, and the
-  # server with no window. Only their own build compiles that feature mix.
+  # The game templates package.sh builds: one physics world each, neither,
+  # and the server with no window. Only their own build compiles that feature mix.
   local world
-  for world in 2d 3d; do
+  for world in 2d 3d bare; do
     step "clippy template $world" shape variant clippy -p balaur_cli --no-default-features \
       --features "window,extensions,parallel,$(game_features $world)" -- -D warnings || bad=1
   done

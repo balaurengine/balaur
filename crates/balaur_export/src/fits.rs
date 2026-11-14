@@ -9,7 +9,17 @@ use balaur::Pack;
 use balaur::physics::worlds;
 
 use crate::config::Runtime;
-use crate::vocabulary::keys;
+use crate::vocabulary::{keys, words};
+
+/// A physics world as an error names it, with the components and the script
+/// modules a game uses it through.
+type World = (
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+);
+const WORLD_2D: World = ("2D", worlds::COMPONENTS_2D, worlds::MODULES_2D);
+const WORLD_3D: World = ("3D", worlds::COMPONENTS_3D, worlds::MODULES_3D);
 
 /// Where `pack`'s scenes and scripts name one of `components` or `modules`.
 ///
@@ -42,24 +52,27 @@ fn named_in(project: &Path, pack: &Pack, components: &[&str], modules: &[&str]) 
 /// # Errors
 /// Naming every place the missing world is used, and the setting to change.
 pub fn fits(project: &Path, pack: &Pack, runtime: &str) -> Result<()> {
-    let (missing, components, modules) = match crate::split_variant(runtime).1 {
-        Some("2d") => ("3D", worlds::COMPONENTS_3D, worlds::MODULES_3D),
-        Some("3d") => ("2D", worlds::COMPONENTS_2D, worlds::MODULES_2D),
+    let missing: &[World] = match crate::split_variant(runtime).1 {
+        Some("2d") => &[WORLD_3D],
+        Some("3d") => &[WORLD_2D],
+        Some(words::runtimes::BARE) => &[WORLD_2D, WORLD_3D],
         _ => return Ok(()),
     };
-    let found = named_in(project, pack, components, modules);
-    if found.is_empty() {
-        return Ok(());
+    for (world, components, modules) in missing {
+        let found = named_in(project, pack, components, modules);
+        if !found.is_empty() {
+            anyhow::bail!(
+                "the {runtime} runtime has no {world} physics, which this game uses:\n  {}\n\
+                 set `[export] runtime` to \"full\", or to the world the game uses",
+                found.join("\n  ")
+            )
+        }
     }
-    anyhow::bail!(
-        "the {runtime} runtime has no {missing} physics, which this game uses:\n  {}\n\
-         set `[export] runtime` to \"full\", or to the world the game uses",
-        found.join("\n  ")
-    )
+    Ok(())
 }
 
-/// The smallest runtime `pack` fits: one physics world where it names at most
-/// one, the 2D world being the lighter where it names neither.
+/// The smallest runtime `pack` fits: the physics world it names, both where
+/// it names both, and neither where it names none.
 #[must_use]
 pub fn smallest(project: &Path, pack: &Pack) -> Runtime {
     let names_3d = !named_in(project, pack, worlds::COMPONENTS_3D, worlds::MODULES_3D).is_empty();
@@ -67,7 +80,8 @@ pub fn smallest(project: &Path, pack: &Pack) -> Runtime {
     match (names_2d, names_3d) {
         (true, true) => Runtime::Full,
         (false, true) => Runtime::World3d,
-        (_, false) => Runtime::World2d,
+        (true, false) => Runtime::World2d,
+        (false, false) => Runtime::Bare,
     }
 }
 
@@ -197,6 +211,30 @@ mod tests {
         let err = fits(dir.path(), &pack, "ios-3d").unwrap_err().to_string();
         assert!(err.contains("scripts/game.rn:3 names physics2d"), "{err}");
         assert!(!err.contains("game.rn:1"), "{err}");
+    }
+
+    #[test]
+    fn a_bare_runtime_refuses_a_body_of_either_world() {
+        let dir = tempfile::tempdir().unwrap();
+        let flat = "[[nodes]]\nid = \"n\"\nname = \"Ball\"\n\n[nodes.body2d]\nkind = \"dynamic\"\n";
+        let err = fits(dir.path(), &pack(flat), "web-bare")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("no 2D physics"), "{err}");
+        assert!(err.contains("node \"Ball\" has body2d"), "{err}");
+        let err = fits(dir.path(), &pack(CRATE_3D), "ios-bare")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("no 3D physics"), "{err}");
+    }
+
+    #[test]
+    fn a_game_naming_no_world_fits_the_bare_runtime_and_auto_picks_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let plain = pack("[[nodes]]\nid = \"n\"\nname = \"Label\"\n");
+        fits(dir.path(), &plain, "web-bare").unwrap();
+        assert_eq!(smallest(dir.path(), &plain), Runtime::Bare);
+        assert_eq!(smallest(dir.path(), &pack(CRATE_3D)), Runtime::World3d);
     }
 
     #[test]

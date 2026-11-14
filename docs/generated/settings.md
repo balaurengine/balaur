@@ -93,7 +93,7 @@ question as an old one is a second way to say it.
 <table>
 <thead><tr><th>key</th><th>type</th><th>default</th><th>notes</th><th>what it does</th></tr></thead>
 <tbody>
-<tr><td><code>runtime</code></td><td>enum</td><td><code>&quot;auto&quot;</code></td><td></td><td>The runtime a game is put on. 2d and 3d carry one physics world each and weigh less, and auto takes the smallest the scenes and scripts fit, or the full one where only that is on hand; name one where a script builds a component&#x27;s name at run time. A server target keeps its own. Per target through that target&#x27;s override.</td></tr>
+<tr><td><code>runtime</code></td><td>enum</td><td><code>&quot;auto&quot;</code></td><td></td><td>The runtime a game is put on. 2d and 3d carry one physics world each and bare carries neither, so each weighs less than full, and auto takes the smallest the scenes and scripts fit, or the full one where only that is on hand; name one where a script builds a component&#x27;s name at run time. A server target keeps its own. Per target through that target&#x27;s override.</td></tr>
 <tr><td><code>output</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>A project-relative directory; each target gets a subdirectory of it. Empty exports where the command stands.</td></tr>
 <tr><td><code>strip</code></td><td>bool</td><td><code>false</code></td><td></td><td>Drop an asset no scene, script or include glob names. Off by default: a script may compute a path this cannot see, and losing an asset is worse than shipping one.</td></tr>
 <tr><td><code>include</code></td><td>list of string</td><td><code>[]</code></td><td></td><td>Globs an export includes whatever else it decides, for the paths a script builds at run time.</td></tr>

@@ -31476,12 +31476,13 @@
       "scope": "project",
       "spec": {
         "default": "auto",
-        "help": "The runtime a game is put on. 2d and 3d carry one physics world each and weigh less, and auto takes the smallest the scenes and scripts fit, or the full one where only that is on hand; name one where a script builds a component's name at run time. A server target keeps its own. Per target through that target's override.",
+        "help": "The runtime a game is put on. 2d and 3d carry one physics world each and bare carries neither, so each weighs less than full, and auto takes the smallest the scenes and scripts fit, or the full one where only that is on hand; name one where a script builds a component's name at run time. A server target keeps its own. Per target through that target's override.",
         "options": [
           "auto",
           "full",
           "2d",
-          "3d"
+          "3d",
+          "bare"
         ],
         "order": 0,
         "type": "enum"

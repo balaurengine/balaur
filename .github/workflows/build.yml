@@ -127,11 +127,14 @@ jobs:
             host: macos-latest
           - platform: android
             host: ubuntu-latest
-          # Each with one physics world, as a game template rather than the CLI.
+          # Each with one physics world, then with neither, as a game template
+          # rather than the CLI.
           - { platform: ios, host: macos-latest, variant: 2d, label: 2d }
           - { platform: ios, host: macos-latest, variant: 3d, label: 3d }
+          - { platform: ios, host: macos-latest, variant: bare, label: bare }
           - { platform: android, host: ubuntu-latest, variant: 2d, label: 2d }
           - { platform: android, host: ubuntu-latest, variant: 3d, label: 3d }
+          - { platform: android, host: ubuntu-latest, variant: bare, label: bare }
           # The template a release ships. Its feature list is the default in
           # scripts/package_runtime.sh, named there and nowhere else so the
           # two cannot drift.
@@ -155,6 +158,11 @@ jobs:
             host: ubuntu-latest
             variant: 3d
             label: 3d
+          # And less both, for a game with no physics.
+          - platform: web
+            host: ubuntu-latest
+            variant: bare
+            label: bare
           # The module the web editor runs: the plain template's features plus
           # the importers and the editor, which a game has neither of.
           # Built here rather than in `bundle web`, which has no toolchain.
@@ -175,8 +183,8 @@ jobs:
           threads: ${{ matrix.threads }}
           attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
-  # A game template per desktop and variant: one physics world, or a headless
-  # server. Each exports an example with this run's editor and plays it.
+  # A game template per desktop and variant: one physics world, neither, or a
+  # headless server. Each exports an example with this run's editor and plays it.
   build-templates:
     permissions:
       contents: read
@@ -189,7 +197,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [2d, 3d, server]
+        variant: [2d, 3d, bare, server]
         desktop:
           - { target: linux-x64, os: ubuntu-latest, container: "ubuntu:22.04" }
           - { target: linux-arm64, os: ubuntu-24.04-arm, container: "ubuntu:22.04" }
@@ -265,10 +273,13 @@ jobs:
             host: ubuntu-latest
           - { platform: web-2d, host: ubuntu-latest }
           - { platform: web-3d, host: ubuntu-latest }
+          - { platform: web-bare, host: ubuntu-latest }
           - { platform: ios-2d, host: macos-latest }
           - { platform: ios-3d, host: macos-latest }
+          - { platform: ios-bare, host: macos-latest }
           - { platform: android-2d, host: ubuntu-latest }
           - { platform: android-3d, host: ubuntu-latest }
+          - { platform: android-bare, host: ubuntu-latest }
     steps:
       - uses: actions/checkout@v7
       - name: Linux build deps
@@ -398,6 +409,10 @@ jobs:
         with:
           name: balaur-runtime-web-3d
           path: dist/runtimes/web-3d
+      - uses: actions/download-artifact@v8
+        with:
+          name: balaur-runtime-web-bare
+          path: dist/runtimes/web-bare
       # The editor's module is unpacked from its template archive: the bundle
       # ships the glue and the wasm beside the packs, not the tarball.
       - name: Unpack the editor's module

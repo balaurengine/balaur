@@ -40,8 +40,8 @@ inputs:
   variant:
     description: >-
       Names a second template of the same target or platform, uploaded beside
-      its own: `2d` and `3d` keep one physics world, `server` (a desktop
-      target) has no window or sound, `threads` (web) a shared memory. A
+      its own: `2d` and `3d` keep one physics world and `bare` neither,
+      `server` (a desktop target) has no window or sound, `threads` (web) a shared memory. A
       desktop variant builds no editor, and exports a game with the editor
       binary `BALAUR_EXPORTER` names to prove it runs. Empty is the
       platform's own build.

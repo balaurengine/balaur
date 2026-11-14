@@ -6,7 +6,7 @@
 # each gets the shape its OS actually launches, and what a game does with the
 # template differs per platform. See docs/PLAN-mobile-export.md.
 #
-# Usage: [VARIANT=2d|3d] package_runtime.sh <platform>   ios | ios-sim | android | web
+# Usage: [VARIANT=2d|3d|bare] package_runtime.sh <platform>   ios | ios-sim | android | web
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/features.sh

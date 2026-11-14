@@ -306,6 +306,13 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
 /// The 3D world's systems, components and verbs.
 /// Each collider reports what somebody hears, and rapier raises nothing else:
 /// settled before the step, so a collider or a script made this tick counts.
+#[cfg_attr(
+    not(any(feature = "physics2d", feature = "physics3d")),
+    allow(
+        clippy::needless_return,
+        reason = "a build with no world follows nothing"
+    )
+)]
 fn follow_hearers_system(eng: &Engine, hearers: balaur_core::events::HearerWatch) {
     let (everyone, nodes) = balaur_core::events::take_changed_hearers(eng, hearers);
     if !everyone && nodes.is_empty() {

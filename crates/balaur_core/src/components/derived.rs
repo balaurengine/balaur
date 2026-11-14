@@ -202,16 +202,23 @@ pub enum Written {
     Property(usize),
 }
 
+/// A table of `rows`, built in one pass.
+///
+/// Not generic and never inlined: a map collected straight from an iterator
+/// carries its own sort, and one per struct was 0.6 MB of a game.
+#[inline(never)]
+fn table_of(rows: Vec<(String, toml::Value)>) -> toml::map::Map<String, toml::Value> {
+    rows.into_iter().collect()
+}
+
 /// Every property of `held`, as the table a file holds.
 pub fn to_table<F: Fields>(held: &F) -> toml::Value {
-    // Collected in sorted order, which a map builds in one pass rather than
-    // an insert per property.
-    toml::Value::Table(
+    toml::Value::Table(table_of(
         F::BY_NAME
             .iter()
             .filter_map(|&(name, index)| Some((name.to_owned(), held.read(index)?)))
             .collect(),
-    )
+    ))
 }
 
 /// A struct from a table: what the table names, the defaults for the rest.
@@ -251,7 +258,7 @@ pub fn describe_record<F: Fields>(spec: &mut toml::map::Map<String, toml::Value>
         .zip(F::specs())
         .map(|(name, field)| ((*name).to_owned(), field))
         .collect();
-    spec.insert(keys::FIELDS.into(), toml::Value::Table(fields));
+    spec.insert(keys::FIELDS.into(), toml::Value::Table(table_of(fields)));
 }
 
 /// A `variant` spec: each of `variants` a record spec, by the name a value's

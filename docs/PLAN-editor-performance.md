@@ -199,7 +199,7 @@ In this order, measuring after each:
 prebuilt, so a crate the editor links is carried by every exported game. The
 web module is 20.4 MB today. Measure each addition against
 `docs/generated/features.md` before taking it, and split the template only when
-`docs/PLAN-embed.md` splits it for everyone.
+`docs/PLAN-build-size.md` splits it for everyone.
 
 ## 5. The viewport, which is neither contents nor chrome
 

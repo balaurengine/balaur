@@ -6,7 +6,7 @@
 # Usage: package_play.sh [balaur-binary]
 #   Defaults to BALAUR, then target/release/balaur, then CI's editor artifact.
 #   EDITOR_MODULE names a built module directory; without one, this builds it.
-#   RUNTIMES holds balaur-runtime-web{,-2d,-3d}.tar.gz; one missing is built.
+#   RUNTIMES holds balaur-runtime-web{,-2d,-3d,-bare}.tar.gz; one missing is built.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
@@ -52,7 +52,7 @@ done
 # Every one an example's `[export] runtime` may name, and the editor's own
 # web export may fetch for a project.
 step "the web runtimes"
-web_runtimes=(web web-2d web-3d)
+web_runtimes=(web web-2d web-3d web-bare)
 archives=$(mkdir -p "${RUNTIMES:-$dist}" && cd "${RUNTIMES:-$dist}" && pwd)
 runtimes="$dist/.play-runtimes"
 rm -rf "$runtimes"

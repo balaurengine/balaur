@@ -100,6 +100,9 @@ pub enum Runtime {
     World2d,
     #[serde(rename = "3d")]
     World3d,
+    /// Neither physics world.
+    #[serde(rename = "bare")]
+    Bare,
 }
 
 impl Runtime {
@@ -110,6 +113,7 @@ impl Runtime {
             Self::Auto | Self::Full => None,
             Self::World2d => Some("2d"),
             Self::World3d => Some("3d"),
+            Self::Bare => Some(crate::vocabulary::words::runtimes::BARE),
         }
     }
 }

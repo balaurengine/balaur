@@ -15,8 +15,8 @@ inputs:
   targets:
     description: >-
       Space-separated runtimes to fetch now, so a later export needs no
-      network: a target, or the one-world runtime `[export] runtime` turns
-      it into (`web-2d`). Empty fetches none.
+      network: a target, or the smaller runtime `[export] runtime` turns it
+      into (`web-2d`, `web-bare`). Empty fetches none.
     required: false
     default: ""
 

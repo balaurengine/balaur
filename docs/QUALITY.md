@@ -338,7 +338,7 @@ one entry in `cases_kinds.bs` or `cases_scripts.bs`.
   and over the web export, booted on the game template, which has no compiler.
   `package_play.sh` boots each example on the web runtime its
   `[export] runtime` picked.
-- `build.yml` builds a `-2d`, `-3d` and `-server` template of every desktop,
+- `build.yml` builds a `-2d`, `-3d`, `-bare` and `-server` template of every desktop,
   exports an example that fits only it onto each with that
   run's editor and plays 60 frames (`VARIANT=... scripts/package.sh`); the
   mobile and web variants go through `scripts/export_check.sh`.
