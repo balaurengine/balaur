@@ -425,8 +425,27 @@ pub fn update_device(eng: &Engine, change: impl FnOnce(&mut DeviceFacts)) {
     if crate::replay::is_playing(eng) {
         return;
     }
-    if let Some(device) = eng.try_resource::<Device>() {
-        change(&mut device.borrow_mut().now);
+    let Some(device) = eng.try_resource::<Device>() else {
+        return;
+    };
+    change(&mut device.borrow_mut().now);
+    // The frame a recording opens in is not recorded, and `init` reads there.
+    if crate::replay::opened_this_tick(eng) {
+        crate::replay::amend_setup(eng, words::facts::DEVICE, capture_device(eng));
+    }
+}
+
+/// The device facts as a recording holds them, in a frame and in the header.
+pub(crate) fn capture_device(eng: &Engine) -> serde_json::Value {
+    serde_json::to_value(device(eng)).unwrap_or_default()
+}
+
+/// Put recorded device facts back as this tick's.
+pub(crate) fn restore_device(eng: &Engine, value: &serde_json::Value) {
+    if let Ok(facts) = DeviceFacts::deserialize(value)
+        && let Some(device) = eng.try_resource::<Device>()
+    {
+        device.borrow_mut().now = facts;
     }
 }
 

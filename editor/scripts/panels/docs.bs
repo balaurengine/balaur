@@ -13,7 +13,7 @@ pub class Docs {
 impl Docs {
     pub fn init() {
         self.query = "";
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, signals::DOCKS, source);
         for word in ["docs_changed", signals::OUTLINE] {

@@ -11,7 +11,6 @@ use balaur_script::Value;
 use crate::App;
 use crate::components::ComponentDef;
 use crate::hecs::Entity;
-use crate::vocabulary::keys;
 use crate::vocabulary::words;
 use crate::{Engine, hooks};
 
@@ -25,8 +24,6 @@ pub struct States {
     pub named: Vec<(String, toml::Table)>,
     /// The state the node is in. Empty means the pose the scene gave it.
     pub current: String,
-    /// Seconds a transition takes; zero snaps.
-    pub duration: f32,
 }
 
 impl States {
@@ -96,25 +93,19 @@ pub fn go(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
 }
 
 fn schema() -> String {
-    ComponentDef::schema(&[
-        (
-            words::CURRENT,
-            r#"{ type = "string", default = "", description = "The state this node is in; empty is the pose the scene gave it" }"#,
-        ),
-        (
-            words::DURATION,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Seconds a transition takes; zero snaps" }"#,
-        ),
-    ])
+    ComponentDef::schema(&[(
+        words::CURRENT,
+        r#"{ type = "string", default = "", description = "The state this node is in; empty is the pose the scene gave it" }"#,
+    )])
 }
 
-/// The `states` component. Every key that is not `current` or `duration` is a
-/// state, so the file reads as the thing it is.
+/// The `states` component. Every key that is not `current` is a state, so the
+/// file reads as the thing it is.
 pub fn register_states_component(app: &mut App) {
     app.register_component(
         STATES,
         ComponentDef {
-            doc: "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node.",
+            doc: "Named looks for the node. Every key beside `current` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node at once.",
             tags: &["interaction"],
             ..ComponentDef::by_hand(
                 ComponentDef::parse_schema(STATES, &schema()),
@@ -122,7 +113,7 @@ pub fn register_states_component(app: &mut App) {
                 let mut named = Vec::new();
                 if let Some(table) = params.as_table() {
                     for (key, body) in table {
-                        if key == words::CURRENT || key == words::DURATION {
+                        if key == words::CURRENT {
                             continue;
                         }
                         let toml::Value::Table(body) = body else {
@@ -136,13 +127,11 @@ pub fn register_states_component(app: &mut App) {
                     .and_then(toml::Value::as_str)
                     .unwrap_or_default()
                     .to_string();
-                let duration = crate::components::prop_f32(params, keys::DURATION);
                 let next = States {
                     named,
                     // Applied below rather than assumed: the component is set
                     // before the state's own properties are.
                     current: String::new(),
-                    duration,
                 };
                 {
                     let mut world = eng.world_mut();
@@ -171,10 +160,6 @@ pub fn register_states_component(app: &mut App) {
                     CURRENT.into(),
                     toml::Value::String(states.current.clone()),
                 );
-                map.insert(
-                    keys::DURATION.into(),
-                    toml::Value::Float(f64::from(states.duration)),
-                );
                 for (name, body) in &states.named {
                     map.insert(name.clone(), toml::Value::Table(body.clone()));
                 }
@@ -183,7 +168,7 @@ pub fn register_states_component(app: &mut App) {
             )
         },
     );
-    // Every key beside the two declared ones names a state; `apply` refuses
-    // one that is not a table of components, with the better message.
+    // Every key beside the declared one names a state; `apply` refuses one
+    // that is not a table of components, with the better message.
     app.accept_keys(STATES, |_, _| true);
 }

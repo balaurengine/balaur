@@ -8,25 +8,26 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Add a blocklist word (admin)
 /// `POST /api/v1/admin/chat/filter_words`
-pub fn create_chat_filter_word(params: any) -> int {
+pub async fn create_chat_filter_word(params: any) -> any {
     if !core::given(params, "word") {
         return core::missing("gamend::admin_chat::create_chat_filter_word", "word");
     }
-    core::rest("POST", "/api/v1/admin/chat/filter_words", params)
+    let reply = await core::rest("POST", "/api/v1/admin/chat/filter_words", params);
+    reply
 }
 
 /// Delete all messages in a conversation (admin)
 /// `DELETE /api/v1/admin/chat/conversation`
-pub fn delete_chat_conversation(options: any) -> int {
+pub async fn delete_chat_conversation(options: any) -> any {
     if !core::given(options, "chat_type") {
         return core::missing("gamend::admin_chat::delete_chat_conversation", "chat_type");
     }
@@ -34,108 +35,121 @@ pub fn delete_chat_conversation(options: any) -> int {
         return core::missing("gamend::admin_chat::delete_chat_conversation", "chat_ref_id");
     }
     let query = core::query(options, ["chat_type", "chat_ref_id"]);
-    core::rest("DELETE", "/api/v1/admin/chat/conversation{query}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/chat/conversation{query}");
+    reply
 }
 
 /// Remove a blocklist word (admin)
 /// `DELETE /api/v1/admin/chat/filter_words/{id}`
-pub fn delete_chat_filter_word(id: str) -> int {
+pub async fn delete_chat_filter_word(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_chat::delete_chat_filter_word", "id");
     }
-    core::rest("DELETE", "/api/v1/admin/chat/filter_words/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/chat/filter_words/{id}");
+    reply
 }
 
 /// Remove an imported word list (admin)
 /// `DELETE /api/v1/admin/chat/filter_words`
-pub fn delete_chat_filter_words_by_lang(options: any) -> int {
+pub async fn delete_chat_filter_words_by_lang(options: any) -> any {
     if !core::given(options, "lang") {
         return core::missing("gamend::admin_chat::delete_chat_filter_words_by_lang", "lang");
     }
     let query = core::query(options, ["lang"]);
-    core::rest("DELETE", "/api/v1/admin/chat/filter_words{query}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/chat/filter_words{query}");
+    reply
 }
 
 /// Delete a chat message (admin)
 /// `DELETE /api/v1/admin/chat/{id}`
-pub fn delete_chat_message(id: str) -> int {
+pub async fn delete_chat_message(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_chat::delete_chat_message", "id");
     }
-    core::rest("DELETE", "/api/v1/admin/chat/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/chat/{id}");
+    reply
 }
 
 /// Delete a chat report (admin)
 /// `DELETE /api/v1/admin/chat/reports/{id}`
-pub fn delete_chat_report(id: str) -> int {
+pub async fn delete_chat_report(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_chat::delete_chat_report", "id");
     }
-    core::rest("DELETE", "/api/v1/admin/chat/reports/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/chat/reports/{id}");
+    reply
 }
 
 /// Import a bundled word list (admin)
 /// `POST /api/v1/admin/chat/filter_words/import`
-pub fn import_chat_filter_words(params: any) -> int {
+pub async fn import_chat_filter_words(params: any) -> any {
     if !core::given(params, "lang") {
         return core::missing("gamend::admin_chat::import_chat_filter_words", "lang");
     }
-    core::rest("POST", "/api/v1/admin/chat/filter_words/import", params)
+    let reply = await core::rest("POST", "/api/v1/admin/chat/filter_words/import", params);
+    reply
 }
 
 /// Languages with a bundled word list (admin)
 /// `GET /api/v1/admin/chat/filter_words/languages`
-pub fn list_chat_filter_languages() -> int {
-    core::rest("GET", "/api/v1/admin/chat/filter_words/languages")
+pub async fn list_chat_filter_languages() -> any {
+    let reply = await core::rest("GET", "/api/v1/admin/chat/filter_words/languages");
+    reply
 }
 
 /// List blocklist words (admin)
 /// `GET /api/v1/admin/chat/filter_words`
-pub fn list_chat_filter_words(options: any) -> int {
+pub async fn list_chat_filter_words(options: any) -> any {
     let query = core::query(options, ["word", "severity", "lang", "page", "page_size"]);
-    core::rest("GET", "/api/v1/admin/chat/filter_words{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/chat/filter_words{query}");
+    reply
 }
 
 /// List all chat messages (admin)
 /// `GET /api/v1/admin/chat`
-pub fn list_chat_messages(options: any) -> int {
+pub async fn list_chat_messages(options: any) -> any {
     let query = core::query(options, ["sender_id", "chat_type", "chat_ref_id", "content", "sort_by", "page", "page_size"]);
-    core::rest("GET", "/api/v1/admin/chat{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/chat{query}");
+    reply
 }
 
 /// List chat reports (admin)
 /// `GET /api/v1/admin/chat/reports`
-pub fn list_chat_reports(options: any) -> int {
+pub async fn list_chat_reports(options: any) -> any {
     let query = core::query(options, ["status", "reported_user_id", "reporter_id", "page", "page_size"]);
-    core::rest("GET", "/api/v1/admin/chat/reports{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/chat/reports{query}");
+    reply
 }
 
 /// Resolve a chat report (admin)
 /// `POST /api/v1/admin/chat/reports/{id}/resolve`
-pub fn resolve_chat_report(id: str, params: any) -> int {
+pub async fn resolve_chat_report(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::admin_chat::resolve_chat_report", "id");
     }
     if !core::given(params, "status") {
         return core::missing("gamend::admin_chat::resolve_chat_report", "status");
     }
-    core::rest("POST", "/api/v1/admin/chat/reports/{id}/resolve", params)
+    let reply = await core::rest("POST", "/api/v1/admin/chat/reports/{id}/resolve", params);
+    reply
 }
 
 /// Test a phrase against the filter (admin)
 /// `POST /api/v1/admin/chat/filter_words/test`
-pub fn test_chat_phrase(params: any) -> int {
+pub async fn test_chat_phrase(params: any) -> any {
     if !core::given(params, "phrase") {
         return core::missing("gamend::admin_chat::test_chat_phrase", "phrase");
     }
-    core::rest("POST", "/api/v1/admin/chat/filter_words/test", params)
+    let reply = await core::rest("POST", "/api/v1/admin/chat/filter_words/test", params);
+    reply
 }
 
 /// Update a blocklist word (admin)
 /// `PATCH /api/v1/admin/chat/filter_words/{id}`
-pub fn update_chat_filter_word(id: str, params: any) -> int {
+pub async fn update_chat_filter_word(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::admin_chat::update_chat_filter_word", "id");
     }
-    core::rest("PATCH", "/api/v1/admin/chat/filter_words/{id}", params)
+    let reply = await core::rest("PATCH", "/api/v1/admin/chat/filter_words/{id}", params);
+    reply
 }

@@ -1,0 +1,339 @@
+// The editor's frame: what each update runs, the shell laid out again when
+// the window or the docks moved, and the viewport's tools and lines.
+
+use anim;
+use autosave;
+use bench;
+use center;
+use defs;
+use docks;
+use dropin;
+use editor;
+use gizmo;
+use layout;
+use lint;
+use manager;
+use model;
+use overlays;
+use pen;
+use plugins;
+use polygon;
+use rig;
+use selftest;
+use session;
+use shell;
+use showcase;
+use signals;
+use startstates;
+use tests::shell_checks;
+use textedit;
+use tiles;
+use viewport;
+use words::layout_fields;
+
+const VIEWPORT: str = "viewport";
+
+// Below this many design pixels wide the shell drops every label its icon
+// already says.
+const COMPACT_WIDTH: float = 1240.0;
+
+// The frame the splash comes off whether or not the shell has stopped moving.
+const FORM_BY: int = 30;
+
+// One frame: the frame rate, the splash, the capture, and every per-frame
+// driver; the start screen has its own short list.
+internal fn run(state: &mut editor::State, delta_time: float) {
+    // Smoothed frame rate for the status bar; a raw 1/delta_time reads as noise.
+    if delta_time > 0.0 {
+        let now = 1.0 / delta_time;
+        state.fps = (if state.fps == 0.0 { now } else { state.fps }) * 0.9 + now * 0.1;
+    }
+    state.frame += 1;
+    shell::release_world(state);
+    // The splash holds until the shell stops moving: every box is read back a
+    // pass after it was written, so the sizes correct themselves for several.
+    // `FORM_BY` is where it gives up waiting.
+    if !state.formed {
+        let ready = state.frame >= 3 && layout::settled(state);
+        if ready || state.frame >= FORM_BY {
+            state.formed = true;
+            ui::finish_loading();
+        } else {
+            ui::set_load_progress(math::clamp(0.4 + 0.06 * state.frame, 0.0, 0.95));
+        }
+    }
+    // Above the start screen's own return: a clip of a project converting is
+    // taken on that screen, and it has no other frame to be caught on.
+    if state.capture != nil {
+        let capture = state.capture.unwrap();
+        if state.frame >= capture.from && (state.frame - capture.from) % capture.every == 0 {
+            render::screenshot("{capture.directory}/{padded(capture.count)}.png");
+            capture.count += 1;
+            state.capture = capture;
+        }
+    }
+    // The start screen has no scene to step, no selection to follow and no
+    // gizmo to drag: what it needs from a frame is the states and the
+    // showcase, whose sequence turns this screen's own pages.
+    if manager::showing(state) {
+        showcase::step(state);
+        apply_start_states(state);
+        if state.stepping.len() > 0 {
+            selftest::step_all(state, true);
+        }
+        showcase::acts(state);
+        // An install or a conversion reports as events, which wake the loop.
+        if !state.formed || state.showcase != nil || state.capture != nil || state.stepping.len() > 0 {
+            ui::request_repaint();
+        }
+        return;
+    }
+    // The sweep a script edit asked for, once typing has stopped.
+    lint::idle(state);
+    session::update(state);
+    // One queued import a frame once the shell has formed, so a shot catches
+    // several at once.
+    if state.import_drip && state.formed && state.import_queue.len() > 0 {
+        let next = state.import_queue.remove(0);
+        dropin::take(state, next);
+    }
+    if state.stepping.len() > 0 {
+        selftest::step_all(state, false);
+    }
+    showcase::step(state);
+    anim::update(state);
+    textedit::step(state);
+    autosave::step(state);
+    bench::step(state);
+    // What moves without input asks for the next frame; under `[window]
+    // low_processor` nothing else draws one. The splash and a queued import
+    // count frames, so they ask too.
+    let telling = state.jobs.len() > 0 || state.import_queue.len() > 0 || !state.formed;
+    if state.playing || state.showcase != nil || session::scrubbing(state) || state.capture != nil
+        || state.stepping.len() > 0 || telling || layout::animating(state) || state.gizmo.drag != nil
+        || state.debug.demo != nil || textedit::waiting(state) || autosave::waiting(state)
+    {
+        ui::request_repaint();
+    }
+    // Every live value the Inspector shows may have moved this frame.
+    if state.playing {
+        signals::playing_frame(state);
+    }
+    // A run of edits the Inspector's rows followed alone has stopped.
+    if state.inspector_after > 0.0 {
+        if engine::unix_time() >= state.inspector_after {
+            state.inspector_after = 0.0;
+            signals::refill_inspector(state);
+        } else {
+            ui::request_repaint();
+        }
+    }
+    // After the frame's ticks, where a pass used to apply them: a state that
+    // starts a recording starts it on the tick its replay will.
+    if state.platform_read {
+        apply_start_states(state);
+    }
+    showcase::acts(state);
+}
+
+// The `--state` list, applied once. Read here rather than at `init`, because
+// a state that folds a dock has to run after the screen has been measured.
+fn apply_start_states(state: &mut editor::State) {
+    if state.states_applied {
+        return;
+    }
+    state.states_applied = true;
+    for token in state.start_states.split(",") {
+        if token != "" {
+            startstates::apply_start_state(state, token);
+        }
+    }
+}
+
+/// Lay the shell out again: the room it has, what the centre shows, and every
+/// box sized once. On the window's resize, on a box's own `resized`, and on
+/// the words that change what the docks and the centre hold; never a pass.
+internal fn relayout(state: &mut editor::State) {
+    // The room the shell has, which the engine solved: the window less what a
+    // notch covers. The window stands in until the shell has drawn once.
+    let window = ui::window_size();
+    let room = layout::shell_room(state);
+    state.screen_width = if room.width > 0.0 { room.width } else { window.x };
+    state.screen_height = if room.height > 0.0 { room.height } else { window.y };
+    // Either forces it on: the setting asks for it at any width, and a narrow
+    // window asks for it whatever the setting says.
+    state.compact = state.settings.compact || window.x < COMPACT_WIDTH;
+    signals::inspector(state);
+    // A state that folds a dock has to run after the screen has been measured,
+    // which this is; `update` applies them, at the end of the frame's ticks.
+    if room.width > 0.0 {
+        state.platform_read = true;
+    }
+    docks::follow_screen(state);
+    if manager::showing(state) {
+        return;
+    }
+    // Decide what is showing, then size every sheet once.
+    center::modes(state);
+    layout::compute(state);
+    report_view(state);
+    signals::bars(state);
+    widget_layer(state);
+    if state.fontdemo {
+        shell_checks::font_sheet(state);
+    }
+}
+
+// The game's UI layer, clipped to the viewport during play and in the
+// Interface workspace; placed when the stage, play or the workspace moves.
+internal fn widget_layer(state: editor::State) {
+    let rect = gizmo::viewport_rect(state);
+    let widgets_on = (state.playing || state.workspace == defs::WORKSPACE_UI) && state.viewport_live;
+    // Inset by the strip the axis and zoom pills own, so a bottom-anchored
+    // HUD label sits above the editor's chrome instead of under it.
+    let band = if widgets_on { center::hud_height(state) + 6.0 } else { 0.0 };
+    ui::set_widget_layer(widgets_on, vec2(rect.x, rect.y), vec2(rect.width, math::max(0.0, rect.height - band)));
+}
+
+/// What the layout is decided from besides the boxes themselves, so a word
+/// that moved none of it, as a frame of play does, lays nothing out.
+fn layout_key(state: editor::State) -> any {
+    [
+        state.workspace, state.doctab, state.split, state.focus, state.settings.compact, state.touchscreen,
+        "{state.docks}", state.rail_shut, state.chrome_off, state.script_open, state.events_open,
+        state.selected, state.shader_rel, ui::scale(), manager::showing(state),
+    ]
+}
+
+internal fn relayout_if_moved(state: &mut editor::State) {
+    let key = layout_key(state);
+    if key == state.layout_key {
+        return;
+    }
+    state.layout_key = key;
+    relayout(state);
+}
+
+// Six digits, so a frame directory sorts as it was captured.
+fn padded(number: int) -> str {
+    let digits = "{number}";
+    while digits.len() < 6 {
+        digits = "0" + digits;
+    }
+    digits
+}
+
+/// Where the panel `view:<id>` asked for was drawn, in device pixels, so a
+/// design pass can cut it out of the shot. Logged each time it moves: the
+/// last line a run logs is the rect `--shot` saw.
+fn report_view(state: &mut editor::State) {
+    if state.view_shot == "" {
+        return;
+    }
+    let side = docks::side_of(state, state.view_shot);
+    if side == nil {
+        return;
+    }
+    let rect = state.layout[side.unwrap()];
+    let scale = viewport::logical_per_design();
+    let line = "viewrect {state.view_shot} {rect["x"].as_float() * scale} {rect["y"].as_float() * scale} {rect[layout_fields::WIDTH].as_float() * scale} {rect[layout_fields::HEIGHT].as_float() * scale}";
+    if line != state.view_logged {
+        state.view_logged = line;
+        log::info(line);
+    }
+}
+
+// What the document decides beside its outline: whether the scene is 2D,
+// which scripts the sweep compiles, and what the engine warns about it.
+internal fn follow_document(state: &mut editor::State) {
+    if manager::showing(state) {
+        return;
+    }
+    let is2d = model::is_2d(state);
+    if is2d != state.mode2d {
+        state.mode2d = is2d;
+        shell::apply_camera(state);
+        draw_overlays(state);
+    }
+    lint::follow(state);
+    if state.lint.stale {
+        lint::node_warnings(state);
+    }
+}
+
+// The viewport's tools and the camera, once a frame the pointer did
+// something in. A replay or a showcase feeds the pointer into the snapshot
+// the tools read, so a drag would follow the feed rather than the mouse.
+internal fn viewport_step(state: &mut editor::State) {
+    if state.stepped == state.frame || manager::showing(state) {
+        return;
+    }
+    state.stepped = state.frame;
+    if session::scrubbing(state) || showcase::feeding(state) {
+        return;
+    }
+    // The camera's own: two fingers on the stage, or the mouse buttons and
+    // wheel the editor drives itself. A gizmo never sees one.
+    if !viewport::camera_gesture(state) && !viewport::mouse_camera(state) {
+        gizmo::update(state);
+    }
+    gizmo::fill_marquee(state);
+    textedit::update(state);
+    if state.tool == "key" && state.workspace == defs::WORKSPACE_ANIMATION
+        && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT)
+    {
+        anim::add_key(state, state.anim.time);
+    }
+    // Drawn now rather than on a word: a word is heard the frame after, and
+    // the lines would trail the node they are dragging.
+    let mouse = viewport::pointer(state);
+    let over = state.viewport_live && viewport::owns_pointer(state, mouse.x, mouse.y);
+    if signals::overlays_moved(state, over) {
+        draw_overlays(state);
+    }
+}
+
+// The viewport's lines, drawn and kept until they are drawn again: the
+// gizmo, the rig, the tools, the guides and a plugin's overlays.
+internal fn draw_overlays(state: &mut editor::State) {
+    state.overlays_frame = state.frame;
+    if manager::showing(state) {
+        render::clear_retained(VIEWPORT);
+        return;
+    }
+    render::begin_retained(VIEWPORT);
+    if state.mode2d {
+        overlays::grid2d(state);
+    } else {
+        overlays::grid3d(state);
+    }
+    gizmo::draw(state);
+    plugins::draw_overlays(state);
+    rig::draw(state);
+    if !session::scrubbing(state) {
+        polygon::idle(state);
+    }
+    polygon::draw(state);
+    pen::draw(state);
+    tiles::draw(state);
+    if state.workspace == defs::WORKSPACE_SCENE && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_GUIDES) {
+        overlays::guides(state);
+    }
+    if state.mode2d && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_LIGHTS) {
+        overlays::lights2d(state);
+    }
+    if state.workspace == defs::WORKSPACE_ANIMATION && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_PATH) {
+        overlays::motion_path(state);
+    }
+    if !state.mode2d && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_LIGHTS) {
+        overlays::lights3d(state);
+    }
+    if state.workspace == defs::WORKSPACE_PHYSICS && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_COLLIDERS) {
+        if state.mode2d {
+            overlays::colliders2d(state);
+        } else {
+            overlays::colliders(state);
+        }
+    }
+    render::end_retained();
+}

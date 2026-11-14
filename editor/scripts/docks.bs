@@ -528,7 +528,7 @@ fn plugins_of(side: str) -> str {
 // A plugin dock's own subtree: a head, a sidebar, a body and a foot. One per
 // dock and side, so a dock moved between sides leaves nothing behind it.
 fn host_fragment(name: str) -> str {
-    let text = "[[nodes]]\nid = \"HOST\"\nname = \"HOST\"\nscript.source = \"scripts/panels/plugin.bs\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_host\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_head\"\nname = \"Head\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"flow\"\nrole = \"plugin_head\"\n[nodes.widget_layout]\nalign_items = \"center\"\n\n[[nodes]]\nid = \"HOST_split\"\nname = \"Split\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_split\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_side\"\nname = \"Side\"\nparent = \"HOST_split\"\nvisible = false\n[nodes.widget]\nkind = \"scroll\"\nwidth = 150\n[nodes.widget_scroll]\naxis = \"vertical\"\n\n[[nodes]]\nid = \"HOST_side_rows\"\nname = \"SideRows\"\nparent = \"HOST_side\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_side\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_body\"\nname = \"Body\"\nparent = \"HOST_split\"\n[nodes.widget]\nkind = \"scroll\"\ngrow = 1\n[nodes.widget_scroll]\naxis = \"vertical\"\n\n[[nodes]]\nid = \"HOST_rows\"\nname = \"Rows\"\nparent = \"HOST_body\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_rows\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_foot\"\nname = \"Foot\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_head\"\n[nodes.widget_layout]\nalign_items = \"center\"\n";
+    let text = "[[nodes]]\nid = \"HOST\"\nname = \"HOST\"\nscript.source = \"scripts/panels/plugin.bs\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_host\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_head\"\nname = \"Head\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_head\"\n[nodes.widget_layout]\nalign_items = \"center\"\nwrap_children = \"wrap\"\n\n[[nodes]]\nid = \"HOST_split\"\nname = \"Split\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_split\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_side\"\nname = \"Side\"\nparent = \"HOST_split\"\nvisible = false\n[nodes.widget]\nkind = \"scroll\"\nwidth = 150\n[nodes.widget_scroll]\naxis = \"vertical\"\n\n[[nodes]]\nid = \"HOST_side_rows\"\nname = \"SideRows\"\nparent = \"HOST_side\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_side\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_body\"\nname = \"Body\"\nparent = \"HOST_split\"\n[nodes.widget]\nkind = \"scroll\"\ngrow = 1\n[nodes.widget_scroll]\naxis = \"vertical\"\n\n[[nodes]]\nid = \"HOST_rows\"\nname = \"Rows\"\nparent = \"HOST_body\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_rows\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_foot\"\nname = \"Foot\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_head\"\n[nodes.widget_layout]\nalign_items = \"center\"\n";
     text.replace("HOST", name)
 }
 
@@ -541,8 +541,8 @@ fn host_name(id: str) -> str {
 pub fn plugin_host(state: editor::State, side: str, id: str) -> str {
     let parent = plugins_of(side);
     let path = parent + "/" + host_name(id);
-    if util::is_nil(scene::get_node(path)) {
-        let under = scene::get_node(parent);
+    if util::is_nil(scene::root().get_node(path)) {
+        let under = scene::root().get_node(parent);
         if util::is_nil(under) {
             return "";
         }
@@ -606,8 +606,8 @@ pub fn active_tab_box(state: &mut editor::State, side: str) -> ActiveTabBox? {
             at = index;
         }
     }
-    let tab = scene::get_node("{head_of(side)}/C{at}");
-    let strip = scene::get_node(head_stem(side) + "Tabs");
+    let tab = scene::root().get_node("{head_of(side)}/C{at}");
+    let strip = scene::root().get_node(head_stem(side) + "Tabs");
     if !tab.is_valid() || !strip.is_valid() {
         return nil;
     }
@@ -623,7 +623,7 @@ pub fn active_tab_box(state: &mut editor::State, side: str) -> ActiveTabBox? {
 /// before the row has drawn. The self-test reads it: a hatch with no box is
 /// a dock whose tools are there and invisible.
 pub fn tools_box(side: str) -> ui::Rect? {
-    let found = scene::get_node(tail_of(side) + "/C0");
+    let found = scene::root().get_node(tail_of(side) + "/C0");
     if !found.is_valid() {
         return nil;
     }
@@ -642,7 +642,7 @@ fn tail_controls(state: editor::State, side: str) -> [ui::Control] {
         kind: ui::WIDGET_BUTTON,
         height: tab_height(state),
         width: tab_height(state),
-        padding: ui::all_sides(0),
+        padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
         text: "",
         icon: icons::ui(shut_icon(side)),
         role: roles::ICON_ACTION,
@@ -679,7 +679,7 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
             kind: ui::WIDGET_BUTTON,
             height: height,
             text: label,
-            padding: ui::sides(6, -1, 6, -1),
+            padding: ui::Sides { left: 6.0, top: -1.0, right: 6.0, bottom: -1.0 },
             corner_radius: 4,
             fill: general::NONE,
             role: "tab",

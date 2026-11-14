@@ -1,4 +1,4 @@
-//! A component written once: its struct is its schema (PLAN-property-types §5).
+//! A component written once: its struct is its schema.
 //!
 //! `#[derive(Component)]` (from `balaur_derive`) writes [`Fields`] and
 //! [`Component`] for a struct, and [`ComponentDef::of`] makes the definition
@@ -150,8 +150,8 @@ pub type WarningFn = fn(&Engine, Entity) -> Vec<crate::warnings::Warning>;
 /// One lifecycle call: the node, and the engine to read it through.
 pub type LifecycleFn = fn(&Engine, Entity);
 
-/// What a component runs at each point of its life on a node (PLAN-ecs §2,
-/// Bevy's component hooks), declared on the derive or on a hand-written
+/// What a component runs at each point of its life on a node (Bevy's
+/// component hooks), declared on the derive or on a hand-written
 /// definition. Every write through the registry runs them, a script's, a
 /// scene's and Rust's alike.
 ///

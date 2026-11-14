@@ -8,7 +8,7 @@ pub class Menu {
 
 impl Menu {
     fn init() {
-        self.spinner = scene::get_node("Main/World/Spinner");
+        self.spinner = scene::root().get_node("Main/World/Spinner");
     }
 
     pub fn on_faster() {

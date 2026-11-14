@@ -1,0 +1,191 @@
+// The theme window's edits: a key written or cleared, the theme saved,
+// reverted, copied, renamed or removed. Each writes the worn theme and the
+// person's own copy of it.
+
+use editor;
+use settings;
+use theme;
+use themewin;
+use util;
+use words::fields;
+use words::layout_fields;
+
+const WIDGET_THEME: str = "widget_theme";
+
+internal fn load_own(state: &mut editor::State) {
+    let name = state.theme[fields::NAME].as_str();
+    let own = if theme::is_bundled(name) { nil } else { theme::own_half(name, state.theme[layout_fields::HALF].as_str()) };
+    state.themewin.own = own;
+    state.themewin.dirty = false;
+    state.themewin.pairs = ui::contrast_pairs(state.theme[fields::DOC], themewin::GROUND);
+    state.themewin.apart = ui::colors_apart(state.theme[fields::DOC]);
+}
+
+internal fn table_at(doc: any, path: [str]) -> any {
+    let table = util::map_or_empty(doc);
+    for part in path {
+        if !(table.has(part) && table[part].kind() == types::KIND_MAP) {
+            return {};
+        }
+        table = table[part];
+    }
+    table
+}
+
+/// Write one key of the person's theme and wear the result. A bundled theme
+/// has no `own`, so nothing is written.
+pub fn edit(state: &mut editor::State, path: [str], key: str, value: any) {
+    let own: any = state.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let table: any = own;
+    for part in path {
+        if !(table.has(part) && table[part].kind() == types::KIND_MAP) {
+            table[part] = {};
+        }
+        table = table[part];
+    }
+    table[key] = value;
+    changed(state);
+}
+
+internal fn clear(state: &mut editor::State, path: [str], key: str) {
+    let own: any = state.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let table = table_at(own, path);
+    if table.has(key) {
+        table.remove(key);
+    }
+    changed(state);
+}
+
+fn changed(state: &mut editor::State) {
+    state.themewin.dirty = true;
+    state.themewin.said = "";
+    let own: any = state.themewin.own;
+    let doc = theme::merge(theme::bundled(theme::base_of(own), state.theme[layout_fields::HALF].as_str()), own);
+    theme::wear(state, state.theme[fields::NAME].as_str(), doc);
+    let pairs = ui::contrast_pairs(doc, themewin::GROUND);
+    state.themewin.pairs = pairs;
+    state.themewin.apart = ui::colors_apart(doc);
+}
+
+internal fn rebase(state: &mut editor::State, picked: any) {
+    let own: any = state.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    own[fields::BASE] = picked;
+    changed(state);
+}
+
+/// Wear another theme, remembered as the setting.
+pub fn choose(state: &mut editor::State, name: str) {
+    settings::set(theme::SETTING, name);
+    settings::commit_preferences(state);
+    theme::use_named(state, name);
+    load_own(state);
+    state.themewin.said = "";
+}
+
+/// Write the worn half of the person's theme: only what differs from the same
+/// half of its base, under the base it names.
+pub fn save(state: &mut editor::State) {
+    let own: any = state.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let half = state.theme[layout_fields::HALF].as_str();
+    let base_name = theme::base_of(own);
+    let base = theme::bundled(base_name, half);
+    let out = theme::diff(base, theme::merge(base, own));
+    out[fields::TYPE] = WIDGET_THEME;
+    out[fields::BASE] = base_name;
+    fs::create_directory(theme::folder_of(state.theme[fields::NAME].as_str()));
+    fs::write(theme::path_of(state.theme[fields::NAME].as_str(), half), toml::encode(out));
+    state.themewin.own = out;
+    state.themewin.dirty = false;
+    state.themewin.said = "Saved themes/{state.theme["name"]}/{half}.toml";
+}
+
+internal fn revert(state: &mut editor::State) {
+    theme::reload(state);
+    load_own(state);
+    state.themewin.said = "";
+}
+
+/// A name for a copy nobody has used: `balaur-custom`, then `balaur-custom-2`.
+fn fresh_name(from: str) -> str {
+    let stem = if theme::is_bundled(from) { from + "-custom" } else { from + "-copy" };
+    let taken = theme::names();
+    let name = stem;
+    let suffix = 2;
+    while name_taken(name, taken) {
+        name = "{stem}-{suffix}";
+        suffix += 1;
+    }
+    name
+}
+
+fn name_taken(name: str, items: [any]) -> bool {
+    for existing in items {
+        if existing.as_str() == name {
+            return true;
+        }
+    }
+    false
+}
+
+/// Copy the worn theme into the themes folder and wear the copy. A bundled one
+/// becomes a folder whose worn half names it as its base and nothing else.
+pub fn duplicate(state: &mut editor::State) -> str {
+    let from = state.theme[fields::NAME].as_str();
+    let name = fresh_name(from);
+    fs::create_directory(theme::folder_of(name));
+    for half in theme::HALVES() {
+        let copy: any = if !theme::is_bundled(from) {
+            theme::read(from, half)
+        } else if half == state.theme[layout_fields::HALF].as_str() {
+            { fields::BASE: from }
+        } else {
+            nil
+        };
+        if copy.kind() == types::KIND_MAP {
+            copy[fields::TYPE] = WIDGET_THEME;
+            fs::write(theme::path_of(name, half), toml::encode(copy));
+        }
+    }
+    choose(state, name);
+    state.themewin.said = "Duplicated " + from + " as " + name;
+    name
+}
+
+internal fn rename(state: &mut editor::State, text: any) {
+    let old = state.theme[fields::NAME].as_str();
+    let name = text.as_str().trim();
+    let bad = name == "" || name.contains("/") || name.contains(".");
+    if bad || theme::is_bundled(name) || name_taken(name, theme::names()) {
+        state.themewin.said = "'{text}' is not a name a new theme folder can take";
+        return;
+    }
+    if state.themewin.dirty {
+        save(state);
+    }
+    fs::rename(theme::folder_of(old), theme::folder_of(name));
+    choose(state, name);
+    state.themewin.said = "Renamed " + old + " to " + name;
+}
+
+/// Remove the worn theme's folder, both halves, and go back to its base.
+pub fn remove(state: &mut editor::State) {
+    let own: any = state.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let back = theme::base_of(own);
+    fs::remove(theme::folder_of(state.theme[fields::NAME].as_str()));
+    choose(state, back);
+}

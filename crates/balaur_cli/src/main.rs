@@ -413,7 +413,7 @@ fn main() -> Result<()> {
         balaur::engine_api::set_platform_data_dir(dir.into());
     }
     // The capturing logger tees to stderr and to the in-engine ring buffer
-    // that powers `log.recent` (the editor's Output dock).
+    // that powers `log.since` (the editor's Output dock).
     balaur::logbuf::capture(log_level());
     // A standalone build is a game: the pack is appended to this very executable,
     // so boot it and never look at argv. A plain build finds nothing here and

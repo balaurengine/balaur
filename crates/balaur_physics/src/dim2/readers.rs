@@ -103,16 +103,12 @@ pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        (f::COLLIDER_TOTAL_MASS, &[c::COLLIDER_2D], "", "What this collider weighs, density and size together."),
         (f::COLLIDER_VOLUME, &[c::COLLIDER_2D], "", "How much area the shape encloses."),
         (f::COLLIDER_MASS_PROPERTIES, &[c::COLLIDER_2D], "(node: node) -> MassProperties", "What this collider adds to its body, in its own space."),
         (f::COLLIDER_MESH, &[c::COLLIDER_2D], "(node: node) -> ColliderMesh", "A voxel collider's outline as points and the segments between them, for drawing it or for spawning the pieces it broke into."),
         (f::POSE_IN_BODY, &[c::COLLIDER_2D], "(node: node) -> Pose?", "Where the collider sits in its body's frame; nothing for a collider with no body."),
         (f::HANDLES, &[c::COLLIDER_2D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
     ]);
-    m.function(f::COLLIDER_TOTAL_MASS, |eng: &Engine, node: NodeId| {
-        with_first_collider(eng, node, |_, collider| Ok(collider.mass()))
-    });
     m.function(f::COLLIDER_VOLUME, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| Ok(collider.volume()))
     });

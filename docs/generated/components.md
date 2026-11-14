@@ -141,7 +141,7 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 <tr><td><code>kinetic_energy()</code></td><td><code>float</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>linear_velocity()</code></td><td><code>Vec2</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>local_center_of_mass()</code></td><td><code>Vec2</code></td><td>Where the body&#x27;s whole mass sits, in the body&#x27;s own space.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>max_contact_impulse()</code></td><td><code>float</code></td><td>The hardest contact this body took in the last step, zero when nothing touched it.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>max_contact_impulse()</code></td><td><code>float</code></td><td>The hardest contact this body took in the last step, every collider on it included; zero when nothing touched it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>next_position()</code></td><td><code>physics2d::Pose</code></td><td>The pose a kinematic body has been told to move to.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>potential_energy()</code></td><td><code>float</code></td><td>The body&#x27;s gravitational potential energy over one step.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>predict_position(float)</code></td><td><code>physics2d::Pose</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics2d</code></td></tr>
@@ -238,7 +238,7 @@ Announced from a node carrying `camera2d`:
 
 ### `character2d`
 
-`2d` · `physics` · 17 properties · 2 methods
+`2d` · `physics` · 17 properties · 1 method
 
 A 2D character controller: `node.character2d.move_by` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.
 
@@ -270,14 +270,13 @@ On a node carrying `character2d`, as `node.character2d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>is_on_floor()</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>move_by(Vec2)</code></td><td><code>physics2d::CharacterMove</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update.</td><td><code>physics2d</code></td></tr>
 </tbody>
 </table>
 
 ### `collider2d`
 
-`2d` · `physics` · 23 properties · 21 methods
+`2d` · `physics` · 23 properties · 20 methods
 
 The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
 
@@ -342,7 +341,6 @@ On a node carrying `collider2d`, as `node.collider2d.<method>`:
 <tr><td><code>set_voxel(int, int, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_voxel_size(Vec2)</code></td><td>—</td><td>Resize every cell of a voxel collider, keeping which cells are filled.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>swept_aabb()</code></td><td><code>physics2d::Aabb</code></td><td>The box the collider covers over the next fixed step, from where it is to where its body&#x27;s velocity and forces carry it.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>total_mass()</code></td><td><code>float</code></td><td>What this collider weighs, density and size together.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>volume()</code></td><td><code>float</code></td><td>How much area the shape encloses.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>voxel(int, int)</code></td><td><code>bool</code></td><td>Whether one cell of a voxel collider is filled.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>voxel_at(Vec2)</code></td><td><code>[int]</code></td><td>The cell a world position falls in, as two whole numbers.</td><td><code>physics2d</code></td></tr>
@@ -413,7 +411,7 @@ Which axes a `joint2d` of kind generic locks, and which free ones it ties into o
 
 ### `joint2d`
 
-`2d` · `physics` · 13 properties · 7 methods
+`2d` · `physics` · 13 properties · 3 methods
 
 Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node. `axes` limits and drives each free axis.
 
@@ -451,10 +449,6 @@ On a node carrying `joint2d`, as `node.joint2d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>force()</code></td><td><code>physics2d::JointForce</code></td><td>The force and the torque the joint held through the last step. An articulation has none to read, and says so.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>remove()</code></td><td>—</td><td>Undo the node&#x27;s joint, leaving both bodies free.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_limits(str, float, float)</code></td><td>—</td><td>Set how far one of the joint&#x27;s free axes may travel; equal values lift the limit. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_motor_position(str, float, float, float)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards an angle or a distance, with a spring&#x27;s stiffness and damping. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_motor_velocity(str, float, float)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards a speed: how a wheel is powered. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>solve_ik(Vec2, physics2d::IkOptions?)</code></td><td>—</td><td>Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001).</td><td><code>physics2d</code></td></tr>
 <tr><td><code>state()</code></td><td><code>physics2d::JointState</code></td><td>What the joint is doing.</td><td><code>physics2d</code></td></tr>
 </tbody>
@@ -558,7 +552,7 @@ Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bo
 
 ### `multimesh2d`
 
-`2d` · `render` · 5 properties · 15 methods
+`2d` · `render` · 5 properties · 13 methods
 
 Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 
@@ -578,14 +572,12 @@ On a node carrying `multimesh2d`, as `node.multimesh2d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>buffer()</code></td><td><code>[float]</code></td><td>Every instance as one flat list of floats in Godot&#x27;s `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instance_color(int)</code></td><td><code>Color</code></td><td>The colour one instance draws in.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instance_count()</code></td><td><code>int</code></td><td>How many instances the node holds.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instance_custom_data(int)</code></td><td><code>Color</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instance_region(int)</code></td><td><code>render::InstanceRegion?</code></td><td>The texture rectangle one instance&#x27;s row names with `region_origin` and `region_size`, in pixels, or nil when it names none.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instance_transform(int)</code></td><td><code>Transform2d</code></td><td>One instance&#x27;s transform.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instances()</code></td><td><code>[render::MultimeshInstance]</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>multimesh2d</code></td></tr>
-<tr><td><code>set_buffer([float])</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>set_instance_color(int, Color)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>set_instance_custom_data(int, Color)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour.</td><td><code>multimesh2d</code></td></tr>
@@ -869,7 +861,7 @@ How a volumetric `softbody2d` fills its mesh's outline with triangles.
 
 ### `softbody2d`
 
-`2d` · `physics` · `render` · 35 properties · 44 methods
+`2d` · `physics` · `render` · 35 properties · 42 methods
 
 A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.
 
@@ -955,8 +947,6 @@ On a node carrying `softbody2d`, as `node.softbody2d.<method>`:
 <tr><td><code>is_sleeping()</code></td><td><code>bool</code></td><td>Whether the body has come to rest and stopped being simulated.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>particle(int)</code></td><td><code>physics2d::SoftParticle</code></td><td>Everything one particle holds.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>particle_count()</code></td><td><code>int</code></td><td>How many particles the body has, every piece torn off it included: a generator decides, not the author.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>particle_position(int)</code></td><td><code>Vec2</code></td><td>Where one particle is, in world space.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>particle_velocity(int)</code></td><td><code>Vec2</code></td><td>How fast one particle is moving, in world space.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>pin_particle(int)</code></td><td>—</td><td>Hold one particle where it is, which is how a cloth hangs from a hook.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>reset_forces()</code></td><td>—</td><td>Take back every force `add_force` and `add_particle_force` gave the body.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>reset_plasticity()</code></td><td>—</td><td>Undo every permanent set the body took: rest lengths, rest angles and rest shapes go back to how it was built, and it springs back from where it is.</td><td><code>physics2d</code></td></tr>
@@ -1108,7 +1098,7 @@ How the node's `tile_collision` builds the tiles whose collision is polygons, th
 
 ### `tilemap`
 
-`2d` · `render` · 9 properties · 5 methods
+`2d` · `render` · 9 properties · 4 methods
 
 A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids, or names the `.cells` file holding them; `pixels_per_unit` is tile pixels per world unit.
 
@@ -1136,7 +1126,6 @@ On a node carrying `tilemap`, as `node.tilemap.<method>`:
 <tr><td><code>set_cell(int, int, int)</code></td><td>—</td><td>Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.</td><td><code>render</code></td></tr>
 <tr><td><code>set_terrain(int, int, int)</code></td><td>—</td><td>Paint a terrain value at a column and row and let the tileset&#x27;s rules pick the tiles, for that cell and the ring around it; below zero clears it.</td><td><code>render</code></td></tr>
 <tr><td><code>terrain(int, int)</code></td><td><code>int</code></td><td>The terrain value painted at a column and row, or -1 where nothing was painted.</td><td><code>render</code></td></tr>
-<tr><td><code>tile_data(int, int)</code></td><td><code>any</code></td><td>What the tileset says about the tile at a column and row -- its `[tiles.&lt;id&gt;.data]` table -- or nil where the cell is empty or the tile carries none.</td><td><code>render</code></td></tr>
 </tbody>
 </table>
 
@@ -1238,7 +1227,7 @@ Solves the node's `joint3d` in reduced coordinates: the chain never drifts and c
 
 ### `body3d`
 
-`3d` · `physics` · 25 properties · 38 methods
+`3d` · `physics` · 25 properties · 39 methods
 
 A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.
 
@@ -1311,6 +1300,7 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>kinetic_energy()</code></td><td><code>float</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>linear_velocity()</code></td><td><code>Vec3</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>local_center_of_mass()</code></td><td><code>Vec3</code></td><td>Where the body&#x27;s whole mass sits, in the body&#x27;s own space.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>max_contact_impulse()</code></td><td><code>float</code></td><td>The hardest contact this body took in the last step, every collider on it included; zero when nothing touched it.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>next_position()</code></td><td><code>physics3d::Pose</code></td><td>The pose a kinematic body has been told to move to.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>potential_energy()</code></td><td><code>float</code></td><td>The body&#x27;s gravitational potential energy over one step.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>predict_position(float)</code></td><td><code>physics3d::Pose</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics3d</code></td></tr>
@@ -1424,7 +1414,7 @@ Announced from a node carrying `camera3d`:
 
 ### `character3d`
 
-`3d` · `physics` · 17 properties · 2 methods
+`3d` · `physics` · 17 properties · 1 method
 
 A 3D character controller: `node.character3d.move_by` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.
 
@@ -1456,14 +1446,13 @@ On a node carrying `character3d`, as `node.character3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>is_on_floor()</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>move_by(Vec3)</code></td><td><code>physics3d::CharacterMove</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
 ### `collider3d`
 
-`3d` · `physics` · 24 properties · 22 methods
+`3d` · `physics` · 24 properties · 20 methods
 
 The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.
 
@@ -1522,7 +1511,6 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 <tr><td><code>handles()</code></td><td><code>physics3d::Handles</code></td><td>The rapier handles behind this node, its body and its colliders. For matching a log line against rapier&#x27;s own output.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>heightfield_hole(int, int)</code></td><td><code>bool</code></td><td>Whether a heightfield cell has no ground.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>mass_properties()</code></td><td><code>physics3d::MassProperties</code></td><td>What this collider adds to its body, in its own space.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>max_contact_impulse()</code></td><td><code>float</code></td><td>The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>mesh()</code></td><td><code>physics3d::ColliderMesh</code></td><td>The collider&#x27;s shape as points and triangles, including a voxel grid&#x27;s, for drawing it or for spawning the pieces it broke into.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>overlaps()</code></td><td><code>[Node]</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>pose_in_body()</code></td><td><code>physics3d::Pose?</code></td><td>Where the collider sits in its body&#x27;s frame; nothing for a collider with no body.</td><td><code>physics3d</code></td></tr>
@@ -1530,7 +1518,6 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 <tr><td><code>set_voxel(int, int, int, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_voxel_size(Vec3)</code></td><td>—</td><td>Resize every cell of a voxel collider, keeping which cells are filled.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>swept_aabb()</code></td><td><code>physics3d::Aabb</code></td><td>The box the collider covers over the next fixed step, from where it is to where its body&#x27;s velocity and forces carry it.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>total_mass()</code></td><td><code>float</code></td><td>What this collider weighs, density and size together.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>volume()</code></td><td><code>float</code></td><td>How much space the shape encloses.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>voxel(int, int, int)</code></td><td><code>bool</code></td><td>Whether one cell of a voxel collider is filled.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>voxel_at(Vec3)</code></td><td><code>[int]</code></td><td>The cell a world position falls in, as three whole numbers.</td><td><code>physics3d</code></td></tr>
@@ -1610,7 +1597,7 @@ Which axes a `joint3d` of kind generic locks, and which free ones it ties into o
 
 ### `joint3d`
 
-`3d` · `physics` · 13 properties · 7 methods
+`3d` · `physics` · 13 properties · 3 methods
 
 Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node. `axes` limits and drives each free axis.
 
@@ -1648,10 +1635,6 @@ On a node carrying `joint3d`, as `node.joint3d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>force()</code></td><td><code>physics3d::JointForce</code></td><td>The force and the torque the joint held through the last step: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>remove()</code></td><td>—</td><td>Undo the node&#x27;s joint, leaving both bodies free.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_limits(str, float, float)</code></td><td>—</td><td>Set how far one of the joint&#x27;s free axes may travel, in radians about a rotation axis and units along a linear one; equal values lift the limit. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_motor_position(str, float, float, float)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards an angle or a distance, with a spring&#x27;s stiffness and damping. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_motor_velocity(str, float, float)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards a speed: how a wheel is powered or a door swings itself shut. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>solve_ik(Vec3, physics3d::IkOptions?)</code></td><td>—</td><td>Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (euler radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `z`, `rotation_x`, `rotation_y`, `rotation_z`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001).</td><td><code>physics3d</code></td></tr>
 <tr><td><code>state()</code></td><td><code>physics3d::JointState</code></td><td>What the joint is doing.</td><td><code>physics3d</code></td></tr>
 </tbody>
@@ -1751,7 +1734,7 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 
 ### `multimesh3d`
 
-`3d` · `render` · 9 properties · 14 methods
+`3d` · `render` · 9 properties · 12 methods
 
 Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 
@@ -1775,13 +1758,11 @@ On a node carrying `multimesh3d`, as `node.multimesh3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>buffer()</code></td><td><code>[float]</code></td><td>Every instance as one flat list of floats in Godot&#x27;s `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>instance_color(int)</code></td><td><code>Color</code></td><td>The colour one instance draws in.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>instance_count()</code></td><td><code>int</code></td><td>How many instances the node holds.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>instance_custom_data(int)</code></td><td><code>Color</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>instance_transform(int)</code></td><td><code>Transform3d</code></td><td>One instance&#x27;s transform.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>instances()</code></td><td><code>[render::MultimeshInstance]</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>multimesh3d</code></td></tr>
-<tr><td><code>set_buffer([float])</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>set_instance_color(int, Color)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>set_instance_custom_data(int, Color)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour.</td><td><code>multimesh3d</code></td></tr>
@@ -2017,7 +1998,7 @@ How a volumetric `softbody3d` fills its mesh with tetrahedra.
 
 ### `softbody3d`
 
-`3d` · `physics` · `render` · 35 properties · 46 methods
+`3d` · `physics` · `render` · 35 properties · 44 methods
 
 A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.
 
@@ -2104,8 +2085,6 @@ On a node carrying `softbody3d`, as `node.softbody3d.<method>`:
 <tr><td><code>is_sleeping()</code></td><td><code>bool</code></td><td>Whether the body has come to rest and stopped being simulated.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>particle(int)</code></td><td><code>physics3d::SoftParticle</code></td><td>Everything one particle holds.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>particle_count()</code></td><td><code>int</code></td><td>How many particles the body has, every piece torn off it included: a generator decides, not the author.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>particle_position(int)</code></td><td><code>Vec3</code></td><td>Where one particle is, in world space.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>particle_velocity(int)</code></td><td><code>Vec3</code></td><td>How fast one particle is moving, in world space.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>pin_particle(int)</code></td><td>—</td><td>Hold one particle where it is, which is how a cloth hangs from a hook.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>reset_forces()</code></td><td>—</td><td>Take back every force `add_force` and `add_particle_force` gave the body.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>reset_plasticity()</code></td><td>—</td><td>Undo every permanent set the body took: rest lengths, rest angles and rest shapes go back to how it was built, and it springs back from where it is.</td><td><code>physics3d</code></td></tr>
@@ -2392,7 +2371,7 @@ On a node carrying `animation`, as `node.animation.<method>`:
 
 `animation` · 4 properties · 4 methods
 
-Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.
+Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `state_machine.travel` moves to a state.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -2474,7 +2453,7 @@ A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its
 <tr><td><code>queue</code></td><td>list of string</td><td><code>[]</code></td><td>Files played after `file`, in order and without a gap; `node.sound.skip()` moves to the next. Read when it starts</td></tr>
 <tr><td><code>stems</code></td><td>list of string</td><td><code>[]</code></td><td>Files mixed with `file` for its whole length, each at its own import level. Read when it starts</td></tr>
 <tr><td><code>fade_in_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds the sound rises from silence over when it starts At least 0.0.</td></tr>
-<tr><td><code>fade_out_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds the sound falls to silence over: the last ones before it plays out, and the first after `audio.stop` At least 0.0.</td></tr>
+<tr><td><code>fade_out_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds the sound falls to silence over: the last ones before it plays out, and the first after `sound.stop` At least 0.0.</td></tr>
 <tr><td><code>crossfade_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a playing sound fades out over when `file` changes, while the new file, if `autoplay` starts it, fades in; 0 cuts At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -2511,7 +2490,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>fold</code>, <code>dialog</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td>—</td><td>Label or button caption</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Off, the widget is greyed out and swallows its clicks</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Corner, edge or middle the offset is measured from: of the surface for a root, of the parent&#x27;s box inside a `stack`; `fill` takes the whole of it less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>, <code>fill_top</code>, <code>fill_bottom</code>, <code>fill_left</code>, <code>fill_right</code>, <code>fill_across</code>, <code>fill_down</code>.</td></tr>
@@ -2731,7 +2710,7 @@ The rows a `text_field`, `text_area` or `code` reads: what may be typed and how 
 <tr><td><code>clip_text</code></td><td>bool</td><td><code>true</code></td><td>Cut a `text_field`&#x27;s text at its edge; off, the field grows to show it whole</td></tr>
 <tr><td><code>caret_at_end</code></td><td>bool</td><td><code>true</code></td><td>Put the caret at the end of a `text_field`, `text_area` or `code`&#x27;s text when it first takes focus; off, at the start</td></tr>
 <tr><td><code>tab_inserts</code></td><td>bool</td><td><code>false</code></td><td>Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on</td></tr>
-<tr><td><code>submit_key</code></td><td>string</td><td>—</td><td>The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says</td></tr>
+<tr><td><code>submit_key</code></td><td>string</td><td>—</td><td>The chord that submits a `text_field`, as `Enter` or `cmd+Enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says</td></tr>
 <tr><td><code>prefix</code></td><td>string</td><td>—</td><td>Text drawn before a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
 <tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Text drawn after a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
 <tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where what a `text_field` or `text_area` edits sits in its width One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
@@ -2804,10 +2783,10 @@ The rows a container reads: how it lays out what is in it.
 <tr><td><code>align_items</code></td><td>enum</td><td><code>stretch</code></td><td>Where a container puts its children across its own direction, and a `grid` each child in its cell down: `stretch` makes each as wide (or tall) as the container, `baseline` lines up their first lines of text, the others keep each child&#x27;s own size One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
 <tr><td><code>justify</code></td><td>enum</td><td><code>start</code></td><td>How a container spreads its children along its own direction once they have their sizes, and a `grid` its columns: `stretch` grows a grid&#x27;s `auto` columns into the room, and in a row or a column is `start` One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
 <tr><td><code>align_content</code></td><td>enum</td><td><code>stretch</code></td><td>How a container that wraps spreads its lines across its direction, and a `grid` its rows, where they leave room: `stretch` shares the room among them One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
-<tr><td><code>wrap_children</code></td><td>enum</td><td><code>auto</code></td><td>Whether a container&#x27;s children run onto more lines when they do not fit: `auto` wraps a `flow` and keeps every other container on one line; `balance` evens the lines out over at least `min_lines`; a `_reverse` word stacks the lines the other way One of <code>auto</code>, <code>none</code>, <code>wrap</code>, <code>wrap_reverse</code>, <code>balance</code>, <code>balance_reverse</code>.</td></tr>
+<tr><td><code>wrap_children</code></td><td>enum</td><td><code>none</code></td><td>Whether a container&#x27;s children run onto more lines when they do not fit: `none` keeps them on one line, `wrap` starts a line when the row is full, `balance` evens the lines out over at least `min_lines`, and a `_reverse` word stacks the lines the other way One of <code>none</code>, <code>wrap</code>, <code>wrap_reverse</code>, <code>balance</code>, <code>balance_reverse</code>.</td></tr>
 <tr><td><code>min_lines</code></td><td>int</td><td><code>1</code></td><td>How many lines a wrapping container divides its children between at least: `balance` evens them over this many, and any wrap shares a known cross size among them At least 1.</td></tr>
 <tr><td><code>direction</code></td><td>enum</td><td><code>left_to_right</code></td><td>Which way a row and a grid&#x27;s columns run: `right_to_left` starts them at the right edge One of <code>left_to_right</code>, <code>right_to_left</code>.</td></tr>
-<tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Lay a `row`, `column` or `flow`&#x27;s children out from its far end</td></tr>
+<tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Lay a `row` or a `column`&#x27;s children out from its far end</td></tr>
 <tr><td><code>splitter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -2947,8 +2926,8 @@ The rows of a chord that clicks a widget, which any kind may carry.
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>
-<tr><td><code>while_typing</code></td><td>bool</td><td><code>true</code></td><td>Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`</td></tr>
+<tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+KeyS` or `F5`, spelled as `[input.actions]` spells one; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>
+<tr><td><code>while_typing</code></td><td>bool</td><td><code>true</code></td><td>Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+KeyZ`</td></tr>
 <tr><td><code>takes_typing</code></td><td>bool</td><td><code>false</code></td><td>Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list&#x27;s arrows, Enter and Escape while it is up</td></tr>
 </tbody>
 </table>
@@ -3060,15 +3039,14 @@ Named values filed on the node, like Godot's `set_meta`. It has no fixed propert
 
 ### `states`
 
-`interaction` · 2 properties · 2 methods
+`interaction` · 1 property · 1 method
 
-Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state("hover")` patches one over the node.
+Named looks for the node. Every key beside `current` is a state holding per-component property tables; `node.states.set_state("hover")` patches one over the node at once.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>current</code></td><td>string</td><td>—</td><td>The state this node is in; empty is the pose the scene gave it</td></tr>
-<tr><td><code>duration</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a transition takes; zero snaps At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -3078,7 +3056,6 @@ On a node carrying `states`, as `node.states.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>set_state(str)</code></td><td>—</td><td>Put the node in one of its `states`: the state&#x27;s table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.</td><td><code>node</code></td></tr>
-<tr><td><code>state()</code></td><td><code>str</code></td><td>The state the node is in, or &quot;&quot; for the pose the scene gave it.</td><td><code>node</code></td></tr>
 </tbody>
 </table>
 

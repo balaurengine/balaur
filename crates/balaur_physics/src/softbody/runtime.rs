@@ -37,8 +37,6 @@ macro_rules! runtime_api {
             ]);
             m.describe(&[
                 ("softbody_particle_count", &[$component], "(node: node) -> int", "How many particles the body has, every piece torn off it included: a generator decides, not the author."),
-                ("softbody_particle_position", &[$component], concat!("(node: node, index: int) -> Vec", $N), "Where one particle is, in world space."),
-                ("softbody_particle_velocity", &[$component], concat!("(node: node, index: int) -> Vec", $N), "How fast one particle is moving, in world space."),
                 ("softbody_particle", &[$component], "(node: node, index: int) -> SoftParticle", "Everything one particle holds."),
                 ("pin_particle", &[$component], "(node: node, index: int)", "Hold one particle where it is, which is how a cloth hangs from a hook."),
                 ("unpin_particle", &[$component], "(node: node, index: int)", "Let a held particle go; it keeps the velocity it had."),
@@ -254,12 +252,6 @@ macro_rules! runtime_api {
                     Ok(i64::try_from(total).unwrap_or(i64::MAX))
                 })
             });
-            m.function("softbody_particle_position", |eng: &Engine, (node, index): (NodeId, i64)| {
-                on_element(eng, node, PARTICLES, index, |body, i| Ok($value($array(body.particle_position(i)))))
-            });
-            m.function("softbody_particle_velocity", |eng: &Engine, (node, index): (NodeId, i64)| {
-                on_element(eng, node, PARTICLES, index, |body, i| Ok($value($array(body.particle_velocity(i)))))
-            });
             m.function("softbody_particle", |eng: &Engine, (node, index): (NodeId, i64)| {
                 use crate::vocabulary::keys as k;
                 on_element(eng, node, PARTICLES, index, |body, i| {
@@ -303,6 +295,7 @@ macro_rules! runtime_api {
                     })
                 },
             );
+            // Read back as `particle(i).position`, with the rest of the particle.
             m.function(
                 "set_particle_position",
                 |eng: &Engine, (node, index, target): (NodeId, i64, Value)| {
@@ -313,6 +306,7 @@ macro_rules! runtime_api {
                     })
                 },
             );
+            // Read back as `particle(i).velocity`.
             m.function(
                 "set_particle_velocity",
                 |eng: &Engine, (node, index, velocity): (NodeId, i64, Value)| {

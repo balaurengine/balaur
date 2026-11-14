@@ -1,0 +1,16 @@
+// `|` joins variants into one arm; a variant with values names each `_`.
+
+enum Light { Red, Amber, Green, Blink(int) }
+
+fn halts(l: Light) -> bool {
+    match l {
+        Light::Red | Light::Amber => true,
+        Light::Green | Light::Blink(_) => false,
+    }
+}
+
+pub fn stops() -> str {
+    "{halts(Light::Red)} {halts(Light::Amber)} {halts(Light::Green)} {halts(Light::Blink(2))}"
+}
+
+// expect: stops() == "true true false false"

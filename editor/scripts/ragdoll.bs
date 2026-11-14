@@ -238,7 +238,7 @@ internal fn build(rig: Node, segments: [Segment], under: Node, opts: Options) ->
     }
     rig.set_component(RAGDOLL, {
         BODIES: relative_path(rig, container),
-        INFLUENCE: util::clamp(opts.influence, 0.0, 1.0),
+        INFLUENCE: math::clamp(opts.influence, 0.0, 1.0),
     });
     made
 }
@@ -279,7 +279,7 @@ fn spawn_body(container: Node, segment: Segment, opts: Options, three: bool) -> 
     node.set_component(if three { components::BODY3D } else { components::BODY2D }, body);
     let collider: any = {
         schema_fields::SHAPE: shape_of(opts, reach, three),
-        DENSITY: util::max(opts.density, 0.0),
+        DENSITY: math::max(opts.density, 0.0),
         PHYSICS_MATERIAL: surface_of(opts),
     };
     let middle = times(along, 0.5);
@@ -305,7 +305,7 @@ fn spawn_body(container: Node, segment: Segment, opts: Options, three: bool) -> 
 // a box as long as the bone and as thick as the capsule would be.
 fn shape_of(opts: Options, reach: float, three: bool) -> any {
     let kind = opts.shape.or(physics3d::SHAPE_CAPSULE);
-    let radius = reach * util::max(opts.thickness, MIN_THICKNESS);
+    let radius = reach * math::max(opts.thickness, MIN_THICKNESS);
     let shape: any = { fields::KIND: kind };
     if kind == physics3d::SHAPE_CAPSULE {
         shape[layout_fields::RADIUS] = radius;
@@ -322,9 +322,9 @@ fn shape_of(opts: Options, reach: float, three: bool) -> any {
 
 // What every bone's surface is made of, written inline on each collider.
 fn surface_of(opts: Options) -> any {
-    let surface: any = { FRICTION: util::max(opts.friction, 0.0) };
+    let surface: any = { FRICTION: math::max(opts.friction, 0.0) };
     if opts.restitution != nil {
-        surface[RESTITUTION] = util::clamp(opts.restitution.unwrap(), 0.0, 1.0);
+        surface[RESTITUTION] = math::clamp(opts.restitution.unwrap(), 0.0, 1.0);
     }
     surface
 }
@@ -400,8 +400,8 @@ fn axis_records(opts: Options, three: bool) -> [any] {
         found[MOTOR] = physics3d::MOTOR_POSITION;
         found[MOTOR_TARGET] = 0.0;
         found[MOTOR_TARGET_VELOCITY] = 0.0;
-        found[STIFFNESS] = util::max(opts.stiffness, 0.0);
-        found[DAMPING] = util::max(opts.damping, 0.0);
+        found[STIFFNESS] = math::max(opts.stiffness, 0.0);
+        found[DAMPING] = math::max(opts.damping, 0.0);
         rest.push(found);
         records = rest;
     }

@@ -7,6 +7,7 @@ use dropin;
 use editor;
 use icons;
 use model;
+use sceneedit;
 use signals;
 use util;
 use words::asset_kinds;
@@ -230,7 +231,7 @@ pub fn apply_material(state: &mut editor::State, entry: any) {
         log::info("select a node with a 3D shape to give it " + entry[fields::NAME].as_str());
         return;
     };
-    model::set_component_property(state, key, asset_kinds::MATERIAL, rel);
+    sceneedit::set_component_property(state, key, asset_kinds::MATERIAL, rel);
     log::info("{found.name()} is now {entry["name"].as_str()}");
 }
 

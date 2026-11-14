@@ -18,8 +18,8 @@ pub(crate) struct EngineInner {
     pub(crate) world: RefCell<hecs::World>,
     pub(crate) resources: RefCell<Resources>,
     // Option because the host is installed after the engine exists (it needs
-    // an Engine clone for its binding closures). This is a deliberate Rc cycle:
-    // the engine is a live-forever singleton.
+    // an Engine clone for its binding closures). The Rc cycle that makes is
+    // broken when the `App` drops (`take_script_host`).
     pub(crate) script_host: RefCell<Option<Rc<dyn balaur_script::ScriptHost<Engine>>>>,
     /// Writes made at the end of the stage (`commands`).
     pub(crate) deferred: RefCell<Vec<crate::commands::Deferred>>,
@@ -30,7 +30,7 @@ pub(crate) struct EngineInner {
     pub(crate) delta: Cell<f32>,
     pub(crate) tick: Cell<u64>,
     /// Stepped before every system runs: what a component's change is
-    /// stamped with and a reader compares against (PLAN-ecs §2).
+    /// stamped with and a reader compares against.
     pub(crate) change_tick: Cell<u64>,
     pub(crate) quit: Cell<bool>,
     /// What the process exits with once it quits; 0 unless a script said.
@@ -102,7 +102,7 @@ impl Engine {
 
     /// The whole world, writable: the kernel's, and a test's to set a world up.
     /// Everywhere else a structural write goes through the door below, so
-    /// what hangs off a write runs every time (PLAN-ecs §1), and a component
+    /// what hangs off a write runs every time, and a component
     /// changes in place through [`Engine::world`]; `scripts/house_lints.py`
     /// fails another caller (`world-write`).
     pub fn world_mut(&self) -> RefMut<'_, hecs::World> {
@@ -247,6 +247,11 @@ impl Engine {
 
     pub fn set_script_host(&self, host: Rc<dyn balaur_script::ScriptHost<Engine>>) {
         *self.inner.script_host.borrow_mut() = Some(host);
+    }
+
+    /// Take the script subsystem out, ending the cycle it and the engine make.
+    pub(crate) fn take_script_host(&self) -> Option<Rc<dyn balaur_script::ScriptHost<Engine>>> {
+        self.inner.script_host.borrow_mut().take()
     }
 
     pub fn root(&self) -> hecs::Entity {

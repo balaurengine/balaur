@@ -384,6 +384,47 @@ fn restore_setup(eng: &Engine, setup: &serde_json::Map<String, serde_json::Value
     }
 }
 
+/// Put `value` under `name` in the open recording's setup, for state first
+/// read in the frame the recording started in: a script's `init` reads there,
+/// that frame is not recorded, and a replay restores the setup before `init`.
+/// Does nothing once the recording's frames have begun, or with none open.
+pub fn amend_setup(eng: &Engine, name: &str, value: serde_json::Value) {
+    amend_header(eng, |header| {
+        header.setup.insert(name.to_string(), value);
+    });
+}
+
+/// Put the rate this run ticks at in the open recording's header, for a
+/// recording opened before the project said it: `balaur run --record`.
+pub(crate) fn amend_tick_hz(eng: &Engine, hz: u32) {
+    amend_header(eng, |header| header.tick_hz = hz);
+}
+
+fn amend_header(eng: &Engine, change: impl FnOnce(&mut Header)) {
+    let Some(recording) = eng.try_resource::<Recording>() else {
+        return;
+    };
+    let mut recording = recording.borrow_mut();
+    let Some(recorder) = recording.0.as_mut().filter(|r| r.born == eng.tick()) else {
+        return;
+    };
+    if let Some(header) = recorder.header.as_mut() {
+        change(header);
+    }
+}
+
+/// Whether a recording opened this tick, so [`amend_setup`] would land: what a
+/// caller asks before building a value it reports every frame.
+pub(crate) fn opened_this_tick(eng: &Engine) -> bool {
+    eng.try_resource::<Recording>().is_some_and(|recording| {
+        recording
+            .borrow()
+            .0
+            .as_ref()
+            .is_some_and(|r| r.born == eng.tick() && r.header.is_some())
+    })
+}
+
 /// Feed a recorded tick back in. A source missing from the file keeps
 /// whatever it already had, so an older recording still plays.
 pub fn restore(eng: &Engine, sources: &serde_json::Map<String, serde_json::Value>) {

@@ -8,6 +8,7 @@ use form;
 use history;
 use inspector;
 use model;
+use sceneedit;
 use selftest;
 use shell;
 use signals;
@@ -97,7 +98,9 @@ fn source(state: &mut editor::State) -> Source? {
                 return Source { doc: held.doc, path: path };
             }
         }
-        let loaded = assets::duplicate(util::engine_path(state.game_root, path));
+        let file = util::engine_path(state.game_root, path);
+        assets::reload(file);
+        let loaded = assets::load(file);
         if loaded.kind() == types::KIND_MAP {
             state.machine.file = File { path: path, doc: loaded };
             return Source { doc: loaded, path: path };
@@ -693,7 +696,7 @@ pub fn selftest(state: &mut editor::State) {
     }
     let node_index = player.unwrap();
     shell::choose(state, node_index);
-    let before = model::node_text(state, state.nodes[node_index]);
+    let before = sceneedit::node_text(state, state.nodes[node_index]);
     if source(state) == nil {
         create(state);
     }
@@ -729,7 +732,7 @@ pub fn selftest(state: &mut editor::State) {
         shell::undo(state);
         guard += 1;
     }
-    check(model::node_text(state, state.nodes[node_index]) == before, "undoing everything restores the node");
+    check(sceneedit::node_text(state, state.nodes[node_index]) == before, "undoing everything restores the node");
     // Left on the dock with a transition open, so the shot this state takes
     // is of the fields as well as the rows.
     docks::show(state, verbs::STATEMACHINE);
@@ -759,7 +762,7 @@ pub fn demo_step(state: &mut editor::State) {
         return;
     }
     state.machine.demo = -1;
-    let host = scene::get_node(ROWS);
+    let host = scene::root().get_node(ROWS);
     let labels: [str] = [];
     for row in host.children() {
         let label = row.get_node("C0");

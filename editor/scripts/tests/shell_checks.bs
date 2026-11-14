@@ -1,0 +1,857 @@
+// Self-tests of the shell: its layout and fonts, timings, the palette, the
+// panel menu, focus, settings, the export runtime, themes and the sheets.
+
+use about;
+use center;
+use commands;
+use defs;
+use docks;
+use editor;
+use exporter;
+use icons;
+use inputview;
+use kit;
+use layout;
+use left;
+use model;
+use palette;
+use selftest;
+use settings;
+use shell;
+use style;
+use tests::project_checks;
+use theme;
+use themeedit;
+use themewin;
+use util;
+use viewport;
+use window;
+use tests::viewport_checks;
+
+// The centre must be showing the viewport when no document is open: a stray
+// split used to leave a collapsed code pane over it in every workspace.
+pub fn layout(state: &mut editor::State) {
+    state.layout_demo = 0;
+    selftest::stepping(state, "layout");
+}
+
+pub fn layout_step(state: &mut editor::State) {
+    state.layout_demo = state.layout_demo + 1;
+    // A settled rect, not the first: the frame the shell first draws it has
+    // no size stated yet and its containers divide an unbounded box.
+    // Two frames that agree is the signal that the layout has taken.
+    let now = state.layout["stage"]["width"].as_float();
+    let settled = now > 0.0 && math::abs(now - state.layout_seen) < 0.51;
+    state.layout_seen = now;
+    if !settled && state.layout_demo < 10 {
+        return;
+    }
+    state.layout_demo = -1;
+    let placement = state.layout;
+    let stage = placement["stage"];
+    // A headless run never draws, so the rect is still the one `init` set.
+    if state.viewport.at == 0 {
+        log::info("layoutdemo: skipped, nothing drew this run");
+        return;
+    }
+    let stage_x = stage["x"].as_float();
+    let stage_y = stage["y"].as_float();
+    let stage_width = stage["width"].as_float();
+    let stage_height = stage["height"].as_float();
+    selftest::check(!state.split, "the split is off unless asked for");
+    // What every window owes, whatever room it has: the stage is inside it,
+    // no two sheets claim a pixel, and a finger clears its target.
+    selftest::check(stage_x >= 0.0 && stage_y >= 0.0 && stage_x + stage_width <= state.screen_width && stage_y + stage_height <= state.screen_height, "the stage is inside the window");
+    selftest::check(!overlapping(layout::sheets(state)), "no two sheets overlap");
+    // A finger wants 44 points. Delivered by the theme stating a bigger box
+    // under `touch` and the shell drawing larger, not by a floor on each
+    // control: a floor grew the box and left the glyph and its bar behind.
+    check_touch_targets(state);
+    check_dock_tools(state);
+    check_active_tabs(state);
+    selftest::check(covered(state, layout::sheets(state)), "and the middle of every sheet does not");
+    // The gutter is a `padding`, which the component keeps as four sides
+    // whatever the scene spelled; reading all four back placed the shell at 0.
+    let gutter = (layout::gutter(state)).as_float();
+    let bar_x = placement["bar"]["x"].as_float();
+    selftest::check(gutter > 0.0 && math::abs(bar_x - gutter) < 0.51, "the shell keeps the gutter it asked for ({bar_x} vs {gutter})");
+    placed("top bar", placement["bar"]);
+    placed("stage", stage);
+    // A root keeps the box it was handed on a pass that is not a fresh one:
+    // restyled with none, it sized itself from its content instead.
+    let body = ui::widget_rect(scene::root().get_node("Editor/Shell/Body"));
+    selftest::check(body != nil && body.unwrap().height > state.screen_height * 0.5, "the shell's body grew into the room left over ({body})");
+    // A window too small for three columns folds its docks and shows one
+    // sheet at a time, so the desktop's invariants are asked of a desktop.
+    if docks::one_at_a_time(state) {
+        selftest::check(!docks::side_open(state) || docks::folded(state, "left") || docks::folded(state, "right"), "one sheet at a time, in a window with room for one");
+        return;
+    }
+    selftest::check(state.viewport_live, "the scene is showing");
+    selftest::check(state.rail_visible, "and the tool rail with it");
+    // The docks take the widths the scene states, so the stage is what is
+    // left: most of a window with the room for it, its own floor below that.
+    let floor = center::stage_floor();
+    if !state.compact {
+        selftest::check(stage_width > state.screen_width * 0.35 && stage_height > state.screen_height * 0.4, "the stage is most of the window ({stage_width as int} × {stage_height as int})");
+    } else {
+        selftest::check(stage_width >= floor.width && stage_height >= floor.height, "the stage keeps its floor ({stage_width as int} × {stage_height as int})");
+    }
+    selftest::check(!layout::over_sheet(state, stage_x + stage_width / 2.0, stage_y + stage_height / 2.0), "the middle of the stage belongs to the scene");
+    selftest::check(state.viewport.width == stage_width && state.viewport.height == stage_height, "the widget layer gets the stage rect");
+    // Every sheet the shell is showing is placed: a zero rect turns egui's
+    // own area constraint back on and piles the shell into the corner. A
+    // folded dock is showing nothing, and has no rect to be wrong about.
+    if !docks::folded(state, "left") {
+        placed("tree", placement["left"]);
+    }
+    if !docks::folded(state, "right") {
+        placed("inspector", placement["right"]);
+    }
+    if !docks::folded(state, "bottom") {
+        placed("dock", placement["bottom"]);
+    }
+    placed("tool rail", placement["rail"]);
+    if !docks::folded(state, "left") {
+        selftest::check(math::abs(placement["left"]["width"].as_float() - placement["tree_width"].as_float()) < 0.51, "the tree column is the width the scene asked for ({placement["left"]["width"]} vs {placement["tree_width"]})");
+    }
+}
+
+// A layout rect with room in it.
+fn placed(name: str, rect: any) {
+    let width = rect["width"].as_float();
+    let height = rect["height"].as_float();
+    selftest::check(width > 0.0 && height > 0.0, "the {name} is placed ({width as int} × {height as int})");
+}
+
+/// Every control a finger picks clears the target it has to.
+///
+/// Measured off what was drawn rather than off what the theme states: a
+/// control takes its size from the theme, the widget that states one, and the
+/// scale, and only the rect it ends up with answers for all three.
+fn check_touch_targets(state: editor::State) {
+    if !state.touchscreen {
+        return;
+    }
+    let smallest = 1000.0;
+    let where = "";
+    for path in [
+        "Editor/Shell/Head/HeadRow/Brand",
+        "Editor/Shell/Head/HeadRow/HeadScroll/HeadStrip",
+        "Editor/Shell/Body/Centre/Bottom/BottomHead/BottomTabs/BottomTabsRow",
+        "Editor/Shell/Body/Centre/Bottom/BottomHead/BottomTail",
+    ] {
+        let node = scene::root().get_node(path);
+        if !node.is_valid() {
+            continue;
+        }
+        let boxes = [ui::widget_rect(node)];
+        for kid in node.children() {
+            boxes.push(ui::widget_rect(kid));
+        }
+        for rect in boxes {
+            if rect == nil || rect.unwrap().height <= 0.0 {
+                continue;
+            }
+            let points = rect.unwrap().height * viewport::logical_per_design();
+            if points < smallest {
+                smallest = points;
+                where = path;
+            }
+        }
+    }
+    selftest::check(smallest >= 44.0, "every control a finger picks clears 44 points (smallest {smallest as int} in {where})");
+}
+
+// The panel's own tools sit at the end of the tab row, in a box of their own.
+// A hatch that only grows is one pixel wide in a row that hugs, and what it
+// draws is clipped: the filter, the hints and the add button all went that way.
+fn check_dock_tools(state: editor::State) {
+    for side in ["left", "bottom", "right"] {
+        if docks::folded(state, side) {
+            continue;
+        }
+        let found = docks::tools_box(side);
+        if found == nil {
+            selftest::check(false, "the {side} dock's tools have a box");
+            continue;
+        }
+        let box = found.unwrap();
+        // Zero is the tools giving way to the tabs, which is what a dock too
+        // narrow for both does. What this catches is the state between: a
+        // hatch a pixel or two wide, drawing what the row then clips.
+        selftest::check(box.width == 0.0 || (box.width > 20.0 && box.height > 12.0), "the {side} dock's tools have room to draw ({box.width as int} × {box.height as int})");
+    }
+}
+
+// A narrow dock lists what its row cannot hold under "+N"; the active tab is
+// never one of them, so the panel showing always has its tab in view.
+fn check_active_tabs(state: &mut editor::State) {
+    for side in ["left", "bottom", "right"] {
+        if docks::folded(state, side) {
+            continue;
+        }
+        let found = docks::active_tab_box(state, side);
+        if found != nil {
+            let tab = found.unwrap().tab;
+            let strip = found.unwrap().strip;
+            selftest::check(tab.x >= strip.x - 0.5 && tab.x + tab.width <= strip.x + strip.width + 0.5, "the {side} dock's active tab is inside its row ({tab.x as int} to {(tab.x + tab.width) as int} in {strip.x as int} to {(strip.x + strip.width) as int})");
+        } else {
+            selftest::check(false, "the {side} dock's active tab has a box");
+        }
+    }
+}
+
+// Sheets may abut, never overlap: an overlap is a rect two owners believe in.
+fn overlapping(rects: [any]) -> bool {
+    for first_index in 0..rects.len() {
+        let first = rects[first_index];
+        for second_index in (first_index + 1)..rects.len() {
+            let second = rects[second_index];
+            let first_x = first["x"].as_float();
+            let first_y = first["y"].as_float();
+            let first_width = first["width"].as_float();
+            let first_height = first["height"].as_float();
+            let second_x = second["x"].as_float();
+            let second_y = second["y"].as_float();
+            let second_width = second["width"].as_float();
+            let second_height = second["height"].as_float();
+            if first_width > 0.0 && first_height > 0.0 && second_width > 0.0 && second_height > 0.0 && first_x < second_x + second_width && second_x < first_x + first_width && first_y < second_y + second_height && second_y < first_y + first_height {
+                log::warn("sheets overlap: {first_x as int},{first_y as int} {first_width as int}x{first_height as int} and {second_x as int},{second_y as int} {second_width as int}x{second_height as int}");
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn covered(state: editor::State, rects: [any]) -> bool {
+    for rect in rects {
+        let at = viewport_checks::middle(rect);
+        if rect["width"].as_float() > 0.0 && rect["height"].as_float() > 0.0 && !layout::over_sheet(state, at[0], at[1]) {
+            return false;
+        }
+    }
+    true
+}
+
+// Tofu is the failure this catches: a row of boxes in the screenshot means
+// the chain lost a script, and a missing icon means the font did not load.
+// A sheet of labels over the stage, filled when the stage was laid out.
+pub fn font_sheet(state: editor::State) {
+    let stage = state.layout["stage"];
+    let controls = [heading("FONT COVERAGE  ·  --state fontdemo"), heading("SCRIPTS")];
+    for script in scripts() {
+        let name = script.name;
+        let sample = script.sample;
+        controls.push(ui::Control {
+            kind: "row",
+            height: 24,
+            align_items: "center",
+            controls: [
+                ui::Control { kind: "label", role: "text_caption", text: name, width: 92 },
+                big("text_body", sample),
+            ],
+        });
+    }
+    controls.push(heading("FACES"));
+    controls.push(ui::Control {
+        kind: "label",
+        role: "text_body",
+        text: "heading  Source Sans 3 Semibold",
+        font_size: style::EXTRA_LARGE,
+        font: "fonts/SourceSans3-Semibold.ttf",
+    });
+    controls.push(ui::Control {
+        kind: "label",
+        role: "text_body",
+        text: "ui  Source Sans 3 Regular",
+        font_size: style::LARGE,
+    });
+    controls.push(ui::Control {
+        kind: "label",
+        role: "text_code",
+        text: "mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃",
+    });
+    controls.push(heading("ICONS"));
+    let tools: [ui::Control] = [];
+    for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
+        tools.push(big("text_body", icons::tool(id)));
+    }
+    for workspace in defs::workspaces() {
+        tools.push(big("text_caption_primary", icons::workspace(workspace.id)));
+    }
+    controls.push(ui::Control { kind: "row", height: 24, controls: tools, gap: vec2(8, 0) });
+    let panels: [ui::Control] = [];
+    for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
+        panels.push(big("text_body", icons::panel(id)));
+    }
+    for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
+        panels.push(big("text_caption", icons::ui(id)));
+    }
+    controls.push(ui::Control { kind: "row", height: 24, controls: panels, gap: vec2(8, 0) });
+    let filled = scene::root().get_node(FONT_SHEET);
+    if filled.is_valid() {
+        filled.set_visible(true);
+        filled.widget.x = stage["x"].as_float();
+        filled.widget.y = stage["y"].as_float();
+        filled.widget.width = stage["width"].as_float();
+        filled.widget.height = stage["height"].as_float();
+    }
+    ui::fill_strip(FONT_SHEET, controls);
+}
+
+fn heading(text: str) -> ui::Control {
+    ui::Control {
+        kind: "label",
+        role: "text_heading",
+        text: text,
+    }
+}
+
+fn big(role: str, text: str) -> ui::Control {
+    ui::Control { kind: "label", role: role, font_size: style::EXTRA_LARGE, text: text }
+}
+
+const FONT_SHEET: str = "Editor/FontSheet";
+
+fn scripts() -> [selftest::Script] {
+    [
+        selftest::Script { name: "latin", sample: "Plataforma Ångström" },
+        selftest::Script { name: "greek", sample: "Διάστημα" },
+        selftest::Script { name: "cyrillic", sample: "Вращатель" },
+        selftest::Script { name: "japanese", sample: "ボール 平台" },
+        selftest::Script { name: "korean", sample: "플랫폼" },
+        selftest::Script { name: "chinese", sample: "平台 旋转" },
+        selftest::Script { name: "arabic", sample: "لوحة" },
+        selftest::Script { name: "hebrew", sample: "פלטפורמה" },
+        selftest::Script { name: "devanagari", sample: "मंच" },
+        selftest::Script { name: "thai", sample: "แพลตฟอร์ม" },
+    ]
+}
+
+// The profiler's data path: that `engine::timings()` answers with the shape
+// the dock reads. Every duration is legitimately zero inside `init`; that the
+// numbers are real is `crates/balaur_core/tests/timings.rs`' job.
+pub fn timings(state: &mut editor::State) {
+    let found = engine::timings();
+    if !selftest::check(found != nil, "engine::timings() answers with a table") {
+        return;
+    }
+    let reading = found.unwrap();
+    selftest::check(reading.fixed_steps >= 0, "it carries the frame and its fixed steps");
+    selftest::check(reading.spans.len() >= 0, "and a place for named spans");
+    let stages: any = reading.stages;
+    for name in [
+        "first",
+        "pre_update",
+        "update",
+        "fixed_update",
+        "post_update",
+        "scene_sync",
+        "render",
+        "last",
+    ] {
+        if !selftest::check(stages.has(name), "stage '{name}' is in the table") {
+            return;
+        }
+    }
+    let total = 0.0;
+    for name in stages.keys() {
+        total += stages[name].as_float();
+    }
+    // The frame contains its stages and the gaps between them, so it is never
+    // the smaller number. A profiler that said otherwise would be measuring
+    // something else.
+    selftest::check(reading.frame >= total - 1e-9, "the frame ({reading.frame}) covers its stages ({total})");
+    // The stages are the smaller half of a windowed frame: the mirror, the UI
+    // pass and the render land outside them, and `wall` is what the loop took.
+    if reading.wall > 0.0 {
+        selftest::check(reading.wall >= reading.frame - 1e-9, "the loop's frame ({reading.wall}) covers its stages ({reading.frame})");
+    }
+    log::info("selftest timings: done");
+}
+
+/// `--state test:palette`: the palette opens on a query, its matches are rows
+/// on the scene, and the query survives the frames after it is set.
+pub fn palette_screen(state: &mut editor::State) {
+    shell::open_palette(state, "physics");
+    state.palette_demo = 0;
+    selftest::stepping(state, "palette");
+}
+
+// Three frames: the field has to have drawn and written back before the query
+// being intact means anything.
+const PALETTE_SETTLED: int = 3;
+
+pub fn palette_step(state: &mut editor::State) {
+    state.palette_demo = state.palette_demo + 1;
+    if state.palette_demo < PALETTE_SETTLED {
+        return;
+    }
+    state.palette_demo = -1;
+    selftest::check(state.palette_query == "physics", "a palette query survives the frames after it is set ('{state.palette_query}')");
+    let host = scene::root().get_node("Editor/Picker/PickerScroll/PickerRows");
+    if !selftest::check(host.is_valid(), "the palette's matches are nodes") {
+        return;
+    }
+    let shown: [bool] = [];
+    for row in host.children() {
+        if row.visible() == true {
+            let slot = row.get_node("C1").get_node("C0");
+            shown.push(slot.widget_check.checked == true);
+        }
+    }
+    selftest::check(shown.len() > 1, "the query narrowed the list to its matches ({shown.len()})");
+    let held = 0;
+    for on in shown {
+        if on {
+            held += 1;
+        }
+    }
+    selftest::check(shown.len() > 0 && shown[0] && held == 1, "the first match alone wears the held look, which is what Enter runs ({shown})");
+    let box = ui::widget_rect(scene::root().get_node("Editor/Picker"));
+    selftest::check(box != nil && box.unwrap().height > 100.0, "the picker is as tall as the matches it holds ({box})");
+    // Enter runs the first match by its verb, and closes the palette.
+    let overlay = state.show_input;
+    for turn in 0..2 {
+        shell::open_palette(state, "input overlay");
+        state.palette_submit = true;
+        palette::fill(state);
+        selftest::check(state.show_input == (overlay == (turn == 1)), "Enter on 'input overlay' toggles the overlay (turn {turn})");
+    }
+    let chips: [str] = [];
+    for key in ["KeyA", "Digit7", "ArrowUp", "ShiftRight", "Backslash", "PageDown", "F5", "NumpadAdd"] {
+        chips.push(inputview::chip_of(key));
+    }
+    selftest::check(chips == ["A", "7", "Up", "Shift", "\\", "Page down", "F5", ""], "the overlay names each key it shows, and no chip for a numpad key ({chips})");
+    // A key's command is found the same way, by its name.
+    commands::run(state, "palette");
+    selftest::check(state.palette, "the palette command opens the palette");
+    commands::run(state, "palette");
+    selftest::check(!state.palette, "and the same command closes it");
+}
+
+/// `--state test:panels`: every row of the mark's menu opens the panel it names
+/// and closes it again. A panel something else reopens on the same frame, or
+/// one no dock will take, reads as a row that does nothing.
+pub fn menu_panels(state: &mut editor::State) {
+    let ids = docks::known(state);
+    selftest::check(ids.len() > 10, "the menu lists every panel ({ids.len()})");
+    for id in ids {
+        let was = docks::side_of(state, id) != nil;
+        docks::toggle(state, id);
+        let now = docks::side_of(state, id) != nil;
+        if !selftest::check(now != was, "{id} toggles ({was} to {now})") {
+            continue;
+        }
+        docks::toggle(state, id);
+        selftest::check((docks::side_of(state, id) != nil) == was, "and {id} toggles back");
+    }
+    let resting = state.workspace;
+    let titles: [str] = [];
+    for workspace in [defs::WORKSPACE_SCENE, defs::WORKSPACE_SCRIPT, defs::WORKSPACE_PHYSICS, defs::WORKSPACE_ANIMATION, defs::WORKSPACE_UI] {
+        shell::set_workspace(state, workspace);
+        titles.push(left::outline_title(state));
+    }
+    shell::set_workspace(state, resting);
+    selftest::check(titles == ["Scenes", "Scripts", "Collision", "Clips", "Widgets"], "the outline is named for what each workspace lists ({titles})");
+    log::info("selftest menu panels: done");
+}
+
+/// `--state test:focus`: focus folds the shell round the code, and leaving it
+/// puts back exactly the layout it folded.
+pub fn focusing(state: &mut editor::State) {
+    if !shell::select_scripted(state) {
+        log::info("selftest: no scripted node in this scene; focus skipped");
+        return;
+    }
+    // A panel up on every side, so folding them has something to fold.
+    for id in ["outline", "inspector", "output"] {
+        docks::show(state, id);
+    }
+    let was: any = {};
+    for side in docks::sides() {
+        was[side] = state.docks[side]["shut"];
+    }
+    selftest::check(shell::focus_target(state), "the selection has a script to focus");
+    shell::toggle_focus(state);
+    center::modes(state);
+    selftest::check(state.focus && state.doctab == "script", "focus takes, and the code is what shows");
+    selftest::check(!state.split, "the split is off under it");
+    selftest::check(docks::all_folded(state), "every dock is folded away");
+    selftest::check(state.hooks_open, "and the file's symbols stay beside the code");
+    shell::toggle_focus(state);
+    center::modes(state);
+    selftest::check(!state.focus, "leaving focus clears it");
+    let back = true;
+    for side in docks::sides() {
+        if state.docks[side]["shut"] != was[side] {
+            back = false;
+        }
+    }
+    selftest::check(back, "and every dock comes back to what it was");
+    // Leaving the code is leaving focus: the shell comes back with the tab.
+    shell::toggle_focus(state);
+    shell::open_doc(state, "scene");
+    center::modes(state);
+    selftest::check(!state.focus, "showing the scene again ends focus");
+    selftest::check(!docks::all_folded(state), "and the docks come back with it");
+    // A panel asked for under focus keeps its dock; the record goes instead.
+    shell::open_doc(state, "script");
+    shell::toggle_focus(state);
+    docks::show(state, "output");
+    center::modes(state);
+    selftest::check(!state.focus, "a panel opened under focus ends it");
+    selftest::check(!docks::folded(state, "bottom"), "and stays open");
+    for side in docks::sides() {
+        state.docks[side]["shut"] = was[side];
+    }
+    log::info("selftest focus: done");
+}
+
+/// `--state test:settings`: the settings screen's search field and the query it
+/// filters by are one thing, which they stopped being for a frame; then a
+/// value written on the screen is round-tripped through the file.
+pub fn settings_screen(state: &mut editor::State) {
+    settings::open_search(state, "theme");
+    state.settings.demo = 0;
+    selftest::stepping(state, "settings");
+}
+
+// Three frames: the sidebar's field has to have drawn and written back before
+// the query being intact means anything.
+const SETTINGS_SETTLED: int = 3;
+
+pub fn settings_step(state: &mut editor::State) {
+    state.settings.demo = state.settings.demo + 1;
+    let at = state.settings.demo;
+    if at < SETTINGS_SETTLED {
+        return;
+    }
+    if at == SETTINGS_SETTLED {
+        selftest::check(settings::query(state) == "theme", "a settings query survives the frames after it is set ('{settings::query(state)}')");
+        // The sheet is a `dialog` node stating its own size: hugging, its bar
+        // measures and its body is left with nothing.
+        let body = ui::widget_rect(scene::root().get_node("Editor/Sheet/SheetBody"));
+        selftest::check(body != nil && body.unwrap().height > 100.0, "the sheet's body has the room its frame states ({body})");
+        // Typed rather than set: the field's text is what a key press
+        // changes, and the list has to follow it.
+        let field = scene::root().get_node("Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows/C0");
+        if selftest::check(field.is_valid() && field.widget.kind == "text_field", "the sidebar's first control is the search field") {
+            ui::edit(field, "scale");
+        }
+        return;
+    }
+    if at < SETTINGS_SETTLED + 2 {
+        return;
+    }
+    state.settings.demo = -1;
+    selftest::check(settings::query(state) == "scale", "typing in the field is the query ('{settings::query(state)}')");
+    let note = scene::root().get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm/C0/C1/C0");
+    let said = if note.is_valid() { note.widget.text } else { "" };
+    selftest::check(said.contains("matching \"scale\"") && !said.starts_with("0 "), "and the list is the matches for it ({said})");
+    settings_round_trip(state);
+}
+
+// A value written on the screen reaches the editor's preferences file and
+// comes back out of it. The file is put back as it was found.
+fn settings_round_trip(state: &mut editor::State) {
+    let path = "editor/recordings/keep";
+    let kept = fs::read(settings::preferences_path());
+    let was = settings::get(path);
+    let before = if was == nil { 10 } else { (was.as_float() as int) };
+    let want = before + 3;
+    settings::write(state, path, want);
+    selftest::check(state.settings.dirty, "writing a setting marks the screen unsaved");
+    selftest::check((settings::get(path).as_float() as int) == want, "and the value took ({want})");
+    settings::commit_preferences(state);
+    let text = fs::read(settings::preferences_path());
+    if selftest::check(text != nil, "the preferences file was written") {
+        selftest::check(text.unwrap().contains("keep"), "and names the setting that changed");
+        settings::merge_toml(text.unwrap());
+        selftest::check((settings::get(path).as_float() as int) == want, "a re-read of the file agrees ({settings::get(path)})");
+    }
+    settings::write(state, path, before);
+    if kept != nil {
+        fs::write(settings::preferences_path(), kept.unwrap());
+    } else {
+        fs::remove(settings::preferences_path());
+    }
+    plugin_saves_a_project_setting(state);
+    the_game_s_manifest_stays_apart(state);
+    state.settings.dirty = false;
+    log::info("selftest settings: done");
+}
+
+// The editor runs with its own window and checker and edits the game's: a
+// game's `[window]` is held, not run, and saving writes none of the editor's.
+fn the_game_s_manifest_stays_apart(state: &mut editor::State) {
+    let manifest = state.game_root + "/project.toml";
+    let kept = fs::read(manifest).or("");
+    fs::write(manifest, kept + "\n[window]\nwidth = 640\n");
+    let running = settings::get("window/width");
+    settings::load_files(state);
+    selftest::check(settings::stated(state, "window/width").as_int() == 640, "the game's window width is what the screen shows ({settings::stated(state, "window/width")})");
+    selftest::check(settings::get("window/width") == running, "and not what this run's window takes ({settings::get("window/width")})");
+    settings::set("time/tick_hz", 20);
+    settings::commit_project(state);
+    let written = fs::read(manifest).or("");
+    selftest::check(written.contains("width = 640") && !written.contains("tick_hz") && !written.contains("strict"), "saving writes the game's own values and none of this run's");
+    fs::write(manifest, kept);
+    settings::clear("time/tick_hz");
+    settings::load_files(state);
+}
+
+// What the Gamend dock does with its server picker: a plain `settings::set`,
+// then the kit's save.
+fn plugin_saves_a_project_setting(state: &mut editor::State) {
+    let manifest = state.game_root + "/project.toml";
+    let kept = fs::read(manifest);
+    let was = settings::stated(state, "export/runtime");
+    let pick = if was.as_str() == "2d" { "3d" } else { "2d" };
+    settings::set("export/runtime", pick);
+    kit::save_project(state);
+    selftest::check(fs::read(manifest).or("").contains("runtime = \"{pick}\""), "a plugin's set, then the kit's save, reaches project.toml ({pick})");
+    settings::write(state, "export/runtime", was);
+    if kept != nil {
+        fs::write(manifest, kept.unwrap());
+    }
+}
+
+/// `--state test:export_runtime`: the Export sheet's Runtime choice is the
+/// project's `[export] runtime`, and each row names the runtime it builds on.
+/// The manifest is put back as it was found.
+pub fn export_runtime(state: &mut editor::State) {
+    let path = state.game_root + "/project.toml";
+    let kept = fs::read(path);
+    let was = settings::stated(state, "export/runtime");
+    exporter::open(state);
+    // Whichever the project does not already name, so the write is seen.
+    let pick = if was.as_str() == "2d" { "3d" } else { "2d" };
+    exporter::pick_runtime(state, pick);
+    let text = fs::read(path).or("");
+    selftest::check(text.contains("runtime = \"{pick}\""), "a runtime picked on the sheet is written to project.toml ({pick})");
+    selftest::check(export_row_runtime(state, "web") == "web-" + pick, "and the web row builds on it ({export_row_runtime(state, "web")})");
+    selftest::check(export_row_runtime(state, "linux-x64-server") == "linux-x64-server", "while a server keeps its own ({export_row_runtime(state, "linux-x64-server")})");
+    exporter::pick_runtime(state, "full");
+    selftest::check(export_row_runtime(state, "web") == "web", "full puts the web row back on the full runtime ({export_row_runtime(state, "web")})");
+    if was.kind() == "str" {
+        settings::write(state, "export/runtime", was);
+    }
+    if kept != nil {
+        fs::write(path, kept.unwrap());
+    }
+    state.settings.dirty = false;
+    log::info("selftest export runtime: done");
+}
+
+fn export_row_runtime(state: editor::State, name: str) -> str {
+    for row in state.exporter.rows {
+        if util::map_or_empty(row)["name"].as_str() == name {
+            return util::map_or_empty(row)["runtime"].as_str();
+        }
+    }
+    ""
+}
+
+pub fn theme_switch(state: &mut editor::State) {
+    theme::set_dark(state, true);
+    selftest::check(state.theme["dark"].as_bool() == true, "the editor uses the dark theme");
+    let dark_sheet = scene::root().get_node("Editor/Sheet").widget.theme;
+    theme::set_dark(state, false);
+    selftest::check(state.theme["dark"].as_bool() == false, "the switch reaches the light theme");
+    selftest::check(state.theme["bg_app"].as_str() != "", "and the light theme loaded its colors");
+    // The sheet, the palette and the start screen are roots of their own, not
+    // under the shell, and each has to wear the switch too.
+    for path in ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"] {
+        let now = scene::root().get_node(path).widget.theme;
+        selftest::check(now.starts_with("#!") && now != dark_sheet, "{path} uses the light theme ({now})");
+    }
+    theme::set_dark(state, true);
+    selftest::check(state.theme["dark"].as_bool() == true, "and switches back to the dark one");
+    follow_the_system(state);
+    bundled_pairs(state);
+    log::info("selftest theme: done");
+}
+
+// Under `mode = "system"` the half follows what the system says, and a mode
+// of its own holds whatever the system says. The setting is put back.
+fn follow_the_system(state: &mut editor::State) {
+    let mode = settings::get(theme::MODE_SETTING);
+    let pinned = state.theme_half;
+    state.theme_half = "";
+    settings::set(theme::MODE_SETTING, "system");
+    theme::follow(state, false);
+    selftest::check(state.theme["half"].as_str() == "light" && !state.theme["dark"].as_bool(), "under system, a light system wears the light half");
+    theme::follow(state, true);
+    selftest::check(state.theme["half"].as_str() == "dark" && state.theme["dark"].as_bool(), "and a dark one the dark half");
+    settings::set(theme::MODE_SETTING, "light");
+    theme::follow(state, true);
+    selftest::check(state.theme["half"].as_str() == "light", "a light mode holds whatever the system says");
+    settings::set(theme::MODE_SETTING, mode);
+    state.theme_half = pinned;
+    theme::follow(state, engine::dark_mode());
+}
+
+// Every bundled pair is a folder with both halves, and the list the setting
+// offers is the list the editor ships.
+fn bundled_pairs(state: editor::State) {
+    let found: [str] = [];
+    for entry in util::list_or_empty(fs::list("themes")) {
+        if entry["is_dir"].as_bool() {
+            found.push(entry["name"].as_str());
+        }
+    }
+    let folders: any = found;
+    let bundled: any = theme::BUNDLED();
+    let listed = bundled.sorted();
+    selftest::check(folders.sorted() == listed, "the bundled folders are the bundled list ({folders.sorted()} vs {listed})");
+    let options: any = [];
+    for setting in settings::all() {
+        if setting.path == theme::SETTING {
+            options = util::list_or_empty(util::map_or_empty(setting.spec)["options"]);
+        }
+    }
+    selftest::check(options.sorted() == listed, "and the setting offers the same ({options.sorted()})");
+    for name in theme::BUNDLED() {
+        for half in theme::HALVES() {
+            selftest::check(theme::read(name, half).kind() == "map", "{name} has its {half} half");
+        }
+    }
+}
+
+/// `--state test:theme_editing`: a bundled theme is read-only, a duplicate is the
+/// person's to edit, an edit is worn at once and saved as only what differs,
+/// and deleting it goes back to its base. The preferences file is put back.
+pub fn theme_editing(state: &mut editor::State) {
+    let preferences = settings::preferences_path();
+    state.themewin.test = themewin::Test { kept: fs::read(preferences), name: "" };
+    theme::set_dark(state, true);
+    themewin::open(state);
+    selftest::check(window::showing(state, "theme"), "the Theme dialog opens");
+    selftest::check(!themewin::editable(state), "a bundled theme is read-only");
+    let before = state.theme["primary_text"].as_str();
+    themeedit::edit(state, ["colors"], "primary_text", "#ff0000");
+    selftest::check(state.theme["primary_text"].as_str() == before, "and an edit to it changes nothing");
+    let name = themeedit::duplicate(state);
+    state.themewin.test.name = name;
+    let path = theme::path_of(name, state.theme["half"].as_str());
+    selftest::check(fs::exists(path), "duplicating writes {path}");
+    selftest::check(state.theme["name"].as_str() == name && themewin::editable(state), "and the copy is worn and editable");
+    selftest::check(project_checks::names(theme::names(), name), "and listed beside the bundled ones");
+    themeedit::edit(state, ["colors"], "primary", "#e0a868");
+    selftest::check(state.theme["primary_fill"].as_str() == "#e0a868", "a source color is used at once");
+    selftest::check(state.theme["primary_text"].as_str() != before, "and moves what derives from it ({state.theme["primary_text"]})");
+    themeedit::edit(state, ["colors"], "primary_text", "#ff0000");
+    selftest::check(state.theme["primary_text"].as_str() == "#ff0000", "a stated token wins over its rule");
+    let sheet = scene::root().get_node("Editor/Sheet").widget.theme;
+    selftest::check(sheet.starts_with("#!"), "and the dialog's node carries it embedded");
+    themeedit::edit(state, ["roles", "tab"], "font_size", 13);
+    themeedit::save(state);
+    let text = fs::read(path).or("");
+    selftest::check(text.contains("primary_text") && text.contains("base = \"balaur\""), "saving writes the edit under its base: {text}");
+    selftest::check(text != "" && !text.contains("background ="), "and nothing it leaves to that base");
+    theme::reload(state);
+    selftest::check(state.theme["primary_text"].as_str() == "#ff0000", "the saved theme reads back");
+    selftest::check(state.theme["roles"]["tab"]["font_size"].as_int() == 13, "with the role key it changed");
+    selftest::check(state.theme["roles"]["tab"]["text_color"].as_str() == "text_subtle", "and the keys its base holds");
+    selftest::check(state.themewin.pairs.len() > 50, "every role's contrast is measured ({state.themewin.pairs.len()})");
+    themewin::show_role(state, "tab", "");
+    state.themewin.demo = 0;
+    selftest::stepping(state, "themewin");
+}
+
+/// `--state test:sheet_close`: a sheet and the palette shut when their `dialog`
+/// is shut from outside, as egui does on Escape or a click on the dim. The
+/// close is put on the node the way the input settle puts it, between frames.
+pub fn sheet_closing(state: &mut editor::State) {
+    about::open(state);
+    state.window.demo = 0;
+    selftest::stepping(state, "window");
+}
+
+pub fn sheet_close_step(state: &mut editor::State) {
+    state.window.demo = state.window.demo + 1;
+    let at = state.window.demo;
+    if at == 3 {
+        selftest::check(window::showing(state, "about"), "the sheet stays up while nothing shuts it");
+        let filled = scene::root().get_node("Editor/Sheet");
+        if filled.is_valid() {
+            filled.widget_window.open = false;
+        }
+    } else if at == 5 {
+        selftest::check(!window::showing(state, "about"), "and goes when its dialog is shut from outside");
+        shell::open_palette(state, "");
+    } else if at == 8 {
+        selftest::check(state.palette, "the palette stays up while nothing shuts it");
+        let filled = scene::root().get_node("Editor/Picker");
+        if filled.is_valid() {
+            filled.widget_window.open = false;
+        }
+    } else if at == 10 {
+        state.window.demo = -1;
+        selftest::check(!state.palette, "and goes when its dialog is shut from outside");
+        log::info("selftest sheetclose: done");
+    }
+}
+
+// Three frames: the pooled rows have to be made and drawn before one of them
+// can be read back.
+const THEME_SETTLED: int = 3;
+
+pub fn theme_edit_step(state: &mut editor::State) {
+    state.themewin.demo = state.themewin.demo + 1;
+    if state.themewin.demo < THEME_SETTLED {
+        return;
+    }
+    state.themewin.demo = -1;
+    let host = scene::root().get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm");
+    let roles: [str] = [];
+    for row in host.children() {
+        if row.visible() == true {
+            let slot = row.get_node("C1").get_node("C0");
+            roles.push(slot.widget.role);
+        }
+    }
+    selftest::check(util::contains(roles, "tab"), "the Controls page draws the tab role as itself ({roles.len()})");
+    let name = state.themewin.test.name;
+    themeedit::remove(state);
+    selftest::check(!fs::exists(theme::folder_of(name)), "deleting removes the folder");
+    selftest::check(state.theme["name"].as_str() == theme::DEFAULT, "and the editor goes back to the base");
+    let kept = state.themewin.test.kept;
+    let preferences = settings::preferences_path();
+    if kept != nil {
+        fs::write(preferences, kept.unwrap());
+    } else {
+        fs::remove(preferences);
+    }
+    settings::load_files(state);
+    window::hide(state);
+    log::info("selftest themeedit: done");
+}
+
+/// A row's authored x, which a node that names no transform has at zero.
+internal fn doc_x(state: editor::State, index: int) -> float {
+    model::transform_part(model::node(state, index), "position", [0.0, 0.0, 0.0])[0]
+}
+
+/// The selection set: extending it, aligning two nodes, undoing that, and
+/// grouping. Every check is on document state, so it runs with no window.
+// The Snap chip a drag reads is the one the strip toggles.
+internal fn snap_chip(state: &mut editor::State) {
+    if !state.chip_state.has(defs::WORKSPACE_SCENE) {
+        state.chip_state[defs::WORKSPACE_SCENE] = {};
+    }
+    let chips = state.chip_state[defs::WORKSPACE_SCENE];
+    let was = chips[defs::CHIP_SNAP];
+    chips[defs::CHIP_SNAP] = true;
+    selftest::check(viewport::snapping(state), "a drag snaps once the Snap chip is on");
+    chips[defs::CHIP_SNAP] = false;
+    selftest::check(!viewport::snapping(state), "and not once it is off");
+    if was == nil {
+        chips.remove(defs::CHIP_SNAP);
+    } else {
+        chips[defs::CHIP_SNAP] = was;
+    }
+}

@@ -46,7 +46,7 @@ pub class Tower {
 
 impl Tower {
     fn init() {
-        self.enemy = scene::get_node("World/Enemy");
+        self.enemy = scene::root().get_node("World/Enemy");
         events::listen(self.node, "hit", self.enemy);
         events::listen(self.node, "alarm");
         self.node.emit("ready", { "from": self.node.name() });

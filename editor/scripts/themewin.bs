@@ -4,9 +4,9 @@
 
 use editor;
 use form;
-use settings;
 use style;
 use theme;
+use themeedit;
 use util;
 use window;
 use words::components;
@@ -52,7 +52,6 @@ const STROKE: str = "stroke";
 const STROKE_WIDTH: str = "stroke_width";
 const TEXT: str = "text";
 const WARNING: str = "warning";
-const WIDGET_THEME: str = "widget_theme";
 const WIDTH: str = "width";
 const NEED: str = "need";
 const PAGE: str = "page";
@@ -65,11 +64,11 @@ pub class ThemewinState {
     internal page: str,
     path: [str],
     table: str,
-    own: any,
-    dirty: bool,
+    internal own: any,
+    internal dirty: bool,
     internal pairs: [any],
-    apart: [ui::ColorsApart],
-    said: str,
+    internal apart: [ui::ColorsApart],
+    internal said: str,
     internal demo: int,
     internal test: Test,
 }
@@ -169,7 +168,7 @@ pub fn state() -> ThemewinState {
 
 pub fn open(state: &mut editor::State) {
     window::show(state, ID);
-    load_own(state);
+    themeedit::load_own(state);
 }
 
 /// Open on a page with one entry picked, for a screenshot or a self-test.
@@ -182,15 +181,6 @@ pub fn open_at(state: &mut editor::State, page: str, path: [str]) {
 
 pub fn editable(state: editor::State) -> bool {
     state.themewin.own != nil
-}
-
-fn load_own(state: &mut editor::State) {
-    let name = state.theme[fields::NAME].as_str();
-    let own = if theme::is_bundled(name) { nil } else { theme::own_half(name, state.theme[layout_fields::HALF].as_str()) };
-    state.themewin.own = own;
-    state.themewin.dirty = false;
-    state.themewin.pairs = ui::contrast_pairs(state.theme[fields::DOC], GROUND);
-    state.themewin.apart = ui::colors_apart(state.theme[fields::DOC]);
 }
 
 /// Fill the sheet: what its script asks for when Theme is up.
@@ -212,7 +202,7 @@ pub fn fill(state: &mut editor::State) {
 }
 
 fn label_width(state: editor::State) -> float {
-    util::clamp((window::inner_width(state) - 210.0) * 0.28, 120.0, 220.0)
+    math::clamp((window::inner_width(state) - 210.0) * 0.28, 120.0, 220.0)
 }
 
 // Save, beside the close, while there is an edit to save.
@@ -232,7 +222,7 @@ fn save_button(state: editor::State) -> [ui::Control] {
 }
 
 fn on_save_clicked(state: &mut editor::State, data: any, _value: any) {
-    save(state);
+    themeedit::save(state);
 }
 
 fn page_title(state: editor::State, page: str) -> str {
@@ -473,27 +463,27 @@ fn head_specs(state: editor::State) -> [form::Row] {
 }
 
 fn on_theme_picked(state: &mut editor::State, data: any, picked: any) {
-    choose(state, picked.as_str());
+    themeedit::choose(state, picked.as_str());
 }
 
 fn on_base_picked(state: &mut editor::State, data: any, picked: any) {
-    rebase(state, picked);
+    themeedit::rebase(state, picked);
 }
 
 fn on_duplicate_clicked(state: &mut editor::State, data: any, _value: any) {
-    duplicate(state);
+    themeedit::duplicate(state);
 }
 
 fn on_revert_clicked(state: &mut editor::State, data: any, _value: any) {
-    revert(state);
+    themeedit::revert(state);
 }
 
 fn on_delete_clicked(state: &mut editor::State, data: any, _value: any) {
-    remove(state);
+    themeedit::remove(state);
 }
 
 fn on_name_submitted(state: &mut editor::State, data: any, text: any) {
-    rename(state, text);
+    themeedit::rename(state, text);
 }
 
 fn note_spec(text: str) -> form::Row {
@@ -567,7 +557,7 @@ fn color_specs(state: editor::State, doc: any, out: [form::Row]) {
 }
 
 fn on_color_picked(state: &mut editor::State, data: any, rgba: any) {
-    edit(state, [COLORS], data[fields::NAME].as_str(), util::to_hex(rgba_list(rgba)));
+    themeedit::edit(state, [COLORS], data[fields::NAME].as_str(), util::to_hex(rgba_list(rgba)));
 }
 
 // A picked colour, as the four numbers `to_hex` reads.
@@ -608,7 +598,7 @@ fn size_specs(state: editor::State, doc: any, out: [form::Row]) {
 }
 
 fn on_size_changed(state: &mut editor::State, data: any, value: any) {
-    edit(state, [SIZES], data[fields::NAME].as_str(), whole(value));
+    themeedit::edit(state, [SIZES], data[fields::NAME].as_str(), whole(value));
 }
 
 fn rgba_of(hex: str) -> Color {
@@ -630,21 +620,10 @@ fn is_hex(text: str) -> bool {
 
 fn edit_hex(state: &mut editor::State, name: str, text: str) {
     if is_hex(text) {
-        edit(state, [COLORS], name, text.to_lower());
+        themeedit::edit(state, [COLORS], name, text.to_lower());
     } else {
         state.themewin.said = "'{text}' is not a #rrggbb color";
     }
-}
-
-fn table_at(doc: any, path: [str]) -> any {
-    let table = util::map_or_empty(doc);
-    for part in path {
-        if !(table.has(part) && table[part].kind() == types::KIND_MAP) {
-            return {};
-        }
-        table = table[part];
-    }
-    table
 }
 
 fn same_path(first: [str], second: [str]) -> bool {
@@ -669,7 +648,7 @@ fn pick(state: &mut editor::State, path: [str]) {
 fn height_of(state: editor::State, table: any) -> float {
     let row_height = style::row_height(state);
     let own = style::size_in_pixels(state, table[layout_fields::HEIGHT].as_float());
-    util::max(row_height, own + 4.0)
+    math::max(row_height, own + 4.0)
 }
 
 /// What a table states in a line: a layout role's air, or a kind's frame.
@@ -704,7 +683,7 @@ fn on_sample_clicked(state: &mut editor::State, data: any, _value: any) {
 
 fn entry_specs(state: editor::State, doc: any, path: [str], out: [form::Row]) {
     let name = path[path.len() - 1];
-    let table = table_at(doc, path);
+    let table = themeedit::table_at(doc, path);
     let picked = same_path(state.themewin.path, path);
     out.push(form::Row {
         height: height_of(state, table),
@@ -773,7 +752,7 @@ fn on_state_chip_clicked(state: &mut editor::State, data: any, _value: any) {
 fn inspector_specs(state: editor::State, doc: any, path: [str], out: [form::Row]) {
     let row_height = style::row_height(state);
     let mine = editable(state);
-    let role_table = table_at(doc, path);
+    let role_table = themeedit::table_at(doc, path);
     out.push(form::Row {
         height: row_height,
         slot_role: roles::LAYOUT_ACTIONS,
@@ -784,8 +763,8 @@ fn inspector_specs(state: editor::State, doc: any, path: [str], out: [form::Row]
     if state.themewin.table != "" {
         at.push(state.themewin.table);
     }
-    let table = table_at(doc, at);
-    let own_table = table_at(state.themewin.own, at);
+    let table = themeedit::table_at(doc, at);
+    let own_table = themeedit::table_at(state.themewin.own, at);
     let missing: [str] = [];
     for key in KEYS() {
         if table.has(key) && !(table[key].kind() == types::KIND_MAP) {
@@ -832,7 +811,7 @@ fn copy_path(items: [str]) -> [str] {
 
 fn on_key_added(state: &mut editor::State, data: any, picked: any) {
     let at: [str] = data["at"];
-    edit(state, at, picked.as_str(), default_of(picked));
+    themeedit::edit(state, at, picked.as_str(), default_of(picked));
 }
 
 fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, stated: bool, mine: bool) -> form::Row {
@@ -861,7 +840,7 @@ fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, sta
 fn on_key_cleared(state: &mut editor::State, data: any, _value: any) {
     let at: [str] = data[layout_fields::AT];
     let key: str = data[fields::KEY].as_str();
-    clear(state, at, key);
+    themeedit::clear(state, at, key);
 }
 
 fn control_height(state: editor::State) -> float {
@@ -966,31 +945,31 @@ fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, 
 
 fn on_key_color_picked(state: &mut editor::State, data: any, rgba: any) {
     let at: [str] = data[layout_fields::AT];
-    edit(state, at, data[fields::KEY].as_str(), util::to_hex(rgba_list(rgba)));
+    themeedit::edit(state, at, data[fields::KEY].as_str(), util::to_hex(rgba_list(rgba)));
 }
 
 fn on_key_color_name_picked(state: &mut editor::State, data: any, picked: any) {
     let at: [str] = data[layout_fields::AT];
     let key: str = data[fields::KEY].as_str();
-    edit(state, at, key, picked);
+    themeedit::edit(state, at, key, picked);
 }
 
 fn on_key_word_picked(state: &mut editor::State, data: any, picked: any) {
     let at: [str] = data[layout_fields::AT];
     let key: str = data[fields::KEY].as_str();
-    edit(state, at, key, picked);
+    themeedit::edit(state, at, key, picked);
 }
 
 fn on_key_number_changed(state: &mut editor::State, data: any, value: any) {
     let at: [str] = data[layout_fields::AT];
     let key: str = data[fields::KEY].as_str();
-    edit(state, at, key, whole(value));
+    themeedit::edit(state, at, key, whole(value));
 }
 
 fn on_key_text_submitted(state: &mut editor::State, data: any, text: any) {
     let at: [str] = data[layout_fields::AT];
     let key: str = data[fields::KEY].as_str();
-    edit(state, at, key, text);
+    themeedit::edit(state, at, key, text);
 }
 
 /// A number as a file would spell it: whole ones without the `.0`.
@@ -1102,162 +1081,4 @@ pub fn show_role(state: &mut editor::State, name: str, table: str) {
     state.themewin.page = page_of(name);
     state.themewin.path = [ROLES, name];
     state.themewin.table = table;
-}
-
-/// Write one key of the person's theme and wear the result. A bundled theme
-/// has no `own`, so nothing is written.
-pub fn edit(state: &mut editor::State, path: [str], key: str, value: any) {
-    let own: any = state.themewin.own;
-    if util::is_nil(own) {
-        return;
-    }
-    let table: any = own;
-    for part in path {
-        if !(table.has(part) && table[part].kind() == types::KIND_MAP) {
-            table[part] = {};
-        }
-        table = table[part];
-    }
-    table[key] = value;
-    changed(state);
-}
-
-fn clear(state: &mut editor::State, path: [str], key: str) {
-    let own: any = state.themewin.own;
-    if util::is_nil(own) {
-        return;
-    }
-    let table = table_at(own, path);
-    if table.has(key) {
-        table.remove(key);
-    }
-    changed(state);
-}
-
-fn changed(state: &mut editor::State) {
-    state.themewin.dirty = true;
-    state.themewin.said = "";
-    let own: any = state.themewin.own;
-    let doc = theme::merge(theme::bundled(theme::base_of(own), state.theme[layout_fields::HALF].as_str()), own);
-    theme::wear(state, state.theme[fields::NAME].as_str(), doc);
-    let pairs = ui::contrast_pairs(doc, GROUND);
-    state.themewin.pairs = pairs;
-    state.themewin.apart = ui::colors_apart(doc);
-}
-
-fn rebase(state: &mut editor::State, picked: any) {
-    let own: any = state.themewin.own;
-    if util::is_nil(own) {
-        return;
-    }
-    own[fields::BASE] = picked;
-    changed(state);
-}
-
-/// Wear another theme, remembered as the setting.
-pub fn choose(state: &mut editor::State, name: str) {
-    settings::set(theme::SETTING, name);
-    settings::commit_preferences(state);
-    theme::use_named(state, name);
-    load_own(state);
-    state.themewin.said = "";
-}
-
-/// Write the worn half of the person's theme: only what differs from the same
-/// half of its base, under the base it names.
-pub fn save(state: &mut editor::State) {
-    let own: any = state.themewin.own;
-    if util::is_nil(own) {
-        return;
-    }
-    let half = state.theme[layout_fields::HALF].as_str();
-    let base_name = theme::base_of(own);
-    let base = theme::bundled(base_name, half);
-    let out = theme::diff(base, theme::merge(base, own));
-    out[fields::TYPE] = WIDGET_THEME;
-    out[fields::BASE] = base_name;
-    fs::create_directory(theme::folder_of(state.theme[fields::NAME].as_str()));
-    fs::write(theme::path_of(state.theme[fields::NAME].as_str(), half), toml::encode(out));
-    state.themewin.own = out;
-    state.themewin.dirty = false;
-    state.themewin.said = "Saved themes/{state.theme["name"]}/{half}.toml";
-}
-
-fn revert(state: &mut editor::State) {
-    theme::reload(state);
-    load_own(state);
-    state.themewin.said = "";
-}
-
-/// A name for a copy nobody has used: `balaur-custom`, then `balaur-custom-2`.
-fn fresh_name(from: str) -> str {
-    let stem = if theme::is_bundled(from) { from + "-custom" } else { from + "-copy" };
-    let taken = theme::names();
-    let name = stem;
-    let suffix = 2;
-    while name_taken(name, taken) {
-        name = "{stem}-{suffix}";
-        suffix += 1;
-    }
-    name
-}
-
-fn name_taken(name: str, items: [any]) -> bool {
-    for existing in items {
-        if existing.as_str() == name {
-            return true;
-        }
-    }
-    false
-}
-
-/// Copy the worn theme into the themes folder and wear the copy. A bundled one
-/// becomes a folder whose worn half names it as its base and nothing else.
-pub fn duplicate(state: &mut editor::State) -> str {
-    let from = state.theme[fields::NAME].as_str();
-    let name = fresh_name(from);
-    fs::create_directory(theme::folder_of(name));
-    for half in theme::HALVES() {
-        let copy: any = if !theme::is_bundled(from) {
-            theme::read(from, half)
-        } else if half == state.theme[layout_fields::HALF].as_str() {
-            { fields::BASE: from }
-        } else {
-            nil
-        };
-        if copy.kind() == types::KIND_MAP {
-            copy[fields::TYPE] = WIDGET_THEME;
-            fs::write(theme::path_of(name, half), toml::encode(copy));
-        }
-    }
-    choose(state, name);
-    state.themewin.said = "Duplicated " + from + " as " + name;
-    name
-}
-
-fn rename(state: &mut editor::State, text: any) {
-    let old = state.theme[fields::NAME].as_str();
-    let name = text.as_str().trim();
-    let bad = name == "" || name.contains("/") || name.contains(".");
-    if bad || theme::is_bundled(name) || name_taken(name, theme::names()) {
-        state.themewin.said = "'{text}' is not a name a new theme folder can take";
-        return;
-    }
-    if state.themewin.dirty {
-        save(state);
-    }
-    fs::rename(theme::folder_of(old), theme::folder_of(name));
-    choose(state, name);
-    state.themewin.said = "Renamed " + old + " to " + name;
-}
-
-/// Remove the worn theme's folder, both halves, and go back to its base.
-pub fn remove(state: &mut editor::State) {
-    let own: any = state.themewin.own;
-    if util::is_nil(own) {
-        return;
-    }
-    let back = theme::base_of(own);
-    fs::remove(theme::folder_of(state.theme[fields::NAME].as_str()));
-    choose(state, back);
 }

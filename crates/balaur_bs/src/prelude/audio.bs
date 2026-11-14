@@ -1,0 +1,52 @@
+//! `audio::play_file`: a sound on a node of its own, beside the engine's
+//! playback.
+
+const NAME = "PlayFile";
+const SOUND = "sound";
+const BINDINGS = "bindings";
+// The node sounds through a pause, as a menu's click must, and its one
+// binding row frees it once the sound plays out.
+const ALWAYS = "always";
+const EMITTED = "emitted:";
+const FREE = "free";
+
+/// Play a sound file on a node of its own under the scene's root, through
+/// `bus` at `volume_linear` and `pitch_scale`, looping when `loop` is true; a
+/// `position` places it, heard from the `listener` over `min_distance` to
+/// `max_distance`. Returns the node, which frees itself once the sound plays
+/// out: free it to stop the sound, or set its `sound` to change it.
+pub fn play_file(path: str, options: audio::PlayFileOptions?) -> Node {
+    let asked = options.or(audio::PlayFileOptions {});
+    let player = scene::root().add_child(NAME);
+    player.set_process(ALWAYS);
+    let sound: any = { "file": path, "positional": asked.position != nil };
+    if asked.position != nil {
+        player.transform.position = asked.position.unwrap();
+    }
+    if asked.bus != nil {
+        sound["bus"] = asked.bus.unwrap();
+    }
+    if asked.volume_linear != nil {
+        sound["volume_linear"] = asked.volume_linear.unwrap();
+    }
+    if asked.pitch_scale != nil {
+        sound["pitch_scale"] = asked.pitch_scale.unwrap();
+    }
+    if asked.loop != nil {
+        sound["loop"] = asked.loop.unwrap();
+    }
+    if asked.min_distance != nil {
+        sound["min_distance"] = asked.min_distance.unwrap();
+    }
+    if asked.max_distance != nil {
+        sound["max_distance"] = asked.max_distance.unwrap();
+    }
+    if asked.doppler_level != nil {
+        sound["doppler_level"] = asked.doppler_level.unwrap();
+    }
+    player.set_component(SOUND, sound);
+    let rows: any = { "rows": [{ "event": EMITTED + audio::EVENT_SOUND_FINISHED, "action": FREE }] };
+    player.set_component(BINDINGS, rows);
+    player.sound.play();
+    player
+}

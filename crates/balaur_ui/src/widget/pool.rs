@@ -23,18 +23,15 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::engine_api::KERNEL_OPS;
 use balaur_core::node_api::NODE_OPS;
 use balaur_script::{Module, Value};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::vocabulary::{keys as k, pool as p, words as w};
 
-const ALL_SIDES: &str = "all_sides";
 const FILL_SLOT: &str = "fill_slot";
 const FILL_STRIP: &str = "fill_strip";
 const PATCH_CONTROL: &str = "patch_control";
-const SIDES_WORD: &str = "sides";
 
 type Spec = BTreeMap<String, Value>;
 type Op = fn(&Engine, &[Value]) -> Result<Value>;
@@ -93,7 +90,6 @@ impl PoolCall {
 /// The node operations the pool writes through, resolved once.
 #[derive(Clone, Copy)]
 struct Ops {
-    scene_node: Op,
     node: Op,
     children: Op,
     add_child: Op,
@@ -110,11 +106,6 @@ impl Ops {
     fn resolve() -> Option<Self> {
         let node_op = |name: &str| NODE_OPS.iter().find(|o| o.name == name).map(|o| o.call);
         Some(Self {
-            scene_node: KERNEL_OPS
-                .iter()
-                .flat_map(|ops| ops.iter())
-                .find(|o| o.module == w::SCENE && o.name == w::GET_NODE)?
-                .call,
             node: node_op(w::GET_NODE)?,
             children: node_op("children")?,
             add_child: node_op("add_child")?,
@@ -553,7 +544,8 @@ impl Pool<'_> {
 /// The host at `path`, shown, and the pass that fills it; nothing when no
 /// node is there.
 fn open<'a>(eng: &'a Engine, ops: Ops, path: &str) -> Result<Option<(Pool<'a>, Value)>> {
-    let host = (ops.scene_node)(eng, &[Value::text(path)])?;
+    let root = Value::Node(balaur_core::node_id_of(eng.root()).0);
+    let host = (ops.node)(eng, &[root, Value::text(path)])?;
     open_node(eng, ops, host)
 }
 
@@ -736,11 +728,6 @@ fn four_sides(value: Value) -> Value {
     Value::List(SIDE_NAMES.map(side).to_vec())
 }
 
-fn sides_of(sizes: [f64; 4]) -> Value {
-    let row = |(name, size): (&str, f64)| (name.to_string(), Value::Num(size));
-    Value::Map(SIDE_NAMES.into_iter().zip(sizes).map(row).collect())
-}
-
 const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?, on_change: string?, on_submit: string?, data: any, \
     role: string?, text: string?, tooltip: string?, icon: string?, icon_color: string?, image: string?, \
     font: string?, prefix: string?, trailing: string?, placeholder: string?, fill: string?, stroke: string?, \
@@ -755,18 +742,6 @@ const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?,
 /// `ui.fill_strip` and `ui.fill_slot`.
 pub(crate) fn install_pool(m: &mut Module<Engine>) {
     m.describe(&[
-        (
-            SIDES_WORD,
-            &[],
-            "(left: float, top: float, right: float, bottom: float) -> Sides",
-            "A `Sides` for a control's `padding`, `margin` or `inset`.",
-        ),
-        (
-            ALL_SIDES,
-            &[],
-            "(size: float) -> Sides",
-            "A `Sides` the same on every side.",
-        ),
         (
             FILL_STRIP,
             &[],
@@ -812,13 +787,6 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         tracing::error!("the widget pool cannot find the node operations it writes through");
         return;
     };
-    m.function(
-        SIDES_WORD,
-        |_: &Engine, (left, top, right, bottom): (f64, f64, f64, f64)| {
-            Ok(sides_of([left, top, right, bottom]))
-        },
-    );
-    m.function(ALL_SIDES, |_: &Engine, size: f64| Ok(sides_of([size; 4])));
     m.function(
         FILL_STRIP,
         move |eng: &Engine, (host, controls): (String, Value)| {

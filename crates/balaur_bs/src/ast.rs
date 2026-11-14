@@ -48,12 +48,28 @@ pub(crate) enum BinOp {
     Ge,
     And,
     Or,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
+}
+
+impl BinOp {
+    /// `&`, `|`, `^`, `<<` or `>>`: an operator on ints only.
+    pub(crate) fn is_bitwise(self) -> bool {
+        matches!(
+            self,
+            Self::BitAnd | Self::BitOr | Self::BitXor | Self::Shl | Self::Shr
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum UnOp {
     Neg,
     Not,
+    BitNot,
 }
 
 #[derive(Clone, Debug)]
@@ -123,6 +139,10 @@ pub(crate) enum Pattern {
         path: String,
         binds: Vec<(String, String)>,
     },
+    /// `"idle"`, `3`, `-1`, `true`, `nil` or a constant: a value the subject equals.
+    Value(Expr),
+    /// `a | b`: any one of its alternatives, none of which binds a name.
+    Or(Vec<Pattern>),
 }
 
 /// `enum Shape { Circle(float), Rect { w: float, h: float }, Empty }`.

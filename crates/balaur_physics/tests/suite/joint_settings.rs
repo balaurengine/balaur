@@ -392,11 +392,11 @@ impl Scenario {
             if math::abs(angle) <= 0.1 { log::error("the pendulum never swung: {angle}"); }
             if math::abs(angle - coordinate) >= 0.02 { log::error("angle {angle} against coordinate {coordinate}"); }
             if math::abs(swing.velocities.unwrap().rotation_x.unwrap()) <= 0.1 { log::error("no joint velocity"); }
-            let held = scene::get_node("World/Impulse").joint3d.state();
+            let held = scene::root().get_node("World/Impulse").joint3d.state();
             let held_angle = held.angle.unwrap();
             if math::abs(held_angle) >= 0.35 { log::error("the limit did not hold: {held_angle}"); }
             if math::abs(held.limit_impulses.rotation_x.unwrap()) <= 0.0 { log::error("the limit carried no impulse"); }
-            let pull = scene::get_node("World/Impulse").joint3d.force();
+            let pull = scene::root().get_node("World/Impulse").joint3d.force();
             if pull.force <= 0.0 { log::error("the hinge held no force: {pull.force}"); }
             log::error("checked: joint state");
         }
@@ -471,7 +471,7 @@ impl Scenario {
         self.ticks += 1;
         if self.ticks == 30 {
             let upper = self.node.joint3d.state().coordinates.unwrap().rotation_x.unwrap();
-            let lower = scene::get_node("World/Lower").joint3d.state().coordinates.unwrap().rotation_x.unwrap();
+            let lower = scene::root().get_node("World/Lower").joint3d.state().coordinates.unwrap().rotation_x.unwrap();
             if math::abs(upper) <= 0.1 { log::error("the chain never swung: {upper}"); }
             if math::abs(lower - (0.2 - upper)) >= 0.05 { log::error("upper {upper} lower {lower}"); }
             log::error("checked: geared");

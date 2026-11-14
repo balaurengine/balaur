@@ -55,10 +55,8 @@ pub fn build(project_root: &Path, compiler: &dyn balaur_script::ScriptCompiler) 
 ///
 /// With `keep_sources`, every script is still compiled — an export is a
 /// check — but the pack stores its source text, and the runtime compiles
-/// it again when it loads. That is what a runtime with a different
-/// pointer width than this machine needs: the compiled form writes
-/// `usize` sentinels that do not read back on 32-bit targets, the web
-/// build first among them, until the bytecode format is portable.
+/// it again when it loads: what an editor showing the code wants. Only a
+/// runtime with the `compile` feature can run such a pack.
 ///
 /// `editors` names the editor's plugins by path from the root, which no
 /// game's runtime runs: the pack leaves them out whatever `ignore` says.
@@ -157,27 +155,7 @@ pub fn build_with(
         }
     }
     every_one_compiled(&failed)?;
-    // A script compiled against the project, where an ignored module is
-    // still on disk; the runtime finds its imports in the pack alone.
-    let dropped: Vec<String> = used
-        .iter()
-        .flat_map(|(rel, files)| files.iter().map(move |file| (rel, file)))
-        .filter(|(_, file)| !pack.scripts.contains_key(file.as_str()))
-        .map(|(rel, file)| {
-            let why = balaur_core::ignore::matching(&ignored, file).map_or_else(
-                || "the pack leaves it out".to_string(),
-                |pattern| format!("`[application] ignore` leaves it out (\"{pattern}\")"),
-            );
-            format!("{rel} uses {file}: {why}")
-        })
-        .collect();
-    if !dropped.is_empty() {
-        bail!(
-            "{} import(s) of a shipped script are left out of the pack:\n{}",
-            dropped.len(),
-            dropped.join("\n")
-        );
-    }
+    every_import_ships(&pack, &used, &ignored)?;
     // After every script compiled: the calls they make.
     pack.api = compiler.api();
     if !shipped.is_empty() {
@@ -786,6 +764,35 @@ fn every_one_compiled(failed: &[String]) -> Result<()> {
         "{} script(s) did not compile:\n{}",
         failed.len(),
         failed.join("\n")
+    )
+}
+
+/// A script compiled against the project, where an ignored module is still
+/// on disk; the runtime finds its imports in the pack alone.
+fn every_import_ships(
+    pack: &Pack,
+    used: &[(String, Vec<String>)],
+    ignored: &[String],
+) -> Result<()> {
+    let dropped: Vec<String> = used
+        .iter()
+        .flat_map(|(rel, files)| files.iter().map(move |file| (rel, file)))
+        .filter(|(_, file)| !pack.scripts.contains_key(file.as_str()))
+        .map(|(rel, file)| {
+            let why = balaur_core::ignore::matching(ignored, file).map_or_else(
+                || "the pack leaves it out".to_string(),
+                |pattern| format!("`[application] ignore` leaves it out (\"{pattern}\")"),
+            );
+            format!("{rel} uses {file}: {why}")
+        })
+        .collect();
+    if dropped.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "{} import(s) of a shipped script are left out of the pack:\n{}",
+        dropped.len(),
+        dropped.join("\n")
     )
 }
 

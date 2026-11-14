@@ -8,44 +8,49 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Daily counters by key or prefix (admin)
 /// `GET /api/v1/admin/analytics/counts`
-pub fn get_analytics_counts(options: any) -> int {
+pub async fn get_analytics_counts(options: any) -> any {
     let query = core::query(options, ["key", "days"]);
-    core::rest("GET", "/api/v1/admin/analytics/counts{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/analytics/counts{query}");
+    reply
 }
 
 /// Per-day active / new users and cohort retention (admin)
 /// `GET /api/v1/admin/analytics/daily`
-pub fn get_analytics_daily(options: any) -> int {
+pub async fn get_analytics_daily(options: any) -> any {
     let query = core::query(options, ["days", "segment"]);
-    core::rest("GET", "/api/v1/admin/analytics/daily{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/analytics/daily{query}");
+    reply
 }
 
 /// Currency granted / spent per day per ledger reason (admin)
 /// `GET /api/v1/admin/analytics/economy`
-pub fn get_analytics_economy(options: any) -> int {
+pub async fn get_analytics_economy(options: any) -> any {
     let query = core::query(options, ["days", "currency"]);
-    core::rest("GET", "/api/v1/admin/analytics/economy{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/analytics/economy{query}");
+    reply
 }
 
 /// Live counters: players, lobbies, parties, quests, matchmaking,
 /// tournaments (admin)
 /// `GET /api/v1/admin/analytics/snapshot`
-pub fn get_analytics_snapshot() -> int {
-    core::rest("GET", "/api/v1/admin/analytics/snapshot")
+pub async fn get_analytics_snapshot() -> any {
+    let reply = await core::rest("GET", "/api/v1/admin/analytics/snapshot");
+    reply
 }
 
 /// DAU / WAU / MAU, D1 / D7 / D30 and payer conversion (admin)
 /// `GET /api/v1/admin/analytics`
-pub fn get_analytics_summary(options: any) -> int {
+pub async fn get_analytics_summary(options: any) -> any {
     let query = core::query(options, ["segment"]);
-    core::rest("GET", "/api/v1/admin/analytics{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/analytics{query}");
+    reply
 }

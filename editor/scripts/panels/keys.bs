@@ -17,7 +17,7 @@ fn STOPPED() -> [str] {
 
 impl Keys {
     pub fn init() {
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, signals::DEBUGGER_CHANGED, source);
     }

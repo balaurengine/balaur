@@ -111,18 +111,6 @@ question as an old one is a second way to say it.
 </tbody>
 </table>
 
-## gamend
-
-<table>
-<thead><tr><th>key</th><th>type</th><th>default</th><th>notes</th><th>what it does</th></tr></thead>
-<tbody>
-<tr><td><code>url</code></td><td>string</td><td><code>&quot;https://gamend.org&quot;</code></td><td></td><td>The Gamend server a shipped game talks to.</td></tr>
-<tr><td><code>local_url</code></td><td>string</td><td><code>&quot;http://localhost:4000&quot;</code></td><td></td><td>A Gamend running on this machine, as <code>mix dev.start</code> serves it.</td></tr>
-<tr><td><code>plugin</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>The server plugin a game&#x27;s hooks are called in.</td></tr>
-<tr><td><code>server</code></td><td>enum</td><td><code>&quot;local&quot;</code></td><td>editor</td><td>Which of the project&#x27;s two servers a game played from this editor talks to. Kept in the editor&#x27;s own file, so it never ships.</td></tr>
-</tbody>
-</table>
-
 ## http
 
 <table>
@@ -435,7 +423,7 @@ question as an old one is a second way to say it.
 <table>
 <thead><tr><th>key</th><th>type</th><th>default</th><th>notes</th><th>what it does</th></tr></thead>
 <tbody>
-<tr><td><code>tick_hz</code></td><td>int</td><td><code>60</code></td><td>on restart</td><td>How many fixed steps a second the simulation takes. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used.</td></tr>
+<tr><td><code>tick_hz</code></td><td>int</td><td><code>60</code></td><td>on restart</td><td>How many fixed steps a second the simulation takes, the same on every platform: a recording replays and a match steps at one rate. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used.</td></tr>
 </tbody>
 </table>
 

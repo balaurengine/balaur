@@ -552,66 +552,6 @@ fn joints_and_shape_edits_survive_a_snapshot() {
 
 // A zero-translation `move_shape` still snaps to ground and writes the transform, so asking from
 // `update` would desync the simulation.
-#[test]
-fn asking_is_grounded_does_not_move_the_character() {
-    run_clean(
-        r#"[[nodes]]
-id = "n_world"
-name = "World"
-
-[[nodes]]
-id = "n_floor"
-name = "Floor"
-parent = "n_world"
-
-[nodes.transform]
-position = [0.0, -1.0, 0.0]
-
-[nodes.collider3d]
-shape = { kind = "box", size = [16.0, 1.0, 16.0] }
-
-[[nodes]]
-id = "n_player"
-name = "Player"
-parent = "n_world"
-script = { source = "scripts/scenario.bs" }
-
-[nodes.transform]
-position = [0.0, 1.0, 0.0]
-
-[nodes.collider3d]
-shape = { kind = "capsule", radius = 0.4, height = 1.0 }
-
-[nodes.character3d]
-"#,
-        r#"pub class Scenario { node: Node, ticks: int, parked: float, grounded: bool }
-impl Scenario {
-    fn fixed_update(dt: float) {
-        self.ticks += 1;
-        if self.ticks < 40 {
-            self.node.character3d.move_by(vec3(0.0, -0.2, 0.0));
-            return;
-        }
-        if self.ticks == 40 {
-            self.parked = self.node.transform.position.y;
-            self.grounded = self.node.character3d.is_on_floor();
-        }
-        let i = 0;
-        while i < 8 {
-            self.node.character3d.is_on_floor();
-            i += 1;
-        }
-        if self.ticks == 100 {
-            if !self.grounded { log::error("the character never landed, so the test proves nothing"); }
-            let drift = self.node.transform.position.y - self.parked;
-            if drift >= 0.0001 || drift <= -0.0001 { log::error("asking moved it by {drift}"); }
-        }
-    }
-}
-"#,
-    );
-}
-
 // The ray only misses while the box is still standing on end.
 #[test]
 fn a_rotated_2d_character_keeps_its_angle_when_it_moves() {

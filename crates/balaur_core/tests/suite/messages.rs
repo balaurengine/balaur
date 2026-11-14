@@ -1,4 +1,4 @@
-//! Typed messages (PLAN-ecs §2): sent by one system, read once by each
+//! Typed messages: sent by one system, read once by each
 //! reader, kept for the frame they were sent in and the next.
 
 use std::cell::RefCell;

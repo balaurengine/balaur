@@ -4,7 +4,7 @@
 # Desktop templates are plain executables — a game is the template with a pack
 # appended, and the OS runs the file. None of these platforms work that way, so
 # each gets the shape its OS actually launches, and what a game does with the
-# template differs per platform. See docs/PLAN-mobile-export.md.
+# template differs per platform.
 #
 # Usage: [VARIANT=2d|3d|bare] package_runtime.sh <platform>   ios | ios-sim | android | web
 set -euo pipefail

@@ -4,7 +4,6 @@
 pub(crate) mod words {
     pub(crate) const ADDONS: &str = "addons";
     pub(crate) const CURRENT: &str = "current";
-    pub(crate) const DURATION: &str = "duration";
     pub(crate) const EDITOR: &str = "editor";
     pub(crate) const FADE: &str = "fade";
     pub(crate) const FALSE: &str = "false";
@@ -86,7 +85,6 @@ pub(crate) mod words {
 
     pub(crate) mod modules {
         pub(crate) const ASSETS: &str = "assets";
-        pub(crate) const ENCODING: &str = "encoding";
         pub(crate) const ENGINE: &str = "engine";
         pub(crate) const FS: &str = "fs";
         pub(crate) const HASH: &str = "hash";
@@ -131,6 +129,7 @@ pub(crate) mod words {
     }
 
     pub(crate) mod facts {
+        pub(crate) const DEVICE: &str = "device";
         pub(crate) const WASM: &str = "wasm";
     }
 
@@ -171,7 +170,6 @@ pub(crate) mod words {
 
 #[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod keys {
-    pub(crate) const DURATION: &str = "duration";
     pub(crate) const IGNORE: &str = "ignore";
     pub(crate) const ROWS: &str = "rows";
     pub(crate) const ROTATION_EULER: &str = "rotation_euler";
@@ -196,6 +194,7 @@ pub(crate) mod keys {
     pub(crate) const NODES: &str = "nodes";
     pub(crate) const OF: &str = "of";
     pub(crate) const OPTIONS: &str = "options";
+    pub(crate) const OVERRIDABLE: &str = "overridable";
     pub(crate) const OVERRIDES: &str = "overrides";
     pub(crate) const PARENT: &str = "parent";
     pub(crate) const PATH: &str = "path";

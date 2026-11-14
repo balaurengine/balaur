@@ -141,7 +141,7 @@ cp "$bin" "$dist/balaur-runtime-$target$exe"
 cp "$bin" "$bundle/runtimes/balaur-runtime-$target$exe"
 
 step "the editor's scripts as native code"
-# Built as a game's are (docs/PLAN-balaur-script.md §7a); opened beside the binary.
+# Built as a game's are; opened beside the binary.
 native="$dist/.editor-native"
 rm -rf "$native"
 # The staged binary's own editor is the copy beside it; this tree's is the one

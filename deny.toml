@@ -23,7 +23,7 @@ yanked = "deny"
 # Actual vulnerabilities stay errors in cargo-deny regardless of this setting.
 unmaintained = "none"
 # `quick-xml` and `zstd` under `tiled`, reachable only through `balaur import
-# level.tmx`; docs/PLAN-tilemap.md "The Tiled dependency" says why and until when.
+# level.tmx`; ARCHITECTURE.md "Tile maps" says why and until when.
 ignore = [
     "RUSTSEC-2026-0194", "RUSTSEC-2026-0195",
     "RUSTSEC-2026-0391", "RUSTSEC-2026-0398", "RUSTSEC-2026-0403",

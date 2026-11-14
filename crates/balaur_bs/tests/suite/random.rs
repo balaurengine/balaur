@@ -1,5 +1,5 @@
 // Random well-typed programs, run on every engine and on an interpreter that
-// is the language's meaning in code (PLAN-script-tests §8). `BS_RANDOM_*`.
+// is the language's meaning in code. `BS_RANDOM_*`.
 
 mod anys;
 mod generate;
@@ -57,6 +57,11 @@ enum Op {
     Ne,
     And,
     Or,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
 }
 
 impl Op {
@@ -73,6 +78,11 @@ impl Op {
             Op::Ne => "!=",
             Op::And => "&&",
             Op::Or => "||",
+            Op::BitAnd => "&",
+            Op::BitOr => "|",
+            Op::BitXor => "^",
+            Op::Shl => "<<",
+            Op::Shr => ">>",
         }
     }
 }
@@ -86,6 +96,8 @@ enum E {
     Var(String),
     Bin(Op, Box<E>, Box<E>),
     Neg(Box<E>),
+    /// `~x` on an int.
+    BitNot(Box<E>),
     Not(Box<E>),
     If(Box<E>, Box<E>, Box<E>),
     Call(String, Vec<E>),
@@ -275,6 +287,10 @@ fn prepare(engine: EngineKind, c: &Compiled) -> Result<(), String> {
 }
 
 #[cfg(not(all(feature = "c", feature = "native")))]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the signature of the native build's, which can fail"
+)]
 fn prepare(_: EngineKind, _: &Compiled) -> Result<(), String> {
     Ok(())
 }
@@ -461,14 +477,14 @@ fn a_disagreement_shrinks_to_the_lines_that_show_it() {
     let broken = |f: &[Func]| verdict(f, EngineKind::Wasmi, true) == Some(Fault::Differs);
     let funcs = (0..200)
         .map(|n| Gen::new(program_seed(SEED, n)).program())
-        .find(|f| source(f).lines().count() >= 30 && broken(f))
+        .find(|f| source(f).lines().count() >= 33 && broken(f))
         .expect("a program where a product counts");
     let small = shrink::shrink(&funcs, &mut |f| broken(f), SHRINK_BUDGET);
     let (before, after) = (source(&funcs), source(&small));
     assert!(broken(&small), "the shrunk program agrees:\n{after}");
     assert!(after.contains(" * "), "the product went:\n{after}");
     assert!(
-        after.lines().count() <= 11 && after.lines().count() * 3 <= before.lines().count(),
+        after.lines().count() <= 12 && after.lines().count() * 3 <= before.lines().count(),
         "not shrunk:\n{before}\n->\n{after}"
     );
 }

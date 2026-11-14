@@ -11,7 +11,7 @@ use icons;
 use layout;
 use lint;
 use model;
-use polygon;
+use polygonchips;
 use pool;
 use shell;
 use showcase;
@@ -232,8 +232,8 @@ pub fn rail_marks(state: editor::State) -> [str] {
 pub fn rail_grid(state: editor::State, room: float) -> RailGrid {
     let metrics = rail_metrics(state);
     let mark_count = rail_marks(state).len() as float;
-    let fits = util::max(1.0, math::floor((room - 2.0 * metrics.padding + metrics.gap) / (metrics.diameter + metrics.gap)));
-    let columns = math::ceil(mark_count / util::min(mark_count, fits));
+    let fits = math::max(1.0, math::floor((room - 2.0 * metrics.padding + metrics.gap) / (metrics.diameter + metrics.gap)));
+    let columns = math::ceil(mark_count / math::min(mark_count, fits));
     RailGrid { rows: math::ceil(mark_count / columns), columns: columns, diameter: metrics.diameter, gap: metrics.gap, padding: metrics.padding }
 }
 
@@ -267,7 +267,7 @@ pub fn fill_rail(state: editor::State) {
     if column.len() > 0 {
         columns.push(ui::Control { kind: ui::WIDGET_COLUMN, gap: vec2(grid.gap, grid.gap), controls: column });
     }
-    let filled = scene::get_node(RAIL);
+    let filled = scene::root().get_node(RAIL);
     if filled.is_valid() {
         filled.widget_layout.gap = vec2(grid.gap, grid.gap);
         filled.patch_component(components::WIDGET, { layout_fields::PADDING: grid.padding });
@@ -277,7 +277,7 @@ pub fn fill_rail(state: editor::State) {
 
 // One mark: a tool, or the one that folds the rail away or brings it back.
 fn rail_mark(state: editor::State, mark: str, diameter: float) -> ui::Control {
-    let round: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION, text: "", width: diameter, height: diameter, padding: ui::all_sides(0), corner_radius: diameter / 2.0 };
+    let round: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION, text: "", width: diameter, height: diameter, padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 }, corner_radius: diameter / 2.0 };
     if mark == window_marks::RESTORE {
         round.icon = icons::ui(icons::RESTORE);
         round.tooltip = "Show the tools";
@@ -376,8 +376,8 @@ fn frame_16_9(viewport_rect: any) -> [float] {
         height = viewport_rect[layout_fields::HEIGHT];
         width = viewport_rect[layout_fields::HEIGHT].as_float() * target;
     }
-    let margin_x = util::max(0.0, (viewport_rect[layout_fields::WIDTH].as_float() - width.as_float()) / 2.0);
-    let margin_y = util::max(0.0, (viewport_rect[layout_fields::HEIGHT].as_float() - height.as_float()) / 2.0);
+    let margin_x = math::max(0.0, (viewport_rect[layout_fields::WIDTH].as_float() - width.as_float()) / 2.0);
+    let margin_y = math::max(0.0, (viewport_rect[layout_fields::HEIGHT].as_float() - height.as_float()) / 2.0);
     [margin_x, margin_y, margin_x, margin_y]
 }
 
@@ -396,10 +396,10 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
     // the viewport rather than a window.
     if state.tool == tools::POLYGON {
         out.push(ui::Control { kind: ui::WIDGET_ROW, width: 2 });
-        for spec in polygon::mode_specs(state) {
+        for spec in polygonchips::mode_specs(state) {
             out.push(spec);
         }
-        for spec in polygon::option_specs(state) {
+        for spec in polygonchips::option_specs(state) {
             out.push(spec);
         }
     }
@@ -416,12 +416,12 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
         }
     }
     ui::fill_strip(CHIPS, out);
-    let filled = scene::get_node(CHIPS);
+    let filled = scene::root().get_node(CHIPS);
     if filled.is_valid() {
         filled.widget.height = hud_height(state);
     }
     // Clear of the folded left dock's handle, which shares this row.
-    let filled = scene::get_node(CHIPS_BOX);
+    let filled = scene::root().get_node(CHIPS_BOX);
     if filled.is_valid() {
         filled.widget.height = hud_height(state);
         filled.patch_component(components::WIDGET, { dock_fields::INSET: [docks::fold_inset(state), 0.0, 0.0, -1.0] });
@@ -563,7 +563,7 @@ fn bookmark(state: &mut editor::State, key: str) {
 fn hud_inset(state: editor::State) -> any {
     let row: any = state.layout["upper"];
     let viewport_rect: any = state.layout[panel_keys::STAGE];
-    util::max(0.0, (row["x"].as_float() + row[layout_fields::WIDTH].as_float() - viewport_rect["x"].as_float() - viewport_rect[layout_fields::WIDTH].as_float()))
+    math::max(0.0, (row["x"].as_float() + row[layout_fields::WIDTH].as_float() - viewport_rect["x"].as_float() - viewport_rect[layout_fields::WIDTH].as_float()))
 }
 
 /// What the HUD shows along the scene's foot.
@@ -650,10 +650,10 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
     let box: any = state.layout[panel_keys::STAGE_BOX];
     let doc_rect: any = state.layout[fields::DOC];
     let inset = [
-        util::max(0.0, (doc_rect["x"].as_float() - box["x"].as_float())),
-        util::max(0.0, (doc_rect["y"].as_float() - box["y"].as_float())),
-        util::max(0.0, (box["x"].as_float() + box[layout_fields::WIDTH].as_float() - doc_rect["x"].as_float() - doc_rect[layout_fields::WIDTH].as_float())),
-        util::max(0.0, (box["y"].as_float() + box[layout_fields::HEIGHT].as_float() - doc_rect["y"].as_float() - doc_rect[layout_fields::HEIGHT].as_float())),
+        math::max(0.0, (doc_rect["x"].as_float() - box["x"].as_float())),
+        math::max(0.0, (doc_rect["y"].as_float() - box["y"].as_float())),
+        math::max(0.0, (box["x"].as_float() + box[layout_fields::WIDTH].as_float() - doc_rect["x"].as_float() - doc_rect[layout_fields::WIDTH].as_float())),
+        math::max(0.0, (box["y"].as_float() + box[layout_fields::HEIGHT].as_float() - doc_rect["y"].as_float() - doc_rect[layout_fields::HEIGHT].as_float())),
     ];
     let file = open_file(state);
     if file.relative_path == "" {
@@ -802,7 +802,7 @@ pub fn fill_hooks(state: &mut editor::State) {
                 kind: ui::WIDGET_PANEL,
                 fill: tokens[theme_tokens::BG_CONTROL],
                 corner_radius: 15,
-                padding: ui::sides(11, 6, 11, 6),
+                padding: ui::Sides { left: 11.0, top: 6.0, right: 11.0, bottom: 6.0 },
                 controls: [
                     ui::Control {
                         kind: ui::WIDGET_ROW,

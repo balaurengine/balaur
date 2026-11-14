@@ -5,8 +5,8 @@
 //! so a lost packet stalls every frame behind it, and a "datagram" here is a
 //! reliable frame wearing a label. That is the right trade for turn-based
 //! play and for a lockstep session at a low tick rate, and the wrong one for
-//! anything twitchy — which is why `PLAN-networking.md` puts WebTransport
-//! under the same trait next.
+//! anything twitchy — which is why `balaur_webtransport` sits under the
+//! same trait.
 //!
 //! Both deliveries share one websocket, so each frame carries a one-byte tag
 //! saying which it was. A peer that is not this transport will not understand

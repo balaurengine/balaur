@@ -1,5 +1,5 @@
 //! When each registered component was put on a node and last changed, and
-//! what came off, by change tick (PLAN-ecs §2): what a system asks "added,
+//! what came off, by change tick: what a system asks "added,
 //! changed or removed since I last ran" of, as a comparison.
 //!
 //! Stamped from the calls that feed the change log, which every write of a

@@ -164,9 +164,6 @@ pub struct PhysicsState3d {
     pub vehicles: DetHashMap<Entity, vehicle::VehicleRef3d>,
     /// Each `follow3d`'s controller, kept across steps for a PID's integrals.
     pub follows: DetHashMap<Entity, follow::FollowRef3d>,
-    /// What the last `move_character` found under each character's feet, so
-    /// `is_on_floor` can answer without sweeping the shape again.
-    pub grounded: DetHashMap<Entity, bool>,
     /// Whether the broad phase's tree matches the colliders.
     ///
     /// Rapier builds it during a step, so a world that has not stepped yet has
@@ -206,7 +203,6 @@ impl PhysicsState3d {
             wheel_inputs: DetHashMap::default(),
             vehicles: DetHashMap::default(),
             follows: DetHashMap::default(),
-            grounded: DetHashMap::default(),
             shape_revision: 0,
             sleeping_allowed: true,
         }
@@ -724,7 +720,6 @@ pub fn clear(eng: &Engine) {
     state.wheel_inputs.clear();
     state.vehicles.clear();
     state.follows.clear();
-    state.grounded.clear();
     state.asleep.clear();
 }
 

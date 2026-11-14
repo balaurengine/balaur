@@ -1,0 +1,16 @@
+// A value no byte holds, and text that is not canonical base64, trap. A trap
+// leaves what the call allocated behind.
+
+pub fn encoded(data: [int]) -> str { encoding::base64(data) }
+pub fn decoded(text: str) -> [int] { encoding::from_base64(text) }
+
+// expect: encoded([256]) traps
+// expect: encoded([1, 2, -1]) traps
+// expect: encoded([1, 300, 2, 4]) traps
+// expect: decoded("@@@@") traps
+// expect: decoded("Zg=") traps
+// expect: decoded("Zg=a") traps
+// expect: decoded("Zh==") traps
+// expect: decoded("Zm9=") traps
+// expect: decoded("Zg==Zg==") traps
+// expect: decoded("Zm 9") traps

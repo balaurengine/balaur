@@ -40,7 +40,7 @@ const ASK: str = "run “Count scripted nodes” from the palette";
 
 // The Editor, whose methods are what a plugin reaches the editor through.
 fn editor() -> Node {
-    scene::get_node("Editor")
+    scene::root().get_node("Editor")
 }
 
 // How many nodes of the scene name a script.

@@ -2,8 +2,7 @@
 //! number being typed. Laid out by the shaper a label is laid out by, so
 //! Arabic, Hindi or Thai typed into a field draws as it does in a label, and
 //! painted here: the caret through text running either way, the selection,
-//! the keys, the clipboard and an input method's composition
-//! (docs/PLAN-ui-gaps.md §1).
+//! the keys, the clipboard and an input method's composition.
 
 use std::hash::{Hash as _, Hasher as _};
 use std::ops::Range;
@@ -709,30 +708,10 @@ impl Typing<'_> {
             ui.memory_mut(|mem| mem.surrender_focus(self.id));
             return Pressed::Left;
         }
+        if let Some(pressed) = self.chord(ui, field, step, cut) {
+            return pressed;
+        }
         let change = match key {
-            Key::A if command => {
-                field.editing.select_all();
-                return Pressed::Moved;
-            }
-            Key::C if command => {
-                self.copy(ui, field);
-                return Pressed::Nothing;
-            }
-            Key::X if command => {
-                if *cut {
-                    return Pressed::Nothing;
-                }
-                *cut = true;
-                self.copy(ui, field);
-                return if field.editing.cut().is_some() {
-                    Pressed::Changed
-                } else {
-                    Pressed::Nothing
-                };
-            }
-            Key::Z if command && modifiers.shift => return done(field.editing.redo()),
-            Key::Y if command => return done(field.editing.redo()),
-            Key::Z if command => return done(field.editing.undo()),
             Key::Enter if self.multiline && !command => Change::Insert("\n".into()),
             Key::Tab if self.tab_inserts && !modifiers.shift => Change::Insert("\t".into()),
             Key::Backspace if modifiers.mac_cmd => return self.delete_line(field, typeset, false),
@@ -759,6 +738,45 @@ impl Typing<'_> {
             return done(self.insert(field, text));
         }
         done(field.editing.change(&change))
+    }
+
+    /// A command chord the field answers itself: select all, copy, cut, undo
+    /// and redo. `None` for every other key.
+    fn chord(
+        &self,
+        ui: &egui::Ui,
+        field: &mut Field,
+        step: Step,
+        cut: &mut bool,
+    ) -> Option<Pressed> {
+        let Step { key, modifiers, .. } = step;
+        if !modifiers.command {
+            return None;
+        }
+        Some(match key {
+            Key::A => {
+                field.editing.select_all();
+                Pressed::Moved
+            }
+            Key::C => {
+                self.copy(ui, field);
+                Pressed::Nothing
+            }
+            Key::X if *cut => Pressed::Nothing,
+            Key::X => {
+                *cut = true;
+                self.copy(ui, field);
+                if field.editing.cut().is_some() {
+                    Pressed::Changed
+                } else {
+                    Pressed::Nothing
+                }
+            }
+            Key::Z if modifiers.shift => done(field.editing.redo()),
+            Key::Y => done(field.editing.redo()),
+            Key::Z => done(field.editing.undo()),
+            _ => return None,
+        })
     }
 
     /// The motion a key asks for. A secret's dots, and a text being composed,

@@ -86,7 +86,7 @@ pub fn run() -> str {
 ```
 
 The rule is the same for a method, an `async fn`, a function of another file and the engine's own,
-as in `log::recent()`. `balaur check` warns about a last `nil` that could go, unless it is the only
+as in `log::since()`. `balaur check` warns about a last `nil` that could go, unless it is the only
 argument: `node.set_script(nil)` says what it does.
 
 Two arguments are always given. A `&mut` parameter is a place the call stores back, whatever its type,

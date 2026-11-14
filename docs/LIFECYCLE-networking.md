@@ -734,7 +734,7 @@ Starts in `handle.reliable == null`. Ends with the entry gone. `pump` runs from 
 
 ### One request
 
-`HttpState` holds each `http.request` from its id to its delivered end. This state is derived, from which tables hold the id. Source: `crates/balaur_http/src/lib.rs`, `HttpState.in_flight`, `cancelled`, `cancelled_now`, `handlers`, `progress`.
+`HttpState` holds each `http.request` from its id to its delivered end. This state is derived, from which tables hold the id. Source: `crates/balaur_http/src/lib.rs`, `HttpState.in_flight`, `cancelled`, `cancelled_now`, `pump_http_system`.
 
 ```mermaid
 stateDiagram-v2
@@ -753,25 +753,25 @@ stateDiagram-v2
 | State | What is true |
 |---|---|
 | in `in_flight` | The cancel flag is held. The job is queued or running. |
-| in `cancelled` and `cancelled_now` | Canceled, with the handler not yet told. Out of `in_flight` and `progress`. |
-| in `cancelled` only | The handler was told. A late reply is expected. |
+| in `cancelled` and `cancelled_now` | Cancelled, with the waiter not yet woken. Out of `in_flight`. |
+| in `cancelled` only | The waiter woke. A late reply is expected. |
 | in no table | Finished. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `request_with_progress` | in `in_flight` | Stores handlers, logs `http.request`, submits to the pool through `io.start`. A replay submits nothing. |
-| in `in_flight` | `pump_http_system` drains `Progress` or `Sent` | same | The progress handler hears `progress` or `upload`. No wake. |
-| in `in_flight` | Pump drains `Response` or `Error` | in no table | Removes the rows. The handler hears `response` or `error`. `host.wake(id)`. |
-| in `in_flight` | `HttpState::cancel` | in `cancelled` and `cancelled_now` | Sets the flag, removes the progress handler, answers true. |
-| in `cancelled` and `cancelled_now` | Next pump | in `cancelled` only | Removes the handler. Handler and wake hear `cancelled`. |
+| none | `HttpState::request` | in `in_flight` | Logs `http.request`, submits to the pool through `io.start`. A replay submits nothing. |
+| in `in_flight` | `pump_http_system` drains `Progress` or `Sent` | same | Emits `http_progress` with `progress` or `upload`, heard as `on_http_progress`. No wake. |
+| in `in_flight` | Pump drains `Response` or `Error` | in no table | Removes the row and wakes the id with `response` or `error`. |
+| in `in_flight` | `HttpState::cancel` | in `cancelled` and `cancelled_now` | Sets the flag, answers true. |
+| in `cancelled` and `cancelled_now` | Next pump | in `cancelled` only | Wakes the id with `cancelled`. |
 | in `cancelled` | Pump drains `Progress` or `Sent` | same | Dropped. |
-| in `cancelled` | Pump drains `Response` or `Error` | in no table | Dropped, and nobody is told. |
+| in `cancelled` | Pump drains `Response` or `Error` | in no table | Dropped, and nothing wakes. |
 
 Starts in `in_flight`. Ends in no table.
 
 Refused or ignored: `cancel` answers false once the id left `in_flight`. A timeout out of range or a bad option type returns an error at the call. An HTTP 4xx or 5xx is a `Response`. The browser backend ignores the flag and only drops the reply.
 
-Held by a pause, a `process` mode or a parked scene: `pump_http_system` reads none of them. A handler runs through `call_on`, so a paused node hears it and a parked node, having no instance there, misses it. A task awaiting the id stays suspended until its node can tick.
+Held by a pause, a `process` mode or a parked scene: `pump_http_system` reads none of them. A task awaiting the id stays suspended until its node can tick.
 
 ### Request job on a worker
 
@@ -824,7 +824,7 @@ Refused or ignored: dropping the pool clears the queue, and a queued job then re
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `None` | `request_with_progress`, inside `io.start` | `Some` | `Pool::new`. |
+| `None` | `HttpState::request`, inside `io.start` | `Some` | `Pool::new`. |
 
 Starts in `None`. Ends in `Some` for the life of the state.
 
@@ -832,360 +832,187 @@ Refused or ignored: a replay never makes it, because `io.start` does not run.
 
 ## Gamend
 
+The client is the library's Gamend addon, Balaur Script over `http` and `websocket`, written in Gamend's `clients/balaur_template/`. Its states live in the script store and on each socket's node, so a replay rebuilds them from the two modules' recorded arrivals.
+
 ### Realtime socket
 
-A `LiveSocket` holds where it is between one connection and the next, and how far the current connection has gone. Source: `crates/balaur_gamend/src/realtime.rs`, `Phase`, `Link.opened`, `Link.join_ref`, `Link.joined`.
+A `Socket` holds where it is between one connection and the next. Source: `editor/library/addons/gamend/socket.bs`, `Socket.phase`, `linked`, `joined`.
 
 ```mermaid
 stateDiagram-v2
-    state "Live, opened false" as LiveDialed
-    state "Live, opened true, no join ref" as LiveOpened
-    state "Live, join ref set, joined false" as LiveJoining
-    state "Live, joined true" as LiveJoined
-    state "removed" as Removed
-    [*] --> Waiting: connect
-    Waiting --> Renewing: clock reached, token stale
-    Waiting --> LiveDialed: clock reached, token fresh
-    Renewing --> LiveDialed: renewal ok
-    LiveDialed --> LiveOpened: Arrival Opened
-    LiveOpened --> LiveJoining: join frame sent
-    LiveDialed --> Renewing: 401 or 403, first refusal
-    LiveJoining --> LiveJoined: join reply ok
-    LiveDialed --> Waiting: dropped, opened before
-    LiveOpened --> Waiting: dropped, opened before
-    LiveJoining --> Waiting: dropped, opened before
-    LiveJoined --> Waiting: dropped or Interrupt
-    Renewing --> Waiting: renewal failed, opened before
-    LiveDialed --> Removed: dropped, never opened or out of tries
-    LiveOpened --> Removed: dropped, never opened or out of tries
-    LiveJoining --> Removed: dropped, never opened or out of tries
-    LiveJoined --> Removed: Close, or out of tries
-    Waiting --> Removed: Close, or no session
-    Renewing --> Removed: Close, or renewal failed
-    Removed --> [*]
+    [*] --> waiting: client::connect
+    waiting --> renewing: due, token stale
+    waiting --> dialing: due, token fresh
+    renewing --> dialing: renewal ok
+    dialing --> renewing: refused before open, first refusal
+    dialing --> live: user channel joined
+    dialing --> waiting: dropped, opened before
+    live --> waiting: dropped, or retry_network
+    renewing --> waiting: renewal failed, opened before
+    dialing --> ended: dropped, never opened or out of tries
+    live --> ended: close, or out of tries
+    waiting --> ended: close, or no session
+    renewing --> ended: close, or renewal failed
+    ended --> [*]
 ```
 
 | State | What is true |
 |---|---|
-| `Waiting(f64)` | Sitting out a back-off until that reading of the socket's clock. The loop is woken for it. |
-| `Renewing(Receiver)` | The client's worker is trading the refresh token. |
-| `Live(Link)`, `opened == false` | A connection is dialed and not open. |
-| `Live(Link)`, `opened == true`, `join_ref == None` | Held only inside one `live` call, before the join frame goes out. |
-| `Live(Link)`, `join_ref == Some`, `joined == false` | The own-user join waits for its reply. |
-| `Live(Link)`, `joined == true` | Commands, rejoins and heartbeats run. |
-| removed | `step` answered false, and the socket left `GamendState.live`. |
-
-No script reads this directly. Scripts hear the events below and read `gamend.connection()`, the connection row further down.
+| `waiting` | Sitting out a back-off until `retry_at` on the wall clock; at first, until the next frame. |
+| `renewing` | `renew` is trading the refresh token through `core::renew`. |
+| `dialing` | A `websocket` connection is asked for. `linked` once it opened, then the own-user join waits for its reply. |
+| `live` | The user channel is joined: calls, rejoins and heartbeats run. |
+| `ended` | Closed for good. `row()` says why until the next `connect` frees the node. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `GamendState::connect`, `LiveSocket::new` | `Waiting(0.0)` | Pushed to `live`, with a `sockets` row. With no session, it reports `SocketError` instead. |
-| `Waiting` | `step`, clock not reached | same | `wake_at`. |
-| `Waiting` | `step`, clock reached, `Session::stale` | `Renewing` | `renew` calls `spawn_renew`. |
-| `Waiting` | `step`, clock reached, not stale | `Live`, `opened == false` | `dial`: `Connection::connect`, `Protocol::new`. |
-| `Waiting` | `dial`, `socket_url` finds no session | via `dropped` | Reason is "connect needs a logged-in session". |
-| `Renewing` | `step`, no answer yet | same | Nothing else. |
-| `Renewing` | `step`, answer `Ok` | `Live`, `opened == false` | `dial`. |
-| `Renewing` | `step`, answer `Err`, or the channel is gone | via `dropped` | Nothing else. |
-| `Waiting`, `Renewing` | `wait_commands` reads `Close`, or the channel is gone | removed | `closed_by_game`: `SocketClosed`, "closed by the game". |
-| `Live`, `opened == false` | `arrivals` reads `Arrival::Opened` | `opened == true` | Nothing else. |
-| `opened == true`, `join_ref == None` | `live` | `join_ref == Some` | Sends the own-user `phx_join`. A send failure goes via `dropped`. |
-| `Live`, `opened == false` | `Arrival::Failed` with status 401 or 403, `renewed_after_refusal == false` | `Renewing` | Sets the flag. `renew`. |
-| `Live`, `opened == false` | Same, `renewed_after_refusal == true` | via `dropped` | Nothing else. |
-| `join_ref == Some` | `deliver`, join reply `ok`, `opened_once == false` | `joined == true` | Sets `opened_once`, clears `renewed_after_refusal`. Reports `SocketOpen`. |
-| `join_ref == Some` | `deliver`, join reply `ok`, `opened_once == true` | `joined == true` | Clears `renewed_after_refusal`. `rejoin` joins every topic again. |
-| `join_ref == Some` | `deliver`, join reply not `ok` | via `dropped` | Reason is "joining the user channel was refused: …". |
-| `Live` | `arrivals` reads `Closed` or `Failed`, or `Protocol::decode` fails | via `dropped` | An empty reason reads "closed". |
-| `joined == true` | `run` reads `Interrupt` | via `dropped` | Reason is "interrupted by the game". |
-| `joined == true` | `run` reads `Push`, `Leave` or `CallHook` on a topic with no join ref | same | `refuse` sends `Failed`, "not joined to …". `CallHook` asks for the own-user topic's ref. |
-| `joined == true` | `run`, a frame send fails | via `dropped` | The request is already in `pending`, so `fail_pending` answers it. |
-| `joined == true` | `Protocol::heartbeat` errors, or a rejoin or heartbeat send fails | via `dropped` | Nothing else. |
-| `joined == true` | `run` reads `Close`, or the channel is gone | removed | `closed_by_game`. |
-| via `dropped` | `opened_once` and `tries + 1 <= 8` | `Waiting(now + backoff)` | `fail_pending`, clears rejoins, closes. Reports `SocketReconnecting`. |
-| via `dropped` | `opened_once` and tries exceeded | removed | `SocketError`, "gave up after 8 tries: …". |
-| via `dropped` | `opened_once == false` | removed | `SocketError` with the reason. |
+| none | `core::connect` | `waiting` | A child node under the game's, `socket.bs` attached, `set_process("always")`. |
+| `waiting` | `update`, `retry_at` reached, token stale or with no `expires_at` | `renewing` | `node.call("renew")`. |
+| `waiting` | `update`, `retry_at` reached, token fresh | `dialing` | `websocket::connect` on the socket's node, `on_event` `heard`. |
+| `waiting` | `begin`, no session | via `dropped` | Reason is "connect needs a logged-in session". |
+| `renewing` | renewal ok | `dialing` | Dials with the new token. |
+| `renewing` | renewal failed | via `dropped` | The reason is the refresh's. |
+| `dialing` | websocket `open` | same, `linked` | Sends the own-user `phx_join`. |
+| `dialing` | websocket `error` before `linked`, status 401 or 403 (any in a browser), not yet renewed | `renewing` | Sets `renewed`. |
+| `dialing` | own-user join reply `ok`, first time | `live` | Sets `opened_once`, clears `renewed`. Answers `connect` and tells the node `open`, then sends what was queued. |
+| `dialing` | own-user join reply `ok`, after a drop | `live` | Clears `renewed`. `rejoin` joins every topic again. |
+| `dialing` | own-user join reply not `ok` | via `dropped` | Reason is "joining the user channel was refused: …". |
+| `dialing`, `live` | websocket `closed` or `error`, a frame that is no 5-element array, or a heartbeat unanswered | via `dropped` | An empty reason reads "closed". |
+| `dialing`, `live` | `retry_network` | via `dropped` | Reason is "interrupted by the game". |
+| any but `ended` | `close` | `ended` | Fails what is pending, tells the node `closed`. |
+| via `dropped` | `opened_once` and `tries + 1 <= 8` | `waiting` | Fails pending calls, clears rejoins, closes the connection. Tells the node `reconnecting`. |
+| via `dropped` | `opened_once` and tries exceeded | `ended` | Tells the node `error`, "gave up after 8 tries: …". |
+| via `dropped` | `opened_once == false` | `ended` | Answers `connect` and tells the node `error` with the reason. |
 
-Starts in `Waiting(0.0)`. Ends removed.
+Starts in `waiting`. Ends in `ended`.
 
-Refused or ignored: in `Waiting` and `Renewing`, `Join`, `Push` and `CallHook` get `Failed`, "the socket is reconnecting". `Leave` drops the topic and answers `Replied` with `ok`. `Interrupt` is ignored. A `Live` socket not yet `joined` reads no commands, `Close` included. `pump` steps nothing during a replay or a re-simulated tick.
+Refused or ignored: before the first open a call is queued; after it, in `waiting` and `renewing`, a join, push or hook answers "the socket is reconnecting", and a leave drops its topic and answers `ok`. An event from an earlier connection's `websocket` id is ignored. A frame goes whatever `send_text` answers: a dead link says so with its own `closed`, which a replay reproduces.
 
-Held by a pause, a `process` mode or a parked scene: `pump_gamend_system` reads none of them. A handler runs through `call_on`, so a paused node hears it and a parked node, having no instance there, misses it. A task awaiting the id stays suspended until its node can tick.
-
-### First open
-
-A `LiveSocket` holds whether it has ever opened. Source: `crates/balaur_gamend/src/realtime.rs`, `LiveSocket.opened_once`.
-
-| State | What is true |
-|---|---|
-| `false` | A drop ends the socket with `SocketError`. |
-| `true` | A drop backs off and reconnects. Later opens report `SocketReopened`. |
-
-| From | Trigger | To | What it does |
-|---|---|---|---|
-| `false` | `deliver`, first own-user join reply `ok` | `true` | Reports `SocketOpen`. |
-
-Starts in `false`. Ends in `true`.
-
-### Refusal renewed
-
-A `LiveSocket` holds whether this dial has already renewed a refused token. Source: `crates/balaur_gamend/src/realtime.rs`, `LiveSocket.renewed_after_refusal`.
-
-| State | What is true |
-|---|---|
-| `false` | The next refusal renews the token. |
-| `true` | The next refusal drops the connection. |
-
-| From | Trigger | To | What it does |
-|---|---|---|---|
-| `false` | `step`, `Next::Refused` | `true` | `renew`. |
-| `true` | `deliver`, own-user join reply `ok` | `false` | Nothing else. |
-
-Starts in `false`. Never ends.
+Held by a pause or a `process` mode: never, the node runs `always`. A parked scene holds it: its `update` and its `websocket` events stop, and the heartbeat after the return finds the link dead.
 
 ### Reconnect tries
 
-A `LiveSocket` counts drops since its last full reopen. Source: `crates/balaur_gamend/src/realtime.rs`, `LiveSocket.tries`.
-
-```mermaid
-stateDiagram-v2
-    state "0" as NoTries
-    state "1 to 8" as SomeTries
-    state "over 8" as OutOfTries
-    [*] --> NoTries
-    NoTries --> SomeTries: dropped
-    SomeTries --> SomeTries: dropped
-    SomeTries --> NoTries: reopened
-    SomeTries --> OutOfTries: dropped
-    OutOfTries --> [*]
-```
+A `Socket` counts drops since its last full reopen. Source: `socket.bs`, `Socket.tries`.
 
 | State | What is true |
 |---|---|
 | `0` | No drop since the last reopen. |
 | `1` to `RECONNECT_TRIES` (8) | The back-off is 1, 2, 4, 8, 16, then 30 seconds. |
-| over `RECONNECT_TRIES` | The socket gives up within that `dropped` call. |
+| over `RECONNECT_TRIES` | The socket ends within that `dropped` call. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `n` | `dropped`, `opened_once` | `n + 1` | Waits or gives up. |
-| `n` | `reopened` | `0` | Reports `SocketReopened` with `lost`. |
+| `n` | `dropped`, `opened_once` | `n + 1` | Waits or ends. |
+| `n` | `reopened` | `0` | Tells the node `reopened` with `lost`. |
 
-Starts in `0`. Ends over `RECONNECT_TRIES`, when the socket is removed.
+Starts in `0`. Ends over `RECONNECT_TRIES`.
 
 ### A topic on a socket
 
-A `LiveSocket` holds each channel the game asked for. This state is derived, from which list holds the topic. Source: `crates/balaur_gamend/src/realtime.rs`, `LiveSocket.topics`, `joining`, `rejoining`, `lost`, `Link.rejoining`; `crates/balaur_gamend/src/channels.rs`, `Rejoins`.
-
-```mermaid
-stateDiagram-v2
-    state "in topics and joining" as Joining
-    state "in topics" as Joined
-    state "in Link.rejoining" as Rejoining
-    state "in Rejoins.due" as Due
-    state "in LiveSocket.rejoining" as Retrying
-    state "gone" as Gone
-    [*] --> Joining: Join command
-    Joining --> Joined: reply ok or connection dropped
-    Joining --> Gone: reply refused
-    Joined --> Due: phx_error
-    Joined --> Gone: phx_close or leave
-    Due --> Retrying: time came
-    Due --> Gone: phx_close or leave
-    Due --> Joined: connection dropped
-    Retrying --> Joined: reply ok or connection dropped
-    Retrying --> Due: refused, tries left
-    Retrying --> Gone: refused, out of tries, or leave
-    Joined --> Rejoining: reconnect joined
-    Rejoining --> Joined: reply ok or connection dropped
-    Rejoining --> Gone: reply refused
-    Gone --> [*]
-```
+A `Socket` holds each channel the game asked for. This state is derived, from which map holds the topic. Source: `socket.bs`, `Socket.topics`, `rejoining`, `crashed`, `crash_refs`, `lost`.
 
 | State | What is true |
 |---|---|
-| in `topics` and `joining` | The join is sent and its reply awaited. |
-| in `topics` | Joined. A reconnect asks for it again. |
-| in `Link.rejoining` | A reconnect's join awaits its reply. Still in `topics`. |
-| in `Rejoins.due` | The channel crashed. A `Due` holds the time and the attempt. |
-| in `LiveSocket.rejoining` | A crashed channel's join awaits its reply. |
-| gone | In none of them. `lost` names it if a reconnect refused it, until `reopened` takes the list. |
+| in `topics` | Joined, or its join awaits its reply. A reconnect asks for it again. |
+| in `rejoining` | A reconnect's join awaits its reply. Still in `topics`. |
+| in `crashed` | The server's channel crashed (`phx_error`); joined again at `at`, with the attempt. |
+| in `crash_refs` | A crashed channel's join awaits its reply. |
+| gone | In none. `lost` names it if a reconnect refused it, until `reopened` takes the list. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `run` reads `SocketCommand::Join` | in `topics` and `joining` | Sends the frame and adds a `pending` row. |
-| in `joining` | `deliver`, reply `ok` | in `topics` | `Replied`. |
-| in `joining` | `deliver`, reply not `ok` | gone | `Replied`. |
-| in `joining` | `fail_pending` on a drop | in `topics` | `joining` is cleared. |
-| in `topics` | `Rejoins::heard`, `phx_error` | in `Rejoins.due`, attempt 1 | Due in 1 second. Reports `SocketMessage`. `Protocol.joins` forgets it. |
-| in `topics`, `Rejoins.due` | `Rejoins::heard`, `phx_close` | gone | Reports `SocketMessage`. |
-| in `topics` | `run` reads `Leave` | gone | Sends `phx_leave`. |
-| in `Rejoins.due` | `run` reads `Leave` | gone | `Rejoins::forget` ends the wait. `Protocol::leave` finds no join ref, so no frame goes. `Replied` with `ok`. |
-| in `LiveSocket.rejoining` | `run` reads `Leave` | gone | Sends `phx_leave`. The join's reply then matches nothing. |
-| in `topics` | `wait_commands` reads `Leave` | gone | `Replied` with `ok`. |
-| in `Rejoins.due` | `live`, `take_due` | in `LiveSocket.rejoining` | Sends the join. No event. |
-| in `LiveSocket.rejoining` | `Rejoins::answered`, `ok` | in `topics` | Changes no list. |
-| in `LiveSocket.rejoining` | `Rejoins::answered`, refused, attempt below 8 | in `Rejoins.due`, next attempt | Waits `backoff(attempt)`. |
-| in `LiveSocket.rejoining` | `Rejoins::answered`, refused, attempt 8 | gone | Nothing else. |
-| in `Rejoins.due`, `LiveSocket.rejoining` | `dropped` | in `topics` | Both are cleared, and the reconnect asks again. |
-| in `topics` | `rejoin` after a reconnect | in `Link.rejoining` | Sends the join. A send failure leaves it out of the list. |
-| in `Link.rejoining` | `deliver`, reply `ok` | in `topics` | `reopened` once none are left. |
-| in `Link.rejoining` | `deliver`, reply not `ok` | gone | Pushed to `lost`. `reopened` once none are left. |
+| none | `join` on a `live` socket | in `topics` | Sends `phx_join`, the call pending by ref. |
+| in `topics` | its join reply not `ok` | gone | Answers the call. |
+| in `topics` | `phx_error` | in `crashed`, attempt 1 | Due in 1 second. Tells the node. |
+| in `topics`, `crashed` | `phx_close` | gone | Tells the node. |
+| in `topics` | `leave` | gone | Sends `phx_leave`. |
+| in `crashed` | `leave` | gone | No frame: the server's channel is gone. Answers `ok`. |
+| in `crashed` | `update`, `at` reached | in `crash_refs` | Sends the join. |
+| in `crash_refs` | reply refused, attempt below 8 | in `crashed`, next attempt | Waits `backoff(attempt)`. |
+| in `crash_refs` | reply refused, attempt 8 | gone | Nothing else. |
+| in `crashed`, `crash_refs` | `dropped` | in `topics` | Both are cleared, and the reconnect asks again. |
+| in `topics` | `rejoin` after a reconnect | in `rejoining` | Sends the join. |
+| in `rejoining` | reply `ok` | in `topics` | `reopened` once none are left. |
+| in `rejoining` | reply not `ok` | gone | Pushed to `lost`. `reopened` once none are left. |
 
-Starts in `joining`. Ends in gone.
-
-Refused or ignored: a `Push` or a `Leave` on a topic with no join ref gets `Failed` and leaves the connection up. A `phx_error` for a topic the game never joined does nothing. The own-user topic can be due too, with an empty payload, though it is never in `topics`.
+Refused or ignored: a push or a leave on a topic with no join ref answers "not joined to …" and leaves the connection up. A `phx_error` for a topic the game never joined does nothing; the own-user topic is joined again with an empty payload.
 
 ### Heartbeat
 
-A `Protocol` holds the heartbeat in flight for one connection. Source: `crates/balaur_gamend/src/client/phoenix.rs`, `Protocol.pending_heartbeat`.
+A `Socket` holds the heartbeat in flight for one connection. Source: `socket.bs`, `Socket.beat_ref`, `beat_at`.
 
 | State | What is true |
 |---|---|
-| `None` | The next beat may go. |
-| `Some(String)` | A beat is unanswered, under this ref. |
+| `""` | The next beat may go at `beat_at`. |
+| a ref | A beat is unanswered. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `None` | `heartbeat`, 30 seconds since the last | `Some(ref)` | Returns the frame. |
-| `Some` | `decode`, topic `phoenix` or a matching ref | `None` | Swallows the frame. |
-| `Some` | `heartbeat`, 30 seconds since the last | same | Returns an error, and the connection drops. |
+| `""` | `update`, `live`, `beat_at` reached | a ref | Sends it on `phoenix`; the next is due 30 seconds on. |
+| a ref | a frame on `phoenix`, or with that ref | `""` | Swallows it. |
+| a ref | `update`, `beat_at` reached | via `dropped` | Reason is "the server missed a heartbeat; the connection is dead". |
 
-Starts in `None`, with each new `Protocol`. Ends with its connection.
-
-### Protocol join ref
-
-A `Protocol` holds each topic's join ref for one connection. Source: `crates/balaur_gamend/src/client/phoenix.rs`, `Protocol.joins`.
-
-| State | What is true |
-|---|---|
-| no row | `push` and `leave` return an error. |
-| row with the ref | Frames on the topic carry that join ref. |
-
-| From | Trigger | To | What it does |
-|---|---|---|---|
-| any | `join` | row | Replaces any earlier row and returns the frame. |
-| row | `leave` | no row | Returns the frame. |
-| row | `decode` reads `phx_error` or `phx_close` | no row | Returns `SocketEvent::Message`. |
-
-Starts in no row. Ends with its connection.
+Starts in `""` with each dial. Ends with the connection.
 
 ### Server pointer
 
-`GamendState` holds the client for the configured server. Source: `crates/balaur_gamend/src/lib.rs`, `GamendState.client`.
+The script store holds the server `client::configure` named. Source: `core.bs`, `URL_KEY`, `target`.
 
 | State | What is true |
 |---|---|
-| `None` | Nothing has asked for the server yet. |
-| `Some(SharedClient)` | Calls go to this server. |
+| empty | Calls go to `target()`: `GAMEND_URL`, else the editor's `editor/gamend/server` pick of `[gamend] url` and `local_url`, else the local one in a run from the sources. |
+| a url | Calls go there. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `None` | The first `login`, `rest` or `connect` | `Some(new)` | `target::url`: `GAMEND_URL`, else `[gamend]`, the local server in a dev run. |
-| any | `gamend.configure(url)` | `Some(new)` | The new client has no session. Live sockets keep their old clone. |
+| any | `client::configure(url, plugin)` | `url`, empty for `[gamend]`'s | A different server than before signs out here. |
 
-Starts in `None`. Never ends.
+Starts empty. Never ends.
 
 ### Signed-in session
 
-A `Client` holds who is signed in, and `gamend.session()` answers it. Staleness is derived from the token's `exp` claim. Source: `crates/balaur_gamend/src/client/rest.rs`, `Client.session`; `crates/balaur_gamend/src/client/auth.rs`, `Session::stale`.
-
-```mermaid
-stateDiagram-v2
-    state "None" as NoSession
-    state "Some, fresh" as Fresh
-    state "Some, stale" as Stale
-    [*] --> NoSession: new client
-    NoSession --> Fresh: login or restore
-    NoSession --> Stale: token with no readable expiry
-    Fresh --> Stale: within 30 s of expiry
-    Stale --> Fresh: renew, login or restore
-    Fresh --> NoSession: restore nil
-    Stale --> NoSession: restore nil
-```
+The script store holds who is signed in, and `auth::session()` answers it. Source: `core.bs`, `SESSION_KEY`, `held`, `hold`, `stale`.
 
 | State | What is true |
 |---|---|
-| `None` (`gamend.session()` nil) | Calls go without a bearer. `connect` reports `SocketError`, "connect needs a logged-in session". |
-| `Some(Session)`, not `stale` | The bearer is sent. A socket dials with no renewal. |
-| `Some(Session)`, `stale` | The token is past its expiry, within 30 seconds of it, or has no expiry to read. A socket renews before it dials. |
+| none (`auth::session()` nil) | Calls go without a bearer. A socket ends with "connect needs a logged-in session". |
+| a session, fresh | The bearer is sent. A socket dials with no renewal. |
+| a session, stale | Past `expires_at`, within 30 seconds of it, or with no `expires_at`. A socket renews before it dials. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `Client::new` | `None` | Nothing else. |
-| any | `auth::login`, or the browser's `spawn_login`, succeeds | `Some(new)` | `LoggedIn`. |
-| `Some` | `Client::call` gets a 401 with a refresh token, `renew` succeeds | `Some(new)` | The call is retried once. |
-| `Some` | `LiveSocket::renew`, `spawn_renew` succeeds | `Some(new)` | Answers on the socket's channel. |
-| any | `gamend.restore(map)` with an `access_token` | `Some` | `connection.signed_in`. Answers true. |
-| any | `gamend.restore(nil)` | `None` | `connection.signed_in(None)`. Answers true. |
+| any | `client::login_device`, `login_email` or `confirm_registration` succeeds | fresh | `expires_at` is now plus `expires_in`. |
+| a session | `core::rest` gets a 401, `renew` succeeds | fresh | The call is made once more. |
+| a session | a socket's `renew` succeeds | fresh | The socket dials. |
+| any | `auth::restore(map)` with an `access_token` | fresh or stale, by its `expires_at` | Answers true. |
+| any | `auth::restore(nil)`, or `configure` to another server | none | Answers true. |
 
-Starts in `None`. Never ends.
+Starts as none. Never ends.
 
-Refused or ignored: a failed login or a failed renewal leaves the session as it was. A call whose renewal failed answers its 401. `restore` answers false with no client, or a map with no `access_token`.
+Refused or ignored: a failed sign-in or renewal leaves the session as it was, and a call whose renewal failed answers its 401. `restore` answers false for a map with no `access_token`.
 
-### One-shot call
+### One call
 
-`GamendState` and a `LiveSocket` hold one login, rest, join, push, leave or call_hook from its id to its answer. This state is derived from `request_handlers`, `pending` and the queues. Source: `crates/balaur_gamend/src/lib.rs`, `GamendState.request_handlers`; `crates/balaur_gamend/src/realtime.rs`, `LiveSocket.pending`.
-
-```mermaid
-stateDiagram-v2
-    state "queued" as Queued
-    state "in pending" as Sent
-    state "answered" as Answered
-    [*] --> Queued: call
-    Queued --> Sent: socket run
-    Queued --> Answered: worker done or socket reconnecting
-    Sent --> Answered: reply, or connection ended
-    Answered --> [*]
-```
-
-| State | What is true |
-|---|---|
-| queued | On the client's worker queue, or the socket's command channel. |
-| in `pending` | Sent, keyed by ref. |
-| answered | The handler is removed. `gamend.reply(id)` answers the event until 64 newer replies push it out. |
+A REST call is one task of its caller's, from `core::rest` to its answer; a socket call is one entry in its `Socket`'s `pending`, answered through an event the socket's node sends. Source: `core.bs`, `rest`, `send`; `socket.bs`, `Socket.pending`, `queued`, `command`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `login`, `rest` | queued | Queues through `io.start`. |
-| none | `join`, `push`, `leave`, `call_hook` | queued | A join or a leave is noted by `connection.moving`, then `command` queues it. |
-| none | `command`, the socket is gone | none | Returns "no such gamend socket" or "the gamend connection is gone". Removes the handler. `connection.heard` drops the noted join or leave with `Failed`. |
-| queued | `run` | in `pending` | Adds the row, then sends the frame. |
-| queued | `run`, `Push`, `Leave` or `CallHook` with no join ref | answered | `refuse` sends `Failed`, "not joined to …". A `Leave` of a topic waiting to join again gets `Replied` with `ok`. |
-| queued | `spawn_login`, `spawn_rest` finish | answered | `LoggedIn`, `RestDone` or `Failed`. |
-| queued | `wait_commands` | answered | `Failed`, "the socket is reconnecting", or `Replied` for a `Leave`. |
-| queued | The socket is removed, `Drop for LiveSocket` | answered | `Failed`, "the socket closed". |
-| in `pending` | `deliver`, reply by ref | answered | `Replied`. |
-| in `pending` | `fail_pending` | answered | `Failed`, "the connection ended before the reply". |
-
-Starts queued. Ends answered.
-
+| none | `core::rest`, from a generated call | waiting on `http` | Waits for the clock's first reading, then `http::request` with the session's bearer and `x-gamend-session`. |
+| waiting on `http` | a 401 with a refresh token | waiting on `http` again | After one `renew`. |
+| waiting on `http` | the answer | answered | `{ kind: "rest", status, body, ms }`, the body decoded, or `{ kind: "error", error }`. |
+| none | `client::join`, `leave`, `core::push`, a hook | queued, in `pending`, or answered | By the socket's phase, as above. |
+| in `pending` | reply by ref | answered | `{ kind: "reply", status, response, ms }`. |
+| in `pending` | the connection ended | answered | `error`, "the connection ended before the reply". |
+| none | a socket call with no socket | answered | `error`, "no such gamend socket", on the next frame. |
 
 ### Activity row status
 
-The Gamend addon's activity log holds this for each call `core.bs` sent, and `activity::rows()` reads it. It lives in the script store, one key per row. Source: `editor/library/addons/gamend/activity.bs`, written in Gamend's `clients/balaur_template/`, `Entry.status`.
-
-```mermaid
-stateDiagram-v2
-    state "ok" as RowOk
-    state "HTTP status" as RowStatus
-    state "reply status" as RowReply
-    state "message or reason" as RowText
-    state "open" as RowOpen
-    state "waiting" as RowWaiting
-    state "empty" as RowEmpty
-    [*] --> RowWaiting: started
-    [*] --> RowEmpty: noted
-    RowWaiting --> RowOk: login answer
-    RowWaiting --> RowStatus: rest answer
-    RowWaiting --> RowReply: reply answer
-    RowWaiting --> RowText: error answer
-    RowWaiting --> RowOpen: open answer
-```
+The addon's activity log holds this for each call `core` and the socket sent, and `activity::rows()` reads it. It lives in the script store, one key per row. Source: `activity.bs`, `Entry.status`.
 
 | State | What is true |
 |---|---|
 | `"waiting"` (`WAITING`) | No answer. `ms` is nil. |
-| `"ok"` | A login answered. |
+| `"ok"` | A sign-in answered. |
 | status digits | A REST call answered with this HTTP status. |
 | reply's `status` | A socket reply answered. |
 | message or reason text | The call failed, or a connect row's socket failed to open. |
@@ -1194,111 +1021,37 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `activity::started`, from a `core` call | `"waiting"` | Lists the request as waiting. |
-| none | `activity::noted`, from `client::route` | `""` | Keeps the payload or the text. |
-| `"waiting"` | `settle` finds the request's answer in `gamend::reply` | the answer | Sets `ms` from the answer's own and keeps `reply`. |
+| none | `activity::started` | `"waiting"` | Answers the row's `seq`. |
+| none | `activity::noted` | `""` | Keeps the payload or the text. |
+| `"waiting"` | `activity::finished(seq, answer)`, from `core` or the socket | the answer | Sets `ms` and keeps `reply`. |
 
-`settle` runs at every `started` and every `rows`. Starts in `"waiting"` or `""`. Ends when the push 200 rows later takes its key, or `activity::clear()` runs.
+Starts in `"waiting"` or `""`. Ends when the push 200 rows later takes its key, or `activity::clear()` runs.
 
-Refused or ignored: rows past the newest 50 lose `args` and `reply`. A row whose answer left the engine's newest 64 replies before a settle stays `"waiting"`. A call made on `gamend::` directly makes no row.
-
-### Connection socket row
-
-The connection holds what scripts read about each socket, in `gamend.connection().sockets`. It follows the drained events and is separate from the socket itself. Source: `crates/balaur_gamend/src/connection.rs`, `Socket.open`, `Socket.reason`, `Socket.topics`.
-
-```mermaid
-stateDiagram-v2
-    state "not open, no reason" as Started
-    state "open" as RowOpen
-    state "not open, reason" as RowDown
-    [*] --> Started: connect
-    Started --> RowOpen: SocketOpen
-    Started --> RowDown: SocketError or SocketClosed
-    RowOpen --> RowDown: reconnecting, closed or error
-    RowDown --> RowOpen: SocketReopened
-    RowDown --> [*]: next connect or configured
-    RowOpen --> [*]: configured
-    Started --> [*]: configured
-```
-
-| State | What is true |
-|---|---|
-| `open == false`, `reason == nil` | `connect` started. |
-| `open == true`, `reason == nil` | Open or reopened. |
-| `open == false`, `reason` set, `ended == false` | Reconnecting. |
-| `open == false`, `reason` set, `ended == true` | Closed or failed. The row stays to say why. |
-
-| From | Trigger | To | What it does |
-|---|---|---|---|
-| none | `connecting` | `open == false` | Adds the row. |
-| any | `heard`, `SocketOpen` | `open == true` | Leaves `reason`. |
-| any | `heard`, `SocketReconnecting` | `open == false`, `reason` set | Nothing else. |
-| any | `heard`, `SocketReopened` | `open == true`, `reason == nil` | Removes `lost` from `topics`. |
-| any | `heard`, `SocketClosed`, `SocketError` | `open == false`, `reason` set, `ended == true` | Nothing else. |
-| any | `heard`, `Replied` `ok` to a join or a leave `moving` noted | same | Adds to or removes from `topics`. |
-| any | `heard`, `SocketMessage` with `phx_close` | same | Removes the topic. |
-| `ended == true` | `connecting`, for any socket | row gone | Runs before the new row is added. A socket still reconnecting keeps its row and its topics. |
-| any | `configured` | row gone | Clears every row. |
-| no row | `heard` for that socket | a new row | `or_default` starts it with no topics. |
-
-Starts with `open == false`. Ends when `configured` clears the rows, or a later `connect` drops an ended row.
-
-### Connection user
-
-The connection holds who `gamend.connection()` names. Source: `crates/balaur_gamend/src/connection.rs`, `Connection.user`.
-
-| State | What is true |
-|---|---|
-| `None` (`user_id` and `username` nil) | Nobody known. |
-| `Some((id, name))` | A login or a restore landed. |
-
-| From | Trigger | To | What it does |
-|---|---|---|---|
-| any | `configured` | `None` | Sets the url and clears `sockets`. |
-| any | `heard`, `LoggedIn` | `Some` | Nothing else. |
-| any | `signed_in`, from `gamend.restore` | `Some` or `None` | Nothing else. |
-
-Starts in `None`. Never ends.
+Refused or ignored: rows past the newest 50 lose `args` and `reply`. An answer to a row already pushed out of the ring changes nothing.
 
 ## Platform
 
 ### Signed-in player
 
-`PlatformState` holds who the store says is playing. Scripts read it with `platform.player()` and `platform.signed_in()`. Source: `crates/balaur_platform/src/lib.rs`, `PlatformState.player`.
+`PlatformState` holds who the store says is playing. Scripts read it with `platform.player()`. Source: `crates/balaur_platform/src/lib.rs`, `PlatformState.player`.
 
 | State | What is true |
 |---|---|
-| `None` (nil, `false`) | No sign-in has landed, or the player signed out. |
-| `Some(Player)` (`id` and `alias`, `true`) | The latest `SignedIn`. |
+| `None` (nil) | No sign-in has landed, or the player signed out. |
+| `Some(Player)` (`id` and `alias`) | The latest `SignedIn`. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `pump_platform_system` drains `SignedIn` | `Some(player)` | The asker's handler and every watcher hear `signed_in`. Wakes the request. |
-| any | `pump_platform_system` drains `SignedOut` | `None` | Every watcher hears `signed_out`. Wakes request 0. |
+| any | `pump_platform_system` drains `SignedIn` | `Some(player)` | Emits `platform_event` with `signed_in`, heard as `on_platform_event`. Wakes the request. |
+| any | `pump_platform_system` drains `SignedOut` | `None` | Emits `platform_event` with `signed_out`. Wakes request 0. |
 
 Starts in `None`. Never ends.
 
 Refused or ignored: `Failed` and `Unsupported` leave it as it was.
 
-### Sign-in watcher
-
-`PlatformState` keeps each handler a sign-in named, to tell it of later changes. Source: `crates/balaur_platform/src/lib.rs`, `PlatformState.watchers`.
-
-| State | What is true |
-|---|---|
-| not in `watchers` | Hears only answers to its own calls. |
-| in `watchers` | Hears every `SignedIn` and `SignedOut`. |
-
-| From | Trigger | To | What it does |
-|---|---|---|---|
-| not in `watchers` | `PlatformState::start` with `Call::SignIn` and a handler | in `watchers` | A handler with the same node and method is added once. |
-| in `watchers` | `pump_platform_system`, the node is gone from the world | not in `watchers` | Runs every pump. |
-
-Starts not in `watchers`. Ends when its node is gone.
-
 ### One platform call
 
-`PlatformState` holds a `platform.*` call from its id to its answer. This state is derived from `pending` and `handlers`. Source: `crates/balaur_platform/src/lib.rs`, `PlatformState.pending`, `PlatformState.handlers`, `PlatformState::start`, `PlatformState::issue`, `PlatformState::release`.
+`PlatformState` holds a `platform.*` call from its id to its answer. This state is derived from `pending`. Source: `crates/balaur_platform/src/lib.rs`, `PlatformState.pending`, `PlatformState::start`, `PlatformState::issue`, `PlatformState::release`.
 
 ```mermaid
 stateDiagram-v2
@@ -1318,24 +1071,24 @@ stateDiagram-v2
 | State | What is true |
 |---|---|
 | in `pending` | A write held as tick, id and call, on a tick a late input can still undo. |
-| issued | The backend has it. Only `handlers[id]` remains, if a handler was given. |
-| answered | The handler is removed. Handlers and any await have heard. |
+| issued | The backend has it. |
+| answered | Its event was drained and the id woken. |
 | discarded | It left `pending` without being issued. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| none | `start`, `Call::writes` and `clock.tick >= clock.settled` | in `pending` | Stores the handler, logs `platform.call`. |
-| none | `start`, otherwise | issued | `issue`. With no session `settled` is `u64::MAX`, so a write goes out at once. |
+| none | `start`, `Call::writes` and `clock.tick >= clock.settled` | in `pending` | Logs `platform.call`. |
+| none | `start`, otherwise | issued | Logs `platform.call`, then `issue`. With no session `settled` is `u64::MAX`, so a write goes out at once. |
 | in `pending` | `release` in the pump, tick before `settled`, not suppressed | issued | `issue`. |
-| in `pending` | Pump, tick at or past `clock.tick` | discarded | No event. Removes `handlers[id]`. |
+| in `pending` | Pump, tick at or past `clock.tick` | discarded | No event. |
 | issued | `issue`, no backend | answered at the next pump | `Unsupported`. |
-| issued | Pump drains its event | answered | Targets are dispatched. `host.wake(request)`. |
+| issued | Pump drains its event | answered | Wakes the id through `handler::wake_all`. |
 
 Starts in `pending` or issued. Ends answered or discarded.
 
 Refused or ignored: `issue` starts nothing during a replay or a re-simulated tick, because the recording answers there. The pump calls `PlatformBackend::discard` instead of `pump` on those ticks.
 
-Held by a pause, a `process` mode or a parked scene: `pump_platform_system` reads none of them. A handler runs through `call_on`, so a paused node hears it and a parked node, having no instance there, misses it. A task awaiting the id stays suspended until its node can tick.
+Held by a pause, a `process` mode or a parked scene: `pump_platform_system` reads none of them. A task awaiting the id stays suspended until its node can tick.
 
 ### Store backend
 
@@ -1368,11 +1121,6 @@ Starts in `None`. Never ends.
 | `LinkCommand` | `crates/balaur_webtransport/src/lib.rs` | `Send`, `Close` | What the engine asks a link worker to do. |
 | `HttpEvent` | `crates/balaur_http/src/lib.rs` | `Response`, `Progress`, `Sent`, `Error` | One report from a request worker. |
 | `kind` | `crates/balaur_http/src/lib.rs` | `"response"`, `"progress"`, `"upload"`, `"cancelled"`, `"error"` | The `kind` of an HTTP event map. `"cancelled"` comes from the pump and has no `HttpEvent`. |
-| `Next` | `crates/balaur_gamend/src/realtime.rs` | `Stay`, `Drop`, `Refused`, `ClosedByGame` | What one `live` call tells `step` to do. |
-| `SocketEvent` | `crates/balaur_gamend/src/client/phoenix.rs` | `Reply`, `Message` | One decoded server frame. |
-| `SocketCommand` | `crates/balaur_gamend/src/lib.rs` | `Join`, `Push`, `Leave`, `CallHook`, `Close`, `Interrupt` | What the engine asks a realtime socket to do. |
-| `GamendEvent` | `crates/balaur_gamend/src/lib.rs` | `LoggedIn`, `RestDone`, `Failed`, `Replied`, `SocketOpen`, `SocketMessage`, `SocketClosed`, `SocketError`, `SocketReconnecting`, `SocketReopened` | One completion crossing to the frame loop. |
-| `kind` | `crates/balaur_gamend/src/lib.rs` | `"login"`, `"rest"`, `"reply"`, `"open"`, `"message"`, `"closed"`, `"reconnecting"`, `"reopened"`, `"error"` | The `kind` of a Gamend event map. `Failed` and `SocketError` both read `"error"`. |
 | `PlatformEvent` | `crates/balaur_platform/src/lib.rs` | `SignedIn`, `SignedOut`, `Done`, `Scores`, `Read`, `Failed`, `Unsupported` | One report from a store backend. Unsolicited ones arrive under request 0. |
 | `kind` | `crates/balaur_platform/src/lib.rs` | `"signed_in"`, `"signed_out"`, `"done"`, `"scores"`, `"read"`, `"unsupported"`, `"error"` | The `kind` of a platform event map. |
 | `Call` | `crates/balaur_platform/src/lib.rs` | `SignIn`, `Unlock`, `Progress`, `SubmitScore`, `Scores`, `CloudRead`, `CloudWrite`, `SetPresence` | One call on its way to a backend. `Call::writes` picks the ones a rollback must wait for. |

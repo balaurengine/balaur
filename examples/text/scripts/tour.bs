@@ -31,7 +31,7 @@ impl Tour {
         camera.transform.look_at(vec3(0.0, HEIGHT, 0.0));
         // A score on a sign: the node keeps its style, the script the number.
         self.score += 1;
-        let node = scene::get_node("Tour/Nameplate");
+        let node = scene::root().get_node("Tour/Nameplate");
         if node.is_valid() {
             node.text3d.text = "a name\nfollows you · {self.score / 60}";
         }

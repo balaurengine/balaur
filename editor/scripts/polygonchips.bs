@@ -1,0 +1,112 @@
+//! The Polygon tool's chips in the viewport's strip: one per mode, then the
+//! mode's own settings.
+
+use editor;
+use polygon;
+use signals;
+use style;
+use themewin;
+use util;
+use words::fields;
+use words::project_fields;
+use words::tabs;
+use words::theme_tokens;
+
+const PICKED: str = "picked";
+const PX: str = "px";
+
+pub fn mode_specs(state: editor::State) -> [ui::Control] {
+    let tokens = state.theme;
+    let mode = state.polygon.mode;
+    let out: [ui::Control] = [];
+    for id in polygon::modes(state) {
+        let on = mode == id;
+        out.push(ui::Control {
+            kind: ui::WIDGET_BUTTON,
+            text: polygon::mode_name(id),
+            height: 24,
+            font_size: style::SMALL,
+            font_weight: 700,
+            fill: if on { tokens[theme_tokens::PRIMARY_BG] } else { tokens[themewin::GROUND] },
+            stroke: tokens[theme_tokens::BORDER_DEFAULT],
+            text_color: if on { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_MUTED] },
+            on_click: "handle",
+            data: { fields::FN: on_mode_picked, PICKED: id },
+        });
+    }
+    out
+}
+
+fn on_mode_picked(state: &mut editor::State, data: any, _value: any) {
+    polygon::set_mode(state, data[PICKED].as_str());
+    signals::bars(state);
+}
+
+/// The mode's own settings, after the modes in the viewport's strip: the
+/// trace's tolerance for the points, and in weights the bone painted and
+/// the brush. Tool state, never a property, so never the Inspector's.
+pub fn option_specs(state: editor::State) -> [ui::Control] {
+    let out: [ui::Control] = [];
+    if state.polygon.mode == tabs::WEIGHTS {
+        let names: [str] = [];
+        for bone in polygon::bones(state) {
+            names.push(bone[project_fields::PATH].as_str());
+        }
+        if names.len() > 0 {
+            let active = if state.polygon.bone != nil { state.polygon.bone.unwrap() } else { 0 };
+            out.push(ui::Control {
+                kind: ui::WIDGET_DROPDOWN,
+                width: 140,
+                height: 24,
+                text: names[util::int_min(active, names.len() - 1)],
+                options: names,
+                tooltip: "The bone the brush paints",
+                on_change: "handle",
+                data: { fields::FN: option_bone, fields::NAMES: names },
+            });
+        }
+        out.push(option_field(state.polygon.radius, 0.5, 2.0, 400.0, PX, "How far the brush reaches", option_radius));
+        out.push(option_field(state.polygon.strength, 0.01, 0.01, 2.0, "×", "How much a stroke adds", option_strength));
+    } else if state.polygon.mode == polygon::POINTS {
+        out.push(option_field(state.polygon.tolerance, 0.1, 0.0, 64.0, PX, "How closely a trace follows the texture's alpha", option_tolerance));
+    }
+    out
+}
+
+fn option_field(value: float, step: float, low: float, high: float, prefix: str, tooltip: str, then: fn(&mut editor::State, any, any)) -> ui::Control {
+    ui::Control {
+        kind: ui::WIDGET_NUMBER_FIELD,
+        width: 76,
+        height: 24,
+        value: value,
+        drag_speed: step,
+        min: low,
+        max: high,
+        prefix: prefix,
+        tooltip: tooltip,
+        on_change: "handle",
+        data: { fields::FN: then },
+    }
+}
+
+fn option_bone(state: &mut editor::State, data: any, picked: any) {
+    let names = util::list_or_empty(data[fields::NAMES]);
+    for at in 0..names.len() {
+        if names[at].as_str() == picked.as_str() {
+            state.polygon.bone = at;
+        }
+    }
+    signals::bars(state);
+}
+
+fn option_radius(state: &mut editor::State, _data: any, value: any) {
+    state.polygon.radius = value.as_float();
+}
+
+fn option_strength(state: &mut editor::State, _data: any, value: any) {
+    state.polygon.strength = value.as_float();
+}
+
+fn option_tolerance(state: &mut editor::State, _data: any, value: any) {
+    state.polygon.tolerance = value.as_float();
+}

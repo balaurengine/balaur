@@ -1,0 +1,4 @@
+enum Light { Red, Green }
+pub fn f(l: Light) -> int { match l { Light::Red => 1, "green" => 2, _ => 3 } }
+
+// error: 2:56: a `match` on an enum names its variants, not values

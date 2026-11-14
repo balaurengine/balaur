@@ -13,7 +13,7 @@ pub class Overlays {
 
 impl Overlays {
     pub fn init() {
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         for word in [
             signals::OUTLINE,

@@ -262,6 +262,14 @@ pub struct App {
     accumulator: f32,
 }
 
+// The host holds the engine, which holds the host: kept, the pair outlives
+// the app with its file watch, and macOS stops starting them past about 512.
+impl Drop for App {
+    fn drop(&mut self) {
+        drop(self.engine.take_script_host());
+    }
+}
+
 /// The typemap entries every app has, whatever plugins it goes on to add.
 ///
 /// Its own function because `App::new` is otherwise a list of twenty-odd
@@ -343,13 +351,15 @@ pub fn register_facts(app: &mut App) {
     app.engine.insert_resource(crate::timers::Timers::default());
     app.engine.insert_resource(crate::facts::Device::default());
     app.add_replay_source(
-        "device",
-        |eng| serde_json::to_value(crate::facts::device(eng)).unwrap_or_default(),
-        |eng, value| {
-            if let Ok(facts) = crate::facts::DeviceFacts::deserialize(value) {
-                eng.resource::<crate::facts::Device>().borrow_mut().now = facts;
-            }
-        },
+        crate::vocabulary::words::facts::DEVICE,
+        crate::facts::capture_device,
+        crate::facts::restore_device,
+    );
+    // Also in the header: `balaur run` seeds the facts before `init` reads them.
+    app.add_replay_setup(
+        crate::vocabulary::words::facts::DEVICE,
+        crate::facts::capture_device,
+        crate::facts::restore_device,
     );
     app.add_replay_source(
         "wall_clock",
@@ -777,7 +787,7 @@ impl App {
         }
         let component = name.to_string();
         // Through the one write a script makes, so what the scene asked is
-        // what a save writes back (PLAN-editor-as-scene §10.1).
+        // what a save writes back.
         self.scene_key_handler(name, move |eng, entity, value| {
             crate::components::add(eng, entity, &component, Some(value))
                 .with_context(|| format!("component `{component}`"))
@@ -833,6 +843,14 @@ impl App {
                 unknown.join(", ")
             );
         }
+        let refused = crate::settings::refused_overrides(&self.engine, &manifest_src);
+        if !refused.is_empty() {
+            bail!(
+                "project.toml overrides {}, which takes one value on every platform: \
+                 a recording replays and a match steps at one rate. Keep the base value alone.",
+                refused.join(", ")
+            );
+        }
         let tags = self.engine.resource::<crate::tags::Tags>().borrow().clone();
         // Before the scene: its step is what the first tick takes.
         self.apply_time_settings();
@@ -868,7 +886,11 @@ impl App {
     /// Put `[time]` into effect: the rate this run ticks at and whether it
     /// draws between steps.
     fn apply_time_settings(&self) {
-        let hz = crate::settings::get(&self.engine, "time/tick_hz")
+        // A replay steps at the rate its header names, which `begin` restored.
+        if crate::replay::is_playing(&self.engine) {
+            return;
+        }
+        let hz = crate::settings::base(&self.engine, "time/tick_hz")
             .as_ref()
             .and_then(crate::components::as_f64)
             .filter(|n| *n >= 1.0);
@@ -878,6 +900,7 @@ impl App {
             reason = "a rate from a setting bounded at 1..=480"
         )]
         set_tick_hz(hz.map_or(DEFAULT_TICK_HZ, |n| n as u32));
+        crate::replay::amend_tick_hz(&self.engine, tick_hz());
     }
 
     pub const fn manifest(&self) -> Option<&ProjectManifest> {

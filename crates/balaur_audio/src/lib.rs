@@ -2,11 +2,11 @@
 //!
 //! The `sound` component gives a node a configured sound: `autoplay` starts
 //! it on load, `node.sound.play()` restarts it and `node.sound.stop()` silences
-//! it. `audio.play` and `audio.play_file(path)` hand back an integer handle;
-//! `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing`
-//! address it. A sound with a place in the world (a `sound` with `positional`
-//! set, or a file played with a `position`) is heard from the `listener` node:
-//! see [`spatial`].
+//! it. `audio.play` hands back an integer handle that `is_playing` takes, and
+//! the node's `sound` properties change what it plays. `audio::play_file` is
+//! Balaur Script, a node of its own carrying `sound`. A sound with a place in
+//! the world (a `sound` with `positional` set) is heard from the `listener`
+//! node: see [`spatial`].
 //!
 //! Audio is a pure observer of the simulation. If no output device is
 //! available (CI, headless servers) the plugin logs a warning once and every
@@ -29,8 +29,8 @@ mod backend;
 pub mod bus;
 pub mod cache;
 mod component;
+pub mod device;
 pub mod output;
-pub mod play_file;
 pub mod playback;
 mod script_api;
 pub mod spatial;
@@ -55,8 +55,8 @@ const MIN_PITCH: f32 = 0.01;
 /// machinery, and this is the node's hold on it.
 #[derive(Clone, Debug, Default)]
 pub struct Voice {
-    /// The playback this node started, `None` until autoplay or `audio.play`
-    /// starts one and again after `audio.stop` or when it plays out. The count
+    /// The playback this node started, `None` until autoplay or `sound.play`
+    /// starts one and again after `sound.stop` or when it plays out. The count
     /// says when that is, not the sink: intent must read the same headless as
     /// with a device.
     pub handle: Option<u64>,
@@ -1113,6 +1113,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
         });
         reg.insert_resource(bus::Buses::default());
         reg.insert_resource(cache::SoundCache::default());
+        device::declare(reg);
 
         reg.add_system(Stage::First, open_on_activation_system);
         reg.add_system(Stage::PostUpdate, sweep::sweep_sounds_system);

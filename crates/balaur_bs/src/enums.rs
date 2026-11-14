@@ -2,6 +2,8 @@
 // holds an enum's values and the `if` that tests its tag: ARCHITECTURE.md,
 // Scripting, Enums.
 
+use std::collections::HashSet;
+
 use crate::Error;
 use crate::ast::{
     Arm, BinOp, Block, EnumDecl, Expr, ExprKind, Field, Part, Pattern, Pos, Program, Stmt,
@@ -70,6 +72,7 @@ pub(crate) fn lower(prog: &mut Program) -> Result<(), Error> {
     }
     let mut lowering = Lowering {
         enums: &enums,
+        consts: prog.consts.iter().map(|(n, _)| n.clone()).collect(),
         made: 0,
     };
     for (_, fields) in &mut prog.structs {
@@ -114,6 +117,8 @@ fn check(e: &EnumDecl) -> Result<(), Error> {
 
 struct Lowering<'a> {
     enums: &'a [EnumDecl],
+    /// Every constant, by the name a pattern spells it with.
+    consts: HashSet<String>,
     /// How many `match` subjects have been bound, so each gets its own name.
     made: usize,
 }
@@ -363,65 +368,111 @@ impl<'e> Lowering<'e> {
         Ok(Some(make(decl, i, std::mem::take(fields), pos)))
     }
 
-    // `{ let match#n: E = subject; if match#n.#tag == 0 { .. } else .. }`,
-    // the last arm the `else` once every variant is named.
-    fn lower_match(&mut self, subject: &Expr, arms: Vec<Arm>, pos: Pos) -> Result<ExprKind, Error> {
+    // A bare name or a path that names a constant, not a variant, is the
+    // value it holds.
+    fn resolve(&self, p: &mut Pattern, pos: Pos) -> Result<(), Error> {
+        match p {
+            Pattern::Bind(name) if self.consts.contains(name.as_str()) => {
+                *p = Pattern::Value(at(ExprKind::Var(name.clone()), pos));
+            }
+            Pattern::Variant { path, binds }
+                if binds.is_empty()
+                    && self.variant(path).is_none()
+                    && self.consts.contains(path.as_str()) =>
+            {
+                *p = Pattern::Value(at(ExprKind::Var(path.clone()), pos));
+            }
+            Pattern::Or(alternatives) => {
+                for a in alternatives.iter_mut() {
+                    self.resolve(a, pos)?;
+                    let binds = match a {
+                        Pattern::Any | Pattern::Bind(_) => true,
+                        Pattern::Variant { binds, .. } => binds.iter().any(|(_, b)| b != "_"),
+                        Pattern::Value(_) | Pattern::Or(_) => false,
+                    };
+                    if binds {
+                        return fail(
+                            pos,
+                            "each alternative of `|` is a value or a variant, binding nothing",
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    // `{ let match#n = subject; if .. else .. }`: on an enum, each arm tests
+    // the tag; on any other value, each compares with `==`.
+    fn lower_match(
+        &mut self,
+        subject: &Expr,
+        mut arms: Vec<Arm>,
+        pos: Pos,
+    ) -> Result<ExprKind, Error> {
         if arms.is_empty() {
             return fail(pos, "a `match` needs an arm");
         }
+        let count = arms.len();
+        for (n, arm) in arms.iter_mut().enumerate() {
+            self.resolve(&mut arm.pattern, arm.pos)?;
+            if takes_any(&arm.pattern) && n + 1 != count {
+                return fail(
+                    arm.pos,
+                    "an arm after one that takes any value is never reached",
+                );
+            }
+        }
+        let held = format!("match#{}", self.made);
+        self.made += 1;
+        if arms.iter().any(|a| names_variant(&a.pattern)) {
+            self.lower_variants(subject, arms, &held, pos)
+        } else {
+            lower_values(subject, arms, &held, pos)
+        }
+    }
+
+    // The last arm is the `else` once every variant is named.
+    fn lower_variants(
+        &self,
+        subject: &Expr,
+        arms: Vec<Arm>,
+        held: &str,
+        pos: Pos,
+    ) -> Result<ExprKind, Error> {
         let mut decl: Option<&EnumDecl> = None;
         let mut covered: Vec<usize> = Vec::new();
-        let mut cases: Vec<(Option<usize>, Arm)> = Vec::new();
-        let count = arms.len();
-        for (n, arm) in arms.into_iter().enumerate() {
-            let tag = match &arm.pattern {
-                Pattern::Any | Pattern::Bind(_) => {
-                    if n + 1 != count {
-                        return fail(
-                            arm.pos,
-                            "an arm after one that takes any value is never reached",
-                        );
-                    }
-                    None
+        let mut cases: Vec<(Vec<usize>, Arm)> = Vec::new();
+        for arm in arms {
+            let mut tags = Vec::new();
+            for (path, binds) in variants_of(&arm.pattern, arm.pos)? {
+                let Some((d, i)) = self.variant(path) else {
+                    return fail(arm.pos, format!("`{path}` is no enum variant or constant"));
+                };
+                if decl.is_some_and(|known| known.name != d.name) {
+                    return fail(
+                        arm.pos,
+                        format!(
+                            "`{path}` is not a `{}`",
+                            decl.map_or("", |k| k.name.as_str())
+                        ),
+                    );
                 }
-                Pattern::Variant { path, binds } => {
-                    let Some((d, i)) = self.variant(path) else {
-                        return fail(arm.pos, format!("`{path}` is no enum variant"));
-                    };
-                    if decl.is_some_and(|known| known.name != d.name) {
-                        return fail(
-                            arm.pos,
-                            format!(
-                                "`{path}` is not a `{}`",
-                                decl.map_or("", |k| k.name.as_str())
-                            ),
-                        );
-                    }
-                    decl = Some(d);
-                    if covered.contains(&i) {
-                        return fail(arm.pos, format!("`{path}` is matched twice"));
-                    }
-                    covered.push(i);
-                    check_binds(&d.variants[i], path, binds, arm.pos)?;
-                    Some(i)
+                decl = Some(d);
+                if covered.contains(&i) {
+                    return fail(arm.pos, format!("`{path}` is matched twice"));
                 }
-            };
-            cases.push((tag, arm));
+                covered.push(i);
+                check_binds(&d.variants[i], path, binds, arm.pos)?;
+                tags.push(i);
+            }
+            cases.push((tags, arm));
         }
-        let wildcard = cases.last().is_some_and(|(tag, _)| tag.is_none());
         let Some(decl) = decl else {
-            // One arm that takes anything: the subject is still worked out
-            // once, for what it does, and bound when the arm names it.
-            let (_, arm) = cases.pop().expect("a match has an arm");
-            let name = match &arm.pattern {
-                Pattern::Bind(name) => name.clone(),
-                _ => "_".into(),
-            };
-            return Ok(ExprKind::Block(Block {
-                stmts: vec![bind_stmt(&name, None, subject.clone())],
-                tail: Some(Box::new(arm.body)),
-            }));
+            return fail(pos, "a `match` that names a variant names its enum");
         };
+        let wildcard = cases.last().is_some_and(|(tags, _)| tags.is_empty());
         if !wildcard && covered.len() < decl.variants.len() {
             let missing: Vec<String> = decl
                 .variants
@@ -432,45 +483,163 @@ impl<'e> Lowering<'e> {
                 .collect();
             return fail(pos, format!("this `match` misses {}", missing.join(", ")));
         }
-        let held = format!("match#{}", self.made);
-        self.made += 1;
-        // Built from the last arm up, as the parser builds `else if`: the
-        // last arm is the final `else` block, each earlier one an `if` in
-        // the `else` of the one before.
-        let mut otherwise: Option<Block> = None;
-        let mut top: Option<Expr> = None;
-        for (tag, arm) in cases.into_iter().rev() {
-            let body = arm_block(decl, tag, &held, arm.body, &arm.pattern);
-            let (Some(rest), Some(i)) = (otherwise.take(), tag) else {
-                top = Some(at(ExprKind::Block(body.clone()), arm.pos));
-                otherwise = Some(body);
-                continue;
-            };
-            let read = at(ExprKind::Var(held.clone()), arm.pos);
-            let test = at(
-                ExprKind::Bin(
-                    BinOp::Eq,
-                    Box::new(at(ExprKind::Field(Box::new(read), TAG.into()), arm.pos)),
-                    Box::new(at(ExprKind::Int(i as i64), arm.pos)),
-                ),
-                arm.pos,
-            );
-            let branch = at(ExprKind::If(Box::new(test), body, Some(rest)), arm.pos);
-            otherwise = Some(Block {
-                stmts: vec![],
-                tail: Some(Box::new(branch.clone())),
-            });
-            top = Some(branch);
-        }
-        Ok(ExprKind::Block(Block {
-            stmts: vec![bind_stmt(
-                &held,
-                Some(Ty::Struct(decl.name.clone())),
-                subject.clone(),
-            )],
-            tail: top.map(Box::new),
-        }))
+        let branches = cases
+            .into_iter()
+            .map(|(tags, arm)| {
+                let tests = tags.iter().map(|&i| tag_is(held, i, arm.pos)).collect();
+                let body = arm_block(decl, tags.first().copied(), held, arm.body, &arm.pattern);
+                (tests, body, arm.pos)
+            })
+            .collect();
+        Ok(chain(
+            held,
+            Some(Ty::Struct(decl.name.clone())),
+            subject,
+            branches,
+        ))
     }
+}
+
+fn takes_any(p: &Pattern) -> bool {
+    matches!(p, Pattern::Any | Pattern::Bind(_))
+}
+
+fn names_variant(p: &Pattern) -> bool {
+    match p {
+        Pattern::Variant { .. } => true,
+        Pattern::Or(alternatives) => alternatives.iter().any(names_variant),
+        _ => false,
+    }
+}
+
+/// A variant's path in a pattern, and what each of its fields is bound to.
+type Named<'a> = (&'a str, &'a [(String, String)]);
+
+// The variants an arm of a `match` on an enum names: none for the arm that
+// takes any value.
+fn variants_of(p: &Pattern, pos: Pos) -> Result<Vec<Named<'_>>, Error> {
+    let alternatives = match p {
+        Pattern::Or(alternatives) => alternatives.iter().collect(),
+        _ => vec![p],
+    };
+    let mut out = Vec::new();
+    for a in alternatives {
+        match a {
+            Pattern::Variant { path, binds } => out.push((path.as_str(), binds.as_slice())),
+            Pattern::Any | Pattern::Bind(_) => {}
+            Pattern::Value(_) | Pattern::Or(_) => {
+                return fail(pos, "a `match` on an enum names its variants, not values");
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn tag_is(held: &str, tag: usize, pos: Pos) -> Expr {
+    let read = at(ExprKind::Var(held.into()), pos);
+    at(
+        ExprKind::Bin(
+            BinOp::Eq,
+            Box::new(at(ExprKind::Field(Box::new(read), TAG.into()), pos)),
+            Box::new(at(ExprKind::Int(tag as i64), pos)),
+        ),
+        pos,
+    )
+}
+
+// How a value pattern reads in an error, and what two of them share when one
+// is written twice.
+fn spelled(e: &Expr) -> String {
+    match &e.kind {
+        ExprKind::Str(s) => format!("`\"{s}\"`"),
+        ExprKind::Int(v) => format!("`{v}`"),
+        ExprKind::Bool(b) => format!("`{b}`"),
+        ExprKind::Nil => format!("`{}`", words::keywords::NIL),
+        ExprKind::Var(name) => format!("`{name}`"),
+        other => format!("{other:?}"),
+    }
+}
+
+// A `match` on a string, an int, a bool or an optional: each arm compares,
+// and the last takes whatever no arm named.
+fn lower_values(subject: &Expr, arms: Vec<Arm>, held: &str, pos: Pos) -> Result<ExprKind, Error> {
+    if !arms.last().is_some_and(|a| takes_any(&a.pattern)) {
+        return fail(
+            pos,
+            "a `match` on a value ends with an arm that takes any value: `_ => ..`",
+        );
+    }
+    let mut seen: Vec<String> = Vec::new();
+    let mut branches = Vec::new();
+    for arm in arms {
+        let values: Vec<&Expr> = match &arm.pattern {
+            Pattern::Value(e) => vec![e],
+            Pattern::Or(alternatives) => alternatives
+                .iter()
+                .filter_map(|a| match a {
+                    Pattern::Value(e) => Some(e),
+                    _ => None,
+                })
+                .collect(),
+            _ => vec![],
+        };
+        let mut tests = Vec::new();
+        for value in values {
+            let shown = spelled(value);
+            if seen.contains(&shown) {
+                return fail(arm.pos, format!("{shown} is matched twice"));
+            }
+            seen.push(shown);
+            let read = at(ExprKind::Var(held.into()), arm.pos);
+            tests.push(at(
+                ExprKind::Bin(BinOp::Eq, Box::new(read), Box::new(value.clone())),
+                arm.pos,
+            ));
+        }
+        let stmts = match &arm.pattern {
+            Pattern::Bind(name) => vec![bind_stmt(
+                name,
+                None,
+                at(ExprKind::Var(held.into()), arm.pos),
+            )],
+            _ => vec![],
+        };
+        branches.push((tests, with_stmts(stmts, arm.body), arm.pos));
+    }
+    Ok(chain(held, None, subject, branches))
+}
+
+// `{ let held = subject; if a || b { .. } else if .. else { .. } }`, built from
+// the last branch up as the parser builds `else if`: the last branch is the
+// final `else`, each earlier one an `if` in the `else` of the one before.
+fn chain(
+    held: &str,
+    ty: Option<Ty>,
+    subject: &Expr,
+    branches: Vec<(Vec<Expr>, Block, Pos)>,
+) -> ExprKind {
+    let mut otherwise: Option<Block> = None;
+    let mut top: Option<Expr> = None;
+    for (tests, body, pos) in branches.into_iter().rev() {
+        let test = tests
+            .into_iter()
+            .reduce(|a, b| at(ExprKind::Bin(BinOp::Or, Box::new(a), Box::new(b)), pos));
+        let (Some(rest), Some(test)) = (otherwise.take(), test) else {
+            top = Some(at(ExprKind::Block(body.clone()), pos));
+            otherwise = Some(body);
+            continue;
+        };
+        let branch = at(ExprKind::If(Box::new(test), body, Some(rest)), pos);
+        otherwise = Some(Block {
+            stmts: vec![],
+            tail: Some(Box::new(branch.clone())),
+        });
+        top = Some(branch);
+    }
+    ExprKind::Block(Block {
+        stmts: vec![bind_stmt(held, ty, subject.clone())],
+        tail: top.map(Box::new),
+    })
 }
 
 fn check_binds(v: &Variant, path: &str, binds: &[(String, String)], pos: Pos) -> Result<(), Error> {
@@ -548,6 +717,10 @@ fn arm_block(
             stmts.push(bind_stmt(name, ty, value));
         }
     }
+    with_stmts(stmts, body)
+}
+
+fn with_stmts(mut stmts: Vec<Stmt>, body: Expr) -> Block {
     match body.kind {
         ExprKind::Block(b) if stmts.is_empty() => b,
         ExprKind::Block(b) => {

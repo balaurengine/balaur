@@ -121,3 +121,54 @@ pub(super) fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>)
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WALKER: &str = "pub class Walker { node: Node }
+impl Walker {
+    fn fixed_update(dt: float) {
+        let at = self.node.transform.position;
+        self.node.transform.position = vec3(at.x + dt, at.y, at.z);
+    }
+}
+";
+
+    // Recorded as `balaur run --record` does, at 30 a second; the project then
+    // moves to 60 before the replay.
+    #[test]
+    fn a_replay_steps_at_the_rate_its_recording_ran_at() {
+        let dir = tempfile::tempdir().unwrap();
+        let rate = |hz: u32| {
+            std::fs::write(
+                dir.path().join("project.toml"),
+                format!(
+                    "[application]\nname = \"rate\"\nmain_scene = \"main.toml\"\n\n[time]\ntick_hz = {hz}\n"
+                ),
+            )
+            .unwrap();
+        };
+        rate(30);
+        std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+        std::fs::write(
+            dir.path().join("main.toml"),
+            "[[nodes]]\nid = \"w\"\nname = \"Walker\"\nscript = { source = \"scripts/walker.bs\" }\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("scripts").join("walker.bs"), WALKER).unwrap();
+        let file = dir.path().join("rate.blr");
+        let mut app =
+            balaur::standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+        record_to(&app, &file, dir.path()).unwrap();
+        app.load_project().unwrap();
+        for _ in 0..20 {
+            app.tick(1.0 / 30.0);
+        }
+        balaur::replay::stop_recording(&app.engine, "stop").unwrap();
+        drop(app);
+
+        rate(60);
+        replay_session(&file, true, None).unwrap();
+    }
+}

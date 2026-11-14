@@ -37,7 +37,6 @@ sha2.workspace = true
 # across operating systems and this one does not.
 libm.workspace = true
 sys-locale = "0.3"
-base64 = "0.23"
 
 [dev-dependencies]
 tempfile = "3"

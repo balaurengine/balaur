@@ -1,0 +1,652 @@
+// One realtime socket: Phoenix Channels V2 over `websocket`, on a node of its
+// own under the one `client::connect` named, which hears it as
+// `on_gamend_event`. A drop comes back by itself and joins its topics again.
+
+use activity;
+use core;
+
+/// The first answer the socket gives: `open`, or why it never opened.
+event gamend_opened;
+
+const OK: str = "ok";
+const ERROR: str = "error";
+const OPEN: str = "open";
+const MESSAGE: str = "message";
+const RECONNECTING: str = "reconnecting";
+const REOPENED: str = "reopened";
+const CLOSED: str = "closed";
+const REPLY: str = "reply";
+const KIND: str = "kind";
+const SOCKET: str = "socket";
+const STATUS: str = "status";
+const REASON: str = "reason";
+const RESPONSE: str = "response";
+const TOPIC: str = "topic";
+const EVENT: str = "event";
+const PAYLOAD: str = "payload";
+const MS: str = "ms";
+const NAME: str = "name";
+const ROW: str = "row";
+const SENT: str = "sent";
+const AT: str = "at";
+const ATTEMPT: str = "attempt";
+const CALL: str = "call";
+const JOIN: str = "join";
+const LEAVE: str = "leave";
+const PUSH: str = "push";
+const PHOENIX: str = "phoenix";
+const PHX_JOIN: str = "phx_join";
+const PHX_LEAVE: str = "phx_leave";
+const PHX_REPLY: str = "phx_reply";
+const PHX_ERROR: str = "phx_error";
+const PHX_CLOSE: str = "phx_close";
+
+/// The method the node `connect` named hears the socket on, and the methods
+/// the engine's websocket and the renewal reach here by.
+const HANDLER: str = "on_gamend_event";
+const HEARD: str = "heard";
+const RENEW: str = "renew";
+/// What a call's answer arrives as, numbered by its ref, from this node.
+const REPLY_EVENT: str = "gamend_reply_";
+const OPENED: str = "gamend_opened";
+
+/// Where a socket is: a connection asked for and its user channel not yet
+/// joined; joined and carrying calls; sitting out a back-off; trading the
+/// refresh token for a fresh one; or closed for good.
+const DIALING: str = "dialing";
+const LIVE: str = "live";
+const WAITING: str = "waiting";
+const RENEWING: str = "renewing";
+
+/// Seconds between two heartbeats; one unanswered when the next falls due
+/// means the server is gone.
+const HEARTBEAT: float = 30.0;
+/// How many times a dropped socket tries to come back before it gives up.
+pub const RECONNECT_TRIES: int = 8;
+/// Seconds before its expiry that a token counts as stale: the server reads
+/// the token only as a socket opens.
+const RENEW_MARGIN: float = 30.0;
+
+pub class Socket {
+    node: Node,
+    id: int,
+    handler: Node,
+    row: int,
+    ws: int,
+    phase: str,
+    linked: bool,
+    joined: bool,
+    opened_once: bool,
+    renewed: bool,
+    tries: int,
+    next_ref: int,
+    user_topic: str,
+    user_ref: str,
+    // Topic → the join ref this connection joined it under.
+    joins: { str: str },
+    // Ref → the call waiting on its reply.
+    pending: { str: any },
+    // Calls made before the first open, sent once it does.
+    queued: [any],
+    // What the game joined, with its payload: what a reconnect joins again.
+    topics: { str: any },
+    // After a reconnect, ref → the topic joined again, until its reply.
+    rejoining: { str: str },
+    lost: [str],
+    // Channels the server crashed, waiting to be joined again, and the joins
+    // sent for them by ref.
+    crashed: { str: any },
+    crash_refs: { str: any },
+    beat_at: float,
+    beat_ref: str,
+    retry_at: float,
+    reason: str,
+}
+
+impl Socket {
+    /// Begin on the next frame, so `connect` has answered before the node
+    /// hears anything: the id the game holds, the node told of what the
+    /// socket hears, and the `connect` row the first open settles. Ticks
+    /// through a pause, so the heartbeat keeps the server's channels.
+    pub fn start(id: int, handler: Node, row: int) {
+        self.id = id;
+        self.handler = handler;
+        self.row = row;
+        self.phase = WAITING;
+        self.retry_at = 0.0;
+        self.node.set_process("always");
+    }
+
+    fn update(_dt: float) {
+        let now = engine::unix_time();
+        if self.phase == WAITING && now >= self.retry_at {
+            self.begin();
+            return;
+        }
+        if self.phase != LIVE {
+            return;
+        }
+        self.rejoin_due(now);
+        if now >= self.beat_at {
+            self.heartbeat(now);
+        }
+    }
+
+    fn on_free() {
+        if self.ws != 0 {
+            websocket::close(self.ws);
+        }
+    }
+
+    /// A connection with a token the server will take: renewed first when it
+    /// is about to expire.
+    fn begin() {
+        if core::held() == nil {
+            self.dropped("connect needs a logged-in session");
+            return;
+        }
+        if core::stale(RENEW_MARGIN) {
+            self.phase = RENEWING;
+            self.node.call(RENEW);
+            return;
+        }
+        self.dial();
+    }
+
+    /// Trade the refresh token for a new session, then dial with it.
+    pub async fn renew() {
+        let why = await refreshed();
+        if self.phase != RENEWING {
+            return;
+        }
+        if why == "" {
+            self.dial();
+        } else {
+            self.dropped(why);
+        }
+    }
+
+    fn dial() {
+        let session = core::held();
+        if session == nil {
+            self.dropped("connect needs a logged-in session");
+            return;
+        }
+        self.user_topic = "user:" + session[core::USER_ID].as_str();
+        let token = core::escape(session[core::ACCESS_TOKEN].as_str());
+        let address = socket_base(core::url()) + "/socket/websocket?token=" + token + "&client_session=" + core::run_id() + "&vsn=2.0.0";
+        self.ws = websocket::connect(self.node, address, websocket::ConnectOptions { on_event: HEARD });
+        self.phase = DIALING;
+        self.linked = false;
+        self.joined = false;
+        self.joins = {};
+        self.user_ref = "";
+        self.beat_ref = "";
+        self.beat_at = engine::unix_time() + HEARTBEAT;
+    }
+
+    /// What the engine's websocket says about the current connection.
+    pub fn heard(e: any) {
+        if self.ws == 0 || e[SOCKET].as_int() != self.ws {
+            return;
+        }
+        let kind = e[KIND].as_str();
+        if kind == websocket::EVENT_OPEN {
+            self.linked = true;
+            let none: any = {};
+            self.user_ref = self.send_join(self.user_topic, none);
+        } else if kind == websocket::EVENT_MESSAGE {
+            self.frame(e["text"].as_str());
+        } else if kind == websocket::EVENT_CLOSED {
+            self.dropped(said(e[REASON].as_str(), CLOSED));
+        } else if kind == websocket::EVENT_ERROR {
+            self.failed(e);
+        }
+    }
+
+    /// A connection that did not open. A token the server refused is renewed
+    /// once per dial; a browser does not say why, so there it is renewed on
+    /// any refusal.
+    fn failed(e: any) {
+        let status = e[STATUS];
+        let refused = status.as_int() == 401 || status.as_int() == 403 || (status == nil && engine::target().web);
+        if !self.linked && refused && !self.renewed {
+            self.renewed = true;
+            self.ws = 0;
+            self.phase = RENEWING;
+            self.node.call(RENEW);
+            return;
+        }
+        self.dropped(said(e[REASON].as_str(), "the connection failed"));
+    }
+
+    /// One frame from the server: `[join_ref, ref, topic, event, payload]`.
+    fn frame(text: str) {
+        let parts = json::parse(text);
+        if parts.kind() != types::KIND_LIST || parts.len() != 5 {
+            self.dropped("a frame is a 5-element array, got: {text}");
+            return;
+        }
+        let reference = word(parts[1]);
+        let topic = word(parts[2]);
+        let event = word(parts[3]);
+        let payload = parts[4];
+        if topic == PHOENIX || (reference != "" && reference == self.beat_ref) {
+            self.beat_ref = "";
+            return;
+        }
+        if event == PHX_REPLY {
+            self.replied(reference, word(payload[STATUS]), payload[RESPONSE]);
+            return;
+        }
+        if event == PHX_ERROR || event == PHX_CLOSE {
+            self.joins.remove(topic);
+        }
+        self.ended_channel(event, topic);
+        self.tell({ SOCKET: self.id, KIND: MESSAGE, TOPIC: topic, EVENT: event, PAYLOAD: payload });
+    }
+
+    fn replied(reference: str, status: str, response: any) {
+        if !self.joined && reference == self.user_ref {
+            self.user_joined(status);
+            return;
+        }
+        if self.rejoining.has(reference) {
+            let back = self.rejoining[reference].unwrap();
+            self.rejoining.remove(reference);
+            if status != OK {
+                self.topics.remove(back);
+                self.lost.push(back);
+            }
+            if self.rejoining.len() == 0 {
+                self.reopened();
+            }
+            return;
+        }
+        if self.crash_refs.has(reference) {
+            let back = self.crash_refs[reference];
+            self.crash_refs.remove(reference);
+            if status != OK {
+                self.crash_refused(back);
+            }
+            return;
+        }
+        if !self.pending.has(reference) {
+            return;
+        }
+        let call = self.pending[reference];
+        self.pending.remove(reference);
+        if call[KIND].as_str() == JOIN && status != OK {
+            self.topics.remove(call[TOPIC].as_str());
+        }
+        let ms = (engine::unix_time() - call[SENT].as_float()) * 1000.0;
+        self.answer(call, { KIND: REPLY, STATUS: status, RESPONSE: response, MS: ms });
+    }
+
+    /// The user channel joined: the socket is ready for calls. The first time
+    /// it opens; after a drop it joins the game's topics again.
+    fn user_joined(status: str) {
+        if status != OK {
+            self.dropped("joining the user channel was refused: {status}");
+            return;
+        }
+        self.joined = true;
+        self.renewed = false;
+        self.phase = LIVE;
+        if self.opened_once {
+            self.rejoin();
+            return;
+        }
+        self.opened_once = true;
+        let opened: any = { SOCKET: self.id, KIND: OPEN };
+        activity::finished(self.row, opened);
+        self.node.emit(OPENED, opened);
+        self.tell(opened);
+        let held = self.queued;
+        self.queued = [];
+        for command in held {
+            self.perform(command);
+        }
+    }
+
+    pub fn join(topic: str, payload: any, row: int) -> int {
+        self.command(JOIN, topic, "", payload, row)
+    }
+
+    pub fn leave(topic: str, row: int) -> int {
+        self.command(LEAVE, topic, "", nil, row)
+    }
+
+    pub fn push(topic: str, event: str, payload: any, row: int) -> int {
+        self.command(PUSH, topic, event, payload, row)
+    }
+
+    /// A server plugin's function, over the user channel.
+    pub fn call_hook(plugin: str, name: str, args: any, row: int) -> int {
+        let given: any = args;
+        if args == nil {
+            given = [];
+        }
+        self.command(PUSH, "", "call_hook", { "plugin": plugin, "fn": name, "args": given }, row)
+    }
+
+    /// Shut the socket down; false when it was already gone.
+    pub fn close() -> bool {
+        if self.phase == core::ENDED {
+            return false;
+        }
+        if self.ws != 0 {
+            websocket::close(self.ws);
+            self.ws = 0;
+        }
+        self.fail_pending("the connection ended before the reply");
+        self.end(CLOSED, "closed by the game");
+        true
+    }
+
+    /// Cut the connection as a network failure would, so it reconnects.
+    /// False when the socket is already gone.
+    pub fn interrupt() -> bool {
+        if self.phase == core::ENDED {
+            return false;
+        }
+        if self.phase == LIVE || self.phase == DIALING {
+            self.dropped("interrupted by the game");
+        }
+        true
+    }
+
+    /// What a dock shows: whether it is open, the topics the game joined, and
+    /// why it is not open.
+    pub fn row() -> any {
+        let reason: any = if self.phase == LIVE || self.reason == "" { nil } else { self.reason };
+        { SOCKET: self.id, OPEN: self.phase == LIVE, "topics": self.topics.keys(), REASON: reason, core::ENDED: self.phase == core::ENDED }
+    }
+
+    /// One call: sent now on a joined connection, held until the first open,
+    /// and answered at once while the socket is coming back or gone. A leave
+    /// while it comes back drops its topic from what is joined again.
+    fn command(kind: str, topic: str, event: str, payload: any, row: int) -> int {
+        let name = REPLY_EVENT + "{self.id}_{row}";
+        let id = events::next(name, self.node);
+        let body: any = if payload == nil { nothing() } else { payload };
+        let call: any = { NAME: name, ROW: row, KIND: kind, TOPIC: topic, SENT: 0.0 };
+        let command: any = { KIND: kind, TOPIC: topic, EVENT: event, PAYLOAD: body, CALL: call };
+        if self.phase == LIVE {
+            self.perform(command);
+        } else if !self.opened_once && self.phase != core::ENDED {
+            self.queued.push(command);
+        } else if self.phase == core::ENDED {
+            self.answer(call, core::refusal("the socket closed"));
+        } else if kind == LEAVE {
+            self.topics.remove(topic);
+            self.crashed.remove(topic);
+            self.answer(call, { KIND: REPLY, STATUS: OK, RESPONSE: nil, MS: 0.0 });
+        } else {
+            self.answer(call, core::refusal("the socket is reconnecting"));
+        }
+        id
+    }
+
+    fn perform(command: any) {
+        let kind = command[KIND].as_str();
+        let topic = if command[TOPIC].as_str() == "" { self.user_topic } else { command[TOPIC].as_str() };
+        let call = command[CALL];
+        call[SENT] = engine::unix_time();
+        if kind == JOIN {
+            self.topics[topic] = command[PAYLOAD];
+            self.pending[self.send_join(topic, command[PAYLOAD])] = call;
+            return;
+        }
+        if kind == LEAVE {
+            self.topics.remove(topic);
+            self.forget_crash(topic);
+        }
+        if !self.joins.has(topic) {
+            let waited = kind == LEAVE && self.crashed.has(topic);
+            self.crashed.remove(topic);
+            if waited {
+                // A crashed channel is gone from the server already, so ending
+                // its wait to be joined again is the whole of leaving.
+                self.answer(call, { KIND: REPLY, STATUS: OK, RESPONSE: nil, MS: 0.0 });
+            } else {
+                self.answer(call, core::refusal("not joined to {topic}"));
+            }
+            return;
+        }
+        let join_ref = self.joins[topic].unwrap();
+        let reference = self.fresh_ref();
+        self.pending[reference] = call;
+        if kind == LEAVE {
+            self.joins.remove(topic);
+            let none: any = {};
+            self.send([join_ref, reference, topic, PHX_LEAVE, none]);
+        } else {
+            self.send([join_ref, reference, topic, command[EVENT].as_str(), command[PAYLOAD]]);
+        }
+    }
+
+    /// The connection is gone. A socket that was open backs off and tries
+    /// again, telling the game; one that never opened, or ran out of tries,
+    /// reports an error and ends.
+    fn dropped(reason: str) {
+        self.fail_pending("the connection ended before the reply");
+        self.crashed = {};
+        self.crash_refs = {};
+        self.rejoining = {};
+        if self.ws != 0 {
+            websocket::close(self.ws);
+            self.ws = 0;
+        }
+        self.linked = false;
+        self.joined = false;
+        if !self.opened_once {
+            self.end(ERROR, reason);
+            return;
+        }
+        self.tries += 1;
+        if self.tries > RECONNECT_TRIES {
+            self.end(ERROR, "gave up after {RECONNECT_TRIES} tries: {reason}");
+            return;
+        }
+        let wait = backoff(self.tries);
+        self.phase = WAITING;
+        self.reason = reason;
+        self.retry_at = engine::unix_time() + wait;
+        self.tell({ SOCKET: self.id, KIND: RECONNECTING, ATTEMPT: self.tries, REASON: reason, "wait": wait });
+    }
+
+    /// Closed for good. One that never opened answers its `connect` with it.
+    fn end(kind: str, reason: str) {
+        self.phase = core::ENDED;
+        self.reason = reason;
+        let e: any = { SOCKET: self.id, KIND: kind, REASON: reason };
+        let held = self.queued;
+        self.queued = [];
+        for command in held {
+            self.answer(command[CALL], core::refusal(reason));
+        }
+        if !self.opened_once {
+            activity::finished(self.row, e);
+            self.node.emit(OPENED, e);
+        }
+        self.tell(e);
+    }
+
+    /// Join again every topic the game had, after a reconnect.
+    fn rejoin() {
+        for topic in self.topics.keys() {
+            self.rejoining[self.send_join(topic, self.topics[topic])] = topic;
+        }
+        if self.rejoining.len() == 0 {
+            self.reopened();
+        }
+    }
+
+    fn reopened() {
+        self.tries = 0;
+        self.reason = "";
+        let lost = self.lost;
+        self.lost = [];
+        self.tell({ SOCKET: self.id, KIND: REOPENED, "lost": lost });
+    }
+
+    /// `phx_error` means the channel's process crashed: the topic is joined
+    /// again after a wait, the user channel too. `phx_close` means the server
+    /// closed it on purpose, a kicked player's lobby: the topic is forgotten,
+    /// so a reconnect does not ask for it either.
+    fn ended_channel(event: str, topic: str) {
+        if event == PHX_CLOSE {
+            self.topics.remove(topic);
+            self.crashed.remove(topic);
+            return;
+        }
+        if event != PHX_ERROR {
+            return;
+        }
+        let payload: any = {};
+        if topic != self.user_topic {
+            if !self.topics.has(topic) {
+                return;
+            }
+            payload = self.topics[topic];
+        }
+        self.crashed[topic] = { PAYLOAD: payload, AT: engine::unix_time() + backoff(1), ATTEMPT: 1 };
+    }
+
+    /// The crashed channels whose wait is over, joined again.
+    fn rejoin_due(now: float) {
+        for topic in self.crashed.keys() {
+            let due = self.crashed[topic];
+            if due[AT].as_float() > now {
+                continue;
+            }
+            self.crashed.remove(topic);
+            let reference = self.send_join(topic, due[PAYLOAD]);
+            self.crash_refs[reference] = { TOPIC: topic, PAYLOAD: due[PAYLOAD], ATTEMPT: due[ATTEMPT] };
+        }
+    }
+
+    /// A rejoin refused waits and tries again, until it runs out of tries
+    /// and the topic is forgotten.
+    fn crash_refused(back: any) {
+        let topic = back[TOPIC].as_str();
+        let attempt = back[ATTEMPT].as_int();
+        if attempt >= RECONNECT_TRIES {
+            self.topics.remove(topic);
+            return;
+        }
+        self.crashed[topic] = { PAYLOAD: back[PAYLOAD], AT: engine::unix_time() + backoff(attempt + 1), ATTEMPT: attempt + 1 };
+    }
+
+    fn forget_crash(topic: str) {
+        self.crashed.remove(topic);
+        for reference in self.crash_refs.keys() {
+            if self.crash_refs[reference][TOPIC].as_str() == topic {
+                self.crash_refs.remove(reference);
+            }
+        }
+    }
+
+    fn heartbeat(now: float) {
+        if self.beat_ref != "" {
+            self.dropped("the server missed a heartbeat; the connection is dead");
+            return;
+        }
+        self.beat_ref = self.fresh_ref();
+        self.beat_at = now + HEARTBEAT;
+        let none: any = {};
+        self.send([nil, self.beat_ref, PHOENIX, "heartbeat", none]);
+    }
+
+    /// A reply that will never come is an error the caller must see, not a
+    /// task suspended forever.
+    fn fail_pending(why: str) {
+        let held = self.pending;
+        self.pending = {};
+        self.beat_ref = "";
+        for reference in held.keys() {
+            self.answer(held[reference], core::refusal(why));
+        }
+    }
+
+    /// Settle a call: its activity row, and whatever awaits its id.
+    fn answer(call: any, value: any) {
+        activity::finished(call[ROW].as_int(), value);
+        self.node.emit(call[NAME].as_str(), value);
+    }
+
+    fn send_join(topic: str, payload: any) -> str {
+        let reference = self.fresh_ref();
+        self.joins[topic] = reference;
+        self.send([reference, reference, topic, PHX_JOIN, payload]);
+        reference
+    }
+
+    fn fresh_ref() -> str {
+        self.next_ref += 1;
+        "{self.next_ref}"
+    }
+
+    // A frame goes whatever the send answers: a dead link says so with its
+    // own `closed`, which a replay reproduces and a send's answer does not.
+    fn send(frame: any) {
+        websocket::send_text(self.ws, json::encode(frame));
+    }
+
+    fn tell(e: any) {
+        if self.handler.is_valid() {
+            self.handler.call(HANDLER, e);
+        }
+    }
+}
+
+/// The session renewed from its refresh token: empty when it worked,
+/// otherwise why not.
+async fn refreshed() -> str {
+    let body = core::renewal();
+    if body == nil {
+        return "no refresh token to renew with";
+    }
+    let asked = core::request(core::POST, core::REFRESH_PATH, body, false);
+    let sent = engine::unix_time();
+    let reply = await task::wait(http::request(asked[core::URL].as_str(), asked[core::OPTIONS]));
+    core::renewed(core::received(reply, sent))
+}
+
+/// Seconds before try `attempt`, counted from 1: 1, 2, 4, 8, 16, then 30.
+pub fn backoff(attempt: int) -> float {
+    let wait = 1.0;
+    let n = 1;
+    while n < attempt && wait < 30.0 {
+        wait = wait * 2.0;
+        n += 1;
+    }
+    if wait > 30.0 { 30.0 } else { wait }
+}
+
+/// The socket's address for a server's: `https` is `wss`, `http` is `ws`.
+fn socket_base(url: str) -> str {
+    if url.starts_with("https://") {
+        return "wss://" + url.slice(8, url.len());
+    }
+    if url.starts_with("http://") {
+        return "ws://" + url.slice(7, url.len());
+    }
+    url
+}
+
+fn said(text: str, fallback: str) -> str {
+    if text == "" { fallback } else { text }
+}
+
+/// An empty map, for a payload left out.
+fn nothing() -> any {
+    let none: any = {};
+    none
+}
+
+/// A frame's slot as text: a ref, a topic or an event, empty for null.
+fn word(value: any) -> str {
+    if value.kind() == types::KIND_STRING { value.as_str() } else { "" }
+}

@@ -8,37 +8,40 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Delete notifications by IDs
 /// `DELETE /api/v1/notifications`
-pub fn delete_notifications(params: any) -> int {
+pub async fn delete_notifications(params: any) -> any {
     if !core::given(params, "ids") {
         return core::missing("gamend::notifications::delete_notifications", "ids");
     }
-    core::rest("DELETE", "/api/v1/notifications", params)
+    let reply = await core::rest("DELETE", "/api/v1/notifications", params);
+    reply
 }
 
 /// List own notifications
 /// `GET /api/v1/notifications`
-pub fn list_notifications(options: any) -> int {
+pub async fn list_notifications(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/notifications{query}")
+    let reply = await core::rest("GET", "/api/v1/notifications{query}");
+    reply
 }
 
 /// Send a notification to a friend
 /// `POST /api/v1/notifications`
-pub fn send_notification(params: any) -> int {
+pub async fn send_notification(params: any) -> any {
     if !core::given(params, "user_id") {
         return core::missing("gamend::notifications::send_notification", "user_id");
     }
     if !core::given(params, "title") {
         return core::missing("gamend::notifications::send_notification", "title");
     }
-    core::rest("POST", "/api/v1/notifications", params)
+    let reply = await core::rest("POST", "/api/v1/notifications", params);
+    reply
 }

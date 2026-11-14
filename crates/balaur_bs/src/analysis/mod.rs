@@ -206,10 +206,12 @@ impl Analysis {
                 });
             }
         }
-        // A used module's functions and structs, as far as this file may name them.
+        // A used module's functions and structs, as far as this file may name
+        // them, and the prelude's module of that name.
         let reach = crate::reach::Reach::of(prog);
         let open = |name: &&str| reach.refused("", &format!("{prefix}{name}")).is_none();
-        for f in prog.fns.iter().filter(|f| f.owner.is_none()) {
+        let called = crate::prelude::called();
+        for f in prog.fns.iter().chain(&called).filter(|f| f.owner.is_none()) {
             if let Some(name) = f
                 .name
                 .strip_prefix(&prefix)
@@ -312,7 +314,13 @@ impl Analysis {
         if let Some(module) = head.strip_suffix("::") {
             let module = scan::receiver(module);
             let key = format!("{module}::{word}");
-            if let Some(f) = prog.fns.iter().find(|f| f.owner.is_none() && f.name == key) {
+            let called = crate::prelude::called();
+            if let Some(f) = prog
+                .fns
+                .iter()
+                .chain(&called)
+                .find(|f| f.owner.is_none() && f.name == key)
+            {
                 return Some(fn_signature(f));
             }
             if let Some(v) = self.host.constant(&key) {
@@ -403,6 +411,9 @@ fn names(scope: &types::Scope<'_>, host: &HostApi) -> Vec<Completion> {
         .iter()
         .filter_map(|f| f.key.split_once("::").map(|(m, _)| m))
         .collect();
+    for name in crate::prelude::called_modules() {
+        modules.push(name);
+    }
     modules.sort_unstable();
     modules.dedup();
     for m in modules {

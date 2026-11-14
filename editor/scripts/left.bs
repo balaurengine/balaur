@@ -8,6 +8,7 @@ use form;
 use icons;
 use lint;
 use model;
+use sceneedit;
 use search;
 use selection;
 use shell;
@@ -138,67 +139,85 @@ fn said(icon: str, name: str) -> Item {
 // The title and the rows; drawing is the caller's, so the tree above can size
 // itself to what this actually holds.
 fn secondary_content(state: &mut editor::State) -> Secondary {
+    match state.workspace {
+        defs::WORKSPACE_SCRIPT => secondary_scripts(state),
+        defs::WORKSPACE_PHYSICS => secondary_collision(state),
+        defs::WORKSPACE_ANIMATION => secondary_clips(state),
+        defs::WORKSPACE_UI => secondary_widgets(state),
+        _ => secondary_scenes(state),
+    }
+}
+
+fn secondary_scripts(state: &mut editor::State) -> Secondary {
     let rows: [Item] = [];
-    if state.workspace == defs::WORKSPACE_SCRIPT {
-        for file in model::list(state, SCRIPTS) {
-            let name = file[fields::NAME].as_str();
-            if !file[project_fields::IS_DIR].as_bool() && name.ends_with(".bs") {
-                let rel = "scripts/" + name;
-                rows.push(item("‹›", name, "{model::line_count(state, rel)} L", rel, tabs::SCRIPT, -1, rel));
-            }
+    for file in model::list(state, SCRIPTS) {
+        let name = file[fields::NAME].as_str();
+        if !file[project_fields::IS_DIR].as_bool() && name.ends_with(".bs") {
+            let rel = "scripts/" + name;
+            rows.push(item("‹›", name, "{model::line_count(state, rel)} L", rel, tabs::SCRIPT, -1, rel));
         }
-        return Secondary { title: "Scripts", rows: rows };
     }
-    if state.workspace == defs::WORKSPACE_PHYSICS {
-        // A 2D scene carries `body2d`/`collider2d`; reading `body` alone left
-        // this panel empty for every 2D project.
-        for index in 0..state.nodes.len() {
-            let found = state.nodes[index];
-            let kind = model::body_kind(found);
-            if kind == nil {
-                kind = model::body2d_kind(found);
-            }
-            let collider = found.has_component(components::COLLIDER3D) || found.has_component(components::COLLIDER2D);
-            if kind != nil || collider {
-                let dimension = if found.has_component(components::BODY2D) || found.has_component(components::COLLIDER2D) { "2D" } else { "3D" };
-                let what = if kind == nil { components::COLLIDER3D } else { kind.as_str() };
-                rows.push(item("▣", found.name(), "{what} · {dimension}", found.stable_id(), CHOOSE, index, ""));
-            }
+    Secondary { title: "Scripts", rows: rows }
+}
+
+fn secondary_collision(state: &mut editor::State) -> Secondary {
+    let rows: [Item] = [];
+    // A 2D scene carries `body2d`/`collider2d`; reading `body` alone left
+    // this panel empty for every 2D project.
+    for index in 0..state.nodes.len() {
+        let found = state.nodes[index];
+        let kind = model::body_kind(found);
+        if kind == nil {
+            kind = model::body2d_kind(found);
         }
-        if rows.len() == 0 {
-            rows.push(said("▣", "no bodies or colliders"));
+        let collider = found.has_component(components::COLLIDER3D) || found.has_component(components::COLLIDER2D);
+        if kind != nil || collider {
+            let dimension = if found.has_component(components::BODY2D) || found.has_component(components::COLLIDER2D) { "2D" } else { "3D" };
+            let what = if kind == nil { components::COLLIDER3D } else { kind.as_str() };
+            rows.push(item("▣", found.name(), "{what} · {dimension}", found.stable_id(), CHOOSE, index, ""));
         }
-        return Secondary { title: "Collision", rows: rows };
     }
-    if state.workspace == defs::WORKSPACE_ANIMATION {
-        for index in 0..state.nodes.len() {
-            let found = state.nodes[index];
-            if found.has_component(tabs::ANIMATION) {
-                let name = anim::clip_name(state, found);
-                let library = anim::library_path(state, found);
-                let shown = if name == "" { found.name() } else { name };
-                rows.push(item("◷", shown, if library == nil { INLINE } else { library.unwrap() }, found.stable_id(), CHOOSE, index, ""));
-            }
-        }
-        if rows.len() == 0 {
-            rows.push(said("◷", "no clips — {icons::ui("add")} Key in Timeline"));
-        }
-        return Secondary { title: "Clips", rows: rows };
+    if rows.len() == 0 {
+        rows.push(said("▣", "no bodies or colliders"));
     }
-    if state.workspace == defs::WORKSPACE_UI {
-        for index in 0..state.nodes.len() {
-            let found = state.nodes[index];
-            if found.has_component(components::WIDGET) {
-                let widget = found.authored(components::WIDGET);
-                let kind = if widget[fields::KIND] == nil { components::WIDGET } else { widget[fields::KIND].as_str() };
-                rows.push(item("▤", found.name(), kind, found.stable_id(), CHOOSE, index, ""));
-            }
+    Secondary { title: "Collision", rows: rows }
+}
+
+fn secondary_clips(state: &mut editor::State) -> Secondary {
+    let rows: [Item] = [];
+    for index in 0..state.nodes.len() {
+        let found = state.nodes[index];
+        if found.has_component(tabs::ANIMATION) {
+            let name = anim::clip_name(state, found);
+            let library = anim::library_path(state, found);
+            let shown = if name == "" { found.name() } else { name };
+            rows.push(item("◷", shown, if library == nil { INLINE } else { library.unwrap() }, found.stable_id(), CHOOSE, index, ""));
         }
-        if rows.len() == 0 {
-            rows.push(said("▤", "no widgets"));
-        }
-        return Secondary { title: "Widgets", rows: rows };
     }
+    if rows.len() == 0 {
+        rows.push(said("◷", "no clips — {icons::ui("add")} Key in Timeline"));
+    }
+    Secondary { title: "Clips", rows: rows }
+}
+
+fn secondary_widgets(state: &mut editor::State) -> Secondary {
+    let rows: [Item] = [];
+    for index in 0..state.nodes.len() {
+        let found = state.nodes[index];
+        if found.has_component(components::WIDGET) {
+            let widget = found.authored(components::WIDGET);
+            let kind = if widget[fields::KIND] == nil { components::WIDGET } else { widget[fields::KIND].as_str() };
+            rows.push(item("▤", found.name(), kind, found.stable_id(), CHOOSE, index, ""));
+        }
+    }
+    if rows.len() == 0 {
+        rows.push(said("▤", "no widgets"));
+    }
+    Secondary { title: "Widgets", rows: rows }
+}
+
+fn secondary_scenes(state: &mut editor::State) -> Secondary {
+    let rows: [Item] = [];
     for file in model::list(state, SCENES) {
         if !file[project_fields::IS_DIR].as_bool() {
             let name = file[fields::NAME].as_str();
@@ -341,7 +360,7 @@ pub fn mark_clicked(state: &mut editor::State, row: str, mark: str) {
 /// before it has drawn. The node's own rect, so no caller counts the chrome
 /// above it, and the walk's row, so a folded branch cannot shift it.
 pub fn row_spot(state: &mut editor::State, index: int) -> RowSpot? {
-    let found = scene::get_node(TREE_NODE);
+    let found = scene::root().get_node(TREE_NODE);
     if !found.is_valid() {
         return nil;
     }
@@ -371,7 +390,7 @@ pub fn hide_tree(state: editor::State) {
 }
 
 pub fn show_tree() {
-    let found = scene::get_node(PANEL);
+    let found = scene::root().get_node(PANEL);
     if found.is_valid() {
         found.set_visible(true);
     }
@@ -415,7 +434,7 @@ pub fn secondary_pick(state: &mut editor::State, picked: str) {
 }
 
 pub fn show_outline() {
-    let found = scene::get_node(OUTLINE);
+    let found = scene::root().get_node(OUTLINE);
     if found.is_valid() {
         found.set_visible(true);
     }
@@ -446,7 +465,7 @@ pub fn rename_close(state: &mut editor::State) {
 /// the rename happens over it.
 /// Fill the picker: what its script asks for while a rename is up.
 pub fn rename_fill(state: &mut editor::State) {
-    let row_height = util::max(style::row_height(state), 28.0);
+    let row_height = math::max(style::row_height(state), 28.0);
     let host = window::picker(state, {
         layout_fields::WIDTH: 420.0,
         fields::MARK: node_mark(state),
@@ -493,6 +512,6 @@ fn node_mark(state: editor::State) -> any {
 }
 
 fn apply_rename(state: &mut editor::State) {
-    model::rename_selected(state, state.rename_text);
+    sceneedit::rename_selected(state, state.rename_text);
     rename_close(state);
 }

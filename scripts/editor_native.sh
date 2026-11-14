@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The editor's scripts as native code (docs/PLAN-balaur-script.md §7a, §9 step
-# 7): the exporter builds them to C as it builds a game's, the library goes
+# The editor's scripts as native code (docs/PLAN-balaur-script.md step
+# 1): the exporter builds them to C as it builds a game's, the library goes
 # beside a copy of the binary, and the editor's own states run on it. Fails
 # unless every script ran as native code and every state finished clean.
 #

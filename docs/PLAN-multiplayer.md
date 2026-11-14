@@ -307,7 +307,9 @@ is the bar for every step, as it was for the lockstep tests.
    `session` replay source renamed. Ends with: `examples/multiplayer` played
    by two `balaur run` processes, and the match test over both transports.
 2. **Host.** The host stamps each input with the tick it will run on and
-   rebroadcasts it. Ends with: three players through one host, under loss.
+   rebroadcasts it. `Hello` carries the joiner's `[time] tick_hz`, and a
+   host at another rate sends `Refuse`; today the two desync on the first
+   digest instead. Ends with: three players through one host, under loss.
 3. **Server.** `balaur run --server`: headless, no slot, ordering inputs,
    simulating, keeping the input history, and comparing every client's
    digest to its own. A client whose digest differs is told and dropped.

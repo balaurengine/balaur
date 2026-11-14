@@ -21,11 +21,6 @@ use i_overlay::float::overlay::{FloatOverlay, OverlayOptions};
 
 use balaur_core::engine::Engine;
 
-const AREA: &str = "area";
-const CONTAINS: &str = "contains";
-const CONVEX_HULL: &str = "convex_hull";
-const IS_CLOCKWISE: &str = "is_clockwise";
-const SEGMENTS_INTERSECT: &str = "segments_intersect";
 const TRIANGULATE: &str = "triangulate";
 
 /// A pixel index as the coordinate the boundary walk counts in, which reaches
@@ -246,72 +241,6 @@ fn doubled_area(points: &[Vec2]) -> f32 {
             a.x * b.y - b.x * a.y
         })
         .sum()
-}
-
-/// Ray casting: a point on an edge counts as inside.
-fn contains(points: &[Vec2], p: Vec2) -> bool {
-    let n = points.len();
-    if n < 3 {
-        return false;
-    }
-    let mut inside = false;
-    let mut j = n - 1;
-    for i in 0..n {
-        let (a, b) = (points[i], points[j]);
-        if (a.y > p.y) != (b.y > p.y) {
-            let x = (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x;
-            if p.x < x {
-                inside = !inside;
-            }
-        }
-        j = i;
-    }
-    inside
-}
-
-/// Where two segments cross, if they do; touching at an endpoint counts.
-fn segments_intersect(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2) -> Option<Vec2> {
-    let r = a2 - a1;
-    let s = b2 - b1;
-    let denominator = r.x * s.y - r.y * s.x;
-    if denominator.abs() <= f32::EPSILON {
-        return None;
-    }
-    let q = b1 - a1;
-    let t = (q.x * s.y - q.y * s.x) / denominator;
-    let u = (q.x * r.y - q.y * r.x) / denominator;
-    ((0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u)).then(|| a1 + r * t)
-}
-
-/// Andrew's monotone chain, counter-clockwise, no three collinear.
-fn convex_hull(points: &[Vec2]) -> Vec<Vec2> {
-    let mut sorted: Vec<Vec2> = points.to_vec();
-    sorted.sort_by(|a, b| {
-        a.x.partial_cmp(&b.x)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then(a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal))
-    });
-    sorted.dedup();
-    if sorted.len() < 3 {
-        return sorted;
-    }
-    let cross = |o: Vec2, a: Vec2, b: Vec2| (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-    let mut hull: Vec<Vec2> = Vec::with_capacity(sorted.len() * 2);
-    for &p in &sorted {
-        while hull.len() >= 2 && cross(hull[hull.len() - 2], hull[hull.len() - 1], p) <= 0.0 {
-            hull.pop();
-        }
-        hull.push(p);
-    }
-    let lower = hull.len() + 1;
-    for &p in sorted.iter().rev().skip(1) {
-        while hull.len() >= lower && cross(hull[hull.len() - 2], hull[hull.len() - 1], p) <= 0.0 {
-            hull.pop();
-        }
-        hull.push(p);
-    }
-    hull.pop();
-    hull
 }
 
 /// The words a boolean of outlines spells: its operations, its fill rules,
@@ -587,7 +516,7 @@ fn boolean(a: &[Vec2], b: &[Vec2], op: Op2d, options: BooleanOptions) -> Value {
 }
 
 /// What each boolean call does, for its line in the reference.
-const BOOLEAN_DOCS: [(Op2d, &str); 5] = [
+const BOOLEAN_DOCS: [(Op2d, &str); 4] = [
     (
         Op2d::Union,
         "Everything inside either polygon: a list of shapes, each a list of paths whose first is the outline and the rest holes. `opts` takes `fill_rule` (`even_odd`, `non_zero`, `positive`, `negative`; `even_odd` unless given), `min_area`, `keep_collinear` and `clean_result`, as `boolean2d` does.",
@@ -603,10 +532,6 @@ const BOOLEAN_DOCS: [(Op2d, &str); 5] = [
     (
         Op2d::SymmetricDifference,
         "Everything inside exactly one of the two polygons, shaped and tuned as `union` is.",
-    ),
-    (
-        Op2d::ReverseDifference,
-        "Everything inside the second polygon and outside the first, shaped and tuned as `union` is.",
     ),
 ];
 
@@ -639,11 +564,6 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
     );
     m.describe(&[
         (TRIANGULATE, &[], "(polygon: [Vec2]) -> [[int]]", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted."),
-        (CONTAINS, &[], "(polygon: [Vec2], point: Vec2) -> bool", "Whether a point lies inside the polygon; a point on an edge counts as inside."),
-        (SEGMENTS_INTERSECT, &[], "(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2) -> Vec2?", "Where two segments cross, or nil when they do not; touching at an endpoint counts."),
-        (AREA, &[], "(polygon: [Vec2]) -> float", "The polygon's area, always positive whatever its winding."),
-        (IS_CLOCKWISE, &[], "(polygon: [Vec2]) -> bool", "Whether the points run clockwise, with y up."),
-        (CONVEX_HULL, &[], "(points: [Vec2]) -> [Vec2]", "The smallest convex polygon around the points, counter-clockwise."),
     ]);
     m.function(TRIANGULATE, |_: &Engine, polygon: Value| {
         let points = polygon_of(&polygon)?;
@@ -661,30 +581,6 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
                 })
                 .collect(),
         ))
-    });
-    m.function(CONTAINS, |_: &Engine, (polygon, point): (Value, Value)| {
-        Ok(contains(&polygon_of(&polygon)?, point_of(&point)?))
-    });
-    m.function(
-        SEGMENTS_INTERSECT,
-        |_: &Engine, (a1, a2, b1, b2): (Value, Value, Value, Value)| {
-            let hit = segments_intersect(
-                point_of(&a1)?,
-                point_of(&a2)?,
-                point_of(&b1)?,
-                point_of(&b2)?,
-            );
-            Ok(hit.map_or(Value::Nil, |p| Value::Vec2([p.x, p.y])))
-        },
-    );
-    m.function(AREA, |_: &Engine, polygon: Value| {
-        Ok(f64::from(doubled_area(&polygon_of(&polygon)?).abs() / 2.0))
-    });
-    m.function(IS_CLOCKWISE, |_: &Engine, polygon: Value| {
-        Ok(doubled_area(&polygon_of(&polygon)?) < 0.0)
-    });
-    m.function(CONVEX_HULL, |_: &Engine, points: Value| {
-        Ok(polygon_value(&convex_hull(&polygon_of(&points)?)))
     });
     install_boolean_api(m);
 }
@@ -726,43 +622,6 @@ mod tests {
             Vec2::new(x + side, y + side),
             Vec2::new(x, y + side),
         ]
-    }
-
-    #[test]
-    fn a_point_inside_a_square_is_contained_and_one_outside_is_not() {
-        let s = square(0.0, 0.0, 2.0);
-        assert!(contains(&s, Vec2::new(1.0, 1.0)));
-        assert!(!contains(&s, Vec2::new(3.0, 1.0)));
-    }
-
-    #[test]
-    fn crossing_segments_meet_where_they_should() {
-        let hit = segments_intersect(
-            Vec2::new(0.0, 0.0),
-            Vec2::new(2.0, 2.0),
-            Vec2::new(0.0, 2.0),
-            Vec2::new(2.0, 0.0),
-        )
-        .unwrap();
-        assert!((hit - Vec2::new(1.0, 1.0)).length() < 1e-6);
-        assert!(
-            segments_intersect(
-                Vec2::new(0.0, 0.0),
-                Vec2::new(1.0, 0.0),
-                Vec2::new(0.0, 1.0),
-                Vec2::new(1.0, 1.0)
-            )
-            .is_none()
-        );
-    }
-
-    #[test]
-    fn the_hull_of_a_square_with_a_point_inside_is_the_square() {
-        let mut points = square(0.0, 0.0, 2.0);
-        points.push(Vec2::new(1.0, 1.0));
-        let hull = convex_hull(&points);
-        assert_eq!(hull.len(), 4);
-        assert!(doubled_area(&hull) > 0.0, "counter-clockwise");
     }
 
     #[test]

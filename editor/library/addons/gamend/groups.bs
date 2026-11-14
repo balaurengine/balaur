@@ -8,301 +8,331 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Accept a group invitation
 /// `POST /api/v1/groups/invitations/{invite_id}/accept`
-pub fn accept_group_invite(invite_id: str) -> int {
+pub async fn accept_group_invite(invite_id: str) -> any {
     if invite_id == "" {
         return core::missing("gamend::groups::accept_group_invite", "invite_id");
     }
-    core::rest("POST", "/api/v1/groups/invitations/{invite_id}/accept")
+    let reply = await core::rest("POST", "/api/v1/groups/invitations/{invite_id}/accept");
+    reply
 }
 
 /// Approve a join request (admin only)
 /// `POST /api/v1/groups/{id}/join_requests/{request_id}/approve`
-pub fn approve_join_request(id: str, request_id: str) -> int {
+pub async fn approve_join_request(id: str, request_id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::approve_join_request", "id");
     }
     if request_id == "" {
         return core::missing("gamend::groups::approve_join_request", "request_id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/join_requests/{request_id}/approve")
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/join_requests/{request_id}/approve");
+    reply
 }
 
 /// Cancel a pending group invitation
 /// `DELETE /api/v1/groups/sent_invitations/{invite_id}`
-pub fn cancel_group_invite(invite_id: str) -> int {
+pub async fn cancel_group_invite(invite_id: str) -> any {
     if invite_id == "" {
         return core::missing("gamend::groups::cancel_group_invite", "invite_id");
     }
-    core::rest("DELETE", "/api/v1/groups/sent_invitations/{invite_id}")
+    let reply = await core::rest("DELETE", "/api/v1/groups/sent_invitations/{invite_id}");
+    reply
 }
 
 /// Cancel your own pending join request
 /// `DELETE /api/v1/groups/{id}/join_requests/{request_id}`
-pub fn cancel_join_request(id: str, request_id: str) -> int {
+pub async fn cancel_join_request(id: str, request_id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::cancel_join_request", "id");
     }
     if request_id == "" {
         return core::missing("gamend::groups::cancel_join_request", "request_id");
     }
-    core::rest("DELETE", "/api/v1/groups/{id}/join_requests/{request_id}")
+    let reply = await core::rest("DELETE", "/api/v1/groups/{id}/join_requests/{request_id}");
+    reply
 }
 
 /// Create a group
 /// `POST /api/v1/groups`
-pub fn create_group(params: any) -> int {
+pub async fn create_group(params: any) -> any {
     if !core::given(params, "title") {
         return core::missing("gamend::groups::create_group", "title");
     }
-    core::rest("POST", "/api/v1/groups", params)
+    let reply = await core::rest("POST", "/api/v1/groups", params);
+    reply
 }
 
 /// Request a group icon upload ticket (admin only)
 /// `POST /api/v1/groups/{id}/icon/upload_url`
-pub fn create_group_icon_upload_url(id: str, params: any) -> int {
+pub async fn create_group_icon_upload_url(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::create_group_icon_upload_url", "id");
     }
     if !core::given(params, "content_type") {
         return core::missing("gamend::groups::create_group_icon_upload_url", "content_type");
     }
-    core::rest("POST", "/api/v1/groups/{id}/icon/upload_url", params)
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/icon/upload_url", params);
+    reply
 }
 
 /// Make a group's invite link (admin only)
 /// `POST /api/v1/groups/{id}/invite_link`
-pub fn create_group_invite_link(id: str) -> int {
+pub async fn create_group_invite_link(id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::create_group_invite_link", "id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/invite_link")
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/invite_link");
+    reply
 }
 
 /// Decline a group invitation
 /// `POST /api/v1/groups/invitations/{invite_id}/decline`
-pub fn decline_group_invite(invite_id: str) -> int {
+pub async fn decline_group_invite(invite_id: str) -> any {
     if invite_id == "" {
         return core::missing("gamend::groups::decline_group_invite", "invite_id");
     }
-    core::rest("POST", "/api/v1/groups/invitations/{invite_id}/decline")
+    let reply = await core::rest("POST", "/api/v1/groups/invitations/{invite_id}/decline");
+    reply
 }
 
 /// Delete a group (admin only)
 /// `DELETE /api/v1/groups/{id}`
-pub fn delete_group(id: str) -> int {
+pub async fn delete_group(id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::delete_group", "id");
     }
-    core::rest("DELETE", "/api/v1/groups/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/groups/{id}");
+    reply
 }
 
 /// Turn a group's invite link off (admin only)
 /// `DELETE /api/v1/groups/{id}/invite_link`
-pub fn delete_group_invite_link(id: str) -> int {
+pub async fn delete_group_invite_link(id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::delete_group_invite_link", "id");
     }
-    core::rest("DELETE", "/api/v1/groups/{id}/invite_link")
+    let reply = await core::rest("DELETE", "/api/v1/groups/{id}/invite_link");
+    reply
 }
 
 /// Demote admin to member
 /// `POST /api/v1/groups/{id}/demote`
-pub fn demote_group_member(id: str, params: any) -> int {
+pub async fn demote_group_member(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::demote_group_member", "id");
     }
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::groups::demote_group_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/demote", params)
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/demote", params);
+    reply
 }
 
 /// Get group details
 /// `GET /api/v1/groups/{id}`
-pub fn get_group(id: str) -> int {
+pub async fn get_group(id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::get_group", "id");
     }
-    core::rest("GET", "/api/v1/groups/{id}")
+    let reply = await core::rest("GET", "/api/v1/groups/{id}");
+    reply
 }
 
 /// Get a group's invite link (admin only)
 /// `GET /api/v1/groups/{id}/invite_link`
-pub fn get_group_invite_link(id: str) -> int {
+pub async fn get_group_invite_link(id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::get_group_invite_link", "id");
     }
-    core::rest("GET", "/api/v1/groups/{id}/invite_link")
+    let reply = await core::rest("GET", "/api/v1/groups/{id}/invite_link");
+    reply
 }
 
 /// Invite a user to a group (admin only)
 /// `POST /api/v1/groups/{id}/invite`
-pub fn invite_to_group(id: str, params: any) -> int {
+pub async fn invite_to_group(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::invite_to_group", "id");
     }
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::groups::invite_to_group", "target_user_id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/invite", params)
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/invite", params);
+    reply
 }
 
 /// Join a group
 /// `POST /api/v1/groups/{id}/join`
-pub fn join_group(id: str) -> int {
+pub async fn join_group(id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::join_group", "id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/join")
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/join");
+    reply
 }
 
 /// Join a group through its invite link
 /// `POST /api/v1/groups/invite_links/{token}/join`
-pub fn join_group_by_invite_link(token: str) -> int {
+pub async fn join_group_by_invite_link(token: str) -> any {
     if token == "" {
         return core::missing("gamend::groups::join_group_by_invite_link", "token");
     }
-    core::rest("POST", "/api/v1/groups/invite_links/{token}/join")
+    let reply = await core::rest("POST", "/api/v1/groups/invite_links/{token}/join");
+    reply
 }
 
 /// Kick a member (admin only)
 /// `POST /api/v1/groups/{id}/kick`
-pub fn kick_group_member(id: str, params: any) -> int {
+pub async fn kick_group_member(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::kick_group_member", "id");
     }
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::groups::kick_group_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/kick", params)
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/kick", params);
+    reply
 }
 
 /// Leave a group
 /// `POST /api/v1/groups/{id}/leave`
-pub fn leave_group(id: str) -> int {
+pub async fn leave_group(id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::leave_group", "id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/leave")
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/leave");
+    reply
 }
 
 /// List my group invitations
 /// `GET /api/v1/groups/invitations`
-pub fn list_group_invitations(options: any) -> int {
+pub async fn list_group_invitations(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/groups/invitations{query}")
+    let reply = await core::rest("GET", "/api/v1/groups/invitations{query}");
+    reply
 }
 
 /// List a group's pending invitations (admin only)
 /// `GET /api/v1/groups/{id}/invites`
-pub fn list_group_invites(id: str, options: any) -> int {
+pub async fn list_group_invites(id: str, options: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::list_group_invites", "id");
     }
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/groups/{id}/invites{query}")
+    let reply = await core::rest("GET", "/api/v1/groups/{id}/invites{query}");
+    reply
 }
 
 /// List group members
 /// `GET /api/v1/groups/{id}/members`
-pub fn list_group_members(id: str, options: any) -> int {
+pub async fn list_group_members(id: str, options: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::list_group_members", "id");
     }
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/groups/{id}/members{query}")
+    let reply = await core::rest("GET", "/api/v1/groups/{id}/members{query}");
+    reply
 }
 
 /// List groups
 /// `GET /api/v1/groups`
-pub fn list_groups(options: any) -> int {
+pub async fn list_groups(options: any) -> any {
     let query = core::query(options, ["title", "type", "min_members", "max_members", "metadata_key", "metadata_value", "page", "page_size"]);
-    core::rest("GET", "/api/v1/groups{query}")
+    let reply = await core::rest("GET", "/api/v1/groups{query}");
+    reply
 }
 
 /// List pending join requests (admin only)
 /// `GET /api/v1/groups/{id}/join_requests`
-pub fn list_join_requests(id: str, options: any) -> int {
+pub async fn list_join_requests(id: str, options: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::list_join_requests", "id");
     }
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/groups/{id}/join_requests{query}")
+    let reply = await core::rest("GET", "/api/v1/groups/{id}/join_requests{query}");
+    reply
 }
 
 /// List groups I belong to
 /// `GET /api/v1/groups/me`
-pub fn list_my_groups(options: any) -> int {
+pub async fn list_my_groups(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/groups/me{query}")
+    let reply = await core::rest("GET", "/api/v1/groups/me{query}");
+    reply
 }
 
 /// List group invitations I have sent
 /// `GET /api/v1/groups/sent_invitations`
-pub fn list_sent_invitations(options: any) -> int {
+pub async fn list_sent_invitations(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/groups/sent_invitations{query}")
+    let reply = await core::rest("GET", "/api/v1/groups/sent_invitations{query}");
+    reply
 }
 
 /// See the group an invite link opens
 /// `GET /api/v1/groups/invite_links/{token}`
-pub fn preview_group_invite_link(token: str) -> int {
+pub async fn preview_group_invite_link(token: str) -> any {
     if token == "" {
         return core::missing("gamend::groups::preview_group_invite_link", "token");
     }
-    core::rest("GET", "/api/v1/groups/invite_links/{token}")
+    let reply = await core::rest("GET", "/api/v1/groups/invite_links/{token}");
+    reply
 }
 
 /// Promote member to admin
 /// `POST /api/v1/groups/{id}/promote`
-pub fn promote_group_member(id: str, params: any) -> int {
+pub async fn promote_group_member(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::promote_group_member", "id");
     }
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::groups::promote_group_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/promote", params)
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/promote", params);
+    reply
 }
 
 /// Reject a join request (admin only)
 /// `POST /api/v1/groups/{id}/join_requests/{request_id}/reject`
-pub fn reject_join_request(id: str, request_id: str) -> int {
+pub async fn reject_join_request(id: str, request_id: str) -> any {
     if id == "" {
         return core::missing("gamend::groups::reject_join_request", "id");
     }
     if request_id == "" {
         return core::missing("gamend::groups::reject_join_request", "request_id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/join_requests/{request_id}/reject")
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/join_requests/{request_id}/reject");
+    reply
 }
 
 /// Confirm an uploaded group icon (admin only)
 /// `POST /api/v1/groups/{id}/icon`
-pub fn set_group_icon(id: str, params: any) -> int {
+pub async fn set_group_icon(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::set_group_icon", "id");
     }
     if !core::given(params, "key") {
         return core::missing("gamend::groups::set_group_icon", "key");
     }
-    core::rest("POST", "/api/v1/groups/{id}/icon", params)
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/icon", params);
+    reply
 }
 
 /// Update a group (admin only)
 /// `PATCH /api/v1/groups/{id}`
-pub fn update_group(id: str, params: any) -> int {
+pub async fn update_group(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::groups::update_group", "id");
     }
-    core::rest("PATCH", "/api/v1/groups/{id}", params)
+    let reply = await core::rest("PATCH", "/api/v1/groups/{id}", params);
+    reply
 }

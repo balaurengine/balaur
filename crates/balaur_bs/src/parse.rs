@@ -1,9 +1,11 @@
 use crate::Error;
 use crate::ast::{
-    Arm, BinOp, Block, EnumDecl, EventDecl, Expr, ExprKind, ExternDecl, Field, FnDecl, Param, Part,
-    Pattern, Pos, Program, Stmt, StmtKind, Ty, UnOp, Variant,
+    BinOp, Block, EnumDecl, EventDecl, Expr, ExprKind, ExternDecl, Field, FnDecl, Param, Part, Pos,
+    Program, Stmt, StmtKind, Ty, UnOp, Variant,
 };
 use crate::vocabulary::words;
+
+mod patterns;
 
 const MUT: &str = "mut";
 
@@ -17,10 +19,11 @@ pub(crate) enum Tok {
     Eof,
 }
 
-pub(crate) const PUNCT: [&str; 36] = [
-    "..", "->", "=>", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "::", "(",
-    ")", "{", "}", "[", "]", ",", ";", ":", ".", "&", "+", "-", "*", "/", "%", "=", "<", ">", "!",
-    "?",
+// Longest first: a lexer takes the first that matches.
+pub(crate) const PUNCT: [&str; 46] = [
+    "<<=", ">>=", "..", "->", "=>", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=",
+    "%=", "&=", "|=", "^=", "<<", ">>", "::", "(", ")", "{", "}", "[", "]", ",", ";", ":", ".",
+    "&", "|", "^", "~", "+", "-", "*", "/", "%", "=", "<", ">", "!", "?",
 ];
 
 fn err<T>(pos: Pos, msg: impl Into<String>) -> Result<T, Error> {
@@ -259,7 +262,7 @@ pub(crate) fn parse(src: &str) -> Result<Program, Error> {
 }
 
 /// The `///` lines directly above 1-based `line`, as one line of text.
-fn doc_above(lines: &[&str], line: u32) -> String {
+pub(crate) fn doc_above(lines: &[&str], line: u32) -> String {
     let mut doc = vec![];
     let mut at = (line as usize).saturating_sub(1).min(lines.len());
     while at > 0 {
@@ -549,73 +552,6 @@ impl Parser {
         Ok(())
     }
 
-    // `_`, or a variant's path with what its fields are bound to.
-    fn pattern(&mut self) -> Result<Pattern, Error> {
-        if self.eat_kw("_") {
-            return Ok(Pattern::Any);
-        }
-        let mut path = self.ident()?;
-        while self.eat("::") {
-            path = format!("{path}::{}", self.ident()?);
-        }
-        if !path.contains("::") && !self.is("(") && !self.is("{") {
-            return Ok(Pattern::Bind(path));
-        }
-        let mut binds = Vec::new();
-        if self.eat("(") {
-            while !self.eat(")") {
-                binds.push((binds.len().to_string(), self.ident()?));
-                if !self.eat(",") {
-                    self.want(")")?;
-                    break;
-                }
-            }
-        } else if self.eat("{") {
-            while !self.eat("}") {
-                let field = self.ident()?;
-                let bound = if self.eat(":") {
-                    self.ident()?
-                } else {
-                    field.clone()
-                };
-                binds.push((field, bound));
-                if !self.eat(",") {
-                    self.want("}")?;
-                    break;
-                }
-            }
-        }
-        Ok(Pattern::Variant { path, binds })
-    }
-
-    // `match subject { pattern => value, .. }`, past `match`.
-    fn match_expr(&mut self) -> Result<ExprKind, Error> {
-        let subject = self.expr(true)?;
-        self.want("{")?;
-        let mut arms = Vec::new();
-        while !self.eat("}") {
-            let pos = self.pos();
-            let pattern = self.pattern()?;
-            self.want("=>")?;
-            let body = if self.is("{") {
-                let at = self.pos();
-                Expr {
-                    kind: ExprKind::Block(self.block()?),
-                    pos: at,
-                }
-            } else {
-                self.expr(false)?
-            };
-            let ends = matches!(body.kind, ExprKind::Block(_));
-            arms.push(Arm { pattern, body, pos });
-            if !self.eat(",") && !ends {
-                self.want("}")?;
-                break;
-            }
-        }
-        Ok(ExprKind::Match(Box::new(subject), arms))
-    }
-
     fn nil(&mut self) -> Result<ExprKind, Error> {
         if matches!(self.peek_at(1), Tok::P("(")) {
             return Err(Error {
@@ -808,7 +744,8 @@ impl Parser {
                 self.want(";")?;
                 StmtKind::Continue
             } else {
-                let block_like = self.is_kw(words::keywords::IF);
+                let block_like =
+                    self.is_kw(words::keywords::IF) || self.is_kw(words::keywords::MATCH);
                 let e = self.expr(false)?;
                 let op = match self.peek() {
                     Tok::P("=") => Some(None),
@@ -817,6 +754,11 @@ impl Parser {
                     Tok::P("*=") => Some(Some(BinOp::Mul)),
                     Tok::P("/=") => Some(Some(BinOp::Div)),
                     Tok::P("%=") => Some(Some(BinOp::Rem)),
+                    Tok::P("&=") => Some(Some(BinOp::BitAnd)),
+                    Tok::P("|=") => Some(Some(BinOp::BitOr)),
+                    Tok::P("^=") => Some(Some(BinOp::BitXor)),
+                    Tok::P("<<=") => Some(Some(BinOp::Shl)),
+                    Tok::P(">>=") => Some(Some(BinOp::Shr)),
                     _ => None,
                 };
                 if let Some(op) = op {
@@ -863,6 +805,7 @@ impl Parser {
     fn binary(&mut self, min: u8, ns: bool) -> Result<Expr, Error> {
         let mut lhs = self.unary(ns)?;
         loop {
+            // Rust's order: the bit operators sit between a comparison and `+`.
             let (op, prec) = match self.peek() {
                 Tok::P("||") => (BinOp::Or, 1),
                 Tok::P("&&") => (BinOp::And, 2),
@@ -872,11 +815,16 @@ impl Parser {
                 Tok::P("<=") => (BinOp::Le, 3),
                 Tok::P(">") => (BinOp::Gt, 3),
                 Tok::P(">=") => (BinOp::Ge, 3),
-                Tok::P("+") => (BinOp::Add, 4),
-                Tok::P("-") => (BinOp::Sub, 4),
-                Tok::P("*") => (BinOp::Mul, 5),
-                Tok::P("/") => (BinOp::Div, 5),
-                Tok::P("%") => (BinOp::Rem, 5),
+                Tok::P("|") => (BinOp::BitOr, 4),
+                Tok::P("^") => (BinOp::BitXor, 5),
+                Tok::P("&") => (BinOp::BitAnd, 6),
+                Tok::P("<<") => (BinOp::Shl, 7),
+                Tok::P(">>") => (BinOp::Shr, 7),
+                Tok::P("+") => (BinOp::Add, 8),
+                Tok::P("-") => (BinOp::Sub, 8),
+                Tok::P("*") => (BinOp::Mul, 9),
+                Tok::P("/") => (BinOp::Div, 9),
+                Tok::P("%") => (BinOp::Rem, 9),
                 _ => break,
             };
             if prec < min {
@@ -909,6 +857,12 @@ impl Parser {
         if self.eat("!") {
             return Ok(Expr {
                 kind: ExprKind::Unary(UnOp::Not, Box::new(self.unary(ns)?)),
+                pos,
+            });
+        }
+        if self.eat("~") {
+            return Ok(Expr {
+                kind: ExprKind::Unary(UnOp::BitNot, Box::new(self.unary(ns)?)),
                 pos,
             });
         }

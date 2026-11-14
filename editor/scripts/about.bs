@@ -6,6 +6,7 @@ use editor;
 use form;
 use manager;
 use util;
+use versions;
 use window;
 use words::fields;
 use words::general;
@@ -29,7 +30,7 @@ const LABEL_WIDTH: float = 96.0;
 pub fn open(state: &mut editor::State) {
     window::show(state, SHEET);
     if !state.manager.asked && !manager::in_tab() {
-        manager::check(state);
+        versions::check(state);
     }
 }
 
@@ -64,7 +65,7 @@ fn specs(state: editor::State) -> [form::Row] {
                     role: "layout_about",
                     controls: [
                         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, text: "Balaur " + mine[fields::VERSION].as_str() },
-                        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: manager::build_line(mine) },
+                        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: versions::build_line(mine) },
                     ],
                 },
             ],
@@ -129,7 +130,7 @@ fn update_rows(state: editor::State, mine: any, out: [form::Row]) {
     let tokens = state.theme;
     // A source build follows no line; the nightly is what it is nearest to.
     let line = if mine[log_fields::CHANNEL].as_str() == "" { "nightly" } else { mine[log_fields::CHANNEL].as_str() };
-    let newest = manager::newest_on(state, line);
+    let newest = versions::newest_on(state, line);
     let fresh = newest[fields::ORDER].as_str() == statuses::NEWER;
     let controls: [ui::Control] = [
         ui::Control {
@@ -137,13 +138,13 @@ fn update_rows(state: editor::State, mine: any, out: [form::Row]) {
             role: roles::TEXT_CODE,
             font_size: 11,
             grow: 1,
-            text: line + ": " + manager::standing(state, line),
+            text: line + ": " + versions::standing(state, line),
             text_color: (if fresh { tokens[theme_tokens::SUCCESS_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str(),
         },
     ];
     // Up to date already says it; only a release to move to gets a press.
     if newest[fields::ID].as_str() != "" && newest[fields::ORDER].as_str() != statuses::SAME {
-        let press = manager::press_spec(state, newest, mine);
+        let press = versions::press_spec(state, newest, mine);
         if press != nil {
             controls.push(press.unwrap());
         }
@@ -163,17 +164,17 @@ fn update_rows(state: editor::State, mine: any, out: [form::Row]) {
     if said != "" {
         out.push(say(said, (if state.manager.failed != "" { tokens[theme_tokens::WARNING_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str()));
     }
-    if manager::installing(state) {
+    if versions::installing(state) {
         out.push(form::Row {
             height: 22,
             slot_role: roles::LAYOUT_ACTIONS,
-            controls: manager::progress_controls(state),
+            controls: versions::progress_controls(state),
         });
     }
 }
 
 fn on_check_clicked(state: &mut editor::State, data: any, _value: any) {
-    manager::check(state);
+    versions::check(state);
 }
 
 fn say(text: str, ink: str) -> form::Row {

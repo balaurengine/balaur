@@ -9,6 +9,7 @@ use model;
 use pool;
 use presets;
 use recipes;
+use sceneedit;
 use search;
 use style;
 use textedit;
@@ -150,7 +151,7 @@ pub fn place(state: &mut editor::State, row: Entry) {
 /// Add a node of `kind` under the selection: a text opens ready to type
 /// over, its words selected.
 pub fn add(state: &mut editor::State, kind: str) {
-    model::add_child(state, kind);
+    sceneedit::add_child(state, kind);
     textedit::open_added(state);
 }
 
@@ -167,7 +168,7 @@ pub fn place_source(state: &mut editor::State, source: Entry) {
 
 /// Fill the picker: what its script asks for while the node picker is up.
 pub fn fill(state: &mut editor::State) {
-    let row_height = util::max(style::row_height(state), 30.0);
+    let row_height = math::max(style::row_height(state), 30.0);
     let specs = if state.newnode_soft != "" { source_specs(state, state.theme, row_height) } else { row_specs(state, state.theme, row_height) };
     let placeholder = if state.newnode_soft != "" {
         "Build the soft body from a shape or a file…"
@@ -251,7 +252,7 @@ fn tint_of(tokens: any, token: str) -> str {
 }
 
 fn add_empty(state: &mut editor::State, _data: any, _value: any) {
-    model::add_child(state);
+    sceneedit::add_child(state);
     close(state);
 }
 

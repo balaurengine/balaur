@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # What one engine call from a script costs, in instructions retired, which hold
-# still at any load where time does not (PLAN-balaur-script §9): a thousand calls
+# still at any load where time does not (PLAN-balaur-script): a thousand calls
 # a frame over FRAMES frames, less a loop of the same length that calls nothing,
 # each after a run that fills the compile cache. macOS's `/usr/bin/time -l` counts.
 #

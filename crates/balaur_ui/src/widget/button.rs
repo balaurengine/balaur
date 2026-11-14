@@ -59,7 +59,7 @@ fn face_of(
         0.0
     };
     // A shortcut draws itself the way the platform writes it, so a row that
-    // says `cmd+s` needs no second spelling of it beside the caption.
+    // says `cmd+KeyS` needs no second spelling of it beside the caption.
     let shown = if widget.trailing.is_empty() {
         crate::chord::chord_shown(ui.ctx(), &widget.shortcut)
     } else {

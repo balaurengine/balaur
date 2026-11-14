@@ -77,35 +77,69 @@ pub(crate) struct Chord {
     key: String,
 }
 
+/// A chord as `[input.actions]` spells it, `cmd+shift+KeyS`: the modifiers
+/// it holds and its key's W3C code. A widget's `shortcut` reads the same
+/// spelling through it, so a chord is written one way everywhere.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one switch a modifier, as a chord is written"
+)]
+pub struct ChordParts<'a> {
+    pub cmd: bool,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub key: &'a str,
+}
+
+/// Read a chord, or say why it is not one: a key name with any of `cmd`,
+/// `ctrl`, `alt` and `shift` before it, joined by `+`.
+///
+/// # Errors
+/// A key that is no W3C code, or a modifier that is none of the four.
+pub fn chord_parts(text: &str) -> Result<ChordParts<'_>, String> {
+    let (held, key) = match text.rsplit_once('+') {
+        Some((held, key)) => (Some(held), key.trim()),
+        None => (None, text.trim()),
+    };
+    if !crate::is_known_key(key) {
+        return Err(format!("'{key}' is not a key name"));
+    }
+    let mut chord = ChordParts {
+        cmd: false,
+        ctrl: false,
+        alt: false,
+        shift: false,
+        key,
+    };
+    for part in held.into_iter().flat_map(|held| held.split('+')) {
+        let held = match part.trim() {
+            words::bindings::CMD => &mut chord.cmd,
+            words::bindings::CTRL => &mut chord.ctrl,
+            words::bindings::ALT => &mut chord.alt,
+            words::bindings::SHIFT => &mut chord.shift,
+            other => {
+                return Err(format!(
+                    "'{other}' is not a modifier: cmd, ctrl, alt or shift"
+                ));
+            }
+        };
+        *held = true;
+    }
+    Ok(chord)
+}
+
 impl Chord {
     fn parse(text: &str) -> Result<Self, String> {
-        let mut parts: Vec<&str> = text.split('+').map(str::trim).collect();
-        let key = parts.pop().unwrap_or_default();
-        if !crate::is_known_key(key) {
-            return Err(format!("'{key}' is not a key name"));
-        }
-        let mut chord = Self {
-            cmd: false,
-            ctrl: false,
-            alt: false,
-            shift: false,
-            key: key.to_string(),
-        };
-        for part in parts {
-            let held = match part {
-                words::bindings::CMD => &mut chord.cmd,
-                words::bindings::CTRL => &mut chord.ctrl,
-                words::bindings::ALT => &mut chord.alt,
-                words::bindings::SHIFT => &mut chord.shift,
-                other => {
-                    return Err(format!(
-                        "'{other}' is not a modifier: cmd, ctrl, alt or shift"
-                    ));
-                }
-            };
-            *held = true;
-        }
-        Ok(chord)
+        let parts = chord_parts(text)?;
+        Ok(Self {
+            cmd: parts.cmd,
+            ctrl: parts.ctrl,
+            alt: parts.alt,
+            shift: parts.shift,
+            key: parts.key.to_string(),
+        })
     }
 
     /// Whether the key is down with exactly these modifiers, so `cmd+KeyZ`
@@ -607,6 +641,8 @@ fn save_rebindings(eng: &Engine, actions: &InputActions) {
 
 /// Warn once per action nobody declared, the way an unknown key does.
 fn check_action(eng: &Engine, name: &str) {
+    // A script's `init` asks before the first tick has loaded the table.
+    ensure_loaded(eng);
     if eng.resource::<InputActions>().borrow().is_declared(name) {
         return;
     }
@@ -648,6 +684,7 @@ pub(crate) fn install_actions(m: &mut Module<Engine>) {
     );
     // Every declared action, so a rebinding screen can list them.
     m.function(ACTIONS, |eng: &Engine, ()| {
+        ensure_loaded(eng);
         let names = eng.resource::<InputActions>().borrow().names();
         Ok(Value::List(names.into_iter().map(Value::text).collect()))
     });

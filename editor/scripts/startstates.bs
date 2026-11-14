@@ -1,0 +1,519 @@
+// The start-up states `--state` names: a workspace, a tool, a panel, a
+// theme, a self-test or a showcase, each putting the editor where a check or a
+// picture wants it.
+
+use about;
+use anim;
+use defs;
+use disk;
+use docks;
+use dropin;
+use editor;
+use exporter;
+use manager;
+use model;
+use newnode;
+use plugins;
+use polygon;
+use populate;
+use selection;
+use selftest;
+use settings;
+use shell;
+use showcase;
+use signals;
+use statemachine;
+use suite;
+use tests::scene_checks;
+use tests::tool_checks;
+use tests::viewport_checks;
+use tests::panel_checks;
+use tests::shell_checks;
+use tests::project_checks;
+use theme;
+use themewin;
+use tiles;
+use util;
+use panels::scene_tree;
+use words::changes;
+use words::dock_fields;
+use words::fields;
+use words::hooks;
+use words::layout_fields;
+use words::panel_keys;
+use words::project_fields;
+use words::sides;
+use words::tabs;
+use words::tools;
+use words::verbs;
+
+const ASSETS: str = "assets";
+const CHROME: str = "chrome";
+const ENGINE: str = "engine";
+const EXPORT: str = "export";
+const INPUT: str = "input";
+const LIGHT: str = "light";
+const MANAGER: str = "manager";
+const ROLES: str = "roles";
+const SET: str = "set";
+
+/// A start-up state written `<prefix><argument>`, and what it runs with the
+/// argument.
+pub struct Prefixed {
+    prefix: str,
+    run: fn(&mut editor::State, str),
+}
+
+fn select_named(state: &mut editor::State, name: str) {
+    for row in 0..state.nodes.len() {
+        if state.nodes[row].name() == name {
+            selection::only(state, row);
+        }
+    }
+}
+
+// One handler per start-up state, looked up rather than branched on, so a
+// self-test or a plugin registers its own.
+fn states() -> any {
+    {
+        "palette": state_palette,
+        "newnode": newnode::open,
+        "test:picker": scene_checks::node_picker,
+        "test:every_node": scene_checks::every_node,
+        "test:rename": scene_checks::rename,
+        "test:autosave": scene_checks::autosaving,
+        "test:disk_changed": scene_checks::disk_changed,
+        disk::SHEET: scene_checks::disk_sheet,
+        LIGHT: state_light,
+        panel_keys::DARK: state_dark,
+        "play": state_play,
+        INPUT: state_input,
+        "pose": state_animdemo,
+        "test:layout": shell_checks::layout,
+        MANAGER: manager::open,
+        "examples": manager::open_examples,
+        "about": about::open,
+        "populate": populate::open,
+        project_fields::THEME: themewin::open,
+        ENGINE: manager::open_versions,
+        "newproject": manager::open_new,
+        "versions": manager::open_versions,
+        "test:manager": project_checks::manager_screen,
+        "test:start_screen": viewport_checks::start_screen,
+        "test:gestures": viewport_checks::gestures,
+        "font_sheet": state_fontdemo,
+        "menu": state_menudemo,
+        "test:undo": scene_checks::undo,
+        "test:populate": scene_checks::populate,
+        "test:marks": scene_checks::tree_marks,
+        "breakpoint": break_demo,
+        "test:rig": tool_checks::rigging,
+        "test:polygons": tool_checks::polygons,
+        "test:weights": tool_checks::weighting,
+        "test:bone_map": tool_checks::bonemap_panel,
+        "test:state_machine": statemachine::selftest,
+        "test:ragdoll": tool_checks::physical_bones,
+        "test:physics": panel_checks::physics_panel,
+        "test:deselect": viewport_checks::deselected,
+        "test:viewport_clicks": viewport_checks::viewport_clicks,
+        "test:camera": viewport_checks::camera_keeps_pointer,
+        "test:tiles": tool_checks::tiles_tool,
+        "test:clipboard": scene_checks::clipboard,
+        "test:assets": project_checks::assets,
+        "test:imports": project_checks::imports,
+        "test:picking": viewport_checks::picking,
+        "test:script_props": panel_checks::script_props,
+        "test:composite_props": panel_checks::composite_props,
+        "test:record_assets": panel_checks::record_assets,
+        "test:system_fonts": project_checks::system_fonts,
+        "test:font_catalogue": project_checks::font_catalogue,
+        "test:script_paths": project_checks::script_paths,
+        "test:instances": scene_checks::instances,
+        "test:timings": shell_checks::timings,
+        "test:profiler": project_checks::profiler,
+        "test:placing": scene_checks::placing,
+        "test:lint": project_checks::linting,
+        "test:tools": project_checks::tooling,
+        "test:recordings": project_checks::sessions,
+        "test:theme_switch": shell_checks::theme_switch,
+        "test:theme_editing": shell_checks::theme_editing,
+        "test:sheet_close": shell_checks::sheet_closing,
+        "test:settings": shell_checks::settings_screen,
+        "test:export_runtime": shell_checks::export_runtime,
+        "test:panels": shell_checks::menu_panels,
+        "test:palette": shell_checks::palette_screen,
+        "test:focus": shell_checks::focusing,
+        "focus": state_focus,
+        "test:selection": scene_checks::selecting,
+        "test:drop": scene_checks::dropping,
+        "test:events": project_checks::eventviews,
+        "test:library": scene_checks::librarydemo,
+        "test:rows": project_checks::row_views,
+        "test:inspector_rows": panel_checks::inspector_rows,
+        "test:pool": panel_checks::pool_kinds,
+        "test:camera_document": viewport_checks::camera_document,
+        "test:picture": selftest::picture,
+        "test:warnings": panel_checks::warning_marks,
+        "test:recipes": panel_checks::soft_recipes,
+        "test:change_types": panel_checks::change_types,
+        "test:import_job": project_checks::importing,
+        "test:pen": tool_checks::pendemo,
+        "test:plugin_docks": project_checks::plugin_docks,
+        "settings": settings::open,
+        EXPORT: exporter::open,
+    }
+}
+
+// States written `<prefix><argument>`, which take the rest of the string.
+fn prefixed_states() -> [Prefixed] {
+    [
+        Prefixed { prefix: "find:", run: state_find },
+        Prefixed { prefix: "suite:", run: suite::begin },
+        Prefixed { prefix: "settings_search:", run: state_settings_search },
+        Prefixed { prefix: "settings:", run: state_settings },
+        Prefixed { prefix: "theme:", run: state_theme },
+        Prefixed { prefix: "wear:", run: state_wear },
+        Prefixed { prefix: "override:", run: state_override },
+        Prefixed { prefix: "frames:", run: state_frames },
+        Prefixed { prefix: "show:", run: state_show },
+        Prefixed { prefix: "tool:", run: state_tool },
+        Prefixed { prefix: "tiles:", run: state_tiles },
+        Prefixed { prefix: "page:", run: state_page },
+        Prefixed { prefix: "palette:", run: state_palette_query },
+        Prefixed { prefix: "dock:", run: state_dock },
+        Prefixed { prefix: "view:", run: state_view },
+        Prefixed { prefix: "asset:", run: state_asset },
+        Prefixed { prefix: "import:", run: state_import },
+        Prefixed { prefix: "imports:", run: state_imports },
+        Prefixed { prefix: "tab:", run: state_tab },
+        Prefixed { prefix: "shut:", run: state_shut },
+        Prefixed { prefix: "scale:", run: state_scale },
+        Prefixed { prefix: "move:", run: state_move },
+        Prefixed { prefix: "mode:", run: state_mode },
+        Prefixed { prefix: "select:", run: state_select },
+        Prefixed { prefix: "add:", run: state_add },
+        Prefixed { prefix: "bench:", run: state_bench },
+        Prefixed { prefix: "zoom:", run: state_zoom },
+    ]
+}
+
+// `focus`: the shell folded round the code, over the first scripted node when
+// the selection has none of its own.
+fn state_focus(state: &mut editor::State) {
+    if !shell::focus_target(state) {
+        shell::select_scripted(state);
+    }
+    shell::toggle_focus(state);
+}
+
+fn state_settings(state: &mut editor::State, category: str) {
+    settings::open_at(state, category);
+}
+
+// `theme:controls` opens the theme window on a page, and `theme:controls:tab`
+// with that role picked.
+// `wear:<name>` wears a theme for this run, leaving the setting alone.
+fn state_wear(state: &mut editor::State, name: str) {
+    theme::use_named(state, name);
+}
+
+fn state_theme(state: &mut editor::State, argument: str) {
+    let parts = argument.split(":");
+    let path = if parts.len() > 1 { [ROLES, parts[1]] } else { [] };
+    themewin::open_at(state, parts[0], path);
+}
+
+fn state_settings_search(state: &mut editor::State, query: str) {
+    settings::open_search(state, query);
+}
+
+// `override:<tag>` picks the settings page's override target, for a screenshot
+// of the rows that add one.
+fn state_override(state: &mut editor::State, tag: str) {
+    state.settings.target = tag;
+}
+
+// `find:<query>` fills the scene tree's search, for a screenshot.
+fn state_find(state: &mut editor::State, query: str) {
+    let panel: scene_tree::SceneTree? = scene::root().get_node("Editor/Shell/Body/Left/LeftSheet/SceneTree").script;
+    if panel != nil {
+        panel.unwrap().find(query);
+    }
+}
+
+// One start-up state, mirroring the design prototype's startWorkspace prop. A
+// plugin may extend a built-in state rather than replace it, so both run.
+pub fn apply_start_state(state: &mut editor::State, start: str) {
+    for one in prefixed_states() {
+        if start.starts_with(one.prefix) {
+            let run = one.run;
+            run(state, start.slice(one.prefix.len(), start.len()));
+            return;
+        }
+    }
+    let ran = false;
+    let found = states()[start];
+    if found != nil {
+        let run: fn(&mut editor::State) = found;
+        run(state);
+        ran = true;
+    }
+    if plugins::has_start_state(state, start) {
+        plugins::run_start_state(state, start);
+        ran = true;
+    }
+    if ran || start == "" {
+        return;
+    }
+    for workspace in defs::workspaces() {
+        if workspace.id == start {
+            state_workspace(state, start);
+            return;
+        }
+    }
+    log::error("--state names '{start}', which is no state");
+}
+
+/// `view:<panel>` brings one panel up and reports the rect it was drawn in,
+/// so a design pass can cut it out of the shot and look at it on its own.
+///
+/// The rect is logged rather than cropped here: the renderer saves whole
+/// frames, and the last line a run logs is all a script needs to cut them up.
+fn state_view(state: &mut editor::State, id: str) {
+    docks::show(state, id);
+    state.view_shot = id;
+}
+
+// Every other frame from frame 30, so a clip is 30 fps and skips the frames
+// the layout takes to settle.
+fn state_frames(state: &mut editor::State, spec: str) {
+    // `directory` or `directory:from:every`; the default skips the start-up frames a
+    // showcase clip does not want, and `0:1` is how the start-up is watched.
+    let parts = spec.split(":");
+    let directory = parts[0];
+    let from = if parts.len() > 1 { parts[1].parse_int() } else { 30 };
+    let every = if parts.len() > 2 { util::int_max(parts[2].parse_int(), 1) } else { 2 };
+    // No `fs::create_directory` here: the directory is the caller's, outside every root
+    // `fs` may reach, and the screenshot makes it on the way past.
+    state.capture = shell::Capture { directory: directory, from: from, every: every, count: 0 };
+}
+
+fn state_input(state: &mut editor::State) {
+    state.show_input = true;
+    signals::changed(state, changes::INPUTVIEW);
+}
+
+fn state_show(state: &mut editor::State, name: str) {
+    showcase::start(state, name);
+}
+
+fn state_tool(state: &mut editor::State, tool: str) {
+    shell::set_tool(state, tool);
+}
+
+// `tab:<id>` picks a document tab; `tab:split` opens the code beside the
+// viewport. Both are shell state a screenshot cannot otherwise reach.
+fn state_tab(state: &mut editor::State, tab: str) {
+    if tab == verbs::SPLIT {
+        state.split = true;
+        signals::bars(state);
+    } else {
+        state.doctab = tab;
+        signals::inspector(state);
+    }
+}
+
+// `page:<dock>/<name>`: the page a plugin dock's sidebar is on, which the kit
+// remembers per dock. The one way in from outside it.
+fn state_page(state: &mut editor::State, argument: str) {
+    let parts = argument.split("/");
+    if parts.len() < 2 {
+        return;
+    }
+    if state.kit_state == nil {
+        state.kit_state = {};
+    }
+    state.kit_state["tab:" + parts[0]] = parts[1];
+}
+
+fn state_fontdemo(state: &mut editor::State) {
+    state.fontdemo = true;
+    shell_checks::font_sheet(state);
+}
+
+fn state_menudemo(state: &mut editor::State) {
+    state.menu_open = true;
+    signals::bars(state);
+}
+
+// `scale:<f>`: the UI scale, which is what decides how many design pixels the
+// window has. A narrow layout is reachable no other way from a fixed capture.
+fn state_scale(_state: &mut editor::State, argument: str) {
+    shell::set_ui_scale(argument.parse_float());
+}
+
+fn state_shut(state: &mut editor::State, side: str) {
+    if side == sides::RAIL {
+        state.rail_shut = true;
+        signals::bars(state);
+        return;
+    }
+    // Everything the shell draws over the scene: the chip strip and the
+    // reading at its foot. What a picture of the scene itself wants.
+    if side == CHROME {
+        state.chrome_off = true;
+        return;
+    }
+    state.docks[side][dock_fields::SHUT] = true;
+    signals::docks(state);
+}
+
+// `move:<panel>:<side>`: put a panel in another dock, as its tab menu does.
+fn state_move(state: &mut editor::State, argument: str) {
+    let parts = argument.split(":");
+    if parts.len() == 2 {
+        docks::move_to(state, parts[0], parts[1]);
+    }
+}
+
+fn state_dock(state: &mut editor::State, dock: str) {
+    docks::show(state, dock);
+}
+
+// Self-test state: open the Assets dock on a file, which is what the Import
+// section draws for (e.g. asset:art/limb.png).
+fn state_asset(state: &mut editor::State, rel: str) {
+    docks::show(state, ASSETS);
+    let leaf = util::leaf(rel);
+    state.assets.directory = if leaf.len() < rel.len() { rel.slice(0, rel.len() - leaf.len() - 1) } else { "" };
+    state.assets.selected = rel;
+    signals::changed(state, changes::ASSETS);
+}
+
+// `import:<path>`: the Assets dock, and that file imported into it.
+fn state_import(state: &mut editor::State, path: str) {
+    docks::show(state, ASSETS);
+    dropin::take(state, path);
+}
+
+// `imports:<path>;<path>`: several imports, one a frame once the shell has
+// formed, so a picture has the list of all of them.
+fn state_imports(state: &mut editor::State, list: str) {
+    docks::show(state, ASSETS);
+    state.import_queue = list.split(";");
+    state.import_drip = true;
+}
+
+fn state_mode(state: &mut editor::State, mode: str) {
+    polygon::set_mode(state, mode);
+}
+
+// `tiles:<mode>`: the Tiles dock on one of its tools, and `tiles:set` on the
+// rows that edit the tile itself.
+fn state_tiles(state: &mut editor::State, mode: str) {
+    docks::show(state, tools::TILES);
+    if mode == SET {
+        state.tiles.editing = true;
+        signals::changed(state, changes::TILES);
+        return;
+    }
+    tiles::set_mode(state, mode);
+}
+
+// Self-test state: select a node by name (e.g. select:Pig1).
+fn state_select(state: &mut editor::State, name: str) {
+    select_named(state, name);
+}
+
+// `bench:text` makes one edit a frame to the selection; `bench.bs` names
+// the edits.
+fn state_bench(state: &mut editor::State, edit: str) {
+    state.bench = edit;
+}
+
+// `add:text2d` adds what the node picker's row of that name adds, under the
+// selection.
+fn state_add(state: &mut editor::State, kind: str) {
+    newnode::add(state, kind);
+}
+
+fn state_zoom(state: &mut editor::State, percent: str) {
+    shell::set_zoom(state, percent.parse_float());
+}
+
+fn state_palette(state: &mut editor::State) {
+    shell::open_palette(state, "");
+}
+
+// `palette:<query>`: the palette open on what it matches, for a screenshot.
+fn state_palette_query(state: &mut editor::State, query: str) {
+    shell::open_palette(state, query);
+}
+
+fn state_light(state: &mut editor::State) {
+    theme::set_dark(state, false);
+}
+
+fn state_dark(state: &mut editor::State) {
+    theme::set_dark(state, true);
+}
+
+fn state_play(state: &mut editor::State) {
+    shell::toggle_play(state);
+}
+
+// Self-test state: author a clip on the Spinner, otherwise on any node.
+fn state_animdemo(state: &mut editor::State) {
+    let pick: int? = nil;
+    for row in 0..state.nodes.len() {
+        if pick == nil || state.nodes[row].name() == "Spinner" {
+            pick = row;
+        }
+    }
+    if pick == nil {
+        log::warn("animdemo: the scene has no node to animate");
+    } else {
+        let row = pick.unwrap();
+        selection::only(state, row);
+        anim::ensure_clip(state);
+        anim::add_key(state, 0.0);
+        let found = model::selected_node(state);
+        if found.is_valid() {
+            found.transform.position = vec3(2.5, 2.5, 0.0);
+            found.transform.rotation_euler = vec3(0.0, math::to_radians(180.0), 0.0);
+            anim::add_key(state, 1.0);
+            found.transform.position = vec3(2.5, 0.5, 0.0);
+            anim::add_key(state, 2.0);
+            anim::seek(state, 0.6);
+        }
+    }
+    shell::set_workspace(state, defs::WORKSPACE_ANIMATION);
+}
+
+// A bare name is a workspace; the script workspace also picks a scripted node so
+// the centre pane has something to show.
+fn state_workspace(state: &mut editor::State, name: str) {
+    shell::set_workspace(state, name);
+    if name == tabs::SCRIPT {
+        shell::select_scripted(state);
+    }
+}
+
+// Self-test state: a breakpoint on the first scripted node's update, then
+// play; `update` alternates a step and a continue on every pause.
+pub fn break_demo(state: &mut editor::State) {
+    for row in 0..state.nodes.len() {
+        let script = model::script_rel(state.nodes[row]);
+        if script != nil {
+            selection::only(state, row);
+            for hook in model::hooks(state, script.as_str()) {
+                if hook[fields::NAME].as_str() == hooks::UPDATE {
+                    shell::toggle_breakpoint(state, script.as_str(), hook[layout_fields::LINE].as_int() + 1);
+                }
+            }
+            break;
+        }
+    }
+    state.debug.demo = 0;
+    shell::toggle_play(state);
+}

@@ -1,5 +1,6 @@
-// Signing in and staying signed in: a device id, an email, or an OAuth
-// session asked after until it resolves, then kept in a `save::` slot.
+// The session every call carries, a sign-in through an OAuth provider, and a
+// session kept in a `save::` slot for the next run. A device id or an email
+// signs in through `client::login_device` and `client::login_email`.
 
 use addons::save::save;
 use core;
@@ -7,7 +8,38 @@ use authentication;
 
 const COMPLETED: str = "completed";
 const PENDING: str = "pending";
-const CODE: str = "code";
+const EXPIRES_IN: str = "expires_in";
+const EXPIRES_AT: str = "expires_at";
+
+/// A signed-in session: who, the token pair, and when the access token
+/// stops working, in seconds since 1970; nil when it is not known.
+pub struct Session {
+    pub user_id: str,
+    pub username: str,
+    pub display_name: str,
+    pub access_token: str,
+    pub refresh_token: str,
+    pub expires_in: int,
+    pub expires_at: int?,
+}
+
+/// The session every call carries, or nil when nobody is signed in.
+pub fn session() -> Session? {
+    let held = core::held();
+    if held == nil {
+        return nil;
+    }
+    let open: Session = held;
+    open
+}
+
+/// Sign in from a session a previous run kept, as `session` answers it,
+/// without asking the server; nil signs out here. False when the map carries
+/// no `access_token`. A session with no `expires_at` is renewed before the
+/// socket opens with it.
+pub fn restore(session: any) -> bool {
+    core::hold(session)
+}
 
 /// The save slot the session is kept in.
 pub const SLOT: str = "gamend";
@@ -19,7 +51,7 @@ pub const ASK_EVERY: float = 1.0;
 
 /// The providers this server offers, as `list_auth_providers` reports them.
 pub async fn providers() -> any {
-    let reply = await task::wait(authentication::list_auth_providers());
+    let reply = await authentication::list_auth_providers();
     if !core::ok(reply) {
         log::warn(core::error_of(reply));
         return {};
@@ -33,7 +65,7 @@ pub async fn providers() -> any {
 /// refused, or the wait ran out. Always a sign-in, even for a player signed
 /// in already: `link` adds a provider to their account instead.
 pub async fn sign_in(provider: str) -> any {
-    let status = await provider_page(provider, sign_in_start, sign_in_status);
+    let status = await provider_page(provider, false);
     if status.kind() != types::KIND_MAP {
         return nil;
     }
@@ -44,39 +76,29 @@ pub async fn sign_in(provider: str) -> any {
         log::warn("gamend: {provider} sign-in completed without a session");
         return nil;
     }
-    gamend::restore(session);
+    fresh(session);
+    restore(session);
     keep(session);
     session
-}
-
-fn sign_in_start(provider: str) -> int {
-    authentication::oauth_request(provider)
-}
-
-fn sign_in_status(session: str) -> int {
-    authentication::oauth_session_status(session)
 }
 
 /// Link a provider to the signed-in account: open its page, then wait for
 /// the server to say the link resolved. True once linked; the user channel's
 /// `user_updated` carries the new `linked_providers`.
 pub async fn link(provider: str) -> bool {
-    let status = await provider_page(provider, link_start, link_status);
+    let status = await provider_page(provider, true);
     status.kind() == types::KIND_MAP
 }
 
-fn link_start(provider: str) -> int {
-    authentication::link_provider_request(provider)
-}
-
-fn link_status(session: str) -> int {
-    authentication::link_session_status(session)
-}
-
-/// Start with `start`, open the page it answers, and ask with `status`
-/// until the player is done there. The completed status, or nil.
-async fn provider_page(provider: str, start: fn(str) -> int, status: fn(str) -> int) -> any {
-    let started = await task::wait(start(provider));
+/// Start a sign-in, or a link with `linking`, open the page it answers, and
+/// ask until the player is done there. The completed status, or nil.
+async fn provider_page(provider: str, linking: bool) -> any {
+    let started: any = nil;
+    if linking {
+        started = await authentication::link_provider_request(provider);
+    } else {
+        started = await authentication::oauth_request(provider);
+    }
     if !core::ok(started) {
         log::warn(core::error_of(started));
         return nil;
@@ -91,7 +113,12 @@ async fn provider_page(provider: str, start: fn(str) -> int, status: fn(str) -> 
     while waited < SIGN_IN_TIMEOUT {
         await task::seconds(ASK_EVERY);
         waited += ASK_EVERY;
-        let reply = await task::wait(status(session));
+        let reply: any = nil;
+        if linking {
+            reply = await authentication::link_session_status(session);
+        } else {
+            reply = await authentication::oauth_session_status(session);
+        }
         if !core::ok(reply) {
             continue;
         }
@@ -112,26 +139,11 @@ async fn provider_page(provider: str, start: fn(str) -> int, status: fn(str) -> 
     nil
 }
 
-/// Confirm a `client::register_email` account with the code from its email,
-/// set its password, and sign in: the session is restored, kept for the next
-/// run, and answered. Nil when the server refused, and the warning says why:
-/// `invalid_code` (wrong, spent or expired), `account_locked` (too many wrong
-/// codes; the code is void, so ask for a new one with
-/// `client::resend_confirmation`), or `validation_failed` (the password).
-pub async fn confirm_registration(email: str, code: str, password: str) -> any {
-    let params: any = { core::EMAIL: email, CODE: code, "password": password };
-    let reply = await task::wait(authentication::confirm_registration(params));
-    if !core::ok(reply) {
-        log::warn(core::error_of(reply));
-        return nil;
+/// A session the server just made expires `expires_in` seconds from now.
+fn fresh(session: any) {
+    if session[EXPIRES_IN].kind() == types::KIND_INT {
+        session[EXPIRES_AT] = (engine::unix_time() as int) + session[EXPIRES_IN].as_int();
     }
-    let session = data_of(core::body(reply));
-    if session.kind() != types::KIND_MAP {
-        return nil;
-    }
-    gamend::restore(session);
-    keep(session);
-    session
 }
 
 /// What `{"data": ...}` carries, or nil for any other body.
@@ -165,12 +177,10 @@ pub fn restorable() -> bool {
 /// Whether a session is open, which is what a screen asks before it draws
 /// anything of the player's.
 pub fn signed_in() -> bool {
-    let held = gamend::session();
-    held != nil && held.unwrap().access_token != ""
+    core::held() != nil
 }
 
 /// The signed-in user's id, or an empty string.
 pub fn user_id() -> str {
-    let held = gamend::session();
-    if held != nil { held.unwrap().user_id } else { "" }
+    core::held()[core::USER_ID].as_str()
 }

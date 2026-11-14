@@ -609,7 +609,6 @@ fn install_platform_api(m: &mut Module<Engine>) {
             "() -> Player?",
             "Who the store says is playing, or nil before a sign-in has landed.",
         ),
-        (kind::SIGNED_IN, &[], "() -> bool", "Whether a sign-in has landed."),
         (
             SIGN_IN,
             &[],
@@ -681,11 +680,6 @@ fn install_platform_reads(m: &mut Module<Engine>) {
         let state = eng.resource::<PlatformState>();
         let state = state.borrow();
         Ok(state.player().map_or(Value::Nil, player_value))
-    });
-    m.function(kind::SIGNED_IN, |eng: &Engine, ()| {
-        Ok(Value::Bool(
-            eng.resource::<PlatformState>().borrow().player().is_some(),
-        ))
     });
 }
 

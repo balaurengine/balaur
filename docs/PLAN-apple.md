@@ -1,40 +1,30 @@
-> **Status:** built on 2026-09-03 and 2026-09-04, every step — the `[apple]`
-> export table, `crates/balaur_platform` and the portable `platform.*` module,
-> and `crates/balaur_apple` for Game Center, iCloud, Sign in with Apple,
-> StoreKit, notifications and opened URLs. On 2026-09-26 the arrivals: a
-> notification shown in front, a push's payload, Game Center invites and
-> iCloud changes. ARCHITECTURE.md's platform sections
-> are the record. `docs/PLAN-google.md` is the same document for Android,
-> `docs/PLAN-steam.md` for the desktop stores. What is left is below.
+# Apple platform services
 
-# Plan: Apple platform services — what is still open
+What is left of the Apple backend, `crates/balaur_apple`, and the `[apple]`
+export table. ARCHITECTURE.md's "Store and platform services" holds what is
+built.
 
-**Never run against Apple's servers.** The export half is tested and the seam
-is tested through a canned backend, but the framework code — the Swift shim
-included — only compiles for macOS and iOS. Game Center, iCloud and StoreKit
-have never talked to Apple, which needs an Apple ID, a provisioning profile
-and hardware.
+## Steps
 
-1. **A URL the game was launched with is still not delivered.** It reaches the
-   application delegate before the engine has booted, and the proxy goes up
-   after. Reading it would mean the window layer holding the launch options
-   for us, which is a change to kiss3d rather than to this crate.
-2. **Should buying become portable?** `apple.purchase` is Apple's, because
-   `platform.*` carries what every store shares and no second store here has
-   implemented purchases yet. Play Billing and Steam's inventory are shaped
-   differently enough that the portable verb should be designed against two of
-   them, not one.
-3. **`min_ios` is free text over a floor the project cannot see.**
-   `AppleConfig::min_ios` is written into `MinimumOSVersion` exactly as given,
-   while `scripts/package_runtime.sh` builds the iOS template at
-   `IPHONEOS_DEPLOYMENT_TARGET=15.0`. A game that sets `min_ios = "12.0"` ships
-   a plist promising what its binary cannot do, and the failure lands on a
-   player's device rather than in the build. The exporter should clamp, with an
-   error that names the floor, and a game that wants lower rebuilds the
-   template against a lower deployment target. `min_macos` has the same shape.
-   `docs/PLAN-google.md` carries the matching note for `min_sdk` against the
-   NDK level, so one check serves both platforms.
-4. **The arrivals have only been compiled.** `notification_received`,
-   `push_received`, `invite_accepted`, `match_requested` and `cloud_changed`
-   build for macOS; none has run on a device, and a push or an invite needs
-   Apple's servers as well.
+1. **Clamp `min_ios` and `min_macos` to the template.** `AppleConfig`'s check
+   in `crates/balaur_export/src/apple.rs` compares the declared version with
+   each capability's minimum only, and returns early when no capability is
+   declared. The iOS template's `Info.plist` carries the deployment target
+   `scripts/package_runtime.sh` built it at. Done: an export declaring less
+   fails with an error naming that floor, as `[android] min_sdk` does in
+   `crates/balaur_export/src/android.rs`.
+2. **Present Game Center's sign-in sheet.** When GameKit hands
+   `crates/balaur_apple/src/gamekit.rs` a view controller, the sign-in is
+   reported rather than shown. Done: a sign-in with no player signed in shows
+   Apple's sheet and answers once the player finishes it.
+3. **Run against Apple's servers.** Game Center, iCloud and StoreKit, and the
+   arrivals `notification_received`, `push_received`, `invite_accepted`,
+   `match_requested` and `cloud_changed`, have only been compiled and tested
+   through a canned backend. Done: each answers on a device signed with an
+   Apple ID and a provisioning profile.
+
+## Open questions
+
+- Should buying become portable? `apple.purchase` is Apple's own, because no
+  second store here implements purchases. Design the `platform` verb once Play
+  Billing or Steam's inventory exists beside it.

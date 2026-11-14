@@ -33,7 +33,7 @@ pub struct Run {
     boot_due: bool,
 }
 
-/// Queue the states. Called by `shell::apply_start_state` for `suite:`.
+/// Queue the states. Called by `startstates::apply_start_state` for `suite:`.
 pub fn begin(state: &mut editor::State, list: str) {
     let queue: [str] = [];
     for item in list.split("+") {

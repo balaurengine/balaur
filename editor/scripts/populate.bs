@@ -259,7 +259,7 @@ fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::St
 
 fn on_whole_changed(state: &mut editor::State, data: any, value: any) {
     let write: fn(&mut editor::State, int) = data[project_fields::WRITE];
-    write(state, util::max(math::round(value.as_float()), 0.0) as int);
+    write(state, math::max(math::round(value.as_float()), 0.0) as int);
 }
 
 fn number(state: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> form::Row {
@@ -307,7 +307,7 @@ fn fraction(state: editor::State, label: str, value: float, write: fn(&mut edito
 
 fn on_fraction_changed(state: &mut editor::State, data: any, value: any) {
     let write: fn(&mut editor::State, float) = data[project_fields::WRITE];
-    write(state, util::clamp(value.as_float(), 0.0, 1.0));
+    write(state, math::clamp(value.as_float(), 0.0, 1.0));
 }
 
 // Whether a node draws something a surface can be read off.
@@ -426,7 +426,8 @@ fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> st
         model::build(state, model::scene_text(state));
         return source;
     }
-    let definition = assets::duplicate(source);
+    assets::reload(source);
+    let definition = assets::load(source);
     definition[INSTANCES] = instances;
     assets::save(source, definition);
     // The node reads its file again when it is given the same table.

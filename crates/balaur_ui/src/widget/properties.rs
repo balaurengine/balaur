@@ -1,5 +1,5 @@
 //! The `widget` component as a struct: a property a field, in the schema's
-//! order (PLAN-property-types §5).
+//! order.
 //!
 //! [`WidgetProperties`] holds what a scene or a script asked of a widget and
 //! nothing else. What the widget layer reads every frame is the

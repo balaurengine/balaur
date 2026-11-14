@@ -1,0 +1,132 @@
+//! `quat`'s rotations, written over glam's own formulas and its Euler order,
+//! so a script turns as a transform's `rotation_euler` does.
+
+// glam's two thresholds, `1 - 2 * f32::EPSILON` and `16 * f32::EPSILON`.
+const NEAR_ONE = 0.9999997615814209;
+const FLAT = 0.0000019073486328125;
+
+/// The rotation that turns nothing.
+pub fn identity() -> quat::Quat {
+    quat::Quat { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
+}
+
+/// A turn of `angle` radians about `axis`, which need not be unit length.
+pub fn from_axis_angle(axis: Vec3, angle: float) -> quat::Quat {
+    let unit = unit_or_up(axis);
+    let s = math::sin(angle * 0.5);
+    quat::Quat { x: unit.x * s, y: unit.y * s, z: unit.z * s, w: math::cos(angle * 0.5) }
+}
+
+/// The shortest turn that takes the direction `from` onto `to`.
+pub fn from_arc(from: Vec3, to: Vec3) -> quat::Quat {
+    let a = unit_or_up(from);
+    let b = unit_or_up(to);
+    let dot = a.x * b.x + a.y * b.y + a.z * b.z;
+    if dot > NEAR_ONE {
+        return identity();
+    }
+    if dot < -NEAR_ONE {
+        return from_axis_angle(orthonormal(a), math::PI);
+    }
+    let x = a.y * b.z - b.y * a.z;
+    let y = a.z * b.x - b.z * a.x;
+    let z = a.x * b.y - b.x * a.y;
+    let w = 1.0 + dot;
+    let scale = 1.0 / math::sqrt(x * x + y * y + z * z + w * w);
+    quat::Quat { x: x * scale, y: y * scale, z: z * scale, w: w * scale }
+}
+
+/// A transform's `rotation_euler`, in radians, as a quaternion.
+pub fn from_euler(euler: Vec3) -> quat::Quat {
+    let si = math::sin(euler.z * 0.5);
+    let ci = math::cos(euler.z * 0.5);
+    let sj = math::sin(euler.y * 0.5);
+    let cj = math::cos(euler.y * 0.5);
+    let sh = math::sin(euler.x * 0.5);
+    let ch = math::cos(euler.x * 0.5);
+    let cc = ci * ch;
+    let cs = ci * sh;
+    let sc = si * ch;
+    let ss = si * sh;
+    quat::Quat {
+        x: cj * cs - sj * sc,
+        y: cj * ss + sj * cc,
+        z: cj * sc - sj * cs,
+        w: cj * cc + sj * ss,
+    }
+}
+
+/// A quaternion as the `rotation_euler` a transform takes, in radians.
+pub fn to_euler(q: quat::Quat) -> Vec3 {
+    let x2 = q.x + q.x;
+    let y2 = q.y + q.y;
+    let z2 = q.z + q.z;
+    let xx = q.x * x2;
+    let xy = q.x * y2;
+    let xz = q.x * z2;
+    let yy = q.y * y2;
+    let yz = q.y * z2;
+    let zz = q.z * z2;
+    let wx = q.w * x2;
+    let wy = q.w * y2;
+    let wz = q.w * z2;
+    // The rotation matrix's entries the ZYX order reads, by column then row.
+    let m00 = 1.0 - (yy + zz);
+    let m01 = xy + wz;
+    let m02 = xz - wy;
+    let m10 = xy - wz;
+    let m11 = 1.0 - (xx + zz);
+    let m12 = yz + wx;
+    let m22 = 1.0 - (xx + yy);
+    let cy = math::sqrt(m22 * m22 + m12 * m12);
+    let pitch = math::atan2(-m02, cy);
+    if cy > FLAT {
+        return vec3(math::atan2(m12, m22), pitch, math::atan2(m01, m00));
+    }
+    vec3(0.0, pitch, math::atan2(-m10, m11))
+}
+
+/// `b`, then `a`: the composed rotation, as a child's turn under its
+/// parent's is `mul(parent, child)`.
+pub fn mul(a: quat::Quat, b: quat::Quat) -> quat::Quat {
+    quat::Quat {
+        x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+        y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+        z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+        w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+    }
+}
+
+/// The turn that undoes `q`.
+pub fn inverse(q: quat::Quat) -> quat::Quat {
+    quat::Quat { x: -q.x, y: -q.y, z: -q.z, w: q.w }
+}
+
+/// `v` turned by `q`.
+pub fn rotate(q: quat::Quat, v: Vec3) -> Vec3 {
+    let along = q.w * q.w - (q.x * q.x + q.y * q.y + q.z * q.z);
+    let dot = (v.x * q.x + v.y * q.y + v.z * q.z) * 2.0;
+    let twice = q.w * 2.0;
+    vec3(
+        v.x * along + q.x * dot + (q.y * v.z - v.y * q.z) * twice,
+        v.y * along + q.y * dot + (q.z * v.x - v.z * q.x) * twice,
+        v.z * along + q.z * dot + (q.x * v.y - v.x * q.y) * twice,
+    )
+}
+
+// glam's `normalize_or(Vec3::Y)`.
+fn unit_or_up(v: Vec3) -> Vec3 {
+    let reciprocal = 1.0 / math::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+    if reciprocal > 0.0 && reciprocal - reciprocal == 0.0 {
+        return vec3(v.x * reciprocal, v.y * reciprocal, v.z * reciprocal);
+    }
+    vec3(0.0, 1.0, 0.0)
+}
+
+// glam's `any_orthonormal_vector`, after Pixar's orthonormal basis; a -0.0
+// takes the negative side, as `signum` does.
+fn orthonormal(v: Vec3) -> Vec3 {
+    let sign = if v.z < 0.0 || 1.0 / v.z < 0.0 { -1.0 } else { 1.0 };
+    let a = -1.0 / (sign + v.z);
+    vec3(v.x * v.y * a, sign + v.y * v.y * a, -v.y)
+}

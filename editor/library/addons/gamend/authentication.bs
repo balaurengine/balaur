@@ -8,204 +8,176 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
-/// Confirm a registration with its code
-/// `POST /api/v1/register/confirm`
-pub fn confirm_registration(params: any) -> int {
-    if !core::given(params, "email") {
-        return core::missing("gamend::authentication::confirm_registration", "email");
-    }
-    if !core::given(params, "code") {
-        return core::missing("gamend::authentication::confirm_registration", "code");
-    }
-    if !core::given(params, "password") {
-        return core::missing("gamend::authentication::confirm_registration", "password");
-    }
-    core::rest("POST", "/api/v1/register/confirm", params)
-}
-
-/// Device login
-/// `POST /api/v1/login/device`
-pub fn device_login(params: any) -> int {
-    if !core::given(params, "device_id") {
-        return core::missing("gamend::authentication::device_login", "device_id");
-    }
-    core::rest("POST", "/api/v1/login/device", params)
-}
-
 /// Link Apple (native iOS)
 /// `POST /api/v1/me/providers/apple/ios`
-pub fn link_apple_ios(params: any) -> int {
+pub async fn link_apple_ios(params: any) -> any {
     if !core::given(params, "code") {
         return core::missing("gamend::authentication::link_apple_ios", "code");
     }
-    core::rest("POST", "/api/v1/me/providers/apple/ios", params)
+    let reply = await core::rest("POST", "/api/v1/me/providers/apple/ios", params);
+    reply
 }
 
 /// Link device ID
 /// `POST /api/v1/me/device`
-pub fn link_device(params: any) -> int {
+pub async fn link_device(params: any) -> any {
     if !core::given(params, "device_id") {
         return core::missing("gamend::authentication::link_device", "device_id");
     }
-    core::rest("POST", "/api/v1/me/device", params)
+    let reply = await core::rest("POST", "/api/v1/me/device", params);
+    reply
 }
 
 /// Link Google with an ID token
 /// `POST /api/v1/me/providers/google/id_token`
-pub fn link_google_id_token(params: any) -> int {
+pub async fn link_google_id_token(params: any) -> any {
     if !core::given(params, "id_token") {
         return core::missing("gamend::authentication::link_google_id_token", "id_token");
     }
-    core::rest("POST", "/api/v1/me/providers/google/id_token", params)
+    let reply = await core::rest("POST", "/api/v1/me/providers/google/id_token", params);
+    reply
 }
 
 /// Link a provider with a code
 /// `POST /api/v1/me/providers/{provider}`
-pub fn link_provider(provider: str, params: any) -> int {
+pub async fn link_provider(provider: str, params: any) -> any {
     if provider == "" {
         return core::missing("gamend::authentication::link_provider", "provider");
     }
     if !core::given(params, "code") {
         return core::missing("gamend::authentication::link_provider", "code");
     }
-    core::rest("POST", "/api/v1/me/providers/{provider}", params)
+    let reply = await core::rest("POST", "/api/v1/me/providers/{provider}", params);
+    reply
 }
 
 /// Start linking a provider
 /// `POST /api/v1/me/providers/{provider}/authorize`
-pub fn link_provider_request(provider: str) -> int {
+pub async fn link_provider_request(provider: str) -> any {
     if provider == "" {
         return core::missing("gamend::authentication::link_provider_request", "provider");
     }
-    core::rest("POST", "/api/v1/me/providers/{provider}/authorize")
+    let reply = await core::rest("POST", "/api/v1/me/providers/{provider}/authorize");
+    reply
 }
 
 /// Poll a provider link
 /// `GET /api/v1/me/providers/sessions/{session_id}`
-pub fn link_session_status(session_id: str) -> int {
+pub async fn link_session_status(session_id: str) -> any {
     if session_id == "" {
         return core::missing("gamend::authentication::link_session_status", "session_id");
     }
-    core::rest("GET", "/api/v1/me/providers/sessions/{session_id}")
+    let reply = await core::rest("GET", "/api/v1/me/providers/sessions/{session_id}");
+    reply
 }
 
 /// List sign-in providers
 /// `GET /api/v1/auth/providers`
-pub fn list_auth_providers() -> int {
-    core::rest("GET", "/api/v1/auth/providers")
-}
-
-/// Login
-/// `POST /api/v1/login`
-pub fn login(params: any) -> int {
-    if !core::given(params, "email") {
-        return core::missing("gamend::authentication::login", "email");
-    }
-    if !core::given(params, "password") {
-        return core::missing("gamend::authentication::login", "password");
-    }
-    core::rest("POST", "/api/v1/login", params)
+pub async fn list_auth_providers() -> any {
+    let reply = await core::rest("GET", "/api/v1/auth/providers");
+    reply
 }
 
 /// Logout
 /// `DELETE /api/v1/logout`
-pub fn logout() -> int {
-    core::rest("DELETE", "/api/v1/logout")
+pub async fn logout() -> any {
+    let reply = await core::rest("DELETE", "/api/v1/logout");
+    reply
 }
 
 /// Sign in with a provider code
 /// `POST /api/v1/auth/{provider}/callback`
-pub fn oauth_api_callback(provider: str, params: any) -> int {
+pub async fn oauth_api_callback(provider: str, params: any) -> any {
     if provider == "" {
         return core::missing("gamend::authentication::oauth_api_callback", "provider");
     }
     if !core::given(params, "code") {
         return core::missing("gamend::authentication::oauth_api_callback", "code");
     }
-    core::rest("POST", "/api/v1/auth/{provider}/callback", params)
+    let reply = await core::rest("POST", "/api/v1/auth/{provider}/callback", params);
+    reply
 }
 
 /// Sign in with Apple (native iOS)
 /// `POST /api/v1/auth/apple/ios/callback`
-pub fn oauth_callback_api_apple_ios(params: any) -> int {
+pub async fn oauth_callback_api_apple_ios(params: any) -> any {
     if !core::given(params, "code") {
         return core::missing("gamend::authentication::oauth_callback_api_apple_ios", "code");
     }
-    core::rest("POST", "/api/v1/auth/apple/ios/callback", params)
+    let reply = await core::rest("POST", "/api/v1/auth/apple/ios/callback", params);
+    reply
 }
 
 /// Sign in with a Google ID token
 /// `POST /api/v1/auth/google/id_token`
-pub fn oauth_google_id_token(params: any) -> int {
+pub async fn oauth_google_id_token(params: any) -> any {
     if !core::given(params, "id_token") {
         return core::missing("gamend::authentication::oauth_google_id_token", "id_token");
     }
-    core::rest("POST", "/api/v1/auth/google/id_token", params)
+    let reply = await core::rest("POST", "/api/v1/auth/google/id_token", params);
+    reply
 }
 
 /// Start a provider sign-in
 /// `GET /api/v1/auth/{provider}`
-pub fn oauth_request(provider: str) -> int {
+pub async fn oauth_request(provider: str) -> any {
     if provider == "" {
         return core::missing("gamend::authentication::oauth_request", "provider");
     }
-    core::rest("GET", "/api/v1/auth/{provider}")
+    let reply = await core::rest("GET", "/api/v1/auth/{provider}");
+    reply
 }
 
 /// Poll a provider sign-in
 /// `GET /api/v1/auth/session/{session_id}`
-pub fn oauth_session_status(session_id: str) -> int {
+pub async fn oauth_session_status(session_id: str) -> any {
     if session_id == "" {
         return core::missing("gamend::authentication::oauth_session_status", "session_id");
     }
-    core::rest("GET", "/api/v1/auth/session/{session_id}")
-}
-
-/// Refresh access token
-/// `POST /api/v1/refresh`
-pub fn refresh_token(params: any) -> int {
-    if !core::given(params, "refresh_token") {
-        return core::missing("gamend::authentication::refresh_token", "refresh_token");
-    }
-    core::rest("POST", "/api/v1/refresh", params)
+    let reply = await core::rest("GET", "/api/v1/auth/session/{session_id}");
+    reply
 }
 
 /// Register
 /// `POST /api/v1/register`
-pub fn register(params: any) -> int {
+pub async fn register(params: any) -> any {
     if !core::given(params, "email") {
         return core::missing("gamend::authentication::register", "email");
     }
-    core::rest("POST", "/api/v1/register", params)
+    let reply = await core::rest("POST", "/api/v1/register", params);
+    reply
 }
 
 /// Send the confirmation email again
 /// `POST /api/v1/register/resend`
-pub fn resend_confirmation(params: any) -> int {
+pub async fn resend_confirmation(params: any) -> any {
     if !core::given(params, "email") {
         return core::missing("gamend::authentication::resend_confirmation", "email");
     }
-    core::rest("POST", "/api/v1/register/resend", params)
+    let reply = await core::rest("POST", "/api/v1/register/resend", params);
+    reply
 }
 
 /// Unlink device ID
 /// `DELETE /api/v1/me/device`
-pub fn unlink_device() -> int {
-    core::rest("DELETE", "/api/v1/me/device")
+pub async fn unlink_device() -> any {
+    let reply = await core::rest("DELETE", "/api/v1/me/device");
+    reply
 }
 
 /// Unlink OAuth provider
 /// `DELETE /api/v1/me/providers/{provider}`
-pub fn unlink_provider(provider: str) -> int {
+pub async fn unlink_provider(provider: str) -> any {
     if provider == "" {
         return core::missing("gamend::authentication::unlink_provider", "provider");
     }
-    core::rest("DELETE", "/api/v1/me/providers/{provider}")
+    let reply = await core::rest("DELETE", "/api/v1/me/providers/{provider}");
+    reply
 }

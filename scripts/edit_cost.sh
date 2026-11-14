@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # What one edit costs the editor, in instructions retired, which hold still
-# at any load where time does not (PLAN-editor-performance §10): a run of
+# at any load where time does not: a run of
 # FRAMES frames making one edit a frame (`--state bench:<edit>`), less one
 # that edits nothing, over FRAMES. macOS's `/usr/bin/time -l` counts them.
 #

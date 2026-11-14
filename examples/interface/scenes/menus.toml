@@ -79,7 +79,7 @@ text = "New scene"
 width = 210
 height = 24
 [nodes.widget_shortcut]
-shortcut = "cmd+n"
+shortcut = "cmd+KeyN"
 
 [[nodes]]
 id = "file_open"
@@ -91,7 +91,7 @@ text = "Open project"
 width = 210
 height = 24
 [nodes.widget_shortcut]
-shortcut = "cmd+o"
+shortcut = "cmd+KeyO"
 
 [[nodes]]
 id = "file_recent"
@@ -135,7 +135,7 @@ text = "Save"
 width = 210
 height = 24
 [nodes.widget_shortcut]
-shortcut = "cmd+s"
+shortcut = "cmd+KeyS"
 
 [[nodes]]
 id = "file_grid"
@@ -171,7 +171,7 @@ text = "Undo"
 width = 180
 height = 24
 [nodes.widget_shortcut]
-shortcut = "cmd+z"
+shortcut = "cmd+KeyZ"
 
 [[nodes]]
 id = "view"
@@ -195,7 +195,7 @@ text = "Zoom in"
 width = 180
 height = 24
 [nodes.widget_shortcut]
-shortcut = "cmd+equals"
+shortcut = "cmd+Equal"
 
 # What a right click or a long press opens, named by the canvas below.
 [[nodes]]
@@ -215,7 +215,7 @@ text = "Cut"
 width = 160
 height = 24
 [nodes.widget_shortcut]
-shortcut = "cmd+x"
+shortcut = "cmd+KeyX"
 
 [[nodes]]
 id = "canvas_paste"
@@ -227,7 +227,7 @@ text = "Paste"
 width = 160
 height = 24
 [nodes.widget_shortcut]
-shortcut = "cmd+v"
+shortcut = "cmd+KeyV"
 
 [[nodes]]
 id = "canvas"

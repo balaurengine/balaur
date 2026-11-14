@@ -39,11 +39,9 @@ const OVER: str = "over";
 internal const RENAME_TO: str = "rename_to";
 const SPAN: str = "span";
 const WARN: str = "warn";
-const INLINE: str = "inline";
 const NODE: str = "node";
 const STAGE: str = "stage";
 const WEB: str = "web";
-const WIDGET_RANGE: str = "widget_range";
 const LOCALS: str = "locals";
 const RECORDING: str = "recording";
 
@@ -207,8 +205,8 @@ fn filtered(state: &mut editor::State) -> Built {
     if state.log_cache != nil && state.log_cache.unwrap().mark == mark && news.entries.len() == 0 && news.missed == 0 {
         return state.log_cache.unwrap();
     }
-    // The buffer holds 500; asking for 60 threw away most of the session.
-    let entries = util::list_or_empty(log::recent(500));
+    // Everything the buffer still holds, not only what is new.
+    let entries = util::list_or_empty(log::since(0).entries);
     let floor = floor_of(state.log_level);
     let query = state.log_query.to_lower();
     let rows: [any] = [];
@@ -651,209 +649,6 @@ pub fn drop_card(state: &mut editor::State, card: any) -> bool {
     dropin::place_file(state, relative_path)
 }
 
-// Keyframe timeline over the engine's clip (scripts/anim.bs is the adapter):
-// scrubbing seeks the engine's player, so the viewport shows the engine's pose.
-const TIMELINE: str = "Editor/Shell/Body/Centre/Bottom/Timeline";
-
-const NAME_WIDTH: float = 150.0;
-
-/// Fill the Timeline tab: what the player is missing, or the clip's ruler,
-/// rules, lanes and keys placed by time against the tab's width, the playhead
-/// and the scrubber. What its script asks for when any of them moved.
-pub fn timeline_fill(state: &mut editor::State) {
-    let tokens = state.theme;
-    let node = anim::player(state).found;
-    let found = anim::definition(state);
-    if found == nil {
-        let named = if node.is_valid() { node.name() } else { "" };
-        let missing = if anim::component(state, node) == nil {
-            named + " has no clip"
-        } else {
-            "{named}: clip '{anim::clip_name(state, node)}' is not in its library"
-        };
-        util::set_visible(TIMELINE + "/Missing", true);
-        util::set_text(TIMELINE + "/Missing/Says", missing);
-        let filled = scene::get_node(TIMELINE + "/Missing/Create");
-        if filled.is_valid() {
-            filled.widget_button.icon = icons::ui(icons::ADD);
-        }
-        util::set_visible(TIMELINE + "/Body", false);
-        return;
-    }
-    let definition = found;
-    util::set_visible(TIMELINE + "/Missing", false);
-    util::set_visible(TIMELINE + "/Body", true);
-    let length = util::max(anim::length(definition), 1e-4);
-    let tracks = anim::tracks(definition);
-    let lane_x = NAME_WIDTH + 14.0;
-    let lane_width = util::max(120.0, width_of(TIMELINE) - lane_x - 24.0);
-    let name = anim::clip_name(state, node);
-    let filled = scene::get_node(TIMELINE + "/Body/Head/AddKey");
-    if filled.is_valid() {
-        filled.widget_button.icon = icons::ui(icons::ADD);
-    }
-    let library = anim::library_path(state, node);
-    let clip = if name == "" { "unnamed" } else { name };
-    let place = if library == nil { INLINE } else { library.unwrap() };
-    util::set_text(TIMELINE + "/Body/Head/Clip", "{clip} · {place}");
-    util::set_text(TIMELINE + "/Body/Head/Time", "{util::fixed(state.anim.time, 2)} / {util::fixed(anim::length(definition), 2)} s");
-    // The engine's own vocabulary, not a boolean: pingpong is a third answer
-    // and a toggle cannot say it.
-    let loop_mode = definition[schema_fields::LOOP_MODE];
-    util::fill_beside(TIMELINE + "/Body/Head/Length", WIDGET_RANGE, { fields::VALUE: anim::length(definition) });
-    let filled = scene::get_node(TIMELINE + "/Body/Head/Loop");
-    if filled.is_valid() {
-        filled.widget.text = if loop_mode == nil { animation::LOOP_NONE } else { loop_mode.as_str() };
-        filled.widget_dropdown.options = [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG];
-    }
-    // The ruler carries the scale the lanes are read against: a label and a
-    // rule per tick straight down through the lanes.
-    let step = tick_step(length);
-    let ticks: [ui::Control] = [];
-    let rules: [ui::Control] = [];
-    let seconds = 0.0;
-    while seconds <= length + 1e-4 {
-        let tick_x = lane_at(lane_x, length, lane_width, seconds);
-        ticks.push(ui::Control {
-            kind: ui::WIDGET_LABEL,
-            role: roles::TEXT_CODE_QUIET,
-            font_size: 11,
-            absolute: true,
-            inset: ui::sides(tick_x, 2.0, -1.0, -1.0),
-            text: util::fixed(seconds, 2),
-        });
-        rules.push(ui::Control {
-            kind: ui::WIDGET_ROW,
-            absolute: true,
-            inset: ui::sides(tick_x, 0.0, -1.0, 0.0),
-            width: 1,
-            fill: theme_tokens::BORDER_DEFAULT,
-            interactive: false,
-        });
-        seconds += step;
-    }
-    ui::fill_strip(TIMELINE + "/Body/Ruler", ticks);
-    ui::fill_strip(TIMELINE + "/Body/Lanes/Rules", rules);
-    util::fill(TIMELINE + "/Body/Lanes/Playhead", {
-        dock_fields::INSET: [lane_at(lane_x, length, lane_width, util::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0],
-    });
-    let rows: [form::Row] = [];
-    for index in 0..tracks.len() {
-        let track = tracks[index];
-        let color = (if index % 2 == 0 { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] }).as_str();
-        let keys: [ui::Control] = [];
-        for key in util::list_or_empty(track[fields::KEYS]) {
-            let when = key[log_fields::TIME].as_float();
-            let before = when <= state.anim.time + 1e-4;
-            // A key is its mark: filled once the playhead has passed it.
-            keys.push(ui::Control {
-                kind: ui::WIDGET_BUTTON,
-                role: roles::CHIP_QUIET,
-                text: if before { "●" } else { "○" },
-                font_size: 13,
-                padding: ui::all_sides(0),
-                text_color: color,
-                absolute: true,
-                inset: ui::sides((when / length) * lane_width - 6.0, 2.0, -1.0, -1.0),
-                tooltip: "{util::fixed(when, 2)} s",
-                on_click: "handle",
-                data: { fields::FN: on_key_pressed, fields::WHEN: when },
-            });
-        }
-        rows.push(form::Row {
-            height: LANE_HEIGHT,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_ROW,
-                    width: NAME_WIDTH,
-                    gap: vec2(6, 6),
-                    align_items: ui::ALIGN_CENTER,
-                    padding: ui::sides(8, 0, 0, 0),
-                    controls: [
-                        ui::Control { kind: ui::WIDGET_ROW, width: 6, height: 6, corner_radius: 3, fill: color },
-                        ui::Control {
-                            kind: ui::WIDGET_LABEL,
-                            corner_radius: 0,
-                            role: roles::TEXT_CODE,
-                            font_size: 11,
-                            text: anim::track_label(track),
-                        },
-                    ],
-                },
-                ui::Control {
-                    kind: ui::WIDGET_ROW,
-                    width: lane_width,
-                    controls: keys,
-                    height: LANE_HEIGHT,
-                    margin: ui::sides(14, 0, 0, 0),
-                },
-            ],
-        });
-    }
-    form::fill(TIMELINE + "/Body/Lanes/Scroll/Tracks", rows);
-    util::fill(TIMELINE + "/Body/ScrubRow", { layout_fields::PADDING: [8.0 + lane_x, 0.0, 0.0, 0.0] });
-    let filled = scene::get_node(TIMELINE + "/Body/ScrubRow/Scrub");
-    if filled.is_valid() {
-        filled.widget.width = lane_width;
-    }
-    util::fill_beside(TIMELINE + "/Body/ScrubRow/Scrub", WIDGET_RANGE, { fields::VALUE: state.anim.time, schema_fields::MAX: anim::length(definition) });
-}
-
-// Where time `seconds` lands across a lane `lane_width` wide that starts at `lane_x`.
-fn lane_at(lane_x: float, length: float, lane_width: float, seconds: float) -> float {
-    8.0 + lane_x + (seconds / length) * lane_width
-}
-
-// How wide the node at `path` was drawn, or a guess before it has been.
-fn width_of(path: str) -> float {
-    let rect = ui::widget_rect(scene::get_node(path));
-    if rect == nil { 800.0 } else { rect.unwrap().width }
-}
-
-fn on_key_pressed(state: &mut editor::State, data: any, _value: any) {
-    anim::seek(state, data[fields::WHEN].as_float());
-}
-
-/// The Timeline tab's verbs, by the name of the button pressed.
-pub fn timeline_verb(state: &mut editor::State, verb: str) {
-    if verb == "AddKey" {
-        anim::add_key(state, state.anim.time);
-    } else if verb == "DeleteKey" {
-        anim::delete_key_at(state, state.anim.time);
-    } else if verb == "Create" {
-        anim::ensure_clip(state);
-    }
-    signals::changed(state, changes::TIMELINE);
-}
-
-/// A clip setting from the Timeline's head, written into the clip as one
-/// undo step: its length, kept above a tenth of a second, or its loop mode.
-pub fn timeline_clip(state: &mut editor::State, setting: str, value: any) {
-    let definition = anim::definition(state);
-    if definition == nil {
-        return;
-    }
-    history::record(state, "clip {setting.to_lower()}", "clip:{setting}");
-    if setting == "Length" {
-        definition[fields::LENGTH] = util::max(0.1, value.as_float());
-    } else {
-        definition[schema_fields::LOOP_MODE] = value.as_str();
-    }
-    anim::touch(state);
-}
-
-const LANE_HEIGHT: float = 26.0;
-
-// A tick every 0.25/0.5/1/2/5 s, whichever gives four to eight labels.
-fn tick_step(length: float) -> float {
-    for step in [0.25, 0.5, 1.0, 2.0, 5.0, 10.0] {
-        if length / step <= 8.0 {
-            return step;
-        }
-    }
-    length / 8.0
-}
-
 // A local as one line; a table is its JSON, cut short.
 fn value_text(value: any) -> str {
     if value.kind() == types::KIND_MAP || value.kind() == types::KIND_LIST {
@@ -1011,129 +806,6 @@ fn open_at(state: &mut editor::State, finding: any) {
     signals::inspector(state);
 }
 
-// The Recordings tab while one is open: the replay's transport and lanes.
-const LANES: str = "Editor/Shell/Body/Centre/Bottom/Lanes";
-
-const LANE_NAME_WIDTH: float = 120.0;
-
-/// Fill the recording lanes: the transport and scrubber, where the replay
-/// parted from the recording, a lane a kind of event with its marks placed by
-/// tick against the tab's width, and everything recorded at the playhead.
-pub fn lanes_fill(state: editor::State) {
-    let tokens = state.theme;
-    let split = replay::divergence_tick();
-    let first = state.session.first;
-    let last = state.session.last;
-    let span = util::max(1.0, (last - first) as float);
-    let lane_width = util::max(120.0, width_of(LANES) - LANE_NAME_WIDTH - 60.0);
-    let playing = replay::state() == replay::STATE_PLAYING;
-    util::set_text(LANES + "/Head/Play", if playing { "⏸ Pause" } else { "▶ Play" });
-    // Before the first frame is fed the position is one tick short of the
-    // session's start, which is off the near end of the ruler.
-    let at = util::max(0.0, (replay::position() - first) as float);
-    util::fill_beside(LANES + "/Head/Scrub", WIDGET_RANGE, { fields::VALUE: at, schema_fields::MAX: span });
-    util::set_text(LANES + "/Head/At", "{replay::position()} / {last}");
-    // A divergence is information, not a failure: the replay ran, and this is
-    // the tick at which it stopped reproducing what was recorded.
-    let parted = if split != nil { "parted from the recording at tick {split.unwrap().tick}" } else { "" };
-    let filled = scene::get_node(LANES + "/Parted");
-    if filled.is_valid() {
-        filled.set_visible(parted != "");
-        filled.widget.text = parted;
-    }
-    let rows: [form::Row] = [];
-    for lane in state.session.lanes {
-        let marks: [ui::Control] = [];
-        for mark in lane.marks {
-            let tick = mark.tick;
-            let mark_x = util::clamp(((tick.as_int() - first) as float) / span, 0.0, 1.0) * (lane_width - 6.0);
-            marks.push(ui::Control {
-                kind: ui::WIDGET_BUTTON,
-                role: roles::CHIP_QUIET,
-                text: "▮",
-                font_size: 9,
-                padding: ui::all_sides(0),
-                absolute: true,
-                inset: ui::sides(mark_x, -1.0, -1.0, -1.0),
-                text_color: if tick.as_int() <= replay::position() { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::BORDER_DEFAULT] },
-                tooltip: "{tick}: {mark.label}",
-                on_click: "handle",
-                data: { fields::FN: on_mark_pressed, log_fields::TICK: tick },
-            });
-        }
-        rows.push(form::Row {
-            height: 20,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    width: LANE_NAME_WIDTH - 12.0,
-                    padding: ui::sides(8, 0, 0, 0),
-                    role: roles::TEXT_CODE_QUIET,
-                    font_size: 11,
-                    text: lane.name,
-                },
-                ui::Control {
-                    kind: ui::WIDGET_ROW,
-                    width: lane_width,
-                    controls: marks,
-                    height: 20,
-                },
-            ],
-        });
-    }
-    // Everything recorded at the tick the playhead is on, in the order it
-    // happened.
-    for event in replay::events(state.session.at, state.session.at) {
-        rows.push(form::Row {
-            height: 20,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    padding: ui::sides(8, 0, 0, 0),
-                    role: roles::TEXT_CODE_QUIET,
-                    font_size: 11,
-                    text: "{event.tick}",
-                },
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    role: roles::TEXT_CODE_QUIET,
-                    font_size: 11,
-                    text: event.kind,
-                },
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    role: roles::TEXT_CODE,
-                    font_size: 11,
-                    text: event.label,
-                },
-            ],
-        });
-    }
-    form::fill(LANES + "/Scroll/Rows", rows);
-}
-
-fn on_mark_pressed(state: &mut editor::State, data: any, _value: any) {
-    session::seek(state, data[log_fields::TICK].as_int());
-}
-
-/// The lanes' transport, by the name of the button pressed.
-pub fn lanes_verb(state: &mut editor::State, verb: str) {
-    if verb == "Play" {
-        session::toggle_pause(state);
-    } else if verb == "Step" {
-        session::step(state);
-    } else {
-        session::close(state);
-    }
-    signals::changed(state, changes::RECORDINGS);
-}
-
-/// The scrubber, at `ticks` ticks into the recording.
-pub fn lanes_seek(state: &mut editor::State, ticks: float) {
-    session::seek(state, state.session.first + (ticks as int));
-    signals::changed(state, changes::RECORDINGS);
-}
-
 // The Recordings panel's rows, under its own scroll; the dock hides the panel
 // while a recording is open, and the lanes take its room.
 const RECORDINGS: str = "Editor/Shell/Body/Centre/Bottom/Recordings/Rows/Column";
@@ -1288,7 +960,7 @@ fn script_rows(items: [ui::Item], tokens: any) {
     let worst = if costs.len() == 0 { 0.0 } else { costs[0].instructions as float };
     for row in costs {
         let count = row.instructions as float;
-        let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
+        let share = if worst > 0.0 { math::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
         items.push(ui::Item { cells: [row.path, "{row.instructions} st", bar(share)], tint: tokens[theme_tokens::SECONDARY_TEXT].as_str() });
     }
     // Each function's own statements under its file's rows, a handler the
@@ -1297,7 +969,7 @@ fn script_rows(items: [ui::Item], tokens: any) {
     let top = if functions.len() == 0 { 0.0 } else { functions[0].instructions as float };
     for index in 0..util::int_min(functions.len(), FUNCTION_ROWS) {
         let row = functions[index];
-        let share = if top > 0.0 { util::clamp((row.instructions as float) / top, 0.0, 1.0) } else { 0.0 };
+        let share = if top > 0.0 { math::clamp((row.instructions as float) / top, 0.0, 1.0) } else { 0.0 };
         items.push(ui::Item {
             cells: [row.function, "{row.instructions} st · {row.calls} calls", bar(share)],
             tint: tokens[theme_tokens::TEXT_MUTED].as_str(),
@@ -1316,7 +988,7 @@ const FUNCTION_ROWS: int = 12;
 /// Filled blocks and nothing else: a track drawn in the light block reads as
 /// noise down a column of them.
 fn bar(share: float) -> str {
-    util::repeat("█", (util::clamp(share, 0.0, 1.0) * 12.0) as int)
+    util::repeat("█", (math::clamp(share, 0.0, 1.0) * 12.0) as int)
 }
 
 // Worst first, by a selection pass: the list is eight rows long.
@@ -1400,7 +1072,7 @@ fn cost_view(state: editor::State, tokens: any) -> MeterView {
     if nodes.len() == 0 {
         return MeterView { titles: titles, widths: widths, items: [], says: "nothing is drawing", headline: headline, scripts: false };
     }
-    let worst = util::max(nodes[0].triangles, 1.0);
+    let worst = math::max(nodes[0].triangles, 1.0);
     let items: [ui::Item] = [];
     for row in nodes {
         let copies = row.copies as int;
@@ -1410,7 +1082,7 @@ fn cost_view(state: editor::State, tokens: any) -> MeterView {
                 "{row.triangles as int} tri",
                 bytes(row.texture_bytes),
                 if copies > 1 { "x{copies}" } else { "" },
-                bar(util::clamp(row.triangles / worst, 0.0, 1.0)),
+                bar(math::clamp(row.triangles / worst, 0.0, 1.0)),
             ],
             tint: tokens[theme_tokens::TEXT_MUTED].as_str(),
         });

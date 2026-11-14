@@ -1,0 +1,50 @@
+//! `random::at` and `random::uuid`, beside the engine's own draws.
+
+// splitmix64's increment and multipliers, as ints: 0x9E3779B97F4A7C15,
+// 0xBF58476D1CE4E5B9 and 0x94D049BB133111EB.
+const GOLDEN = -7046029254386353131;
+const FIRST = -4658895280553007687;
+const SECOND = -7723592293110705685;
+
+/// The `index`th number of the stream `seed` names, uniform in `[0, 1)`: the
+/// same for the same two on every platform, and apart from the engine stream,
+/// so a tool's layout draws nothing a game would.
+pub fn at(seed: int, index: int) -> float {
+    // `>>` keeps the sign, so each mask clears what it copied in.
+    let mixed = seed + index * GOLDEN + GOLDEN;
+    mixed = (mixed ^ mixed >> 30 & 17179869183) * FIRST;
+    mixed = (mixed ^ mixed >> 27 & 137438953471) * SECOND;
+    mixed = mixed ^ mixed >> 31 & 8589934591;
+    (mixed >> 11 & 9007199254740991) as float / 9007199254740992.0
+}
+
+/// A version-4 UUID drawn from the deterministic engine stream, so a replay
+/// makes the same ids; not for anything that must be unique across machines.
+pub fn uuid() -> str {
+    let out = __str_new(36);
+    let put = 0;
+    for word in 0..4 {
+        let drawn = random::int(0, 4294967295);
+        for part in 0..4 {
+            let index = word * 4 + part;
+            let byte = drawn >> part * 8 & 255;
+            if index == 6 {
+                byte = byte & 15 | 64;
+            } else if index == 8 {
+                byte = byte & 63 | 128;
+            }
+            if index == 4 || index == 6 || index == 8 || index == 10 {
+                __str_put(out, put, 45);
+                put += 1;
+            }
+            __str_put(out, put, digit(byte >> 4));
+            __str_put(out, put + 1, digit(byte & 15));
+            put += 2;
+        }
+    }
+    out
+}
+
+fn digit(value: int) -> int {
+    if value < 10 { 48 + value } else { 87 + value }
+}

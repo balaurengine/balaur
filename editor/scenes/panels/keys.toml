@@ -22,7 +22,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+k"
+shortcut = "cmd+KeyK"
 
 [[nodes]]
 id = "save"
@@ -33,7 +33,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+s"
+shortcut = "cmd+KeyS"
 
 [[nodes]]
 id = "format"
@@ -44,7 +44,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "alt+shift+f"
+shortcut = "alt+shift+KeyF"
 
 [[nodes]]
 id = "definition"
@@ -55,7 +55,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+b"
+shortcut = "cmd+KeyB"
 
 [[nodes]]
 id = "rename_symbol"
@@ -66,7 +66,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+shift+r"
+shortcut = "cmd+shift+KeyR"
 
 [[nodes]]
 id = "replace"
@@ -77,7 +77,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+shift+f"
+shortcut = "cmd+shift+KeyF"
 
 [[nodes]]
 id = "focus"
@@ -88,7 +88,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+shift+backslash"
+shortcut = "cmd+shift+Backslash"
 
 [[nodes]]
 id = "split"
@@ -99,7 +99,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+backslash"
+shortcut = "cmd+Backslash"
 
 [[nodes]]
 id = "zoom_in"
@@ -110,7 +110,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+equals"
+shortcut = "cmd+Equal"
 
 [[nodes]]
 id = "zoom_out"
@@ -121,7 +121,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+minus"
+shortcut = "cmd+Minus"
 
 [[nodes]]
 id = "settings"
@@ -132,7 +132,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+comma"
+shortcut = "cmd+Comma"
 
 [[nodes]]
 id = "export"
@@ -143,7 +143,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+e"
+shortcut = "cmd+KeyE"
 
 [[nodes]]
 id = "step_out"
@@ -155,7 +155,7 @@ kind = "button"
 focusable = false
 enabled = false
 [nodes.widget_shortcut]
-shortcut = "shift+f11"
+shortcut = "shift+F11"
 
 [[nodes]]
 id = "continue"
@@ -167,7 +167,7 @@ kind = "button"
 focusable = false
 enabled = false
 [nodes.widget_shortcut]
-shortcut = "f5"
+shortcut = "F5"
 
 [[nodes]]
 id = "step_over"
@@ -179,7 +179,7 @@ kind = "button"
 focusable = false
 enabled = false
 [nodes.widget_shortcut]
-shortcut = "f10"
+shortcut = "F10"
 
 [[nodes]]
 id = "step_into"
@@ -191,7 +191,7 @@ kind = "button"
 focusable = false
 enabled = false
 [nodes.widget_shortcut]
-shortcut = "f11"
+shortcut = "F11"
 
 [[nodes]]
 id = "play"
@@ -202,7 +202,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "f5"
+shortcut = "F5"
 while_typing = false
 
 [[nodes]]
@@ -215,7 +215,7 @@ kind = "button"
 focusable = false
 enabled = false
 [nodes.widget_shortcut]
-shortcut = "f6"
+shortcut = "F6"
 while_typing = false
 
 [[nodes]]
@@ -227,7 +227,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "alt+1"
+shortcut = "alt+Digit1"
 while_typing = false
 
 [[nodes]]
@@ -239,7 +239,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "alt+2"
+shortcut = "alt+Digit2"
 while_typing = false
 
 [[nodes]]
@@ -251,7 +251,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "alt+3"
+shortcut = "alt+Digit3"
 while_typing = false
 
 [[nodes]]
@@ -263,7 +263,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "alt+4"
+shortcut = "alt+Digit4"
 while_typing = false
 
 [[nodes]]
@@ -275,7 +275,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "alt+5"
+shortcut = "alt+Digit5"
 while_typing = false
 
 [[nodes]]
@@ -287,7 +287,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "shift+a"
+shortcut = "shift+KeyA"
 while_typing = false
 
 [[nodes]]
@@ -299,7 +299,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "alt+s"
+shortcut = "alt+KeyS"
 while_typing = false
 
 [[nodes]]
@@ -311,7 +311,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "shift+r"
+shortcut = "shift+KeyR"
 while_typing = false
 
 [[nodes]]
@@ -323,7 +323,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+c"
+shortcut = "cmd+KeyC"
 while_typing = false
 
 [[nodes]]
@@ -335,7 +335,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "shift+cmd+z"
+shortcut = "shift+cmd+KeyZ"
 while_typing = false
 
 [[nodes]]
@@ -347,7 +347,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+y"
+shortcut = "cmd+KeyY"
 while_typing = false
 
 [[nodes]]
@@ -359,7 +359,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+z"
+shortcut = "cmd+KeyZ"
 while_typing = false
 
 [[nodes]]
@@ -371,7 +371,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "alt+l"
+shortcut = "alt+KeyL"
 while_typing = false
 
 [[nodes]]
@@ -383,7 +383,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+a"
+shortcut = "cmd+KeyA"
 while_typing = false
 
 [[nodes]]
@@ -395,7 +395,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "shift+cmd+g"
+shortcut = "shift+cmd+KeyG"
 while_typing = false
 
 [[nodes]]
@@ -407,7 +407,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+g"
+shortcut = "cmd+KeyG"
 while_typing = false
 
 [[nodes]]
@@ -419,7 +419,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "shift+cmd+l"
+shortcut = "shift+cmd+KeyL"
 while_typing = false
 
 [[nodes]]
@@ -431,7 +431,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "cmd+l"
+shortcut = "cmd+KeyL"
 while_typing = false
 
 [[nodes]]
@@ -443,7 +443,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "shift+h"
+shortcut = "shift+KeyH"
 while_typing = false
 
 [[nodes]]
@@ -455,7 +455,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "h"
+shortcut = "KeyH"
 while_typing = false
 
 [[nodes]]
@@ -467,7 +467,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "slash"
+shortcut = "Slash"
 while_typing = false
 
 [[nodes]]
@@ -479,7 +479,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "k"
+shortcut = "KeyK"
 while_typing = false
 
 [[nodes]]
@@ -491,5 +491,5 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "presse
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "escape"
+shortcut = "Escape"
 while_typing = false

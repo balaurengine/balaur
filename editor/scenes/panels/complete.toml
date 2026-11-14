@@ -68,7 +68,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "arrowup"
+shortcut = "ArrowUp"
 takes_typing = true
 
 [[nodes]]
@@ -80,7 +80,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "arrowdown"
+shortcut = "ArrowDown"
 takes_typing = true
 
 [[nodes]]
@@ -92,7 +92,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "enter"
+shortcut = "Enter"
 takes_typing = true
 
 [[nodes]]
@@ -104,7 +104,7 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "tab"
+shortcut = "Tab"
 takes_typing = true
 
 [[nodes]]
@@ -116,5 +116,5 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
-shortcut = "escape"
+shortcut = "Escape"
 takes_typing = true

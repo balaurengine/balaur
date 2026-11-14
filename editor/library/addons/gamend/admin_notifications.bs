@@ -8,16 +8,16 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Create a notification (admin)
 /// `POST /api/v1/admin/notifications`
-pub fn create_notification(params: any) -> int {
+pub async fn create_notification(params: any) -> any {
     if !core::given(params, "sender_id") {
         return core::missing("gamend::admin_notifications::create_notification", "sender_id");
     }
@@ -27,21 +27,24 @@ pub fn create_notification(params: any) -> int {
     if !core::given(params, "title") {
         return core::missing("gamend::admin_notifications::create_notification", "title");
     }
-    core::rest("POST", "/api/v1/admin/notifications", params)
+    let reply = await core::rest("POST", "/api/v1/admin/notifications", params);
+    reply
 }
 
 /// Delete a notification (admin)
 /// `DELETE /api/v1/admin/notifications/{id}`
-pub fn delete_notification(id: str) -> int {
+pub async fn delete_notification(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_notifications::delete_notification", "id");
     }
-    core::rest("DELETE", "/api/v1/admin/notifications/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/notifications/{id}");
+    reply
 }
 
 /// List all notifications (admin)
 /// `GET /api/v1/admin/notifications`
-pub fn list_notifications(options: any) -> int {
+pub async fn list_notifications(options: any) -> any {
     let query = core::query(options, ["user_id", "sender_id", "title", "page", "page_size"]);
-    core::rest("GET", "/api/v1/admin/notifications{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/notifications{query}");
+    reply
 }

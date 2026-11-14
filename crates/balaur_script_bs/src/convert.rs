@@ -287,3 +287,16 @@ impl balaur_script::Args for Seam<'_> {
         neutral_at(self.0, index)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{L, N, dynamic};
+
+    #[test]
+    fn bytes_reach_a_script_as_a_list_of_ints() {
+        assert_eq!(
+            dynamic(&N::Bytes(vec![0, 255, 16])),
+            L::Array(vec![L::Int(0), L::Int(255), L::Int(16)])
+        );
+    }
+}

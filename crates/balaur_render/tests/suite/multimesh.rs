@@ -679,3 +679,68 @@ impl Scenario {
         "{lines:#?}"
     );
 }
+
+/// What each multimesh handle writes one instance's colour and custom data
+/// with reads back as written, and reaches that node's instance alone.
+fn colour_and_custom_data_read_back_through(component: &str) {
+    let script = r#"pub class Scenario { node: Node }
+impl Scenario {
+    fn init() {
+        self.node.HANDLE.set_instance_color(1, color(0.25, 0.5, 0.75, 1.0));
+        self.node.HANDLE.set_instance_custom_data(1, color(1.0, 2.0, 3.0, 4.0));
+        let tint = self.node.HANDLE.instance_color(1);
+        let data = self.node.HANDLE.instance_custom_data(1);
+        let plain = self.node.HANDLE.instance_color(0);
+        log::info("tint {tint.g} data {data.a} plain {plain.r}");
+    }
+}
+"#
+    .replace("HANDLE", component);
+    let (app, errors, lines) = run_shared_as(component, &script, 1);
+    assert!(errors.is_empty(), "{component}: {errors:#?}");
+    assert!(
+        lines.iter().any(|l| l == "tint 0.5 data 4.0 plain 1.0"),
+        "{component} did not read back what it wrote: {lines:#?}"
+    );
+    let a = named(&app, "Scenario");
+    let world = app.engine.world();
+    let multimesh = world.get::<&MultiMesh>(a).unwrap();
+    assert!(same(multimesh.instances[1].custom, [1.0, 2.0, 3.0, 4.0]));
+}
+
+#[test]
+fn an_instances_colour_and_custom_data_read_back_in_3d() {
+    colour_and_custom_data_read_back_through("multimesh3d");
+}
+
+#[test]
+fn an_instances_colour_and_custom_data_read_back_in_2d() {
+    colour_and_custom_data_read_back_through("multimesh2d");
+}
+
+#[test]
+fn a_2d_multimesh_grows_and_cuts_its_draw_as_a_3d_one_does() {
+    let (app, errors, lines) = run_shared_as(
+        "multimesh2d",
+        r#"pub class Scenario { node: Node }
+impl Scenario {
+    fn init() {
+        self.node.multimesh2d.set_instance_count(3);
+        let grown = self.node.multimesh2d.instance_count();
+        self.node.multimesh2d.set_visible_instance_count(1);
+        let showing = self.node.multimesh2d.visible_instance_count();
+        self.node.multimesh2d.set_instance_color(2, color(0.0, 1.0, 0.0, 1.0));
+        log::info("grown {grown} showing {showing}");
+    }
+}
+"#,
+        1,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert!(lines.iter().any(|l| l == "grown 3 showing 1"), "{lines:#?}");
+    let a = named(&app, "Scenario");
+    let world = app.engine.world();
+    let multimesh = world.get::<&MultiMesh>(a).unwrap();
+    assert_eq!(multimesh.drawn().len(), 1, "one of three is drawn");
+    assert!(same(multimesh.instances[2].color, [0.0, 1.0, 0.0, 1.0]));
+}

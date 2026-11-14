@@ -5,18 +5,19 @@ pub class Player {
     pub speed: float = 6.0,
     pub jump: float = 9.0,
     vy: float,
+    on_floor: bool,
 }
 
 impl Player {
     fn fixed_update(dt: float) {
         let sideways = input::action_value("move");
-        // The controller reports whether the last move ended on the ground,
-        // which is what decides between falling and being able to jump.
-        if self.node.character2d.is_on_floor() {
+        // Whether the last move ended on the ground decides between falling
+        // and being able to jump.
+        if self.on_floor {
             self.vy = if input::action_just_pressed("jump") { self.jump } else { 0.0 };
         } else {
             self.vy -= 24.0 * dt;
         }
-        self.node.character2d.move_by(vec2(sideways * self.speed * dt, self.vy * dt));
+        self.on_floor = self.node.character2d.move_by(vec2(sideways * self.speed * dt, self.vy * dt)).on_floor;
     }
 }

@@ -298,6 +298,53 @@ fn an_async_function_of_another_unit_is_awaited() {
     }
 }
 
+const INNER: &str = r"
+extern async fn wait(seconds: float);
+pub class Seen { pub calls: int }
+internal async fn inner(seen: Seen, n: int) -> int {
+    await wait(0.25);
+    seen.calls += 1;
+    n * 3
+}
+";
+
+const OUTER: &str = r"
+use other;
+pub async fn run() -> int {
+    let seen = other::Seen { calls: 0 };
+    let tripled = await other::inner(seen, 5);
+    tripled * 10 + seen.calls
+}
+";
+
+#[test]
+fn an_internal_async_function_of_another_file_in_the_package_is_awaited() {
+    let files = [("scripts/outer.bs", OUTER), ("scripts/other.bs", INNER)];
+    let units = linked("scripts/outer.bs", &files);
+    for engine in engines() {
+        native(engine, with_uses(&units));
+        let host = HostFns::default().on_async("wait", |args| {
+            let Value::Float(s) = args[0] else { panic!() };
+            (s, Value::Void)
+        });
+        let limits = Limits {
+            engine,
+            ..Limits::default()
+        };
+        let mut rt = Runtime::new(&units, host, limits).unwrap_or_else(|e| panic!("{e}"));
+        let mut task = rt.start("run", &[]).unwrap();
+        let mut out = None;
+        for _ in 0..100 {
+            if let Some(v) = rt.poll(&mut task, None).unwrap_or_else(|e| panic!("{e}")) {
+                out = Some(v);
+                break;
+            }
+            rt.advance(0.125);
+        }
+        assert_eq!(out, Some(Value::Int(151)), "{engine:?}");
+    }
+}
+
 const LEFT_OUT: &str = r#"
 use parts;
 pub fn free() -> str {

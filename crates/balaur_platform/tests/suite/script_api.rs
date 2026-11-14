@@ -44,14 +44,13 @@ fn a_script_reads_the_player_before_a_sign_in_has_landed() {
 pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        let signed: bool = platform::signed_in();
         let store: str = platform::backend();
         let player: platform::Player? = platform::player();
-        log::info("platform-empty {signed} {store} {player == nil}");
+        log::info("platform-empty {store} {player == nil}");
     }
 }
 "#,
-        &["platform-empty false none true"],
+        &["platform-empty none true"],
     );
 }
 

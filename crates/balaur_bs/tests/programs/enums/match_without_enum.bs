@@ -3,4 +3,4 @@
 
 pub fn f(x: int) -> int { match x { Light::Red => 1, _ => 2 } }
 
-// error: 4:37: `Light::Red` is no enum variant
+// error: 4:37: `Light::Red` is no enum variant or constant

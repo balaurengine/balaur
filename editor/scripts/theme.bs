@@ -310,7 +310,7 @@ pub fn apply(state: editor::State) {
     // The document itself, inline, on each root: one table both readers take,
     // so a role a script names and a role a node names cannot drift.
     for path in ROOTS() {
-        let root = scene::get_node(path);
+        let root = scene::root().get_node(path);
         if root.is_valid() {
             // A table, so no `str` the property's type could write.
             let inline: any = { project_fields::THEME: doc };

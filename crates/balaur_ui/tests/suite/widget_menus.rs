@@ -434,7 +434,7 @@ fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
     let host = add_widget(&app, &params.into());
     let row = toml::toml! {
         kind = "button" text = "Save" width = 173.0 height = 22.0
-        widget_shortcut = { shortcut = "cmd+s" }
+        widget_shortcut = { shortcut = "cmd+KeyS" }
     };
     let row = add_child_widget(&app, host, "Save", &row.into());
     let ctx = egui::Context::default();
@@ -462,7 +462,7 @@ fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
     let open = add_widget(&app, &showing.into());
     let labelled = toml::toml! {
         kind = "button" text = "Save" width = 173.0 height = 22.0
-        widget_shortcut = { shortcut = "cmd+s" }
+        widget_shortcut = { shortcut = "cmd+KeyS" }
     };
     add_child_widget(&app, open, "Save", &labelled.into());
     settle(&app, &ctx);

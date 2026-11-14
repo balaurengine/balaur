@@ -21,6 +21,7 @@ pub class FirstPerson {
     pub pitch: float = 0.0,
     pub yaw: float = 0.0,
     vy: float,
+    on_floor: bool,
     held: float,
     eye: Node,
     rise: float,
@@ -86,7 +87,7 @@ impl FirstPerson {
         let cos = math::cos(yaw);
         let x = (sideways * cos - forward * sin) * self.speed * dt;
         let z = (-sideways * sin - forward * cos) * self.speed * dt;
-        if self.node.character3d.is_on_floor() {
+        if self.on_floor {
             // Nothing holds it down: a push big enough to keep the capsule on
             // the floor aims the move into it, and the controller spends
             // whole frames resolving that instead of walking.
@@ -94,7 +95,7 @@ impl FirstPerson {
         } else {
             self.vy -= self.gravity * dt;
         }
-        self.node.character3d.move_by(vec3(x, self.vy * dt, z));
+        self.on_floor = self.node.character3d.move_by(vec3(x, self.vy * dt, z)).on_floor;
         // After the move, because this reads where the body ended up and the
         // view is drawn from there.
         self.hold_eye(self.node.transform.position.y);

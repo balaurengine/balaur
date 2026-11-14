@@ -1,0 +1,31 @@
+// `random::at` is splitmix64 over a seed and an index: the values a Rust
+// reference gives, and 315 of them folded into one int through their 53 bits.
+
+pub fn value(seed: int, index: int) -> float { random::at(seed, index) }
+pub fn folded() -> int {
+    let seeds = [0, 1, -1, 7, 42, -9223372036854775807 - 1, 9223372036854775807, 123456789, -987654321];
+    let indices: [int] = [];
+    for index in 0..30 {
+        indices.push(index);
+    }
+    indices.push(-1);
+    indices.push(-2);
+    indices.push(1000000);
+    indices.push(-9223372036854775807 - 1);
+    indices.push(9223372036854775807);
+    let total = 0;
+    for seed in seeds {
+        for index in indices {
+            total = total * 31 + (random::at(seed, index) * 9007199254740992.0) as int;
+        }
+    }
+    total
+}
+
+// expect: value(0, 0) == 0.8833108082136426
+// expect: value(7, 3) == 0.5829302930280781
+// expect: value(7, 4) == 0.45244189501146836
+// expect: value(5, 0) == 0.386768045983934
+// expect: value(-1, -1) == 0.7063039534139496
+// expect: folded() == -6310214163101865909
+// live: 0

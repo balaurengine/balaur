@@ -1,6 +1,6 @@
 //! Text a person types: what a `field` or a `text_area` holds and where its
 //! caret is, laid out by the same shaper as a label, so a field in Arabic,
-//! Hindi or Thai draws as its label does (docs/PLAN-ui-gaps.md §1).
+//! Hindi or Thai draws as its label does.
 
 use std::ops::Range;
 

@@ -173,7 +173,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
         (movement, collisions)
     };
 
-    if !apply_movement(eng, entity, movement.translation, movement.grounded) {
+    if !apply_movement(eng, entity, movement.translation) {
         return Ok(Value::Nil);
     }
     Ok(map([
@@ -186,7 +186,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
 
 /// Write the effective translation onto the node, and onto its body or its
 /// standalone colliders; `false` when the node has no transform to move.
-fn apply_movement(eng: &Engine, entity: Entity, translation: Vector2, grounded: bool) -> bool {
+fn apply_movement(eng: &Engine, entity: Entity, translation: Vector2) -> bool {
     let pose = {
         let world = eng.world();
         let transform = world.get::<&mut Transform>(entity);
@@ -218,7 +218,6 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector2, grounded: 
         }
         state.queries_ready = false;
     }
-    state.grounded.insert(entity, grounded);
     true
 }
 
@@ -237,24 +236,12 @@ pub(crate) fn install_character2d_api(m: &mut Module<Engine>) {
     ]);
     m.describe(&[
         (words::functions::MOVE_CHARACTER_BY, &[c::CHARACTER_2D], "(node: node, offset: Vec2) -> CharacterMove", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update."),
-        (words::functions::IS_ON_FLOOR, &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
         words::functions::MOVE_CHARACTER_BY,
         |eng: &Engine, (node, offset): (NodeId, Value)| {
             let offset = scalar::vec2_arg("an offset", &offset)?;
             move_character(eng, entity_of(node)?, offset)
-        },
-    );
-    // A reader, as in 3D: a zero-translation sweep would still snap to ground
-    // and write the transform, so asking would move the character.
-    m.function(
-        words::functions::IS_ON_FLOOR,
-        |eng: &Engine, node: NodeId| {
-            let entity = entity_of(node)?;
-            let state = eng.resource::<PhysicsState2d>();
-            let grounded = state.borrow().grounded.get(&entity).copied();
-            Ok(grounded.unwrap_or(false))
         },
     );
 }

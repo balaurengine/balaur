@@ -1,4 +1,4 @@
-//! Commands (PLAN-ecs §2): writes asked for while the world is being read,
+//! Commands: writes asked for while the world is being read,
 //! made at the end of the stage in the order asked.
 
 use std::cell::RefCell;

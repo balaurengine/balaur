@@ -55,8 +55,11 @@ fn editor_scripts_draw_only_bundled_glyphs() {
     scripts(&editor, &mut files);
     let mut missing = Vec::new();
     for path in files {
-        // The font smoke test draws scripts the bundle has no face for.
-        if path.file_name().is_some_and(|n| n == "selftest.bs") {
+        // The self-tests are scaffolding, and their font smoke test draws
+        // scripts the bundle has no face for.
+        let scaffolding = path.components().any(|part| part.as_os_str() == "tests")
+            || path.file_name().is_some_and(|n| n == "selftest.bs");
+        if scaffolding {
             continue;
         }
         let text = std::fs::read_to_string(&path).unwrap();

@@ -2,10 +2,9 @@
 //! identifier the App Store resolves a game against, the `Info.plist` keys,
 //! and the entitlement each capability needs.
 //!
-//! Signing stays the developer's, as docs/PLAN-mobile-export.md decided. What
-//! the exporter owes them is a bundle that is *signable*: an entitlement
-//! Xcode would have written is one no `codesign` invocation can add later
-//! without knowing what the game asked for.
+//! `sign.rs` signs the bundle; this module makes it *signable*: an
+//! entitlement Xcode would have written is one no `codesign` invocation can
+//! add later without knowing what the game asked for.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;

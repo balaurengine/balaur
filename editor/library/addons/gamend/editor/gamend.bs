@@ -1,9 +1,11 @@
-// The Gamend dock: the engine's `gamend` state, the addon's activity log, and
-// GETs whose replies `await_reply` keeps, which refills it. Nothing runs on a
-// clock.
+// The Gamend dock: the addon's session and sockets, its activity log, and
+// GETs whose replies `await_fetch` keeps, which refills it. Nothing runs on
+// a clock.
 
 use activity;
 use addons::save::save;
+use auth;
+use client;
 use core;
 
 const CALLS: str = "calls";
@@ -16,7 +18,6 @@ const MESSAGE: str = "message";
 const MESSAGES: str = "messages";
 const OK: str = "ok";
 const OPEN: str = "open";
-const PRODUCTION: str = "production";
 const ACCEPTED: str = "accepted";
 const ALL: str = "all";
 const APPROVE_URL: str = "approve_url";
@@ -61,7 +62,6 @@ const TOKEN: str = "token";
 const TOOLTIP: str = "tooltip";
 const TRUNCATE: str = "truncate";
 const UNKNOWN: str = "unknown";
-const URL: str = "url";
 const USER: str = "user";
 const USERNAME: str = "username";
 const VIEWS: str = "views";
@@ -102,10 +102,12 @@ const SIGNED_IN: str = "text_code_success";
 
 pub class Gamend {
     node: Node,
-    // Each GET the dock made, by key: its request id, and its reply once one
-    // came back, kept here since the engine keeps only the newest.
+    // Each GET the dock made, by key: the number it was asked under, and its
+    // reply once one came back. A key dropped and asked again keeps only the
+    // newest reply.
     requests: { str: any },
     replies: { str: any },
+    asked: int,
     // What a person typed into a feature's id field, and the id its views
     // were asked with, by feature.
     drafts: { str: any },
@@ -126,7 +128,7 @@ pub class Gamend {
 
 // The Editor, whose methods are what a plugin reaches the editor through.
 fn editor() -> Node {
-    scene::get_node("Editor")
+    scene::root().get_node("Editor")
 }
 
 fn core_pages() -> [str] {
@@ -209,6 +211,31 @@ impl Gamend {
             ORDER: 2,
             HELP: "What the Gamend dock got when you connected it to your Gamend Cloud account. Kept in the editor's own file; empty disconnects it.",
         });
+        settings::define(core::URL_SETTING, {
+            TYPE: STRING,
+            DEFAULT: "https://gamend.org",
+            ORDER: 1,
+            HELP: "The Gamend server a shipped game talks to.",
+        });
+        settings::define(core::LOCAL_URL_SETTING, {
+            TYPE: STRING,
+            DEFAULT: "http://localhost:4000",
+            ORDER: 2,
+            HELP: "A Gamend running on this machine, as `mix dev.start` serves it.",
+        });
+        settings::define(core::PLUGIN_SETTING, {
+            TYPE: STRING,
+            DEFAULT: "",
+            ORDER: 3,
+            HELP: "The server plugin a game's hooks are called in.",
+        });
+        settings::define(core::SERVER_SETTING, {
+            TYPE: "enum",
+            DEFAULT: core::LOCAL,
+            core::OPTIONS: [core::PRODUCTION, core::LOCAL],
+            ORDER: 3,
+            HELP: "Which of the project's two servers a game played from this editor talks to. Kept in the editor's own file, so it never ships.",
+        });
         { "panels": [{ ID: GAMEND, TITLE: "Gamend", "tall": true, "draw": "fill" }] }
     }
 
@@ -216,9 +243,6 @@ impl Gamend {
     /// in at its foot, a page per view down its side, and that page's rows.
     pub fn fill(payload: any) {
         let host = payload["host"].as_str();
-        if gamend::connection().url == "" {
-            gamend::configure(nil);
-        }
         let ed = editor();
         ed.call("kit_bar", host, "head", header(self.node));
         ed.call("kit_bar", host, "foot", [status_line()]);
@@ -260,14 +284,21 @@ impl Gamend {
         editor().call("kit_changed");
     }
 
-    /// A call the dock made came back: kept under the key it was asked for.
-    pub async fn await_reply(request: int) {
-        let e = await task::wait(request);
-        for key in self.requests.keys() {
-            if self.requests[key].as_int() == request {
-                self.replies[key] = e;
-            }
+    /// A GET the dock made, kept under the key it was asked for unless the
+    /// key was dropped since.
+    pub async fn await_fetch(key: str, path: str, asked: int) {
+        let e = await core::rest("GET", path);
+        if self.requests[key].as_int() == asked {
+            self.replies[key] = e;
         }
+        editor().call("kit_changed");
+    }
+
+    /// The dock's own sign-in, by the editor's device id, which is the game's.
+    pub async fn await_sign_in() {
+        let e = await client::login_device(engine::device_id());
+        self.forget("");
+        self.replies[LOGIN] = e;
         editor().call("kit_changed");
     }
 
@@ -297,10 +328,10 @@ impl Gamend {
     }
 
     fn overview() -> [any] {
-        let target = gamend::server();
-        let link = gamend::connection();
+        let target = client::server();
+        let link = client::connection();
         let out: [any] = [heading("Server")];
-        out.push(field(URL, link.url, { COPY: true }));
+        out.push(field(core::URL, link.url, { COPY: true }));
         out.push(field("target", target.name, {}));
         out.push(field("hook plugin", if target.plugin == "" { "none: set [gamend] plugin" } else { target.plugin }, {}));
         out.push(field(HEALTH, brief(self.fetch(HEALTH, "/api/v1/health")), {}));
@@ -341,24 +372,24 @@ impl Gamend {
             return out;
         }
         let servers = parsed(reply[BODY])[DATA];
-        let current = gamend::server().production;
+        let current = client::server().production;
         if servers.len() == 0 {
             out.push(empty("no servers yet: make one on " + host_of(base) + "/servers"));
         }
         for i in 0..servers.len() {
             let one = servers[i];
-            let url = one[URL].as_str();
+            let url = one[core::URL].as_str();
             out.push(heading(one["slug"].as_str()));
             out.push(field("address", url, { COPY: true }));
             out.push(field(STATUS, one[STATUS].as_str() + " · " + one["size"].as_str(), {}));
             let picked = url == current;
-            let pick = button(self.node, if picked { "This project's server" } else { "Use for this project" }, "cloud_pick", { URL: url });
+            let pick = button(self.node, if picked { "This project's server" } else { "Use for this project" }, "cloud_pick", { core::URL: url });
             pick[CHECKED] = picked;
             out.push(buttons([pick]));
         }
         out.push(buttons([
             button(self.node, "Refresh", CLOUD_REFRESH, {}),
-            button(self.node, "Open on " + host_of(base), OPEN_SITE, { URL: base + "/servers" }),
+            button(self.node, "Open on " + host_of(base), OPEN_SITE, { core::URL: base + "/servers" }),
             button(self.node, "Disconnect", CLOUD_DISCONNECT, {}),
         ]));
         out
@@ -369,7 +400,7 @@ impl Gamend {
             out.push(field(CODE, self.cloud_link[CODE].as_str(), {}));
             out.push(line("Approve this code on the page that opened in your browser. The dock waits for it.", MUTED));
             out.push(buttons([
-                button(self.node, "Open the page again", OPEN_SITE, { URL: self.cloud_link[APPROVE_URL].as_str() }),
+                button(self.node, "Open the page again", OPEN_SITE, { core::URL: self.cloud_link[APPROVE_URL].as_str() }),
                 button(self.node, "Cancel", "cloud_cancel", {}),
             ]));
             return out;
@@ -403,12 +434,12 @@ impl Gamend {
     /// token when it has one; `await_cloud_reply` takes its reply.
     fn cloud_send(kind: str, method: str, path: str, body: any, seconds: float) {
         let headers = [
-            http::Header { name: "content-type", value: "application/json" },
+            http::Header { name: core::CONTENT_TYPE, value: "application/json" },
             http::Header { name: "accept", value: "application/json" },
         ];
         let token = cloud_token();
         if token != "" {
-            headers.push(http::Header { name: "authorization", value: "Bearer " + token });
+            headers.push(http::Header { name: core::AUTHORIZATION, value: "Bearer " + token });
         }
         let opts: any = { METHOD: method, HEADERS: headers, TIMEOUT_SECONDS: seconds };
         if body != nil {
@@ -420,7 +451,7 @@ impl Gamend {
     }
 
     fn user() -> [any] {
-        let held = gamend::session();
+        let held = auth::session();
         if held == nil {
             return self.signed_out();
         }
@@ -468,7 +499,7 @@ impl Gamend {
 
     fn lobby() -> [any] {
         let ids: [str] = [];
-        for socket in gamend::connection().sockets {
+        for socket in client::connection().sockets {
             for topic in socket.topics {
                 if topic.starts_with("lobby:") {
                     ids.push(topic.replace("lobby:", ""));
@@ -584,7 +615,7 @@ impl Gamend {
             }
         }
         let out: [any] = [];
-        if gamend::session() == nil {
+        if auth::session() == nil {
             out.push(line("not signed in: most of these are the player's own, so sign in on the User tab", QUIET));
         }
         let wants = found[ID].as_str();
@@ -610,7 +641,7 @@ impl Gamend {
         out
     }
 
-    /// A GET the dock made, by key: sent once, and nil until `await_reply`
+    /// A GET the dock made, by key: sent once, and nil until `await_fetch`
     /// keeps its reply.
     fn fetch(key: str, path: str) -> any {
         let held = self.replies[key];
@@ -618,9 +649,9 @@ impl Gamend {
             return held;
         }
         if !self.requests.has(key) {
-            let asked = core::rest("GET", path);
-            self.requests[key] = asked;
-            self.node.call("await_reply", asked);
+            self.asked += 1;
+            self.requests[key] = self.asked;
+            self.node.call("await_fetch", key, path, self.asked);
         }
         nil
     }
@@ -648,12 +679,13 @@ impl Gamend {
     /// for this person only.
     pub fn pick_server(data: any, _value: any) {
         let name = data[SERVER].as_str();
-        if gamend::server().name == name && gamend::connection().url == gamend::server().url {
+        let target = client::server();
+        if target.name == name && client::connection().url == target.url {
             return;
         }
-        settings::set("gamend/server", name);
+        settings::set(core::SERVER_SETTING, name);
         editor().call("kit_save_prefs");
-        gamend::configure(nil);
+        client::configure("", "");
         self.forget("");
     }
 
@@ -688,14 +720,14 @@ impl Gamend {
     /// Make a server this project's: `gamend/url`, kept in `project.toml`,
     /// and the dock talking to it when production is the target.
     pub fn cloud_pick(data: any, _value: any) {
-        settings::set("gamend/url", data[URL].as_str());
+        settings::set(core::URL_SETTING, data[core::URL].as_str());
         editor().call("kit_save_project");
-        gamend::configure(nil);
+        client::configure("", "");
         self.forget("");
     }
 
     pub fn open_site(data: any, _value: any) {
-        engine::open_url(data[URL].as_str());
+        engine::open_url(data[core::URL].as_str());
     }
 
     /// Ask again for what a page shows; a feature's page takes the id
@@ -711,36 +743,26 @@ impl Gamend {
     }
 
     pub fn sign_in(_data: any, _value: any) {
-        self.forget(LOGIN);
-        let asked = core::login(gamend::Credentials { device_id: engine::device_id() }, "device");
-        self.requests[LOGIN] = asked;
-        self.node.call("await_reply", asked);
+        self.replies.remove(LOGIN);
+        self.node.call("await_sign_in");
     }
 
     /// The session as `auth.bs` keeps it.
     pub fn keep_session(_data: any, _value: any) {
-        let held = gamend::session();
+        let held = auth::session();
         if held == nil {
             return;
         }
-        let s = held.unwrap();
-        save::write(SESSION_SLOT, {
-            "user_id": s.user_id,
-            USERNAME: s.username,
-            "display_name": s.display_name,
-            "access_token": s.access_token,
-            "refresh_token": s.refresh_token,
-            "expires_in": s.expires_in,
-        });
+        auth::keep(held.unwrap());
     }
 
     pub fn sign_out(_data: any, _value: any) {
-        gamend::restore(nil);
+        auth::restore(nil);
         self.forget("");
     }
 
     pub fn restore_saved(_data: any, _value: any) {
-        gamend::restore(saved_session());
+        auth::restore(saved_session());
         self.forget("");
     }
 
@@ -797,21 +819,21 @@ impl Gamend {
 
 /// The two servers, and the links to the one in use.
 fn header(to: Node) -> [any] {
-    let target = gamend::server();
-    let url = gamend::connection().url;
+    let target = client::server();
+    let url = client::connection().url;
     let out: [any] = [];
-    for name in [PRODUCTION, "local"] {
-        let at = if name == PRODUCTION { target.production } else { target.local };
+    for name in [core::PRODUCTION, core::LOCAL] {
+        let at = if name == core::PRODUCTION { target.production } else { target.local };
         let on = target.name == name && url == at;
         let pick = button(to, name + " · " + host_of(at), "pick_server", { SERVER: name });
         pick[CHECKED] = on;
         pick[TOOLTIP] = at;
         out.push(pick);
     }
-    let site = button(to, "Open", OPEN_SITE, { URL: url });
+    let site = button(to, "Open", OPEN_SITE, { core::URL: url });
     site[TOOLTIP] = url;
     out.push(site);
-    let admin = button(to, "Admin", OPEN_SITE, { URL: url + "/admin" });
+    let admin = button(to, "Admin", OPEN_SITE, { core::URL: url + "/admin" });
     admin[TOOLTIP] = url + "/admin";
     out.push(admin);
     out
@@ -819,7 +841,7 @@ fn header(to: Node) -> [any] {
 
 /// Who is signed in, over what.
 fn status_line() -> any {
-    let link = gamend::connection();
+    let link = client::connection();
     let signed = link.username != nil;
     let who = if signed { "signed in as " + link.username.unwrap() } else { "not signed in" };
     let open = 0;

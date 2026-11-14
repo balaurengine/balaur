@@ -174,8 +174,8 @@ fn a_gap_written_as_one_number_is_refused() {
 }
 
 #[test]
-fn a_flow_spaces_its_children_across_and_its_lines_down_by_the_gap_pair() {
-    let flow = toml::toml! { kind = "flow" width = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [4.0, 12.0] } };
+fn a_wrapping_row_spaces_its_children_across_and_its_lines_down_by_the_gap_pair() {
+    let flow = toml::toml! { kind = "row" width = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [4.0, 12.0], wrap_children = "wrap" } };
     let (_dir, rects, _) = laid_out(
         &flow.into(),
         &[block(48.0, 10.0), block(48.0, 10.0), block(48.0, 10.0)],
@@ -336,10 +336,10 @@ fn align_self_moves_one_child_off_its_parent_s_alignment() {
 }
 
 #[test]
-fn align_content_centres_the_lines_a_flow_wrapped() {
+fn align_content_centres_the_lines_a_row_wrapped() {
     let flow = toml::toml! {
-        kind = "flow" width = 100.0 height = 100.0 padding = 0.0 x = 0.0 y = 0.0
-        widget_layout = { align_content = "center", gap = [0.0, 0.0] }
+        kind = "row" width = 100.0 height = 100.0 padding = 0.0 x = 0.0 y = 0.0
+        widget_layout = { align_content = "center", gap = [0.0, 0.0], wrap_children = "wrap" }
     };
     let (_dir, rects, _) = laid_out(&flow.into(), &[block(60.0, 10.0), block(60.0, 10.0)]);
     assert!(
@@ -394,7 +394,7 @@ fn a_row_told_to_wrap_does_and_balance_evens_its_lines() {
         let (_dir, rects, _) = laid_out(&params.into(), &four);
         rects
     };
-    let one_line = row("auto");
+    let one_line = row("none");
     assert!(
         close(one_line[3].min.y, 0.0),
         "a row keeps one line unless told: {one_line:?}"

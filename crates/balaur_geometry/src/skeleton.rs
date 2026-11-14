@@ -54,7 +54,7 @@ impl Default for Bone {
 }
 
 impl Bone {
-    /// The rest pose as the transform `apply_rest` writes.
+    /// The rest pose as a node's transform.
     #[must_use]
     pub fn rest_transform(&self) -> Transform {
         Transform {
@@ -171,42 +171,6 @@ pub fn bones_under(world: &World, root: Entity) -> Vec<Entity> {
         }
     }
     out
-}
-
-/// Reset to Rest Pose: every bone under `root` takes its rest transform.
-pub fn apply_rest(world: &World, root: Entity) {
-    for bone in bones_under(world, root) {
-        let rest = world.get::<&Bone>(bone).map(|b| b.rest_transform());
-        if let (Ok(rest), Ok(mut transform)) = (rest, world.get::<&mut Transform>(bone)) {
-            *transform = rest;
-        }
-    }
-}
-
-/// Overwrite Rest Pose: every bone under `root` records its current
-/// transform as its rest.
-pub fn overwrite_rest(world: &World, root: Entity) {
-    for bone in bones_under(world, root) {
-        let Ok(current) = world.get::<&Transform>(bone).map(|t| *t) else {
-            continue;
-        };
-        let euler = euler_from_quat(current.rotation);
-        if let Ok(mut b) = world.get::<&mut Bone>(bone) {
-            b.rest_position = current.position;
-            b.rest_rotation = euler;
-            b.rest_scale = current.scale;
-        }
-        // The components read back the rest they now hold.
-        if let Ok(mut asked) = world.get::<&mut Bone3d>(bone) {
-            asked.rest_position = current.position;
-            asked.rest_rotation = euler;
-            asked.rest_scale = current.scale;
-        }
-        if let Ok(mut asked) = world.get::<&mut Bone2d>(bone) {
-            asked.rest_position = [current.position.x, current.position.y];
-            asked.rest_rotation = euler.z;
-        }
-    }
 }
 
 /// The 3D twin of `rest_in_rig`: a bone's rest composed down from `rig`.
@@ -550,20 +514,6 @@ fn node_arg(args: &[Value]) -> Result<Entity> {
     }
 }
 
-/// `skeleton.apply_rest(node)`.
-pub(crate) fn apply_rest_op(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let root = node_arg(args)?;
-    apply_rest(&eng.world(), root);
-    Ok(Value::Nil)
-}
-
-/// `skeleton.overwrite_rest(node)`.
-pub(crate) fn overwrite_rest_op(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let root = node_arg(args)?;
-    overwrite_rest(&eng.world(), root);
-    Ok(Value::Nil)
-}
-
 /// `skeleton.bones(node)`: the bones under a node, in the order a skin
 /// numbers them.
 pub(crate) fn bones_op(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -578,20 +528,8 @@ pub(crate) fn bones_op(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 /// The `skeleton` module's calls.
-pub const OPS: &[balaur_core::engine_api::EngineOp] = &[
-    balaur_core::engine_api::EngineOp {
-        module: "skeleton",
-        name: "apply_rest",
-        call: apply_rest_op,
-    },
-    balaur_core::engine_api::EngineOp {
-        module: "skeleton",
-        name: "overwrite_rest",
-        call: overwrite_rest_op,
-    },
-    balaur_core::engine_api::EngineOp {
-        module: "skeleton",
-        name: "bones",
-        call: bones_op,
-    },
-];
+pub const OPS: &[balaur_core::engine_api::EngineOp] = &[balaur_core::engine_api::EngineOp {
+    module: "skeleton",
+    name: "bones",
+    call: bones_op,
+}];

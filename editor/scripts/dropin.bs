@@ -6,6 +6,7 @@ use editor;
 use history;
 use model;
 use recipes;
+use sceneedit;
 use selection;
 use signals;
 use util;
@@ -149,7 +150,7 @@ fn drop_point(state: &mut editor::State) -> [float] {
         let at = render::mouse_world_2d();
         return [at.x, at.y, 0.0];
     }
-    model::view_centre(state)
+    sceneedit::view_centre(state)
 }
 
 /// Add one node carrying `parts` under the scene's root, at the drop point.
@@ -159,7 +160,7 @@ fn place(state: &mut editor::State, name: str, parts: any) -> Node {
     for key in parts.keys() {
         entry[key] = parts[key];
     }
-    model::spawn(state, state.scene_root.unwrap(), name, entry)
+    sceneedit::spawn(state, state.scene_root.unwrap(), name, entry)
 }
 
 /// An image becomes a `sprite` in 2D and a textured `shape3d` plane in 3D.
@@ -246,12 +247,12 @@ fn drop_font(state: &mut editor::State, path: str) -> Node {
 fn drop_scene(state: &mut editor::State, path: str) -> Node {
     let prefix = state.game_root + "/";
     if path.starts_with(prefix) {
-        model::instance_scene(state, path.slice(prefix.len(), path.len()));
+        sceneedit::instance_scene(state, path.slice(prefix.len(), path.len()));
         return nil;
     }
     let rel = copy_in(state, path, SCENES);
     if rel != nil {
-        model::instance_scene(state, rel.unwrap());
+        sceneedit::instance_scene(state, rel.unwrap());
     }
     nil
 }
@@ -313,7 +314,7 @@ pub fn kept_until(state: editor::State) -> float {
     }
     let last = 0.0;
     for source in state.jobs.keys() {
-        last = util::max(last, state.jobs[source][layout_fields::AT].as_float());
+        last = math::max(last, state.jobs[source][layout_fields::AT].as_float());
     }
     last + KEPT_FOR
 }
@@ -370,7 +371,7 @@ pub fn report(state: &mut editor::State, event: any) {
             log::info(note);
         }
         if import_event[panel_keys::SCENE].kind() == types::KIND_STRING {
-            model::instance_scene(state, import_event[panel_keys::SCENE].as_str());
+            sceneedit::instance_scene(state, import_event[panel_keys::SCENE].as_str());
         }
     } else if kind == CANCELLED {
         let written = import_event[log_fields::DONE].as_int();
@@ -394,7 +395,7 @@ pub fn report(state: &mut editor::State, event: any) {
 pub fn place_file(state: &mut editor::State, rel: str) -> bool {
     let kind = kind_of(rel);
     if kind == tabs::SCENE {
-        model::instance_scene(state, rel);
+        sceneedit::instance_scene(state, rel);
         return true;
     }
     let placed: any = if kind == asset_kinds::IMAGE {

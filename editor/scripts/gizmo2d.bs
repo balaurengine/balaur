@@ -81,7 +81,7 @@ const HANDLE_PIXELS: float = 12.0;
 // What a finger aims at: a cursor points at what it covers, a finger covers
 // what it points at, so half a touch target answers around the handle.
 fn pick_pixels(state: editor::State) -> float {
-    if state.touchscreen { util::max(HANDLE_PIXELS, shell::TOUCH_TARGET / 2.0) } else { HANDLE_PIXELS }
+    if state.touchscreen { math::max(HANDLE_PIXELS, shell::TOUCH_TARGET / 2.0) } else { HANDLE_PIXELS }
 }
 
 // steadyum HANDLE_DRAW_HALF: drawn marker half-size vs the pick radius.
@@ -109,7 +109,7 @@ fn handle_signs() -> [[float]] {
 }
 
 fn line(from: [float], to: [float], color: [float], width: float?) {
-    render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), width);
+    render::draw_polyline_2d([vec2(from[0], from[1]), vec2(to[0], to[1])], width, util::as_color(color));
 }
 
 // A box's own frame: its centre, turned with it, unscaled.
@@ -212,8 +212,8 @@ pub fn extents_at(state: editor::State, row: int) -> WorldBox? {
         return nil;
     }
     let placed = placed_box(found, bare_box()).unwrap();
-    let cosine = util::abs(math::cos(placed.angle));
-    let sine = util::abs(math::sin(placed.angle));
+    let cosine = math::abs(math::cos(placed.angle));
+    let sine = math::abs(math::sin(placed.angle));
     let half_x = placed.half[0];
     let half_y = placed.half[1];
     WorldBox { centre: placed.centre, half: [cosine * half_x + sine * half_y, sine * half_x + cosine * half_y] }
@@ -231,8 +231,8 @@ fn set_geometry(state: editor::State) -> Geometry? {
             let covered = found.unwrap();
             found_any = true;
             for axis in 0..2 {
-                lowest[axis] = util::min(lowest[axis], covered.centre[axis] - covered.half[axis]);
-                highest[axis] = util::max(highest[axis], covered.centre[axis] + covered.half[axis]);
+                lowest[axis] = math::min(lowest[axis], covered.centre[axis] - covered.half[axis]);
+                highest[axis] = math::max(highest[axis], covered.centre[axis] + covered.half[axis]);
             }
         }
     }
@@ -250,7 +250,7 @@ fn set_geometry(state: editor::State) -> Geometry? {
         handle_radius: handle_radius,
         pick: pick_pixels(state) * per_pixel,
         marker: DRAW_HALF * handle_radius,
-        ring: util::min(0.75 * util::min(half_x, half_y), 2.4 * handle_radius),
+        ring: math::min(0.75 * math::min(half_x, half_y), 2.4 * handle_radius),
     }
 }
 
@@ -278,7 +278,7 @@ fn selection_geometry(state: editor::State) -> Geometry? {
         marker: DRAW_HALF * handle_radius,
         // steadyum ring: diameter 75% of the smallest bbox side, capped at
         // 4x the handle's full drawn size.
-        ring: util::min(0.75 * util::min(half_x, half_y), 2.4 * handle_radius),
+        ring: math::min(0.75 * math::min(half_x, half_y), 2.4 * handle_radius),
     }
 }
 
@@ -300,7 +300,7 @@ fn hit_test(state: editor::State, geometry: Geometry, world_x: float, world_y: f
             return part(gizmo_parts::HANDLE, [signs[0], signs[1]]);
         }
     }
-    if util::abs(local_x) <= geometry.half_extents[0] && util::abs(local_y) <= geometry.half_extents[1] {
+    if math::abs(local_x) <= geometry.half_extents[0] && math::abs(local_y) <= geometry.half_extents[1] {
         return part(gizmo_parts::FACE, []);
     }
     nil
@@ -457,22 +457,22 @@ fn apply_drag(state: &mut editor::State, world_x: any, world_y: any) {
             let sign = drag.part.signs[axis];
             if sign != 0.0 {
                 let denominator = 2.0 * sign * drag.half_extents[axis];
-                if util::abs(denominator) > 1e-6 {
+                if math::abs(denominator) > 1e-6 {
                     let travel = delta_x * axes[axis][0] + delta_y * axes[axis][1];
-                    factors[axis] = util::max(0.001, 1.0 + travel / denominator);
+                    factors[axis] = math::max(0.001, 1.0 + travel / denominator);
                 }
             }
         }
         if input::key_down(input::KEY_SHIFT) {
             let dominant = 1.0;
             for axis in 0..2 {
-                if drag.part.signs[axis] != 0.0 && util::abs(factors[axis] - 1.0) > util::abs(dominant - 1.0) {
+                if drag.part.signs[axis] != 0.0 && math::abs(factors[axis] - 1.0) > math::abs(dominant - 1.0) {
                     dominant = factors[axis];
                 }
             }
             for axis in 0..2 {
                 if drag.part.signs[axis] != 0.0 {
-                    factors[axis] = util::max(0.001, dominant);
+                    factors[axis] = math::max(0.001, dominant);
                 }
             }
         }
@@ -495,10 +495,10 @@ fn apply_drag(state: &mut editor::State, world_x: any, world_y: any) {
 
 // Rows whose world box overlaps the marquee, in world units.
 fn rows_in_box(state: editor::State, world_start_x: float, world_start_y: float, world_end_x: float, world_end_y: float) -> [int] {
-    let low_x = util::min(world_start_x, world_end_x);
-    let high_x = util::max(world_start_x, world_end_x);
-    let low_y = util::min(world_start_y, world_end_y);
-    let high_y = util::max(world_start_y, world_end_y);
+    let low_x = math::min(world_start_x, world_end_x);
+    let high_x = math::max(world_start_x, world_end_x);
+    let low_y = math::min(world_start_y, world_end_y);
+    let high_y = math::max(world_start_y, world_end_y);
     let out: [int] = [];
     for row in 0..state.nodes.len() {
         if selection::is_locked(state, row) || !state.nodes[row].visible() {
@@ -533,8 +533,8 @@ pub fn covering(state: editor::State, row: int, world_x: float, world_y: float) 
     let half_x = covered.half[0];
     let half_y = covered.half[1];
     let local = util::to_local(box_frame(covered.centre, covered.angle), world_x, world_y);
-    if util::abs(local.x) <= util::abs(half_x) && util::abs(local.y) <= util::abs(half_y) {
-        util::abs(half_x * half_y)
+    if math::abs(local.x) <= math::abs(half_x) && math::abs(local.y) <= math::abs(half_y) {
+        math::abs(half_x * half_y)
     } else {
         nil
     }
@@ -578,18 +578,23 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     let geometry = selection_geometry(state);
     let pointer = viewport::pointer(state);
     let over_viewport = viewport::owns_pointer(state, pointer.x, pointer.y);
-    // The Rig bone, Polygon and Tiles tools own the click: no gizmo hover.
+    // The Rig bone, Polygon, Pen and Tiles tools own the click: no gizmo hover.
     if state.tool == tools::BONE || state.tool == tools::POLYGON || state.tool == tools::TILES || state.tool == tools::PEN {
         state.gizmo.hover = nil;
         state.gizmo.drag = nil;
-        if state.tool == tools::BONE {
-            rig::update(state, over_viewport, world_x, world_y);
-        } else if state.tool == tools::POLYGON {
-            polygon::update(state, over_viewport, world_x, world_y);
-        } else if state.tool == tools::PEN {
-            pen::update(state, over_viewport, world_x, world_y);
-        } else {
-            tiles::update(state, over_viewport, world_x, world_y);
+        match state.tool {
+            tools::BONE => {
+                rig::update(state, over_viewport, world_x, world_y);
+            }
+            tools::POLYGON => {
+                polygon::update(state, over_viewport, world_x, world_y);
+            }
+            tools::PEN => {
+                pen::update(state, over_viewport, world_x, world_y);
+            }
+            _ => {
+                tiles::update(state, over_viewport, world_x, world_y);
+            }
         }
         return;
     }
@@ -599,66 +604,17 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     state.tiles.hover = nil;
     state.pen.hover = -1;
     if state.gizmo.drag == nil {
-        state.gizmo.hover = if geometry != nil {
-            let geometry = geometry.unwrap();
-            if over_viewport && state.workspace != defs::WORKSPACE_SCRIPT {
-                hit_test(state, geometry, world_x, world_y)
-            } else {
-                nil
-            }
+        state.gizmo.hover = if geometry != nil && over_viewport && state.workspace != defs::WORKSPACE_SCRIPT {
+            hit_test(state, geometry.unwrap(), world_x, world_y)
         } else {
             nil
         };
     }
     if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && over_viewport {
-        if state.gizmo.hover != nil && geometry != nil {
-            let part: gizmo::Part = state.gizmo.hover;
-            start_drag(state, geometry.unwrap(), part, world_x, world_y);
-        } else {
-            state.gizmo.in_viewport = true;
-            if state.tool == tools::SELECT {
-                let best = pick(state, world_x, world_y);
-                if best != nil {
-                    let best = best.unwrap();
-                    if !selection::is_locked(state, best) {
-                        shell::choose_click(state, best);
-                    }
-                } else {
-                    // Empty space starts a marquee; the selection only
-                    // changes when the drag is released. Screen and world
-                    // both, because one draws and the other tests.
-                    state.gizmo.marquee = {
-                        layout_fields::START_X: pointer.x,
-                        layout_fields::START_Y: pointer.y,
-                        layout_fields::END_X: pointer.x,
-                        layout_fields::END_Y: pointer.y,
-                        WORLD_START_X: world_x,
-                        WORLD_START_Y: world_y,
-                        WORLD_END_X: world_x,
-                        WORLD_END_Y: world_y,
-                    };
-                }
-            }
-        }
+        press(state, geometry, pointer.x, pointer.y, world_x, world_y);
     }
-    let marquee: any = state.gizmo.marquee;
-    if marquee != nil {
-        let box_drag = marquee.unwrap();
-        box_drag[layout_fields::END_X] = pointer.x;
-        box_drag[layout_fields::END_Y] = pointer.y;
-        box_drag[WORLD_END_X] = world_x;
-        box_drag[WORLD_END_Y] = world_y;
-        if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
-            state.gizmo.marquee = nil;
-            state.gizmo.in_viewport = false;
-            if util::abs(box_drag[layout_fields::END_X].as_float() - box_drag[layout_fields::START_X].as_float()) > 3.0 || util::abs(box_drag[layout_fields::END_Y].as_float() - box_drag[layout_fields::START_Y].as_float()) > 3.0 {
-                let rows = rows_in_box(state, box_drag[WORLD_START_X].as_float(), box_drag[WORLD_START_Y].as_float(), box_drag[WORLD_END_X].as_float(), box_drag[WORLD_END_Y].as_float());
-                if rows.len() > 0 {
-                    history::commit(state);
-                    selection::set(state, rows);
-                }
-            }
-        }
+    if state.gizmo.marquee != nil {
+        follow_marquee(state, pointer.x, pointer.y, world_x, world_y);
         return;
     }
     if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
@@ -667,29 +623,92 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     }
     if state.gizmo.drag != nil {
         apply_drag(state, world_x, world_y);
+    } else if state.gizmo.in_viewport {
+        apply_rail_drag(state);
+    }
+}
+
+// A press on a handle starts its drag; elsewhere the select tool picks the
+// smallest shape under the pointer.
+fn press(state: &mut editor::State, geometry: Geometry?, pointer_x: float, pointer_y: float, world_x: float, world_y: float) {
+    if state.gizmo.hover != nil && geometry != nil {
+        let part: gizmo::Part = state.gizmo.hover;
+        start_drag(state, geometry.unwrap(), part, world_x, world_y);
         return;
     }
-    if !state.gizmo.in_viewport {
+    state.gizmo.in_viewport = true;
+    if state.tool != tools::SELECT {
         return;
     }
-    // Rail-tool fallbacks: drag anywhere in the viewport. Deltas in design
-    // px; translation converts to world units through world_per_pixel.
+    let best = pick(state, world_x, world_y);
+    if best == nil {
+        // Empty space starts a marquee; the selection only changes when the
+        // drag is released. Screen and world both: one draws, the other tests.
+        state.gizmo.marquee = {
+            layout_fields::START_X: pointer_x,
+            layout_fields::START_Y: pointer_y,
+            layout_fields::END_X: pointer_x,
+            layout_fields::END_Y: pointer_y,
+            WORLD_START_X: world_x,
+            WORLD_START_Y: world_y,
+            WORLD_END_X: world_x,
+            WORLD_END_Y: world_y,
+        };
+        return;
+    }
+    let best = best.unwrap();
+    if !selection::is_locked(state, best) {
+        shell::choose_click(state, best);
+    }
+}
+
+// The box select follows the pointer while the button is held, and selects
+// the rows its world box covers on release.
+fn follow_marquee(state: &mut editor::State, pointer_x: float, pointer_y: float, world_x: float, world_y: float) {
+    let marquee: any = state.gizmo.marquee;
+    let box_drag = marquee.unwrap();
+    box_drag[layout_fields::END_X] = pointer_x;
+    box_drag[layout_fields::END_Y] = pointer_y;
+    box_drag[WORLD_END_X] = world_x;
+    box_drag[WORLD_END_Y] = world_y;
+    if input::mouse_down(input::MOUSE_BUTTON_LEFT) {
+        return;
+    }
+    state.gizmo.marquee = nil;
+    state.gizmo.in_viewport = false;
+    if math::abs(pointer_x - box_drag[layout_fields::START_X].as_float()) > 3.0 || math::abs(pointer_y - box_drag[layout_fields::START_Y].as_float()) > 3.0 {
+        let rows = rows_in_box(state, box_drag[WORLD_START_X].as_float(), box_drag[WORLD_START_Y].as_float(), world_x, world_y);
+        if rows.len() > 0 {
+            history::commit(state);
+            selection::set(state, rows);
+        }
+    }
+}
+
+// Rail-tool fallbacks: drag anywhere in the viewport. Deltas in design px;
+// translation converts to world units through world_per_pixel.
+fn apply_rail_drag(state: &mut editor::State) {
     let dragged = viewport::rail_drag(state);
     if dragged == nil {
         return;
     }
     let delta_x = dragged.unwrap().delta_x;
     let delta_y = dragged.unwrap().delta_y;
-    let found = dragged.unwrap().node;
     let world_per_pixel = viewport::world_per_pixel();
-    if state.tool == tools::MOVE {
-        selection::nudge(state, [delta_x * world_per_pixel, (-delta_y) * world_per_pixel, 0.0], viewport::snapping(state));
-    } else if state.tool == tools::ROTATE {
+    match state.tool {
+        tools::MOVE => {
+            selection::nudge(state, [delta_x * world_per_pixel, (-delta_y) * world_per_pixel, 0.0], viewport::snapping(state));
+        }
         // The live node, like every other writer here.
-        selection::spin(state, 2, (-delta_x) * 0.01);
-    } else if state.tool == tools::SCALE {
-        selection::grow(state, util::clamp(1.0 - delta_y * 0.01, 0.2, 5.0), true);
-    } else if state.tool == tools::ZOOM {
-        shell::set_zoom(state, state.zoom - delta_y * 0.5);
+        tools::ROTATE => {
+            selection::spin(state, 2, (-delta_x) * 0.01);
+        }
+        tools::SCALE => {
+            selection::grow(state, math::clamp(1.0 - delta_y * 0.01, 0.2, 5.0), true);
+        }
+        tools::ZOOM => {
+            shell::set_zoom(state, state.zoom - delta_y * 0.5);
+        }
+        _ => {}
     }
 }

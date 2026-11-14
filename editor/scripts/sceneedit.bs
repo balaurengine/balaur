@@ -1,0 +1,549 @@
+// The scene's structural edits through the selection: a node added, spawned,
+// duplicated, pasted, moved, renamed or deleted, a component added or removed,
+// a prefab placed or opened, and how each change is undone.
+
+use editor;
+use history;
+use model;
+use presets;
+use selection;
+use util;
+use words::fields;
+use words::inspector_fields;
+use words::project_fields;
+use words::tabs;
+
+const ADDED: str = "added";
+const ATTACHED: str = "attached";
+const FREED: str = "freed";
+const INSTANCE: str = "instance";
+const KEYS: str = "keys";
+const MOVED: str = "moved";
+const PARENT: str = "parent";
+const PLACE: str = "place";
+const PROCESS: str = "process";
+const REMOVED: str = "removed";
+const RENAMED: str = "renamed";
+const VISIBLE: str = "visible";
+const WAS: str = "was";
+const Z_INDEX: str = "z_index";
+
+// The engine's own id rule (`slug` in project.rs), so an id the editor
+// generates is the one the engine would have generated for that name.
+fn slug(name: str) -> str {
+    let alnum = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let out = "n_";
+    let gap = true;
+    for character in name.to_lower().chars() {
+        if alnum.contains(character) {
+            out += character;
+            gap = false;
+        } else if !gap {
+            out += "_";
+            gap = true;
+        }
+    }
+    while out.ends_with("_") {
+        out = out.slice(0, out.len() - 1);
+    }
+    if out.len() > 2 { out } else { "n_node" }
+}
+
+/// A name no node of the scene has yet, for a node the editor makes.
+pub fn unique_name(state: editor::State, base: str) -> str {
+    let name = base;
+    let suffix = 1;
+    while name_taken(state, name) {
+        suffix += 1;
+        name = "{base}{suffix}";
+    }
+    name
+}
+
+fn name_taken(state: editor::State, candidate: str) -> bool {
+    for found in state.nodes {
+        if found.is_valid() && found.name() == candidate {
+            return true;
+        }
+    }
+    false
+}
+
+/// An id no node of the scene carries, named for `name` the way the engine
+/// names a node a scene gave none.
+pub fn fresh_id(state: editor::State, name: str) -> str {
+    let taken: any = {};
+    for found in state.nodes {
+        if found.is_valid() {
+            taken[found.stable_id()] = true;
+        }
+    }
+    let base = slug(name);
+    let candidate = base;
+    let suffix = 2;
+    while taken.has(candidate) {
+        candidate = "{base}_{suffix}";
+        suffix += 1;
+    }
+    candidate
+}
+
+// Structure inside an instance belongs to the prefab: a node added, renamed
+// or removed here would have nowhere in the file to live. Property overrides
+// only (ARCHITECTURE.md "Prefabs").
+fn refuse_structure(state: editor::State, what: str) -> bool {
+    if !model::has_selection(state) {
+        return true;
+    }
+    let found = model::selected_node(state);
+    if !model::is_instanced(found) {
+        return false;
+    }
+    log::warn("cannot " + what + " inside a prefab; open " + prefab_of(found) + " to change its structure");
+    true
+}
+
+// The prefab file a node came from, for a message that says where to go.
+pub fn prefab_of(found: Node) -> str {
+    let owner = model::instance_owner(found);
+    if owner.is_valid() { owner.instance().or("the prefab") } else { "the prefab" }
+}
+
+// Add a child of the selection that instances `rel`: it keeps its own name
+// and transform, and the engine builds the prefab's nodes under it.
+pub fn instance_scene(state: &mut editor::State, rel: str) {
+    if refuse_structure(state, "instantiate a scene") {
+        return;
+    }
+    if rel == state.scene_rel {
+        log::warn("a scene cannot instantiate itself");
+        return;
+    }
+    history::record(state, "instance " + rel);
+    let made = spawn(state, model::selected_node(state), prefab_name(rel), {
+        INSTANCE: rel,
+        model::TRANSFORM: { inspector_fields::POSITION: [0.0, 0.0, 0.0] },
+    });
+    model::reindex(state);
+    selection::only(state, model::index_of_node(state, made).or(0));
+    log::info("instanced " + rel);
+}
+
+// `scenes/enemy_camp.toml` -> `EnemyCamp`, so a placed prefab is named for
+// what it is rather than for its path.
+fn prefab_name(rel: str) -> str {
+    let file = util::last_segment(rel);
+    let parts = file.split_once(".");
+    let stem = if parts.len() == 2 { parts[0] } else { file };
+    if stem == "" {
+        return "Instance";
+    }
+    util::camel(stem)
+}
+
+// Open the prefab behind the selection: the instance node's file, or the one
+// the selected node came from. The button an instance row wants.
+pub fn open_prefab(state: &mut editor::State) {
+    let found = model::selected_node(state);
+    if !found.is_valid() {
+        return;
+    }
+    let owner = if found.instance() != nil { found } else { model::instance_owner(found) };
+    if owner.is_valid() {
+        model::open_scene(state, owner.instance().unwrap());
+    } else {
+        log::info("the selection is not an instance and did not come from one");
+    }
+}
+
+// Move the selection among its siblings by `delta`: a scene edit, since order
+// is what a `row` or a `column` lays out in.
+pub fn move_sibling(state: &mut editor::State, delta: int) {
+    if refuse_structure(state, "reorder nodes") {
+        return;
+    }
+    let found = model::selected_node(state);
+    if model::is_scene_root(state, found) {
+        return;
+    }
+    let to = found.sibling_index() + delta;
+    if to < 0 || to >= found.parent().children().len() {
+        return;
+    }
+    history::record(state, "move node");
+    found.set_sibling_index(to);
+    model::reindex(state);
+}
+
+/// Rename the selected node. The name is made unique first: two siblings
+/// sharing one is what made `find_node` answer with whichever came first.
+pub fn rename_selected(state: &mut editor::State, name: str) {
+    let wanted = name.trim();
+    if wanted == "" || refuse_structure(state, "rename a node") {
+        return;
+    }
+    let found = model::selected_node(state);
+    if wanted == found.name() {
+        return;
+    }
+    history::record(state, "rename node");
+    found.set_name(unique_name(state, wanted));
+}
+
+/// Add a node under the selected one, of `kind`: a preset's name, a
+/// component's, or `nil` for a bare node. A preset is a recipe: the
+/// components land on the node and nothing records which one put them there.
+pub fn add_child(state: &mut editor::State, kind: str?) {
+    if !model::has_selection(state) {
+        selection::only(state, 0);
+    }
+    if refuse_structure(state, "add a node") {
+        return;
+    }
+    let parent = model::selected_node(state);
+    let name = if kind != nil { kind_name(kind.unwrap()) } else { "Node" };
+    history::record(state, "add {name}");
+    let made = spawn(state, parent, name, { model::TRANSFORM: { inspector_fields::POSITION: landing(state, parent) } });
+    if kind != nil {
+        let preset = presets::find(state, kind.unwrap());
+        if preset != nil {
+            presets::build(made, preset.unwrap());
+        } else {
+            made.set_component(kind.unwrap());
+        }
+    }
+    model::reindex(state);
+    selection::only(state, model::index_of_node(state, made).or(0));
+}
+
+/// What a node made of `kind` is called: `text2d` is a `Text` and
+/// `rigid_body3d` a `RigidBody`, the dimension being the scene's already.
+pub fn kind_name(kind: str) -> str {
+    let bare = if kind.ends_with("2d") || kind.ends_with("3d") { kind.slice(0, kind.len() - 2) } else { kind };
+    let named = util::camel(bare);
+    if named == "" { "Node" } else { named }
+}
+
+/// The world point the view is looking at: the 2D camera's centre, or the
+/// point the 3D camera orbits.
+pub fn view_centre(state: editor::State) -> [float] {
+    if model::is_2d(state) {
+        let camera = render::camera_2d();
+        return [camera.center.x, camera.center.y, 0.0];
+    }
+    let pose = render::camera_pose();
+    [pose.target.x, pose.target.y, pose.target.z]
+}
+
+// Where a node added under `parent` lands, in the parent's space: where the
+// view is looking for one at the top of the scene, and on its parent for a
+// child of anything else.
+fn landing(state: editor::State, parent: Node) -> [float] {
+    if !model::is_scene_root(state, parent) {
+        return [0.0, 0.0, 0.0];
+    }
+    let centre = view_centre(state);
+    if !parent.has_component(model::TRANSFORM) {
+        return centre;
+    }
+    if model::is_2d(state) {
+        let local = util::to_local(util::frame_of(parent), centre[0], centre[1]);
+        return [local.x, local.y, 0.0];
+    }
+    let origin = parent.transform.global_position();
+    [centre[0] - origin.x, centre[1] - origin.y, centre[2] - origin.z]
+}
+
+/// Build one node from a scene file's node table under `parent`, last among
+/// its children, named `name` made unique and given a fresh id: how the
+/// editor makes every node, so each carries a scene's id across a save and a
+/// play. The rows are the caller's to list again, once it has made them all.
+pub fn spawn(state: &mut editor::State, parent: Node, name: str, entry: any) -> Node {
+    let unique = unique_name(state, name);
+    entry[fields::ID] = fresh_id(state, unique);
+    entry[fields::NAME] = unique;
+    entry.remove(PARENT);
+    let document: any = { inspector_fields::NODES: [entry] };
+    // The scene's own blocks, so a `#id` the node names resolves.
+    let assets = state.scene_doc[project_fields::ASSETS];
+    if assets != nil {
+        document[project_fields::ASSETS] = assets;
+    }
+    scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
+    let made = parent.children();
+    let found = made[made.len() - 1];
+    // Listed now, so a second spawn before the caller lists the rows again
+    // takes neither its name nor its id.
+    state.nodes.push(found);
+    found
+}
+
+pub fn add_component(state: &mut editor::State, name: str) {
+    let found = model::selected_node(state);
+    if !found.is_valid() {
+        return;
+    }
+    history::record(state, "add {name}");
+    found.set_component(name);
+    log::info("added {name} to {found.name()}");
+}
+
+pub fn remove_component(state: &mut editor::State, name: str) {
+    let found = model::selected_node(state);
+    if !found.is_valid() {
+        return;
+    }
+    // Whatever else on the node declares it needs this one goes first: taking
+    // the transform out from under a body leaves the body driving nothing.
+    let needed_by: [any] = [];
+    for other in util::list_or_empty(found.component_names()) {
+        if other.as_str() != name && util::contains(model::expects(state, other.as_str()), name) {
+            needed_by.push(other);
+        }
+    }
+    if needed_by.len() > 0 {
+        let list = util::join(needed_by, " and ");
+        log::warn("cannot remove {name}: {list} needs it; remove {list} first");
+        return;
+    }
+    history::record(state, "remove {name}");
+    found.remove_component(name);
+}
+
+/// Write one property across the selection: every selected node that carries
+/// the component takes the value, and the whole write is one history step.
+/// The engine keeps what each write refused as a warning on the property,
+/// which the inspector marks its row with.
+pub fn set_component_property(state: &mut editor::State, name: str, property: str, value: any) {
+    history::record(state, "set {name}.{property}", "prop:{name}:{property}:{state.selected}");
+    for row in selection::all(state) {
+        let found = model::node(state, row);
+        if found.is_valid() && found.has_component(name) {
+            found.patch_component(name, { property: value });
+        }
+    }
+}
+
+/// Set several of a component's properties at once, adding the component when
+/// the node has none.
+///
+/// One history entry rather than one per property: an action that says "make
+/// this a convex decomposition" writes three of them, and undo should take
+/// all three back together.
+pub fn set_component_properties(state: &mut editor::State, name: str, properties: any) {
+    set_component_properties_each(state, name, given, properties);
+}
+
+fn given(_found: Node, properties: any) -> any {
+    properties
+}
+
+/// As `set_component_properties`, with each selected node's own properties:
+/// `props_of(node, data)` answers them, or `nil` to leave that node alone. A
+/// shape built from a mesh is built from each node's mesh, not the active one's.
+pub fn set_component_properties_each(state: &mut editor::State, name: str, properties_of: fn(Node, any) -> any, data: any) {
+    history::record(state, "set {name}");
+    for row in selection::all(state) {
+        let found = model::node(state, row);
+        if !found.is_valid() {
+            continue;
+        }
+        let properties = properties_of(found, data);
+        if properties != nil {
+            found.patch_component(name, properties);
+        }
+    }
+}
+
+// Where a copy of `found` goes. A scene has one root, so a copy of the root
+// joins it as a child rather than standing beside it as a second root.
+fn beside(state: editor::State, found: Node) -> Node {
+    if model::is_scene_root(state, found) { found } else { found.parent() }
+}
+
+/// What `found` asks, as a scene file's node table without its id or parent:
+/// what a copy of it is built from. Its children are not in it.
+fn own_entry(state: editor::State, found: Node) -> any {
+    let written = toml::parse(scene::to_toml(found, scene::ToTomlOptions { root: state.game_root }));
+    let entry = util::list_or_empty(written[inspector_fields::NODES])[0];
+    entry.remove(fields::ID);
+    entry.remove(PARENT);
+    entry
+}
+
+/// A node and its subtree as a scene file's text: what it asks, for a check
+/// that an edit and its undo left it as it was.
+pub fn node_text(state: editor::State, found: Node) -> str {
+    scene::to_toml(found, scene::ToTomlOptions { root: state.game_root })
+}
+
+// Duplicate every selected node, without its children, beside it.
+pub fn duplicate_selected(state: &mut editor::State) {
+    if refuse_structure(state, "duplicate a node") {
+        return;
+    }
+    history::record(state, "duplicate node");
+    let made: [Node] = [];
+    for row in selection::all(state) {
+        let found = model::node(state, row);
+        if found.is_valid() {
+            made.push(spawn(state, beside(state, found), found.name(), own_entry(state, found)));
+        }
+    }
+    model::reindex(state);
+    let rows: [int] = [];
+    for found in made {
+        rows.push(model::index_of_node(state, found).or(0));
+    }
+    selection::set(state, rows);
+}
+
+/// The selection as a scene document, for the clipboard. Its id goes: the
+/// paste mints a fresh one, and two nodes with one id is what the engine
+/// cannot tell apart.
+pub fn copy_selected(state: editor::State) -> str {
+    toml::encode({ inspector_fields::NODES: [own_entry(state, model::selected_node(state))] })
+}
+
+/// Paste a scene document beside the selection. Anything that is not one is
+/// left alone, because the clipboard is shared with every other application.
+pub fn paste_nodes(state: &mut editor::State, text: str) -> bool {
+    // The clipboard holds whatever the last application put there, so a
+    // parse failure is an answer, not an error.
+    let doc = toml::parse(text);
+    if doc.kind() != types::KIND_MAP {
+        return false;
+    }
+    let nodes = util::list_or_empty(doc[inspector_fields::NODES]);
+    if nodes.len() == 0 {
+        return false;
+    }
+    history::record(state, "paste node");
+    if !model::has_selection(state) {
+        selection::only(state, 0);
+    }
+    let at = model::selected_node(state);
+    // A pasted node joins the selection's parent, right after it.
+    let parent = beside(state, at);
+    let place = if model::is_scene_root(state, at) { parent.children().len() } else { at.sibling_index() + 1 };
+    let last: Node = nil;
+    for entry in nodes {
+        if entry.kind() != types::KIND_MAP || !entry.has(fields::NAME) {
+            continue;
+        }
+        last = spawn(state, parent, entry[fields::NAME].as_str(), util::deep(entry));
+        last.set_sibling_index(place);
+        place += 1;
+    }
+    model::reindex(state);
+    if last.is_valid() {
+        selection::only(state, model::index_of_node(state, last).or(0));
+    }
+    true
+}
+
+pub fn delete_selected(state: &mut editor::State) {
+    if refuse_structure(state, "delete a node") {
+        return;
+    }
+    let rows = selection::roots(state);
+    for row in rows {
+        if model::is_scene_root(state, model::node(state, row)) {
+            log::warn("the scene's root stays: a scene has one");
+            return;
+        }
+    }
+    let label = if rows.len() > 1 { "delete {rows.len()} nodes" } else { "delete {model::selected_node(state).name()}" };
+    history::record(state, label);
+    let after = state.selected;
+    for row in rows {
+        let found = model::node(state, row);
+        if found.is_valid() {
+            found.free();
+        }
+    }
+    model::reindex(state);
+    selection::only(state, util::int_max(0, util::int_min(after, state.nodes.len() - 1)));
+    log::info(label);
+}
+
+/// Write one kept change back. The change names
+/// its node by id, so it outlives a node an undo built again; a node already
+/// gone, freed by a change written back before it, is left alone.
+pub fn undo_change(state: &mut editor::State, change: any) {
+    let kind = change[fields::KIND].as_str();
+    if kind == FREED {
+        let parent = model::node_by_id(state, change[PARENT].as_str());
+        if !parent.is_valid() || change[WAS] == nil {
+            return;
+        }
+        let document = toml::parse(change[WAS].as_str());
+        // The scene's own blocks, so a `#id` the node names resolves.
+        let assets = state.scene_doc[project_fields::ASSETS];
+        if assets != nil {
+            document[project_fields::ASSETS] = assets;
+        }
+        scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
+        let made = parent.children();
+        made[made.len() - 1].set_sibling_index(change[PLACE].as_int());
+        return;
+    }
+    let found = model::node_by_id(state, change[fields::ID].as_str());
+    if !found.is_valid() {
+        return;
+    }
+    if kind == model::COMPONENT || kind == REMOVED {
+        found.set_component(change[model::COMPONENT].as_str(), util::map_or_empty(change[WAS]));
+    } else if kind == ATTACHED {
+        found.remove_component(change[model::COMPONENT].as_str());
+    } else if kind == ADDED {
+        found.free();
+    } else if kind == RENAMED {
+        found.set_name(change[WAS].as_str());
+    } else if kind == tabs::SCRIPT {
+        let was = change[WAS];
+        if was == nil {
+            found.set_script(nil);
+        } else {
+            found.set_script(was[inspector_fields::SOURCE].as_str(), util::map_or_empty(was[inspector_fields::PROPS]));
+        }
+    } else if kind == KEYS {
+        restore_keys(found, change[WAS]);
+    } else if kind == MOVED && change[WAS] != nil {
+        let parent = model::node_by_id(state, change[WAS][PARENT].as_str());
+        if parent.is_valid() && found.parent() != parent {
+            found.set_parent(parent);
+        }
+        found.set_sibling_index(change[WAS][PLACE].as_int());
+    }
+}
+
+// A node's own keys back to `was`, each only where it differs: a hide undone
+// writes the one flag.
+fn restore_keys(found: Node, was: any) {
+    if found.visible() != was[VISIBLE].as_bool() {
+        found.set_visible(was[VISIBLE].as_bool());
+    }
+    let tint = util::list_or_empty(was["tint"]);
+    let now = found.tint();
+    if tint.len() == 4 && (now.r != tint[0].as_float() || now.g != tint[1].as_float() || now.b != tint[2].as_float() || now.a != tint[3].as_float()) {
+        found.set_tint(color(tint[0].as_float(), tint[1].as_float(), tint[2].as_float(), tint[3].as_float()));
+    }
+    if found.z_index() != was[Z_INDEX].as_int() {
+        found.set_z_index(was[Z_INDEX].as_int(), was["z_as_relative"].as_bool());
+    }
+    if found.process() != was[PROCESS].as_str() {
+        found.set_process(was[PROCESS].as_str());
+    }
+    let tags = util::list_or_empty(was[fields::TAGS]);
+    for tag in found.tags() {
+        if !util::contains(tags, tag) {
+            found.remove_tag(tag);
+        }
+    }
+    for tag in tags {
+        if !found.has_tag(tag.as_str()) {
+            found.add_tag(tag.as_str());
+        }
+    }
+}

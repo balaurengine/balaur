@@ -5,7 +5,6 @@
 use center;
 use docks;
 use editor;
-use inspector;
 use signals;
 use style;
 use util;
@@ -124,7 +123,7 @@ const STAGE_MIN: float = 260.0;
 // What the stage keeps of itself beside a dock that took half a tablet.
 const MEDIUM_PEEK: float = 220.0;
 
-// Every box the shell tree names, by the path `scene::get_node` takes.
+// Every box the shell tree names, by its path from the root.
 const SHELL: str = "Editor/Shell";
 
 const EASE_SECONDS: float = 0.16;
@@ -173,60 +172,43 @@ fn node(state: editor::State, id: any) -> any {
     if found != nil {
         return found;
     }
-    let path = if id.as_str() == SHELL_WORD {
-        SHELL
-    } else if id.as_str() == inspector::HEAD {
-        SHELL + "/Head"
-    } else if id.as_str() == BODY {
-        SHELL + "/Body"
-    } else if id.as_str() == sides::LEFT {
-        SHELL + "/Body/Left"
-    } else if id.as_str() == LEFTSHEET {
-        SHELL + "/Body/Left/LeftSheet"
-    } else if id.as_str() == sides::RIGHT {
-        SHELL + "/Body/Right"
-    } else if id.as_str() == RIGHTSHEET {
-        SHELL + "/Body/Right/RightSheet"
-    } else if id.as_str() == CENTRE {
-        SHELL + "/Body/Centre"
-    } else if id.as_str() == UPPERROW {
-        SHELL + "/Body/Centre/UpperRow"
-    } else if id.as_str() == STACK {
-        SHELL + "/Body/Centre/UpperRow/Stack"
-    } else if id.as_str() == UPPER {
-        SHELL + "/Body/Centre/UpperRow/Stack/Upper"
-    } else if id.as_str() == sides::BOTTOM {
-        SHELL + "/Body/Centre/Bottom"
-    } else if id.as_str() == STATUS {
-        SHELL + "/Body/Centre/Bottom/Status"
-    } else if id.as_str() == RAILSLOT {
-        SHELL + "/Body/Centre/UpperRow/RailSlot"
-    } else if id.as_str() == sides::RAIL {
-        SHELL + "/Body/Centre/UpperRow/RailSlot/Rail"
-    } else if id.as_str() == RAILTOP {
-        SHELL + "/Body/Centre/UpperRow/RailSlot/RailTop"
-    } else if id.as_str() == WORK {
-        SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work"
-    } else if id.as_str() == CANVAS {
-        SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas"
-    } else if id.as_str() == STAGE {
-        SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage"
-    } else if id.as_str() == HOOKS {
-        SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Hooks"
-    } else if id.as_str() == CHIPS {
-        SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/Chrome/Chips"
-    } else if id.as_str() == HUD {
-        SHELL + "/Body/Centre/UpperRow/Hud"
-    } else {
-        ""
-    };
-    let found: any = scene::get_node(path);
+    let path = shell_path(id.as_str());
+    let found: any = scene::root().get_node(path);
     // A miss is not remembered: one transient failure would leave the box
     // inert for the rest of the session.
     if !util::is_nil(found) {
         layout_state[inspector_fields::NODES][id.as_str()] = found;
     }
     found
+}
+
+// The shell box `id` names, as its path from the root; empty for no box.
+fn shell_path(id: str) -> str {
+    match id {
+        SHELL_WORD => SHELL,
+        HEAD => SHELL + "/Head",
+        BODY => SHELL + "/Body",
+        sides::LEFT => SHELL + "/Body/Left",
+        LEFTSHEET => SHELL + "/Body/Left/LeftSheet",
+        sides::RIGHT => SHELL + "/Body/Right",
+        RIGHTSHEET => SHELL + "/Body/Right/RightSheet",
+        CENTRE => SHELL + "/Body/Centre",
+        UPPERROW => SHELL + "/Body/Centre/UpperRow",
+        STACK => SHELL + "/Body/Centre/UpperRow/Stack",
+        UPPER => SHELL + "/Body/Centre/UpperRow/Stack/Upper",
+        sides::BOTTOM => SHELL + "/Body/Centre/Bottom",
+        STATUS => SHELL + "/Body/Centre/Bottom/Status",
+        RAILSLOT => SHELL + "/Body/Centre/UpperRow/RailSlot",
+        sides::RAIL => SHELL + "/Body/Centre/UpperRow/RailSlot/Rail",
+        RAILTOP => SHELL + "/Body/Centre/UpperRow/RailSlot/RailTop",
+        WORK => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work",
+        CANVAS => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas",
+        STAGE => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage",
+        HOOKS => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Hooks",
+        CHIPS => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/Chrome/Chips",
+        HUD => SHELL + "/Body/Centre/UpperRow/Hud",
+        _ => "",
+    }
 }
 
 /// A box's `widget` component; empty when the tree has no such node.
@@ -399,7 +381,7 @@ fn dragged(state: editor::State, id: str, key: str, into: str) {
 // on from where this one stopped instead of from where the pointer went.
 fn held(state: editor::State, key: str, floor: float, ceiling: float) -> any {
     let layout_state: any = state.layout;
-    layout_state[key] = util::clamp(layout_state[key].as_float(), floor, util::max(floor, ceiling));
+    layout_state[key] = math::clamp(layout_state[key].as_float(), floor, math::max(floor, ceiling));
     layout_state[key]
 }
 
@@ -591,6 +573,14 @@ pub fn compute(state: &mut editor::State) {
         chips: box_of(state, CHIPS),
         hud: box_of(state, HUD),
     };
+    publish(state, boxes);
+    // A dock's width decides how many of its tabs fit.
+    signals::docks(state);
+}
+
+// The boxes as the widget layer placed them, under the names the shell reads.
+fn publish(state: &mut editor::State, boxes: ShellBoxes) {
+    let layout_state: any = state.layout;
     // The sheet is its own box now, so a folded dock's rect is the square the
     // widget layer placed rather than one this module has to work out.
     layout_state[dock_fields::LEFT] = boxes.left;
@@ -611,14 +601,19 @@ pub fn compute(state: &mut editor::State) {
     let column: float = if boxes.railslot[layout_fields::HEIGHT].as_float() > 0.0 { boxes.railslot[layout_fields::HEIGHT].as_float() } else { boxes.centre[layout_fields::HEIGHT].as_float() };
     // Less the folded dock's handle above it and the HUD strip under its foot.
     let hud = if state.stage_chrome && !state.chrome_off { center::hud_height(state) } else { 0.0 };
-    layout_state[dock_fields::RAIL_ROOM] = util::max(120.0, column - docks::rail_top_height(state) - hud);
+    layout_state[dock_fields::RAIL_ROOM] = math::max(120.0, column - docks::rail_top_height(state) - hud);
     layout_state[dock_fields::BAR] = boxes.head;
-    // A document is not full-bleed: text under a sheet is unreadable. Sharing
-    // with the scene puts the code on the right and the scene on the left.
+    publish_stage(state, boxes);
+}
+
+// A document is not full-bleed: text under a sheet is unreadable. Sharing
+// with the scene puts the code on the right and the scene on the left.
+fn publish_stage(state: &mut editor::State, boxes: ShellBoxes) {
+    let layout_state: any = state.layout;
     let box: Box = boxes.stage;
     layout_state[panel_keys::STAGE_BOX] = box;
     if state.doc_open && state.viewport_live {
-        let code_width = util::clamp(layout_state[SPLIT_WIDTH].as_float(), 260.0, util::max(260.0, box.width - 260.0));
+        let code_width = math::clamp(layout_state[SPLIT_WIDTH].as_float(), 260.0, math::max(260.0, box.width - 260.0));
         layout_state[fields::DOC] = rect(box.x + box.width - code_width, box.y, code_width, box.height);
         layout_state[STAGE] = rect(box.x, box.y, box.width - code_width - layout_state[GAP].as_float(), box.height);
     } else if state.doc_open {
@@ -641,12 +636,8 @@ pub fn compute(state: &mut editor::State) {
             at: state.frame,
         };
     }
-    // A dock's width decides how many of its tabs fit.
-    signals::docks(state);
 }
 
-// A side dock's width: nothing when it holds no panel, its rail when it is
-// folded, and what the seam was dragged to otherwise.
 /// The least screen that holds one side dock beside a stage worth having,
 /// as a width; and down, the bar, the bottom dock and the stage. Below
 /// either, the shell is one sheet at a time.
@@ -655,13 +646,13 @@ pub fn floors(state: editor::State) -> Floors {
     // to `BOTTOM_MIN` before the stage is asked to give anything up, so a
     // laptop window keeps all three docks rather than folding to one.
     let spent = chrome(state);
-    Floors { width: util::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN + spent.width, height: BAR_HEIGHT_GUESS + BOTTOM_MIN + center::stage_floor().height + spent.height }
+    Floors { width: math::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN + spent.width, height: BAR_HEIGHT_GUESS + BOTTOM_MIN + center::stage_floor().height + spent.height }
 }
 
 /// The box the engine gave the shell, in design px, or zeros before it has
 /// drawn. `fill` and `safe_area` decide it, so nothing here restates it.
 pub fn shell_room(state: editor::State) -> ShellRoom {
-    let node = scene::get_node(SHELL);
+    let node = scene::root().get_node(SHELL);
     let drawn = if node.is_valid() { ui::widget_rect(node) } else { nil };
     if drawn == nil {
         return ShellRoom { width: 0.0, height: 0.0 };
@@ -685,12 +676,12 @@ const BAR_HEIGHT_GUESS: float = 43.0;
 pub fn stage_room(state: editor::State) -> Room {
     let layout_state: any = state.layout;
     let screen_width = state.screen_width;
-    let tree_width = side_width(state, sides::LEFT, screen_width, util::max(layout_state[TREE_WIDTH].as_float(), LEFT_MIN));
-    let inspector_width = side_width(state, sides::RIGHT, screen_width, util::max(layout_state[INSPECTOR_WIDTH].as_float(), RIGHT_MIN));
+    let tree_width = side_width(state, sides::LEFT, screen_width, math::max(layout_state[TREE_WIDTH].as_float(), LEFT_MIN));
+    let inspector_width = side_width(state, sides::RIGHT, screen_width, math::max(layout_state[INSPECTOR_WIDTH].as_float(), RIGHT_MIN));
     let dock_height = if docks::folded(state, sides::BOTTOM) {
         0.0
     } else {
-        util::max(layout_state[DOCK_HEIGHT].as_float(), BOTTOM_MIN) + layout_state[STATUS_HEIGHT].as_float()
+        math::max(layout_state[DOCK_HEIGHT].as_float(), BOTTOM_MIN) + layout_state[STATUS_HEIGHT].as_float()
     };
     // Less what the shell spends on itself: the room a rail or a chip strip
     // is offered is the room it will actually be drawn in.
@@ -718,7 +709,7 @@ fn side_width(state: editor::State, side: str, room: float, open_width: float) -
     // half: the seam's own width was set beside two columns, not one. Both
     // open, they keep their stated widths, or half each would leave no stage.
     if !three_fit(state) && !both_sides_open(state) {
-        return util::clamp(room * 0.5, open_width, room - MEDIUM_PEEK);
+        return math::clamp(room * 0.5, open_width, room - MEDIUM_PEEK);
     }
     open_width
 }

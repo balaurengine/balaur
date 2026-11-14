@@ -6,7 +6,7 @@ use balaur_core::glamx::Vec3;
 use balaur_core::{Engine, entity_of};
 use balaur_script::{Module, NodeId, Value};
 
-use crate::bus::{self, Buses, Effects, Limiter};
+use crate::bus::{self, Effects, Limiter};
 use crate::vocabulary::keys as k;
 use crate::{AudioState, play_on, publish_playback_times, seek_on, skip_on, stop_on};
 
@@ -22,17 +22,13 @@ const IS_PLAYING: &str = "is_playing";
 const LISTENER_POSITION: &str = "listener_position";
 const PAN: &str = "pan";
 const PLAY: &str = "play";
-const PLAY_FILE: &str = "play_file";
 const SEEK: &str = "seek";
 const SET_BUS_VOLUME_LINEAR: &str = "set_bus_volume_linear";
 const SET_EMITTER_POSITION: &str = "set_emitter_position";
-const SET_PITCH_SCALE: &str = "set_pitch_scale";
-const SET_VOLUME_LINEAR: &str = "set_volume_linear";
 const SKIP: &str = "skip";
 const SOUND: &str = "sound";
 const STOP: &str = "stop";
 const STOP_ALL: &str = "stop_all";
-const STOP_PLAYBACK: &str = "stop_playback";
 
 fn point(value: Option<&Value>) -> Option<Vec3> {
     match value? {
@@ -50,60 +46,24 @@ const fn handle_of(raw: i64) -> u64 {
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
 pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `sound_finished` (`EVENT_SOUND_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
+        "Sound playback: `play` starts a node's `sound` component and returns a handle that `is_playing` takes; `seek` and `skip` move it, and the node's `sound` properties change it as it plays. `play_file` plays a file on a node of its own, from a `position` heard from the `listener` when given one. A node's `sound` announces `sound_finished` (`EVENT_SOUND_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
     );
     m.constant(
         "EVENT_SOUND_FINISHED",
         Value::Str(crate::SOUND_FINISHED_EVENT.to_string()),
     );
     m.describe(&[
-        (STOP_PLAYBACK, &[], "", "Silence the sound a handle names, over the `fade_out_time` its `sound` had; a finished, stopped or unknown handle is left alone."),
-        (SET_VOLUME_LINEAR, &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
-        (SET_PITCH_SCALE, &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
-        (DEVICE_READY, &[], "() -> bool", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
+        (DEVICE_READY, &[], "() -> bool", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound. Recorded: a replay answers what its recording did, whatever the machine it runs on has."),
         (IS_PLAYING, &[], "", "Whether a handle's sound is still going: false once it plays out or is stopped, on the same tick with or without an output device."),
         (STOP_ALL, &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
         (PLAY, &[SOUND], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
         (STOP, &[SOUND], "", "Silence what the node's `sound` started, over its `fade_out_time`; a node carrying none is left alone."),
         (SEEK, &[SOUND], "", "Jump the node's sound to `seconds` into the file it is playing; `playback_time` reads it back. A node with nothing playing is left alone."),
         (SKIP, &[SOUND], "", "Move the node's sound on to the next file in its `queue`. Past the last one it has played out, and the node announces `sound_finished`."),
-        (DEVICES, &[], "() -> [string]", "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none."),
+        (DEVICES, &[], "() -> [string]", "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none. Recorded, as `device_ready` is."),
     ]);
-    m.function(STOP_PLAYBACK, |eng: &Engine, handle: i64| {
-        eng.resource::<AudioState>()
-            .borrow_mut()
-            .release(handle_of(handle));
-        publish_playback_times(eng);
-        Ok(())
-    });
-    m.function(
-        SET_VOLUME_LINEAR,
-        |eng: &Engine, (handle, volume): (i64, f32)| {
-            bus::ensure_loaded(eng);
-            let buses = eng.resource::<Buses>();
-            eng.resource::<AudioState>().borrow_mut().set_volume(
-                handle_of(handle),
-                volume,
-                &buses.borrow(),
-            );
-            Ok(())
-        },
-    );
-    m.function(
-        SET_PITCH_SCALE,
-        |eng: &Engine, (handle, pitch): (i64, f32)| {
-            eng.resource::<AudioState>()
-                .borrow_mut()
-                .set_pitch(handle_of(handle), pitch);
-            Ok(())
-        },
-    );
     m.function(DEVICE_READY, |eng: &Engine, ()| {
-        crate::ensure_loaded(eng);
-        let state = eng.resource::<AudioState>();
-        let mut state = state.borrow_mut();
-        state.open_if_needed();
-        Ok(state.device.is_some())
+        Ok(crate::device::ready(eng))
     });
     m.function(IS_PLAYING, |eng: &Engine, handle: i64| {
         Ok(eng
@@ -133,9 +93,12 @@ pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
         skip_on(eng, entity_of(node)?);
         Ok(())
     });
-    m.function(DEVICES, |_: &Engine, ()| {
+    m.function(DEVICES, |eng: &Engine, ()| {
         Ok(Value::List(
-            crate::devices().into_iter().map(Value::text).collect(),
+            crate::device::devices(eng)
+                .into_iter()
+                .map(Value::text)
+                .collect(),
         ))
     });
 }
@@ -152,7 +115,6 @@ fn install_mixing_api(m: &mut Module<Engine>) {
         (SET_BUS_VOLUME_LINEAR, &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
         (BUS_LIMIT, &[], "(bus: string) -> BusLimit?", "One bus's limiter as `[audio.buses]` declares it. Nil for a bus with none."),
         (BUS_EFFECTS, &[], "(bus: string) -> BusEffects?", "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes. Built when the output device opens, as the limiter is. Nil for a bus with none switched on."),
-        (PLAY_FILE, &[], "(path: string, options: PlayFileOptions?) -> int", "Play a sound file no node carries, through `bus` at `volume_linear` and `pitch_scale`, looping when `loop` is true. Returns the handle `stop_playback` takes."),
     ]);
     m.records(&[
         (
@@ -171,17 +133,6 @@ fn install_mixing_api(m: &mut Module<Engine>) {
             "A bus's effects, under the keys `[audio.buses]` spells.",
         ),
     ]);
-    m.function(
-        PLAY_FILE,
-        |eng: &Engine, (path, opts): (String, Option<Value>)| {
-            let options: crate::play_file::FileOptions = match opts {
-                Some(opts) => balaur_core::node_api::to_toml(&opts)?.try_into()?,
-                None => crate::play_file::FileOptions::default(),
-            };
-            let handle = crate::play_file::play_file(eng, &path, &options)?;
-            Ok(Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)))
-        },
-    );
     install_bus_readers(m);
 }
 
@@ -405,9 +356,9 @@ mod tests {
             include_str!("lib.rs"),
             include_str!("script_api.rs"),
             include_str!("spatial.rs"),
-            include_str!("play_file.rs"),
             include_str!("bus.rs"),
             include_str!("cache.rs"),
+            include_str!("device.rs"),
         ];
         for source in sources {
             for name in audio_calls(source) {
@@ -417,16 +368,7 @@ mod tests {
                 );
             }
         }
-        for named in [
-            "play",
-            "stop_playback",
-            "set_volume_linear",
-            "set_pitch_scale",
-            "play_file",
-            "seek",
-            "skip",
-            "devices",
-        ] {
+        for named in ["play", "play_file", "seek", "skip", "devices"] {
             assert!(
                 declared.module_docs["audio"].contains(&format!("`{named}`")),
                 "the module doc never names `{named}`"

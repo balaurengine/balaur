@@ -37,7 +37,6 @@ struct PhysicsFrame3d {
     wheel_inputs: Vec<(NodeKey, vehicle::WheelInput3d)>,
     vehicles: Vec<(NodeKey, vehicle::VehicleFrame3d)>,
     follows: Vec<(NodeKey, crate::follow::FollowRef3d)>,
-    grounded: Vec<(NodeKey, bool)>,
     beside: crate::shared::beside::Frame,
     shape_revision: u64,
     paused: bool,
@@ -63,7 +62,6 @@ struct PhysicsFrameRef3d<'a> {
     wheel_inputs: Vec<(NodeKey, vehicle::WheelInput3d)>,
     vehicles: Vec<(NodeKey, vehicle::VehicleFrame3d)>,
     follows: Vec<(NodeKey, crate::follow::FollowRef3d)>,
-    grounded: Vec<(NodeKey, bool)>,
     beside: crate::shared::beside::Frame,
     shape_revision: u64,
     paused: bool,
@@ -325,7 +323,6 @@ fn save_physics(eng: &Engine) -> serde_json::Value {
         wheel_inputs: keyed(&world, &state.wheel_inputs),
         vehicles: vehicle::frame_rows(&world, &state.vehicles),
         follows: keyed(&world, &state.follows),
-        grounded: keyed(&world, &state.grounded),
         beside: crate::shared::beside::save(eng, &world, CARRIED),
         shape_revision: state.shape_revision,
         paused: state.paused,
@@ -354,7 +351,6 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     let wheel_inputs = resolved(eng, frame.wheel_inputs);
     let vehicles = vehicle::resolved_rows(eng, frame.vehicles);
     let follows = resolved(eng, frame.follows);
-    let grounded = resolved(eng, frame.grounded);
     restore_asked::<crate::body::Body3d>(eng, &body_params);
     restore_asked::<crate::collider::Collider3d>(eng, &collider_params);
     restore_asked::<joint::Joint3d>(eng, &joint_params);
@@ -411,7 +407,6 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     state.wheel_inputs = wheel_inputs;
     state.vehicles = vehicles;
     state.follows = follows;
-    state.grounded = grounded;
     super::restamp_collider_owners(&mut state);
 }
 

@@ -235,7 +235,7 @@ fn transport_slot(state: editor::State) -> int {
 /// The centre of the strip's `slot`-th control, in design px, from the node it
 /// was drawn on; `None` until it has drawn, when a caller estimates instead.
 fn strip_spot(state: editor::State, slot: int) -> Spot? {
-    let strip = scene::get_node(STRIP_NODE);
+    let strip = scene::root().get_node(STRIP_NODE);
     if !strip.is_valid() {
         return nil;
     }
@@ -268,7 +268,7 @@ pub fn fill(state: &mut editor::State) {
     }
     let tokens = state.theme;
     let mark = brand(state);
-    let node = scene::get_node(BRAND_NODE);
+    let node = scene::root().get_node(BRAND_NODE);
     if node.is_valid() {
         node.widget_button.image = mark.logo;
         node.widget.text = mark.name;
@@ -390,7 +390,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         kind: ui::WIDGET_BUTTON,
         height: row_height(state),
         width: icon_width(state),
-        padding: ui::all_sides(0),
+        padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
         role: roles::ITEM_BAR,
         text: "",
         icon: if tokens[panel_keys::DARK].as_bool() { icons::ui(icons::DARK) } else { icons::ui(icons::LIGHT) },
@@ -399,12 +399,13 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         data: { fields::FN: on_theme_pressed },
     });
     let named = !state.compact;
+    let pad = if named { -1.0 } else { 0.0 };
     out.push(ui::Control {
         kind: ui::WIDGET_BUTTON,
         height: row_height(state),
         role: roles::ITEM_BAR,
         width: if named { 0.0 } else { icon_width(state) },
-        padding: ui::all_sides(if named { -1.0 } else { 0.0 }),
+        padding: ui::Sides { left: pad, top: pad, right: pad, bottom: pad },
         text: if named { "Run a command" } else { "" },
         icon: icons::ui(icons::SEARCH),
         tooltip: "⌘K",
@@ -480,7 +481,7 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
         checked: active,
         corner_radius: 0,
         fill: general::NONE,
-        padding: ui::sides(7, -1, 7, -1),
+        padding: ui::Sides { left: 7.0, top: -1.0, right: 7.0, bottom: -1.0 },
         on_click: "handle",
         data: { fields::FN: on_doc_picked, fields::ID: id },
     });
@@ -489,7 +490,7 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
             kind: ui::WIDGET_BUTTON,
             height: height,
             width: 13,
-            padding: ui::all_sides(0),
+            padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
             text: "",
             icon: icons::ui(icons::CLOSE),
             role: role,
@@ -540,7 +541,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             icon: icons::ui("play"),
             height: row_height(state),
             width: icon_width(state),
-            padding: ui::all_sides(0),
+            padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
             icon_size: PLAY_SIZE,
             role: roles::ICON_ACTION_PRIMARY,
             checked: state.playing,
@@ -555,7 +556,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             enabled: running,
             height: row_height(state),
             width: icon_width(state),
-            padding: ui::all_sides(0),
+            padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
             icon_size: STEP_SIZE,
             role: roles::ICON_ACTION_PRIMARY,
             checked: paused,
@@ -576,7 +577,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             enabled: running,
             height: row_height(state),
             width: icon_width(state),
-            padding: ui::all_sides(0),
+            padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
             icon_size: STEP_SIZE,
             role: roles::ICON_ACTION_PRIMARY,
             tooltip: if running { "Stop" } else { "Nothing is running" },

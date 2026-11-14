@@ -1,0 +1,23 @@
+// A bare name in a pattern compares with the constant of that name, and binds
+// when no constant has it.
+
+const LIMIT: int = 3;
+
+pub fn at_limit(n: int) -> bool {
+    match n {
+        LIMIT => true,
+        _ => false,
+    }
+}
+
+pub fn doubled(n: int) -> int {
+    match n {
+        LIMIT => 0,
+        limit => limit * 2,
+    }
+}
+
+// expect: at_limit(3) == true
+// expect: at_limit(4) == false
+// expect: doubled(3) == 0
+// expect: doubled(5) == 10

@@ -394,7 +394,7 @@ fn selecting(
             Brush::of(ui).fill(box_, 0.0, fill);
         }
     }
-    // The platform's copy key, which is what `ui::shortcut` spells `cmd+c`.
+    // The platform's copy key, which a `shortcut` spells `cmd+KeyC`.
     if ui.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::C))
         && let Some(text) = shaped.text.get(from as usize..to as usize)
     {

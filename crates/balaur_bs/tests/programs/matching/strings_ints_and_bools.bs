@@ -1,0 +1,53 @@
+// A `match` on a value compares it with each arm's literal or constant, in
+// order, and the last arm takes whatever no arm named.
+
+const STOP: str = "stop";
+const NONE: int = 0;
+
+pub fn verb(name: str) -> int {
+    match name {
+        "go" => 1,
+        STOP => 2,
+        "left" | "right" => 3,
+        other => other.len() * 10,
+    }
+}
+
+pub fn count(n: int) -> str {
+    match n {
+        NONE => "none",
+        -1 => "minus one",
+        1 | 2 | 3 => "few",
+        _ => "many",
+    }
+}
+
+pub fn flag(b: bool) -> int {
+    match b {
+        true => 1,
+        _ => 0,
+    }
+}
+
+fn kind(s: str?) -> str {
+    match s {
+        nil => "nothing",
+        "" => "empty",
+        _ => "text",
+    }
+}
+
+pub fn kinds() -> str { "{kind(nil)} {kind("")} {kind("a")}" }
+
+// expect: verb("go") == 1
+// expect: verb("stop") == 2
+// expect: verb("left") == 3
+// expect: verb("right") == 3
+// expect: verb("jump") == 40
+// expect: count(0) == "none"
+// expect: count(-1) == "minus one"
+// expect: count(2) == "few"
+// expect: count(9) == "many"
+// expect: flag(true) == 1
+// expect: flag(false) == 0
+// expect: kinds() == "nothing empty text"

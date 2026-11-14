@@ -49,7 +49,6 @@ pub fn install_settings_api(m: &mut Module<Engine>) {
         (ALL, &[], "() -> [Setting]", "Every defined setting as `{ path, scope, spec }`, in definition order."),
         (GET, &[], "(path: string) -> any", "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil."),
         (BASE, &[], "(path: string) -> any", "What the file says, ignoring every override: what a settings screen edits."),
-        (words::settings_api::TAGS, &[], "() -> [string]", "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build."),
         (KNOWN_TAGS, &[], "() -> [string]", "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`."),
         (keys::OVERRIDES, &[], "(path: string) -> [string]", "The tags this project holds an override for at `path`, in tag order."),
         (words::functions::CLEAR, &[], "(path: string) -> ()", "Forget one value, so the next write drops the key: how an override is removed."),
@@ -128,19 +127,13 @@ fn notice_change(eng: &Engine, path: String, value: Value) {
 }
 
 /// The calls the settings screen needs for a key with more than one answer:
-/// the file's own value, the tags in play, and the overrides a key carries.
+/// the file's own value, the tags an override may name, and the overrides a
+/// key carries.
 fn install_override_api(m: &mut Module<Engine>) {
     m.function(BASE, |eng: &Engine, path: String| {
         Ok(settings::base(eng, &path)
             .and_then(|v| from_toml(&v).ok())
             .unwrap_or(Value::Nil))
-    });
-    m.function(words::settings_api::TAGS, |eng: &Engine, (): ()| {
-        let tags = eng.resource::<crate::tags::Tags>();
-        let tags = tags.borrow();
-        Ok(Value::List(
-            tags.0.iter().cloned().map(Value::text).collect(),
-        ))
     });
     m.function(KNOWN_TAGS, |eng: &Engine, (): ()| {
         Ok(Value::List(

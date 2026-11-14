@@ -8,6 +8,7 @@ use history;
 use model;
 use newnode;
 use presets;
+use sceneedit;
 use selection;
 use util;
 use words::asset_kinds;
@@ -490,11 +491,11 @@ fn source_row(label: str, note: str, name: str, parts: any) -> newnode::Entry {
 /// Add a child soft body made from one of `soft_sources`, in one undo step.
 pub fn add_soft_body(state: &mut editor::State, source: newnode::Entry) -> bool {
     let before = state.nodes.len();
-    model::add_child(state);
+    sceneedit::add_child(state);
     if state.nodes.len() == before {
         return false;
     }
-    model::selected_node(state).set_name(model::unique_name(state, source.name));
+    model::selected_node(state).set_name(sceneedit::unique_name(state, source.name));
     fill_soft(state, state.selected, source)
 }
 
@@ -775,17 +776,17 @@ fn cell_size(points: any) -> float {
     for point in util::list_or_empty(points) {
         let point_x = point[0].as_float();
         let point_y = point[1].as_float();
-        low = [util::min(low[0], point_x), util::min(low[1], point_y)];
-        high = [util::max(high[0], point_x), util::max(high[1], point_y)];
+        low = [math::min(low[0], point_x), math::min(low[1], point_y)];
+        high = [math::max(high[0], point_x), math::max(high[1], point_y)];
     }
-    let widest = util::max(high[0] - low[0], high[1] - low[1]);
-    util::clamp(widest / 10.0, 0.02, 1.0)
+    let widest = math::max(high[0] - low[0], high[1] - low[1]);
+    math::clamp(widest / 10.0, 0.02, 1.0)
 }
 
 fn cells_2d(size: [float]) -> [float] {
-    let longest = util::max(size[0], size[1]);
-    let per_unit = 8.0 / util::max(longest, 0.01);
-    [util::max(2.0, math::round(size[0] * per_unit)), util::max(2.0, math::round(size[1] * per_unit))]
+    let longest = math::max(size[0], size[1]);
+    let per_unit = 8.0 / math::max(longest, 0.01);
+    [math::max(2.0, math::round(size[0] * per_unit)), math::max(2.0, math::round(size[1] * per_unit))]
 }
 
 // A shape component's `shape`: its kind and the dimensions that kind reads.

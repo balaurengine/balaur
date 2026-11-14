@@ -1,0 +1,235 @@
+//! The Timeline tab: keys over the engine's clip (scripts/anim.bs is the
+//! adapter). Scrubbing seeks the engine's player, so the viewport shows its pose.
+
+use anim;
+use editor;
+use form;
+use history;
+use icons;
+use signals;
+use util;
+use words::changes;
+use words::components;
+use words::dock_fields;
+use words::fields;
+use words::layout_fields;
+use words::log_fields;
+use words::roles;
+use words::schema_fields;
+use words::theme_tokens;
+
+const INLINE: str = "inline";
+
+const TIMELINE: str = "Editor/Shell/Body/Centre/Bottom/Timeline";
+
+const NAME_WIDTH: float = 150.0;
+
+/// Fill the Timeline tab: what the player is missing, or the clip's ruler,
+/// rules, lanes and keys placed by time against the tab's width, the playhead
+/// and the scrubber. What its script asks for when any of them moved.
+pub fn fill(state: &mut editor::State) {
+    let node = anim::player(state).found;
+    let found = anim::definition(state);
+    if found == nil {
+        show_missing(state, node);
+        return;
+    }
+    let definition = found;
+    util::set_visible(TIMELINE + "/Missing", false);
+    util::set_visible(TIMELINE + "/Body", true);
+    let length = math::max(anim::length(definition), 1e-4);
+    let lane_x = NAME_WIDTH + 14.0;
+    let lane_width = math::max(120.0, util::drawn_width(TIMELINE) - lane_x - 24.0);
+    fill_head(state, node, definition);
+    fill_ruler(state, length, lane_x, lane_width);
+    form::fill(TIMELINE + "/Body/Lanes/Scroll/Tracks", track_rows(state, definition, length, lane_width));
+    util::fill(TIMELINE + "/Body/ScrubRow", { layout_fields::PADDING: [8.0 + lane_x, 0.0, 0.0, 0.0] });
+    let filled = scene::root().get_node(TIMELINE + "/Body/ScrubRow/Scrub");
+    if filled.is_valid() {
+        filled.widget.width = lane_width;
+    }
+    util::fill_beside(TIMELINE + "/Body/ScrubRow/Scrub", components::WIDGET_RANGE, { fields::VALUE: state.anim.time, schema_fields::MAX: anim::length(definition) });
+}
+
+// The player has no clip, or names one its library does not hold.
+fn show_missing(state: &mut editor::State, node: Node) {
+    let named = if node.is_valid() { node.name() } else { "" };
+    let missing = if anim::component(state, node) == nil {
+        named + " has no clip"
+    } else {
+        "{named}: clip '{anim::clip_name(state, node)}' is not in its library"
+    };
+    util::set_visible(TIMELINE + "/Missing", true);
+    util::set_text(TIMELINE + "/Missing/Says", missing);
+    let filled = scene::root().get_node(TIMELINE + "/Missing/Create");
+    if filled.is_valid() {
+        filled.widget_button.icon = icons::ui(icons::ADD);
+    }
+    util::set_visible(TIMELINE + "/Body", false);
+}
+
+// The head: the clip and where it lives, the time, the length and the loop.
+fn fill_head(state: &mut editor::State, node: Node, definition: any) {
+    let name = anim::clip_name(state, node);
+    let filled = scene::root().get_node(TIMELINE + "/Body/Head/AddKey");
+    if filled.is_valid() {
+        filled.widget_button.icon = icons::ui(icons::ADD);
+    }
+    let library = anim::library_path(state, node);
+    let clip = if name == "" { "unnamed" } else { name };
+    let place = if library == nil { INLINE } else { library.unwrap() };
+    util::set_text(TIMELINE + "/Body/Head/Clip", "{clip} · {place}");
+    util::set_text(TIMELINE + "/Body/Head/Time", "{util::fixed(state.anim.time, 2)} / {util::fixed(anim::length(definition), 2)} s");
+    // The engine's own vocabulary, not a boolean: pingpong is a third answer
+    // and a toggle cannot say it.
+    let loop_mode = definition[schema_fields::LOOP_MODE];
+    util::fill_beside(TIMELINE + "/Body/Head/Length", components::WIDGET_RANGE, { fields::VALUE: anim::length(definition) });
+    let filled = scene::root().get_node(TIMELINE + "/Body/Head/Loop");
+    if filled.is_valid() {
+        filled.widget.text = if loop_mode == nil { animation::LOOP_NONE } else { loop_mode.as_str() };
+        filled.widget_dropdown.options = [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG];
+    }
+}
+
+// The ruler carries the scale the lanes are read against: a label and a
+// rule per tick straight down through the lanes, then the playhead.
+fn fill_ruler(state: &mut editor::State, length: float, lane_x: float, lane_width: float) {
+    let step = tick_step(length);
+    let ticks: [ui::Control] = [];
+    let rules: [ui::Control] = [];
+    let seconds = 0.0;
+    while seconds <= length + 1e-4 {
+        let tick_x = lane_at(lane_x, length, lane_width, seconds);
+        ticks.push(ui::Control {
+            kind: ui::WIDGET_LABEL,
+            role: roles::TEXT_CODE_QUIET,
+            font_size: 11,
+            absolute: true,
+            inset: ui::Sides { left: tick_x, top: 2.0, right: -1.0, bottom: -1.0 },
+            text: util::fixed(seconds, 2),
+        });
+        rules.push(ui::Control {
+            kind: ui::WIDGET_ROW,
+            absolute: true,
+            inset: ui::Sides { left: tick_x, top: 0.0, right: -1.0, bottom: 0.0 },
+            width: 1,
+            fill: theme_tokens::BORDER_DEFAULT,
+            interactive: false,
+        });
+        seconds += step;
+    }
+    ui::fill_strip(TIMELINE + "/Body/Ruler", ticks);
+    ui::fill_strip(TIMELINE + "/Body/Lanes/Rules", rules);
+    util::fill(TIMELINE + "/Body/Lanes/Playhead", {
+        dock_fields::INSET: [lane_at(lane_x, length, lane_width, math::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0],
+    });
+}
+
+// A row per track: its name, then its keys placed by time.
+fn track_rows(state: &mut editor::State, definition: any, length: float, lane_width: float) -> [form::Row] {
+    let tokens = state.theme;
+    let tracks = anim::tracks(definition);
+    let rows: [form::Row] = [];
+    for index in 0..tracks.len() {
+        let track = tracks[index];
+        let color = (if index % 2 == 0 { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] }).as_str();
+        let keys: [ui::Control] = [];
+        for key in util::list_or_empty(track[fields::KEYS]) {
+            let when = key[log_fields::TIME].as_float();
+            let before = when <= state.anim.time + 1e-4;
+            // A key is its mark: filled once the playhead has passed it.
+            keys.push(ui::Control {
+                kind: ui::WIDGET_BUTTON,
+                role: roles::CHIP_QUIET,
+                text: if before { "●" } else { "○" },
+                font_size: 13,
+                padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
+                text_color: color,
+                absolute: true,
+                inset: ui::Sides { left: (when / length) * lane_width - 6.0, top: 2.0, right: -1.0, bottom: -1.0 },
+                tooltip: "{util::fixed(when, 2)} s",
+                on_click: "handle",
+                data: { fields::FN: on_key_pressed, fields::WHEN: when },
+            });
+        }
+        rows.push(form::Row {
+            height: LANE_HEIGHT,
+            controls: [
+                ui::Control {
+                    kind: ui::WIDGET_ROW,
+                    width: NAME_WIDTH,
+                    gap: vec2(6, 6),
+                    align_items: ui::ALIGN_CENTER,
+                    padding: ui::Sides { left: 8.0, top: 0.0, right: 0.0, bottom: 0.0 },
+                    controls: [
+                        ui::Control { kind: ui::WIDGET_ROW, width: 6, height: 6, corner_radius: 3, fill: color },
+                        ui::Control {
+                            kind: ui::WIDGET_LABEL,
+                            corner_radius: 0,
+                            role: roles::TEXT_CODE,
+                            font_size: 11,
+                            text: anim::track_label(track),
+                        },
+                    ],
+                },
+                ui::Control {
+                    kind: ui::WIDGET_ROW,
+                    width: lane_width,
+                    controls: keys,
+                    height: LANE_HEIGHT,
+                    margin: ui::Sides { left: 14.0, top: 0.0, right: 0.0, bottom: 0.0 },
+                },
+            ],
+        });
+    }
+    rows
+}
+
+// Where time `seconds` lands across a lane `lane_width` wide that starts at `lane_x`.
+fn lane_at(lane_x: float, length: float, lane_width: float, seconds: float) -> float {
+    8.0 + lane_x + (seconds / length) * lane_width
+}
+
+fn on_key_pressed(state: &mut editor::State, data: any, _value: any) {
+    anim::seek(state, data[fields::WHEN].as_float());
+}
+
+/// The Timeline tab's verbs, by the name of the button pressed.
+pub fn verb(state: &mut editor::State, verb: str) {
+    if verb == "AddKey" {
+        anim::add_key(state, state.anim.time);
+    } else if verb == "DeleteKey" {
+        anim::delete_key_at(state, state.anim.time);
+    } else if verb == "Create" {
+        anim::ensure_clip(state);
+    }
+    signals::changed(state, changes::TIMELINE);
+}
+
+/// A clip setting from the Timeline's head, written into the clip as one
+/// undo step: its length, kept above a tenth of a second, or its loop mode.
+pub fn clip(state: &mut editor::State, setting: str, value: any) {
+    let definition = anim::definition(state);
+    if definition == nil {
+        return;
+    }
+    history::record(state, "clip {setting.to_lower()}", "clip:{setting}");
+    if setting == "Length" {
+        definition[fields::LENGTH] = math::max(0.1, value.as_float());
+    } else {
+        definition[schema_fields::LOOP_MODE] = value.as_str();
+    }
+    anim::touch(state);
+}
+
+const LANE_HEIGHT: float = 26.0;
+
+// A tick every 0.25/0.5/1/2/5 s, whichever gives four to eight labels.
+fn tick_step(length: float) -> float {
+    for step in [0.25, 0.5, 1.0, 2.0, 5.0, 10.0] {
+        if length / step <= 8.0 {
+            return step;
+        }
+    }
+    length / 8.0
+}

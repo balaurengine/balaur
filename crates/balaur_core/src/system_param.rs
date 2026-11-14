@@ -1,4 +1,4 @@
-//! Typed systems (PLAN-ecs §2): a function whose parameters say what it
+//! Typed systems: a function whose parameters say what it
 //! reads and writes, turned into a system.
 //!
 //! ```ignore

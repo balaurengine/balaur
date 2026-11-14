@@ -8,62 +8,67 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Get a leaderboard by ID
 /// `GET /api/v1/leaderboards/{id}`
-pub fn get_leaderboard(id: str) -> int {
+pub async fn get_leaderboard(id: str) -> any {
     if id == "" {
         return core::missing("gamend::leaderboards::get_leaderboard", "id");
     }
-    core::rest("GET", "/api/v1/leaderboards/{id}")
+    let reply = await core::rest("GET", "/api/v1/leaderboards/{id}");
+    reply
 }
 
 /// Get current user's record
 /// `GET /api/v1/leaderboards/{id}/records/me`
-pub fn get_my_record(id: str, options: any) -> int {
+pub async fn get_my_record(id: str, options: any) -> any {
     if id == "" {
         return core::missing("gamend::leaderboards::get_my_record", "id");
     }
     let query = core::query(options, ["key"]);
-    core::rest("GET", "/api/v1/leaderboards/{id}/records/me{query}")
+    let reply = await core::rest("GET", "/api/v1/leaderboards/{id}/records/me{query}");
+    reply
 }
 
 /// List a leaderboard's rankings
 /// `GET /api/v1/leaderboards/{id}/keys`
-pub fn list_leaderboard_keys(id: str, options: any) -> int {
+pub async fn list_leaderboard_keys(id: str, options: any) -> any {
     if id == "" {
         return core::missing("gamend::leaderboards::list_leaderboard_keys", "id");
     }
     let query = core::query(options, ["prefix"]);
-    core::rest("GET", "/api/v1/leaderboards/{id}/keys{query}")
+    let reply = await core::rest("GET", "/api/v1/leaderboards/{id}/keys{query}");
+    reply
 }
 
 /// List leaderboard records
 /// `GET /api/v1/leaderboards/{id}/records`
-pub fn list_leaderboard_records(id: str, options: any) -> int {
+pub async fn list_leaderboard_records(id: str, options: any) -> any {
     if id == "" {
         return core::missing("gamend::leaderboards::list_leaderboard_records", "id");
     }
     let query = core::query(options, ["page", "page_size", "key"]);
-    core::rest("GET", "/api/v1/leaderboards/{id}/records{query}")
+    let reply = await core::rest("GET", "/api/v1/leaderboards/{id}/records{query}");
+    reply
 }
 
 /// List leaderboards
 /// `GET /api/v1/leaderboards`
-pub fn list_leaderboards(options: any) -> int {
+pub async fn list_leaderboards(options: any) -> any {
     let query = core::query(options, ["slug", "active", "order_by", "starts_after", "starts_before", "ends_after", "ends_before", "page", "page_size"]);
-    core::rest("GET", "/api/v1/leaderboards{query}")
+    let reply = await core::rest("GET", "/api/v1/leaderboards{query}");
+    reply
 }
 
 /// List the records just ahead of a score
 /// `GET /api/v1/leaderboards/{id}/records/above`
-pub fn list_records_above(id: str, options: any) -> int {
+pub async fn list_records_above(id: str, options: any) -> any {
     if id == "" {
         return core::missing("gamend::leaderboards::list_records_above", "id");
     }
@@ -71,12 +76,13 @@ pub fn list_records_above(id: str, options: any) -> int {
         return core::missing("gamend::leaderboards::list_records_above", "score");
     }
     let query = core::query(options, ["score", "limit", "key"]);
-    core::rest("GET", "/api/v1/leaderboards/{id}/records/above{query}")
+    let reply = await core::rest("GET", "/api/v1/leaderboards/{id}/records/above{query}");
+    reply
 }
 
 /// List records around a user
 /// `GET /api/v1/leaderboards/{id}/records/around/{user_id}`
-pub fn list_records_around_user(id: str, user_id: str, options: any) -> int {
+pub async fn list_records_around_user(id: str, user_id: str, options: any) -> any {
     if id == "" {
         return core::missing("gamend::leaderboards::list_records_around_user", "id");
     }
@@ -84,14 +90,16 @@ pub fn list_records_around_user(id: str, user_id: str, options: any) -> int {
         return core::missing("gamend::leaderboards::list_records_around_user", "user_id");
     }
     let query = core::query(options, ["limit", "key"]);
-    core::rest("GET", "/api/v1/leaderboards/{id}/records/around/{user_id}{query}")
+    let reply = await core::rest("GET", "/api/v1/leaderboards/{id}/records/around/{user_id}{query}");
+    reply
 }
 
 /// Resolve multiple slugs to active leaderboards
 /// `POST /api/v1/leaderboards/resolve`
-pub fn resolve_leaderboard_slugs(params: any) -> int {
+pub async fn resolve_leaderboard_slugs(params: any) -> any {
     if !core::given(params, "slugs") {
         return core::missing("gamend::leaderboards::resolve_leaderboard_slugs", "slugs");
     }
-    core::rest("POST", "/api/v1/leaderboards/resolve", params)
+    let reply = await core::rest("POST", "/api/v1/leaderboards/resolve", params);
+    reply
 }

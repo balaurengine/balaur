@@ -61,14 +61,13 @@ fn the_scene_root_is_a_node_and_can_be_added_under() {
         .call;
     let made = add_child(&app.engine, &[Value::Node(root), Value::Str("Made".into())]).unwrap();
     assert!(matches!(made, Value::Node(_)));
+    let get_node = balaur_core::node_api::NODE_OPS
+        .iter()
+        .find(|d| d.name == "get_node")
+        .expect("`get_node` is a node op")
+        .call;
     assert_eq!(
-        call(
-            &app.engine,
-            "scene",
-            "get_node",
-            &[Value::Str("Made".into())]
-        )
-        .unwrap(),
+        get_node(&app.engine, &[Value::Node(root), Value::Str("Made".into())]).unwrap(),
         made
     );
 }
@@ -77,14 +76,14 @@ fn the_scene_root_is_a_node_and_can_be_added_under() {
 fn an_unknown_path_is_nil_rather_than_an_error() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
+    let root = call(&app.engine, "scene", "root", &[]).unwrap();
+    let get_node = balaur_core::node_api::NODE_OPS
+        .iter()
+        .find(|d| d.name == "get_node")
+        .expect("`get_node` is a node op")
+        .call;
     assert_eq!(
-        call(
-            &app.engine,
-            "scene",
-            "get_node",
-            &[Value::Str("Nope/Nowhere".into())]
-        )
-        .unwrap(),
+        get_node(&app.engine, &[root, Value::Str("Nope/Nowhere".into())]).unwrap(),
         Value::Nil
     );
 }
@@ -429,24 +428,6 @@ fn a_script_can_ask_which_plugins_loaded() {
 }
 
 #[test]
-fn a_script_can_ask_whether_one_plugin_loaded() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut app = app_in(dir.path());
-    app.record_plugin(balaur_core::PluginInfo::new("weather", "1"));
-
-    let has = |name: &str| {
-        call(
-            &app.engine,
-            "engine",
-            "has_plugin",
-            &[Value::Str(name.into())],
-        )
-    };
-    assert_eq!(has("weather").unwrap(), Value::Bool(true));
-    assert_eq!(has("elsewhere").unwrap(), Value::Bool(false));
-}
-
-#[test]
 fn a_script_can_ask_a_plugins_version() {
     let dir = tempfile::tempdir().unwrap();
     let mut app = app_in(dir.path());
@@ -573,65 +554,9 @@ fn fs_reaches_a_second_root_the_host_declared() {
 }
 
 #[test]
-fn a_uuid_from_the_engine_stream_is_well_formed_and_repeats_from_a_seed() {
+fn sha256_matches_the_known_vector_for_a_string_and_a_file() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
-    call(&app.engine, "random", "seed", &[Value::Int(9)]).unwrap();
-    let Value::Str(first) = call(&app.engine, "random", "uuid", &[]).unwrap() else {
-        panic!("a string")
-    };
-    assert_eq!(first.len(), 36);
-    assert_eq!(&first[14..15], "4", "version nibble: {first}");
-    assert!(
-        matches!(&first[19..20], "8" | "9" | "a" | "b"),
-        "variant: {first}"
-    );
-    call(&app.engine, "random", "seed", &[Value::Int(9)]).unwrap();
-    assert_eq!(
-        call(&app.engine, "random", "uuid", &[]).unwrap(),
-        Value::Str(first)
-    );
-}
-
-#[test]
-fn base64_round_trips_bytes_and_sha256_matches_the_known_vector() {
-    let dir = tempfile::tempdir().unwrap();
-    let app = app_in(dir.path());
-    let encoded = call(
-        &app.engine,
-        "encoding",
-        "base64_text",
-        &[Value::Str("hello".into())],
-    )
-    .unwrap();
-    assert_eq!(encoded, Value::Str("aGVsbG8=".into()));
-    let decoded = call(&app.engine, "encoding", "from_base64", &[encoded]).unwrap();
-    assert_eq!(decoded, Value::Bytes(b"hello".to_vec()));
-    let bytes: Vec<Value> = b"hello".iter().map(|b| Value::Int(i64::from(*b))).collect();
-    assert_eq!(
-        call(&app.engine, "encoding", "base64", &[Value::List(bytes)]).unwrap(),
-        Value::Str("aGVsbG8=".into()),
-        "a script's `[int]` is bytes"
-    );
-    assert!(
-        call(
-            &app.engine,
-            "encoding",
-            "base64",
-            &[Value::List(vec![Value::Int(256)])]
-        )
-        .is_err(),
-        "256 is no byte"
-    );
-    assert!(
-        call(
-            &app.engine,
-            "encoding",
-            "from_base64",
-            &[Value::Str("@@".into())]
-        )
-        .is_err()
-    );
     let digest = call(
         &app.engine,
         "hash",
@@ -647,7 +572,7 @@ fn base64_round_trips_bytes_and_sha256_matches_the_known_vector() {
     let from_file = call(
         &app.engine,
         "hash",
-        "sha256",
+        "sha256_file",
         &[Value::Str("pack.bin".into())],
     )
     .unwrap();

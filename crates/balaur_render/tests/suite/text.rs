@@ -169,3 +169,47 @@ fn a_text_style_written_inline_is_filed_with_its_rows() {
     assert_eq!(colour, [1.0, 0.25, 0.25, 1.0]);
     assert_eq!(word(&style, "underline").as_deref(), Some("single"));
 }
+
+// The shaper is the window build's; with no window open it still measures,
+// against the bundled faces.
+#[cfg(feature = "window")]
+#[test]
+fn text_measures_wider_with_more_letters_and_taller_with_a_bigger_font() {
+    let script = r#"pub class Scenario { node: Node, measured: str }
+impl Scenario {
+    fn init() {
+        let short = render::text_size("ab", render::TextOptions { font_size: 20.0 });
+        let long = render::text_size("abcdef", render::TextOptions { font_size: 20.0 });
+        let big = render::text_size("ab", render::TextOptions { font_size: 40.0 });
+        self.measured = "{short.x > 0.0} {long.x > short.x} {big.y > short.y}";
+    }
+}
+"#;
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[nodes]]\nid = \"scenario\"\nname = \"Scenario\"\nscript = { source = \"scripts/scenario.bs\" }\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
+    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    let node =
+        balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Scenario").unwrap();
+    let measured = app
+        .engine
+        .script_host()
+        .unwrap()
+        .script_field(balaur_core::node_id_of(node), "measured");
+    assert_eq!(
+        measured,
+        Some(balaur_script::Value::Str("true true true".into()))
+    );
+}

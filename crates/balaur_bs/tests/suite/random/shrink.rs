@@ -183,6 +183,7 @@ fn parts_mut(e: &mut E) -> Vec<&mut E> {
     match e {
         E::Bin(_, a, b) | E::Point(a, b) | E::Index(a, b) | E::Match(_, a, _, b) => vec![a, b],
         E::Neg(a)
+        | E::BitNot(a)
         | E::Not(a)
         | E::At(_, a)
         | E::StrLen(a)
@@ -203,6 +204,7 @@ fn parts(e: &E) -> Vec<&E> {
         E::Bin(_, a, b) | E::Point(a, b) | E::Index(a, b) => vec![a, b],
         E::Match(_, a, _, _)
         | E::Neg(a)
+        | E::BitNot(a)
         | E::Not(a)
         | E::At(_, a)
         | E::StrLen(a)

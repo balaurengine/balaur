@@ -251,11 +251,11 @@ fn a_grid_places_children_in_rows_of_columns() {
 }
 
 #[test]
-fn a_flow_wraps_when_the_row_is_full() {
+fn a_wrapping_row_starts_a_line_when_it_is_full() {
     let (_dir, app) = app();
     let flow = add_widget(
         &app,
-        &toml::toml! { kind = "flow" width = 120.0 x = 0.0 y = 0.0 widget_layout = { gap = [4.0, 4.0] } }.into(),
+        &toml::toml! { kind = "row" width = 120.0 x = 0.0 y = 0.0 widget_layout = { gap = [4.0, 4.0], wrap_children = "wrap" } }.into(),
     );
     let buttons: Vec<Entity> = ["alpha", "beta", "gamma", "delta", "epsilon"]
         .into_iter()

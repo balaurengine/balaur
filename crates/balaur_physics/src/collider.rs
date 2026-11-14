@@ -819,7 +819,6 @@ pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
     m.records(READER_RECORDS);
     m.describe(&[
         (f::COLLIDER_MESH, &[c::COLLIDER_3D], "(node: node) -> ColliderMesh", "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into."),
-        (f::COLLIDER_TOTAL_MASS, &[c::COLLIDER_3D], "", "What this collider weighs, density and size together."),
         (f::COLLIDER_VOLUME, &[c::COLLIDER_3D], "", "How much space the shape encloses."),
         (f::SWEPT_AABB, &[c::COLLIDER_3D], "(node: node) -> Aabb", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
         (f::HANDLES, &[c::COLLIDER_3D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
@@ -886,13 +885,6 @@ pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
             (k::BODY, body),
             (k::COLLIDERS, colliders),
         ]))
-    });
-    m.function(f::COLLIDER_TOTAL_MASS, |eng: &Engine, node: NodeId| {
-        let entity = balaur_core::entity_of(node)?;
-        let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
-        let handle = first_collider(&state, entity)?;
-        Ok(state.world.colliders[handle].mass())
     });
     m.function(f::COLLIDER_MASS_PROPERTIES, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |collider| {

@@ -1,8 +1,6 @@
 # Lifecycle: recording, debugging and tools
 
-Recording, replay, rollback, the debugger, the command line and the editor each hold state that moves over time. [LIFECYCLE.md](LIFECYCLE.md) has the app, nodes and scripts.
-
-[LIFECYCLE.md](LIFECYCLE.md) also defines `Engine.frozen`, `Engine.replay_hold`, `Engine.quit`, the display modes of `balaur run` and its exit codes.
+The states of recording, replay, rollback, the debugger, the command line and the editor. [LIFECYCLE.md](LIFECYCLE.md) has the app, nodes and scripts, and defines `Engine.frozen`, `Engine.replay_hold`, `Engine.quit`, the display modes of `balaur run` and its exit codes. [DETERMINISM.md](DETERMINISM.md) has how to record, replay and roll back.
 
 ## Recording and replay
 
@@ -17,17 +15,16 @@ Source: `crates/balaur_core/src/replay.rs`, `ReplayMode`.
 | `Off` | `is_playing` is false. Nothing is refused for a recording's sake. |
 | `Playing` | `is_playing` and `suppressed` are true. |
 
-Scripts have no spelling for this. They read `replay::state()`, and `replay::recording()` for a recording being written.
+Scripts read `replay::state()` instead, and `replay::recording()` for a recording being written.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `begin` (`replay.load`, `balaur replay`) | `Playing` | Restores the tick rate, origin, setup and RNG seed. A recorder already open keeps writing. |
-| `Playing` | `end` (`replay.unload`) | `Off` | Drops the session. |
-| `Off` | `end` | `Off` | Drops the session. |
+| any | `end` (`replay.unload`) | `Off` | Drops the session. |
 
 Starts in `Off`. Never ends.
 
-Refused or ignored: while `Playing`, `ExternalIo::start` runs nothing and answers false. `read_clock_system`, `update_device`, pad polling, pointer conversion and the widget input take do nothing. The WebSocket, WebTransport, platform and gamend realtime plugins and the desktop verbs also test `suppressed`.
+Refused or ignored: while `Playing`, `ExternalIo::start` runs nothing and answers false. A project loading keeps the restored tick rate over its `[time] tick_hz`. `read_clock_system`, `update_device`, pad polling, pointer conversion and the widget input take do nothing. The WebSocket, WebTransport and platform plugins and the desktop verbs also test `suppressed`.
 
 ### Replay player state
 
@@ -76,20 +73,9 @@ Held by a pause, a `process` mode or a parked scene: `App::advance` asks only `R
 
 ### Replay cursor
 
-Where playback has reached in the session's frames. It is derived from `ReplayPlayer.cursor` and the frame count.
+Where playback has reached, derived from `ReplayPlayer.cursor` and the frame count.
 
 Source: `crates/balaur_core/src/replay.rs`, `ReplayPlayer.cursor`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> before_first
-    before_first --> within: feed_next
-    within --> within: feed_next
-    within --> spent: feed_next, last frame
-    before_first --> spent: feed_next, one frame
-    within --> before_first: begin, end
-    spent --> before_first: begin, end
-```
 
 | State | What is true |
 |---|---|
@@ -165,7 +151,7 @@ Starts in `None`. Never ends.
 
 ### Recorder
 
-The session file being written. It is derived from `Recording.0` and `Recorder.header`, and it alone says whether a run records.
+The session file being written, derived from `Recording.0` and `Recorder.header`. It alone says whether a run records.
 
 Source: `crates/balaur_core/src/replay.rs`, `Recording`, `Recorder`.
 
@@ -200,8 +186,6 @@ stateDiagram-v2
 | open | the Engine drops the recorder without `finish` | `none` | `Drop` writes the same `quit` trailer and logs a failure. |
 
 Starts in `none`. Never ends.
-
-`balaur run --record` calls `stop_recording` with `"quit"` as the run ends, so its trailer holds the tick and digest.
 
 Refused or ignored: `stop_recording` with nothing open answers `None`. A failed write logs an error and the next frame tries again.
 
@@ -246,20 +230,9 @@ Starts in `false`. Never ends.
 
 ### Recording file
 
-A `.blr` file as a reader finds it. It is derived from the lines on disk.
+A `.blr` file as a reader finds it, derived from the lines on disk.
 
 Source: `crates/balaur_core/src/replay.rs`, `Session::read`, `Header`, `Frame`, `Trailer`.
-
-```mermaid
-stateDiagram-v2
-    state "header and frames" as frames
-    state "with trailer" as closed
-    [*] --> empty
-    empty --> frames: first frame
-    empty --> closed: stop_recording, no frame
-    frames --> closed: stop_recording, Drop
-    closed --> [*]
-```
 
 | State | What is true |
 |---|---|
@@ -282,7 +255,7 @@ Refused or ignored: `Session::read` errors on a `format` other than this build's
 
 ### Rollback session
 
-One local session that puts the world back and runs it forward when a late input disagrees. It is derived from `Session.dirty` and `Resimulating`.
+One local session that puts the world back and runs it forward when a late input disagrees, derived from `Session.dirty` and `Resimulating`.
 
 Source: `crates/balaur_core/src/rollback.rs`, `Session`.
 
@@ -382,7 +355,7 @@ Starts in `None`. Ends with the session.
 
 ### Tick status
 
-What a session knows of one tick. It is derived from `next`, `arrived`, `used`, `digests` and the ring.
+What a session knows of one tick, derived from `next`, `arrived`, `used`, `digests` and the ring.
 
 Source: `crates/balaur_core/src/rollback.rs`, `Session::confirmed`, `Session::digest_at`.
 
@@ -408,7 +381,7 @@ stateDiagram-v2
 |---|---|---|---|
 | `not_run` | `run_tick` | `predicted`, `confirmed` | Runs from `inputs_for`. |
 | `predicted` | `submit` of the last missing input | `confirmed` | Schedules a re-run if the value differs from `used`. |
-| `predicted` | `set_absent` of the last missing player | `confirmed` | A player who left no longer holds a tick back. |
+| `predicted` | `set_absent` of the last missing player | `confirmed` | A player who left holds no tick back. |
 | `predicted`, `confirmed` | `run_tick` of a later tick, ring moved on | `forgotten` | `prune` and `digests.retain` drop it. |
 
 Starts in `not_run`. Ends in `forgotten`.
@@ -433,6 +406,8 @@ Starts in present. Ends in absent.
 Refused or ignored: `set_absent` for an unknown player does nothing.
 
 ## Debugger
+
+`balaur::ToolsPlugin` declares the `debugger.*` script verbs, in the editor build only. The DAP adapter drives the host directly.
 
 ### Probe mode
 
@@ -494,7 +469,7 @@ Source: `crates/balaur_bs/src/runtime/debugger.rs`, `Debugger.parked`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `None`, `Some` | `on_probe` with a stop and `park` true | `Some` | Stores the snapshot and depth. |
+| `None` | `on_probe` with a stop and `park` true | `Some` | Stores the snapshot and depth. |
 | `Some` | `Debugger::unpark` | `None` | Sets the mode and answers the flags. |
 
 Starts in `None`. Never ends.
@@ -524,20 +499,21 @@ Refused or ignored: only `wasmi` answers `can_park` true. Elsewhere a stop is pa
 
 ### Breakpoint table
 
-Whether the module's breakpoint table and flags are behind the `Debugger`.
+Whether the breakpoint tables of the units built with probes, and the flags, are behind the `Debugger`.
 
-Source: `crates/balaur_bs/src/runtime/debugger.rs`, `Debugger.dirty`.
+Source: `crates/balaur_bs/src/runtime/debugger.rs`, `Debugger.dirty`, `take_tables`.
 
 | State | What is true |
 |---|---|
-| `true` | `take_table` builds a table on the next call. |
+| `true` | `take_tables` builds the tables on the next call. |
 | `false` | The module is current. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `set_breakpoint`, `clear_breakpoint`, `clear_breakpoints`, `keep_locals` with a change | `true` | Asks for a new table. |
+| any | `set_breakpoint_in`, `clear_breakpoint`, `clear_breakpoints_in`, `keep_locals`, each with a change | `true` | Asks for new tables. |
+| any | `add_unit` of a unit built with probes | `true` | Asks for its table. |
 | any | `pause` | `true` | Asks for new flags. |
-| `true` | `take_table`, from `Runtime::sync_debugger` | `false` | Writes one byte per statement and the flags. |
+| `true` | `take_tables`, from `Runtime::sync_debugger` | `false` | Writes one byte per statement of each unit built with probes, then the flags. |
 
 Starts in `true`. Never ends.
 
@@ -549,7 +525,7 @@ Source: `crates/balaur_bs/src/runtime/debugger.rs`, `Debugger.keep_locals`.
 
 | State | What is true |
 |---|---|
-| `false` | Variables are stored only at a stop. |
+| `false` | Variables are written only at a stop. |
 | `true` | Each statement stores them, so a trap's stack shows them. The value 2 of `__dbg_flags` is set. |
 
 | From | Trigger | To | What it does |
@@ -567,19 +543,19 @@ Source: `crates/balaur_bs/src/runtime/mod.rs`, `Runtime.parked_call`; `crates/ba
 | State | What is true |
 |---|---|
 | `None` | No steppable call is in flight. |
-| `Some(ParkedCall { ret, nself, poll })` | A steppable call started and has not finished. `poll` says a task's poll, not a method. |
+| `Some(ParkedCall { ret, poll, unit, top })` | A steppable call started and has not finished. `poll` says a task's poll, not a method. `top` is the shadow stack's top at the stop. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | `None` | `call_method_steppable` | `Some` | Calls `prepare`, then `call_resumable`, then `settle`. |
-| `None` | `poll_steppable` | `Some` | The same for a task's poll. |
+| `None` | `poll_steppable` | `Some` | The same for a task's poll. A task with nothing to run answers `Step::Waiting` and stays `None`. |
 | `Some` | `settle` with `Done` or a trap | `None` | Hands back the results, or answers the error. |
 | `Some` | `settle` with `Parked` | `Some` | Answers `Step::Paused`. |
 | `Some` | `resume`, `resume_task` | `Some`, then `settle` | `go_on` calls `unpark`, writes the flags and resumes the engine. |
 
 Starts in `None`. Never ends.
 
-Refused or ignored: while `Some`, `invoke`, `call_method_steppable` and `poll_steppable` error "the script is stopped at a breakpoint". `go_on` errors "no method is parked" or "no poll is parked" when the kind differs.
+Refused or ignored: while `Some`, `call_method_steppable` and `poll_steppable` error "the script is stopped at a breakpoint". A plain `invoke` runs above the parked frames and passes every stop by. `go_on` errors "no method is parked" or "no poll is parked" when the kind differs.
 
 ### Parked engine call
 
@@ -603,9 +579,9 @@ Refused or ignored: `resume` with nothing parked errors "no call is parked". An 
 
 ### Trap stack
 
-The stack a debug build's last trapped call died with.
+The stack the last trapped call died with, in an instance built with probes.
 
-Source: `crates/balaur_bs/src/runtime/mod.rs`, `Runtime.error_stop`.
+Source: `crates/balaur_bs/src/runtime/mod.rs`, `Runtime.error_stop`, `trapped`.
 
 | State | What is true |
 |---|---|
@@ -614,7 +590,7 @@ Source: `crates/balaur_bs/src/runtime/mod.rs`, `Runtime.error_stop`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `Runtime::trapped` in a debug build | `Some` | Reads the shadow stack before `DBG_RESET` clears it. |
+| any | `Runtime::trapped`, a unit built with probes | `Some` | Reads the shadow stack, then resets it with `DBG_RESET`, or to the parked call's `top` when one is parked. |
 | `Some` | `Runtime::error_stop` | `None` | Answers it once. |
 | `Some` | `invoke`, `prepare` | `None` | A new call forgets it. |
 
@@ -624,7 +600,7 @@ Starts in `None`. Never ends.
 
 The one stop the Balaur Script host holds.
 
-Source: `crates/balaur_script_bs/src/host/debug.rs`, `Held`, `Stop`, held in `Inner.stopped`.
+Source: `crates/balaur_script_bs/src/host/debug.rs`, `Held`, `Stop`; `crates/balaur_script_bs/src/host.rs`, `Inner.stopped`, `Inner.resume_owed`.
 
 ```mermaid
 stateDiagram-v2
@@ -640,8 +616,8 @@ stateDiagram-v2
 | State | What is true |
 |---|---|
 | `None` | Nothing is held. `debugger.stop_location()` answers nil. |
-| `Some(Held { stop: Stop::Parked { obj, task } })`, `reason` `"breakpoint"`, `"step"` or `"pause"` | A call is parked at a line. `Held` owns its object, and its task when it is an async poll. |
-| `Some(Held { stop: Stop::Error { paused, message } })`, `reason` `"error"` | A call trapped with break on error on. `Held` keeps its stack and message. |
+| `Some(Held { node, path, stop: Stop::Parked { obj, task, paused } })`, `reason` `"breakpoint"`, `"step"` or `"pause"` | A call is parked at a line. `Held` owns its object, and its task when it is an async poll. |
+| `Some(Held { node, path, stop: Stop::Error { paused, message } })`, `reason` `"error"` | A call trapped with break on error on. `Held` keeps its stack and message. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -650,6 +626,7 @@ stateDiagram-v2
 | `None` | `hold_error`, from `run_steppable` or `poll_held` | `Error` | Needs break on error on and a trap stack. Calls `set_frozen(true)`. |
 | `Error` | `debug_resume` in any mode | `None` | Dismisses it and calls `set_frozen(false)`. |
 | `Parked` | `debug_resume`, the file is gone | `None` | Calls `set_frozen(false)`. |
+| `Parked` | `debug_resume` asked by a script of the instance, its runtime busy | `Parked` | Sets `resume_owed`, and `debugger.stop_location()` answers nil. The next `pump_reloads` resumes it. |
 | `Parked` | `debug_resume`, `Step::Paused` | `Parked` | `hold` again. |
 | `Parked` | `debug_resume`, `Step::Done` | `None` | Answers a task's waiter, releases the object and calls `set_frozen(false)`. |
 | `Parked` | `debug_resume`, `Step::Waiting` | `None` | Files the task in `parked_tasks` if its node is parked, else in `tasks`. Releases the object and calls `set_frozen(false)`. |
@@ -660,7 +637,7 @@ stateDiagram-v2
 
 Starts in `None`. Never ends.
 
-Refused or ignored: while held, `each`, `each_of`, `tell` and `run_tasks` pass over an instance under `frozen_root` or in the file `stopped_in` names. Any other instance runs on, so an editor outside the debug scope keeps running. `call_on` and `init` are not filtered, and where a call is parked `call_method_steppable` errors. `reload` of a parked file errors. `debug_resume` with nothing held returns. `hold_error` does nothing while a stop is held. `detach` does not clear it.
+Refused or ignored: while held, `each`, `each_of`, `tell` and `run_tasks` pass over an instance under `frozen_root` or in the file `stopped_in` names. Any other instance runs on, so an editor outside the debug scope keeps running. `call_on` and `init` are not filtered, and where a call is parked `call_method_steppable` errors. A rebuild of a parked call's instance waits in `rebuild`. `debug_resume` with nothing held returns. `hold_error` does nothing while a stop is held. `detach` does not clear it.
 
 Held by a pause, a `process` mode or a parked scene: `each` skips a node `process::ticks` holds and `run_tasks` keeps its tasks, so its probes do not run. `set_parked` leaves `stopped` alone, and `release_held` looks in both `instances` and `parked`.
 
@@ -683,7 +660,7 @@ Source: `crates/balaur_script_bs/src/host.rs`, `Inner.debugging`; `crates/balaur
 
 Starts absent. Never ends.
 
-Refused or ignored: `debug_set_breakpoints` with no lines keeps the key while a call is parked in its instance. `rebuild_instance` waits, the keys in `rebuild`, while a call is parked in the instance or a script of it runs; a resume asked by a script of the instance waits for `pump_reloads` (`resume_owed`).
+Refused or ignored: `debug_set_breakpoints` with no lines keeps the key while a call is parked in its instance. `rebuild_instance` waits, its keys queued in `rebuild` for `pump_reloads`, while a call of the instance is parked or a script of it runs.
 
 ### Break on error
 
@@ -698,7 +675,7 @@ Source: `crates/balaur_script_bs/src/host.rs`, `Inner.break_on_error`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `debugger.set_break_on_error(on)`, DAP `setExceptionBreakpoints` | `on` | Turning on calls `rebuild_stale`, each file's unit built with probes. The code did not change, so no script hears `on_hot_reload`. Otherwise it calls `keep_locals(on)` where the runtime is free. |
+| any | `debugger.set_break_on_error(on)`, DAP `setExceptionBreakpoints` | `on` | Turning it on calls `rebuild_stale`, which builds each file with probes; no script hears `on_hot_reload`. Either way each instance's `Debugger` gets `keep_locals(on)`. |
 | `true` | DAP `disconnect`, `terminate` | `false` | The adapter leaves the game as it found it. |
 
 Starts in `false`. Never ends.
@@ -770,7 +747,7 @@ Refused or ignored: a run with no watcher gathers nothing.
 
 ### Debug adapter client
 
-The one client the DAP server serves. It is derived from `connected`, `out` and `configured`.
+The one client the DAP server serves, derived from `connected`, `out` and `configured`.
 
 Source: `crates/balaur_debug/src/dap.rs`, `Session`, `accept_loop`.
 
@@ -846,7 +823,9 @@ Starts in `None`. Never ends.
 
 ## Command line
 
-`balaur_export` holds no state over time: `export` is one call on the caller's thread.
+`balaur_export` holds no state over time: `export` is one call on the caller's thread. The `export`, `release`, `forge` and `picture` verbs are in the editor build only.
+
+Every job below reports through `jobs::pump` (`crates/balaur_cli/src/jobs.rs`), which emits `import_event`, `export_event`, `release_event`, `forge_event` or `picture_event`. The event pump calls each listener's `on_<name>` through `call_on`. No pause or `process` mode holds it, and a listener in a parked scene hears nothing.
 
 ### A `balaur run`
 
@@ -904,19 +883,6 @@ Refused or ignored: `--shot` and `--size` do nothing in a headless run.
 One headless playback of a recording. It has no variable of its own.
 
 Source: `crates/balaur_cli/src/traces.rs`, `replay_session`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> loading
-    loading --> running: begin, load_project, play
-    running --> running: advance
-    running --> ended: no frames left
-    running --> stopped_early: entries-at reached
-    running --> diverged: verify, digest differs
-    ended --> [*]
-    stopped_early --> [*]
-    diverged --> [*]
-```
 
 | State | What is true |
 |---|---|
@@ -985,8 +951,6 @@ Starts in `Reading`. Ends in `Over`.
 
 Refused or ignored: `import.start` answers false while `suppressed`, with `running` untouched. A build without the `import` feature answers false. On a desktop the job waits for a free thread on the stepped pool.
 
-Held by a pause, a `process` mode or a parked scene: `jobs::pump` delivers through `call_on`, which no pause or mode filters. A listener in a parked scene is not found and hears nothing.
-
 ### Imports in flight
 
 How many imports this plugin started and has not seen end.
@@ -1028,19 +992,9 @@ Refused or ignored: `import.cancel()` with no job running does nothing.
 
 ### Export job
 
-One export on its worker. It is derived from the `RUNNING` count and the events sent.
+One export on its worker, derived from the `RUNNING` count and the events sent.
 
 Source: `crates/balaur_cli/src/export_api.rs`, `start`, `RUNNING`; `crates/balaur_cli/src/web_export.rs`, `start`, `RUNNING`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> spawned
-    spawned --> building: worker starts
-    building --> done: run_export ok
-    building --> failed: run_export err
-    done --> [*]
-    failed --> [*]
-```
 
 | State | What is true |
 |---|---|
@@ -1060,22 +1014,11 @@ Starts in `spawned`. Ends in `done` or `failed`.
 
 Refused or ignored: `export.start` answers false while `suppressed`. There is no cancel verb. `export.running_count()` reads `RUNNING`.
 
-Held by a pause, a `process` mode or a parked scene: `jobs::pump` delivers through `call_on`, which no pause or mode filters. A listener in a parked scene is not found and hears nothing.
-
 ### Release check
 
-One read of the release feed. It is derived from the worker and its report.
+One read of the release feed, derived from the worker and its report.
 
 Source: `crates/balaur_cli/src/project_api/release.rs`, `check`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> reading
-    reading --> listed: update releases ok
-    reading --> failed: update releases err
-    listed --> [*]
-    failed --> [*]
-```
 
 | State | What is true |
 |---|---|
@@ -1093,28 +1036,11 @@ Starts in `reading`. Ends in `listed` or `failed`.
 
 Refused or ignored: `release.check` answers false while `suppressed`.
 
-Held by a pause, a `process` mode or a parked scene: `jobs::pump` delivers through `call_on`, which no pause or mode filters. A listener in a parked scene is not found and hears nothing.
-
 ### Engine install job
 
-One replacement of this install from the editor. It is derived from the worker and its reports.
+One replacement of this install from the editor, derived from the worker and its reports.
 
 Source: `crates/balaur_cli/src/project_api/release.rs`, `install`; `crates/balaur_cli/src/update.rs`, `replace`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> asking
-    asking --> downloading: first bytes
-    downloading --> downloading: another MiB
-    downloading --> unpacking: archive complete
-    unpacking --> installed: swap done
-    asking --> installed: already up to date
-    asking --> failed: refused or unreadable
-    downloading --> failed: an Err
-    unpacking --> failed: an Err
-    installed --> [*]
-    failed --> [*]
-```
 
 | State | What is true |
 |---|---|
@@ -1127,7 +1053,7 @@ stateDiagram-v2
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | none | `release.install`, not suppressed | `asking` | Spawns the thread. |
-| `asking` | `download_reporting` reports bytes | `downloading` | Maps `update::Step::Downloading`. |
+| `asking`, `downloading` | `download_reporting` reports bytes | `downloading` | Maps `update::Step::Downloading`. |
 | `downloading` | `progress(Step::Unpacking)` | `unpacking` | Maps `update::Step::Unpacking`. |
 | `unpacking` | `swap_install` done | `installed` | The note says to restart. |
 | `asking` | published id equals this build | `installed` | The note says it is up to date. |
@@ -1137,26 +1063,11 @@ Starts in `asking`. Ends in `installed` or `failed`.
 
 Refused or ignored: `release.install` answers false while `suppressed`. `replace` refuses a downgrade unless allowed, and refuses where `held` names a reason.
 
-Held by a pause, a `process` mode or a parked scene: `jobs::pump` delivers through `call_on`, which no pause or mode filters. A listener in a parked scene is not found and hears nothing.
-
 ### Forge job
 
-One search, add, fetch or copy against Forge. It is derived from the worker and its report.
+One search, add, fetch or copy against Forge, derived from the worker and its report.
 
 Source: `crates/balaur_cli/src/project_api/forge.rs`, `run`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> running
-    running --> listed: search
-    running --> fetched: add, fetch
-    running --> copied: copy
-    running --> failed: an Err
-    listed --> [*]
-    fetched --> [*]
-    copied --> [*]
-    failed --> [*]
-```
 
 | State | What is true |
 |---|---|
@@ -1178,22 +1089,11 @@ Starts in `running`. Ends in `listed`, `fetched`, `copied` or `failed`.
 
 Refused or ignored: each verb answers false while `suppressed`.
 
-Held by a pause, a `process` mode or a parked scene: `jobs::pump` delivers through `call_on`, which no pause or mode filters. A listener in a parked scene is not found and hears nothing.
-
 ### Picture job
 
-One picture written by a second `balaur run --offscreen --shot` process. It is derived from the worker and its report.
+One picture written by a second `balaur run --offscreen --shot` process, derived from the worker and its report.
 
 Source: `crates/balaur_cli/src/project_api/picture.rs`, `write`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> running
-    running --> written: process exits well
-    running --> failed: process fails
-    written --> [*]
-    failed --> [*]
-```
 
 | State | What is true |
 |---|---|
@@ -1211,28 +1111,11 @@ Starts in `running`. Ends in `written` or `failed`.
 
 Refused or ignored: `picture.write` answers nil while `suppressed` and in a tab.
 
-Held by a pause, a `process` mode or a parked scene: `jobs::pump` delivers through `call_on`, which no pause or mode filters. A listener in a parked scene is not found and hears nothing.
-
 ### A `balaur update`
 
 One replacement of this install from the command line. It has no variable of its own.
 
 Source: `crates/balaur_cli/src/update.rs`, `run`, `replace`, `download_and_unpack`, `swap_install`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> asking
-    asking --> reported: check flag
-    asking --> current: already published here
-    asking --> refused: downgrade or held
-    asking --> staged: download_and_unpack
-    staged --> swapping: swap_install
-    swapping --> updated: staging removed
-    reported --> [*]
-    current --> [*]
-    refused --> [*]
-    updated --> [*]
-```
 
 | State | What is true |
 |---|---|
@@ -1260,9 +1143,11 @@ Refused or ignored: a wasm build errors "updating is not available in this build
 
 ## Editor
 
+The editor is the Balaur Script project under `editor/`. Its `Editor` node in `editor/scenes/main.toml` runs `editor/scripts/editor.bs` and holds `State`; each panel is a node there with one script under `editor/scripts/panels/`. A start-up state (`--state`) is a `test:<name>` self-test, or a word or prefix that `states` and `prefixed_states` in `editor/scripts/startstates.bs` list.
+
 ### Play session
 
-What the edited scene is doing. It is derived from `State.playing`, `State.played`, `State.release_at`, `physics::is_paused()` and `session.loaded`.
+What the edited scene is doing, derived from `State.playing`, `State.played`, `State.release_at`, `physics::is_paused()` and `session.loaded`.
 
 Source: `editor/scripts/shell.bs`, `toggle_play`, `begin_play`, `stop_play`, `release_world`; `editor/scripts/editor.bs`, `State`.
 
@@ -1292,11 +1177,11 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `edit` | `toggle_play`: F5, the Play button, `--state play` | `starting` | `begin_play` commits history, keeps `played` and rebuilds. `session::start`, `attach_game_scripts`, `hold_game_cameras(true)`, `playing` true, output dock, `release_at` next frame. |
+| `edit` | `toggle_play`: F5, the Play button, `--state play` | `starting` | `begin_play` commits history, keeps the scene's text as `played` and rebuilds from it. Then `session::start`, `attach_game_scripts`, `hold_game_cameras(true)`, `playing` true, output dock, `release_at` next frame. |
 | `starting` | `release_world`, from the frame | `running` | `physics::set_paused(false)`, `anim::resume_all`. |
 | `running` | `on_pause_pressed` | `paused` | `physics::set_paused(true)`. |
 | `paused` | `on_pause_pressed` | `running` | `physics::set_paused(false)`. |
-| any but `edit` | `toggle_play`, `stop_play`, `on_stop_pressed` | `edit` | Calls `debugger::resume(CONTINUE)` until `debugger::stop_location()` is nil. Then `release_at` -1, `session::end("stop")`, rebuild from `played`, `played` "", `playing` false, `theme::apply`, `apply_camera`. |
+| any but `edit` | `toggle_play`, `stop_play`, `on_stop_pressed` | `edit` | Calls `debugger::resume(CONTINUE)` until `debugger::stop_location()` is nil. Then `debug.paused` nil, `release_at` -1, `apply_ui_scale`, `session::end("stop")`, rebuild from `played`, `played` "", `playing` false, `theme::apply`, `apply_camera`. |
 | any but `edit` | `shell::undo`, `shell::redo` | `edit` | `stop_for` logs and calls `stop_play`. |
 | any but `edit` | suite `reopen` | `edit` | Calls `stop_play`. |
 | any | `session::open` | `replaying` | See [Session replay](#session-replay). When `replay::load` answers nil it ends in `edit`, with `played` kept. |
@@ -1306,7 +1191,7 @@ Starts in `edit`. Never ends.
 
 Refused or ignored: autosave writes nothing while `playing`. The Play key is off while a script is stopped, and Break needs `playing` and no stop. A save or `reload_scripts` calls `session::end("reload")` and `playing` stays true.
 
-Held by a pause, a `process` mode or a parked scene: the Pause button never calls `engine.set_paused`, so scripts keep their `update`. A game's own `engine.set_paused` covers the subtree `debugger::set_scope` names, which is the mirror. A script stop holds that subtree too, so `Editor.update` and `release_world` run on.
+Held by a pause, a `process` mode or a parked scene: the Pause button never calls `engine.set_paused`, so scripts keep their `update`. A game's own `engine.set_paused` covers the subtree `debugger::set_scope` names: the `Edited` node `model::build` builds the scene under. A script stop holds that subtree too, so `Editor.update` and `release_world` run on.
 
 ### Session recording
 
@@ -1331,7 +1216,7 @@ Refused or ignored: `finish` with nothing open returns. Reasons passed are `"sto
 
 ### Session replay
 
-The recording playing in the editor. It is derived from `session.loaded` and `replay::state()`.
+The recording playing in the editor, derived from `session.loaded` and `replay::state()`.
 
 Source: `editor/scripts/session.bs`, `SessionState.loaded`, `open`, `release`, `seek`, `toggle_pause`, `scrubbing`.
 
@@ -1403,15 +1288,15 @@ Source: `editor/scripts/session.bs`, `SessionState.verify`.
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `dock::recordings_verify` | flipped | Tells the recordings panel. |
-| `false` | `selftest::sessions` | `true` | The self-test checks the replay. |
+| `false` | `project_checks::sessions` | `true` | The self-test checks the replay. |
 
 Starts in `false`. Never ends.
 
 ### Session self-test
 
-The `--state` driver that records, replays and closes a session.
+The `test:recordings` start state, which records, replays and closes a session.
 
-Source: `editor/scripts/selftest.bs`, `Demo`, `sessions`, `session_step`; `editor/scripts/session.bs`, `SessionState.demo`.
+Source: `editor/scripts/selftest.bs`, `Demo`; `editor/scripts/tests/project_checks.bs`, `sessions`, `session_step`; `editor/scripts/session.bs`, `SessionState.demo`.
 
 | State | What is true |
 |---|---|
@@ -1420,10 +1305,10 @@ Source: `editor/scripts/selftest.bs`, `Demo`, `sessions`, `session_step`; `edito
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `nil` | `selftest::sessions` | `Demo` | Sets `verify`, then `toggle_play`. |
+| `nil` | `project_checks::sessions` | `Demo` | Sets `verify`, then `toggle_play`. |
 | `Demo` | `session_step`, frame 9 | same | `stop_and_check`. With no file listed it goes to `nil`. |
 | `Demo` | `session_step`, frame 10 | same | `open_and_check`. A file that does not load goes to `nil`. |
-| `Demo` | `session_step`, frame 28 | `nil` | `replayed_and_check`, `session::close`, removes the file. |
+| `Demo` | `session_step`, frame 28 | `nil` | `replayed_and_check`: `session::close`, `exported_and_check`, then removes the file. |
 
 Starts in `nil`. Ends in `nil`.
 
@@ -1448,13 +1333,13 @@ Source: `editor/scripts/shell.bs`, `DebugState.paused`, `stopped`, `resume`, `on
 
 Starts in `nil`. Never ends.
 
-Refused or ignored: Break calls `debugger::request_break` and changes nothing until a stop lands. `events::resumed` forgets the stop, so a stop on the same line after a resume is a new `debugger_stopped`; `debugger_resumed` follows `stop_play` at the next pump.
+Refused or ignored: Break calls `debugger::request_break` and changes nothing until a stop lands. `debugger_resumed` follows `stop_play` at the next pump; see [Debugger stop word](#debugger-stop-word).
 
 ### Break self-test
 
-The `breakdemo` driver that alternates a step and a continue on each stop.
+The `breakpoint` start state, which alternates a step and a continue on each stop.
 
-Source: `editor/scripts/shell.bs`, `DebugState.demo`, `break_demo`.
+Source: `editor/scripts/shell.bs`, `DebugState.demo`; `editor/scripts/startstates.bs`, `break_demo`.
 
 | State | What is true |
 |---|---|
@@ -1470,7 +1355,7 @@ Starts in `nil`. Never ends.
 
 ### Start screen
 
-Whether the project manager has the window. It is derived from `manager.on`, `manager.back` and `game_root`.
+Whether the project manager has the window, derived from `manager.on`, `manager.back` and `game_root`.
 
 Source: `editor/scripts/manager.bs`, `ManagerState`, `showing`, `open`, `open_over`, `close`.
 
@@ -1492,7 +1377,7 @@ stateDiagram-v2
 | `shown` | `on` true and `back` false. `showing` is true. Nothing leads back. |
 | `over` | `on` true and `back` true, over an open project. Esc and the Back button return. |
 
-With `game_root` `""`, `showing` is true whatever `on` says. `edit_project` passes the `manager` start state in that case.
+With `game_root` `""`, `showing` is true whatever `on` says, and `balaur edit` (`edit_project` in `crates/balaur_cli/src/main.rs`) passes the `manager` start state.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -1526,18 +1411,7 @@ Starts in `false`. Never ends.
 
 Which page the start screen shows.
 
-Source: `editor/scripts/manager.bs`, `ManagerState.tab`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> projects
-    projects --> examples: open_examples, page picked
-    projects --> forge: page picked
-    projects --> engine: open_versions, page picked
-    examples --> projects: page picked
-    forge --> projects: page picked
-    engine --> projects: page picked
-```
+Source: `editor/scripts/manager.bs`, `ManagerState.tab`, `on_page_picked`.
 
 | State | What is true |
 |---|---|
@@ -1548,12 +1422,10 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `on_page_picked` | named page | Any page to any page. |
+| any | `on_page_picked` | the page picked | Shows it. |
 | any | `open_examples` | `"examples"` | Opens the screen. |
 | any | `open_versions` | `"engine"` | Opens the screen. |
 | any, in a browser tab | `open` | `"projects"` | The other pages are not offered there. |
-
-The diagram draws `on_page_picked` only through `projects`. It goes from any page to any page.
 
 Starts in `"projects"`. Never ends.
 
@@ -1579,17 +1451,7 @@ Starts in `false`. Never ends.
 
 Whether the editor has asked the feed, and whether a read is out.
 
-Source: `editor/scripts/manager.bs`, `ManagerState.asked`, `ManagerState.reading`, `check`, `heard`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> never
-    never --> reading: check
-    never --> asked_only: check refused
-    reading --> answered: listed, failed
-    asked_only --> reading: check
-    answered --> reading: check
-```
+Source: `editor/scripts/manager.bs`, `ManagerState.asked`, `ManagerState.reading`; `editor/scripts/versions.bs`, `check`, `heard`.
 
 | State | What is true |
 |---|---|
@@ -1600,7 +1462,7 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any but `reading` | `manager::check`: Engine tab, About | `reading`, `asked_only` | `reading` takes the answer of `release::check`. |
+| any but `reading` | `versions::check`: Engine tab, About | `reading`, `asked_only` | `reading` takes the answer of `release::check`. |
 | `reading` | `heard` `listed` | `answered` | Fills `releases`. |
 | `reading` | `heard` `failed`, `job` not `install` | `answered` | Sets `failed`. |
 
@@ -1612,17 +1474,7 @@ Refused or ignored: `check` returns while `reading`.
 
 The install the Engine tab and About show.
 
-Source: `editor/scripts/manager.bs`, `ManagerState.installing`, `Installing`, `put`, `heard`, `installing`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> idle
-    idle --> downloading: put
-    downloading --> downloading: heard downloading
-    downloading --> unpacking: heard unpacking
-    unpacking --> idle: heard installed, failed
-    downloading --> idle: heard installed, failed
-```
+Source: `editor/scripts/manager.bs`, `ManagerState.installing`, `Installing`; `editor/scripts/versions.bs`, `put`, `heard`, `installing`.
 
 | State | What is true |
 |---|---|
@@ -1632,7 +1484,7 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `idle` | `put(channel, tag)` | `downloading` | `release::install` allowing a downgrade. Sets `note`. |
+| `idle` | `put(channel, tag)` | `downloading` | `release::install` allowing a downgrade. Sets `tag` and `note`, clears `failed`. |
 | `downloading` | `heard` `downloading` | `downloading` | Sets `tag`, `done` and `total`. |
 | `downloading` | `heard` `unpacking` | `unpacking` | Sets `unpacking`. |
 | any but `idle` | `heard` `installed` | `idle` | Sets `note`, clears `failed`, logs. |
@@ -1734,7 +1586,7 @@ Source: `editor/scripts/model.bs`, `load`; `editor/scripts/manager.bs`, `go`; `c
 |---|---|---|---|
 | none | `edit_project`, `project.toml` found, then `model::load` | a path | Opens `main_scene`. |
 | none | `edit_project`, no `project.toml`, then `model::load` | `""` | Adds the `manager` start state. |
-| any | `manager::go`, desktop, a project folder | process ends | `remember`, spawns `<exe> edit <path>`, `request_quit`. |
+| any | `manager::go`, desktop, a project folder | process ends | `settings::keep_window_size`, then `project::open`: `remember`, spawns `<exe> edit <path>`, `request_quit`. |
 | any | `manager::go`, browser tab, a kept project | page reloads | Leaves the id in `sessionStorage`, then loads the page again. |
 | any | window Close | process ends | `pump_input` announces `on_quit_requested`, then `request_quit`. No editor script defines that hook. |
 | any | suite `reopen`, `reboot` | same | `fresh_state`, then `boot` reads the project again. |
@@ -1769,7 +1621,7 @@ Source: `editor/scripts/editor.bs`, `State.states_applied`, `apply_start_states`
 | State | What is true |
 |---|---|
 | `false` | The list waits for its frame. |
-| `true` | Each token ran once through `shell::apply_start_state`. |
+| `true` | Each token ran once through `startstates::apply_start_state`. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -1875,7 +1727,7 @@ Refused or ignored: `take` does nothing when nothing was kept or `past` is empty
 
 ### Saved point
 
-Where the last save sits in the undo stack. It is derived from `History.saved` and `past.len`.
+Where the last save sits in the undo stack, derived from `History.saved` and `past.len`.
 
 Source: `editor/scripts/history.bs`, `History.saved`, `dirty`, `mark_saved`.
 
@@ -1895,7 +1747,7 @@ stateDiagram-v2
 |---|---|
 | `clean` | `saved` equals `past.len`. `dirty` is false. |
 | `edited` | `saved` differs from `past.len`. `dirty` is true. |
-| `lost` | `saved` is -1. `dirty` is true until the next save. |
+| `lost` | `saved` is -1. `dirty` is true until `mark_saved`. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -1949,11 +1801,11 @@ Source: `crates/balaur_core/src/changes.rs`, `Changes.keeping`; script `scene.ke
 
 Starts in `None`. Never ends.
 
-During play the editor keeps nothing, because `begin_play` ends in `None`. `stop_play` rebuilds, which sets it again.
+During play nothing is kept: `begin_play` ends in `None`, and the rebuild in `stop_play` sets it again.
 
 ### Scene autosave
 
-Whether an edit to the scene may be written now. It is derived each frame.
+Whether an edit to the scene may be written, derived each frame.
 
 Source: `editor/scripts/autosave.bs`, `write_settled`, `step`, `waiting`, `scripted`.
 
@@ -2022,20 +1874,9 @@ How the last export of one target went.
 
 Source: `editor/scripts/exporter.bs`, `ExporterState.status`, `ExporterState.said`, `report`, `on_export_clicked`.
 
-```mermaid
-stateDiagram-v2
-    state "no status" as none
-    [*] --> none
-    none --> started: export clicked
-    started --> done: report done
-    started --> failed: report failed
-    done --> started: export clicked
-    failed --> started: export clicked
-```
-
 | State | What is true |
 |---|---|
-| absent or `""` (`none` above) | Never exported in this run. |
+| absent or `""` | Never exported in this run. |
 | `"started"` | The row says building and offers no button. |
 | `"done"` | `said` is the path and `landed` is set. |
 | `"failed"` | `said` is the reason. |
@@ -2055,29 +1896,14 @@ Refused or ignored: `report` drops an event with no target. When `export::start`
 
 One import's line in the Assets bar.
 
-Source: `editor/scripts/dropin.bs`, `State.jobs`, `new_job`, `report`, `ended`, `sweep`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> running
-    [*] --> imported: done before started
-    [*] --> stopped: cancelled before started
-    [*] --> failed: failed before started
-    running --> running: wrote
-    running --> imported: done
-    running --> stopped: cancelled
-    running --> failed: failed
-    imported --> [*]: sweep
-    stopped --> [*]: sweep
-    failed --> [*]: sweep
-```
+Source: `editor/scripts/editor.bs`, `State.jobs`; `editor/scripts/dropin.bs`, `new_job`, `report`, `ended`, `sweep`.
 
 | State | What is true |
 |---|---|
-| `over` `""` (`running` above) | Running. `in_flight` counts it. |
-| `over` `"imported"` (`imported` above) | Ended well. It stays listed. |
-| `over` `"stopped"` (`stopped` above) | Cancelled. |
-| `over` `"failed"` (`failed` above) | Failed, and the output dock opened. |
+| `over` `""` | Running. `in_flight` counts it. |
+| `over` `"imported"` | Ended well. It stays listed. |
+| `over` `"stopped"` | Cancelled. |
+| `over` `"failed"` | Failed, and the output dock opened. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -2088,7 +1914,7 @@ stateDiagram-v2
 | any or none | `report` `failed` | `"failed"` | Logs an error and opens the output dock. |
 | ended | `sweep`, 4 s after the batch's last end | removed | Takes down the whole list at once. |
 
-Starts in `""`, or ended when a cancel or failure comes first. Ends removed.
+Starts in `""`, or ended when its end is heard before `started`. Ends removed.
 
 Refused or ignored: `drop_import` logs a refusal when `import::start` answers false. The Import button cancels while one runs.
 
@@ -2096,16 +1922,7 @@ Refused or ignored: `drop_import` logs a refusal when `import::start` answers fa
 
 Files queued by the `imports:` start state or a showcase.
 
-Source: `editor/scripts/editor.bs`, `State.import_queue`, `State.import_drip`; `editor/scripts/shell.bs`, `state_imports`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> idle
-    idle --> dripping: state_imports
-    dripping --> idle: queue empty
-    dripping --> manual: drip_off
-    manual --> idle: queue empty
-```
+Source: `editor/scripts/editor.bs`, `State.import_queue`, `State.import_drip`; `editor/scripts/startstates.bs`, `state_imports`.
 
 | State | What is true |
 |---|---|

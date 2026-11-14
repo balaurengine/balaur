@@ -572,8 +572,33 @@ impl Drop for Turn {
 /// reads from its own project ([`scoped`]).
 #[must_use]
 pub fn calling(eng: &Engine, script: &str) -> Turn {
-    let owner = split(script).map(|(alias, _)| folder(alias));
+    let owner = split(script)
+        .map(|(alias, _)| folder(alias))
+        .or_else(|| played_root(eng, script));
     enter(eng, owner)
+}
+
+/// The project a played game's script lies in, or its dependency's folder:
+/// the editor keys the game it plays from that game's root, and its own
+/// scripts from its own, relative, so theirs stay its own.
+fn played_root(eng: &Engine, script: &str) -> Option<String> {
+    let key = Path::new(script);
+    if !files::rooted(key) {
+        return None;
+    }
+    let roots = eng.try_resource::<crate::file_api::FileRoots>()?;
+    let roots = roots.borrow();
+    let root = roots
+        .0
+        .iter()
+        .filter(|root| key.starts_with(root))
+        .max_by_key(|root| root.components().count())?;
+    let base = root.to_string_lossy();
+    let inside = key.strip_prefix(root).ok()?.to_str()?;
+    Some(match split(inside) {
+        Some((alias, _)) => format!("{base}/{}", folder(alias)),
+        None => base.into_owned(),
+    })
 }
 
 /// The game's own turn inside a script's: what building a scene document is,
@@ -592,8 +617,10 @@ fn enter(eng: &Engine, owner: Option<String>) -> Turn {
 }
 
 /// `path` as the calling script's project names it: a relative path from a
-/// script under `deps/<alias>/` reads under that folder. A path already under
-/// `deps/`, rooted, or an `id://`, is the game's spelling and stays.
+/// script under `deps/<alias>/` reads under that folder, and one from a game
+/// another project plays under that game's root. A path already under
+/// `deps/`, rooted, an `id://` or a `#` reference is the game's spelling and
+/// stays.
 #[must_use]
 pub fn scoped<'a>(eng: &Engine, path: &'a str) -> Cow<'a, str> {
     let Some(calling) = eng.try_resource::<Calling>() else {
@@ -603,6 +630,7 @@ pub fn scoped<'a>(eng: &Engine, path: &'a str) -> Cow<'a, str> {
     match owner {
         Some(prefix)
             if !path.is_empty()
+                && !path.starts_with('#')
                 && !files::rooted(Path::new(path))
                 && !path.starts_with(crate::assets::ID_PREFIX)
                 && split(path).is_none()

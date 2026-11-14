@@ -1,195 +1,47 @@
-> **Status:** written 2026-09-07, nothing built. An investigation of two
-> questions asked together: what a blueprint surface would cost, and whether
-> shipped scripts a project takes and edits would answer most of it first.
-> The finding is that the tree is three rungs up a four-rung ladder already,
-> and that the cheapest rung left is a library of scripts, not a canvas.
-
 # Plan: authoring without writing code
 
-A ladder, not a mode. Each rung does more than the one below and hands its
-work to the next without a rewrite: components and presets, then binding
-rows, then a script taken from the library and edited, then a script written.
-A graph sits between the third and the fourth, and writes Rune rather than
-running itself.
+A ladder from components and binding rows up to a script written by hand,
+each rung handing its work to the next without a rewrite. The rungs left are a
+library of scripts a project takes and edits, richer rows, and a graph that
+writes a `.bs` file rather than running itself.
 
-`docs/PLAN-interactivity.md` owns the rows and their runtime;
-`docs/PLAN-editor-ergonomics.md` owns the library dock this extends.
+## Steps
 
-## 0. Where the tree is today
+1. **Scripts in the library.** A `script` kind in `editor/library/catalog.toml`
+   and `.bs` claimed by `dropin.kind_of` (`editor/scripts/dropin.bs`). A drop
+   attaches `[nodes.script]` to the selected node with its props filled from
+   the file's `exports()`, and merges the manifest's `needs.actions` into
+   `[input.actions]`. Fifteen scripts ship, each under thirty lines with
+   `exports()`, a note and a card. They are `character2d` and `character3d`
+   movement, orbit, first-person, third-person and click-to-move cameras,
+   follow, patrol a path, spawner, timer, health and damage, pickup,
+   parallax, turntable and hover highlight. Done: dropping each writes the
+   same scene TOML as a golden project, and each runs headless with one
+   digest on every OS.
+2. **Rows grow.** Several actions per row in a visible order, `else`, a
+   `wait` action, an expression as a value, and `on_update` as an event, in
+   `crates/balaur_core/src/bindings.rs` and the Events view
+   (`editor/scripts/events.bs`).
+3. **The graph asset and its emitter, headless.** A `graphs/<name>.toml`
+   asset whose save writes `scripts/<name>.bs` beside it, headed with the
+   graph it came from. Nodes: hook entries, calls, `if`, sequence, wait, get
+   and set a variable, one expression node; loops stay a script. Done: one
+   golden emission per node kind, each compiled in the test, and a graph and
+   its hand-written script giving one digest over the same recording.
+4. **The canvas.** The `graph` widget kind (`PLAN-widgets.md`, Containers)
+   and a Graph dock beside the Script workspace.
+5. **The palette from `api.json`.** A node per bound function, its ports the
+   signature and its tooltip the doc line, so a new binding is a new node with
+   no edit here.
 
-Built:
+## Open questions
 
-| Have | Where |
-| --- | --- |
-| Components attached by name, `node.set_component("body2d", ..)`, and the editor's presets, which attach several | `balaur_core/src/node_api.rs`, `editor/presets.toml` |
-| Binding rows: an event, a `when` over scene variables, one of twelve actions, a target | `balaur_core/src/bindings.rs` |
-| The Events view that authors those rows, and Convert to script, which writes the Rune a row equals | `editor/scripts/events.bs` |
-| Pointer, key, action, scroll and resize hooks on any drawn node | `balaur/src/interact.rs` |
-| States and scene variables, in the snapshot and the digest | the `states` component, `[variables]` |
-| `exports()` on a script, edited per node in the inspector as `[nodes.script.props]` | `docs/PLAN-scripting-nodes-ui-editor.md` |
-| A library dock that copies a file into the project and drops it | `editor/library/`, `editor/scripts/library.bs` |
-| Whole-project templates behind `balaur new --template` | `editor/library/templates/{empty,platformer,viewer}` |
-| Character controllers in both dimensions | `character2d`, `character3d` |
-| An API that documents itself: 39 modules, 638 functions with signatures and docs | `balaur api`, `docs/generated/`, the site's `api.json` |
-| Widgets drawn on egui 0.37 through `ui.*` verbs | `balaur_ui` |
-
-Missing:
-
-- **A script you can take.** The 2D controller lives inside
-  `templates/platformer/scripts/player.rn`, reachable only by starting a
-  project from that template. The library has no `script` kind, and
-  `dropin.kind_of` does not claim `.rn`.
-- **Sequence.** A row is one event and one action. Nothing waits, nothing
-  orders two rows against each other where a designer can see the order.
-- **Values.** `when` compares variables; nothing computes one, reads a
-  component property into one, or sets one from another.
-- **Behaviour over time.** Rows answer events. A follow, a patrol, a timer or
-  a spawner is a script today.
-- **Rigs.** `docs/PLAN-interactivity.md` step 5 is not built: orbit, first
-  person, third person, click to move and platformer are each a script a
-  project writes again.
-
-Broken, and on the way up the ladder: Convert to script writes the equivalent
-Rune and attaches it, and leaves the rows in place. `interact.rs` fires the
-bindings and then the script hook, so every converted action runs twice. The
-rung has to be a step, not a fork, before a graph is added above it.
-
-## 1. Design
-
-### A. A script is a library entry
-
-The library already copies a file into a project and drops it as though it
-were dragged in. A `script` kind copies `scripts/<name>.rn`, attaches
-`[nodes.script]` to the selected node, and fills `[nodes.script.props]` from
-the file's own `exports()`, so the parameters are in the inspector before the
-file is opened. The manifest's `needs` grows an `actions` key, so a
-controller brings `move` and `jump` into `[input.actions]` rather than
-failing quietly at the first key press.
-
-Nothing at run time knows the file came from the library. It is the project's
-file: editable, diffable, and forkable the moment it lands. That is the point
-of a copy, and it is why a link back to the library is not part of it.
-
-The set to ship, each under thirty lines and each with `exports()`:
-`character2d` and `character3d` movement, orbit, first person, third person
-and click to move cameras, follow, patrol a path, spawner, timer, health and
-damage, pickup, parallax, turntable, hover highlight.
-
-The same files are `docs/PLAN-interactivity.md` step 5. A rig is one of
-these scripts plus the component it needs, in a library scene: the orbit rig
-is `camera` and this file, and a project that outgrows the rig opens the
-script it already has.
-
-### B. A graph writes Rune
-
-The graph is an asset, `graphs/<name>.toml`, and saving it emits
-`scripts/<name>.rn` beside it with a header naming the graph it came from.
-The emitted file is what runs. Nothing in the engine learns a second
-language.
-
-What that buys, on the day it lands rather than a milestone later:
-determinism and the digest, rollback, hot reload, the Debug Adapter Protocol
-debugger with breakpoints and frames, the profiler, `balaur api`, the LSP and
-`grep`. All of them work on Rune, and the graph produces Rune.
-
-**The palette is generated.** `api.json` carries every bound function with
-its signature and its documentation, so a node is a function, its ports are
-the signature, and its tooltip is the doc line. 638 functions, and no second
-vocabulary to keep in step with the first. A node the palette does not have
-is a function the script API does not have.
-
-**The canvas is `egui-snarl`.** Version 0.12, MIT or Apache-2.0, depending on
-egui `^0.36`, which is the version in `[workspace.dependencies]` today. It
-carries nodes, ports, wires, pan and zoom, selection and serde.
-`balaur_ui` draws on egui, so the graph arrives as one more widget kind,
-`graph`, reached from script as `ui::graph` the way `slider` is reached as
-`ui::slider`. The fallback, if the dependency is unwanted, is a line, a
-curve and a drag region added to `ui.*` and the canvas drawn in Rune;
-`ui.*` has `dot` and `rect_stroke` and no curve, so that fallback is a node
-editor written from nothing.
-
-**What a graph says**, and what stays text: entry nodes for the hooks, call
-nodes, `if`, sequence, wait, get and set a variable, and one expression node
-for arithmetic. Loops stay a script, because a loop is the point where a
-graph reads worse than the line it replaces.
-
-**The graph owns the file.** Editing the emitted `.rn` by hand detaches it
-from its graph, the same one-way door Convert to script is today. A file has
-one author, and a merge between a canvas and a text editor is not one this
-plan tries to win.
-
-### C. The rung between them
-
-Growing the Events view is a fraction of a canvas and covers most of the same
-ground: several actions per row in a visible order, an `else`, a `wait`
-action, an expression as a value, and `on_update` as an event. Event sheets
-are what GDevelop and Construct ship, and their users finish games. This is
-the rung to grow if the graph turns out to be wanted for its look rather than
-its reach.
-
-## 2. The surface
-
-Where the other engines landed, and what each did with the output:
-
-| Engine | Surface | What runs |
-| --- | --- | --- |
-| Godot | VisualScript | A second runtime, removed in 4.0 for want of use and a clear path |
-| Unreal | Blueprints | A VM the engine is built around; nativization to C++ was removed in UE5 |
-| Unity | Visual Scripting | A graph interpreted at run time |
-| GameMaker | Drag and drop | Generated GML, the language the rest of the engine uses |
-| GDevelop, Construct | Event sheets | Rows over the same runtime |
-| Balaur | Rows today, a graph next | Rune, in every case |
-
-The engines that kept a second runtime pay for it twice: once to build it,
-and once for every feature that has to exist in both. GameMaker's answer is
-the one this plan takes.
-
-## 3. Steps
-
-1. **Scripts in the library.** A `script` kind, `.rn` in `dropin.kind_of`,
-   the drop that attaches `[nodes.script]` and fills its props from
-   `exports()`, and `needs.actions` merged into `[input.actions]`. Fifteen
-   scripts, each with a note and a card.
-2. **Rigs as presets.** `docs/PLAN-interactivity.md` step 5 over the files
-   from step 1, plus `follow` as a modifier.
-3. **Rows grow.** Several actions in an order, `else`, `wait`, an expression
-   value, `on_update`.
-4. **The graph asset and the emitter, headless.** No canvas: a `graphs/*.toml`
-   read, a `.rn` written, one golden emission per node kind, and the emitted
-   file compiled in the test.
-5. **The canvas.** The `graph` widget kind over `egui-snarl`, and a Graph
-   dock beside the Script workspace.
-6. **The palette from `api.json`**, so a new binding is a new node with no
-   edit here.
-
-## 4. What CI can prove, and what it cannot
-
-- Every library script runs headless in a scene for a fixed number of ticks,
-  and the digest is the same on every operating system.
-- Dropping a library script writes the same scene TOML every time, against a
-  golden project.
-- Every graph node kind emits its golden Rune, and the emitted file compiles.
-- A graph and the script a person would write for it produce one digest over
-  the same recorded session.
-- What it cannot: whether somebody who has never written a line can build a
-  game with any of this. That is a person watching a person, and the library
-  scripts are the cheapest way to find out.
-
-## 5. Open questions
-
-1. **One graph per file, or per node?** A file matches how scripts attach
-   today and keeps the emitter simple.
-2. **Where the emitted `.rn` lands.** In the project tree, so the debugger,
-   the LSP and a search all find it, against the cost of a generated file
-   under version control.
-3. **Whether `when` becomes the graph's expression node**, so a condition has
-   one grammar in both places.
-4. **Whether a dropped script remembers the library**, for an update later.
-   A copy with no memory is the assumption until a project asks.
-
-## 6. What is not planned
-
-- A graph runtime. No graph VM, no graph in the digest, no second debugger.
-- A blocks surface. Blockly is a browser library, and the editor is a canvas.
-- Generating any language but Rune.
-- A shader graph. That question belongs to `docs/PLAN-shaders.md`.
+- Convert to script attaches the script and leaves the rows
+  (`editor/scripts/events.bs`, `convert_to_script`), so both may answer one
+  event. Remove the rows, or keep them for the author to delete.
+- One graph per file or per node, and whether the emitted `.bs` sits in the
+  project tree under version control.
+- Whether `when` becomes the graph's expression node, so a condition has one
+  grammar.
+- Not planned: a graph runtime or a second debugger, a blocks surface, any
+  emitted language but Balaur Script. The shader graph is `PLAN-shaders.md`'s.

@@ -269,12 +269,6 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut Module<Engine>) {
             "Every collider whose bounds meet an axis-aligned box.",
         ),
         (
-            words::functions::DISTANCE,
-            &[],
-            "(a: node, b: node) -> float",
-            "The gap between two nodes' colliders, zero when they touch.",
-        ),
-        (
             words::functions::INTERSECTS,
             &[],
             "(a: node, b: node) -> bool",
@@ -310,10 +304,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut Module<Engine>) {
                 (k::NODE, Value::Node(entity.to_bits().get())),
                 (k::POINT, Value::Vec2(scalar::a2(p))),
                 (k::INSIDE, Value::Bool(projection.is_inside)),
-                (
-                    words::functions::DISTANCE,
-                    Value::Num(f64::from((p - point).length())),
-                ),
+                (k::DISTANCE, Value::Num(f64::from((p - point).length()))),
             ]))
         },
     );
@@ -395,21 +386,6 @@ pub(crate) fn install_physics2d_pair_query_api(m: &mut Module<Engine>) {
         (words::functions::TIME_OF_IMPACT, &[], "(a: node, b: node, opts: ImpactOptions) -> Impact?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
     install_physics2d_sweep_api(m);
-    m.function(
-        words::functions::DISTANCE,
-        |eng: &Engine, (a, b): (NodeId, NodeId)| {
-            with_pair(eng, a, b, |first, second| {
-                crate::rapier2d::parry::query::distance(
-                    first.position(),
-                    first.shape(),
-                    second.position(),
-                    second.shape(),
-                )
-                .map(|d| Value::Num(f64::from(d.distance)))
-                .map_err(|e| anyhow!("those two shapes cannot be measured: {e}"))
-            })
-        },
-    );
     m.function(
         words::functions::INTERSECTS,
         |eng: &Engine, (a, b): (NodeId, NodeId)| {
@@ -508,38 +484,12 @@ fn with_pair(
     )
 }
 
-/// What the 2D world holds, and what touches a node: `crate::query`'s
-/// `install_world_list_api` in two dimensions.
+/// What touches a node: `crate::query`'s `install_world_list_api` in two
+/// dimensions.
 pub(crate) fn install_physics2d_world_list_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (words::functions::BODIES, &[], "() -> [node]", "Every node with a rigid body, sorted."),
-        (words::functions::ACTIVE_BODIES, &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
         (words::DRAW_CONTACTS, &[c::COLLIDER_2D], "(node: node) -> [Contact]", "Every contact point on this node's collider this step. Empty for a sensor, which has no contacts by definition."),
     ]);
-    m.function(words::functions::BODIES, |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        let mut nodes: Vec<Entity> = state.bodies.keys().copied().collect();
-        node_list(&mut nodes, &eng.world())
-    });
-    m.function(words::functions::ACTIVE_BODIES, |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        let awake = |handle: &crate::rapier2d::prelude::RigidBodyHandle| {
-            state
-                .world
-                .bodies
-                .get(*handle)
-                .is_some_and(|body| !body.is_sleeping())
-        };
-        let mut nodes: Vec<Entity> = state
-            .bodies
-            .iter()
-            .filter(|(_, handle)| awake(handle))
-            .map(|(entity, _)| *entity)
-            .collect();
-        node_list(&mut nodes, &eng.world())
-    });
     m.function(words::DRAW_CONTACTS, |eng: &Engine, node: NodeId| {
         contact_list(eng, node)
     });

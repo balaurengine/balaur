@@ -3,8 +3,8 @@
 //! [`crate::replay::ExternalIo`] is how such work reports *back* into a tick,
 //! recorded so a replay sees the same arrivals. This is the other half: how it
 //! leaves. Every subsystem that has both writes the leaving out itself, once
-//! per target — `balaur_http` in three, `balaur_gamend` and the export verb in
-//! two each — and this is that, once.
+//! per target — `balaur_http` in three, the export verb in two — and this is
+//! that, once.
 //!
 //! The shape here is for work that can be cut into slices, which is what file
 //! work is. A desktop has threads and a browser tab has none, so a tab that

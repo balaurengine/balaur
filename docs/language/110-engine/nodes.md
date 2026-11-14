@@ -14,7 +14,7 @@ a field.
 
 ```bs
 pub fn look(node: Node) {
-    let world = scene::get_node("World");
+    let world = scene::root().get_node("World");
     let enemy = node.get_node("../Enemy");
     let parent = node.parent();
     for child in node.children() {

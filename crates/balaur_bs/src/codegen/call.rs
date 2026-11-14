@@ -96,8 +96,8 @@ impl FnGen<'_> {
         {
             return Ok(ty);
         }
-        // A script reaches the prelude's functions as methods only.
-        if !self.prelude && crate::prelude::owns(name) {
+        // A script reaches a built-in type's prelude functions as methods only.
+        if !self.prelude && crate::prelude::is_method(name) {
             return err(pos, format!("unknown function `{name}`"));
         }
         // `math::sqrt` is wasm's own instruction, and the rest of `math`'s

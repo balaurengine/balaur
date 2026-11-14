@@ -1,0 +1,31 @@
+// Standard base64 with padding, RFC 4648's vectors among them. Decoding
+// asks for the canonical form, as the encoder writes it.
+
+pub fn encoded(data: [int]) -> str { encoding::base64(data) }
+pub fn text(text: str) -> str { encoding::base64(text.bytes()) }
+pub fn decoded(text: str) -> [int] { encoding::from_base64(text) }
+pub fn every_byte() -> bool {
+    let data: [int] = [];
+    for value in 0..256 {
+        data.push(value);
+    }
+    encoding::from_base64(encoding::base64(data)) == data
+}
+
+// expect: text("") == ""
+// expect: text("f") == "Zg=="
+// expect: text("fo") == "Zm8="
+// expect: text("foo") == "Zm9v"
+// expect: text("foob") == "Zm9vYg=="
+// expect: text("fooba") == "Zm9vYmE="
+// expect: text("foobar") == "Zm9vYmFy"
+// expect: text("ă") == "xIM="
+// expect: encoded([0, 255, 16, 254]) == "AP8Q/g=="
+// expect: encoded([251, 255]) == "+/8="
+// expect: decoded("") == []
+// expect: decoded("Zg==") == [102]
+// expect: decoded("Zm8=") == [102, 111]
+// expect: decoded("Zm9vYmFy") == [102, 111, 111, 98, 97, 114]
+// expect: decoded("AP8Q/g==") == [0, 255, 16, 254]
+// expect: every_byte() == true
+// live: 0

@@ -1,4 +1,4 @@
-//! Typed systems (PLAN-ecs §2): a function whose parameters say what it reads
+//! Typed systems: a function whose parameters say what it reads
 //! and writes.
 #![allow(
     clippy::needless_pass_by_value,

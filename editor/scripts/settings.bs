@@ -531,7 +531,7 @@ fn row_width(state: editor::State) -> float {
     if ui::window_size().x < STACK_BELOW {
         return inner;
     }
-    util::max(inner - SIDEBAR_WIDTH - SIDEBAR_GAP, 160.0)
+    math::max(inner - SIDEBAR_WIDTH - SIDEBAR_GAP, 160.0)
 }
 
 /// Fill the sheet: what its script asks for when Settings is up.
@@ -558,7 +558,7 @@ pub fn fill(state: &mut editor::State) {
 /// The label column a settings row keeps, and the picker a narrow sheet
 /// shows in place of its sidebar.
 fn label_column_width(state: editor::State) -> float {
-    util::clamp(row_width(state) * 0.42, 120.0, 260.0)
+    math::clamp(row_width(state) * 0.42, 120.0, 260.0)
 }
 
 fn picker_spec(state: editor::State) -> form::Row {

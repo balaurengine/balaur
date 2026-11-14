@@ -25,6 +25,9 @@ struct Scan<'a> {
     /// as an engine one, the editor's `settings`, still leaves the engine's
     /// `settings::get` to the engine.
     own: std::collections::HashSet<&'a str>,
+    /// The prelude's functions a call may reach, whose engine calls are the
+    /// caller's: `random::uuid` calls `random::int`.
+    lazy: std::collections::HashMap<String, &'a crate::ast::FnDecl>,
 }
 
 impl Scan<'_> {
@@ -76,6 +79,9 @@ impl Scan<'_> {
             ExprKind::Call(name, args) => {
                 if let Some(f) = self.api.function(name) {
                     self.add(f.clone());
+                }
+                if let Some(called) = self.lazy.remove(name) {
+                    self.block(&called.body);
                 }
                 for a in args {
                     self.expr(a);
@@ -167,6 +173,7 @@ pub(crate) fn host_calls(prog: &Program, api: &HostApi) -> Vec<HostSignature> {
             .filter(|f| f.owner.is_none())
             .map(|f| f.name.as_str())
             .collect(),
+        lazy: prog.lazy.iter().map(|f| (f.key(), f)).collect(),
     };
     for f in &prog.fns {
         scan.block(&f.body);

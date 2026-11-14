@@ -63,11 +63,10 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
         ("watch", &[], "(directory: string, extensions: [string]) -> bool", "Follow a directory outside the project the way a run follows the project: a script loaded from it hot reloads when its file changes. A script hears each burst of changes once with `events::listen(this.node, \"files_changed\")`, as `on_files_changed(paths)`, each path spelled from `directory` and with one of `extensions`, or any file when that is empty. An empty list is more than the watcher could name, so what is held has to be checked again. Answers false where nothing can be followed: a pack, a browser, a run with watching off. The directory has to be one `fs` may reach."),
         ("user_data_directory", &[], "() -> string", "A writable per-user directory for saves and settings, created on first call and named after the project. A game the editor plays answers with its own, the folder it has when run alone."),
         ("user_data_directory_of", &[], "(project: string) -> string", "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."),
-        ("open_url", &[], "(url: string)", "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays."),
+        ("open_url", &[], "(url: string)", "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web, the browser on a phone. An effect on the world outside the game: never recorded, and it does nothing while a recording plays."),
         ("reveal", &[], "(path: string)", "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`."),
         ("plugins", &[], "() -> [string]", "Every plugin this build loaded, named, in load order."),
-        ("has_plugin", &[], "(name: string) -> bool", "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there."),
-        ("plugin_version", &[], "(name: string) -> string?", "The version of one loaded plugin, or nil when it did not load."),
+        ("plugin_version", &[], "(name: string) -> string?", "The version of one loaded plugin, or nil when it did not load: how a game shipped without `http` says so rather than call into a module that is not there."),
         (words::TARGET, &[], "() -> Target", "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did."),
         (words::functions::DEVICE_ID, &[], "() -> string", "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session."),
         ("unix_time", &[], "() -> float", "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw."),
@@ -79,32 +78,8 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
 pub(crate) fn document_hash(m: &mut balaur_script::Module<Engine>) {
     m.module_doc("SHA-256 content hashes of files and strings.");
     m.describe(&[
-        ("sha256", &[], "(path: string) -> string", "The SHA-256 of a file as lowercase hex, read through the project's file roots; an absolute path is read as given."),
+        ("sha256_file", &[], "(path: string) -> string", "The SHA-256 of a file as lowercase hex, read through the project's file roots; an absolute path is read as given."),
         ("sha256_text", &[], "(text: string) -> string", "The SHA-256 of a string as lowercase hex."),
-    ]);
-}
-
-pub(crate) fn document_encoding(m: &mut balaur_script::Module<Engine>) {
-    m.module_doc("Bytes to base64 text and back.");
-    m.describe(&[
-        (
-            "base64",
-            &[],
-            "(data: bytes) -> string",
-            "Bytes as standard base64 with padding.",
-        ),
-        (
-            "base64_text",
-            &[],
-            "(text: string) -> string",
-            "A string's UTF-8 as standard base64 with padding.",
-        ),
-        (
-            "from_base64",
-            &[],
-            "(text: string) -> bytes",
-            "The bytes a base64 string encodes; an error for text that is not base64.",
-        ),
     ]);
 }
 
@@ -146,7 +121,6 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
     ]);
     m.describe(&[
         (words::functions::ROOT, &[], "() -> node", "The tree's root node."),
-        ("get_node", &[], "(path: string) -> node?", "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches."),
         ("node_by_id", &[], "(id: string, under: node?) -> node?", "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree."),
         ("with_component", &[], "(component: string) -> [node]", "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."),
         ("tagged", &[], "(tag: string) -> [node]", "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed."),
@@ -155,11 +129,9 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ("attach_scripts", &[], "(root: node)", "Run every script the nodes under a node name, children first: what starts a scene built with `scripts: false`."),
         ("keep_changes", &[], "(root: node?)", "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged."),
         ("take_changes", &[], "() -> [Change]", "The changes kept since the last take, oldest first, emptying the list: `{ node, kind, id }` with `kind` one of `component` (`component`, `properties`, `was`: the table asked before), `attached`, `removed` (`was`), `added` (`parent`), `freed` (`parent`, `place`, `was`: the subtree as scene text), `renamed` (`was`), `moved` (`parent`, `was`: `{ parent, place }`), `script` (`was`: `{ source, props }`, nil for none) and `keys` (`was`: every one of the node's own keys, `visible` to `tags`). Parents are stable ids, so a change outlives the nodes it names."),
-        ("source", &[], "(path: string) -> string?", "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
         ("component_types", &[], "() -> [string]", "The names of every registered component type, not the components on any node."),
         ("component_tags", &[], "(name: string) -> [string]?", "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
         ("component_expects", &[], "(name: string) -> [string]?", "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered."),
-        ("component_requires", &[], "(name: string) -> [string]?", "The components a component type brings: each a node lacks is put on at its defaults before the type's first write. Nil for a name nothing registered."),
         ("component_schema", &[], "(name: string) -> map?", "A component type's property schema as a table, its properties in the order it writes them; nil for a name nothing registered."),
         ("component_properties", &[], "(name: string, params: any) -> map?", "What a component's `apply` would receive for `params`: the schema's defaults with a partial table merged over them. This is how a tool compares two spellings of the same component."),
         ("warnings", &[], "(node: node) -> [Warning]", "What is off about the node, as `{ component, property, message }`: a component missing one it expects, a write its component refused, and what a component says of itself. `property` is nil for the whole component; advisory only."),
@@ -176,11 +148,9 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
 
 pub(crate) fn document_skeleton(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
-        "Bones under a rig node: their rest pose and the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`.",
+        "Bones under a rig node, in the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`, which holds its rest pose.",
     );
     m.describe(&[
-        ("apply_rest", &[], "(node: node)", "Move every bone under the node back to its rest transform."),
-        ("overwrite_rest", &[], "(node: node)", "Record every bone's current transform under the node as its new rest pose."),
         ("bones", &[], "(node: node) -> [node]", "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one."),
     ]);
 }
@@ -190,8 +160,7 @@ pub(crate) fn document_assets(m: &mut balaur_script::Module<Engine>) {
         "Asset definitions by reference: a project path, `file#entry` for one entry, `#id` for a scene block, or `id://<id>` from `assets/index.toml`. A script gets the definition table.",
     );
     m.describe(&[
-        (words::functions::LOAD, &[], "(reference: string) -> map", "The definition table behind a reference, from the cache; an error when the reference resolves to nothing."),
-        (words::window_modes::DUPLICATE, &[], "(reference: string) -> map", "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference."),
+        (words::functions::LOAD, &[], "(reference: string) -> map", "The definition table behind a reference, from the cache: the script's own copy, so editing it disturbs no other holder. An error when the reference resolves to nothing; `reload` first for a fresh read of the file."),
         (words::functions::EXISTS, &[], "(reference: string) -> bool", "Whether a reference resolves to a definition that is really there; false rather than an error when it does not."),
         ("reload", &[], "(reference: string)", "Forget a reference so the next load re-reads its file, along with every entry cut from that same file."),
         ("invalidate", &[], "()", "Declare everything derived from project files stale (a shader a material links, say) so it is rebuilt from disk; for a file the watcher does not cover. A script hears this and every reload with `events::listen(this.node, \"assets_reloaded\")`, as `on_assets_reloaded(generation)`."),
@@ -200,9 +169,6 @@ pub(crate) fn document_assets(m: &mut balaur_script::Module<Engine>) {
         ("schema", &[], "(type_name: string) -> map?", "The properties a record asset type holds, in the order it writes them; nil for a type that is not a record."),
         ("kind_of", &[], "(path: string) -> string", "Which importer kind a file is by its extension — `texture`, `audio`, `font` or `model` — or empty for one none claims. A `.ttf`, `.otf`, `.ttc` or `.fnt` is a font."),
         (words::functions::RENAME, &[], "(from: string, to: string) -> [string]", "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.bs` is the script's own value, and `id://` is the reference that survives a move."),
-        (words::locales::ID, &[], "(path: string) -> string?", "The id `assets/index.toml` gives a file, or nil when it has none."),
-        ("assign_id", &[], "(path: string) -> string", "The id a file has, giving it one if it has none: a digest of the path and content, written to `assets/index.toml` and, for an asset document, as its top-level `id`. Reference it as `id://<id>` afterwards."),
-        (words::dependencies::PATH, &[], "(reference: string) -> string", "The path an `id://` reference resolves to in the running project; a path comes back as itself, and an unknown id is an error naming the index."),
     ]);
 }
 
@@ -264,7 +230,6 @@ pub(crate) fn document_log(m: &mut balaur_script::Module<Engine>) {
         ("warn", &[], "(message: string)", "Write a line at warning level, tagged as coming from a script."),
         ("error", &[], "(message: string)", "Write a line at error level, tagged as coming from a script."),
         ("print", &[], "(line: string)", "Write a line to standard output as it stands, with no level or tag and not into the buffer: what a headless run prints for a tool to read."),
-        ("recent", &[], "(n: int?) -> [Entry]", "The last n buffered entries, 100 by default, each `{ seq, time, level, tag, message, fields }`."),
         ("since", &[], "(cursor: int?) -> Batch", "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read. A script hears that there is more with `events::listen(this.node, \"logged\")`, as `on_logged(total)`, rather than asking every frame."),
         ("file", &[], "() -> string?", "The file this run's log is written to, or nil when it keeps none. `[log] file` turns it off and `[log] keep` says how many past runs stay beside it."),
         (words::functions::CLEAR, &[], "()", "Empty the buffer, so a console reading it starts again from nothing."),
@@ -278,8 +243,6 @@ pub(crate) fn document_random(m: &mut balaur_script::Module<Engine>) {
     m.describe(&[
         ("seed", &[], "(seed: int)", "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
         (words::datatypes::FLOAT, &[], "() -> float", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
-        ("at", &[], "(seed: int, index: int) -> float", "The `index`th number of the stream `seed` names, uniform in `[0, 1)`: the same for the same two on every platform, and apart from the engine stream, so a tool's layout draws nothing a game would."),
-        ("uuid", &[], "() -> string", "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."),
         ("range", &[], "(low: float, high: float) -> float", "A float from the deterministic engine stream, uniform in `[low, high)`: the two arguments."),
         (words::datatypes::INT, &[], "(low: int, high: int) -> int", "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
     ]);
@@ -287,7 +250,7 @@ pub(crate) fn document_random(m: &mut balaur_script::Module<Engine>) {
 
 pub(crate) fn document_fs(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
-        "Files on disk, project-relative unless the path is absolute. A packed build's contents are reached through `assets` and `scene.source`.",
+        "Files on disk, project-relative unless the path is absolute. In a packed build `read`, `exists` and `list` reach what the pack holds.",
     );
     m.records(&[(
         "Entry",

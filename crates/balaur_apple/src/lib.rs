@@ -12,7 +12,7 @@
 //! pub async fn init() {
 //!     let me = await task::wait(platform::sign_in());
 //!     let proof = await task::wait(apple::identity());
-//!     gamend::call_hook(self.socket, "auth", "game_center", proof);
+//!     await client::call(self.socket, "game_center", proof);
 //! }
 //! ```
 //!
@@ -32,7 +32,6 @@ use balaur_script::{Module, Value};
 
 const ACCESS_POINT: &str = "access_point";
 const APPLE: &str = "apple";
-const AUTHENTICATED: &str = "authenticated";
 const AVAILABLE_WORD: &str = "available";
 const CANCEL_NOTIFICATION: &str = "cancel_notification";
 const DATA: &str = "data";
@@ -78,7 +77,7 @@ mod vocabulary;
 #[cfg(target_vendor = "apple")]
 mod backend {
     pub(crate) use crate::arrivals::{request_push_token, watch_urls};
-    pub(crate) use crate::gamekit::{apple_call, authenticated, platform_call, watch_invites};
+    pub(crate) use crate::gamekit::{apple_call, platform_call, watch_invites};
     pub(crate) use crate::icloud::watch_changes as watch_cloud;
     pub(crate) use crate::notify::cancel as cancel_notification;
     pub(crate) use crate::ui::access_point;
@@ -111,10 +110,6 @@ mod backend {
             request,
             call: call.name().to_string(),
         });
-    }
-
-    pub(crate) const fn authenticated() -> bool {
-        false
     }
 
     pub(crate) const fn access_point(_active: bool, _location: isize) -> bool {
@@ -663,12 +658,6 @@ fn install_apple_api(m: &mut Module<Engine>) {
             "Whether this build has Apple's frameworks behind it.",
         ),
         (
-            AUTHENTICATED,
-            &[],
-            "() -> bool",
-            "Whether Game Center has a signed-in player right now.",
-        ),
-        (
             kind::IDENTITY,
             &[],
             "() -> int",
@@ -688,9 +677,6 @@ fn install_apple_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.function(AVAILABLE_WORD, |_: &Engine, ()| Ok(Value::Bool(AVAILABLE)));
-    m.function(AUTHENTICATED, |_: &Engine, ()| {
-        Ok(Value::Bool(backend::authenticated()))
-    });
     m.function(kind::IDENTITY, |eng: &Engine, ()| {
         Ok(start_call(eng, AppleCall::Identity))
     });
@@ -902,7 +888,7 @@ fn install_listen_for_api(m: &mut Module<Engine>) {
             LISTEN_FOR_URLS,
             &[],
             "() -> bool",
-            "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
+            "Hear about URLs the game is asked to open. A URL the game was launched with arrives the same way, once the engine is up.",
         ),
         (
             LISTEN_FOR_INVITES,

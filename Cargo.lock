@@ -765,7 +765,6 @@ dependencies = [
  "balaur_browser",
  "balaur_core",
  "balaur_debug",
- "balaur_gamend",
  "balaur_geometry",
  "balaur_http",
  "balaur_input",
@@ -778,6 +777,7 @@ dependencies = [
  "balaur_render",
  "balaur_script",
  "balaur_script_bs",
+ "balaur_testkit",
  "balaur_ui",
  "balaur_websocket",
  "balaur_webtransport",
@@ -786,6 +786,7 @@ dependencies = [
  "tempfile",
  "toml",
  "tracing",
+ "ureq",
 ]
 
 [[package]]
@@ -863,10 +864,12 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
+ "balaur_script_bs",
  "getrandom 0.4.3",
  "libm",
  "rodio",
  "serde",
+ "serde_json",
  "tempfile",
  "toml",
  "tracing",
@@ -975,7 +978,6 @@ dependencies = [
  "balaur_cfg",
  "balaur_derive",
  "balaur_script",
- "base64 0.23.1",
  "cpu-time",
  "dirs",
  "gdt-cpus",
@@ -1052,29 +1054,6 @@ dependencies = [
  "vorbis_rs",
  "which",
  "zip",
-]
-
-[[package]]
-name = "balaur_gamend"
-version = "0.2.0-alpha.1"
-dependencies = [
- "anyhow",
- "balaur",
- "balaur_core",
- "balaur_plugin",
- "balaur_script",
- "balaur_testkit",
- "balaur_websocket",
- "base64 0.23.1",
- "js-sys",
- "serde",
- "serde_json",
- "tempfile",
- "tracing",
- "ureq",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]

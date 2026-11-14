@@ -10,54 +10,53 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | Module | Functions | Constants |
 | --- | ---: | ---: |
 | [`animation`](#animation) | 5 | 80 |
-| [`apple`](#apple) | 19 | 25 |
-| [`assets`](#assets) | 13 | 0 |
-| [`audio`](#audio) | 18 | 1 |
+| [`apple`](#apple) | 18 | 25 |
+| [`assets`](#assets) | 9 | 0 |
+| [`audio`](#audio) | 15 | 1 |
 | [`browser`](#browser) | 5 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 3 | 0 |
-| [`engine`](#engine) | 32 | 0 |
+| [`engine`](#engine) | 31 | 0 |
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
 | [`fs`](#fs) | 9 | 0 |
-| [`gamend`](#gamend) | 18 | 9 |
-| [`geometry2d`](#geometry2d) | 12 | 0 |
+| [`geometry2d`](#geometry2d) | 11 | 0 |
 | [`geometry3d`](#geometry3d) | 7 | 0 |
 | [`hash`](#hash) | 2 | 0 |
 | [`http`](#http) | 2 | 5 |
 | [`import`](#import) | 6 | 0 |
 | [`input`](#input) | 52 | 188 |
 | [`json`](#json) | 2 | 0 |
-| [`log`](#log) | 8 | 0 |
+| [`log`](#log) | 7 | 0 |
 | [`math`](#math) | 24 | 3 |
 | [`multimesh2d`](#multimesh2d) | 0 | 0 |
 | [`multimesh3d`](#multimesh3d) | 0 | 0 |
 | [`multiplayer`](#multiplayer) | 14 | 18 |
-| [`node`](#node) | 55 | 0 |
-| [`physics`](#physics) | 13 | 0 |
-| [`physics2d`](#physics2d) | 16 | 106 |
-| [`physics3d`](#physics3d) | 16 | 113 |
+| [`node`](#node) | 51 | 0 |
+| [`physics`](#physics) | 12 | 0 |
+| [`physics2d`](#physics2d) | 13 | 106 |
+| [`physics3d`](#physics3d) | 13 | 113 |
 | [`picture`](#picture) | 1 | 0 |
-| [`platform`](#platform) | 11 | 7 |
+| [`platform`](#platform) | 10 | 7 |
 | [`project`](#project) | 15 | 0 |
 | [`quat`](#quat) | 8 | 0 |
 | [`random`](#random) | 6 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 4 | 0 |
-| [`render`](#render) | 41 | 41 |
-| [`replay`](#replay) | 17 | 4 |
+| [`render`](#render) | 38 | 41 |
+| [`replay`](#replay) | 16 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
-| [`scene`](#scene) | 26 | 0 |
+| [`scene`](#scene) | 23 | 0 |
 | [`script`](#script) | 13 | 0 |
-| [`settings`](#settings) | 11 | 0 |
-| [`skeleton`](#skeleton) | 3 | 0 |
+| [`settings`](#settings) | 10 | 0 |
+| [`skeleton`](#skeleton) | 1 | 0 |
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 43 | 64 |
+| [`ui`](#ui) | 37 | 63 |
 | [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -113,7 +112,6 @@ Apple services beyond `platform.*`: Game Center `identity`, purchases, notificat
 | Function | Signature |
 | --- | --- |
 | `access_point` | `(bool, apple::AccessPointOptions?) -> bool` |
-| `authenticated` | `() -> bool` |
 | `available` | `() -> bool` |
 | `cancel_notification` | `(str)` |
 | `credential_state` | `(str) -> int` |
@@ -169,15 +167,11 @@ Asset definitions by reference: a project path, `file#entry` for one entry, `#id
 
 | Function | Signature |
 | --- | --- |
-| `assign_id` | `(str) -> str` |
 | `directory` | `(str) -> str` |
-| `duplicate` | `(str) -> any` |
 | `exists` | `(str) -> bool` |
-| `id` | `(str) -> str?` |
 | `invalidate` | `()` |
 | `kind_of` | `(str) -> str` |
 | `load` | `(str) -> any` |
-| `path` | `(str) -> str` |
 | `reload` | `(str)` |
 | `rename` | `(str, str) -> [str]` |
 | `save` | `(str, any)` |
@@ -185,7 +179,7 @@ Asset definitions by reference: a project path, `file#entry` for one entry, `#id
 
 ## `audio`
 
-Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `sound_finished` (`EVENT_SOUND_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.
+Sound playback: `play` starts a node's `sound` component and returns a handle that `is_playing` takes; `seek` and `skip` move it, and the node's `sound` properties change it as it plays. `play_file` plays a file on a node of its own, from a `position` heard from the `listener` when given one. A node's `sound` announces `sound_finished` (`EVENT_SOUND_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.
 
 | Function | Signature |
 | --- | --- |
@@ -200,13 +194,10 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `is_playing` | `(int) -> bool` |
 | `listener_position` | `() -> Vec3` |
 | `pan` | `(int) -> float?` |
-| `play_file` | `(str, audio::PlayFileOptions?) -> int` |
+| `play_file` | `(str, audio::PlayFileOptions?) -> Node` |
 | `set_bus_volume_linear` | `(str, float)` |
 | `set_emitter_position` | `(int, Vec3)` |
-| `set_pitch_scale` | `(int, float)` |
-| `set_volume_linear` | `(int, float)` |
 | `stop_all` | `()` |
-| `stop_playback` | `(int)` |
 
 Called on a node's component: `sound`. See [components](components.md).
 
@@ -272,13 +263,13 @@ The projects a game imports whole under `deps/<alias>/`, declared in `[dependenc
 
 ## `encoding`
 
-Bytes to base64 text and back.
+Bytes to base64 text and back, and UTF-8 bytes back to text.
 
 | Function | Signature |
 | --- | --- |
 | `base64` | `([int]) -> str` |
-| `base64_text` | `(str) -> str` |
 | `from_base64` | `(str) -> [int]` |
+| `from_utf8` | `([int]) -> str?` |
 
 ## `engine`
 
@@ -293,7 +284,6 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | `environment` | `(str) -> str?` |
 | `focused` | `() -> bool` |
 | `function_costs` | `() -> [engine::FunctionCost]` |
-| `has_plugin` | `(str) -> bool` |
 | `open_url` | `(str)` |
 | `paused` | `() -> bool` |
 | `plugin_version` | `(str) -> str?` |
@@ -360,7 +350,7 @@ Every function here is the editor's, called only from a script of the editor, or
 
 ## `fs`
 
-Files on disk, project-relative unless the path is absolute. A packed build's contents are reached through `assets` and `scene.source`.
+Files on disk, project-relative unless the path is absolute. In a packed build `read`, `exists` and `list` reach what the pack holds.
 
 | Function | Signature |
 | --- | --- |
@@ -373,45 +363,6 @@ Files on disk, project-relative unless the path is absolute. A packed build's co
 | `remove` | `(str) -> bool` |
 | `rename` | `(str, str)` |
 | `write` | `(str, str)` |
-
-## `gamend`
-
-The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; a `login`, `rest` or `reply` answer carries `ms`, its round trip in milliseconds, recorded with it. What a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).
-
-| Function | Signature |
-| --- | --- |
-| `call_hook` | `(int, str, str, any) -> int` |
-| `close` | `(int) -> bool` |
-| `configure` | `(str?) -> str` |
-| `connect` | `(Node?, events::ListenOptions?) -> int` |
-| `connection` | `() -> gamend::Connection` |
-| `interrupt` | `(int) -> bool` |
-| `join` | `(int, str, any) -> int` |
-| `leave` | `(int, str) -> int` |
-| `login` | `(gamend::Credentials) -> int` |
-| `push` | `(int, str, str, any) -> int` |
-| `refuse` | `(str) -> int` |
-| `register` | `(gamend::Credentials) -> int` |
-| `reply` | `(int) -> any` |
-| `rest` | `(str, str, any) -> int` |
-| `restore` | `(gamend::Session?) -> bool` |
-| `run_id` | `() -> str` |
-| `server` | `() -> gamend::Server` |
-| `session` | `() -> gamend::Session?` |
-
-**Constants** (9):
-
-| Name | Value |
-| --- | --- |
-| `EVENT_CLOSED` | `"closed"` |
-| `EVENT_ERROR` | `"error"` |
-| `EVENT_LOGIN` | `"login"` |
-| `EVENT_MESSAGE` | `"message"` |
-| `EVENT_OPEN` | `"open"` |
-| `EVENT_RECONNECTING` | `"reconnecting"` |
-| `EVENT_REOPENED` | `"reopened"` |
-| `EVENT_REPLY` | `"reply"` |
-| `EVENT_REST` | `"rest"` |
 
 ## `geometry2d`
 
@@ -426,7 +377,6 @@ Polygons on the plane as lists of `Vec2` points in outline order: triangulation,
 | `difference` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
 | `intersection` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
 | `is_clockwise` | `([Vec2]) -> bool` |
-| `reverse_difference` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
 | `segments_intersect` | `(Vec2, Vec2, Vec2, Vec2) -> Vec2?` |
 | `symmetric_difference` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
 | `triangulate` | `([Vec2]) -> [[int]]` |
@@ -452,7 +402,7 @@ SHA-256 content hashes of files and strings.
 
 | Function | Signature |
 | --- | --- |
-| `sha256` | `(str) -> str` |
+| `sha256_file` | `(str) -> str` |
 | `sha256_text` | `(str) -> str` |
 
 ## `http`
@@ -599,7 +549,6 @@ The `info`, `warn` and `error` levels a script writes at, and the buffer behind 
 | `file` | `() -> str?` |
 | `info` | `(str)` |
 | `print` | `(str)` |
-| `recent` | `(int?) -> [log::Entry]` |
 | `since` | `(int?) -> log::Batch` |
 | `warn` | `(str)` |
 
@@ -715,9 +664,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `component_property` | `(Node, str, str) -> any` |
 | `descendants` | `(Node) -> [Node]` |
 | `detach_script` | `(Node)` |
-| `effective_material` | `(Node) -> str` |
 | `effective_tint` | `(Node) -> Color` |
-| `effective_z_index` | `(Node) -> int` |
 | `emit` | `(Node, str, any)` |
 | `free` | `(Node)` |
 | `get_component` | `(Node, str) -> any` |
@@ -745,7 +692,6 @@ What every node has: name, path, transform, children, components and script. Eac
 | `set_name` | `(Node, str)` |
 | `set_parent` | `(Node, Node)` |
 | `set_process` | `(Node, str)` |
-| `set_property` | `(Node, str, str, any) -> bool` |
 | `set_script` | `(Node, str?, any)` |
 | `set_sibling_index` | `(Node, int)` |
 | `set_tint` | `(Node, Color)` |
@@ -754,7 +700,6 @@ What every node has: name, path, transform, children, components and script. Eac
 | `sibling_index` | `(Node) -> int` |
 | `stable_id` | `(Node) -> str` |
 | `tags` | `(Node) -> [str]` |
-| `ticking` | `(Node) -> bool` |
 | `tint` | `(Node) -> Color` |
 | `visible` | `(Node) -> bool` |
 | `visible_in_tree` | `(Node) -> bool` |
@@ -771,7 +716,6 @@ What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies a
 | `clear` | `()` |
 | `counters` | `() -> physics::Counters` |
 | `debug_draw` | `() -> physics::DebugDraw` |
-| `debug_draw_defaults` | `() -> physics::DebugDraw` |
 | `is_paused` | `() -> bool` |
 | `quarantined` | `() -> physics::Quarantined` |
 | `set_debug_draw` | `(physics::DebugDraw)` |
@@ -788,11 +732,8 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 
 | Function | Signature |
 | --- | --- |
-| `active_bodies` | `() -> [Node]` |
-| `bodies` | `() -> [Node]` |
 | `closest_point` | `(physics2d::PointQuery) -> physics2d::Closest?` |
 | `closest_points` | `(Node, Node) -> physics2d::ClosestPoints?` |
-| `distance` | `(Node, Node) -> float` |
 | `gravity` | `() -> Vec2` |
 | `intersects` | `(Node, Node) -> bool` |
 | `overlap_aabb` | `(physics2d::BoxQuery) -> [Node]` |
@@ -844,11 +785,8 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 
 | Function | Signature |
 | --- | --- |
-| `active_bodies` | `() -> [Node]` |
-| `bodies` | `() -> [Node]` |
 | `closest_point` | `(physics3d::PointQuery) -> physics3d::Closest?` |
 | `closest_points` | `(Node, Node) -> physics3d::ClosestPoints?` |
-| `distance` | `(Node, Node) -> float` |
 | `gravity` | `() -> Vec3` |
 | `intersects` | `(Node, Node) -> bool` |
 | `overlap_aabb` | `(physics3d::BoxQuery) -> [Node]` |
@@ -918,7 +856,6 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `scores` | `(str, platform::ScoresOptions?) -> int` |
 | `set_presence` | `(str) -> int` |
 | `sign_in` | `() -> int` |
-| `signed_in` | `() -> bool` |
 | `submit_score` | `(str, int) -> int` |
 | `unlock` | `(str) -> int` |
 
@@ -960,7 +897,7 @@ Every function here is the editor's, called only from a script of the editor, or
 
 ## `quat`
 
-Rotations as quaternions `{ x, y, z, w }`: from an axis and an angle, from one direction to another or from a `rotation_euler`, composed, inverted and applied to a vector. Through `glamx` on `libm`, so every platform turns alike.
+Rotations as quaternions `{ x, y, z, w }`: from an axis and an angle, from one direction to another or from a `rotation_euler`, composed, inverted and applied to a vector. Balaur Script over glam's formulas, so every platform turns alike.
 
 | Function | Signature |
 | --- | --- |
@@ -1031,8 +968,6 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `draw_box_3d` | `(Vec3, Vec3, Color?)` |
 | `draw_capsule_3d` | `(Vec3, float, float, Color?)` |
 | `draw_circle_2d` | `(Vec2, float, Color?, render::DrawOptions?)` |
-| `draw_line_2d` | `(Vec2, Vec2, Color, float?, render::DrawOptions?)` |
-| `draw_line_3d` | `(Vec3, Vec3, Color, float?, bool?, bool?)` |
 | `draw_lines_3d` | `([render::Line3d])` |
 | `draw_polygon_2d` | `([Vec2], Color?, render::DrawOptions?)` |
 | `draw_polyline_2d` | `([Vec2], float?, Color?, render::DrawOptions?)` |
@@ -1046,7 +981,6 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `material_params` | `(str) -> [render::Param]` |
 | `mouse_ray` | `() -> render::Ray` |
 | `mouse_world_2d` | `() -> Vec2` |
-| `pick_ray` | `(Vec3, Vec3) -> Node` |
 | `pick_ray_at` | `(Vec3, Vec3) -> render::Hit?` |
 | `screenshot` | `(str)` |
 | `set_background` | `(Color)` |
@@ -1103,7 +1037,6 @@ Records what a running game is fed and plays it back. A recording holds each tic
 | `events` | `(int, int) -> [replay::Event]` |
 | `header` | `() -> replay::Header?` |
 | `info` | `(str) -> replay::Header?` |
-| `length` | `() -> replay::Length?` |
 | `load` | `(str) -> replay::Header?` |
 | `marks` | `(str, str?) -> [replay::Mark]` |
 | `pause` | `()` |
@@ -1146,18 +1079,15 @@ The node tree: its root, lookup by path and instancing, plus the component vocab
 | `binding_actions` | `() -> [str]` |
 | `component_expects` | `(str) -> [str]?` |
 | `component_properties` | `(str, any) -> any` |
-| `component_requires` | `(str) -> [str]?` |
 | `component_schema` | `(str) -> any` |
 | `component_tags` | `(str) -> [str]?` |
 | `component_types` | `() -> [str]` |
-| `get_node` | `(str) -> Node` |
 | `instantiate` | `(str, Node?, scene::InstantiateOptions?)` |
 | `keep_changes` | `(Node?)` |
 | `node_by_id` | `(str, Node?) -> Node` |
 | `parked` | `() -> [str]` |
 | `root` | `() -> Node` |
 | `set_variable` | `(str, any)` |
-| `source` | `(str) -> str?` |
 | `switch` | `(str, scene::SwitchOptions?)` |
 | `tagged` | `(str) -> [Node]` |
 | `take_changes` | `() -> [scene::Change]` |
@@ -1205,18 +1135,15 @@ Every setting the engine, its plugins and the game declare, by path: `physics/so
 | `merge_toml` | `(str)` |
 | `overrides` | `(str) -> [str]` |
 | `set` | `(str, any)` |
-| `tags` | `() -> [str]` |
 | `to_toml` | `(str, str) -> str` |
 
 ## `skeleton`
 
-Bones under a rig node: their rest pose and the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`.
+Bones under a rig node, in the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`, which holds its rest pose.
 
 | Function | Signature |
 | --- | --- |
-| `apply_rest` | `(Node)` |
 | `bones` | `(Node) -> [Node]` |
-| `overwrite_rest` | `(Node)` |
 
 ## `strings`
 
@@ -1273,18 +1200,13 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 
 | Function | Signature |
 | --- | --- |
-| `activate_focused` | `()` |
-| `all_sides` | `(float) -> ui::Sides` |
 | `clear_focus` | `()` |
 | `click` | `(Node, ui::ClickOptions?) -> bool` |
 | `colors_apart` | `(any) -> [ui::ColorsApart]` |
 | `complete_theme` | `(any) -> any` |
 | `contrast` | `(str, str) -> float` |
 | `contrast_pairs` | `(any, str) -> [ui::ContrastPair]` |
-| `edit_bool` | `(Node, bool) -> bool` |
-| `edit_color` | `(Node, Color) -> bool` |
-| `edit_number` | `(Node, float) -> bool` |
-| `edit_text` | `(Node, str) -> bool` |
+| `edit` | `(Node, any) -> bool` |
 | `fill_slot` | `(Node, int, ui::Control?) -> bool` |
 | `fill_strip` | `(str, [ui::Control]) -> bool` |
 | `finish_loading` | `()` |
@@ -1308,7 +1230,6 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `set_scale` | `(float)` |
 | `set_theme` | `(any)` |
 | `set_widget_layer` | `(bool, Vec2?, Vec2?)` |
-| `sides` | `(float, float, float, float) -> ui::Sides` |
 | `tab_rect` | `(Node) -> ui::Rect?` |
 | `takes_pointer_at` | `(Vec2) -> bool` |
 | `wants_keyboard` | `() -> bool` |
@@ -1317,7 +1238,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `width_class` | `() -> str` |
 | `window_size` | `() -> Vec2` |
 
-**Constants** (64):
+**Constants** (63):
 
 | Name | Value |
 | --- | --- |
@@ -1346,7 +1267,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `FONT_STYLE_NORMAL` | `"normal"` |
 | `FONT_STYLE_OBLIQUE` | `"oblique"` |
 
-…and 40 more.
+…and 39 more.
 
 ## `websocket`
 

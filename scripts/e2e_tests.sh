@@ -8,7 +8,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# On the workspace's feature set: a `-p` build of these four turns on no
-# script engine, and every script test then fails to load.
-BALAUR_E2E=1 cargo suite --no-fail-fast "$@" -E '(package(balaur_http) | package(balaur_websocket)
-  | package(balaur_gamend) | package(balaur_platform)) & test(/^script_api::/)'
+# On the workspace's feature set: a `-p` build of these turns on no script
+# engine, and every script test then fails to load. The Gamend suites are the
+# library addon's, in `balaur`.
+BALAUR_E2E=1 cargo suite --no-fail-fast "$@" -E '((package(balaur_http) | package(balaur_websocket)
+  | package(balaur_platform)) & test(/^script_api::/)) | (package(balaur) & test(/^gamend::/))'

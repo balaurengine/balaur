@@ -8,34 +8,37 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Delete session token by id (admin)
 /// `DELETE /api/v1/admin/sessions/{id}`
-pub fn delete_session(id: str) -> int {
+pub async fn delete_session(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_sessions::delete_session", "id");
     }
-    core::rest("DELETE", "/api/v1/admin/sessions/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/sessions/{id}");
+    reply
 }
 
 /// Delete all session tokens for a user (admin)
 /// `DELETE /api/v1/admin/users/{id}/sessions`
-pub fn delete_user_sessions(id: str) -> int {
+pub async fn delete_user_sessions(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_sessions::delete_user_sessions", "id");
     }
-    core::rest("DELETE", "/api/v1/admin/users/{id}/sessions")
+    let reply = await core::rest("DELETE", "/api/v1/admin/users/{id}/sessions");
+    reply
 }
 
 /// List sessions (admin)
 /// `GET /api/v1/admin/sessions`
-pub fn list_sessions(options: any) -> int {
+pub async fn list_sessions(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/admin/sessions{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/sessions{query}");
+    reply
 }

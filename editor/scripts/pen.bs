@@ -4,6 +4,7 @@
 use editor;
 use history;
 use model;
+use sceneedit;
 use selection;
 use signals;
 use util;
@@ -284,12 +285,12 @@ pub fn toggle_closed(state: &mut editor::State) {
 /// Make a node that strokes a fresh, empty `path2d`, so the Pen has something
 /// to draw into from a scene that has none.
 pub fn new_path(state: &mut editor::State) {
-    let name = model::unique_name(state, "Path");
+    let name = sceneedit::unique_name(state, "Path");
     let relative_path = "paths/{name.to_lower()}.toml";
     assets::save(state.game_root + "/" + relative_path, { fields::TYPE: PATH2D, POINTS: [], CLOSED: false });
     model::forget(state);
     history::record(state, "add path");
-    let made = model::spawn(state, state.scene_root.unwrap(), name, {
+    let made = sceneedit::spawn(state, state.scene_root.unwrap(), name, {
         components::TRANSFORM: { inspector_fields::POSITION: [0.0, 0.0, 0.0] },
         components::LINE2D: { components::MESH: relative_path, layout_fields::WIDTH: 0.06 },
     });
@@ -408,21 +409,18 @@ pub fn draw(state: &mut editor::State) {
         let color = if state.pen.hover == index || is_anchor { accent } else { dim };
         if is_anchor {
             let half = mark;
-            render::draw_line_2d(vec2(world_x - half, world_y - half), vec2(world_x + half, world_y - half), util::as_color(color), LINE_WIDTH);
-            render::draw_line_2d(vec2(world_x + half, world_y - half), vec2(world_x + half, world_y + half), util::as_color(color), LINE_WIDTH);
-            render::draw_line_2d(vec2(world_x + half, world_y + half), vec2(world_x - half, world_y + half), util::as_color(color), LINE_WIDTH);
-            render::draw_line_2d(vec2(world_x - half, world_y + half), vec2(world_x - half, world_y - half), util::as_color(color), LINE_WIDTH);
+            render::draw_polyline_2d([vec2(world_x - half, world_y - half), vec2(world_x + half, world_y - half), vec2(world_x + half, world_y + half), vec2(world_x - half, world_y + half), vec2(world_x - half, world_y - half)], LINE_WIDTH, util::as_color(color));
         } else {
             // The tether to the anchor this handle belongs to.
             let anchor = if index % 3 == 1 { index - 1 } else { index + 1 };
             if anchor < path.points.len() {
                 let anchor_point = path.points[anchor];
                 let anchor_world = util::to_world(node_frame, anchor_point[0], anchor_point[1]);
-                render::draw_line_2d(anchor_world, vec2(world_x, world_y), util::as_color(dim), 1.0);
+                render::draw_polyline_2d([anchor_world, vec2(world_x, world_y)], 1.0, util::as_color(dim));
             }
             let half = mark * 0.7;
-            render::draw_line_2d(vec2(world_x - half, world_y), vec2(world_x + half, world_y), util::as_color(color), LINE_WIDTH);
-            render::draw_line_2d(vec2(world_x, world_y - half), vec2(world_x, world_y + half), util::as_color(color), LINE_WIDTH);
+            render::draw_polyline_2d([vec2(world_x - half, world_y), vec2(world_x + half, world_y)], LINE_WIDTH, util::as_color(color));
+            render::draw_polyline_2d([vec2(world_x, world_y - half), vec2(world_x, world_y + half)], LINE_WIDTH, util::as_color(color));
         }
     }
 }

@@ -13,8 +13,8 @@ use crate::draw_2d::vec2_of;
 use crate::vocabulary::keys;
 use crate::vocabulary::words as vocab;
 use crate::{
-    AppIconConfig, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer2d, DebugLineBuffer3d,
-    ScreenshotRequest, ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
+    AppIconConfig, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer3d, ScreenshotRequest,
+    ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
 };
 
 const BOUNDS: &str = "bounds";
@@ -23,8 +23,6 @@ const CAMERA_MATRIX: &str = "camera_matrix";
 const CAMERA_POSE: &str = "camera_pose";
 const DRAW_BOX_3D: &str = "draw_box_3d";
 const DRAW_CAPSULE_3D: &str = "draw_capsule_3d";
-const DRAW_LINE_2D: &str = "draw_line_2d";
-const DRAW_LINE_3D: &str = "draw_line_3d";
 const DRAW_LINES_3D: &str = "draw_lines_3d";
 const DRAW_SPHERE_3D: &str = "draw_sphere_3d";
 const DRAW_TEXT_2D: &str = "draw_text_2d";
@@ -32,7 +30,6 @@ const DRAW_TEXT_3D: &str = "draw_text_3d";
 const HOLD_CAMERAS: &str = "hold_cameras";
 const MOUSE_RAY: &str = "mouse_ray";
 const MOUSE_WORLD_2D: &str = "mouse_world_2d";
-const PICK_RAY: &str = "pick_ray";
 const PICK_RAY_AT: &str = "pick_ray_at";
 const REFRESH_RATE: &str = "refresh_rate";
 const SAFE_AREA: &str = "safe_area";
@@ -55,6 +52,7 @@ const EYE: &str = "eye";
 const FOV: &str = "fov";
 const FROM: &str = "from";
 const ON_TOP: &str = "on_top";
+const PERSPECTIVE: &str = "perspective";
 const SCALE_FACTOR: &str = "scale_factor";
 const TARGET: &str = "target";
 const TO: &str = "to";
@@ -192,8 +190,7 @@ pub(crate) fn install_camera_api(m: &mut Module<Engine>) {
 fn install_pick_api(m: &mut Module<Engine>) {
     m.describe(&[
         (MOUSE_RAY, &[], "() -> Ray", "The picking ray through the mouse position, in world units: where it starts and which way it goes."),
-        (PICK_RAY, &[], "(origin: Vec3, direction: Vec3) -> node", "The nearest node with a 3D shape that a world-space ray meets, from its origin along its direction."),
-        (PICK_RAY_AT, &[], "(origin: Vec3, direction: Vec3) -> Hit?", "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing."),
+        (PICK_RAY_AT, &[], "(origin: Vec3, direction: Vec3) -> Hit?", "The nearest node with a 3D shape that a world-space ray meets, from its origin along its direction, as `node` and `at`, how far along the ray it was met; nil when the ray meets nothing."),
     ]);
     m.records(&[
         (
@@ -215,20 +212,9 @@ fn install_pick_api(m: &mut Module<Engine>) {
             (DIRECTION.to_string(), Value::Vec3(cam.ray_dir)),
         ]))
     });
-    // What a ray meets first, or `()`. The ray is an argument rather than
-    // the mouse because the viewport snapshot is empty without a window,
-    // and the editor's own tests run headless.
-    m.function(
-        PICK_RAY,
-        |eng: &Engine, (origin, direction): (Value, Value)| {
-            let origin = glamx::Vec3::from_array(vec3_of("a ray's origin", &origin)?);
-            let dir = glamx::Vec3::from_array(vec3_of("a ray's direction", &direction)?);
-            Ok(crate::pick::along_ray(eng, origin, dir)
-                .map(|(entity, _)| balaur_core::node_id_of(entity)))
-        },
-    );
-    // The distance too, which `pick_ray` drops: a caller deciding between two
-    // things under the pointer needs to know which one is in front.
+    // The ray is an argument rather than the mouse because the viewport
+    // snapshot is empty without a window, and the editor's own tests run
+    // headless.
     m.function(
         PICK_RAY_AT,
         |eng: &Engine, (origin, direction): (Value, Value)| {
@@ -536,20 +522,18 @@ fn ring(center: [f32; 3], radius: f32, axis: usize, out: &mut Vec<([f32; 3], [f3
 pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
     m.describe(&[
         (SET_BACKGROUND, &[], "(color: Color)", "Set the colour the viewport is cleared to behind everything drawn: the colour a `#rrggbb` writes, each channel from 0 to 1. Its alpha is not read."),
-        (DRAW_LINE_3D, &[], "(from: Vec3, to: Vec3, color: Color, width: float?, perspective: bool?, on_top: bool?)", "Draw one 3D world-space line for this frame; the width is in pixels unless `perspective` scales it with distance, and `on_top` draws it over the scene."),
-        (DRAW_LINE_2D, &[], "(from: Vec2, to: Vec2, color: Color, width: float?, opts: DrawOptions?)", "Draw one 2D world-space line for this frame; width is in pixels, and `opts.z_index` places it among the nodes of that index."),
-        (DRAW_LINES_3D, &[], "(lines: [Line3d])", "Draw many 3D lines in one call, each with its own ends, colour, width and `on_top`: a frame's worth crosses to the engine once."),
+        (DRAW_LINES_3D, &[], "(lines: [Line3d])", "Draw 3D world-space lines for this frame, each with its own ends, colour, width, `perspective` and `on_top`: a frame's worth crosses to the engine once."),
         (DRAW_BOX_3D, &[], "(center: Vec3, size: Vec3, color: Color?)", "Draw a wireframe box centred at a point, `size` across along each axis in world units, for this frame."),
         (DRAW_SPHERE_3D, &[], "(center: Vec3, radius: float, color: Color?)", "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame."),
         (DRAW_CAPSULE_3D, &[], "(center: Vec3, radius: float, height: float, color: Color?)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
         (DRAW_TEXT_2D, &[], "(position: Vec2, text: string, opts: TextOptions?)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font`, `text_style`, …), `pixels_per_unit` and `z_index`; `font` and `text_style` name an asset."),
         (DRAW_TEXT_3D, &[], "(position: Vec3, text: string, opts: TextOptions?)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
-        (TEXT_SIZE, &[], "(text: string, opts: TextOptions?) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
+        (TEXT_SIZE, &[], "(text: string, opts: TextOptions?) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face, so a run with no window open answers as a windowed one does. A build without the `window` feature has no shaper, and the call fails there. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
     m.records(&[(
         "Line3d",
-        "{ from: Vec3, to: Vec3, color: Color, width: float?, on_top: bool? }",
-        "One 3D line for `draw_lines_3d`: its two ends in world units and its colour, a `width` in pixels where the default of 1 is not wanted, and `on_top` to draw it over the scene.",
+        "{ from: Vec3, to: Vec3, color: Color, width: float?, perspective: bool?, on_top: bool? }",
+        "One 3D line for `draw_lines_3d`: its two ends in world units and its colour, a `width` in pixels where the default of 1 is not wanted, `perspective` to scale that width with distance, and `on_top` to draw it over the scene.",
     ), (
         "TextOptions",
         "{ font_size: float?, font_weight: int?, font_style: string?, color: Color?, text_align: string?, markup: bool?, max_width: float?, max_height: float?, max_lines: int?, line_break: string?, truncate: bool?, truncate_at: string?, tab_size: int?, font: string?, text_style: string?, alpha_cutoff: float?, pixels_per_unit: float?, z_index: int? }",
@@ -567,25 +551,6 @@ pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
         clear.changed = true;
         Ok(())
     });
-    // One line for one frame, world space. Width is in pixels; pass
-    // perspective = true for distance-scaled width (gizmos want false).
-    m.function(
-        DRAW_LINE_3D,
-        |eng: &Engine, (from, to, color, width, perspective, on_top): LineArgs3d| {
-            let (from, to) = (vec3_of(LINE_START, &from)?, vec3_of(LINE_END, &to)?);
-            let rgba = line_color(&color)?;
-            let lines = eng.resource::<DebugLineBuffer3d>();
-            lines.borrow_mut().lines.push((
-                from,
-                to,
-                rgba,
-                width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
-                perspective.unwrap_or(false),
-                on_top.unwrap_or(false),
-            ));
-            Ok(())
-        },
-    );
     m.function(DRAW_LINES_3D, push_lines);
     install_wireframe_api(m);
     install_text_api(m);
@@ -615,37 +580,7 @@ fn install_text_api(m: &mut Module<Engine>) {
             Ok((w, h))
         },
     );
-    // One 2D world-space line for one frame; width in pixels.
-    m.function(
-        DRAW_LINE_2D,
-        |eng, (from, to, color, width, opts): LineArgs2d| {
-            let (from, to) = (vec2_of(LINE_START, &from)?, vec2_of(LINE_END, &to)?);
-            let color = line_color(&color)?;
-            let width = width.unwrap_or(crate::DEFAULT_LINE_WIDTH);
-            let options = crate::draw_2d::options_of(opts, false)?;
-            if options.z_index.is_some() {
-                let line = crate::draw_2d::Draw2d::Polyline {
-                    points: vec![from, to],
-                    width,
-                    color,
-                };
-                crate::draw_2d::push_at(eng, line, options.z_index);
-                return Ok(());
-            }
-            let lines = eng.resource::<DebugLineBuffer2d>();
-            lines.borrow_mut().lines.push((from, to, color, width));
-            Ok(())
-        },
-    );
 }
-
-/// `draw_line_2d`'s arguments: both ends, the colour, the width in pixels and
-/// options.
-type LineArgs2d = (Value, Value, Value, Option<f32>, Option<Value>);
-
-/// `draw_line_3d`'s arguments: both ends, the colour, then the width, whether
-/// perspective scales it and whether it draws over the scene.
-type LineArgs3d = (Value, Value, Value, Option<f32>, Option<bool>, Option<bool>);
 
 const LINE_START: &str = "a line's start";
 const LINE_END: &str = "a line's end";
@@ -878,7 +813,7 @@ fn push_lines(eng: &Engine, lines: Value) -> anyhow::Result<()> {
             vec3_of(LINE_END, to)?,
             line_color(color)?,
             width,
-            false,
+            matches!(field(PERSPECTIVE), Some(Value::Bool(true))),
             matches!(field(ON_TOP), Some(Value::Bool(true))),
         ));
     }

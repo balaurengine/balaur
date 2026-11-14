@@ -25,7 +25,7 @@ fn side_of(name: str) -> str {
 impl Dock {
     pub fn init() {
         self.side = side_of(self.node.name());
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, signals::DOCKS, source);
     }

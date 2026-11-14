@@ -70,7 +70,7 @@ shape3d = { shape = { kind = "sphere", radius = 0.5 } }     # from balaur_render
 
 ```rust
 // scripts/ball.bs
-pub struct Ball {
+pub class Ball {
     node: Node,
     pub speed: float = 2.0,                       // what the inspector may tune
     angle: float,
@@ -79,7 +79,7 @@ pub struct Ball {
 impl Ball {
     fn update(dt: float) {                        // per frame; fixed_update is per fixed tick
         self.angle += dt * self.speed;
-        self.node.transform.rotation_euler = [0.0, self.angle, 0.0];
+        self.node.transform.rotation_euler = vec3(0.0, self.angle, 0.0);
     }
 }
 ```
@@ -93,19 +93,8 @@ At [balaurengine.org](https://balaurengine.org):
 [architecture](https://balaurengine.org/docs/architecture) ·
 [roadmap](https://balaurengine.org/docs/roadmap)
 
-In this repository:
-
-| File | What it holds |
-| --- | --- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | every decision |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | what each version holds, and what it does not do yet |
-| [docs/DETERMINISM.md](docs/DETERMINISM.md) | writing a game that reproduces; record and replay |
-| [docs/QUALITY.md](docs/QUALITY.md) | every check CI runs, and what enforces it |
-| [docs/RELEASING.md](docs/RELEASING.md) | how a nightly and a version are cut, and by what |
-| [docs/NAMING.md](docs/NAMING.md) | the naming rules; governs the other docs |
-| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | physics and node timings against Godot |
-| [docs/generated/](docs/generated/) | script API, components, assets, crates; written by `scripts/gen_docs.py` |
-| [docs/PLAN-*.md](docs/) | the plan behind each subsystem |
+In this repository, [AGENTS.md](AGENTS.md#where-things-are) lists every doc and
+what it holds.
 
 ## Community
 
@@ -119,27 +108,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Balaur is [MIT licensed](LICENSE).
 
 ## AI Usage
 
-This project uses AI to aid in software development, and accepts AI contributions. What keeps the code sound is what the industry already does: manual testing, automated testing, an architecture written down, spec docs, linting and benchmarking. [The quality page](https://balaurengine.org/docs/quality/) says what each one covers.
+This project uses AI to aid in software development, and accepts AI contributions. Every change goes through the same pipeline: manual testing, automated testing, an architecture written down, spec docs, linting and benchmarking. [The quality page](https://balaurengine.org/docs/quality/) says what each one covers.
 
-Every bit of code is tested against this pipeline / process.
+The codebase is large, so it is documented at both levels: a reference generated from the code for every node and property, and a manual, an architecture page and a devlog post per feature.
 
-There is also a lot of observability and documentation which we use, as the codebase is large and it will keep growing, so having a high level understanding of it is very important, as well as a low level one. For that we have both references from code for nodes/properties, but also documentation and blogposts per features:
-
-- https://balaurengine.org/docs/intro/
-
-- https://balaurengine.org/docs/benchmarks/
-
-- https://balaurengine.org/docs/architecture/
-
-- https://balaurengine.org/docs/built-on/
-
-- https://balaurengine.org/blog/
-
-- https://balaurengine.org/docs/reference/
-
-If you are interested to see the roadmap of what we plan to build next, and where we are now, be sure to also check:
-
-- https://balaurengine.org/docs/roadmap/
+- [Introduction](https://balaurengine.org/docs/intro/) · [Architecture](https://balaurengine.org/docs/architecture/) · [Built on](https://balaurengine.org/docs/built-on/) · [Reference](https://balaurengine.org/docs/reference/)
+- [Benchmarks](https://balaurengine.org/docs/benchmarks/) · [Devlog](https://balaurengine.org/blog/) · [Roadmap](https://balaurengine.org/docs/roadmap/)
 
 ## Star History
 

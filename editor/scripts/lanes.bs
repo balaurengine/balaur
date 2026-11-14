@@ -1,0 +1,136 @@
+//! The Recordings tab while one is open: the replay's transport and lanes.
+
+use editor;
+use form;
+use session;
+use signals;
+use util;
+use words::changes;
+use words::components;
+use words::fields;
+use words::log_fields;
+use words::roles;
+use words::schema_fields;
+use words::theme_tokens;
+
+const LANES: str = "Editor/Shell/Body/Centre/Bottom/Lanes";
+
+const LANE_NAME_WIDTH: float = 120.0;
+
+/// Fill the recording lanes: the transport and scrubber, where the replay
+/// parted from the recording, a lane a kind of event with its marks placed by
+/// tick against the tab's width, and everything recorded at the playhead.
+pub fn fill(state: editor::State) {
+    let tokens = state.theme;
+    let split = replay::divergence_tick();
+    let first = state.session.first;
+    let last = state.session.last;
+    let span = math::max(1.0, (last - first) as float);
+    let lane_width = math::max(120.0, util::drawn_width(LANES) - LANE_NAME_WIDTH - 60.0);
+    let playing = replay::state() == replay::STATE_PLAYING;
+    util::set_text(LANES + "/Head/Play", if playing { "⏸ Pause" } else { "▶ Play" });
+    // Before the first frame is fed the position is one tick short of the
+    // session's start, which is off the near end of the ruler.
+    let at = math::max(0.0, (replay::position() - first) as float);
+    util::fill_beside(LANES + "/Head/Scrub", components::WIDGET_RANGE, { fields::VALUE: at, schema_fields::MAX: span });
+    util::set_text(LANES + "/Head/At", "{replay::position()} / {last}");
+    // A divergence is information, not a failure: the replay ran, and this is
+    // the tick at which it stopped reproducing what was recorded.
+    let parted = if split != nil { "parted from the recording at tick {split.unwrap().tick}" } else { "" };
+    let filled = scene::root().get_node(LANES + "/Parted");
+    if filled.is_valid() {
+        filled.set_visible(parted != "");
+        filled.widget.text = parted;
+    }
+    let rows: [form::Row] = [];
+    for lane in state.session.lanes {
+        let marks: [ui::Control] = [];
+        for mark in lane.marks {
+            let tick = mark.tick;
+            let mark_x = math::clamp(((tick.as_int() - first) as float) / span, 0.0, 1.0) * (lane_width - 6.0);
+            marks.push(ui::Control {
+                kind: ui::WIDGET_BUTTON,
+                role: roles::CHIP_QUIET,
+                text: "▮",
+                font_size: 9,
+                padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
+                absolute: true,
+                inset: ui::Sides { left: mark_x, top: -1.0, right: -1.0, bottom: -1.0 },
+                text_color: if tick.as_int() <= replay::position() { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::BORDER_DEFAULT] },
+                tooltip: "{tick}: {mark.label}",
+                on_click: "handle",
+                data: { fields::FN: on_mark_pressed, log_fields::TICK: tick },
+            });
+        }
+        rows.push(form::Row {
+            height: 20,
+            controls: [
+                ui::Control {
+                    kind: ui::WIDGET_LABEL,
+                    width: LANE_NAME_WIDTH - 12.0,
+                    padding: ui::Sides { left: 8.0, top: 0.0, right: 0.0, bottom: 0.0 },
+                    role: roles::TEXT_CODE_QUIET,
+                    font_size: 11,
+                    text: lane.name,
+                },
+                ui::Control {
+                    kind: ui::WIDGET_ROW,
+                    width: lane_width,
+                    controls: marks,
+                    height: 20,
+                },
+            ],
+        });
+    }
+    // Everything recorded at the tick the playhead is on, in the order it
+    // happened.
+    for event in replay::events(state.session.at, state.session.at) {
+        rows.push(form::Row {
+            height: 20,
+            controls: [
+                ui::Control {
+                    kind: ui::WIDGET_LABEL,
+                    padding: ui::Sides { left: 8.0, top: 0.0, right: 0.0, bottom: 0.0 },
+                    role: roles::TEXT_CODE_QUIET,
+                    font_size: 11,
+                    text: "{event.tick}",
+                },
+                ui::Control {
+                    kind: ui::WIDGET_LABEL,
+                    role: roles::TEXT_CODE_QUIET,
+                    font_size: 11,
+                    text: event.kind,
+                },
+                ui::Control {
+                    kind: ui::WIDGET_LABEL,
+                    role: roles::TEXT_CODE,
+                    font_size: 11,
+                    text: event.label,
+                },
+            ],
+        });
+    }
+    form::fill(LANES + "/Scroll/Rows", rows);
+}
+
+fn on_mark_pressed(state: &mut editor::State, data: any, _value: any) {
+    session::seek(state, data[log_fields::TICK].as_int());
+}
+
+/// The lanes' transport, by the name of the button pressed.
+pub fn verb(state: &mut editor::State, verb: str) {
+    if verb == "Play" {
+        session::toggle_pause(state);
+    } else if verb == "Step" {
+        session::step(state);
+    } else {
+        session::close(state);
+    }
+    signals::changed(state, changes::RECORDINGS);
+}
+
+/// The scrubber, at `ticks` ticks into the recording.
+pub fn seek(state: &mut editor::State, ticks: float) {
+    session::seek(state, state.session.first + (ticks as int));
+    signals::changed(state, changes::RECORDINGS);
+}

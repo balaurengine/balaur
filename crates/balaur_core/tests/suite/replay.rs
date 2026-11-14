@@ -662,6 +662,33 @@ fn a_recording_started_part_way_through_a_frame_steps_nothing_after_the_start() 
     );
 }
 
+// A script's `init` reads in the frame a recording starts in, which is not recorded; a read in a
+// recorded frame belongs to that frame, though the header is not written until it ends.
+#[test]
+fn only_the_frame_a_recording_starts_in_amends_its_setup() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+    let mut app = app();
+    app.add_system(balaur_core::Stage::Update, |eng: &Engine, _| {
+        replay::amend_setup(eng, "dial", serde_json::json!(5));
+    });
+    replay::start_recording(&app.engine, &path, ".", "", false).unwrap();
+    replay::amend_setup(&app.engine, "dial", serde_json::json!(4));
+    app.advance(1.0 / 60.0);
+    replay::stop_recording(&app.engine, "stop").unwrap();
+
+    let session = Session::read(&path).unwrap();
+    assert_eq!(
+        session.frames.len(),
+        1,
+        "the frame after the start was recorded"
+    );
+    assert_eq!(
+        session.header.setup.get("dial"),
+        Some(&serde_json::json!(4))
+    );
+}
+
 // On a thread of its own: the default backend is thread-local, and no other test here may find a
 // memory filesystem where the disk should be.
 #[test]

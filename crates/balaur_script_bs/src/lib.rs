@@ -81,7 +81,7 @@ pub(crate) fn bind(
         .filter(|(_, dir)| *dir == GET || *dir == SET)
         .and_then(|(path, dir)| Some((path.split_once('.')?, dir)));
     if let Some(((comp, prop), dir)) = property {
-        // Bound once to the property's place (PLAN-balaur-script §9 step 6):
+        // Bound once to the property's place:
         // no name looked up and no node operation per call.
         if let Some(place) = balaur_core::components::place_of(&eng, comp, prop) {
             if dir == GET {

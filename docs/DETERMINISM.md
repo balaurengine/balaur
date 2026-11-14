@@ -4,10 +4,10 @@ Identical inputs produce bit-for-bit identical simulation on every platform.
 How to keep that, check it, and debug it when it breaks. `ARCHITECTURE.md` says
 why the engine is built this way.
 
-What it buys: replays that store what was pressed, not what the world looked
-like (minutes of play is kilobytes); "it desynced sometimes" becomes "tick 4213,
-node `n_ball_7`, component `body2d`"; and lockstep multiplayer that costs
-bandwidth per player rather than per object.
+It buys replays that store what was pressed, not what the world looked like,
+so minutes of play is kilobytes. "It desynced sometimes" becomes "tick 4213,
+node `n_ball_7`, component `body2d`". Lockstep multiplayer costs bandwidth per
+player rather than per object.
 
 ## The two tick callbacks
 
@@ -43,7 +43,7 @@ balaur run my-game --fixed-tick --trace-digest run-a.txt
 ```
 
 One `<tick> <digest>` per line. Two runs that differ parted at the first
-differing line — `diff` them across machines. CI does this for five examples
+differing line, so `diff` them across machines. CI does this for five examples
 (`scripts/determinism_trace.sh` names them) on Linux, macOS and Windows.
 
 ## Recording
@@ -58,7 +58,7 @@ balaur replay session.blr --entries-at 25
   input and the step it ran at), a trailer. It records **input, not state**.
 - `--verify` re-checks every tick and stops at the first mismatch with a
   non-zero exit, naming the recorded and replayed digests.
-- `--entries-at <tick>` dumps that tick's parts —
+- `--entries-at <tick>` dumps that tick's parts, as
   `n_ball/transform 1e773bf22b6856a5`. Dump on both machines and `diff`: the
   differing line names the node and the component. Labels come from the scene's
   `id`, so they survive rename and reparent.
@@ -74,8 +74,8 @@ balaur replay session.blr --entries-at 25
 ## Rollback
 
 Recording answers "what happened"; a snapshot puts it back. Capture the world at
-a tick, keep the last few in a `SnapshotRing`, and when a late input arrives
-restore and re-simulate — deterministically, so the re-run reaches the same
+a tick, keep the last few in a `CheckpointRing`, and when a late input arrives
+restore and re-simulate. The re-run is deterministic, so it reaches the same
 world.
 
 ```rust
@@ -122,6 +122,10 @@ source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 | Physics across platforms | Handled — rapier's `enhanced-determinism` |
 | Variable `dt` | Handled if you simulate in `fixed_update` |
 | Network replies | Handled — recorded and replayed, outbound suppressed |
+| `audio::device_ready`, `audio::devices` | Handled — the machine is asked once a tick and the answer recorded; a replay answers from the recording |
+| `engine::dark_mode()`, `focused()` and the rest of the device's facts | Handled — recorded each tick, and in the header as they stood when `init` read them |
+| A tick rate per platform | Handled — `[time] tick_hz` takes no override, and the header carries the rate |
+| `task::seconds` | Handled — counted in whole fixed steps, `ceil(seconds * tick_hz)`, not summed as a float |
 | `engine::time()`, `engine::delta()` | **Yours** — both accumulate real frame time. Use `engine::tick()` or `fixed_update`'s `dt` |
 | A shader's `time()` | Handled — it reads `engine::time()`, so a run at `--fixed-tick` and a replay draw the same frames |
 | Iterating a map's keys | Handled — a map keeps the order its keys were added |
@@ -135,18 +139,16 @@ which `crates/balaur_bs/tests/suite/determinism.rs` holds.
 On the Rust side `scripts/house_lints.py` fails the build on a bare `.sin()`,
 `f32::sin(x)`, `.powf()` and the rest of the inexact list.
 
-`libm` costs little enough that trading its accuracy for speed is not worth
-doing, which was measured in September 2026 rather than assumed. Rapier's step
-calls no `sin`, `cos`, `exp`, `log` or `pow` at all — rotations integrate as
-quaternions and normalise, leaving `atan2` and `sqrt`, and `sqrt` is one exact
-instruction. A script's `sin` is 8 ns of `libm` inside 75 ns of interpreter.
-Polynomial approximations would have bought under 1% of a tick anywhere they
-were tried, so the plan for them was dropped.
+`libm` costs too little to trade its accuracy for speed. Rapier's step calls no
+`sin`, `cos`, `exp`, `log` or `pow`: rotations integrate as quaternions and
+normalise, leaving `atan2` and `sqrt`, and `sqrt` is one exact instruction. A
+script's `sin` is 8 ns of `libm` inside 75 ns of interpreter, and polynomial
+approximations bought under 1% of a tick wherever they were measured.
 
 ## Rules of thumb
 
 1. Simulation in `fixed_update`, presentation in `update`.
-2. Never branch simulation on accumulated time — `engine::tick()` is the exact
+2. Never branch simulation on accumulated time; `engine::tick()` is the exact
    integer.
 3. Iterate a `Vec`, or sort an object's keys first.
 4. Record a session in CI and `--verify` it.
@@ -162,6 +164,9 @@ reg.add_digest_source("physics", |eng, out| { /* push labelled entries */ });
 
 // Something a timeline should show. Free when nothing is recording.
 replay::event(eng, "net.request", format!("{method} {url}"), None);
+
+// A read in the frame a recording starts in, where `init` runs: the header's.
+replay::amend_setup(eng, "audio_device", answers);
 ```
 
 A subsystem that also *sends* uses `replay::ExternalIo` instead of a replay

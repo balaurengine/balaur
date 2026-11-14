@@ -87,7 +87,7 @@ pub struct Sound {
     /// Seconds the sound rises from silence over when it starts
     #[property(min = 0.0, group = "fades")]
     pub fade_in_time: f32,
-    /// Seconds the sound falls to silence over: the last ones before it plays out, and the first after `audio.stop`
+    /// Seconds the sound falls to silence over: the last ones before it plays out, and the first after `sound.stop`
     #[property(min = 0.0, group = "fades")]
     pub fade_out_time: f32,
     /// Seconds a playing sound fades out over when `file` changes, while the new file, if `autoplay` starts it, fades in; 0 cuts

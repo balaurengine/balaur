@@ -11,13 +11,9 @@ use crate::theme;
 use crate::vocabulary::words as w;
 use crate::{UiConfig, UiState};
 
-const ACTIVATE_FOCUSED: &str = "activate_focused";
 const CLEAR_FOCUS: &str = "clear_focus";
 const COMPLETE_THEME: &str = "complete_theme";
-const EDIT_BOOL: &str = "edit_bool";
-const EDIT_COLOR: &str = "edit_color";
-const EDIT_NUMBER: &str = "edit_number";
-const EDIT_TEXT: &str = "edit_text";
+const EDIT: &str = "edit";
 const FOCUS_DOWN: &str = "focus_down";
 const FOCUS_LEFT: &str = "focus_left";
 const FOCUS_NEXT: &str = "focus_next";
@@ -88,7 +84,6 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_NUMBER_FIELD", w::NUMBER_FIELD),
     ("WIDGET_PROGRESS_BAR", w::PROGRESS_BAR),
     ("WIDGET_GRID", w::GRID),
-    ("WIDGET_FLOW", w::FLOW),
     ("WIDGET_FOLD", w::FOLD),
     ("WIDGET_DIALOG", w::DIALOG),
     ("WIDGET_WINDOW", w::WINDOW),
@@ -297,12 +292,6 @@ fn install_focus(m: &mut Module<Engine>) {
             "Move focus to the previous widget in scene order, wrapping past the first.",
         ),
         (
-            ACTIVATE_FOCUSED,
-            &[],
-            "()",
-            "Activate the focused widget, exactly as a click on it would.",
-        ),
-        (
             FOCUS_UP,
             &[],
             "()",
@@ -353,7 +342,6 @@ fn install_focus(m: &mut Module<Engine>) {
     for (name, asked) in [
         (FOCUS_NEXT, Move::Next),
         (FOCUS_PREVIOUS, Move::Previous),
-        (ACTIVATE_FOCUSED, Move::Accept),
         (FOCUS_UP, Move::Up),
         (FOCUS_DOWN, Move::Down),
         (FOCUS_LEFT, Move::Left),
@@ -377,28 +365,10 @@ fn install_driving(m: &mut Module<Engine>) {
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
         (
-            EDIT_NUMBER,
+            EDIT,
             &[],
-            "(node: node, value: float) -> bool",
-            "Change a slider or a number field as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no number.",
-        ),
-        (
-            EDIT_TEXT,
-            &[],
-            "(node: node, value: string) -> bool",
-            "Change a text field, a dropdown's pick, a list's row or a tab as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no text.",
-        ),
-        (
-            EDIT_COLOR,
-            &[],
-            "(node: node, value: Color) -> bool",
-            "Change a swatch as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no colour.",
-        ),
-        (
-            EDIT_BOOL,
-            &[],
-            "(node: node, value: bool) -> bool",
-            "Open or close a fold as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no boolean.",
+            "(node: node, value: any) -> bool",
+            "Change a widget's value as the reader would, at the next tick, so it announces `value_changed`: a number for a slider or a number field, text for a text field, a dropdown's pick, a list's row or a tab, a colour for a swatch, a boolean for a fold. False for a disabled widget or a value its kind does not take.",
         ),
     ]);
     m.records(&[(
@@ -406,14 +376,12 @@ fn install_driving(m: &mut Module<Engine>) {
         "{ hidden: bool? }",
         "How `click` clicks: `hidden` clicks a hidden widget too, as a test emitting its signal would.",
     )]);
-    for name in [EDIT_NUMBER, EDIT_TEXT, EDIT_COLOR, EDIT_BOOL] {
-        m.function(
-            name,
-            |eng: &Engine, (node, value): (balaur_script::NodeId, balaur_script::Value)| {
-                Ok(crate::edit(eng, balaur_core::entity_of(node)?, &value))
-            },
-        );
-    }
+    m.function(
+        EDIT,
+        |eng: &Engine, (node, value): (balaur_script::NodeId, balaur_script::Value)| {
+            Ok(crate::edit(eng, balaur_core::entity_of(node)?, &value))
+        },
+    );
     m.function(
         w::CLICK,
         |eng: &Engine, (node, opts): (balaur_script::NodeId, Option<balaur_script::Value>)| {

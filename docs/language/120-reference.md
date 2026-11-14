@@ -39,19 +39,23 @@ word only where an item starts.
 ## Variables and constants
 
 `let` declares a variable and gives it a value: `let n = 3;`, `let x: float = 3;`. A variable can be assigned
-again, and `+=`, `-=`, `*=`, `/=` and `%=` combine. A `let` ends with its block and may hide an earlier one.
+again, and `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=` and `>>=` combine. A `let` ends with its block
+and may hide an earlier one.
 A `const` holds a literal, for the file, and another file reads it as `util::NAME`.
 
 ## Operators
 
-Tightest first: `as`, then unary `-` and `!`, then `*` `/` `%`, then `+` `-`, then `==` `!=` `<` `<=` `>` `>=`,
-then `&&`, then `||`. `&&` and `||` stop at the first side that decides.
+Tightest first: `as`, then unary `-`, `!` and `~`, then `*` `/` `%`, then `+` `-`, then `<<` `>>`. Then `&`,
+then `^`, then `|`, then `==` `!=` `<` `<=` `>` `>=`, then `&&`, then `||`. `&&` and `||` stop at the first side
+that decides.
 
 ## Numbers
 
 - `+`, `-` and `*` on ints wrap past the ends of 64 bits.
 - `/` on ints truncates toward zero. Dividing by zero traps, and so does the smallest int divided by `-1`.
 - `%` takes the sign of the left side, on ints only. `%` by zero traps.
+- `&`, `|`, `^`, `~`, `<<` and `>>` take ints only. `>>` keeps the sign, and a shift takes the low six bits of
+  its count: `1 << 64` is `1`.
 - An int meets a float as a float: `n / 2.0` is a float, and `let x: float = 3` holds `3.0`.
 - `as` converts the rest: `int as float`, `bool as int`, and `float as int`, which truncates. A float past an
   int's range gives the nearest end, and NaN gives `0`.
@@ -65,6 +69,7 @@ then `&&`, then `||`. `&&` and `||` stop at the first side that decides.
 - `len` counts bytes. `slice(a, b)` takes byte offsets: one inside a character moves back onto it, and one past the end stops at the end.
 - `contains`, `starts_with`, `ends_with`, `find` (or `-1`), `replace`, `split`, `split_once`, `chars`, `trim`,
   `to_upper`, `to_lower`, `parse_int` and `parse_float` (`0` when the text is no number).
+- `bytes()` is the UTF-8 as a `[int]`, and `encoding::from_utf8(bytes)` the way back, nil when they are not UTF-8.
 
 ## Lists
 
@@ -131,7 +136,8 @@ fn area(s: Shape) -> float {
 
 - A variant is made by its path, as declared: `Shape::Circle(2.0)`, `Shape::Rect { w: 1.0, h: 2.0 }`, `Shape::Empty`.
 - An arm names a variant and binds its values: by position, by field name, `h: tall` to rename, `_` to bind nothing.
-- `_` takes any value, and a bare name takes any value and binds it. Patterns stop at one level, with no guards and no literals.
+- `_` takes any value, and a bare name binds it unless a constant has that name. Patterns stop at one level, with no guards.
+- A literal (`"go"`, `3`, `true`, `nil`) or a constant takes that value, and `a | b` takes either. A `match` on a value ends with an arm that takes any value.
 - A `match` names every variant once, or ends with an arm that takes any value.
 - A `match` is a value. An arm may `return`, `break` or `continue`.
 - An enum is a value, so one holds itself only through a list or a class.
@@ -171,4 +177,4 @@ function that does not compile. A trap ends the call, and the next call runs.
 
 ## Not in the language
 
-Generics, traits, inheritance, closures, tuples, exceptions, bit operators, `T??` and `any?`.
+Generics, traits, inheritance, closures, tuples, exceptions, `T??` and `any?`.

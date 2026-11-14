@@ -1,0 +1,4 @@
+enum Shape { Circle(float), Empty }
+pub fn f(s: Shape) -> float { match s { Shape::Circle(r) | Shape::Empty => 1.0 } }
+
+// error: 2:41: each alternative of `|` is a value or a variant, binding nothing

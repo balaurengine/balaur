@@ -278,7 +278,7 @@ pub(crate) fn install_volume_query_api(m: &mut Module<Engine>) {
             (k::NODE, Value::Node(entity.to_bits().get())),
             (k::POINT, Value::Vec3(scalar::a3(p))),
             (k::INSIDE, Value::Bool(projection.is_inside)),
-            (f::DISTANCE, Value::Num(f64::from((p - point).length()))),
+            (k::DISTANCE, Value::Num(f64::from((p - point).length()))),
         ]))
     });
     m.function(f::OVERLAP_POINT, |eng: &Engine, opts: Value| {
@@ -341,28 +341,12 @@ pub(crate) fn install_volume_query_api(m: &mut Module<Engine>) {
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_pair_query_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (f::DISTANCE, &[], "(a: node, b: node) -> float", "The gap between two nodes' colliders, zero when they touch or overlap."),
         (f::CLOSEST_POINTS, &[], "(a: node, b: node) -> ClosestPoints?", "The nearest point on each of two nodes' colliders."),
         (f::INTERSECTS, &[], "(a: node, b: node) -> bool", "Whether two nodes' colliders overlap right now, sensor or not."),
         (words::DRAW_CONTACTS, &[c::COLLIDER_3D], "(node: node) -> [Contact]", "Every contact point on this node's collider this step. Empty for a sensor, which has no contacts by definition."),
-        (f::MAX_CONTACT_IMPULSE, &[c::COLLIDER_3D], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
+        (f::MAX_CONTACT_IMPULSE, &[c::BODY_3D], "", "The hardest contact this body took in the last step, every collider on it included; zero when nothing touched it."),
         (f::TIME_OF_IMPACT, &[], "(a: node, b: node, opts: ImpactOptions) -> Impact?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
-    m.function(f::DISTANCE, |eng: &Engine, (a, b): (NodeId, NodeId)| {
-        with_pair(eng, a, b, |world, first, second| {
-            crate::rapier3d::parry::query::distance(
-                first.position(),
-                first.shape(),
-                second.position(),
-                second.shape(),
-            )
-            .map_err(|e| anyhow!("those two shapes cannot be measured: {e}"))
-            .map(|d| {
-                let _ = world;
-                Value::Num(f64::from(d.distance))
-            })
-        })
-    });
     m.function(
         f::CLOSEST_POINTS,
         |eng: &Engine, (a, b): (NodeId, NodeId)| {
@@ -423,39 +407,10 @@ pub(crate) fn install_pair_query_api(m: &mut Module<Engine>) {
     );
 }
 
-/// What the world holds: every body, and every body that is awake.
+/// What touches a node, and whether two overlap.
 ///
 /// Split from [`install_pair_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_world_list_api(m: &mut Module<Engine>) {
-    m.describe(&[
-        (f::BODIES, &[], "() -> [node]", "Every node with a rigid body, sorted."),
-        (f::ACTIVE_BODIES, &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
-    ]);
-    m.function(f::BODIES, |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
-        let mut nodes: Vec<Entity> = state.bodies.keys().copied().collect();
-        node_list(&mut nodes, &eng.world())
-    });
-    // Awake bodies only: a game that walks every body each frame to read a
-    // position is doing the one thing sleeping was meant to save.
-    m.function(f::ACTIVE_BODIES, |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
-        let mut nodes: Vec<Entity> = state
-            .bodies
-            .iter()
-            .filter(|(_, handle)| {
-                state
-                    .world
-                    .bodies
-                    .get(**handle)
-                    .is_some_and(|body| !body.is_sleeping())
-            })
-            .map(|(entity, _)| *entity)
-            .collect();
-        node_list(&mut nodes, &eng.world())
-    });
     m.function(words::DRAW_CONTACTS, |eng: &Engine, node: NodeId| {
         contact_list(eng, node)
     });
@@ -527,14 +482,19 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
     Ok(Value::List(out.into_iter().map(|(_, v)| v).collect()))
 }
 
-/// The hardest contact a node took, which is what a damage threshold reads.
-/// 2D has had this since it shipped; 3D gets it here.
+/// The hardest contact normal impulse on a node's body, every collider rapier
+/// attached to it included; a node with no body answers for its own colliders.
 fn max_contact_impulse(eng: &Engine, node: NodeId) -> Result<Real> {
     let entity = entity_of(node)?;
     let state = eng.resource::<PhysicsState3d>();
     let state = state.borrow();
-    let Some(handles) = state.colliders.get(&entity) else {
-        return Ok(0.0);
+    let body = state
+        .bodies
+        .get(&entity)
+        .and_then(|handle| state.world.bodies.get(*handle));
+    let handles = match body {
+        Some(body) => body.colliders(),
+        None => state.colliders.get(&entity).map_or(&[][..], Vec::as_slice),
     };
     let mut max: Real = 0.0;
     for &handle in handles {

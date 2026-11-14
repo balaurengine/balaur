@@ -132,3 +132,52 @@ impl Runner {
     assert_eq!(flag("info_nil"), Some(balaur_script::Value::Bool(true)));
     assert_eq!(flag("load_nil"), Some(balaur_script::Value::Bool(true)));
 }
+
+/// What the runner's `init` read from `engine::dark_mode()`.
+fn dark_at_init(app: &App) -> Option<balaur_script::Value> {
+    let world = app.engine.world();
+    let node = balaur_core::scene::find_node(&world, app.engine.root(), "Runner").unwrap();
+    drop(world);
+    app.engine
+        .script_host()?
+        .script_field(balaur_core::node_id_of(node), "dark")
+}
+
+// `balaur run --record` opens the recording, then seeds the device, then
+// loads; `balaur replay` begins the session, then loads.
+#[test]
+fn a_replay_starts_in_the_dark_mode_its_recording_started_in() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path());
+    std::fs::write(
+        dir.path().join("scripts").join("runner.bs"),
+        "pub class Runner { node: Node, dark: bool }
+impl Runner {
+    fn init() {
+        self.dark = engine::dark_mode();
+    }
+}
+",
+    )
+    .unwrap();
+    let file = dir.path().join("dark.blr");
+    let config = || AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    let mut app = standard_app(config()).unwrap();
+    replay::start_recording(&app.engine, &file, "fixture", "", false).unwrap();
+    balaur_core::facts::update_device(&app.engine, |facts| facts.dark_mode = true);
+    app.load_project().unwrap();
+    assert_eq!(dark_at_init(&app), Some(balaur_script::Value::Bool(true)));
+    for _ in 0..3 {
+        app.tick(DEFAULT_FIXED_DT);
+    }
+    replay::stop_recording(&app.engine, "stop").unwrap();
+
+    let mut replayed = standard_app(config()).unwrap();
+    replay::begin(&replayed.engine, replay::Session::read(&file).unwrap());
+    replayed.load_project().unwrap();
+    assert_eq!(
+        dark_at_init(&replayed),
+        Some(balaur_script::Value::Bool(true)),
+        "this machine is light, and the replay's init read it"
+    );
+}

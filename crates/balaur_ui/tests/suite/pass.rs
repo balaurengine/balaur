@@ -374,7 +374,7 @@ fn a_cmd_chord_answers_to_control_and_to_command() {
         methods: "pub fn hit() { self.focus += 1; }",
         scene: "[[nodes]]\nid = \"go\"\nname = \"Go\"\nparent = \"root\"\n\
                 widget = { kind = \"button\", text = \"Go\" }\n\
-                widget_shortcut = { shortcut = \"cmd+shift+backslash\" }\n\
+                widget_shortcut = { shortcut = \"cmd+shift+Backslash\" }\n\
                 bindings = { rows = [{ event = \"pointer_click\", action = \"call\", value = \"hit\" }] }\n",
         ..Script::default()
     });

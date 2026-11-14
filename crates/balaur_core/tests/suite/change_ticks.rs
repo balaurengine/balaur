@@ -1,4 +1,4 @@
-//! Change ticks (PLAN-ecs §2): every write of a registered component is
+//! Change ticks: every write of a registered component is
 //! stamped with the system run that made it, and a reader asks what was
 //! added, changed or removed after the tick it last ran at.
 

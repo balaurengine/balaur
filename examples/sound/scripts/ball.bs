@@ -1,4 +1,4 @@
-// A thud from a file no node carries, each time the ball lands: louder the
+// A thud on a node of its own, each time the ball lands: louder the
 // faster it was falling, and placed where it hit.
 
 const THUD: str = "audio/thud.wav";

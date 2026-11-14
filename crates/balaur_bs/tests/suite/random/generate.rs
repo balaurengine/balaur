@@ -372,7 +372,16 @@ impl Gen {
                 E::Bin(op, Box::new(a), Box::new(b))
             }
             0..=2 => {
-                let op = self.pick(&[Op::Add, Op::Sub, Op::Mul]);
+                let op = self.pick(&[
+                    Op::Add,
+                    Op::Sub,
+                    Op::Mul,
+                    Op::BitAnd,
+                    Op::BitOr,
+                    Op::BitXor,
+                    Op::Shl,
+                    Op::Shr,
+                ]);
                 E::Bin(
                     op,
                     Box::new(self.expr(T::Int, s, d)),
@@ -394,6 +403,7 @@ impl Gen {
                 };
                 E::Bin(op, Box::new(self.expr(T::Int, s, d)), Box::new(by))
             }
+            4 if self.rng.chance(2) => E::BitNot(Box::new(self.expr(T::Int, s, d))),
             4 => E::Neg(Box::new(self.expr(T::Int, s, d))),
             5 => E::If(
                 Box::new(self.expr(T::Bool, s, d)),
@@ -497,7 +507,7 @@ impl Gen {
             0 if self.rng.chance(2) => E::Method(Box::new(r), "as_bool", vec![]),
             0 => E::Bin(eq, Box::new(r), Box::new(E::Nil)),
             1 => E::Method(Box::new(r), "has", vec![self.key()]),
-            2 => E::Method(Box::new(r), "equals", vec![self.any_arg(s, d)]),
+            2 => E::Bin(Op::Eq, Box::new(r), Box::new(self.any_expr(s, d))),
             3 => {
                 let t = self.pick(&[T::Int, T::Float, T::Bool, T::Str]);
                 let plain = self.expr(t, s, d);

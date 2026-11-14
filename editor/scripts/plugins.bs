@@ -99,9 +99,9 @@ internal fn game_roots(state: editor::State) -> [str] {
 pub fn load(state: &mut editor::State) {
     // Saves pointed at the game's own folder before any plugin registers.
     kit::adopt_game_data(state);
-    let host = scene::get_node(HOST);
+    let host = scene::root().get_node(HOST);
     if !host.is_valid() {
-        host = scene::get_node("Editor").add_child("Plugins");
+        host = scene::root().get_node("Editor").add_child("Plugins");
     }
     for root in roots(state) {
         let names: [str] = [];
@@ -283,13 +283,13 @@ pub fn fill_dialogs(state: &mut editor::State) {
             kind: ui::WIDGET_PANEL,
             role: roles::SHEET,
             width: DIALOG_WIDTH,
-            padding: ui::sides(12, 6, 12, 8),
+            padding: ui::Sides { left: 12.0, top: 6.0, right: 12.0, bottom: 8.0 },
             gap: vec2(6, 6),
             controls: body,
         });
     }
     let viewport_rect = state.layout[panel_keys::STAGE];
-    let filled = scene::get_node(DIALOGS);
+    let filled = scene::root().get_node(DIALOGS);
     if filled.is_valid() {
         filled.set_visible(out.len() > 0);
         filled.widget.x = viewport_rect["x"].as_float() + 12.0;

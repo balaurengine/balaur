@@ -11,7 +11,7 @@ pub class Refactor {
 
 impl Refactor {
     pub fn init() {
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         self.open = false;
         events::listen(self.node, "refactor_changed", source);

@@ -1,4 +1,4 @@
-//! A derived component: the struct is the schema (PLAN-property-types §5).
+//! A derived component: the struct is the schema.
 
 use anyhow::Result;
 use balaur_core::app::{App, AppConfig};

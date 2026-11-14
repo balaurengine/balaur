@@ -37,6 +37,7 @@ SKIP_DIRS = {"target", ".git", "node_modules", "assets"}
 MAX_COMMENT_BLOCK = 12   # consecutive comment lines
 MAX_FN_LINES = 120
 MAX_FILE_LINES = 1200
+MAX_FN_BRANCHES = 20
 
 # The float methods that differ across platform libms (docs/DETERMINISM.md).
 # `sqrt`, `abs`, `floor`, `ceil`, `round`, `trunc`, `mul_add`, `to_radians`
@@ -50,7 +51,7 @@ GLAM_BOUND = {"crates/balaur_script_rune/src/value/glam_api.rs"}
 
 # egui's painter, reached from the widget layer: `widget/paint.rs` is the one
 # file that holds it, and `lib.rs` the pass that owns the context and its font
-# atlas (docs/PLAN-egui-as-painter.md, phase 3).
+# atlas.
 EGUI_PAINT = re.compile(r"\.painter\(\)|\blayer_painter\s*\(|\begui::(?:Shape|epaint|Painter)\b|\bepaint::|\bShapeIdx\b")
 EGUI_PAINT_SCOPE = "crates/balaur_ui/src/"
 EGUI_PAINT_HOLDERS = {"crates/balaur_ui/src/widget/paint.rs", "crates/balaur_ui/src/lib.rs"}
@@ -72,7 +73,7 @@ REENTRANT_CALL = re.compile(
     r"|\binstantiate_scene\s*\("
 )
 # A thread woken on a timer to look, rather than by what it waits for:
-# docs/PLAN-io.md. A frame cap or a real deadline says why on its line.
+# AGENTS.md "Threads". A frame cap or a real deadline says why on its line.
 TIMED_WAIT = re.compile(
     r"\bthread::sleep\s*\(|\.set_(?:read|write)_timeout\s*\(|\btokio::time::(?:sleep|interval)\s*\("
     r"|\.(?:recv|wait|park)_timeout\s*\(|\bthread::park_timeout\s*\("
@@ -112,6 +113,38 @@ KNOWN_RESOURCES = {
 # taken for a block when a function's length is measured.
 LITERAL = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\'')
 
+RAW_OPEN = re.compile(r'(?<![\w\\"\'])r(#*)"')
+
+
+def outside_raw(raw: str, closing: str | None) -> tuple[str, str | None]:
+    """The line with its raw-string text taken out, and the closing a raw
+    string still open at the line's end waits for. A test's script source in
+    `r#"..."#` is not Rust, so its `if`s and braces are not the function's."""
+    out = []
+    at = 0
+    while True:
+        if closing is not None:
+            end = raw.find(closing, at)
+            if end < 0:
+                return "".join(out), closing
+            out.append('""')
+            at = end + len(closing)
+            closing = None
+        opened = RAW_OPEN.search(raw, at)
+        if not opened:
+            out.append(raw[at:])
+            return "".join(out), None
+        out.append(raw[at:opened.start()])
+        closing = '"' + opened.group(1)
+        at = opened.end()
+
+
+RS_FN = re.compile(r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?(?:extern\s+\"[^\"]*\"\s+)?fn\s+")
+BS_FN = re.compile(r"(?:(?:pub|internal)\s+)?(?:async\s+)?fn\s+\w")
+# The branches a person wrote. A `match` counts once, as clippy counts it; clippy's
+# own `cognitive_complexity` also counts what `assert_eq!` and the like expand to.
+BRANCH = re.compile(r"\b(?:if|match|for|while)\b|^\s*let\b(?!.*\b(?:if|match)\b).*\belse\s*\{")
+
 
 @dataclass
 class Finding:
@@ -122,21 +155,81 @@ class Finding:
     severity: str  # ERROR | REPORT
 
 
+@dataclass
+class OpenFn:
+    start: int
+    depth: int
+    branches: int = 0
+    opened: bool = False
+
+    def feed(self, code: str) -> None:
+        self.branches += len(BRANCH.findall(code.split("//")[0]))
+        self.opened = self.opened or "{" in code
+
+    def ends(self, depth: int, code: str) -> bool:
+        """A multi-line signature sits at the function's own depth before its body opens."""
+        return depth <= self.depth and (self.opened or code.rstrip().endswith(";"))
+
+    def findings(self, rel: Path, end: int) -> list[Finding]:
+        if not self.opened:
+            return []
+        out = []
+        length = end - self.start + 1
+        if length > MAX_FN_LINES:
+            out.append(Finding(rel, self.start, "fn-too-long",
+                               f"{length} lines, limit {MAX_FN_LINES}", "ERROR"))
+        if self.branches > MAX_FN_BRANCHES:
+            out.append(Finding(rel, self.start, "fn-too-many-branches",
+                               f"{self.branches} branches, limit {MAX_FN_BRANCHES}; split it, "
+                               "or make an if-chain a match or a table", "ERROR"))
+        return out
+
+
 def is_test_file(rel):
     """Tests and benchmarks: scaffolding, not shipped code."""
     p = str(rel)
     return "/tests/" in p or "/benches/" in p or rel.name.startswith("test_")
 
 
-def rust_files() -> list[Path]:
+def source_files(suffix: str) -> list[Path]:
     """Prunes as it walks rather than globbing and filtering: `target/` is
     enormous, and its contents come and go under a running cargo, which a
     post-hoc filter turns into a crash."""
     out = []
     for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.startswith("."))
-        out.extend(Path(dirpath) / f for f in filenames if f.endswith(".rs"))
+        out.extend(Path(dirpath) / f for f in filenames if f.endswith(suffix))
     return sorted(out)
+
+
+def rust_files() -> list[Path]:
+    return source_files(".rs")
+
+
+def check_script(path: Path) -> list[Finding]:
+    """The size rules, for Balaur Script: no clippy reads it."""
+    rel = path.relative_to(ROOT)
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    findings: list[Finding] = []
+    if len(lines) > MAX_FILE_LINES:
+        findings.append(Finding(rel, len(lines), "file-too-long",
+                                f"{len(lines)} lines, limit {MAX_FILE_LINES}", "ERROR"))
+    depth = 0
+    open_fn: OpenFn | None = None
+    for i, raw in enumerate(lines, start=1):
+        line = raw.strip()
+        if line.startswith("//"):
+            continue
+        code = LITERAL.sub("", raw)
+        if open_fn is None and BS_FN.match(line):
+            open_fn = OpenFn(i, depth)
+        if open_fn:
+            open_fn.feed(code)
+        depth += code.count("{") - code.count("}")
+        if open_fn and open_fn.ends(depth, code):
+            findings.extend(open_fn.findings(rel, i))
+            open_fn = None
+    return findings
 
 
 @dataclass
@@ -306,7 +399,7 @@ def attribute(lines, i, limit=8) -> str:
     return text
 
 
-# The kernel and the crates split from it (docs/PLAN-core-split.md): their
+# The kernel and the crates split from it: their
 # registrations are an app's built-in steps, run before any plugin.
 BUILTIN_CRATES = {"balaur_core", "balaur_geometry", "balaur_asset", "balaur_net",
                   "balaur_project", "balaur_debug"}
@@ -466,8 +559,8 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
     # Live `.borrow()`/`.borrow_mut()` bindings: (name, depth it was taken at).
     held: list[tuple[str, int]] = []
     depth = 0
-    fn_start = None
-    fn_depth = None
+    open_fn: OpenFn | None = None
+    raw_closing: str | None = None
     comment_run_start = None
     comment_run: list[str] = []
     comment_run_is_doc = False
@@ -505,7 +598,7 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
             if m:
                 findings.append(Finding(rel, i, "epaint-outside-paint",
                                         f"`{m.group(0)}` reaches egui's painter; paint through "
-                                        "`widget::paint` (docs/PLAN-egui-as-painter.md)", "ERROR"))
+                                        "`widget::paint`", "ERROR"))
 
         if not is_comment and rel.as_posix() not in GLAM_BOUND:
             m = PLATFORM_FLOAT_RS.search(line)
@@ -554,18 +647,18 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                 if not commented:
                     findings.append(Finding(rel, i, "timed-wait",
                                             "a sleep or a socket timeout outside tests wakes a thread "
-                                            "on a timer; sleep on the event instead (docs/PLAN-io.md), "
+                                            "on a timer; sleep on the event instead (AGENTS.md, Threads), "
                                             "or say on the line above why this is a frame cap or a "
                                             "deadline", "ERROR"))
 
-            # One door for structural writes outside the kernel (PLAN-ecs §1);
+            # One door for structural writes outside the kernel;
             # a test sets a world up as it likes.
             if crate != "balaur_core" and ".world_mut()" in line and not in_test_mod:
                 findings.append(Finding(rel, i, "world-write",
                                         "the world is written around the door: use Engine's spawn, "
                                         "spawn_node, insert, insert_one, remove_one, remove, "
                                         "reparent or despawn, and world() to change a component "
-                                        "in place (PLAN-ecs §1)", "ERROR"))
+                                        "in place", "ERROR"))
 
             # ExternalIo is the recorded seam, and its worker `Sender` is
             # unreachable except through `start`, which does nothing while a
@@ -629,21 +722,19 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                             "writes — the mapping from key to storage is neither one-to-one nor "
                             "total (N16)", "REPORT"))
 
-        if not is_comment:
-            if fn_start is None and re.match(r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?"
-                                             r"(?:extern\s+\"[^\"]*\"\s+)?fn\s+", line):
-                fn_start = i
-                fn_depth = depth
-            code = LITERAL.sub("", raw)
+        if not is_comment or raw_closing is not None:
+            inside_raw = raw_closing is not None
+            code, raw_closing = outside_raw(raw, raw_closing)
+            if open_fn is None and not inside_raw and RS_FN.match(line):
+                open_fn = OpenFn(i, depth)
+            code = LITERAL.sub("", code)
+            if open_fn:
+                open_fn.feed(code)
             depth += code.count("{") - code.count("}")
             held = [h for h in held if h[1] <= depth]
-            if fn_start is not None and fn_depth is not None and depth <= fn_depth and i > fn_start:
-                length = i - fn_start + 1
-                if length > MAX_FN_LINES:
-                    findings.append(Finding(rel, fn_start, "fn-too-long",
-                                            f"{length} lines, limit {MAX_FN_LINES}", "ERROR"))
-                fn_start = None
-                fn_depth = None
+            if open_fn and open_fn.ends(depth, code):
+                findings.extend(open_fn.findings(rel, i))
+                open_fn = None
             # The body opens on a later line than its attribute, so the scope
             # cannot end on the attribute line or on attributes stacked after it.
             if in_test_mod and test_brace_depth is not None and depth <= test_brace_depth \
@@ -886,6 +977,8 @@ def main() -> int:
     ctx = scan_context(files)
     for path in files:
         findings.extend(check_file(path, ctx))
+    for path in source_files(".bs"):
+        findings.extend(check_script(path))
     findings.extend(check_showcase())
     findings.extend(check_setting_units(files))
     findings.extend(check_themes())

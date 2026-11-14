@@ -113,57 +113,34 @@ pub fn state() -> any {
 }
 
 fn key_label(key: str) -> str {
-    if key == "ShiftLeft" {
-        "Shift"
-    } else if key == "ShiftRight" {
-        "Shift"
-    } else if key == "ControlLeft" {
-        "Ctrl"
-    } else if key == "ControlRight" {
-        "Ctrl"
-    } else if key == "AltLeft" {
-        "Alt"
-    } else if key == "AltRight" {
-        "Alt"
-    } else if key == "MetaLeft" {
-        "Cmd"
-    } else if key == "MetaRight" {
-        "Cmd"
-    } else if key == "Backslash" {
-        "\\"
-    } else if key == "Slash" {
-        "/"
-    } else if key == "Comma" {
-        ","
-    } else if key == "Period" {
-        "."
-    } else if key == "Semicolon" {
-        ";"
-    } else if key == "Quote" {
-        "'"
-    } else if key == "BracketLeft" {
-        "["
-    } else if key == "BracketRight" {
-        "]"
-    } else if key == "Minus" {
-        "-"
-    } else if key == "Equal" {
-        "="
-    } else if key == "Backquote" {
-        "`"
-    } else if key == "PageUp" {
-        "Page up"
-    } else if key == "PageDown" {
-        "Page down"
-    } else {
-        let skip = if key.starts_with("Key") {
-            3
-        } else if key.starts_with("Digit") || key.starts_with("Arrow") {
-            5
-        } else {
-            0
-        };
-        key.slice(skip, key.len())
+    match key {
+        "ShiftLeft" | "ShiftRight" => "Shift",
+        "ControlLeft" | "ControlRight" => "Ctrl",
+        "AltLeft" | "AltRight" => "Alt",
+        "MetaLeft" | "MetaRight" => "Cmd",
+        "Backslash" => "\\",
+        "Slash" => "/",
+        "Comma" => ",",
+        "Period" => ".",
+        "Semicolon" => ";",
+        "Quote" => "'",
+        "BracketLeft" => "[",
+        "BracketRight" => "]",
+        "Minus" => "-",
+        "Equal" => "=",
+        "Backquote" => "`",
+        "PageUp" => "Page up",
+        "PageDown" => "Page down",
+        _ => {
+            let skip = if key.starts_with("Key") {
+                3
+            } else if key.starts_with("Digit") || key.starts_with("Arrow") {
+                5
+            } else {
+                0
+            };
+            key.slice(skip, key.len())
+        }
     }
 }
 

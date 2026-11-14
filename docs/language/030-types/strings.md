@@ -98,11 +98,26 @@ pub fn cut(s: str, a: int, b: int) -> str { s.slice(a, b) }
 `slice` is forgiving: an offset past the end stops at the end, and one inside a character moves
 back onto it.
 
+## Bytes
+
+`bytes()` gives the UTF-8 of a string as a list of ints, one byte each. `encoding::from_utf8`
+turns such a list back into text, and answers nil when the bytes are not UTF-8.
+
+```bs
+pub fn code(s: str) -> [int] { s.bytes() }
+pub fn text(data: [int]) -> str { encoding::from_utf8(data).or("?") }
+
+// code("hé") == [104, 195, 169]
+// text([104, 195, 169]) == "hé"
+// text([195]) == "?"
+```
+
 ## Methods
 
 | Method | Answers |
 | --- | --- |
 | `len()` | the length in bytes |
+| `bytes()` | the UTF-8 bytes, as a list of ints |
 | `contains(s)`, `starts_with(s)`, `ends_with(s)` | whether the text is there |
 | `find(s)` | the byte offset of the first match, or `-1` |
 | `slice(a, b)` | the text between two byte offsets |

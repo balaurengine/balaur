@@ -616,3 +616,81 @@ fn a_script_names_curves_and_modes_through_the_module_constants() {
     assert_eq!(playback.fades.len(), 1, "`wave` is fading out");
     assert_eq!(playback.fades[0].ease.name(), "in_quad");
 }
+
+/// Starts in `hop`, which a half-second fade leads to `wave`.
+const HOP_THEN_WAVE: &str = r#"
+start = "hop"
+[states]
+hop = "hop"
+wave = "wave"
+[[transitions]]
+from = "hop"
+to = "wave"
+blend_time = 0.5
+"#;
+
+/// A hero running `HOP_THEN_WAVE` with `script` attached.
+fn machine_hero(script: &str) -> (tempfile::TempDir, App, Entity) {
+    let dir = project(("hero.bs", script));
+    let app = app_in(dir.path());
+    let root = app.engine.root();
+    let entity = scene::spawn_node(&mut app.engine.world_mut(), "Hero", root);
+    let params: toml::Value = toml::from_str(r#"library = "animations/hero.toml""#).unwrap();
+    balaur_core::components::add(&app.engine, entity, "animation", Some(&params)).unwrap();
+    let body: toml::Value = toml::from_str(HOP_THEN_WAVE).unwrap();
+    let machine = balaur_core::assets::define_inline(
+        &app.engine,
+        balaur_animation::machine::MACHINE_ASSET_TYPE,
+        body,
+    )
+    .unwrap();
+    let params = toml::Value::Table(toml::map::Map::from_iter([(
+        "machine".to_string(),
+        toml::Value::String(machine.to_string()),
+    )]));
+    balaur_core::components::add(&app.engine, entity, "state_machine", Some(&params)).unwrap();
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(node_id_of(entity), "hero.bs")
+        .unwrap();
+    (dir, app, entity)
+}
+
+// A travel would fade over the transition's half second; a jump lands whole.
+#[test]
+fn a_script_jumps_its_state_machine_to_a_state_with_no_fade() {
+    let script = r#"pub class Hero { node: Node }
+impl Hero {
+    pub fn cut() { self.node.state_machine.jump("wave"); }
+}
+"#;
+    let (_dir, mut app, entity) = machine_hero(script);
+    tick(&mut app, 10);
+    assert!(height(&app, entity) > 0.5, "hop has not lifted the node");
+    call(&app, entity, "cut");
+    tick(&mut app, 2);
+    assert_eq!(
+        balaur_animation::machine::current_state(&app.engine, entity).as_deref(),
+        Some("wave")
+    );
+    assert!(
+        height(&app, entity).abs() < 1e-4,
+        "the jump faded out of hop: the node is at {}",
+        height(&app, entity)
+    );
+}
+
+#[test]
+fn a_jump_to_a_state_the_machine_lacks_is_refused_and_leaves_it_where_it_was() {
+    let (_dir, mut app, entity) = machine_hero("pub class Hero { node: Node }\n");
+    tick(&mut app, 10);
+    let error = balaur_animation::machine::jump(&app.engine, entity, "wav")
+        .expect_err("a jump to a misspelt state went through");
+    assert!(error.to_string().contains("no state 'wav'"), "{error}");
+    tick(&mut app, 2);
+    assert_eq!(
+        balaur_animation::machine::current_state(&app.engine, entity).as_deref(),
+        Some("hop")
+    );
+}

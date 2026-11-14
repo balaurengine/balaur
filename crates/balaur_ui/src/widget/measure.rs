@@ -140,7 +140,7 @@ impl<'a> Measure<'a> {
             w::FOLD => self.fold(index, theme),
             w::STACK => self.stack(index, theme),
             w::GRID => self.grid(index, theme),
-            w::FLOW => self.flow(index, theme),
+            w::ROW if widget.layout.wrap_children == w::wrapping::WRAP => self.flow(index, theme),
             w::WINDOW => self.window(index, theme),
             kind if lays_out(kind) && !matches!(kind, w::SCROLL | w::TABS | w::MENU) => {
                 self.container(index, theme)
@@ -439,7 +439,7 @@ impl<'a> Measure<'a> {
         inner + pad.taken()
     }
 
-    /// A flow: its children on one line, or wrapped to a stated width.
+    /// A row that wraps: its children on one line, or wrapped to a stated width.
     fn flow(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let arena = self.arena;
         let placed = &arena[index];

@@ -203,51 +203,12 @@ fn the_background_is_the_colour_a_script_sets() {
 }
 
 #[test]
-fn a_line_is_drawn_between_two_vectors_in_a_colour() {
-    let (app, errors, _) = run_frames(
-        r"render::draw_line_3d(vec3(0.0, 1.0, 2.0), vec3(3.0, 4.0, 5.0), color(1.0, 0.5, 0.0, 0.25));
-render::draw_line_3d(vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), color(0.0, 0.0, 1.0, 1.0), 3.0, true, true);
-render::draw_line_2d(vec2(0.0, 1.0), vec2(2.0, 3.0), color(1.0, 0.0, 0.0, 1.0), 2.0);",
-        0,
-    );
-    assert!(errors.is_empty(), "{errors:#?}");
-    let lines_3d = app.engine.resource::<balaur_render::DebugLineBuffer3d>();
-    assert_eq!(
-        lines_3d.borrow().lines,
-        [
-            (
-                [0.0, 1.0, 2.0],
-                [3.0, 4.0, 5.0],
-                [1.0, 0.5, 0.0, 0.25],
-                1.0,
-                false,
-                false
-            ),
-            (
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 1.0],
-                3.0,
-                true,
-                true
-            ),
-        ]
-    );
-    let lines_2d = app.engine.resource::<balaur_render::DebugLineBuffer2d>();
-    assert_eq!(
-        lines_2d.borrow().lines,
-        [([0.0, 1.0], [2.0, 3.0], [1.0, 0.0, 0.0, 1.0], 2.0)]
-    );
-    let why = refused("render::draw_line_2d(0.0, 1.0, 2.0, 3.0, 1.0, 0.0, 0.0, 2.0);");
-    assert!(why.contains("takes 3 to 5 argument"), "{why}");
-}
-
-#[test]
 fn many_3d_lines_cross_in_one_call_each_with_its_own_colour_and_width() {
     let (app, errors, _) = run_frames(
         r"let lines = [
     render::Line3d { from: vec3(0.0, 0.0, 0.0), to: vec3(1.0, 0.0, 0.0), color: color(1.0, 0.0, 0.0, 1.0) },
     render::Line3d { from: vec3(0.0, 2.0, 0.0), to: vec3(0.0, 3.0, 0.0), color: color(0.0, 1.0, 0.0, 0.5), width: 4.0, on_top: true },
+    render::Line3d { from: vec3(0.0, 0.0, 0.0), to: vec3(0.0, 0.0, 1.0), color: color(0.0, 0.0, 1.0, 1.0), width: 3.0, perspective: true },
 ];
 render::draw_lines_3d(lines);",
         0,
@@ -272,6 +233,14 @@ render::draw_lines_3d(lines);",
                 4.0,
                 false,
                 true
+            ),
+            (
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [0.0, 0.0, 1.0, 1.0],
+                3.0,
+                true,
+                false
             ),
         ]
     );
@@ -531,7 +500,7 @@ log::info("size {size.x} {size.y}");"#,
 fn a_shape_drawn_at_a_z_index_carries_it_and_a_picture_its_region() {
     let (app, errors, _) = run_frames(
         r#"render::draw_circle_2d(vec2(0.0, 0.0), 1.0, color(1.0, 0.0, 0.0, 1.0), render::DrawOptions { z_index: 2 });
-render::draw_line_2d(vec2(0.0, 0.0), vec2(1.0, 1.0), color(1.0, 1.0, 1.0, 1.0), 2.0, render::DrawOptions { z_index: -1 });
+render::draw_polyline_2d([vec2(0.0, 0.0), vec2(1.0, 1.0)], 2.0, color(1.0, 1.0, 1.0, 1.0), render::DrawOptions { z_index: -1 });
 render::draw_texture_2d("art/missing.png", vec2(0.0, 0.0), vec2(1.0, 1.0), nil, render::TextureOptions { region_origin: vec2(8.0, 0.0), region_size: vec2(8.0, 8.0) });"#,
         0,
     );
@@ -718,5 +687,110 @@ impl Scenario {
             && errors[0].contains("checked: 3 1 ccw")
             && errors[1].contains("ccw 2 cw 1"),
         "{errors:#?}"
+    );
+}
+
+#[test]
+fn the_window_takes_the_mode_cursor_and_wake_a_script_asks_for() {
+    use balaur_core::project::WindowMode;
+    let (app, errors) = run(r#"window::set_window_mode("fullscreen");
+window::set_cursor_grab(true);
+window::set_cursor_hidden(true);
+window::set_keep_awake(true);"#);
+    assert!(errors.is_empty(), "{errors:#?}");
+    let config = app.engine.resource::<balaur_render::WindowConfig>();
+    let config = config.borrow();
+    assert_eq!(config.mode, WindowMode::Fullscreen);
+    assert!(config.cursor_grabbed && config.cursor_hidden && config.keep_awake);
+    let (_app, errors) = run(r#"window::set_window_mode("tiny");"#);
+    assert!(
+        errors.iter().any(|e| e.contains("no window mode 'tiny'")),
+        "{errors:#?}"
+    );
+}
+
+// The insets and the rate are what the device reported, read in the frame
+// after the report.
+#[test]
+fn the_window_reads_the_safe_area_and_refresh_rate_the_device_reported() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = project(
+        r#"}
+fn update(dt: float) {
+let inset = window::safe_area();
+log::info("insets {inset.top} {inset.bottom} at {window::refresh_rate()}");"#,
+    );
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    balaur_core::facts::update_device(&app.engine, |facts| {
+        facts.safe_area = [0.0, 47.0, 0.0, 34.0];
+        facts.refresh_rate = 120.0;
+    });
+    app.tick(1.0 / 60.0);
+    let lines: Vec<String> = balaur_core::logbuf::recent(500)
+        .into_iter()
+        .map(|e| e.message)
+        .collect();
+    assert!(
+        lines.iter().any(|l| l == "insets 0.0 0.0 at 60.0"),
+        "a desktop reports no insets at 60: {lines:#?}"
+    );
+    assert!(
+        lines.iter().any(|l| l == "insets 47.0 34.0 at 120.0"),
+        "the reported insets and rate never reached the script: {lines:#?}"
+    );
+}
+
+#[test]
+fn a_painted_terrain_value_reads_back_at_its_cell_and_nowhere_else() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = project(
+        r#"self.node.set_component("tilemap", {
+    "cells": { "kind": "inline", "rows": [[-1, -1, -1], [-1, -1, -1], [-1, -1, -1]] },
+    "tileset": { "texture": "art/tiles.png", "tile_size": 50, "columns": 4, "terrains": [{ "name": "grass", "value": 1, "kind": "quarters", "first_tile": 0 }] },
+});
+self.node.tilemap.set_terrain(1, 1, 1);
+let painted = self.node.tilemap.terrain(1, 1);
+let bare = self.node.tilemap.terrain(0, 0);
+let past = self.node.tilemap.terrain(9, 9);
+log::info("terrain {painted} {bare} {past} tiled {self.node.tilemap.cell(1, 1) >= 0}");"#,
+    );
+    std::fs::create_dir_all(dir.path().join("art")).unwrap();
+    std::fs::copy(
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/sprite_200x100.png"
+        ),
+        dir.path().join("art/tiles.png"),
+    )
+    .unwrap();
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    let lines = balaur_core::logbuf::recent(500);
+    let errors: Vec<&String> = lines
+        .iter()
+        .filter(|e| e.level.eq_ignore_ascii_case("error"))
+        .map(|e| &e.message)
+        .collect();
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.message == "terrain 1 -1 -1 tiled true"),
+        "{lines:#?}"
     );
 }

@@ -143,6 +143,10 @@ pub(super) fn type_of(
         E::Str(_) | E::Interp(_) => T::Str,
         E::Var(v) => var(v)?,
         E::Bin(op, a, b) => binary_type(*op, ty(a)?, ty(b)?)?,
+        E::BitNot(a) => match ty(a)? {
+            T::Int => T::Int,
+            _ => return None,
+        },
         E::Neg(a) => match ty(a)? {
             T::Int => T::Int,
             T::Float | T::Any => T::Float,
@@ -278,6 +282,10 @@ impl Interp<'_> {
                 V::Float(f) => V::Float(-f),
                 V::Any(a) => V::Float(-anys::as_float(&a)),
                 v => return bad(format!("negated {v:?}")),
+            },
+            E::BitNot(a) => match self.eval(a)? {
+                V::Int(i) => V::Int(!i),
+                v => return bad(format!("flipped {v:?}")),
             },
             E::Not(a) => match self.eval(a)? {
                 V::Bool(b) => V::Bool(!b),
@@ -493,6 +501,12 @@ impl Interp<'_> {
                 Op::Le => V::Bool(x <= y),
                 Op::Eq => V::Bool(x == y),
                 Op::Ne => V::Bool(x != y),
+                Op::BitAnd => V::Int(x & y),
+                Op::BitOr => V::Int(x | y),
+                Op::BitXor => V::Int(x ^ y),
+                // A count's low six bits, as wasm's `i64.shl` and `i64.shr_s` take.
+                Op::Shl => V::Int(x.wrapping_shl(y as u32)),
+                Op::Shr => V::Int(x.wrapping_shr(y as u32)),
                 _ => return bad(format!("{op:?} on ints")),
             },
             (x @ (V::Int(_) | V::Float(_)), y @ (V::Int(_) | V::Float(_))) => {

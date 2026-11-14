@@ -173,7 +173,7 @@ fn debug_draw_is_set_and_read_back() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        physics::set_debug_draw(physics::debug_draw_defaults());
+        physics::set_debug_draw(physics::DebugDraw { colliders: true });
         let usual = physics::debug_draw();
         if !usual.enabled.unwrap() { log::error("the switch did not stay on"); }
         if !usual.colliders.unwrap() { log::error("the usual shapes were not drawn"); }

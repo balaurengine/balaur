@@ -4,14 +4,11 @@
 
 use anim;
 use arrange;
-use autosave;
-use bench;
 use bonemap;
 use center;
 use chrome;
 use commands;
 use complete;
-use defs;
 use disk;
 use dock;
 use docks;
@@ -21,12 +18,14 @@ use events;
 use fonts;
 use exporter;
 use form;
+use frame;
 use gizmo;
 use history;
 use importer;
 use inputview;
 use inspector;
 use kit;
+use lanes;
 use layout;
 use left;
 use library;
@@ -34,7 +33,6 @@ use lint;
 use manager;
 use model;
 use newnode;
-use overlays;
 use palette;
 use pen;
 use plugins;
@@ -42,6 +40,7 @@ use polygon;
 use populate;
 use refactor;
 use rig;
+use sceneedit;
 use selftest;
 use session;
 use settings;
@@ -51,12 +50,13 @@ use search;
 use signals;
 use statemachine;
 use suite;
+use tests::panel_checks;
 use textedit;
 use theme;
 use themewin;
 use tiles;
-use util;
-use viewport;
+use timeline;
+use versions;
 use weights;
 use window;
 use words::changes;
@@ -67,7 +67,6 @@ use words::tabs;
 use words::tools;
 
 const ALL: str = "all";
-const VIEWPORT: str = "viewport";
 
 /// The Editor node's script: the node it runs on and everything it keeps.
 pub class Editor {
@@ -75,41 +74,57 @@ pub class Editor {
     state: State,
 }
 
-/// Every field the editor keeps; `fresh_state` gives each its starting value.
-/// A map keyed by a name or an id is an `any`, and so is a key: what a cache
-/// was built from, compared whole.
+/// Every field the editor keeps. A scalar starts at its default, and
+/// `fresh_state` names the rest. A map keyed by a name or an id is an `any`,
+/// and so is a key: what a cache was built from, compared whole.
 pub class State {
     internal workspace: str,
     internal tool: str,
     internal doctab: str,
-    internal shader_rel: str,
-    internal preview_line: int,
-    internal preview_rel: str,
+    // A shader opened from a material; empty means the code pane shows
+    // the selected node's script instead.
+    internal shader_rel: str = "",
+    // The shader line the viewport draws the value of; 0 draws the scene.
+    internal preview_line: int = 0,
+    internal preview_rel: str = "",
     internal docks: any,
-    internal split: bool,
-    internal script_open: bool,
-    internal events_open: bool,
-    internal zoom: float,
-    internal playing: bool,
-    internal formed: bool,
-    internal palette: bool,
-    internal palette_query: str,
-    internal palette_submit: bool,
-    internal picker_focused: bool,
-    internal newnode: bool,
-    internal newnode_query: str,
-    internal newnode_change: bool,
-    internal newnode_soft: str,
-    internal renaming: bool,
-    internal rename_text: str,
+    // The centre split: code and viewport side by side, instead of the
+    // document tabs swapping one for the other.
+    internal split: bool = false,
+    // The closable document tabs; the scene's is always there.
+    internal script_open: bool = false,
+    internal events_open: bool = false,
+    internal zoom: float = 100.0,
+    internal playing: bool = false,
+    internal formed: bool = false,
+    internal palette: bool = false,
+    internal palette_query: str = "",
+    internal palette_submit: bool = false,
+    // Whether the picker's field has been handed the caret since it
+    // opened; it takes it once, not every frame.
+    internal picker_focused: bool = false,
+    internal newnode: bool = false,
+    internal newnode_query: str = "",
+    // The picker lists what the selection can become, or, once a soft
+    // body is picked, what to build it from ("2d" or "3d").
+    internal newnode_change: bool = false,
+    internal newnode_soft: str = "",
+    internal renaming: bool = false,
+    internal rename_text: str = "",
     internal chip_state: any,
-    internal compact: bool,
-    internal screen_key: str,
-    internal touchscreen: bool,
-    platform_read: bool,
-    internal release_at: int,
-    internal states_applied: bool,
-    internal start_states: str,
+    internal compact: bool = false,
+    // The room's answers the docks were last folded for: a change is a
+    // new screen, whatever the class words did.
+    internal screen_key: str = "",
+    // What the reader set, kept apart from what the screen makes of it:
+    // a touch screen draws larger without moving the setting.
+    internal touchscreen: bool = false,
+    // Whether the first frame has run: the start-up states apply on it,
+    // after the screen's room has folded the docks.
+    internal platform_read: bool = false,
+    internal release_at: int = -1,
+    internal states_applied: bool = false,
+    internal start_states: str = "",
     internal script_buffers: any,
     internal schemas: any,
     internal expects: any,
@@ -124,25 +139,34 @@ pub class State {
     // until the Changed on disk sheet has an answer for each.
     internal script_held: any,
     // A buffer was held since the sheet last filled.
-    internal disk_new: bool,
+    internal disk_new: bool = false,
     // The sheet was put up, so its being down means it was shut unanswered.
-    internal disk_up: bool,
+    internal disk_up: bool = false,
     internal collapsed: any,
     // Moved whenever the rows the outline shows may have.
-    internal outline_rows: int,
-    internal view_shot: str,
-    view_logged: str,
-    internal code_scroll: float,
-    internal code_revision: int,
-    internal layout_seen: float,
+    internal outline_rows: int = 0,
+    // The panel `view:<id>` asked for, and the rect last logged for it.
+    internal view_shot: str = "",
+    internal view_logged: str = "",
+    // Where the code pane is asked to scroll to, in design px; below zero
+    // leaves it where the reader left it, and one frame is all it takes.
+    internal code_scroll: float = -1.0,
+    // Bumped when the open buffer is written from outside the editor, so
+    // the code sheet writes its text again; typing is the widget's own.
+    internal code_revision: int = 0,
+    // The stage width the layout self-test last saw, so it asserts on a
+    // settled shell rather than on the frame it was still bootstrapping.
+    internal layout_seen: float = -1.0,
     /// The rows the Import tab's form was last filled with.
     internal form: [form::Row],
     /// The Inspector's lines and which of them are on screen.
     internal inspect: inspector::Form,
     /// When the Inspector's whole form is filled again after a run of edits
     /// its rows followed alone; 0 for none pending.
-    internal inspector_after: float,
+    internal inspector_after: float = 0.0,
     internal tree_cache: left::TreeCache,
+    // The guard on each word `signals` tells, and the keys each word was
+    // last told for.
     internal told: any,
     internal inspector_key: any,
     internal docks_key: any,
@@ -151,65 +175,89 @@ pub class State {
     internal rail_key: any,
     internal stage_key: any,
     internal overlays_key: any,
+    // The self-tests under way, which step a frame each; see
+    // `selftest::stepping`.
     internal stepping: [str],
     // The edit `--state bench:` makes every frame, or "".
-    internal bench: str,
-    overlays_frame: int,
-    stepped: int,
-    layout_key: any,
-    internal theme_revision: int,
-    internal is_2d_was: bool,
+    internal bench: str = "",
+    internal overlays_frame: int = -1,
+    // The frame the viewport's tools last looked at the pointer: several
+    // pointer words in one frame are one look.
+    internal stepped: int = -1,
+    internal layout_key: any,
+    // Bumped whenever another theme is worn or the worn one edited, so a
+    // key can say the colours moved without holding the theme.
+    internal theme_revision: int = 0,
+    // `model::is_2d`'s answer, worked out when the rows are listed.
+    internal is_2d_was: bool = false,
     internal overlay3d: Overlay3d,
-    internal selected: int,
+    // The selection set; `state.selected` is its head. Locks are editor state
+    // keyed by node id, and isolate hides everything outside the set.
+    internal selected: int = 0,
     internal selected_rows: [int],
     internal locks: any,
+    // Four camera slots on the viewport chip row, kept for the session.
     internal bookmarks: any,
-    internal isolated: bool,
+    internal isolated: bool = false,
     /// What isolate hid, to show again when it is left.
     internal isolate_hidden: [Node],
-    internal fps: float,
-    internal layout_demo: int,
-    internal rows_demo: int,
-    internal plugin_demo: int,
+    internal fps: float = 0.0,
+    // -1 when the layout self-test is not running.
+    internal layout_demo: int = -1,
+    // The same for the row views' test, and the row it asks for.
+    internal rows_demo: int = -1,
+    internal plugin_demo: int = -1,
     /// `test:profiler`'s frames since it switched counting on; -1 at rest.
-    internal profile_demo: int,
-    internal events_demo: int,
-    internal palette_demo: int,
-    internal import_demo: int,
-    internal import_waited: int,
-    internal rows_want: int,
-    internal rows_waited: int,
-    internal gesture_demo: int,
+    internal profile_demo: int = -1,
+    internal events_demo: int = -1,
+    internal palette_demo: int = -1,
+    internal import_demo: int = -1,
+    internal import_waited: int = 0,
+    internal rows_want: int = 0,
+    internal rows_waited: int = 0,
+    internal gesture_demo: int = -1,
     internal gesture_from: [float],
-    internal frame: int,
+    internal frame: int = 0,
+    // `frames=<directory>`: a PNG every `every` frames from `from`, numbered.
     internal capture: shell::Capture?,
-    internal show_input: bool,
-    internal screen_width: float,
-    internal screen_height: float,
+    internal show_input: bool = false,
+    internal screen_width: float = 1280.0,
+    internal screen_height: float = 800.0,
     internal viewport: Viewport,
-    internal rail_visible: bool,
-    internal stage_chrome: bool,
-    internal rail_shut: bool,
-    internal chrome_off: bool,
-    internal fontdemo: bool,
-    internal menu_open: bool,
-    internal doc_open: bool,
-    internal hooks_open: bool,
-    internal focus: bool,
+    internal rail_visible: bool = false,
+    // Whether the stage is worth labelling: a strip of it behind an
+    // unfolded panel is the way back, not a viewport.
+    internal stage_chrome: bool = true,
+    internal rail_shut: bool = false,
+    internal chrome_off: bool = false,
+    internal fontdemo: bool = false,
+    internal menu_open: bool = false,
+    // A document is over the scene; the hooks list is beside it.
+    internal doc_open: bool = false,
+    internal hooks_open: bool = false,
+    // The code with the window to itself. `focus_was` is the layout it
+    // folded, and nothing but leaving focus reads it.
+    internal focus: bool = false,
     internal focus_was: any,
     internal layout: any,
-    internal viewport_live: bool,
-    internal mode2d: bool,
+    // Whether the centre is showing the viewport this frame, rather than
+    // a document over it.
+    internal viewport_live: bool = true,
+    internal mode2d: bool = false,
     internal sources: any,
+    // The edited scene's whole document, so a save keeps what the editor
+    // does not model and the mirror sees its `[[assets]]`.
     internal scene_doc: any,
     internal listings: any,
     internal clip: anim::Clip?,
-    internal hooks_source: str,
+    internal hooks_source: str = "",
     internal hooks_live: [center::Parsed],
     internal log_level: str,
-    internal log_query: str,
+    internal log_query: str = "",
+    // Per-frame and per-session caches, built on first use.
     internal log_cache: dock::Built?,
-    internal log_cursor: int,
+    // Where `log::since` left off, and the rows the log node was last given.
+    internal log_cursor: int = 0,
     internal panels: docks::Panels?,
     internal palette_cache: palette::Found?,
     internal newnode_cache: [newnode::Entry]?,
@@ -224,27 +272,31 @@ pub class State {
     /// A component a tool is changing in place, held for the frame.
     internal edited: model::Edited?,
     /// The scene as play found it, which stop builds again.
-    internal played: str,
+    internal played: str = "",
     /// The text the last play ran from, and what the scene reads as once
     /// stopping has rebuilt it: while it still reads so, nothing was edited.
-    internal last_played: str,
-    internal stopped_as: str,
+    internal last_played: str = "",
+    internal stopped_as: str = "",
     internal theme: any,
-    internal theme_half: str,
+    // The half a start-up state pinned for the run, or "" to follow the mode.
+    internal theme_half: str = "",
     internal gizmo: gizmo::GizmoState,
-    internal camera_drag: int,
+    // The mouse button a camera drag begun on the stage holds, or -1.
+    internal camera_drag: int = -1,
     internal complete: complete::CompleteState,
     internal docs: docs::DocsState,
     internal refactor: refactor::RefactorState,
     internal textedit: textedit::TexteditState,
     internal rig: rig::RigState,
     internal polygon: polygon::PolygonState,
+    // Where the Physics panel's pills drew this frame, for the selftest
+    // that presses them.
     internal viewport_check: selftest::ViewportCheck?,
     internal camera_check: selftest::CameraCheck?,
     internal pick_check: selftest::PickCheck?,
     internal picture_check: selftest::PictureCheck?,
     internal pool_check: selftest::PoolCheck?,
-    internal form_check: selftest::FormCheck?,
+    internal form_check: panel_checks::FormCheck?,
     internal reselect: selftest::Reselect?,
     internal empty_note: selftest::EmptyNote?,
     internal start_check: selftest::StartCheck?,
@@ -258,10 +310,15 @@ pub class State {
     events: events::EventsState,
     internal exporter: exporter::ExporterState,
     internal populate: populate::PopulateState,
-    internal assets_touched: bool,
+    // Set once a tool edits the scene's `[[assets]]` blocks, so a save
+    // writes them back as well as the nodes.
+    internal assets_touched: bool = false,
+    // This batch of imports, by the source each reports: the ones running
+    // and the ones lately ended. `chrome::toast` draws them.
     internal jobs: any,
+    // What `imports:` still has to start, and the frame it starts on.
     internal import_queue: [str],
-    internal import_drip: bool,
+    internal import_drip: bool = false,
     internal session: session::SessionState,
     internal settings: settings::SettingsState,
     internal themewin: themewin::ThemewinState,
@@ -277,11 +334,11 @@ pub class State {
     internal registry: plugins::PluginsState,
     // What `model::load` reads from the project: where it is and what it is
     // called. The scene itself is the live nodes under `mirror`.
-    internal game_root: str,
-    internal game_name: str,
-    internal scene_rel: str,
-    internal scene_path: str,
-    internal script_profiling: bool,
+    internal game_root: str = "",
+    internal game_name: str = "",
+    internal scene_rel: str = "",
+    internal scene_path: str = "",
+    internal script_profiling: bool = false,
     internal history: history::History,
     internal import_texture: importer::Held,
     internal import_shipped: importer::ImportShipped,
@@ -295,7 +352,7 @@ pub class State {
     /// What each request to the catalogue is for, by its id.
     internal font_requests: any,
     internal kit_state: any,
-    internal rows_query: str,
+    internal rows_query: str = "",
     internal suite: suite::Run?,
 }
 
@@ -314,63 +371,16 @@ pub struct Viewport {
     internal at: int,
 }
 
-// Below this many design pixels wide the shell drops every label its icon
-// already says.
-const COMPACT_WIDTH: float = 1240.0;
-
-// The frame the splash comes off whether or not the shell has stopped moving.
-const FORM_BY: int = 30;
-
-/// Every field the editor keeps, at its starting value.
+/// The starting values no default can state: the constants, the maps and
+/// lists, and each module's own state. A field left out starts at its default
+/// or nil.
 pub fn fresh_state() -> State {
     State {
         workspace: tabs::SCENE,
         tool: tools::SELECT,
         doctab: tabs::SCENE,
-        // A shader opened from a material; empty means the code pane shows
-        // the selected node's script instead.
-        shader_rel: "",
-        // The shader line the viewport draws the value of; 0 draws the scene.
-        preview_line: 0,
-        preview_rel: "",
         docks: docks::state(),
-        // The centre split: code and viewport side by side, instead of the
-        // document tabs swapping one for the other.
-        split: false,
-        // The closable document tabs; the scene's is always there.
-        script_open: false,
-        events_open: false,
-        zoom: 100.0,
-        playing: false,
-        formed: false,
-        palette: false,
-        palette_query: "",
-        palette_submit: false,
-        // Whether the picker's field has been handed the caret since it
-        // opened; it takes it once, not every frame.
-        picker_focused: false,
-        newnode: false,
-        newnode_query: "",
-        // The picker lists what the selection can become, or, once a soft
-        // body is picked, what to build it from ("2d" or "3d").
-        newnode_change: false,
-        newnode_soft: "",
-        renaming: false,
-        rename_text: "",
         chip_state: {},
-        compact: false,
-        // The room's answers the docks were last folded for: a change is a
-        // new screen, whatever the class words did.
-        screen_key: "",
-        // What the reader set, kept apart from what the screen makes of it:
-        // a touch screen draws larger without moving the setting.
-        touchscreen: false,
-        // Whether the first frame has run: the start-up states apply on it,
-        // after the screen's room has folded the docks.
-        platform_read: false,
-        release_at: -1,
-        states_applied: false,
-        start_states: "",
         script_buffers: {},
         schemas: {},
         expects: {},
@@ -378,143 +388,33 @@ pub fn fresh_state() -> State {
         script_dirty: {},
         script_disk: {},
         script_held: {},
-        disk_new: false,
-        disk_up: false,
         collapsed: {},
-        outline_rows: 0,
-        // The panel `view:<id>` asked for, and the rect last logged for it.
-        view_shot: "",
-        view_logged: "",
-        // Where the code pane is asked to scroll to, in design px; below zero
-        // leaves it where the reader left it, and one frame is all it takes.
-        code_scroll: -1.0,
-        // Bumped when the open buffer is written from outside the editor, so
-        // the code sheet writes its text again; typing is the widget's own.
-        code_revision: 0,
-        // The stage width the layout self-test last saw, so it asserts on a
-        // settled shell rather than on the frame it was still bootstrapping.
-        layout_seen: -1.0,
         form: [],
         inspect: inspector::fresh(),
-        inspector_after: 0.0,
         tree_cache: left::TreeCache { key: "", rows: [] },
-        // The guard on each word `signals` tells, and the keys each word was
-        // last told for.
         told: {},
-        inspector_key: nil,
-        docks_key: nil,
-        chrome_key: nil,
-        status_key: nil,
-        rail_key: nil,
-        stage_key: nil,
-        overlays_key: nil,
-        // The self-tests under way, which step a frame each; see
-        // `selftest::stepping`.
         stepping: [],
-        bench: "",
-        overlays_frame: -1,
-        // The frame the viewport's tools last looked at the pointer: several
-        // pointer words in one frame are one look.
-        stepped: -1,
-        layout_key: nil,
-        // Bumped whenever another theme is worn or the worn one edited, so a
-        // key can say the colours moved without holding the theme.
-        theme_revision: 0,
-        // `model::is_2d`'s answer, worked out when the rows are listed.
-        is_2d_was: false,
         overlay3d: Overlay3d { key: [], lines: [] },
-        // The selection set; `state.selected` is its head. Locks are editor state
-        // keyed by node id, and isolate hides everything outside the set.
-        selected: 0,
         selected_rows: [0],
         locks: {},
-        // Four camera slots on the viewport chip row, kept for the session.
         bookmarks: {},
-        isolated: false,
         isolate_hidden: [],
-        fps: 0.0,
-        // -1 when the layout self-test is not running.
-        layout_demo: -1,
-        // The same for the row views' test, and the row it asks for.
-        rows_demo: -1,
-        plugin_demo: -1,
-        profile_demo: -1,
-        events_demo: -1,
-        palette_demo: -1,
-        import_demo: -1,
-        import_waited: 0,
-        rows_want: 0,
-        rows_waited: 0,
-        gesture_demo: -1,
         gesture_from: [],
-        frame: 0,
-        // `frames=<directory>`: a PNG every `every` frames from `from`, numbered.
-        capture: nil,
-        show_input: false,
-        screen_width: 1280.0,
-        screen_height: 800.0,
         viewport: Viewport { x: 322.0, y: 112.0, width: 640.0, height: 482.0, at: 0 },
-        rail_visible: false,
-        // Whether the stage is worth labelling: a strip of it behind an
-        // unfolded panel is the way back, not a viewport.
-        stage_chrome: true,
-        rail_shut: false,
-        chrome_off: false,
-        fontdemo: false,
-        menu_open: false,
-        // A document is over the scene; the hooks list is beside it.
-        doc_open: false,
-        hooks_open: false,
-        // The code with the window to itself. `focus_was` is the layout it
-        // folded, and nothing but leaving focus reads it.
-        focus: false,
-        focus_was: nil,
         layout: layout::state(),
-        // Whether the centre is showing the viewport this frame, rather than
-        // a document over it.
-        viewport_live: true,
-        mode2d: false,
         sources: {},
-        // The edited scene's whole document, so a save keeps what the editor
-        // does not model and the mirror sees its `[[assets]]`.
         scene_doc: {},
         listings: {},
-        clip: nil,
-        hooks_source: "",
         hooks_live: [],
         log_level: ALL,
-        log_query: "",
-        // Per-frame and per-session caches, built on first use.
-        log_cache: nil,
-        // Where `log::since` left off, and the rows the log node was last given.
-        log_cursor: 0,
-        panels: nil,
-        palette_cache: nil,
-        newnode_cache: nil,
-        brand: nil,
-        mirror: nil,
         theme: theme::dark(),
-        // The half a start-up state pinned for the run, or "" to follow the mode.
-        theme_half: "",
         gizmo: gizmo::state(),
-        // The mouse button a camera drag begun on the stage holds, or -1.
-        camera_drag: -1,
         complete: complete::state(),
         docs: docs::state(),
         refactor: refactor::state(),
         textedit: textedit::state(),
         rig: rig::state(),
         polygon: polygon::state(),
-        // Where the Physics panel's pills drew this frame, for the selftest
-        // that presses them.
-        viewport_check: nil,
-        camera_check: nil,
-        pick_check: nil,
-        picture_check: nil,
-        pool_check: nil,
-        reselect: nil,
-        empty_note: nil,
-        start_check: nil,
         pen: pen::state(),
         weights: weights::state(),
         bonemap: bonemap::state(),
@@ -525,15 +425,8 @@ pub fn fresh_state() -> State {
         events: events::state(),
         exporter: exporter::state(),
         populate: populate::state(),
-        // Set once a tool edits the scene's `[[assets]]` blocks, so a save
-        // writes them back as well as the nodes.
-        assets_touched: false,
-        // This batch of imports, by the source each reports: the ones running
-        // and the ones lately ended. `chrome::toast` draws them.
         jobs: {},
-        // What `imports:` still has to start, and the frame it starts on.
         import_queue: [],
-        import_drip: false,
         session: session::state(),
         settings: settings::state(),
         themewin: themewin::state(),
@@ -547,27 +440,11 @@ pub fn fresh_state() -> State {
         assets: dock::assets_state(),
         plugins: {},
         registry: plugins::state(),
-        scene_root: nil,
         nodes: [],
-        edited: nil,
-        played: "",
-        last_played: "",
-        stopped_as: "",
-        game_root: "",
-        game_name: "",
-        scene_rel: "",
-        scene_path: "",
-        script_profiling: false,
         history: history::History { past: [], future: [], saved: 0, key: nil, at: 0.0 },
         import_texture: importer::Held { rel: "", source: "" },
         import_shipped: importer::ImportShipped { rel: "", rows: [] },
-        system_fonts: nil,
-        font_finding: nil,
-        font_families: nil,
         font_requests: {},
-        kit_state: nil,
-        rows_query: "",
-        suite: nil,
     }
 }
 
@@ -617,7 +494,7 @@ impl Editor {
 
     pub fn update(delta_time: float) {
         suite::reboot(self.state, self.node);
-        frame(self.state, delta_time);
+        frame::run(self.state, delta_time);
         // Last: a reopen replaces `self.state`, and a call made back into the
         // Editor later in this one would still be handed the old state.
         suite::step(self.state);
@@ -630,19 +507,13 @@ impl Editor {
     }
 
     // Every export reports here: started, done or failed, one call per step.
-    pub fn on_export_event(event: any) {
-        exporter::report(self.state, event);
-    }
+    pub fn on_export_event(event: any) { exporter::report(self.state, event); }
 
     // A release check or install reports here, for the start screen and About.
-    pub fn on_release_event(event: any) {
-        manager::heard(self.state, event);
-    }
+    pub fn on_release_event(event: any) { versions::heard(self.state, event); }
 
     // A picture of the scene, written or not.
-    pub fn on_picture_event(event: any) {
-        shell::picture_done(event);
-    }
+    pub fn on_picture_event(event: any) { shell::picture_done(event); }
 
     // A Forge search, add, fetch or copy: the Library and the start screen
     // each keep what they asked for.
@@ -652,30 +523,20 @@ impl Editor {
     }
 
     // Every import reports here: what is coming, each file, then the end.
-    pub fn on_import_event(event: any) {
-        dropin::report(self.state, event);
-    }
+    pub fn on_import_event(event: any) { dropin::report(self.state, event); }
 
     // The window is closing: the next run opens at its size.
-    pub fn on_quit_requested() {
-        settings::keep_window_size(self.state);
-    }
+    pub fn on_quit_requested() { settings::keep_window_size(self.state); }
 
     /// The window changed size.
-    pub fn on_resize(_width: float, _height: float) {
-        relayout(self.state);
-    }
+    pub fn on_resize(_width: float, _height: float) { frame::relayout(self.state); }
 
     /// One of the shell's boxes moved: a seam was dragged, a dock eased open, or
     /// the layout's own write landed.
-    pub fn on_resized(_box: any) {
-        relayout(self.state);
-    }
+    pub fn on_resized(_box: any) { frame::relayout(self.state); }
 
     /// Lay the shell out again, for a module that changed what it holds.
-    pub fn relayout_shell() {
-        relayout(self.state);
-    }
+    pub fn relayout_shell() { frame::relayout(self.state); }
 
     /// A search control's edit: the query under the `id` it carries.
     pub fn search_typed(id: any, text: any, control: Node) {
@@ -706,358 +567,38 @@ impl Editor {
     }
 }
 
-// One frame: the frame rate, the splash, the capture, and every per-frame
-// driver; the start screen has its own short list.
-fn frame(state: &mut State, delta_time: float) {
-    // Smoothed frame rate for the status bar; a raw 1/delta_time reads as noise.
-    if delta_time > 0.0 {
-        let now = 1.0 / delta_time;
-        state.fps = (if state.fps == 0.0 { now } else { state.fps }) * 0.9 + now * 0.1;
-    }
-    state.frame += 1;
-    shell::release_world(state);
-    // The splash holds until the shell stops moving: every box is read back a
-    // pass after it was written, so the sizes correct themselves for several.
-    // `FORM_BY` is where it gives up waiting.
-    if !state.formed {
-        let ready = state.frame >= 3 && layout::settled(state);
-        if ready || state.frame >= FORM_BY {
-            state.formed = true;
-            ui::finish_loading();
-        } else {
-            ui::set_load_progress(util::clamp(0.4 + 0.06 * state.frame, 0.0, 0.95));
-        }
-    }
-    // Above the start screen's own return: a clip of a project converting is
-    // taken on that screen, and it has no other frame to be caught on.
-    if state.capture != nil {
-        let capture = state.capture.unwrap();
-        if state.frame >= capture.from && (state.frame - capture.from) % capture.every == 0 {
-            render::screenshot("{capture.directory}/{padded(capture.count)}.png");
-            capture.count += 1;
-            state.capture = capture;
-        }
-    }
-    // The start screen has no scene to step, no selection to follow and no
-    // gizmo to drag: what it needs from a frame is the states and the
-    // showcase, whose sequence turns this screen's own pages.
-    if manager::showing(state) {
-        showcase::step(state);
-        apply_start_states(state);
-        if state.stepping.len() > 0 {
-            selftest::step_all(state, true);
-        }
-        showcase::acts(state);
-        // An install or a conversion reports as events, which wake the loop.
-        if !state.formed || state.showcase != nil || state.capture != nil || state.stepping.len() > 0 {
-            ui::request_repaint();
-        }
-        return;
-    }
-    // The sweep a script edit asked for, once typing has stopped.
-    lint::idle(state);
-    session::update(state);
-    // One queued import a frame once the shell has formed, so a shot catches
-    // several at once.
-    if state.import_drip && state.formed && state.import_queue.len() > 0 {
-        let next = state.import_queue.remove(0);
-        dropin::take(state, next);
-    }
-    if state.stepping.len() > 0 {
-        selftest::step_all(state, false);
-    }
-    showcase::step(state);
-    anim::update(state);
-    textedit::step(state);
-    autosave::step(state);
-    bench::step(state);
-    // What moves without input asks for the next frame; under `[window]
-    // low_processor` nothing else draws one. The splash and a queued import
-    // count frames, so they ask too.
-    let telling = state.jobs.len() > 0 || state.import_queue.len() > 0 || !state.formed;
-    if state.playing || state.showcase != nil || session::scrubbing(state) || state.capture != nil
-        || state.stepping.len() > 0 || telling || layout::animating(state) || state.gizmo.drag != nil
-        || state.debug.demo != nil || textedit::waiting(state) || autosave::waiting(state)
-    {
-        ui::request_repaint();
-    }
-    // Every live value the Inspector shows may have moved this frame.
-    if state.playing {
-        signals::playing_frame(state);
-    }
-    // A run of edits the Inspector's rows followed alone has stopped.
-    if state.inspector_after > 0.0 {
-        if engine::unix_time() >= state.inspector_after {
-            state.inspector_after = 0.0;
-            signals::refill_inspector(state);
-        } else {
-            ui::request_repaint();
-        }
-    }
-    // After the frame's ticks, where a pass used to apply them: a state that
-    // starts a recording starts it on the tick its replay will.
-    if state.platform_read {
-        apply_start_states(state);
-    }
-    showcase::acts(state);
-}
-
-// The `--state` list, applied once. Read here rather than at `init`, because
-// a state that folds a dock has to run after the screen has been measured.
-fn apply_start_states(state: &mut State) {
-    if state.states_applied {
-        return;
-    }
-    state.states_applied = true;
-    for token in state.start_states.split(",") {
-        if token != "" {
-            shell::apply_start_state(state, token);
-        }
-    }
-}
-
-/// Lay the shell out again: the room it has, what the centre shows, and every
-/// box sized once. On the window's resize, on a box's own `resized`, and on
-/// the words that change what the docks and the centre hold; never a pass.
-fn relayout(state: &mut State) {
-    // The room the shell has, which the engine solved: the window less what a
-    // notch covers. The window stands in until the shell has drawn once.
-    let window = ui::window_size();
-    let room = layout::shell_room(state);
-    state.screen_width = if room.width > 0.0 { room.width } else { window.x };
-    state.screen_height = if room.height > 0.0 { room.height } else { window.y };
-    // Either forces it on: the setting asks for it at any width, and a narrow
-    // window asks for it whatever the setting says.
-    state.compact = state.settings.compact || window.x < COMPACT_WIDTH;
-    signals::inspector(state);
-    // A state that folds a dock has to run after the screen has been measured,
-    // which this is; `update` applies them, at the end of the frame's ticks.
-    if room.width > 0.0 {
-        state.platform_read = true;
-    }
-    docks::follow_screen(state);
-    if manager::showing(state) {
-        return;
-    }
-    // Decide what is showing, then size every sheet once.
-    center::modes(state);
-    layout::compute(state);
-    report_view(state);
-    signals::bars(state);
-    widget_layer(state);
-    if state.fontdemo {
-        selftest::font_sheet(state);
-    }
-}
-
-// The game's UI layer, clipped to the viewport during play and in the
-// Interface workspace; placed when the stage, play or the workspace moves.
-fn widget_layer(state: State) {
-    let rect = gizmo::viewport_rect(state);
-    let widgets_on = (state.playing || state.workspace == defs::WORKSPACE_UI) && state.viewport_live;
-    // Inset by the strip the axis and zoom pills own, so a bottom-anchored
-    // HUD label sits above the editor's chrome instead of under it.
-    let band = if widgets_on { center::hud_height(state) + 6.0 } else { 0.0 };
-    ui::set_widget_layer(widgets_on, vec2(rect.x, rect.y), vec2(rect.width, util::max(0.0, rect.height - band)));
-}
-
-/// What the layout is decided from besides the boxes themselves, so a word
-/// that moved none of it, as a frame of play does, lays nothing out.
-fn layout_key(state: State) -> any {
-    [
-        state.workspace, state.doctab, state.split, state.focus, state.settings.compact, state.touchscreen,
-        "{state.docks}", state.rail_shut, state.chrome_off, state.script_open, state.events_open,
-        state.selected, state.shader_rel, ui::scale(), manager::showing(state),
-    ]
-}
-
-fn relayout_if_moved(state: &mut State) {
-    let key = layout_key(state);
-    if key == state.layout_key {
-        return;
-    }
-    state.layout_key = key;
-    relayout(state);
-}
-
-// Six digits, so a frame directory sorts as it was captured.
-fn padded(number: int) -> str {
-    let digits = "{number}";
-    while digits.len() < 6 {
-        digits = "0" + digits;
-    }
-    digits
-}
-
-/// Where the panel `view:<id>` asked for was drawn, in device pixels, so a
-/// design pass can cut it out of the shot. Logged each time it moves: the
-/// last line a run logs is the rect `--shot` saw.
-fn report_view(state: &mut State) {
-    if state.view_shot == "" {
-        return;
-    }
-    let side = docks::side_of(state, state.view_shot);
-    if side == nil {
-        return;
-    }
-    let rect = state.layout[side.unwrap()];
-    let scale = viewport::logical_per_design();
-    let line = "viewrect {state.view_shot} {rect["x"].as_float() * scale} {rect["y"].as_float() * scale} {rect[layout_fields::WIDTH].as_float() * scale} {rect[layout_fields::HEIGHT].as_float() * scale}";
-    if line != state.view_logged {
-        state.view_logged = line;
-        log::info(line);
-    }
-}
-
-// What the document decides beside its outline: whether the scene is 2D,
-// which scripts the sweep compiles, and what the engine warns about it.
-fn follow_document(state: &mut State) {
-    if manager::showing(state) {
-        return;
-    }
-    let is2d = model::is_2d(state);
-    if is2d != state.mode2d {
-        state.mode2d = is2d;
-        shell::apply_camera(state);
-        draw_overlays(state);
-    }
-    lint::follow(state);
-    if state.lint.stale {
-        lint::node_warnings(state);
-    }
-}
-
-// The viewport's tools and the camera, once a frame the pointer did
-// something in. A replay or a showcase feeds the pointer into the snapshot
-// the tools read, so a drag would follow the feed rather than the mouse.
-fn viewport_step(state: &mut State) {
-    if state.stepped == state.frame || manager::showing(state) {
-        return;
-    }
-    state.stepped = state.frame;
-    if session::scrubbing(state) || showcase::feeding(state) {
-        return;
-    }
-    // The camera's own: two fingers on the stage, or the mouse buttons and
-    // wheel the editor drives itself. A gizmo never sees one.
-    if !viewport::camera_gesture(state) && !viewport::mouse_camera(state) {
-        gizmo::update(state);
-    }
-    gizmo::fill_marquee(state);
-    textedit::update(state);
-    if state.tool == "key" && state.workspace == defs::WORKSPACE_ANIMATION
-        && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT)
-    {
-        anim::add_key(state, state.anim.time);
-    }
-    // Drawn now rather than on a word: a word is heard the frame after, and
-    // the lines would trail the node they are dragging.
-    let mouse = viewport::pointer(state);
-    let over = state.viewport_live && viewport::owns_pointer(state, mouse.x, mouse.y);
-    if signals::overlays_moved(state, over) {
-        draw_overlays(state);
-    }
-}
-
-// The viewport's lines, drawn and kept until they are drawn again: the
-// gizmo, the rig, the tools, the guides and a plugin's overlays.
-fn draw_overlays(state: &mut State) {
-    state.overlays_frame = state.frame;
-    if manager::showing(state) {
-        render::clear_retained(VIEWPORT);
-        return;
-    }
-    render::begin_retained(VIEWPORT);
-    if state.mode2d {
-        overlays::grid2d(state);
-    } else {
-        overlays::grid3d(state);
-    }
-    gizmo::draw(state);
-    plugins::draw_overlays(state);
-    rig::draw(state);
-    if !session::scrubbing(state) {
-        polygon::idle(state);
-    }
-    polygon::draw(state);
-    pen::draw(state);
-    tiles::draw(state);
-    if state.workspace == defs::WORKSPACE_SCENE && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_GUIDES) {
-        overlays::guides(state);
-    }
-    if state.mode2d && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_LIGHTS) {
-        overlays::lights2d(state);
-    }
-    if state.workspace == defs::WORKSPACE_ANIMATION && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_PATH) {
-        overlays::motion_path(state);
-    }
-    if !state.mode2d && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_LIGHTS) {
-        overlays::lights3d(state);
-    }
-    if state.workspace == defs::WORKSPACE_PHYSICS && defs::chip_on(state.chip_state, state.workspace, defs::CHIP_COLLIDERS) {
-        if state.mode2d {
-            overlays::colliders2d(state);
-        } else {
-            overlays::colliders(state);
-        }
-    }
-    render::end_retained();
-}
-
 impl Editor {
     // The outliner's context menu, one method a row. The right click that opened
     // it picked the row under the pointer, so each acts on the selection.
-    pub fn tree_add_child() {
-        newnode::open(self.state);
-    }
+    pub fn tree_add_child() { newnode::open(self.state); }
 
     // A card dragged out of the Assets dock, let go wherever the pointer is.
-    pub fn assets_dropped(card: any) {
-        dock::drop_card(self.state, card);
-    }
+    pub fn assets_dropped(card: any) { dock::drop_card(self.state, card); }
 
-    pub fn tree_change_type() {
-        newnode::open_change(self.state);
-    }
+    pub fn tree_change_type() { newnode::open_change(self.state); }
 
-    pub fn tree_move_up() {
-        model::move_sibling(self.state, -1);
-    }
+    pub fn tree_move_up() { sceneedit::move_sibling(self.state, -1); }
 
-    pub fn tree_move_down() {
-        model::move_sibling(self.state, 1);
-    }
+    pub fn tree_move_down() { sceneedit::move_sibling(self.state, 1); }
 
     /// The palette, its first lines the verbs the selected node offers.
-    pub fn tree_actions() {
-        shell::open_palette(self.state, "");
-    }
+    pub fn tree_actions() { shell::open_palette(self.state, ""); }
 
-    pub fn tree_attach_script() {
-        shell::attach_script(self.state);
-    }
+    pub fn tree_attach_script() { shell::attach_script(self.state); }
 
-    pub fn tree_duplicate() {
-        model::duplicate_selected(self.state);
-    }
+    pub fn tree_duplicate() { sceneedit::duplicate_selected(self.state); }
 
-    pub fn tree_toggle_hidden() {
-        arrange::toggle_hidden(self.state);
-    }
+    pub fn tree_toggle_hidden() { arrange::toggle_hidden(self.state); }
 
-    pub fn tree_toggle_locked() {
-        arrange::toggle_locked(self.state);
-    }
+    pub fn tree_toggle_locked() { arrange::toggle_locked(self.state); }
 
-    pub fn tree_rename() {
-        left::rename_open(self.state);
-    }
+    pub fn tree_rename() { left::rename_open(self.state); }
 
     // The eye or the lock at the right of an outliner row.
     pub fn on_outline_changed(_change: any) {
         signals::heard(self.state, signals::OUTLINE);
-        follow_document(self.state);
-        relayout_if_moved(self.state);
+        frame::follow_document(self.state);
+        frame::relayout_if_moved(self.state);
     }
 
     /// An answer to a request the editor sent: the font catalogue's.
@@ -1079,54 +620,38 @@ impl Editor {
     /// The edited scene's writes this frame (`model::follow_changes`).
     pub fn on_changed(entries: any) {
         model::follow_changes(self.state, entries);
-        follow_document(self.state);
+        frame::follow_document(self.state);
     }
 
     pub fn on_inspector_changed(_change: any) {
         signals::heard(self.state, signals::INSPECTOR);
-        relayout_if_moved(self.state);
-        widget_layer(self.state);
+        frame::relayout_if_moved(self.state);
+        frame::widget_layer(self.state);
     }
 
     pub fn on_docks_changed(_change: any) {
         signals::heard(self.state, signals::DOCKS);
-        relayout_if_moved(self.state);
+        frame::relayout_if_moved(self.state);
     }
 
     /// Fill a dock's tab row and show the panel it has up: what the dock's
     /// script asks for when the docks moved. Answers the node of a panel that
     /// fills itself, for the dock to tell once it shows.
-    pub fn dock_fill(side: str) -> str {
-        docks::fill(self.state, side)
-    }
+    pub fn dock_fill(side: str) -> str { docks::fill(self.state, side) }
 
-    pub fn on_problems_changed(_change: any) {
-        signals::heard(self.state, signals::PROBLEMS_CHANGED);
-    }
+    pub fn on_problems_changed(_change: any) { signals::heard(self.state, signals::PROBLEMS_CHANGED); }
 
-    pub fn on_docs_changed(_change: any) {
-        signals::heard(self.state, "docs_changed");
-    }
+    pub fn on_docs_changed(_change: any) { signals::heard(self.state, "docs_changed"); }
 
-    pub fn on_assets_changed(_change: any) {
-        signals::heard(self.state, signals::ASSETS_CHANGED);
-    }
+    pub fn on_assets_changed(_change: any) { signals::heard(self.state, signals::ASSETS_CHANGED); }
 
-    pub fn on_library_changed(_change: any) {
-        signals::heard(self.state, "library_changed");
-    }
+    pub fn on_library_changed(_change: any) { signals::heard(self.state, "library_changed"); }
 
-    pub fn on_tiles_changed(_change: any) {
-        signals::heard(self.state, "tiles_changed");
-    }
+    pub fn on_tiles_changed(_change: any) { signals::heard(self.state, "tiles_changed"); }
 
-    pub fn on_machine_changed(_change: any) {
-        signals::heard(self.state, "machine_changed");
-    }
+    pub fn on_machine_changed(_change: any) { signals::heard(self.state, "machine_changed"); }
 
-    pub fn on_recordings_changed(_change: any) {
-        signals::heard(self.state, signals::RECORDINGS);
-    }
+    pub fn on_recordings_changed(_change: any) { signals::heard(self.state, signals::RECORDINGS); }
 
     pub fn on_debugger_changed(_change: any) {
         signals::heard(self.state, signals::DEBUGGER_CHANGED);
@@ -1135,95 +660,61 @@ impl Editor {
         lint::node_warnings(self.state);
     }
 
-    pub fn on_play_frame(_change: any) {
-        signals::heard(self.state, signals::PLAY);
-    }
+    pub fn on_play_frame(_change: any) { signals::heard(self.state, signals::PLAY); }
 
     // What the pointer did, which is when the viewport's tools and the camera
     // look at it: the wheel, two fingers, a button, a move.
-    pub fn on_pointer_moved(_spot: any) {
-        viewport_step(self.state);
-    }
+    pub fn on_pointer_moved(_spot: any) { frame::viewport_step(self.state); }
 
-    pub fn on_pointer_pressed(_press: any) {
-        viewport_step(self.state);
-    }
+    pub fn on_pointer_pressed(_press: any) { frame::viewport_step(self.state); }
 
-    pub fn on_pointer_released(_press: any) {
-        viewport_step(self.state);
-    }
+    pub fn on_pointer_released(_press: any) { frame::viewport_step(self.state); }
 
-    pub fn on_pointer_scrolled(_turn: any) {
-        viewport_step(self.state);
-    }
+    pub fn on_pointer_scrolled(_turn: any) { frame::viewport_step(self.state); }
 
-    pub fn on_pointer_gestured(_gesture: any) {
-        viewport_step(self.state);
-    }
+    pub fn on_pointer_gestured(_gesture: any) { frame::viewport_step(self.state); }
 
     /// Draw the viewport's lines again, on a word that what they show moved. The
     /// words of one frame are heard together and draw once.
     pub fn overlays_fill() {
         if self.state.overlays_frame != self.state.frame {
-            draw_overlays(self.state);
+            frame::draw_overlays(self.state);
         }
     }
 
     pub fn on_chrome_changed(_change: any) {
         signals::heard(self.state, signals::CHROME);
-        relayout_if_moved(self.state);
+        frame::relayout_if_moved(self.state);
     }
 
-    pub fn on_status_changed(_change: any) {
-        signals::heard(self.state, signals::STATUS);
-    }
+    pub fn on_status_changed(_change: any) { signals::heard(self.state, signals::STATUS); }
 
-    pub fn on_sheet_changed(_change: any) {
-        signals::heard(self.state, "sheet_changed");
-    }
+    pub fn on_sheet_changed(_change: any) { signals::heard(self.state, "sheet_changed"); }
 
-    pub fn on_picker_changed(_change: any) {
-        signals::heard(self.state, "picker_changed");
-    }
+    pub fn on_picker_changed(_change: any) { signals::heard(self.state, "picker_changed"); }
 
-    pub fn on_manager_changed(_change: any) {
-        signals::heard(self.state, "manager_changed");
-    }
+    pub fn on_manager_changed(_change: any) { signals::heard(self.state, "manager_changed"); }
 
-    pub fn on_plugins_changed(_change: any) {
-        signals::heard(self.state, signals::PLUGINS_CHANGED);
-    }
+    pub fn on_plugins_changed(_change: any) { signals::heard(self.state, signals::PLUGINS_CHANGED); }
 
     /// The scene's nodes in tree order, for a plugin reading the scene: a
     /// change made through the editor's verbs is one its undo takes back.
-    pub fn nodes() -> [Node] {
-        self.state.nodes
-    }
+    pub fn nodes() -> [Node] { self.state.nodes }
 
     /// The folder of the game the editor has open, which a plugin's paths
     /// are relative to.
-    pub fn game_root() -> str {
-        self.state.game_root
-    }
+    pub fn game_root() -> str { self.state.game_root }
 
     /// The open scene's file; "" when none is open.
-    pub fn open_scene_path() -> str {
-        self.state.scene_path
-    }
+    pub fn open_scene_path() -> str { self.state.scene_path }
 
     /// The plugins the editor loaded, by file name.
-    pub fn plugins() -> [str] {
-        self.state.registry.loaded
-    }
+    pub fn plugins() -> [str] { self.state.registry.loaded }
 
     /// Make row `row` of `document()` the selection.
-    pub fn select(row: int) {
-        shell::choose(self.state, row);
-    }
+    pub fn select(row: int) { shell::choose(self.state, row); }
 
-    pub fn open_scene(rel: str) {
-        model::open_scene(self.state, rel);
-    }
+    pub fn open_scene(rel: str) { model::open_scene(self.state, rel); }
 
     /// A plugin property editor's control writing its value: `data.at` is
     /// the `at` its `controls` method was handed.
@@ -1242,327 +733,186 @@ impl Editor {
 
     /// The kit, for a plugin filling its dock: see kit.bs. `part` names
     /// where on the dock `host`: "head", "foot", "side" or the body.
-    pub fn kit_bar(host: str, part: str, controls: [ui::Control]) {
-        kit::bar(host, part, controls);
-    }
+    pub fn kit_bar(host: str, part: str, controls: [ui::Control]) { kit::bar(host, part, controls); }
 
-    pub fn kit_rows(host: str, part: str, specs: [any]) {
-        kit::rows(host, part, specs);
-    }
+    pub fn kit_rows(host: str, part: str, specs: [any]) { kit::rows(host, part, specs); }
 
-    pub fn kit_pages(host: str, id: str, groups: any) -> str {
-        kit::pages(self.state, host, id, groups)
-    }
+    pub fn kit_pages(host: str, id: str, groups: any) -> str { kit::pages(self.state, host, id, groups) }
 
-    pub fn kit_heading(title: str) -> form::Row {
-        kit::heading(title)
-    }
+    pub fn kit_heading(title: str) -> form::Row { kit::heading(title) }
 
-    pub fn kit_empty(text: str) -> form::Row {
-        kit::empty(text)
-    }
+    pub fn kit_empty(text: str) -> form::Row { kit::empty(text) }
 
     pub fn kit_field(label: str, value: any, options: any) -> form::Row {
         kit::field(self.state, label, value, options)
     }
 
-    pub fn kit_tree(id: str, value: any, options: any) -> any {
-        kit::tree(self.state, id, value, options)
-    }
+    pub fn kit_tree(id: str, value: any, options: any) -> any { kit::tree(self.state, id, value, options) }
 
-    pub fn kit_files(id: str, options: any) -> [form::Row] {
-        kit::files(self.state, id, options)
-    }
+    pub fn kit_files(id: str, options: any) -> [form::Row] { kit::files(self.state, id, options) }
 
-    pub fn kit_save_prefs() {
-        kit::save_preferences(self.state);
-    }
+    pub fn kit_save_prefs() { kit::save_preferences(self.state); }
 
-    pub fn kit_save_project() {
-        kit::save_project(self.state);
-    }
+    pub fn kit_save_project() { kit::save_project(self.state); }
 
-    pub fn kit_short_path(path: str) -> str {
-        kit::short_path(path)
-    }
+    pub fn kit_short_path(path: str) -> str { kit::short_path(path) }
 
-    pub fn kit_changed() {
-        kit::changed(self.state);
-    }
+    pub fn kit_changed() { kit::changed(self.state); }
 
-    pub fn kit_open_dialog(id: str) {
-        kit::open_dialog(self.state, id);
-    }
+    pub fn kit_open_dialog(id: str) { kit::open_dialog(self.state, id); }
 
     /// Have the plugin dock `id` fill its subtree, on a word its script heard.
-    pub fn plugin_fill(id: str) {
-        docks::fill_plugin(self.state, id);
-    }
+    pub fn plugin_fill(id: str) { docks::fill_plugin(self.state, id); }
 
     /// The Import tab's form, and what its head says.
-    pub fn import_fill() -> importer::Fill {
-        importer::fill(self.state)
-    }
+    pub fn import_fill() -> importer::Fill { importer::fill(self.state) }
 
-    /// Fill the plugins' open dialogs.
-    pub fn dialogs_fill() {
-        plugins::fill_dialogs(self.state);
-    }
+    pub fn dialogs_fill() { plugins::fill_dialogs(self.state); }
 
-    pub fn on_inputview_changed(_change: any) {
-        signals::heard(self.state, "inputview_changed");
-    }
+    pub fn on_inputview_changed(_change: any) { signals::heard(self.state, "inputview_changed"); }
 
     /// The input overlay: where it goes, a key's chip, and the chips to show.
-    pub fn inputview_view() -> inputview::View {
-        inputview::view(self.state)
-    }
+    pub fn inputview_view() -> inputview::View { inputview::view(self.state) }
 
-    pub fn inputview_key(key: str) -> str {
-        inputview::chip_of(key)
-    }
+    pub fn inputview_key(key: str) -> str { inputview::chip_of(key) }
 
-    pub fn inputview_chips(names: [any]) {
-        inputview::fill_chips(self.state, names);
-    }
+    pub fn inputview_chips(names: [any]) { inputview::fill_chips(self.state, names); }
 
     /// The text edit field: where it is, what is typed, Enter, and leaving it.
-    pub fn textedit_view() -> textedit::View {
-        textedit::view(self.state)
-    }
+    pub fn textedit_view() -> textedit::View { textedit::view(self.state) }
 
-    pub fn textedit_typed(text: str) {
-        textedit::typed(self.state, text);
-    }
+    pub fn textedit_typed(text: str) { textedit::typed(self.state, text); }
 
-    pub fn textedit_submit(text: str) {
-        textedit::submit(self.state, text);
-    }
+    pub fn textedit_submit(text: str) { textedit::submit(self.state, text); }
 
-    pub fn textedit_close() {
-        textedit::close(self.state);
-    }
+    pub fn textedit_close() { textedit::close(self.state); }
 
-    pub fn on_textedit_changed(_change: any) {
-        signals::heard(self.state, "textedit_changed");
-    }
+    pub fn on_textedit_changed(_change: any) { signals::heard(self.state, "textedit_changed"); }
 
-    pub fn on_code_changed(_change: any) {
-        signals::heard(self.state, signals::CODE_CHANGED);
-    }
+    pub fn on_code_changed(_change: any) { signals::heard(self.state, signals::CODE_CHANGED); }
 
-    pub fn on_complete_changed(_change: any) {
-        signals::heard(self.state, "complete_changed");
-    }
+    pub fn on_complete_changed(_change: any) { signals::heard(self.state, "complete_changed"); }
 
-    pub fn on_refactor_changed(_change: any) {
-        signals::heard(self.state, "refactor_changed");
-    }
+    pub fn on_refactor_changed(_change: any) { signals::heard(self.state, "refactor_changed"); }
 
     /// The code sheet: what it shows, and what was typed, where the caret went
     /// and which gutter line was clicked.
-    pub fn code_view() -> center::CodeView {
-        center::code_view(self.state)
-    }
+    pub fn code_view() -> center::CodeView { center::code_view(self.state) }
 
-    pub fn code_typed(text: str) {
-        center::code_typed(self.state, text);
-    }
+    pub fn code_typed(text: str) { center::code_typed(self.state, text); }
 
-    pub fn code_caret(caret: complete::Caret) {
-        center::code_caret(self.state, caret);
-    }
+    pub fn code_caret(caret: complete::Caret) { center::code_caret(self.state, caret); }
 
-    pub fn code_gutter(line: int) {
-        center::code_gutter(self.state, line);
-    }
+    pub fn code_gutter(line: int) { center::code_gutter(self.state, line); }
 
     /// Fill the event bindings tab.
-    pub fn events_fill() {
-        events::fill(self.state);
-    }
+    pub fn events_fill() { events::fill(self.state); }
 
     /// An open recording's lanes: fill them, the transport and the scrubber.
-    pub fn lanes_fill() {
-        dock::lanes_fill(self.state);
-    }
+    pub fn lanes_fill() { lanes::fill(self.state); }
 
-    pub fn lanes_verb(verb: str) {
-        dock::lanes_verb(self.state, verb);
-    }
+    pub fn lanes_verb(verb: str) { lanes::verb(self.state, verb); }
 
-    pub fn lanes_seek(time: float) {
-        dock::lanes_seek(self.state, time);
-    }
+    pub fn lanes_seek(time: float) { lanes::seek(self.state, time); }
 
     /// The Timeline tab: fill it, seek the scrubber, and its verbs.
-    pub fn timeline_fill() {
-        dock::timeline_fill(self.state);
-    }
+    pub fn timeline_fill() { timeline::fill(self.state); }
 
-    pub fn timeline_seek(time: float) {
-        anim::seek(self.state, time);
-    }
+    pub fn timeline_seek(time: float) { anim::seek(self.state, time); }
 
-    pub fn timeline_verb(verb: str) {
-        dock::timeline_verb(self.state, verb);
-    }
+    pub fn timeline_verb(verb: str) { timeline::verb(self.state, verb); }
 
     /// A clip setting the Timeline's head changed: its length or its loop.
-    pub fn timeline_clip(setting: str, value: any) {
-        dock::timeline_clip(self.state, setting, value);
-    }
+    pub fn timeline_clip(setting: str, value: any) { timeline::clip(self.state, setting, value); }
 
-    pub fn on_timeline_changed(_change: any) {
-        signals::heard(self.state, signals::TIMELINE);
-    }
+    pub fn on_timeline_changed(_change: any) { signals::heard(self.state, signals::TIMELINE); }
 
     /// Fill the Weights tab from the polygon being edited.
-    pub fn weights_fill() {
-        weights::fill(self.state);
-    }
+    pub fn weights_fill() { weights::fill(self.state); }
 
-    pub fn weights_verb(verb: str) {
-        weights::verb(self.state, verb);
-    }
+    pub fn weights_verb(verb: str) { weights::verb(self.state, verb); }
 
-    pub fn on_weights_changed(_change: any) {
-        signals::heard(self.state, "weights_changed");
-    }
+    pub fn on_weights_changed(_change: any) { signals::heard(self.state, "weights_changed"); }
 
     /// Fill the Bone map tab from the rig selected and the map so far.
-    pub fn bonemap_fill() {
-        bonemap::fill(self.state);
-    }
+    pub fn bonemap_fill() { bonemap::fill(self.state); }
 
-    pub fn bonemap_verb(verb: str) {
-        bonemap::verb(self.state, verb);
-    }
+    pub fn bonemap_verb(verb: str) { bonemap::verb(self.state, verb); }
 
-    pub fn on_bonemap_changed(_change: any) {
-        signals::heard(self.state, "bonemap_changed");
-    }
+    pub fn on_bonemap_changed(_change: any) { signals::heard(self.state, "bonemap_changed"); }
 
     /// Fill the hooks list beside the code.
-    pub fn hooks_fill() {
-        center::fill_hooks(self.state);
-    }
+    pub fn hooks_fill() { center::fill_hooks(self.state); }
 
     /// The completion list: what it shows, its keys, and a row clicked.
-    pub fn complete_view() -> complete::View {
-        complete::view(self.state)
-    }
+    pub fn complete_view() -> complete::View { complete::view(self.state) }
 
-    pub fn complete_key(name: str) {
-        complete::key(self.state, name);
-    }
+    pub fn complete_key(name: str) { complete::key(self.state, name); }
 
-    pub fn complete_pick(row: str) {
-        complete::pick(self.state, row);
-    }
+    pub fn complete_pick(row: str) { complete::pick(self.state, row); }
 
     /// The refactor sheet: what it shows, a field typed, apply and cancel.
-    pub fn refactor_view() -> refactor::View {
-        refactor::view(self.state)
-    }
+    pub fn refactor_view() -> refactor::View { refactor::view(self.state) }
 
-    pub fn refactor_set(field: str, text: str) {
-        refactor::set(self.state, field, text);
-    }
+    pub fn refactor_set(field: str, text: str) { refactor::set(self.state, field, text); }
 
-    pub fn refactor_apply() {
-        refactor::apply(self.state);
-    }
+    pub fn refactor_apply() { refactor::apply(self.state); }
 
-    pub fn refactor_close() {
-        refactor::close(self.state);
-    }
+    pub fn refactor_close() { refactor::close(self.state); }
 
     /// Fill the start screen, its filter as it is typed, and its verbs.
-    pub fn manager_fill() {
-        manager::fill(self.state);
-    }
+    pub fn manager_fill() { manager::fill(self.state); }
 
-    pub fn manager_filter(text: str) {
-        manager::set_filter(self.state, text);
-    }
+    pub fn manager_filter(text: str) { manager::set_filter(self.state, text); }
 
-    pub fn manager_verb(name: str) {
-        manager::verb(self.state, name);
-    }
+    pub fn manager_verb(name: str) { manager::verb(self.state, name); }
 
     /// Fill the sheet with whichever screen is up, and hear it shut.
-    pub fn sheet_fill() {
-        window::fill(self.state);
-    }
+    pub fn sheet_fill() { window::fill(self.state); }
 
-    pub fn sheet_closed() {
-        window::closed(self.state);
-    }
+    pub fn sheet_closed() { window::closed(self.state); }
 
     /// Fill the picker with whichever of the palette, the node picker and rename
     /// is up, and hear it shut.
-    pub fn picker_fill() {
-        window::picker_fill(self.state);
-    }
+    pub fn picker_fill() { window::picker_fill(self.state); }
 
-    pub fn picker_closed() {
-        window::picker_closed(self.state);
-    }
+    pub fn picker_closed() { window::picker_closed(self.state); }
 
     pub fn on_rail_changed(_change: any) {
         signals::heard(self.state, signals::RAIL);
-        relayout_if_moved(self.state);
+        frame::relayout_if_moved(self.state);
     }
 
     /// Fill the tool rail.
-    pub fn rail_fill() {
-        center::fill_rail(self.state);
-    }
+    pub fn rail_fill() { center::fill_rail(self.state); }
 
     pub fn on_stage_changed(_change: any) {
         signals::heard(self.state, signals::STAGE);
-        relayout_if_moved(self.state);
+        frame::relayout_if_moved(self.state);
     }
 
     /// What the stage chrome, the chips and the HUD show, and their verbs.
-    pub fn stage_view() -> center::StageView {
-        center::stage_view(self.state)
-    }
+    pub fn stage_view() -> center::StageView { center::stage_view(self.state) }
 
-    pub fn chips_fill(near: bool) -> bool {
-        center::fill_chips(self.state, near)
-    }
+    pub fn chips_fill(near: bool) -> bool { center::fill_chips(self.state, near) }
 
-    pub fn hud_view() -> center::HudView {
-        center::hud_view(self.state)
-    }
+    pub fn hud_view() -> center::HudView { center::hud_view(self.state) }
 
-    pub fn stage_verb(verb: str) {
-        center::stage_verb(self.state, verb);
-    }
+    pub fn stage_verb(verb: str) { center::stage_verb(self.state, verb); }
 
     /// Fill the top bar: the brand, its menu and the strip.
-    pub fn chrome_fill() {
-        chrome::fill(self.state);
-    }
+    pub fn chrome_fill() { chrome::fill(self.state); }
 
     /// Fill the import list and say what its bar and clock read.
-    pub fn imports_fill() -> chrome::FillImports {
-        chrome::fill_imports(self.state)
-    }
+    pub fn imports_fill() -> chrome::FillImports { chrome::fill_imports(self.state) }
 
     /// Fill the status strip at the bottom dock's foot.
-    pub fn status_fill() {
-        chrome::fill_status(self.state);
-    }
+    pub fn status_fill() { chrome::fill_status(self.state); }
 
     /// A project file was reloaded from disk: every read of one is stale, and
     /// the Assets tab says what is there now.
     // Files changed under the project: a script open in the code sheet follows.
-    pub fn on_files_changed(paths: any) {
-        disk::heard(self.state, paths);
-    }
+    pub fn on_files_changed(paths: any) { disk::heard(self.state, paths); }
 
     pub fn on_assets_reloaded(_generation: any) {
         model::forget(self.state);
@@ -1573,15 +923,11 @@ impl Editor {
 
     /// Text pasted where no field took it: ⌘V anywhere in the shell pastes a
     /// copied node.
-    pub fn on_pasted(text: str) {
-        model::paste_nodes(self.state, text);
-    }
+    pub fn on_pasted(text: str) { sceneedit::paste_nodes(self.state, text); }
 
     /// An image pasted where no field took it is a sprite at the pointer, as
     /// a dropped one is.
-    pub fn on_image_pasted(_size: any) {
-        dropin::paste_image(self.state);
-    }
+    pub fn on_image_pasted(_size: any) { dropin::paste_image(self.state); }
 
     /// A shell key's command, by the name of its node in scenes/panels/keys.toml.
     pub fn command(name: str) {
@@ -1590,177 +936,103 @@ impl Editor {
     }
 
     /// What the keys need to say which of them are live.
-    pub fn keys_view() -> commands::KeysView {
-        commands::keys_view(self.state)
-    }
+    pub fn keys_view() -> commands::KeysView { commands::keys_view(self.state) }
 
     /// A script stopped, or stopped somewhere else: the engine's word, where
     /// the editor used to ask it every frame.
-    pub fn on_debugger_stopped(stop: any) {
-        shell::stopped(self.state, stop);
-    }
+    pub fn on_debugger_stopped(stop: any) { shell::stopped(self.state, stop); }
 
     /// The stopped script went on.
-    pub fn on_debugger_resumed(_nothing: any) {
-        shell::stopped(self.state);
-    }
+    pub fn on_debugger_resumed(_nothing: any) { shell::stopped(self.state); }
 
     /// The Assets panel's cards and strip for a search, a card picked, and its
     /// verbs: up, import, folder, rename, delete and the new name submitted.
-    pub fn assets_view(query: str) -> dock::AssetsView {
-        dock::assets_view(self.state, query)
-    }
+    pub fn assets_view(query: str) -> dock::AssetsView { dock::assets_view(self.state, query) }
 
-    pub fn assets_pick(row: str) {
-        dock::assets_pick(self.state, row);
-    }
+    pub fn assets_pick(row: str) { dock::assets_pick(self.state, row); }
 
-    pub fn assets_verb(verb: str, value: str) {
-        dock::assets_verb(self.state, verb, value);
-    }
+    pub fn assets_verb(verb: str, value: str) { dock::assets_verb(self.state, verb, value); }
 
     /// The Library panel's cards or templates, its kind, and what a pick places.
-    pub fn library_view() -> library::View {
-        library::view(self.state)
-    }
+    pub fn library_view() -> library::View { library::view(self.state) }
 
-    pub fn library_kind(kind: str) {
-        library::choose(self.state, kind);
-    }
+    pub fn library_kind(kind: str) { library::choose(self.state, kind); }
 
-    pub fn library_pick(row: str) {
-        library::pick(self.state, row);
-    }
+    pub fn library_pick(row: str) { library::pick(self.state, row); }
 
     /// Fill the Tiles panel's chips and answer its atlas, and a tile picked.
-    pub fn tiles_fill() -> tiles::Palette {
-        tiles::palette(self.state)
-    }
+    pub fn tiles_fill() -> tiles::Palette { tiles::palette(self.state) }
 
-    pub fn tiles_pick(row: str) {
-        tiles::pick(self.state, row);
-    }
+    pub fn tiles_pick(row: str) { tiles::pick(self.state, row); }
 
     /// Fill the State machine panel's header and rows.
-    pub fn machine_fill() {
-        statemachine::body(self.state);
-    }
+    pub fn machine_fill() { statemachine::body(self.state); }
 
     /// Fill the Recordings panel's rows, and its verify switch.
-    pub fn recordings_fill() -> dock::RecordingsFill {
-        dock::recordings_fill(self.state)
-    }
+    pub fn recordings_fill() -> dock::RecordingsFill { dock::recordings_fill(self.state) }
 
-    pub fn recordings_verify() {
-        dock::recordings_verify(self.state);
-    }
+    pub fn recordings_verify() { dock::recordings_verify(self.state); }
 
     /// The Debugger panel's stop, its steps, pause, break on error and a frame
     /// picked in the stack.
-    pub fn debugger_view() -> dock::DebuggerView {
-        dock::debugger_view(self.state)
-    }
+    pub fn debugger_view() -> dock::DebuggerView { dock::debugger_view(self.state) }
 
-    pub fn debugger_step(step: str) {
-        dock::debugger_step(self.state, step);
-    }
+    pub fn debugger_step(step: str) { dock::debugger_step(self.state, step); }
 
-    pub fn debugger_pause() {
-        debugger::request_break();
-    }
+    pub fn debugger_pause() { debugger::request_break(); }
 
-    pub fn debugger_break_on_error() {
-        debugger::set_break_on_error(!debugger::break_on_error());
-    }
+    pub fn debugger_break_on_error() { debugger::set_break_on_error(!debugger::break_on_error()); }
 
-    pub fn debugger_frame(row: str) {
-        dock::debugger_frame(self.state, row);
-    }
+    pub fn debugger_frame(row: str) { dock::debugger_frame(self.state, row); }
 
     /// The Output panel's lines for a level and a search, and its "clear".
-    pub fn output_view(level: str, query: str) -> dock::OutputView {
-        dock::output_view(self.state, level, query)
-    }
+    pub fn output_view(level: str, query: str) -> dock::OutputView { dock::output_view(self.state, level, query) }
 
-    pub fn output_clear() {
-        dock::output_clear(self.state);
-    }
+    pub fn output_clear() { dock::output_clear(self.state); }
 
     /// The Problems panel's lines, and what a pick on one opens.
-    pub fn problems_view() -> dock::ProblemsView {
-        dock::problems_view(self.state)
-    }
+    pub fn problems_view() -> dock::ProblemsView { dock::problems_view(self.state) }
 
-    pub fn problems_pick(row: str) {
-        dock::problems_pick(self.state, row);
-    }
+    pub fn problems_pick(row: str) { dock::problems_pick(self.state, row); }
 
     /// A live meter's table and headline, and the Profiler's "scripts".
-    pub fn meter_view(what: str) -> dock::MeterView {
-        dock::meter_view(self.state, what)
-    }
+    pub fn meter_view(what: str) -> dock::MeterView { dock::meter_view(self.state, what) }
 
-    pub fn profiler_scripts() {
-        dock::profiler_scripts(self.state);
-    }
+    pub fn profiler_scripts() { dock::profiler_scripts(self.state); }
 
     /// The Docs panel's page for a search, and its module picker.
-    pub fn docs_view(query: str) -> docs::View {
-        docs::view(self.state, query)
-    }
+    pub fn docs_view(query: str) -> docs::View { docs::view(self.state, query) }
 
-    pub fn docs_pick(module: str) {
-        docs::pick(self.state, module);
-    }
+    pub fn docs_pick(module: str) { docs::pick(self.state, module); }
 
     /// The Outline tab's rows, and what a pick on one does.
-    pub fn secondary_view() -> [ui::Item] {
-        left::secondary_view(self.state)
-    }
+    pub fn secondary_view() -> [ui::Item] { left::secondary_view(self.state) }
 
-    pub fn secondary_pick(row: str) {
-        left::secondary_pick(self.state, row);
-    }
+    pub fn secondary_pick(row: str) { left::secondary_pick(self.state, row); }
 
     /// The Scene panel's "+".
-    pub fn scene_add() {
-        newnode::open(self.state);
-    }
+    pub fn scene_add() { newnode::open(self.state); }
 
     /// What the Inspector panel's head says.
-    pub fn inspector_view() -> inspector::View {
-        inspector::view(self.state)
-    }
+    pub fn inspector_view() -> inspector::View { inspector::view(self.state) }
 
     /// Fill the Inspector panel's form, filtered by `query`.
-    pub fn inspector_fill(query: str) {
-        inspector::fill(self.state, query);
-    }
+    pub fn inspector_fill(query: str) { inspector::fill(self.state, query); }
 
     /// A frame of play read the Inspector's rows on screen again: true when
     /// that is all the word it heard meant.
-    pub fn inspector_reread() -> bool {
-        inspector::reread(self.state)
-    }
+    pub fn inspector_reread() -> bool { inspector::reread(self.state) }
 
-    pub fn inspector_scrolled(offset: float) {
-        inspector::scrolled(self.state, offset);
-    }
+    pub fn inspector_scrolled(offset: float) { inspector::scrolled(self.state, offset); }
 
     /// The Inspector's view changed size.
-    pub fn inspector_resized() {
-        inspector::resized(self.state);
-    }
+    pub fn inspector_resized() { inspector::resized(self.state); }
 
     /// An edit on one of the Inspector's rows.
-    pub fn inspector_edit(data: any, value: any, _control: Node) {
-        inspector::edited(self.state, data, value);
-    }
+    pub fn inspector_edit(data: any, value: any, _control: Node) { inspector::edited(self.state, data, value); }
 
     /// The Inspector's "Add component".
-    pub fn inspector_add() {
-        inspector::add(self.state);
-    }
+    pub fn inspector_add() { inspector::add(self.state); }
 
     /// What the Scene panel shows for a search and a facet tag.
     pub fn outline_view(query: str, facet: str, drawn: str) -> left::OutlineView {
@@ -1768,17 +1040,13 @@ impl Editor {
     }
 
     /// The Scene panel's tree picked the row written `row`.
-    pub fn outline_pick(row: str) {
-        left::outline_pick(self.state, row);
-    }
+    pub fn outline_pick(row: str) { left::outline_pick(self.state, row); }
 
     pub fn tree_mark(event: any) {
         left::mark_clicked(self.state, event[fields::ROW].as_str(), event[fields::MARK].as_str());
     }
 
-    pub fn tree_delete() {
-        model::delete_selected(self.state);
-    }
+    pub fn tree_delete() { sceneedit::delete_selected(self.state); }
 }
 
 // A pooled control's handler has run: the panel it stands in, the nearest

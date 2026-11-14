@@ -448,7 +448,7 @@ impl Scenario {
         let pieces = n.softbody3d.volume_pieces();
         if !(pieces.len() == 1 && pieces[0].rest_volume > 0.0) { log::error("volume pieces"); }
         if !(n.softbody3d.effective_particle_radius() > 0.0 && n.softbody3d.total_mass() > 0.0) { log::error("radius and mass"); }
-        let post = scene::get_node("World/Post");
+        let post = scene::root().get_node("World/Post");
         n.softbody3d.attach_particle(2, post);
         let ties = n.softbody3d.attachments();
         if !(ties.len() == 1 && ties[0].particle == 2 && ties[0].body.unwrap() == post) { log::error("attachments"); }
@@ -493,7 +493,7 @@ impl Scenario {
         // Two particles go in where the blade crosses the rope, one a side.
         let after = n.softbody3d.particle_count();
         if after != before + 2 { log::error("the cut went from {before} particles to {after}"); }
-        let last = n.softbody3d.particle_position(after - 1);
+        let last = n.softbody3d.particle(after - 1).position;
         if !(last.y < 0.01 && last.y > -1.01) { log::error("the last particle is off the rope: {last.y}"); }
         log::error("checked: cut");
     }
@@ -511,7 +511,7 @@ fn a_2d_polyline_takes_its_meshs_triangle_edges_when_asked() {
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        let flat = scene::get_node("World/Flat");
+        let flat = scene::root().get_node("World/Flat");
         flat.set_component("softbody2d", { "kind": physics2d::SOFT_POLYLINE, "mesh": "#square" });
         let chain = flat.softbody2d.edges().len();
         flat.set_component("soft_polyline2d", { "edges": physics2d::EDGES_MESH }); flat.set_component("softbody2d", { "kind": physics2d::SOFT_POLYLINE, "mesh": "#square" });

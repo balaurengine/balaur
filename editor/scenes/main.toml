@@ -793,10 +793,11 @@ name = "Tools"
 parent = "manager_body"
 visible = false
 [nodes.widget]
-kind = "flow"
+kind = "row"
 [nodes.widget_layout]
 gap = [6, 8]
 align_items = "center"
+wrap_children = "wrap"
 
 [[nodes]]
 id = "manager_filter"

@@ -188,13 +188,6 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
     };
 
     apply_movement(eng, entity, movement.translation);
-    {
-        let state = eng.resource::<PhysicsState3d>();
-        state
-            .borrow_mut()
-            .grounded
-            .insert(entity, movement.grounded);
-    }
     Ok(map([
         (k::APPLIED, Value::Vec3(scalar::a3(movement.translation))),
         (k::ON_FLOOR, Value::Bool(movement.grounded)),
@@ -248,24 +241,12 @@ pub(crate) fn install_character_api(m: &mut Module<Engine>) {
     ]);
     m.describe(&[
         (words::functions::MOVE_CHARACTER_BY, &[c::CHARACTER_3D], "(node: node, offset: Vec3) -> CharacterMove", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote."),
-        (words::functions::IS_ON_FLOOR, &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
         words::functions::MOVE_CHARACTER_BY,
         |eng: &Engine, (node, offset): (NodeId, Value)| {
             let offset = scalar::vec3_arg("an offset", &offset)?;
             move_character(eng, entity_of(node)?, offset)
-        },
-    );
-    // A reader, not a move: sweeping a zero translation would still snap to
-    // ground, write the transform and push bodies, so asking would simulate.
-    m.function(
-        words::functions::IS_ON_FLOOR,
-        |eng: &Engine, node: NodeId| {
-            let entity = entity_of(node)?;
-            let state = eng.resource::<PhysicsState3d>();
-            let grounded = state.borrow().grounded.get(&entity).copied();
-            Ok(grounded.unwrap_or(false))
         },
     );
 }

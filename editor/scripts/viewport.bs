@@ -8,7 +8,6 @@ use gizmo;
 use history;
 use model;
 use shell;
-use util;
 use words::tools;
 
 const MACOS: str = "macos";
@@ -25,13 +24,13 @@ pub struct RailDrag {
 /// engine's own figure: the UI zoom, the display's scale and the reader's text
 /// size. A distance converts the same way as a place.
 pub fn design_pixels(window_x: float, window_y: float) -> Vec2 {
-    let per_design = util::max(ui::pixels_per_design(), 0.01);
+    let per_design = math::max(ui::pixels_per_design(), 0.01);
     vec2(window_x / per_design, window_y / per_design)
 }
 
 /// Logical pixels per design pixel: the engine's figure without the display.
 pub fn logical_per_design() -> float {
-    util::max(ui::pixels_per_design(), 0.01) / util::max(render::camera_pose().scale_factor, 0.01)
+    math::max(ui::pixels_per_design(), 0.01) / math::max(render::camera_pose().scale_factor, 0.01)
 }
 
 /// Where the pointer is, in design px.
@@ -113,7 +112,7 @@ pub fn mouse_camera(state: &mut editor::State) -> bool {
     // `mouse_position` counts physical pixels, `dpi` of them to a logical one.
     let pose = render::camera_pose();
     let dpi = pose.scale_factor;
-    let dpi = util::max(dpi, 0.01);
+    let dpi = math::max(dpi, 0.01);
     let at = pointer(state);
     let over = owns_pointer(state, at.x, at.y);
     let button = camera_drag(state, over);
@@ -137,8 +136,8 @@ pub fn mouse_camera(state: &mut editor::State) -> bool {
         let centre_x = camera.center.x;
         let centre_y = camera.center.y;
         let zoom = camera.zoom;
-        let held = util::max(zoom, 0.01);
-        let next = util::clamp(held * math::pow(dolly_step(), wheel), 0.02, 4000.0);
+        let held = math::max(zoom, 0.01);
+        let next = math::clamp(held * math::pow(dolly_step(), wheel), 0.02, 4000.0);
         if panning {
             model::set_view_2d((centre_x - delta_x / held), (centre_y + delta_y / held), next);
         } else {
@@ -195,12 +194,12 @@ fn mouse_camera_3d(state: editor::State, wheel: any, orbiting: bool, panning: bo
     if distance < 0.0001 {
         return;
     }
-    let want = util::clamp(distance / math::pow(dolly_step(), wheel.as_float()), 0.05, 10000.0);
+    let want = math::clamp(distance / math::pow(dolly_step(), wheel.as_float()), 0.05, 10000.0);
     if orbiting {
         // The angles the backend's own camera keeps, so a drag here and a
         // drag there move the eye the same way.
         let yaw = math::atan2(offset_z, offset_x) + delta_x * ORBIT_PER_PIXEL;
-        let pitch = util::clamp(math::acos(util::clamp(offset_y / distance, -1.0, 1.0)) + delta_y * ORBIT_PER_PIXEL, 0.02, 3.12);
+        let pitch = math::clamp(math::acos(math::clamp(offset_y / distance, -1.0, 1.0)) + delta_y * ORBIT_PER_PIXEL, 0.02, 3.12);
         model::set_view_3d(target_x + want * math::cos(yaw) * math::sin(pitch), target_y + want * math::cos(pitch), target_z + want * math::sin(yaw) * math::sin(pitch), target_x, target_y, target_z);
         return;
     }
@@ -238,8 +237,8 @@ fn slide_axes(state: editor::State, unit: [float], distance: float, fov: any) ->
         unit_z * right[0] - unit_x * right[2],
         unit_x * right[1] - unit_y * right[0],
     ];
-    let tall = util::max(state.screen_height, 1.0);
-    let per_pixel = 2.0 * distance * math::tan(util::max(fov.as_float(), 0.01) / 2.0) / tall;
+    let tall = math::max(state.screen_height, 1.0);
+    let per_pixel = 2.0 * distance * math::tan(math::max(fov.as_float(), 0.01) / 2.0) / tall;
     let step = per_pixel / logical_per_design();
     let out = [
         right[0] * step,
@@ -259,8 +258,8 @@ fn pan_zoom_2d(state: editor::State, scale: float, delta_x: float, delta_y: floa
     let centre_x = camera.center.x;
     let centre_y = camera.center.y;
     let zoom = camera.zoom;
-    let held = util::max(zoom, 0.01);
-    let next = if scale > 0.0 { util::clamp(held * scale, 0.02, 4000.0) } else { held };
+    let held = math::max(zoom, 0.01);
+    let next = if scale > 0.0 { math::clamp(held * scale, 0.02, 4000.0) } else { held };
     model::set_view_2d(centre_x - delta_x / next, centre_y + delta_y / next, next);
 }
 
@@ -283,7 +282,7 @@ fn orbit_3d(state: editor::State, scale: float, delta_x: float, delta_y: float) 
         return;
     }
     // Apart is closer, the way a pinch out is on every phone.
-    let want = if scale > 0.0 { util::clamp(distance / scale, 0.05, 10000.0) } else { distance };
+    let want = if scale > 0.0 { math::clamp(distance / scale, 0.05, 10000.0) } else { distance };
     let unit_x = offset_x / distance;
     let unit_y = offset_y / distance;
     let unit_z = offset_z / distance;
@@ -298,8 +297,8 @@ fn orbit_3d(state: editor::State, scale: float, delta_x: float, delta_y: float) 
     ];
     // The world a design pixel covers at the target's depth, over the whole
     // window the scene draws across: the finger keeps the ground it started on.
-    let tall = util::max(state.screen_height, 1.0);
-    let per_pixel = 2.0 * want * math::tan(util::max(fov, 0.01) / 2.0) / tall;
+    let tall = math::max(state.screen_height, 1.0);
+    let per_pixel = 2.0 * want * math::tan(math::max(fov, 0.01) / 2.0) / tall;
     let step = per_pixel / logical_per_design();
     let new_target_x = target_x + slide(delta_x, delta_y, right, up, step, 0);
     let new_target_y = target_y + slide(delta_x, delta_y, right, up, step, 1);
@@ -326,7 +325,7 @@ pub fn hover_color() -> [float] {
 pub fn world_per_pixel() -> float {
     let camera = render::camera_2d();
     let zoom = camera.zoom;
-    logical_per_design() / util::max(zoom, 0.01)
+    logical_per_design() / math::max(zoom, 0.01)
 }
 
 /// Whether the Snap chip is on.

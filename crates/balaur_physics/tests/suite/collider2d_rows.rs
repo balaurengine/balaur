@@ -291,7 +291,7 @@ impl Scenario {
         let wall = n.parent().get_node("Wall");
         let cells = n.parent().get_node("Cells");
         let found = [n.collider2d.aabb().max.x, n.collider2d.swept_aabb().max.x, n.collider2d.collision_aabb().max.x,
-            n.collider2d.broad_phase_aabb().max.x, n.collider2d.total_mass(), n.collider2d.volume(),
+            n.collider2d.broad_phase_aabb().max.x, n.collider2d.mass_properties().mass, n.collider2d.volume(),
             physics2d::closest_points(n, wall),
             physics2d::time_of_impact(n, wall, physics2d::ImpactOptions { velocity_a: vec2(6.0, 0.0) }),
             n.collider2d.mass_properties(), n.collider2d.pose_in_body(), n.collider2d.handles(),

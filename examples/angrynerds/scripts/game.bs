@@ -210,8 +210,8 @@ impl Game {
             }
             // Sling bands, drawn from the post to the bird.
             let p = self.bird.transform.position;
-            render::draw_line_2d(vec2(ANCHOR_X - 0.14, ANCHOR_Y - 0.5), vec2(p.x, p.y), color(0.35, 0.2, 0.12, 1.0), 4.0);
-            render::draw_line_2d(vec2(ANCHOR_X + 0.14, ANCHOR_Y - 0.45), vec2(p.x, p.y), color(0.3, 0.16, 0.1, 1.0), 4.0);
+            render::draw_polyline_2d([vec2(ANCHOR_X - 0.14, ANCHOR_Y - 0.5), vec2(p.x, p.y)], 4.0, color(0.35, 0.2, 0.12, 1.0));
+            render::draw_polyline_2d([vec2(ANCHOR_X + 0.14, ANCHOR_Y - 0.45), vec2(p.x, p.y)], 4.0, color(0.3, 0.16, 0.1, 1.0));
         }
         // Pigs pop when anything hits them hard enough.
         for name in self.pigs.keys() {

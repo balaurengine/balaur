@@ -26,11 +26,6 @@ use objc2_game_kit::{
 
 use crate::{AppleCall, AppleEvent};
 
-/// Whether Game Center has a signed-in player right now.
-pub(crate) fn authenticated() -> bool {
-    unsafe { GKLocalPlayer::localPlayer().isAuthenticated() }
-}
-
 pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformEvent>) {
     match call {
         Call::SignIn => sign_in(request, report),
@@ -94,7 +89,7 @@ fn sign_in(request: u64, report: &Sender<PlatformEvent>) {
     }
     let report = report.clone();
     // GameKit hands the handler a view controller when it wants its sign-in
-    // sheet. Nothing presents one yet (docs/PLAN-apple.md step 5), so that
+    // sheet. Nothing presents one yet (docs/PLAN-apple.md step 2), so that
     // case is reported rather than swallowed.
     let handler = RcBlock::new(move |sheet: *mut AnyObject, error: *mut NSError| {
         let player = unsafe { GKLocalPlayer::localPlayer() };

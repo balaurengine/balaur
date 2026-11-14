@@ -123,7 +123,7 @@ fn a_timer_in_a_game_a_tool_hosts_does_not_keep_the_tool_awake() {
 #[test]
 fn a_task_seconds_wait_is_pending_until_it_is_woken() {
     let mut app = app();
-    timers::after_seconds(&app.engine, fixed_dt() * 2.5);
+    timers::after_seconds(&app.engine, f64::from(fixed_dt()) * 2.5);
     assert!(
         pends(&app, rest::TASK),
         "a wait counts from the moment it is asked"

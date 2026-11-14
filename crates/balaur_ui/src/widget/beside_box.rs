@@ -1,7 +1,6 @@
 //! The components beside `widget` about boxes: how a container lays out what
 //! is in it, a grid's tracks, what a child says to its parent, and the rarer
-//! words any box may ask for. No property shows on a condition
-//! (PLAN-property-types §5).
+//! words any box may ask for. No property shows on a condition.
 
 use balaur_core::components::derived::{Component, Result};
 use smol_str::SmolStr;
@@ -30,8 +29,8 @@ pub(crate) struct WidgetLayout {
     /// How a container that wraps spreads its lines across its direction, and a `grid` its rows, where they leave room: `stretch` shares the room among them
     #[property(default = ContentAlign::new(w::STRETCH))]
     pub(crate) align_content: ContentAlign,
-    /// Whether a container's children run onto more lines when they do not fit: `auto` wraps a `flow` and keeps every other container on one line; `balance` evens the lines out over at least `min_lines`; a `_reverse` word stacks the lines the other way
-    #[property(default = Wrapping::new(w::AUTO))]
+    /// Whether a container's children run onto more lines when they do not fit: `none` keeps them on one line, `wrap` starts a line when the row is full, `balance` evens the lines out over at least `min_lines`, and a `_reverse` word stacks the lines the other way
+    #[property(default = Wrapping::new(w::wrapping::NONE))]
     pub(crate) wrap_children: Wrapping,
     /// How many lines a wrapping container divides its children between at least: `balance` evens them over this many, and any wrap shares a known cross size among them
     #[property(default = 1, min = 1)]
@@ -39,7 +38,7 @@ pub(crate) struct WidgetLayout {
     /// Which way a row and a grid's columns run: `right_to_left` starts them at the right edge
     #[property(default = Direction::new(w::direction::LEFT_TO_RIGHT))]
     pub(crate) direction: Direction,
-    /// Lay a `row`, `column` or `flow`'s children out from its far end
+    /// Lay a `row` or a `column`'s children out from its far end
     pub(crate) reverse: bool,
     /// How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one
     #[property(min = 0.0)]

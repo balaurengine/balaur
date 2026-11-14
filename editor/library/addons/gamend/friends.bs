@@ -8,109 +8,121 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Accept a friend request
 /// `POST /api/v1/friends/{id}/accept`
-pub fn accept_friend_request(id: str) -> int {
+pub async fn accept_friend_request(id: str) -> any {
     if id == "" {
         return core::missing("gamend::friends::accept_friend_request", "id");
     }
-    core::rest("POST", "/api/v1/friends/{id}/accept")
+    let reply = await core::rest("POST", "/api/v1/friends/{id}/accept");
+    reply
 }
 
 /// Block a friend request / user
 /// `POST /api/v1/friends/{id}/block`
-pub fn block_friend_request(id: str) -> int {
+pub async fn block_friend_request(id: str) -> any {
     if id == "" {
         return core::missing("gamend::friends::block_friend_request", "id");
     }
-    core::rest("POST", "/api/v1/friends/{id}/block")
+    let reply = await core::rest("POST", "/api/v1/friends/{id}/block");
+    reply
 }
 
 /// Blacklist a user, with or without an existing friendship
 /// `POST /api/v1/users/{user_id}/block`
-pub fn block_user(user_id: str) -> int {
+pub async fn block_user(user_id: str) -> any {
     if user_id == "" {
         return core::missing("gamend::friends::block_user", "user_id");
     }
-    core::rest("POST", "/api/v1/users/{user_id}/block")
+    let reply = await core::rest("POST", "/api/v1/users/{user_id}/block");
+    reply
 }
 
 /// Send a friend request
 /// `POST /api/v1/friends`
-pub fn create_friend_request(params: any) -> int {
+pub async fn create_friend_request(params: any) -> any {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::friends::create_friend_request", "target_user_id");
     }
-    core::rest("POST", "/api/v1/friends", params)
+    let reply = await core::rest("POST", "/api/v1/friends", params);
+    reply
 }
 
 /// List the users you've blocked
 /// `GET /api/v1/me/blacklist`
-pub fn list_blacklisted_users(options: any) -> int {
+pub async fn list_blacklisted_users(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/me/blacklist{query}")
+    let reply = await core::rest("GET", "/api/v1/me/blacklist{query}");
+    reply
 }
 
 /// List users you've blocked
 /// `GET /api/v1/me/blocked`
-pub fn list_blocked_friends(options: any) -> int {
+pub async fn list_blocked_friends(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/me/blocked{query}")
+    let reply = await core::rest("GET", "/api/v1/me/blocked{query}");
+    reply
 }
 
 /// List pending friend requests (incoming and outgoing)
 /// `GET /api/v1/me/friend_requests`
-pub fn list_friend_requests(options: any) -> int {
+pub async fn list_friend_requests(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/me/friend_requests{query}")
+    let reply = await core::rest("GET", "/api/v1/me/friend_requests{query}");
+    reply
 }
 
 /// List current user's friends (returns a paginated set of user objects)
 /// `GET /api/v1/me/friends`
-pub fn list_friends(options: any) -> int {
+pub async fn list_friends(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/me/friends{query}")
+    let reply = await core::rest("GET", "/api/v1/me/friends{query}");
+    reply
 }
 
 /// Reject a friend request
 /// `POST /api/v1/friends/{id}/reject`
-pub fn reject_friend_request(id: str) -> int {
+pub async fn reject_friend_request(id: str) -> any {
     if id == "" {
         return core::missing("gamend::friends::reject_friend_request", "id");
     }
-    core::rest("POST", "/api/v1/friends/{id}/reject")
+    let reply = await core::rest("POST", "/api/v1/friends/{id}/reject");
+    reply
 }
 
 /// Remove/cancel a friendship or request
 /// `DELETE /api/v1/friends/{id}`
-pub fn remove_friendship(id: str) -> int {
+pub async fn remove_friendship(id: str) -> any {
     if id == "" {
         return core::missing("gamend::friends::remove_friendship", "id");
     }
-    core::rest("DELETE", "/api/v1/friends/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/friends/{id}");
+    reply
 }
 
 /// Unblock a previously-blocked friendship
 /// `POST /api/v1/friends/{id}/unblock`
-pub fn unblock_friend(id: str) -> int {
+pub async fn unblock_friend(id: str) -> any {
     if id == "" {
         return core::missing("gamend::friends::unblock_friend", "id");
     }
-    core::rest("POST", "/api/v1/friends/{id}/unblock")
+    let reply = await core::rest("POST", "/api/v1/friends/{id}/unblock");
+    reply
 }
 
 /// Remove a user from your blacklist
 /// `POST /api/v1/users/{user_id}/unblock`
-pub fn unblock_user(user_id: str) -> int {
+pub async fn unblock_user(user_id: str) -> any {
     if user_id == "" {
         return core::missing("gamend::friends::unblock_user", "user_id");
     }
-    core::rest("POST", "/api/v1/users/{user_id}/unblock")
+    let reply = await core::rest("POST", "/api/v1/users/{user_id}/unblock");
+    reply
 }

@@ -84,9 +84,6 @@ pub struct PhysicsState2d {
     /// The asset generation the material files were last read at
     /// (`collider::reread_materials`).
     pub(crate) materials_read: u64,
-    /// What the last `move_character` found under each character's feet, as
-    /// in 3D, so `is_on_floor` reads rather than moves.
-    pub grounded: DetHashMap<Entity, bool>,
     /// Each `follow2d`'s controller, kept across steps for a PID's integrals.
     pub follows: DetHashMap<Entity, follow::FollowRef2d>,
     pub paused: bool,
@@ -123,7 +120,6 @@ impl PhysicsState2d {
             joint_params: DetHashMap::default(),
             surfaces: events::Surfaces::default(),
             materials_read: 0,
-            grounded: DetHashMap::default(),
             follows: DetHashMap::default(),
             paused: false,
             sleeping_allowed: true,
@@ -291,7 +287,6 @@ pub fn clear(eng: &Engine) {
     state.tile_colliders.clear();
     state.joint_params.clear();
     state.surfaces.clear();
-    state.grounded.clear();
     state.follows.clear();
     state.asleep.clear();
 }
@@ -385,7 +380,6 @@ struct PhysicsFrame2d {
     tile_colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
     joint_params: Vec<(crate::NodeKey, toml::Value)>,
     surfaces: Vec<(ColliderHandle2, events::Surface)>,
-    grounded: Vec<(crate::NodeKey, bool)>,
     follows: Vec<(crate::NodeKey, follow::FollowRef2d)>,
     beside: crate::shared::beside::Frame,
     shape_revision: u64,
@@ -410,7 +404,6 @@ struct PhysicsFrameRef2d<'a> {
     tile_colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
     joint_params: Vec<(crate::NodeKey, toml::Value)>,
     surfaces: Vec<(ColliderHandle2, events::Surface)>,
-    grounded: Vec<(crate::NodeKey, bool)>,
     follows: Vec<(crate::NodeKey, follow::FollowRef2d)>,
     beside: crate::shared::beside::Frame,
     shape_revision: u64,
@@ -494,7 +487,6 @@ fn save_physics2d(eng: &Engine) -> serde_json::Value {
             joint::PARAMS,
         ),
         surfaces: state.surfaces.iter().map(|(h, s)| (*h, *s)).collect(),
-        grounded: crate::keyed(&world, &state.grounded),
         follows: crate::keyed(&world, &state.follows),
         beside: crate::shared::beside::save(eng, &world, CARRIED),
         shape_revision: state.shape_revision,
@@ -527,7 +519,6 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     let tile_built = crate::resolved(eng, frame.tile_built);
     let tile_colliders = crate::resolved(eng, frame.tile_colliders);
     let joint_params = crate::resolved(eng, crate::filled(eng, frame.joint_params, joint::PARAMS));
-    let grounded = crate::resolved(eng, frame.grounded);
     let follows = crate::resolved(eng, frame.follows);
     crate::restore_asked::<body::Body2d>(eng, &body_params);
     crate::restore_asked::<collider::Collider2d>(eng, &collider_params);
@@ -597,7 +588,6 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
         )
         .collect();
     state.surfaces = frame.surfaces.into_iter().collect();
-    state.grounded = grounded;
     state.follows = follows;
     restamp_collider_owners(&mut state);
 }
@@ -677,7 +667,7 @@ fn install_physics2d_api(m: &mut Module<Engine>) {
         (words::functions::LINEAR_VELOCITY, &[c::BODY_2D], "", "How fast the body is travelling, in units per second."),
         (words::functions::SET_ANGULAR_VELOCITY, &[c::BODY_2D], "", "Set how fast the body spins, in radians per second."),
         (words::functions::ANGULAR_VELOCITY, &[c::BODY_2D], "", "How fast the body is spinning, in radians per second."),
-        (words::functions::MAX_CONTACT_IMPULSE, &[c::BODY_2D], "", "The hardest contact this body took in the last step, zero when nothing touched it."),
+        (words::functions::MAX_CONTACT_IMPULSE, &[c::BODY_2D], "", "The hardest contact this body took in the last step, every collider on it included; zero when nothing touched it."),
         (words::functions::OVERLAPS, &[c::COLLIDER_2D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
     ]);
     // No reader by design (N8): the rapier world holds the gravity vector;

@@ -12,7 +12,7 @@ pub class Hooks {
 
 impl Hooks {
     pub fn init() {
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         for word in [signals::CODE_CHANGED, signals::CHROME, signals::OUTLINE] {
             events::listen(self.node, word, source);

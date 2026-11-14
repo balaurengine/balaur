@@ -33,8 +33,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # clang and lld build a game's scripts as native code for every target but the
-# web, iOS and Android included (`[export] native_scripts`, PLAN-balaur-script.md
-# §7a). Bookworm's default LLVM, which ran the C bit for bit on macOS, the iOS
+# web, iOS and Android included (`[export] native_scripts`).
+# Bookworm's default LLVM, which ran the C bit for bit on macOS, the iOS
 # simulator and Android. Its `ld64.lld` is only in the versioned directory, so
 # that directory is BALAUR_LLVM, where the exporter looks first.
 ARG LLVM=14
