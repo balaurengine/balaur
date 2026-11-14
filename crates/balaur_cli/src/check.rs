@@ -137,7 +137,7 @@ fn installs() {
         }
     }
 
-    /// The line of `source` that holds `needle`, from 1.
+    /// Counts from 1.
     fn line_of(source: &str, needle: &str) -> usize {
         source
             .lines()

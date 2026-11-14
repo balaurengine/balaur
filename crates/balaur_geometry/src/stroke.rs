@@ -393,8 +393,8 @@ mod tests {
         );
     }
 
-    /// A right-angle corner: the miter fills the square the bevel cuts in
-    /// half, and a round join sits between them.
+    // A right-angle corner: the miter fills the square the bevel cuts in
+    // half, and a round join sits between them.
     #[test]
     fn a_miter_covers_more_of_a_corner_than_a_round_join_and_a_bevel_less() {
         let fill = |join| area(&stroke(&ELBOW, &line(join, Cap::Butt), 1)[0]);
@@ -403,8 +403,8 @@ mod tests {
         assert!((miter - bevel - 0.125).abs() < 1e-2, "{miter} - {bevel}");
     }
 
-    /// The overlap a segment-by-segment line had at every joint: the fill
-    /// is exactly the outline's, so no triangle lies on another.
+    // The overlap a segment-by-segment line had at every joint: the fill
+    // is exactly the outline's, so no triangle lies on another.
     #[test]
     fn no_triangle_of_a_bent_line_overlaps_another() {
         let pieces = stroke(&ELBOW, &line(Join::Round, Cap::Round), 1);
@@ -450,8 +450,8 @@ mod tests {
         );
     }
 
-    /// `segments` is the whole turn, so a round join cut at 64 carries more
-    /// corners than one cut at 8, and both cover about the same area.
+    // `segments` is the whole turn, so a round join cut at 64 carries more
+    // corners than one cut at 8, and both cover about the same area.
     #[test]
     fn more_segments_round_a_join_more_finely() {
         let corners = |segments| {

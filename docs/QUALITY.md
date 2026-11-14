@@ -54,7 +54,7 @@ mechanical; **REPORT** prints only.
 | `log-instead-of-tracing` | `log::*` in our own code; its records carry no fields to filter on |
 | `todo-without-issue` | a TODO or FIXME with no issue |
 | `fn-too-long`, `file-too-long` | 120 lines, 1200 lines |
-| `comment-too-long`, `comment-restates-name` | comment blocks, and comments that restate the line below |
+| `comment-too-long` | a plain-comment block over twelve lines |
 | `showcase-milestone` | a picture `scripts/showcase.sh` takes and files under no milestone, or a milestone naming a take that is gone |
 | `det-prefix-misuse`, `dimension-casing`, `dimension-snake`, `install-verb`, `system-verb`, `engine-param-name`, `resource-suffix`, `new-resource-type`, `fn-suffix-on-struct`, `pub-inner`, `component-registration-doc` | the mechanical half of `docs/NAMING.md` |
 | `std-fs`, `is-absolute` | `std::fs` and `Path::is_absolute` in engine crates, which the web build has no disk for; `files::backend` and `files::rooted` are the substitutes |
@@ -65,13 +65,19 @@ mechanical; **REPORT** prints only.
 
 ## Comments
 
-`scripts/comment_lints.py` covers `.rs`, `.rn`, `.py`, `.sh`, `.yml`, `.toml`.
+`scripts/comment_lints.py` covers `.rs`, `.bs`, `.py`, `.sh`, `.yml`, `.toml`.
 Generated files skip themselves by their banner.
 
 - **essay** — more than three consecutive plain-comment lines. A shell script's
   leading block gets eight; `house_lints.py` keeps a looser cap of twelve.
 - **restates-code** — a comment whose words add nothing to the line below.
 - Banners and dividers; the structure is the divider.
+- **test-doc** — a `///` on a `#[test]`. The name says what it checks; a plain
+  `//` says why.
+- **doc-restates-signature** — a `///` on an item, in `.rs` or `.bs`, whose
+  words are 70% its signature's.
+- **doc-essay** (report) — more than three doc lines on an item that is not
+  `pub`. Fields and variants are left out, since a component's become its schema.
 
 ## Strings
 

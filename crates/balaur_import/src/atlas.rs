@@ -362,8 +362,8 @@ mod tests {
         assert_eq!(names, ["walk_1", "walk_2", "walk_10"]);
     }
 
-    /// Frames of several sizes land on one page apart, each a tag, and a run
-    /// of more than one is a clip.
+    // Frames of several sizes land on one page apart, each a tag, and a run
+    // of more than one is a clip.
     #[test]
     fn frames_of_any_size_pack_into_a_sheet_and_a_clip() {
         let frames = [

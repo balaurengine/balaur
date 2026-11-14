@@ -36,8 +36,8 @@ fn def(app: &App, name: &str) -> components::ComponentDef {
     }
 }
 
-/// A tag is the thing a single category path cannot express: `collider2d` is
-/// genuinely both, and forcing a choice buries whichever loses.
+// A tag is the thing a single category path cannot express: `collider2d` is
+// genuinely both, and forcing a choice buries whichever loses.
 #[test]
 fn a_component_can_carry_several_tags() {
     let mut app = app();
@@ -47,8 +47,8 @@ fn a_component_can_carry_several_tags() {
     assert!(tags.contains(&"physics"), "tags were {tags:?}");
 }
 
-/// 3D carries no dimension marker (docs/NAMING.md D5), so the 3D body is
-/// tagged `3d` while its name stays unmarked.
+// 3D carries no dimension marker (docs/NAMING.md D5), so the 3D body is
+// tagged `3d` while its name stays unmarked.
 #[test]
 fn dimension_tags_separate_the_two_worlds() {
     let mut app = app();
@@ -58,8 +58,8 @@ fn dimension_tags_separate_the_two_worlds() {
     assert!(!def(&app, "body3d").tags.contains(&"2d"));
 }
 
-/// Every component has to be findable under some facet, or the palette hides
-/// it. This is the check that stops a new component shipping untagged.
+// Every component has to be findable under some facet, or the palette hides
+// it. This is the check that stops a new component shipping untagged.
 #[test]
 fn every_registered_component_is_tagged() {
     let mut app = app();

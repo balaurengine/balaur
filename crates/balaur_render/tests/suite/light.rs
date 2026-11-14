@@ -55,8 +55,8 @@ fn the_plugin_registers_the_lighting_components() {
     }
 }
 
-/// The light is collected at its *global* pose, so a light parented to a
-/// moving lantern moves with it.
+// The light is collected at its *global* pose, so a light parented to a
+// moving lantern moves with it.
 #[test]
 fn a_light_is_collected_where_the_scene_tree_puts_it() {
     let mut app = app();
@@ -84,8 +84,8 @@ fn a_scene_with_no_light2d_collects_nothing() {
     assert!(lights(&world, app.engine.root()).is_empty());
 }
 
-/// At rest a directional light shines straight down; the node's z rotation
-/// turns it, which is the only thing that aims one.
+// At rest a directional light shines straight down; the node's z rotation
+// turns it, which is the only thing that aims one.
 #[test]
 fn a_directional_light_is_aimed_by_the_nodes_rotation() {
     let mut app = app();
@@ -104,8 +104,8 @@ fn a_directional_light_is_aimed_by_the_nodes_rotation() {
     assert_close(collected[0].direction, Vec2::new(1.0, 0.0));
 }
 
-/// The plan's default: an occluder with nothing authored takes the outline
-/// of the collider the node already has.
+// The plan's default: an occluder with nothing authored takes the outline
+// of the collider the node already has.
 #[test]
 fn an_occluder_defaults_to_the_nodes_collider_outline() {
     let mut app = physics_app();
@@ -125,8 +125,8 @@ fn an_occluder_defaults_to_the_nodes_collider_outline() {
     assert!(points.contains(&Vec2::new(-2.0, -0.5)), "{points:?}");
 }
 
-/// A collider added *after* the occluder still fills it in: scene files
-/// apply component keys in the order they are written.
+// A collider added *after* the occluder still fills it in: scene files
+// apply component keys in the order they are written.
 #[test]
 fn an_occluder_declared_before_its_collider_still_resolves() {
     let mut app = physics_app();
@@ -180,8 +180,8 @@ fn an_occluder_falls_back_to_the_nodes_2d_shape() {
     assert!(points.contains(&Vec2::new(1.0, 1.0)), "{points:?}");
 }
 
-/// A closed outline's last edge joins back to its first point, so a box
-/// casts a shadow on every side rather than three.
+// A closed outline's last edge joins back to its first point, so a box
+// casts a shadow on every side rather than three.
 #[test]
 fn a_closed_occluder_edge_list_wraps_around() {
     let mut app = app();
@@ -209,8 +209,8 @@ fn a_closed_occluder_edge_list_wraps_around() {
     assert_eq!(edges.len(), 3, "an open outline is a chain: {edges:?}");
 }
 
-/// What the editor's gizmo draws: the outline in world space, closed, with
-/// the node's rotation and scale already in it.
+// What the editor's gizmo draws: the outline in world space, closed, with
+// the node's rotation and scale already in it.
 #[test]
 fn an_outline_comes_back_in_world_space_and_closed() {
     let mut app = app();
@@ -268,8 +268,8 @@ fn point_light(position: Vec2, radius: f32) -> LitLight2d {
     }
 }
 
-/// The far edge of a shadow has to clear the light's reach, or the light
-/// leaks back in past the end of its own polygon.
+// The far edge of a shadow has to clear the light's reach, or the light
+// leaks back in past the end of its own polygon.
 #[test]
 fn a_shadow_quad_reaches_past_the_lights_radius() {
     let light = point_light(Vec2::ZERO, 10.0);
@@ -288,8 +288,8 @@ fn a_shadow_quad_reaches_past_the_lights_radius() {
     }
 }
 
-/// Both ends of a directional light's shadow travel the same way, so the
-/// polygon is a strip rather than a fan.
+// Both ends of a directional light's shadow travel the same way, so the
+// polygon is a strip rather than a fan.
 #[test]
 fn a_directional_shadow_quad_is_a_parallel_strip() {
     let light = LitLight2d {
@@ -302,8 +302,8 @@ fn a_directional_shadow_quad_is_a_parallel_strip() {
     assert_close(quad[3], Vec2::new(-1.0, -20.0));
 }
 
-/// An edge point sitting exactly on the light has no direction to be pushed
-/// in; it must stay put rather than come out NaN.
+// An edge point sitting exactly on the light has no direction to be pushed
+// in; it must stay put rather than come out NaN.
 #[test]
 fn an_edge_through_the_light_casts_no_infinity() {
     let light = point_light(Vec2::ZERO, 5.0);
@@ -314,7 +314,7 @@ fn an_edge_through_the_light_casts_no_infinity() {
     assert_close(quad[3], Vec2::ZERO);
 }
 
-/// The scene's one ambient, its `environment`'s, lights a 2D scene too.
+// The scene's one ambient, its `environment`'s, lights a 2D scene too.
 #[test]
 fn the_environments_ambient_reaches_the_2d_config() {
     let mut app = app();
@@ -368,8 +368,6 @@ fn an_unknown_light_kind_is_an_error_not_a_panic() {
     assert!(format!("{err:#}").contains("area"), "{err:#}");
 }
 
-/// Grading, eye adaptation and glass are read off the `environment` a scene
-/// draws under, and read back as written.
 #[test]
 fn the_environment_carries_grading_eye_adaptation_and_glass() {
     let app = app();
@@ -421,9 +419,9 @@ fn an_unknown_glass_blur_is_refused() {
     );
 }
 
-/// The shadow knobs past distance and the sky's own light are read off the
-/// `environment`, held to kiss3d's ranges, and read back as written; the
-/// renderer's limits are the device's, `[render]`, and no row of it.
+// The shadow knobs past distance and the sky's own light are read off the
+// `environment`, held to kiss3d's ranges, and read back as written; the
+// renderer's limits are the device's, `[render]`, and no row of it.
 #[test]
 fn the_environment_carries_the_shadow_budget_sky_light_and_limits() {
     let app = app();
@@ -527,9 +525,9 @@ fn a_spot_light2d_reads_its_cone_back_and_resolves_its_cosines() {
     assert!((spot.cone[1] - 0.5).abs() < 1e-5);
 }
 
-/// A 2D node is normal-mapped by its material: a shader-less one whose
-/// `normal` slot names the map, beside the strengths it shades with. A light
-/// keeps its height.
+// A 2D node is normal-mapped by its material: a shader-less one whose
+// `normal` slot names the map, beside the strengths it shades with. A light
+// keeps its height.
 #[test]
 fn a_normal_mapped_shape_takes_its_shading_from_its_material_and_a_light_its_height() {
     let app = app();

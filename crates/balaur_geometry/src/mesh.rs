@@ -1048,8 +1048,8 @@ mod tests {
         assert_eq!(mesh.indices, vec![[0, 1, 2], [0, 2, 3]]);
     }
 
-    /// OBJ indexes positions, UVs and normals separately; a GPU mesh has one
-    /// index stream, so each distinct triple has to become its own vertex.
+    // OBJ indexes positions, UVs and normals separately; a GPU mesh has one
+    // index stream, so each distinct triple has to become its own vertex.
     #[test]
     fn corners_sharing_a_position_but_not_a_uv_become_separate_vertices() {
         let source = "v 0 0 0\nv 1 0 0\nv 0 1 0\n\
@@ -1154,7 +1154,7 @@ mod tests {
         assert!(mesh.source.is_none());
     }
 
-    /// Naming both is a contradiction, not a precedence question.
+    // Naming both is a contradiction, not a precedence question.
     #[test]
     fn naming_a_source_and_vertices_at_once_is_refused() {
         let value: toml::Value =

@@ -35,8 +35,8 @@ fn gain(app: &App, bus: &str) -> f32 {
     app.engine.resource::<Buses>().borrow().gain(bus)
 }
 
-/// Master exists whether or not the project declares it, because there has to
-/// be a name for "everything".
+// Master exists whether or not the project declares it, because there has to
+// be a name for "everything".
 #[test]
 fn master_exists_without_being_declared() {
     let (_dir, app) = app("");
@@ -60,7 +60,7 @@ fn a_gain_is_the_product_of_the_chain() {
     assert!((gain(&app, "music") - 0.25).abs() < 1e-6);
 }
 
-/// A typo should leave a sound audible and findable, not silently delete it.
+// A typo should leave a sound audible and findable, not silently delete it.
 #[test]
 fn a_bus_nobody_declared_is_unity_rather_than_silence() {
     let (_dir, app) = app(NESTED);
@@ -73,8 +73,8 @@ fn an_empty_bus_name_is_master() {
     assert!((gain(&app, "") - 0.5).abs() < 1e-6);
 }
 
-/// Setting a volume moves everything below it, which is what a slider on
-/// "sound effects" has to do to the menu clicks underneath.
+// Setting a volume moves everything below it, which is what a slider on
+// "sound effects" has to do to the menu clicks underneath.
 #[test]
 fn setting_a_parents_volume_moves_its_children() {
     let (_dir, app) = app(NESTED);
@@ -90,8 +90,8 @@ fn setting_a_parents_volume_moves_its_children() {
     );
 }
 
-/// A bus nobody declared is made rather than refused, so a game may build its
-/// mix in script alone.
+// A bus nobody declared is made rather than refused, so a game may build its
+// mix in script alone.
 #[test]
 fn setting_a_volume_makes_a_bus_that_was_not_declared() {
     let (_dir, app) = app("");
@@ -110,8 +110,8 @@ fn setting_a_volume_makes_a_bus_that_was_not_declared() {
     );
 }
 
-/// The rest of the mix is fine, so a cycle is cut and reported rather than
-/// refused — and `gain` has to terminate whatever the file says.
+// The rest of the mix is fine, so a cycle is cut and reported rather than
+// refused — and `gain` has to terminate whatever the file says.
 #[test]
 fn a_cycle_is_cut_rather_than_looping_forever() {
     let (_dir, app) = app("
@@ -138,7 +138,6 @@ fn effects(app: &App, bus: &str) -> Option<Effects> {
     app.engine.resource::<Buses>().borrow().effects(bus)
 }
 
-/// Every effect key a bus takes reads back as the project wrote it.
 #[test]
 fn a_bus_reads_back_every_effect_it_declares() {
     let (_dir, app) = app(EFFECTS);
@@ -167,8 +166,8 @@ fn a_bus_reads_back_every_effect_it_declares() {
     );
 }
 
-/// Nothing switched on is no effects at all, so the bus costs the mix no
-/// chain: a Q with no cutoff filters nothing.
+// Nothing switched on is no effects at all, so the bus costs the mix no
+// chain: a Q with no cutoff filters nothing.
 #[test]
 fn a_bus_with_no_effect_switched_on_has_none() {
     let (_dir, app) = app(EFFECTS);
@@ -177,8 +176,8 @@ fn a_bus_with_no_effect_switched_on_has_none() {
     }
 }
 
-/// A number past what the adapter takes is held to it where it is read, so
-/// the read-back is what the device is given.
+// A number past what the adapter takes is held to it where it is read, so
+// the read-back is what the device is given.
 #[test]
 fn a_buses_effects_are_held_to_what_the_adapters_take() {
     let (_dir, app) = app("
@@ -192,9 +191,9 @@ harsh = { distortion_threshold = 4.0, reverb_time = 600.0, low_pass_hz = -5.0, a
     assert!((harsh.auto_gain.attack_time - bus::MAX_AUTO_GAIN_TIME).abs() < 1e-6);
 }
 
-/// An effect, like a limiter, has to hear the bus's own mix, so a bus with
-/// either is mixed alone before it joins its parent; any other joins the
-/// nearest mixer above it.
+// An effect, like a limiter, has to hear the bus's own mix, so a bus with
+// either is mixed alone before it joins its parent; any other joins the
+// nearest mixer above it.
 #[test]
 fn a_bus_with_an_effect_or_a_limiter_is_mixed_alone() {
     let (_dir, app) = app(EFFECTS);
@@ -214,8 +213,8 @@ fn a_bus_with_an_effect_or_a_limiter_is_mixed_alone() {
     assert!(!alone("master"));
 }
 
-/// A handle remembers the bus it plays on and the volume it started at, which
-/// is what lets a slider moved later recompute one from the other.
+// A handle remembers the bus it plays on and the volume it started at, which
+// is what lets a slider moved later recompute one from the other.
 #[test]
 fn a_played_handle_remembers_its_bus_and_volume() {
     let (_dir, app) = app(NESTED);
@@ -254,9 +253,9 @@ fn stopping_everything_forgets_every_routing() {
     assert_eq!(state.borrow().routing_of(b), None);
 }
 
-/// Every chain ends at master, a slider moves what its children carry, and a
-/// handle's own volume still goes through the chain — the three halves of the
-/// mix, on one sound.
+// Every chain ends at master, a slider moves what its children carry, and a
+// handle's own volume still goes through the chain — the three halves of the
+// mix, on one sound.
 #[test]
 fn a_sound_on_a_child_bus_follows_master_the_slider_and_its_own_volume() {
     let (_dir, app) = app(NESTED);
@@ -281,8 +280,8 @@ fn a_sound_on_a_child_bus_follows_master_the_slider_and_its_own_volume() {
     assert!((applied() - 0.125).abs() < 1e-6, "{}", applied());
 }
 
-/// A slider on a bus nothing plays on directly still moves the sounds under
-/// it, which is what "pull the music slider" means.
+// A slider on a bus nothing plays on directly still moves the sounds under
+// it, which is what "pull the music slider" means.
 #[test]
 fn moving_a_parent_bus_reroutes_the_sounds_on_its_children() {
     let (_dir, app) = app(NESTED);
@@ -303,7 +302,7 @@ fn moving_a_parent_bus_reroutes_the_sounds_on_its_children() {
     assert_eq!(state.borrow().effective_volume(other), Some(0.0));
 }
 
-/// A typo should leave a sound audible, so no slider reaches it either.
+// A typo should leave a sound audible, so no slider reaches it either.
 #[test]
 fn a_sound_on_a_bus_nobody_declared_is_left_at_unity() {
     let (_dir, app) = app(NESTED);
@@ -327,7 +326,7 @@ fn play(app: &App, dir: &std::path::Path, options: &str) -> u64 {
 use balaur_audio::play_file::{FileOptions, play_file};
 use balaur_core::glamx::Vec3;
 
-/// A sound no node carries still goes through the bus it names.
+// A sound no node carries still goes through the bus it names.
 #[test]
 fn a_played_file_goes_through_its_bus_at_its_volume() {
     let (dir, app) = app(NESTED);

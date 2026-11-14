@@ -6,9 +6,9 @@
 use crate::support::*;
 use egui::pos2;
 
-/// A widget draws only while its node does, as a sprite does: a panel hidden
-/// with `visible = false` on its node and shown later by a script. Shown and
-/// hidden across passes, so the cached arena has to notice, not a rebuild.
+// A widget draws only while its node does, as a sprite does: a panel hidden
+// with `visible = false` on its node and shown later by a script. Shown and
+// hidden across passes, so the cached arena has to notice, not a rebuild.
 #[test]
 fn a_widget_under_a_hidden_node_draws_nothing_until_it_is_shown() {
     let (_dir, app) = app();
@@ -66,8 +66,8 @@ fn a_widget_under_a_hidden_node_draws_nothing_until_it_is_shown() {
     );
 }
 
-/// A Godot `pressed` wired to the scene's root script: the handler lives on
-/// an ancestor, and the click has to find it there.
+// A Godot `pressed` wired to the scene's root script: the handler lives on
+// an ancestor, and the click has to find it there.
 #[test]
 fn a_click_reaches_the_nearest_ancestor_whose_script_declares_the_handler() {
     let script = "pub class Owner { node: Node, hits: int }
@@ -113,8 +113,8 @@ impl Owner {
     );
 }
 
-/// A panel's one script answers the controls under it that name its method,
-/// and the method is told which control spoke.
+// A panel's one script answers the controls under it whose rows name its
+// method, and the method is told the button and which control spoke.
 #[test]
 fn a_row_with_no_target_hands_the_nearest_script_the_value_and_the_widget() {
     let script = "pub class Panel { node: Node, heard: int, last: str }
@@ -180,9 +180,9 @@ impl Panel {
     );
 }
 
-/// A button's click runs its node's `pointer_click` rows, so a scene can have
-/// a button call any node's script, as a Godot `pressed` connected to a
-/// sibling's script did.
+// A button's click runs its node's `pointer_click` rows, so a scene can have
+// a button call any node's script, as a Godot `pressed` connected to a
+// sibling's script did.
 #[test]
 fn a_clicked_widget_runs_its_pointer_click_bindings() {
     let (_dir, mut app) = app();
@@ -210,9 +210,9 @@ fn a_clicked_widget_runs_its_pointer_click_bindings() {
     assert_eq!(sailed, Some(1.0), "the click ran the row");
 }
 
-/// A widget whose value changes emits `change` from its node, which a
-/// binding row answers without a script: Godot's `toggled` connected in a
-/// scene.
+// A widget whose value changes emits `change` from its node, which a
+// binding row answers without a script: Godot's `toggled` connected in a
+// scene.
 #[test]
 fn a_ticked_check_emits_change_for_its_bindings() {
     let (_dir, mut app) = app();
@@ -241,8 +241,8 @@ fn a_ticked_check_emits_change_for_its_bindings() {
     assert_eq!(flips, Some(1.0), "the tick emitted `change` once");
 }
 
-/// A harness clicks with no window: `click` settles at the next tick exactly
-/// as a pointer click would, and refuses a widget no pointer could click.
+// A harness clicks with no window: `click` settles at the next tick exactly
+// as a pointer click would, and refuses a widget no pointer could click.
 #[test]
 fn a_click_with_no_draw_pass_runs_the_buttons_rows_and_skips_a_disabled_one() {
     let (_dir, mut app) = app();
@@ -283,8 +283,8 @@ fn a_click_with_no_draw_pass_runs_the_buttons_rows_and_skips_a_disabled_one() {
     );
 }
 
-/// Godot's toggle mode: a click holds a `toggle` button down and the next
-/// releases it; in a group, pressing one lets the others up.
+// Godot's toggle mode: a click holds a `toggle` button down and the next
+// releases it; in a group, pressing one lets the others up.
 #[test]
 fn a_toggle_button_stays_down_and_lets_its_group_up() {
     let (_dir, mut app) = app();

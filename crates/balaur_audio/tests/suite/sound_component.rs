@@ -206,8 +206,8 @@ fn removing_the_component_stops_and_forgets_the_sound() {
     assert!(!state.borrow().is_playing(handle));
 }
 
-/// A footstep must not cost a read per step, and an edited file must still be
-/// heard: the cache holds the bytes and the file's own timestamp retires them.
+// A footstep must not cost a read per step, and an edited file must still be
+// heard: the cache holds the bytes and the file's own timestamp retires them.
 #[test]
 fn a_sounds_bytes_are_cached_until_the_file_changes() {
     let dir = tempfile::tempdir().unwrap();
@@ -226,7 +226,7 @@ fn a_sounds_bytes_are_cached_until_the_file_changes() {
     assert_eq!(held(&app), first + 64, "an edit retires the cached bytes");
 }
 
-/// A file the cache would blow its budget on is played straight from disk.
+// A file the cache would blow its budget on is played straight from disk.
 #[test]
 fn a_file_past_the_entry_cap_is_not_cached() {
     let dir = tempfile::tempdir().unwrap();
@@ -247,7 +247,6 @@ fn rewrite(path: &Path, len: usize) {
     std::fs::write(path, vec![0u8; len]).unwrap();
 }
 
-/// A sound's own sidecar sets its level and its loop wherever it is played.
 #[test]
 fn a_sound_file_carries_its_own_level_and_loop() {
     let dir = tempfile::tempdir().unwrap();
@@ -266,7 +265,6 @@ fn a_sound_file_carries_its_own_level_and_loop() {
     assert_eq!(plain, balaur_audio::FileSettings::default());
 }
 
-/// `gapless` reaches the decoder from a file's own sidecar.
 #[test]
 fn a_sound_file_carries_its_own_decoder_settings() {
     let dir = tempfile::tempdir().unwrap();
@@ -283,8 +281,8 @@ fn a_sound_file_carries_its_own_decoder_settings() {
     assert!(plain.gapless, "gapless is on by default");
 }
 
-/// A sound that plays out ends on the fixed step its length runs out on, with
-/// no output device, and its node announces `finished` with the handle.
+// A sound that plays out ends on the fixed step its length runs out on, with
+// no output device, and its node announces `sound_finished` with the handle.
 #[test]
 fn a_sound_announces_finished_on_the_tick_it_plays_out() {
     let dir = tempfile::tempdir().unwrap();

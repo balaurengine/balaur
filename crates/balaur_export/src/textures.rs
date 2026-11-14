@@ -145,7 +145,6 @@ pub(crate) fn record_drawn(sidecar: Option<&str>, drawn: (u32, u32)) -> Option<S
     toml::to_string(&settings).ok()
 }
 
-/// An RGBA image as PNG bytes.
 #[cfg(test)]
 pub(crate) fn png(image: image::RgbaImage) -> Vec<u8> {
     encode(&DynamicImage::ImageRgba8(image), ImageFormat::Png).unwrap()
@@ -179,7 +178,7 @@ mod tests {
         assert!(ship(&source, &table(""), 0, false).unwrap().is_none());
     }
 
-    /// Each of these counts its pixels, so a smaller copy would break it.
+    // Each of these counts its pixels, so a smaller copy would break it.
     #[test]
     fn pixel_art_a_font_page_and_a_kept_file_are_never_capped() {
         let source = png(RgbaImage::new(400, 400));

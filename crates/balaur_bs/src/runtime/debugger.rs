@@ -149,7 +149,6 @@ impl Debugger {
     pub fn set_breakpoint(&mut self, line: u32) {
         self.set_breakpoint_in(0, line);
     }
-    /// A breakpoint on line `line` of unit `unit`'s file.
     pub fn set_breakpoint_in(&mut self, unit: usize, line: u32) {
         self.dirty |= self.breakpoints.entry(unit).or_default().insert(line);
     }

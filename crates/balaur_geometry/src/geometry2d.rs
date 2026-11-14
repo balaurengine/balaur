@@ -693,8 +693,8 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
 mod tests {
     use super::{simplify, trace};
 
-    /// A filled square, traced and simplified, is four corners — not four
-    /// corners with the two cuts left in twice.
+    // A filled square, traced and simplified, is four corners — not four
+    // corners with the two cuts left in twice.
     #[test]
     fn a_simplified_loop_names_each_corner_once() {
         let mask = vec![true; 10 * 10];
@@ -707,7 +707,7 @@ mod tests {
         }
     }
 
-    /// Tracing is the shape of the mask, whatever else is in the picture.
+    // Tracing is the shape of the mask, whatever else is in the picture.
     #[test]
     fn a_hole_is_a_loop_of_its_own() {
         let mut mask = vec![true; 5 * 5];

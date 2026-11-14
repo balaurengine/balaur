@@ -144,8 +144,8 @@ fn a_setting_and_a_language_a_script_changes_are_heard_the_next_frame() {
     assert_eq!(said(&app), "asked;audio/volume;fr;");
 }
 
-/// A log view listens for `logged` instead of reading the buffer each frame:
-/// a line written is heard at the next pump.
+// A log view listens for `logged` instead of reading the buffer each frame:
+// a line written is heard at the next pump.
 #[test]
 fn a_script_listening_for_logged_hears_a_line_written() {
     balaur_core::logbuf::capture_for_test();
@@ -166,8 +166,8 @@ fn a_script_listening_for_logged_hears_a_line_written() {
     assert!(said(&app).contains("logged;"), "{}", said(&app));
 }
 
-/// A file view listens for `assets_reloaded` instead of listing the project
-/// each frame: a file declared stale is heard at the next pump.
+// A file view listens for `assets_reloaded` instead of listing the project
+// each frame: a file declared stale is heard at the next pump.
 #[test]
 fn a_script_listening_for_assets_reloaded_hears_an_invalidate() {
     let script = ear(r#"
@@ -187,11 +187,8 @@ fn a_script_listening_for_assets_reloaded_hears_an_invalidate() {
     assert!(said(&app).contains("reloaded;"), "{}", said(&app));
 }
 
-/// An editor's views listen for `changed` instead of comparing the scene
-/// each frame: the writes of a frame are heard at the next pump, one entry
-/// for each node and component however often it was written, a component a
-/// write put on as `attached`, and a write is kept only from the frame after
-/// someone listens.
+// Views listen instead of comparing the scene each frame. One entry per node and component per
+// frame however often written; a write is kept only from the frame after someone listens.
 #[test]
 fn a_script_listening_for_changed_hears_what_the_writes_changed() {
     let script = ear(r#"
@@ -235,8 +232,8 @@ fn a_script_listening_for_changed_hears_what_the_writes_changed() {
     );
 }
 
-/// Heard from a node, `changed` holds what happened under it alone: an
-/// editor listening from the scene it edits does not hear its own widgets.
+// Heard from a node, `changed` holds what happened under it alone: an
+// editor listening from the scene it edits does not hear its own widgets.
 #[test]
 fn a_script_listening_for_changed_under_a_node_hears_that_subtree() {
     let script = ear(r#"
@@ -267,8 +264,8 @@ fn a_script_listening_for_changed_under_a_node_hears_that_subtree() {
     assert_eq!(said(&app), "wrote;added Inside;");
 }
 
-/// A camera listens for `pointer_scrolled` instead of reading the wheel each
-/// frame: a turn is heard at the pump of the frame it happened in.
+// A camera listens for `pointer_scrolled` instead of reading the wheel each
+// frame: a turn is heard at the pump of the frame it happened in.
 #[test]
 fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
     let script = ear(r#"
@@ -287,8 +284,8 @@ fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
     assert_eq!(said(&app), "scrolled 2.0;");
 }
 
-/// An import listens for `files_dropped` instead of asking each frame: a
-/// drop is heard at the pump of the frame it landed in, with its paths.
+// An import listens for `files_dropped` instead of asking each frame: a
+// drop is heard at the pump of the frame it landed in, with its paths.
 #[test]
 fn a_script_listening_for_files_dropped_hears_the_paths() {
     let script = ear(r#"

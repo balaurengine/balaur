@@ -78,8 +78,8 @@ fn a_scene_can_set_one_shapes_weight() {
     );
 }
 
-/// What an animation track does: one property at a time, through `patch`,
-/// which is why the others have to survive it.
+// What an animation track does: one property at a time, through `patch`,
+// which is why the others have to survive it.
 #[test]
 fn driving_one_weight_leaves_the_others_alone() {
     let (_dir, app) = app();
@@ -96,8 +96,8 @@ fn driving_one_weight_leaves_the_others_alone() {
     );
 }
 
-/// The weights read back as `morph.<name>` keys, which is what makes them
-/// addressable as `mesh/morph.<name>` from a clip.
+// The weights read back as `morph.<name>` keys, which is what makes them
+// addressable as `mesh/morph.<name>` from a clip.
 #[test]
 fn the_weights_read_back_under_their_names() {
     let (_dir, app) = app();
@@ -114,8 +114,8 @@ fn the_weights_read_back_under_their_names() {
     assert!(weight("morph.blink").abs() < 1e-6);
 }
 
-/// A mesh with nothing to blend carries no weights at all, rather than an
-/// empty list nothing will ever write to.
+// A mesh with nothing to blend carries no weights at all, rather than an
+// empty list nothing will ever write to.
 #[test]
 fn a_mesh_with_no_shapes_carries_no_weights() {
     let (_dir, app) = app();

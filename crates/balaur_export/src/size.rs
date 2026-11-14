@@ -352,8 +352,8 @@ mod tests {
         assert!(pack.assets.contains_key("art/unused.png"));
     }
 
-    /// Every printable ASCII character, whatever the project's own text holds.
-    /// One picture opts out of the pass the rest of them take.
+    // Every printable ASCII character, whatever the project's own text holds.
+    // One picture opts out of the pass the rest of them take.
     #[test]
     fn a_files_own_recode_setting_beats_the_export_mode() {
         use crate::recode::ImageMode;

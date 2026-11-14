@@ -78,9 +78,9 @@ fn two_bone_ik_puts_the_tip_on_a_reachable_target() {
     assert!(global_xy(&app, elbow).y > 0.0);
 }
 
-/// The solve is a function of the rig and the target, not of the frames before
-/// it: a replay, or a peer that joined late, has run a different number of
-/// them and must still land on the same bits.
+// The solve is a function of the rig and the target, not of the frames before
+// it: a replay, or a peer that joined late, has run a different number of
+// them and must still land on the same bits.
 #[test]
 fn two_bone_ik_lands_on_the_same_bits_whatever_it_solved_before() {
     let rotations = |app: &App, bones: [Entity; 2]| {
@@ -531,9 +531,9 @@ fn every_kind_reads_back_the_way_it_was_written() {
     assert!(format!("{why:#}").contains("wobble"), "{why:#}");
 }
 
-/// A modifier holds what it was asked, a damping past 1, a lag below 0 and a
-/// chain of fewer than no bones included: the solver clamps them where it
-/// reads them, and the read-back is what was written.
+// A modifier holds what it was asked, a damping past 1, a lag below 0 and a
+// chain of fewer than no bones included: the solver clamps them where it
+// reads them, and the read-back is what was written.
 #[test]
 fn a_value_past_its_range_reads_back_as_written() {
     let app = app();

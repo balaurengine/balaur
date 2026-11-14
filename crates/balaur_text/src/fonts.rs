@@ -765,8 +765,8 @@ mod tests {
         }
     }
 
-    /// A font's weight is picked among the faces of its family, the way the
-    /// shaper picks it, and 400 is the font's own face.
+    // A font's weight is picked among the faces of its family, the way the
+    // shaper picks it, and 400 is the font's own face.
     #[test]
     fn a_heavier_weight_picks_the_heavier_face_of_the_family() {
         let fonts = ProjectFonts::new(
@@ -799,8 +799,8 @@ mod tests {
         assert_eq!(fonts.face_for(&regular, 400, true), Some((0, false)));
     }
 
-    /// A desktop lists the faces it has installed, each a file a picker can
-    /// copy; the test machines all carry some.
+    // A desktop lists the faces it has installed, each a file a picker can
+    // copy; the test machines all carry some.
     #[cfg(not(target_family = "wasm"))]
     #[test]
     fn a_desktop_lists_its_installed_faces_by_family_and_style() {
@@ -814,8 +814,8 @@ mod tests {
         );
     }
 
-    /// A measurement shapes over the project's own faces alone, and wasm reads
-    /// no OS face: with no `fonts/` of its own that set was empty and aborted.
+    // A measurement shapes over the project's own faces alone, and wasm reads
+    // no OS face: with no `fonts/` of its own that set was empty and aborted.
     #[test]
     fn a_project_with_no_fonts_of_its_own_still_measures() {
         let faces = faces_of(&Engine::new(), FontProject::Host);

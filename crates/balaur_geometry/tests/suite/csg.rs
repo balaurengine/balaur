@@ -155,7 +155,7 @@ fn an_intersection_is_only_the_overlap() {
     );
 }
 
-/// Order matters for a difference and for nothing else.
+// Order matters for a difference and for nothing else.
 #[test]
 fn a_difference_is_not_the_other_way_round() {
     let (a, b) = pair();
@@ -176,7 +176,7 @@ fn a_difference_is_not_the_other_way_round() {
     );
 }
 
-/// Solids that do not touch: a union is both, an intersection is nothing.
+// Solids that do not touch: a union is both, an intersection is nothing.
 #[test]
 fn solids_that_miss_each_other_answer_plainly() {
     let a = cube(Vec3::ZERO, 1.0);
@@ -197,8 +197,8 @@ fn solids_that_miss_each_other_answer_plainly() {
     );
 }
 
-/// A cut across a curved solid keeps the smooth normals the sphere carried
-/// rather than dropping to flat ones.
+// A cut across a curved solid keeps the smooth normals the sphere carried
+// rather than dropping to flat ones.
 #[test]
 fn a_cut_keeps_the_shading_of_what_it_cut() {
     let ball = Solid::ball(1.0).build();

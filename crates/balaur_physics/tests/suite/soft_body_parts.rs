@@ -54,8 +54,8 @@ fn a_pinned_region_holds_its_particles_and_restores_with_the_world() {
     assert!(loose > 0.01, "the unpinned region fell only {loose}");
 }
 
-/// A region's edge spring is the material it names: the slack part of a pinned
-/// rope sags further under a soft material than under a stiff one.
+// A region's edge spring is the material it names: the slack part of a pinned
+// rope sags further under a soft material than under a stiff one.
 #[test]
 fn a_region_is_made_of_the_material_it_names() {
     let _guard = LOG

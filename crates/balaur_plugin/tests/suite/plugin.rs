@@ -157,9 +157,8 @@ fn a_plugin_with_no_requirements_still_loads() {
     assert!(load_order(&[], &[]).unwrap().is_empty());
 }
 
-/// The check that decides whether loading foreign code is safe is only worth
-/// something if it knows which compiler built this. It used to fall back to a
-/// placeholder both sides agreed on, which made every comparison pass.
+// The check that decides whether loading foreign code is safe is only worth something if it knows
+// which compiler built this.
 #[test]
 fn the_fingerprint_names_a_real_compiler() {
     let rustc = &Fingerprint::current().rustc;
@@ -171,9 +170,9 @@ fn the_fingerprint_names_a_real_compiler() {
     );
 }
 
-/// `AbiTag` carries the fingerprint in fixed-size fields, and a value too long
-/// for one is silently cut short — two compilers differing only past the cut
-/// would compare equal. The round trip is what proves this build fits.
+// `AbiTag` carries the fingerprint in fixed-size fields, and a value too long
+// for one is silently cut short — two compilers differing only past the cut
+// would compare equal. The round trip is what proves this build fits.
 #[test]
 fn the_fingerprint_survives_the_fixed_size_abi_tag() {
     assert_eq!(

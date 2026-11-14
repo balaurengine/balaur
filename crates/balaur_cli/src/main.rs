@@ -1088,8 +1088,8 @@ mod tests {
     use super::joinable;
     use std::path::{Path, PathBuf};
 
-    /// The editor joins `<root>/project.toml` by hand, which a `\\?\` path
-    /// cannot open: Windows stops normalising one, so `/` is not a separator.
+    // The editor joins `<root>/project.toml` by hand, which a `\\?\` path
+    // cannot open: Windows stops normalising one, so `/` is not a separator.
     #[test]
     fn a_canonical_windows_path_is_made_joinable() {
         assert_eq!(

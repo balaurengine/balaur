@@ -10,9 +10,9 @@ use balaur_core::components;
 
 use crate::support::{add_widget, app};
 
-/// Read every one of these two ways and insist they agree: a reader that
-/// drifts from `get` is a control that reports one thing to a script and
-/// another to a save.
+// Read every one of these two ways and insist they agree: a reader that
+// drifts from `get` is a control that reports one thing to a script and
+// another to a save.
 #[test]
 fn every_key_the_reader_answers_agrees_with_the_whole_table() {
     let (_dir, app) = app();
@@ -44,9 +44,9 @@ fn every_key_the_reader_answers_agrees_with_the_whole_table() {
     );
 }
 
-/// The keys the editor asks for on every pooled control every frame. Missing
-/// `submitted` alone was four in five of the editor's whole-table builds, and
-/// nothing said so: the fallback answers correctly and costs forty keys.
+// The keys the editor asks for on every pooled control every frame. Missing
+// `submitted` alone was four in five of the editor's whole-table builds, and
+// nothing said so: the fallback answers correctly and costs forty keys.
 #[test]
 fn the_keys_a_pooled_control_reads_every_frame_are_answered_on_their_own() {
     let (_dir, app) = app();
@@ -73,9 +73,9 @@ fn the_keys_a_pooled_control_reads_every_frame_are_answered_on_their_own() {
     );
 }
 
-/// The control: a key that is no property, a screen class's table, reads
-/// back through the table, so the assertion above is about the reader and not
-/// about `get`.
+// The control: a key that is no property, a screen class's table, reads
+// back through the table, so the assertion above is about the reader and not
+// about `get`.
 #[test]
 fn a_key_the_reader_does_not_claim_still_answers_from_the_table() {
     let (_dir, app) = app();

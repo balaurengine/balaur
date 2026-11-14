@@ -194,7 +194,7 @@ mod tests {
         dir
     }
 
-    /// The copy is the variant name the exporter folds, at the scale asked for.
+    // The copy is the variant name the exporter folds, at the scale asked for.
     #[test]
     fn an_image_gains_the_variant_its_target_answers_to() {
         let dir = project();
@@ -204,8 +204,8 @@ mod tests {
         assert_eq!((made.width(), made.height()), (4, 2));
     }
 
-    /// Every texel of pixel art is a deliberate square; a smaller copy cannot
-    /// keep them all.
+    // Every texel of pixel art is a deliberate square; a smaller copy cannot
+    // keep them all.
     #[test]
     fn pixel_art_is_left_alone() {
         let dir = project();
@@ -215,7 +215,7 @@ mod tests {
         assert!(!dir.path().join("art/hero.web.png").exists());
     }
 
-    /// Running twice writes the same one file: a variant is not itself shrunk.
+    // Running twice writes the same one file: a variant is not itself shrunk.
     #[test]
     fn a_second_run_does_not_shrink_what_the_first_one_wrote() {
         let dir = project();
@@ -225,7 +225,7 @@ mod tests {
         assert!(!dir.path().join("art/rock.web.web.png").exists());
     }
 
-    /// A project that says `nearest` once has marked every image as pixel art.
+    // A project that says `nearest` once has marked every image as pixel art.
     #[test]
     fn a_project_wide_nearest_filter_marks_every_image() {
         let dir = project();
@@ -239,7 +239,7 @@ mod tests {
         assert_eq!(done.skipped.len(), 2);
     }
 
-    /// A bitmap font's glyph boxes are in its page's pixels.
+    // A bitmap font's glyph boxes are in its page's pixels.
     #[test]
     fn a_bitmap_font_page_is_left_alone() {
         let dir = project();
@@ -257,7 +257,7 @@ mod tests {
         );
     }
 
-    /// A tag no export answers to would write a file nothing ever picks.
+    // A tag no export answers to would write a file nothing ever picks.
     #[test]
     fn a_tag_no_target_answers_to_is_refused() {
         let dir = project();

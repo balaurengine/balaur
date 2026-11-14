@@ -151,9 +151,9 @@ fn step(pair: &mut Pair, tick: u64) {
     pair.guest.advance(&mut pair.guest_app);
 }
 
-/// The one that matters: a link with real latency, jitter and loss still
-/// converges, because a lost input is a misprediction the session repairs
-/// rather than a stall it waits out.
+// The one that matters: a link with real latency, jitter and loss still
+// converges, because a lost input is a misprediction the session repairs
+// rather than a stall it waits out.
 #[test]
 fn two_peers_agree_across_a_link_that_delays_drops_and_reorders() {
     let mut pair = connect(Faults::typical());
@@ -183,8 +183,8 @@ fn two_peers_agree_across_a_link_that_delays_drops_and_reorders() {
     assert_eq!(pair.guest.desync(), None);
 }
 
-/// The faults are real: with this much loss and delay, a run has to have
-/// actually lost and reordered something, or the test above proved nothing.
+// The faults are real: with this much loss and delay, a run has to have
+// actually lost and reordered something, or the test above proved nothing.
 #[test]
 fn the_faults_actually_fire() {
     let (mut one, two) = pipe();
@@ -211,8 +211,8 @@ fn the_faults_actually_fire() {
     );
 }
 
-/// A reliable payload is never dropped, whatever the loss setting: a
-/// transport that loses one has broken its contract.
+// A reliable payload is never dropped, whatever the loss setting: a
+// transport that loses one has broken its contract.
 #[test]
 fn loss_never_touches_the_reliable_channel() {
     let (mut one, two) = pipe();
@@ -234,8 +234,8 @@ fn loss_never_touches_the_reliable_channel() {
     assert!(got.iter().all(|r| r.delivery == Delivery::Reliable));
 }
 
-/// A quiet link changes nothing, so `Faults::none()` is a real no-op rather
-/// than a differently shaped path.
+// A quiet link changes nothing, so `Faults::none()` is a real no-op rather
+// than a differently shaped path.
 #[test]
 fn a_link_with_no_faults_delivers_immediately_and_in_order() {
     let (mut one, two) = pipe();
@@ -251,9 +251,9 @@ fn a_link_with_no_faults_delivers_immediately_and_in_order() {
     assert_eq!(order, (0..10).collect::<Vec<_>>());
 }
 
-/// A networked session replays from its recording, with no peer on the other
-/// end. This is what makes a desync reproducible: the same payloads arrive on
-/// the same ticks, and the run is identical without a network at all.
+// A networked session replays from its recording, with no peer on the other
+// end. This is what makes a desync reproducible: the same payloads arrive on
+// the same ticks, and the run is identical without a network at all.
 #[test]
 fn a_recorded_session_replays_with_no_peer() {
     use balaur_core::replay::{ReplayFeed, ReplayMode};
@@ -284,8 +284,8 @@ fn a_recorded_session_replays_with_no_peer() {
     );
 }
 
-/// The link reports what it is doing. Measurement, not simulation: none of
-/// these numbers is recorded, replayed or hashed.
+// The link reports what it is doing. Measurement, not simulation: none of
+// these numbers is recorded, replayed or hashed.
 #[test]
 fn a_session_measures_its_link() {
     let mut pair = connect(Faults {

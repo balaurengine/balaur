@@ -144,7 +144,7 @@ mod tests {
         mesh
     }
 
-    /// Each simpler copy has at most half the triangles of the one before.
+    // Each simpler copy has at most half the triangles of the one before.
     #[test]
     fn a_model_asking_for_lods_gets_simpler_copies() {
         let mesh = grid(16);
@@ -161,7 +161,6 @@ mod tests {
         assert!(super::lod_levels(&mesh, &toml::Table::new()).is_empty());
     }
 
-    /// A model file's own `scale` and `offset` place its geometry.
     #[test]
     fn a_model_is_scaled_and_moved_by_its_settings() {
         let mut mesh = crate::mesh::parse_obj(TRIANGLE.as_bytes(), "t.obj").unwrap();

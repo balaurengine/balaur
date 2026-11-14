@@ -109,7 +109,7 @@ impl Scenario {
 }
 ";
 
-/// A sensor only reports, so it hears a kinematic body with no row saying so.
+// A sensor only reports, so it hears a kinematic body with no row saying so.
 #[test]
 fn a_sensor_hears_a_kinematic_body_it_overlaps() {
     let mut b = boot::project(
@@ -137,8 +137,8 @@ collider3d = { shape = { kind = "box" } }
     first(&b, "World/Sensor", "entered");
 }
 
-/// A collider asks rapier only for what something hears: a script's hook, or
-/// a listener arriving later.
+// A collider asks rapier only for what something hears: a script's hook, or
+// a listener arriving later.
 #[test]
 fn a_collider_nothing_hears_raises_nothing_until_something_listens() {
     let mut b = boot::project(

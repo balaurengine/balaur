@@ -4,8 +4,8 @@
 
 use balaur_core::rng::Pcg32;
 
-/// Pinned values, not a self-comparison: if the generator changes, every
-/// recorded replay breaks, so that has to be a deliberate act.
+// Pinned values, not a self-comparison: if the generator changes, every
+// recorded replay breaks, so that has to be a deliberate act.
 #[test]
 fn the_stream_is_pinned_for_a_given_seed() {
     let mut rng = Pcg32::new(42);

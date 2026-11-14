@@ -369,8 +369,8 @@ mod tests {
         assert_eq!(super::millis(f64::NAN), 0);
     }
 
-    /// The level that reaches the motor is the rung's strength times its
-    /// gain: what a script asked for, at any strength gilrs would silence.
+    // The level that reaches the motor is the rung's strength times its
+    // gain: what a script asked for, at any strength gilrs would silence.
     #[cfg(not(target_family = "wasm"))]
     #[test]
     fn every_level_plays_on_a_rung_whose_gain_clears_gilrs_s_floor() {

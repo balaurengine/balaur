@@ -528,8 +528,8 @@ impl Scenario {
     );
 }
 
-/// What a soft body is made of is its `soft_material`, inline here: every
-/// row reaches rapier's body, and the body keeps naming the definition.
+// What a soft body is made of is its `soft_material`, inline here: every
+// row reaches rapier's body, and the body keeps naming the definition.
 #[test]
 fn an_inline_soft_material_reaches_the_solver() {
     use balaur_physics::rapier3d::prelude::{SoftBodyCellModel, SoftEdgePlasticFlow};
@@ -559,8 +559,8 @@ fn an_inline_soft_material_reaches_the_solver() {
     );
 }
 
-/// A soft material changed on a live body is taken in place, as a stiffness
-/// tuned during play must be: the body is not built again from rest.
+// A soft material changed on a live body is taken in place, as a stiffness
+// tuned during play must be: the body is not built again from rest.
 #[test]
 fn a_new_soft_material_is_taken_in_place() {
     let app = app();

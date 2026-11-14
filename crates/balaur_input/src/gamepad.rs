@@ -917,8 +917,8 @@ mod tests {
         assert_eq!(pad.touches(), [touch]);
     }
 
-    /// The fields are `#[serde(default)]` for this: without it the whole
-    /// snapshot fails to parse and the tick replays with no pads at all.
+    // The fields are `#[serde(default)]` for this: without it the whole
+    // snapshot fails to parse and the tick replays with no pads at all.
     #[test]
     fn a_recording_made_before_motion_existed_still_replays() {
         let older = serde_json::json!([{
@@ -940,8 +940,8 @@ mod tests {
         assert!(!pad.can_rumble());
     }
 
-    /// The neutral-answer rule: a pad that is not there reads zero rather
-    /// than failing, so the same script runs headless.
+    // The neutral-answer rule: a pad that is not there reads zero rather
+    // than failing, so the same script runs headless.
     #[test]
     fn an_absent_pad_reads_neutral_and_cannot_be_written() {
         let mut state = connected(0);

@@ -104,7 +104,6 @@ pub(crate) fn value(eng: &Engine) -> Value {
 mod tests {
     use balaur_core::{App, AppConfig};
 
-    /// A run from the sources talks to the local server until the editor picks.
     #[test]
     fn a_run_from_the_sources_talks_to_the_local_server_until_someone_picks() {
         if std::env::var_os("GAMEND_URL").is_some() {

@@ -84,8 +84,8 @@ fn a_sampled_curve_stays_within_the_tolerance() {
     assert_eq!(*points.last().expect("an end"), Vec2::new(0.0, 1.0));
 }
 
-/// A straight run needs no subdivision, and a curve needs more the tighter
-/// the tolerance: flattening follows the shape rather than a fixed count.
+// A straight run needs no subdivision, and a curve needs more the tighter
+// the tolerance: flattening follows the shape rather than a fixed count.
 #[test]
 fn flattening_spends_points_where_the_curve_bends() {
     let straight = Path2d {
@@ -130,8 +130,8 @@ fn an_extruded_outline_is_a_closed_solid() {
     );
 }
 
-/// A bevel takes material off the edges, so the same outline at the same
-/// depth encloses less once it is rounded.
+// A bevel takes material off the edges, so the same outline at the same
+// depth encloses less once it is rounded.
 #[test]
 fn a_bevel_rounds_the_edges_off() {
     let square_solid = extrude(&square(), 1.0, 0.0, 1).expect("square");
@@ -148,8 +148,8 @@ fn a_bevel_rounds_the_edges_off() {
     assert!(rounded.indices.len() > square_solid.indices.len());
 }
 
-/// A half circle revolved is a sphere: the profile decides the solid, and
-/// the lathe only spins it.
+// A half circle revolved is a sphere: the profile decides the solid, and
+// the lathe only spins it.
 #[test]
 fn a_revolved_profile_makes_a_solid_of_revolution() {
     let profile = Path2d {

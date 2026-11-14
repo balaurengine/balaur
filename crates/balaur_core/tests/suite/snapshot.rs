@@ -38,8 +38,6 @@ fn move_to(app: &App, entity: balaur_core::hecs::Entity, x: f32) {
     world.get::<&mut Transform>(entity).unwrap().position.x = x;
 }
 
-/// The load-bearing one: a perturbed world restored from a snapshot digests
-/// exactly as it did when the snapshot was taken.
 #[test]
 fn a_restored_world_digests_as_it_did_when_captured() {
     let app = app();
@@ -69,8 +67,8 @@ fn a_restored_world_digests_as_it_did_when_captured() {
     assert_eq!(digest::digest(&app.engine), before);
 }
 
-/// A snapshot survives the trip through bytes, so what a ring or a network
-/// carries restores the same world the in-memory one does.
+// A snapshot survives the trip through bytes, so what a ring or a network
+// carries restores the same world the in-memory one does.
 #[test]
 fn a_snapshot_round_trips_through_bytes() {
     let app = app();
@@ -84,8 +82,8 @@ fn a_snapshot_round_trips_through_bytes() {
     assert_eq!(digest::digest(&app.engine), before);
 }
 
-/// Restore puts the node set back, not just the state of nodes that survived:
-/// a node the snapshot never saw goes away again.
+// Restore puts the node set back, not just the state of nodes that survived:
+// a node the snapshot never saw goes away again.
 #[test]
 fn restore_frees_a_node_spawned_since_the_snapshot() {
     let app = app();
@@ -124,8 +122,8 @@ fn restore_respawns_a_node_freed_since_the_snapshot() {
     assert_eq!(x.to_bits(), 4.0f32.to_bits(), "and came back where it was");
 }
 
-/// The one that matters for netcode: a tick that spawns a bullet and frees
-/// another node has to roll back to a bit-identical digest, not a close one.
+// The one that matters for netcode: a tick that spawns a bullet and frees
+// another node has to roll back to a bit-identical digest, not a close one.
 #[test]
 fn a_spawn_and_a_free_roll_back_to_the_same_digest() {
     let app = app();
@@ -147,8 +145,8 @@ fn a_spawn_and_a_free_roll_back_to_the_same_digest() {
     assert!(!app.engine.world().contains(bullet));
 }
 
-/// A run-time spawn mints `<authority>:<counter>`, and a rollback rewinds the
-/// counter so the re-simulated spawn mints the same id rather than the next.
+// A run-time spawn mints `<authority>:<counter>`, and a rollback rewinds the
+// counter so the re-simulated spawn mints the same id rather than the next.
 #[test]
 fn a_rolled_back_spawn_mints_the_id_it_minted_before() {
     let app = app();
@@ -160,8 +158,8 @@ fn a_rolled_back_spawn_mints_the_id_it_minted_before() {
     assert_eq!(first, "local:0");
 }
 
-/// A re-simulated tick overwrites its slot. Without this a rollback-heavy
-/// session fills the ring with duplicates and forgets ticks it still needs.
+// A re-simulated tick overwrites its slot. Without this a rollback-heavy
+// session fills the ring with duplicates and forgets ticks it still needs.
 #[test]
 fn pushing_a_tick_twice_replaces_it_rather_than_filling_the_ring() {
     let app = app();
@@ -218,8 +216,8 @@ fn app_with_marker() -> App {
     app
 }
 
-/// A respawned node is not a bare node: its components come back through the
-/// same `apply` a scene file goes through, so the digest matches.
+// A respawned node is not a bare node: its components come back through the
+// same `apply` a scene file goes through, so the digest matches.
 #[test]
 fn a_respawned_node_brings_its_components_back() {
     let app = app_with_marker();
@@ -247,9 +245,9 @@ fn a_respawned_node_brings_its_components_back() {
     assert_eq!(digest::digest(&app.engine), before);
 }
 
-/// `node:set_parent` is simulation state like any other, and the digest walks
-/// the tree in order: a node left under the parent a rolled-back tick gave it
-/// is a desync, not a cosmetic difference.
+// `node:set_parent` is simulation state like any other, and the digest walks
+// the tree in order: a node left under the parent a rolled-back tick gave it
+// is a desync, not a cosmetic difference.
 #[test]
 fn restoring_puts_a_reparented_node_back_under_its_old_parent() {
     let app = app();
@@ -275,8 +273,8 @@ fn restoring_puts_a_reparented_node_back_under_its_old_parent() {
     assert_eq!(digest::digest(&app.engine), before);
 }
 
-/// A rename is invisible to the digest, which labels by stable id, so only a
-/// path lookup catches it -- and `find_node` is how a script reaches a node.
+// A rename is invisible to the digest, which labels by stable id, so only a
+// path lookup catches it -- and `find_node` is how a script reaches a node.
 #[test]
 fn restoring_puts_a_renamed_node_back_under_its_old_name() {
     let app = app();
@@ -298,9 +296,9 @@ fn restoring_puts_a_renamed_node_back_under_its_old_name() {
     );
 }
 
-/// Two siblings freed in the same tick, which is the netcode case: the frames
-/// come back last-first, so each respawn has to wait for the siblings that sit
-/// ahead of it or the row is rebuilt inside out.
+// Two siblings freed in the same tick, which is the netcode case: the frames
+// come back last-first, so each respawn has to wait for the siblings that sit
+// ahead of it or the row is rebuilt inside out.
 #[test]
 fn restoring_two_freed_siblings_puts_both_back_in_order() {
     let app = app();
@@ -340,9 +338,9 @@ fn restoring_two_freed_siblings_puts_both_back_in_order() {
     assert_eq!(digest::digest(&app.engine), before);
 }
 
-/// The ordering one: `collect_subtree` visits the last child first, so a
-/// respawn that appended put a freed middle sibling at the end and `fold`
-/// reported a divergence made of nothing.
+// The ordering one: `collect_subtree` visits the last child first, so a
+// respawn that appended put a freed middle sibling at the end and `fold`
+// reported a divergence made of nothing.
 #[test]
 fn restoring_the_first_of_three_siblings_puts_it_back_where_it_was() {
     let app = app();
@@ -376,8 +374,8 @@ fn set_material(app: &App, entity: balaur_core::hecs::Entity, reference: &str) {
         .material = balaur_core::scene::MaterialId::intern(reference);
 }
 
-/// A material is authored state a script can change mid-run, so a rollback
-/// has to put it back and a digest has to notice it moved.
+// A material is authored state a script can change mid-run, so a rollback
+// has to put it back and a digest has to notice it moved.
 #[test]
 fn a_restore_puts_a_nodes_material_back() {
     let app = app();

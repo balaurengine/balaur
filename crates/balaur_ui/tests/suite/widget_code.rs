@@ -24,8 +24,8 @@ fn fills(out: &egui::FullOutput) -> Vec<egui::Color32> {
     painted
 }
 
-/// The lines a `code` node names are what its gutter marks, in the colours
-/// its theme names: a dot on a breakpoint, a fill across the current line.
+// The lines a `code` node names are what its gutter marks, in the colours
+// its theme names: a dot on a breakpoint, a fill across the current line.
 #[test]
 fn a_code_gutter_marks_the_lines_its_node_names() {
     let (dir, app) = app();
@@ -55,9 +55,9 @@ fn a_code_gutter_marks_the_lines_its_node_names() {
     );
 }
 
-/// A click on the gutter reports the line it landed on and nothing else: what
-/// the mark means is the script's, as a breakpoint in one editor and a value
-/// in another.
+// A click on the gutter reports the line it landed on and nothing else: what
+// the mark means is the script's, as a breakpoint in one editor and a value
+// in another.
 #[test]
 fn a_code_gutter_click_reports_its_line() {
     let script = "pub class Owner { node: Node, hit: int }
@@ -110,8 +110,8 @@ fn glyph_colors(out: &egui::FullOutput) -> Vec<egui::Color32> {
     found
 }
 
-/// The code is shaped as a label is, a glyph a letter, and only the gutter's
-/// numbers go through egui's own text; so it stays at another scale.
+// The code is shaped as a label is, a glyph a letter, and only the gutter's
+// numbers go through egui's own text; so it stays at another scale.
 #[test]
 fn a_code_editor_draws_its_lines_through_the_shaper() {
     let (_dir, app) = app();
@@ -139,8 +139,8 @@ fn a_code_editor_draws_its_lines_through_the_shaper() {
     );
 }
 
-/// A keyword wears the theme's keyword colour, and the name after it the
-/// identifier's.
+// A keyword wears the theme's keyword colour, and the name after it the
+// identifier's.
 #[test]
 fn a_code_editor_colours_a_line_by_its_words() {
     let (dir, app) = app();

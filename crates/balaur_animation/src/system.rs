@@ -723,7 +723,6 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
     }
 }
 
-/// A tween's handle as a script holds it.
 fn handle(id: TweenId) -> balaur_script::Value {
     balaur_script::Value::Int(i64::try_from(id).unwrap_or(i64::MAX))
 }

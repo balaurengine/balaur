@@ -92,8 +92,6 @@ fn a_pack_round_trips_through_bytes() {
     assert_eq!(decoded.assets, pack.assets);
 }
 
-/// The gap this section closes: before it, a shipped game's textures and
-/// sounds stayed behind on the build machine.
 #[test]
 fn binary_assets_travel_inside_the_pack() {
     let dir = project();
@@ -150,8 +148,8 @@ fn project_files_serve_a_packed_asset_without_touching_disk() {
     assert!(files.read("art/missing.png").is_err());
 }
 
-/// The default is strict on purpose: a shipped game that quietly reads the
-/// working directory works on the machine that built it and nowhere else.
+// The default is strict on purpose: a shipped game that quietly reads the
+// working directory works on the machine that built it and nowhere else.
 #[test]
 fn an_embedded_game_will_not_read_a_file_beside_it() {
     use balaur_core::project::{AssetSource, ProjectFiles};
@@ -182,8 +180,8 @@ fn an_embedded_game_will_not_read_a_file_beside_it() {
     );
 }
 
-/// A missing asset has to say where it looked; "not found" alone is the least
-/// useful sentence a shipped game can print.
+// A missing asset has to say where it looked; "not found" alone is the least
+// useful sentence a shipped game can print.
 #[test]
 fn a_missing_asset_names_where_it_looked() {
     use balaur_core::project::{AssetSource, ProjectFiles};
@@ -207,7 +205,7 @@ fn the_backend_decides_what_a_script_compiles_to() {
     );
 }
 
-/// A face's licence travels with it, and a text file anywhere else does not.
+// A face's licence travels with it, and a text file anywhere else does not.
 #[test]
 fn a_font_s_licence_ships_beside_it() {
     let dir = project();
@@ -280,13 +278,8 @@ fn truncated_or_foreign_bytes_do_not_decode() {
     assert!(Pack::decode(&[]).is_err());
 }
 
-/// Shipping the same sources twice must produce the same bytes, on any machine
-/// that builds them. `encode` walks the scene and script maps, so a hashed map
-/// would leak its iteration order into the file: before this was an ordered
-/// map, ten exports of a three-script project produced five different files.
-///
-/// Insertion order is the lever a hashed map would react to, so the two packs
-/// here are filled in opposite orders.
+// `encode` walks the scene and script maps, so a hashed map would leak its iteration order; the two
+// packs here are filled in opposite orders.
 #[test]
 fn a_pack_encodes_the_same_whatever_order_it_was_filled_in() {
     let entries = ["a.toml", "m.toml", "z.toml", "b.toml", "q.toml"];
@@ -338,11 +331,8 @@ fn a_pack_writes_its_entries_in_sorted_order() {
     assert_eq!(positions, sorted, "keys are not written in sorted order");
 }
 
-/// The builder reads through the file backend, which is what lets a browser
-/// export a project it only ever held in memory.
-///
-/// On a thread of its own: the default backend is thread-local, and no other
-/// test in this binary may find a memory filesystem where the disk should be.
+// On a thread of its own: the default backend is thread-local, and no other test here may find a
+// memory filesystem where the disk should be.
 #[test]
 fn a_pack_builds_from_a_project_the_backend_holds_in_memory() {
     std::thread::spawn(|| {
@@ -387,8 +377,8 @@ fn a_pack_builds_from_a_project_the_backend_holds_in_memory() {
     .unwrap();
 }
 
-/// `application/ignore`: work in progress beside the art it came from stays
-/// out of the shipped pack, folder and file pattern alike.
+// `application/ignore`: work in progress beside the art it came from stays
+// out of the shipped pack, folder and file pattern alike.
 #[test]
 fn a_pack_leaves_out_what_the_project_ignores() {
     let dir = project();
@@ -431,9 +421,9 @@ fn ignoring_a_module(script: &str) -> tempfile::TempDir {
     dir
 }
 
-/// A script compiles against the project, where an ignored module is still
-/// on disk; the shipped game looks for it in the pack and fails on its
-/// first `use`. The build names the script, the module and the pattern.
+// A script compiles against the project, where an ignored module is still
+// on disk; the shipped game looks for it in the pack and fails on its
+// first `use`. The build names the script, the module and the pattern.
 #[test]
 fn a_shipped_script_that_uses_an_ignored_module_fails_the_build() {
     let dir = ignoring_a_module("use addons/gamend/prefs.txt\n");
@@ -483,8 +473,8 @@ fn a_pack_carries_the_json_and_csv_a_game_reads_at_run_time() {
     );
 }
 
-/// A nested project's scripts are its own: `editor/library` is a project, and
-/// its `addons/<name>/<file>.bs` resolve only when mounted at *its* root.
+// A nested project's scripts are its own: `editor/library` is a project, and
+// its `addons/<name>/<file>.bs` resolve only when mounted at *its* root.
 #[test]
 fn a_nested_projects_scripts_ship_as_source() {
     let dir = project();
@@ -510,8 +500,8 @@ fn a_nested_projects_scripts_ship_as_source() {
     );
 }
 
-/// And it is never handed to the compiler at all, so an import that only
-/// resolves at the nested root cannot fail this project's export.
+// And it is never handed to the compiler at all, so an import that only
+// resolves at the nested root cannot fail this project's export.
 #[test]
 fn a_nested_projects_scripts_are_not_compiled() {
     let dir = tempfile::tempdir().unwrap();

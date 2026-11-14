@@ -169,8 +169,8 @@ mod tests {
         assert_eq!(data.heights.len(), 6);
     }
 
-    /// parry's `Array2::new` asserts on this, and a panic is a poor way to
-    /// learn that a row is short.
+    // parry's `Array2::new` asserts on this, and a panic is a poor way to
+    // learn that a row is short.
     #[test]
     fn a_grid_whose_count_does_not_match_its_shape_is_refused() {
         let err = parse_definition(&value("rows = 2\ncolumns = 3\nheights = [0, 1, 2]"))

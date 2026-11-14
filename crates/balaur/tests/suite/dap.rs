@@ -446,10 +446,8 @@ fn disconnecting_leaves_the_game_running_with_no_breakpoints_left() {
     assert_eq!(app.engine.frozen_root(), None, "and it stays let go");
 }
 
-/// A client that stops reading costs itself Debug Console lines, never the
-/// game a frame: the adapter writes from its own thread and drops log lines
-/// past a backlog, so the frame loop runs on and the client is answered once
-/// it reads again.
+// The adapter writes from its own thread and drops log lines past a backlog; the client is answered
+// once it reads again.
 #[test]
 fn a_client_that_stops_reading_never_stalls_the_game() {
     balaur_core::logbuf::capture_for_test();

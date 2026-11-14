@@ -5,10 +5,8 @@
 #[allow(unused_imports, reason = "each suite uses part of the shared helpers")]
 use crate::support::*;
 
-/// A role sizes a container that states nothing, and a node that states a
-/// size keeps it. The theme is where a size lives by default, never something
-/// a node has to fight: the first cut of this floored the box with the role,
-/// so a node asking for less was quietly given the role's.
+// A role sizes a container that states nothing, and never floors a node that asks for less than the
+// role's size.
 #[test]
 fn a_node_s_own_size_wins_over_the_role_that_would_size_it() {
     let (dir, app) = app();
@@ -44,9 +42,8 @@ fn a_node_s_own_size_wins_over_the_role_that_would_size_it() {
     );
 }
 
-/// A role puts a label's caption where it wants it. Only a button read
-/// `align` before, so the inspector's fold carets could not be pushed to the
-/// right of their column from the theme.
+// A role puts a label's caption where it wants it, so the inspector's fold carets can sit right of
+// their column.
 #[test]
 fn a_role_aligns_a_label_s_caption() {
     let (dir, app) = app();
@@ -88,9 +85,9 @@ fn a_role_aligns_a_label_s_caption() {
     );
 }
 
-/// A node's `icon_color` tints its glyph and wins over the role's. The
-/// inspector marks each component section in that component's own colour,
-/// which no role can hold, and it drew itself for want of this.
+// A node's `icon_color` tints its glyph and wins over the role's. The
+// inspector marks each component section in that component's own colour,
+// which no role can hold, and it drew itself for want of this.
 #[test]
 fn a_node_s_icon_color_tints_its_glyph_over_the_role_s() {
     let (dir, app) = app();
@@ -139,8 +136,8 @@ fn a_node_s_icon_color_tints_its_glyph_over_the_role_s() {
     );
 }
 
-/// A child that grows takes the room its siblings leave, inside a root that
-/// fills the surface. The start screen's page got nothing.
+// A child that grows takes the room its siblings leave, inside a root that
+// fills the surface. The start screen's page got nothing.
 #[test]
 fn a_grow_child_of_a_fill_root_takes_what_is_left() {
     let (dir, app) = app();
@@ -217,8 +214,8 @@ fn a_grow_child_of_a_fill_root_takes_what_is_left() {
     );
 }
 
-/// A label that states `truncate` ends a caption too long for its box with
-/// an ellipsis, rather than leaving the painter to clip it mid-glyph.
+// A label that states `truncate` ends a caption too long for its box with
+// an ellipsis, rather than leaving the painter to clip it mid-glyph.
 #[test]
 fn a_truncated_label_ends_in_an_ellipsis() {
     let (_dir, app) = app();
@@ -247,9 +244,8 @@ fn a_truncated_label_ends_in_an_ellipsis() {
     let _ = cut;
 }
 
-/// A `field` reports its submit the way a button reports its click: true for
-/// one frame, false the next. A pooled row has no script of its own, so
-/// `on_submit` could not reach it and the editor drew those rows by hand.
+// A pooled row has no script of its own, so its submit is reported the way a button reports its
+// click: true for one frame.
 #[test]
 fn a_field_reports_its_submit_for_one_frame() {
     let (_dir, app) = app();
@@ -277,9 +273,7 @@ fn a_field_reports_its_submit_for_one_frame() {
     assert_eq!(said(&app), 0, "the submit was still said a frame later");
 }
 
-/// A `switch` holds `checked`, flips on a click, and takes its track from the
-/// role while it is off and from that role's `active` table while it is on.
-/// The editor drew three of these by hand for want of a kind.
+// A `switch` takes its track from the role while off and from the role's `active` table while on.
 #[test]
 fn a_switch_flips_and_wears_its_role_s_two_states() {
     let (dir, app) = app();
@@ -328,9 +322,9 @@ fn a_switch_flips_and_wears_its_role_s_two_states() {
     );
 }
 
-/// A `grow` label is cut at the box the layout left it, not at its own
-/// length. The inspector's Source row ran its path under the verb beside it:
-/// only a stated width was a column, and a grown child never states one.
+// A `grow` label is cut at the box the layout left it, not at its own
+// length. The inspector's Source row ran its path under the verb beside it:
+// only a stated width was a column, and a grown child never states one.
 #[test]
 fn a_grown_label_is_cut_at_the_box_it_was_given() {
     let (_dir, app) = app();

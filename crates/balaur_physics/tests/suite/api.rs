@@ -287,10 +287,8 @@ fn node_at(app: &App) -> Entity {
     scene::spawn_node(&mut app.engine.world_mut(), "N", root)
 }
 
-/// Every parametric collider kind the schema offers has to build. rapier
-/// measures capsules, cylinders and cones from the centre while the schema
-/// states the whole straight part, so a wrong conversion halves the shape
-/// silently — applying without error is the floor, not the ceiling.
+// rapier measures capsules, cylinders and cones from the centre while the schema states the whole
+// straight part, so a wrong conversion halves the shape silently.
 #[test]
 fn every_parametric_collider_kind_applies() {
     for source in [
@@ -318,8 +316,8 @@ fn a_2d_capsule_collider_applies() {
     components::add(&app.engine, e, "collider2d", Some(&params)).unwrap();
 }
 
-/// A mesh-backed collider without its asset says which asset it wanted,
-/// rather than failing somewhere later with no name attached.
+// A mesh-backed collider without its asset says which asset it wanted,
+// rather than failing somewhere later with no name attached.
 #[test]
 fn a_mesh_collider_without_its_asset_says_so() {
     for kind in ["triangle_mesh", "convex_hull", "polyline"] {
@@ -383,8 +381,8 @@ fn joint_count(app: &App) -> usize {
     state.borrow().joints.len()
 }
 
-/// Rapier drops a joint with either end's body, so the map must drop the
-/// handle too: otherwise the joint silently disappears and never comes back.
+// Rapier drops a joint with either end's body, so the map must drop the
+// handle too: otherwise the joint silently disappears and never comes back.
 #[test]
 fn a_joint_is_remade_when_the_body_it_lost_returns() {
     let mut app = app();
@@ -415,9 +413,9 @@ fn a_joint_is_remade_when_the_body_it_lost_returns() {
     assert_eq!(joint_count(&app), 1, "the authored joint never came back");
 }
 
-/// A switched-off joint is made and kept off; a switched-off articulation is
-/// left out of its chain. Neither sits on the retry list, which would
-/// re-apply the whole component every step.
+// A switched-off joint is made and kept off; a switched-off articulation is
+// left out of its chain. Neither sits on the retry list, which would
+// re-apply the whole component every step.
 #[test]
 fn a_switched_off_joint_is_kept_off_and_never_retried() {
     let mut app = app();

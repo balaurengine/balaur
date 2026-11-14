@@ -39,8 +39,8 @@ fn a_hidden_widget_draws_nothing_and_takes_no_clicks() {
     assert!(!clicked(&app, entity), "a hidden button took a click");
 }
 
-/// The four edge anchors, which the corners and the centre did not cover and
-/// which every Godot `Control` preset short of the wide ones needs.
+// The four edge anchors, which the corners and the centre did not cover and
+// which every Godot `Control` preset short of the wide ones needs.
 #[test]
 fn an_edge_anchor_pins_one_axis_and_centres_the_other() {
     let (_dir, app) = app();
@@ -174,8 +174,8 @@ fn a_row_lays_its_children_out_along_its_own_direction() {
     );
 }
 
-/// The gap is the thing a designer reaches for first, so it has to move the
-/// layout rather than merely be stored.
+// The gap is the thing a designer reaches for first, so it has to move the
+// layout rather than merely be stored.
 #[test]
 fn the_gap_widens_a_row() {
     let measure = |gap: f64| {
@@ -208,9 +208,9 @@ fn the_gap_widens_a_row() {
     );
 }
 
-/// A child is placed by its parent. Its own `x`, `y` and `anchor` are the
-/// keys of a widget that stands alone, and a menu that moved when you nudged
-/// one entry would not be a menu.
+// A child is placed by its parent. Its own `x`, `y` and `anchor` are the
+// keys of a widget that stands alone, and a menu that moved when you nudged
+// one entry would not be a menu.
 #[test]
 fn a_childs_own_offset_is_ignored_inside_a_container() {
     let measure = |x: f64, y: f64| {
@@ -263,9 +263,9 @@ fn a_button_inside_a_container_still_takes_its_click() {
     );
 }
 
-/// A panel with nothing in it is the panel it always was; one with children
-/// lays them out. Both had to stay true, since every existing scene's panels
-/// are the first kind.
+// A panel with nothing in it is the panel it always was; one with children
+// lays them out. Both had to stay true, since every existing scene's panels
+// are the first kind.
 #[test]
 fn a_panel_with_children_grows_around_them() {
     let (_dir, app) = app();
@@ -296,8 +296,6 @@ fn a_panel_with_children_grows_around_them() {
     );
 }
 
-/// A container hands out the leftover along its own direction, so a shell
-/// written as a tree lands on the rects the code used to compute.
 #[test]
 fn grow_divides_what_the_fixed_children_leave() {
     let (_dir, app) = app();
@@ -339,8 +337,8 @@ fn grow_divides_what_the_fixed_children_leave() {
     );
 }
 
-/// Two roots, two surfaces: the whole reason the editor's own chrome cannot
-/// share the rect a game's HUD is confined to.
+// Two roots, two surfaces: the whole reason the editor's own chrome cannot
+// share the rect a game's HUD is confined to.
 #[test]
 fn a_root_draws_on_the_surface_it_names() {
     let (_dir, app) = app();
@@ -398,8 +396,8 @@ fn a_root_draws_on_the_surface_it_names() {
     );
 }
 
-/// The point of measuring rather than remembering: a container divides its
-/// room by what its children need *now*, not by what they drew last frame.
+// The point of measuring rather than remembering: a container divides its
+// room by what its children need *now*, not by what they drew last frame.
 #[test]
 fn a_container_sizes_to_a_label_that_changed_this_frame() {
     let (_dir, app) = app();
@@ -452,8 +450,8 @@ fn a_container_sizes_to_a_label_that_changed_this_frame() {
     );
 }
 
-/// A scroll holds its box whatever is inside it: that is the difference
-/// between a list that scrolls and one that stretches its panel.
+// A scroll holds its box whatever is inside it: that is the difference
+// between a list that scrolls and one that stretches its panel.
 #[test]
 fn a_scroll_keeps_its_box_however_long_its_contents() {
     let measure = |kind: &str| {
@@ -494,8 +492,8 @@ fn a_scroll_keeps_its_box_however_long_its_contents() {
     );
 }
 
-/// A scroll that moves one way fills the other: a column in a vertical scroll
-/// is as wide as the scroll, with nothing inside it stating the width.
+// A scroll that moves one way fills the other: a column in a vertical scroll
+// is as wide as the scroll, with nothing inside it stating the width.
 #[test]
 fn a_one_way_scroll_fills_the_other_way() {
     let inner_width = |axis: &str| {
@@ -557,7 +555,7 @@ fn a_one_way_scroll_fills_the_other_way() {
     );
 }
 
-/// A tab shows one page and names the rest, so adding a page is adding a node.
+// A tab shows one page and names the rest, so adding a page is adding a node.
 #[test]
 fn a_tab_shows_the_page_it_names_and_only_that_one() {
     let show = |active: &str| {
@@ -607,8 +605,8 @@ fn a_tab_shows_the_page_it_names_and_only_that_one() {
     );
 }
 
-/// A seam only takes a drag when one of the pair states a size to write it
-/// to; between two growers there is nothing a drag could mean.
+// A seam only takes a drag when one of the pair states a size to write it
+// to; between two growers there is nothing a drag could mean.
 #[test]
 fn a_handle_is_only_a_grab_where_a_neighbour_states_a_size() {
     let (_dir, mut app) = app();
@@ -663,9 +661,7 @@ fn a_handle_is_only_a_grab_where_a_neighbour_states_a_size() {
     );
 }
 
-/// The pointer over a seam asks to look like a resize. The host is what sets
-/// the shape; this is the half egui carries, and it is the half that broke
-/// when nobody read `platform_output` at all.
+// The host is what sets the shape; this is the half egui carries.
 #[test]
 fn a_seam_asks_the_pointer_to_look_like_a_resize() {
     let (_dir, app) = app();
@@ -708,8 +704,8 @@ fn a_seam_asks_the_pointer_to_look_like_a_resize() {
     );
 }
 
-/// A grouping node with no widget of its own should not break the chain: a
-/// menu is usually a panel with an empty node or two inside it.
+// A grouping node with no widget of its own should not break the chain: a
+// menu is usually a panel with an empty node or two inside it.
 #[test]
 fn a_plain_node_between_container_and_child_is_seen_through() {
     let (_dir, app) = app();
@@ -738,8 +734,8 @@ fn a_plain_node_between_container_and_child_is_seen_through() {
     assert!(laid.width() > 60.0, "the column did not adopt it: {laid:?}");
 }
 
-/// A row's own `padding` has to reach the measure as well as the draw, or the
-/// parent places the sibling after it twice the padding too soon.
+// A row's own `padding` has to reach the measure as well as the draw, or the
+// parent places the sibling after it twice the padding too soon.
 #[test]
 fn a_containers_own_padding_is_measured_as_well_as_drawn() {
     let width = |padding: f64| {
@@ -780,8 +776,6 @@ fn a_containers_own_padding_is_measured_as_well_as_drawn() {
     );
 }
 
-/// A panel's `padding` is documented as applying; it used to reach the frame
-/// only through the theme.
 #[test]
 fn a_panels_own_padding_applies() {
     let height = |padding: f64| {
@@ -805,8 +799,8 @@ fn a_panels_own_padding_applies() {
     );
 }
 
-/// Two pages showing the same text are told apart by their node names, which
-/// is what the schema says `active` holds.
+// Two pages showing the same text are told apart by their node names, which
+// is what the schema says `active` holds.
 #[test]
 fn clicking_a_tab_writes_the_pages_node_name_and_says_so() {
     let (_dir, mut app) = app();
@@ -939,9 +933,7 @@ fn a_surface_appears_at_full_alpha_rather_than_fading_in() {
     );
 }
 
-/// A hidden child takes no room, the way a hidden Control does not in a Godot
-/// container. It used to keep the size it stated, so the column stayed as tall
-/// as if it were there.
+// A hidden child takes no room, the way a hidden Control does not in a Godot container.
 #[test]
 fn a_hidden_child_leaves_its_room_to_the_others() {
     let column_height = |hide: bool| {
@@ -971,8 +963,8 @@ fn a_hidden_child_leaves_its_room_to_the_others() {
     );
 }
 
-/// Every root measures its bottom from the keyboard's top, but a backdrop,
-/// which stays behind it.
+// Every root measures its bottom from the keyboard's top, but a backdrop,
+// which stays behind it.
 #[test]
 fn a_root_keeps_above_the_on_screen_keyboard_and_a_backdrop_stays() {
     let (_dir, app) = app();

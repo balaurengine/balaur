@@ -205,9 +205,9 @@ fn a_project_declaring_no_actions_is_not_an_error() {
     );
 }
 
-/// A replay records keys and the actions come back from them, so two runs of
-/// the same key sequence must produce the same action values — what a
-/// recording replayed against the same project gets.
+// A replay records keys and the actions come back from them, so two runs of
+// the same key sequence must produce the same action values — what a
+// recording replayed against the same project gets.
 #[test]
 fn the_same_keys_produce_the_same_actions_every_run() {
     let keys = [
@@ -234,8 +234,8 @@ fn the_same_keys_produce_the_same_actions_every_run() {
     assert_eq!(runs[0], runs[1]);
 }
 
-/// A recording carries the bindings that were in force, so rebinding after
-/// the fact cannot change what a replay reproduces.
+// A recording carries the bindings that were in force, so rebinding after
+// the fact cannot change what a replay reproduces.
 #[test]
 fn a_recordings_bindings_survive_a_rebinding() {
     let (dir, mut recorded) = app(MANIFEST);

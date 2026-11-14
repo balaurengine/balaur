@@ -312,8 +312,8 @@ mod tests {
     use super::{ExportConfig, orientation_of};
     use std::path::Path;
 
-    /// The editor draws these keys from `settings.rs`, and a mode it offers
-    /// that this file cannot parse is a dropdown entry that fails an export.
+    // The editor draws these keys from `settings.rs`, and a mode it offers
+    // that this file cannot parse is a dropdown entry that fails an export.
     #[test]
     fn every_mode_the_editor_offers_can_be_read_back() {
         let schema: toml::Value =
@@ -334,8 +334,8 @@ mod tests {
         }
     }
 
-    /// A target's own tags are the ones its resolved `[export] tags` names,
-    /// including the ones only its override names.
+    // A target's own tags are the ones its resolved `[export] tags` names,
+    // including the ones only its override names.
     #[test]
     fn a_target_takes_the_tags_its_override_names() {
         let source =
@@ -346,8 +346,8 @@ mod tests {
         assert!(desktop.has("demo") && !desktop.has("store"), "{desktop:?}");
     }
 
-    /// A target reads its own answers: the same file exports one way for a
-    /// desktop and another for a phone.
+    // A target reads its own answers: the same file exports one way for a
+    // desktop and another for a phone.
     #[test]
     fn a_target_reads_the_override_it_answers_to() {
         let dir = tempfile::tempdir().unwrap();
@@ -429,8 +429,8 @@ mod tests {
         assert_eq!(ExportConfig::beside(dir.path(), ""), None);
     }
 
-    /// A misspelled key is a build that silently ships unsigned, so the table
-    /// refuses what it does not know.
+    // A misspelled key is a build that silently ships unsigned, so the table
+    // refuses what it does not know.
     #[test]
     fn an_unknown_key_is_refused() {
         let dir = tempfile::tempdir().unwrap();

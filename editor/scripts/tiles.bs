@@ -344,7 +344,6 @@ pub fn component(state: editor::State, found: Node) -> any {
     model::edited(state, found, COMPONENT)
 }
 
-/// The component a tilemap is.
 const COMPONENT: str = "tilemap";
 
 /// A tilemap whose cells are inline rows. One keeping them in a `.cells`

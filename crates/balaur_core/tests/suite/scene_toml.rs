@@ -512,9 +512,9 @@ fn a_node_of_another_projects_content_names_files_as_it_spells_them() {
     );
 }
 
-/// A component's struct is the record a save reads: a colour comes back as
-/// the hex it was written as, an inline asset as its table, and a property
-/// left at its default is not written.
+// A component's struct is the record a save reads: a colour comes back as
+// the hex it was written as, an inline asset as its table, and a property
+// left at its default is not written.
 #[test]
 fn a_component_is_written_from_what_it_holds_spelled_as_written() {
     let dir = project(&[]);

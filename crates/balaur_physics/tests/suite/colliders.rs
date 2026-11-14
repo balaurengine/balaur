@@ -77,8 +77,8 @@ contact_pairs = ["dynamic_dynamic", "static_static"]"#,
     );
 }
 
-/// `mass` and `density` are each derived from the other, so reporting both
-/// would let the first patch pin the mass and freeze the density for good.
+// `mass` and `density` are each derived from the other, so reporting both
+// would let the first patch pin the mass and freeze the density for good.
 #[test]
 fn a_density_a_patch_writes_reaches_the_collider() {
     let app = app();
@@ -115,8 +115,8 @@ fn a_density_a_patch_writes_reaches_the_collider() {
     assert!((mass - 15.0).abs() < 1e-4, "rapier weighs it {mass}");
 }
 
-/// The compound-shape story: a collider on a child node belongs to the body
-/// above it, at the child's own offset from that body.
+// The compound-shape story: a collider on a child node belongs to the body
+// above it, at the child's own offset from that body.
 #[test]
 fn a_child_collider_joins_the_body_above_it() {
     let app = app();
@@ -160,8 +160,8 @@ fn a_child_collider_joins_the_body_above_it() {
     );
 }
 
-/// `offset` moves the shape without moving the node, which is what a capsule
-/// standing on a node's origin needs.
+// `offset` moves the shape without moving the node, which is what a capsule
+// standing on a node's origin needs.
 #[test]
 fn an_offset_moves_the_shape_and_not_the_node() {
     let app = app();
@@ -187,8 +187,7 @@ fn an_offset_moves_the_shape_and_not_the_node() {
     assert!((collider.position().translation.y - 1.0).abs() < 1e-5);
 }
 
-/// Every shape the schema offers must build, including the ones this phase
-/// added. A kind that only parses is not a kind.
+// A kind that only parses is not a kind.
 #[test]
 fn every_declared_shape_builds() {
     let app = app();
@@ -216,8 +215,8 @@ fn every_declared_shape_builds() {
     }
 }
 
-/// A border rounds a shape and reads back as one, so the inspector shows what
-/// the author wrote rather than a shape they never named.
+// A border rounds a shape and reads back as one, so the inspector shows what
+// the author wrote rather than a shape they never named.
 #[test]
 fn a_border_rounds_a_cuboid() {
     let app = app();
@@ -243,7 +242,6 @@ fn a_border_rounds_a_cuboid() {
     );
 }
 
-/// 2D grew from three shapes to ten; the same test, one dimension down.
 #[test]
 fn every_declared_2d_shape_builds() {
     let app = app();
@@ -264,9 +262,9 @@ fn every_declared_2d_shape_builds() {
     }
 }
 
-/// The inspector reads a collider back through `get`; without the authored
-/// params under it, a 2D re-save loses the offset, the one-way flag and the
-/// asset a mesh-backed shape was built from.
+// The inspector reads a collider back through `get`; without the authored
+// params under it, a 2D re-save loses the offset, the one-way flag and the
+// asset a mesh-backed shape was built from.
 #[test]
 fn a_2d_collider_round_trips_through_get() {
     let app = app();
@@ -305,8 +303,8 @@ physics_material = { friction = 0.9 }"#,
     assert!((offset[1].as_float().unwrap() + 1.0).abs() < 1e-6);
 }
 
-/// `one_way` is a no-op unless the axis reaches the hook, which runs while
-/// the world is borrowed and reads it from a side table.
+// `one_way` is a no-op unless the axis reaches the hook, which runs while
+// the world is borrowed and reads it from a side table.
 #[test]
 fn a_2d_one_way_collider_lets_a_body_up_and_lands_it_coming_down() {
     let mut app = app();
@@ -466,7 +464,7 @@ impl Scenario {
     );
 }
 
-/// Child nodes are where a compound body keeps its colliders.
+// Child nodes are where a compound body keeps its colliders.
 #[test]
 fn a_bodys_hardest_contact_counts_its_child_colliders() {
     let (mut app, _dir, _log) = scripted(
@@ -519,8 +517,8 @@ impl Scenario {
     );
 }
 
-/// One material file is every collider's that names it, and saving it again
-/// reaches each of them before the next step.
+// One material file is every collider's that names it, and saving it again
+// reaches each of them before the next step.
 #[test]
 fn a_material_file_and_its_save_reach_every_collider_naming_it() {
     let scene = r#"
@@ -573,8 +571,6 @@ collider3d = { shape = { kind = "box" }, physics_material = "physics_materials/i
     }
 }
 
-/// A key the material does not declare is refused by name, as a
-/// component's is.
 #[test]
 fn a_material_refuses_a_key_it_does_not_have() {
     let app = app();

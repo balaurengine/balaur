@@ -117,8 +117,8 @@ fn sending_before_the_link_opens_is_an_error_not_a_queue() {
     );
 }
 
-/// The rule `ExternalIo` enforces for every other subsystem: a tick the
-/// session is re-running opens no socket.
+// The rule `ExternalIo` enforces for every other subsystem: a tick the
+// session is re-running opens no socket.
 #[test]
 fn a_link_opened_while_resimulating_never_connects() {
     let url = serve_echo();

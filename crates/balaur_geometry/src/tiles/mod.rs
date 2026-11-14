@@ -779,7 +779,7 @@ mod check_tests {
         }
     }
 
-    /// A tile's `data` is the game's own, and a tile's id is a name.
+    // A tile's `data` is the game's own, and a tile's id is a name.
     #[test]
     fn every_key_a_tileset_reads_and_a_tiles_data_pass() {
         let body = r#"spacing = 0
@@ -1064,8 +1064,8 @@ mod tests {
         assert_eq!(world[2], Vec2::new(0.5, -0.5));
     }
 
-    /// A slope filling the bottom-right half of its tile. Mirrored, it has to
-    /// fill the bottom-left half — a body walking up it from the other side.
+    // A slope filling the bottom-right half of its tile. Mirrored, it has to
+    // fill the bottom-left half — a body walking up it from the other side.
     #[test]
     fn a_turned_tile_collides_the_way_it_is_drawn() {
         let slope = [[16.0, 0.0], [16.0, 16.0], [0.0, 16.0]];
@@ -1077,8 +1077,8 @@ mod tests {
         assert_eq!(flipped[0], Vec2::new(1.0, -1.0));
     }
 
-    /// Every turn is a symmetry of the cell: it moves the corners around and
-    /// never off the tile, whatever combination of flags names it.
+    // Every turn is a symmetry of the cell: it moves the corners around and
+    // never off the tile, whatever combination of flags names it.
     #[test]
     fn a_turn_keeps_the_tile_inside_its_own_cell() {
         let corners = [[0.0, 0.0], [16.0, 0.0], [16.0, 16.0], [0.0, 16.0]];

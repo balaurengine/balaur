@@ -191,8 +191,8 @@ fn a_window_that_keeps_itself_open_only_asks_to_close() {
     assert_eq!(open, Some(true), "the script decides whether it shuts");
 }
 
-/// A paste no field took is said from no node, with its text: the platform
-/// clipboard cannot be read on demand, so this is how a shell hears ⌘V.
+// A paste no field took is said from no node, with its text: the platform
+// clipboard cannot be read on demand, so this is how a shell hears ⌘V.
 #[test]
 fn a_paste_no_field_took_is_heard_with_its_text() {
     let (_dir, mut app) = app();

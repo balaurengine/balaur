@@ -268,8 +268,8 @@ fn holds(at: [f32; 3], threshold: &str, substeps: usize) -> bool {
     joined(&app, ball)
 }
 
-/// The 2 kg ball weighs 19.6 N: a joint rated below that snaps, one rated
-/// above holds, whatever the solver's substeps.
+// The 2 kg ball weighs 19.6 N: a joint rated below that snaps, one rated
+// above holds, whatever the solver's substeps.
 #[test]
 fn break_force_is_a_force_in_newtons_whatever_the_substeps() {
     let below = [0.0, -1.0, 0.0];
@@ -285,7 +285,7 @@ fn break_force_is_a_force_in_newtons_whatever_the_substeps() {
     }
 }
 
-/// Held out level a metre away, the same ball twists its joint with 19.6 N m.
+// Held out level a metre away, the same ball twists its joint with 19.6 N m.
 #[test]
 fn break_torque_is_measured_apart_from_the_pull() {
     let level = [1.0, 0.0, 0.0];
@@ -315,8 +315,8 @@ fn an_articulation_refuses_a_break_threshold() {
     assert!(format!("{why:#}").contains("articulation"), "{why:#}");
 }
 
-/// A script's limit and motor are what `get` reports and what a patch of
-/// another key rebuilds the joint with: the ball stays held up after it.
+// A script's limit and motor are what `get` reports and what a patch of
+// another key rebuilds the joint with: the ball stays held up after it.
 #[test]
 fn a_script_limit_and_motor_survive_a_patch_of_another_key() {
     crate::joints_and_characters::run_clean(
@@ -469,8 +469,7 @@ impl Scenario {
 }
 "#;
 
-/// A position target leaves the end link's turn free; asking the solver to
-/// hold every axis, as it did by default, trades the position for the turn.
+// Asking the solver to hold every axis trades the position for the turn.
 #[test]
 fn solving_for_a_position_leaves_the_end_links_turn_free() {
     let arm = arm_3d();

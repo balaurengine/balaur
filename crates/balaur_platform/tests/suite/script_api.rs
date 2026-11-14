@@ -6,7 +6,6 @@
 
 use balaur_testkit::{e2e_enabled, run_until};
 
-/// A call awaited for its answer, and the next.
 #[test]
 fn a_script_awaits_one_call_after_another() {
     if !e2e_enabled() {

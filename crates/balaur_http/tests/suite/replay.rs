@@ -125,8 +125,8 @@ fn a_recorded_response_replays_with_no_server_listening() {
     );
 }
 
-/// The suppression half. Without it a replay re-issues every request, which
-/// is wrong even when the digests happen to line up.
+// The suppression half. Without it a replay re-issues every request, which
+// is wrong even when the digests happen to line up.
 #[test]
 fn replaying_does_not_reach_the_network() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();

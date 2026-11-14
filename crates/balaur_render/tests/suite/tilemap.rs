@@ -237,7 +237,7 @@ fn a_material_on_the_map_is_kept_and_bumps_the_version_when_it_changes() {
     assert_eq!(map.version, before + 1);
 }
 
-/// A level too big to read in a scene keeps its rows in a file of its own.
+// A level too big to read in a scene keeps its rows in a file of its own.
 #[test]
 fn a_map_may_keep_its_cells_in_a_file() {
     let dir = tempfile::tempdir().unwrap();

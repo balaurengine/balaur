@@ -924,8 +924,8 @@ instances = [{}, { rotation = [0.0, 1.0, 0.0] }]"#,
         assert!((back[0].scale - flat[0].scale).length() < 1e-4);
     }
 
-    /// Godot writes a 3D transform as three rows, origin last; a translation
-    /// alone is where the three origin floats sit.
+    // Godot writes a 3D transform as three rows, origin last; a translation
+    // alone is where the three origin floats sit.
     #[test]
     fn godots_rows_put_the_origin_fourth_in_each() {
         let row = [1.0, 0.0, 0.0, 7.0, 0.0, 1.0, 0.0, 8.0, 0.0, 0.0, 1.0, 9.0];

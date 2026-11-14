@@ -1025,7 +1025,6 @@ pub(crate) fn nine_patch(
     nine_patch_tinted(texture, native, rect, slice, Color32::WHITE)
 }
 
-/// [`nine_patch`] multiplied by `tint`.
 pub(crate) fn nine_patch_tinted(
     texture: TextureId,
     native: egui::Vec2,

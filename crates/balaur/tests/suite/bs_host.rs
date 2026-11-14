@@ -238,10 +238,8 @@ fn editor_and_panel(editor: &str) -> tempfile::TempDir {
     dir
 }
 
-/// The project's scripts are units of one instance: a panel holds the
-/// editor's own object, read from its node as the class it is, and calls it
-/// with nothing copied. A reload of the editor's file keeps the panel holding
-/// the one editor rather than a copy of it.
+// The project's scripts are units of one instance: the panel calls the editor's own object with
+// nothing copied, and a reload keeps it the one editor.
 #[test]
 fn a_script_holds_another_nodes_script_as_its_class() {
     use balaur_script::Value::Int;
@@ -290,8 +288,8 @@ fn seen(app: &balaur::App) -> i64 {
     }
 }
 
-/// A panel holding `editor::Editor?` under a profiler's counters: the two stay
-/// one instance, so the link is no nil, and each counts in its own rows.
+// A panel holding `editor::Editor?` under a profiler's counters: the two stay
+// one instance, so the link is no nil, and each counts in its own rows.
 #[test]
 fn a_typed_link_holds_under_the_profiler() {
     use balaur_script::ScriptHost as _;
@@ -319,8 +317,8 @@ fn a_typed_link_holds_under_the_profiler() {
     assert!(host.function_costs().is_empty());
 }
 
-/// A breakpoint in the file a panel holds: the panel has no probes, its typed
-/// call runs into the editor's, and the stop is in the editor's file.
+// A breakpoint in the file a panel holds: the panel has no probes, its typed
+// call runs into the editor's, and the stop is in the editor's file.
 #[test]
 fn a_typed_link_holds_under_a_debuggers_probes() {
     use balaur_script::{StepMode, Value::Int};
@@ -348,7 +346,7 @@ fn a_typed_link_holds_under_a_debuggers_probes() {
     assert_eq!(seen(&app), 4, "the link holds once the probes are gone");
 }
 
-/// A debugger on the panel's own file: the cast runs in a unit with probes.
+// A debugger on the panel's own file: the cast runs in a unit with probes.
 #[test]
 fn a_typed_link_reads_in_a_file_with_probes() {
     use balaur_script::StepMode;
@@ -368,7 +366,7 @@ fn a_typed_link_reads_in_a_file_with_probes() {
     assert_eq!(seen(&app), 3);
 }
 
-/// Every file with probes, on the engine the instance runs on.
+// Every file with probes, on the engine the instance runs on.
 #[test]
 fn a_typed_link_holds_under_break_on_error() {
     let dir = reading_panel();
@@ -384,7 +382,6 @@ fn a_typed_link_holds_under_break_on_error() {
     assert_eq!(seen(&app), 4);
 }
 
-/// A reload under each build keeps the one editor rather than a copy of it.
 #[test]
 fn a_reload_keeps_the_typed_link_under_every_build() {
     use balaur_script::ScriptHost as _;
@@ -437,7 +434,6 @@ fn a_plain_method_starts_its_own_async_method_through_its_node() {
     );
 }
 
-/// `bytes` are a script's `[int]` both ways across the seam.
 #[test]
 fn bytes_cross_the_seam_as_a_list_of_ints() {
     use balaur_script::Value::{Bool, Int};

@@ -587,8 +587,8 @@ fn an_ended_machine_stays_ended_across_a_rollback() {
     );
 }
 
-/// A typo in any closed level, and what it says: each stays a typo however deep
-/// the machine it sits in.
+// A typo in any closed level, and what it says: each stays a typo however deep
+// the machine it sits in.
 #[test]
 fn a_key_a_machine_does_not_take_is_refused_at_every_level() {
     let refused = [
@@ -655,8 +655,8 @@ states = { b = "" }
     }
 }
 
-/// A state is named by the author, so no name is a typo: not one that spells a
-/// key, and not one holding a whole nested machine.
+// A state is named by the author, so no name is a typo: not one that spells a
+// key, and not one holding a whole nested machine.
 #[test]
 fn every_key_a_machine_reads_and_any_state_name_pass() {
     let document = r#"

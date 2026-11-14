@@ -122,8 +122,8 @@ fn a_project_without_extensions_still_boots() {
     app.tick(1.0 / 60.0);
 }
 
-/// The libraries must stay mapped for as long as the app runs; a plugin whose
-/// library was unloaded has a vtable pointing into nothing.
+// The libraries must stay mapped for as long as the app runs; a plugin whose
+// library was unloaded has a vtable pointing into nothing.
 #[test]
 fn an_extension_survives_many_frames() {
     let dir = project(true);

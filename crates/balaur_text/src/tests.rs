@@ -26,8 +26,8 @@ fn shape(text: &str, width: Option<f32>) -> (TextState, Shaped) {
     (state, shaped)
 }
 
-/// A face the machine happens to have must not change a measurement, or
-/// two platforms answer differently and a width in state desyncs a replay.
+// A face the machine happens to have must not change a measurement, or
+// two platforms answer differently and a width in state desyncs a replay.
 #[test]
 fn a_system_face_does_not_reach_a_measurement() {
     let request = Request::new("measure me", 24.0);
@@ -48,9 +48,9 @@ fn a_system_face_does_not_reach_a_measurement() {
     assert_eq!(strict, loose, "a system face changed a measurement");
 }
 
-/// A script the project's faces lack draws in the face the system picks, and
-/// whoever holds faces of its own hears of it. Tofu is one box for every
-/// character, so two glyphs drawn alike say nothing was found.
+// A script the project's faces lack draws in the face the system picks, and
+// whoever holds faces of its own hears of it. Tofu is one box for every
+// character, so two glyphs drawn alike say nothing was found.
 #[test]
 fn a_character_no_project_face_draws_takes_up_the_face_the_system_picks() {
     let text = Request::new("日本", 20.0);
@@ -68,8 +68,8 @@ fn a_character_no_project_face_draws_takes_up_the_face_the_system_picks() {
     assert_ne!(drawn.quads[0].uv, drawn.quads[1].uv);
 }
 
-/// A project's text in what its faces draw never reads the system's fonts,
-/// which is what keeps them off the way to the first frame.
+// A project's text in what its faces draw never reads the system's fonts,
+// which is what keeps them off the way to the first frame.
 #[test]
 fn text_the_project_draws_takes_up_no_system_face() {
     let mut state = asking();
@@ -92,8 +92,8 @@ fn a_system_face_draws_only_what_the_project_lacks() {
     assert_eq!(own, beside);
 }
 
-/// Measuring reads the project's faces alone, whatever drawing has taken up:
-/// a width that moved here would desync a replay on another machine.
+// Measuring reads the project's faces alone, whatever drawing has taken up:
+// a width that moved here would desync a replay on another machine.
 #[test]
 fn taking_up_a_system_face_does_not_move_a_measurement() {
     let mut state = asking();
@@ -103,8 +103,8 @@ fn taking_up_a_system_face_does_not_move_a_measurement() {
     assert_eq!(before, state.measure(&request));
 }
 
-/// Two sizes a hair apart share a bucket, so the atlas holds one set of
-/// glyphs for both and a zooming camera re-shapes rarely.
+// Two sizes a hair apart share a bucket, so the atlas holds one set of
+// glyphs for both and a zooming camera re-shapes rarely.
 #[test]
 fn near_sizes_land_in_one_bucket() {
     assert!((bucket(24.0) - bucket(24.2)).abs() < f32::EPSILON);
@@ -112,8 +112,8 @@ fn near_sizes_land_in_one_bucket() {
     assert!(bucket(48.0) > bucket(24.0));
 }
 
-/// The world reads the same pixels the widgets do, so the atlas has to
-/// hold them rather than hand them straight to egui.
+// The world reads the same pixels the widgets do, so the atlas has to
+// hold them rather than hand them straight to egui.
 #[test]
 fn a_shaped_glyph_lands_in_the_atlas_and_moves_its_revision() {
     let (state, shaped) = shape("A", None);
@@ -134,8 +134,8 @@ fn a_shaped_glyph_lands_in_the_atlas_and_moves_its_revision() {
     assert!(inked, "the glyph's box in the atlas is blank");
 }
 
-/// Filling the page doubles it rather than starting over, so a glyph
-/// already rasterised keeps its pixels and is never drawn again.
+// Filling the page doubles it rather than starting over, so a glyph
+// already rasterised keeps its pixels and is never drawn again.
 #[test]
 fn an_atlas_that_fills_up_doubles_instead_of_starting_over() {
     let mut state = asking();
@@ -267,8 +267,8 @@ fn plain(text: &str, size: f32) -> Request {
     Request::new(text, size)
 }
 
-/// The import's `scale` sizes the face the way egui's `FontTweak` does:
-/// its glyphs, their advances and, for the chain's first face, the line.
+// The import's `scale` sizes the face the way egui's `FontTweak` does:
+// its glyphs, their advances and, for the chain's first face, the line.
 #[test]
 fn a_face_scale_draws_and_measures_its_glyphs_larger() {
     let request = plain("abc", 20.0);
@@ -294,7 +294,6 @@ fn a_face_scale_draws_and_measures_its_glyphs_larger() {
     assert_eq!(large.size, two, "drawing and measuring disagree");
 }
 
-/// A fallback face's `scale` reaches the glyphs it draws and no others.
 #[test]
 fn a_fallback_face_scales_only_its_own_glyphs() {
     let icon = |scale: f32| crate::fonts::FontFace {
@@ -339,8 +338,8 @@ fn a_fallback_face_scales_only_its_own_glyphs() {
     assert_eq!(sizes[1].0, sizes[1].1, "drawing and measuring disagree");
 }
 
-/// `y_offset` lowers the face's glyphs by a fraction of its size and
-/// leaves the box where it was.
+// `y_offset` lowers the face's glyphs by a fraction of its size and
+// leaves the box where it was.
 #[test]
 fn a_face_y_offset_lowers_its_glyphs_and_keeps_the_layout() {
     let request = plain("abc", 20.0);
@@ -359,7 +358,7 @@ fn a_face_y_offset_lowers_its_glyphs_and_keeps_the_layout() {
     assert_eq!(level.measure(&request), lowered.measure(&request));
 }
 
-/// `hinting = false` rasterises the face's glyphs with swash's hinter off.
+// `hinting = false` rasterises the face's glyphs with swash's hinter off.
 #[test]
 fn a_face_with_hinting_off_rasterises_unhinted() {
     let hinted = |hinting: Option<bool>| {
@@ -672,8 +671,8 @@ fn a_font_shapes_in_its_own_face() {
     assert!(default.size.x < mono("MMMM") * 0.6);
 }
 
-/// A font the shaper has not read yet draws in the default, and is asked
-/// for by name on the next look at the files.
+// A font the shaper has not read yet draws in the default, and is asked
+// for by name on the next look at the files.
 #[test]
 fn a_font_not_read_yet_draws_in_the_default_and_is_wanted() {
     let mut state = TextState::new(&editor_faces(), "en-US");
@@ -800,8 +799,8 @@ fn a_marked_font_shapes_its_run_in_that_font() {
     assert!(mono > ui * 1.5, "mono {mono} against ui {ui}");
 }
 
-/// A font naming the Semibold face draws Semibold when nothing asks for
-/// another weight, as egui draws it.
+// A font naming the Semibold face draws Semibold when nothing asks for
+// another weight, as egui draws it.
 #[test]
 fn a_font_at_the_regular_weight_draws_in_its_own_face() {
     let width = |face: usize, weight: u16| {

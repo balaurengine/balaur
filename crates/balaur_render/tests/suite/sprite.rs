@@ -57,8 +57,8 @@ fn half_extents(app: &App, entity: balaur_core::hecs::Entity) -> (f32, f32) {
     }
 }
 
-/// The whole point of reading the image header: art keeps its proportions
-/// without anyone typing them in, and a 200x100 image is never square.
+// The whole point of reading the image header: art keeps its proportions
+// without anyone typing them in, and a 200x100 image is never square.
 #[test]
 fn a_sprite_is_sized_from_its_image() {
     let app = app();
@@ -70,8 +70,8 @@ fn a_sprite_is_sized_from_its_image() {
     assert!(hx > hy, "a 200x100 image must not come out square");
 }
 
-/// A sheet is sized to one cell, not to the whole texture — otherwise every
-/// frame of a walk cycle would draw at eight times its intended size.
+// A sheet is sized to one cell, not to the whole texture — otherwise every
+// frame of a walk cycle would draw at eight times its intended size.
 #[test]
 fn a_sheet_is_sized_to_one_frame() {
     let app = app();
@@ -101,9 +101,9 @@ fn pixels_per_unit_scales_the_result() {
     assert_close(hx, 200.0 / 50.0 / 2.0);
 }
 
-/// Flipping frames is what an animation does every few ticks. If that bumped
-/// the version the backend would tear down and rebuild the node each time,
-/// re-fetching the texture, so the cheap path has to stay cheap.
+// Flipping frames is what an animation does every few ticks. If that bumped
+// the version the backend would tear down and rebuild the node each time,
+// re-fetching the texture, so the cheap path has to stay cheap.
 #[test]
 fn changing_only_the_frame_does_not_force_a_rebuild() {
     let app = app();
@@ -122,7 +122,6 @@ fn changing_only_the_frame_does_not_force_a_rebuild() {
     assert_eq!(r.sprite.as_ref().unwrap().frame, 5);
 }
 
-/// The opposite case: a different image cannot keep drawing the old one.
 #[test]
 fn changing_the_texture_forces_a_rebuild() {
     let app = app();
@@ -146,7 +145,6 @@ fn changing_the_texture_forces_a_rebuild() {
     );
 }
 
-/// What the editor saves has to reload as the same sprite.
 #[test]
 fn the_component_round_trips() {
     let app = app();
@@ -169,8 +167,8 @@ fn the_component_round_trips() {
     assert_close(rhy, ohy);
 }
 
-/// A missing file must say so rather than silently drawing nothing at a size
-/// nobody chose.
+// A missing file must say so rather than silently drawing nothing at a size
+// nobody chose.
 #[test]
 fn a_missing_texture_is_an_error() {
     let app = app();
@@ -189,8 +187,8 @@ fn a_missing_texture_is_an_error() {
     );
 }
 
-/// Like the frame, a flip only moves UVs, so it must ride along without
-/// forcing the backend to rebuild the node.
+// Like the frame, a flip only moves UVs, so it must ride along without
+// forcing the backend to rebuild the node.
 #[test]
 fn flips_round_trip_and_do_not_force_a_rebuild() {
     let app = app();
@@ -217,8 +215,8 @@ fn flips_round_trip_and_do_not_force_a_rebuild() {
     assert!(!table["flip_y"].as_bool().unwrap());
 }
 
-/// `shape2d` describes primitives; a sprite belongs to the `sprite` component,
-/// and saving it under both would write it into a scene twice.
+// `shape2d` describes primitives; a sprite belongs to the `sprite` component,
+// and saving it under both would write it into a scene twice.
 #[test]
 fn shape2d_does_not_claim_a_sprite() {
     let app = app();
@@ -228,9 +226,9 @@ fn shape2d_does_not_claim_a_sprite() {
     assert!(components::get(&app.engine, entity, "sprite").is_some());
 }
 
-/// The editor adds the component before anyone picks an image, and every
-/// component has to apply with its own defaults on a bare node. So a sprite
-/// with no texture is a placeholder, not an error.
+// The editor adds the component before anyone picks an image, and every
+// component has to apply with its own defaults on a bare node. So a sprite
+// with no texture is a placeholder, not an error.
 #[test]
 fn a_sprite_with_no_texture_is_a_placeholder() {
     let app = app();
@@ -243,9 +241,8 @@ fn a_sprite_with_no_texture_is_a_placeholder() {
     assert_eq!(saved.as_table().unwrap()["texture"].as_str().unwrap(), "");
 }
 
-/// The size a sprite derived from its image is not the author's, so a patch
-/// that moves a sheet field has to re-derive it. Reading the component back
-/// once used to freeze the quad for the life of the node.
+// The size a sprite derived from its image is not the author's, so a patch that moves a sheet field
+// has to re-derive it.
 #[test]
 fn patching_the_sheet_fields_resizes_a_derived_sprite() {
     let app = app();
@@ -268,8 +265,6 @@ fn patching_the_sheet_fields_resizes_a_derived_sprite() {
     assert_close(after, 200.0 / 50.0 / 2.0);
 }
 
-/// The other half of the same rule: a size the author stated stays stated,
-/// whatever else is patched over it.
 #[test]
 fn patching_a_sheet_field_leaves_an_authored_size_alone() {
     let app = app();
@@ -287,8 +282,8 @@ fn patching_a_sheet_field_leaves_an_authored_size_alone() {
     assert_close(hy, 7.0);
 }
 
-/// `pixels_per_unit` is not derived from anything, so `get` reports it and a
-/// patch of another property leaves the quad the size it already was.
+// `pixels_per_unit` is not derived from anything, so `get` reports it and a
+// patch of another property leaves the quad the size it already was.
 #[test]
 fn patching_another_field_keeps_the_scale_the_sprite_was_built_at() {
     let app = app();
@@ -311,7 +306,7 @@ fn patching_another_field_keeps_the_scale_the_sprite_was_built_at() {
     assert_close(after, before);
 }
 
-/// An atlas cell states its own size: the quad is the cell, not the sheet.
+// An atlas cell states its own size: the quad is the cell, not the sheet.
 #[test]
 fn a_region_sizes_the_quad_from_the_cell_not_the_image() {
     let app = app();
@@ -331,9 +326,9 @@ fn a_region_sizes_the_quad_from_the_cell_not_the_image() {
     assert_close(size[1].as_float().unwrap() as f32, 25.0);
 }
 
-/// Godot's `offset` and `centered`: the image sits off its node by pixels,
-/// or with its top-left corner on it. Both are read back as authored, and the
-/// quad's centre is where they put it, before the node turns or scales it.
+// Godot's `offset` and `centered`: the image sits off its node by pixels,
+// or with its top-left corner on it. Both are read back as authored, and the
+// quad's centre is where they put it, before the node turns or scales it.
 #[test]
 fn a_sprite_sits_off_its_node_by_its_offset_or_by_its_corner() {
     let app = app();
@@ -365,8 +360,8 @@ fn a_sprite_sits_off_its_node_by_its_offset_or_by_its_corner() {
     assert_close(y, -50.0 / DEFAULT_PIXELS_PER_UNIT);
 }
 
-/// The file is 200x100 and its sidecar says it was drawn at 400x200 — what an
-/// export leaves beside a smaller copy — so the quad is the drawn size.
+// The file is 200x100 and its sidecar says it was drawn at 400x200 — what an
+// export leaves beside a smaller copy — so the quad is the drawn size.
 #[test]
 fn a_sprite_over_a_smaller_copy_keeps_the_size_it_was_drawn_at() {
     let app = app();
@@ -382,8 +377,8 @@ fn a_sprite_over_a_smaller_copy_keeps_the_size_it_was_drawn_at() {
     assert_close(sy, py * 2.0);
 }
 
-/// Margins a sprite states are what it is cut by, and read back as written;
-/// all zero draws one plain quad.
+// Margins a sprite states are what it is cut by, and read back as written;
+// all zero draws one plain quad.
 #[test]
 fn a_sprite_cut_by_its_own_margins_reads_them_back() {
     let app = app();

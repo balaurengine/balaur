@@ -9,7 +9,7 @@ fn rect(ctx: &egui::Context, entity: balaur_core::hecs::Entity) -> egui::Rect {
         .expect("the root drew, so its area has a rect")
 }
 
-/// The surface `pass` hands out is 640 by 480.
+// The surface `pass` hands out is 640 by 480.
 #[test]
 fn a_wide_anchor_spans_one_axis_and_states_or_measures_the_other() {
     let (_dir, app) = app();

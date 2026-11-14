@@ -51,8 +51,8 @@ fn a_registered_source_is_captured_and_fed_back() {
     assert_eq!(app.engine.resource::<Dial>().borrow().0, 42);
 }
 
-/// An older recording is still playable: what it does not mention is left
-/// as it is rather than reset.
+// An older recording is still playable: what it does not mention is left
+// as it is rather than reset.
 #[test]
 fn a_source_missing_from_the_recording_is_left_alone() {
     let app = app_with_dial();
@@ -162,8 +162,8 @@ fn ratchet(app: &mut App) {
     });
 }
 
-/// The whole point of the session recorder: a recording made in a live
-/// process replays in that same process, with the counters it started from.
+// The whole point of the session recorder: a recording made in a live
+// process replays in that same process, with the counters it started from.
 #[test]
 fn a_session_records_and_replays_in_one_process() {
     let dir = tempfile::tempdir().unwrap();
@@ -224,9 +224,9 @@ fn a_session_records_and_replays_in_one_process() {
     );
 }
 
-/// The editor has minted ids long before Play, and the process that replays
-/// has minted a different number: a node spawned inside the session must get
-/// the id it got when it was recorded, or every label in the digest moves.
+// The editor has minted ids long before Play, and the process that replays
+// has minted a different number: a node spawned inside the session must get
+// the id it got when it was recorded, or every label in the digest moves.
 #[test]
 fn a_replay_mints_the_ids_its_recording_did() {
     let dir = tempfile::tempdir().unwrap();
@@ -251,8 +251,6 @@ fn a_replay_mints_the_ids_its_recording_did() {
     assert_eq!(balaur_core::ids::next(&replaying.engine), at);
 }
 
-/// A replay that no longer reproduces the recording names the tick it parted
-/// on rather than failing silently.
 #[test]
 fn a_diverging_replay_names_the_tick() {
     let dir = tempfile::tempdir().unwrap();
@@ -292,8 +290,8 @@ fn a_diverging_replay_names_the_tick() {
     assert!(diverged.is_some(), "a changed world has to be caught");
 }
 
-/// Pausing holds the simulation and stops feeding, so the world stands still
-/// while the frame loop keeps running.
+// Pausing holds the simulation and stops feeding, so the world stands still
+// while the frame loop keeps running.
 #[test]
 fn a_paused_replay_holds_the_world_still() {
     let dir = tempfile::tempdir().unwrap();
@@ -357,8 +355,8 @@ fn seeking_runs_to_the_tick_and_stops() {
     assert_eq!(app.engine.tick(), target);
 }
 
-/// The events a tick produced ride along with it, and are cleared afterwards
-/// so the next tick starts empty.
+// The events a tick produced ride along with it, and are cleared afterwards
+// so the next tick starts empty.
 #[test]
 fn events_are_recorded_against_the_tick_that_made_them() {
     let dir = tempfile::tempdir().unwrap();
@@ -387,8 +385,8 @@ fn events_are_recorded_against_the_tick_that_made_them() {
     assert!(requests.iter().all(|t| t % 2 == 0));
 }
 
-/// A recording that was never stopped still says so: no trailer means the
-/// session did not get to finish.
+// A recording that was never stopped still says so: no trailer means the
+// session did not get to finish.
 #[test]
 fn a_session_carries_why_it_ended() {
     let dir = tempfile::tempdir().unwrap();
@@ -448,9 +446,9 @@ fn ask(eng: &Engine) {
     });
 }
 
-/// The reason the header carries a token counter: a reply is keyed by the id
-/// its request took, so a replay that hands out different ids delivers a
-/// recorded reply to nothing at all.
+// The reason the header carries a token counter: a reply is keyed by the id
+// its request took, so a replay that hands out different ids delivers a
+// recorded reply to nothing at all.
 #[test]
 fn a_recorded_reply_reaches_the_request_that_asked_for_it() {
     let dir = tempfile::tempdir().unwrap();
@@ -495,9 +493,8 @@ fn a_recorded_reply_reaches_the_request_that_asked_for_it() {
     );
 }
 
-/// The clock has to be the recording's, not the replaying process's. Every
-/// frame a paused replay draws used to count a tick, so a script branching on
-/// `engine::tick()` read a number no recorded frame ever ran at.
+// The clock is the recording's: a script branching on `engine::tick()` reads a tick a recorded
+// frame ran at.
 #[test]
 fn frames_held_between_begin_and_play_do_not_move_the_replayed_tick() {
     let dir = tempfile::tempdir().unwrap();
@@ -545,8 +542,8 @@ fn frames_held_between_begin_and_play_do_not_move_the_replayed_tick() {
     );
 }
 
-/// A frame recorded while the debugger held the root took no fixed step; the
-/// replay has to hold it the same way or it steps a tick nothing recorded.
+// A frame recorded while the debugger held the root took no fixed step; the
+// replay has to hold it the same way or it steps a tick nothing recorded.
 #[test]
 fn a_frame_recorded_while_the_debugger_froze_the_root_replays_frozen() {
     let dir = tempfile::tempdir().unwrap();

@@ -121,7 +121,6 @@ fn align_of(word: &str, safe: bool) -> Option<AlignItems> {
     })
 }
 
-/// A `justify` or `align_content` word.
 fn content_of(word: &str, safe: bool) -> AlignContent {
     use taffy::style::AlignContentKeyword as K;
     let keyword = match word {

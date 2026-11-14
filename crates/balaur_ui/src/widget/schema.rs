@@ -477,9 +477,8 @@ mod tests {
         widget_of(&from_table(params).expect("the table reads"))
     }
 
-    /// A widget that states no size reads as 0, which is what tells `face`
-    /// to take the size its role or its kind carries. A default of 16 here
-    /// made that sentinel unreachable, so no role ever set a text size.
+    // A widget that states no size reads as 0, which tells `face` to take the size its role or its
+    // kind carries.
     #[test]
     fn an_unstated_size_leaves_the_role_to_answer() {
         let bare = widget(&toml::toml! { kind = "label" role = "meta" }.into());
@@ -509,8 +508,8 @@ mod tests {
         assert_eq!(bare.cursor, "arrow", "an unstated cursor is the schema's");
     }
 
-    /// The shaper is told the role's font, which the theme read out of its
-    /// `[fonts]` when the role named one there.
+    // The shaper is told the role's font, which the theme read out of its
+    // `[fonts]` when the role named one there.
     #[test]
     fn the_shaper_is_told_the_role_s_font() {
         let widget = widget(&toml::toml! { kind = "label" role = "meta" }.into());
@@ -529,7 +528,6 @@ mod tests {
         assert_eq!(request.font, "fonts/JetBrainsMono-Regular.ttf");
     }
 
-    /// A widget naming its own font keeps it over the role's.
     #[test]
     fn a_widget_s_own_font_wins() {
         let widget =
@@ -549,8 +547,8 @@ mod tests {
         assert_eq!(request.font, "fonts/SourceSans3-Semibold.ttf");
     }
 
-    /// The table places every property once: one it forgot would be left at
-    /// the zero of its field whatever a scene says.
+    // The table places every property once: one it forgot would be left at
+    // the zero of its field whatever a scene says.
     #[test]
     fn every_property_has_one_place() {
         for name in WidgetProperties::NAMES {
@@ -560,9 +558,9 @@ mod tests {
         assert_eq!(PLACED.len(), WidgetProperties::NAMES.len());
     }
 
-    /// A one-property write fills exactly what a whole build fills: every
-    /// property the table puts alone, written to a value of its own, leaves
-    /// the widget as building it whole from the same properties does.
+    // A one-property write fills exactly what a whole build fills: every
+    // property the table puts alone, written to a value of its own, leaves
+    // the widget as building it whole from the same properties does.
     #[test]
     fn one_property_fills_what_a_whole_build_fills() {
         let base = WidgetProperties::default();

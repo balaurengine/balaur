@@ -526,7 +526,7 @@ mod reader {
             }
         }
 
-        /// The tests share `DESK`, so they run as one.
+        // The tests share `DESK`, so they run as one.
         #[test]
         fn a_reader_delivers_the_newest_report_and_ends_with_its_device() {
             let first = plug_in();
@@ -630,8 +630,8 @@ mod tests {
         assert!(close(reading.motion.acceleration[2], -0.5));
     }
 
-    /// The Bluetooth report is the same body one byte further in, which is the
-    /// single most likely thing to get wrong.
+    // The Bluetooth report is the same body one byte further in, which is the
+    // single most likely thing to get wrong.
     #[test]
     fn the_bluetooth_layout_reads_the_same_values() {
         let usb = decode(&report(0x01, 64, 16, 22), layouts(SONY, DUALSENSE).unwrap()).unwrap();
@@ -655,8 +655,8 @@ mod tests {
         assert!(close(usb.motion.acceleration[1], 1.0));
     }
 
-    /// x is 12 bits split across two bytes and y is 12 bits split across the
-    /// other two, sharing a byte in the middle.
+    // x is 12 bits split across two bytes and y is 12 bits split across the
+    // other two, sharing a byte in the middle.
     #[test]
     fn a_touch_point_unpacks_the_shared_middle_byte() {
         let mut buf = report(0x01, 64, 16, 22);
@@ -681,8 +681,8 @@ mod tests {
         assert!(reading.touches[1].y < 1.0 && reading.touches[1].y > 0.999);
     }
 
-    /// Bit 7 of the contact byte means the slot holds no finger, which is what
-    /// a pad sends far more often than it sends a touch.
+    // Bit 7 of the contact byte means the slot holds no finger, which is what
+    // a pad sends far more often than it sends a touch.
     #[test]
     fn an_empty_touch_slot_is_not_a_finger() {
         let mut buf = report(0x01, 64, 16, 22);

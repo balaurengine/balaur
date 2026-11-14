@@ -370,8 +370,8 @@ pub(crate) fn find_bundle_runtime(
 mod tests {
     use super::*;
 
-    /// `-o .` names a directory full of someone's work; only a directory this
-    /// exporter wrote may be replaced.
+    // `-o .` names a directory full of someone's work; only a directory this
+    // exporter wrote may be replaced.
     #[test]
     fn replacing_refuses_a_directory_that_is_not_an_export() {
         let dir = tempfile::tempdir().unwrap();

@@ -157,7 +157,6 @@ pub enum JointKind2d {
     Generic,
 }
 
-/// The 3D joints.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum JointKind3d {
     Fixed,

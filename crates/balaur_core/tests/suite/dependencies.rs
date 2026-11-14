@@ -46,8 +46,8 @@ fn label(app: &App, path: &str) -> Option<String> {
     Some(marker.0.get("label")?.as_str()?.to_string())
 }
 
-/// The dependency's scene names `art/button.png` from its own root, while
-/// the game keeps an `art/button.png` of its own.
+// The dependency's scene names `art/button.png` from its own root, while
+// the game keeps an `art/button.png` of its own.
 #[test]
 fn a_dependency_scene_reads_its_own_files_not_the_games() {
     let dir = workspace(
@@ -85,8 +85,8 @@ instance = "deps/kit/scenes/panel.toml"
     assert_eq!(read, b"kit's button");
 }
 
-/// A `path` dependency is mounted rather than linked: the game's folder holds
-/// no `deps/` and every read goes through the backend.
+// A `path` dependency is mounted rather than linked: the game's folder holds
+// no `deps/` and every read goes through the backend.
 #[test]
 fn a_path_dependency_is_a_mount_through_the_backend() {
     let dir = workspace(&[("project.toml", GAME_MANIFEST)], &kit());
@@ -126,8 +126,8 @@ fn an_installed_dependency_is_read_only() {
     assert!(balaur_core::dependencies::refuse_write(&app.engine, &game.join("x.toml")).is_ok());
 }
 
-/// A path a dependency's script builds reads under its own folder while that
-/// script calls; the game's scripts and the scene build are the game's.
+// A path a dependency's script builds reads under its own folder while that
+// script calls; the game's scripts and the scene build are the game's.
 #[test]
 fn a_dependency_script_builds_paths_from_its_own_root() {
     let dir = workspace(&[("project.toml", GAME_MANIFEST)], &kit());
@@ -169,8 +169,8 @@ fn a_dependency_file_imports_with_its_own_defaults() {
     assert!(game.get("filter").is_none());
 }
 
-/// Make local copies the file into the game, points the game's references at
-/// the copy, and spells the copy's own paths the way the game names them.
+// Make local copies the file into the game, points the game's references at
+// the copy, and spells the copy's own paths the way the game names them.
 #[test]
 fn make_local_copies_and_repoints() {
     let mut kit = kit();

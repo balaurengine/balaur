@@ -146,9 +146,9 @@ fn numbers_cross_the_boundary_in_both_directions() {
     assert!((mixed - 0.75).abs() < f64::EPSILON);
 }
 
-/// The `user` pointer is how a C extension keeps state, with no Rust type and
-/// no `TypeId` involved -- which is exactly what the Rust extension path
-/// cannot do across separate compilations.
+// The `user` pointer is how a C extension keeps state, with no Rust type and
+// no `TypeId` involved -- which is exactly what the Rust extension path
+// cannot do across separate compilations.
 #[test]
 #[ignore = "needs engine: a .bs script host for a bare app, and signatures on C extension functions"]
 fn a_c_extension_keeps_its_own_state_across_calls() {
@@ -185,9 +185,9 @@ fn a_constant_registered_from_c_is_readable() {
     assert_eq!(probe.call("version"), Value::Str("0.1.0".into()));
 }
 
-/// A non-zero return ends the script's call with an error, and the string the
-/// extension wrote becomes the message. Without that, a failing extension is a
-/// silent nil.
+// A non-zero return ends the script's call with an error, and the string the
+// extension wrote becomes the message. Without that, a failing extension is a
+// silent nil.
 #[test]
 #[ignore = "needs engine: a .bs script host for a bare app, and signatures on C extension functions"]
 fn a_failing_c_function_becomes_a_script_error_with_its_message() {
@@ -219,8 +219,8 @@ fn a_failing_c_function_becomes_a_script_error_with_its_message() {
     }
 }
 
-/// The version handshake is the only thing standing between a stale library
-/// and a misread struct, so it is checked before any other symbol is called.
+// The version handshake is the only thing standing between a stale library
+// and a misread struct, so it is checked before any other symbol is called.
 #[test]
 fn an_extension_built_for_another_abi_version_is_refused() {
     let dir = tempfile::tempdir().unwrap();
@@ -267,9 +267,9 @@ fn a_library_exporting_neither_entry_point_names_both() {
     );
 }
 
-/// The other half of the header's `_Static_assert`s: those pin C to the
-/// numbers, these pin Rust to them. A layout change now fails on both sides
-/// rather than silently reinterpreting memory.
+// The other half of the header's `_Static_assert`s: those pin C to the
+// numbers, these pin Rust to them. A layout change now fails on both sides
+// rather than silently reinterpreting memory.
 #[test]
 fn the_rust_types_match_the_committed_header() {
     use std::mem::size_of;

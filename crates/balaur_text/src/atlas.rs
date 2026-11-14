@@ -414,8 +414,8 @@ mod grow_tests {
     use cosmic_text::CacheKey;
     use egui::{Rect, Vec2, pos2};
 
-    /// A glyph keeps its pixels where they are, so its UV has to shrink by
-    /// as much as the side grew or it reads another glyph's cell.
+    // A glyph keeps its pixels where they are, so its UV has to shrink by
+    // as much as the side grew or it reads another glyph's cell.
     #[test]
     fn growing_the_atlas_keeps_every_slot_on_its_own_glyph() {
         let mut atlas = GlyphAtlas::default();

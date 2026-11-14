@@ -133,8 +133,8 @@ fn node(app: &App, path: &str) -> balaur_core::hecs::Entity {
         .unwrap_or_else(|| panic!("the scene has no {path}"))
 }
 
-/// World text can ask for the shaper before the first UI pass, and the pass
-/// then keeps that one: a block shaped first has its glyphs in its atlas.
+// World text can ask for the shaper before the first UI pass, and the pass
+// then keeps that one: a block shaped first has its glyphs in its atlas.
 #[test]
 fn the_shaper_is_made_by_whoever_asks_first_and_kept() {
     let _guard = LOG
@@ -171,8 +171,8 @@ fn the_shaper_is_made_by_whoever_asks_first_and_kept() {
     );
 }
 
-/// With no window nothing runs the UI pass; the pass on no screen does,
-/// after the one that binds the fonts, and the label it drew has a box.
+// With no window nothing runs the UI pass; the pass on no screen does,
+// after the one that binds the fonts, and the label it drew has a box.
 #[test]
 fn a_run_with_no_window_still_draws_its_ui() {
     let _guard = LOG
@@ -209,8 +209,8 @@ fn a_run_with_no_widgets_is_quiet() {
     run_clean("");
 }
 
-/// A control: everything here asserts from inside the script, so if `update`
-/// never ran it would all pass without testing anything.
+// A control: everything here asserts from inside the script, so if `update`
+// never ran it would all pass without testing anything.
 #[test]
 fn update_is_actually_called() {
     let (_dir, app, _, _) = run_with("");
@@ -230,7 +230,7 @@ fn the_scale_factor_is_readable_and_settable() {
     );
 }
 
-/// What a pass knows, a script reads between passes.
+// What a pass knows, a script reads between passes.
 #[test]
 fn the_frame_queries_answer_between_passes() {
     run_clean(
@@ -243,7 +243,7 @@ fn the_frame_queries_answer_between_passes() {
     );
 }
 
-/// A script copies between passes; the next pass hands the text over.
+// A script copies between passes; the next pass hands the text over.
 #[test]
 fn the_clipboard_is_written_by_the_next_pass() {
     let (_dir, mut app, ctx, errors) = run_with(r#"ui::set_clipboard("copied");"#);
@@ -260,7 +260,7 @@ fn the_clipboard_is_written_by_the_next_pass() {
     );
 }
 
-/// Text pasted into a pass, read by the next tick.
+// Text pasted into a pass, read by the next tick.
 #[test]
 fn a_paste_is_read_after_the_pass_that_saw_it() {
     let (_dir, mut app, ctx, errors) = run(&Script {
@@ -278,8 +278,8 @@ fn a_paste_is_read_after_the_pass_that_saw_it() {
     );
 }
 
-/// An image pasted where no field took it is said as `pasted_image` with its
-/// size, and a script writes it into the project as a PNG, once.
+// An image pasted where no field took it is said as `image_pasted` with its
+// size, and a script writes it into the project as a PNG, once.
 #[test]
 fn a_pasted_image_is_said_and_written_out() {
     let (dir, mut app, ctx, errors) = run(&Script {
@@ -364,9 +364,9 @@ if drawn != nil {
     );
 }
 
-/// One chord for both keys: the window layer sets egui's `command` for
-/// Control and for Command, and a key arrives as its physical code, so ⇧⌘\
-/// is `Backslash` whatever the layout prints on it.
+// One chord for both keys: the window layer sets egui's `command` for
+// Control and for Command, and a key arrives as its physical code, so ⇧⌘\
+// is `Backslash` whatever the layout prints on it.
 #[test]
 fn a_cmd_chord_answers_to_control_and_to_command() {
     let (_dir, mut app, ctx, errors) = run(&Script {
@@ -440,9 +440,9 @@ fn pass_names(app: &App) -> Vec<String> {
         .collect()
 }
 
-/// egui reruns the whole closure when a pass only learned a size, so the
-/// shell is built twice; a profiler that filed both under one name would
-/// read as one expensive pass instead of two ordinary ones.
+// egui reruns the whole closure when a pass only learned a size, so the
+// shell is built twice; a profiler that filed both under one name would
+// read as one expensive pass instead of two ordinary ones.
 #[test]
 fn a_second_pass_in_one_frame_is_filed_as_a_rerun() {
     let (_dir, mut app, ctx, _) = run(&Script {
@@ -481,8 +481,6 @@ pub(crate) fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) -> 
     out
 }
 
-/// Nothing is polled: a lazy shell with no input and nothing written runs no
-/// pass however long it waits, where a 250 ms tick once ran one regardless.
 #[test]
 fn a_lazy_shell_nobody_touched_runs_no_pass_however_long_it_waits() {
     let (_dir, app, ctx, errors) = run(&Script {
@@ -534,8 +532,8 @@ fn a_headless_run_answers_the_window_the_project_states() {
     assert_eq!(field(&app, "height"), Some(1920.0));
 }
 
-/// `init` runs before the window exists, and still sees the project's UI
-/// scale and the `[window]` size in the design pixels that scale leaves.
+// `init` runs before the window exists, and still sees the project's UI
+// scale and the `[window]` size in the design pixels that scale leaves.
 #[test]
 fn init_sees_the_project_s_ui_scale_and_window_in_design_pixels() {
     let (_dir, app, _, errors) = run(&Script {

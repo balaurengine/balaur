@@ -124,7 +124,7 @@ fn a_host_relays_each_players_inputs_to_the_others() {
     }
 }
 
-/// A link bound to player 1 cannot put words in player 2's mouth.
+// A link bound to player 1 cannot put words in player 2's mouth.
 #[test]
 fn a_link_speaks_only_for_the_players_it_is_bound_to() {
     let mut host_app = app(THREE);
@@ -146,8 +146,8 @@ fn a_link_speaks_only_for_the_players_it_is_bound_to() {
     );
 }
 
-/// A player who leaves plays nil from the tick named, and nobody waits on
-/// them to settle a tick.
+// A player who leaves plays nil from the tick named, and nobody waits on
+// them to settle a tick.
 #[test]
 fn an_absent_player_plays_nil_and_holds_nothing_back() {
     const TWO: &[u32] = &[0, 1];
@@ -178,8 +178,8 @@ fn an_absent_player_plays_nil_and_holds_nothing_back() {
     assert!(host.session().is_present(1, from - 1));
 }
 
-/// A peer that hears nothing from the other side stops, rather than run so
-/// far ahead that the other side's inputs land outside the ring.
+// A peer that hears nothing from the other side stops, rather than run so
+// far ahead that the other side's inputs land outside the ring.
 #[test]
 fn a_peer_far_ahead_waits() {
     const TWO: &[u32] = &[0, 1];

@@ -55,7 +55,7 @@ fn a_key_answers_in_the_locale_in_force() {
     assert_eq!(strings::tr(&app.engine, "menu.play", &[]), "Play");
 }
 
-/// One hop, to the language the game was written in.
+// One hop, to the language the game was written in.
 #[test]
 fn a_key_the_locale_lacks_falls_back() {
     let dir = project(
@@ -69,8 +69,8 @@ fn a_key_the_locale_lacks_falls_back() {
     );
 }
 
-/// Visible in the game rather than blank: a missing string is a bug to
-/// notice, and an empty label is a bug to miss.
+// Visible in the game rather than blank: a missing string is a bug to
+// notice, and an empty label is a bug to miss.
 #[test]
 fn a_key_nothing_has_comes_back_as_itself() {
     let dir = project("", &[("en.toml", EN)]);
@@ -92,8 +92,8 @@ fn an_argument_is_interpolated_by_name() {
     );
 }
 
-/// A placeholder nothing was passed for is left as it is, so the hole is
-/// visible to whoever has to fill it.
+// A placeholder nothing was passed for is left as it is, so the hole is
+// visible to whoever has to fill it.
 #[test]
 fn a_placeholder_with_no_argument_is_left_alone() {
     let dir = project("", &[("en.toml", EN)]);
@@ -114,8 +114,8 @@ fn english_counts_one_and_the_rest() {
     assert_eq!(strings::tr(&app.engine, "menu.items", &n(5)), "5 items");
 }
 
-/// Romanian has a third form, which is the reason plural selection cannot be
-/// "n == 1" and be done with it.
+// Romanian has a third form, which is the reason plural selection cannot be
+// "n == 1" and be done with it.
 #[test]
 fn romanian_counts_one_few_and_the_rest() {
     let dir = project(
@@ -137,8 +137,8 @@ fn romanian_counts_one_few_and_the_rest() {
     );
 }
 
-/// A form the file does not carry falls to `other`, so a translator who wrote
-/// two forms for a three-form language still reads sensibly.
+// A form the file does not carry falls to `other`, so a translator who wrote
+// two forms for a three-form language still reads sensibly.
 #[test]
 fn a_missing_plural_form_falls_to_other() {
     let dir = project(
@@ -154,8 +154,8 @@ fn a_missing_plural_form_falls_to_other() {
     );
 }
 
-/// A game may ship one language ahead of the rest, so a locale with no file
-/// is empty rather than fatal.
+// A game may ship one language ahead of the rest, so a locale with no file
+// is empty rather than fatal.
 #[test]
 fn a_locale_with_no_file_is_empty_not_an_error() {
     let dir = project("\n[locale]\ninitial = \"de\"\n", &[("en.toml", EN)]);
@@ -175,7 +175,7 @@ fn locales_lists_the_files_the_project_ships() {
     assert_eq!(strings::locales(&app.engine), vec!["en", "ro"]);
 }
 
-/// `en-GB` is English for the purpose of counting.
+// `en-GB` is English for the purpose of counting.
 #[test]
 fn a_region_does_not_change_the_language_that_counts() {
     let dir = project("\n[locale]\ninitial = \"en-GB\"\n", &[("en-GB.toml", EN)]);

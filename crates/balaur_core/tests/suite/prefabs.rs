@@ -111,9 +111,9 @@ position = [4.0, 0.0, 0.0]
     assert_eq!(label(&app, "Enemy/Arm"), Some(String::from("arm")));
 }
 
-/// Instanced as its root, the node *is* the prefab's root, as a Godot
-/// instance is: the root's components land on it under the node's own, its
-/// children are the node's, and an override names `.` for the node itself.
+// Instanced as its root, the node *is* the prefab's root, as a Godot
+// instance is: the root's components land on it under the node's own, its
+// children are the node's, and an override names `.` for the node itself.
 #[test]
 fn an_instance_as_its_root_is_the_prefabs_root() {
     let (_dir, app) = load(
@@ -261,8 +261,8 @@ fn logged_at(level: &str) -> Vec<String> {
         .collect()
 }
 
-/// The prefab may have moved the node an override names, so the scene loads
-/// and the file keeps the edit; but it applies to nothing, and a run says so.
+// The prefab may have moved the node an override names, so the scene loads
+// and the file keeps the edit; but it applies to nothing, and a run says so.
 #[test]
 fn an_override_naming_nothing_is_an_error_and_the_scene_still_loads() {
     let _log = crate::observability::hold_the_log();
@@ -448,8 +448,8 @@ instance = "scenes/enemy.toml"
     );
 }
 
-/// The most useful override there is: the same prefab, tuned. Asserted here
-/// on the scene key rather than on a live instance.
+// The most useful override there is: the same prefab, tuned. Asserted here
+// on the scene key rather than on a live instance.
 #[test]
 fn a_script_key_with_no_source_is_refused_on_a_node_of_its_own() {
     let dir = project(&[("scenes/enemy.toml", ENEMY)]);
@@ -472,9 +472,9 @@ fn size(app: &App, path: &str) -> Option<f64> {
     marker.0.get("size")?.as_float()
 }
 
-/// An override changes one property of a component the prefab described whole.
-/// Applied as an `add` it would put every other property back to the schema
-/// default, which is a scene silently losing what the prefab said.
+// An override changes one property of a component the prefab described whole.
+// Applied as an `add` it would put every other property back to the schema
+// default, which is a scene silently losing what the prefab said.
 #[test]
 fn an_override_of_one_property_leaves_the_others_alone() {
     let (_dir, app) = load(
@@ -544,8 +544,8 @@ fn inner(whose: &str) -> String {
     INNER.replace("WHOSE", whose)
 }
 
-/// `balaur edit <game>` runs with the editor as the project root and the game
-/// as a second one, so a prefab from the game names its files from the game.
+// `balaur edit <game>` runs with the editor as the project root and the game
+// as a second one, so a prefab from the game names its files from the game.
 #[test]
 fn a_prefab_from_another_root_names_its_files_from_that_root() {
     let editor = project(&[

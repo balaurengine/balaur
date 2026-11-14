@@ -275,8 +275,8 @@ mod tests {
         );
     }
 
-    /// The narrow tag is offered first, so `android` beats `mobile` whatever
-    /// order the file wrote them in.
+    // The narrow tag is offered first, so `android` beats `mobile` whatever
+    // order the file wrote them in.
     #[test]
     fn the_narrowest_tag_is_looked_for_first() {
         let mut tags = Tags(vec!["mobile".into(), "android".into()]);

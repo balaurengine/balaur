@@ -212,10 +212,8 @@ fn a_3d_material_links_against_the_mesh_contract() {
     assert_eq!(compiled.params.len(), 16);
 }
 
-/// A material that never mentions instancing still gets the per-copy inputs,
-/// which is what lets a multimesh multiply a node the shader knows nothing
-/// about. The locations have to match `vertex_layouts` in
-/// `shader_material_3d.rs`, and this is what says so without a GPU.
+// The per-copy input locations have to match `vertex_layouts` in `shader_material_3d.rs`; this says
+// so without a GPU.
 #[test]
 fn a_3d_material_carries_the_per_copy_inputs_it_never_asked_for() {
     let dir = project();
@@ -238,7 +236,7 @@ fn a_3d_material_carries_the_per_copy_inputs_it_never_asked_for() {
     );
 }
 
-/// A material may ask which copy it is drawing, and tint it by that alone.
+// A material may ask which copy it is drawing, and tint it by that alone.
 #[test]
 fn a_material_can_read_the_copy_it_is_drawing() {
     let dir = project();
@@ -277,9 +275,9 @@ struct Stripe { color: vec4<f32> }
     assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
 }
 
-/// A material asks for vertex colours by name, and only then does its
-/// pipeline carry the attribute. A material that does not ask is unchanged,
-/// which is what keeps the buffer off every other mesh.
+// A material asks for vertex colours by name, and only then does its
+// pipeline carry the attribute. A material that does not ask is unchanged,
+// which is what keeps the buffer off every other mesh.
 #[test]
 fn vertex_colours_arrive_only_for_a_material_that_asks() {
     let dir = project();
@@ -411,8 +409,8 @@ fn the_material_component_goes_on_a_node_that_draws_nothing() {
     assert_eq!(got["source"].as_str(), Some("materials/wave.toml"));
 }
 
-/// The `color` and `tint` split, for materials: a renderable's own names
-/// what it draws, and only the component reaches the nodes under it.
+// The `color` and `tint` split, for materials: a renderable's own names
+// what it draws, and only the component reaches the nodes under it.
 #[test]
 fn a_sprites_own_material_is_its_alone() {
     let dir = project();
@@ -441,8 +439,8 @@ fn removing_the_material_component_clears_what_it_named() {
     assert!(components::get(&app.engine, parent, "material").is_none());
 }
 
-/// Added from the picker with nothing chosen yet, the component stays on
-/// the node rather than vanishing because it names no material.
+// Added from the picker with nothing chosen yet, the component stays on
+// the node rather than vanishing because it names no material.
 #[test]
 fn an_empty_material_component_stays_on_the_node() {
     let dir = project();
@@ -453,8 +451,8 @@ fn an_empty_material_component_stays_on_the_node() {
     assert_eq!(got["source"].as_str(), Some(""));
 }
 
-/// The component reads the node's `Appearance`, so the inspector shows what
-/// the engine draws with.
+// The component reads the node's `Appearance`, so the inspector shows what
+// the engine draws with.
 #[test]
 fn a_material_on_the_appearance_reads_back_as_the_component() {
     let dir = project();
@@ -497,9 +495,9 @@ fn the_contract_a_shader_imports_says_which_nodes_it_draws() {
     assert_eq!(contract("import package::me::{x};", &[looped]), None);
 }
 
-/// The editor's case: its engine is rooted elsewhere and names the game's
-/// material by absolute path. The material still resolves its files against
-/// the game, and an inspector edit saves to the game's own file.
+// The editor's case: its engine is rooted elsewhere and names the game's
+// material by absolute path. The material still resolves its files against
+// the game, and an inspector edit saves to the game's own file.
 #[test]
 fn a_material_named_by_absolute_path_belongs_to_its_own_project() {
     let game = project();
@@ -543,8 +541,8 @@ fn a_material_named_by_absolute_path_belongs_to_its_own_project() {
     );
 }
 
-/// A 2D material binds images of its own beside the node's, and its shader
-/// reads them through `package::sprite`.
+// A 2D material binds images of its own beside the node's, and its shader
+// reads them through `package::sprite`.
 #[test]
 fn a_sprite_material_binds_and_samples_images_of_its_own() {
     let body: toml::Value = toml::from_str(
@@ -571,12 +569,8 @@ import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo, textu
     assert!(compiled.wgsl.contains("texture_2"), "{}", compiled.wgsl);
 }
 
-/// Every material the editor's library ships compiles against the shader it
-/// names, with the features it sets.
-///
-/// A library entry is copied into a project whole, so a param the shader does
-/// not read or a feature it does not declare would land in a user's project
-/// as a material that will not link. This is where that is caught.
+// A library entry is copied into a project whole, so a param the shader does not read would land in
+// a user's project as a material that will not link.
 #[test]
 fn every_library_material_links_against_the_shader_it_names() {
     let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/library");
@@ -599,9 +593,9 @@ fn every_library_material_links_against_the_shader_it_names() {
     assert!(seen >= 4, "the library ships materials to check: {seen}");
 }
 
-/// The layer stack links with no layers at all, with each layer on its own,
-/// and with every one at once — which is the combination most likely to
-/// collide over a helper's name.
+// The layer stack links with no layers at all, with each layer on its own,
+// and with every one at once — which is the combination most likely to
+// collide over a helper's name.
 #[test]
 fn the_layer_stack_links_layer_by_layer_and_all_at_once() {
     use balaur_render::shaders::{link, wgsl};
@@ -637,9 +631,9 @@ fn the_layer_stack_links_layer_by_layer_and_all_at_once() {
     assert!(every.len() > bare.len(), "layers add code, not nothing");
 }
 
-/// A material asks for each instance's custom data by name, as it asks for
-/// vertex colours, and reads it through `copy_custom` in 3D and
-/// `instance_custom` in 2D. One that does not ask carries no such input.
+// A material asks for each instance's custom data by name, as it asks for
+// vertex colours, and reads it through `copy_custom` in 3D and
+// `instance_custom` in 2D. One that does not ask carries no such input.
 #[test]
 fn instance_custom_data_arrives_only_for_a_material_that_asks() {
     let dir = project();

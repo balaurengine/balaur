@@ -366,8 +366,8 @@ fn lift(x: f32) -> f32 {
         assert!(wgsl.contains("balaur_preview_hit = true"), "{wgsl}");
     }
 
-    /// The case the unit tests missed and a real run caught: WESL wants
-    /// imports first, so the channel cannot simply be prepended.
+    // The case the unit tests missed and a real run caught: WESL wants
+    // imports first, so the channel cannot simply be prepended.
     #[test]
     fn a_shader_that_imports_still_links_once_rewritten() {
         let source = r"

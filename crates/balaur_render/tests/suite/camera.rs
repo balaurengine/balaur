@@ -58,8 +58,8 @@ fn assert_close(actual: Vec3, expected: Vec3) {
     );
 }
 
-/// The eye is the node's *global* position: the camera sits under a parent,
-/// so the test also proves the system runs after transform propagation.
+// The eye is the node's *global* position: the camera sits under a parent,
+// so the test also proves the system runs after transform propagation.
 #[test]
 fn a_current_camera_component_drives_the_camera_config() {
     let mut app = app();
@@ -132,8 +132,8 @@ fn a_camera_that_is_not_current_leaves_the_config_alone() {
     assert_close(app.engine.resource::<CameraConfig3d>().borrow().eye, before);
 }
 
-/// A backend clears `changed` once it applies a pose; a camera that has not
-/// moved must not raise it again, or interactive orbit/pan controls die.
+// A backend clears `changed` once it applies a pose; a camera that has not
+// moved must not raise it again, or interactive orbit/pan controls die.
 #[test]
 fn an_unmoved_camera_does_not_reassert_itself() {
     let mut app = app();
@@ -167,10 +167,8 @@ fn an_unmoved_camera_does_not_reassert_itself() {
     );
 }
 
-/// A camera whose values happen to equal `CameraConfig2d::default()` still
-/// has to reach the backend: the backend starts at its own zoom, so a scene
-/// writing the schema's default of 60 must not read as "nothing to do".
-/// Before this, such a scene drew at the backend's zoom and looked tiny.
+// The backend starts at its own zoom, so a scene writing the schema's default of 60 must not read
+// as nothing to do.
 #[test]
 fn a_2d_camera_matching_the_defaults_still_reaches_the_backend() {
     let mut app = app();
@@ -186,8 +184,8 @@ fn a_2d_camera_matching_the_defaults_still_reaches_the_backend() {
     );
 }
 
-/// `post` is not per-dimension: the effects run over the whole film, so a 3D
-/// camera drives them too.
+// `post` is not per-dimension: the effects run over the whole film, so a 3D
+// camera drives them too.
 #[test]
 fn a_cameras_post_effects_reach_the_config() {
     let mut app = app();
@@ -213,8 +211,8 @@ fn a_cameras_post_effects_reach_the_config() {
     assert!(config.changed, "the backend was never told to apply them");
 }
 
-/// A backend clears `changed` once it has rebuilt its post chain; a camera
-/// that has not changed must not make it rebuild again.
+// A backend clears `changed` once it has rebuilt its post chain; a camera
+// that has not changed must not make it rebuild again.
 #[test]
 fn unchanged_post_effects_do_not_reassert_themselves() {
     let mut app = app();
@@ -368,9 +366,8 @@ fn patching_one_camera_property_leaves_the_rest_alone() {
     assert!((config.finish.vignette_amount - 0.32).abs() < 1e-6);
 }
 
-/// The inspector shows a component through its `get` hook, so a property the
-/// hook leaves out is a property nothing displays. `patch` no longer depends on
-/// this -- it keeps what was asked for -- but a reader still does.
+// The inspector shows a component through its `get` hook, so a property the hook leaves out is one
+// nothing displays.
 #[test]
 fn every_component_reports_every_property_it_holds() {
     let app = app();
@@ -439,9 +436,9 @@ fn a_camera_says_when_it_becomes_the_one_drawn_from_and_when_it_stops() {
     assert_eq!(heard(&app, second), vec![balaur_script::Value::Bool(true)]);
 }
 
-/// The current camera's lens is what the backend builds kiss3d's camera
-/// from, and with no current camera the defaults come back: a game's lens
-/// does not outlive its play in the editor.
+// The current camera's lens is what the backend builds kiss3d's camera
+// from, and with no current camera the defaults come back: a game's lens
+// does not outlive its play in the editor.
 #[test]
 fn the_current_cameras_lens_reaches_the_backend_and_leaves_with_it() {
     let mut app = app();
@@ -485,7 +482,7 @@ fn the_current_cameras_lens_reaches_the_backend_and_leaves_with_it() {
     );
 }
 
-/// A lens kiss3d could not draw is refused at the component, naming why.
+// A lens kiss3d could not draw is refused at the component, naming why.
 #[test]
 fn a_camera_refuses_a_far_plane_nearer_than_its_near_one() {
     let app = app();
@@ -495,8 +492,8 @@ fn a_camera_refuses_a_far_plane_nearer_than_its_near_one() {
     assert!(format!("{err:#}").contains("past `near`"), "{err:#}");
 }
 
-/// Every knob the fork's own passes take reaches the backend's config and
-/// reads back, on both cameras: the two share one spelling.
+// Every knob the fork's own passes take reaches the backend's config and
+// reads back, on both cameras: the two share one spelling.
 #[test]
 fn the_post_pass_knobs_reach_the_config_and_read_back() {
     let mut app = app();
@@ -561,8 +558,8 @@ loupe_border_color = [0.0, 1.0, 0.0, 1.0]"#,
     assert!((read["crt_curvature"].as_float().unwrap() - 0.4).abs() < 1e-6);
 }
 
-/// `crt`, `grayscale`, `waves`, `loupe` and `stereo` are passes the engine
-/// draws, in the order written, not material assets to load.
+// `crt`, `grayscale`, `waves`, `loupe` and `stereo` are passes the engine
+// draws, in the order written, not material assets to load.
 #[test]
 fn the_fork_passes_are_drawn_where_the_list_puts_them() {
     let mut app = app();
@@ -584,8 +581,8 @@ post = ["grayscale", "tonemap", "crt", "waves", "loupe", "stereo"]"#,
     assert_eq!(config.screen, ["crt", "waves", "loupe", "stereo"]);
 }
 
-/// A knob a pass is built with rebuilds the chain, so it has to raise the
-/// change a backend rebuilds on.
+// A knob a pass is built with rebuilds the chain, so it has to raise the
+// change a backend rebuilds on.
 #[test]
 fn turning_a_pass_knob_raises_a_post_change() {
     let mut app = app();
@@ -615,8 +612,8 @@ fn a_2d_camera_off_hidpi_tells_the_backend() {
     assert_eq!(read["hidpi"].as_bool(), Some(false));
 }
 
-/// The two window settings that apply while the game runs say so, which is
-/// what lets the editor apply them without asking for a restart.
+// The two window settings that apply while the game runs say so, which is
+// what lets the editor apply them without asking for a restart.
 #[test]
 fn msaa_and_vsync_apply_without_a_restart() {
     let app = app();
@@ -628,8 +625,6 @@ fn msaa_and_vsync_apply_without_a_restart() {
     assert!(!width.applies_now(), "control: the window size still does");
 }
 
-/// A fixed orthographic height reaches the lens the backend builds its camera
-/// from, and reads back as written.
 #[test]
 fn an_orthographic_height_reaches_the_config_and_reads_back() {
     let mut app = app();
@@ -652,8 +647,8 @@ fn an_orthographic_height_reaches_the_config_and_reads_back() {
     );
 }
 
-/// A camera answers to its node alone: the mouse controls kiss3d's cameras
-/// carry are no keys of either component.
+// A camera answers to its node alone: the mouse controls kiss3d's cameras
+// carry are no keys of either component.
 #[test]
 fn neither_camera_takes_mouse_controls() {
     let app = app();
@@ -672,8 +667,8 @@ fn neither_camera_takes_mouse_controls() {
     }
 }
 
-/// The bloom chain's length rides `post` like its other knobs, so the last
-/// current camera of either dimension sets it.
+// The bloom chain's length rides `post` like its other knobs, so the last
+// current camera of either dimension sets it.
 #[test]
 fn a_cameras_bloom_levels_reach_the_post_config() {
     let mut app = app();

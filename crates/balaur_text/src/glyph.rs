@@ -469,8 +469,8 @@ mod tests {
         assert!(area(&underlined) > area(&plain));
     }
 
-    /// A strikethrough crosses every glyph; wound against them it would cut
-    /// them in two instead of joining them.
+    // A strikethrough crosses every glyph; wound against them it would cut
+    // them in two instead of joining them.
     #[test]
     fn a_strikethrough_joins_the_glyphs_it_crosses_rather_than_cutting_them() {
         let mut mesher = mesher(crate::fonts::FaceTweak::default());

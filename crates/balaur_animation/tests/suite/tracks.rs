@@ -552,8 +552,8 @@ keys = [
     );
 }
 
-/// The two node-level tracks Godot spells `visible` and `modulate`: neither is
-/// a component property, and both write the `Appearance` every node carries.
+// The two node-level tracks Godot spells `visible` and `modulate`: neither is
+// a component property, and both write the `Appearance` every node carries.
 #[test]
 fn a_clip_hides_a_node_and_fades_its_whole_subtree() {
     let mut app = app();
@@ -613,9 +613,9 @@ keys = [ { time = 0.0, value = 1.0 }, { time = 0.75, value = 0.0 } ]
     );
 }
 
-/// A string or a bool keys its own value and holds it until the next key:
-/// Godot's `theme_type_variation` and `button_pressed` tracks, which a number
-/// cannot stand for.
+// A string or a bool keys its own value and holds it until the next key:
+// Godot's `theme_type_variation` and `button_pressed` tracks, which a number
+// cannot stand for.
 #[test]
 fn a_track_keys_strings_and_bools_and_holds_each_until_the_next() {
     let mut app = app();

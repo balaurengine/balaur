@@ -231,8 +231,8 @@ impl Scenario {
     );
 }
 
-/// A tear during a step tells the node what `tear_softbody` would answer: the
-/// whole record, not a count.
+// A tear during a step tells the node what `tear()` would answer: the
+// whole record, not a count.
 #[test]
 fn a_tear_in_a_step_hears_the_record_a_scripted_tear_answers() {
     let app = run(

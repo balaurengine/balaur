@@ -6,7 +6,6 @@
 
 macro_rules! material {
     (rapier = $rapier:ident, material = $material:ident, cell_model = $cell_model:ident) => {
-        /// A material spring as rapier's.
         fn spring_of(
             spring: crate::soft_material::Spring,
         ) -> crate::$rapier::prelude::SpringCoefficients<crate::scalar::Real> {
@@ -126,7 +125,7 @@ pub(crate) const MIN_CHAIN_PARTICLES: f32 = 2.0;
 /// The fewest a closed ring holds.
 pub(crate) const MIN_RING_PARTICLES: f32 = 3.0;
 
-/// The particle count `particle_count` asks for, and at least `least`.
+/// `asked`, raised to `least` first and then floored.
 pub(crate) fn particle_count(asked: i64, least: f32) -> f64 {
     f64::from((asked as f32).max(least)).floor()
 }

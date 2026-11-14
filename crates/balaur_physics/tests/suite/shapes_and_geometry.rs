@@ -61,7 +61,7 @@ fn run_clean(script: &str) {
     assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
 }
 
-/// The point of voxels over a mesh: a game may dig into them.
+// The point of voxels over a mesh: a game may dig into them.
 #[test]
 fn a_voxel_grid_can_be_dug_into() {
     run_clean(
@@ -79,8 +79,8 @@ impl Scenario {
     );
 }
 
-/// A voxel collider draws itself: parry tessellates every shape, and this is
-/// how a voxel terrain gets on screen at all.
+// A voxel collider draws itself: parry tessellates every shape, and this is
+// how a voxel terrain gets on screen at all.
 #[test]
 fn a_voxel_collider_can_be_turned_into_a_mesh() {
     run_clean(
@@ -189,7 +189,7 @@ impl Scenario {
     );
 }
 
-/// Rapier hands the fitted pose back beside the shape, off the node's origin.
+// Rapier hands the fitted pose back beside the shape, off the node's origin.
 #[test]
 fn a_fitted_box_keeps_its_pose() {
     let _guard = LOG

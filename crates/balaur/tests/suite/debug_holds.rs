@@ -104,8 +104,8 @@ fn a_rebuild_for_the_debugger_is_no_reload_to_the_script() {
     assert_eq!(field(&app, "game", "reloads"), 1, "the control: a reload");
 }
 
-/// A stop's call lives in its instance's memory, so a reload of any file of
-/// that instance waits until the call goes on, and its script hears it then.
+// A stop's call lives in its instance's memory, so a reload of any file of
+// that instance waits until the call goes on, and its script hears it then.
 #[test]
 fn a_reload_waits_for_the_stop_it_would_end() {
     let (dir, mut app) = booted();
@@ -128,9 +128,9 @@ fn a_reload_waits_for_the_stop_it_would_end() {
     assert_eq!(field(&app, "game", "frames"), 101, "the new code runs");
 }
 
-/// A game's script read from outside the project is a unit of the instance
-/// beside it: stopping it parks nothing of the editor's, and a debugger's
-/// probes rebuild only that instance.
+// A game's script read from outside the project is a unit of the instance
+// beside it: stopping it parks nothing of the editor's, and a debugger's
+// probes rebuild only that instance.
 #[test]
 fn a_file_from_outside_the_project_stops_beside_it() {
     let (_dir, mut app) = booted();

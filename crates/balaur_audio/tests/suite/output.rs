@@ -53,8 +53,8 @@ fn the_audio_table_is_what_the_device_is_opened_with() {
     );
 }
 
-/// Dither alone changes nothing about how the device opens: it is applied to
-/// the mix on its way there.
+// Dither alone changes nothing about how the device opens: it is applied to
+// the mix on its way there.
 #[test]
 fn dither_alone_opens_the_default_device() {
     let (_dir, app) = app("[audio]\ndither_bits = 16\n");
@@ -97,8 +97,8 @@ fn a_limiter_takes_rodios_defaults_for_what_it_leaves_out() {
     );
 }
 
-/// Every bus feeds a named parent, `master` where it names none, so the
-/// device can hang each limited bus under the right mixer.
+// Every bus feeds a named parent, `master` where it names none, so the
+// device can hang each limited bus under the right mixer.
 #[test]
 fn every_route_names_the_bus_it_feeds() {
     let (_dir, app) = app("[audio.buses]\nsfx = { limit = true }\nui = { parent = \"sfx\" }\n");
@@ -116,8 +116,8 @@ fn every_route_names_the_bus_it_feeds() {
     assert_eq!(parent("ui"), "sfx");
 }
 
-/// A sound on a limited bus, with the whole mix limited and dithered, starts
-/// and is routed with no output device as with one.
+// A sound on a limited bus, with the whole mix limited and dithered, starts
+// and is routed with no output device as with one.
 #[test]
 fn a_sound_on_a_limited_bus_plays() {
     let (dir, app) = app(

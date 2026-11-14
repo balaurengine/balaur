@@ -190,8 +190,8 @@ mod tests {
         }
     }
 
-    /// The instance carries what the node's own object would have held, in
-    /// the order the fork applies it: turn, then lean, then scale.
+    // The instance carries what the node's own object would have held, in
+    // the order the fork applies it: turn, then lean, then scale.
     #[test]
     fn an_instance_carries_the_nodes_whole_pose() {
         let renderable =

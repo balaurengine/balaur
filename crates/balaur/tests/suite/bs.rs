@@ -747,9 +747,9 @@ impl Logger {
 }
 ";
 
-/// `log::info` and the other ops registered without Rust types are typed
-/// from their docs: `(message: string)` takes a `str`, `-> float` gives a
-/// `float`, and docs with no `->` give nothing back.
+// `log::info` and the other ops registered without Rust types are typed
+// from their docs: `(message: string)` takes a `str`, `-> float` gives a
+// `float`, and docs with no `->` give nothing back.
 #[test]
 fn a_bs_script_calls_the_engine_ops_its_docs_type() {
     use balaur_script::Value::{Bool, Num};
@@ -819,9 +819,9 @@ impl Reach {
 }
 ";
 
-/// What the editor's calls need from the engine, each typed: its constants,
-/// a call leaving optional arguments out, a node that is not there, one
-/// property of a component, and a tuple as a vector.
+// What the editor's calls need from the engine, each typed: its constants,
+// a call leaving optional arguments out, a node that is not there, one
+// property of a component, and a tuple as a vector.
 #[test]
 fn a_bs_script_reaches_constants_optional_arguments_and_tuples() {
     use balaur_script::Value::{Bool, Int, Num};
@@ -858,8 +858,8 @@ impl Checker {
 }
 ";
 
-/// An engine call that hands back tables a record declares gives a script
-/// structs: `found[0].message`, not `found[0][\"message\"].as_str()`.
+// An engine call that hands back tables a record declares gives a script
+// structs: `found[0].message`, not `found[0][\"message\"].as_str()`.
 #[test]
 fn a_record_result_is_a_struct_a_script_reads_by_field() {
     use balaur_script::Value::{Int, Str};
@@ -1044,8 +1044,8 @@ impl Check {
 }
 ";
 
-/// The editor's `util`, `defs` and `icons` libraries, one call each, read
-/// back from the script's field.
+// The editor's `util`, `defs` and `icons` libraries, one call each, read
+// back from the script's field.
 #[test]
 fn the_editor_libraries_answer_a_script_that_uses_them() {
     let dir = one_script("Check", LIBRARY_CHECK_BS);

@@ -681,8 +681,7 @@ fn a_label_s_padding_insets_its_text() {
     );
 }
 
-/// A box someone listens on says when it moved, and only then: what used to
-/// be a rect read back every pass is a `resized` with the new box, once.
+// A box someone listens on says when it moved, and only then, as a `resized` with the new box.
 #[test]
 fn a_listened_widget_says_when_its_box_moved() {
     let (_dir, mut app) = app();

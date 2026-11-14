@@ -413,7 +413,7 @@ fn an_inline_definition_is_refused_by_any_caller_unless_its_type_says_nothing() 
     );
 }
 
-/// A script loading a file reaches the parse and not a component's row.
+// A script loading a file reaches the parse and not a component's row.
 #[test]
 fn loading_a_definition_holds_it_to_its_keys_too() {
     let dir = project();
@@ -430,8 +430,8 @@ fn loading_a_definition_holds_it_to_its_keys_too() {
     }
 }
 
-/// The other half of holding a reference to its schema: a tool has to be able
-/// to open a scene whose files it cannot reach.
+// The other half of holding a reference to its schema: a tool has to be able
+// to open a scene whose files it cannot reach.
 #[test]
 fn a_record_asset_that_cannot_be_read_only_warns() {
     let _log = crate::observability::hold_the_log();
@@ -456,9 +456,9 @@ fn a_record_asset_that_cannot_be_read_only_warns() {
     assert_eq!(heard(&app), vec!["gone.toml".to_string()]);
 }
 
-/// A reference that resolves to nothing is a broken link, not a broken scene:
-/// the node still loads and the message still names the reference, so a tool
-/// can open a project whose files it cannot reach and show what is missing.
+// A reference that resolves to nothing is a broken link, not a broken scene:
+// the node still loads and the message still names the reference, so a tool
+// can open a project whose files it cannot reach and show what is missing.
 #[test]
 fn an_unknown_scene_asset_id_is_named_in_a_warning_and_the_scene_still_loads() {
     let _log = crate::observability::hold_the_log();
@@ -588,8 +588,8 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
     }
 }
 
-/// A shipped game has no source tree, so an asset that only resolves off disk
-/// is an asset that works in development and vanishes on release.
+// A shipped game has no source tree, so an asset that only resolves off disk
+// is an asset that works in development and vanishes on release.
 #[test]
 fn a_packed_run_resolves_an_asset_exactly_as_a_dev_run_does() {
     let dir = project();
@@ -640,8 +640,8 @@ fn the_asset_key_belongs_only_to_an_asset_property() {
     assert!(message.contains("asset"), "unhelpful: {message}");
 }
 
-/// An inline definition has no file behind it, so the cache entry is its only
-/// copy — asking for a private one, or reloading it, must not lose it.
+// An inline definition has no file behind it, so the cache entry is its only
+// copy — asking for a private one, or reloading it, must not lose it.
 #[test]
 fn an_inline_definition_survives_being_duplicated_and_reloaded() {
     let dir = project();
@@ -661,9 +661,9 @@ fn an_inline_definition_survives_being_duplicated_and_reloaded() {
     assert!((pitch_of(&app.engine, &reference) - 330.0).abs() < f64::EPSILON);
 }
 
-/// An inline table is as free to be a *library* of named assets as a file is.
-/// Without this an inline clip could never be named — and so never be what a
-/// component's `autoplay` starts.
+// An inline table is as free to be a *library* of named assets as a file is.
+// Without this an inline clip could never be named — and so never be what a
+// component's `autoplay` starts.
 #[test]
 fn an_entry_inside_an_inline_definition_resolves_by_its_name() {
     let dir = project();
@@ -698,8 +698,8 @@ fn an_entry_an_inline_definition_does_not_have_says_so() {
     assert!(message.contains("low"), "unhelpful: {message}");
 }
 
-/// The editor's write-back path: a tool edits a definition table and puts it
-/// back where it came from, without knowing how the file is encoded.
+// The editor's write-back path: a tool edits a definition table and puts it
+// back where it came from, without knowing how the file is encoded.
 #[test]
 fn saving_an_asset_writes_the_file_and_the_next_load_reads_it() {
     let dir = project();
@@ -717,8 +717,8 @@ fn saving_an_asset_writes_the_file_and_the_next_load_reads_it() {
     assert!((pitch_of(&app.engine, "notes/scale.toml#high") - 1760.0).abs() < f64::EPSILON);
 }
 
-/// A file a person wrote keeps what the edit did not touch: its comments,
-/// its key order, and the text of every value that did not move.
+// A file a person wrote keeps what the edit did not touch: its comments,
+// its key order, and the text of every value that did not move.
 #[test]
 fn saving_an_asset_keeps_the_files_comments_and_order() {
     let dir = project();
@@ -738,9 +738,9 @@ fn saving_an_asset_keeps_the_files_comments_and_order() {
     );
 }
 
-/// Only a file can be saved. An entry belongs to a document and an inline
-/// table has no file at all, so both are refused by name rather than written
-/// somewhere the caller did not ask for.
+// Only a file can be saved. An entry belongs to a document and an inline
+// table has no file at all, so both are refused by name rather than written
+// somewhere the caller did not ask for.
 #[test]
 fn saving_something_that_is_not_a_file_says_which_reference_it_was() {
     let dir = project();
@@ -763,9 +763,9 @@ fn saving_something_that_is_not_a_file_says_which_reference_it_was() {
     );
 }
 
-/// A subsystem holding a parsed asset re-resolves when this moves. It must not
-/// move for a file nothing was ever cut from, or every `.toml` the file
-/// watcher sees would cost every player a reload.
+// A subsystem holding a parsed asset re-resolves when this moves. It must not
+// move for a file nothing was ever cut from, or every `.toml` the file
+// watcher sees would cost every player a reload.
 #[test]
 fn the_generation_moves_only_when_a_reload_actually_dropped_something() {
     let dir = project();
@@ -788,9 +788,9 @@ fn the_generation_moves_only_when_a_reload_actually_dropped_something() {
     );
 }
 
-/// Where a type's files belong is the type's own business: a tool promoting an
-/// inline definition to a file has nowhere else to learn it, because the
-/// schema carries the type name and not its home.
+// Where a type's files belong is the type's own business: a tool promoting an
+// inline definition to a file has nowhere else to learn it, because the
+// schema carries the type name and not its home.
 #[test]
 fn an_asset_type_says_where_its_files_belong() {
     let dir = project();
@@ -803,11 +803,8 @@ fn an_asset_type_says_where_its_files_belong() {
     );
 }
 
-/// An asset file in a second root names its own files from that root, and goes
-/// back to the file spelled the way that root's project spells it.
-///
-/// The editor loads a material, edits one key and saves it: a path made
-/// absolute on the way in and written back would not survive another machine.
+// The editor loads a material, edits one key and saves it: a path made absolute on the way in would
+// not survive another machine.
 #[test]
 fn an_asset_file_from_another_root_resolves_and_saves_back_relative() {
     let editor = project();

@@ -951,9 +951,8 @@ mod tests {
         assert!(!sprite_draws(""));
     }
 
-    /// A tilemap draws by its `z_index` like everything else in 2D: the pass
-    /// that builds it runs last, which used to put every map over every
-    /// sprite whatever the scene said.
+    // The pass that builds a tilemap runs last, so it must still sort by `z_index` with everything
+    // else in 2D.
     #[test]
     fn a_tilemap_takes_its_place_in_the_draw_order() {
         let app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
@@ -975,8 +974,8 @@ mod tests {
         );
     }
 
-    /// Siblings at one index draw in tree order: the later one over the
-    /// earlier one, and a parent under its children.
+    // Siblings at one index draw in tree order: the later one over the
+    // earlier one, and a parent under its children.
     #[test]
     fn a_later_sibling_draws_over_an_earlier_one() {
         let app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
@@ -1033,8 +1032,8 @@ mod tests {
         );
     }
 
-    /// A shape a script draws at an index sits over that index's nodes and
-    /// under the next one's; an index no node has still takes its place.
+    // A shape a script draws at an index sits over that index's nodes and
+    // under the next one's; an index no node has still takes its place.
     #[test]
     fn a_drawn_layer_sits_after_the_nodes_of_its_index() {
         use super::Placed::{Layer, Node};

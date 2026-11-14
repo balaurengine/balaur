@@ -84,7 +84,7 @@ fn a_field_that_is_no_component_at_all_is_named() {
     assert!(message.contains("bod2d"), "{message}");
 }
 
-/// A handle written inside a comment or a string is not one.
+// A handle written inside a comment or a string is not one.
 #[test]
 fn text_that_only_looks_like_a_call_is_not_one() {
     let found = check(
@@ -100,8 +100,8 @@ fn a_call_to_no_module_names_the_line_it_is_on() {
     assert!(message.contains("nowhere"), "{message}");
 }
 
-/// The engine runs `.bs` alone: a scene that still attaches a `.rn` is told
-/// so, rather than the script being skipped in silence.
+// The engine runs `.bs` alone: a scene that still attaches a `.rn` is told
+// so, rather than the script being skipped in silence.
 #[test]
 fn a_script_in_another_language_is_named() {
     let dir = project(&script(""));
@@ -141,8 +141,8 @@ fn a_scene_names_the_components_beside_each_script() {
     assert_eq!(balaur::scene_scripts(dir.path()), ["main.bs"]);
 }
 
-/// A directory carrying a manifest is another project: its scenes name their
-/// scripts from their own root, and it is checked from there.
+// A directory carrying a manifest is another project: its scenes name their
+// scripts from their own root, and it is checked from there.
 #[test]
 fn a_nested_project_is_not_part_of_this_one() {
     let dir = project(&script(""));
@@ -163,9 +163,9 @@ fn a_nested_project_is_not_part_of_this_one() {
     assert_eq!(balaur::check_project(dir.path()).unwrap().len(), 0);
 }
 
-/// A node the scene loader would reject is still a root to compile, and its
-/// components are unknown rather than none: nothing may conclude from a node
-/// it could not read that the node carries nothing.
+// A node the scene loader would reject is still a root to compile, and its
+// components are unknown rather than none: nothing may conclude from a node
+// it could not read that the node carries nothing.
 #[test]
 fn a_node_that_will_not_parse_leaves_its_components_unknown() {
     let dir = project(&script("        let frame = self.node.sprite.frame;"));
@@ -183,8 +183,8 @@ fn a_node_that_will_not_parse_leaves_its_components_unknown() {
     assert!(found[0].1.contains("tags"), "{found:?}");
 }
 
-/// `[check] strict = true` is how a project says a warning is a failure
-/// without every caller having to remember the flag. The editor says it.
+// `[check] strict = true` is how a project says a warning is a failure
+// without every caller having to remember the flag. The editor says it.
 #[test]
 fn a_project_can_ask_for_strict_checking_in_its_manifest() {
     use balaur_core::project::ProjectManifest;
@@ -199,8 +199,8 @@ fn a_project_can_ask_for_strict_checking_in_its_manifest() {
     assert!(ProjectManifest::parse(&editor).unwrap().check.strict);
 }
 
-/// A directory with no scenes in it has no roots, and a checker with no roots
-/// has nothing to say rather than something to fail on.
+// A directory with no scenes in it has no roots, and a checker with no roots
+// has nothing to say rather than something to fail on.
 #[test]
 fn a_project_with_no_scenes_reports_nothing() {
     assert_eq!(
@@ -209,9 +209,9 @@ fn a_project_with_no_scenes_reports_nothing() {
     );
 }
 
-/// A module `[application] ignore` leaves out compiles here, beside the
-/// script that uses it, and is missing from an export: the check says so
-/// before the export does.
+// A module `[application] ignore` leaves out compiles here, beside the
+// script that uses it, and is missing from an export: the check says so
+// before the export does.
 #[test]
 fn a_module_the_project_ignores_is_an_error_on_its_user() {
     let dir = project(&format!(

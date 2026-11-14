@@ -223,9 +223,9 @@ b = { type = "string", default = "d" }"#,
     );
 }
 
-/// What a plugin author gets back for a schema that departs from the
-/// vocabulary: a panic at registration naming the component, the property and
-/// the key at fault, rather than an inspector row that silently never appears.
+// What a plugin author gets back for a schema that departs from the
+// vocabulary: a panic at registration naming the component, the property and
+// the key at fault, rather than an inspector row that silently never appears.
 #[test]
 fn a_bad_schema_is_rejected_at_registration() {
     // (schema, what is wrong with it, words the message owes the author)
@@ -353,9 +353,9 @@ fn freeing_a_node_runs_its_remove_hook_and_forgets_it() {
     );
 }
 
-/// The bundle's own `Transform` is on the node without the registry having
-/// put it there, so a free owes no hook for it and a presence test still
-/// answers yes.
+// The bundle's own `Transform` is on the node without the registry having
+// put it there, so a free owes no hook for it and a presence test still
+// answers yes.
 #[test]
 fn the_bundles_transform_is_present_without_being_hooked() {
     let app = app_with_marker();
@@ -382,8 +382,8 @@ fn removing_a_component_clears_its_bit() {
     assert!(!components::attached_of(&app.engine, e).has(index));
 }
 
-/// A debug build still finds a component attached behind the registry's
-/// back, so a plugin that forgot the registry hears about it in tests.
+// A debug build still finds a component attached behind the registry's
+// back, so a plugin that forgot the registry hears about it in tests.
 #[cfg(debug_assertions)]
 #[test]
 fn a_component_attached_behind_the_registry_is_still_removed_in_debug() {
@@ -419,8 +419,8 @@ fn a_bare_value_on_a_component_is_an_error() {
     assert!(err.to_string().contains(r#"{ kind = "static" }"#), "{err}");
 }
 
-/// A derived component answers one property by its index, and the answer is
-/// the whole table's.
+// A derived component answers one property by its index, and the answer is
+// the whole table's.
 #[test]
 fn a_derived_component_answers_one_property_alone() {
     let app = app_with_marker();
@@ -449,8 +449,8 @@ fn a_derived_component_answers_one_property_alone() {
     assert!((yaw - 1.0).abs() < 1e-5, "{euler}");
 }
 
-/// A nested spec may leave its `default` out, and registration writes the
-/// type's zero in: the inspector needs one to add an entry with.
+// A nested spec may leave its `default` out, and registration writes the
+// type's zero in: the inspector needs one to add an entry with.
 #[test]
 fn a_nested_spec_gets_the_default_it_left_out() {
     let schema = ComponentDef::parse_schema(
@@ -469,8 +469,8 @@ fn a_nested_spec_gets_the_default_it_left_out() {
     );
 }
 
-/// A colour is expanded wherever the spec puts it, so a hex string inside a
-/// list reaches `apply` as the floats every hook reads.
+// A colour is expanded wherever the spec puts it, so a hex string inside a
+// list reaches `apply` as the floats every hook reads.
 #[test]
 fn a_colour_inside_a_list_is_expanded_like_any_other() {
     let schema = ComponentDef::parse_schema(
@@ -484,8 +484,8 @@ fn a_colour_inside_a_list_is_expanded_like_any_other() {
     assert_eq!(first[1].as_float(), Some(0.0), "{merged}");
 }
 
-/// A scene naming one of a record's fields still hands `apply` both, and a
-/// record inside a list is filled the same way.
+// A scene naming one of a record's fields still hands `apply` both, and a
+// record inside a list is filled the same way.
 #[test]
 fn a_record_field_the_scene_left_out_is_filled_in() {
     let schema = ComponentDef::parse_schema(
@@ -604,8 +604,8 @@ fn a_component_reports_its_own_warnings() {
     );
 }
 
-/// A key the schema does not declare is a typo that would apply as nothing,
-/// so every way in refuses it, naming the component and the key.
+// A key the schema does not declare is a typo that would apply as nothing,
+// so every way in refuses it, naming the component and the key.
 #[test]
 fn an_undeclared_key_is_refused_by_add_patch_and_a_scene() {
     let app = app_with_marker();
@@ -643,8 +643,8 @@ fn an_undeclared_key_is_refused_by_add_patch_and_a_scene() {
     );
 }
 
-/// `meta` files any name and `states` takes a state by name: both say so to
-/// the registry, so their free keys are not typos.
+// `meta` files any name and `states` takes a state by name: both say so to
+// the registry, so their free keys are not typos.
 #[test]
 fn a_component_that_takes_free_keys_still_takes_them() {
     let app = App::new(AppConfig::bare(".")).unwrap();

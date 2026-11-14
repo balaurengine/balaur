@@ -263,9 +263,9 @@ fn a_player_on_a_node_the_snapshot_never_saw_is_dropped_by_the_restore() {
     );
 }
 
-/// A jiggle spring is simulation state this plugin owns outright, so it goes
-/// in the snapshot for the same reason a playhead does: restored without it,
-/// the chain settles from wherever it happened to be swinging.
+// A jiggle spring is simulation state this plugin owns outright, so it goes
+// in the snapshot for the same reason a playhead does: restored without it,
+// the chain settles from wherever it happened to be swinging.
 #[test]
 fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
     let mut app = app();
@@ -340,10 +340,8 @@ fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
     assert_eq!(later, again, "the re-simulation should retrace the swing");
 }
 
-/// A session starts the playhead's fixed step from a frame boundary, as the
-/// app starts its own. A process that ran before it leaves the remainder part
-/// way to a step, and a replay starts from nothing: kept, the clip steps on a
-/// different frame in each and the replay parts from its recording.
+// A process that ran before leaves its step part way and a replay starts from nothing, so a kept
+// remainder parts the replay from its recording.
 #[test]
 fn a_session_starts_the_playhead_step_from_a_frame_boundary() {
     let dir = tempfile::tempdir().unwrap();

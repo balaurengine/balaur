@@ -993,8 +993,8 @@ impl Owner {
     (dir, app, owner, rows)
 }
 
-/// The last mark named is the rightmost, and a click on it reports the row
-/// and its name without picking the row.
+// The last mark named is the rightmost, and a click on it reports the row
+// and its name without picking the row.
 #[test]
 fn a_click_on_a_rows_mark_reports_it_and_picks_nothing() {
     let (_dir, mut app, owner, rows) = marked_tree();
@@ -1034,7 +1034,6 @@ fn a_click_on_a_rows_mark_reports_it_and_picks_nothing() {
     );
 }
 
-/// The rest of the row is still the row's: a click beside the marks picks it.
 #[test]
 fn a_click_on_a_marked_row_away_from_its_marks_still_picks_it() {
     let (_dir, mut app, _owner, rows) = marked_tree();

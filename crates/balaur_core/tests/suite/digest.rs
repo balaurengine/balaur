@@ -59,8 +59,8 @@ fn first_divergence_names_the_node_that_moved() {
     );
 }
 
-/// The property Godot's NodePath-keyed replication cannot offer: the label
-/// two peers compare on survives a rename.
+// The property Godot's NodePath-keyed replication cannot offer: the label
+// two peers compare on survives a rename.
 #[test]
 fn renaming_a_node_does_not_change_its_digest_label() {
     let app = app();

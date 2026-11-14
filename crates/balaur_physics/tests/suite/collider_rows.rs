@@ -689,8 +689,8 @@ fn restitution_may_exceed_one() {
     );
 }
 
-/// The ground's mask leaves out the ball's layer: under `both` the ball falls
-/// through it, and under `either` the ball's own mask is enough.
+// The ground's mask leaves out the ball's layer: under `both` the ball falls
+// through it, and under `either` the ball's own mask is enough.
 #[test]
 fn either_layer_test_lets_one_side_accept_the_pair() {
     let land = |test: &str| {

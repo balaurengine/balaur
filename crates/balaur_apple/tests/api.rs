@@ -46,8 +46,8 @@ fn the_plugin_takes_over_the_portable_verbs() {
     assert_eq!(state.borrow().backend_name(), "apple");
 }
 
-/// Game Center has no presence, and answering `done` to a call that did
-/// nothing would be worse than saying so.
+// Game Center has no presence, and answering `done` to a call that did
+// nothing would be worse than saying so.
 #[test]
 fn presence_is_unsupported_rather_than_pretended() {
     let mut app = app();

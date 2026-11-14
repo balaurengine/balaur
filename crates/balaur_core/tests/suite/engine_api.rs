@@ -341,8 +341,7 @@ fn a_script_can_write_to_the_log_it_reads_back() {
     }
 }
 
-/// The verbs the editor's asset browser needs: it could read and write, but
-/// not create, rename or delete.
+// The verbs the editor's asset browser needs beside read and write.
 #[test]
 fn a_file_can_be_made_moved_and_deleted() {
     let dir = tempfile::tempdir().unwrap();
@@ -398,7 +397,7 @@ fn a_file_can_be_made_moved_and_deleted() {
     assert!(!dir.path().join("sprites/enemies").exists());
 }
 
-/// A tool polls this instead of re-reading a file to see whether it changed.
+// A tool polls this instead of re-reading a file to see whether it changed.
 #[test]
 fn a_files_modification_time_is_readable_and_absent_for_one_that_is_not_there() {
     let dir = tempfile::tempdir().unwrap();
@@ -465,8 +464,8 @@ fn a_script_can_ask_a_plugins_version() {
     assert_eq!(version("elsewhere").unwrap(), Value::Nil);
 }
 
-/// A project the editor opened is content, and a pack's bytecode is content:
-/// what they name is checked, not trusted.
+// A project the editor opened is content, and a pack's bytecode is content:
+// what they name is checked, not trusted.
 #[test]
 fn fs_refuses_a_path_that_climbs_out_of_the_project() {
     let dir = tempfile::tempdir().unwrap();
@@ -511,8 +510,8 @@ fn fs_refuses_an_absolute_path_outside_every_root() {
     assert!(!outside.exists());
 }
 
-/// A link is a way out of a directory, so the path is followed to where it
-/// really lands before it is checked.
+// A link is a way out of a directory, so the path is followed to where it
+// really lands before it is checked.
 #[cfg(unix)]
 #[test]
 fn fs_refuses_a_symlink_that_leaves_the_project() {
@@ -539,8 +538,8 @@ fn fs_refuses_a_symlink_that_leaves_the_project() {
     assert!(!outside.join("stolen.txt").exists());
 }
 
-/// What `balaur edit <game>` needs: the editor's own root is the editor's
-/// directory and the game it edits is a second one, named by the host.
+// What `balaur edit <game>` needs: the editor's own root is the editor's
+// directory and the game it edits is a second one, named by the host.
 #[test]
 fn fs_reaches_a_second_root_the_host_declared() {
     let dir = tempfile::tempdir().unwrap();
@@ -766,8 +765,8 @@ fn the_device_facts_default_and_take_a_backends_report() {
     assert!((balaur_core::facts::device(&app.engine).safe_area[1] - 44.0).abs() < f32::EPSILON);
 }
 
-/// A harness that failed says so to the shell: `quit(code)` is what the
-/// process exits with, and a bare `quit()` is a clean exit.
+// A harness that failed says so to the shell: `quit(code)` is what the
+// process exits with, and a bare `quit()` is a clean exit.
 #[test]
 fn quit_carries_the_code_the_process_exits_with() {
     let dir = tempfile::tempdir().unwrap();

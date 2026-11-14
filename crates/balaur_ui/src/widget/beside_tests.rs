@@ -63,8 +63,8 @@ fn a_row_written_alone_fills_what_a_whole_put_fills() {
     each_beside!(check_each!());
 }
 
-/// A pooled control's table says nothing of which component holds a row,
-/// so no kind may read two that hold the same one.
+// A pooled control's table says nothing of which component holds a row,
+// so no kind may read two that hold the same one.
 #[test]
 fn no_kind_reads_two_components_holding_one_row() {
     macro_rules! rows_of_each {

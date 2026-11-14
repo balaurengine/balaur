@@ -1029,7 +1029,6 @@ pub(crate) fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) 
 mod tests {
     use super::{EITHER_SIDE, Fed, InputSnapshot, KEYS, MOUSE_BUTTON_CONSTANTS, is_known_key};
 
-    /// What a page hands over is taken once, in the order it was handed.
     #[test]
     fn handed_files_are_taken_once_in_order() {
         super::hand_files(["/handed/1/a.ttf".to_string()]);

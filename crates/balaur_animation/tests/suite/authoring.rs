@@ -56,8 +56,8 @@ fn tick(app: &mut App, frames: u32) {
     }
 }
 
-/// Scrubbing a timeline is a seek on a clip that is not advancing. If the seek
-/// waited for a step to show, the ruler would move and the node would not.
+// Scrubbing a timeline is a seek on a clip that is not advancing. If the seek
+// waited for a step to show, the ruler would move and the node would not.
 #[test]
 fn a_scrub_poses_a_paused_clip_where_the_playhead_lands() {
     let app = app();
@@ -98,9 +98,9 @@ fn a_scrub_moves_nothing_but_the_playhead() {
     );
 }
 
-/// The editor writes its clips inline first and promotes them to a file
-/// second, so an inline clip has to be nameable — otherwise `autoplay` could
-/// only ever start a clip that already lives in a file.
+// The editor writes its clips inline first and promotes them to a file
+// second, so an inline clip has to be nameable — otherwise `autoplay` could
+// only ever start a clip that already lives in a file.
 #[test]
 fn an_inline_library_autoplays_the_entry_it_names() {
     let mut app = app();
@@ -117,8 +117,8 @@ fn an_inline_library_autoplays_the_entry_it_names() {
     );
 }
 
-/// A path that does not resolve is a broken reference, not a broken scene: the
-/// node still loads, so the editor can show it and the author can fix it.
+// A path that does not resolve is a broken reference, not a broken scene: the
+// node still loads, so the editor can show it and the author can fix it.
 #[test]
 fn an_autoplay_that_cannot_load_leaves_the_rest_of_the_scene_standing() {
     let app = app();
@@ -148,8 +148,8 @@ parent = "Scene"
     assert!(balaur_animation::current_clip(&app.engine, entity).is_none());
 }
 
-/// "Save as file" writes the definition the editor was already previewing.
-/// The two forms are one document, so they have to pose identically.
+// "Save as file" writes the definition the editor was already previewing.
+// The two forms are one document, so they have to pose identically.
 #[test]
 fn a_clip_promoted_to_a_file_poses_exactly_as_the_inline_one_did() {
     let dir = tempfile::tempdir().unwrap();
@@ -190,9 +190,9 @@ fn a_clip_promoted_to_a_file_poses_exactly_as_the_inline_one_did() {
     assert!((height(&app, external) - 5.0).abs() < 0.05);
 }
 
-/// The editor saves the scene by encoding its document. A clip nested under a
-/// node is the deepest thing that document holds, and TOML is particular about
-/// what may follow a table — so the round trip is pinned rather than assumed.
+// The editor saves the scene by encoding its document. A clip nested under a
+// node is the deepest thing that document holds, and TOML is particular about
+// what may follow a table — so the round trip is pinned rather than assumed.
 #[test]
 fn a_scene_document_holding_an_inline_clip_encodes_and_parses_back() {
     let app = app();
@@ -239,10 +239,8 @@ tracks = [
     );
 }
 
-/// Saving a clip while it plays should look like saving a script: the change
-/// is live on the next frame. A `Playback` holds an `Rc<Clip>` so a reload
-/// cannot pull the clip out mid-frame — which is exactly why the player has
-/// to be told to go and fetch the new one.
+// A `Playback` holds an `Rc<Clip>` so a reload cannot pull the clip out mid-frame, which is why the
+// player is told to fetch the new one.
 #[test]
 fn a_clip_saved_while_it_plays_is_picked_up_without_losing_the_playhead() {
     let dir = tempfile::tempdir().unwrap();

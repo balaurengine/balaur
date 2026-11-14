@@ -184,8 +184,8 @@ impl Scenario {
     );
 }
 
-/// The inspector clamps what it shows, degrees, so the bounds are written
-/// in degrees while the file keeps radians.
+// The inspector clamps what it shows, degrees, so the bounds are written
+// in degrees while the file keeps radians.
 #[test]
 fn slope_angles_take_their_bounds_in_degrees() {
     let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
@@ -285,8 +285,8 @@ fn wheel(app: &App, tyre: Entity) -> balaur_physics::vehicle::WheelInput3d {
     state.borrow().wheel_inputs[&tyre]
 }
 
-/// Off the end of the slab, a wheel keeps the spin it had and loses one
-/// hundredth of it a step, and a snapshot carries that spin.
+// Off the end of the slab, a wheel keeps the spin it had and loses one
+// hundredth of it a step, and a snapshot carries that spin.
 #[test]
 fn an_airborne_wheel_keeps_spinning_and_slows() {
     let mut app = app();
@@ -368,7 +368,7 @@ fn a_wheels_suspension_force_is_reported_after_its_cap() {
     );
 }
 
-/// Rapier wakes a chassis for a forward drive alone.
+// Rapier wakes a chassis for a forward drive alone.
 #[test]
 fn reversing_or_steering_wakes_a_parked_car() {
     for (what, set) in [

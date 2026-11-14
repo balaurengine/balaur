@@ -547,8 +547,8 @@ pub mod texture {
 
 #[cfg(test)]
 mod tests {
-    /// Two counts above zero, or nothing: a size that is not a size would
-    /// measure a sprite as a point.
+    // Two counts above zero, or nothing: a size that is not a size would
+    // measure a sprite as a point.
     #[test]
     fn the_drawn_size_is_two_counts_or_nothing() {
         let read = |text: &str| super::size_in(&toml::from_str::<toml::Table>(text).unwrap());
@@ -561,7 +561,6 @@ mod tests {
 
     use super::{flag, is_sidecar, kind_of, kinds, merged, number, sidecar_of, stamp, word};
 
-    /// A tool reads the project's default, then the file's own over it.
     #[test]
     fn a_tool_merges_the_project_default_under_the_sidecar() {
         let manifest: toml::Table =
@@ -601,15 +600,15 @@ mod tests {
         assert!(is_sidecar("art/hero.png.import.toml"));
     }
 
-    /// A scene and a clip are content, however they are named.
+    // A scene and a clip are content, however they are named.
     #[test]
     fn a_scene_is_not_mistaken_for_a_sidecar() {
         assert!(!is_sidecar("scenes/main.toml"));
         assert!(!is_sidecar("animations/walk.toml"));
     }
 
-    /// Two tables holding the same settings are the same settings, so the
-    /// texture they name is uploaded once.
+    // Two tables holding the same settings are the same settings, so the
+    // texture they name is uploaded once.
     #[test]
     fn the_order_a_table_was_written_in_does_not_change_its_stamp() {
         let one: toml::Table = toml::from_str("filter = \"nearest\"\nsrgb = false").unwrap();
@@ -646,7 +645,7 @@ mod tests {
             toml::from_str(source).unwrap()
         }
 
-        /// A normal map is data, so it reads raw unless `srgb` says otherwise.
+        // A normal map is data, so it reads raw unless `srgb` says otherwise.
         #[test]
         fn a_normal_map_reads_raw_by_default() {
             assert!(!of("normal_map = true").srgb);
@@ -654,7 +653,7 @@ mod tests {
             assert!(of("normal_map = false").srgb);
         }
 
-        /// Bleeding only changes what a linear filter reads from colour.
+        // Bleeding only changes what a linear filter reads from colour.
         #[test]
         fn bleed_defaults_on_for_colour_sampled_linearly() {
             assert!(texels(&table("")).bleed);
@@ -678,15 +677,15 @@ mod tests {
             assert!(!is_pixel_art(&table("min_filter = \"nearest\"")));
         }
 
-        /// A file that says nothing samples the way a sprite wants: clamped,
-        /// smooth, and with no mip chain to build at load.
+        // A file that says nothing samples the way a sprite wants: clamped,
+        // smooth, and with no mip chain to build at load.
         #[test]
         fn a_file_with_no_settings_samples_the_way_it_always_did() {
             assert_eq!(of(""), Sampling::default());
         }
 
-        /// One line for both directions, and the per-axis key only where they
-        /// differ.
+        // One line for both directions, and the per-axis key only where they
+        // differ.
         #[test]
         fn a_per_axis_key_falls_back_to_the_one_that_covers_both() {
             let tiled = of("repeat = \"repeat\"\nrepeat_v = \"clamp\"");
@@ -712,8 +711,8 @@ mod tests {
             assert_eq!(all.anisotropy, 8);
         }
 
-        /// A misspelled value is the engine's own, not a texture that refuses
-        /// to draw: a settings file is written by hand.
+        // A misspelled value is the engine's own, not a texture that refuses
+        // to draw: a settings file is written by hand.
         #[test]
         fn a_word_nothing_knows_reads_as_the_default() {
             assert_eq!(of("filter = \"bilinear\"").mag, Filter::Linear);
@@ -721,8 +720,8 @@ mod tests {
             assert_eq!(of("anisotropy = \"lots\"").anisotropy, 1);
         }
 
-        /// A GPU refuses anisotropy without a linear filter on every axis, so
-        /// the pair is caught here and reported rather than sampled.
+        // A GPU refuses anisotropy without a linear filter on every axis, so
+        // the pair is caught here and reported rather than sampled.
         #[test]
         fn anisotropy_asks_for_a_linear_filter() {
             assert!(anisotropy_refused(&of(

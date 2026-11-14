@@ -68,8 +68,8 @@ fn control(app: &App, name: &str, component: &str, params: &str) -> balaur_core:
 
 use balaur_input::TouchPhase::{Cancel, End, Move, Start};
 
-/// The default, and the reason every existing widget kind works on a phone:
-/// a finger is also a left click at the same place.
+// The default, and the reason every existing widget kind works on a phone:
+// a finger is also a left click at the same place.
 #[test]
 fn a_finger_moves_the_mouse_by_default() {
     let (_dir, mut app) = app(MANIFEST);
@@ -93,8 +93,8 @@ fn a_finger_moves_the_mouse_by_default() {
     assert!(input.mouse_just_released(0));
 }
 
-/// One cursor, so the second finger is a touch and nothing more. Without this
-/// a two-finger gesture would drag the pointer between the fingers.
+// One cursor, so the second finger is a touch and nothing more. Without this
+// a two-finger gesture would drag the pointer between the fingers.
 #[test]
 fn only_the_first_finger_drives_the_cursor() {
     let (_dir, mut app) = app(MANIFEST);
@@ -109,8 +109,8 @@ fn only_the_first_finger_drives_the_cursor() {
     assert_eq!(input.touches().len(), 2);
 }
 
-/// A cancelled finger releases the button too: a gesture the system took over
-/// must not leave a game holding a click forever.
+// A cancelled finger releases the button too: a gesture the system took over
+// must not leave a game holding a click forever.
 #[test]
 fn a_cancelled_finger_releases_the_button() {
     let (_dir, mut app) = app(MANIFEST);
@@ -124,8 +124,8 @@ fn a_cancelled_finger_releases_the_button() {
     );
 }
 
-/// Off by default, and what lets a desktop drive touch code. A hover is not a
-/// touch: only a held button reports a finger.
+// Off by default, and what lets a desktop drive touch code. A hover is not a
+// touch: only a held button reports a finger.
 #[test]
 fn a_mouse_can_stand_in_for_a_finger() {
     let manifest = format!("{MANIFEST}\n[input]\nemulate_touch_from_mouse = true\n");
@@ -161,8 +161,8 @@ fn a_mouse_can_stand_in_for_a_finger() {
     );
 }
 
-/// The two conversions must not feed each other: with both on, one press is
-/// still one finger and one button.
+// The two conversions must not feed each other: with both on, one press is
+// still one finger and one button.
 #[test]
 fn the_two_conversions_do_not_loop() {
     let manifest = format!(
@@ -176,8 +176,8 @@ fn the_two_conversions_do_not_loop() {
     assert!(input.mouse_down(0));
 }
 
-/// A project may turn the default off, for a game that reads both and would
-/// otherwise see one press twice.
+// A project may turn the default off, for a game that reads both and would
+// otherwise see one press twice.
 #[test]
 fn emulation_can_be_turned_off() {
     let manifest = format!("{MANIFEST}\n[input]\nemulate_mouse_from_touch = false\n");
@@ -221,8 +221,8 @@ fn a_button_presses_its_action() {
     assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
 }
 
-/// A finger outside the circle is not on the button, even inside the square
-/// the circle is inscribed in.
+// A finger outside the circle is not on the button, even inside the square
+// the circle is inscribed in.
 #[test]
 fn a_circle_button_ignores_its_corners() {
     let (_dir, mut app) = app(MANIFEST);
@@ -232,8 +232,8 @@ fn a_circle_button_ignores_its_corners() {
     assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
 }
 
-/// The finger that pressed it keeps it wherever it goes. A thumb sliding off
-/// the edge mid-jump should not drop the jump.
+// The finger that pressed it keeps it wherever it goes. A thumb sliding off
+// the edge mid-jump should not drop the jump.
 #[test]
 fn a_thumb_that_slides_off_keeps_the_button() {
     let (_dir, mut app) = app(MANIFEST);
@@ -245,8 +245,8 @@ fn a_thumb_that_slides_off_keeps_the_button() {
     assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
 }
 
-/// A control the platform hides takes no fingers either, the way a hidden
-/// widget does. This is a desktop, so `touchscreen` is off.
+// A control the platform hides takes no fingers either, the way a hidden
+// widget does. This is a desktop, so `touchscreen` is off.
 #[test]
 fn a_touchscreen_only_button_is_dead_on_a_desktop() {
     let (_dir, mut app) = app(MANIFEST);
@@ -256,8 +256,8 @@ fn a_touchscreen_only_button_is_dead_on_a_desktop() {
     assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
 }
 
-/// The whole point of feeding rather than binding: a key and a button drive
-/// one action, and the game reads one name.
+// The whole point of feeding rather than binding: a key and a button drive
+// one action, and the game reads one name.
 #[test]
 fn a_key_and_a_button_drive_one_action() {
     let (_dir, mut app) = app(MANIFEST);
@@ -271,8 +271,8 @@ fn a_key_and_a_button_drive_one_action() {
     assert!((value(&app, "jump") - 1.0).abs() < 1e-6, "the button alone");
 }
 
-/// An action no manifest declared still answers, because a scene may carry
-/// its own controls into a project that never named them.
+// An action no manifest declared still answers, because a scene may carry
+// its own controls into a project that never named them.
 #[test]
 fn a_button_can_feed_an_undeclared_action() {
     let (_dir, mut app) = app(MANIFEST);
@@ -282,7 +282,7 @@ fn a_button_can_feed_an_undeclared_action() {
     assert!((value(&app, "crouch") - 1.0).abs() < 1e-6);
 }
 
-/// The safe area moves a control, so a HUD does not sit under a home bar.
+// The safe area moves a control, so a HUD does not sit under a home bar.
 #[test]
 fn a_safe_area_moves_a_button() {
     let (_dir, mut app) = app(MANIFEST);
@@ -305,8 +305,8 @@ fn a_safe_area_moves_a_button() {
     );
 }
 
-/// Design pixels, not physical ones: the same scene on a dense screen puts
-/// the control in the same place relative to the glass.
+// Design pixels, not physical ones: the same scene on a dense screen puts
+// the control in the same place relative to the glass.
 #[test]
 fn the_ui_scale_sizes_a_control() {
     let (_dir, mut app) = app(MANIFEST);
@@ -341,8 +341,8 @@ fn a_stick_pushes_its_actions() {
     assert!(value(&app, "move_y").abs() < 0.01);
 }
 
-/// Screen y counts down and a stick does not: a thumb pushed away from the
-/// player reads positive, the way `axis:left_y` does.
+// Screen y counts down and a stick does not: a thumb pushed away from the
+// player reads positive, the way `axis:left_y` does.
 #[test]
 fn a_stick_reads_up_as_positive() {
     let (_dir, mut app) = app(MANIFEST);
@@ -352,7 +352,6 @@ fn a_stick_reads_up_as_positive() {
     assert!((value(&app, "move_y") - 1.0).abs() < 0.01, "up is +1");
 }
 
-/// Past the rim the reading saturates rather than growing without bound.
 #[test]
 fn a_stick_saturates_at_its_throw() {
     let (_dir, mut app) = app(MANIFEST);
@@ -362,8 +361,8 @@ fn a_stick_saturates_at_its_throw() {
     assert!((value(&app, "move_x") - 1.0).abs() < 0.01);
 }
 
-/// A resting thumb reads zero, and the first live reading is near zero rather
-/// than jumping to the deadzone's own size.
+// A resting thumb reads zero, and the first live reading is near zero rather
+// than jumping to the deadzone's own size.
 #[test]
 fn a_deadzone_holds_a_resting_thumb_at_rest() {
     let (_dir, mut app) = app(MANIFEST);
@@ -383,8 +382,8 @@ fn a_deadzone_holds_a_resting_thumb_at_rest() {
     );
 }
 
-/// A stick that recentres puts itself under the thumb that found it, so an
-/// off-centre grab does not read as a push.
+// A stick that recentres puts itself under the thumb that found it, so an
+// off-centre grab does not read as a push.
 #[test]
 fn a_recentring_stick_starts_where_the_thumb_landed() {
     let (_dir, mut app) = app(MANIFEST);
@@ -419,8 +418,8 @@ fn a_stick_lets_go_when_the_thumb_lifts() {
     );
 }
 
-/// A finger that lands outside the circle is somebody else's: the stick is
-/// not a whole-screen drag target.
+// A finger that lands outside the circle is somebody else's: the stick is
+// not a whole-screen drag target.
 #[test]
 fn a_stick_ignores_a_finger_outside_it() {
     let (_dir, mut app) = app(MANIFEST);
@@ -430,8 +429,8 @@ fn a_stick_ignores_a_finger_outside_it() {
     assert!((value(&app, "move_x") - 0.0).abs() < 1e-6);
 }
 
-/// The keys the project bound and the stick both drive `move_x`, and the
-/// furthest from rest wins.
+// The keys the project bound and the stick both drive `move_x`, and the
+// furthest from rest wins.
 #[test]
 fn a_stick_and_a_key_pair_share_an_action() {
     let (_dir, mut app) = app(MANIFEST);
@@ -495,7 +494,7 @@ fn two_fingers_moving_together_are_a_pan() {
     assert!((dy + 40.0).abs() < 0.01, "both fingers went up 40");
 }
 
-/// Reported on the frame the finger lifts, and never again.
+// Reported on the frame the finger lifts, and never again.
 #[test]
 fn a_travelled_finger_is_a_swipe_when_it_lifts() {
     let (_dir, mut app) = app(MANIFEST);
@@ -519,7 +518,7 @@ fn a_tap_is_not_a_swipe() {
     assert!(gestures(&app, |g| g.swipe().is_none()));
 }
 
-/// Once per finger, on the frame the hold passes its threshold.
+// Once per finger, on the frame the hold passes its threshold.
 #[test]
 fn a_still_finger_becomes_a_long_press() {
     let (_dir, mut app) = app(MANIFEST);
@@ -541,8 +540,8 @@ fn a_still_finger_becomes_a_long_press() {
     assert_eq!(fired, 1, "a hold is announced once, not every frame after");
 }
 
-/// A finger that wandered was dragging, and a drag that pauses is still a
-/// drag rather than a hold.
+// A finger that wandered was dragging, and a drag that pauses is still a
+// drag rather than a hold.
 #[test]
 fn a_wandering_finger_is_not_a_long_press() {
     let (_dir, mut app) = app(MANIFEST);
@@ -554,8 +553,8 @@ fn a_wandering_finger_is_not_a_long_press() {
     }
 }
 
-/// Every reading is neutral with nothing happening, so a desktop and a
-/// headless run answer the same as a still screen.
+// Every reading is neutral with nothing happening, so a desktop and a
+// headless run answer the same as a still screen.
 #[test]
 fn a_screen_nobody_touched_reads_neutral() {
     let (_dir, mut app) = app(MANIFEST);
@@ -568,8 +567,8 @@ fn a_screen_nobody_touched_reads_neutral() {
     });
 }
 
-/// A control with no screen behind it is neutral rather than placed at the
-/// origin, where every finger would land on it.
+// A control with no screen behind it is neutral rather than placed at the
+// origin, where every finger would land on it.
 #[test]
 fn a_control_with_no_screen_takes_nothing() {
     let (_dir, mut app) = app(MANIFEST);
@@ -579,8 +578,8 @@ fn a_control_with_no_screen_takes_nothing() {
     assert!((value(&app, "jump") - 0.0).abs() < 1e-6);
 }
 
-/// In the editor a game is confined to the viewport, and its controls go with
-/// it rather than to the window's corners.
+// In the editor a game is confined to the viewport, and its controls go with
+// it rather than to the window's corners.
 #[test]
 fn a_control_sits_in_the_game_area_the_host_confines_it_to() {
     let (_dir, mut app) = app(MANIFEST);
@@ -604,8 +603,8 @@ fn a_control_sits_in_the_game_area_the_host_confines_it_to() {
     );
 }
 
-/// A host that switched the game's surface off, as the editor does while
-/// nothing plays, leaves the controls dead.
+// A host that switched the game's surface off, as the editor does while
+// nothing plays, leaves the controls dead.
 #[test]
 fn a_control_is_dead_while_the_game_area_is_off() {
     let (_dir, mut app) = app(MANIFEST);
@@ -615,8 +614,8 @@ fn a_control_is_dead_while_the_game_area_is_off() {
     assert!(value(&app, "jump").abs() < 1e-6);
 }
 
-/// A project that made the mouse a finger gets its touch-only controls on a
-/// desktop too: the mouse can reach them now.
+// A project that made the mouse a finger gets its touch-only controls on a
+// desktop too: the mouse can reach them now.
 #[test]
 fn emulating_touch_shows_touchscreen_only_controls() {
     let manifest = format!("{MANIFEST}\n[input]\nemulate_touch_from_mouse = true\n");

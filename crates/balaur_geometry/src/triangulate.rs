@@ -195,7 +195,7 @@ mod shape_tests {
         assert!((area(&points, &triangles) - 1.0).abs() < 1e-3);
     }
 
-    /// A letter is several contours at once, which is how a word arrives.
+    // A letter is several contours at once, which is how a word arrives.
     #[test]
     fn two_apart_squares_both_fill() {
         let (points, triangles) =
@@ -203,7 +203,7 @@ mod shape_tests {
         assert!((area(&points, &triangles) - 2.0).abs() < 1e-3);
     }
 
-    /// The counter in an `o`: subtracted, not filled over.
+    // The counter in an `o`: subtracted, not filled over.
     #[test]
     fn a_hole_is_taken_out_of_what_holds_it() {
         let mut hole = square(0.25, 0.25, 0.5);
@@ -212,8 +212,8 @@ mod shape_tests {
         assert!((area(&points, &triangles) - 0.75).abs() < 1e-3);
     }
 
-    /// Delaunay: no corner of the fill sits inside another triangle's
-    /// circumcircle, which is what rules out slivers where fatter ones fit.
+    // Delaunay: no corner of the fill sits inside another triangle's
+    // circumcircle, which is what rules out slivers where fatter ones fit.
     #[test]
     fn no_corner_sits_inside_another_triangle_s_circumcircle() {
         let arc: Vec<[f32; 2]> = (0..=12)
@@ -242,7 +242,7 @@ mod shape_tests {
         }
     }
 
-    /// A word set at a game's scale is smaller than one unit across.
+    // A word set at a game's scale is smaller than one unit across.
     #[test]
     fn a_shape_under_one_unit_across_still_fills() {
         let (points, triangles) = triangulate_shape(&[square(0.0, 0.0, 0.01)]);

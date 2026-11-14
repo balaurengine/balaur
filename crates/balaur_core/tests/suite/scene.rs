@@ -196,11 +196,8 @@ fn a_duplicate_name_resolves_the_same_way_every_time() {
     }
 }
 
-/// Transform propagation recurses once per level of nesting, so scene depth is
-/// bounded by the stack rather than by anything the engine checks. Measured on
-/// a 2 MiB test thread it gives out between 4000 and 4500 levels in a debug
-/// build; this pins a depth well inside that, so making a frame heavier shows
-/// up here rather than as an abort in someone's game.
+// Propagation recurses once per nesting level; a 2 MiB debug test thread gives out between 4000 and
+// 4500 levels, so this pins a depth well inside that.
 #[test]
 fn deep_nesting_propagates_without_overflowing() {
     let engine = Engine::new();
@@ -587,8 +584,8 @@ fn close(a: glamx::Mat3, b: glamx::Mat3) -> bool {
         .all(|(x, y)| (x - y).abs() < 1e-4)
 }
 
-/// A skewed parent carries its shear into its child, as Godot's does: the
-/// child's world matrix is the parent's times its own, exactly.
+// A skewed parent carries its shear into its child, as Godot's does: the
+// child's world matrix is the parent's times its own, exactly.
 #[test]
 fn a_skewed_parent_places_its_child_by_the_full_matrix() {
     let (engine, a, b, _) = tree();

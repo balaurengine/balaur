@@ -206,8 +206,8 @@ fn press_at(app: &mut balaur::App, at: egui::Pos2, down: bool) {
     app.tick(1.0 / 60.0);
 }
 
-/// The UI comes first: a press on a button reaches no node, and one beside
-/// it reaches every node as it did before the button was there.
+// The UI comes first: a press on a button reaches no node, and one beside
+// it reaches every node as it did before the button was there.
 #[test]
 fn a_press_on_a_widget_reaches_no_node() {
     let (_dir, mut app) = app_with_scripts(
@@ -311,7 +311,7 @@ fn score(app: &balaur::App) -> i64 {
         .map_or(-1.0, balaur_core::variables::as_num) as i64
 }
 
-/// Three clicks on the ball, and nothing in the project is a script.
+// Three clicks on the ball, and nothing in the project is a script.
 #[test]
 fn the_third_click_opens_the_door() {
     let (_dir, app) = app_from(DOOR);
@@ -334,7 +334,6 @@ fn the_third_click_opens_the_door() {
     assert_eq!(state_of(&app, door), "open", "the third click opens it");
 }
 
-/// A state patches only the properties it names, so the door keeps its size.
 #[test]
 fn a_state_leaves_what_it_does_not_name_alone() {
     let (_dir, app) = app_from(DOOR);
@@ -361,7 +360,6 @@ fn a_state_leaves_what_it_does_not_name_alone() {
     assert!(green > 0.7, "and the colour it did name changed: {green}");
 }
 
-/// An unknown state is an error naming the ones the node has, not silence.
 #[test]
 fn going_to_a_state_a_node_does_not_have_says_which_it_does() {
     let (_dir, app) = app_from(DOOR);
@@ -373,7 +371,6 @@ fn going_to_a_state_a_node_does_not_have_says_which_it_does() {
     assert!(err.contains("open"), "{err}");
 }
 
-/// Writing a variable reaches `on_variable_changed`, once per change.
 #[test]
 fn a_variable_change_reaches_the_nodes_that_declare_the_hook() {
     let (dir, mut app) = app_from(DOOR);
@@ -425,8 +422,8 @@ impl Watch {
     assert_eq!(host.script_field(ball, "last"), Some(Value::Num(7.0)));
 }
 
-/// Every action core cannot run itself has a runner in a standard build, so
-/// a binding naming one does the thing rather than logging that nothing can.
+// Every action core cannot run itself has a runner in a standard build, so
+// a binding naming one does the thing rather than logging that nothing can.
 #[test]
 fn every_deferred_action_has_a_runner() {
     let (_dir, app) = app_from(DOOR);

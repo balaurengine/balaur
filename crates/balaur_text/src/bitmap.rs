@@ -260,7 +260,7 @@ kerning first=65 second=66 amount=-1
         assert!(parse("info face=\"x\" size=16\nchar id=65 x=0 y=0").is_err());
     }
 
-    /// Kerning pulls the pair together, so `AB` is narrower than twice `A`.
+    // Kerning pulls the pair together, so `AB` is narrower than twice `A`.
     #[test]
     fn kerning_narrows_the_pair() {
         let font = parse(SAMPLE).expect("the sample parses");
@@ -272,7 +272,6 @@ kerning first=65 second=66 amount=-1
         assert_eq!(pair.quads.len(), 2);
     }
 
-    /// Asked for at twice the authored size, everything doubles.
     #[test]
     fn a_bigger_size_scales_the_boxes() {
         let font = parse(SAMPLE).expect("the sample parses");

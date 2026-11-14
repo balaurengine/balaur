@@ -58,8 +58,8 @@ fn colliders_in_world(app: &App) -> usize {
     state.borrow().world.colliders.len()
 }
 
-/// `free_subtree` is the raw despawn every free path ends in, so a plugin
-/// that only survives the component `remove` hooks fails here.
+// `free_subtree` is the raw despawn every free path ends in, so a plugin
+// that only survives the component `remove` hooks fails here.
 #[test]
 fn freeing_a_node_takes_its_standalone_collider_out_of_the_world() {
     let mut app = app();
@@ -83,7 +83,7 @@ fn freeing_a_node_takes_its_standalone_collider_out_of_the_world() {
     assert!(state.colliders.contains_key(&kept), "the wrong one went");
 }
 
-/// Editors sit paused, so the prune cannot live behind the pause check.
+// Editors sit paused, so the prune cannot live behind the pause check.
 #[test]
 fn a_freed_node_is_pruned_while_the_simulation_is_paused() {
     let mut app = app();
@@ -104,8 +104,8 @@ fn a_freed_node_is_pruned_while_the_simulation_is_paused() {
     assert!(state.colliders.is_empty());
 }
 
-/// Rapier drops a joint when either end's body goes; keeping the handle would
-/// report a joint that is not there and never retry it.
+// Rapier drops a joint when either end's body goes; keeping the handle would
+// report a joint that is not there and never retry it.
 #[test]
 fn freeing_one_end_of_a_joint_drops_the_joint_too() {
     let mut app = app();
@@ -139,8 +139,8 @@ fn freeing_one_end_of_a_joint_drops_the_joint_too() {
     );
 }
 
-/// Core respawns a freed node as a *new* entity, so a frame keyed by entity
-/// bits restores a map pointing at a dead one.
+// Core respawns a freed node as a *new* entity, so a frame keyed by entity
+// bits restores a map pointing at a dead one.
 #[test]
 fn a_body_whose_node_was_freed_and_restored_falls_again() {
     let mut app = app();
@@ -179,8 +179,8 @@ fn a_body_whose_node_was_freed_and_restored_falls_again() {
     assert!(now < start - 0.001, "the restored body never fell: {now}");
 }
 
-/// A vehicle's engine force, brake, steering and wheel rotation are in no
-/// component, so only the frame can carry them across a rollback.
+// A vehicle's engine force, brake, steering and wheel rotation are in no
+// component, so only the frame can carry them across a rollback.
 #[test]
 fn a_wheels_inputs_survive_a_snapshot() {
     let app = app();
@@ -280,8 +280,6 @@ position = [0.0, 2.0, 0.0]
 shape = { kind = "sphere", radius = 0.5 }
 "#;
 
-/// The whole point of the prune: a collider on a freed node used to keep
-/// answering, because nothing ever took it out of the world.
 #[test]
 fn a_raycast_stops_finding_a_freed_node() {
     let errors = run(
@@ -306,9 +304,7 @@ impl Scenario {
     assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
 }
 
-/// A script that kept `other` from a collision event and calls into it a step
-/// later used to panic inside rapier's arena. A failing engine call ends the
-/// script call it is in, so each reader is a method of its own.
+// A failing engine call ends the script call it is in, so each reader is a method of its own.
 #[test]
 fn a_call_on_a_freed_node_errors_rather_than_panicking() {
     let mut b = crate::boot::project(
@@ -368,8 +364,8 @@ impl Scenario {
     );
 }
 
-/// A soft body names its node in `user_data`, which a tear event reads, so a
-/// restore onto a respawned node has to point it at the new entity.
+// A soft body names its node in `user_data`, which a tear event reads, so a
+// restore onto a respawned node has to point it at the new entity.
 #[test]
 fn a_restored_soft_body_names_the_respawned_node() {
     let mut app = app();

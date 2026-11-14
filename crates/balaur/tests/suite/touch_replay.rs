@@ -129,8 +129,8 @@ fn a_replayed_touch_session_reproduces_every_tick_digest() {
     assert!(walked(&app) > 0.0);
 }
 
-/// The control: the same game with nobody touching it stays put, so the
-/// test above is checking the thumb and not two identical idle runs.
+// The control: the same game with nobody touching it stays put, so the
+// test above is checking the thumb and not two identical idle runs.
 #[test]
 fn nobody_touching_the_stick_leaves_the_runner_still() {
     let dir = tempfile::tempdir().unwrap();
@@ -190,8 +190,8 @@ fn a_script_can_feed_a_finger_and_an_action() {
     );
 }
 
-/// A host running a project other than its own hands over that project's
-/// `[input]` table, and the settings in it take hold.
+// A host running a project other than its own hands over that project's
+// `[input]` table, and the settings in it take hold.
 #[test]
 fn a_host_can_declare_another_projects_input_config() {
     let dir = tempfile::tempdir().unwrap();

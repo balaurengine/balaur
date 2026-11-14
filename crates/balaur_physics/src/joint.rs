@@ -107,7 +107,6 @@ fn mask_of(lin: &[Axis3d], ang: &[Axis3d]) -> JointAxesMask {
     })
 }
 
-/// The axes a `generic` joint locks.
 fn locked_axes(generic: &GenericJoint3d) -> JointAxesMask {
     mask_of(&generic.lock_translation, &generic.lock_rotation)
 }

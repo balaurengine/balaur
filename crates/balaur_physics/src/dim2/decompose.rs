@@ -459,8 +459,8 @@ mod tests {
         assert!((total - area(&table)).abs() < 1.0e-3, "{total} covered");
     }
 
-    /// The point of the whole thing: the legs reach into the slab, so there
-    /// is no channel between them for a beam to wedge into.
+    // The point of the whole thing: the legs reach into the slab, so there
+    // is no channel between them for a beam to wedge into.
     #[test]
     fn a_leg_reaches_through_the_slab_above_it() {
         let (points, pieces) = slab_and_legs();
@@ -471,8 +471,8 @@ mod tests {
         assert_eq!(grown[2].len(), 4, "the slab took a corner: {:?}", grown[2]);
     }
 
-    /// The slab's edges either side of a seam are collinear with it, so its
-    /// strip has no width and it never grows down into a leg.
+    // The slab's edges either side of a seam are collinear with it, so its
+    // strip has no width and it never grows down into a leg.
     #[test]
     fn the_slab_does_not_grow_into_the_legs() {
         let (points, pieces) = slab_and_legs();
@@ -487,8 +487,8 @@ mod tests {
         );
     }
 
-    /// A leg grows through a shelf into the top above it, while the strip
-    /// crosses each seam whole.
+    // A leg grows through a shelf into the top above it, while the strip
+    // crosses each seam whole.
     #[test]
     fn a_leg_reaches_through_two_pieces() {
         let points = ring(&[
@@ -511,7 +511,7 @@ mod tests {
         );
     }
 
-    /// A grown piece may take from its neighbours, never from outside.
+    // A grown piece may take from its neighbours, never from outside.
     #[test]
     fn nothing_grows_outside_the_polygon() {
         let table = table();
@@ -532,8 +532,8 @@ mod tests {
         }
     }
 
-    /// At zero the pieces are the plain decomposition, for a script that
-    /// would rather place the overlap itself.
+    // At zero the pieces are the plain decomposition, for a script that
+    // would rather place the overlap itself.
     #[test]
     fn no_overlap_leaves_the_pieces_alone() {
         let table = table();
@@ -551,7 +551,7 @@ mod tests {
         assert!(grown > plain + 0.05, "{grown} is no larger than {plain}");
     }
 
-    /// A ring keeps its hole: the pieces cover the material, not the middle.
+    // A ring keeps its hole: the pieces cover the material, not the middle.
     #[test]
     fn a_square_with_a_hole_keeps_the_hole() {
         let outline = vec![[0.0, 0.0], [3.0, 0.0], [3.0, 3.0], [0.0, 3.0]];
@@ -564,7 +564,7 @@ mod tests {
         assert!((total - 8.0).abs() < 1.0e-3, "{total} covered, not 8");
     }
 
-    /// The same points twice give the same pieces, or a replay diverges.
+    // The same points twice give the same pieces, or a replay diverges.
     #[test]
     fn the_pieces_are_the_same_every_run() {
         assert_eq!(
@@ -722,8 +722,8 @@ mod stress {
         stacked
     }
 
-    /// The invariants on shapes nobody drew by hand: every piece convex, the
-    /// pieces covering the polygon, and none of them covering anything else.
+    // The invariants on shapes nobody drew by hand: every piece convex, the
+    // pieces covering the polygon, and none of them covering anything else.
     #[test]
     fn arbitrary_shapes_hold_up() {
         let mut bad = 0;

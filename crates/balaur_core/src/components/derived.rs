@@ -249,7 +249,6 @@ pub fn from_table<F: Fields>(table: &toml::Value) -> Result<F> {
     Ok(out)
 }
 
-/// A `record` spec, its fields the struct's.
 pub fn describe_record<F: Fields>(spec: &mut toml::map::Map<String, toml::Value>) {
     spec.entry(keys::TYPE)
         .or_insert_with(|| toml::Value::String(words::datatypes::RECORD.into()));
@@ -337,7 +336,6 @@ pub fn variant_kind<'a>(value: &'a toml::Value, options: &[&str]) -> Result<&'a 
     }
 }
 
-/// An `enum` spec offering `options`.
 pub fn describe_enum(spec: &mut toml::map::Map<String, toml::Value>, options: &[&str]) {
     spec.entry(keys::TYPE)
         .or_insert_with(|| toml::Value::String(words::datatypes::ENUM.into()));

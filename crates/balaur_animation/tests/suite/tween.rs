@@ -779,8 +779,8 @@ duration = 0.5
     );
 }
 
-/// The limit `rotation_euler` inherits from being slerped: a `by` bigger than
-/// half a turn arrives by the short way, and a whole turn arrives nowhere.
+// The limit `rotation_euler` inherits from being slerped: a `by` bigger than
+// half a turn arrives by the short way, and a whole turn arrives nowhere.
 #[test]
 fn a_full_turn_by_on_euler_lands_where_it_started() {
     let mut app = app();
@@ -898,9 +898,9 @@ fn then_on_a_tween_already_over_starts_at_once() {
     );
 }
 
-/// A fade-out that hides the node when it lands and puts its alpha back,
-/// Godot's `tween.finished.connect(hide)`: zero-length steps at the end are
-/// where the tween leaves the node.
+// A fade-out that hides the node when it lands and puts its alpha back,
+// Godot's `tween.finished.connect(hide)`: zero-length steps at the end are
+// where the tween leaves the node.
 #[test]
 fn zero_length_steps_at_the_end_are_where_a_tween_leaves_the_node() {
     let mut app = app();

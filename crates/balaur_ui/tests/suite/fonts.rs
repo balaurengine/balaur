@@ -59,8 +59,6 @@ fn width(app: &App, project: FontProject, font: &str, text: &str) -> f32 {
         .x
 }
 
-/// A text naming no font draws in its theme's default, and one naming a
-/// face draws in that face.
 #[test]
 fn a_text_draws_in_the_theme_s_default_font_or_the_face_it_names() {
     let dir = tempfile::tempdir().unwrap();
@@ -91,9 +89,9 @@ fn a_text_draws_in_the_theme_s_default_font_or_the_face_it_names() {
     assert!((defined - sans).abs() < 0.01, "{defined} against {sans}");
 }
 
-/// The editor draws the game it plays in the game's faces and its own
-/// panels in its own, and a face written under the game's `fonts/` is read
-/// again once an asset moves.
+// The editor draws the game it plays in the game's faces and its own
+// panels in its own, and a face written under the game's `fonts/` is read
+// again once an asset moves.
 #[test]
 fn a_played_project_draws_in_its_own_faces_and_reads_them_again() {
     let editor = tempfile::tempdir().unwrap();
@@ -149,8 +147,8 @@ fn system_faces(app: &App) -> usize {
         .sum()
 }
 
-/// egui never says what it could not draw, so a caption it lays out itself
-/// asks; a machine with no face for the script has nothing to take up.
+// egui never says what it could not draw, so a caption it lays out itself
+// asks; a machine with no face for the script has nothing to take up.
 #[test]
 fn a_caption_egui_lays_out_takes_up_the_face_the_system_picks() {
     let (_held, control) = crate::support::app();

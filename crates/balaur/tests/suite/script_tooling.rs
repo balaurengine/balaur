@@ -228,8 +228,8 @@ fn renaming_to_something_that_is_not_an_identifier_is_refused() {
     }
 }
 
-/// Every engine function a script can call hovers, so the popup is as
-/// complete as the reference rather than sampled.
+// Every engine function a script can call hovers, so the popup is as
+// complete as the reference rather than sampled.
 #[test]
 fn every_engine_function_hovers() {
     let keys: Vec<String> = {
@@ -288,8 +288,8 @@ fn every_engine_function_hovers() {
     );
 }
 
-/// A completion is offered for every module the engine reports, so a module
-/// added by a plugin is reachable without touching the provider.
+// A completion is offered for every module the engine reports, so a module
+// added by a plugin is reachable without touching the provider.
 #[test]
 fn every_module_completes_from_a_bare_prefix() {
     let (_dir, app) = host();

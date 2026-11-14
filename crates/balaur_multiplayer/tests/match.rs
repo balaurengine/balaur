@@ -313,7 +313,6 @@ fn a_hosted_match_plays_the_same_on_both_machines_over_quic() {
     let _ = play("webtransport");
 }
 
-/// The guest leaves; the host plays on with its slot absent.
 #[test]
 fn a_player_leaving_is_played_as_absent() {
     let Pair {

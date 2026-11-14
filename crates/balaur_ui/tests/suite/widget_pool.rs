@@ -83,8 +83,8 @@ impl Root {
     assert!(!crate::support::own_visible(&app, after[2]));
 }
 
-/// A control's one table: each row goes to the component its kind reads, and
-/// a slot that turns into another kind drops what the last one wore.
+// A control's one table: each row goes to the component its kind reads, and
+// a slot that turns into another kind drops what the last one wore.
 #[test]
 fn a_pooled_row_goes_to_the_component_its_kind_reads() {
     let (_dir, mut app) = app_with(
@@ -263,8 +263,8 @@ impl Root {
     assert_eq!(number(&app, "frames"), Some(7.0));
 }
 
-/// A reused slot wears only what its new control states. The range an
-/// earlier control left on it clamped the next one's number to 0.
+// A reused slot wears only what its new control states. The range an
+// earlier control left on it clamped the next one's number to 0.
 #[test]
 fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
     let (_dir, mut app) = app_with(

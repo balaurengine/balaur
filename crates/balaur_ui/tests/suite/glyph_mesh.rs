@@ -111,16 +111,16 @@ fn a_word_becomes_triangles_in_the_plane() {
     );
 }
 
-/// The cache is keyed by what the request says, so asking twice is the same
-/// geometry and not merely a similar one.
+// The cache is keyed by what the request says, so asking twice is the same
+// geometry and not merely a similar one.
 #[test]
 fn the_same_word_comes_back_the_same() {
     let (_dir, app) = app_with_a_font();
     assert_eq!(word(&app, "balaur", 1.0), word(&app, "balaur", 1.0));
 }
 
-/// A letter with a counter is a ring: filled over, an `o` would cover its
-/// whole box, and it covers well under half of it.
+// A letter with a counter is a ring: filled over, an `o` would cover its
+// whole box, and it covers well under half of it.
 #[test]
 fn a_counter_stays_a_hole() {
     let (_dir, app) = app_with_a_font();
@@ -135,8 +135,8 @@ fn a_counter_stays_a_hole() {
     assert!(covered > 0.2 * box_area, "an o covered almost nothing");
 }
 
-/// Size is world units, and the mesh is measured in them: a word set twice
-/// as large is twice as wide.
+// Size is world units, and the mesh is measured in them: a word set twice
+// as large is twice as wide.
 #[test]
 fn a_word_is_sized_in_world_units() {
     let (_dir, app) = app_with_a_font();
@@ -152,8 +152,8 @@ fn a_word_is_sized_in_world_units() {
     );
 }
 
-/// The mesh sits on its baseline, which is what lets a caller place a word
-/// the way a font places one.
+// The mesh sits on its baseline, which is what lets a caller place a word
+// the way a font places one.
 #[test]
 fn a_word_sits_on_its_baseline() {
     let (_dir, app) = app_with_a_font();
@@ -178,8 +178,8 @@ fn a_word_nothing_can_draw_says_so() {
     assert!(refused.is_err(), "blank text is not geometry");
 }
 
-/// The whole point of building it headless: a scene names a word and the
-/// triangles a collider would be fitted to are already there.
+// The whole point of building it headless: a scene names a word and the
+// triangles a collider would be fitted to are already there.
 #[test]
 fn a_word_is_a_mesh_asset_a_scene_can_name() {
     let (_dir, app) = app_with_a_font();
@@ -211,9 +211,8 @@ mesh = { source = "#title" }
     assert!(max[0] - min[0] > 0.4, "two letters are wider than that");
 }
 
-/// The editor loads an icon face beside its text faces, and `icon-` sorts
-/// first. Naming no font asked the database for its default family, which
-/// answered with the icon face: every word filled to nothing.
+// The editor loads an icon face beside its text faces, and `icon-` sorts first: the database's
+// default family would answer with it.
 #[test]
 fn a_word_naming_no_font_avoids_the_icon_face() {
     let (_dir, app) = app_with_every_editor_font();

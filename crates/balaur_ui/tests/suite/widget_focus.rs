@@ -31,8 +31,8 @@ fn a_disabled_button_is_not_a_focus_stop() {
     assert_eq!(focused(&app), Some(on));
 }
 
-/// Focus follows the tree that was drawn, not the arena: an accept on a
-/// button under a hidden panel would fire an `on_click` nobody could see.
+// Focus follows the tree that was drawn, not the arena: an accept on a
+// button under a hidden panel would be clicked where nobody could see.
 #[test]
 fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
     let (_dir, app) = app();
@@ -82,8 +82,8 @@ fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
     );
 }
 
-/// A surface the host turned off is not somewhere focus can be either — in the
-/// editor that is a played game's HUD with the widget layer switched off.
+// A surface the host turned off is not somewhere focus can be either — in the
+// editor that is a played game's HUD with the widget layer switched off.
 #[test]
 fn a_root_on_a_disabled_surface_is_not_a_focus_stop() {
     let (_dir, app) = app();
@@ -158,8 +158,8 @@ fn accepting_a_focused_fold_turns_it() {
     );
 }
 
-/// Focus exists to activate something, so a widget with nothing to activate
-/// is never a stop on the way to one.
+// Focus exists to activate something, so a widget with nothing to activate
+// is never a stop on the way to one.
 #[test]
 fn focus_skips_what_it_could_not_activate() {
     let (_dir, app) = app();
@@ -185,8 +185,8 @@ fn focus_skips_what_it_could_not_activate() {
     assert_eq!(focused(&app), Some(button), "focus landed on the label");
 }
 
-/// `focusable = false` takes a candidate out; it cannot put one in, because
-/// there would be nothing for an accept to do.
+// `focusable = false` takes a candidate out; it cannot put one in, because
+// there would be nothing for an accept to do.
 #[test]
 fn focusable_false_is_skipped_and_a_plain_label_stays_out() {
     let (_dir, app) = app();
@@ -221,8 +221,8 @@ fn focusable_false_is_skipped_and_a_plain_label_stays_out() {
     assert_eq!(focused(&app), Some(open));
 }
 
-/// A hidden widget keeps its state but is not somewhere focus can sit, or an
-/// accept would activate something nobody can see.
+// A hidden widget keeps its state but is not somewhere focus can sit, or an
+// accept would activate something nobody can see.
 #[test]
 fn hiding_the_focused_widget_releases_focus() {
     let (_dir, app) = app();
@@ -239,8 +239,8 @@ fn hiding_the_focused_widget_releases_focus() {
     assert_eq!(focused(&app), Some(buttons[1]), "and moves on to the next");
 }
 
-/// A theme names how a kind is drawn, and a widget takes the one from the
-/// nearest ancestor that has it — so a screen is themed by its root.
+// A theme names how a kind is drawn, and a widget takes the one from the
+// nearest ancestor that has it — so a screen is themed by its root.
 #[test]
 fn a_theme_is_inherited_by_everything_under_it() {
     let dir = tempfile::tempdir().unwrap();
@@ -282,8 +282,8 @@ fn a_theme_is_inherited_by_everything_under_it() {
     );
 }
 
-/// A kind the theme is silent about keeps the look it always had, which is
-/// what lets a three-line theme restyle buttons alone.
+// A kind the theme is silent about keeps the look it always had, which is
+// what lets a three-line theme restyle buttons alone.
 #[test]
 fn a_kind_the_theme_does_not_mention_is_unchanged() {
     let dir = tempfile::tempdir().unwrap();
@@ -322,14 +322,8 @@ fn a_kind_the_theme_does_not_mention_is_unchanged() {
     );
 }
 
-/// A widget showing a key follows the locale, and follows it *now*: the
-/// caption is resolved every frame, so a switch shows on the next one without
-/// anything having to be told.
-///
-/// Measured shrinking rather than growing on purpose. `area_rect` reports an
-/// Area that got smaller and does not report one that got bigger under this
-/// harness, so the long string is the one the run starts in — the assertion
-/// is about the caption changing, and this is the direction that can see it.
+// Measured shrinking on purpose: under this harness `area_rect` reports an Area that got smaller
+// and not one that got bigger.
 #[test]
 fn a_text_key_follows_the_locale() {
     let dir = tempfile::tempdir().unwrap();
@@ -380,8 +374,8 @@ fn a_text_key_follows_the_locale() {
     );
 }
 
-/// Focus put on a field by a script takes the caret with it, so what is typed
-/// next lands there: a command palette opens ready to be typed into.
+// Focus put on a field by a script takes the caret with it, so what is typed
+// next lands there: a command palette opens ready to be typed into.
 #[test]
 fn focus_put_on_a_field_takes_the_caret() {
     let (_dir, mut app) = app();
@@ -424,9 +418,9 @@ fn key_with(k: egui::Key, modifiers: egui::Modifiers) -> Vec<egui::Event> {
     }]
 }
 
-/// While a field is typed into, a plain key is a character for it, so the
-/// button `h` hides nothing; a command chord and a function key still fire,
-/// unless the button says the field has a use for its chord.
+// While a field is typed into, a plain key is a character for it, so the
+// button `h` hides nothing; a command chord and a function key still fire,
+// unless the button says the field has a use for its chord.
 #[test]
 fn a_shortcut_leaves_the_keys_of_a_field_being_typed_into() {
     let (_dir, mut app) = app();
@@ -497,8 +491,8 @@ fn a_shortcut_leaves_the_keys_of_a_field_being_typed_into() {
     }
 }
 
-/// A widget naming its neighbour that way wins over where the widgets were
-/// drawn, and an arrow from one naming none still goes by geometry.
+// A widget naming its neighbour that way wins over where the widgets were
+// drawn, and an arrow from one naming none still goes by geometry.
 #[test]
 fn a_named_neighbour_wins_over_the_widget_drawn_nearer() {
     let (_dir, app) = app();
@@ -534,8 +528,8 @@ fn a_named_neighbour_wins_over_the_widget_drawn_nearer() {
     assert_eq!(focused(&app), Some(second), "Third names none: geometry");
 }
 
-/// What a stick or a d-pad's action calls moves focus as the arrow does, and
-/// a back button leaves it nowhere.
+// What a stick or a d-pad's action calls moves focus as the arrow does, and
+// a back button leaves it nowhere.
 #[test]
 fn a_pad_moves_focus_as_an_arrow_does_and_leaves_it() {
     let (_dir, app) = app();
@@ -559,7 +553,6 @@ fn a_pad_moves_focus_as_an_arrow_does_and_leaves_it() {
     assert_eq!(focused(&app), None, "back leaves focus nowhere");
 }
 
-/// Focus an arrow moves past the bottom of a scroll is scrolled into view.
 #[test]
 fn focus_an_arrow_moves_is_scrolled_into_view() {
     let (_dir, app) = app();

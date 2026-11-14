@@ -271,8 +271,8 @@ impl Define {
     );
 }
 
-/// What the editor does: a clip it read from a file is an `any` until the
-/// call types it.
+// What the editor does: a clip it read from a file is an `any` until the
+// call types it.
 #[test]
 fn a_clip_read_as_an_any_reaches_the_call_by_its_keys() {
     let script = r#"

@@ -40,7 +40,7 @@ pub(crate) fn run_clean(scene: &str, script: &str) {
     assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
 }
 
-/// A sensor tells the node's script who walked into it, and who left.
+// A sensor tells the node's script who walked into it, and who left.
 #[test]
 fn a_trigger_calls_its_script_when_something_enters() {
     run_clean(
@@ -138,7 +138,7 @@ impl Scenario {
     );
 }
 
-/// A hard landing tells the floor who hit it and how hard, as one map.
+// A hard landing tells the floor who hit it and how hard, as one map.
 #[test]
 fn a_contact_force_arrives_as_one_map() {
     run_clean(
@@ -187,7 +187,7 @@ impl Scenario {
     );
 }
 
-/// A joint that gives way names both of its bodies and the force it broke at.
+// A joint that gives way names both of its bodies and the force it broke at.
 #[test]
 fn a_breaking_joint_says_what_it_held_and_how_hard() {
     run_clean(
@@ -247,8 +247,8 @@ impl Scenario {
     );
 }
 
-/// A body carries several joints by putting each on a bodiless child, which
-/// stands for the body above it, as a collider on a child does.
+// A body carries several joints by putting each on a bodiless child, which
+// stands for the body above it, as a collider on a child does.
 #[test]
 fn a_joint_on_a_bodiless_child_ties_the_body_above_it() {
     run_clean(
@@ -360,8 +360,8 @@ impl Scenario {
     );
 }
 
-/// A joint whose other end is named before that node exists still connects:
-/// a scene file names nodes in whatever order it likes.
+// A joint whose other end is named before that node exists still connects:
+// a scene file names nodes in whatever order it likes.
 #[test]
 fn a_joint_waits_for_a_node_that_comes_later() {
     run_clean(
@@ -411,8 +411,8 @@ impl Scenario {
     );
 }
 
-/// The character controller walks into a wall and stops, rather than passing
-/// through it or being pushed back by the solver.
+// The character controller walks into a wall and stops, rather than passing
+// through it or being pushed back by the solver.
 #[test]
 fn a_character_slides_along_a_wall_instead_of_entering_it() {
     run_clean(
@@ -459,9 +459,9 @@ impl Scenario {
     );
 }
 
-/// Every phase owes the snapshot a round trip: a joint, a motor and a voxel
-/// edit must all come back the way they went in, or a rollback quietly
-/// rebuilds a different world.
+// Every phase owes the snapshot a round trip: a joint, a motor and a voxel
+// edit must all come back the way they went in, or a rollback quietly
+// rebuilds a different world.
 #[test]
 fn joints_and_shape_edits_survive_a_snapshot() {
     use balaur_core::hecs::Entity;
@@ -550,9 +550,8 @@ fn joints_and_shape_edits_survive_a_snapshot() {
     );
 }
 
-/// `is_grounded` used to run a zero-translation `move_shape` that still
-/// snapped to ground and wrote the transform, so asking the question moved
-/// the world — and asking it from `update` desynced the simulation.
+// A zero-translation `move_shape` still snaps to ground and writes the transform, so asking from
+// `update` would desync the simulation.
 #[test]
 fn asking_is_grounded_does_not_move_the_character() {
     run_clean(
@@ -613,9 +612,7 @@ impl Scenario {
     );
 }
 
-/// 2D `move_character` wrote `Pose2::from_translation`, so a rotated
-/// `character2d` snapped to angle 0 the first time it moved. The ray only
-/// misses while the box is still standing on end.
+// The ray only misses while the box is still standing on end.
 #[test]
 fn a_rotated_2d_character_keeps_its_angle_when_it_moves() {
     run_clean(
@@ -651,9 +648,7 @@ impl Scenario {
     );
 }
 
-/// `contacts` reported parry's `local_p1`, which is in the *first* shape's
-/// local space — and the first may be the other node. Every other query is
-/// world-space, and a ground ten units down is where the point must be.
+// parry's `local_p1` is in the first shape's local space, and the first may be the other node.
 #[test]
 fn a_contact_point_is_reported_in_world_space() {
     run_clean(

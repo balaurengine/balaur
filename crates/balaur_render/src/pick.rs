@@ -417,8 +417,8 @@ mod tests {
         );
     }
 
-    /// Scale is why the ray is put into the node's space rather than the box
-    /// into the world's: a stretched node is picked over the space it covers.
+    // Scale is why the ray is put into the node's space rather than the box
+    // into the world's: a stretched node is picked over the space it covers.
     #[test]
     fn scale_widens_what_a_node_covers() {
         let mut place = at(Vec3::new(0.0, 0.0, -10.0));
@@ -430,7 +430,7 @@ mod tests {
         assert_eq!(hit_box(&place, Vec3::ZERO, half, beside, down), Some(9.0));
     }
 
-    /// A quarter turn about y puts a long node's length across the ray.
+    // A quarter turn about y puts a long node's length across the ray.
     #[test]
     fn rotation_turns_what_a_node_covers_with_it() {
         let mut place = at(Vec3::new(0.0, 0.0, -10.0));
@@ -453,7 +453,7 @@ mod tests {
         assert!(hit_box(&place, Vec3::ZERO, half, beside, Vec3::new(0.0, 1.0, 0.0)).is_none());
     }
 
-    /// A ball is round: its corners are not part of it.
+    // A ball is round: its corners are not part of it.
     #[test]
     fn a_ball_is_not_picked_at_the_corner_a_box_would_have() {
         let place = at(Vec3::new(0.0, 0.0, -10.0));
@@ -478,8 +478,8 @@ mod tests {
         assert_eq!(hit_sphere(&place, 1.0, inside, down), Some(0.0));
     }
 
-    /// A flat plane has no thickness, and a slab test on zero misses
-    /// everything; it is given just enough to be pickable.
+    // A flat plane has no thickness, and a slab test on zero misses
+    // everything; it is given just enough to be pickable.
     #[test]
     fn a_plane_is_pickable_from_above() {
         let place = at(Vec3::ZERO);
@@ -510,7 +510,7 @@ mod tests {
         assert!(hit_box(&place, centre, half, Vec3::ZERO, down).is_none());
     }
 
-    /// A mesh whose asset would not load draws nothing, and picks nothing.
+    // A mesh whose asset would not load draws nothing, and picks nothing.
     #[test]
     fn a_mesh_with_no_bounds_is_not_pickable() {
         assert!(local_box(&renderable(Shape3d::Mesh)).is_none());

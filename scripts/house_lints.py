@@ -107,13 +107,6 @@ KNOWN_RESOURCES = {
     "ProjectManifest",
 }
 
-# Words too generic to count as "the comment said something new".
-STOPWORDS = {
-    "a", "an", "the", "of", "to", "for", "in", "on", "and", "or", "is", "are",
-    "this", "that", "it", "its", "with", "from", "by", "as", "at", "be", "we",
-    "returns", "return", "will", "when", "if", "then", "so", "not", "new",
-}
-
 
 # A string or char literal, so a brace inside one (`self.want("{")`) is not
 # taken for a block when a function's length is measured.
@@ -207,23 +200,6 @@ def scan_context(files: list[Path]) -> Context:
 def crate_of(path: Path) -> str:
     rel = path.relative_to(ROOT).parts
     return rel[1] if len(rel) > 1 and rel[0] == "crates" else rel[0]
-
-
-def stem(word: str) -> str:
-    for suffix in ("ings", "ing", "ies", "ed", "es", "s"):
-        if len(word) > len(suffix) + 2 and word.endswith(suffix):
-            return word[: -len(suffix)]
-    return word
-
-
-def identifier_words(name: str) -> set[str]:
-    parts = re.split(r"[_\s]+", re.sub(r"(?<!^)(?=[A-Z])", "_", name))
-    return {stem(p.lower()) for p in parts if p}
-
-
-def comment_words(text: str) -> set[str]:
-    words = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", text.lower())
-    return {stem(w) for w in words if w not in STOPWORDS and len(w) > 2}
 
 
 def identifiers(line: str) -> list[str]:
@@ -520,16 +496,6 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                     findings.append(Finding(rel, comment_run_start, "comment-too-long",
                                             f"{n} consecutive comment lines, limit {MAX_COMMENT_BLOCK}",
                                             "ERROR"))
-                # comment that only restates the identifier below it
-                m = re.match(r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?"
-                             r"(?:fn|struct|enum|trait|type|const|static)\s+([A-Za-z_][A-Za-z0-9_]*)", line)
-                if m and comment_run:
-                    ident = identifier_words(m.group(1))
-                    body = comment_words(" ".join(comment_run))
-                    if body and len(body - ident) == 0:
-                        findings.append(Finding(
-                            rel, comment_run_start, "comment-restates-name",
-                            f"comment adds nothing over `{m.group(1)}`", "REPORT"))
                 comment_run_start = None
                 comment_run = []
 

@@ -136,9 +136,9 @@ fn debug_lines_accumulate_and_can_be_cleared() {
     assert!(lines_2d.borrow().lines.is_empty());
 }
 
-/// With no windowed backend nothing drains the buffers as it draws, so the
-/// plugin's own Render-stage system has to, or every `render.draw_line` in a
-/// headless run leaks a `Vec` entry per frame.
+// With no windowed backend nothing drains the buffers as it draws, so the
+// plugin's own Render-stage system has to, or every `render.draw_line` in a
+// headless run leaks a `Vec` entry per frame.
 #[test]
 fn a_headless_frame_empties_the_debug_line_buffers() {
     let mut app = app();
@@ -173,8 +173,8 @@ fn a_headless_frame_empties_the_debug_line_buffers() {
     );
 }
 
-/// The windowed backend drains as it draws, so the fallback must stand down
-/// while it says it is present, or the frame's lines vanish before the draw.
+// The windowed backend drains as it draws, so the fallback must stand down
+// while it says it is present, or the frame's lines vanish before the draw.
 #[test]
 fn a_windowed_backend_keeps_the_fallback_off_its_buffers() {
     let mut app = app();
@@ -207,9 +207,9 @@ fn ticking_a_headless_app_with_render_does_not_panic() {
     }
 }
 
-/// Every 3D kind the schema offers has to survive `add`, land the right
-/// variant, and come back out of `get` — a shape you can write but not read
-/// is a shape the editor loses.
+// Every 3D kind the schema offers has to survive `add`, land the right
+// variant, and come back out of `get` — a shape you can write but not read
+// is a shape the editor loses.
 #[test]
 fn every_3d_shape_kind_round_trips() {
     for (source, expected) in [
@@ -244,8 +244,8 @@ fn every_3d_shape_kind_round_trips() {
     }
 }
 
-/// The straight part and the caps are separate: a capsule is `height` long
-/// plus a radius at each end, and the schema must not quietly halve it.
+// The straight part and the caps are separate: a capsule is `height` long
+// plus a radius at each end, and the schema must not quietly halve it.
 #[test]
 fn a_capsule_keeps_the_height_it_was_given() {
     let app = app();
@@ -287,9 +287,9 @@ fn every_2d_shape_kind_round_trips() {
     }
 }
 
-/// A `line2d` draws a `Shape2d` like any other, with its points in the
-/// sibling field — the arrangement `sprite` uses, and the reason the enum
-/// stays `Copy`.
+// A `line2d` draws a `Shape2d` like any other, with its points in the
+// sibling field — the arrangement `sprite` uses, and the reason the enum
+// stays `Copy`.
 #[test]
 fn a_line_is_a_shape2d_that_keeps_its_reference() {
     let app = app();
@@ -316,8 +316,8 @@ fn a_line_is_a_shape2d_that_keeps_its_reference() {
     );
 }
 
-/// Every join and cap, and the miter limit and taper, come back out as they
-/// went in, so a save keeps the look.
+// Every join and cap, and the miter limit and taper, come back out as they
+// went in, so a save keeps the look.
 #[test]
 fn a_line_s_stroke_survives_the_round_trip() {
     use balaur_geometry::stroke::{CAPS, JOINS};
@@ -357,7 +357,7 @@ fn a_line_s_stroke_survives_the_round_trip() {
     }
 }
 
-/// An unknown kind names itself rather than silently drawing a cuboid.
+// An unknown kind names itself rather than silently drawing a cuboid.
 #[test]
 fn an_unknown_shape_kind_is_refused_by_name() {
     let app = app();
@@ -373,8 +373,8 @@ fn an_unknown_shape_kind_is_refused_by_name() {
     assert!(err.contains("dodecahedron"), "{err}");
 }
 
-/// What a capture drew is put back every frame until it is cleared, and is
-/// drawn once a frame: the capture takes it out of the frame it was drawn in.
+// What a capture drew is put back every frame until it is cleared, and is
+// drawn once a frame: the capture takes it out of the frame it was drawn in.
 #[test]
 fn a_retained_group_is_drawn_every_frame_until_cleared() {
     let mut app = app();

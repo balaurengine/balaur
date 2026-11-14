@@ -637,8 +637,8 @@ mod tests {
         }
     }
 
-    /// An unknown or absent language must still highlight something rather
-    /// than render the editor as plain punctuation.
+    // An unknown or absent language must still highlight something rather
+    // than render the editor as plain punctuation.
     #[test]
     fn an_unknown_language_falls_back_to_balaur_script() {
         assert_eq!(syntax_for("brainfuck").line_comment, BS.line_comment);

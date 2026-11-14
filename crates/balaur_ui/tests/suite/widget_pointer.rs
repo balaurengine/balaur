@@ -4,8 +4,8 @@ use egui::pos2;
 
 use crate::support::{add_widget, app, consume_input, focused, pass, press, press_with, settle};
 
-/// A widget's `cursor` word reaches egui's platform output while the pointer
-/// is over it, and a word past the first seventeen reaches it too.
+// A widget's `cursor` word reaches egui's platform output while the pointer
+// is over it, and a word past the first seventeen reaches it too.
 #[test]
 fn a_widget_s_cursor_word_shapes_the_pointer_over_it() {
     let (_dir, app) = app();
@@ -40,8 +40,8 @@ fn heard(
     balaur_core::events::delivered_from(&app.engine, entity, event)
 }
 
-/// Any widget hears the pointer arrive, press and release a button over it
-/// by name, and leave, as a world node does.
+// Any widget hears the pointer arrive, press and release a button over it
+// by name, and leave, as a world node does.
 #[test]
 fn a_widget_hears_the_pointer_arrive_press_and_leave() {
     let (_dir, mut app) = app();
@@ -89,7 +89,7 @@ fn a_widget_hears_the_pointer_arrive_press_and_leave() {
     assert_eq!(heard(&app, button, "pointer_exit").len(), 1, "no exit");
 }
 
-/// A click into a field is focus arriving, and a click away from it a blur.
+// A click into a field is focus arriving, and a click away from it a blur.
 #[test]
 fn a_field_hears_focus_arrive_and_leave() {
     let (_dir, mut app) = app();

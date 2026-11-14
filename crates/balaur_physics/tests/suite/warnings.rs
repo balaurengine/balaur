@@ -128,8 +128,8 @@ fn a_refused_layout_is_a_warning_on_what_was_asked() {
     assert_eq!(warning.warning.property.as_deref(), Some("cells"));
 }
 
-/// A scene naming a component its component refuses still loads, and the
-/// node says why it went without it.
+// A scene naming a component its component refuses still loads, and the
+// node says why it went without it.
 #[test]
 fn a_refused_component_in_a_scene_leaves_the_rest_loaded() {
     let found = warned(

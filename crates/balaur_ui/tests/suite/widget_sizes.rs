@@ -55,8 +55,8 @@ fn every_kind_draws_in_the_box_it_measured() {
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
-/// A container with what it holds, as a scene writes it with nothing sizing
-/// it: its box is what it measured, children and all.
+// A container with what it holds, as a scene writes it with nothing sizing
+// it: its box is what it measured, children and all.
 #[test]
 fn every_container_draws_in_the_box_it_measured() {
     let label = || -> toml::Value { toml::toml! { kind = "label" text = "Inside" }.into() };

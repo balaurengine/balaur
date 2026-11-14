@@ -672,8 +672,8 @@ mod tests {
         );
     }
 
-    /// A condition over a name nothing declared is false, not an error: a
-    /// level without that variable simply never satisfies the row.
+    // A condition over a name nothing declared is false, not an error: a
+    // level without that variable simply never satisfies the row.
     #[test]
     fn an_undeclared_variable_never_satisfies_a_row() {
         let held = variables(&[]);
@@ -727,8 +727,8 @@ value = "open"
         assert!(err.contains("no event `telepathy`"), "{err}");
     }
 
-    /// What the component writes back is what a scene file would say, so a
-    /// save through the editor is the file the author wrote.
+    // What the component writes back is what a scene file would say, so a
+    // save through the editor is the file the author wrote.
     #[test]
     fn a_row_round_trips_through_the_component() {
         let row: toml::Value = toml::from_str(

@@ -111,27 +111,8 @@ fn an_extension_declares_itself_into_a_running_app() {
     assert_eq!(probe.call("version"), Value::Str("0.1.0".into()));
 }
 
-/// What a separately compiled extension cannot do, recorded because it is not
-/// obvious and it fails silently.
-///
-/// Resources are keyed by `TypeId`, and a `TypeId` is a hash over the crate's
-/// identity as cargo compiled it -- package, features, profile, and the
-/// metadata of everything it depends on. The host and an out-of-tree extension
-/// each compile their own `balaur_core`, so `ProjectRoot` is one type to a
-/// reader and two different keys to the resource map. Measured: the host
-/// computes `TypeId(0x50b788f9...)` and the extension `TypeId(0x10770dfb...)`
-/// for the same type.
-///
-/// So an extension may own state (the test above) but may not reach state the
-/// engine owns, and `Engine::resource` would panic with "missing resource"
-/// rather than name the cause. This is the ceiling on the Rust-ABI extension
-/// path, and the reason a C ABI is the one that generalises: a C extension
-/// reaches the engine through function pointers and never computes a `TypeId`
-/// at all.
-///
-/// Asserting today's behaviour on purpose. If this starts failing, resource
-/// keying was made stable across compilations and the limitation is gone --
-/// delete the test rather than repair it.
+// A `TypeId` hashes the crate as cargo compiled it, so host and extension key `ProjectRoot`
+// differently. If this starts failing, keying became stable: delete the test.
 #[test]
 #[ignore = "needs engine: a .bs script host for a bare app, and balaur_script_bs as a dev-dependency"]
 fn an_extension_cannot_reach_a_resource_the_host_inserted() {
@@ -146,8 +127,8 @@ fn an_extension_cannot_reach_a_resource_the_host_inserted() {
     );
 }
 
-/// The extension owns state the engine now holds, which is the whole point of
-/// loading one rather than calling into it.
+// The extension owns state the engine now holds, which is the whole point of
+// loading one rather than calling into it.
 #[test]
 #[ignore = "needs engine: a .bs script host for a bare app, and balaur_script_bs as a dev-dependency"]
 fn an_extension_owns_a_resource_the_engine_keeps() {
@@ -211,9 +192,9 @@ fn a_directory_of_extensions_loads_them_all() {
     assert_eq!(found[0].path(), copy);
 }
 
-/// The tag is what stops a library built by another compiler from being
-/// called at all, so it has to survive the round trip through fixed-size
-/// fields unchanged.
+// The tag is what stops a library built by another compiler from being
+// called at all, so it has to survive the round trip through fixed-size
+// fields unchanged.
 #[test]
 fn the_abi_tag_round_trips_through_its_c_representation() {
     let tag = AbiTag::current();
@@ -248,9 +229,9 @@ fn a_loaded_extension_can_be_ticked_like_any_plugin() {
     let _ = &app.engine as &Engine;
 }
 
-/// Two copies of the same library are two extensions with the same name, so
-/// ordering has something to disagree about. Renaming the file must not change
-/// what the manifest says.
+// Two copies of the same library are two extensions with the same name, so
+// ordering has something to disagree about. Renaming the file must not change
+// what the manifest says.
 #[test]
 fn the_file_name_does_not_decide_the_plugin_name() {
     let dir = tempfile::tempdir().unwrap();
@@ -263,8 +244,8 @@ fn the_file_name_does_not_decide_the_plugin_name() {
     assert_eq!(found[0].name(), "greeter");
 }
 
-/// An extension that requires one nothing provides must be refused, naming
-/// what is missing — not left half-loaded.
+// An extension that requires one nothing provides must be refused, naming
+// what is missing — not left half-loaded.
 #[test]
 fn a_directory_missing_a_requirement_is_refused() {
     use balaur_plugin::{Manifest, load_order};
@@ -273,10 +254,8 @@ fn a_directory_missing_a_requirement_is_refused() {
     assert!(err.contains("absent_thing"), "unhelpful: {err}");
 }
 
-/// The check that makes loading foreign code defensible, tested as the
-/// decision rather than end to end: macOS kills a process that opens a library
-/// whose bytes were edited, so a tampered file is killed by the loader long
-/// before this code could refuse it.
+// Tested as the decision: macOS kills a process that opens a library whose bytes were edited,
+// before this code could refuse it.
 #[test]
 fn a_build_for_another_engine_or_compiler_is_refused() {
     use balaur_plugin::refuse_mismatch;

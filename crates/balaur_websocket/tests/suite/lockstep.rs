@@ -197,8 +197,8 @@ fn an_injected_divergence_is_caught_and_named() {
     assert_eq!(host.ours, guest.theirs, "each saw the other's number");
 }
 
-/// A session whose peer never says anything keeps running on predictions
-/// rather than stalling. Lockstep here is optimistic, not blocking.
+// A session whose peer never says anything keeps running on predictions
+// rather than stalling. Lockstep here is optimistic, not blocking.
 #[test]
 fn a_silent_peer_does_not_stall_the_session() {
     let app_a = app(0.0);

@@ -230,8 +230,8 @@ fn params_tables(app: &App) -> Vec<toml::Value> {
     out
 }
 
-/// A frame carries what the scene wrote, not every schema default, and the
-/// restore puts the defaults back: the tables match the ones taken.
+// A frame carries what the scene wrote, not every schema default, and the
+// restore puts the defaults back: the tables match the ones taken.
 #[test]
 fn a_frame_keeps_what_the_scene_wrote_and_restores_every_default() {
     let (mut app, _dir, _log) = boot(

@@ -147,7 +147,6 @@ mod tests {
         crate::textures::png(image::RgbaImage::new(width, height))
     }
 
-    /// A phone's cap and a web variant each show up in their own target's row.
     #[test]
     fn each_target_sees_its_own_cap_and_variant() {
         let dir = tempfile::tempdir().unwrap();

@@ -39,8 +39,6 @@ fn editor_pack() -> Pack {
     pack
 }
 
-/// An export told to keep what it was given ships exactly the bytes the author
-/// wrote.
 #[test]
 fn an_export_that_keeps_the_originals_changes_nothing() {
     let mut pack = editor_pack();
@@ -55,7 +53,7 @@ fn an_export_that_keeps_the_originals_changes_nothing() {
     assert_eq!(summary.total_saved(), 0);
 }
 
-/// With nothing stated an image goes to lossless WebP where that is smaller.
+// With nothing stated an image goes to lossless WebP where that is smaller.
 #[test]
 fn an_export_that_states_nothing_recodes_what_it_can_without_loss() {
     let mut pack = editor_pack();

@@ -193,7 +193,7 @@ fn a_tilemap_takes_a_tint() {
     assert!(crate::same(tilemap.color, [1.0, 0.5, 0.25, 1.0]));
 }
 
-/// White, as a mesh is: a tint below it would darken every texture.
+// White, as a mesh is: a tint below it would darken every texture.
 #[test]
 fn a_sprite_and_an_emitter_draw_white_unless_told_otherwise() {
     let (_dir, app) = app();
@@ -232,8 +232,8 @@ fn an_emitter_reads_back_its_turn_spin_sheet_and_material() {
     assert_eq!(got["material"].as_str(), Some("materials/soft.toml"));
 }
 
-/// The request `render.snap_aov` leaves for the renderer, under a backend
-/// that claims screenshots so nothing answers it first.
+// The request `render.snap_aov` leaves for the renderer, under a backend
+// that claims screenshots so nothing answers it first.
 #[test]
 fn snap_aov_asks_the_renderer_for_an_auxiliary_output() {
     let dir = tempfile::tempdir().unwrap();
@@ -267,8 +267,8 @@ fn snap_aov_asks_the_renderer_for_an_auxiliary_output() {
     assert!(request.path.ends_with("shots/n.png"));
 }
 
-/// A 3D renderable's own flags reach its renderable, a `debug_draw` beside
-/// it is the node's own component, and both read back as written.
+// A 3D renderable's own flags reach its renderable, a `debug_draw` beside
+// it is the node's own component, and both read back as written.
 #[test]
 fn every_3d_renderable_takes_its_flags_and_a_debug_drawing_beside_it() {
     let (_dir, app) = app();
@@ -323,10 +323,8 @@ fn every_3d_renderable_takes_its_flags_and_a_debug_drawing_beside_it() {
     }
 }
 
-/// How a 2D drawable blends and culls is its material's `[surface]`: an
-/// inline one reaches the surface the node draws with, a node naming none
-/// leaves the blend to its texture and draws both sides, and a blend that is
-/// none of the words is refused.
+// An inline `[surface]` reaches the surface the node draws with; a node naming none leaves the
+// blend to its texture and draws both sides.
 #[test]
 fn a_2d_drawable_blends_and_culls_as_its_material_says() {
     let (_dir, app) = app();

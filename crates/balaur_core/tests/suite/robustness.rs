@@ -61,8 +61,8 @@ fn a_corrupted_pack_is_an_error_and_never_a_panic() {
     );
 }
 
-/// A scene names components, properties and parents, and a corrupted one
-/// names things that are not there. It has to report that, not fall over.
+// A scene names components, properties and parents, and a corrupted one
+// names things that are not there. It has to report that, not fall over.
 #[test]
 fn a_corrupted_scene_is_an_error_and_never_a_panic() {
     let valid = br#"

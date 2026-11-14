@@ -13,7 +13,6 @@ use crate::components::derived::{Component, Written};
 use crate::engine::Engine;
 use crate::hecs::Entity;
 
-/// The component's name.
 pub const COMPONENT: &str = <Timer as Component>::NAME;
 /// What a timer emits from its node when it runs out.
 pub const TIMEOUT: &str = "timeout";

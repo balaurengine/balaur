@@ -85,7 +85,6 @@ impl Scenario {{
     run_until(&source, &["delete-echo 200 ids=7"]);
 }
 
-/// A reply is awaited, and so is the next.
 #[test]
 fn a_script_awaits_one_request_after_another() {
     if !e2e_enabled() {

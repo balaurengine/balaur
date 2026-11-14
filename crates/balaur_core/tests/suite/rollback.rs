@@ -79,8 +79,8 @@ fn run_straight() -> (App, Rc<RefCell<Trace>>) {
     (app, trace)
 }
 
-/// The load-bearing one: tick 3's input shows up after tick 5 has run, and
-/// the run still ends where the unbroken run ended.
+// The load-bearing one: tick 3's input shows up after tick 5 has run, and
+// the run still ends where the unbroken run ended.
 #[test]
 fn a_late_input_rolls_back_to_the_digest_of_the_run_that_had_it_on_time() {
     let (straight, _) = run_straight();
@@ -115,8 +115,6 @@ fn a_late_input_rolls_back_to_the_digest_of_the_run_that_had_it_on_time() {
     );
 }
 
-/// A late input that matches what was predicted costs nothing: no restore,
-/// no re-run.
 #[test]
 fn a_late_input_that_matches_the_prediction_does_not_roll_back() {
     let (mut app, trace) = app_driven_by_input();
@@ -133,9 +131,9 @@ fn a_late_input_that_matches_the_prediction_does_not_roll_back() {
     assert_eq!(trace.borrow().resimulated, 0);
 }
 
-/// The clock goes back with the world. A re-run of tick 3 has to be tick 3
-/// again, or a script reading the tick number sees one the first run never
-/// did.
+// The clock goes back with the world. A re-run of tick 3 has to be tick 3
+// again, or a script reading the tick number sees one the first run never
+// did.
 #[test]
 fn a_resimulated_tick_carries_the_tick_number_it_had() {
     let (mut app, _) = app_driven_by_input();
@@ -158,8 +156,8 @@ fn a_resimulated_tick_carries_the_tick_number_it_had() {
     assert_eq!(*seen.borrow(), vec![3], "tick 3 re-ran as tick 3");
 }
 
-/// An input older than the ring cannot be answered, and says so rather than
-/// applying itself to whatever tick is still there.
+// An input older than the ring cannot be answered, and says so rather than
+// applying itself to whatever tick is still there.
 #[test]
 fn an_input_older_than_the_ring_is_refused() {
     let (mut app, trace) = app_driven_by_input();
@@ -186,8 +184,8 @@ fn an_input_older_than_the_ring_is_refused() {
     );
 }
 
-/// The journal is what a wire grows. A long session has to keep a bounded
-/// number of inputs, not one per tick per player for as long as it runs.
+// The journal is what a wire grows. A long session has to keep a bounded
+// number of inputs, not one per tick per player for as long as it runs.
 #[test]
 fn a_long_session_keeps_a_bounded_journal() {
     let (mut app, _) = app_driven_by_input();
@@ -203,7 +201,7 @@ fn a_long_session_keeps_a_bounded_journal() {
     );
 }
 
-/// Both numbers in a peer's datagram are whatever the peer put there.
+// Both numbers in a peer's datagram are whatever the peer put there.
 #[test]
 fn an_input_for_an_unknown_player_or_an_impossible_tick_is_refused() {
     let (mut app, _) = app_driven_by_input();
@@ -222,9 +220,9 @@ fn an_input_for_an_unknown_player_or_an_impossible_tick_is_refused() {
     );
 }
 
-/// A burst of arrivals where one is too old to answer: the old one must not
-/// take the rollback down with it, because `take` has already cleared the
-/// correction for the tick that can still be re-run.
+// A burst of arrivals where one is too old to answer: the old one must not
+// take the rollback down with it, because `take` has already cleared the
+// correction for the tick that can still be re-run.
 #[test]
 fn a_stale_input_does_not_mask_a_correction_that_can_still_be_made() {
     let (straight, _) = run_straight();

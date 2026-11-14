@@ -37,8 +37,8 @@ fn heights(scale: f32) -> (f32, f32) {
     (drew_at(button).height(), drew_at(number).height())
 }
 
-/// egui's own control and balaur's answer to the same scale. The `drag_value`
-/// is egui's `DragValue`; the `button` is drawn by this crate.
+// egui's own control and balaur's answer to the same scale. The `drag_value`
+// is egui's `DragValue`; the `button` is drawn by this crate.
 #[test]
 fn a_button_and_a_drag_value_are_one_height_at_any_scale() {
     for scale in [1.0, 2.0] {
@@ -50,8 +50,8 @@ fn a_button_and_a_drag_value_are_one_height_at_any_scale() {
     }
 }
 
-/// A design pixel is a point, so a stated size is the same number at every
-/// scale; what the scale changes is how many screen pixels a point costs.
+// A design pixel is a point, so a stated size is the same number at every
+// scale; what the scale changes is how many screen pixels a point costs.
 #[test]
 fn a_stated_size_is_the_same_points_at_every_scale_and_more_pixels() {
     let measure = |scale: f32| {
@@ -81,8 +81,8 @@ fn a_stated_size_is_the_same_points_at_every_scale_and_more_pixels() {
     );
 }
 
-/// `[ui] scale` seeds the scale on the first tick, which is after a script's
-/// `init`. A scale the script asked for by then is what it keeps.
+// `[ui] scale` seeds the scale on the first tick, which is after a script's
+// `init`. A scale the script asked for by then is what it keeps.
 #[test]
 fn a_scale_a_script_asked_for_survives_the_first_tick() {
     let (_dir, mut app) = app();
@@ -115,8 +115,8 @@ mod classes {
         });
     }
 
-    /// A class table names a row of a component beside the widget as it
-    /// names the widget's own: a narrow screen spaces a column's children out.
+    // A class table names a row of a component beside the widget as it
+    // names the widget's own: a narrow screen spaces a column's children out.
     #[test]
     fn a_class_table_writes_a_row_beside_the_widget() {
         let second_at = |width: f32| {
@@ -153,8 +153,8 @@ mod classes {
         );
     }
 
-    /// The commonest thing a narrow screen asks for: a row that is not worth
-    /// drawing when there is no room for it.
+    // The commonest thing a narrow screen asks for: a row that is not worth
+    // drawing when there is no room for it.
     #[test]
     fn a_narrow_screen_takes_the_narrow_table() {
         let drawn_width = |width: f32| {
@@ -187,8 +187,8 @@ mod classes {
         );
     }
 
-    /// The tables are read broad to narrow, so the narrowest word named wins
-    /// the key it shares.
+    // The tables are read broad to narrow, so the narrowest word named wins
+    // the key it shares.
     #[test]
     fn the_narrowest_class_named_wins_the_key() {
         let width_at = |screen_width: f32| {
@@ -223,8 +223,8 @@ mod classes {
         );
     }
 
-    /// A typo inside a class table is refused as one in the base table is,
-    /// named with its class word.
+    // A typo inside a class table is refused as one in the base table is,
+    // named with its class word.
     #[test]
     fn a_key_a_class_table_invents_is_refused() {
         let (_dir, app) = app();
@@ -247,8 +247,8 @@ mod classes {
         );
     }
 
-    /// A widget cannot become another kind halfway down a resize: its state
-    /// and its children belong to the kind it is.
+    // A widget cannot become another kind halfway down a resize: its state
+    // and its children belong to the kind it is.
     #[test]
     fn a_class_table_cannot_change_the_kind() {
         let (_dir, app) = app();
@@ -271,8 +271,8 @@ mod classes {
         );
     }
 
-    /// A theme states what a finger needs beside what a cursor needs, and the
-    /// screen picks. This is the seam the touch floor is built on.
+    // A theme states what a finger needs beside what a cursor needs, and the
+    // screen picks. This is the seam the touch floor is built on.
     #[test]
     fn a_theme_states_a_class_beside_the_look_it_qualifies() {
         let height_with = |touch: bool| {
@@ -320,9 +320,9 @@ mod classes {
         );
     }
 
-    /// A finger never hovers, so a tooltip a cursor rests for is one a phone
-    /// would otherwise never see. It opens on the hold and stays until the
-    /// finger lifts.
+    // A finger never hovers, so a tooltip a cursor rests for is one a phone
+    // would otherwise never see. It opens on the hold and stays until the
+    // finger lifts.
     #[test]
     fn a_held_finger_opens_the_tooltip_a_cursor_rests_for() {
         use crate::support::{pass_at, touch};
@@ -371,8 +371,8 @@ mod classes {
         assert!(!says_why(&lifted), "the tooltip outlived the finger");
     }
 
-    /// A number where the words are not fine enough: a widget states the
-    /// surface it needs and is not drawn on one that cannot give it.
+    // A number where the words are not fine enough: a widget states the
+    // surface it needs and is not drawn on one that cannot give it.
     #[test]
     fn a_widget_states_the_surface_it_needs_and_folds_away_without_it() {
         let drawn_at = |width: f32, height: f32, params: toml::Value| {
@@ -431,8 +431,8 @@ mod classes {
         );
     }
 
-    /// A line is read against the room a widget is laid out in, not only
-    /// the screen: a child of a stated box asks how wide that box is.
+    // A line is read against the room a widget is laid out in, not only
+    // the screen: a child of a stated box asks how wide that box is.
     #[test]
     fn a_line_reads_the_container_that_states_a_size() {
         use crate::support::add_child_widget;
@@ -471,8 +471,8 @@ mod classes {
         );
     }
 
-    /// A notch covers the top of the screen whatever the layout wants, so a
-    /// root that asks is moved clear of it.
+    // A notch covers the top of the screen whatever the layout wants, so a
+    // root that asks is moved clear of it.
     #[test]
     fn a_root_is_kept_clear_of_the_notch_on_the_edges_it_names() {
         let top_of = |ask: Option<&[&str]>| {
@@ -516,8 +516,8 @@ mod classes {
         );
     }
 
-    /// A screen's colour reaches the edge of the display, with its children
-    /// clear of the notch, and a `fill` root with no children is not inset.
+    // A screen's colour reaches the edge of the display, with its children
+    // clear of the notch, and a `fill` root with no children is not inset.
     #[test]
     fn a_fill_root_paints_under_the_notch_and_a_backdrop_reaches_it_whole() {
         let (_dir, app) = app();
@@ -554,7 +554,6 @@ mod classes {
         assert!(painted_above, "the screen's colour stops at the notch");
     }
 
-    /// Saving a scene must not quietly drop what it was authored with.
     #[test]
     fn a_class_table_survives_being_read_back() {
         let (_dir, app) = app();

@@ -826,8 +826,8 @@ mod tests {
         assert!(fires("Delete", &input));
     }
 
-    /// The editor declares a played game's table; resetting must not hand the
-    /// game the editor's own actions.
+    // The editor declares a played game's table; resetting must not hand the
+    // game the editor's own actions.
     #[test]
     fn a_reset_goes_back_to_the_table_a_host_declared() {
         let mut actions = InputActions::default();

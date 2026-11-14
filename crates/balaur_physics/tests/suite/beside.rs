@@ -131,9 +131,9 @@ fn a_moved_row_on_the_main_component_is_refused_by_name() {
     }
 }
 
-/// A scene names the beside component in any order: it is applied first, so
-/// a rope pinned at a particle only its own count reaches is built once,
-/// whole.
+// A scene names the beside component in any order: it is applied first, so
+// a rope pinned at a particle only its own count reaches is built once,
+// whole.
 #[test]
 fn a_scene_builds_the_main_component_with_its_beside_rows() {
     let booted = crate::boot::project(
@@ -192,8 +192,8 @@ fn an_articulation_is_the_component_beside_the_joint() {
     );
 }
 
-/// The coupled rows are a generic joint's: a ball socket names no
-/// `generic_joint3d`, and one beside it is not read.
+// The coupled rows are a generic joint's: a ball socket names no
+// `generic_joint3d`, and one beside it is not read.
 #[test]
 fn a_generic_joints_rows_are_read_by_a_generic_joint_alone() {
     let app = app();

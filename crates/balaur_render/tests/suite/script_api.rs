@@ -131,9 +131,9 @@ fn a_colour_may_be_set_without_alpha() {
     );
 }
 
-/// `camera_pose` reports where the camera actually is, which only a windowed
-/// backend knows. Headless the pose stays at its default, so this checks the
-/// call surface rather than a round trip.
+// `camera_pose` reports where the camera actually is, which only a windowed
+// backend knows. Headless the pose stays at its default, so this checks the
+// call surface rather than a round trip.
 #[test]
 fn the_cameras_pose_can_be_read() {
     run_clean(
@@ -316,7 +316,7 @@ fn a_missing_app_icon_does_not_take_the_frame_down() {
     );
 }
 
-/// Any file reads here: the picture is decoded when a window hands it over.
+// Any file reads here: the picture is decoded when a window hands it over.
 #[test]
 fn an_app_icon_keeps_the_plate_a_script_names() {
     let (app, errors) = run(
@@ -337,8 +337,8 @@ fn an_app_icon_option_it_does_not_know_does_not_compile() {
     assert!(why.contains("plate") && why.contains("tint"), "{why}");
 }
 
-/// A node with no renderable answers with an empty kind rather than unit.
-///
+// A node with no renderable answers with an empty kind rather than unit.
+//
 #[test]
 fn a_node_with_no_shape_says_so() {
     run_clean(
@@ -579,8 +579,8 @@ log::info("cell {self.node.tilemap.cell(3, 1)} {self.node.tilemap.cell(0, 0)} {s
     drop(app);
 }
 
-/// The scale a sprite that says 0 is drawn at: the image's own import
-/// setting, else 100. A tool turning a sprite into a polygon traces at it.
+// The scale a sprite that says 0 is drawn at: the image's own import
+// setting, else 100. A tool turning a sprite into a polygon traces at it.
 #[test]
 fn a_texture_s_pixels_per_unit_is_its_import_setting_or_the_default() {
     let _guard = LOG
@@ -639,8 +639,8 @@ impl Scenario {
     );
 }
 
-/// Every loop of an image with `holes`: each island winds counter-clockwise
-/// with y up, the way a polygon's outline does, and each hole the other way.
+// Every loop of an image with `holes`: each island winds counter-clockwise
+// with y up, the way a polygon's outline does, and each hole the other way.
 #[test]
 fn a_traced_island_winds_counter_clockwise_and_a_hole_clockwise() {
     let _guard = LOG

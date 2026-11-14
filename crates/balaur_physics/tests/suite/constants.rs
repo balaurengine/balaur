@@ -167,8 +167,8 @@ const TABLES: &[TableCase] = &[
     ),
 ];
 
-/// Read from the live registry, not from a copy of the schema literal: the
-/// point is to catch the two drifting apart.
+// Read from the live registry, not from a copy of the schema literal: the
+// point is to catch the two drifting apart.
 #[test]
 fn every_constant_table_matches_the_registered_schema() {
     let tables = TABLES;
@@ -187,8 +187,8 @@ fn every_constant_table_matches_the_registered_schema() {
     }
 }
 
-/// A joint call's axis is one of the words an `axes` record takes, spelled by
-/// the linear axis constants and the rotation ones together.
+// A joint call's axis is one of the words an `axes` record takes, spelled by
+// the linear axis constants and the rotation ones together.
 #[test]
 fn the_axis_constants_spell_every_joint_axis() {
     for (component, linear, turns) in [
@@ -200,8 +200,8 @@ fn the_axis_constants_spell_every_joint_axis() {
     }
 }
 
-/// physics2d spells every fit a tile's polygon takes, the one a 2D collider
-/// cannot among them.
+// physics2d spells every fit a tile's polygon takes, the one a 2D collider
+// cannot among them.
 #[test]
 fn the_2d_fit_constants_spell_every_tile_fit() {
     let declared: Vec<&str> = FIT_MODES_2D
@@ -228,9 +228,9 @@ fn every_constant_is_screaming_snake_and_unique_in_its_world() {
     }
 }
 
-/// A name both worlds spell means the same thing in each: `SHAPE_CAPSULE` is
-/// a capsule in 2D and 3D alike, and a name that is not, such as
-/// `SHAPE_SPHERE`, exists in one world only.
+// A name both worlds spell means the same thing in each: `SHAPE_CAPSULE` is
+// a capsule in 2D and 3D alike, and a name that is not, such as
+// `SHAPE_SPHERE`, exists in one world only.
 #[test]
 fn a_name_the_two_worlds_share_has_one_meaning() {
     let three: std::collections::BTreeMap<&str, &str> = CONSTANTS_3D
@@ -294,10 +294,8 @@ fn offered_words(dimension: &str) -> Vec<(String, std::collections::BTreeSet<Str
     out
 }
 
-/// A property's words are spelled by its world's constant tables: by whole
-/// tables that hold nothing else, as `AXES` and `ROTATION_AXES` spell a joint
-/// axis, or by one table holding them all. A word some unrelated table
-/// happens to spell does not count.
+// A word some unrelated table happens to spell does not count: whole tables spell a property's
+// words, as `AXES` and `ROTATION_AXES` spell a joint axis.
 #[test]
 fn every_word_a_schema_offers_has_a_constant_in_its_world() {
     for (dimension, tables) in [

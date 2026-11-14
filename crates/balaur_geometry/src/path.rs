@@ -235,8 +235,8 @@ fn parse_3d(value: &toml::Value) -> Result<Path3d> {
 mod tests {
     use super::*;
 
-    /// A path being drawn passes through no points and one, and the renderer
-    /// asks it for a polyline on every frame in between.
+    // A path being drawn passes through no points and one, and the renderer
+    // asks it for a polyline on every frame in between.
     #[test]
     fn a_path_with_fewer_than_two_points_samples_to_itself() {
         let empty = Path2d {
@@ -253,7 +253,7 @@ mod tests {
         assert_eq!(one.sample(TOLERANCE).unwrap(), one.points);
     }
 
-    /// Two are a straight line, which is the one shape nobody spells in cubics.
+    // Two are a straight line, which is the one shape nobody spells in cubics.
     #[test]
     fn two_points_are_the_line_between_them() {
         let line = Path2d {
@@ -263,7 +263,7 @@ mod tests {
         assert_eq!(line.sample(TOLERANCE).unwrap(), line.points);
     }
 
-    /// A count that does not divide into whole cubics still says so.
+    // A count that does not divide into whole cubics still says so.
     #[test]
     fn a_partial_segment_is_refused() {
         let broken = Path2d {
@@ -274,7 +274,7 @@ mod tests {
         assert!(err.contains("four control points"), "{err}");
     }
 
-    /// An empty `points` list parses, so an asset a pen has just made loads.
+    // An empty `points` list parses, so an asset a pen has just made loads.
     #[test]
     fn an_empty_path_asset_parses() {
         let value: toml::Value = toml::from_str("points = []").unwrap();

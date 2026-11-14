@@ -604,8 +604,8 @@ mod tests {
         out
     }
 
-    /// Mixed to one channel at half the rate: a quarter of the samples, the
-    /// same second of sound, and the sine at half its level.
+    // Mixed to one channel at half the rate: a quarter of the samples, the
+    // same second of sound, and the sine at half its level.
     #[test]
     fn a_sound_is_mixed_down_and_resampled_at_export() {
         let shape = AudioShape {
@@ -631,7 +631,7 @@ mod tests {
         assert!((3_500..4_500).contains(&loudest), "{loudest}");
     }
 
-    /// A sound already inside the shape asked for is the author's bytes.
+    // A sound already inside the shape asked for is the author's bytes.
     #[test]
     fn a_sound_that_already_fits_is_kept() {
         let mono_low = AudioShape {

@@ -285,8 +285,8 @@ fn a_flow_wraps_when_the_row_is_full() {
     );
 }
 
-/// A label that names `on_click` is clicked by the pointer, not only by
-/// focus and accept.
+// A label whose click a row answers is clicked by the pointer, not only by
+// focus and accept; one nothing hears lets the pointer be.
 #[test]
 fn a_label_whose_click_is_heard_takes_a_pointer_click() {
     let (_dir, mut app) = app();
@@ -621,13 +621,8 @@ fn face_theme(dir: &std::path::Path) {
     .unwrap();
 }
 
-/// A role's `text_align = "start"` reaches a node button. It reached script pills
-/// only, so a node `row` drew its caption in the middle of the row.
-/// A widget inside a `scroll` keeps the theme its ancestor named. A scroll
-/// is solved as a tree of its own, and measuring a leaf in it resolved only
-/// that leaf's own `theme`, cached the themeless look it got, and the draw
-/// answered out of that cache: the editor's transport drew in the near-white
-/// a widget with no theme takes, which is invisible on a light theme.
+// A scroll is solved as a tree of its own; measuring a leaf in it must resolve the ancestor's
+// theme, or the themeless look is cached and drawn.
 #[test]
 fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
     let (dir, app) = app();
@@ -720,8 +715,8 @@ fn a_role_puts_a_button_s_face_at_its_left_edge() {
     );
 }
 
-/// Trailing text sits after the caption and widens a button that hugs its
-/// content: a menu's caret, or a row's shortcut against its far edge.
+// Trailing text sits after the caption and widens a button that hugs its
+// content: a menu's caret, or a row's shortcut against its far edge.
 #[test]
 fn trailing_text_widens_a_button_and_draws() {
     let (_dir, app) = app();
@@ -749,8 +744,8 @@ fn trailing_text_widens_a_button_and_draws() {
     );
 }
 
-/// A button's picture draws on the disc its role asks for, and the button is
-/// measured wide enough to hold it.
+// A button's picture draws on the disc its role asks for, and the button is
+// measured wide enough to hold it.
 #[test]
 fn a_picture_sits_on_its_role_s_plate() {
     let (dir, app) = app();
@@ -787,9 +782,9 @@ fn a_picture_sits_on_its_role_s_plate() {
     assert!(plate, "no white disc under the picture");
 }
 
-/// A `stack` lays its children over one another, each placed in the box by
-/// its own `anchor`: Godot's MarginContainer, and the top and bottom bars a
-/// phone game pins to the edges of one screen.
+// A `stack` lays its children over one another, each placed in the box by
+// its own `anchor`: Godot's MarginContainer, and the top and bottom bars a
+// phone game pins to the edges of one screen.
 #[test]
 fn a_stack_lays_its_children_over_one_another() {
     let (_dir, app) = app();
@@ -821,8 +816,8 @@ fn a_stack_lays_its_children_over_one_another() {
     );
 }
 
-/// `fit` is Godot's expand and stretch modes: a picture with one is sized by
-/// the box it was given rather than sizing that box itself.
+// `fit` is Godot's expand and stretch modes: a picture with one is sized by
+// the box it was given rather than sizing that box itself.
 #[test]
 fn a_picture_with_a_fit_takes_the_box_it_was_given() {
     let (dir, app) = app();
@@ -849,8 +844,8 @@ fn a_picture_with_a_fit_takes_the_box_it_was_given() {
     );
 }
 
-/// `padding` takes one number for every side or four for left, top, right
-/// and bottom, which is what a Godot MarginContainer's margins convert to.
+// `padding` takes one number for every side or four for left, top, right
+// and bottom, which is what a Godot MarginContainer's margins convert to.
 #[test]
 fn padding_takes_one_number_or_four() {
     let (_dir, app) = app();
@@ -879,8 +874,8 @@ fn padding_takes_one_number_or_four() {
     );
 }
 
-/// A theme entry's `gap` spaces a container's children and its `icon_color`
-/// dresses a button's picture: Godot's separations and icon colours.
+// A theme entry's `gap` spaces a container's children and its `icon_color`
+// dresses a button's picture: Godot's separations and icon colours.
 #[test]
 fn a_theme_spaces_a_column_and_inks_an_icon() {
     let (dir, app) = app();
@@ -911,8 +906,8 @@ fn a_theme_spaces_a_column_and_inks_an_icon() {
     );
 }
 
-/// A button is as wide as the box the layout gave it, not as wide as its
-/// caption: a row of them in a column lines up.
+// A button is as wide as the box the layout gave it, not as wide as its
+// caption: a row of them in a column lines up.
 #[test]
 fn a_button_fills_the_box_the_layout_gave_it() {
     let (_dir, app) = app();
@@ -939,8 +934,8 @@ fn a_button_fills_the_box_the_layout_gave_it() {
     );
 }
 
-/// A dialog is shut by Escape or by a click on the dim behind it, and says
-/// so through `open` and `on_change`, the way a window's cross does.
+// A dialog is shut by Escape or by a click on the dim behind it, and says
+// so through `open` and `change`, the way a window's cross does.
 #[test]
 fn a_dialog_closes_on_escape_and_on_the_dim_behind_it() {
     for by_escape in [true, false] {
@@ -972,8 +967,8 @@ fn a_dialog_closes_on_escape_and_on_the_dim_behind_it() {
     }
 }
 
-/// A root marked `on_top` draws above the roots that are not, so where two
-/// overlap the press is its, whatever order the scene made them in.
+// A root marked `on_top` draws above the roots that are not, so where two
+// overlap the press is its, whatever order the scene made them in.
 #[test]
 fn an_on_top_root_takes_the_press_where_it_overlaps_another() {
     let (_dir, mut app) = app();
@@ -1000,8 +995,8 @@ fn an_on_top_root_takes_the_press_where_it_overlaps_another() {
     assert!(!clicked(&app, later), "the button made later took it");
 }
 
-/// A notice over the screen that the pointer passes through: `interactive`
-/// off leaves the press to the button it covers.
+// A notice over the screen that the pointer passes through: `interactive`
+// off leaves the press to the button it covers.
 #[test]
 fn an_on_top_notice_the_pointer_passes_through_leaves_the_press_below() {
     let (_dir, mut app) = app();
@@ -1030,8 +1025,8 @@ fn an_on_top_notice_the_pointer_passes_through_leaves_the_press_below() {
     );
 }
 
-/// `icon_size` sizes a button's glyph apart from its caption; below zero the
-/// glyph takes the caption's size.
+// `icon_size` sizes a button's glyph apart from its caption; below zero the
+// glyph takes the caption's size.
 #[test]
 fn a_button_s_icon_size_sizes_its_glyph() {
     let (_dir, app) = app();

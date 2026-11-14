@@ -20,8 +20,8 @@ fn a_ui_nobody_asked_to_redraw_lets_the_loop_sleep() {
     );
 }
 
-/// Writing a widget node is what asks for a pass: a handler that changes a
-/// label owes the sleeping loop a frame without calling `request_repaint`.
+// Writing a widget node is what asks for a pass: a handler that changes a
+// label owes the sleeping loop a frame without calling `request_repaint`.
 #[test]
 fn a_widget_written_owes_the_sleeping_loop_a_frame() {
     let (_dir, app, ctx, errors) = run_with("");

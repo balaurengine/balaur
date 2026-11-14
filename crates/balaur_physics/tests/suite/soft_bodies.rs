@@ -144,8 +144,8 @@ impl Scenario {
     );
 }
 
-/// The approximate tetrahedrization: a closed mesh is covered with cells, and
-/// what comes out is a body with more particles than the mesh had corners.
+// The approximate tetrahedrization: a closed mesh is covered with cells, and
+// what comes out is a body with more particles than the mesh had corners.
 #[test]
 fn a_volumetric_body_fills_a_closed_mesh_with_cells() {
     run_clean(
@@ -162,7 +162,7 @@ impl Scenario {
     );
 }
 
-/// The cell size is the knob that matters: a smaller one is a finer body.
+// The cell size is the knob that matters: a smaller one is a finer body.
 #[test]
 fn a_smaller_cell_size_makes_a_finer_volumetric_body() {
     run_clean(
@@ -180,8 +180,8 @@ impl Scenario {
     );
 }
 
-/// A generator that would run the machine out of memory is an error, not a
-/// hang: the numbers come from a text field.
+// A generator that would run the machine out of memory is an error, not a
+// hang: the numbers come from a text field.
 #[test]
 fn a_layout_past_the_particle_cap_is_refused() {
     let errors = run(r#"pub class Scenario { node: Node }
@@ -212,8 +212,8 @@ impl Scenario {
     );
 }
 
-/// The point of a soft body: the solver owns the positions, and the node is
-/// drawn from them rather than from what was authored.
+// The point of a soft body: the solver owns the positions, and the node is
+// drawn from them rather than from what was authored.
 #[test]
 fn a_falling_soft_body_moves_its_particles() {
     run_clean(
@@ -235,8 +235,8 @@ impl Scenario {
     );
 }
 
-/// A pinned particle is the hook a cloth hangs from, so it must not fall with
-/// the rest of the body.
+// A pinned particle is the hook a cloth hangs from, so it must not fall with
+// the rest of the body.
 #[test]
 fn a_pinned_particle_stays_where_it_was_put() {
     run_clean(
@@ -281,8 +281,8 @@ impl Scenario {
     );
 }
 
-/// The 2D half of the approximate meshing: an outline is triangulated rather
-/// than tetrahedrized, and the same `cell_size` knob decides how finely.
+// The 2D half of the approximate meshing: an outline is triangulated rather
+// than tetrahedrized, and the same `cell_size` knob decides how finely.
 #[test]
 fn a_2d_volumetric_body_fills_an_outline_with_triangles() {
     run_clean(
@@ -299,9 +299,9 @@ impl Scenario {
     );
 }
 
-/// A tear threshold is a mechanical property like any other, and what it
-/// does is change the body's topology mid-step: a rope stretched past its
-/// strain comes apart, and the node's `on_tear` hears about it.
+// A tear threshold is a mechanical property like any other, and what it
+// does is change the body's topology mid-step: a rope stretched past its
+// strain comes apart, and the node's `on_torn` hears about it.
 #[test]
 fn a_rope_past_its_tear_strain_comes_apart() {
     run_clean_for(
@@ -339,11 +339,8 @@ impl Scenario {
     );
 }
 
-/// A cloth is looked at from above, so its triangles have to face up.
-///
-/// Rapier winds a sheet spanned along +x then +z with its front underneath
-/// (`du x dv` is -y), which drew the sheet unlit and back-face culled: it was
-/// there, and all you could see was its shadow.
+// Rapier winds a sheet spanned along +x then +z with its front underneath (`du x dv` is -y), which
+// draws it unlit and back-face culled.
 #[test]
 fn a_cloth_faces_up() {
     let _guard = LOG
@@ -386,13 +383,8 @@ fn a_cloth_faces_up() {
     );
 }
 
-/// What play-in-editor does on stop: the world is replaced by a fresh one,
-/// so every handle naming the old one's arena has to go with it.
-///
-/// Left behind, a stale handle names whatever lands in that slot next — the
-/// editor rebuilds the scene right after the clear — and removing the stale
-/// node takes the live body with it. The sheet then draws where it was built
-/// and never moves again, which is what this caught.
+// Play-in-editor replaces the world on stop. A stale handle names whatever lands in its slot next,
+// and removing the stale node takes the live body with it.
 #[test]
 fn clearing_the_world_forgets_the_soft_bodies_it_held() {
     let _guard = LOG
@@ -435,8 +427,8 @@ fn clearing_the_world_forgets_the_soft_bodies_it_held() {
     );
 }
 
-/// A body whose node is freed leaves nothing behind: the handles here index
-/// rapier's arena, and a stale one is a panic a script call away.
+// A body whose node is freed leaves nothing behind: the handles here index
+// rapier's arena, and a stale one is a panic a script call away.
 #[test]
 fn freeing_a_node_frees_its_soft_body() {
     let _guard = LOG
@@ -466,8 +458,8 @@ fn freeing_a_node_frees_its_soft_body() {
     assert_eq!(bodies(&app), 0, "the freed node left its soft body behind");
 }
 
-/// A rope collides through segments, which have no faces, so it draws as a
-/// tube; a renderer handed the segments as triangles indexes past the end.
+// A rope collides through segments, which have no faces, so it draws as a
+// tube; a renderer handed the segments as triangles indexes past the end.
 #[test]
 fn a_rope_draws_as_triangles_over_its_own_vertices() {
     let _guard = LOG
@@ -505,8 +497,8 @@ fn a_rope_draws_as_triangles_over_its_own_vertices() {
     );
 }
 
-/// What the solver drew goes with the component, or the renderer keeps
-/// drawing the last pose of a body that no longer exists.
+// What the solver drew goes with the component, or the renderer keeps
+// drawing the last pose of a body that no longer exists.
 #[test]
 fn removing_a_soft_body_takes_its_solved_mesh_with_it() {
     let _guard = LOG
@@ -534,8 +526,8 @@ fn removing_a_soft_body_takes_its_solved_mesh_with_it() {
     assert!(!solved(&app), "the removed component left its solved mesh");
 }
 
-/// A radius of 0 is worked out from the layout, and reading the component
-/// back has to say 0 still: a saved number would stay put when `cells` moves.
+// A radius of 0 is worked out from the layout, and reading the component
+// back has to say 0 still: a saved number would stay put when `cells` moves.
 #[test]
 fn an_automatic_particle_radius_reads_back_as_automatic() {
     run_clean(
@@ -551,8 +543,8 @@ impl Scenario {
     );
 }
 
-/// A 2D body a generator laid out has no polygon to deform, so its cells are
-/// drawn as one, and that polygon is not a component the author added.
+// A 2D body a generator laid out has no polygon to deform, so its cells are
+// drawn as one, and that polygon is not a component the author added.
 #[test]
 fn a_generated_2d_soft_body_is_drawn_from_its_cells() {
     let _guard = LOG
@@ -575,9 +567,9 @@ fn a_generated_2d_soft_body_is_drawn_from_its_cells() {
     );
 }
 
-/// `solver = "fem"` runs the elasticity as one implicit step over the body,
-/// and a body on it still falls. The script logs once it has checked, so a
-/// run that never reached the check fails too.
+// `solver = "fem"` runs the elasticity as one implicit step over the body,
+// and a body on it still falls. The script logs once it has checked, so a
+// run that never reached the check fails too.
 #[test]
 fn a_body_on_the_implicit_solver_falls() {
     let errors = run_for(
@@ -608,7 +600,7 @@ impl Scenario {
     );
 }
 
-/// The skin as the collision mesh: a skinned volumetric body builds with it.
+// The skin as the collision mesh: a skinned volumetric body builds with it.
 #[test]
 fn a_skinned_body_can_collide_through_its_skin() {
     run_clean(
@@ -623,8 +615,8 @@ impl Scenario {
     );
 }
 
-/// A disk is a hoop of particles around nothing, so the area it holds is all
-/// that keeps it round when it lands. The script logs once it has checked.
+// A disk is a hoop of particles around nothing, so the area it holds is all
+// that keeps it round when it lands. The script logs once it has checked.
 #[test]
 fn a_disk_keeps_its_area_when_it_lands() {
     let errors = run_for(
@@ -671,9 +663,9 @@ fn solved_2d(script: &str, ticks: u32) -> balaur_geometry::mesh::SolvedPolygon {
     (*solved).clone()
 }
 
-/// A volumetric body carries the mesh it filled as a skin, so what it hands
-/// over is that mesh's own vertices and triangles, which a `polygon` drawing
-/// the same mesh deforms by, rather than the cells it simulates.
+// A volumetric body carries the mesh it filled as a skin, so what it hands
+// over is that mesh's own vertices and triangles, which a `polygon` drawing
+// the same mesh deforms by, rather than the cells it simulates.
 #[test]
 fn a_2d_volumetric_body_hands_over_the_mesh_it_filled() {
     let solved = solved_2d(
@@ -699,7 +691,7 @@ impl Scenario {
     );
 }
 
-/// A rope has segments and no inside, so it is drawn as a strip along them.
+// A rope has segments and no inside, so it is drawn as a strip along them.
 #[test]
 fn a_2d_rope_hands_over_a_ribbon() {
     let solved = solved_2d(
@@ -716,8 +708,8 @@ impl Scenario {
     assert_eq!(solved.indices.len(), 8, "two triangles a segment");
 }
 
-/// A `polygon` body is its outline, and a vertex inside it is held by the
-/// mesh's own triangle edges: left free it fell through the floor alone.
+// A `polygon` body is its outline, and a vertex inside it is held by the
+// mesh's own triangle edges: left free it fell through the floor alone.
 #[test]
 fn a_2d_polygon_body_keeps_a_vertex_inside_its_outline() {
     let solved = solved_2d(
@@ -749,7 +741,6 @@ impl Scenario {
     );
 }
 
-/// A body with nothing of its own to deform is drawn in its `color`.
 #[test]
 fn a_generated_body_is_drawn_in_its_color() {
     let _guard = LOG
@@ -782,8 +773,8 @@ impl Scenario {
     );
 }
 
-/// A ray reads the node out of the collider it met, and a soft body's
-/// colliders are made by rapier, not by the node's own collider component.
+// A ray reads the node out of the collider it met, and a soft body's
+// colliders are made by rapier, not by the node's own collider component.
 #[test]
 fn a_ray_that_meets_a_soft_body_names_its_node() {
     let errors = run_for(
@@ -808,8 +799,8 @@ impl Scenario {
     );
 }
 
-/// A tear makes each piece a soft body of its own: it draws with the node
-/// and goes when the node does, rather than falling on unseen.
+// A tear makes each piece a soft body of its own: it draws with the node
+// and goes when the node does, rather than falling on unseen.
 #[test]
 fn a_torn_off_piece_is_drawn_and_freed_with_its_node() {
     let _guard = LOG
@@ -867,8 +858,8 @@ impl Scenario {
     );
 }
 
-/// A material row tuned on a live body takes effect where the body is: a
-/// stiffness changed mid-fall does not snap it back to where it was built.
+// A material row tuned on a live body takes effect where the body is: a
+// stiffness changed mid-fall does not snap it back to where it was built.
 #[test]
 fn a_material_change_does_not_rebuild_the_body_from_rest() {
     let errors = run_for(
@@ -984,8 +975,8 @@ fn built_with(script: &str) -> (bool, bool) {
     (oriented, matched)
 }
 
-/// rapier's oriented closed surface encloses matter and its unoriented one is
-/// a shell holding bodies in; `auto` orients a closed surface.
+// rapier's oriented closed surface encloses matter and its unoriented one is
+// a shell holding bodies in; `auto` orients a closed surface.
 #[test]
 fn orientation_picks_a_solid_or_a_shell() {
     let sphere = |orientation: &str| {
@@ -1008,8 +999,8 @@ fn orientation_picks_a_solid_or_a_shell() {
     );
 }
 
-/// The triangle-mesh layout shape-matches by its own choice, which `auto`
-/// keeps and `off` overrides.
+// The triangle-mesh layout shape-matches by its own choice, which `auto`
+// keeps and `off` overrides.
 #[test]
 fn shape_matching_auto_keeps_the_layouts_own_choice() {
     let mesh = |matching: &str| {

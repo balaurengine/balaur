@@ -843,16 +843,16 @@ mod tests {
         )
     }
 
-    /// What moves to a desktop thread has to be `Send`, and a field that is
-    /// not would fail here rather than at the one call that spawns.
+    // What moves to a desktop thread has to be `Send`, and a field that is
+    // not would fail here rather than at the one call that spawns.
     #[test]
     fn a_job_can_move_to_a_thread() {
         fn sendable<T: Send>() {}
         sendable::<ImportJob>();
     }
 
-    /// The steps a job takes on its own thread are the steps it takes under
-    /// the tick: the count, one line per file, the end.
+    // The steps a job takes on its own thread are the steps it takes under
+    // the tick: the count, one line per file, the end.
     #[test]
     fn a_job_on_a_thread_reports_every_file_then_the_end() {
         let project = tempfile::tempdir().unwrap();
@@ -896,7 +896,6 @@ mod tests {
         }
     }
 
-    /// Stop read before the first slice: nothing written, and the count says so.
     #[test]
     fn a_stop_before_the_first_slice_writes_nothing() {
         let project = tempfile::tempdir().unwrap();
@@ -920,8 +919,8 @@ mod tests {
         );
     }
 
-    /// The sequence a progress bar reads: what is coming, each file as it
-    /// lands, and the end.
+    // The sequence a progress bar reads: what is coming, each file as it
+    // lands, and the end.
     #[test]
     fn a_job_reports_the_count_then_every_file_then_the_end() {
         let project = tempfile::tempdir().unwrap();
@@ -969,10 +968,8 @@ mod tests {
         assert!(note.contains("frames"), "unhelpful note: {note}");
     }
 
-    /// A failure is reported, not logged and dropped, and the job still lets
-    /// go of its place.
-    /// Bytes in hand and no directory to look in: what a browser has once a
-    /// reader has picked, and the same import either way.
+    // Bytes in hand and no directory to look in, as a browser has once a reader picked. A failure
+    // is reported and the job still lets go of its place.
     #[test]
     fn a_job_imports_bytes_that_came_with_no_path() {
         let project = tempfile::tempdir().unwrap();
@@ -1000,9 +997,9 @@ mod tests {
         }
     }
 
-    /// A `.gltf` names its images beside itself, and a reader who picked only
-    /// the `.gltf` is told which one is missing rather than left with half a
-    /// model.
+    // A `.gltf` names its images beside itself, and a reader who picked only
+    // the `.gltf` is told which one is missing rather than left with half a
+    // model.
     #[test]
     fn what_was_not_picked_is_named() {
         let chosen = Source::Chosen {

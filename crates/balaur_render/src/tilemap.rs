@@ -777,8 +777,8 @@ mod tests {
         }
     }
 
-    /// A map grows left and up by moving its origin, and everything it keeps
-    /// per cell has to move with the cells or answer for the wrong one.
+    // A map grows left and up by moving its origin, and everything it keeps
+    // per cell has to move with the cells or answer for the wrong one.
     #[test]
     fn what_a_cell_carries_stays_with_it_when_the_map_grows() {
         let mut map = map();
@@ -798,8 +798,8 @@ mod tests {
         );
     }
 
-    /// Painting the same value twice is not an edit, so it costs no undo step
-    /// and no rebuild.
+    // Painting the same value twice is not an edit, so it costs no undo step
+    // and no rebuild.
     #[test]
     fn painting_a_cell_the_value_it_holds_changes_nothing() {
         let mut map = map();

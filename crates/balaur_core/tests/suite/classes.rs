@@ -10,8 +10,8 @@ use balaur_core::facts::{
 };
 use balaur_core::tags::{POINTER, TOUCH, Tags};
 
-/// Either side of each line, at the defaults Android's window size classes
-/// put them at.
+// Either side of each line, at the defaults Android's window size classes
+// put them at.
 #[test]
 fn each_width_answers_the_word_its_side_of_the_line_does() {
     let lines = ClassLines::default();
@@ -39,8 +39,8 @@ fn each_height_answers_the_word_its_side_of_the_line_does() {
     }
 }
 
-/// No window is nothing to fit, not the tightest fit there is. A headless run
-/// reads what a desktop reads, which is what keeps a layout test neutral.
+// No window is nothing to fit, not the tightest fit there is. A headless run
+// reads what a desktop reads, which is what keeps a layout test neutral.
 #[test]
 fn a_surface_of_nothing_reads_wide_and_tall() {
     let lines = ClassLines::default();
@@ -48,7 +48,7 @@ fn a_surface_of_nothing_reads_wide_and_tall() {
     assert_eq!(height_class(0.0, lines), TALL);
 }
 
-/// A project moves the lines; the words stay where they are.
+// A project moves the lines; the words stay where they are.
 #[test]
 fn moving_a_line_moves_which_word_a_width_answers() {
     let tight = ClassLines {
@@ -59,8 +59,8 @@ fn moving_a_line_moves_which_word_a_width_answers() {
     assert_eq!(width_class(500.0, tight), MEDIUM);
 }
 
-/// Every word is in the list an override and a picker read, so a class table
-/// nothing offers cannot exist.
+// Every word is in the list an override and a picker read, so a class table
+// nothing offers cannot exist.
 #[test]
 fn every_class_word_is_in_its_list() {
     assert_eq!(WIDTH_CLASSES, [WIDE, MEDIUM, NARROW]);
@@ -69,8 +69,8 @@ fn every_class_word_is_in_its_list() {
     assert!(balaur_core::tags::ALL.contains(&POINTER));
 }
 
-/// The input class is one tag or the other, never both and never neither, and
-/// it sits between the kind of machine and the operating system.
+// The input class is one tag or the other, never both and never neither, and
+// it sits between the kind of machine and the operating system.
 #[test]
 fn the_input_class_replaces_itself_and_keeps_its_place() {
     let mut tags = Tags(vec!["mobile".into(), "android".into()]);
@@ -81,8 +81,8 @@ fn the_input_class_replaces_itself_and_keeps_its_place() {
     assert!(!tags.has(TOUCH));
 }
 
-/// A page reports no input class until the browser answers, so a target's
-/// tags name one only where the machine settles it.
+// A page reports no input class until the browser answers, so a target's
+// tags name one only where the machine settles it.
 #[test]
 fn an_export_target_claims_an_input_class_only_where_it_knows_one() {
     assert!(Tags::for_target("ios").has(TOUCH));
@@ -101,8 +101,8 @@ fn a_template_variant_takes_its_platform_s_tags() {
     assert_eq!(Tags::for_target("web-2d").0, Tags::for_target("web").0);
 }
 
-/// The whole point of the input class being a tag: a session recorded on a
-/// phone replays as a phone, on a desktop that has no touch screen at all.
+// The whole point of the input class being a tag: a session recorded on a
+// phone replays as a phone, on a desktop that has no touch screen at all.
 #[test]
 fn a_recorded_touch_screen_replays_as_the_touch_tag() {
     use balaur_core::replay::ReplaySetupRegistry;

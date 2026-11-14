@@ -353,8 +353,8 @@ mod tests {
         );
     }
 
-    /// A packed game has no modification times, so every texture is uploaded
-    /// once and none of them is ever renamed.
+    // A packed game has no modification times, so every texture is uploaded
+    // once and none of them is ever renamed.
     #[test]
     fn a_packed_texture_is_named_by_its_path_alone() {
         assert_eq!(upload_name("art/hero.png", None, ""), "art/hero.png");
@@ -368,9 +368,9 @@ mod tests {
         );
     }
 
-    /// A 3D mesh has no premultiplied blend to draw with, so it uploads the
-    /// same file straight — and under its own name, or whichever node was
-    /// built first would decide what the other one draws.
+    // A 3D mesh has no premultiplied blend to draw with, so it uploads the
+    // same file straight — and under its own name, or whichever node was
+    // built first would decide what the other one draws.
     #[test]
     fn the_same_image_straight_is_a_second_upload() {
         assert_ne!(

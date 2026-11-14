@@ -116,8 +116,8 @@ fn a_concave_polygon_becomes_convex_pieces() {
     assert!((covered - 1.0).abs() < 1.0e-3, "{covered} covered, not 1.0");
 }
 
-/// The overlap is what stops a beam wedging into a seam, so it has to reach
-/// the shapes the solver actually sees.
+// The overlap is what stops a beam wedging into a seam, so it has to reach
+// the shapes the solver actually sees.
 #[test]
 fn the_pieces_grow_into_each_other() {
     let plain = total_area(&pieces(&table_app(
@@ -131,8 +131,8 @@ fn the_pieces_grow_into_each_other() {
     assert!(grown > plain + 0.05, "{grown} is no larger than {plain}");
 }
 
-/// Grown pieces share the ground they overlap on; counting it twice would
-/// make a decomposed table heavier than the same table as a hull.
+// Grown pieces share the ground they overlap on; counting it twice would
+// make a decomposed table heavier than the same table as a hull.
 #[test]
 fn the_pieces_weigh_what_the_polygon_weighs() {
     for overlap in ["0.0", "0.9", "1.0"] {
@@ -147,7 +147,7 @@ fn the_pieces_weigh_what_the_polygon_weighs() {
     }
 }
 
-/// Density scales it, and an explicit mass still wins.
+// Density scales it, and an explicit mass still wins.
 #[test]
 fn density_and_mass_still_say_what_it_weighs() {
     let dense = mass(&table_app("density = 3.0", ""));
@@ -162,8 +162,8 @@ fn density_and_mass_still_say_what_it_weighs() {
     );
 }
 
-/// The approximate cut is still there for an outline too dense for the exact
-/// one, and a border rounds whichever pieces it leaves.
+// The approximate cut is still there for an outline too dense for the exact
+// one, and a border rounds whichever pieces it leaves.
 #[test]
 fn the_other_ways_to_cut_it_build() {
     for (collider, decomposition) in [
@@ -187,7 +187,7 @@ fn the_other_ways_to_cut_it_build() {
     }
 }
 
-/// The pieces a script can draw, tune, or hand back as hulls of its own.
+// The pieces a script can draw, tune, or hand back as hulls of its own.
 #[test]
 fn a_script_can_ask_for_the_pieces() {
     let _guard = LOG

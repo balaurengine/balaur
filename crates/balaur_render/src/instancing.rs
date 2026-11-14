@@ -231,8 +231,8 @@ mod tests {
         );
     }
 
-    /// The hard case: the node itself is turned and unevenly scaled, so the
-    /// division by its own frame has to be exact.
+    // The hard case: the node itself is turned and unevenly scaled, so the
+    // division by its own frame has to be exact.
     #[test]
     fn a_turned_and_scaled_node_still_lands_its_copies() {
         round_trips(

@@ -104,7 +104,6 @@ fn patiently<T>(mut attempt: impl FnMut() -> anyhow::Result<T>) -> T {
     attempt().unwrap()
 }
 
-/// Sign in by device on a client of its own.
 fn sign_in(server: &str, device: &str) -> (Client, Session) {
     let mut client = Client::new(server);
     let credentials = Credentials::Device {

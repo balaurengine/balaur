@@ -362,8 +362,8 @@ fn a_map_takes_the_centre_of_mass_and_the_inertia_it_states() {
     );
 }
 
-/// Plain shaped tiles: a voxel grid's cell map and a one-way axis above
-/// `user_data`'s low 64 bits both fail the snapshot's JSON.
+// Plain shaped tiles: a voxel grid's cell map and a one-way axis above
+// `user_data`'s low 64 bits both fail the snapshot's JSON.
 #[test]
 fn a_restored_map_rebuilds_from_its_own_colliders() {
     let _guard = LOG

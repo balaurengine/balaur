@@ -172,8 +172,8 @@ fn a_bundled_theme_states_colours_and_the_roles_file_states_none() {
     );
 }
 
-/// N20: a role is `<component>[_<context>][_<emphasis>]`. A state is never a
-/// suffix, a role never takes a widget kind's word, and emphasis comes last.
+// N20: a role is `<component>[_<context>][_<emphasis>]`. A state is never a
+// suffix, a role never takes a widget kind's word, and emphasis comes last.
 #[test]
 fn every_editor_role_is_named_component_context_emphasis() {
     const EMPHASIS: &[&str] = &[
@@ -211,9 +211,9 @@ fn every_editor_role_is_named_component_context_emphasis() {
     assert!(failing.is_empty(), "{}", failing.join("\n"));
 }
 
-/// Balaur's own halves say warning, danger, success and primary in colours
-/// every reader tells apart, a colour-blind one included. The imported
-/// palettes lean on hue and are their makers'; the theme window shows theirs.
+// Balaur's own halves say warning, danger, success and primary in colours
+// every reader tells apart, a colour-blind one included. The imported
+// palettes lean on hue and are their makers'; the theme window shows theirs.
 #[test]
 fn balaur_s_saying_colours_stand_apart_for_every_vision() {
     let mut failing = Vec::new();

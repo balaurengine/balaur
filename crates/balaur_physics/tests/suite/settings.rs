@@ -46,8 +46,8 @@ fn a_platform_override_outranks_the_table_it_overrides() {
     assert!((unit - 100.0).abs() < 1e-6, "length_unit read as {unit}");
 }
 
-/// The contact and gravity rows: one file spelling each, read into the same
-/// values `physics.tuning()` and `physics3d.gravity()` report.
+// The contact and gravity rows: one file spelling each, read into the same
+// values `physics.tuning()` and `physics3d.gravity()` report.
 #[test]
 #[allow(
     clippy::float_cmp,

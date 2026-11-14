@@ -64,7 +64,7 @@ fn residual_speed(x: f32) -> f32 {
     velocity.length()
 }
 
-/// A body on a floor settles rather than creeping.
+// A body on a floor settles rather than creeping.
 #[test]
 fn a_body_rests_near_the_origin() {
     assert!(
@@ -74,9 +74,9 @@ fn a_body_rests_near_the_origin() {
     );
 }
 
-/// The claim a threaded solver rests on: the thread count does not change
-/// results. Rapier's solver is coloured and staged, so this holds it to that
-/// rather than trusting it.
+// The claim a threaded solver rests on: the thread count does not change
+// results. Rapier's solver is coloured and staged, so this holds it to that
+// rather than trusting it.
 #[test]
 fn the_thread_count_does_not_change_the_simulation() {
     use balaur_core::digest;

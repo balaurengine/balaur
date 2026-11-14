@@ -20,7 +20,6 @@ pub struct Timers {
     results: Vec<(u64, balaur_script::Value)>,
 }
 
-/// Wake `token` with `payload` on the next fixed step.
 pub fn wake_next_step(eng: &Engine, token: u64, payload: balaur_script::Value) {
     eng.resource::<Timers>()
         .borrow_mut()

@@ -93,8 +93,8 @@ fn a_hidden_probe_comes_back_switched_off_rather_than_missing() {
     assert!(!resolved[0].enabled);
 }
 
-/// A box with no thickness would divide the parallax ray by nothing, and a
-/// soft edge of no width would divide the fade by nothing.
+// A box with no thickness would divide the parallax ray by nothing, and a
+// soft edge of no width would divide the fade by nothing.
 #[test]
 fn a_probe_with_no_size_is_widened_to_something_a_ray_can_meet() {
     let mut app = app();
@@ -169,8 +169,8 @@ mirror_normal = [0.0, 0.0, 1.0]
     assert!(!mirror.refracts());
 }
 
-/// An index of refraction below one would bend light the wrong way, and a
-/// transmission above one would pass through more than arrived.
+// An index of refraction below one would bend light the wrong way, and a
+// transmission above one would pass through more than arrived.
 #[test]
 fn a_surface_outside_what_physics_allows_is_pulled_back_into_it() {
     let odd = surface(
@@ -200,9 +200,9 @@ fn a_surface_alpha_the_engine_does_not_know_says_what_it_does() {
     );
 }
 
-/// `[params]` refuses a key the shader does not read, and `[surface]` refuses
-/// one the engine does not know: a silently dropped `transmision` is a pane
-/// that draws solid and says nothing about why.
+// `[params]` refuses a key the shader does not read, and `[surface]` refuses
+// one the engine does not know: a silently dropped `transmision` is a pane
+// that draws solid and says nothing about why.
 #[test]
 fn a_surface_key_the_engine_does_not_know_is_refused() {
     let value: toml::Value =
@@ -214,12 +214,8 @@ fn a_surface_key_the_engine_does_not_know_is_refused() {
     );
 }
 
-/// `render.stats` counts the triangles a frame draws, and `MeshData::indices`
-/// is already one entry per triangle.
-///
-/// Dividing that by three, as the count once did, reported a third of the
-/// frame: Sponza's 262 thousand came back as 87 thousand, which is the number
-/// a budget would have been set against.
+// `MeshData::indices` is already one entry per triangle: divided by three, Sponza's 262 thousand
+// would read as 87 thousand.
 #[test]
 fn the_frame_counts_every_triangle_it_draws() {
     let mut app = app();
@@ -282,8 +278,8 @@ fn a_probe_asked_to_capture_every_frame_says_so() {
     assert_eq!(read["update_mode"].as_str(), Some("always"));
 }
 
-/// A probe's box turns with its node, and its capture keeps to the layers
-/// and planes it names; planes it leaves at zero take the camera's.
+// A probe's box turns with its node, and its capture keeps to the layers
+// and planes it names; planes it leaves at zero take the camera's.
 #[test]
 fn a_probe_turns_with_its_node_and_captures_its_own_layers_and_planes() {
     let mut app = app();

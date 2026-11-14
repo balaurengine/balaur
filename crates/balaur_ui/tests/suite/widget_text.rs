@@ -16,8 +16,8 @@ fn rects(out: &egui::FullOutput) -> Vec<egui::Rect> {
         .collect()
 }
 
-/// A `[url]` span reports its target to the script, and the click is the
-/// span's rather than the label's.
+// A `[url]` span reports its target to the script, and the click is the
+// span's rather than the label's.
 #[test]
 fn a_url_span_says_link_with_its_target() {
     let script = "pub class Owner { node: Node, went: str }
@@ -54,8 +54,8 @@ impl Owner {
     );
 }
 
-/// A link a label names no handler for still says what was clicked, so a
-/// row or a subscriber can be the one that follows it.
+// A link on a label with no row still says what was clicked, so a
+// subscriber can be the one that follows it.
 #[test]
 fn a_url_span_says_its_target_with_no_row_on_it() {
     let (_dir, mut app) = app();
@@ -78,8 +78,8 @@ fn a_url_span_says_its_target_with_no_row_on_it() {
     );
 }
 
-/// A click away from the link leaves the handler alone: the span is what was
-/// clicked, not the label around it.
+// A click away from the link leaves the handler alone: the span is what was
+// clicked, not the label around it.
 #[test]
 fn a_click_beside_a_url_span_reports_nothing() {
     let script = "pub class Owner { node: Node, went: str }
@@ -116,7 +116,6 @@ impl Owner {
     );
 }
 
-/// A `[hint]` span says its text while the pointer rests on it.
 #[test]
 fn a_hint_span_shows_its_text_on_hover() {
     let (_dir, app) = app();
@@ -143,8 +142,8 @@ fn a_hint_span_shows_its_text_on_hover() {
     );
 }
 
-/// A drag over a selectable label marks what it crossed, and the copy key
-/// takes that text and no more.
+// A drag over a selectable label marks what it crossed, and the copy key
+// takes that text and no more.
 #[test]
 fn a_drag_over_a_selectable_label_selects_and_copies() {
     let (_dir, app) = app();
@@ -194,8 +193,8 @@ fn a_drag_over_a_selectable_label_selects_and_copies() {
     );
 }
 
-/// A `drag_value` with arrows steps by `step` and stops at `max`, and its
-/// `suffix` follows the number the way `prefix` leads it.
+// A `drag_value` with arrows steps by `step` and stops at `max`, and its
+// `suffix` follows the number the way `prefix` leads it.
 #[test]
 fn a_drag_value_steps_from_its_arrows_and_wears_its_suffix() {
     let (_dir, mut app) = app();
@@ -236,9 +235,9 @@ fn a_drag_value_steps_from_its_arrows_and_wears_its_suffix() {
     );
 }
 
-/// A wrapping label is as tall as its box is narrow, and the row hugging it
-/// takes that height rather than one line's: the settings screen's help text
-/// ran under the row below it.
+// A wrapping label is as tall as its box is narrow, and the row hugging it
+// takes that height rather than one line's: the settings screen's help text
+// ran under the row below it.
 #[test]
 fn a_row_hugging_a_wrapped_label_is_as_tall_as_the_wrap() {
     let (_dir, app) = app();
@@ -268,7 +267,6 @@ fn a_row_hugging_a_wrapped_label_is_as_tall_as_the_wrap() {
     );
 }
 
-/// The text keys `text2d` takes reach a widget and read back as written.
 #[test]
 fn a_widget_takes_the_text_keys_text2d_takes() {
     let (_dir, app) = app();

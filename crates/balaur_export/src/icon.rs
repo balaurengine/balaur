@@ -521,7 +521,6 @@ fn picture(project: &Path, path: &str) -> Result<RgbaImage> {
     })
 }
 
-/// The picture at `size`, as a PNG.
 fn png(picture: &RgbaImage, size: u32) -> Vec<u8> {
     let scaled;
     let at = if picture.width() == size {
@@ -608,7 +607,6 @@ mod tests {
         )
     }
 
-    /// Every entry an `.ico` lists points at a PNG of the size it claims.
     #[test]
     fn an_ico_lists_six_sizes_each_a_png_of_its_size() {
         let ico = icons().ico();
@@ -629,7 +627,7 @@ mod tests {
         }
     }
 
-    /// An `.icns` is its length, then one PNG per OSType, each as long as it says.
+    // An `.icns` is its length, then one PNG per OSType, each as long as it says.
     #[test]
     fn an_icns_carries_every_size_a_mac_draws() {
         let icns = icons().icns();
@@ -681,8 +679,8 @@ mod tests {
         );
     }
 
-    /// The manifest is what an installed page reads its name and icons from,
-    /// and the monochrome form is listed under its own purpose.
+    // The manifest is what an installed page reads its name and icons from,
+    // and the monochrome form is listed under its own purpose.
     #[test]
     fn the_web_manifest_names_the_game_and_its_monochrome_icon() {
         let files = icons().web_files("Say \"hi\"");
@@ -712,8 +710,8 @@ mod tests {
         assert!(colors.contains("#c82828"), "{colors}");
     }
 
-    /// The adaptive layers are 108 dp and the picture sits inside the 66 in
-    /// their middle: a corner of the layer is empty, its centre is not.
+    // The adaptive layers are 108 dp and the picture sits inside the 66 in
+    // their middle: a corner of the layer is empty, its centre is not.
     #[test]
     fn an_android_layout_gets_every_density_and_an_adaptive_icon() {
         let dir = tempfile::tempdir().unwrap();
@@ -748,8 +746,8 @@ mod tests {
         );
     }
 
-    /// Off a Mac there is no `actool`, so an iOS bundle gets the loose files
-    /// and the plist keys that name them.
+    // Off a Mac there is no `actool`, so an iOS bundle gets the loose files
+    // and the plist keys that name them.
     #[cfg(not(target_os = "macos"))]
     #[test]
     fn an_ios_bundle_off_a_mac_gets_loose_icons_and_their_keys() {

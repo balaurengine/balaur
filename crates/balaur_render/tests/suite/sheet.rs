@@ -170,8 +170,8 @@ fn a_sheet_that_does_not_parse_names_the_frame() {
     assert!(error.contains("frame 0"), "unhelpful: {error}");
 }
 
-/// A sheet slice with a nine-patch `center` is drawn as one: the sprite
-/// draws the slice's part of the frame, cut by the margins the centre leaves.
+// A sheet slice with a nine-patch `center` is drawn as one: the sprite
+// draws the slice's part of the frame, cut by the margins the centre leaves.
 #[test]
 fn a_slice_with_a_centre_draws_the_sprite_as_a_nine_patch() {
     let app = app();

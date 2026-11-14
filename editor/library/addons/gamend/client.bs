@@ -189,7 +189,8 @@ pub fn send(socket: int, name: str, args: any) -> bool {
     core::call_hook(socket, plugin(), name, args) > 0
 }
 
-/// A hook reply as a `HookReply`.
+/// A nil reply or a server error is `ok: false` with the reason in `error`;
+/// a server error is also logged as a warning.
 pub fn unpack_hook(name: str, reply: any) -> HookReply {
     if reply == nil {
         return HookReply { ok: false, data: nil, error: "gamend: {name} sent no reply" };

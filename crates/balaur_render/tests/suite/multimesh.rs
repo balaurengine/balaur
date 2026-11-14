@@ -81,8 +81,8 @@ fn an_instance_lands_where_its_transform_puts_it() {
     assert!(near(at[1], Vec3::new(2.0, 1.0, 0.0)), "{at:?}");
 }
 
-/// An instance's transform is in its node's space, so turning and moving the
-/// node carries every instance with it.
+// An instance's transform is in its node's space, so turning and moving the
+// node carries every instance with it.
 #[test]
 fn turning_the_node_turns_its_instances() {
     let (_dir, mut app) = app();
@@ -136,7 +136,7 @@ fn an_empty_list_draws_nothing() {
     );
 }
 
-/// Scenario child is not an instance: it draws once, where it is.
+// Scenario child is not an instance: it draws once, where it is.
 #[test]
 fn a_child_draws_once() {
     let (_dir, mut app) = app();
@@ -187,8 +187,8 @@ fn visible_instance_count_cuts_the_draw() {
     assert_eq!(world.get::<&MultiMesh>(owner).unwrap().instances.len(), 2);
 }
 
-/// Two nodes naming one asset read one parsed definition, and each keeps a
-/// copy of its instances: a change to one node's leaves the other's alone.
+// Two nodes naming one asset read one parsed definition, and each keeps a
+// copy of its instances: a change to one node's leaves the other's alone.
 #[test]
 fn two_nodes_share_one_asset_and_part_ways_once_one_is_changed() {
     let (dir, mut app) = app();
@@ -231,8 +231,8 @@ fn two_nodes_share_one_asset_and_part_ways_once_one_is_changed() {
     assert!(near(first.instances[0].position, Vec3::new(1.0, 0.0, 0.0)));
 }
 
-/// A saved asset reaches the node holding a copy of it: the component's own
-/// values did not move, only the file under them.
+// A saved asset reaches the node holding a copy of it: the component's own
+// values did not move, only the file under them.
 #[test]
 fn a_saved_asset_copies_its_instances_again() {
     let (dir, mut app) = app();
@@ -271,8 +271,8 @@ fn a_saved_asset_copies_its_instances_again() {
     assert!(near(drawn[1], Vec3::new(2.0, 0.0, 0.0)));
 }
 
-/// Scenario patch of another key keeps what was done to the node's instances; a new
-/// source copies the new asset's.
+// Scenario patch of another key keeps what was done to the node's instances; a new
+// source copies the new asset's.
 #[test]
 fn a_patch_that_keeps_the_source_keeps_the_nodes_instances() {
     let (_dir, mut app) = app();
@@ -299,7 +299,7 @@ fn a_patch_that_keeps_the_source_keeps_the_nodes_instances() {
     assert!(near(placed(&app, owner)[0], Vec3::new(7.0, 0.0, 0.0)));
 }
 
-/// What a scene saves: the component, not a `mesh` or a `polygon` beside it.
+// What a scene saves: the component, not a `mesh` or a `polygon` beside it.
 #[test]
 fn a_multimesh_reads_back_as_itself_and_nothing_else() {
     let (_dir, mut app) = app();
@@ -435,8 +435,8 @@ source = "#posts"
     (app, errors, all)
 }
 
-/// The instance a script moves every frame reads back where it was put, and
-/// the other node drawing the same asset keeps its own.
+// The instance a script moves every frame reads back where it was put, and
+// the other node drawing the same asset keeps its own.
 #[test]
 fn a_script_moves_an_instance_every_frame_and_reads_it_back() {
     let (app, errors, lines) = run_shared(
@@ -526,8 +526,8 @@ impl Scenario {
     );
 }
 
-/// `instances()` hands back the asset's own shape, so a list read off one
-/// node sets another's whole.
+// `instances()` hands back the asset's own shape, so a list read off one
+// node sets another's whole.
 #[test]
 fn instances_read_off_one_node_set_another_whole() {
     let (app, errors, _) = run_shared(
@@ -554,7 +554,7 @@ impl Scenario {
     assert!(same(multimesh.instances[1].custom, [1.0, 2.0, 3.0, 4.0]));
 }
 
-/// Scenario shear a script hands an instance is kept as its basis.
+// Scenario shear a script hands an instance is kept as its basis.
 #[test]
 fn a_script_keeps_a_shear() {
     let (app, errors, _) = run_shared(
@@ -654,7 +654,6 @@ impl Scenario {
     );
 }
 
-/// Scenario 2D instance's texture rectangle reads back as it was set.
 #[test]
 fn an_instance_answers_the_texture_rectangle_its_row_names() {
     let (_app, errors, lines) = run_shared_as(

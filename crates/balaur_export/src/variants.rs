@@ -134,9 +134,9 @@ mod tests {
         out
     }
 
-    /// A smaller copy in the original's place still measures as the original:
-    /// the fold leaves the drawn size beside it, and says nothing when the
-    /// two are the same shape.
+    // A smaller copy in the original's place still measures as the original:
+    // the fold leaves the drawn size beside it, and says nothing when the
+    // two are the same shape.
     #[test]
     fn folding_a_smaller_variant_records_the_size_it_was_drawn_at() {
         let mut pack = Pack::default();
@@ -160,8 +160,8 @@ mod tests {
         assert_eq!(pack.assets.get("sprites/hero.png"), Some(&png(4, 2)));
     }
 
-    /// A copy of another shape draws stretched, which is a resize gone wrong
-    /// rather than a smaller picture; the author hears about it.
+    // A copy of another shape draws stretched, which is a resize gone wrong
+    // rather than a smaller picture; the author hears about it.
     #[test]
     fn a_variant_of_another_shape_is_warned_about() {
         let mut pack = Pack::default();
@@ -190,8 +190,8 @@ mod tests {
         assert!(!pack.assets.contains_key("sprites/hero.android.png"));
     }
 
-    /// A phone's texture is not shipped to a desktop, and the desktop's own
-    /// file is the one it always was.
+    // A phone's texture is not shipped to a desktop, and the desktop's own
+    // file is the one it always was.
     #[test]
     fn a_variant_no_tag_selects_never_ships() {
         let mut pack = pack_with(&["sprites/hero.png", "sprites/hero.android.png"]);
@@ -201,8 +201,8 @@ mod tests {
         assert_eq!(pack.assets.len(), 1);
     }
 
-    /// Two variants a target answers to are decided the way an override is:
-    /// the narrower tag wins, whatever order the files sort in.
+    // Two variants a target answers to are decided the way an override is:
+    // the narrower tag wins, whatever order the files sort in.
     #[test]
     fn the_narrower_tag_wins_between_two_variants() {
         let mut pack = pack_with(&[
@@ -216,8 +216,8 @@ mod tests {
         assert_eq!(pack.assets.len(), 1);
     }
 
-    /// A file with a dot in its name is not a variant: only the closed tag
-    /// set counts, so `hero.old.png` ships as itself.
+    // A file with a dot in its name is not a variant: only the closed tag
+    // set counts, so `hero.old.png` ships as itself.
     #[test]
     fn a_middle_segment_that_is_not_a_tag_is_left_alone() {
         let mut pack = pack_with(&["sprites/hero.old.png"]);
@@ -226,8 +226,8 @@ mod tests {
         assert!(pack.assets.contains_key("sprites/hero.old.png"));
     }
 
-    /// A project's own tag names a variant too, and a build that does not
-    /// answer to it drops the file like any other variant.
+    // A project's own tag names a variant too, and a build that does not
+    // answer to it drops the file like any other variant.
     #[test]
     fn a_project_s_own_tag_names_a_variant() {
         let declared = ["demo".to_string()];
@@ -243,8 +243,8 @@ mod tests {
         assert_eq!(pack.assets.len(), 1);
     }
 
-    /// A variant with no canonical file beside it still ships, under the name
-    /// it varies: a game may have only the phone's copy of a thing.
+    // A variant with no canonical file beside it still ships, under the name
+    // it varies: a game may have only the phone's copy of a thing.
     #[test]
     fn a_variant_without_a_canonical_file_becomes_one() {
         let mut pack = pack_with(&["sprites/pad.android.png"]);

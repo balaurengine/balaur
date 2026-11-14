@@ -786,8 +786,8 @@ mod tests {
         );
     }
 
-    /// The message names every root, because "no runtime" with no list is
-    /// the failure a first export hits and cannot act on.
+    // The message names every root, because "no runtime" with no list is
+    // the failure a first export hits and cannot act on.
     #[test]
     fn a_missing_runtime_names_where_it_looked() {
         let roots = vec![std::path::PathBuf::from("/nowhere/runtimes")];
@@ -798,8 +798,8 @@ mod tests {
         assert!(err.contains("/nowhere/runtimes"), "{err}");
     }
 
-    /// A default `Options` exports a pack and reaches no network: the shape
-    /// the editor gets before any destination is configured.
+    // A default `Options` exports a pack and reaches no network: the shape
+    // the editor gets before any destination is configured.
     #[test]
     fn options_default_to_a_pack_and_no_download() {
         let opts = Options::default();

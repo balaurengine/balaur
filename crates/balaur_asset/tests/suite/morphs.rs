@@ -180,7 +180,7 @@ fn a_glb_keeps_the_shapes_it_can_blend_towards() {
     );
 }
 
-/// A mesh with nothing to blend carries no targets, rather than an empty one.
+// A mesh with nothing to blend carries no targets, rather than an empty one.
 #[test]
 fn a_mesh_with_no_shapes_carries_none() {
     let value: toml::Value =

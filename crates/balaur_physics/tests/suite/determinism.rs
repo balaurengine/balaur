@@ -177,8 +177,8 @@ fn simulation_2d_is_bitwise_reproducible() {
     assert!(resting, "ball should rest on the ground: {a:?}");
 }
 
-/// The end state agreeing is weaker than every tick agreeing: two runs can
-/// part in the middle and land on the same rest position.
+// The end state agreeing is weaker than every tick agreeing: two runs can
+// part in the middle and land on the same rest position.
 #[test]
 fn two_runs_agree_on_every_tick_not_just_the_last() {
     let dir = tempfile::tempdir().unwrap();

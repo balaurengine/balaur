@@ -381,8 +381,8 @@ mod tests {
     use crate::widget::theme::{Gradient, GradientShape, Shadow, Style};
     use egui::Color32;
 
-    /// The gradient runs along its angle: at 0 the left edge is `from` and
-    /// the right `to`, and the shadow paints under it.
+    // The gradient runs along its angle: at 0 the left edge is `from` and
+    // the right `to`, and the shadow paints under it.
     #[test]
     fn a_gradient_frame_colours_its_edges_from_and_to_over_a_shadow() {
         let card = Style {
@@ -427,8 +427,8 @@ mod tests {
         );
     }
 
-    /// A radial gradient is its first stop at its centre and its last at its
-    /// reach, smooth between: the rings carry the middle stop.
+    // A radial gradient is its first stop at its centre and its last at its
+    // reach, smooth between: the rings carry the middle stop.
     #[test]
     fn a_radial_gradient_runs_out_from_its_centre() {
         let glow = Gradient {

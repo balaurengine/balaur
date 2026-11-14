@@ -666,8 +666,8 @@ mod tests {
 
     use super::{FillRule2d, Operation2d, Operation3d};
 
-    /// The operations and fill rules a boolean offers are the ones core
-    /// combines by.
+    // The operations and fill rules a boolean offers are the ones core
+    // combines by.
     #[test]
     fn a_boolean_offers_the_words_core_reads() {
         assert_eq!(Operation3d::OPTIONS, csg::words::OPS);

@@ -19,8 +19,8 @@ impl ScriptCompiler for Keeping {
     }
 }
 
-/// An export carries what the game and the dependency's scripts name, in the
-/// game's spelling, and drops the rest of the dependency.
+// An export carries what the game and the dependency's scripts name, in the
+// game's spelling, and drops the rest of the dependency.
 #[test]
 fn an_export_carries_only_what_the_game_names() {
     let mut kit = kit();

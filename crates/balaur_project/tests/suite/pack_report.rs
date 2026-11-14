@@ -76,7 +76,7 @@ fn a_path_in_a_script_literal_counts_as_a_reference() {
     assert!(balaur_project::packing::unreferenced(&pack, &[]).is_empty());
 }
 
-/// The window shows the icon while the game runs, from the pack.
+// The window shows the icon while the game runs, from the pack.
 #[test]
 fn a_picture_the_manifest_names_survives_a_strip() {
     let mut pack = two_textures();
@@ -213,8 +213,8 @@ fn the_reports_display_names_every_section_and_the_unreferenced_count() {
     assert!(printed.contains("1 file nothing references, 32 B"));
 }
 
-/// The UI finds faces by listing `fonts/`, so no scene names one and a strip
-/// that trusted references alone would take a project's text away.
+// The UI finds faces by listing `fonts/`, so no scene names one and a strip
+// that trusted references alone would take a project's text away.
 #[test]
 fn a_font_is_never_unreferenced_though_nothing_names_it() {
     let mut pack = Pack {

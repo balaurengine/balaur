@@ -354,8 +354,8 @@ mod tests {
             .collect()
     }
 
-    /// `audio.bus_effects` hands back the keys `[audio.buses]` spells, so a
-    /// script reads a bus's effects by the names the project wrote them in.
+    // `audio.bus_effects` hands back the keys `[audio.buses]` spells, so a
+    // script reads a bus's effects by the names the project wrote them in.
     #[test]
     fn bus_effects_reads_back_a_buses_keys_and_nil_without_any() {
         let dir = tempfile::tempdir().unwrap();

@@ -883,8 +883,8 @@ mod tests {
         }
     }
 
-    /// A template written before the attribute existed still takes one: the
-    /// activity gets it added rather than the export failing.
+    // A template written before the attribute existed still takes one: the
+    // activity gets it added rather than the export failing.
     #[test]
     fn an_orientation_reaches_the_activity() {
         let config = AndroidConfig {
@@ -898,7 +898,7 @@ mod tests {
         );
     }
 
-    /// A game that names none writes the manifest it always did.
+    // A game that names none writes the manifest it always did.
     #[test]
     fn no_orientation_leaves_the_manifest_alone() {
         let xml = named().manifest(TEMPLATE_WITH_ACTIVITY).unwrap();
@@ -915,8 +915,8 @@ mod tests {
         assert!(xml.contains(r#"android:minSdkVersion="26""#), "{xml}");
     }
 
-    /// Nothing is invented: each key missing is refused by name, in the order
-    /// a project would fill them in.
+    // Nothing is invented: each key missing is refused by name, in the order
+    // a project would fill them in.
     #[test]
     fn a_game_that_declares_nothing_is_refused_key_by_key() {
         let refusal = |config: AndroidConfig| config.manifest(TEMPLATE).unwrap_err().to_string();

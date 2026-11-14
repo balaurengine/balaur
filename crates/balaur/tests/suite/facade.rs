@@ -337,8 +337,8 @@ fn a_packed_project_lists_and_reads_its_documents() {
     assert_eq!(balaur::strings::locales(&app.engine), ["en", "ro"]);
 }
 
-/// The keyboard moves focus until the game shows the keys are its own, and a
-/// menu's actions keep it moving focus.
+// The keyboard moves focus until the game shows the keys are its own, and a
+// menu's actions keep it moving focus.
 #[test]
 fn the_focus_keys_stay_the_widgets_until_the_game_takes_them() {
     let keyboard_after = |manifest: &str, script: (&str, &str)| {
@@ -542,10 +542,8 @@ fn mouse_position_is_readable_without_a_window() {
     );
 }
 
-/// A sidecar is a document, and a pack keeps its documents apart from its
-/// assets: an image's settings used to be read from the assets alone, so a
-/// shipped game sampled every texture at the defaults it was imported to
-/// avoid. The size a smaller copy was drawn at rides the same key.
+// A sidecar is a document, and a pack keeps its documents apart from its assets. The size a smaller
+// copy was drawn at rides the same key.
 #[test]
 fn a_packed_project_reads_its_image_sidecars() {
     const PIXEL: &[u8] = &[

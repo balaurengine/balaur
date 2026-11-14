@@ -101,8 +101,8 @@ fn a_2d_body_takes_the_same_keys() {
     assert!((float(&back, "sleep_threshold") - 0.4).abs() < 1e-6);
 }
 
-/// `initial_*` is a create-time key: a patch carries it, and must not throw a
-/// body that has since slowed back up to it.
+// `initial_*` is a create-time key: a patch carries it, and must not throw a
+// body that has since slowed back up to it.
 #[test]
 fn an_initial_velocity_is_given_once_and_never_by_a_patch() {
     let app = app();
@@ -194,8 +194,8 @@ fn a_body_made_asleep_hangs_until_something_wakes_it() {
     );
 }
 
-/// A body held awake carries negative thresholds; what the author wrote has
-/// to survive that and come back when sleep is allowed again.
+// A body held awake carries negative thresholds; what the author wrote has
+// to survive that and come back when sleep is allowed again.
 #[test]
 fn a_body_held_awake_keeps_its_sleep_thresholds() {
     let app = app();

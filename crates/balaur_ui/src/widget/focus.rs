@@ -418,8 +418,8 @@ mod tests {
         assert_eq!(around(stops[3].1, Side::Left, &stops), Some(stops[5].0));
     }
 
-    /// A wide button over two narrow ones goes down to the nearer one in
-    /// line, and a narrow one off to the side still goes up to it.
+    // A wide button over two narrow ones goes down to the nearer one in
+    // line, and a narrow one off to the side still goes up to it.
     #[test]
     fn a_stop_in_line_wins_over_a_nearer_one_aside() {
         let e = |n: u64| Entity::from_bits(n | (1 << 32)).unwrap();

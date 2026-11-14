@@ -543,9 +543,7 @@ mod tests {
         assert!(fs.mtime(Path::new("/p/scenes/main.toml")).unwrap() > before);
     }
 
-    /// The stamp is per file. Before this, every file answered the time of
-    /// the latest write anywhere, so touching one script re-fingerprinted
-    /// them all.
+    // A shared stamp would re-fingerprint every script when one is touched.
     #[test]
     fn writing_one_file_leaves_the_others_stamps_alone() {
         let fs = seeded();

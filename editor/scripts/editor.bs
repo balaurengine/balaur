@@ -1221,7 +1221,6 @@ impl Editor {
         shell::choose(self.state, row);
     }
 
-    /// Open the project's scene at `rel`.
     pub fn open_scene(rel: str) {
         model::open_scene(self.state, rel);
     }
@@ -1744,7 +1743,6 @@ impl Editor {
         inspector::reread(self.state)
     }
 
-    /// The Inspector's form scrolled to `offset`.
     pub fn inspector_scrolled(offset: float) {
         inspector::scrolled(self.state, offset);
     }

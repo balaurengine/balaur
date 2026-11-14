@@ -199,8 +199,8 @@ fn the_same_parameters_give_the_same_mesh() {
     }
 }
 
-/// The grid's corners land on the half-extents exactly, with no arithmetic
-/// between them and the numbers asked for, so exact equality is the claim.
+// The grid's corners land on the half-extents exactly, with no arithmetic
+// between them and the numbers asked for, so exact equality is the claim.
 #[test]
 #[allow(
     clippy::float_cmp,

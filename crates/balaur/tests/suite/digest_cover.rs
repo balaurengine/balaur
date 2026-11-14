@@ -54,11 +54,7 @@ name = "Bare"
 parent = "n_root"
 "#;
 
-/// Every component that answers `get` on a node has its bit set. The digest
-/// hashes the bits, so a component missing one is a component nothing checks.
-///
-/// Over the scene above and then over every component the registry will add
-/// with its own defaults, which is most of them.
+// The digest hashes the bits, so a component missing one is a component nothing checks.
 #[test]
 fn the_bits_a_digest_walks_cover_every_component_a_node_reports() {
     let dir = tempfile::tempdir().unwrap();

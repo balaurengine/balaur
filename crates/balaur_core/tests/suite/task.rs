@@ -47,8 +47,8 @@ impl Stepped for Ticker {
 
 static RAN: AtomicUsize = AtomicUsize::new(0);
 
-/// One `pump` is one slice, whatever the job has left: this is what keeps a
-/// tab painting through an import rather than freezing for all of it.
+// One `pump` is one slice, whatever the job has left: this is what keeps a
+// tab painting through an import rather than freezing for all of it.
 #[test]
 fn the_pump_advances_a_parked_job_one_slice_at_a_time() {
     let app = App::new(AppConfig::bare(".")).unwrap();
@@ -71,7 +71,7 @@ fn the_pump_advances_a_parked_job_one_slice_at_a_time() {
     assert_eq!(*slices.borrow(), vec![3, 2, 1]);
 }
 
-/// A job on a thread runs to the end without anything pumping it.
+// A job on a thread runs to the end without anything pumping it.
 #[test]
 fn a_job_handed_a_thread_runs_to_completion() {
     RAN.store(0, Ordering::Relaxed);

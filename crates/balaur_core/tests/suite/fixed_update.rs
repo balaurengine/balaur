@@ -61,8 +61,8 @@ fn time_past_the_substep_cap_is_dropped_rather_than_caught_up_on() {
     assert_eq!(seen.borrow().len(), MAX_SUBSTEPS as usize);
 }
 
-/// The variable stage still sees the real frame time — it is the half of the
-/// split that presentation code wants.
+// The variable stage still sees the real frame time — it is the half of the
+// split that presentation code wants.
 #[test]
 fn the_update_stage_still_sees_the_measured_frame_time() {
     let mut app = app();

@@ -810,8 +810,8 @@ mod tests {
         assert_eq!(back["app"]["name"].as_str(), Some("g"));
     }
 
-    /// A list written whole keeps the comment its first block carried, which
-    /// is the file's header when the list opens the file.
+    // A list written whole keeps the comment its first block carried, which
+    // is the file's header when the list opens the file.
     #[test]
     fn a_list_written_whole_keeps_the_header_above_it() {
         let text = patched(

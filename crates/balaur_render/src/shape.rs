@@ -534,8 +534,8 @@ mod tests {
 
     use super::{FlatShape, LineCap, LineJoin, SolidShape};
 
-    /// The kinds a shape offers are the ones the mesher builds, and a line's
-    /// joins and caps the ones a stroke reads: core owns each list.
+    // The kinds a shape offers are the ones the mesher builds, and a line's
+    // joins and caps the ones a stroke reads: core owns each list.
     #[test]
     fn a_shape_offers_the_words_core_reads() {
         assert_eq!(SolidShape::OPTIONS, primitive::SOLIDS);

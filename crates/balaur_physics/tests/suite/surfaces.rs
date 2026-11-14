@@ -11,8 +11,8 @@ fn booted(scene: &str) -> Booted {
     b
 }
 
-/// A platform tilted 16.7 degrees off up and a ball dropped on it: the
-/// default 0.1 radian window lets the ball through, a 0.5 radian one holds it.
+// A platform tilted 16.7 degrees off up and a ball dropped on it: the
+// default 0.1 radian window lets the ball through, a 0.5 radian one holds it.
 #[test]
 fn a_one_way_platform_holds_its_exact_axis_and_angle() {
     let mut b = booted(

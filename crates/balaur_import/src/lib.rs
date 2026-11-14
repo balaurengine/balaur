@@ -585,8 +585,8 @@ mod tests {
       ]
     }"#;
 
-    /// The importer's three files, parsed by the parsers the engine loads
-    /// them with: the sheet as a `sprite_sheet`, every clip as a clip.
+    // The importer's three files, parsed by the parsers the engine loads
+    // them with: the sheet as a `sprite_sheet`, every clip as a clip.
     #[test]
     fn importing_a_sprite_writes_a_page_a_sheet_and_a_clip_per_tag() {
         let project = tempfile::tempdir().unwrap();
@@ -620,8 +620,8 @@ mod tests {
         }
     }
 
-    /// A level goes to the importer its extension names, and what lands on
-    /// disk is a scene the engine loads: one root, the layers under it.
+    // A level goes to the importer its extension names, and what lands on
+    // disk is a scene the engine loads: one root, the layers under it.
     #[test]
     fn a_ldtk_level_is_routed_by_extension_and_lands_as_a_scene_that_loads() {
         let project = tempfile::tempdir().unwrap();
@@ -638,8 +638,8 @@ mod tests {
         );
     }
 
-    /// Bytes and a path are the same import: the drop a browser tab takes and
-    /// the command a desktop runs write the same files.
+    // Bytes and a path are the same import: the drop a browser tab takes and
+    // the command a desktop runs write the same files.
     #[test]
     fn bytes_and_a_path_import_the_same_files() {
         let from_path = tempfile::tempdir().unwrap();
@@ -669,8 +669,8 @@ mod tests {
         }
     }
 
-    /// The importer reads and writes through the engine's file backend, which
-    /// is what lets a browser tab import into the project it holds in memory.
+    // The importer reads and writes through the engine's file backend, which
+    // is what lets a browser tab import into the project it holds in memory.
     #[test]
     fn an_import_reads_and_writes_the_backend_and_not_the_disk() {
         let fs = std::rc::Rc::new(balaur_core::files::MemoryFs::new());
@@ -696,8 +696,8 @@ mod tests {
         }
     }
 
-    /// A plan writes one file per slice, which is what lets a caller keep its
-    /// frame: the same files land as `import_bytes` writes in one call.
+    // A plan writes one file per slice, which is what lets a caller keep its
+    // frame: the same files land as `import_bytes` writes in one call.
     #[test]
     fn a_plan_writes_one_file_per_slice() {
         use crate::Sink as _;

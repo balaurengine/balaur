@@ -259,7 +259,7 @@ fn row(table: &dyn toml_edit::TableLike, source: &str, found: &mut RowNames) {
     }
 }
 
-/// The line and column, from 1, of byte `at` of `source`.
+/// Both count from 1; `at` is a byte offset.
 fn line_column(source: &str, at: usize) -> (usize, usize) {
     let before = &source[..at.min(source.len())];
     let line_start = before.rfind('\n').map_or(0, |found| found + 1);

@@ -836,10 +836,8 @@ fn a_part_the_file_does_not_name_says_what_it_does_name() {
     );
 }
 
-/// A texture is copied, never decoded, so the import does not read one.
-///
-/// Sponza's 69 images are 41 MB of its 50, and holding them to write them is
-/// what made importing it cost the whole model in memory.
+// Sponza's 69 images are 41 MB of its 50: holding them to write them cost the whole model in
+// memory.
 #[test]
 fn an_image_the_file_names_is_not_read_while_importing() {
     let (plain, bin) = column_parts(Buffer::Side, false);
@@ -884,11 +882,8 @@ fn an_image_the_file_names_is_not_read_while_importing() {
     assert!(sidecar.1.bytes().is_some());
 }
 
-/// A map is only half of what a file says about a texture; the other half is
-/// how to sample it, and Balaur's own defaults are not glTF's.
-///
-/// A floor whose UVs run past one and whose sampler was dropped clamps to a
-/// single texel and draws flat, which is what the sidecar exists to stop.
+// Balaur's sampler defaults are not glTF's: without the sidecar, a floor whose UVs run past one
+// clamps to a single texel and draws flat.
 #[test]
 fn a_texture_keeps_the_sampler_the_file_gave_it() {
     let imported = imported_two_materials();
@@ -916,9 +911,9 @@ fn a_texture_keeps_the_sampler_the_file_gave_it() {
     assert_eq!(settings.get("anisotropy").unwrap().as_integer(), Some(16));
 }
 
-/// sRGB describes colour, and a normal or a roughness is not colour: read back
-/// through that curve a stored roughness of 0.19 becomes 0.03, and the scene
-/// of mirrors that makes turns every glancing surface white.
+// sRGB describes colour, and a normal or a roughness is not colour: read back
+// through that curve a stored roughness of 0.19 becomes 0.03, and the scene
+// of mirrors that makes turns every glancing surface white.
 #[test]
 fn only_the_colour_maps_are_marked_srgb() {
     let imported = imported_two_materials();

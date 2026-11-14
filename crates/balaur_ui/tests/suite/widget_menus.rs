@@ -38,8 +38,8 @@ fn a_menu_reports_the_item_that_was_picked() {
     );
 }
 
-/// A menu's rows can be nodes: an icon, a shortcut and a tick are widgets
-/// like any other, which a flat list of strings cannot carry.
+// A menu's rows can be nodes: an icon, a shortcut and a tick are widgets
+// like any other, which a flat list of strings cannot carry.
 #[test]
 fn a_menu_opens_its_child_rows() {
     let (_dir, mut app) = app();
@@ -94,8 +94,8 @@ fn a_menu_opens_its_child_rows() {
     assert!(!clicked(&app, rows[0]), "the click reached the wrong row");
 }
 
-/// An action row closes its menu; a toggle row says `keep_open` and stays,
-/// which is what a grid of panel ticks needs.
+// An action row closes its menu; a toggle row says `keep_open` and stays,
+// which is what a grid of panel ticks needs.
 #[test]
 fn a_row_closes_its_menu_unless_it_keeps_it_open() {
     for (keep, open_after) in [(false, false), (true, true)] {
@@ -132,8 +132,8 @@ fn a_row_closes_its_menu_unless_it_keeps_it_open() {
     }
 }
 
-/// `showing` holds a menu's rows up with no click, which is the only way an
-/// offscreen run or a tutorial can show one.
+// `showing` holds a menu's rows up with no click, which is the only way an
+// offscreen run or a tutorial can show one.
 #[test]
 fn a_showing_menu_is_open_without_a_click() {
     let (_dir, app) = app();
@@ -153,8 +153,8 @@ fn a_showing_menu_is_open_without_a_click() {
     assert!(drawn, "a showing menu drew no rows");
 }
 
-/// A menu whose rows are nodes is measured as the button it draws: its picture
-/// and caret included, or whatever sits after it in a row draws over it.
+// A menu whose rows are nodes is measured as the button it draws: its picture
+// and caret included, or whatever sits after it in a row draws over it.
 #[test]
 fn a_menu_button_holds_its_room_in_a_row() {
     let (dir, app) = app();
@@ -223,9 +223,9 @@ fn context_scene(app: &balaur_core::App, kind: &str) -> Entity {
     target
 }
 
-/// A secondary click on a widget opens the menu its `context` names, at the
-/// pointer, without the menu's own button ever drawing; and the widget's own
-/// click is not reported, since only the primary button clicks.
+// A secondary click on a widget opens the menu its `context` names, at the
+// pointer, without the menu's own button ever drawing; and the widget's own
+// click is not reported, since only the primary button clicks.
 #[test]
 fn a_secondary_click_opens_the_named_menu_at_the_pointer() {
     let (_dir, mut app) = app();
@@ -267,9 +267,9 @@ fn a_secondary_click_opens_the_named_menu_at_the_pointer() {
     );
 }
 
-/// A finger held on a widget past egui's click length is the same press as a
-/// secondary click, on a label as much as on a button: the sensor under the
-/// kind is what egui holds the touch on.
+// A finger held on a widget past egui's click length is the same press as a
+// secondary click, on a label as much as on a button: the sensor under the
+// kind is what egui holds the touch on.
 #[test]
 fn a_long_touch_opens_the_named_menu() {
     let (_dir, app) = app();
@@ -294,8 +294,8 @@ fn a_long_touch_opens_the_named_menu() {
     );
 }
 
-/// A press on a child that names a menu is the child's; the parent naming
-/// another opens nothing for the same press.
+// A press on a child that names a menu is the child's; the parent naming
+// another opens nothing for the same press.
 #[test]
 fn the_innermost_context_takes_the_press() {
     let (_dir, app) = app();
@@ -340,8 +340,8 @@ fn the_innermost_context_takes_the_press() {
     );
 }
 
-/// Where a menu opens is the node's to say: under its button, above it, at
-/// the pointer, or over the middle of the screen.
+// Where a menu opens is the node's to say: under its button, above it, at
+// the pointer, or over the middle of the screen.
 #[test]
 fn a_menu_opens_where_its_placement_says() {
     for placement in ["below", "above", "pointer", "center"] {
@@ -387,8 +387,8 @@ fn a_menu_opens_where_its_placement_says() {
     }
 }
 
-/// A menu inside a menu is a submenu: it opens to the side when the pointer
-/// rests on its row, and the menu it hangs off stays up.
+// A menu inside a menu is a submenu: it opens to the side when the pointer
+// rests on its row, and the menu it hangs off stays up.
 #[test]
 fn a_menu_row_that_is_a_menu_opens_to_the_side() {
     let (_dir, app) = app();
@@ -425,8 +425,8 @@ fn a_menu_row_that_is_a_menu_opens_to_the_side() {
     );
 }
 
-/// A row's chord clicks it while its menu is shut, and the row draws the
-/// chord against its far edge without being told to twice.
+// A row's chord clicks it while its menu is shut, and the row draws the
+// chord against its far edge without being told to twice.
 #[test]
 fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
     let (_dir, mut app) = app();
@@ -477,8 +477,8 @@ fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
     );
 }
 
-/// The outliner's case: a `tree` naming a hidden menu opens it over the row a
-/// right click lands on, as a button naming one does.
+// The outliner's case: a `tree` naming a hidden menu opens it over the row a
+// right click lands on, as a button naming one does.
 #[test]
 fn a_secondary_click_on_a_tree_row_opens_the_named_menu() {
     let (_dir, app) = app();

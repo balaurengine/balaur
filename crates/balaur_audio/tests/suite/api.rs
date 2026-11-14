@@ -37,8 +37,8 @@ fn undecodable_bytes_hand_out_a_silent_handle_instead_of_erroring() {
     assert_ne!(first, second, "every play hands out a fresh handle");
 }
 
-/// The answer comes off the handle's own bookkeeping, so a machine with no
-/// output device says what one with a sound card says.
+// The answer comes off the handle's own bookkeeping, so a machine with no
+// output device says what one with a sound card says.
 #[test]
 fn a_played_handle_answers_playing_until_it_is_stopped() {
     let app = app();

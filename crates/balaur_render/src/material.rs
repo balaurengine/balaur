@@ -934,9 +934,9 @@ struct Out { @location(0) color: vec4<f32> }
         assert!(transparent_variant(&material, source, &[], false).is_none());
     }
 
-    /// The physically based module links against the mesh contract, with the
-    /// texture slots and the BRDF it adds. A shader that imports it and calls
-    /// `shade` is a whole material.
+    // The physically based module links against the mesh contract, with the
+    // texture slots and the BRDF it adds. A shader that imports it and calls
+    // `shade` is a whole material.
     #[test]
     fn the_pbr_module_links_over_the_mesh_contract() {
         let shader = r"
@@ -959,8 +959,8 @@ import package::pbr::{shade, default_surface, shade_pbr};
         compile(&material, shader, &[], false).expect("package::pbr links");
     }
 
-    /// A `[params]` string that names an image binds a texture slot; one that
-    /// names a slot with anything else is refused rather than read as a colour.
+    // A `[params]` string that names an image binds a texture slot; one that
+    // names a slot with anything else is refused rather than read as a colour.
     #[test]
     fn an_image_param_binds_the_slot_it_is_named_for() {
         let value: toml::Value = toml::from_str(

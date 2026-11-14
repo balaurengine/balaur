@@ -393,8 +393,8 @@ pub(crate) fn draw(
 mod tests {
     use super::{Emitter3d, Particles3d};
 
-    /// The direction a scene writes is held as written; the emitter leaves
-    /// along its unit vector, and along up where it names none.
+    // The direction a scene writes is held as written; the emitter leaves
+    // along its unit vector, and along up where it names none.
     #[test]
     fn an_emitter_leaves_along_the_unit_vector_its_direction_names() {
         let asked = Particles3d {

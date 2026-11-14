@@ -44,7 +44,6 @@ fn with_body_params(app: &App, e: Entity, params: &str) -> Entity {
     e
 }
 
-/// Every property the body schema declares, written and read back.
 #[test]
 fn body_properties_round_trip() {
     let app = app();
@@ -89,8 +88,8 @@ time_to_sleep = 1.5"#,
     assert_eq!(flags("lock_rotation"), ["x", "z"]);
 }
 
-/// Sleeping is held off by the thresholds, not by the timer, so the number
-/// the author wrote survives being unable to sleep and comes back on.
+// Sleeping is held off by the thresholds, not by the timer, so the number
+// the author wrote survives being unable to sleep and comes back on.
 #[test]
 fn sleep_time_survives_a_body_that_cannot_sleep() {
     let app = app();
@@ -122,7 +121,7 @@ fn sleep_time_survives_a_body_that_cannot_sleep() {
     );
 }
 
-/// The point of `lock_*`: a locked axis does not move, and its neighbours do.
+// The point of `lock_*`: a locked axis does not move, and its neighbours do.
 #[test]
 fn a_locked_axis_holds_still() {
     let mut app = app();
@@ -143,8 +142,8 @@ fn a_locked_axis_holds_still() {
     );
 }
 
-/// `gravity_scale = 0` is the floating platform, and it must not need a
-/// static body to hold still.
+// `gravity_scale = 0` is the floating platform, and it must not need a
+// static body to hold still.
 #[test]
 fn gravity_scale_zero_hangs_in_the_air() {
     let mut app = app();
@@ -156,8 +155,8 @@ fn gravity_scale_zero_hangs_in_the_air() {
     assert!(world.get::<&Transform>(e).unwrap().position.y.abs() < 1e-5);
 }
 
-/// Applying the component again must not throw the body's velocity away —
-/// which is what rebuilding it used to do, and why `write_body` exists.
+// Applying the component again must not throw the body's velocity away; `write_body` exists for
+// this.
 #[test]
 fn re_applying_a_body_keeps_its_velocity() {
     let mut app = app();
@@ -204,7 +203,7 @@ fn changing_kind_keeps_the_body() {
     assert!(state.world.bodies[handle].is_kinematic());
 }
 
-/// Extra mass is extra: a heavier body pushes a lighter one, not the reverse.
+// Extra mass is extra: a heavier body pushes a lighter one, not the reverse.
 #[test]
 fn mass_is_the_total_and_zero_sums_the_colliders() {
     let mut app = app();
@@ -256,8 +255,8 @@ fn mass_is_the_total_and_zero_sums_the_colliders() {
     );
 }
 
-/// A body that cannot sleep keeps being simulated, which is what a networked
-/// game and a rollback ring both depend on.
+// A body that cannot sleep keeps being simulated, which is what a networked
+// game and a rollback ring both depend on.
 #[test]
 fn can_sleep_false_keeps_a_body_awake() {
     let mut app = app();
@@ -330,8 +329,8 @@ mass = 5.0"#,
     assert!(state.world.bodies[state.bodies[&e]].mass() >= 5.0);
 }
 
-/// `mass`, `inertia` and `center_of_mass` are authored and were reported by
-/// neither dimension, so an inspector save dropped them.
+// `mass`, `inertia` and `center_of_mass` are authored and were reported by
+// neither dimension, so an inspector save dropped them.
 #[test]
 fn a_body_reports_the_mass_properties_it_was_given() {
     let app = app();
@@ -362,8 +361,8 @@ gyroscopic_forces = true"#,
     assert!((com[1].as_float().unwrap() - 0.5).abs() < 1e-5);
 }
 
-/// The 2D twin. `inertia` is one number there, and there is no `gyroscopic`:
-/// rapier2d gates it behind its 3D build.
+// The 2D twin. `inertia` is one number there, and there is no `gyroscopic`:
+// rapier2d gates it behind its 3D build.
 #[test]
 fn a_2d_body_reports_the_mass_properties_it_was_given() {
     let app = app();
@@ -429,7 +428,7 @@ fn principal_inertia_3d(app: &App, e: Entity) -> [f32; 3] {
     sorted
 }
 
-/// Rapier derives no inertia for stated mass properties, so Balaur fits one.
+// Rapier derives no inertia for stated mass properties, so Balaur fits one.
 #[test]
 fn a_body_with_a_centre_of_mass_and_no_inertia_still_turns() {
     let app = app();

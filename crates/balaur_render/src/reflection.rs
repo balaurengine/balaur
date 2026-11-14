@@ -123,7 +123,6 @@ pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
     out
 }
 
-/// The `reflection_probe` component.
 pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
     reg.add_component::<ReflectionProbe>();
 }

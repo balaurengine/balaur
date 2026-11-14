@@ -280,7 +280,7 @@ impl Ball {
     assert_eq!(rt.live(), 0);
 }
 
-/// A misspelt component or property on a node says which half is wrong.
+// A misspelt component or property on a node says which half is wrong.
 #[test]
 fn a_property_the_component_lacks_does_not_compile() {
     use balaur_bs::{HostApi, Ty};

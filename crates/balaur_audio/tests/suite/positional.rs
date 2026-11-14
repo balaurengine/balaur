@@ -131,8 +131,8 @@ fn a_sound_past_max_distance_is_silent() {
     assert!(spatial::place(&listener, &emitter).gain < 1e-6);
 }
 
-/// The listener's right is where the pan comes from, so a sound off to that
-/// side has to reach the right ear louder.
+// The listener's right is where the pan comes from, so a sound off to that
+// side has to reach the right ear louder.
 #[test]
 fn a_sound_to_the_listeners_right_leans_right() {
     let listener = ears_at(Vec3::ZERO);
@@ -185,8 +185,8 @@ fn doppler_stays_off_until_a_sound_asks_for_it() {
     assert!((spatial::place(&listener, &emitter).pitch - 1.0).abs() < 1e-6);
 }
 
-/// A pitch a listener could not survive is a bug in the scene, not something
-/// to reproduce faithfully.
+// A pitch a listener could not survive is a bug in the scene, not something
+// to reproduce faithfully.
 #[test]
 fn a_teleporting_emitter_cannot_screech() {
     let listener = ears_at(Vec3::ZERO);
@@ -196,7 +196,7 @@ fn a_teleporting_emitter_cannot_screech() {
     assert!((0.5..=2.0).contains(&pitch), "{pitch}");
 }
 
-/// A game that never placed its ears should still be audible.
+// A game that never placed its ears should still be audible.
 #[test]
 fn with_no_listener_a_positional_sound_plays_flat() {
     let placement = spatial::place(
@@ -322,7 +322,6 @@ fn freeing_a_listener_node_leaves_the_ears_where_they_were() {
     assert!((state.listener().position.x - 10.0).abs() < 1e-6);
 }
 
-/// With no `listener`, the ears stand where the frame is seen from.
 #[test]
 fn with_no_listener_the_ears_stand_at_the_camera() {
     let dir = tempfile::tempdir().unwrap();
@@ -342,7 +341,6 @@ fn with_no_listener_the_ears_stand_at_the_camera() {
     );
 }
 
-/// A one-shot at a point in the world: no node, no component, just a place.
 #[test]
 fn a_cue_can_be_played_at_a_point_with_no_node_behind_it() {
     let dir = tempfile::tempdir().unwrap();
@@ -371,8 +369,8 @@ fn a_cue_can_be_played_at_a_point_with_no_node_behind_it() {
     );
 }
 
-/// Moving the ears by hand is for a game whose view is not a node; a scene
-/// with a `listener` in it takes the position back on the next frame.
+// Moving the ears by hand is for a game whose view is not a node; a scene
+// with a `listener` in it takes the position back on the next frame.
 #[test]
 fn a_listener_node_overrules_one_set_by_hand() {
     let dir = tempfile::tempdir().unwrap();
@@ -388,9 +386,9 @@ fn a_listener_node_overrules_one_set_by_hand() {
     assert!((state.borrow().listener().position.x - 7.0).abs() < 1e-6);
 }
 
-/// A scene's first `update` runs before that frame's scene sync, so a
-/// listener has to place the ears as it is applied — or the one-shot a script
-/// fires there is heard from the origin.
+// A scene's first `update` runs before that frame's scene sync, so a
+// listener has to place the ears as it is applied — or the one-shot a script
+// fires there is heard from the origin.
 #[test]
 fn a_listener_places_the_ears_as_soon_as_it_is_applied() {
     let dir = tempfile::tempdir().unwrap();
@@ -414,8 +412,8 @@ fn inverse_square_attenuation_quarters_the_gain_at_every_doubling() {
     assert!((gain - 0.25).abs() < 1e-6, "{gain}");
 }
 
-/// A sound's `attenuation` reaches the emitter it plays from, and a change
-/// lands on one already playing.
+// A sound's `attenuation` reaches the emitter it plays from, and a change
+// lands on one already playing.
 #[test]
 fn a_sounds_attenuation_reaches_its_emitter() {
     let dir = tempfile::tempdir().unwrap();
@@ -440,8 +438,8 @@ fn a_sounds_attenuation_reaches_its_emitter() {
     assert_eq!(attenuation(&app), spatial::Attenuation::Inverse);
 }
 
-/// With ears apart, the pan is how much nearer one ear is: full at an ear,
-/// none straight ahead.
+// With ears apart, the pan is how much nearer one ear is: full at an ear,
+// none straight ahead.
 #[test]
 fn ears_apart_pan_by_which_ear_is_nearer() {
     let mut listener = ears_at(Vec3::ZERO);
@@ -491,8 +489,8 @@ fn the_listener_sets_how_fast_sound_travels_and_how_far_doppler_bends() {
     assert!((slower - 1.25).abs() < 1e-5, "{slower}");
 }
 
-/// A listener holds what it was asked, a speed of sound below the floor
-/// included; the ears it places take the floor.
+// A listener holds what it was asked, a speed of sound below the floor
+// included; the ears it places take the floor.
 #[test]
 fn a_listener_below_the_floor_reads_back_as_written() {
     let dir = tempfile::tempdir().unwrap();

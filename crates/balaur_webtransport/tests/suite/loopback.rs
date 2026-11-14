@@ -129,8 +129,8 @@ fn sending_before_the_link_opens_is_an_error_not_a_queue() {
     );
 }
 
-/// The rule every other subsystem follows: a tick the session is re-running
-/// opens nothing.
+// The rule every other subsystem follows: a tick the session is re-running
+// opens nothing.
 #[test]
 fn a_link_opened_while_resimulating_never_connects() {
     let host = app();
@@ -156,8 +156,8 @@ fn a_link_opened_while_resimulating_never_connects() {
     assert!(link.send_reliable(b"x").is_err());
 }
 
-/// A server bound while re-simulating refuses outright, since there is no
-/// "connecting" state for a listener to sit in.
+// A server bound while re-simulating refuses outright, since there is no
+// "connecting" state for a listener to sit in.
 #[test]
 fn a_server_bound_while_resimulating_is_refused() {
     let host = app();

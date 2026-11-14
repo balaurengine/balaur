@@ -132,9 +132,9 @@ fn an_unlock_reaches_the_store_and_comes_back_done() {
     assert_eq!(field(&event, "request"), Some(Value::Int(7)));
 }
 
-/// The rule the whole deferral exists for: an achievement awarded on a tick a
-/// late input could still take back must not reach the store until that tick
-/// is final. A rollback cannot un-award one.
+// The rule the whole deferral exists for: an achievement awarded on a tick a
+// late input could still take back must not reach the store until that tick
+// is final. A rollback cannot un-award one.
 #[test]
 fn an_unlock_from_a_tick_that_can_still_roll_back_waits_for_it_to_settle() {
     let mut app = app_with_store();
@@ -155,7 +155,7 @@ fn an_unlock_from_a_tick_that_can_still_roll_back_waits_for_it_to_settle() {
     assert_eq!(kinds(&app), ["done"], "nothing can take tick 5 back now");
 }
 
-/// A read costs nothing to repeat, so it never waits.
+// A read costs nothing to repeat, so it never waits.
 #[test]
 fn a_read_from_a_tick_that_can_still_roll_back_goes_out_at_once() {
     let mut app = app_with_store();
@@ -165,8 +165,8 @@ fn a_read_from_a_tick_that_can_still_roll_back_goes_out_at_once() {
     assert_eq!(kinds(&app), ["read"]);
 }
 
-/// A tick being re-run queues its writes again, so the run being replaced
-/// must not leave one behind as well.
+// A tick being re-run queues its writes again, so the run being replaced
+// must not leave one behind as well.
 #[test]
 fn a_re_simulated_tick_does_not_award_an_achievement_twice() {
     let mut app = app_with_store();

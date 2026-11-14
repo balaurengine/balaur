@@ -443,7 +443,7 @@ fn mount(eng: &Engine, backend: Rc<dyn FileBackend>, table: Vec<(PathBuf, PathBu
     }
 }
 
-/// `[<table>] <key>` as a list of strings.
+/// A missing table or key reads as empty, and an entry that is not a string is skipped.
 pub fn strings_at(document: &toml::Table, table: &str, key: &str) -> Vec<String> {
     document
         .get(table)

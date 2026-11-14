@@ -84,9 +84,9 @@ fn a_replayed_session_reproduces_every_tick_digest() {
     }
 }
 
-/// The control: without the recorded input the same code diverges, which is
-/// what proves the test above is checking the input path and not just that
-/// two identical runs agree.
+// The control: without the recorded input the same code diverges, which is
+// what proves the test above is checking the input path and not just that
+// two identical runs agree.
 #[test]
 fn replaying_without_the_recorded_input_diverges() {
     let dir = tempfile::tempdir().unwrap();

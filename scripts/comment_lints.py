@@ -42,6 +42,15 @@ BANNER = re.compile(r"^[-=*#~ ]{4,}|[-=*#~]{4,}\s*$")
 CORPUS = "tests/programs/"
 DIRECTIVES = ("// expect:", "// error:", "// live:")
 
+DOC = "///"
+TEST_ATTR = re.compile(r"#\[(?:\w+::)*(?:wasm_bindgen_)?test\b")
+ITEM = re.compile(
+    r"^(?P<reach>pub(?:\([^)]*\))?\s+|internal\s+)?"
+    r"(?:(?:const|async|unsafe|default|extern\s+\"[^\"]*\")\s+)*"
+    r"(?:fn|struct|enum|trait|type|const|static|mod|union|class|macro_rules!)(?=\s)")
+# A method with no reach of its own is public when its trait is, or when it implements one.
+TRAIT_MEMBER = re.compile(r"^(?:pub\s+(?:unsafe\s+)?trait|(?:unsafe\s+)?impl\b.*\bfor)\b")
+
 
 def files():
     for dirpath, dirnames, filenames in os.walk(ROOT):
@@ -140,6 +149,88 @@ def check(path):
         elif overlap >= 0.5:
             out.append((rel, i + 1, "restates-code",
                         f"mostly repeats the line below ({int(overlap * 100)}%)", "REPORT"))
+    if marker == "//":
+        out.extend(doc_findings(rel, lines, path.suffix == ".rs"))
+    return out
+
+
+def is_doc(line):
+    stripped = line.strip()
+    return stripped.startswith(DOC) and not stripped.startswith(DOC + "/")
+
+
+def name_words(text):
+    split = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    return {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in words(split)}
+
+
+def doc_blocks(lines):
+    """(start, length, index of the item it documents, that item's attributes) per `///` block."""
+    i = 0
+    while i < len(lines):
+        if not is_doc(lines[i]):
+            i += 1
+            continue
+        start = i
+        while i < len(lines) and is_doc(lines[i]):
+            i += 1
+        item, attrs, depth = i, [], 0
+        while item < len(lines):
+            stripped = lines[item].strip()
+            if depth or stripped.startswith("#["):
+                attrs.append(stripped)
+                depth = max(0, depth + stripped.count("[") - stripped.count("]"))
+            elif stripped and not (stripped.startswith("//") and not is_doc(stripped)):
+                break
+            item += 1
+        yield start, i - start, item, " ".join(attrs)
+
+
+def enclosing(lines, k):
+    indent = len(lines[k]) - len(lines[k].lstrip())
+    for line in reversed(lines[:k]):
+        stripped = line.strip()
+        if not stripped or len(line) - len(line.lstrip()) >= indent:
+            continue
+        if stripped in ("{", "where") or stripped.startswith((")", ">", "//", "#[")):
+            continue
+        return stripped
+    return ""
+
+
+def signature(lines, k):
+    sig = []
+    for line in lines[k:k + 8]:
+        sig.append(line)
+        if "{" in line or line.rstrip().endswith(";"):
+            break
+    return " ".join(sig)
+
+
+def doc_findings(rel, lines, rust):
+    out = []
+    for start, length, k, attrs in doc_blocks(lines):
+        found = ITEM.match(lines[k].strip()) if k < len(lines) else None
+        if not found:
+            continue
+        if rust and TEST_ATTR.search(attrs):
+            out.append((rel, start + 1, "test-doc",
+                        "a doc comment on a test; its name says what it checks, a plain `//` says why",
+                        "ERROR"))
+            continue
+        reach = (found.group("reach") or "").strip()
+        public = reach == "pub" or (not reach and TRAIT_MEMBER.match(enclosing(lines, k)))
+        if length > MAX_RUN and not public:
+            out.append((rel, start + 1, "doc-essay",
+                        f"{length} doc lines on an internal item; say it in one or two",
+                        "REPORT"))
+        doc = name_words(" ".join(line.strip()[len(DOC):] for line in lines[start:start + length]))
+        if doc:
+            shared = len(doc & name_words(signature(lines, k))) / len(doc)
+            if shared >= 0.7:
+                out.append((rel, start + 1, "doc-restates-signature",
+                            f"repeats its signature ({int(shared * 100)}% of its words); the name says it",
+                            "ERROR"))
     return out
 
 

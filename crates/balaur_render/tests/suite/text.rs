@@ -72,8 +72,8 @@ fn text_component_in(kind: &str, params: &str) -> (balaur_core::App, toml::Value
     (app, read)
 }
 
-/// A text block's cutoff is its material's `[surface]`: a cutout material
-/// written inline is the one it draws with.
+// A text block's cutoff is its material's `[surface]`: a cutout material
+// written inline is the one it draws with.
 #[test]
 fn a_text_block_takes_the_alpha_cutoff_its_material_spells() {
     for kind in ["text2d", "text3d"] {
@@ -135,8 +135,8 @@ fn a_text_block_takes_every_shaping_key_and_reads_it_back() {
     );
 }
 
-/// The rows a text shaped its font with are the `font` asset's now: a scene
-/// still writing one is refused by name.
+// The rows a text shaped its font with are the `font` asset's: a scene writing one is refused by
+// name.
 #[test]
 fn a_text_block_refuses_a_row_that_left_for_its_font() {
     let mut app = balaur_core::App::new(AppConfig::bare(".")).unwrap();

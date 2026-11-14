@@ -504,8 +504,8 @@ mod tests {
         );
     }
 
-    /// `[window] orientation` lands in the plist iOS reads, and a project
-    /// that names the key itself keeps its own answer.
+    // `[window] orientation` lands in the plist iOS reads, and a project
+    // that names the key itself keeps its own answer.
     #[test]
     fn an_orientation_reaches_the_plist() {
         let held = AppleConfig {
@@ -537,8 +537,8 @@ mod tests {
         assert!(!text.contains("UIInterfaceOrientationPortrait"), "{text}");
     }
 
-    /// Nothing is invented: each key missing is refused by name, in the order
-    /// a project would fill them in.
+    // Nothing is invented: each key missing is refused by name, in the order
+    // a project would fill them in.
     #[test]
     fn a_project_with_no_apple_table_is_refused_key_by_key() {
         let refusal = |table: &str| config(table).check(Platform::Ios).unwrap_err().to_string();
@@ -677,9 +677,9 @@ mod tests {
         assert_eq!(Capability::GameCenter.name(), "game-center");
     }
 
-    /// The name a message prints is the one a project writes: the settings
-    /// screen offers these, and a spelling that did not read back would be
-    /// refused at export.
+    // The name a message prints is the one a project writes: the settings
+    // screen offers these, and a spelling that did not read back would be
+    // refused at export.
     #[test]
     fn every_capability_reads_back_from_the_name_it_prints() {
         for capability in [

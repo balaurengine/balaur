@@ -34,7 +34,7 @@ fn core_defines_settings_in_both_scopes() {
     assert_eq!(faults.label(), "simulate_faults");
 }
 
-/// A path nests: `editor/appearance/theme` is `[editor.appearance] theme`.
+// A path nests: `editor/appearance/theme` is `[editor.appearance] theme`.
 #[test]
 fn a_nested_path_reads_and_writes_where_it_says() {
     let app = app();
@@ -114,8 +114,6 @@ fn a_setting_falls_back_to_its_schema_default() {
     );
 }
 
-/// The load-bearing one: writing settings into a manifest touches the keys a
-/// page declares and nothing else.
 #[test]
 fn writing_a_manifest_leaves_what_it_does_not_describe_alone() {
     let app = app();
@@ -160,7 +158,6 @@ kept = true
     );
 }
 
-/// Editor settings never reach the project file, whatever they are set to.
 #[test]
 fn an_editor_setting_stays_out_of_the_manifest() {
     let app = app();
@@ -186,8 +183,8 @@ fn an_editor_setting_stays_out_of_the_manifest() {
     );
 }
 
-/// A plugin's page joins the same list, which is what makes the screen
-/// extensible rather than a fixed set of tabs.
+// A plugin's page joins the same list, which is what makes the screen
+// extensible rather than a fixed set of tabs.
 #[test]
 fn anyone_can_define_a_setting() {
     let app = app();
@@ -210,8 +207,8 @@ help = "Whether it rains.""#,
     );
 }
 
-/// `[override.android.window] vsync` is what `window/vsync` reads
-/// on a phone, and nothing at all anywhere else.
+// `[override.android.window] vsync` is what `window/vsync` reads
+// on a phone, and nothing at all anywhere else.
 #[test]
 fn an_override_answers_only_where_its_tag_is_in_force() {
     let app = app();
@@ -240,8 +237,8 @@ fn an_override_answers_only_where_its_tag_is_in_force() {
     );
 }
 
-/// The narrow tag wins wherever the file wrote it: precedence is the tag
-/// order this run holds, not the order two tables happen to appear in.
+// The narrow tag wins wherever the file wrote it: precedence is the tag
+// order this run holds, not the order two tables happen to appear in.
 #[test]
 fn the_narrower_tag_outranks_the_broader_one() {
     let app = app();
@@ -261,8 +258,8 @@ fn the_narrower_tag_outranks_the_broader_one() {
     );
 }
 
-/// What the editor edits is the file's own value, not the one this machine
-/// resolves: a screen showing the override would write it onto the base key.
+// What the editor edits is the file's own value, not the one this machine
+// resolves: a screen showing the override would write it onto the base key.
 #[test]
 fn the_base_read_ignores_every_override() {
     let app = app();
@@ -284,8 +281,8 @@ fn the_base_read_ignores_every_override() {
     );
 }
 
-/// A table core knows nothing about is the game's own space, readable by the
-/// same call as everything else.
+// A table core knows nothing about is the game's own space, readable by the
+// same call as everything else.
 #[test]
 fn an_undeclared_table_is_readable_by_path() {
     let app = app();
@@ -300,8 +297,8 @@ fn an_undeclared_table_is_readable_by_path() {
     );
 }
 
-/// The screen owns the override tree: setting one writes it, clearing one
-/// takes it out, and the table it lived in goes with it.
+// The screen owns the override tree: setting one writes it, clearing one
+// takes it out, and the table it lived in goes with it.
 #[test]
 fn an_override_is_written_and_removed_by_the_same_write() {
     let app = app();
@@ -321,8 +318,8 @@ fn an_override_is_written_and_removed_by_the_same_write() {
     );
 }
 
-/// An override on a key nothing declares is not the screen's to write, and a
-/// hand-written one has to survive the screen's save.
+// An override on a key nothing declares is not the screen's to write, and a
+// hand-written one has to survive the screen's save.
 #[test]
 fn an_override_the_screen_does_not_know_survives_a_write() {
     let app = app();
@@ -332,8 +329,8 @@ fn an_override_the_screen_does_not_know_survives_a_write() {
     assert!(written.contains("example.test"), "{written}");
 }
 
-/// A save from the settings screen is a small diff: comments stay, and a key
-/// nobody set is not written out as its default.
+// A save from the settings screen is a small diff: comments stay, and a key
+// nobody set is not written out as its default.
 #[test]
 fn a_write_keeps_comments_and_adds_no_defaults() {
     let app = app();
@@ -351,8 +348,8 @@ fn a_write_keeps_comments_and_adds_no_defaults() {
     );
 }
 
-/// A table of the game's own names takes an override key by key: rebinding
-/// one action on a phone leaves every other action as the file wrote it.
+// A table of the game's own names takes an override key by key: rebinding
+// one action on a phone leaves every other action as the file wrote it.
 #[test]
 fn a_table_folds_each_override_on_key_by_key() {
     let app = app();
@@ -372,9 +369,9 @@ fn a_table_folds_each_override_on_key_by_key() {
     assert_eq!(actions["fire"][0].as_str(), Some("KeyF"));
 }
 
-/// A shipped pack answers to the tags its export stamped into it, from the
-/// first setting read: a demo build reads `[override.demo]` and nothing
-/// else does.
+// A shipped pack answers to the tags its export stamped into it, from the
+// first setting read: a demo build reads `[override.demo]` and nothing
+// else does.
 #[test]
 fn a_pack_answers_to_the_tags_its_export_wrote() {
     let manifest = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\nasset_source = \"embedded\"\n\n\
@@ -406,8 +403,8 @@ fn a_pack_answers_to_the_tags_its_export_wrote() {
     );
 }
 
-/// What a host reads before an engine exists resolves too: `[plugins]` on
-/// one platform, and the scene a demo build opens with.
+// What a host reads before an engine exists resolves too: `[plugins]` on
+// one platform, and the scene a demo build opens with.
 #[test]
 fn the_boot_manifest_takes_overrides() {
     use balaur_core::project::ProjectManifest;
@@ -428,8 +425,8 @@ fn the_boot_manifest_takes_overrides() {
     assert_eq!(demo.main_scene, "demo.toml");
 }
 
-/// A pack built as a demo opens the demo's scene: `[build] tags` is read
-/// before the manifest decides what `main_scene` is.
+// A pack built as a demo opens the demo's scene: `[build] tags` is read
+// before the manifest decides what `main_scene` is.
 #[test]
 fn a_demo_pack_opens_the_demo_s_scene() {
     let mut pack = balaur_core::Pack {
@@ -448,9 +445,9 @@ fn a_demo_pack_opens_the_demo_s_scene() {
     assert_eq!(app.manifest().unwrap().main_scene, "demo.toml");
 }
 
-/// Every value the settings screen offers for the asset source is one the
-/// boot reader parses: an offered value it rejects fell back to `embedded`
-/// without a word.
+// Every value the settings screen offers for the asset source is one the
+// boot reader parses: an offered value it rejects fell back to `embedded`
+// without a word.
 #[test]
 fn every_offered_asset_source_is_one_the_boot_reader_accepts() {
     let app = app();

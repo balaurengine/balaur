@@ -243,8 +243,6 @@ mod tests {
         assert!(!is_svg(b"<html></html>"));
     }
 
-    /// A transparent texel takes its visible neighbour's colour and stays
-    /// transparent; the visible one is untouched.
     #[test]
     fn bleeding_colours_the_transparent_texels_and_keeps_their_alpha() {
         let mut image = RgbaImage::from_pixel(4, 1, Rgba([0, 0, 0, 0]));
@@ -268,8 +266,8 @@ mod tests {
         assert_eq!(image.get_pixel(0, 0), &Rgba([10, 235, 30, 40]));
     }
 
-    /// A premultiplied upload zeroes a transparent texel's colour anyway, so
-    /// bleeding is skipped for it.
+    // A premultiplied upload zeroes a transparent texel's colour anyway, so
+    // bleeding is skipped for it.
     #[test]
     fn a_premultiplied_upload_is_not_bled() {
         let mut png = Vec::new();

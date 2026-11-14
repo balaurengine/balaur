@@ -206,7 +206,7 @@ fn every_record_asset_takes_a_row_it_declares_inline_and_from_a_file() {
     }
 }
 
-/// So a record asset added later has to be named above.
+// So a record asset added later has to be named above.
 #[test]
 fn the_record_assets_above_are_all_of_them() {
     let (_dir, app) = app_with_every_component();
@@ -308,8 +308,8 @@ fn scene_keys(app: &balaur::App) -> Vec<String> {
     keys
 }
 
-/// `KEYLESS_MODULES` is what a typo stays an error beside, so it has to be
-/// true: turning every one of them off takes no scene key away.
+// `KEYLESS_MODULES` is what a typo stays an error beside, so it has to be
+// true: turning every one of them off takes no scene key away.
 #[test]
 fn a_keyless_module_turned_off_takes_no_key_away() {
     let off = balaur::KEYLESS_MODULES
@@ -344,9 +344,9 @@ fn a_key_nothing_handles_is_an_error_in_a_whole_build() {
     );
 }
 
-/// A scene with sound still loads where the module is off, and says so only as
-/// a warning: this build cannot tell `sound` from a typo, and the build that
-/// has it can.
+// A scene with sound still loads where the module is off, and says so only as
+// a warning: this build cannot tell `sound` from a typo, and the build that
+// has it can.
 #[test]
 fn a_key_a_module_turned_off_would_own_only_warns() {
     balaur_core::logbuf::capture_for_test();
@@ -527,8 +527,8 @@ fn every_enum_option_a_schema_offers_round_trips() {
     );
 }
 
-/// A `line2d` takes a `mesh` or a `path2d`, and the schema can only name one
-/// of them, so an inline table's own `type` is what decides.
+// A `line2d` takes a `mesh` or a `path2d`, and the schema can only name one
+// of them, so an inline table's own `type` is what decides.
 #[test]
 fn an_inline_asset_is_the_type_its_table_declares() {
     let (dir, app) = app_with_every_component();
@@ -560,9 +560,9 @@ fn an_inline_asset_is_the_type_its_table_declares() {
     );
 }
 
-/// The other half of [`every_component_emits_only_keys_its_schema_declares`]:
-/// a property the schema promises the editor has to come back out of `get`,
-/// or the inspector shows a control that reads as absent.
+// The other half of [`every_component_emits_only_keys_its_schema_declares`]:
+// a property the schema promises the editor has to come back out of `get`,
+// or the inspector shows a control that reads as absent.
 #[test]
 fn every_component_emits_every_key_its_schema_declares() {
     let (_dir, app) = app_with_every_component();
@@ -593,10 +593,7 @@ fn every_component_emits_every_key_its_schema_declares() {
     }
 }
 
-/// Writing one property leaves the component's others where they were.
-///
-/// `transform` takes a single property without reading its table back, so
-/// this covers the fast path and that what it wrote is what a read answers.
+// `transform` takes a single property without reading its table back; this covers that fast path.
 #[test]
 fn a_one_property_write_leaves_the_rest() {
     let (dir, app) = app_with_every_component();
@@ -635,8 +632,6 @@ fn a_one_property_write_leaves_the_rest() {
     );
 }
 
-/// A node with no transform of its own reads the declared default through
-/// the handle.
 #[test]
 #[ignore = "needs engine: a .bs component read on a node without the component gives zeros, not the schema default"]
 fn a_handle_on_a_missing_component_reads_its_defaults() {
@@ -663,11 +658,8 @@ fn a_handle_on_a_missing_component_reads_its_defaults() {
     );
 }
 
-/// A keyed read answers the one property, and the same value the table holds.
-///
-/// Two components: `widget` reads its properties one at a time without
-/// building the table, and `collider3d` has no such fast path, so this also
-/// covers the fallback that reads the table and indexes it.
+// `widget` reads one property without building the table and `collider3d` has no such fast path, so
+// this covers both.
 #[test]
 fn a_keyed_read_answers_one_property() {
     let (dir, app) = app_with_every_component();

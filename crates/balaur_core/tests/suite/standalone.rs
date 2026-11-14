@@ -112,8 +112,8 @@ fn authenticode_sign(game: &[u8], certificate: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Signing has to happen after fusing, so the certificate table lands after
-/// the trailer and hides it from a reader that only looks at the end.
+// Signing has to happen after fusing, so the certificate table lands after
+// the trailer and hides it from a reader that only looks at the end.
 #[test]
 fn a_signed_windows_game_still_finds_its_pack() {
     let pack = b"BPAK\x01a signed game's pack";
@@ -124,8 +124,8 @@ fn a_signed_windows_game_still_finds_its_pack() {
     assert_eq!(standalone::extract(&signed), Some(pack.as_slice()));
 }
 
-/// The trailer is padded away from the table by up to seven bytes, and every
-/// one of those offsets has to be found.
+// The trailer is padded away from the table by up to seven bytes, and every
+// one of those offsets has to be found.
 #[test]
 fn the_padding_before_a_certificate_table_is_searched() {
     for extra in 0..8 {
@@ -141,16 +141,16 @@ fn the_padding_before_a_certificate_table_is_searched() {
     }
 }
 
-/// A signed binary that carries no pack is the signed CLI, and booting it as
-/// a game would be the same bug the other way round.
+// A signed binary that carries no pack is the signed CLI, and booting it as
+// a game would be the same bug the other way round.
 #[test]
 fn a_signed_binary_with_no_pack_is_not_a_game() {
     let signed = authenticode_sign(&pe_template(), b"a certificate table");
     assert_eq!(standalone::extract(&signed), None);
 }
 
-/// A directory pointing anywhere but the end of the file is not a table
-/// appended after a pack, so nothing before it is a trailer.
+// A directory pointing anywhere but the end of the file is not a table
+// appended after a pack, so nothing before it is a trailer.
 #[test]
 fn a_security_directory_that_does_not_end_the_file_is_ignored() {
     let game = standalone::build(&pe_template(), b"pack");

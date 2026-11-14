@@ -514,7 +514,7 @@ pub fn rotate_euler(euler: [float], axis: int, angle: float) -> [float] {
     euler_from_basis(rotate_basis_local(basis_from_euler(euler), axis, angle))
 }
 
-/// Rotate a world point about `center` by `angle` around world axis `axis`.
+/// `axis` is 0, 1 or 2 for x, y or z, and `angle` is in radians.
 pub fn rotate_about(point: [float], center: [float], axis: int, angle: float) -> [float] {
     let cosine = math::cos(angle);
     let sine = math::sin(angle);

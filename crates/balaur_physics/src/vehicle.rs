@@ -403,7 +403,6 @@ fn forward_axis(forward: ChassisAxis) -> Vector {
     axis * sign
 }
 
-/// The wheel of a kept controller that `entity` is.
 fn kept_wheel(
     vehicles: &mut balaur_core::collections::DetHashMap<Entity, VehicleRef3d>,
     entity: Entity,

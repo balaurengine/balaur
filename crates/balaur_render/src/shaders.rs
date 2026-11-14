@@ -445,9 +445,9 @@ mod tests {
         }
     }
 
-    /// The prepass measures geometry, and a material's own values live in a
-    /// group it does not bind. Binding one would be a pipeline that cannot be
-    /// built from the material's layout.
+    // The prepass measures geometry, and a material's own values live in a
+    // group it does not bind. Binding one would be a pipeline that cannot be
+    // built from the material's layout.
     #[test]
     fn the_mesh_prepass_binds_only_the_frame_and_the_object() {
         let wgsl = link_prepass(false, false).expect("the engine's own shader must link");
@@ -457,9 +457,9 @@ mod tests {
         assert!(!wgsl.contains("@group(3)"), "{wgsl}");
     }
 
-    /// The equirectangular convention the fork builds its skies and probes in.
-    /// A direction that reads the wrong texel is a sky rotated or flipped, and
-    /// no test with a GPU in it would be cheap enough to catch that.
+    // The equirectangular convention the fork builds its skies and probes in.
+    // A direction that reads the wrong texel is a sky rotated or flipped, and
+    // no test with a GPU in it would be cheap enough to catch that.
     #[test]
     fn a_direction_reads_the_environment_where_the_fork_wrote_it() {
         let linked = surroundings();
@@ -485,9 +485,9 @@ mod tests {
         );
     }
 
-    /// Reflections brighten at a glancing angle and a rough surface reflects
-    /// less than a smooth one. Both come out of `env_brdf`'s fit, and a sign
-    /// slipped in it would light every metal in the engine wrongly.
+    // Reflections brighten at a glancing angle and a rough surface reflects
+    // less than a smooth one. Both come out of `env_brdf`'s fit, and a sign
+    // slipped in it would light every metal in the engine wrongly.
     #[test]
     fn the_environment_reflects_more_at_a_glance_and_less_when_rough() {
         let linked = surroundings();
@@ -508,10 +508,8 @@ mod tests {
         );
     }
 
-    /// What `balaur import` writes for a glTF material links against the
-    /// contract, in every combination of maps the file may have named. The
-    /// shader lives in `balaur_core`, which has no linker; this is the only
-    /// place the two meet.
+    // The shader lives in `balaur_core`, which has no linker; this is the only place it and the
+    // contract meet.
     #[test]
     fn the_imported_gltf_material_links_with_any_maps() {
         for metallic_roughness in [false, true] {
@@ -542,8 +540,8 @@ mod tests {
         }
     }
 
-    /// Each finishing pass links on its own, with one variant reaching the
-    /// entry point and the other three stripped.
+    // Each finishing pass links on its own, with one variant reaching the
+    // entry point and the other three stripped.
     #[test]
     fn every_finishing_pass_links_to_one_variant() {
         for name in crate::vocabulary::words::FINISHES {
@@ -565,8 +563,8 @@ mod tests {
         }
     }
 
-    /// Two variants at once is a shader with two `finish` functions, which is
-    /// a link error rather than a silent pick.
+    // Two variants at once is a shader with two `finish` functions, which is
+    // a link error rather than a silent pick.
     #[test]
     fn two_finishing_passes_at_once_do_not_link() {
         let features = [("vignette", true), ("grain", true)];
@@ -576,11 +574,8 @@ mod tests {
         );
     }
 
-    /// A model that mirrors a UV shell -- most of them, because it halves the
-    /// texture -- has the opposite handedness on one side. Taking the
-    /// bitangent as `cross(n, t)` gives both sides the same one, and the two
-    /// halves of a mirrored wall then light differently with a seam down the
-    /// join.
+    // A mirrored UV shell has the opposite handedness; `cross(n, t)` gives both sides one, and the
+    // two halves of a mirrored wall light with a seam.
     #[test]
     fn a_mirrored_uv_shell_flips_the_bitangent() {
         let linked = surroundings();
@@ -606,8 +601,8 @@ mod tests {
         assert!((across[0] - 1.0).abs() < 1e-5, "{across:?}");
     }
 
-    /// Degenerate UVs leave the geometric normal alone rather than dividing
-    /// by nothing and lighting the surface with a NaN.
+    // Degenerate UVs leave the geometric normal alone rather than dividing
+    // by nothing and lighting the surface with a NaN.
     #[test]
     fn a_surface_with_no_uvs_keeps_the_normal_it_had() {
         let linked = surroundings();
@@ -654,9 +649,9 @@ mod tests {
         assert!(wgsl.contains("fn fs_main"), "{wgsl}");
     }
 
-    /// The GPU path has to agree with `skeleton::blend_3d`, which is what a
-    /// digest sees; `blend` is `@const` so the two can be compared here,
-    /// without a GPU.
+    // The GPU path has to agree with `skeleton::blend_3d`, which is what a
+    // digest sees; `blend` is `@const` so the two can be compared here,
+    // without a GPU.
     #[test]
     fn the_skinning_blend_matches_the_cpu_reference() {
         let linked = link(&[("package::s", SKINNED_3D)], "package::s", &[])
@@ -687,8 +682,8 @@ mod tests {
         );
     }
 
-    /// The light map's three pipelines share one module, so a link that
-    /// dropped an entry point would fail at pipeline creation, on a GPU.
+    // The light map's three pipelines share one module, so a link that
+    // dropped an entry point would fail at pipeline creation, on a GPU.
     #[test]
     fn the_light_map_shader_keeps_every_entry_point() {
         let wgsl = link(&[("package::light2d", LIGHT_2D)], "package::light2d", &[])
@@ -818,9 +813,9 @@ import package::pbr::{env_brdf};
         );
     }
 
-    /// A light's intensity is radiance, so Lambert's `1/π` is what turns it
-    /// into reflected colour. Without it the engine's own default intensity
-    /// of 3.0 draws white.
+    // A light's intensity is radiance, so Lambert's `1/π` is what turns it
+    // into reflected colour. Without it the engine's own default intensity
+    // of 3.0 draws white.
     #[test]
     fn a_light_straight_on_contributes_its_colour_over_pi() {
         let lit = eval_floats(

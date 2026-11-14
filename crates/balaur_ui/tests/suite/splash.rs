@@ -53,8 +53,8 @@ fn the_splash_covers_the_screen_for_its_seconds_and_no_longer() {
     assert!(!covers(&late), "the splash outstayed its seconds");
 }
 
-/// Reporting a load is what holds the splash: there is no setting for it, so a
-/// run that reports nothing can never hang on its own first frame.
+// Reporting a load is what holds the splash: there is no setting for it, so a
+// run that reports nothing can never hang on its own first frame.
 #[test]
 fn a_reported_load_holds_the_splash_and_loaded_lets_it_go() {
     let dir = tempfile::tempdir().unwrap();

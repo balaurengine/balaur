@@ -243,7 +243,7 @@ mod tests {
         assert_eq!(variables.get("open"), Some(&Value::Bool(true)));
     }
 
-    /// A script's whole number arrives as an `Int`, not a `Num`.
+    // A script's whole number arrives as an `Int`, not a `Num`.
     #[test]
     fn a_whole_number_from_a_script_is_written_as_itself() {
         let mut variables = Variables::default();
@@ -256,8 +256,8 @@ mod tests {
         assert_eq!(variables.get("label"), Some(&Value::Str("3".into())));
     }
 
-    /// Writing the value already held is not a change, so a script setting
-    /// the same number every tick dispatches nothing.
+    // Writing the value already held is not a change, so a script setting
+    // the same number every tick dispatches nothing.
     #[test]
     fn writing_the_same_value_is_not_a_change() {
         let mut variables = Variables::default();

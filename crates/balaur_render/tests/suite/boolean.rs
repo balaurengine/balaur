@@ -110,8 +110,8 @@ fn an_intersection_keeps_only_the_overlap() {
     assert!((got - 0.125).abs() < 0.02, "intersection came to {got}");
 }
 
-/// The operands stay in the tree so they can still be edited, but the node
-/// draws the result and not the parts.
+// The operands stay in the tree so they can still be edited, but the node
+// draws the result and not the parts.
 #[test]
 fn the_operands_stay_in_the_tree_and_stop_drawing() {
     let (_dir, mut app) = app();
@@ -125,7 +125,6 @@ fn the_operands_stay_in_the_tree_and_stop_drawing() {
     }
 }
 
-/// Moving an operand is a different answer, and the node works it out again.
 #[test]
 fn moving_an_operand_recomputes_the_result() {
     let (_dir, mut app) = app();
@@ -142,8 +141,8 @@ fn moving_an_operand_recomputes_the_result() {
     assert!(apart > overlapping, "{apart} against {overlapping}");
 }
 
-/// A still frame recomputes nothing: the version only moves when an operand
-/// does, which is what keeps a boolean off the per-tick budget.
+// A still frame recomputes nothing: the version only moves when an operand
+// does, which is what keeps a boolean off the per-tick budget.
 #[test]
 fn a_boolean_that_did_not_change_is_not_rebuilt() {
     let (_dir, mut app) = app();
@@ -166,8 +165,8 @@ fn a_boolean_that_did_not_change_is_not_rebuilt() {
     assert_eq!(first, later, "nothing moved, so nothing was rebuilt");
 }
 
-/// Booleans nest: a node whose child is itself a boolean takes that child's
-/// result as one operand.
+// Booleans nest: a node whose child is itself a boolean takes that child's
+// result as one operand.
 #[test]
 fn a_boolean_can_take_another_booleans_result() {
     let (_dir, mut app) = app();

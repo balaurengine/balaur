@@ -372,9 +372,9 @@ fn pan_lands_on_a_sound_already_playing() {
     assert!((pan - 0.5).abs() < 1e-6, "{pan}");
 }
 
-/// The filters, the reverb, the distortion and gain control are a bus's, so
-/// a sound that names one is refused by the key's name rather than played
-/// without it.
+// The filters, the reverb, the distortion and gain control are a bus's, so
+// a sound that names one is refused by the key's name rather than played
+// without it.
 #[test]
 fn an_effect_key_on_a_sound_is_refused_by_name() {
     let dir = tempfile::tempdir().unwrap();
@@ -390,8 +390,8 @@ fn an_effect_key_on_a_sound_is_refused_by_name() {
     );
 }
 
-/// The component's `loop_offset` wins over the file's own, and below zero
-/// leaves the file's own in place.
+// The component's `loop_offset` wins over the file's own, and below zero
+// leaves the file's own in place.
 #[test]
 fn loop_offset_on_the_component_overrides_the_files_own() {
     let dir = tempfile::tempdir().unwrap();
@@ -441,8 +441,8 @@ fn listing_devices_names_each_one() {
     }
 }
 
-/// The component holds what it was asked, a `pan` past full included; the
-/// play is what takes the clamp.
+// The component holds what it was asked, a `pan` past full included; the
+// play is what takes the clamp.
 #[test]
 fn a_pan_past_full_reads_back_as_written_and_plays_at_full() {
     let dir = tempfile::tempdir().unwrap();
@@ -455,8 +455,8 @@ fn a_pan_past_full_reads_back_as_written_and_plays_at_full() {
     assert_eq!(state(&app).borrow().pan_of(handle), Some(1.0));
 }
 
-/// An `attenuation` naming neither curve is refused where it was written,
-/// rather than played as `inverse`.
+// An `attenuation` naming neither curve is refused where it was written,
+// rather than played as `inverse`.
 #[test]
 fn an_attenuation_naming_no_curve_is_refused() {
     let dir = tempfile::tempdir().unwrap();

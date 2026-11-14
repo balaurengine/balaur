@@ -204,7 +204,6 @@ pub(crate) const SHADOW_UNIFORM_SIZE: usize =
 /// target when it is made, and with one layer that target is not an array.
 const ARRAY_LAYERS: u32 = 2;
 
-/// A one-texel texture of `format` with `layers` layers, each written with `texel`.
 fn one_pixel(
     label: &'static str,
     format: wgpu::TextureFormat,

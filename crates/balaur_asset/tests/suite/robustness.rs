@@ -5,8 +5,8 @@
 mod corrupt;
 use corrupt::corruptions;
 
-/// A `.glb` is a container with its own lengths, which is where a reader
-/// trusting the file walks off the end of it.
+// A `.glb` is a container with its own lengths, which is where a reader
+// trusting the file walks off the end of it.
 #[test]
 fn a_corrupted_glb_is_an_error_and_never_a_panic() {
     // 12-byte header, then one JSON chunk holding the smallest legal document.

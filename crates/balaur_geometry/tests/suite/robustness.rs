@@ -5,8 +5,8 @@
 mod corrupt;
 use corrupt::corruptions;
 
-/// An `.obj` is text with counts and indices in it, which is where a reader
-/// that trusts the file indexes past the end of its own vertex list.
+// An `.obj` is text with counts and indices in it, which is where a reader
+// that trusts the file indexes past the end of its own vertex list.
 #[test]
 fn a_corrupted_obj_is_an_error_and_never_a_panic() {
     let valid = b"# a quad\nv 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n\

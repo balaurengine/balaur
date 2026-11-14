@@ -31,7 +31,7 @@ fn serve_echo() -> String {
     format!("ws://{addr}")
 }
 
-/// A round trip through the default `on_websocket_event` handler.
+// A round trip through the default `on_websocket_event` handler.
 #[test]
 fn a_script_opens_echoes_and_closes() {
     if !e2e_enabled() {
@@ -97,8 +97,8 @@ impl Scenario {{
     run_until(&source, &["binary 4", "binary-closed"]);
 }
 
-/// `connect`'s id resumes a waiting script with the `open` event, and with
-/// the `error` event when nothing listens.
+// `connect`'s id resumes a waiting script with the `open` event, and with
+// the `error` event when nothing listens.
 #[test]
 fn a_script_awaits_connect_until_it_opens_or_fails() {
     if !e2e_enabled() {

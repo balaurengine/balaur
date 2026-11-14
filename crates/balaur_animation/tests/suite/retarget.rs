@@ -273,7 +273,7 @@ keys = [ { time = 0.0, value = [0.0, 0.0] }, { time = 1.0, value = [8.0, 0.0] } 
     assert!((deform - 2.0 * moved.x).abs() < 0.5);
 }
 
-/// The rest-pose helpers directly, which is where the retarget arithmetic is.
+// The rest-pose helpers directly, which is where the retarget arithmetic is.
 #[test]
 fn a_position_key_is_scaled_by_how_much_longer_this_rigs_bone_rests() {
     use balaur_animation::retarget::{BoneMap, ProfileBone, Retarget, SkeletonProfile};

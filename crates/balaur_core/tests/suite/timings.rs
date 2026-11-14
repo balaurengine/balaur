@@ -92,8 +92,8 @@ fn a_tick_publishes_the_frame_it_just_ran() {
     assert!(last(&app).frame > Duration::ZERO, "the frame took no time");
 }
 
-/// `fixed_update` reading as free is normal — it means the accumulator had
-/// nothing to drain — so the step count has to be reported beside it.
+// `fixed_update` reading as free is normal — it means the accumulator had
+// nothing to drain — so the step count has to be reported beside it.
 #[test]
 fn fixed_steps_counts_what_the_accumulator_drained() {
     let mut app = app();
@@ -117,8 +117,8 @@ fn a_measured_span_is_filed_under_its_name() {
     );
 }
 
-/// Work the loop times outside the stages — the scene mirror, the UI pass,
-/// the render it awaited — has no closure to wrap and is filed by hand.
+// Work the loop times outside the stages — the scene mirror, the UI pass,
+// the render it awaited — has no closure to wrap and is filed by hand.
 #[test]
 fn a_recorded_span_is_filed_with_the_next_frame() {
     let mut app = app();
@@ -136,8 +136,8 @@ fn a_recorded_span_is_filed_with_the_next_frame() {
     assert!((seconds - 0.007).abs() < 1e-6, "{seconds}");
 }
 
-/// The stages are the smaller half of a windowed frame, so the loop reports
-/// the period it measured and it outlives the publishes between.
+// The stages are the smaller half of a windowed frame, so the loop reports
+// the period it measured and it outlives the publishes between.
 #[test]
 fn the_frame_period_the_loop_measured_outlives_a_publish() {
     let mut app = app();
@@ -154,8 +154,8 @@ fn counted(app: &App, name: &str) -> usize {
     last(app).spans.iter().filter(|(n, _)| n == name).count()
 }
 
-/// A system that runs once per fixed step measures once per step, and the
-/// reader wants "this cost 4 ms", not four rows of one.
+// A system that runs once per fixed step measures once per step, and the
+// reader wants "this cost 4 ms", not four rows of one.
 #[test]
 fn spans_sharing_a_name_are_summed_for_the_reader() {
     let mut app = app();
@@ -172,8 +172,8 @@ fn spans_sharing_a_name_are_summed_for_the_reader() {
     );
 }
 
-/// A frame publishes whole: the spans of the frame in progress are not
-/// visible until it ends, so a reader never sees half a frame.
+// A frame publishes whole: the spans of the frame in progress are not
+// visible until it ends, so a reader never sees half a frame.
 #[test]
 fn last_frames_spans_replace_rather_than_accumulate() {
     let mut app = app();

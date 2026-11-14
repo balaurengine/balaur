@@ -149,8 +149,8 @@ fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
     );
 }
 
-/// A script that passes a string where a binding takes a number does not
-/// compile, and the error names the types.
+// A script that passes a string where a binding takes a vector does not
+// compile, and the error names the types.
 #[test]
 fn a_wrong_argument_is_reported_not_fatal() {
     let errors = run(
@@ -479,9 +479,8 @@ fn every_tuning_key_that_can_be_written_reads_back() {
     );
 }
 
-/// `voxelize` walks resolution cubed, so a number a script got wrong used to
-/// hang the game rather than fail. The failing call ends the script's call,
-/// so the sane one goes first.
+// `voxelize` walks resolution cubed. The failing call ends the script's call, so the sane one goes
+// first.
 #[test]
 fn voxelize_refuses_a_resolution_it_would_never_finish() {
     let errors = run(r#"
@@ -501,8 +500,7 @@ fn voxelize_refuses_a_resolution_it_would_never_finish() {
     );
 }
 
-/// The chassis's own `forward_axis`, not z: a car built along x used to read
-/// the speed it was sliding sideways at.
+// The chassis's own `forward_axis`, not z: a car built along x would read its sideways slide.
 #[test]
 fn vehicle_speed_measures_along_the_chassis_forward_axis() {
     run_clean(
@@ -517,8 +515,8 @@ fn vehicle_speed_measures_along_the_chassis_forward_axis() {
     );
 }
 
-/// A schema property is a field on the component, so one number moves
-/// without building a table for it.
+// A schema property is a field on the component, so one number moves
+// without building a table for it.
 #[test]
 fn a_collider_property_is_read_and_written_as_a_field() {
     run_clean(
@@ -536,7 +534,6 @@ fn a_collider_property_is_read_and_written_as_a_field() {
     );
 }
 
-/// Writing a field leaves the rest of the component alone, as `patch` does.
 #[test]
 fn writing_one_property_field_leaves_the_others() {
     run_clean(
@@ -551,8 +548,8 @@ fn writing_one_property_field_leaves_the_others() {
     );
 }
 
-/// A property one component declares is not a field on another, so a typo or
-/// the wrong component is an error rather than a silent no-op.
+// A property one component declares is not a field on another, so a typo or
+// the wrong component is an error rather than a silent no-op.
 #[test]
 fn a_property_of_another_component_is_refused() {
     for body in [
