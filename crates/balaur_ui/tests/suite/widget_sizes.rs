@@ -1,5 +1,5 @@
 //! One layout owner: every kind is drawn in the box it measured, so a row
-//! sized from the measure holds what is painted in it (PLAN-ui-gaps §2).
+//! sized from the measure holds what is painted in it.
 
 #[allow(unused_imports, reason = "each suite uses part of the shared helpers")]
 use crate::support::*;
@@ -79,7 +79,10 @@ fn every_container_draws_in_the_box_it_measured() {
             toml::toml! { kind = "grid" }.into(),
             vec![label(), label(), label()],
         ),
-        (toml::toml! { kind = "flow" }.into(), vec![label(), label()]),
+        (
+            toml::toml! { kind = "row" widget_layout = { wrap_children = "wrap" } }.into(),
+            vec![label(), label()],
+        ),
         (
             toml::toml! { kind = "window" text = "Debug" }.into(),
             vec![label()],

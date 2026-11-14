@@ -9,6 +9,7 @@ use history;
 use model;
 use polygon;
 use ragdoll;
+use sceneedit;
 use selection;
 use shell;
 use util;
@@ -143,7 +144,7 @@ pub fn segment_distance(point: [float], from: [float], to: [float]) -> float {
     let length_squared = span_x * span_x + span_y * span_y;
     let fraction = 0.0;
     if length_squared > 1e-9 {
-        fraction = util::clamp(((point[0] - from[0]) * span_x + (point[1] - from[1]) * span_y) / length_squared, 0.0, 1.0);
+        fraction = math::clamp(((point[0] - from[0]) * span_x + (point[1] - from[1]) * span_y) / length_squared, 0.0, 1.0);
     }
     let closest_x = from[0] + span_x * fraction;
     let closest_y = from[1] + span_y * fraction;
@@ -204,7 +205,7 @@ pub fn pick_3d(state: editor::State, pointer_x: float, pointer_y: float, camera:
 }
 
 fn line(from: [float], to: [float], color: [float]) {
-    render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), LINE_WIDTH);
+    render::draw_polyline_2d([vec2(from[0], from[1]), vec2(to[0], to[1])], LINE_WIDTH, util::as_color(color));
 }
 
 // Godot's bone: a diamond from origin to tip, widest a fifth of the way.
@@ -217,7 +218,7 @@ fn draw_bone(state: editor::State, spine: Geometry, color: [float]) {
     }
     let normal_x = (-span_y) / length;
     let normal_y = span_x / length;
-    let half = util::min(0.12 * length, 6.0 * viewport::world_per_pixel());
+    let half = math::min(0.12 * length, 6.0 * viewport::world_per_pixel());
     let waist_x = spine.origin[0] + span_x * 0.2;
     let waist_y = spine.origin[1] + span_y * 0.2;
     let left = [waist_x + normal_x * half, waist_y + normal_y * half];
@@ -237,7 +238,7 @@ fn draw_bone_3d(spine: Geometry, color: [float]) {
         return;
     }
     // Two directions across the bone: any vector not along it, crossed.
-    let across = if util::abs(span[2]) > 0.9 * length {
+    let across = if math::abs(span[2]) > 0.9 * length {
         [1.0, 0.0, 0.0]
     } else {
         [0.0, 0.0, 1.0]
@@ -257,9 +258,12 @@ fn draw_bone_3d(spine: Geometry, color: [float]) {
     for corner in 0..waist.len() {
         let waist_point = waist[corner];
         let next_point = waist[(corner + 1) % 4];
-        render::draw_line_3d(vec3(spine.origin[0], spine.origin[1], spine.origin[2]), vec3(waist_point[0], waist_point[1], waist_point[2]), util::as_color(color), LINE_WIDTH);
-        render::draw_line_3d(vec3(waist_point[0], waist_point[1], waist_point[2]), vec3(spine.tip[0], spine.tip[1], spine.tip[2]), util::as_color(color), LINE_WIDTH);
-        render::draw_line_3d(vec3(waist_point[0], waist_point[1], waist_point[2]), vec3(next_point[0], next_point[1], next_point[2]), util::as_color(color), LINE_WIDTH);
+        let at = vec3(waist_point[0], waist_point[1], waist_point[2]);
+        render::draw_lines_3d([
+            render::Line3d { from: vec3(spine.origin[0], spine.origin[1], spine.origin[2]), to: at, color: util::as_color(color), width: LINE_WIDTH },
+            render::Line3d { from: at, to: vec3(spine.tip[0], spine.tip[1], spine.tip[2]), color: util::as_color(color), width: LINE_WIDTH },
+            render::Line3d { from: at, to: vec3(next_point[0], next_point[1], next_point[2]), color: util::as_color(color), width: LINE_WIDTH },
+        ]);
     }
 }
 
@@ -339,7 +343,7 @@ fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
     }
     let chain: [int] = [];
     let at = model::index_of_node(state, driven);
-    let limit = util::max(1, (modifier_component[CHAIN_COUNT].as_float() as int));
+    let limit = math::max(1, (modifier_component[CHAIN_COUNT].as_float() as int));
     let authored_kind = modifier_component[fields::KIND];
     let kind = if authored_kind == nil { animation::MODIFIER_LOOK_AT } else { authored_kind.as_str() };
     // `look_at` drives one bone whatever the chain says; `two_bone_ik` is
@@ -406,9 +410,9 @@ fn draw_modifiers(state: editor::State) {
 // and a 3D line in a 2D scene lands where nothing is looking.
 fn line_at(state: editor::State, from: [float], to: [float], color: [float], width: float) {
     if state.mode2d {
-        render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), width);
+        render::draw_polyline_2d([vec2(from[0], from[1]), vec2(to[0], to[1])], width, util::as_color(color));
     } else {
-        render::draw_line_3d(vec3(from[0], from[1], from[2]), vec3(to[0], to[1], to[2]), util::as_color(color), width);
+        render::draw_lines_3d([render::Line3d { from: vec3(from[0], from[1], from[2]), to: vec3(to[0], to[1], to[2]), color: util::as_color(color), width: width }]);
     }
 }
 
@@ -507,7 +511,7 @@ fn in_frame(parent: Node, world_x: float, world_y: float) -> Vec2 {
     let offset_y = world_y - origin.y;
     let cosine = math::cos(angle);
     let sine = math::sin(angle);
-    vec2((cosine * offset_x + sine * offset_y) / (if util::abs(parent_scale.x) > 1e-6 { parent_scale.x } else { 1.0 }), (-sine * offset_x + cosine * offset_y) / (if util::abs(parent_scale.y) > 1e-6 { parent_scale.y } else { 1.0 }))
+    vec2((cosine * offset_x + sine * offset_y) / (if math::abs(parent_scale.x) > 1e-6 { parent_scale.x } else { 1.0 }), (-sine * offset_x + cosine * offset_y) / (if math::abs(parent_scale.y) > 1e-6 { parent_scale.y } else { 1.0 }))
 }
 
 // The same name on the other side, or `None`. Shared spelling with the
@@ -649,7 +653,7 @@ pub fn add_bone(state: &mut editor::State, parent_index: int, world_x: float, wo
     } else {
         { REST_POSITION: [local_x, local_y, 0.0] }
     };
-    let child = model::spawn(state, parent_node, "Bone", {
+    let child = sceneedit::spawn(state, parent_node, "Bone", {
         components::TRANSFORM: { inspector_fields::POSITION: [local_x, local_y, 0.0] },
         component: rest,
     });
@@ -760,8 +764,39 @@ pub fn apply_rest(state: &mut editor::State) {
         return;
     }
     history::record(state, "reset to rest pose");
-    skeleton::apply_rest(found);
+    for bone in util::list_or_empty(skeleton::bones(found)) {
+        rest_bone(bone.as_node());
+    }
     sync_bones(state, state.selected, true);
+}
+
+// A bone takes the transform its `bone2d` or `bone3d` rests at, unskewed.
+fn rest_bone(bone: Node) {
+    if bone.has_component(components::BONE3D) {
+        bone.transform.position = bone.bone3d.rest_position;
+        bone.transform.rotation_euler = bone.bone3d.rest_rotation;
+        bone.transform.scale = bone.bone3d.rest_scale;
+    } else {
+        let rest = bone.bone2d.rest_position;
+        bone.transform.position = vec3(rest.x, rest.y, 0.0);
+        bone.transform.rotation_euler = vec3(0.0, 0.0, bone.bone2d.rest_rotation);
+        bone.transform.scale = vec3(1.0, 1.0, 1.0);
+    }
+    bone.transform.skew = 0.0;
+}
+
+// A bone's transform becomes the rest its `bone2d` or `bone3d` holds.
+fn keep_as_rest(bone: Node) {
+    let position = bone.transform.position;
+    let rotation = bone.transform.rotation_euler;
+    if bone.has_component(components::BONE3D) {
+        bone.bone3d.rest_position = position;
+        bone.bone3d.rest_rotation = rotation;
+        bone.bone3d.rest_scale = bone.transform.scale;
+    } else {
+        bone.bone2d.rest_position = vec2(position.x, position.y);
+        bone.bone2d.rest_rotation = rotation.z;
+    }
 }
 
 // Overwrite Rest Pose: the pose every bone under the selection is in now
@@ -772,6 +807,8 @@ pub fn overwrite_rest(state: &mut editor::State) {
         return;
     }
     history::record(state, "overwrite rest pose");
-    skeleton::overwrite_rest(found);
+    for bone in util::list_or_empty(skeleton::bones(found)) {
+        keep_as_rest(bone.as_node());
+    }
     sync_bones(state, state.selected, false);
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Export a game with the template CI just built, and check the result is the
 # shape that platform installs or serves. Why it stops there:
-# docs/PLAN-mobile-export.md.
+# docs/PLAN-mobile-export.md step 2.
 #
 # Usage: export_check.sh <ios|android|web>[-2d|-3d|-bare]
 set -euo pipefail
@@ -47,7 +47,7 @@ case $platform in
 esac
 ./scripts/with_icon.sh "$work/project"
 # The capabilities an Apple game declares are export-side, so the check needs a
-# project that declares some. See docs/PLAN-apple.md.
+# project that declares some.
 if [ "$base" = ios ]; then
   cat >>"$work/project/project.toml" <<'TOML'
 

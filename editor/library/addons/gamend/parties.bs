@@ -8,119 +8,134 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Accept a party invite
 /// `POST /api/v1/parties/invite/accept`
-pub fn accept_party_invite(params: any) -> int {
+pub async fn accept_party_invite(params: any) -> any {
     if !core::given(params, "party_id") {
         return core::missing("gamend::parties::accept_party_invite", "party_id");
     }
-    core::rest("POST", "/api/v1/parties/invite/accept", params)
+    let reply = await core::rest("POST", "/api/v1/parties/invite/accept", params);
+    reply
 }
 
 /// Cancel a pending party invite (leader only)
 /// `POST /api/v1/parties/invite/cancel`
-pub fn cancel_party_invite(params: any) -> int {
+pub async fn cancel_party_invite(params: any) -> any {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::parties::cancel_party_invite", "target_user_id");
     }
-    core::rest("POST", "/api/v1/parties/invite/cancel", params)
+    let reply = await core::rest("POST", "/api/v1/parties/invite/cancel", params);
+    reply
 }
 
 /// Create a party
 /// `POST /api/v1/parties`
-pub fn create_party(params: any) -> int {
-    core::rest("POST", "/api/v1/parties", params)
+pub async fn create_party(params: any) -> any {
+    let reply = await core::rest("POST", "/api/v1/parties", params);
+    reply
 }
 
 /// Decline a party invite
 /// `POST /api/v1/parties/invite/decline`
-pub fn decline_party_invite(params: any) -> int {
+pub async fn decline_party_invite(params: any) -> any {
     if !core::given(params, "party_id") {
         return core::missing("gamend::parties::decline_party_invite", "party_id");
     }
-    core::rest("POST", "/api/v1/parties/invite/decline", params)
+    let reply = await core::rest("POST", "/api/v1/parties/invite/decline", params);
+    reply
 }
 
 /// Disband the current party (leader only)
 /// `POST /api/v1/parties/disband`
-pub fn disband_party() -> int {
-    core::rest("POST", "/api/v1/parties/disband")
+pub async fn disband_party() -> any {
+    let reply = await core::rest("POST", "/api/v1/parties/disband");
+    reply
 }
 
 /// Invite a user to the party (leader only)
 /// `POST /api/v1/parties/invite`
-pub fn invite_to_party(params: any) -> int {
+pub async fn invite_to_party(params: any) -> any {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::parties::invite_to_party", "target_user_id");
     }
-    core::rest("POST", "/api/v1/parties/invite", params)
+    let reply = await core::rest("POST", "/api/v1/parties/invite", params);
+    reply
 }
 
 /// Kick a member from the party (leader only)
 /// `POST /api/v1/parties/kick`
-pub fn kick_party_member(params: any) -> int {
+pub async fn kick_party_member(params: any) -> any {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::parties::kick_party_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/parties/kick", params)
+    let reply = await core::rest("POST", "/api/v1/parties/kick", params);
+    reply
 }
 
 /// Leave the current party
 /// `POST /api/v1/parties/leave`
-pub fn leave_party() -> int {
-    core::rest("POST", "/api/v1/parties/leave")
+pub async fn leave_party() -> any {
+    let reply = await core::rest("POST", "/api/v1/parties/leave");
+    reply
 }
 
 /// List pending party invites for the current user
 /// `GET /api/v1/parties/invitations`
-pub fn list_party_invitations(options: any) -> int {
+pub async fn list_party_invitations(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/parties/invitations{query}")
+    let reply = await core::rest("GET", "/api/v1/parties/invitations{query}");
+    reply
 }
 
 /// List pending party invites sent by the current leader
 /// `GET /api/v1/parties/invitations/sent`
-pub fn list_sent_party_invitations(options: any) -> int {
+pub async fn list_sent_party_invitations(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/parties/invitations/sent{query}")
+    let reply = await core::rest("GET", "/api/v1/parties/invitations/sent{query}");
+    reply
 }
 
 /// Create a lobby with the party (leader only)
 /// `POST /api/v1/parties/create_lobby`
-pub fn party_create_lobby(params: any) -> int {
-    core::rest("POST", "/api/v1/parties/create_lobby", params)
+pub async fn party_create_lobby(params: any) -> any {
+    let reply = await core::rest("POST", "/api/v1/parties/create_lobby", params);
+    reply
 }
 
 /// Join a lobby with the party (leader only)
 /// `POST /api/v1/parties/join_lobby/{id}`
-pub fn party_join_lobby(id: str, params: any) -> int {
+pub async fn party_join_lobby(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::parties::party_join_lobby", "id");
     }
-    core::rest("POST", "/api/v1/parties/join_lobby/{id}", params)
+    let reply = await core::rest("POST", "/api/v1/parties/join_lobby/{id}", params);
+    reply
 }
 
 /// Party counts
 /// `GET /api/v1/parties/stats`
-pub fn party_stats() -> int {
-    core::rest("GET", "/api/v1/parties/stats")
+pub async fn party_stats() -> any {
+    let reply = await core::rest("GET", "/api/v1/parties/stats");
+    reply
 }
 
 /// Get current party
 /// `GET /api/v1/parties/me`
-pub fn show_party() -> int {
-    core::rest("GET", "/api/v1/parties/me")
+pub async fn show_party() -> any {
+    let reply = await core::rest("GET", "/api/v1/parties/me");
+    reply
 }
 
 /// Update party settings (leader only)
 /// `PATCH /api/v1/parties`
-pub fn update_party(params: any) -> int {
-    core::rest("PATCH", "/api/v1/parties", params)
+pub async fn update_party(params: any) -> any {
+    let reply = await core::rest("PATCH", "/api/v1/parties", params);
+    reply
 }

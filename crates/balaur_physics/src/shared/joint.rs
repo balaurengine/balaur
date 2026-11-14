@@ -81,27 +81,6 @@ pub(crate) fn softness(hz: f32, ratio: f32) -> (Real, Real) {
     (hz.max(0.0), ratio.max(0.0))
 }
 
-/// A record for `axis` with every other field at its default, for a script
-/// call that names an axis no record holds yet.
-pub(crate) fn default_record(axis: &str) -> toml::map::Map<String, toml::Value> {
-    use crate::vocabulary::{keys as k, words as w};
-    let mut out = toml::map::Map::new();
-    let zero = || toml::Value::Float(0.0);
-    out.insert(k::AXIS.into(), axis.into());
-    out.insert(k::LIMITS.into(), toml::Value::Array(vec![zero(), zero()]));
-    out.insert(k::MOTOR.into(), w::OFF.into());
-    out.insert(k::MOTOR_TARGET.into(), zero());
-    out.insert(k::MOTOR_TARGET_VELOCITY.into(), zero());
-    out.insert(k::MOTOR_MAX_FORCE.into(), zero());
-    out.insert(k::MOTOR_MODEL.into(), w::AUTO.into());
-    out.insert(k::STIFFNESS.into(), zero());
-    out.insert(
-        k::DAMPING.into(),
-        toml::Value::Float(f64::from(DEFAULT_DAMPING)),
-    );
-    out
-}
-
 /// What a joint is built from, as each dimension's typed ask holds it: what
 /// the functions both dimensions share read of it.
 pub(crate) trait JointAsk: Clone {
@@ -189,46 +168,15 @@ pub(crate) fn thresholds(
     Ok((force, torque))
 }
 
-fn number(value: f32) -> toml::Value {
-    toml::Value::Float(f64::from(value))
-}
-
-/// What `set_motor_velocity` writes into an axis's record.
-pub(crate) fn velocity_motor(
-    record: &mut toml::map::Map<String, toml::Value>,
-    velocity: f32,
-    damping: f32,
-) {
-    use crate::vocabulary::{keys as k, words as w};
-    record.insert(k::MOTOR.into(), w::VELOCITY.into());
-    record.insert(k::MOTOR_TARGET.into(), number(velocity));
-    record.insert(k::MOTOR_TARGET_VELOCITY.into(), number(0.0));
-    record.insert(k::DAMPING.into(), number(damping));
-}
-
-/// What `set_motor_position` writes, which as rapier's own call leaves no
-/// target velocity.
-pub(crate) fn position_motor(
-    record: &mut toml::map::Map<String, toml::Value>,
-    target: f32,
-    stiffness: f32,
-    damping: f32,
-) {
-    use crate::vocabulary::{keys as k, words as w};
-    record.insert(k::MOTOR.into(), w::POSITION.into());
-    record.insert(k::MOTOR_TARGET.into(), number(target));
-    record.insert(k::MOTOR_TARGET_VELOCITY.into(), number(0.0));
-    record.insert(k::STIFFNESS.into(), number(stiffness));
-    record.insert(k::DAMPING.into(), number(damping));
-}
-
-/// What `set_joint_limits` writes.
-pub(crate) fn limits(record: &mut toml::map::Map<String, toml::Value>, min: f32, max: f32) {
+/// An ask's table without what a made joint takes where it stands: its
+/// switch and its `axes`.
+pub(crate) fn rebuilt_rows(mut table: toml::Value) -> toml::Value {
     use crate::vocabulary::keys as k;
-    record.insert(
-        k::LIMITS.into(),
-        toml::Value::Array(vec![number(min), number(max)]),
-    );
+    if let Some(rows) = table.as_table_mut() {
+        rows.remove(k::AXES);
+        rows.remove(k::ENABLED);
+    }
+    table
 }
 
 macro_rules! functions {
@@ -249,38 +197,71 @@ macro_rules! functions {
             }
         }
 
-        /// Switch a made impulse joint on or off where it stands, when that is
-        /// all a write changes; `false` when it has to be made again.
-        fn toggled_in_place(eng: &Engine, entity: Entity, ask: &$Ask) -> bool {
+        /// Patch a made joint where it stands when a write changes only its
+        /// switch or its `axes`, so it keeps its handle, its warm-start
+        /// impulses and an articulation's coordinates; `false` when it has to
+        /// be made again.
+        fn patched_in_place(eng: &Engine, entity: Entity, ask: &$Ask) -> bool {
+            use crate::shared::joint::rebuilt_rows;
             let state = eng.resource::<$State>();
             let mut state = state.borrow_mut();
             let state = &mut *state;
             let Some(built) = state.joint_params.get(&entity) else {
                 return false;
             };
-            // Compared as made: two asks that make the same joint are the same.
-            let (Ok(mut was), Ok(mut made)) = (joint_of(built), joint_of(ask)) else {
-                return false;
-            };
-            was.set_enabled(true);
-            made.set_enabled(true);
-            let bits = |(force, torque): (f32, f32)| (force.to_bits(), torque.to_bits());
-            if was != made
-                || built.connected_body() != ask.connected_body()
-                || bits(built.breaks()) != bits(ask.breaks())
-                || built.articulated() != ask.articulated()
-            {
+            if rebuilt_rows(built.to_table()) != rebuilt_rows(ask.to_table()) {
                 return false;
             }
-            let Some($Handle::Impulse(handle)) = state.joints.get(&entity).map(|r| r.handle) else {
+            let toggled = built.enabled() != ask.enabled();
+            let Ok(made) = joint_of(ask) else {
                 return false;
             };
-            let Some(joint) = state.world.impulse_joints.get_mut(handle, true) else {
-                return false;
-            };
-            joint.data.set_enabled(ask.enabled());
+            match state.joints.get(&entity).map(|r| r.handle) {
+                Some($Handle::Impulse(handle)) => {
+                    let Some(joint) = state.world.impulse_joints.get_mut(handle, true) else {
+                        return false;
+                    };
+                    take_axes(&mut joint.data, &made);
+                    joint.data.set_enabled(ask.enabled());
+                }
+                // A switched articulation leaves or joins its chain.
+                Some($Handle::Multibody(handle)) if !toggled => {
+                    let Some((multibody, link)) = state.world.multibody_joints.get_mut(handle)
+                    else {
+                        return false;
+                    };
+                    let Some(link) = multibody.link_mut(link) else {
+                        return false;
+                    };
+                    // An articulation holds its frames flipped (see `apply_joint`).
+                    link.joint.data.flip();
+                    take_axes(&mut link.joint.data, &made);
+                    link.joint.data.flip();
+                    let body = link.rigid_body_handle();
+                    if let Some(body) = state.world.bodies.get_mut(body) {
+                        body.wake_up(true);
+                    }
+                }
+                _ => return false,
+            }
             state.joint_params.insert(entity, ask.clone());
             true
+        }
+
+        /// `made`'s limits and motors onto a live joint, the impulses the
+        /// solver warm-starts from kept.
+        fn take_axes(live: &mut GenericJoint, made: &GenericJoint) {
+            live.limit_axes = made.limit_axes;
+            live.motor_axes = made.motor_axes;
+            for (live, made) in live.limits.iter_mut().zip(&made.limits) {
+                live.min = made.min;
+                live.max = made.max;
+            }
+            for (live, made) in live.motors.iter_mut().zip(&made.motors) {
+                let impulse = live.impulse;
+                *live = *made;
+                live.impulse = impulse;
+            }
         }
 
         /// Every articulation's per-axis numbers and gears, written again:
@@ -688,94 +669,6 @@ macro_rules! functions {
                 seen |= axis.into();
                 crate::shared::joint::check_distance_axis(kind, is_distance(kind, axis), &record)?;
                 write_axis(joint, kind, rest_length, axis, &record);
-            }
-            Ok(())
-        }
-
-        /// Rewrite one axis's record, in the params `get` reports and the next
-        /// patch rebuilds from, and on the live joint.
-        ///
-        /// A joint still waiting for its other end takes the record too, and
-        /// is made with it.
-        fn set_axis(
-            eng: &Engine,
-            node: NodeId,
-            word: &str,
-            change: impl FnOnce(&mut toml::map::Map<String, toml::Value>),
-        ) -> Result<()> {
-            let entity = entity_of(node)?;
-            let state = eng.resource::<$State>();
-            let mut state = state.borrow_mut();
-            let state = &mut *state;
-            let mut ask = state
-                .joint_params
-                .get(&entity)
-                .cloned()
-                .ok_or_else(|| anyhow!("node has no {}", $component))?;
-            let kind = ask.kind_word();
-            let axis = free_axis(kind, &ask, word)?;
-            // The record is edited as the table a script's call writes into,
-            // then read back into the joint's own list.
-            let mut params = balaur_core::components::derived::to_table(&ask.joint);
-            let mut rows: Vec<toml::Value> = params
-                .get(k::AXES)
-                .and_then(toml::Value::as_array)
-                .cloned()
-                .unwrap_or_default();
-            let at = rows
-                .iter()
-                .position(|row| v::text(row, k::AXIS, "") == word)
-                .unwrap_or_else(|| {
-                    rows.push(toml::Value::Table(crate::shared::joint::default_record(
-                        word,
-                    )));
-                    rows.len() - 1
-                });
-            if let Some(table) = rows[at].as_table_mut() {
-                change(table);
-            }
-            if let Some(table) = params.as_table_mut() {
-                table.insert(k::AXES.into(), toml::Value::Array(rows));
-            }
-            ask.joint = balaur_core::components::derived::from_table(&params)?;
-            let record = ask
-                .axis_records()
-                .into_iter()
-                .find(|record| record.axis == word)
-                .ok_or_else(|| anyhow!("no `axes` record names `{word}`"))?;
-            crate::shared::joint::check_distance_axis(kind, is_distance(kind, axis), &record)?;
-            let rest_length = ask.rest_length().max(0.0);
-            // The component holds what was asked of it, and this call asks.
-            if let Ok(mut held) = eng.world().get::<&mut $Joint>(entity) {
-                *held = ask.joint.clone();
-            }
-            state.joint_params.insert(entity, ask);
-            let Some(reference) = state.joints.get(&entity).copied() else {
-                return Ok(());
-            };
-            match reference.handle {
-                $Handle::Impulse(handle) => {
-                    if let Some(joint) = state.world.impulse_joints.get_mut(handle, true) {
-                        write_axis(&mut joint.data, kind, rest_length, axis, &record);
-                    }
-                }
-                $Handle::Multibody(handle) => {
-                    let Some((multibody, link)) = state.world.multibody_joints.get_mut(handle)
-                    else {
-                        return Ok(());
-                    };
-                    let Some(link) = multibody.link_mut(link) else {
-                        return Ok(());
-                    };
-                    // An articulation holds its frames flipped (see `apply_joint`).
-                    link.joint.data.flip();
-                    write_axis(&mut link.joint.data, kind, rest_length, axis, &record);
-                    link.joint.data.flip();
-                    let body = link.rigid_body_handle();
-                    if let Some(body) = state.world.bodies.get_mut(body) {
-                        body.wake_up(true);
-                    }
-                }
             }
             Ok(())
         }

@@ -48,7 +48,7 @@ impl Tour {
         self.at = -1;
         self.shots = "";
         // The 2D layer lives in its own file so the editor keeps this scene 3D.
-        scene::instantiate(scene::source("scenes/flat.toml").unwrap(), self.node);
+        scene::instantiate(fs::read("scenes/flat.toml").unwrap(), self.node);
         for arg in engine::args() {
             let parts = arg.split("=");
             if parts.len() == 2 && parts[0] == SHOTS {

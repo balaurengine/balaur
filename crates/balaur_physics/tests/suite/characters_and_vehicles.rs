@@ -736,7 +736,7 @@ impl Scenario {
             let state = wheel.wheel3d.state();
             if !state.in_contact { log::error("the wheel is off the ground"); }
             let ground = state.ground.unwrap();
-            if ground != scene::get_node("World/Ground") { log::error("the ray hit {ground}"); }
+            if ground != scene::root().get_node("World/Ground") { log::error("the ray hit {ground}"); }
             let contact = state.contact_point.y;
             if math::abs(contact) >= 0.05 { log::error("the ray met the ground at {contact}"); }
             let normal = state.contact_normal.y;

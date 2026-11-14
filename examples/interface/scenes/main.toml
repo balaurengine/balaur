@@ -486,9 +486,10 @@ id = "chips"
 name = "Chips"
 parent = "left"
 [nodes.widget]
-kind = "flow"
+kind = "row"
 [nodes.widget_layout]
 gap = [5, 5]
+wrap_children = "wrap"
 
 [[nodes]]
 id = "chip0"
@@ -587,7 +588,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "label"
 role = "caption"
-text = "a flow wraps when the row runs out; every box here is a scene node"
+text = "a row wraps when it runs out; every box here is a scene node"
 
 # The ring a click leaves in the manual's clip, under the cursor that made it.
 [[nodes]]

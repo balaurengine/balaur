@@ -1,0 +1,810 @@
+// Self-tests of the viewport: the camera under the mouse, clicks and the
+// selection they leave, picking, gestures, the start screen and the empty
+// scene's note, and a camera's own document.
+
+use defs;
+use editor;
+use gizmo2d;
+use gizmo;
+use inspector;
+use layout;
+use left;
+use manager;
+use model;
+use rig;
+use sceneedit;
+use selection;
+use selftest;
+use shell;
+use statemachine;
+use util;
+use viewport;
+
+/// The mouse camera the editor drives, whatever tool is picked.
+///
+/// The wheel dollies it, and a right-drag begun on the stage keeps the ground
+/// under the pointer until the button comes up, off the stage included; one
+/// begun over a dock moves nothing. The backend's own camera never holds a
+/// button: it would pan from where it last saw the cursor, a drag ago.
+pub fn camera_keeps_pointer(state: &mut editor::State) {
+    // An interface opens in the UI workspace, whose stage has no camera to move.
+    shell::set_workspace(state, defs::WORKSPACE_SCENE);
+    state.camera_check = selftest::CameraCheck { waited: 0, stage: 0, was: 0.0, drag: nil };
+    selftest::stepping(state, "camera_check");
+}
+
+pub fn camera_check_step(state: &mut editor::State) {
+    if state.camera_check == nil {
+        return;
+    }
+    let camera_check = state.camera_check.unwrap();
+    if state.layout["stage"]["width"].as_float() <= 0.0 {
+        camera_check.waited += 1;
+        if camera_check.waited > 30 {
+            state.camera_check = nil;
+            log::info("selftest camera: nothing drew this run, skipped");
+        }
+        return;
+    }
+    if camera_check.stage == 1 {
+        camera_check.stage = 2;
+        selftest::check(viewport::mouse_camera(state), "the wheel over the stage is the camera's");
+        return;
+    }
+    if camera_check.stage == 2 {
+        camera_dollied(state, camera_check);
+        return;
+    }
+    if camera_check.stage >= 3 {
+        camera_drag_step(state, camera_check);
+        return;
+    }
+    let stage = state.layout["stage"];
+    let centre_x = stage["x"].as_float() + stage["width"].as_float() / 2.0;
+    let centre_y = stage["y"].as_float() + stage["height"].as_float() / 2.0;
+    // The workspace just left holds its widgets over the stage a pass longer.
+    if !viewport::owns_pointer(state, centre_x, centre_y) {
+        camera_check.waited += 1;
+        if camera_check.waited > 30 {
+            state.camera_check = nil;
+            selftest::check(false, "the Scene workspace's stage is the viewport's to point at");
+        }
+        return;
+    }
+    camera_check.stage = 1;
+    // The wheel the editor drives itself, fed into the snapshot it reads. A
+    // fed event lands next frame, and the pose it moves is published the one after.
+    let per_design = ui::pixels_per_design();
+    input::set_mouse_position(vec2(centre_x * per_design, centre_y * per_design));
+    camera_check.was = closeness(state);
+    input::set_scroll_delta(vec2(0.0, flick(viewport::dolly_step())));
+}
+
+// A right-drag fed a frame at a time: where the pointer lands, the press, the
+// move, the release, and the frame the pose it set is published in.
+fn camera_drag_step(state: &mut editor::State, camera_check: selftest::CameraCheck) {
+    let pixels_per_point = ui::pixels_per_design();
+    let right = input::MOUSE_BUTTON_RIGHT;
+    let step = camera_check.stage - 3;
+    if step == 0 {
+        // From inside the stage to past its right edge, under the Move tool:
+        // a gizmo on screen once took the camera's buttons away.
+        let stage = state.layout["stage"];
+        let from = [stage["x"].as_float() + stage["width"].as_float() * 0.7, stage["y"].as_float() + stage["height"].as_float() * 0.6];
+        let to = [math::min(stage["x"].as_float() + stage["width"].as_float() + 24.0, state.screen_width - 2.0), from[1] - 12.0];
+        camera_check.drag = selftest::CameraDrag { from: from, to: to, tool: state.tool, world: [], at: nil };
+        state.tool = "move";
+        input::set_mouse_position(vec2(from[0] * pixels_per_point, from[1] * pixels_per_point));
+        camera_check.stage += 1;
+        return;
+    }
+    let drag = camera_check.drag.unwrap();
+    if step == 1 {
+        drag.world = looked_at(state);
+        drag.at = drawn_at(state, drag.world);
+        input::set_mouse_down(right, true);
+    } else if step == 2 {
+        input::set_mouse_position(vec2(drag.to[0] * pixels_per_point, drag.to[1] * pixels_per_point));
+    } else if step == 3 {
+        input::set_mouse_down(right, false);
+    } else if step == 4 {
+        camera_dragged(state, drag);
+        // A press over a dock, dragged onto the middle of the stage.
+        let dock = dock_point(state);
+        if dock == nil {
+            camera_drag_done(state, drag);
+            return;
+        }
+        drag.world = looked_at(state);
+        input::set_mouse_position(vec2(dock.unwrap()[0] * pixels_per_point, dock.unwrap()[1] * pixels_per_point));
+    } else if step == 5 {
+        input::set_mouse_down(right, true);
+    } else if step == 6 {
+        let stage = state.layout["stage"];
+        input::set_mouse_position(vec2((stage["x"].as_float() + stage["width"].as_float() / 2.0) * pixels_per_point, (stage["y"].as_float() + stage["height"].as_float() / 2.0) * pixels_per_point));
+    } else if step == 7 {
+        input::set_mouse_down(right, false);
+    } else {
+        let now = looked_at(state);
+        let moved = math::abs(now[0] - drag.world[0]) + math::abs(now[1] - drag.world[1]) + math::abs(now[2] - drag.world[2]);
+        selftest::check(moved < 0.0001, "a right-drag begun over a dock moves no camera (by {moved})");
+        camera_drag_done(state, drag);
+        return;
+    }
+    camera_check.stage += 1;
+}
+
+fn camera_dragged(state: editor::State, drag: selftest::CameraDrag) {
+    let at = drag.at;
+    let now = drawn_at(state, drag.world);
+    if at == nil || now == nil {
+        selftest::check(false, "the camera's target draws on screen before and after a drag");
+        return;
+    }
+    let screen_x = now.unwrap().x - at.unwrap().x;
+    let screen_y = now.unwrap().y - at.unwrap().y;
+    let world_x = drag.to[0] - drag.from[0];
+    let world_y = drag.to[1] - drag.from[1];
+    let off = math::sqrt((screen_x - world_x) * (screen_x - world_x) + (screen_y - world_y) * (screen_y - world_y));
+    selftest::check(off < 1.5, "a right-drag keeps the ground under the pointer, off the stage too ({screen_x}, {screen_y} for {world_x}, {world_y})");
+}
+
+fn camera_drag_done(state: &mut editor::State, drag: selftest::CameraDrag) {
+    state.tool = drag.tool;
+    state.camera_check = nil;
+    log::info("selftest camera: done");
+}
+
+// The middle of the first dock on screen that the viewport does not own.
+fn dock_point(state: editor::State) -> [float]? {
+    for sheet in layout::sheets(state) {
+        let middle_x = sheet["x"].as_float() + sheet["width"].as_float() / 2.0;
+        let middle_y = sheet["y"].as_float() + sheet["height"].as_float() / 2.0;
+        if sheet["width"].as_float() > 0.0 && sheet["height"].as_float() > 0.0 && !viewport::owns_pointer(state, middle_x, middle_y) {
+            return [middle_x, middle_y];
+        }
+    }
+    nil
+}
+
+// The world point the camera looks at, which a pan carries with the pointer.
+fn looked_at(state: editor::State) -> [float] {
+    if state.mode2d {
+        let camera_2d = render::camera_2d();
+        return [camera_2d.center.x, camera_2d.center.y, 0.0];
+    }
+    let pose = render::camera_pose();
+    [pose.target.x, pose.target.y, pose.target.z]
+}
+
+// Where a world point draws, in design px: through the renderer's own matrix
+// in 3D; in 2D from the centre and zoom, relative to the centre.
+fn drawn_at(state: editor::State, point: [float]) -> gizmo::Project? {
+    if state.mode2d {
+        let camera_2d = render::camera_2d();
+        let scale = camera_2d.zoom / viewport::logical_per_design();
+        return gizmo::Project { x: (point[0] - camera_2d.center.x) * scale, y: (camera_2d.center.y - point[1]) * scale };
+    }
+    let camera = gizmo::Camera {
+        eye: [],
+        forward: [],
+        right: [],
+        up: [],
+        distance: nil,
+        fov: nil,
+        dpi: nil,
+        world_per_pixel: 0.0,
+        matrix: util::list_or_empty(render::camera_matrix()),
+        ray_origin: [],
+        ray_direction: [],
+        rect: gizmo::Rect { x: 0.0, y: 0.0, width: state.screen_width, height: state.screen_height },
+        viewport_rect: editor::Viewport { x: 0.0, y: 0.0, width: 0.0, height: 0.0, at: 0 },
+    };
+    gizmo::project(camera, point)
+}
+
+// A number that grows as the camera closes in: the 2D zoom, or one over how
+// far the 3D eye stands from what it looks at.
+fn closeness(state: editor::State) -> float {
+    if state.mode2d {
+        return render::camera_2d().zoom;
+    }
+    let pose = render::camera_pose();
+    let delta_x = pose.eye.x - pose.target.x;
+    let delta_y = pose.eye.y - pose.target.y;
+    let delta_z = pose.eye.z - pose.target.z;
+    1.0 / math::max(math::sqrt(delta_x * delta_x + delta_y * delta_y + delta_z * delta_z), EPSILON)
+}
+
+// The wheel this platform reports for a comfortable flick: enough to take a
+// couple of percent off the distance. macOS scrolls by the pixel and the rest
+// by the notch, so the count differs by two orders of magnitude.
+fn flick(step: float) -> float {
+    let notches = 1.0;
+    while math::pow(step, notches) < 1.02 && notches < 100000.0 {
+        notches = notches * 2.0;
+    }
+    notches
+}
+
+// What a distance is floored at before it divides.
+const EPSILON: float = 0.0000001;
+
+fn camera_dollied(state: editor::State, camera_check: selftest::CameraCheck) {
+    camera_check.stage = 3;
+    let now = closeness(state);
+    // Bounded, not just inward: a flick that swallows the whole distance is
+    // the zoom being orders of magnitude too strong, which reads as a teleport.
+    let took = now / math::max(camera_check.was, EPSILON);
+    selftest::check(took > 1.005 && took < 1.1, "and dollies the camera in gently ({camera_check.was} to {now})");
+}
+
+/// The viewport still takes a click in the middle of the stage.
+///
+/// Every tool asks `viewport::owns_pointer` first, so a test that answers
+/// `false` over the stage makes the canvas dead: no picking, no gizmo, and a
+/// camera drag that re-anchors whenever the answer flickers.
+pub fn viewport_clicks(state: &mut editor::State) {
+    state.viewport_check = selftest::ViewportCheck { waited: 0, stage: 0 };
+    selftest::stepping(state, "viewport_check");
+}
+
+pub fn viewport_click_step(state: &mut editor::State) {
+    if state.viewport_check == nil {
+        return;
+    }
+    let viewport_check = state.viewport_check.unwrap();
+    let stage = state.layout["stage"];
+    // The rects are a frame late, and a headless run never lays them out.
+    if stage["width"].as_float() <= 0.0 || stage["height"].as_float() <= 0.0 {
+        viewport_check.waited += 1;
+        if viewport_check.waited > 30 {
+            state.viewport_check = nil;
+            log::info("selftest viewport clicks: nothing drew this run, skipped");
+        }
+        return;
+    }
+    // The palette is a dialog, and a dialog takes the pointer from the pass
+    // that draws it: opened, it is checked two frames on.
+    viewport_check.stage += 1;
+    let mid = middle(stage);
+    if viewport_check.stage == 1 {
+        viewport_owns(state, stage);
+        shell::open_palette(state, "");
+    } else if viewport_check.stage == 3 {
+        selftest::check(!viewport::owns_pointer(state, mid[0], mid[1]), "nor is the stage while the command palette is over it");
+        shell::close_palette(state);
+    } else if viewport_check.stage == 5 {
+        state.viewport_check = nil;
+        selftest::check(viewport::owns_pointer(state, mid[0], mid[1]), "and it is the viewport's again once the palette closes");
+        log::info("selftest viewport clicks: done");
+    }
+}
+
+// The middle of a layout rect.
+internal fn middle(rect: any) -> [float] {
+    return [rect["x"].as_float() + rect["width"].as_float() / 2.0, rect["y"].as_float() + rect["height"].as_float() / 2.0];
+}
+
+fn viewport_owns(state: editor::State, stage: any) {
+    let mid = middle(stage);
+    selftest::check(viewport::owns_pointer(state, mid[0], mid[1]), "the middle of the stage is the viewport's to click");
+    // A dock is not, whichever one the workspace opened.
+    let right = state.layout["right"];
+    if right["width"].as_float() > 0.0 {
+        let at = middle(right);
+        selftest::check(!viewport::owns_pointer(state, at[0], at[1]), "a point inside the right dock is not");
+    }
+    // The two strips the stage draws over itself, when they are up.
+    let chips = state.layout["chips"];
+    if chips["width"].as_float() > 0.0 {
+        let at = middle(chips);
+        selftest::check(!viewport::owns_pointer(state, at[0], at[1]), "nor is the chip row along the stage's top");
+    }
+    let hud = state.layout["hud"];
+    if hud["width"].as_float() > 0.0 {
+        let at = middle(hud);
+        selftest::check(!viewport::owns_pointer(state, at[0], at[1]), "nor is the reading row along its foot");
+    }
+    // The seam beside a dock is a handle: a drag there resizes the dock,
+    // and a press there selects nothing in the world.
+    let left = state.layout["left"];
+    if left["width"].as_float() > 0.0 {
+        let seam = left["x"].as_float() + left["width"].as_float() + state.layout["gap"].as_float() / 2.0;
+        selftest::check(!viewport::owns_pointer(state, seam, middle(left)[1]), "nor is the seam between the left dock and the stage");
+    }
+}
+
+/// Nothing selected, which a click on empty space in the viewport leaves.
+///
+/// The panels all read the active row, so this is the state that breaks them:
+/// every one has to draw an empty frame rather than index past the document.
+/// The run this sets up draws with no selection for its whole length, so an
+/// error in any of them lands in the log the harness reads.
+pub fn deselected(state: &mut editor::State) {
+    state.reselect = selftest::Reselect { waited: 0, stage: 0, row: 0, had: 0, drawn: 0, workspace: "", tool: "" };
+    selftest::stepping(state, "reselect");
+}
+
+/// Clearing the selection leaves the panels a blank node, and picking the same
+/// row again brings its components back.
+pub fn reselect_step(state: &mut editor::State) {
+    if state.reselect == nil {
+        return;
+    }
+    let reselect = state.reselect.unwrap();
+    reselect.waited += 1;
+    // Find a row with something on it, settle, record, deselect, settle,
+    // reselect, settle, compare. The pool keeps its rows between passes, so
+    // every reading is taken once the panel has stopped moving.
+    if reselect.stage == 0 {
+        for index in 0..state.nodes.len() {
+            selection::only(state, index);
+            if listed_components(state) > 0 {
+                break;
+            }
+        }
+        reselect.had = listed_components(state);
+        if reselect.had == 0 {
+            if reselect.waited > 40 {
+                state.reselect = nil;
+                log::info("selftest deselect: nothing resolved this run, skipped");
+            }
+            return;
+        }
+        reselect.row = state.selected;
+        reselect.stage = 1;
+        reselect.waited = 0;
+        return;
+    }
+    if reselect.stage == 1 {
+        if reselect.waited < SETTLE {
+            return;
+        }
+        reselect.drawn = inspector::drawn_rows();
+        selftest::check(reselect.drawn > 0, "the panel draws {reselect.drawn} rows for the selected node");
+        deselect_checks(state, reselect.had);
+        reselect.workspace = state.workspace;
+        reselect.tool = state.tool;
+        reselect.stage = 2;
+        reselect.waited = 0;
+        return;
+    }
+    if reselect.stage == 2 {
+        if reselect.waited < no_selection_tools().len() {
+            no_selection_frame(state, reselect);
+            return;
+        }
+        shell::set_workspace(state, reselect.workspace);
+        shell::set_tool(state, reselect.tool);
+        add_with_nothing_selected(state);
+        selection::only(state, reselect.row);
+        reselect.stage = 3;
+        reselect.waited = 0;
+        return;
+    }
+    if reselect.waited < SETTLE {
+        return;
+    }
+    state.reselect = nil;
+    let now = listed_components(state);
+    selftest::check(model::node(state, reselect.row).is_valid(), "the reselected row resolves to its live node");
+    selftest::check(now == reselect.had, "and its components are listed again ({now} of {reselect.had})");
+    // What the panel shows, not what it was asked to show: the form is a pool
+    // of retained rows, and one left hidden is invisible to a check that reads
+    // the spec list instead.
+    let drawn = inspector::drawn_rows();
+    selftest::check(drawn == reselect.drawn, "and the panel draws them again ({drawn} rows, was {reselect.drawn})");
+    selftest::check(selftest::mirror_resolves(state), "all {state.nodes.len()} rows are nodes still standing");
+    check_empty_says_why(state);
+    log::info("selftest deselect: done");
+}
+
+// Frames to let the pooled form stop moving before a reading is taken.
+internal const SETTLE: int = 8;
+
+/// A launch with no project: the start screen has the window, and the shell
+/// under it is hidden rather than drawing a project that is not open.
+pub fn start_screen(state: &mut editor::State) {
+    state.start_check = selftest::StartCheck { waited: 0 };
+    selftest::stepping(state, "start_check");
+}
+
+pub fn start_screen_step(state: &mut editor::State) {
+    if state.start_check == nil {
+        return;
+    }
+    let start_check = state.start_check.unwrap();
+    start_check.waited += 1;
+    if start_check.waited < SETTLE {
+        return;
+    }
+    state.start_check = nil;
+    selftest::check(state.game_root == "" && manager::showing(state), "a launch with no project is the start screen");
+    let head = ui::widget_rect(scene::root().get_node("Editor/Manager/ManagerHead"));
+    selftest::check(head != nil && head.unwrap().width > 0.0, "and its head is drawn ({head})");
+    let shell = scene::root().get_node("Editor/Shell");
+    selftest::check(shell.is_valid() && shell.visible() == false, "the shell under it is hidden");
+    log::info("selftest start screen: done");
+}
+
+// A node the workspace has nothing for draws a reason, not a blank panel: an
+// empty inspector is otherwise indistinguishable from components gone missing.
+fn check_empty_says_why(state: &mut editor::State) {
+    for index in 0..state.nodes.len() {
+        selection::only(state, index);
+        if listed_components(state) == 0 {
+            state.empty_note = selftest::EmptyNote { waited: 0 };
+            selftest::stepping(state, "empty_note");
+            return;
+        }
+    }
+    log::info("selftest deselect: every row has a section, note not checked");
+}
+
+pub fn empty_note_step(state: &mut editor::State) {
+    if state.empty_note == nil {
+        return;
+    }
+    let empty_note = state.empty_note.unwrap();
+    empty_note.waited += 1;
+    if empty_note.waited < SETTLE {
+        return;
+    }
+    state.empty_note = nil;
+    let drawn = inspector::drawn_rows();
+    selftest::check(drawn > 0, "a node with no section for this workspace says so ({drawn} rows)");
+    log::info("selftest note: done");
+}
+
+fn deselect_checks(state: &mut editor::State, had: int) {
+    selftest::check(had > 0, "the selected row lists {had} components to begin with");
+    let before = selection::count(state);
+    selection::clear(state);
+    selftest::check(state.selected < 0, "clearing the selection leaves no active row");
+    selftest::check(selection::count(state) == 0, "and no selected rows");
+    selftest::check(!model::selected_node(state).is_valid(), "the panels read no node rather than indexing past the rows");
+    selftest::check(selftest::mirror_resolves(state), "the scene still resolves ({before} rows were selected)");
+    // Every verb on "the selected node", with none: each returns rather than
+    // indexing row -1, which threw and left a Cmd+S unsaved.
+    let rows = state.nodes.len();
+    sceneedit::rename_selected(state, "Renamed");
+    sceneedit::duplicate_selected(state);
+    sceneedit::delete_selected(state);
+    sceneedit::open_prefab(state);
+    left::rename_open(state);
+    shell::attach_script(state);
+    shell::detach_script(state);
+    shell::set_script_path(state, "scripts/nothing_selected.bs");
+    shell::goto_definition(state);
+    shell::format_active(state);
+    statemachine::create(state);
+    selftest::check(state.nodes.len() == rows && !state.renaming && state.selected < 0, "and every verb on the selection leaves the document and the selection alone");
+}
+
+// Every tool any workspace offers, each drawn with nothing selected.
+fn no_selection_tools() -> [str] {
+    let tools: [str] = [];
+    for workspace in defs::workspaces() {
+        for tool in defs::tools(workspace.id) {
+            if !util::contains(tools, tool) {
+                tools.push(tool);
+            }
+        }
+    }
+    tools
+}
+
+// One workspace and tool pair a frame.
+fn no_selection_frame(state: &mut editor::State, reselect: selftest::Reselect) {
+    let workspaces = defs::workspaces();
+    let tools = no_selection_tools();
+    let index = reselect.waited % tools.len();
+    shell::set_workspace(state, workspaces[index % workspaces.len()].id);
+    shell::set_tool(state, tools[index]);
+}
+
+// A node added with nothing selected goes under the root, and is taken out
+// again so the reselected row still lists what it did.
+fn add_with_nothing_selected(state: &mut editor::State) {
+    let rows = state.nodes.len();
+    sceneedit::add_child(state);
+    let made = model::selected_node(state);
+    selftest::check(state.nodes.len() == rows + 1 && made.parent() == model::node(state, 0), "a node added with nothing selected goes under the root");
+    sceneedit::delete_selected(state);
+}
+
+// How many components the inspector would list for the active row.
+fn listed_components(state: &mut editor::State) -> int {
+    inspector::node_components(state).len()
+}
+
+/// Picking, aimed by hand. The viewport snapshot a real click reads is empty
+/// without a window, which is why `render::pick_ray_at` takes the ray: a
+/// headless run can still aim one and say what it met.
+pub fn picking(state: &mut editor::State) {
+    state.pick_check = selftest::PickCheck { stage: 0, sprite: nil, turned: nil, text: nil };
+    selftest::stepping(state, "pick_check");
+    let target: int? = nil;
+    for index in 0..state.nodes.len() {
+        let found = model::node(state, index);
+        if found.is_valid() && found.has_component("shape3d") {
+            let kind = found.shape3d.shape["kind"].as_str();
+            if kind != "" && kind != "mesh" {
+                target = index;
+                break;
+            }
+        }
+    }
+    if target == nil {
+        log::info("selftest picking: no node with a 3D shape, skipped");
+        return;
+    }
+    let index = target.unwrap();
+    let found = model::node(state, index);
+    let position = found.transform.global_position();
+    let name = model::node(state, index).name();
+    // Straight down -z at it from well outside anything.
+    // The distance too, which decides between two things under the pointer:
+    // a gizmo handle yields to an object in front of it.
+    let at = render::pick_ray_at(vec3(position.x, position.y, position.z + 200.0), vec3(0.0, 0.0, -1.0));
+    if selftest::check(at != nil, "a ray aimed at '{name}' reports what it met and how far ({at})") {
+        let met = at.unwrap();
+        selftest::check(met.at > 0.0 && met.at < 400.0, "at a sane distance along the ray ({met.at})");
+        selftest::check(model::index_of_live(state, met.node) != nil, "and that node is one of the document's");
+    }
+    selftest::check(render::pick_ray_at(vec3(position.x, position.y, position.z + 200.0), vec3(0.0, 0.0, 1.0)) == nil, "a ray pointing away from the scene picks nothing");
+    // A pick can land on a node the document never named: a mesh's own child,
+    // or one a solver owns. The row that owns it is what the click meant.
+    check_climbs_to_owner(state);
+    // Far to the side, past anything the scene contains.
+    let aside = render::pick_ray_at(vec3(position.x + 10000.0, position.y, position.z + 200.0), vec3(0.0, 0.0, -1.0));
+    selftest::check(aside == nil, "a ray beside the scene picks nothing");
+    log::info("selftest picking: done");
+}
+
+/// A sprite, which has no shape row, is picked over what it draws and grows
+/// with its scale; a text is picked over the lines it is laid out in, which
+/// start at its origin; a box whose centre sits off its node's origin turns
+/// about that origin. A transform reaches the node's global one, and a text
+/// its layout, a frame after it is set, so the checks come two frames after
+/// the edits.
+pub fn pick_check_step(state: &mut editor::State) {
+    if state.pick_check == nil {
+        return;
+    }
+    let pick_check = state.pick_check.unwrap();
+    pick_check.stage += 1;
+    if pick_check.stage == 1 {
+        pick_check.sprite = scale_a_sprite(state);
+        pick_check.turned = turn_a_box(state);
+        pick_check.text = sceneedit::spawn(state, state.scene_root.unwrap(), "Picked text", { "transform": { "position": [0.0, 0.0, 0.0] }, "text2d": { "text": "Picked", "text_align": "start" } });
+    } else if pick_check.stage == 3 {
+        state.pick_check = nil;
+        if pick_check.sprite != nil {
+            sprite_scaled(state, pick_check.sprite.unwrap());
+        }
+        if pick_check.text != nil {
+            text_picked(state, pick_check.text.unwrap());
+        }
+        if pick_check.turned != nil {
+            box_turned(state, pick_check.turned.unwrap());
+        }
+    }
+}
+
+fn scale_a_sprite(state: &mut editor::State) -> selftest::ScaleASprite? {
+    for index in 0..state.nodes.len() {
+        let found = model::node(state, index);
+        if !found.is_valid() {
+            continue;
+        }
+        let bounds = render::bounds(found);
+        if !model::node(state, index).has_component("sprite") || bounds == nil || bounds.unwrap().len() != 2 {
+            continue;
+        }
+        let drawn = bounds.unwrap();
+        let scale = found.transform.scale;
+        let position = found.transform.global_position();
+        let wide = math::abs(found.transform.global_scale().x);
+        let angle = found.transform.global_rotation_euler().z;
+        // Twice its drawn half-width out along its own x: past its edge now,
+        // and inside once it is three times as wide.
+        let out = 2.0 * drawn[1].x * wide;
+        let at = [position.x + math::cos(angle) * out, position.y + math::sin(angle) * out];
+        selftest::check(gizmo2d::covering(state, index, position.x, position.y) != nil, "a click on the sprite '{model::node(state, index).name()}' lands on it");
+        selftest::check(gizmo2d::covering(state, index, at[0], at[1]) == nil, "and one past its drawn edge misses it");
+        model::set_transform(state, index, rig::Parts { position: [], rotation_euler: [], scale: [scale.x * 3.0, scale.y, scale.z] });
+        return selftest::ScaleASprite { index: index, at: at, scale: [scale.x, scale.y, scale.z] };
+    }
+    log::info("selftest picking: no sprite in this scene, its pick not checked");
+    nil
+}
+
+fn sprite_scaled(state: &mut editor::State, scaled: selftest::ScaleASprite) {
+    selftest::check(gizmo2d::covering(state, scaled.index, scaled.at[0], scaled.at[1]) != nil, "until it is three times as wide");
+    model::set_transform(state, scaled.index, rig::Parts { position: [], rotation_euler: [], scale: scaled.scale });
+}
+
+fn text_picked(state: &mut editor::State, made: Node) {
+    let index = model::index_of_node(state, made).unwrap();
+    let bounds = render::bounds(made);
+    if selftest::check(bounds != nil && bounds.unwrap().len() == 2, "a text reports the box it is laid out in") {
+        let laid = bounds.unwrap();
+        let origin = made.transform.global_position();
+        let right = origin.x + 2.0 * laid[0].x;
+        selftest::check(laid[0].x > 0.0, "a text aligned to its start lies right of its origin ({laid[0].x})");
+        selftest::check(gizmo2d::covering(state, index, origin.x + laid[0].x, origin.y + laid[0].y) != nil, "a click in the middle of its lines lands on it");
+        selftest::check(gizmo2d::covering(state, index, right - laid[1].x * 0.1, origin.y) != nil, "and one near its last letter");
+        selftest::check(gizmo2d::covering(state, index, origin.x - laid[1].x * 0.5, origin.y) == nil, "and one left of where it starts misses it");
+    }
+    made.free();
+    model::reindex(state);
+}
+
+fn turn_a_box(state: &mut editor::State) -> selftest::TurnABox? {
+    for index in 0..state.nodes.len() {
+        let found = model::node(state, index);
+        if !found.is_valid() {
+            continue;
+        }
+        let bounds = render::bounds(found);
+        let rotation = found.transform.global_rotation_euler();
+        let square = math::abs(rotation.x) + math::abs(rotation.y) + math::abs(rotation.z) < 0.0001;
+        if bounds == nil || bounds.unwrap().len() != 2 || !square || math::abs(bounds.unwrap()[0].y) < 0.01 {
+            continue;
+        }
+        let centre = bounds.unwrap()[0];
+        let scale = found.transform.global_scale();
+        let at = found.transform.global_position();
+        let held = util::xyz(found.transform.rotation_euler);
+        // Half over about x: the box's offset flips in y and z.
+        model::set_transform(state, index, rig::Parts { position: [], rotation_euler: [math::PI, 0.0, 0.0], scale: [] });
+        return selftest::TurnABox {
+            index: index,
+            held: held,
+            want: [at.x + centre.x * scale.x, at.y - centre.y * scale.y, at.z - centre.z * scale.z],
+        };
+    }
+    log::info("selftest picking: no box sits off its node's origin, its turn not checked");
+    nil
+}
+
+fn box_turned(state: &mut editor::State, turned: selftest::TurnABox) {
+    let centre = gizmo::extents_at(state, turned.index).unwrap().centre;
+    let want = turned.want;
+    let off = math::abs(centre[0] - want[0]) + math::abs(centre[1] - want[1]) + math::abs(centre[2] - want[2]);
+    selftest::check(off < 0.001, "'{model::node(state, turned.index).name()}' turned half over carries its box's centre with it ({centre}, not {want})");
+    model::set_transform(state, turned.index, rig::Parts { position: [], rotation_euler: turned.held, scale: [] });
+}
+
+// A pick landing on a child resolves to the row that owns it. Tried on a row
+// that has one, which the node aimed at above need not.
+fn check_climbs_to_owner(state: editor::State) {
+    for index in 0..state.nodes.len() {
+        let found = model::node(state, index);
+        if !found.is_valid() {
+            continue;
+        }
+        for kid in found.children() {
+            // Only a child the document never named has anything to climb:
+            // one that is itself a row resolved before this existed too.
+            if model::index_of_node(state, kid) != nil {
+                continue;
+            }
+            selftest::check(model::index_of_live(state, kid).or(-1) == index, "a child the document never named resolves to its owner '{model::node(state, index).name()}'");
+            return;
+        }
+    }
+    log::info("selftest picking: every child is a document row, climb not checked");
+}
+
+// The first numeric export in the scene, with the node carrying it. A number
+// is what the drag editors write; a string or a bool would be asserting a
+// different widget, which is its own test.
+internal fn first_number_export(state: &mut editor::State) -> selftest::NumberExport? {
+    for index in 0..state.nodes.len() {
+        let rel = model::script_rel(model::node(state, index));
+        if rel != nil {
+            for export in util::list_or_empty(model::exports(state, rel.as_str())) {
+                let kind = export["type"].as_str();
+                if kind == "float" || kind == "int" {
+                    return selftest::NumberExport { at: index, export: export };
+                }
+            }
+        }
+    }
+    nil
+}
+
+/// Two fingers on the stage drive the camera: a pinch dollies, a drag slides.
+/// Fed rather than felt, so CI answers for the half a phone would.
+pub fn gestures(state: &mut editor::State) {
+    state.gesture_demo = 0;
+    selftest::stepping(state, "gesture");
+}
+
+pub fn gesture_step(state: &mut editor::State) {
+    let frame = state.gesture_demo;
+    state.gesture_demo = frame + 1;
+    // A fed finger is read by the next tick and acted on later in that frame,
+    // so every act takes a frame and every reading the frame after.
+    let mid = middle(state.layout["stage"]);
+    let logical = viewport::logical_per_design();
+    let centre_x = mid[0] * logical;
+    let centre_y = mid[1] * logical;
+    let step = 40.0 * logical;
+    if frame == 0 {
+        state.gesture_from = gesture_reading(state);
+        input::set_touch(1, vec2(centre_x - step, centre_y), "start");
+        input::set_touch(2, vec2(centre_x + step, centre_y), "start");
+        return;
+    }
+    if frame == 1 {
+        // Apart: a pinch out, which walks the eye towards what it looks at.
+        input::set_touch(1, vec2(centre_x - step * 2.0, centre_y), "move");
+        input::set_touch(2, vec2(centre_x + step * 2.0, centre_y), "move");
+        return;
+    }
+    if frame == 3 {
+        let before = state.gesture_from;
+        let now = gesture_reading(state);
+        selftest::check(now[0] < before[0] * 0.999, "a pinch out walks the camera in ({before[0]} to {now[0]})");
+        state.gesture_from = now;
+        // Both fingers the same way: a two-finger drag, which slides the pair.
+        input::set_touch(1, vec2(centre_x - step, centre_y), "move");
+        input::set_touch(2, vec2(centre_x + step * 3.0, centre_y), "move");
+        return;
+    }
+    if frame == 5 {
+        let before = state.gesture_from;
+        let now = gesture_reading(state);
+        let moved = span(now[1] - before[1], now[2] - before[2], now[3] - before[3]);
+        // A finger's own travel, near enough: the world under it moved with
+        // it, by less than the view reaches, rather than by a constant nobody picked.
+        selftest::check(moved > before[0] * 0.001 && moved < before[0], "a two-finger drag slides what it looks at ({moved})");
+        input::set_touch(1, vec2(centre_x, centre_y), "end");
+        input::set_touch(2, vec2(centre_x, centre_y), "end");
+        state.gesture_demo = -1;
+    }
+}
+
+// How far the view reaches, then the point it looks at: the eye's distance
+// from its target in 3D, the stage's width in world units in 2D.
+fn gesture_reading(state: editor::State) -> [float] {
+    if state.mode2d {
+        let view = render::camera_2d();
+        let reach = state.layout["stage"]["width"].as_float() / math::max(view.zoom, 0.01);
+        return [reach, view.center.x, view.center.y, 0.0];
+    }
+    let pose = render::camera_pose();
+    let reach = span(pose.eye.x - pose.target.x, pose.eye.y - pose.target.y, pose.eye.z - pose.target.z);
+    [reach, pose.target.x, pose.target.y, pose.target.z]
+}
+
+fn span(delta_x: float, delta_y: float, delta_z: float) -> float {
+    math::sqrt(delta_x * delta_x + delta_y * delta_y + delta_z * delta_z)
+}
+
+/// Editing a game camera writes what the author set: the editor holds every
+/// game camera off the view without writing its `current`.
+pub fn camera_document(state: &mut editor::State) {
+    sceneedit::add_child(state);
+    let row = state.selected;
+    sceneedit::add_component(state, model::CAMERA_3D);
+    model::hold_game_cameras(state, false);
+    sceneedit::set_component_property(state, model::CAMERA_3D, "fov_degrees", 50.0);
+    let written = util::map_or_empty(model::node(state, row).authored(model::CAMERA_3D));
+    selftest::check(written["fov_degrees"] != nil, "the camera edit reached the document");
+    let current = written[model::CAMERA_CURRENT];
+    selftest::check(current == nil || current.as_bool(), "and the document keeps the camera current ({current})");
+    // An edit to `current` itself is the author's, and the editor keeps looking.
+    sceneedit::set_component_property(state, model::CAMERA_3D, model::CAMERA_CURRENT, false);
+    selftest::check(util::map_or_empty(model::node(state, row).authored(model::CAMERA_3D))[model::CAMERA_CURRENT] == false, "turning the camera off is written");
+    sceneedit::set_component_property(state, model::CAMERA_3D, model::CAMERA_CURRENT, true);
+    selftest::check(util::map_or_empty(model::node(state, row).authored(model::CAMERA_3D))[model::CAMERA_CURRENT] == true, "and so is turning it back on");
+    let live = model::node(state, row);
+    selftest::check(live.component_property(model::CAMERA_3D, model::CAMERA_CURRENT).as_bool(), "and the camera holds it, the view held off it by the editor");
+    sceneedit::delete_selected(state);
+    log::info("selftest camera document: done");
+}

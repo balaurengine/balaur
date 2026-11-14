@@ -263,7 +263,7 @@ pub fn track_label(track: any) -> str {
 
 pub fn length(clip_definition: any) -> float {
     let held = clip_definition[fields::LENGTH];
-    util::max(if held == nil { 2.0 } else { held.as_float() }, 0.001)
+    math::max(if held == nil { 2.0 } else { held.as_float() }, 0.001)
 }
 
 pub fn key_count(clip_definition: any) -> int {
@@ -384,7 +384,7 @@ fn put_key(track: any, time: float, value: any) {
     for index in 0..keys.len() {
         let old = keys[index];
         let key_time = old[log_fields::TIME].as_float();
-        if !placed && util::abs(key_time - time) < SAME_TIME {
+        if !placed && math::abs(key_time - time) < SAME_TIME {
             out.push(key);
             placed = true;
             continue;
@@ -466,7 +466,7 @@ pub fn delete_key_at(state: &mut editor::State, time: float) {
     for track in tracks(clip_definition) {
         let keys: [any] = [];
         for key in util::list_or_empty(track[fields::KEYS]) {
-            if track[inspector_fields::TARGET].as_str() != target || util::abs(key[log_fields::TIME].as_float() - time) >= 0.05 {
+            if track[inspector_fields::TARGET].as_str() != target || math::abs(key[log_fields::TIME].as_float() - time) >= 0.05 {
                 keys.push(key);
             }
         }
@@ -529,7 +529,9 @@ pub fn make_inline(state: &mut editor::State) {
         return;
     }
     history::record(state, "embed clip");
-    let copy = assets::duplicate(util::engine_path(state.game_root, rel.unwrap()));
+    let file = util::engine_path(state.game_root, rel.unwrap());
+    assets::reload(file);
+    let copy = assets::load(file);
     if copy.kind() != types::KIND_MAP {
         log::warn("cannot embed {rel.unwrap()}: {copy}");
         return;

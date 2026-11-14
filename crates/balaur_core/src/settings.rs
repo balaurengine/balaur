@@ -99,6 +99,16 @@ impl SettingDef {
             .and_then(toml::Value::as_bool)
             .unwrap_or(false)
     }
+
+    /// Whether a tag may answer this setting differently. `overridable =
+    /// false` is one value on every platform.
+    #[must_use]
+    pub fn overridable(&self) -> bool {
+        self.spec
+            .get(keys::OVERRIDABLE)
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true)
+    }
 }
 
 /// Every setting, in definition order.
@@ -488,6 +498,23 @@ pub fn unknown(eng: &Engine, text: &str) -> Vec<String> {
     found
 }
 
+/// Overrides a manifest holds for a setting that takes none, each as the path
+/// it is stored at.
+#[must_use]
+pub fn refused_overrides(eng: &Engine, text: &str) -> Vec<String> {
+    let Ok(doc) = toml::from_str::<toml::value::Table>(text) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    walk(&doc, "", &mut |path: &str| {
+        let named = without_tag(path);
+        if named != path && def(eng, named).is_some_and(|d| !d.overridable()) {
+            found.push(path.to_string());
+        }
+    });
+    found
+}
+
 /// An override's path without the `override/<tag>/` it is stored under, so it
 /// is checked against the setting it answers for.
 fn without_tag(path: &str) -> &str {
@@ -840,7 +867,7 @@ fn build_time_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<
         &parse(
             "settings.time",
             r#"
-tick_hz = { type = "int", default = 60, min = 1, max = 480, order = 1, applies = "restart", help = "How many fixed steps a second the simulation takes. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used." }
+tick_hz = { type = "int", default = 60, min = 1, max = 480, order = 1, applies = "restart", overridable = false, help = "How many fixed steps a second the simulation takes, the same on every platform: a recording replays and a match steps at one rate. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used." }
 "#,
         ),
     );

@@ -783,7 +783,7 @@ fn a_bs_script_calls_the_engine_ops_its_docs_type() {
         .collect();
     for want in [
         "info: fn info(str)",
-        "recent: fn recent(int?) -> [log::Entry]",
+        "since: fn since(int?) -> log::Batch",
         "Field: struct log::Field { name: str, value: str }",
     ] {
         assert!(offered.contains(&want.into()), "{offered:?}");
@@ -811,8 +811,8 @@ impl Reach {
         self.button = input::MOUSE_BUTTON_LEFT;
         self.turn = math::PI * 2.0;
         events::listen(self.node, \"ping\");
-        render::draw_line_2d(vec2(0.0, 0.0), vec2(1.0, 1.0), color(1.0, 1.0, 1.0, 1.0));
-        self.missing = !scene::get_node(\"Nowhere\").is_valid();
+        render::draw_polyline_2d([vec2(0.0, 0.0), vec2(1.0, 1.0)], 1.0, color(1.0, 1.0, 1.0, 1.0));
+        self.missing = !scene::root().get_node(\"Nowhere\").is_valid();
         self.position = self.node.transform.position.x;
         self.pointer = input::mouse_position().x;
     }
@@ -1077,8 +1077,8 @@ impl Panel {
         ];
         ui::fill_strip("Panel/Strip", controls);
         if self.frame == 2 {
-            let made = scene::get_node("Panel/Strip").children();
-            ui::edit_text(made[0], "ball");
+            let made = scene::root().get_node("Panel/Strip").children();
+            ui::edit(made[0], "ball");
             ui::click(made[1]);
         }
     }

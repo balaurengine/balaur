@@ -161,6 +161,7 @@ impl FnGen<'_> {
             }
             (UnOp::Neg, Ty::Float) => self.e(I::F64Neg),
             (UnOp::Not, Ty::Bool) => self.e(I::I32Eqz),
+            (UnOp::BitNot, Ty::Int) => self.emit([I::I64Const(-1), I::I64Xor]),
             (UnOp::Neg, Ty::Any) => {
                 return err(
                     pos,
@@ -175,6 +176,13 @@ impl FnGen<'_> {
             }
             (UnOp::Neg, _) => return err(pos, format!("cannot negate {}", show(&t))),
             (UnOp::Not, _) => return err(pos, format!("`!` needs a bool, got {}", show(&t))),
+            (UnOp::BitNot, Ty::Any) => {
+                return err(
+                    pos,
+                    "`~` needs an int, not an `any`: read it with `.as_int()`",
+                );
+            }
+            (UnOp::BitNot, _) => return err(pos, format!("`~` needs an int, got {}", show(&t))),
         }
         Ok(t)
     }
@@ -681,6 +689,17 @@ impl FnGen<'_> {
                 ),
             );
         }
+        if op.is_bitwise() && (ta != Ty::Int || tb != Ty::Int) {
+            return err(
+                pos,
+                format!(
+                    "`{}` takes two ints, got {} and {}",
+                    op_text(op),
+                    show(&ta),
+                    show(&tb)
+                ),
+            );
+        }
         if ta == Ty::Int && tb == Ty::Float {
             self.code.insert(mark, I::F64ConvertI64S);
             ta = Ty::Float;
@@ -724,7 +743,9 @@ impl FnGen<'_> {
     }
 
     pub(crate) fn operator(&self, op: BinOp, t: &Ty) -> Option<(I<'static>, Ty)> {
-        use BinOp::{Add, Div, Eq, Ge, Gt, Le, Lt, Mul, Ne, Rem, Sub};
+        use BinOp::{
+            Add, BitAnd, BitOr, BitXor, Div, Eq, Ge, Gt, Le, Lt, Mul, Ne, Rem, Shl, Shr, Sub,
+        };
         Some(match (t, op) {
             (Ty::Str, Add) => (I::Call(self.g.h.concat), Ty::Str),
             (Ty::Int, Add) => (I::I64Add, Ty::Int),
@@ -732,6 +753,12 @@ impl FnGen<'_> {
             (Ty::Int, Mul) => (I::I64Mul, Ty::Int),
             (Ty::Int, Div) => (I::I64DivS, Ty::Int),
             (Ty::Int, Rem) => (I::I64RemS, Ty::Int),
+            (Ty::Int, BitAnd) => (I::I64And, Ty::Int),
+            (Ty::Int, BitOr) => (I::I64Or, Ty::Int),
+            (Ty::Int, BitXor) => (I::I64Xor, Ty::Int),
+            // wasm takes the count's low six bits, so every engine agrees past 63.
+            (Ty::Int, Shl) => (I::I64Shl, Ty::Int),
+            (Ty::Int, Shr) => (I::I64ShrS, Ty::Int),
             (Ty::Int | Ty::Node, Eq) => (I::I64Eq, Ty::Bool),
             (Ty::Int | Ty::Node, Ne) => (I::I64Ne, Ty::Bool),
             (Ty::Int, Lt) => (I::I64LtS, Ty::Bool),

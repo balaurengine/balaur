@@ -8,7 +8,7 @@
 disallowed-methods = [
     { path = "std::time::Instant::now", reason = "wall-clock time in simulation makes a run unreproducible; simulation reads Engine::tick or DEFAULT_FIXED_DT" },
     { path = "std::time::SystemTime::now", reason = "wall-clock time in simulation makes a run unreproducible; simulation reads Engine::tick or DEFAULT_FIXED_DT" },
-    { path = "rand::random", reason = "entropy in simulation desyncs a replay; the seeded `rng` module is the simulation's only source of randomness" },
+    { path = "rand::random", reason = "entropy in simulation desyncs a replay; the seeded `random` module is the simulation's only source of randomness" },
 ]
 
 # Iterating either leaks hash order into behaviour. scripts/house_lints.py

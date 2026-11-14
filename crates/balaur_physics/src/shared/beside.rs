@@ -1,7 +1,7 @@
 //! Components that sit beside a main one on the same node and hold the rows
 //! only some of its kinds read: a convex decomposition's tuning beside a
 //! `collider3d`, a rope's length beside a `joint3d`. No property shows on a
-//! condition (PLAN-property-types §5), so a row that applies beside one value
+//! condition, so a row that applies beside one value
 //! of another is a component of its own.
 //!
 //! The main component's build reads its own table with each beside

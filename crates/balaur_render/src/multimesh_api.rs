@@ -9,20 +9,15 @@ use balaur_core::entity_of;
 use balaur_script::{Module, NodeId, Value};
 use glamx::{Affine2, Affine3A, Mat4};
 
-use crate::multimesh::{
-    Instance, MAX_INSTANCES, MULTIMESH_2D, MULTIMESH_3D, MultiMesh, buffer_of,
-    instances_from_buffer,
-};
+use crate::multimesh::{Instance, MAX_INSTANCES, MULTIMESH_2D, MULTIMESH_3D, MultiMesh};
 use crate::vocabulary::keys as k;
 
-const BUFFER: &str = "buffer";
 const INSTANCE_COLOR: &str = "instance_color";
 const INSTANCE_COUNT: &str = "instance_count";
 const INSTANCE_CUSTOM_DATA: &str = "instance_custom_data";
 const INSTANCE_REGION: &str = "instance_region";
 const INSTANCE_TRANSFORM: &str = "instance_transform";
 const INSTANCES: &str = "instances";
-const SET_BUFFER: &str = "set_buffer";
 const SET_INSTANCE_COLOR: &str = "set_instance_color";
 const SET_INSTANCE_COUNT: &str = "set_instance_count";
 const SET_INSTANCE_CUSTOM_DATA: &str = "set_instance_custom_data";
@@ -266,7 +261,7 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
     );
 }
 
-/// The counts and every instance at once, as a list or Godot's flat buffer.
+/// The counts, and every instance at once as a list.
 pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle) {
     let on = handle.on;
     m.describe(&[
@@ -276,39 +271,7 @@ pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle
         (k::VISIBLE_INSTANCE_COUNT, on, "(node: node) -> int", "How many instances draw; -1 is all of them."),
         (INSTANCES, on, "(node: node) -> [render::MultimeshInstance]", "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file."),
         (SET_INSTANCES, on, "(node: node, instances: [render::MultimeshInstance])", "Replace every instance with a list in the `multimesh` asset's shape."),
-        (BUFFER, on, "(node: node) -> [float]", "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data."),
-        (SET_BUFFER, on, "(node: node, buffer: [float])", "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance."),
     ]);
-    m.function(BUFFER, |eng: &Engine, node: NodeId| {
-        with_multimesh(eng, node, |multimesh| {
-            Ok(Value::List(
-                buffer_of(&multimesh.instances, multimesh.flat)
-                    .into_iter()
-                    .map(|v| Value::Num(f64::from(v)))
-                    .collect(),
-            ))
-        })
-    });
-    m.function(SET_BUFFER, |eng: &Engine, (node, list): (NodeId, Value)| {
-        let Value::List(items) = list else {
-            bail!("a buffer is a list of numbers, not a {}", list.type_name());
-        };
-        let floats = items
-            .iter()
-            .map(|item| match item {
-                Value::Num(n) => Ok(*n as f32),
-                Value::Int(n) => Ok(*n as f32),
-                other => Err(anyhow!(
-                    "a buffer holds numbers, not a {}",
-                    other.type_name()
-                )),
-            })
-            .collect::<Result<Vec<f32>>>()?;
-        with_multimesh(eng, node, |multimesh| {
-            multimesh.instances = instances_from_buffer(&floats, multimesh.flat, true, true)?;
-            Ok(())
-        })
-    });
     m.function(
         SET_INSTANCE_COUNT,
         |eng: &Engine, (node, count): (NodeId, i64)| {

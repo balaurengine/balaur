@@ -11,11 +11,10 @@ use style;
 use settings;
 use themewin;
 use util;
+use versions;
 use window;
 use words::components;
 use words::fields;
-use words::inspector_fields;
-use words::layout_fields;
 use words::log_fields;
 use words::panel_keys;
 use words::project_fields;
@@ -26,20 +25,14 @@ use words::theme_tokens;
 use words::verbs;
 
 const COPIED: str = "copied";
-const DOWNLOADING: str = "downloading";
 const ENGINE: str = "engine";
 const EXAMPLES: str = "examples";
-const INSTALL: str = "install";
-const INSTALLED: str = "installed";
 const NEW: str = "new";
-const OLDER: str = "older";
-const UNPACKING: str = "unpacking";
 const COVER: str = "cover";
 const EMPTY: str = "empty";
 const FORGE: str = "forge";
 const MY_GAME: str = "my-game";
 const PROJECTS: str = "projects";
-const DOWNLOAD: str = "download";
 const GONE: str = "gone";
 const HERE: str = "here";
 const MANAGER: str = "manager";
@@ -60,9 +53,9 @@ pub class ManagerState {
     internal releases: [any],
     internal asked: bool,
     internal reading: bool,
-    follow: str,
-    tag: str,
-    installing: Installing,
+    internal follow: str,
+    internal tag: str,
+    internal installing: Installing,
     back: bool,
     /// Public projects on Forge, as the last search answered.
     forge: [any],
@@ -74,10 +67,10 @@ pub class ManagerState {
 /// An install in flight: the tag, bytes so far and of how many, and whether
 /// it is unpacking. No `tag` when none is.
 pub struct Installing {
-    tag: str,
-    done: int,
-    total: int,
-    unpacking: bool,
+    internal tag: str,
+    internal done: int,
+    internal total: int,
+    internal unpacking: bool,
 }
 
 /// A control's centre in design px.
@@ -115,7 +108,7 @@ pub fn state() -> ManagerState {
         tag: "",
         // An install in flight: the tag, bytes so far and of how many, and
         // whether it is unpacking. Empty when none is.
-        installing: no_install(),
+        installing: versions::no_install(),
         // Opened over a project, with the way back to it.
         back: false,
         forge: [],
@@ -146,7 +139,7 @@ const LOGO_DARK: str = "assets/balaur-logo-dark.png";
 
 // The mark is dark ink on nothing, drawn for a light ground: the top bar sets
 // it on a light badge, and so does every other place that shows it.
-const MB: int = 1048576;
+internal const MB: int = 1048576;
 
 /// Whether the editor is running in a browser tab, where a project is opened
 /// by the page rather than by starting a second editor.
@@ -220,7 +213,7 @@ pub fn close(state: &mut editor::State) {
 /// before it has drawn.
 pub fn spot(state: editor::State, name: str) -> Spot? {
     let node = if name == NEW {
-        scene::get_node(TOOLS() + "/New")
+        scene::root().get_node(TOOLS() + "/New")
     } else {
         tab_node(name)
     };
@@ -234,7 +227,7 @@ pub fn spot(state: editor::State, name: str) -> Spot? {
 
 // The tab strip's node for the page `id`, in the order `tabs` lists them.
 fn tab_node(id: str) -> Node {
-    let host = scene::get_node(TABS_NODE());
+    let host = scene::root().get_node(TABS_NODE());
     if !host.is_valid() {
         return nil;
     }
@@ -265,7 +258,7 @@ fn tabs() -> [[str]] {
 }
 
 // One column under this, two above it.
-fn narrow(column_width: float) -> bool {
+internal fn narrow(column_width: float) -> bool {
     column_width < 600.0
 }
 
@@ -337,7 +330,7 @@ pub fn fill(state: &mut editor::State) {
     head_note(state, tokens);
     tools(state);
     let specs = if state.manager.tab == ENGINE {
-        engine_specs(state, tokens, column_width)
+        versions::engine_specs(state, tokens, column_width)
     } else if state.manager.tab == EXAMPLES {
         examples_specs(state, tokens, column_width)
     } else if state.manager.tab == tabs::FORGE {
@@ -351,11 +344,11 @@ pub fn fill(state: &mut editor::State) {
 // The page's width, as it was laid out: the widest the screen draws, whatever
 // the window is, since a list across a monitor is a list nobody can read.
 fn page_width() -> float {
-    let rect = ui::widget_rect(scene::get_node(BODY()));
+    let rect = ui::widget_rect(scene::root().get_node(BODY()));
     if rect == nil || rect.unwrap().width <= 0.0 {
         COLUMN
     } else {
-        util::min(rect.unwrap().width, COLUMN)
+        math::min(rect.unwrap().width, COLUMN)
     }
 }
 
@@ -382,14 +375,14 @@ pub fn verb(state: &mut editor::State, name: str) {
 // What the head says under itself: a note or a failure, and a job's bar.
 fn head_note(state: editor::State, tokens: any) {
     let said = if state.manager.failed != "" { state.manager.failed } else { state.manager.note };
-    let filled = scene::get_node(NOTE());
+    let filled = scene::root().get_node(NOTE());
     if filled.is_valid() {
         filled.set_visible(said != "");
         filled.widget.text = said;
         filled.patch_component(components::WIDGET, { themewin::TEXT_COLOR: (if state.manager.failed != "" { tokens[theme_tokens::WARNING_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str() });
     }
-    let controls = if installing(state) {
-        progress_controls(state)
+    let controls = if versions::installing(state) {
+        versions::progress_controls(state)
     } else {
         []
     };
@@ -405,19 +398,19 @@ fn tools(state: editor::State) {
     let acting = !in_tab();
     util::set_visible(TOOLS(), up);
     util::set_text(TOOLS() + "/Filter", state.manager.filter);
-    let filled = scene::get_node(TOOLS() + "/Open");
+    let filled = scene::root().get_node(TOOLS() + "/Open");
     if filled.is_valid() {
         filled.set_visible(acting && !state.touchscreen);
         filled.widget_button.icon = icons::panel(icons::ASSETS);
     }
-    let filled = scene::get_node(TOOLS() + "/New");
+    let filled = scene::root().get_node(TOOLS() + "/New");
     if filled.is_valid() {
         filled.set_visible(acting);
         filled.widget_button.icon = icons::ui(icons::ADD);
     }
 }
 
-fn say(text: str, ink: str) -> form::Row {
+internal fn say(text: str, ink: str) -> form::Row {
     form::Row {
         height: 0,
         controls: [
@@ -434,7 +427,7 @@ fn say(text: str, ink: str) -> form::Row {
     }
 }
 
-fn rule() -> form::Row {
+internal fn rule() -> form::Row {
     form::Row {
         height: 1,
         controls: [ui::Control { kind: ui::WIDGET_SEPARATOR, grow: 1 }],
@@ -469,19 +462,19 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
     let exists = row["exists"];
     let gone = if exists == nil { true } else { exists.as_bool() } != true;
     let built = row[fields::VERSION].as_str();
-    let line = util::max(style::row_height(state), 28.0);
+    let line = math::max(style::row_height(state), 28.0);
     let controls: [ui::Control] = [
         // The engine's mark: a project keeps its own icon, and none of them
         // is open, so the row wears the editor's.
         ui::Control {
             kind: ui::WIDGET_PANEL,
             role: roles::SHEET_LOGO,
-            padding: ui::all_sides(2),
+            padding: ui::Sides { left: 2.0, top: 2.0, right: 2.0, bottom: 2.0 },
             controls: [ui::Control { kind: ui::WIDGET_IMAGE, image: LOGO, width: 20 }],
         },
         ui::Control {
             kind: ui::WIDGET_COLUMN,
-            padding: ui::all_sides(0),
+            padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_BUTTON,
@@ -508,7 +501,7 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
         ui::Control {
             kind: ui::WIDGET_LABEL,
             role: roles::TEXT_CODE_QUIET,
-            padding: ui::all_sides(0),
+            padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
             font_size: 11,
             text: util::said_ago_since(row[fields::OPENED]),
         },
@@ -526,7 +519,7 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
         data: { fields::FN: on_forget_pressed, HERE: here },
     });
     form::Row {
-        height: util::max(line + 22.0, 56.0),
+        height: math::max(line + 22.0, 56.0),
         slot_role: roles::LAYOUT_ACTIONS,
         controls: controls,
     }
@@ -614,7 +607,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
         kind: ui::WIDGET_PANEL,
         fill: tokens[themewin::GROUND],
         corner_radius: 12,
-        padding: ui::all_sides(0),
+        padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
         width: width,
         gap: vec2(0, 2),
         controls: [
@@ -625,7 +618,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
                 role: roles::TEXT_TITLE,
                 font_size: 13,
                 text: row[fields::NAME].as_str(),
-                padding: ui::sides(12, 4, 12, 0),
+                padding: ui::Sides { left: 12.0, top: 4.0, right: 12.0, bottom: 0.0 },
                 truncate: false,
             },
             ui::Control {
@@ -634,7 +627,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
                 role: roles::TEXT_CODE_QUIET,
                 font_size: 11,
                 text: row[log_fields::NOTE].as_str(),
-                padding: ui::sides(12, 0, 12, 8),
+                padding: ui::Sides { left: 12.0, top: 0.0, right: 12.0, bottom: 8.0 },
                 truncate: true,
             },
             ui::Control {
@@ -642,7 +635,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
                 role: roles::CHIP_QUIET,
                 text: "",
                 absolute: true,
-                inset: ui::sides(0.0, 0.0, 0.0, 0.0),
+                inset: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
                 tooltip: "Copy into " + state.manager.parent,
                 on_click: "handle",
                 data: { fields::FN: on_example_pressed, fields::ID: id },
@@ -684,7 +677,7 @@ fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [
                     kind: ui::WIDGET_PANEL,
                     fill: tokens[themewin::GROUND],
                     corner_radius: 10,
-                    padding: ui::sides(12, 6, 12, 6),
+                    padding: ui::Sides { left: 12.0, top: 6.0, right: 12.0, bottom: 6.0 },
                     width: column_width,
                     gap: vec2(0, 2),
                     controls: [
@@ -701,7 +694,7 @@ fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [
                             role: roles::CHIP_QUIET,
                             text: "",
                             absolute: true,
-                            inset: ui::sides(0.0, 0.0, 0.0, 0.0),
+                            inset: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
                             tooltip: "Copy into " + state.manager.parent,
                             on_click: "handle",
                             data: { fields::FN: copy_forge_project, project_fields::PROJECT: project },
@@ -752,155 +745,6 @@ fn open_example(state: &mut editor::State, id: str) {
         return;
     }
     go(state, made[project_fields::PATH].as_str());
-}
-
-// What this build is, which line it follows, and every release the project
-// has published. The same code `balaur update` runs, so the screen and the
-// command cannot disagree.
-fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> [form::Row] {
-    if !state.manager.asked {
-        check(state);
-    }
-    let mine = util::map_or_empty(release::installed());
-    let row_height = util::max(style::row_height(state), 30.0);
-    let newest = newest_on(state, state.manager.follow);
-    let head: [ui::Control] = [
-        ui::Control {
-            kind: ui::WIDGET_COLUMN,
-            grow: 1,
-            controls: [
-                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, text: "Balaur " + mine[fields::VERSION].as_str() },
-                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, text: build_line(mine), font_size: 11 },
-            ],
-        },
-    ];
-    if !narrow(column_width) {
-        let fresh = newest[fields::ORDER].as_str() == statuses::NEWER;
-        head.push(ui::Control {
-            kind: ui::WIDGET_LABEL,
-            role: roles::TEXT_CODE_QUIET,
-            font_size: 11,
-            text: standing(state, state.manager.follow),
-            text_color: (if fresh { tokens[theme_tokens::SUCCESS_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str(),
-        });
-    }
-    head.push(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::ACTION_FORM,
-        icon: icons::ui(icons::RESET),
-        text: if state.manager.reading { "Checking" } else { "Check" },
-        on_click: "handle",
-        data: { fields::FN: on_check_pressed },
-    });
-    let out: [form::Row] = [form::Row { height: 44, slot_role: roles::LAYOUT_ACTIONS, controls: head }];
-    if mine[inspector_fields::HELD].as_str() != "" {
-        out.push(say(mine[inspector_fields::HELD].as_str(), tokens[theme_tokens::TEXT_SUBTLE].as_str()));
-    }
-    let lines: [ui::Control] = [ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "Follow", width: 60 }];
-    for name in util::list_or_empty(release::channels()) {
-        // Bound afresh: a closure made in a loop captures the binding.
-        let line = name;
-        lines.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::CHIP,
-            text: line,
-            checked: state.manager.follow == line.as_str(),
-            on_click: "handle",
-            data: { fields::FN: on_line_pressed, layout_fields::LINE: line },
-        });
-    }
-    out.push(form::Row { height: row_height + 6.0, slot_role: roles::LAYOUT_ACTIONS, controls: lines });
-    release_specs(state, tokens, row_height, mine, out);
-    out
-}
-
-fn on_check_pressed(state: &mut editor::State, data: any, _value: any) {
-    check(state);
-}
-
-fn on_line_pressed(state: &mut editor::State, data: any, _value: any) {
-    let line: any = data[layout_fields::LINE];
-    state.manager.follow = line.as_str();
-    told(state);
-}
-
-fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any, out: [form::Row]) {
-    let rows: [any] = [];
-    for entry in state.manager.releases {
-        let row = util::map_or_empty(entry);
-        if row[log_fields::CHANNEL].as_str() == state.manager.follow {
-            rows.push(row);
-        }
-    }
-    if rows.len() == 0 {
-        let empty = if state.manager.reading { "Reading the release feed." } else { "Nothing published on this line yet." };
-        out.push(say(empty, tokens[theme_tokens::TEXT_SUBTLE].as_str()));
-    }
-    for row in rows {
-        let current = row[inspector_fields::CURRENT].as_bool() == true;
-        let controls: [ui::Control] = [
-            ui::Control {
-                kind: ui::WIDGET_COLUMN,
-                grow: 1,
-                controls: [
-                    ui::Control {
-                        kind: ui::WIDGET_LABEL,
-                        role: roles::TEXT_TITLE,
-                        font_size: 13,
-                        text: row[fields::ID].as_str(),
-                        text_color: (if current { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_DEFAULT] }).as_str(),
-                    },
-                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: util::said_ago_since(row[fields::PUBLISHED]) },
-                ],
-            },
-        ];
-        let press = press_spec(state, row, mine);
-        if press != nil {
-            controls.push(press.unwrap());
-        }
-        out.push(form::Row { height: row_height + 14.0, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
-        out.push(rule());
-    }
-    // An install that cannot replace itself has nothing to name a release for.
-    if mine[inspector_fields::HELD].as_str() != "" || installing(state) {
-        return;
-    }
-    out.push(form::Row {
-        height: row_height,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_TEXT_FIELD,
-                role: roles::INPUT_FORM,
-                grow: 1,
-                text: state.manager.tag,
-                placeholder: "v0.2.0",
-                on_change: "handle",
-                data: { fields::FN: on_tag_typed },
-            },
-            ui::Control {
-                kind: ui::WIDGET_BUTTON,
-                role: roles::ACTION_FORM,
-                text: "Install",
-                min_width: 88,
-                on_click: "handle",
-                data: { fields::FN: on_install_typed_pressed },
-            },
-        ],
-        label: "Or a release by name",
-    });
-}
-
-fn on_tag_typed(state: &mut editor::State, data: any, text: any) {
-    state.manager.tag = text.as_str();
-}
-
-fn on_install_typed_pressed(state: &mut editor::State, data: any, _value: any) {
-    if state.manager.tag == "" {
-        state.manager.failed = "type a release tag first, like v0.2.0";
-        told(state);
-        return;
-    }
-    put(state, "", state.manager.tag);
 }
 
 /// Hide the shell while the screen is up and show it again after: under the
@@ -977,176 +821,11 @@ fn shown(state: editor::State) -> [any] {
     out
 }
 
-/// The build in one line: its id and the line it follows, or where it came
-/// from when it came from no release.
-pub fn build_line(mine: any) -> str {
-    if mine[inspector_fields::SOURCE].as_bool() == true {
-        return "built from a checkout";
-    }
-    mine[fields::ID].as_str() + "  ·  following " + mine[log_fields::CHANNEL].as_str()
-}
-
-/// Ask the feed what every line holds, unless a read is already out. The
-/// answer arrives in `heard`.
-pub fn check(state: &mut editor::State) {
-    if state.manager.reading {
-        return;
-    }
-    state.manager.asked = true;
-    state.manager.reading = release::check();
-    told(state);
-}
-
 // The start screen and the About sheet both show what a check and an install
 // keep, so each moving says so to both.
-fn told(state: &mut editor::State) {
+internal fn told(state: &mut editor::State) {
     window::changed(state);
     signals::changed(state, MANAGER);
-}
-
-/// Whether an install is in flight.
-pub fn installing(state: editor::State) -> bool {
-    state.manager.installing.tag != ""
-}
-
-fn no_install() -> Installing {
-    Installing { tag: "", done: 0, total: 0, unpacking: false }
-}
-
-/// A report on a check or an install. The start screen and the About sheet
-/// both read what this keeps.
-pub fn heard(state: &mut editor::State, report: any) {
-    let release_event = util::map_or_empty(report);
-    let kind = release_event[fields::KIND].as_str();
-    if kind == statuses::LISTED {
-        let rows: [any] = [];
-        for row in util::list_or_empty(release_event[fields::ROWS]) {
-            rows.push(row);
-        }
-        state.manager.releases = rows;
-        state.manager.reading = false;
-    } else if kind == DOWNLOADING {
-        state.manager.installing = Installing {
-            tag: release_event[fields::TAG].as_str(),
-            done: release_event[log_fields::DONE].as_int(),
-            total: release_event["total"].as_int(),
-            unpacking: false,
-        };
-    } else if kind == UNPACKING {
-        state.manager.installing.unpacking = true;
-    } else if kind == INSTALLED {
-        state.manager.installing = no_install();
-        state.manager.failed = "";
-        state.manager.note = release_event[log_fields::NOTE].as_str();
-        log::info(state.manager.note);
-    } else if kind == statuses::FAILED {
-        if release_event[log_fields::JOB].as_str() == INSTALL {
-            state.manager.installing = no_install();
-        } else {
-            state.manager.reading = false;
-        }
-        state.manager.failed = release_event[log_fields::MESSAGE].as_str();
-    }
-    told(state);
-}
-
-/// The newest release on a line, or an empty table when it holds none.
-pub fn newest_on(state: editor::State, channel: str) -> any {
-    for entry in state.manager.releases {
-        let row = util::map_or_empty(entry);
-        if row[log_fields::CHANNEL].as_str() == channel {
-            return row;
-        }
-    }
-    {}
-}
-
-/// What the newest release on a line means for this build, in a few words.
-pub fn standing(state: editor::State, channel: str) -> str {
-    let newest = newest_on(state, channel);
-    let id = newest[fields::ID].as_str();
-    if id == "" {
-        return if state.manager.reading { "checking" } else { "no release on this line" };
-    }
-    let order = newest[fields::ORDER].as_str();
-    if order == statuses::SAME {
-        return "up to date";
-    }
-    if order == statuses::NEWER {
-        return id + " is newer";
-    }
-    if order == OLDER {
-        return id + " is older than this build";
-    }
-    id + " is published"
-}
-
-/// The verb a release row carries, as a control: what `row_press` draws.
-/// Nil where there is none: an install already running, or a held build.
-pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
-    if row[inspector_fields::CURRENT].as_bool() == true {
-        return ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: INSTALLED };
-    }
-    if installing(state) {
-        return nil;
-    }
-    let download = row[DOWNLOAD].as_str();
-    if download != "" {
-        return ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_FORM,
-            text: "Download",
-            min_width: 88,
-            on_click: "handle",
-            data: { fields::FN: on_download_pressed, DOWNLOAD: download },
-        };
-    }
-    if mine[inspector_fields::HELD].as_str() != "" {
-        return nil;
-    }
-    let tag = row[fields::TAG].as_str();
-    ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::ACTION_FORM,
-        min_width: 88,
-        text: if row[fields::ORDER].as_str() == OLDER { "Downgrade" } else { "Install" },
-        on_click: "handle",
-        data: { fields::FN: on_install_row_pressed, fields::TAG: tag },
-    }
-}
-
-fn on_download_pressed(state: &mut editor::State, data: any, _value: any) {
-    let download: str = data[DOWNLOAD].as_str();
-    engine::open_url(download);
-}
-
-fn on_install_row_pressed(state: &mut editor::State, data: any, _value: any) {
-    let tag: str = data[fields::TAG].as_str();
-    put(state, "", tag);
-}
-
-/// How far an install has got, as a row of controls: the megabytes as they
-/// arrive, then the unpack, and a bar for it.
-pub fn progress_controls(state: editor::State) -> [ui::Control] {
-    let job = state.manager.installing;
-    let said = if job.unpacking {
-        "unpacking " + job.tag
-    } else if job.total > 0 {
-        "downloading {job.tag}  ·  {job.done / MB} of {job.total / MB} MB"
-    } else {
-        "downloading {job.tag}  ·  {job.done / MB} MB"
-    };
-    let part = if job.unpacking {
-        1.0
-    } else if job.total > 0 {
-        job.done as float / job.total as float
-    } else {
-        0.0
-    };
-    [
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: said, value: 0.0 },
-        ui::Control { kind: ui::WIDGET_PROGRESS_BAR, width: 200, height: 4, value: part },
-    ]
 }
 
 // A new project is named in the shell's own sheet, which is what Settings is
@@ -1168,7 +847,7 @@ pub fn new_fill(state: &mut editor::State) {
     if ids.len() == 0 {
         ids.push(EMPTY);
     }
-    let row_height = util::max(style::row_height(state), 30.0);
+    let row_height = math::max(style::row_height(state), 30.0);
     let specs: [form::Row] = [
         form::Row {
             height: row_height,
@@ -1274,28 +953,11 @@ fn create(state: &mut editor::State) {
     go(state, path);
 }
 
-// Replace this install, on a thread; `heard` follows it. The reader pressed
-// it, so a downgrade is allowed: the press said Downgrade where it is one.
-pub fn put(state: &mut editor::State, channel: str, tag: str) {
-    if installing(state) {
-        return;
-    }
-    if !release::install(channel, tag, release::InstallOptions { allow_downgrade: true }) {
-        state.manager.failed = "nothing installs while a recording plays";
-        return;
-    }
-    let named = if tag == "" { channel } else { tag };
-    state.manager.failed = "";
-    state.manager.note = "installing " + named;
-    state.manager.installing = Installing { tag: named, done: 0, total: 0, unpacking: false };
-    told(state);
-}
-
 /// Open a project: the module remembers it, starts the editor on it and asks
 /// this process to quit.
 pub fn go(state: &mut editor::State, path: str) {
     // Opening quits this process, which would leave an install half swapped in.
-    if installing(state) {
+    if versions::installing(state) {
         state.manager.failed = "wait for the install to finish";
         told(state);
         return;

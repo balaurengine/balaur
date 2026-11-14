@@ -110,45 +110,30 @@ pub struct Component {
 
 /// A viewport tool, by `defs::tools` id.
 pub fn tool(id: str) -> str {
-    if id == tools::SELECT {
-        "\u{e1dc}"
-    } else if id == tools::MOVE {
-        "\u{e0a4}"
-    } else if id == tools::ROTATE {
-        "\u{e036}"
-    } else if id == tools::SCALE {
-        "\u{e0a2}"
-    } else if id == tools::ZOOM {
-        "\u{e30c}"
-    } else if id == tools::KEY {
-        "\u{e1ec}"
-    } else if id == tools::BONE {
-        "\u{e7f2}"
-    } else if id == tools::POLYGON {
-        "\u{e6d0}"
-    } else if id == tools::PEN {
-        "\u{e64a}"
-    } else if id == tools::TILES {
-        "\u{e464}"
-    } else {
-        "\u{e1dc}"
+    match id {
+        tools::SELECT => "\u{e1dc}",
+        tools::MOVE => "\u{e0a4}",
+        tools::ROTATE => "\u{e036}",
+        tools::SCALE => "\u{e0a2}",
+        tools::ZOOM => "\u{e30c}",
+        tools::KEY => "\u{e1ec}",
+        tools::BONE => "\u{e7f2}",
+        tools::POLYGON => "\u{e6d0}",
+        tools::PEN => "\u{e64a}",
+        tools::TILES => "\u{e464}",
+        _ => "\u{e1dc}",
     }
 }
 
 /// A workspace, by `defs::workspaces` id.
 pub fn workspace(id: str) -> str {
-    if id == tabs::SCENE {
-        "\u{e1da}"
-    } else if id == tabs::SCRIPT {
-        "\u{e1bc}"
-    } else if id == tabs::ANIMATION {
-        "\u{e19a}"
-    } else if id == tabs::PHYSICS {
-        "\u{e6ce}"
-    } else if id == tabs::UI {
-        "\u{e6d6}"
-    } else {
-        "\u{e1da}"
+    match id {
+        tabs::SCENE => "\u{e1da}",
+        tabs::SCRIPT => "\u{e1bc}",
+        tabs::ANIMATION => "\u{e19a}",
+        tabs::PHYSICS => "\u{e6ce}",
+        tabs::UI => "\u{e6d6}",
+        _ => "\u{e1da}",
     }
 }
 
@@ -199,185 +184,100 @@ pub fn component(name: str) -> Component {
 
 /// A dock panel, by its tab id.
 pub fn panel(id: str) -> str {
-    if id == tabs::SCENE {
-        "\u{e67c}"
-    } else if id == tabs::OUTLINE {
-        "\u{e2f0}"
-    } else if id == tabs::INSPECTOR {
-        "\u{e432}"
-    } else if id == tabs::IMPORT {
-        "\u{e2c6}"
-    } else if id == OUTPUT {
-        "\u{eae8}"
-    } else if id == tabs::PROBLEMS {
-        "\u{e4e0}"
-    } else if id == ASSETS {
-        "\u{e24a}"
-    } else if id == DOCS {
-        "\u{e02f}"
-    } else if id == verbs::TIMELINE {
-        "\u{e792}"
-    } else if id == DEBUGGER {
-        "\u{e5f4}"
-    } else if id == tabs::RECORDINGS {
-        "\u{e3ee}"
-    } else if id == tabs::PROFILER {
-        "\u{e150}"
-    } else if id == tools::TILES {
-        "\u{e464}"
-    } else if id == tabs::WEIGHTS {
-        "\u{e3ec}"
-    } else if id == BONEMAP {
-        "\u{e0b0}"
-    } else if id == verbs::STATEMACHINE {
-        "\u{e6d0}"
-    } else if id == verbs::LIBRARY {
-        "\u{e468}"
-    } else if id == asset_kinds::MATERIAL {
-        "\u{e6c8}"
-    } else if id == verbs::COST {
-        "\u{e462}"
-    } else if id == tabs::EVENTS {
-        "\u{e2e2}"
-    } else {
-        "\u{e546}"
+    match id {
+        tabs::SCENE => "\u{e67c}",
+        tabs::OUTLINE => "\u{e2f0}",
+        tabs::INSPECTOR => "\u{e432}",
+        tabs::IMPORT => "\u{e2c6}",
+        OUTPUT => "\u{eae8}",
+        tabs::PROBLEMS => "\u{e4e0}",
+        ASSETS => "\u{e24a}",
+        DOCS => "\u{e02f}",
+        verbs::TIMELINE => "\u{e792}",
+        DEBUGGER => "\u{e5f4}",
+        tabs::RECORDINGS => "\u{e3ee}",
+        tabs::PROFILER => "\u{e150}",
+        tools::TILES => "\u{e464}",
+        tabs::WEIGHTS => "\u{e3ec}",
+        BONEMAP => "\u{e0b0}",
+        verbs::STATEMACHINE => "\u{e6d0}",
+        verbs::LIBRARY => "\u{e468}",
+        asset_kinds::MATERIAL => "\u{e6c8}",
+        verbs::COST => "\u{e462}",
+        tabs::EVENTS => "\u{e2e2}",
+        _ => "\u{e546}",
     }
 }
 
 /// The shell's own controls.
 pub fn ui(name: str) -> str {
-    if name == ADD {
+    match name {
         // Fill draws a stroke-only glyph as a solid tile, which is too heavy
         // for a mark this small: these two are letters, not icons.
-        "+"
-    } else if name == CLOSE {
-        "×"
-    } else if name == CHECK {
-        "\u{e182}"
-    } else if name == verbs::RESET {
-        "\u{e038}"
-    } else if name == verbs::SETTINGS {
-        "\u{e270}"
-    } else if name == verbs::ABOUT {
-        "\u{e2ce}"
-    } else if name == verbs::EXPORT {
-        "\u{eaf0}"
-    } else if name == MINIMIZE {
-        "\u{e32a}"
-    } else if name == OPEN {
-        "\u{e13c}"
-    } else if name == SHUT {
-        "\u{e136}"
-    } else if name == CARET_OPEN {
-        "\u{e136}"
-    } else if name == CARET_SHUT {
-        "\u{e13a}"
-    } else if name == verbs::SEARCH {
-        "\u{e30c}"
-    } else if name == theme_modes::DARK {
-        "\u{e330}"
-    } else if name == theme_modes::LIGHT {
-        "\u{e472}"
-    } else if name == verbs::PLAY {
-        "\u{e3d0}"
-    } else if name == PAUSE {
-        "\u{e39e}"
-    } else if name == statuses::STOP {
-        "\u{e46c}"
-    } else if name == INSTANCE {
-        "\u{e1ca}"
-    } else if name == tabs::EVENTS {
-        "\u{e2e2}"
-    } else if name == verbs::SPLIT {
-        "\u{e546}"
-    } else if name == verbs::FOCUS {
-        "\u{e1d0}"
-    } else if name == UNFOCUS {
-        "\u{e1ce}"
-    } else if name == window_marks::RESTORE {
-        "\u{e13c}"
-    } else if name == window_marks::COLLAPSE {
-        "\u{e136}"
-    } else if name == CARET_LEFT {
-        "\u{e138}"
-    } else if name == CARET_RIGHT {
-        "\u{e13a}"
-    } else if name == CARET_UP {
-        "\u{e13c}"
-    } else if name == CARET_DOWN {
-        "\u{e136}"
-    } else if name == ARROW_LINE_LEFT {
-        "\u{e062}"
-    } else if name == ARROW_LINE_RIGHT {
-        "\u{e064}"
-    } else if name == ARROW_LINE_DOWN {
-        "\u{e05c}"
-    } else if name == STEP_OVER {
-        "\u{e08c}"
-    } else if name == STEP_INTO {
-        "\u{e05c}"
-    } else if name == STEP_OUT {
-        "\u{e066}"
-    } else if name == SCRIPTFILE {
-        "\u{e914}"
-    } else if name == verbs::LOCK {
-        "\u{e2fa}"
-    } else if name == UNLOCK {
-        "\u{e306}"
-    } else if name == components::VISIBLE {
-        "\u{e220}"
-    } else if name == HIDDEN {
-        "\u{e224}"
-    } else if name == EYE_CLOSED {
-        "\u{e222}"
-    } else if name == ALIGN_LEFT {
-        "\u{e50e}"
-    } else if name == ALIGN_RIGHT {
-        "\u{e510}"
-    } else if name == ALIGN_CENTER_H {
-        "\u{e50c}"
-    } else if name == ALIGN_TOP {
-        "\u{e512}"
-    } else if name == ALIGN_BOTTOM {
-        "\u{e506}"
-    } else if name == ALIGN_CENTER_V {
-        "\u{e50a}"
-    } else if name == DISTRIBUTE_H {
-        "\u{e534}"
-    } else if name == DISTRIBUTE_V {
-        "\u{e536}"
-    } else if name == verbs::GROUP {
-        "\u{e6ce}"
-    } else if name == verbs::UNGROUP {
-        "\u{e69a}"
-    } else if name == SELECT_ALL {
-        "\u{e69c}"
-    } else if name == verbs::ISOLATE {
-        "\u{e1d0}"
-    } else if name == FILTER {
-        "\u{e268}"
-    } else if name == theme_modes::LIGHT {
-        "\u{e2dc}"
-    } else if name == asset_kinds::SKY {
-        "\u{e288}"
-    } else if name == CAMERA {
-        "\u{e4da}"
-    } else if name == tools::PEN {
-        "\u{e64a}"
-    } else if name == general::PATH {
-        "\u{e6d2}"
-    } else if name == asset_kinds::MATERIAL {
-        "\u{e6c8}"
-    } else if name == verbs::LIBRARY {
-        "\u{e468}"
-    } else if name == VIEWMODE {
-        "\u{e744}"
-    } else if name == BOOKMARK {
-        "\u{e0e8}"
-    } else if name == verbs::COPY {
-        "\u{e1cc}"
-    } else {
-        "\u{ecde}"
+        ADD => "+",
+        CLOSE => "×",
+        CHECK => "\u{e182}",
+        MINIMIZE => "\u{e32a}",
+        window_marks::RESTORE => "\u{e13c}",
+        window_marks::COLLAPSE => "\u{e136}",
+        verbs::SPLIT => "\u{e546}",
+        verbs::FOCUS => "\u{e1d0}",
+        UNFOCUS => "\u{e1ce}",
+        verbs::RESET => "\u{e038}",
+        verbs::SETTINGS => "\u{e270}",
+        verbs::ABOUT => "\u{e2ce}",
+        verbs::EXPORT => "\u{eaf0}",
+        verbs::SEARCH => "\u{e30c}",
+        theme_modes::DARK => "\u{e330}",
+        theme_modes::LIGHT => "\u{e472}",
+        INSTANCE => "\u{e1ca}",
+        tabs::EVENTS => "\u{e2e2}",
+        SCRIPTFILE => "\u{e914}",
+        BOOKMARK => "\u{e0e8}",
+        verbs::COPY => "\u{e1cc}",
+        OPEN => "\u{e13c}",
+        SHUT => "\u{e136}",
+        CARET_OPEN => "\u{e136}",
+        CARET_SHUT => "\u{e13a}",
+        CARET_LEFT => "\u{e138}",
+        CARET_RIGHT => "\u{e13a}",
+        CARET_UP => "\u{e13c}",
+        CARET_DOWN => "\u{e136}",
+        ARROW_LINE_LEFT => "\u{e062}",
+        ARROW_LINE_RIGHT => "\u{e064}",
+        ARROW_LINE_DOWN => "\u{e05c}",
+        verbs::PLAY => "\u{e3d0}",
+        PAUSE => "\u{e39e}",
+        statuses::STOP => "\u{e46c}",
+        STEP_OVER => "\u{e08c}",
+        STEP_INTO => "\u{e05c}",
+        STEP_OUT => "\u{e066}",
+        ALIGN_LEFT => "\u{e50e}",
+        ALIGN_RIGHT => "\u{e510}",
+        ALIGN_CENTER_H => "\u{e50c}",
+        ALIGN_TOP => "\u{e512}",
+        ALIGN_BOTTOM => "\u{e506}",
+        ALIGN_CENTER_V => "\u{e50a}",
+        DISTRIBUTE_H => "\u{e534}",
+        DISTRIBUTE_V => "\u{e536}",
+        verbs::GROUP => "\u{e6ce}",
+        verbs::UNGROUP => "\u{e69a}",
+        SELECT_ALL => "\u{e69c}",
+        verbs::ISOLATE => "\u{e1d0}",
+        FILTER => "\u{e268}",
+        verbs::LOCK => "\u{e2fa}",
+        UNLOCK => "\u{e306}",
+        components::VISIBLE => "\u{e220}",
+        HIDDEN => "\u{e224}",
+        EYE_CLOSED => "\u{e222}",
+        asset_kinds::SKY => "\u{e288}",
+        CAMERA => "\u{e4da}",
+        tools::PEN => "\u{e64a}",
+        general::PATH => "\u{e6d2}",
+        asset_kinds::MATERIAL => "\u{e6c8}",
+        verbs::LIBRARY => "\u{e468}",
+        VIEWMODE => "\u{e744}",
+        _ => "\u{ecde}",
     }
 }
 

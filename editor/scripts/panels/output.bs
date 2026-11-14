@@ -22,7 +22,7 @@ impl Output {
     pub fn init() {
         self.level = ALL;
         self.query = "";
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, signals::DOCKS, source);
         events::listen(self.node, "logged");

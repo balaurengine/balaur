@@ -830,15 +830,7 @@ fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &placed.widget;
     let passive = matches!(
         widget.kind.as_str(),
-        w::LABEL
-            | w::PANEL
-            | w::ROW
-            | w::COLUMN
-            | w::GRID
-            | w::STACK
-            | w::FLOW
-            | w::SCROLL
-            | w::PROGRESS_BAR
+        w::LABEL | w::PANEL | w::ROW | w::COLUMN | w::GRID | w::STACK | w::SCROLL | w::PROGRESS_BAR
     );
     if !passive || !widget.hears_click || widget.disabled {
         return;
@@ -906,12 +898,11 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::PROGRESS_BAR => crate::widget::numbers::progress(ui, at, index, &caption, &font, color),
         w::SEPARATOR => crate::widget::kinds::separator(ui, at, index),
         w::STACK => crate::widget::kinds::stack(ui, at, index),
-        // Taffy placed a grid's and a flow's children like a row's.
         w::FOLD => crate::widget::kinds::fold(ui, at, index, &caption, &font, color),
         // A picture from the project, sized by what it states or by itself.
         w::IMAGE => crate::widget::picture::image(ui, at, index),
-        // Taffy placed a grid's and a flow's children like a row's.
-        w::ROW | w::GRID | w::FLOW => contain(ui, at, index, Axis::Row),
+        // Taffy placed a grid's children like a row's.
+        w::ROW | w::GRID => contain(ui, at, index, Axis::Row),
         w::COLUMN => contain(ui, at, index, Axis::Column),
         // A box that clips, with its children free to run past it.
         w::SCROLL => scroller(ui, at, index),

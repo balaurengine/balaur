@@ -5,6 +5,7 @@ use editor;
 use history;
 use model;
 use rig;
+use sceneedit;
 use selection;
 use util;
 use words::components;
@@ -44,8 +45,8 @@ pub fn align(state: &mut editor::State, axis: int, mode: str) {
     let sum = 0.0;
     for row in rows {
         let coordinate = world_of(state, row)[axis];
-        lowest = util::min(lowest, coordinate);
-        highest = util::max(highest, coordinate);
+        lowest = math::min(lowest, coordinate);
+        highest = math::max(highest, coordinate);
         sum += coordinate;
     }
     let to = if mode == MIN {
@@ -140,7 +141,7 @@ pub fn group(state: &mut editor::State) {
     // The group's own position is local to whatever it lands under.
     let base = util::xyz(parent.transform.global_position());
     history::record(state, verbs::GROUP);
-    let made = model::spawn(state, parent, "Group", { components::TRANSFORM: {
+    let made = sceneedit::spawn(state, parent, "Group", { components::TRANSFORM: {
         inspector_fields::POSITION: util::vector_subtract(center, base),
         animation::PROPERTY_ROTATION_EULER: [0.0, 0.0, 0.0],
         inspector_fields::SCALE: [1.0, 1.0, 1.0],

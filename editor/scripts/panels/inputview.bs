@@ -59,7 +59,7 @@ const PRESS: float = 22.0;
 
 impl Inputview {
     pub fn init() {
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         self.shown = false;
         // A chip's name, and when it goes: zero while it is held.

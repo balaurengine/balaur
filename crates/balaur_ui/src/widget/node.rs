@@ -131,7 +131,7 @@ pub struct Widget {
     pub keep_open: bool,
     /// Text against a button's far edge: a shortcut, or a menu's caret.
     pub trailing: SmolStr,
-    /// A chord that clicks this widget from anywhere, as `cmd+shift+s`.
+    /// A chord that clicks this widget from anywhere, as `cmd+shift+KeyS`.
     pub shortcut: SmolStr,
     /// Whether that chord fires while a text field holds the keyboard.
     pub while_typing: bool,
@@ -426,7 +426,6 @@ pub(crate) fn lays_out(kind: &str) -> bool {
             | w::SCROLL
             | w::TABS
             | w::GRID
-            | w::FLOW
             | w::FOLD
             | w::DIALOG
             | w::WINDOW

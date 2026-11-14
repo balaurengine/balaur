@@ -1,4 +1,4 @@
-//! A scene written back from its nodes (PLAN-editor-as-scene §10.1): each node
+//! A scene written back from its nodes: each node
 //! as it was asked for, a prefab by what it changes, files as their project
 //! spells them.
 

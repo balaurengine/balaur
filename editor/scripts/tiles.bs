@@ -7,6 +7,7 @@ use history;
 use model;
 use pool;
 use recipes;
+use sceneedit;
 use selection;
 use signals;
 use util;
@@ -399,7 +400,7 @@ fn tile_extent(size: any) -> [float] {
 
 /// A gutter or a border in sheet pixels, zero when the sheet names none.
 fn gap(definition: any, key: str) -> float {
-    util::max(definition[key].as_float(), 0.0)
+    math::max(definition[key].as_float(), 0.0)
 }
 
 /// Where one tile sits on the sheet, in pixels: the gutter between tiles and
@@ -448,7 +449,7 @@ fn pixels_per_unit(state: editor::State) -> float {
     if edited_component == nil || edited_component[recipes::PIXELS_PER_UNIT] == nil {
         return util::DEFAULT_PIXELS_PER_UNIT;
     }
-    util::max(edited_component[recipes::PIXELS_PER_UNIT].as_float(), 0.01)
+    math::max(edited_component[recipes::PIXELS_PER_UNIT].as_float(), 0.01)
 }
 
 /// The grid as rows of tile ids, as the inline `cells` hold them: -1 is an
@@ -520,8 +521,8 @@ fn to_local(frame: Frame, world_x: float, world_y: float) -> [float] {
     let offset_y = world_y - frame.y;
     let turned_x = frame.cosine * offset_x + frame.sine * offset_y;
     let turned_y = -frame.sine * offset_x + frame.cosine * offset_y;
-    let divisor_x = if util::abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
-    let divisor_y = if util::abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
+    let divisor_x = if math::abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
+    let divisor_y = if math::abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
     return [turned_x / divisor_x, turned_y / divisor_y];
 }
 
@@ -672,7 +673,7 @@ pub fn add_layer(state: &mut editor::State) -> bool {
         log::warn("select a tilemap to add a layer beside it");
         return false;
     }
-    model::duplicate_selected(state);
+    sceneedit::duplicate_selected(state);
     let edited_component = component(state, model::selected_node(state));
     if edited_component == nil {
         return false;
@@ -791,7 +792,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, wo
 }
 
 fn line(from: [float], to: [float], color: [float], width: float) {
-    render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), width);
+    render::draw_polyline_2d([vec2(from[0], from[1]), vec2(to[0], to[1])], width, util::as_color(color));
 }
 
 fn outline(frame: Frame, column: int, row: int, color: [float], width: float) {

@@ -104,15 +104,20 @@ pub(super) fn emit(
         },
     ));
     out.bodies.push((g.type_idx(pp, pr), poll));
+    // The host's names for one it may start; a unit's again for the units
+    // that call it, which an `internal` one's package may.
+    let mut prefixes: Vec<&str> = vec![];
     if f.public || f.owner.is_some() {
-        // A unit's again for the units that call it.
-        let prefixes: &[&str] = if g.unit { &["", words::LINK] } else { &[""] };
-        for pre in prefixes {
-            out.exports
-                .push((format!("{pre}{}{}", f.key(), words::START), sig.idx));
-            out.exports
-                .push((format!("{pre}{}{}", f.key(), words::POLL), sig.idx + 1));
-        }
+        prefixes.push("");
+    }
+    if g.unit && (f.public || f.internal || f.owner.is_some()) {
+        prefixes.push(words::LINK);
+    }
+    for pre in prefixes {
+        out.exports
+            .push((format!("{pre}{}{}", f.key(), words::START), sig.idx));
+        out.exports
+            .push((format!("{pre}{}{}", f.key(), words::POLL), sig.idx + 1));
     }
     Ok((frame_size, patches))
 }

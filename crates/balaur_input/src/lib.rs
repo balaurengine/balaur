@@ -34,7 +34,7 @@ mod sensors;
 mod pad_thread;
 
 use crate::vocabulary::words;
-pub use actions::InputActions;
+pub use actions::{ChordParts, InputActions, chord_parts};
 pub use gamepad::{
     GamepadState, Motion, PAD_AXIS_NAMES, PAD_BUTTON_NAMES, Pad, PadEvent, PadInfo, PadTouch,
     Power, PowerState,

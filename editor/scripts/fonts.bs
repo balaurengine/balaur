@@ -148,12 +148,12 @@ fn waiting_on(state: editor::State, purpose: str) -> bool {
 fn ask(state: &mut editor::State, url: str, waiting: Waiting, options: any) {
     let id = http::request(url, options);
     state.font_requests["{id}"] = waiting;
-    scene::get_node("Editor").call("await_font_reply", id);
+    scene::root().get_node("Editor").call("await_font_reply", id);
 }
 
 /// Fill the picker with the families matching what is typed.
 pub fn fill(state: &mut editor::State) {
-    let row_height = util::max(style::row_height(state), 30.0);
+    let row_height = math::max(style::row_height(state), 30.0);
     let specs = rows(state, row_height);
     let host = window::picker(state, {
         layout_fields::WIDTH: 520.0,

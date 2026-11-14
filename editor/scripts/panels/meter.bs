@@ -20,7 +20,7 @@ const EVERY: float = 0.25;
 impl Meter {
     pub fn init() {
         self.what = if self.node.name() == "Profiler" { tabs::PROFILER } else { verbs::COST };
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, signals::DOCKS, source);
         self.titled = "";

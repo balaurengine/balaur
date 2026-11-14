@@ -144,6 +144,12 @@ impl Scope<'_> {
         if let Some(f) = self.host.function(name) {
             return Some(f.ret.clone());
         }
+        if crate::prelude::is_called(name) {
+            return crate::prelude::called()
+                .into_iter()
+                .find(|f| f.name == name)
+                .map(|f| f.ret);
+        }
         Some(match name {
             words::builtins::VEC2 => Ty::Struct("Vec2".into()),
             words::builtins::VEC3 => Ty::Struct("Vec3".into()),

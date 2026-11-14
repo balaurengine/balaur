@@ -82,13 +82,13 @@ fn owns_children(kind: &str) -> bool {
     lays_out(kind) && !matches!(kind, w::TABS | w::SCROLL | w::FOLD | w::MENU | w::STACK)
 }
 
-/// Which axis a container stacks along, from its kind; `reverse` runs a row,
-/// a column or a flow from its far end.
+/// Which axis a container stacks along, from its kind; `reverse` runs a row
+/// or a column from its far end.
 fn direction(kind: &str, reverse: bool) -> FlexDirection {
-    let reverse = reverse && matches!(kind, w::ROW | w::COLUMN | w::FLOW);
+    let reverse = reverse && matches!(kind, w::ROW | w::COLUMN);
     match (kind, reverse) {
-        (w::ROW | w::FLOW, false) => FlexDirection::Row,
-        (w::ROW | w::FLOW, true) => FlexDirection::RowReverse,
+        (w::ROW, false) => FlexDirection::Row,
+        (w::ROW, true) => FlexDirection::RowReverse,
         (_, false) => FlexDirection::Column,
         (_, true) => FlexDirection::ColumnReverse,
     }
@@ -143,15 +143,13 @@ fn content_of(word: &str, safe: bool) -> AlignContent {
 }
 
 /// How a container wraps its children, from its `wrap_children` word.
-fn wrap_of(kind: &str, word: &str) -> FlexWrap {
+fn wrap_of(word: &str) -> FlexWrap {
     use crate::vocabulary::words::wrapping as wr;
     match word {
-        wr::NONE => FlexWrap::NoWrap,
         wr::WRAP => FlexWrap::Wrap,
         wr::WRAP_REVERSE => FlexWrap::WrapReverse,
         wr::BALANCE => FlexWrap::Balance,
         wr::BALANCE_REVERSE => FlexWrap::BalanceReverse,
-        _ if kind == w::FLOW => FlexWrap::Wrap,
         _ => FlexWrap::NoWrap,
     }
 }
@@ -419,7 +417,7 @@ fn flex_into(out: &mut Style, widget: &Widget) {
     let layout = &widget.layout;
     let grow = widget.grow.max(0.0);
     out.flex_direction = direction(&widget.kind, widget.reverse);
-    out.flex_wrap = wrap_of(&widget.kind, &layout.wrap_children);
+    out.flex_wrap = wrap_of(&layout.wrap_children);
     out.flex_line_count = layout.min_lines.max(1);
     out.flex_grow = grow;
     // `flex: 1 1 0` where it grows: content must not inflate the share it
@@ -722,50 +720,13 @@ fn sync(
     // node holding the subtree's children sized the leaf by them alone.
     let key = (placed.entity.to_bits().get(), is_root);
     let stamp = style_key(widget, &look.style, shape, fills);
-    let node = {
-        // One lookup for the node, its stamp and what it measured.
-        let Held { tree, nodes } = &mut *held;
-        let kept = nodes.entry(key).or_insert_with(|| {
-            kept_of(
-                tree,
-                styled(widget, &look.style, shape, fills),
-                index,
-                stamp,
-            )
-        });
-        // A record can outlive the node it names, when the tree dropped it.
-        if tree.style(kept.id).is_err() {
-            *kept = kept_of(
-                tree,
-                styled(widget, &look.style, shape, fills),
-                index,
-                stamp,
-            );
-        }
-        // Only on a change: `set_style` marks the node dirty, and a shell
-        // that is not moving should re-solve nothing. The stamp is what
-        // says so without building a style to compare against.
-        if kept.style != stamp {
-            let _ = tree.set_style(kept.id, styled(widget, &look.style, shape, fills));
-            kept.style = stamp;
-        }
-        // Only on a change, because setting a context marks the node dirty and
-        // an arena index holds still for as long as the scene does.
-        if tree.get_node_context(kept.id).copied() != Some(index) {
-            let _ = tree.set_node_context(kept.id, Some(index));
-        }
-        // A leaf's size is its content's, and nothing about the style says the
-        // content changed. Measuring once here and comparing is what lets a
-        // still screen be solved not at all rather than solved again.
-        if deep && leaf {
-            let want = measure.leaf(index, &theme);
-            if kept.measure != Some(want) {
-                kept.measure = Some(want);
-                let _ = tree.mark_dirty(kept.id);
-            }
-        }
-        kept.id
-    };
+    // A leaf's size is its content's, and nothing about the style says the
+    // content changed. Measuring once here and comparing is what lets a
+    // still screen be solved not at all rather than solved again.
+    let want = (deep && leaf).then(|| measure.leaf(index, &theme));
+    let node = node_of(held, key, index, stamp, want, || {
+        styled(widget, &look.style, shape, fills)
+    });
     // A kind that places its own children is a leaf in the tree its parent
     // was solved in, so the subtree solved from it here starts with none.
     let laid = if owns {
@@ -810,6 +771,45 @@ fn sync(
         let _ = held.tree.set_children(node, &kids);
     }
     node
+}
+
+/// The node `key` names, built when it is missing or stale, with its style,
+/// context and measure brought up to date. `style` builds the style, called
+/// only when the node is built or its `stamp` moved.
+fn node_of(
+    held: &mut Held,
+    key: (u64, bool),
+    index: usize,
+    stamp: u64,
+    want: Option<egui::Vec2>,
+    style: impl Fn() -> Style,
+) -> NodeId {
+    // One lookup for the node, its stamp and what it measured.
+    let Held { tree, nodes } = held;
+    let kept = nodes
+        .entry(key)
+        .or_insert_with(|| kept_of(tree, style(), index, stamp));
+    // A record can outlive the node it names, when the tree dropped it.
+    if tree.style(kept.id).is_err() {
+        *kept = kept_of(tree, style(), index, stamp);
+    }
+    // Only on a change: `set_style` marks the node dirty, and a shell
+    // that is not moving should re-solve nothing. The stamp is what
+    // says so without building a style to compare against.
+    if kept.style != stamp {
+        let _ = tree.set_style(kept.id, style());
+        kept.style = stamp;
+    }
+    // Only on a change, because setting a context marks the node dirty and
+    // an arena index holds still for as long as the scene does.
+    if tree.get_node_context(kept.id).copied() != Some(index) {
+        let _ = tree.set_node_context(kept.id, Some(index));
+    }
+    if want.is_some() && kept.measure != want {
+        kept.measure = want;
+        let _ = tree.mark_dirty(kept.id);
+    }
+    kept.id
 }
 
 /// Whether a node's children are already these, without asking taffy for a

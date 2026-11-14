@@ -74,11 +74,6 @@ pub const REPLAY_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "replay",
-        name: "length",
-        call: length,
-    },
-    EngineOp {
-        module: "replay",
         name: "header",
         call: header,
     },
@@ -122,11 +117,6 @@ pub fn install_replay_api(m: &mut Module<Engine>) {
             "A recording's summary: its project, start time, script fingerprint, size in frames and ticks, and how it ended.",
         ),
         (
-            "Length",
-            "{ frames: int, first: int, last: int }",
-            "How many frames a recording holds and the first and last tick they span.",
-        ),
-        (
             "Event",
             "{ tick: int, kind: string, label: string, data: any }",
             "One recorded event, with the tick it happened on.",
@@ -158,8 +148,7 @@ pub fn install_replay_api(m: &mut Module<Engine>) {
         ("seek", &[], "(tick: int)", "Run recorded ticks until playback reaches the given tick; forward only."),
         ("state", &[], "() -> string", "What playback is doing: `STATE_STOPPED`, `STATE_PLAYING`, `STATE_PAUSED` or `STATE_SEEKING`."),
         ("position", &[], "() -> int", "The tick playback has reached."),
-        ("length", &[], "() -> Length?", "The loaded recording's frame count and the ticks it spans, or nil."),
-        ("header", &[], "() -> Header?", "The loaded recording's project, start time, script fingerprint and how it ended."),
+        ("header", &[], "() -> Header?", "The loaded recording's project, start time, script fingerprint, its frame count and the ticks they span, and how it ended; nil with none loaded."),
         (words::functions::INFO, &[], "(path: string) -> Header?", "The same summary for a recording on disk, without loading it. Nil when it cannot be read."),
         ("events", &[], "(from: int, to: int) -> [Event]", "The events recorded between two ticks, each with its tick, kind, label and data."),
         ("marks", &[], "(source: string, key: string?) -> [Mark]", "The ticks at which one replay source held a non-empty list under a key, and what it held."),
@@ -316,19 +305,6 @@ fn position(eng: &Engine, _: &[Value]) -> Result<Value> {
 }
 
 /// How many frames the loaded session holds, and the ticks it spans.
-fn length(eng: &Engine, _: &[Value]) -> Result<Value> {
-    let player = eng.resource::<ReplayPlayer>();
-    let player = player.borrow();
-    let Some(session) = &player.session else {
-        return Ok(Value::Nil);
-    };
-    Ok(Value::Map(vec![
-        (FRAMES.into(), count(session.frames.len() as u64)),
-        (keys::FIRST.into(), count(session.first_tick())),
-        (keys::LAST.into(), count(session.last_tick())),
-    ]))
-}
-
 fn header(eng: &Engine, _: &[Value]) -> Result<Value> {
     let player = eng.resource::<ReplayPlayer>();
     let player = player.borrow();

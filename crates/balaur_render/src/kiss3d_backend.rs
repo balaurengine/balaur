@@ -718,7 +718,6 @@ fn apply_window_config(app: &App, window: &Window) {
     crate::device::keep_awake(config.keep_awake);
 }
 
-/// Mirror `Renderable3d` + `GlobalTransform` into the kiss3d scene graph.
 /// Whether a node casts, which lights reach it, and which cameras draw it.
 fn lit_and_layered(node: &mut SceneNode3d, renderable: &Renderable3d) {
     node.set_casts_shadows(renderable.shadows)
@@ -726,6 +725,7 @@ fn lit_and_layered(node: &mut SceneNode3d, renderable: &Renderable3d) {
         .set_render_layers(renderable.render_layers);
 }
 
+/// Mirror `Renderable3d` + `GlobalTransform` into the kiss3d scene graph.
 fn sync(
     app: &App,
     scene: &mut SceneNode3d,
@@ -765,16 +765,13 @@ fn sync(
         // A reload rebuilds what was built from a file: the mesh is read
         // again and the texture uploaded under the new generation's name.
         let from_file = renderable.mesh.is_some() || !renderable.texture.is_empty();
-        let rebuild = match slots.get(&entity) {
-            Some(slot) => {
-                slot.version != renderable.version
-                    || channel_changed
-                    || (relinked && (owns_material || !appearance.material.is_none()))
-                    || (reloaded && from_file)
-                    || (!owns_material && slot.inherited != appearance.material)
-            }
-            None => true,
-        };
+        let rebuild = slots.get(&entity).is_none_or(|slot| {
+            slot.version != renderable.version
+                || channel_changed
+                || (relinked && (owns_material || !appearance.material.is_none()))
+                || (reloaded && from_file)
+                || (!owns_material && slot.inherited != appearance.material)
+        });
         // The material a node effectively draws with: its own, or the one
         // an ancestor handed down.
         let inherited = appearance.material.reference();

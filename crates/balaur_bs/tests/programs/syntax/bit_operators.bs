@@ -1,0 +1,62 @@
+// The bit operators on ints, with Rust's precedence. A shift takes its
+// count's low six bits, as wasm does, and `>>` keeps the sign.
+
+pub fn and(a: int, b: int) -> int { a & b }
+pub fn or(a: int, b: int) -> int { a | b }
+pub fn xor(a: int, b: int) -> int { a ^ b }
+pub fn not(a: int) -> int { ~a }
+pub fn left(a: int, n: int) -> int { a << n }
+pub fn right(a: int, n: int) -> int { a >> n }
+pub fn shifted_past_plus() -> int { 1 << 2 + 1 }
+pub fn and_past_shift() -> int { 12 & 1 << 3 }
+pub fn xor_past_and() -> int { 6 ^ 3 & 5 }
+pub fn or_past_xor() -> int { 1 | 6 ^ 2 }
+pub fn compared_last() -> bool { 4 | 1 == 5 }
+pub fn not_before_times() -> int { ~2 * 3 }
+pub fn compound(a: int) -> int {
+    let x = a;
+    x &= 255;
+    x |= 256;
+    x ^= 1;
+    x <<= 4;
+    x >>= 2;
+    x
+}
+pub fn in_a_list(a: int) -> int {
+    let xs = [a, a];
+    xs[1] |= 16;
+    xs[1] <<= 1;
+    xs[0] ^ xs[1]
+}
+
+// expect: and(12, 10) == 8
+// expect: and(-1, 255) == 255
+// expect: or(12, 10) == 14
+// expect: xor(12, 10) == 6
+// expect: xor(-1, 0) == -1
+// expect: not(0) == -1
+// expect: not(-9223372036854775808) == 9223372036854775807
+// expect: left(1, 0) == 1
+// expect: left(1, 62) == 4611686018427387904
+// expect: left(1, 63) == -9223372036854775808
+// expect: left(1, 64) == 1
+// expect: left(1, 65) == 2
+// expect: left(1, -1) == -9223372036854775808
+// expect: left(3, 128) == 3
+// expect: right(-8, 1) == -4
+// expect: right(-1, 63) == -1
+// expect: right(-9223372036854775808, 63) == -1
+// expect: right(9223372036854775807, 62) == 1
+// expect: right(256, 64) == 256
+// expect: right(256, 72) == 1
+// expect: right(256, -1) == 0
+// expect: right(-256, -1) == -1
+// expect: shifted_past_plus() == 8
+// expect: and_past_shift() == 8
+// expect: xor_past_and() == 7
+// expect: or_past_xor() == 5
+// expect: compared_last() == true
+// expect: not_before_times() == -9
+// expect: compound(4097) == 1024
+// expect: in_a_list(3) == 37
+// live: 0

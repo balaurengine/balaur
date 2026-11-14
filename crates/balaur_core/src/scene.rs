@@ -98,7 +98,7 @@ pub struct NameSlot {
 ///
 /// Kept whether or not the script runs, so a scene built with
 /// `{ scripts: false }` still says which script each node has and writes it
-/// back (PLAN-editor-as-scene §10.1). The running instance is the script
+/// back. The running instance is the script
 /// host's, keyed by entity.
 pub struct NodeScript {
     pub path: String,

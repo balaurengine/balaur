@@ -447,16 +447,15 @@ pub(crate) fn doc_of(registry: &Registry, key: &str) -> &'static str {
         .unwrap_or("")
 }
 
-/// The script reference `script::api()` answers and `balaur api` prints: one
-/// row a module in name order, each with what it is for, its functions'
-/// names, their signatures as a script compiles against them, what each
-/// does, the components it drives with the method each handle calls it by,
-/// which are the editor's, and the module's constants. A node's own
-/// operations are the `node` module's.
-pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
-    let declared = registry.declared.borrow();
-    // A function called on a component is its module's all the same, listed
-    // once however many components take it.
+/// Every function the reference lists, by module and name, in that order. A
+/// function called on a component is its module's all the same, listed once
+/// however many components take it, and the language's prelude writes some
+/// as an engine module's: `random`'s beside the engine's own.
+fn listed<'a>(
+    api: &'a HostApi,
+    registry: &Registry,
+    library: &'a [balaur_bs::LibraryModule],
+) -> Vec<(String, String, &'a HostSignature)> {
     let mut named: Vec<(String, String, &HostSignature)> = api
         .functions
         .iter()
@@ -465,8 +464,27 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
             Some((module, name, f))
         })
         .collect();
+    for f in library.iter().flat_map(|module| &module.functions) {
+        if let Some((module, name)) = f.signature.key.split_once("::") {
+            named.push((module.to_string(), name.to_string(), &f.signature));
+        }
+    }
     named.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
     named.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
+    named
+}
+
+/// The script reference `script::api()` answers and `balaur api` prints: one
+/// row a module in name order, each with what it is for, its functions'
+/// names, their signatures as a script compiles against them, what each
+/// does, the components it drives with the method each handle calls it by,
+/// which are the editor's, and the module's constants. A node's own
+/// operations are the `node` module's.
+pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
+    let declared = registry.declared.borrow();
+    let library = balaur_bs::library();
+    let written = library.iter().flat_map(|module| &module.functions);
+    let named = listed(api, registry, &library);
     let mut modules: BTreeMap<String, Page> = BTreeMap::new();
     for (module, name, f) in named {
         let entry = declared
@@ -476,8 +494,11 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
         let row = modules.entry(module).or_default();
         row.functions.push(Value::text(name.as_str()));
         row.signatures.push((name.clone(), Value::text(f.text())));
-        row.docs
-            .push((name.clone(), Value::text(doc_of(registry, &f.key))));
+        let doc = written
+            .clone()
+            .find(|w| w.signature.key == f.key)
+            .map_or_else(|| doc_of(registry, &f.key), |w| w.doc.as_str());
+        row.docs.push((name.clone(), Value::text(doc)));
         if f.editor {
             row.editor.push(Value::text(name.as_str()));
         }
@@ -528,6 +549,12 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
                 .get(module.as_str())
                 .copied()
                 .or_else(|| own_module_doc(&module))
+                .or_else(|| {
+                    library
+                        .iter()
+                        .find(|prelude| prelude.name == module)
+                        .map(|prelude| prelude.doc.as_str())
+                })
                 .unwrap_or("");
             let components = row.components.into_iter().map(Value::text).collect();
             Value::Map(vec![

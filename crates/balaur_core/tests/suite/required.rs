@@ -1,4 +1,4 @@
-//! Required components (PLAN-ecs §2): a component that brings others, each
+//! Required components: a component that brings others, each
 //! put on at its defaults before its first write where the node lacks it.
 
 use balaur_core::app::{App, AppConfig};

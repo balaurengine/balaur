@@ -1,5 +1,5 @@
-//! What one operation costs a script, held to a ceiling (PLAN-balaur-script
-//! §9 step 8). Counted, not timed, so CI can gate on it: the fuel wasmi
+//! What one operation costs a script, held to a ceiling.
+//! Counted, not timed, so CI can gate on it: the fuel wasmi
 //! charges is the same on every machine, and every call out of the module is
 //! counted where it leaves. None of these touches the engine, so none may
 //! leave.

@@ -76,7 +76,7 @@ pub(crate) fn sweep_sounds_system(eng: &Engine, _: f32) {
 
 /// A node's sound holds with its node: a game pause, a `process` mode, a parked
 /// scene, a debugger stop. Each voice goes back to what it asks for when the
-/// hold ends. A cue has no node, so a pause menu's click still plays.
+/// hold ends. A pause menu's click plays from a node that runs while paused.
 fn hold_sounds(eng: &Engine) {
     let Some(state) = eng.try_resource::<AudioState>() else {
         return;

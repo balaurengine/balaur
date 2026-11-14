@@ -269,104 +269,112 @@ impl Bench {
     /// The state machine: build, settle, measure, report, tear down.
     fn advance() {
         let state = self.state;
-        if state == IDLE || state == DONE {
-            return;
+        match state {
+            IDLE | DONE => {}
+            COOL => {
+                physics::clear();
+                self.state = IDLE;
+                self.status = "ready";
+                self.start_next();
+            }
+            SETUP => {
+                self.set_up();
+            }
+            _ => {
+                self.run_built(state);
+            }
         }
-        if state == COOL {
-            physics::clear();
-            self.state = IDLE;
-            self.status = "ready";
-            self.start_next();
-            return;
-        }
+    }
+
+    /// The case's world, built at once or handed to `PLACE` a chunk a frame.
+    fn set_up() {
         let e = self.entry.unwrap();
         let c = e.case;
-        if state == SETUP {
-            if self.count > 0 && c.kind == LOAD {
-                c.count = self.count;
-            }
-            random::seed(e.seed);
-            tune(c);
-            frame_view(self.node, c.dimensions, c.view);
-            let w = world::new(self.node, c.dimensions, self.draw);
-            self.world = w;
-            self.started = engine::time();
-            if c.kind == NODES {
-                self.state = PREP;
-                self.build_ms = 0.0;
-            } else {
-                if c.kind == LOAD {
-                    engine::set_script_profiling(true);
-                }
-                let setup = c.setup;
-                setup(w, c);
-                self.state = PLACE;
-            }
+        if self.count > 0 && c.kind == LOAD {
+            c.count = self.count;
+        }
+        random::seed(e.seed);
+        tune(c);
+        frame_view(self.node, c.dimensions, c.view);
+        let w = world::new(self.node, c.dimensions, self.draw);
+        self.world = w;
+        self.started = engine::time();
+        if c.kind == NODES {
+            self.state = PREP;
+            self.build_ms = 0.0;
             return;
         }
+        if c.kind == LOAD {
+            engine::set_script_profiling(true);
+        }
+        let setup = c.setup;
+        setup(w, c);
+        self.state = PLACE;
+    }
+
+    /// One frame of a case whose world is built.
+    fn run_built(state: str) {
+        let e = self.entry.unwrap();
+        let c = e.case;
         let w = self.world.unwrap();
-        if state == PLACE {
-            let next = if c.links > 0 { LINK } else { AFTER };
-            self.chunk(c.place, c.count, next);
-            return;
-        }
-        if state == LINK {
-            self.chunk(c.link, c.links, AFTER);
-            return;
-        }
-        if state == AFTER {
-            let after = c.after;
-            after(w, c);
-            self.build_ms = (engine::time() - self.started) * 1000.0;
-            self.tick = 0;
-            self.state = WARM;
-            self.status = "{e.key}: settling";
-            return;
-        }
-        if state == WARM {
-            let needed = if c.settle > self.warmup { c.settle } else { self.warmup };
-            if self.tick >= needed {
+        match state {
+            PLACE => {
+                let next = if c.links > 0 { LINK } else { AFTER };
+                self.chunk(c.place, c.count, next);
+            }
+            LINK => {
+                self.chunk(c.link, c.links, AFTER);
+            }
+            AFTER => {
+                let after = c.after;
+                after(w, c);
+                self.build_ms = (engine::time() - self.started) * 1000.0;
                 self.tick = 0;
-                self.samples = {};
-                self.state = TIME;
-                self.status = "{e.key}: measuring";
-                if self.shot != "" {
-                    render::screenshot(self.shot);
+                self.state = WARM;
+                self.status = "{e.key}: settling";
+            }
+            WARM => {
+                let needed = if c.settle > self.warmup { c.settle } else { self.warmup };
+                if self.tick >= needed {
+                    self.tick = 0;
+                    self.samples = {};
+                    self.state = TIME;
+                    self.status = "{e.key}: measuring";
+                    if self.shot != "" {
+                        render::screenshot(self.shot);
+                    }
                 }
             }
-            return;
-        }
-        if state == TIME {
-            if self.taken(if c.kind == LOAD { FRAME_MS } else { STEP_MS }) >= self.steps {
-                self.finish();
+            TIME => {
+                if self.taken(if c.kind == LOAD { FRAME_MS } else { STEP_MS }) >= self.steps {
+                    self.finish();
+                }
             }
-            return;
-        }
-        // A node case runs on three frames so only the middle one holds the
-        // work: the tree is rebuilt, the loop runs, the profiler is read.
-        if state == PREP {
-            release(w);
-            let started = engine::time();
-            let prepare = c.prepare;
-            prepare(w, c);
-            self.build_ms = (engine::time() - started) * 1000.0;
-            self.state = WORK;
-            return;
-        }
-        if state == WORK {
-            let run = c.run;
-            run(w, c);
-            self.repeat += 1;
-            self.status = "{e.key}: pass {self.repeat} of {c.repeats}";
-            self.state = SETTLE;
-            return;
-        }
-        if state == SETTLE {
-            if self.taken(LOOP_MS) >= c.repeats {
-                self.finish();
-            } else {
-                self.state = PREP;
+            // A node case runs on three frames so only the middle one holds the
+            // work: the tree is rebuilt, the loop runs, the profiler is read.
+            PREP => {
+                release(w);
+                let started = engine::time();
+                let prepare = c.prepare;
+                prepare(w, c);
+                self.build_ms = (engine::time() - started) * 1000.0;
+                self.state = WORK;
             }
+            WORK => {
+                let run = c.run;
+                run(w, c);
+                self.repeat += 1;
+                self.status = "{e.key}: pass {self.repeat} of {c.repeats}";
+                self.state = SETTLE;
+            }
+            SETTLE => {
+                if self.taken(LOOP_MS) >= c.repeats {
+                    self.finish();
+                } else {
+                    self.state = PREP;
+                }
+            }
+            _ => {}
         }
     }
 

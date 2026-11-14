@@ -1,4 +1,4 @@
-//! A component's lifecycle calls (PLAN-ecs §2): what runs as it goes onto a
+//! A component's lifecycle calls: what runs as it goes onto a
 //! node, is written, is written over, comes off and goes with its node.
 
 use std::cell::RefCell;

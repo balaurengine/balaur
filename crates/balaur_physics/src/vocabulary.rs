@@ -149,7 +149,6 @@ pub(crate) mod words {
     pub(crate) const PENETRATING: &str = "penetrating";
 
     pub(crate) mod functions {
-        pub(crate) const ACTIVE_BODIES: &str = "active_bodies";
         pub(crate) const ADD_CONSTANT_FORCE: &str = "add_constant_force";
         pub(crate) const ADD_CONSTANT_FORCE_AT_POINT: &str = "add_constant_force_at_point";
         pub(crate) const ADD_CONSTANT_TORQUE: &str = "add_constant_torque";
@@ -160,20 +159,17 @@ pub(crate) mod words {
         pub(crate) const APPLY_IMPULSE_AT_POINT: &str = "apply_impulse_at_point";
         pub(crate) const APPLY_TORQUE: &str = "apply_torque";
         pub(crate) const APPLY_TORQUE_IMPULSE: &str = "apply_torque_impulse";
-        pub(crate) const BODIES: &str = "bodies";
         pub(crate) const BROAD_PHASE_AABB: &str = "broad_phase_aabb";
         pub(crate) const CLOSEST_POINT: &str = "closest_point";
         pub(crate) const CLOSEST_POINTS: &str = "closest_points";
         pub(crate) const COLLIDER_MASS_PROPERTIES: &str = "collider_mass_properties";
         pub(crate) const COLLIDER_MESH: &str = "collider_mesh";
-        pub(crate) const COLLIDER_TOTAL_MASS: &str = "collider_total_mass";
         pub(crate) const COLLIDER_VOLUME: &str = "collider_volume";
         pub(crate) const COLLISION_AABB: &str = "collision_aabb";
         pub(crate) const COMBINE_VOXELS: &str = "combine_voxels";
         pub(crate) const CONSTANT_FORCE: &str = "constant_force";
         pub(crate) const CONSTANT_TORQUE: &str = "constant_torque";
         pub(crate) const CROP_VOXELS: &str = "crop_voxels";
-        pub(crate) const DISTANCE: &str = "distance";
         pub(crate) const EFFECTIVE_ANGULAR_INERTIA: &str = "effective_angular_inertia";
         pub(crate) const EFFECTIVE_DOMINANCE: &str = "effective_dominance";
         pub(crate) const EFFECTIVE_MASS: &str = "effective_mass";
@@ -183,7 +179,6 @@ pub(crate) mod words {
         pub(crate) const INTERSECTS: &str = "intersects";
         pub(crate) const IS_CCD_ACTIVE: &str = "is_ccd_active";
         pub(crate) const IS_MOVING: &str = "is_moving";
-        pub(crate) const IS_ON_FLOOR: &str = "is_on_floor";
         pub(crate) const IS_SLEEPING: &str = "is_sleeping";
         pub(crate) const JOINT_FORCE: &str = "joint_force";
         pub(crate) const JOINT_STATE: &str = "joint_state";
@@ -204,17 +199,13 @@ pub(crate) mod words {
         pub(crate) const RAGDOLL: &str = "ragdoll";
         pub(crate) const RAYCAST: &str = "raycast";
         pub(crate) const RAYCAST_ALL: &str = "raycast_all";
-        pub(crate) const REMOVE_JOINT: &str = "remove_joint";
         pub(crate) const RESET_FOLLOW: &str = "reset_follow";
         pub(crate) const SET_ANGULAR_VELOCITY: &str = "set_angular_velocity";
         pub(crate) const SET_CONSTANT_FORCE: &str = "set_constant_force";
         pub(crate) const SET_CONSTANT_TORQUE: &str = "set_constant_torque";
         pub(crate) const SET_GRAVITY: &str = "set_gravity";
         pub(crate) const SET_HEIGHTFIELD_HOLE: &str = "set_heightfield_hole";
-        pub(crate) const SET_JOINT_LIMITS: &str = "set_joint_limits";
         pub(crate) const SET_LINEAR_VELOCITY: &str = "set_linear_velocity";
-        pub(crate) const SET_MOTOR_POSITION: &str = "set_motor_position";
-        pub(crate) const SET_MOTOR_VELOCITY: &str = "set_motor_velocity";
         pub(crate) const SET_VOXEL: &str = "set_voxel";
         pub(crate) const SET_VOXEL_SIZE: &str = "set_voxel_size";
         pub(crate) const SHAPECAST: &str = "shapecast";

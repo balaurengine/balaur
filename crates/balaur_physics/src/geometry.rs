@@ -259,10 +259,14 @@ pub(crate) fn install_mesh_edit_api(m: &mut Module<Engine>) {
     m.function(INTERSECT, |_: &Engine, (a, b): (Value, Value)| {
         let (points_a, indices_a) = mesh_of(&a)?;
         let (points_b, indices_b) = mesh_of(&b)?;
-        let first = TriMesh::new(points_a, indices_a)
-            .map_err(|e| anyhow!("the first mesh is not one: {e}"))?;
-        let second = TriMesh::new(points_b, indices_b)
-            .map_err(|e| anyhow!("the second mesh is not one: {e}"))?;
+        // parry intersects only oriented meshes with their half-edge topology.
+        let flags = TriMeshFlags::HALF_EDGE_TOPOLOGY
+            | TriMeshFlags::ORIENTED
+            | TriMeshFlags::MERGE_DUPLICATE_VERTICES;
+        let first = TriMesh::with_flags(points_a, indices_a, flags)
+            .map_err(|e| anyhow!("the first mesh is not one closed surface: {e}"))?;
+        let second = TriMesh::with_flags(points_b, indices_b, flags)
+            .map_err(|e| anyhow!("the second mesh is not one closed surface: {e}"))?;
         let found = crate::rapier3d::parry::transformation::intersect_meshes(
             &Pose::IDENTITY,
             &first,

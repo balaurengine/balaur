@@ -2,8 +2,8 @@
 //! shell rather than the simulation.
 //!
 //! Kept out of `engine_api` because both reach the world outside the
-//! simulation. `open_url` works on a desktop and in a tab, not on a phone
-//! yet; `reveal` needs a desktop, being the only shell with a file manager.
+//! simulation. `open_url` works on a desktop, in a tab and on a phone;
+//! `reveal` needs a desktop, being the only shell with a file manager.
 
 use anyhow::Result;
 use balaur_script::Value;

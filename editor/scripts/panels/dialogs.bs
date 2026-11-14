@@ -11,7 +11,7 @@ pub class Dialogs {
 
 impl Dialogs {
     pub fn init() {
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         for word in [signals::PLUGINS_CHANGED, signals::OUTLINE, signals::STAGE] {
             events::listen(self.node, word, source);

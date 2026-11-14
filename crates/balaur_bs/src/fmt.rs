@@ -28,9 +28,9 @@ const CONTROL: [&str; 10] = [
 
 /// Operators that join two values: spaced on both sides, and a line that
 /// starts with one continues the line above.
-const BINARY: [&str; 19] = [
-    "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "+", "-", "*", "/", "%", "=",
-    "<", ">",
+const BINARY: [&str; 29] = [
+    "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=",
+    ">>=", "+", "-", "*", "/", "%", "=", "<", ">", "&", "|", "^", "<<", ">>",
 ];
 
 #[derive(Clone, Copy, PartialEq)]
@@ -192,8 +192,8 @@ fn place(
 // Whether a space goes between `a` and `b` on one line; `before` is the
 // token before `a`, which says whether a `-` or `&` there is a prefix.
 fn spaced(a: &Tok<'_>, b: &Tok<'_>, before: Option<&Tok<'_>>) -> bool {
-    let prefix =
-        |t: &Tok<'_>| t.is("!") || t.is("&") || (t.is("-") && !before.is_some_and(Tok::ends_value));
+    let after_value = before.is_some_and(Tok::ends_value);
+    let prefix = |t: &Tok<'_>| t.is("!") || t.is("~") || ((t.is("&") || t.is("-")) && !after_value);
     if a.is("(") || a.is("[") || prefix(a) {
         return false;
     }

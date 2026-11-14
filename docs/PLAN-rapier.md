@@ -1,156 +1,31 @@
-> **Status:** all thirteen phases shipped on 2026-09-03 in
-> `crates/balaur_physics`; see [generated/](generated/) for what the code
-> does. What the build left open is below.
+# Plan: what rapier still has that no script reaches
 
-# Plan: the rest of Rapier — what is still open
+The physics work left in `crates/balaur_physics` beyond the per-component
+settings, which [PLAN-wrapped-surface.md](PLAN-wrapped-surface.md) holds.
 
-1. **Script hooks on a parallel build.** rapier calls hooks from worker
-   threads under `parallel`, so a hook that talks to Rune cannot run there.
-   One design lifts the exclusion at the price of one step of latency: the
-   `Sync` hook reads a `DetHashMap<(handle, handle), Decision>` filled on the
-   main thread, and after each step the plugin asks the script about the
-   pairs the hook saw for the first time, so the answer applies from the next
-   step. A new pair defaults to *allow* for one step. Whether that latency is
-   acceptable is a question for the first game that needs both; until then
-   the two are exclusive and say so.
-2. **Solver tuning in a recording's header. Built 2026-10-02.** A
-   `[physics]` table is read once after the project loads, and
-   `physics.set_tuning` tunes at run time. A recording's header carries both
-   worlds' tuning, soft-body settings and gravity under `physics_world`, and a
-   replay puts them back before its first tick, over whatever the replaying
-   machine's manifest says.
-3. **Layer names.** `layers = ["0", "3"]` is honest and unreadable. Godot
-   names layers in project settings and the inspector relabels the
-   checkboxes. That needs schema options resolved at inspector time rather
-   than at registration, which no other component wants; it can wait until
-   someone has shipped a game with 30 layers.
-4. **A threaded solver. Built 2026-09-04.** rapier compiles its threaded
-   pipeline only under `all(parallel, not(unsync-callbacks))`, so the three
-   script physics hooks had to go: a hook runs on rapier's threads and may not
-   hold an `Engine`. `filter_contact` and `filter_overlap` cost nothing to
-   lose — they were passed only the other node, which is exactly what
-   `collision_groups` and `solver_groups` already decide in the broad phase.
-   `modify_contacts` is gone outright. One-way platforms stay: their axis
-   rides in the collider's `user_data`.
+## Steps
 
-   Threading *is* a feature, `balaur_physics/parallel`, because a browser is
-   the one target that cannot always take it: rayon blocks on `Atomics.wait`,
-   which needs the shared memory the threaded web runtime alone is built with.
-   Native builds have it on by default and nothing has to ask. The count is the
-   performance cores where the operating system rates its cores as more than
-   one kind (`task::performance_cores`), else every core; `[physics]
-   threads` overrides it, and the pool is built at the first tick. Varying it is safe
-   because the digest does not depend on it.
+1. **Named collision layers.** Layer names set once in the project settings,
+   and the inspector's layer checkboxes labelled with them. The inspector has
+   to resolve a row's options when it draws, not when the schema registers.
+   Done when a project that names a layer sees that name on every collider's
+   layer row.
+2. **The event collector under `parallel`.** `shared/events.rs`'s `Collector`
+   takes a `Mutex` per event, since handlers run on rapier's threads. Measure
+   with `cargo bench -p balaur_bench --bench engine -- physics_step` on a scene
+   that hears contact forces on everything. If the lock shows, collect into
+   per-thread buffers merged after the step; `take()` already sorts by a total
+   key, so the order holds.
+3. **The query pipeline's gaps.** `physics3d` and `physics2d` reach none of
+   `cast_shape_nonlinear`, `project_point_and_get_feature` or
+   `ShapeCastOptions.target_distance`. `shapecast` sweeps an unrotated shape,
+   since `query.rs` builds its start pose from a translation only. Done when a
+   script reaches each, in both dimensions.
 
-   Still open: the event collector takes a `Mutex` per event now that handlers
-   run on rapier's threads. A collider raises only what something hears and a
-   step raises tens, so it should be noise — but a game hearing contact forces
-   on everything would serialise there. `cargo bench -p balaur_bench --bench engine
-   -- physics_step` is the measurement; the fix, if it shows, is per-thread
-   buffers merged after the step, which costs nothing because `take()` already
-   sorts by a total key.
+## Open questions
 
-5. **`f64`. Not planned, dropped 2026-09-04.** It bought precision nothing
-   asked for, and broke twice unnoticed between CI runs that never built it.
-5. **2D parity.** The twenty readers this item listed are built:
-   `physics2d` has `aabb`, `swept_aabb`, `active_bodies`, `bodies`,
-   `closest_points`, `time_of_impact`, `contacts`, `collider_total_mass`,
-   `collider_volume`, `collider_mesh`, `handles`, `effective_dominance`,
-   `is_moving`, `potential_energy`, `predict_position_with_forces`,
-   `solve_ik`, `voxel`, `voxel_at` and `set_voxel`, and
-   `collider2d` has the `voxels`, `voxelized_mesh`, `convex_decomposition`
-   and `fit` kinds. *`voxels` shipped 2026-09-06*, with
-   `physics2d.set_voxel`, `voxel` and `voxel_at` and a `shape_revision` row in
-   the 2D digest, because `docs/PLAN-tilemap.md` step 1 builds tile collision
-   on it. The overlap `convex_decomposition`'s pieces need is
-   `docs/PLAN-convex-decomposition.md`'s.
-
-   The four defects this item listed were re-audited on 2026-09-06 and are
-   gone: `one_way` encodes its axis (`dim2/collider.rs:239`) and the 2D hook
-   reads it (`dim2/events.rs:166-176`), `move_character` keeps the node's
-   rotation (`dim2/character.rs:103`), colliders round-trip through `get`
-   (`dim2/collider.rs:244-261`), `body2d` never advertised `gyroscopic`, and
-   a script physics hook is gone by design with the threaded solver (item 4).
-
-   One defect was real, in both dimensions, and is *fixed 2026-09-06*: a
-   one-way platform fired only when it was `collider1` of the pair, because
-   `update_as_oneway_platform` reads the axis in `collider1`'s frame and both
-   hooks tested that collider alone. They now test the other side too, turning
-   its axis into the first's frame and reversing it.
-6. **What rapier still has that no scene or script reaches.** Re-audited
-   against 0.36 on 2026-10-02 and moved to
-   [PLAN-wrapped-surface.md](PLAN-wrapped-surface.md), component by component,
-   with the defects that audit found. What stays here is the query pipeline,
-   which that pass did not re-read: `QueryFilterFlags` beyond the body-kind,
-   sensor and solid filters `shared/query.rs:47-66` builds,
-   `cast_shape_nonlinear`, `project_point_and_get_feature`,
-   `ShapeCastOptions.target_distance` and a rotated shape cast. The stale
-   handles after a free are `docs/PLAN-hardening.md` phase 1.
-
-7. **Internal edges. Fixed 2026-09-06.** A 3D `trimesh` collider already set
-   `TriMeshFlags::FIX_INTERNAL_EDGES` by default; the three shapes with the
-   same problem now do too. `collider3d`'s `heightfield` builds through
-   `heightfield_with_flags` with `HeightFieldFlags::FIX_INTERNAL_EDGES`,
-   defaulted on and turned off with `fix_internal_edges = false`;
-   `collider2d`'s `trimesh` takes the same three flag keys 3D takes; and
-   `collider2d` gained `oriented`, which builds an `oriented_polyline` —
-   opt-in, because the winding decides which side is solid.
-
-   A 2D `heightfield` has no flags to set: parry's 2D heightfield is a
-   polyline of segments, so `oriented` on the polyline is the whole story.
-   The same family is why `docs/PLAN-tilemap.md` step 1 builds tile collision
-   out of parry's `Voxels` rather than a row of cuboids, and why
-   `docs/PLAN-voxels.md` needs no fix at all — the voxel shape classifies its
-   own cells.
-
-8. **Where parry may be used, and what stays hand-written.** The rule is in
-   ARCHITECTURE.md ("parry: geometry every crate may use, for capability"),
-   and it replaces the older reflex that core must not learn parry. parry is
-   already linked into every build, the wasm bundle included, so a dependency
-   on it costs a shipped game nothing; it is taken for capability — `Bvh`
-   for culling and picking, exact ray and point queries — and never merely to
-   delete equivalent code. `primitive` (no UVs in parry's tessellations),
-   `csg` (parry has no mesh union or difference), `geometry2d`'s booleans on
-   `i_overlay` (parry has polygon intersection alone) and its convex hull
-   stay as they are.
-
-   Two follow-ups shipped 2026-09-06: `balaur_render`'s `pick` now casts
-   against the triangles (below), and `csg.rs` keeps only its real reason.
-
-   **Triangulation consolidated onto `i_triangle`, 2026-09-06.** parry's ear
-   clipper is `pub(crate)`, so the duplication to remove was our own: the
-   hand-written clipper in core and the `i_triangle` that `balaur_ui::glyph`
-   filled glyph outlines with. `balaur_geometry::triangulate` is now the only
-   place either is named, in two forms, because the two callers want
-   different things:
-
-   - `triangulate(points, ring)` returns triangles over the caller's own
-     points. The checked entry point hands every input point back
-     unchanged — winding and concavity included — so the mapping is exact.
-     It refuses a loop that crosses itself and names the crossing, because
-     filling one correctly needs a vertex there, and a vertex the author
-     never wrote has no uv, colour, morph offset or skin weight in the mesh
-     that indexes it.
-   - `triangulate_shape(contours)` returns the points a fill needed as well
-     as the triangles: holes subtracted rather than filled over, and the
-     crossing vertex included. What the glyph filler wants, and anything
-     else that can take a point it did not author.
-
-   `uncheck_triangulate` is not used and should not be: it preserves the
-   points but **aborts** on a clockwise loop — `slice::get_unchecked_mut` out
-   of bounds inside `i_tree`, a hard abort rather than an error — and
-   authored polygons cannot promise validated input. Worth reporting
-   upstream.
-
-   What changed for a scene: a self-crossing `polygons` loop used to fill
-   with two overlapping triangles and now reports where it crosses.
-
-   Everything else already wraps rapier or parry: the character and vehicle
-   controllers, the debug render pipeline, the query pipeline, and
-   `geometry3d`'s hull, convex decomposition, voxelisation, split, intersect
-   and pieces. What 2D lacks there is item 5's list, not new code.
-
-One question is advice rather than code: in 2D a `heightfield` is a polyline
-over a height array, which is a side-scroller's ground. Whether that beats
-authoring a `polygon` is for whoever builds the second 2D example — both are
-built.
+1. **Script hooks on a threaded solver.** rapier calls hooks from its worker
+   threads, so no script contact filter runs there. A `Sync` hook could read a
+   `DetHashMap<(handle, handle), Decision>` the main thread fills after each
+   step, answering a new pair one step late. Whether that latency is
+   acceptable waits for the first game that needs both.

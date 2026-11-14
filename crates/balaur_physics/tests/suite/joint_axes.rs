@@ -355,14 +355,13 @@ anchor = [-1.0, 0.0, 0.0]
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
     fn init() {
-        self.node.joint3d.set_limits(physics3d::AXIS_ROTATION_X, -0.2, 0.2);
-        self.node.joint3d.set_motor_velocity(physics3d::AXIS_ROTATION_X, 0.0, 0.5);
+        self.node.joint3d.axes = [{ "axis": physics3d::AXIS_ROTATION_X, "limits": [-0.2, 0.2], "motor": physics3d::MOTOR_VELOCITY, "motor_target": 0.0, "damping": 0.5 }];
         self.node.joint3d.collide_connected = true;
         let axes = self.node.joint3d.axes;
-        if axes.len() != 1 { log::error("the two calls wrote other than one record"); }
+        if axes.len() != 1 { log::error("the write kept other than one record"); }
         if axes[0]["axis"].as_str() != physics3d::AXIS_ROTATION_X { log::error("the record names another axis"); }
-        if axes[0]["motor"].as_str() != physics3d::MOTOR_VELOCITY { log::error("the motor call wrote no motor"); }
-        if math::abs(axes[0]["limits"][1].as_float() - 0.2) >= 0.0001 { log::error("the motor call dropped the limit"); }
+        if axes[0]["motor"].as_str() != physics3d::MOTOR_VELOCITY { log::error("the patch dropped the motor"); }
+        if math::abs(axes[0]["limits"][1].as_float() - 0.2) >= 0.0001 { log::error("the patch dropped the limit"); }
     }
 
     fn fixed_update(dt: float) {
@@ -501,4 +500,164 @@ fn a_2d_chain_is_solved_for_a_position() {
         reach < 0.05,
         "the 2D arm stopped {reach} short of a point it reaches"
     );
+}
+
+/// What a live 3D joint holds: its handle, the impulses its locked axes and
+/// its motors warm-start from, and each motor's target velocity.
+fn live_3d(app: &App, e: Entity) -> (String, Vec<f32>, Vec<f32>) {
+    use balaur_physics::joint::JointHandle3d;
+    let state = app.engine.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    match state.joints[&e].handle {
+        JointHandle3d::Impulse(handle) => {
+            let joint = state.world.impulse_joints.get(handle).unwrap();
+            let mut held: Vec<f32> = joint.impulses.to_vec();
+            held.extend(joint.data.motors.iter().map(|m| m.impulse));
+            let targets = joint.data.motors.iter().map(|m| m.target_vel).collect();
+            (format!("{handle:?}"), held, targets)
+        }
+        JointHandle3d::Multibody(handle) => {
+            let (multibody, link) = state.world.multibody_joints.get(handle).unwrap();
+            let link = multibody.link(link).unwrap();
+            let held = multibody.joint_velocity(link).iter().copied().collect();
+            // The chain holds its frames flipped, so a target reads negated.
+            let targets = link
+                .joint
+                .data
+                .motors
+                .iter()
+                .map(|m| -m.target_vel)
+                .collect();
+            (format!("{handle:?}"), held, targets)
+        }
+    }
+}
+
+const DRIVEN: &str = "kind = \"hinge\"\naxis = [0.0, 0.0, 1.0]\naxes = [{ axis = \"rotation_x\", motor = \"velocity\", motor_target = 1.0, damping = 0.5 }]";
+
+const DRIVEN_BACK: &str = "axes = [{ axis = \"rotation_x\", motor = \"velocity\", motor_target = -2.0, damping = 0.5, limits = [-1.0, 1.0] }]";
+
+// A motor driven through `axes` every step is patched onto the joint it
+// drives: rebuilding it would drop the solver's warm start each time.
+#[test]
+fn an_axes_write_patches_the_live_joint_and_keeps_its_impulses() {
+    let mut app = app();
+    let ball = hanging(&app, [1.0, 0.0, 0.0], DRIVEN).unwrap();
+    tick(&mut app, 30);
+    let (handle, held, _) = live_3d(&app, ball);
+    assert!(
+        held.iter().any(|i| i.abs() > 1e-4),
+        "the hinge held nothing, so the test proves nothing"
+    );
+    components::patch(
+        &app.engine,
+        ball,
+        "joint3d",
+        &toml::from_str(DRIVEN_BACK).unwrap(),
+    )
+    .unwrap();
+    let (after, kept, targets) = live_3d(&app, ball);
+    assert_eq!(after, handle, "the write made the joint again");
+    assert_eq!(kept, held, "the write dropped the solver's impulses");
+    assert!(
+        (targets[3] + 2.0).abs() < 1e-6,
+        "the new motor target did not reach the joint: {targets:?}"
+    );
+    let state = app.engine.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let balaur_physics::joint::JointHandle3d::Impulse(handle) = state.joints[&ball].handle else {
+        panic!("the hinge is not an impulse joint");
+    };
+    let limit = state
+        .world
+        .impulse_joints
+        .get(handle)
+        .unwrap()
+        .data
+        .limits(JointAxis::AngX);
+    assert_eq!(
+        limit.map(|l| (l.min, l.max)),
+        Some((-1.0, 1.0)),
+        "the new limit did not reach the joint"
+    );
+}
+
+#[test]
+fn an_axes_write_keeps_an_articulations_link_moving() {
+    let mut app = app();
+    let ball = hanging(
+        &app,
+        [1.0, 0.0, 0.0],
+        &format!("{DRIVEN}\n[articulation3d]"),
+    )
+    .unwrap();
+    tick(&mut app, 30);
+    let (handle, moving, _) = live_3d(&app, ball);
+    assert!(
+        moving.iter().any(|v| v.abs() > 1e-3),
+        "the link was still, so the test proves nothing"
+    );
+    components::patch(
+        &app.engine,
+        ball,
+        "joint3d",
+        &toml::from_str(DRIVEN_BACK).unwrap(),
+    )
+    .unwrap();
+    let (after, kept, targets) = live_3d(&app, ball);
+    assert_eq!(after, handle, "the write made the chain again");
+    assert_eq!(kept, moving, "the write stopped the link");
+    assert!(
+        (targets[3] + 2.0).abs() < 1e-6,
+        "the new motor target did not reach the link: {targets:?}"
+    );
+}
+
+#[test]
+fn a_2d_axes_write_patches_the_live_joint() {
+    use balaur_physics::PhysicsState2d;
+    use balaur_physics::dim2::joint::JointHandle2d;
+    let mut app = app();
+    let anchor = node(&app, "Anchor", [0.0; 3]);
+    add(&app, anchor, "body2d", "kind = \"static\"").unwrap();
+    add(
+        &app,
+        anchor,
+        "collider2d",
+        "shape = { kind = \"circle\", radius = 0.2 }",
+    )
+    .unwrap();
+    let ball = node(&app, "Ball", [1.0, 0.0, 0.0]);
+    add(&app, ball, "body2d", "kind = \"dynamic\"\nmass = 2.0").unwrap();
+    add(
+        &app,
+        ball,
+        "collider2d",
+        "shape = { kind = \"circle\", radius = 0.2 }",
+    )
+    .unwrap();
+    let hinge = "kind = \"hinge\"\nconnected_body = \"/Anchor\"\nanchor = [-1.0, 0.0]\naxes = [{ axis = \"rotation\", motor = \"velocity\", motor_target = 1.0, damping = 0.5 }]";
+    add(&app, ball, "joint2d", hinge).unwrap();
+    tick(&mut app, 30);
+    let live = |app: &App| {
+        let state = app.engine.resource::<PhysicsState2d>();
+        let state = state.borrow();
+        let JointHandle2d::Impulse(handle) = state.joints[&ball].handle else {
+            panic!("the hinge is not an impulse joint");
+        };
+        let joint = state.world.impulse_joints.get(handle).unwrap();
+        let held = joint.impulses.to_array().to_vec();
+        (format!("{handle:?}"), held, joint.data.motors[2].target_vel)
+    };
+    let (handle, held, _) = live(&app);
+    assert!(
+        held.iter().any(|i| i.abs() > 1e-4),
+        "the hinge held nothing, so the test proves nothing"
+    );
+    let back = "axes = [{ axis = \"rotation\", motor = \"velocity\", motor_target = -2.0, damping = 0.5 }]";
+    components::patch(&app.engine, ball, "joint2d", &toml::from_str(back).unwrap()).unwrap();
+    let (after, kept, target) = live(&app);
+    assert_eq!(after, handle, "the write made the joint again");
+    assert_eq!(kept, held, "the write dropped the solver's impulses");
+    assert!((target + 2.0).abs() < 1e-6, "the motor target is {target}");
 }

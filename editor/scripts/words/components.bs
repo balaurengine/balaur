@@ -26,3 +26,4 @@ internal const TILEMAP: str = "tilemap";
 internal const TRANSFORM: str = "transform";
 internal const VISIBLE: str = "visible";
 internal const WIDGET: str = "widget";
+internal const WIDGET_RANGE: str = "widget_range";

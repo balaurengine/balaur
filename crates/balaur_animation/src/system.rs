@@ -472,20 +472,7 @@ pub(crate) fn write_pose<'a>(
         // before the transform below is asked for and a bare grouping node
         // fades and hides like any other.
         if matches!(value, TrackValue::Visible(_) | TrackValue::Tint(_)) {
-            if let Ok(mut appearance) = world.get::<&mut balaur_core::scene::Appearance>(target) {
-                match value {
-                    // The flag is written here; its event waits for the borrow.
-                    TrackValue::Visible(on) if appearance.visible != on => {
-                        appearance.visible = on;
-                        effects.push(Effect::Shown {
-                            entity: target,
-                            visible: on,
-                        });
-                    }
-                    TrackValue::Tint(tint) => appearance.tint = tint,
-                    _ => {}
-                }
-            }
+            write_appearance(world, target, &value, effects);
             continue;
         }
         let Ok(mut transform) = world.get::<&mut Transform>(target) else {
@@ -527,6 +514,24 @@ pub(crate) fn write_pose<'a>(
             | TrackValue::None
             | TrackValue::Deform(_) => {}
         }
+    }
+}
+
+fn write_appearance(world: &World, target: Entity, value: &TrackValue, effects: &mut Vec<Effect>) {
+    let Ok(mut appearance) = world.get::<&mut balaur_core::scene::Appearance>(target) else {
+        return;
+    };
+    match *value {
+        // The flag is written here; its event waits for the borrow.
+        TrackValue::Visible(on) if appearance.visible != on => {
+            appearance.visible = on;
+            effects.push(Effect::Shown {
+                entity: target,
+                visible: on,
+            });
+        }
+        TrackValue::Tint(tint) => appearance.tint = tint,
+        _ => {}
     }
 }
 

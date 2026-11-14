@@ -89,6 +89,12 @@ impl FnGen<'_> {
             "__val_at" => self.val_at(args, pos)?,
             "__same_at" => self.same_at(args, pos)?,
             "__find" => self.find(args, pos)?,
+            // Input the prelude refuses, as an index past the end is refused.
+            "__trap" => {
+                self.args(&[], args, pos, name)?;
+                self.e(I::Unreachable);
+                Ty::Void
+            }
             _ => return Ok(None),
         };
         Ok(Some(ty))

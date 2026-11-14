@@ -32,7 +32,7 @@ impl Door {
 
 | Await | Resumes |
 | --- | --- |
-| `task::seconds(t)` | after `t` seconds of simulation time |
+| `task::seconds(t)` | after `t` seconds of simulation time, on the fixed step `ceil(t * tick_hz)` |
 | `task::frames(n)` | after `n` frames |
 | `task::wait(token)` | when an engine call finishes, with its result as an `any` |
 | another script `async fn` | when it returns, with its value |

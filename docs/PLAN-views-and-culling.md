@@ -1,193 +1,45 @@
-> **Status:** steps 2, 3, 7 and 8 are built, and step 1's projection half;
-> the rest is not started. Written 2026-09-05 from the Godot parity
-> investigation: the renderer draws every node it is handed, once, from one
-> camera, into the window.
+# Plan: more than one view, culling and level of detail
 
-# Plan: more than one view, culling, level of detail and instancing
+Draw only what a camera can see, and draw a scene from more than one camera.
+The work is in `crates/balaur_render`, plus one hook in the kiss3d fork.
 
-## 0. Where the tree is today
+## Steps
 
-- One 2D and one 3D view, each from the last current `camera`; the backend
-  draws the whole scene graph into the window every frame, and offscreen
-  into a hidden surface.
-- kiss3d's fork has `RenderTarget`s for its post chain and the offscreen
-  output, and no way to render the graph a second time with another camera
-  or into a texture a material can read.
-- `Renderable3d` and `GlobalTransform` are where a visibility pass would sit;
-  `visible` propagates in `SceneSync`; nothing computes bounds.
-- The 3D material pipelines are Balaur's own (`shader_material_3d.rs`);
-  every mesh is one draw. The fork's `set_instances` on a node is unused.
-- The 3D camera is the fork's orbit camera, built from the current
-  `camera3d`'s lens through `new_with_frustum` and again whenever the lens
-  changes, since the fork takes clip planes only when a camera is made.
-- `docs/PLAN-3d-rendering.md` step 1 gives `light3d` and every renderable a
-  `light_layers` mask; `render_layers` on a renderable and on `camera3d`
-  decides which camera draws it.
-- The offscreen path already renders with no OS window at a fixed step.
+1. **Bounds and culling.** Bounds per renderable at attach: a shape's extent,
+   a mesh asset's box, a sprite's quad, a text's shaped box. They sit in
+   parry's `Bvh`, so frustum culling in 3D and rect culling in 2D are a
+   traversal, and the same tree answers picking. A chunked tile map culls per
+   chunk. The answer reads only the `camera` component and `GlobalTransform`,
+   so a headless run agrees with a windowed one. Done when the backend skips
+   every off-screen node and a headless test matches a hand-computed frustum.
+2. **`screen_notifier3d`.** The twin of `screen_notifier2d`
+   (`crates/balaur_render/src/notifier.rs`): a box announcing
+   `screen_entered` and `screen_exited` against the current 3D camera's
+   frustum, from step 1's bounds. Done when it passes the 2D notifier's tests
+   in 3D.
+3. **`viewport` on a window rect.** A `viewport` component with `rect`,
+   `camera`, `render_layers`, `clear`, `msaa`, `update = "always" | "once" |
+   "visible"`, and `scale` for a film drawn at a fraction of its rect and
+   upscaled. The window is the default view, and takes the same render scale.
+   One fork hook renders the scene graph with a camera, a mask and a target;
+   `balaur_render` decides which views draw, in what order.
+   `render.mouse_ray` answers per view. Done when two viewports draw a split
+   screen.
+4. **`viewport` to a texture.** `target = "texture"` and `size`, named
+   `"view:<node path>"` wherever a texture string is accepted: a `sprite`, an
+   `image` widget, a material's texture slot. A view another view samples
+   draws first, and a cycle is refused with a message. Done when a minimap and
+   a picture-in-picture on an `image` widget draw.
+5. **Authored levels of detail and ranges.** The model import setting `lods`
+   builds simpler copies at load, swapped by distance in `lods.rs`. Left: an
+   authored `lods = [{ source, distance }]` in a mesh asset, `lod_bias` on
+   `mesh`, and `range = [near, far]` with `range_fade` on any renderable.
+6. **Occlusion culling.** What stands behind a wall skipped, over a software
+   depth rasteriser, on step 1's bounds.
 
-## 1. Design
+## Open questions
 
-**A view is a node.** `viewport` is a component: a size, a rect of the window
-or a texture to draw into, the camera it draws from, a layer mask, its own
-clear colour and MSAA, and how often it updates. The window itself is the
-default view, so a scene with none draws as today. A view that draws to a
-texture is referenced as `"view:<node path>"` wherever a texture string is
-accepted — a `sprite`, an `image` widget, a material's `[textures]` — which
-is a minimap, a mirror and a security camera in one rule.
-
-**The fork renders the graph; the engine says how many times.** One hook in
-kiss3d: render the scene graph with this camera, this mask, into this target.
-Everything above it — which views, in what order, what depends on what — is
-`balaur_render`'s. A view drawing a texture another view samples renders
-first; a cycle is refused with a message.
-
-**Culling is a pure function the simulation may ask.** Bounds are computed
-per renderable at attach — a shape's extent, a mesh asset's box, a sprite's
-quad, a text's shaped box — kept in parry's `Bvh`, the incremental index rapier's own broad phase
-uses, so the pass is a traversal rather than a walk of every node, and the
-same tree answers picking, the editor's included (PLAN-editor-ergonomics
-§1a). `render.in_view(node)` answers whether the current
-camera's frustum meets a node's bounds, computed from the `camera` component and
-`GlobalTransform` alone, so a headless run answers exactly as a windowed
-one. The backend uses the same answer to skip a draw. What makes that safe
-to expose is that it reads nothing the backend produced; a script that
-writes the answer into state has put a camera in the digest, which the
-reference says on the function.
-
-**Instancing is automatic.** Renderables sharing a mesh asset and a material
-draw as one call with per-instance model matrices in a storage buffer,
-grouped in the material pipeline the engine already owns. A script wanting a
-hundred thousand instances gets Godot's `MultiMesh`: a `multimesh` asset
-drawn by `multimesh3d` or `multimesh2d`, built in `docs/PLAN-multimesh.md`.
-
-**Level of detail is the mesh asset's.** `lods = [{ source, distance }]` in
-the definition, so an imported model carries its own chain, and `balaur
-import` generates one through `meshopt` when asked. A renderable's
-`range = [near, far]` and `range_fade` hide it past a distance whatever its
-mesh.
-
-## 2. The surface
-
-| Need | Decision |
-| --- | --- |
-| Perspective and orthographic cameras, field of view, clip planes | Have: `camera3d.projection`, `fov_degrees`, `near`, `far` and `up`. An orthographic frame is `orthographic_height` high, or sized from the distance to the point looked at and the fov |
-| Skipping nodes outside the camera | Step 1: frustum culling in 3D, rect culling in 2D, from bounds; `render.in_view`, `on_view_entered` / `on_view_exited`. A chunked tile map and a voxel volume cull per chunk, over the chunks `docs/PLAN-tilemap.md` step 2 and `docs/PLAN-voxels.md` step 2 give them |
-| Visibility layers | Have: `render_layers` on `camera3d` and on `shape3d`, `mesh` and `multimesh3d`, the fork's own name. A `viewport` takes one at step 4. Shadows come from every layer, as the fork's shadow pass draws them |
-| Repeated meshes in one call | Step 3: automatic instancing over `balaur_render::instancing`, the seam `multimesh3d` draws through; this is the same seam applied to whatever the scene repeats |
-| Anti-aliasing | Step 4: `viewport.msaa`, and `[render] msaa` in `project.toml` for the window's own view; FXAA and sharpening are `docs/PLAN-3d-rendering.md` step 5 |
-| Split screen | Step 4: `viewport` with `rect`, `camera`, `render_layers`, `clear`, `msaa`, `update = "always" \| "once" \| "visible"`; input per view through `render.mouse_ray(view)` |
-| A camera on a texture | Step 5: `viewport.target = "texture"`, `size`, referenced as `view:<path>` |
-| Picture-in-picture | Step 5: a `viewport` on an `image` widget |
-| Level of detail | Step 6: `lods` on the mesh asset, `lod_bias` on `mesh`, `range` and `range_fade` on renderables, `balaur import --lods` through `meshopt` (C bindings, the constraint) |
-| Many sprites in one call | Step 7: 2D batching by texture and material in the sync |
-| Scripted mass instancing | Step 8: the `multimesh` asset, `multimesh3d` and `multimesh2d`, and `set_instance_transform(i, t)`, in `docs/PLAN-multimesh.md` |
-| Occlusion culling | Roadmap 0.9: frustum and distance first, then a software depth rasteriser. A scene big enough to ask for it is what that milestone is |
-| Render scale and sharpening | Step 4: `viewport.scale`, `sharpen` through the fork's CAS pass |
-| Stereo views for XR | The roadmap's XR item; step 4's hook is the half it reuses |
-
-## 3. Steps
-
-1. Camera projection; bounds, frustum culling, `render.in_view`. The
-   projection is **built**; the culling is not.
-2. Layers and cull masks. **Built**, as `render_layers`.
-3. Automatic instancing. **Built**, and 3b says what it holds to.
-4. `viewport` on a window rect, and the fork hook.
-5. `viewport` to a texture.
-6. Level of detail and ranges.
-7. 2D batching. **Built**, and 3a says what it holds to.
-8. `multimesh`. **Built**, in `docs/PLAN-multimesh.md`.
-
-## 3a. What 2D batching has to do
-
-**Built 2026-09-21.** Runs of `Flat` shapes and of sprites draw as one call,
-a sheet frame included: the fork's `InstanceData2d` carries a `uv` rectangle,
-the surface pipeline binds it at location 6, and the vertex stage mixes the
-mesh's own coordinates through it. The default rectangle is the whole image,
-so a draw that asks for nothing is unchanged.
-
-That rectangle also ends a second cost. `set_uv_rect` opens with
-`make_mesh_unique`, so every sprite on a sheet frame owned a copy of the
-built-in quad; a batched one now shares it.
-
-**Measured 2026-09-20**, `scripts/bench_load.py --only kind/shape2d`: five
-thousand sprites offscreen at 1600x1000 cost 29.3 ms of wall, of which
-21.4 ms is render CPU and 1.55 ms is GPU. A `sample` of the main thread puts
-40% of it in `CommandEncoder::finish` replaying the pass into Metal and 13% in
-`Object2d::render` recording it. The GPU is idle; the cost is one draw per
-node.
-
-The fork already draws instanced: `Object2d` owns an `InstancesBuffer2d`, and
-`draw_indexed` takes the instance range. `InstanceData2d` carries a position,
-a 2x2 deformation and a colour, which is a sprite's whole world pose, shear
-and tint.
-
-What it does not carry is the UV rect. A sprite's atlas frame is written onto
-that node's own mesh by `sync_sprite_uvs`, so two nodes on different frames
-cannot share a draw. The fork needs a per-instance UV rect and the 2D shader
-needs to multiply by it; that is the first half of this step.
-
-The second half is the run. `sync_2d` keeps one `SceneNode2d` per entity,
-ordered by layer then z. A batch has to be contiguous in that order, or it
-changes what covers what, so the sync walks the order and cuts a run wherever
-the material, the texture, the mesh or the blend changes. A run becomes one
-object with an instance per node; a node that is hidden leaves the run's
-instance list.
-
-What breaks a run, and stays one draw each: a `polygon`, a tile map, world
-text, a node with its own material, and a shape whose mesh is not the run's.
-A circle and a rectangle each batch with their own kind, from a unit mesh the
-instance deformation scales.
-
-Picking is unaffected: it reads `Renderable2d` and `GlobalTransform` from the
-world, never the backend's nodes.
-
-What the run cutting cost, on the same case: render CPU went from 21.4 ms to
-0.41, and the wall from 29.3 to 4.8. Both pictures were compared pixel by
-pixel against the same scene drawn node by node, over a grid of two dozen
-rectangles turned, scaled and tinted apart, and over the `angrynerds`
-example; neither moved a channel.
-
-## 3b. What 3D instancing has to do
-
-**Built 2026-09-21.** Two thousand balls cost 31.9 ms of render CPU, 16 µs a
-node, which was the worst number in the benchmark suite once 2D batched.
-
-Three dimensions are easier in one way. Geometry is depth-tested and the sync
-walks a query rather than a sorted order, so a group needs no place in an
-order and any nodes that draw alike may join one wherever they sit.
-
-They are stricter in another. An instance carries a position, a 3x3 and a
-colour, and the shader multiplies normals by that same 3x3 — correct only
-where the scale is even, since an uneven one needs the inverse transpose.
-So a node scaled unevenly keeps its own object. So does a skinned one, which
-is posed on its node, and a model with levels of detail, which swaps geometry
-as the eye moves.
-
-Everything else a node holds is the object's and so is the key's: the shape
-or the `mesh` asset, the texture, the material, the shadow flag and the light
-layers.
-
-An uneven scale could join later. It needs a second 3x3 on the instance, read
-at the locations `mesh.wesl` has free, or an inverse transpose worked out in
-the vertex stage. Neither is hard, and neither has a measurement behind it:
-nobody has counted how much of a real scene repeats a mesh and stretches it.
-
-## 4. What CI can prove, and what it cannot
-
-The headless-versus-offscreen digest job proves culling and instancing
-touch nothing; a headless test asserts `in_view` against a hand-computed
-frustum. Offscreen renders a split screen and a minimap into the showcase.
-The benchmark project gains a case of ten thousand crates, so instancing is
-a number in `docs/BENCHMARKS.md` rather than a claim. CI cannot prove a
-view order deadlock is impossible; the cycle check is a test.
-
-## 5. Open questions
-
-1. **Who owns the frame loop.** Every step above fits under kiss3d's window
-   with one hook; XR does not, and neither would a view per monitor. Whether
-   `balaur_render` takes the loop from the fork is a decision this plan
-   defers and the XR item cannot.
-2. **A view's texture as an asset.** `view:<path>` is a string that names a
-   node, not a file; it cannot be inlined or saved. That is right for a live
-   image and wrong the day someone wants to bake one, which `render.screenshot`
-   already covers.
+1. **Who owns the frame loop.** Every step fits under kiss3d's window with
+   one hook. XR does not, and neither would a view per monitor.
+2. **A view's texture as an asset.** `view:<path>` names a node, not a file,
+   so it cannot be saved; `render.screenshot` covers a baked image.

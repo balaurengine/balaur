@@ -12,7 +12,7 @@ pub class Weights {
 
 impl Weights {
     pub fn init() {
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, signals::DOCKS, source);
         for word in ["weights_changed", signals::OUTLINE, signals::INSPECTOR] {

@@ -12,13 +12,11 @@ use anyhow::{Result, anyhow};
 use balaur_script::Value;
 
 use crate::batteries_api::{
-    assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
-    assets_invalidate, assets_kind_of, assets_load, assets_path, assets_reload, assets_rename,
-    assets_save, assets_schema, dark_mode, device_id, encoding_base64, encoding_base64_text,
-    encoding_from_base64, environment, focused, hash_sha256, hash_sha256_text, log_clear,
-    log_error, log_file, log_info, log_print, log_recent, log_since, log_warn, platform, rng_at,
-    rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged, strings_system_locale,
-    unix_time,
+    assets_directory, assets_exists, assets_invalidate, assets_kind_of, assets_load, assets_reload,
+    assets_rename, assets_save, assets_schema, dark_mode, device_id, environment, focused,
+    hash_sha256_file, hash_sha256_text, log_clear, log_error, log_file, log_info, log_print,
+    log_since, log_warn, platform, rng_int, rng_random, rng_range, rng_seed, scene_tagged,
+    strings_system_locale, unix_time,
 };
 use crate::engine::Engine;
 use crate::file_api::{
@@ -36,10 +34,7 @@ pub(crate) use crate::file_api::resolve;
 pub use crate::file_api::{from_json, to_json};
 mod registry;
 use crate::vocabulary::{keys, words};
-use registry::{
-    component_expects, component_requires, component_schema, component_tags, component_types,
-    warnings,
-};
+use registry::{component_expects, component_schema, component_tags, component_types, warnings};
 
 /// One engine operation, tagged with the module it belongs to.
 pub struct EngineOp {
@@ -162,11 +157,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: words::modules::SCENE,
-            name: "get_node",
-            call: get_node,
-        },
-        EngineOp {
-            module: words::modules::SCENE,
             name: "node_by_id",
             call: node_by_id,
         },
@@ -202,11 +192,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: words::modules::SCENE,
-            name: "source",
-            call: source,
-        },
-        EngineOp {
-            module: words::modules::SCENE,
             name: "component_types",
             call: component_types,
         },
@@ -219,11 +204,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: words::modules::SCENE,
             name: "component_expects",
             call: component_expects,
-        },
-        EngineOp {
-            module: words::modules::SCENE,
-            name: "component_requires",
-            call: component_requires,
         },
         EngineOp {
             module: words::modules::SCENE,
@@ -361,11 +341,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: words::modules::ASSETS,
-            name: words::window_modes::DUPLICATE,
-            call: assets_duplicate,
-        },
-        EngineOp {
-            module: words::modules::ASSETS,
             name: words::functions::EXISTS,
             call: assets_exists,
         },
@@ -405,21 +380,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             call: assets_rename,
         },
         EngineOp {
-            module: words::modules::ASSETS,
-            name: words::locales::ID,
-            call: assets_id,
-        },
-        EngineOp {
-            module: words::modules::ASSETS,
-            name: "assign_id",
-            call: assets_assign_id,
-        },
-        EngineOp {
-            module: words::modules::ASSETS,
-            name: words::dependencies::PATH,
-            call: assets_path,
-        },
-        EngineOp {
             module: words::modules::LOG,
             name: words::functions::INFO,
             call: log_info,
@@ -438,11 +398,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: words::modules::LOG,
             name: "print",
             call: log_print,
-        },
-        EngineOp {
-            module: words::modules::LOG,
-            name: "recent",
-            call: log_recent,
         },
         EngineOp {
             module: words::modules::LOG,
@@ -480,39 +435,14 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             call: rng_int,
         },
         EngineOp {
-            module: words::modules::RANDOM,
-            name: "uuid",
-            call: rng_uuid,
-        },
-        EngineOp {
-            module: words::modules::RANDOM,
-            name: "at",
-            call: rng_at,
-        },
-        EngineOp {
             module: words::modules::HASH,
-            name: "sha256",
-            call: hash_sha256,
+            name: "sha256_file",
+            call: hash_sha256_file,
         },
         EngineOp {
             module: words::modules::HASH,
             name: "sha256_text",
             call: hash_sha256_text,
-        },
-        EngineOp {
-            module: words::modules::ENCODING,
-            name: "base64",
-            call: encoding_base64,
-        },
-        EngineOp {
-            module: words::modules::ENCODING,
-            name: "base64_text",
-            call: encoding_base64_text,
-        },
-        EngineOp {
-            module: words::modules::ENCODING,
-            name: "from_base64",
-            call: encoding_from_base64,
         },
         EngineOp {
             module: words::modules::FS,
@@ -563,11 +493,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: words::modules::ENGINE,
             name: "plugins",
             call: loaded_plugins,
-        },
-        EngineOp {
-            module: words::modules::ENGINE,
-            name: "has_plugin",
-            call: has_plugin,
         },
         EngineOp {
             module: words::modules::ENGINE,
@@ -695,7 +620,6 @@ fn document(module: &str, m: &mut balaur_script::Module<Engine>) {
         words::modules::TOML => crate::engine_docs::document_toml(m),
         words::modules::JSON => crate::engine_docs::document_json(m),
         words::modules::HASH => crate::engine_docs::document_hash(m),
-        words::modules::ENCODING => crate::engine_docs::document_encoding(m),
         _ => {}
     }
 }
@@ -719,10 +643,6 @@ fn plugin_version(eng: &Engine, args: &[Value]) -> Result<Value> {
         .into_iter()
         .find(|p| p.name == name)
         .map_or(Value::Nil, |p| Value::Str(p.version)))
-}
-
-fn has_plugin(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Bool(crate::plugins::is_loaded(eng, text(args, 0)?)))
 }
 
 fn time(eng: &Engine, _: &[Value]) -> Result<Value> {
@@ -889,12 +809,6 @@ fn root(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Node(crate::node_id_of(eng.root()).0))
 }
 
-fn get_node(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let world = eng.world();
-    Ok(scene::find_node(&world, eng.root(), text(args, 0)?)
-        .map_or(Value::Nil, |e| Value::Node(crate::node_id_of(e).0)))
-}
-
 /// The node carrying a stable id: what a scene file declared, or what
 /// `ids::mint` gave one a script spawned.
 ///
@@ -908,18 +822,15 @@ fn node_by_id(eng: &Engine, args: &[Value]) -> Result<Value> {
         .map_or(Value::Nil, |e| Value::Node(crate::node_id_of(e).0)))
 }
 
-/// Every node carrying a component, in tree order.
-///
-/// Asked of the registry's own `get` hook rather than of the ECS, so it
-/// answers for a plugin's component the day it is registered, with no type
-/// this crate would have to know.
+/// Every node carrying a component, in tree order: a plugin's too, since
+/// presence is the registry's bit and no type this crate would have to know.
 fn with_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let name = text(args, 0)?;
     let world = eng.world();
     let mut out = Vec::new();
     let mut stack = vec![eng.root()];
     while let Some(at) = stack.pop() {
-        if crate::components::get(eng, at, name).is_some() {
+        if crate::components::has(eng, at, name) {
             out.push(Value::Node(crate::node_id_of(at).0));
         }
         if let Ok(children) = world.get::<&crate::scene::Children>(at) {
@@ -988,21 +899,6 @@ fn attach_scripts(eng: &Engine, args: &[Value]) -> Result<Value> {
     let root = optional_node(args, 0)?.ok_or_else(|| anyhow!("attach_scripts needs a node"))?;
     crate::project::attach_scripts(eng, root)?;
     Ok(Value::Nil)
-}
-
-/// The scene file's raw TOML text, or nil. Not a load: nothing is parsed or
-/// spawned. Unlike `fs.read` it goes through the script host, so it finds the
-/// file inside the pack in a packed run.
-fn source(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let rel = text(args, 0)?;
-    // The host's own copy first, which is what a packed game carries, then the
-    // file, the way `project::scene_text` reads one: the editor's session
-    // replay registers none of the game's scenes, and nil is not an answer.
-    Ok(eng
-        .script_host()
-        .and_then(|host| host.scene_source(rel))
-        .or_else(|| crate::project::scene_text(eng, rel).ok())
-        .map_or(Value::Nil, Value::text))
 }
 
 fn strings_tr(eng: &Engine, args: &[Value]) -> Result<Value> {

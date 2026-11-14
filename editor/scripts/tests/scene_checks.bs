@@ -1,0 +1,1008 @@
+// Self-tests of the scene's edits: undo, renaming, the autosave and the
+// disk, the node picker, every node kind, the clipboard, instances, placing,
+// the selection, a drop, the library, the tree's marks and populate.
+
+use arrange;
+use autosave;
+use disk;
+use dropin;
+use editor;
+use history;
+use icons;
+use inspector;
+use left;
+use library;
+use model;
+use newnode;
+use populate;
+use presets;
+use recipes;
+use rig;
+use scatter;
+use sceneedit;
+use selection;
+use selftest;
+use shell;
+use tests::tool_checks;
+use tests::shell_checks;
+use tests::project_checks;
+use textedit;
+use util;
+use window;
+use words::components;
+use words::project_fields;
+
+/// `--state test:autosave`: an edit is written to the scene's file once the
+/// edits settle, not before, and leaves nothing to save. Driven with its own
+/// clock, since a suite keeps its edits off the disk.
+pub fn autosaving(state: &mut editor::State) {
+    let row = if state.nodes.len() > 1 { 1 } else { 0 };
+    selection::only(state, row);
+    let was = model::node(state, row).name();
+    sceneedit::rename_selected(state, "Autosaved");
+    let now = engine::unix_time();
+    selftest::check(history::dirty(state), "a rename leaves the scene to write");
+    selftest::check(!autosave::write_settled(state, now), "and nothing is written while the edits may go on");
+    selftest::check(autosave::write_settled(state, now + autosave::SETTLE + 0.1), "once they settle the scene is written");
+    selftest::check(!history::dirty(state), "leaving nothing to save");
+    selftest::check(fs::read(state.scene_path).or("").contains("Autosaved"), "and the file holds the edit");
+    sceneedit::rename_selected(state, was);
+    autosave::write_settled(state, engine::unix_time() + autosave::SETTLE + 0.1);
+    selftest::check(!fs::read(state.scene_path).or("").contains("Autosaved"), "putting the name back writes it back");
+    // A script typed into is written once the typing rests, and compiled.
+    let path = state.game_root + "/scripts/autosaved_probe.bs";
+    let source = "pub fn probe() -> int {{\n    1\n}}\n";
+    state.script_buffers[path] = source;
+    state.script_dirty[path] = engine::unix_time();
+    selftest::check(autosave::write_typed(state, engine::unix_time()) == 0, "a buffer still being typed into waits");
+    selftest::check(autosave::write_typed(state, engine::unix_time() + autosave::TYPING_SETTLE + 0.1) == 1, "and is written once the typing rests");
+    selftest::check(fs::read(path).or("") == source && !state.script_dirty.has(path), "leaving nothing to save");
+    fs::remove(path);
+    state.script_buffers.remove(path);
+}
+
+fn disk_probe(value: int) -> str {
+    "pub fn probe() -> int {{\n    {value}\n}}\n"
+}
+
+/// `--state test:disk_changed`: a file changed from outside is taken up where
+/// nothing is unsaved and asked about where something is, and nothing is
+/// written over until it has been answered.
+pub fn disk_changed(state: &mut editor::State) {
+    let rel = "scripts/disk_probe.bs";
+    let path = state.game_root + "/" + rel;
+    let typed = "// typed\n";
+    let rest = autosave::TYPING_SETTLE + 0.1;
+    fs::write(path, disk_probe(1));
+    disk::edit(state, path, disk_probe(1) + typed);
+    shell::save_buffer(state, path);
+    selftest::check(fs::read(path).or("") == disk_probe(1) + typed, "a buffer writes through to its file");
+    disk::heard(state, [path]);
+    selftest::check(state.script_buffers[path] != nil, "and hearing its own write back keeps the buffer");
+
+    fs::write(path, disk_probe(2));
+    disk::heard(state, [path]);
+    selftest::check(state.script_buffers[path] == nil, "a file changed under a buffer with nothing unsaved drops it");
+    selftest::check(model::source(state, rel).as_str() == disk_probe(2), "so what shows is the file");
+
+    disk::edit(state, path, disk_probe(2) + typed);
+    fs::write(path, disk_probe(3));
+    disk::heard(state, [path]);
+    selftest::check(state.script_held.has(path) && window::showing(state, disk::SHEET), "with something unsaved it asks");
+    selftest::check(autosave::write_typed(state, engine::unix_time() + rest) == 0, "and the autosave leaves it alone");
+    selftest::check(fs::read(path).or("") == disk_probe(3) && state.script_buffers[path].as_str() == disk_probe(2) + typed, "both sides stand");
+
+    disk::keep_one(state, disk_about(path));
+    selftest::check(fs::read(path).or("") == disk_probe(2) + typed, "keeping the edits writes them over the file");
+    selftest::check(!state.script_held.has(path) && !state.script_dirty.has(path) && !window::showing(state, disk::SHEET), "and answers it");
+
+    disk::edit(state, path, disk_probe(2) + typed + typed);
+    fs::write(path, disk_probe(4));
+    disk::heard(state, [path]);
+    disk::reload_one(state, disk_about(path));
+    selftest::check(fs::read(path).or("") == disk_probe(4) && state.script_buffers[path] == nil, "reloading leaves the file and drops the edits");
+
+    disk::edit(state, path, disk_probe(4) + typed);
+    fs::write(path, disk_probe(5));
+    disk::heard(state, [path]);
+    window::hide(state);
+    disk::ask(state);
+    selftest::check(!window::showing(state, disk::SHEET) && state.script_held.has(path), "shut unanswered it holds on");
+    selftest::check(autosave::write_typed(state, engine::unix_time() + rest) == 0, "and still writes nothing");
+    disk::edit(state, path, disk_probe(4) + typed + typed);
+    selftest::check(autosave::write_typed(state, engine::unix_time() + rest) == 0 && window::showing(state, disk::SHEET), "the next write asks again");
+    disk::reload_all(state);
+
+    disk::edit(state, path, disk_probe(5) + typed);
+    fs::write(path, disk_probe(6));
+    shell::save_buffer(state, path);
+    selftest::check(fs::read(path).or("") == disk_probe(6) && window::showing(state, disk::SHEET), "a write checks the file itself, ahead of the watcher");
+    disk::reload_all(state);
+
+    disk::edit(state, path, disk_probe(6) + typed);
+    fs::write(path, disk_probe(6) + typed);
+    disk::heard(state, [path]);
+    selftest::check(!state.script_dirty.has(path) && !window::showing(state, disk::SHEET), "a file that came to hold the buffer owes nothing");
+
+    // Several buffers at once: one list, answered one by one or all together.
+    let other = state.game_root + "/scripts/disk_probe_b.bs";
+    let third = state.game_root + "/scripts/disk_probe_c.bs";
+    for each in [path, other, third] {
+        fs::write(each, disk_probe(7));
+        disk::edit(state, each, disk_probe(7) + typed);
+        fs::write(each, disk_probe(8));
+    }
+    disk::heard(state, [path, other, third]);
+    selftest::check(state.script_held.len() == 3 && window::showing(state, disk::SHEET), "several files changed under edits share one list");
+    disk::reload_one(state, disk_about(path));
+    selftest::check(state.script_held.len() == 2 && window::showing(state, disk::SHEET), "answering one leaves the others up");
+    disk::keep_all(state);
+    selftest::check(state.script_held.len() == 0 && !window::showing(state, disk::SHEET), "keeping all answers the rest");
+    selftest::check(fs::read(other).or("") == disk_probe(7) + typed && fs::read(third).or("") == disk_probe(7) + typed, "and writes each");
+
+    disk::edit(state, other, disk_probe(7) + typed + typed);
+    fs::write(other, disk_probe(9));
+    disk::heard(state, []);
+    selftest::check(state.script_held.has(other), "an empty list checks what is open");
+    disk::reload_all(state);
+
+    // Most of a checkout is nothing the editor holds: no read, one list.
+    let many: [str] = [];
+    for at in 0..10000 {
+        many.push(state.game_root + "/scripts/nowhere_{at}.bs");
+    }
+    disk::heard(state, many);
+    selftest::check(state.script_held.len() == 0 && !window::showing(state, disk::SHEET), "ten thousand files nothing has open ask nothing");
+
+    for each in [path, other, third] {
+        fs::remove(each);
+        state.script_buffers.remove(each);
+        state.script_disk.remove(each);
+    }
+}
+
+fn disk_about(path: str) -> any {
+    { project_fields::PATH: path }
+}
+
+/// `--state disk_changed`: the sheet up, for a picture of it.
+pub fn disk_sheet(state: &mut editor::State) {
+    for at in 0..12 {
+        state.script_held[state.game_root + "/scripts/held_{at}.bs"] = true;
+    }
+    state.disk_new = true;
+    disk::ask(state);
+}
+
+pub fn rename(state: &mut editor::State) {
+    let was = model::node(state, state.selected).name();
+    left::rename_open(state);
+    selftest::check(state.renaming, "the rename dialog opens");
+    selftest::check(state.rename_text == was, "it starts from the node's name ({state.rename_text})");
+    sceneedit::rename_selected(state, "Renamed");
+    selftest::check(model::node(state, state.selected).name() == "Renamed", "the document takes it ({model::node(state, state.selected).name()})");
+    let found = model::node(state, state.selected);
+    selftest::check(found.name() == "Renamed", "and so does the live node ({found.name()})");
+    // A second node cannot take the same name, or `find_node` answers with
+    // whichever came first.
+    let other = -1;
+    for index in 0..state.nodes.len() {
+        let node = model::node(state, index);
+        if index != state.selected && node.name() != "Renamed" {
+            other = index;
+            break;
+        }
+    }
+    if other < 0 {
+        shell::undo(state);
+        selftest::check(model::node(state, state.selected).name() == was, "undo puts the old name back ({model::node(state, state.selected).name()})");
+        log::info("selftest rename: one node, so no name to collide with, skipping the rest");
+        return;
+    }
+    let other_was = model::node(state, other).name();
+    shell::choose(state, other);
+    sceneedit::rename_selected(state, "Renamed");
+    selftest::check(model::node(state, state.selected).name() != "Renamed", "a taken name is made unique ({model::node(state, state.selected).name()})");
+    shell::undo(state);
+    selftest::check(model::node(state, other).name() == other_was, "undo puts the old name back ({model::node(state, other).name()})");
+}
+
+// The node picker: what it offers, how it is grouped, and that a pick
+// really builds the node rather than only closing the sheet.
+pub fn node_picker(state: &mut editor::State) {
+    newnode::open(state);
+    selftest::check(state.newnode, "the picker opens");
+    let rows = newnode::catalogue(state);
+    selftest::check(rows.len() > 0, "the picker offers something ({rows.len()} rows)");
+    // Every row lands in a group, and a dimensioned one lands in its own.
+    let groups: any = {};
+    let placed = 0;
+    for row in rows {
+        if row.group != "" {
+            placed += 1;
+        }
+        groups[row.group] = true;
+        if row.name == "camera2d" {
+            selftest::check(row.group == "2D", "camera2d is filed under 2D (got {row.group})");
+        }
+        if row.name == "camera3d" {
+            selftest::check(row.group == "3D", "camera3d is filed under 3D (got {row.group})");
+        }
+    }
+    selftest::check(placed == rows.len(), "every row has a group");
+    selftest::check(groups.has("3D") && groups.has("2D"), "both dimensions are groups of their own");
+    // The one thing a picker must not offer: every node already has one.
+    let has_transform = false;
+    for row in rows {
+        if row.name == "transform" {
+            has_transform = true;
+        }
+    }
+    selftest::check(!has_transform, "`transform` is not offered as a node to add");
+    // A preset pick builds the node and shuts the sheet.
+    let before = state.nodes.len();
+    let chosen: newnode::Entry? = nil;
+    for row in rows {
+        if row.preset {
+            chosen = row;
+            break;
+        }
+    }
+    if chosen != nil {
+        newnode::place(state, chosen.unwrap());
+        selftest::check(state.nodes.len() == before + 1, "picking {chosen.unwrap().name} adds a node ({before} -> {state.nodes.len()})");
+        selftest::check(!state.newnode, "and closes the picker");
+        let made = model::node(state, state.selected);
+        selftest::check(made.component_names().len() > 1, "the new node carries the preset's components ({made.component_names()})");
+    } else {
+        selftest::check(false, "no preset to pick");
+    }
+    // One row a name: a component a preset is named for is the preset's row.
+    let seen: any = {};
+    let twice: [str] = [];
+    for row in rows {
+        if seen.has(row.name) {
+            twice.push(row.name);
+        }
+        seen[row.name] = true;
+    }
+    selftest::check(twice.len() == 0, "no row is offered twice ({twice})");
+    // A text added is named for what it is and opens ready to type over.
+    selection::only(state, 0);
+    newnode::open(state);
+    for row in newnode::catalogue(state) {
+        if row.name == "text2d" {
+            newnode::place(state, row);
+            break;
+        }
+    }
+    let text = model::node(state, state.selected);
+    selftest::check(text.name().starts_with("Text"), "an added text is named for what it is ({text.name()})");
+    textedit::step(state);
+    let field = textedit::view(state);
+    selftest::check(field.open && field.text == "Text", "and opens ready to type over ({field.open}, '{field.text}')");
+    textedit::close(state);
+    // A game's own recipe, in its `editor/presets.toml`, is a row the picker builds.
+    let folder = state.game_root + "/editor";
+    fs::create_directory(folder);
+    fs::write(folder + "/presets.toml", "[marker2d]\ntags = [\"2d\"]\ncomponents = [{{ component = \"shape2d\", shape = {{ kind = \"circle\" }} }}]\n");
+    selection::only(state, 0);
+    newnode::open(state);
+    let offered = false;
+    for row in newnode::catalogue(state) {
+        if row.name == "marker2d" && row.preset {
+            offered = true;
+            newnode::place(state, row);
+            break;
+        }
+    }
+    let marker = model::node(state, state.selected);
+    selftest::check(offered && marker.has_component(components::SHAPE2D), "a game's editor/presets.toml adds a row the picker builds ({offered})");
+    fs::remove(folder + "/presets.toml");
+}
+
+// Whether a component reads `held` where a recipe set `set`: a table key by
+// key over what the recipe names, a number whichever of int and float it is.
+fn reads_as(held: any, set: any) -> bool {
+    if set.kind() != types::KIND_MAP {
+        return recipes::same(held, set);
+    }
+    if held.kind() != types::KIND_MAP {
+        return false;
+    }
+    for key in set.keys() {
+        if !reads_as(held[key], set[key]) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Every row the node picker offers, preset or component, placed under the
+/// root: it builds what it names, a preset's node reads back every property
+/// `presets.toml` sets, the inspector lists every component it adds, and a
+/// scene of a 2D or 3D row's node alone opens in that view. The nodes stay,
+/// so the frames after draw every one of them.
+pub fn every_node(state: &mut editor::State) {
+    newnode::open(state);
+    let rows = newnode::catalogue(state);
+    newnode::close(state);
+    let known = presets::all(state);
+    let unbuilt: [str] = [];
+    let unset: [str] = [];
+    let unlisted: [str] = [];
+    let misfiled: [str] = [];
+    let misopened: [str] = [];
+    for row in rows {
+        let before = state.nodes.len();
+        selection::only(state, 0);
+        newnode::open(state);
+        newnode::place(state, row);
+        // A soft body asks what to build it from: the first source.
+        if state.newnode_soft != "" {
+            newnode::place_source(state, newnode::catalogue(state)[0]);
+        }
+        if state.nodes.len() != before + 1 || state.newnode {
+            unbuilt.push(row.name);
+            newnode::close(state);
+            continue;
+        }
+        let node = model::node(state, state.selected);
+        let wanted = [row.name];
+        for preset in known {
+            if !row.preset || preset.name != row.name {
+                continue;
+            }
+            wanted = preset.components;
+            // A soft body is rebuilt from its source, so it keeps its own kind.
+            if recipes::soft_dimension(row.name) != "" {
+                continue;
+            }
+            for component in preset.components {
+                if !reads_as(node.get_component(component), preset.parts[component]) {
+                    unset.push("{row.name}.{component}");
+                }
+            }
+        }
+        let listed = inspector::node_components(state);
+        for component in wanted {
+            if !node.has_component(component) {
+                unbuilt.push("{row.name}.{component}");
+            }
+            if !util::contains(listed, component) {
+                unlisted.push("{row.name}.{component}");
+            }
+        }
+        // What the editor decides for a scene of this node alone. A `ui` tag
+        // outranks the dimension, as a touch control filed under 2D is UI.
+        let flat = model::nodes_are_2d([node]);
+        let dimensioned = row.group == "2D" || row.group == "3D";
+        if dimensioned && model::facet(node) != model::UI && flat != (row.group == "2D") {
+            let opened_as = if flat { "2D" } else { "3D" };
+            misfiled.push("{row.name} ({row.group} opens as {opened_as})");
+        }
+        // Which workspace such a scene opens in: UI for widgets alone, a
+        // touch control among them.
+        let widget = row.group == "UI" || model::facet(node) == model::UI;
+        if (dimensioned || row.group == "UI") && widget != model::nodes_are_interface([node]) {
+            misopened.push("{row.name} ({row.group})");
+        }
+    }
+    selftest::check(rows.len() > 40, "the picker offers every node ({rows.len()} rows)");
+    selftest::check(known.len() >= 35, "the picker reads its presets from the editor's data ({known.len()})");
+    selftest::check(unbuilt.len() == 0, "every row builds what it names; not: {util::join(unbuilt, ", ")}");
+    selftest::check(unset.len() == 0, "a preset's node reads back what its recipe sets; not: {util::join(unset, ", ")}");
+    selftest::check(unlisted.len() == 0, "the inspector lists every component a row adds; not: {util::join(unlisted, ", ")}");
+    selftest::check(misfiled.len() == 0, "a scene of one 2D or 3D row's node opens in that view; not: {util::join(misfiled, ", ")}");
+    selftest::check(misopened.len() == 0, "a scene of one UI row's node opens in the UI workspace, and no other does; not: {util::join(misopened, ", ")}");
+}
+
+// Mutate, undo, redo; assert the document, the mirror and the selection all
+// come back. Runs headless, so it is CI's only view of the editor's scripts.
+pub fn undo(state: &mut editor::State) {
+    let start = state.nodes.len();
+    selftest::check(history::dirty(state) == false, "a freshly loaded scene is clean");
+    selftest::check(history::can_undo(state) == false, "nothing to undo on load");
+    // Duplicate: the case that used to leave a node with no live node at all.
+    for index in 0..state.nodes.len() {
+        let node = model::node(state, index);
+        if node.name() == "Bird" {
+            shell::choose(state, index);
+        }
+    }
+    let picked = selftest::name_at(state, state.selected);
+    sceneedit::duplicate_selected(state);
+    selftest::check(state.nodes.len() == start + 1, "duplicate adds a node ({state.nodes.len()})");
+    selftest::check(selftest::mirror_resolves(state), "duplicate resolves every node in the mirror");
+    selftest::check(history::dirty(state), "duplicating marks the scene dirty");
+    let copy = selftest::name_at(state, state.selected);
+    shell::undo(state);
+    selftest::check(state.nodes.len() == start, "undo removes it again ({state.nodes.len()})");
+    selftest::check(selftest::mirror_resolves(state), "undo resolves every node in the mirror");
+    selftest::check(selftest::name_at(state, state.selected) == picked, "undo restores the selection ({selftest::name_at(state, state.selected)})");
+    selftest::check(history::dirty(state) == false, "undo back to the load point is clean");
+    shell::redo(state);
+    selftest::check(state.nodes.len() == start + 1, "redo adds it back ({state.nodes.len()})");
+    selftest::check(selftest::name_at(state, state.selected) == copy, "redo restores the selection ({selftest::name_at(state, state.selected)})");
+    selftest::check(selftest::mirror_resolves(state), "redo resolves every node in the mirror");
+    // Delete: the destructive one, and the one that moves the selection.
+    let before_delete = state.nodes.len();
+    sceneedit::delete_selected(state);
+    selftest::check(state.nodes.len() == before_delete - 1, "delete removes a node ({state.nodes.len()})");
+    shell::undo(state);
+    selftest::check(state.nodes.len() == before_delete, "undo restores the deleted node ({state.nodes.len()})");
+    selftest::check(selftest::mirror_resolves(state), "the restored node resolves in the mirror");
+    // A transform write, the way the inspector's vector rows make one.
+    let found = model::node(state, state.selected);
+    if model::has_selection(state) && found.is_valid() {
+        let position = found.transform.position;
+        history::record(state, "move node", "selftest:move");
+        history::commit(state);
+        model::set_transform(state, state.selected, rig::Parts { position: [position.x + 5.0, position.y, position.z], rotation_euler: [], scale: [] });
+        shell::undo(state);
+        let restored = model::transform_part(model::selected_node(state), "position", [0.0, 0.0, 0.0]);
+        selftest::check(math::abs(restored[0] - position.x) < 1e-6, "undo restores the position ({restored[0]} vs {position.x})");
+    }
+    // A component property, discovered rather than named: every scene has
+    // different components, and a 3D one has no `shape2d` to write to.
+    selftest::component_write(state);
+    // The stack is finite and ordered: undo everything, then nothing is left.
+    selftest::undo_all(state);
+    selftest::check(state.nodes.len() == start, "undoing everything returns the original scene ({state.nodes.len()})");
+    selftest::check(history::dirty(state) == false, "the fully-undone scene is clean again");
+    selftest::check(selftest::mirror_resolves(state), "the fully-undone scene resolves in the mirror");
+    log::info("selftest undo: done");
+}
+
+/// Copy and paste, which the shell drives from a clipboard event no headless
+/// run can raise: the two document verbs behind it, asserted directly.
+pub fn clipboard(state: &mut editor::State) {
+    let before = state.nodes.len();
+    let name = model::selected_node(state).name();
+    let text = sceneedit::copy_selected(state);
+    selftest::check(text.starts_with("[[nodes]]"), "a copied node encodes as a scene document");
+    selftest::check(!text.contains("id = "), "the copy carries no id for the paste to collide with");
+    selftest::check(sceneedit::paste_nodes(state, text), "pasting a copied node is accepted");
+    selftest::check(state.nodes.len() == before + 1, "the paste added one node ({state.nodes.len()})");
+    selftest::check(model::selected_node(state).name() != name, "the pasted node was renamed");
+    selftest::check(selftest::mirror_resolves(state), "the pasted node resolves in the mirror");
+    selftest::check(!sceneedit::paste_nodes(state, "not a scene at all"), "text that is not a scene is left alone");
+    selftest::check(state.nodes.len() == before + 1, "and adds nothing");
+    selftest::undo_all(state);
+    selftest::check(state.nodes.len() == before, "undo takes the paste back ({state.nodes.len()})");
+    selftest::check(selftest::mirror_resolves(state), "the undone scene resolves in the mirror");
+    log::info("selftest clipboard: done");
+}
+
+// Prefabs in the editor: an instance's nodes are in the tree, an edit inside
+// one becomes an override and an edit back to the prefab's value stops being
+// one. Which component it edits is discovered — headless registers no `color`.
+pub fn instances(state: &mut editor::State) {
+    let hit = project_checks::first_instanced_float(state);
+    if hit == nil {
+        log::info("selftest instances: no instanced node with a writable float, skipped");
+        return;
+    }
+    let index = hit.unwrap().at;
+    let component = hit.unwrap().float.component;
+    let property = hit.unwrap().float.property;
+    let spec = hit.unwrap().float.spec;
+    let file_rows = rows_in_file(state);
+    selftest::check(file_rows < state.nodes.len(), "the tree holds nodes the file does not");
+    shell::choose(state, index);
+    let node = model::node(state, index);
+    let owner = model::instance_owner(node);
+    let place = model::path_in_instance(node);
+    let was = selftest::float_property(model::node(state, index), component, property).or(spec["default"].as_float());
+    selftest::check(!entry_of(state, owner, place).has(component), "{place} starts with no override of {component}");
+    sceneedit::set_component_property(state, component, property, was + 3.0);
+    let entry = entry_of(state, owner, place);
+    selftest::check(entry.has(component), "editing {place}.{property} wrote an override on {owner.name()}");
+    // Sparse: the override holds the property that changed, not the whole
+    // component, because the engine patches it over the prefab's.
+    selftest::check(util::map_or_empty(entry[component]).len() == 1, "and holds only {property} ({util::map_or_empty(entry[component]).len()} keys)");
+    selftest::check(rows_in_file(state) == file_rows, "and added no row to the file");
+    inspector::fill(state, property);
+    let marked = inspector::line_named(state, "{component}.{property}");
+    selftest::check(marked != nil && marked.unwrap().mark == inspector::MARK_OVERRIDE, "and its row wears the mark ({marked})");
+    // Back to the prefab's own value: the override has nothing left to say.
+    sceneedit::set_component_property(state, component, property, was);
+    selftest::check(!entry_of(state, owner, place).has(component), "a {property} back at the prefab's stops being an override");
+    inspector::fill(state, property);
+    selftest::check(inspector::line_named(state, "{component}.{property}").unwrap().mark == "", "and its row no longer does");
+    inspector::fill(state, "");
+    // A prefab's nodes are its instance's: none is a row of the file.
+    for row in util::list_or_empty(toml::parse(sceneedit::node_text(state, state.scene_root.unwrap()))["nodes"]) {
+        selftest::check(!row["id"].as_str().contains("/"), "{row["name"]} is the file's own, not a prefab's");
+    }
+    // Structure is the prefab's.
+    let before = state.nodes.len();
+    selftest::expect_warning("cannot add a node inside a prefab");
+    sceneedit::add_child(state);
+    selftest::check(state.nodes.len() == before, "adding a node inside an instance is refused");
+    selftest::expect_warning("cannot delete a node inside a prefab");
+    sceneedit::delete_selected(state);
+    selftest::check(state.nodes.len() == before, "deleting a node inside an instance is refused");
+    selftest::check(selftest::mirror_resolves(state), "every row still resolves, instanced ones included");
+    log::info("selftest instances: done");
+}
+
+// What an instance's owner overrides at one place inside it, as the scene
+// would be written.
+fn entry_of(state: editor::State, owner: Node, place: str) -> any {
+    let written = util::list_or_empty(toml::parse(sceneedit::node_text(state, owner))["nodes"]);
+    if written.len() == 0 {
+        return {};
+    }
+    util::map_or_empty(util::map_or_empty(written[0]["overrides"])[place])
+}
+
+// How many nodes the scene file would hold.
+fn rows_in_file(state: editor::State) -> int {
+    util::list_or_empty(toml::parse(sceneedit::node_text(state, state.scene_root.unwrap()))["nodes"]).len()
+}
+
+// Placing a prefab from the editor: the palette's verb adds an instance node,
+// the engine builds the prefab under it, and undo takes the whole thing back.
+pub fn placing(state: &mut editor::State) {
+    let scenes = model::scene_files(state);
+    let candidates: [str] = [];
+    for rel in scenes {
+        if rel != state.scene_rel {
+            candidates.push(rel);
+        }
+    }
+    if candidates.len() == 0 {
+        log::info("selftest placing: this project has no second scene to instance, skipped");
+        return;
+    }
+    let rel = candidates[0];
+    let before = state.nodes.len();
+    let file_rows = rows_in_file(state);
+    shell::choose(state, 0);
+    sceneedit::instance_scene(state, rel);
+    let node = model::node(state, state.selected);
+    selftest::check(node.instance().or("") == rel, "the new node instances {rel}");
+    selftest::check(rows_in_file(state) == file_rows + 1, "exactly one row was added to the file");
+    selftest::check(state.nodes.len() > before + 1, "and the prefab's own nodes came with it ({state.nodes.len()} in all)");
+    selftest::check(selftest::mirror_resolves(state), "every row resolves, the new prefab's included");
+    // A scene that instanced itself would recurse; the verb refuses.
+    let held = state.nodes.len();
+    selftest::expect_warning("a scene cannot instantiate itself");
+    sceneedit::instance_scene(state, state.scene_rel);
+    selftest::check(state.nodes.len() == held, "a scene refuses to instance itself");
+    shell::undo(state);
+    selftest::check(state.nodes.len() == before, "undo takes the instance back ({state.nodes.len()} rows)");
+    selftest::check(selftest::mirror_resolves(state), "and the mirror is whole again");
+    log::info("selftest placing: done");
+}
+
+pub fn selecting(state: &mut editor::State) {
+    shell_checks::snap_chip(state);
+    if state.nodes.len() < 2 {
+        log::info("selftest selecting: this scene has one node, skipping");
+        return;
+    }
+    // Two siblings: a parent and its child are one root between them, and
+    // group would then adopt one node rather than two. Apart on x if any are,
+    // or the align below has nothing to do and proves nothing.
+    let first_index = 0;
+    let second_index = 1;
+    let found = false;
+    let apart = false;
+    for index in 0..state.nodes.len() {
+        for other in index + 1..state.nodes.len() {
+            let same = model::parent_id(state, model::node(state, index)) == model::parent_id(state, model::node(state, other));
+            let differs = math::abs(shell_checks::doc_x(state, index) - shell_checks::doc_x(state, other)) > 1e-3;
+            if same && (!found || (differs && !apart)) {
+                first_index = index;
+                second_index = other;
+                found = true;
+                apart = differs;
+            }
+        }
+    }
+    if !found {
+        log::info("selftest selecting: this scene has no two siblings, skipping");
+        return;
+    }
+    selection::only(state, first_index);
+    selftest::check(selection::count(state) == 1, "a plain choose selects one node");
+    selection::toggle(state, second_index);
+    selftest::check(selection::count(state) == 2, "toggling a second node extends the set");
+    selftest::check(state.selected == second_index, "and the node just added is the active one");
+    selection::toggle(state, second_index);
+    selftest::check(selection::count(state) == 1 && state.selected == first_index, "toggling it again drops it");
+    selection::set(state, [first_index, second_index]);
+    let before = [shell_checks::doc_x(state, first_index), shell_checks::doc_x(state, second_index)];
+    arrange::align(state, 0, "min");
+    // The document, not `global_position`: that is as of the last transform
+    // sync, and the two are siblings, so one parent frame holds both.
+    selftest::check(math::abs(shell_checks::doc_x(state, first_index) - shell_checks::doc_x(state, second_index)) < 1e-4, "align on x puts two nodes on one plane ({shell_checks::doc_x(state, first_index)} and {shell_checks::doc_x(state, second_index)})");
+    shell::undo(state);
+    selftest::check(math::abs(shell_checks::doc_x(state, first_index) - before[0]) < 1e-4 && math::abs(shell_checks::doc_x(state, second_index) - before[1]) < 1e-4, "undo puts the align back ({shell_checks::doc_x(state, first_index)} and {shell_checks::doc_x(state, second_index)})");
+    selftest::check(selection::count(state) == 2, "and restores the set that made it");
+    let was = state.nodes.len();
+    selection::set(state, [first_index, second_index]);
+    arrange::group(state);
+    selftest::check(state.nodes.len() == was + 1, "group adds one node");
+    selftest::check(model::node(state, state.selected).name().starts_with("Group"), "and selects it");
+    let group_id = model::node(state, state.selected).stable_id();
+    let adopted = 0;
+    for node in state.nodes {
+        if model::parent_id(state, node) == group_id {
+            adopted += 1;
+        }
+    }
+    selftest::check(adopted == 2, "with both nodes under it");
+    shell::undo(state);
+    selftest::check(state.nodes.len() == was, "undo takes the group away");
+    selection::only(state, first_index);
+    selftest::check(!selection::is_locked(state, first_index), "a node starts unlocked");
+    arrange::toggle_locked(state);
+    selftest::check(selection::is_locked(state, first_index), "lock marks it");
+    arrange::toggle_locked(state);
+    selftest::check(!selection::is_locked(state, first_index), "and the same command unmarks it");
+    selftest::check(model::node(state, first_index).visible(), "a node starts visible");
+    arrange::toggle_hidden(state);
+    selftest::check((model::node(state, first_index).visible() == false), "hide writes visible = false");
+    arrange::toggle_hidden(state);
+    selftest::check((model::node(state, first_index).visible() == true), "and showing writes it back");
+    selftest::check(selftest::mirror_resolves(state), "the mirror still resolves after all of it");
+    log::info("selftest selecting: done");
+}
+
+/// Every file a previous drop test left under `art/`.
+fn clear_drops(state: editor::State) {
+    for entry in util::list_or_empty(fs::list(state.game_root + "/art")) {
+        if entry["name"].as_str().starts_with("selftest-drop") {
+            fs::remove(state.game_root + "/art/" + entry["name"].as_str());
+        }
+    }
+}
+
+/// Drag-in: one case per extension, with no window. The image and font cases
+/// copy a real file; the import case is only asked whether it claims the name,
+/// because running `balaur import` needs a model to import.
+pub fn dropping(state: &mut editor::State) {
+    selftest::check(dropin::kind_of("art/hero.png") == "image", "a .png drops as an image");
+    selftest::check(dropin::kind_of("MODELS/Robot.GLB") == "import", "a .glb goes through the importer, whatever its case");
+    selftest::check(dropin::kind_of("shaders/water.wesl") == "shader", "a .wesl drops as a shader");
+    selftest::check(dropin::kind_of("skies/studio.hdr") == "sky", "an .hdr drops as a sky");
+    selftest::check(dropin::kind_of("scenes/enemy.toml") == "scene", "a scene drops as a prefab");
+    selftest::check(dropin::kind_of("fonts/Inter.ttf") == "font", "a font drops as a font");
+    selftest::check(dropin::kind_of("notes.txt") == "", "and nothing claims a text file");
+    selftest::check(dropin::stem_of("/tmp/My Model-01.glb") == "my_model_01", "the stem is the importer's own naming rule");
+    let root = state.game_root + "/";
+    let source = root + "selftest-drop.png";
+    // Anything a previous run left: `copy_in` numbers a name it finds taken,
+    // so a leftover would make this run write `_3` and assert on `_2`.
+    clear_drops(state);
+    // A real image: a 2D drop makes a `sprite`, which sizes itself from the
+    // picture and cannot do that with a file of prose.
+    fs::copy("assets/balaur-logo.png", source);
+    let was = state.nodes.len();
+    dropin::take(state, source);
+    selftest::check(state.nodes.len() == was + 1, "dropping an image adds one node");
+    selftest::check(fs::exists(root + "art/selftest-drop.png"), "and copies the file under art/");
+    let made = model::selected_node(state);
+    let named = made.has_component("sprite") || made.has_component("mesh");
+    selftest::check(named, "the node it makes draws the picture");
+    dropin::take(state, source);
+    selftest::check(fs::exists(root + "art/selftest-drop_2.png"), "a second drop of one name is numbered, not overwritten");
+    // A card dragged out of the Assets panel names the file where it lies:
+    // the panel hears the drop and hands it to the Editor.
+    let panel = scene::root().get_node(project_checks::ASSETS_PANEL);
+    let cards = util::map_or_empty(panel.get_node("Cards").get_component("widget_list"));
+    selftest::check(cards["draggable"].as_bool() && panel.has_method("card_dropped") && scene::root().get_node("Editor").has_method("assets_dropped"), "the Assets panel's cards hand a drop to the panel, and it to the Editor");
+    dropin::place_file(state, "art/selftest-drop.png");
+    let placed = model::selected_node(state);
+    let drawer = placed.authored(if placed.has_component("sprite") { "sprite" } else { "mesh" });
+    let drawn = util::map_or_empty(drawer)["texture"].as_str();
+    selftest::check(state.nodes.len() == was + 3 && drawn == "art/selftest-drop.png" && !fs::exists(root + "art/selftest-drop_3.png"), "a file placed from the Assets panel is named where it lies ({drawn})");
+    shell::undo(state);
+    shell::undo(state);
+    shell::undo(state);
+    selftest::check(state.nodes.len() == was, "undo takes both back");
+    // A sky: it retargets the scene's `environment` when there is one, and
+    // places one when there is not.
+    let sky = root + "selftest-drop.hdr";
+    fs::copy("assets/balaur-logo.png", sky);
+    let had_environment = false;
+    for node in state.nodes {
+        if node.has_component("environment") {
+            had_environment = true;
+        }
+    }
+    dropin::take(state, sky);
+    let named = false;
+    for node in state.nodes {
+        if util::map_or_empty(node.authored("environment"))["sky"].as_str() != "" {
+            named = true;
+        }
+    }
+    selftest::check(named, "dropping a sky names it on an environment");
+    selftest::check(state.nodes.len() == was + (if had_environment { 0 } else { 1 }), "on the one that was there, or a new one");
+    shell::undo(state);
+    fs::remove(sky);
+    for entry in util::list_or_empty(fs::list(root + "skies")) {
+        fs::remove(root + "skies/" + entry["name"].as_str());
+    }
+    fs::remove(source);
+    clear_drops(state);
+    log::info("selftest dropping: done");
+}
+
+// Where the converted script is checked as if it were saved.
+const CONVERTED: str = "scripts/converted.bs";
+
+// What the script check calls an error in `text`, by message.
+internal fn errors_in(text: str) -> [str] {
+    let out: [str] = [];
+    for found in script::check(CONVERTED, text) {
+        if found.severity == "error" {
+            out.push(found.message);
+        }
+    }
+    out
+}
+
+pub fn librarydemo(state: &mut editor::State) {
+    let root = state.game_root + "/";
+    let metal: any = {
+        "id": "pbr_metal",
+        "kind": "material",
+        "name": "Brushed metal",
+        "file": "materials/metal.toml",
+        "needs": ["shaders/pbr_surface.wesl"],
+    };
+    // A node with a 3D shape, so the material has somewhere to land.
+    let target: int? = nil;
+    for index in 0..state.nodes.len() {
+        if model::node(state, index).has_component("shape3d") && target == nil {
+            target = index;
+        }
+    }
+    if target == nil {
+        log::info("selftest librarydemo: no 3D node here, skipping");
+        return;
+    }
+    let at = target.unwrap();
+    // Which files the project already had, so the check below is that the
+    // library added one rather than wrote over one.
+    let before = project_checks::named_under(state, "materials");
+    selection::only(state, at);
+    library::apply_material(state, metal);
+    let after = project_checks::named_under(state, "materials");
+    selftest::check(after.len() == before.len() + 1, "placing a material adds a file");
+    let placed = util::map_or_empty(model::node(state, at).authored("shape3d"))["material"].as_str();
+    selftest::check(fs::exists(root + placed), "the node points at a file that is there");
+    selftest::check(placed.starts_with("materials/"), "under materials/: " + placed);
+    for rel in before {
+        selftest::check(rel != placed, "and never over a file the project already had");
+    }
+    selftest::check(selftest::mirror_resolves(state), "the mirror still resolves");
+    // A lighting setup is a scene, so placing one instances it.
+    let scenes_before = project_checks::named_under(state, "scenes");
+    let was = state.nodes.len();
+    library::place(state, {
+        "id": "studio_light",
+        "kind": "scene",
+        "name": "Studio lights",
+        "file": "scenes/studio.toml",
+    });
+    selftest::check(project_checks::named_under(state, "scenes").len() == scenes_before.len() + 1, "placing a setup adds a scene");
+    // One row for the instance and one per node inside it: expanding a
+    // prefab puts its own rows in the document too.
+    selftest::check(state.nodes.len() > was + 1, "and instances it as a prefab");
+    shell::undo(state);
+    selftest::check(state.nodes.len() == was, "undo takes the instance back");
+    // The material assignment goes too: leaving the node pointing at a file
+    // this then removes is a shader the renderer relinks and cannot find.
+    shell::undo(state);
+    selftest::check(util::map_or_empty(model::node(state, at).authored("shape3d"))["material"].as_str() != placed, "undo takes the material off the node");
+    let manifest = toml::parse(fs::read("library/catalog.toml").or(""));
+    let listed = util::list_or_empty(util::map_or_empty(manifest)["entries"]);
+    library_manifest_checks(listed);
+    library_addon_checks(state, root, listed);
+    library_sky_and_model_checks(state, root);
+    // Only what this run placed: `install` numbers a name it finds taken, so
+    // nothing here can be a file the example owns.
+    for rel in project_checks::named_under(state, "materials") {
+        if !util::contains(before, rel) {
+            fs::remove(root + rel);
+        }
+    }
+    for rel in project_checks::named_under(state, "scenes") {
+        if !util::contains(scenes_before, rel) {
+            fs::remove(root + rel);
+        }
+    }
+    fs::remove(root + "shaders/pbr_surface.wesl");
+    log::info("selftest librarydemo: done");
+}
+
+// The manifest and the dock agree: every entry is of a kind that has a
+// chip, and names files that are there.
+fn library_manifest_checks(listed: [any]) {
+    let chips: [str] = [];
+    for pair in library::kinds() {
+        chips.push(pair[0]);
+    }
+    let unknown = 0;
+    let absent = 0;
+    for entry in listed {
+        let record = util::map_or_empty(entry);
+        if !util::contains(chips, record["kind"].as_str()) {
+            unknown += 1;
+        }
+        for rel in util::list_or_empty(record["needs"]) {
+            if !fs::exists("library/" + rel.as_str()) {
+                absent += 1;
+            }
+        }
+        if !fs::exists("library/" + record["file"].as_str()) {
+            absent += 1;
+        }
+    }
+    selftest::check(listed.len() > 0, "the manifest lists entries");
+    selftest::check(unknown == 0, "every entry is of a kind the dock has a chip for");
+    selftest::check(absent == 0, "and every file it names is in the library");
+}
+
+// An addon lands whole at its own path, and placing it again changes
+// nothing: a game requires it by that path, so a numbered copy would
+// answer nobody.
+fn library_addon_checks(state: &mut editor::State, root: str, listed: [any]) {
+    let addon: any = nil;
+    for entry in listed {
+        let record = util::map_or_empty(entry);
+        if record["kind"].as_str() == "addon" && addon == nil {
+            addon = record;
+        }
+    }
+    if addon != nil {
+        let record = addon;
+        let directory = record["file"].as_str();
+        // Anything a previous run left, so this run measures its own copy.
+        if fs::exists(root + directory) {
+            fs::remove(root + directory);
+        }
+        let top = directory.split("/")[0];
+        let had_top = fs::exists(root + top);
+        library::place(state, record);
+        let count = util::list_or_empty(fs::list(root + directory)).len();
+        selftest::check(count > 0, "placing {record["name"]} copies its files in");
+        library::place(state, record);
+        selftest::check(util::list_or_empty(fs::list(root + directory)).len() == count, "placing it again adds nothing");
+        selftest::check(!fs::exists(root + directory + "_2"), "and numbers no copy");
+        let gone = if had_top { directory } else { top };
+        fs::remove(root + gone);
+        selftest::check(!fs::exists(root + directory), "and the project is left as it was");
+    }
+}
+
+// A sky is copied under skies/ and then only named, since the drop that
+// would have copied it already happened.
+fn library_sky_and_model_checks(state: &mut editor::State, root: str) {
+    let skies_before = project_checks::named_under(state, "skies");
+    library::place(state, {
+        "id": "sky_dusk",
+        "kind": "sky",
+        "name": "Dusk",
+        "file": "skies/dusk.png",
+    });
+    selftest::check(project_checks::named_under(state, "skies").len() == skies_before.len() + 1, "placing a sky adds an image");
+    let on_environment = false;
+    for node in state.nodes {
+        if util::map_or_empty(node.authored("environment"))["sky"].as_str().starts_with("skies/") {
+            on_environment = true;
+        }
+    }
+    selftest::check(on_environment, "and names it on an environment");
+    shell::undo(state);
+    // A model is a prefab of primitives, so placing one instances it.
+    let models_before = project_checks::named_under(state, "models");
+    let had = state.nodes.len();
+    library::place(state, {
+        "id": "model_tree",
+        "kind": "model",
+        "name": "Tree",
+        "file": "models/tree.toml",
+    });
+    selftest::check(project_checks::named_under(state, "models").len() == models_before.len() + 1, "placing a model adds a scene file");
+    selftest::check(state.nodes.len() > had + 1, "and instances it as a prefab");
+    shell::undo(state);
+    selftest::check(state.nodes.len() == had, "undo takes the model back");
+    for directory in ["skies", "models"] {
+        let keep = if directory == "skies" { skies_before } else { models_before };
+        for rel in project_checks::named_under(state, directory) {
+            if !util::contains(keep, rel) {
+                fs::remove(root + rel);
+            }
+        }
+    }
+}
+
+/// The outliner's eye and lock: a click on either acts on that row's node
+/// alone and leaves the selection where it was.
+pub fn tree_marks(state: &mut editor::State) {
+    if state.nodes.len() < 2 {
+        log::info("selftest marks: one node is too few to aim past the selection, skipped");
+        return;
+    }
+    shell::choose(state, 0);
+    let index = state.nodes.len() - 1;
+    let node = model::node(state, index);
+    let row = node.stable_id();
+    let shown = !arrange::is_hidden(state, index);
+    left::mark_clicked(state, row, "eye");
+    selftest::check(arrange::is_hidden(state, index) == shown, "the eye flips whether {node.name()} shows");
+    // A node the scene hides starts with the eye closed, and the click opens it.
+    selftest::check(shows_mark(left::row_marks(state, index), icons::ui("eye-closed")) == shown, "and its row's eye says which");
+    selftest::check(state.selected == 0, "a mark picks nothing");
+    shell::undo(state);
+    selftest::check(arrange::is_hidden(state, index) != shown, "undo shows it again");
+    selection::set_locked(state, index, true);
+    selftest::check(shows_mark(left::row_marks(state, index), icons::ui("lock")), "a locked row shows the lock");
+    left::mark_clicked(state, row, "lock");
+    selftest::check(!selection::is_locked(state, index), "the lock unlocks it");
+    selftest::check(!shows_mark(left::row_marks(state, index), icons::ui("lock")), "and the lock goes");
+    log::info("selftest marks: done");
+}
+
+fn shows_mark(marks: [ui::Mark], glyph: str) -> bool {
+    for mark in marks {
+        if mark.glyph == glyph {
+            return true;
+        }
+    }
+    false
+}
+
+/// Populate: a grid, then a surface, written into the selected multimesh's
+/// asset, each one undo step. A scene with no multimesh skips itself.
+pub fn populate(state: &mut editor::State) {
+    let at = -1;
+    for index in 0..state.nodes.len() {
+        let node = model::node(state, index);
+        if at < 0 && populate::component(node) != nil {
+            at = index;
+        }
+    }
+    if at < 0 {
+        log::info("selftest populate: no multimesh in this scene, skipped");
+        return;
+    }
+    shell::choose(state, at);
+    let before = tool_checks::instance_count(state);
+    selftest::check(before >= 0, "the multimesh resolves in the mirror ({before})");
+    state.populate.kind = scatter::GRID;
+    state.populate.columns = 3;
+    state.populate.rows = 2;
+    populate::apply(state);
+    selftest::check(tool_checks::instance_count(state) == 6, "a 3 by 2 grid writes six instances ({tool_checks::instance_count(state)})");
+    let last = tool_checks::last_instance_position(state);
+    selftest::check(last.len() == 3 && last[0] == 2.0 && last[2] == 1.0, "the last stands two steps across and one down the grid ({last})");
+    selftest::check(history::dirty(state), "populating marks the scene dirty");
+    selftest::check(selftest::mirror_resolves(state), "populating resolves every node in the mirror");
+    let surface = "";
+    for node in state.nodes {
+        if surface == "" && (node.has_component("shape3d") || node.has_component("mesh")) {
+            surface = "/" + model::path_in_scene(state, node);
+        }
+    }
+    if surface != "" {
+        state.populate.kind = scatter::SURFACE;
+        state.populate.surface = surface;
+        state.populate.count = 20;
+        populate::apply(state);
+        selftest::check(tool_checks::instance_count(state) == 20, "twenty instances over {surface} ({tool_checks::instance_count(state)})");
+        shell::undo(state);
+        selftest::check(tool_checks::instance_count(state) == 6, "undo puts the grid back ({tool_checks::instance_count(state)})");
+    }
+    shell::undo(state);
+    selftest::check(tool_checks::instance_count(state) == before, "undo puts the asset back ({tool_checks::instance_count(state)})");
+    selftest::check(history::dirty(state) == false, "undo back to the load point is clean");
+    log::info("selftest populate: done");
+}

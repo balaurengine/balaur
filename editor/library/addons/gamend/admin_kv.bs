@@ -8,68 +8,74 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Create KV entry (admin)
 /// `POST /api/v1/admin/kv/entries`
-pub fn create_kv_entry(params: any) -> int {
+pub async fn create_kv_entry(params: any) -> any {
     if !core::given(params, "key") {
         return core::missing("gamend::admin_kv::create_kv_entry", "key");
     }
     if !core::given(params, "data") {
         return core::missing("gamend::admin_kv::create_kv_entry", "data");
     }
-    core::rest("POST", "/api/v1/admin/kv/entries", params)
+    let reply = await core::rest("POST", "/api/v1/admin/kv/entries", params);
+    reply
 }
 
 /// Delete KV by key (admin)
 /// `DELETE /api/v1/admin/kv`
-pub fn delete_kv(options: any) -> int {
+pub async fn delete_kv(options: any) -> any {
     if !core::given(options, "key") {
         return core::missing("gamend::admin_kv::delete_kv", "key");
     }
     let query = core::query(options, ["key", "user_id", "lobby_id"]);
-    core::rest("DELETE", "/api/v1/admin/kv{query}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/kv{query}");
+    reply
 }
 
 /// Delete KV entry by id (admin)
 /// `DELETE /api/v1/admin/kv/entries/{id}`
-pub fn delete_kv_entry(id: str) -> int {
+pub async fn delete_kv_entry(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_kv::delete_kv_entry", "id");
     }
-    core::rest("DELETE", "/api/v1/admin/kv/entries/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/kv/entries/{id}");
+    reply
 }
 
 /// List KV entries (admin)
 /// `GET /api/v1/admin/kv/entries`
-pub fn list_kv_entries(options: any) -> int {
+pub async fn list_kv_entries(options: any) -> any {
     let query = core::query(options, ["page", "page_size", "key", "user_id", "lobby_id", "global_only"]);
-    core::rest("GET", "/api/v1/admin/kv/entries{query}")
+    let reply = await core::rest("GET", "/api/v1/admin/kv/entries{query}");
+    reply
 }
 
 /// Update KV entry by id (admin)
 /// `PATCH /api/v1/admin/kv/entries/{id}`
-pub fn update_kv_entry(id: str, params: any) -> int {
+pub async fn update_kv_entry(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::admin_kv::update_kv_entry", "id");
     }
-    core::rest("PATCH", "/api/v1/admin/kv/entries/{id}", params)
+    let reply = await core::rest("PATCH", "/api/v1/admin/kv/entries/{id}", params);
+    reply
 }
 
 /// Upsert KV by key (admin)
 /// `PUT /api/v1/admin/kv`
-pub fn upsert_kv(params: any) -> int {
+pub async fn upsert_kv(params: any) -> any {
     if !core::given(params, "key") {
         return core::missing("gamend::admin_kv::upsert_kv", "key");
     }
     if !core::given(params, "data") {
         return core::missing("gamend::admin_kv::upsert_kv", "data");
     }
-    core::rest("PUT", "/api/v1/admin/kv", params)
+    let reply = await core::rest("PUT", "/api/v1/admin/kv", params);
+    reply
 }

@@ -1,0 +1,14 @@
+pub fn mixed(a: int) -> int { a & 2.0 }
+pub fn floats(x: float) -> float { x << 1 }
+pub fn flags(a: bool, b: bool) -> bool { a | b }
+pub fn flipped(x: float) -> float { ~x }
+pub fn into_a_float(x: float) -> float {
+    x ^= 1;
+    x
+}
+
+// error: 1:33: `&` takes two ints, got int and float
+// error: 2:38: `<<` takes two ints, got float and int
+// error: 3:44: `|` takes two ints, got bool and bool
+// error: 4:37: `~` needs an int, got float
+// error: 6:5: `^` takes two ints, got float and int

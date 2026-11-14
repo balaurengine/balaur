@@ -1,0 +1,152 @@
+//! `geometry2d`'s area, winding, containment, crossing and hull, written
+//! over a polygon's points, beside the engine's booleans and triangulation.
+
+// The engine tested parallel segments against `f32::EPSILON`; it stays the
+// threshold.
+const PARALLEL = 0.00000011920928955078125;
+
+/// The polygon's area, always positive whatever its winding.
+pub fn area(polygon: [Vec2]) -> float {
+    math::abs(doubled_area(polygon)) / 2.0
+}
+
+/// Whether the points run clockwise, with y up.
+pub fn is_clockwise(polygon: [Vec2]) -> bool {
+    doubled_area(polygon) < 0.0
+}
+
+/// Whether a point lies inside the polygon. A point exactly on an edge may
+/// answer either way.
+pub fn contains(polygon: [Vec2], point: Vec2) -> bool {
+    let count = polygon.len();
+    if count < 3 {
+        return false;
+    }
+    let inside = false;
+    let previous = count - 1;
+    for index in 0..count {
+        let a = polygon[index];
+        let b = polygon[previous];
+        if (a.y > point.y) != (b.y > point.y) {
+            let x = (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
+            if point.x < x {
+                inside = !inside;
+            }
+        }
+        previous = index;
+    }
+    inside
+}
+
+/// Where two segments cross, or nil when they do not; touching at an
+/// endpoint counts.
+pub fn segments_intersect(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2) -> Vec2? {
+    let rx = a2.x - a1.x;
+    let ry = a2.y - a1.y;
+    let sx = b2.x - b1.x;
+    let sy = b2.y - b1.y;
+    let denominator = rx * sy - ry * sx;
+    if math::abs(denominator) <= PARALLEL {
+        return nil;
+    }
+    let qx = b1.x - a1.x;
+    let qy = b1.y - a1.y;
+    let t = (qx * sy - qy * sx) / denominator;
+    let u = (qx * ry - qy * rx) / denominator;
+    if t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0 {
+        return vec2(a1.x + rx * t, a1.y + ry * t);
+    }
+    nil
+}
+
+/// The smallest convex polygon around the points, counter-clockwise.
+pub fn convex_hull(points: [Vec2]) -> [Vec2] {
+    let sorted = distinct(sorted_by_x(points));
+    if sorted.len() < 3 {
+        return sorted;
+    }
+    let hull: [Vec2] = [];
+    for point in sorted {
+        while hull.len() >= 2 && turn(hull[hull.len() - 2], hull[hull.len() - 1], point) <= 0.0 {
+            hull.pop();
+        }
+        hull.push(point);
+    }
+    let lower = hull.len() + 1;
+    let index = sorted.len() - 2;
+    while index >= 0 {
+        let point = sorted[index];
+        while hull.len() >= lower && turn(hull[hull.len() - 2], hull[hull.len() - 1], point) <= 0.0 {
+            hull.pop();
+        }
+        hull.push(point);
+        index -= 1;
+    }
+    hull.pop();
+    hull
+}
+
+// Twice the signed area, positive counter-clockwise.
+fn doubled_area(points: [Vec2]) -> float {
+    let count = points.len();
+    let sum = 0.0;
+    for index in 0..count {
+        let a = points[index];
+        let b = points[(index + 1) % count];
+        sum += a.x * b.y - b.x * a.y;
+    }
+    sum
+}
+
+fn turn(origin: Vec2, a: Vec2, b: Vec2) -> float {
+    (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x)
+}
+
+fn before(a: Vec2, b: Vec2) -> bool {
+    a.x < b.x || a.x == b.x && a.y < b.y
+}
+
+// By x, then y: a merge sort, bottom up between two lists.
+fn sorted_by_x(points: [Vec2]) -> [Vec2] {
+    let count = points.len();
+    let from: [Vec2] = [];
+    from.extend(points);
+    let into: [Vec2] = [];
+    into.extend(points);
+    let width = 1;
+    while width < count {
+        let start = 0;
+        while start < count {
+            let middle = if start + width < count { start + width } else { count };
+            let end = if start + width * 2 < count { start + width * 2 } else { count };
+            let left = start;
+            let right = middle;
+            for at in start..end {
+                if right >= end || left < middle && !before(from[right], from[left]) {
+                    into[at] = from[left];
+                    left += 1;
+                } else {
+                    into[at] = from[right];
+                    right += 1;
+                }
+            }
+            start = end;
+        }
+        let swap = from;
+        from = into;
+        into = swap;
+        width *= 2;
+    }
+    from
+}
+
+fn distinct(sorted: [Vec2]) -> [Vec2] {
+    let out: [Vec2] = [];
+    for point in sorted {
+        let last = out.len() - 1;
+        if out.len() == 0 || out[last].x != point.x || out[last].y != point.y {
+            out.push(point);
+        }
+    }
+    out
+}

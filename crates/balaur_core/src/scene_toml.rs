@@ -1,4 +1,4 @@
-//! A scene written back from its nodes (PLAN-editor-as-scene §10.1): what
+//! A scene written back from its nodes: what
 //! `scene.to_toml` answers, and what an editor saves and plays from.
 //!
 //! Each node is written from what it holds: a component is its struct read

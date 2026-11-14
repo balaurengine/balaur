@@ -181,7 +181,7 @@ fn a_pooled_label_s_click_calls_the_method_its_spec_names() {
         "pub class Root { node: Node, picked: str, with: bool }
 impl Root {
     fn init() {
-        scene::get_node(\"Root/Bar\").patch_component(\"widget\", { \"x\": 0.0, \"y\": 0.0 });
+        scene::root().get_node(\"Root/Bar\").patch_component(\"widget\", { \"x\": 0.0, \"y\": 0.0 });
     }
     fn update(dt: float) {
         let controls: [any] = [
@@ -237,7 +237,7 @@ impl Root {
     fn update(dt: float) {
         self.frames += 1;
         if self.frames % 2 == 0 {
-            scene::get_node(\"Root/Bar\").set_visible(false);
+            scene::root().get_node(\"Root/Bar\").set_visible(false);
         } else {
             let label: [any] = [{ \"kind\": \"label\", \"text\": \"x\" }];
             ui::fill_strip(\"Root/Bar\", label);
@@ -271,7 +271,7 @@ fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
         "pub class Root { node: Node, frames: int, edits: int }
 impl Root {
     fn init() {
-        scene::get_node(\"Root/Bar\").patch_component(\"widget\", { \"kind\": \"column\", \"anchor\": \"fill\" });
+        scene::root().get_node(\"Root/Bar\").patch_component(\"widget\", { \"kind\": \"column\", \"anchor\": \"fill\" });
     }
     fn update(dt: float) {
         self.frames += 1;
@@ -358,12 +358,12 @@ fn first_text(app: &App, group: Entity) -> String {
 /// hidden, then the third again.
 const ONE_ROW_A_FRAME: &str = "pub class Root { node: Node, frame: int }
 fn row(said: str, y: float) -> any {
-    { \"kind\": \"label\", \"text\": said, \"absolute\": true, \"inset\": ui::sides(0.0, y, 0.0, -1.0) }
+    { \"kind\": \"label\", \"text\": said, \"absolute\": true, \"inset\": ui::Sides { left: 0.0, top: y, right: 0.0, bottom: -1.0 } }
 }
 impl Root {
     fn update(dt: float) {
         self.frame += 1;
-        let host = scene::get_node(\"Root/Bar\");
+        let host = scene::root().get_node(\"Root/Bar\");
         if self.frame == 1 {
             ui::fill_slot(host, 2, row(\"third\", 20.0));
         } else if self.frame == 2 {
@@ -439,7 +439,7 @@ fn row(said: str) -> any {
 impl Root {
     fn update(dt: float) {
         self.frame += 1;
-        let host = scene::get_node(\"Root/Bar\");
+        let host = scene::root().get_node(\"Root/Bar\");
         if self.frame == 1 {
             ui::fill_slot(host, 0, row(\"first\"));
         } else if self.frame == 2 {

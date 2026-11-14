@@ -157,7 +157,6 @@ const BS: Syntax = Syntax {
         "ui",
         "log",
         "http",
-        "gamend",
         "events",
     ],
 };

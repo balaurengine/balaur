@@ -7,7 +7,9 @@
 mod api;
 mod buses;
 mod output;
+mod play_file;
 mod positional;
+mod replay;
 mod rest;
 mod sound_component;
 mod sound_settings;

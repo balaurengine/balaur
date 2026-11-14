@@ -8,16 +8,16 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Get unread message count
 /// `GET /api/v1/chat/unread`
-pub fn unread_count(options: any) -> int {
+pub async fn unread_count(options: any) -> any {
     if !core::given(options, "chat_type") {
         return core::missing("gamend::chat::unread_count", "chat_type");
     }
@@ -25,30 +25,33 @@ pub fn unread_count(options: any) -> int {
         return core::missing("gamend::chat::unread_count", "chat_ref_id");
     }
     let query = core::query(options, ["chat_type", "chat_ref_id"]);
-    core::rest("GET", "/api/v1/chat/unread{query}")
+    let reply = await core::rest("GET", "/api/v1/chat/unread{query}");
+    reply
 }
 
 /// Delete your own chat message
 /// `DELETE /api/v1/chat/messages/{id}`
-pub fn delete_chat_message(id: str) -> int {
+pub async fn delete_chat_message(id: str) -> any {
     if id == "" {
         return core::missing("gamend::chat::delete_chat_message", "id");
     }
-    core::rest("DELETE", "/api/v1/chat/messages/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/chat/messages/{id}");
+    reply
 }
 
 /// Get a single chat message
 /// `GET /api/v1/chat/messages/{id}`
-pub fn get_chat_message(id: str) -> int {
+pub async fn get_chat_message(id: str) -> any {
     if id == "" {
         return core::missing("gamend::chat::get_chat_message", "id");
     }
-    core::rest("GET", "/api/v1/chat/messages/{id}")
+    let reply = await core::rest("GET", "/api/v1/chat/messages/{id}");
+    reply
 }
 
 /// List chat messages
 /// `GET /api/v1/chat/messages`
-pub fn list_chat_messages(options: any) -> int {
+pub async fn list_chat_messages(options: any) -> any {
     if !core::given(options, "chat_type") {
         return core::missing("gamend::chat::list_chat_messages", "chat_type");
     }
@@ -56,36 +59,40 @@ pub fn list_chat_messages(options: any) -> int {
         return core::missing("gamend::chat::list_chat_messages", "chat_ref_id");
     }
     let query = core::query(options, ["chat_type", "chat_ref_id", "page", "page_size"]);
-    core::rest("GET", "/api/v1/chat/messages{query}")
+    let reply = await core::rest("GET", "/api/v1/chat/messages{query}");
+    reply
 }
 
 /// List active mutes in a group
 /// `GET /api/v1/groups/{id}/mutes`
-pub fn list_group_mutes(id: str, options: any) -> int {
+pub async fn list_group_mutes(id: str, options: any) -> any {
     if id == "" {
         return core::missing("gamend::chat::list_group_mutes", "id");
     }
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/groups/{id}/mutes{query}")
+    let reply = await core::rest("GET", "/api/v1/groups/{id}/mutes{query}");
+    reply
 }
 
 /// List active mutes in your lobby
 /// `GET /api/v1/lobbies/mutes`
-pub fn list_lobby_mutes(options: any) -> int {
+pub async fn list_lobby_mutes(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/lobbies/mutes{query}")
+    let reply = await core::rest("GET", "/api/v1/lobbies/mutes{query}");
+    reply
 }
 
 /// List active mutes in your party
 /// `GET /api/v1/parties/mutes`
-pub fn list_party_mutes(options: any) -> int {
+pub async fn list_party_mutes(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/parties/mutes{query}")
+    let reply = await core::rest("GET", "/api/v1/parties/mutes{query}");
+    reply
 }
 
 /// Mark chat as read
 /// `POST /api/v1/chat/read`
-pub fn mark_chat_read(params: any) -> int {
+pub async fn mark_chat_read(params: any) -> any {
     if !core::given(params, "chat_type") {
         return core::missing("gamend::chat::mark_chat_read", "chat_type");
     }
@@ -95,51 +102,56 @@ pub fn mark_chat_read(params: any) -> int {
     if !core::given(params, "message_id") {
         return core::missing("gamend::chat::mark_chat_read", "message_id");
     }
-    core::rest("POST", "/api/v1/chat/read", params)
+    let reply = await core::rest("POST", "/api/v1/chat/read", params);
+    reply
 }
 
 /// Mute a player in a group
 /// `POST /api/v1/groups/{id}/mute`
-pub fn mute_group_member(id: str, params: any) -> int {
+pub async fn mute_group_member(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::chat::mute_group_member", "id");
     }
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::chat::mute_group_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/mute", params)
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/mute", params);
+    reply
 }
 
 /// Mute a player in your lobby
 /// `POST /api/v1/lobbies/mute`
-pub fn mute_lobby_member(params: any) -> int {
+pub async fn mute_lobby_member(params: any) -> any {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::chat::mute_lobby_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/lobbies/mute", params)
+    let reply = await core::rest("POST", "/api/v1/lobbies/mute", params);
+    reply
 }
 
 /// Mute a player in your party
 /// `POST /api/v1/parties/mute`
-pub fn mute_party_member(params: any) -> int {
+pub async fn mute_party_member(params: any) -> any {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::chat::mute_party_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/parties/mute", params)
+    let reply = await core::rest("POST", "/api/v1/parties/mute", params);
+    reply
 }
 
 /// Report a chat message
 /// `POST /api/v1/chat/messages/{id}/report`
-pub fn report_chat_message(id: str, params: any) -> int {
+pub async fn report_chat_message(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::chat::report_chat_message", "id");
     }
-    core::rest("POST", "/api/v1/chat/messages/{id}/report", params)
+    let reply = await core::rest("POST", "/api/v1/chat/messages/{id}/report", params);
+    reply
 }
 
 /// Send a chat message
 /// `POST /api/v1/chat/messages`
-pub fn send_chat_message(params: any) -> int {
+pub async fn send_chat_message(params: any) -> any {
     if !core::given(params, "chat_type") {
         return core::missing("gamend::chat::send_chat_message", "chat_type");
     }
@@ -149,44 +161,49 @@ pub fn send_chat_message(params: any) -> int {
     if !core::given(params, "content") {
         return core::missing("gamend::chat::send_chat_message", "content");
     }
-    core::rest("POST", "/api/v1/chat/messages", params)
+    let reply = await core::rest("POST", "/api/v1/chat/messages", params);
+    reply
 }
 
 /// Lift a mute in a group
 /// `POST /api/v1/groups/{id}/unmute`
-pub fn unmute_group_member(id: str, params: any) -> int {
+pub async fn unmute_group_member(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::chat::unmute_group_member", "id");
     }
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::chat::unmute_group_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/groups/{id}/unmute", params)
+    let reply = await core::rest("POST", "/api/v1/groups/{id}/unmute", params);
+    reply
 }
 
 /// Lift a mute in your lobby
 /// `POST /api/v1/lobbies/unmute`
-pub fn unmute_lobby_member(params: any) -> int {
+pub async fn unmute_lobby_member(params: any) -> any {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::chat::unmute_lobby_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/lobbies/unmute", params)
+    let reply = await core::rest("POST", "/api/v1/lobbies/unmute", params);
+    reply
 }
 
 /// Lift a mute in your party
 /// `POST /api/v1/parties/unmute`
-pub fn unmute_party_member(params: any) -> int {
+pub async fn unmute_party_member(params: any) -> any {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::chat::unmute_party_member", "target_user_id");
     }
-    core::rest("POST", "/api/v1/parties/unmute", params)
+    let reply = await core::rest("POST", "/api/v1/parties/unmute", params);
+    reply
 }
 
 /// Update your own chat message
 /// `PATCH /api/v1/chat/messages/{id}`
-pub fn update_chat_message(id: str, params: any) -> int {
+pub async fn update_chat_message(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::chat::update_chat_message", "id");
     }
-    core::rest("PATCH", "/api/v1/chat/messages/{id}", params)
+    let reply = await core::rest("PATCH", "/api/v1/chat/messages/{id}", params);
+    reply
 }

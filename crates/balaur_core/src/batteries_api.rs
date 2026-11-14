@@ -1,7 +1,7 @@
 //! The batteries a script reaches for daily, as engine ops: assets, the
-//! log, the random stream, what the platform is, the wall clock, hashes,
-//! base64, an id, and a node query. Facts are recorded, so a replay answers
-//! as the original run did.
+//! log, the random stream, what the platform is, the wall clock, hashes and
+//! a node query. Facts are recorded, so a replay answers as the original run
+//! did.
 #![allow(
     clippy::unnecessary_wraps,
     reason = "every op has the one signature an `OPS` table takes"
@@ -18,13 +18,6 @@ use crate::vocabulary::words;
 
 pub(crate) fn assets_load(eng: &Engine, args: &[Value]) -> Result<Value> {
     let definition = crate::assets::definition(eng, text(args, 0)?)?;
-    crate::node_api::from_toml(&definition)
-}
-
-/// A private copy: read past the cache, so editing it cannot disturb what
-/// every other holder of that reference sees.
-pub(crate) fn assets_duplicate(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let definition = crate::assets::duplicate_definition(eng, text(args, 0)?)?;
     crate::node_api::from_toml(&definition)
 }
 
@@ -64,25 +57,6 @@ pub(crate) fn assets_rename(eng: &Engine, args: &[Value]) -> Result<Value> {
     ))
 }
 
-/// The id `assets/index.toml` gives a path, or nil when it has none.
-pub(crate) fn assets_id(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(crate::asset_index::id_of(eng, text(args, 0)?)?.map_or(Value::Nil, Value::text))
-}
-
-/// The id a file has, giving it one and writing the index if it has none.
-pub(crate) fn assets_assign_id(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Str(crate::asset_index::assign_id(
-        eng,
-        text(args, 0)?,
-    )?))
-}
-
-/// The path an `id://` reference resolves to in the running project; a
-/// path comes back as itself.
-pub(crate) fn assets_path(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Str(crate::project::path_of(eng, text(args, 0)?)?))
-}
-
 /// Where files of an asset type belong, as its plugin declared it.
 ///
 /// The editor promotes an inline definition to a file and has to put it
@@ -116,7 +90,7 @@ pub(crate) fn assets_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 /// The three writers a script has. They emit through `tracing`, so a scripted
 /// line lands in the same stream, and the same `logbuf`, as an engine one --
-/// which is what makes `log.recent` able to show both.
+/// which is what makes `log.since` able to show both.
 pub(crate) fn log_info(_: &Engine, args: &[Value]) -> Result<Value> {
     tracing::info!(target: words::SCRIPT, "{}", text(args, 0)?);
     Ok(Value::Nil)
@@ -140,17 +114,6 @@ pub(crate) fn log_print(_: &Engine, args: &[Value]) -> Result<Value> {
     // A reader that closed the pipe is its own business, not the script's.
     let _ = writeln!(std::io::stdout().lock(), "{line}");
     Ok(Value::Nil)
-}
-
-pub(crate) fn log_recent(_: &Engine, args: &[Value]) -> Result<Value> {
-    let n = match args.first() {
-        Some(Value::Int(n)) => usize::try_from(*n).unwrap_or(100),
-        Some(Value::Num(n)) => *n as usize,
-        _ => 100,
-    };
-    Ok(Value::List(
-        crate::logbuf::recent(n).iter().map(log_entry).collect(),
-    ))
 }
 
 pub(crate) fn log_since(_: &Engine, args: &[Value]) -> Result<Value> {
@@ -215,33 +178,6 @@ pub(crate) fn rng_seed(eng: &Engine, args: &[Value]) -> Result<Value> {
     };
     crate::rng::with_rng(eng, |rng| *rng = Pcg32::new(seed as u64));
     Ok(Value::Nil)
-}
-
-/// `random.at`: splitmix64 over the seed and the index, so it holds no state
-/// and answers the same two the same way.
-pub(crate) fn rng_at(_: &Engine, args: &[Value]) -> Result<Value> {
-    const GOLDEN: u64 = 0x9E37_79B9_7F4A_7C15;
-    let whole = |at: usize| -> Result<u64> {
-        match args.get(at) {
-            Some(Value::Int(n)) => Ok(n.cast_unsigned()),
-            #[allow(
-                clippy::cast_possible_truncation,
-                reason = "a seed or an index is whole"
-            )]
-            Some(Value::Num(n)) => Ok((*n as i64).cast_unsigned()),
-            other => Err(anyhow!(
-                "a seed and an index are whole numbers, got {other:?}"
-            )),
-        }
-    };
-    let mut z = whole(0)?
-        .wrapping_add(whole(1)?.wrapping_mul(GOLDEN))
-        .wrapping_add(GOLDEN);
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^= z >> 31;
-    #[allow(clippy::cast_precision_loss, reason = "53 bits, exact in an f64")]
-    Ok(Value::Num((z >> 11) as f64 / (1_u64 << 53) as f64))
 }
 
 pub(crate) fn rng_random(eng: &Engine, _: &[Value]) -> Result<Value> {
@@ -324,41 +260,13 @@ pub(crate) fn scene_tagged(eng: &Engine, args: &[Value]) -> Result<Value> {
     ))
 }
 
-/// A version-4 UUID from the engine stream: four draws, the version and
-/// variant nibbles set as the format says.
-pub(crate) fn rng_uuid(eng: &Engine, _: &[Value]) -> Result<Value> {
-    let words = crate::rng::with_rng(eng, |rng| {
-        [
-            rng.next_u32(),
-            rng.next_u32(),
-            rng.next_u32(),
-            rng.next_u32(),
-        ]
-    });
-    let mut bytes = [0u8; 16];
-    for (i, word) in words.iter().enumerate() {
-        bytes[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
-    }
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    let hex = hex_of(&bytes);
-    Ok(Value::text(format!(
-        "{}-{}-{}-{}-{}",
-        &hex[0..8],
-        &hex[8..12],
-        &hex[12..16],
-        &hex[16..20],
-        &hex[20..32]
-    )))
-}
-
 pub(crate) fn hex_digest(bytes: &[u8]) -> String {
     use sha2::Digest as _;
     let digest = sha2::Sha256::digest(bytes);
     hex_of(&digest)
 }
 
-pub(crate) fn hash_sha256(eng: &Engine, args: &[Value]) -> Result<Value> {
+pub(crate) fn hash_sha256_file(eng: &Engine, args: &[Value]) -> Result<Value> {
     let path = crate::file_api::resolve(eng, text(args, 0)?)?;
     let bytes = crate::files::backend(eng).read(&path)?;
     Ok(Value::Str(hex_digest(&bytes)))
@@ -366,29 +274,6 @@ pub(crate) fn hash_sha256(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 pub(crate) fn hash_sha256_text(_: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Str(hex_digest(text(args, 0)?.as_bytes())))
-}
-
-pub(crate) fn encoding_base64(_: &Engine, args: &[Value]) -> Result<Value> {
-    use base64::Engine as _;
-    let bytes = crate::handler::bytes_of(args.first().unwrap_or(&Value::Nil))?;
-    Ok(Value::Str(
-        base64::engine::general_purpose::STANDARD.encode(bytes),
-    ))
-}
-
-pub(crate) fn encoding_base64_text(_: &Engine, args: &[Value]) -> Result<Value> {
-    use base64::Engine as _;
-    Ok(Value::Str(
-        base64::engine::general_purpose::STANDARD.encode(text(args, 0)?.as_bytes()),
-    ))
-}
-
-pub(crate) fn encoding_from_base64(_: &Engine, args: &[Value]) -> Result<Value> {
-    use base64::Engine as _;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(text(args, 0)?)
-        .map_err(|err| anyhow!("not base64: {err}"))?;
-    Ok(Value::Bytes(bytes))
 }
 
 /// Bytes as lowercase hex.

@@ -5,6 +5,7 @@
 use editor;
 use model;
 use polygon;
+use sceneedit;
 use selection;
 use words::components;
 use words::fields;
@@ -110,7 +111,7 @@ pub fn soft_shapes(two_d: bool) -> [Shape] {
 /// it, by name, on the same nodes, in the same undo step.
 pub fn make_collider(state: &mut editor::State, two_d: bool, properties: any, beside: any) {
     let name = if two_d { components::COLLIDER2D } else { components::COLLIDER3D };
-    model::set_component_properties_each(state, name, with_shape_of, { inspector_fields::TWO_D: two_d, inspector_fields::PROPS: properties });
+    sceneedit::set_component_properties_each(state, name, with_shape_of, { inspector_fields::TWO_D: two_d, inspector_fields::PROPS: properties });
     patch_beside(state, two_d, beside);
 }
 
@@ -157,6 +158,6 @@ fn with_mesh(node: Node, two_d: bool, properties: any) -> any {
 /// does.
 pub fn make_soft_body(state: &mut editor::State, two_d: bool, properties: any, beside: any) {
     let name = if two_d { "softbody2d" } else { "softbody3d" };
-    model::set_component_properties_each(state, name, with_mesh_of, { inspector_fields::TWO_D: two_d, inspector_fields::PROPS: properties });
+    sceneedit::set_component_properties_each(state, name, with_mesh_of, { inspector_fields::TWO_D: two_d, inspector_fields::PROPS: properties });
     patch_beside(state, two_d, beside);
 }

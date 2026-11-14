@@ -72,7 +72,7 @@ fn every_option_reads_back_as_it_was_written() {
         kind = "slider"
         movable = true constrain = true fade_in = true
         widget_separator = { spacing = 9.0, overhang = -2.0 } widget_color_picker = { alpha = "additive", inline = true } widget_menu = { popup_gap = 2.0, popup_width = 140.0, placement_fallbacks = ["above", "right_end"], close_on = "never" } widget_window = { backdrop_color = [1.0, 0.0, 0.0, 0.5], dismissable = false, resizable = true, collapsible = true, closable = false, default_open = false }
-        widget_range = { show_value = true, logarithmic = true, smallest_positive = 0.5, largest_finite = 900.0, clamp = "edits", clamp_existing = true, smart_aim = false, drag_speed = 0.25, decimals = 2, trailing_fill = true, handle = "rect", handle_aspect = 0.75, number_format = "hex", update_while_editing = false, show_percentage = true, animate = true, prefix = "x" } widget_dropdown = { list_height = 120.0 } widget_field = { editable = false, tab_inserts = true, caret_at_end = false, clip_text = false, submit_key = "cmd+enter" } widget_scroll = { scrollbar = "always", stick_to_end = true, scroll_offset = [3.0, 40.0], min_scrolled_width = 30.0, min_scrolled_height = 20.0, animated = false, wheel_speed = [2.0, 0.5], drag_scroll = "never", wheel_scroll = false, drag_cursor = "grabbing" } widget_image = { tint = [0.5, 0.5, 1.0, 1.0], region = [1.0, 2.0, 3.0, 4.0], angle_degrees = 30.0, angle_origin = [0.0, 1.0], alt_text = "a cat" }
+        widget_range = { show_value = true, logarithmic = true, smallest_positive = 0.5, largest_finite = 900.0, clamp = "edits", clamp_existing = true, smart_aim = false, drag_speed = 0.25, decimals = 2, trailing_fill = true, handle = "rect", handle_aspect = 0.75, number_format = "hex", update_while_editing = false, show_percentage = true, animate = true, prefix = "x" } widget_dropdown = { list_height = 120.0 } widget_field = { editable = false, tab_inserts = true, caret_at_end = false, clip_text = false, submit_key = "cmd+Enter" } widget_scroll = { scrollbar = "always", stick_to_end = true, scroll_offset = [3.0, 40.0], min_scrolled_width = 30.0, min_scrolled_height = 20.0, animated = false, wheel_speed = [2.0, 0.5], drag_scroll = "never", wheel_scroll = false, drag_cursor = "grabbing" } widget_image = { tint = [0.5, 0.5, 1.0, 1.0], region = [1.0, 2.0, 3.0, 4.0], angle_degrees = 30.0, angle_origin = [0.0, 1.0], alt_text = "a cat" }
     };
     let entity = add_widget(&app, &written.clone().into());
     for (key, value) in &written {
@@ -286,7 +286,7 @@ fn a_submit_key_takes_the_place_of_enter() {
         let (_dir, mut app) = app();
         let field = add_widget(
             &app,
-            &toml::toml! { kind = "text_field" text = "go"  width = 160.0 x = 0.0 y = 0.0 widget_field = { submit_key = "shift+enter" } }.into(),
+            &toml::toml! { kind = "text_field" text = "go"  width = 160.0 x = 0.0 y = 0.0 widget_field = { submit_key = "shift+Enter" } }.into(),
         );
         let ctx = egui::Context::default();
         settle(&app, &ctx);
@@ -337,6 +337,15 @@ fn a_submit_key_that_is_no_chord_is_refused() {
     )
     .expect_err("no such key");
     assert!(format!("{err:#}").contains("submit_key"), "{err:#}");
+    // A chord is spelled one way, as `[input.actions]` spells it.
+    let err = balaur::components::add(
+        &app.engine,
+        node,
+        "widget_field",
+        Some(&toml::toml! { submit_key = "cmd+enter" }.into()),
+    )
+    .expect_err("egui's lower-case key name is not a W3C code");
+    assert!(format!("{err:#}").contains("cmd+enter"), "{err:#}");
 }
 
 /// A scroll of twenty 30 px lines in a 100 px box.

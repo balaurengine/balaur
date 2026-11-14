@@ -33,8 +33,9 @@ An author writes three reference forms and no more:
 | `"animations/hero.toml#run"` | The entry named `run` inside it |
 | `"#hero_idle"` | An `[[assets]]` block in the same scene document |
 
-Sharing is the default; `assets.duplicate` opts out with a private
-copy. A reference that does not resolve warns and the rest of the
+A script's `assets.load` is its own copy of the table, and
+`assets.reload` first reads the file again. A reference that does
+not resolve warns and the rest of the
 scene loads, so one bad path does not take a whole scene down. A
 definition table that does not parse is an error, reported where it
 was written.
@@ -498,7 +499,7 @@ from = "idle"
 to = "move"                      # entering a nested machine enters its start
 blend_time = 0.2                 # seconds
 ease = "in_out_sine"             # the curve the blend follows; linear by default
-advance_mode = "auto"            # disabled, enabled (fires on animation.travel) or auto
+advance_mode = "auto"            # disabled, enabled (fires on state_machine.travel) or auto
 switch_mode = "immediate"        # immediate, sync (keeps the playhead) or at_end
 condition = "moving"             # turned on by animation.set_condition
 check = "can_move"               # a script method that has to answer true, asked each frame
@@ -678,7 +679,7 @@ text_color = "text_on_danger"
 
 ## The `assets` script module
 
-`assign_id`, `directory`, `duplicate`, `exists`, `id`, `invalidate`, `kind_of`, `load`, `path`, `reload`, `rename`, `save`, `schema`.
+`directory`, `exists`, `invalidate`, `kind_of`, `load`, `reload`, `rename`, `save`, `schema`.
 
 ## Import settings
 

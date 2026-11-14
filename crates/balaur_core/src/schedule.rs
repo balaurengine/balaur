@@ -1,4 +1,4 @@
-//! The order systems run in within a stage (PLAN-ecs §2, Bevy's schedules).
+//! The order systems run in within a stage (Bevy's schedules).
 //!
 //! A system may carry a name, the sets it belongs to, what it runs before
 //! and after (a system's name or a set's) and conditions it runs on. A stage

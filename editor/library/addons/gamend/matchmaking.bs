@@ -8,33 +8,37 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Leave the matchmaking queue
 /// `DELETE /api/v1/matchmaking/tickets`
-pub fn cancel() -> int {
-    core::rest("DELETE", "/api/v1/matchmaking/tickets")
+pub async fn cancel() -> any {
+    let reply = await core::rest("DELETE", "/api/v1/matchmaking/tickets");
+    reply
 }
 
 /// Join the matchmaking queue
 /// `POST /api/v1/matchmaking/tickets`
-pub fn join(params: any) -> int {
-    core::rest("POST", "/api/v1/matchmaking/tickets", params)
+pub async fn join(params: any) -> any {
+    let reply = await core::rest("POST", "/api/v1/matchmaking/tickets", params);
+    reply
 }
 
 /// Get my current ticket
 /// `GET /api/v1/matchmaking/tickets/me`
-pub fn my_ticket() -> int {
-    core::rest("GET", "/api/v1/matchmaking/tickets/me")
+pub async fn my_ticket() -> any {
+    let reply = await core::rest("GET", "/api/v1/matchmaking/tickets/me");
+    reply
 }
 
 /// Queue statistics
 /// `GET /api/v1/matchmaking/stats`
-pub fn stats() -> int {
-    core::rest("GET", "/api/v1/matchmaking/stats")
+pub async fn stats() -> any {
+    let reply = await core::rest("GET", "/api/v1/matchmaking/stats");
+    reply
 }

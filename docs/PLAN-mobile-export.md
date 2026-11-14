@@ -1,80 +1,29 @@
-# Exporting for mobile and web
+# Exporting for mobile
 
-Status: **mobile export works, unsigned.** `balaur export --target ios` writes
-an `.app` and `--target android` an APK layout, both carrying the export pack as a
-bundle resource; `scripts/export_check.sh` proves the path in CI on every
-build. What is left is signing — the developer's, not CI's — and web.
+What is left before an iOS or Android export is a game a player can hold.
+`balaur export --target ios` and `--target android` are built, and
+`scripts/export_check.sh` checks the bundles on every build.
 
-**Compiling and rendering are different claims.** Nothing in CI runs a frame
-on a real device or simulator; the export check stops at "a device would
-install this", and `export_check.sh` proves the bundle shape, the export pack's
-place inside it, and that the iOS executable was built for iOS. An exported
-game has been run by hand on the Android emulator's GLES backend: it draws,
-plays sound, saves, and logs to logcat under the tag `balaur`. What CI checks
-is the shaders: `shader_checks.rs` writes every engine shader as the GLSL ES
-3.10 a phone without Vulkan compiles, and kiss3d's suite does the same for its
-own. That a frame renders on a real phone is unproven, and needs hardware.
+## Steps
 
-## Scripts on iOS
-
-iOS runs no JIT. An iOS export translates the game's `.bs` scripts to C and
-compiles them with Xcode's clang into `Frameworks/BalaurScripts.framework`,
-for the device or the simulator the template targets; signing covers it with
-the app, and the scripts run as native code (`docs/PLAN-balaur-script.md`
-§7a). Without Xcode the export still works and the scripts run on the
-interpreter. Rune scripts are interpreted either way.
-
-## The shell a phone has
-
-`engine.open_url` and the `open_url` binding action work on every desktop and,
-since 2026-09-07, in a browser tab through `window.open`. On iOS and Android
-they do not: `balaur_project::desktop` spawns an opener process, and a phone has
-none, so the call reports that it has no opener rather than pretending.
-
-What each wants, when someone wires it up:
-
-- **iOS.** `UIApplication.sharedApplication.openURL:`, reachable the way
-  `balaur_apple` already reaches `UIApplication`, by runtime class lookup
-  through `objc2` rather than a UIKit crate.
-- **Android.** An `ACTION_VIEW` intent, which needs JNI and the activity from
-  `ndk_context`. Nothing in the tree links JNI today; `balaur_android` is only
-  the NativeActivity entry point.
-
-`engine.reveal` is not coming to either: showing a file in a file manager
-needs a file manager, and neither a phone nor a tab has one.
-
-## Suspend and resume
-
-Nothing in the tree answers a suspend. A phone call, a locked screen, an
-alt-tab and a console's suspend all arrive as one question: what happens to
-the tick, the audio device and the save.
-
-| Piece | What it wants |
-| --- | --- |
-| The event | winit's `Suspended` and `Resumed` on desktop and Android, `applicationWillResignActive` through `objc2` on iOS, `visibilitychange` on a page |
-| The tick | Paused, not caught up. The accumulator drains up to four steps a frame, so a minute in the background would otherwise arrive as a minute of simulation |
-| Audio | The device released on the way out and taken back on the way in, since a phone gives it to the caller |
-| The save | A hook a script answers, `on_suspend(this)`, before the process may be killed without another frame |
-| The digest | A suspend is not simulation: it must not enter the digest, or two machines that paused differently would part |
-
-A recorded session replays through a suspend, because the pause is outside
-the recorded input and the tick count is unchanged by it.
-
-## Web
-
-**Built.** `balaur export --target web` writes a `.wasm`, its glue and a
-shell page with the export pack beside them, and the canvas problem this section
-carried — a wgpu surface on an HTML canvas — is solved on
-`wasm32-unknown-unknown` with wasm-bindgen. Audio plays. Web needed no signing
-and no bundle format, which is why it landed before the rest of this plan.
-
-`scripts/package_runtime.sh web` builds and packages that `.wasm` on every
-push. The target is `wasm32-unknown-unknown` with wasm-bindgen: kiss3d and
-wgpu only support the browser there
-(`docs/PLAN-web-editor.md` §5 question 1). The job builds with `window` on
-and prints the raw, gzip and brotli size, so the download cost is a number in
-every run rather than a guess.
-
-Both plans that waited behind it have collected: `docs/PLAN-web-editor.md`
-runs the editor on the same canvas, and `docs/PLAN-deploy.md` has a web build
-to put at a URL. What is left of this plan is mobile.
+1. **A tick that pauses on suspend.** `on_suspended_changed` already tells
+   every script when the app goes to the background, from kiss3d's `Iconify`
+   and a page's visibility. Nothing else answers it: the fixed step keeps
+   running and the audio device stays open. Pause the tick in
+   `crates/balaur_core/src/app.rs` while the device fact `suspended` holds,
+   and release the device in `crates/balaur_audio` and take it back on resume.
+   Done: a test that suspends the device sees no tick advance and the audio
+   device closed, and a recording replayed through a suspend keeps its digest.
+2. **A frame and a touch on a real phone.** CI stops at "a device would
+   install this" and checks the shaders as GLSL ES 3.10
+   (`crates/balaur_render/src/shader_checks.rs`). The Android emulator's GLES
+   backend draws an exported game. `touch_button`, `touch_stick`, the gestures
+   and the keyboard height are tested headless only. Done: an exported game
+   draws, plays sound and answers touch on one iPhone and one Android phone.
+3. **What a phone lends a game.** The share sheet, the camera, geolocation,
+   biometrics and the phone's own motor behind one `device` module.
+   `input.vibrate` reaches only a page's `navigator.vibrate`
+   (`crates/balaur_input/src/haptics.rs`). The clipboard (`ui.set_clipboard`)
+   and keep-awake (`window.set_keep_awake`) already have a home, so the
+   module does not spell them again. Done: a game on a phone shares a file
+   and reads its position.

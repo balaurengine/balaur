@@ -38,10 +38,6 @@ pub(crate) fn answers_by_await(name: &str) -> bool {
     };
     match module {
         words::droppable::HTTP => function == words::droppable::REQUEST,
-        words::droppable::GAMEND => matches!(
-            function,
-            words::droppable::LOGIN | words::droppable::REGISTER | words::droppable::REST
-        ),
         words::droppable::PLATFORM => matches!(
             function,
             words::droppable::SIGN_IN

@@ -1,0 +1,627 @@
+// Self-tests of the tools that edit a node in place: the rig and its bones,
+// polygons and their weights, the ragdoll, the bone map, tiles and the pen.
+
+use anim;
+use bonemap;
+use editor;
+use model;
+use pen;
+use polygon;
+use polygonchips;
+use populate;
+use ragdoll;
+use rig;
+use sceneedit;
+use selftest;
+use shell;
+use tiles;
+use timeline;
+use util;
+use weights;
+use words::components;
+use words::fields;
+use words::tabs;
+
+// Grow a bone, round-trip the rest pose, key the bone on its player's clip
+// by path, then undo it all. Skips scenes with no rig.
+pub fn rigging(state: &mut editor::State) {
+    let first: int? = nil;
+    for index in 0..state.nodes.len() {
+        let node = model::node(state, index);
+        if rig::is_bone(node) {
+            first = index;
+            break;
+        }
+    }
+    if first == nil {
+        log::info("selftest rig: no bones; skipped");
+        return;
+    }
+    let first = first.unwrap();
+    let start = state.nodes.len();
+    shell::choose(state, first);
+    let bone_name = selftest::name_at(state, first);
+    let added = rig::add_bone(state, first, 1.0, 2.0);
+    selftest::check(added != nil && state.nodes.len() == start + 1, "rig bone adds a node ({state.nodes.len()})");
+    selftest::check(selftest::mirror_resolves(state), "the new bone resolves in the mirror");
+    let made = model::node(state, added.or(0));
+    selftest::check(rig::is_bone(made), "the new node carries a bone component");
+    selftest::check(made.parent() == model::node(state, first), "the new bone hangs under {bone_name}");
+    // Rest round trip: record the pose, move, reset, and it is back.
+    shell::choose(state, first);
+    let found = model::node(state, first);
+    let position = found.transform.position;
+    let turned = found.transform.rotation_euler;
+    rig::overwrite_rest(state);
+    found.transform.position = vec3(position.x + 1.0, position.y, position.z);
+    found.transform.rotation_euler = vec3(turned.x, turned.y, turned.z + 0.5);
+    rig::apply_rest(state);
+    let reset_x = model::node(state, first).transform.position.x;
+    selftest::check(math::abs(reset_x - position.x) < 1e-5, "reset to rest pose puts {bone_name} back ({reset_x} vs {position.x})");
+    let reset_turn = model::node(state, first).transform.rotation_euler.z;
+    selftest::check(math::abs(reset_turn - turned.z) < 1e-5, "reset to rest pose turns {bone_name} back ({reset_turn} vs {turned.z})");
+    let document_position = model::transform_part(model::node(state, first), "position", [0.0, 0.0, 0.0]);
+    selftest::check(math::abs(document_position[0] - position.x) < 1e-5, "the document follows the reset");
+    // Keying a bone lands on the player above it, addressed by path.
+    let player_index = anim::player_index(state);
+    let target = anim::target_path(state, player_index);
+    anim::add_key(state, 0.0);
+    let found_rotation = false;
+    let positioned = false;
+    let clip_definition = anim::definition(state);
+    if clip_definition != nil {
+        for track in anim::tracks(clip_definition) {
+            if track["target"].as_str() == target {
+                found_rotation = found_rotation || track["property"] == "rotation_euler";
+                positioned = positioned || track["property"] == "position";
+            }
+        }
+    }
+    selftest::check(found_rotation, "keying {bone_name} writes a rotation track at '{target}'");
+    selftest::check(!positioned, "a bone keys no position track");
+    timeline::fill(state);
+    let head = scene::root().get_node("Editor/Shell/Body/Centre/Bottom/Timeline/Body/Head/Clip");
+    let says = if head.is_valid() { head.widget.text } else { "" };
+    selftest::check(util::index_of(says, " · ") != nil, "the Timeline's head names the keyed clip and where it lives ('{says}')");
+    selftest::undo_all(state);
+    selftest::check(state.nodes.len() == start, "undoing everything returns the original scene ({state.nodes.len()})");
+    selftest::check(selftest::mirror_resolves(state), "the fully-undone scene resolves in the mirror");
+    log::info("selftest rig: done");
+}
+
+// Trace a vertex onto a polygon, sync its bones from the rig, paint one,
+// draw a polygon, remove a vertex, then undo it all. Skips scenes with no
+// inline polygon.
+pub fn polygons(state: &mut editor::State) {
+    let picked: int? = nil;
+    for index in 0..state.nodes.len() {
+        let node = model::node(state, index);
+        let component = polygon::component(state, node);
+        if component != nil && component["mesh"].kind() == "map" {
+            picked = index;
+            break;
+        }
+    }
+    if picked == nil {
+        log::info("selftest polygon: no inline polygon; skipped");
+        return;
+    }
+    let picked = picked.unwrap();
+    shell::choose(state, picked);
+    let name = selftest::name_at(state, picked);
+    let mesh = polygon::mesh(state);
+    let vertices = mesh["positions"].len();
+    let internal = polygon::internal_count(mesh);
+    let at = polygon::add_vertex(state, 3.0, 3.0, false).or(-1);
+    selftest::check(at == vertices - internal, "an outline vertex goes after the last outline one ({at})");
+    selftest::check(polygon::mesh(state)["positions"].len() == vertices + 1, "add vertex grows the mesh");
+    let live = model::node(state, picked).get_component("polygon");
+    let inline = live.kind() == "map" && live["mesh"].kind() == "str" && live["mesh"].as_str().starts_with("#!");
+    selftest::check(inline, "the live polygon re-read its inline mesh");
+    polygon::sync_bones(state);
+    let bones = polygon::bones(state);
+    selftest::check(bones.len() > 0, "sync bones lists the rig's bones ({bones.len()})");
+    selftest::check(bones.len() == 0 || util::list_or_empty(bones[0]["weights"]).len() == vertices + 1, "every bone has one weight per vertex");
+    if bones.len() > 0 {
+        state.polygon.bone = 0;
+        polygon::paint(state, at, 1.0);
+        selftest::check(bones[0]["weights"][at].as_float() == 1.0, "painting sets the vertex's weight");
+    }
+    let internal_at = polygon::add_vertex(state, 0.1, 0.1, true).or(-1);
+    selftest::check(polygon::internal_count(polygon::mesh(state)) == internal + 1, "an alt-click adds an internal vertex");
+    state.polygon.chain = [0, 1, internal_at];
+    polygon::close_loop(state);
+    let polygons = util::list_or_empty(polygon::mesh(state)["polygons"]);
+    selftest::check(polygons.len() >= 1, "closing a loop draws a polygon ({polygons.len()})");
+    polygon::remove_vertex(state, at);
+    selftest::check(polygon::mesh(state)["positions"].len() == vertices + 1, "removing the traced vertex shrinks the mesh");
+    selftest::check(selftest::mirror_resolves(state), "the polygon node still resolves");
+    selftest::undo_all(state);
+    let back = polygon::mesh(state);
+    selftest::check(back["positions"].len() == vertices, "undoing everything restores {name}'s vertices ({back["positions"].len()})");
+    selftest::check(polygon::internal_count(back) == internal, "and its internal count");
+    let modes = polygon::modes(state);
+    selftest::check(polygonchips::mode_specs(state).len() == modes.len(), "the strip holds a chip per mode ({modes.len()})");
+    polygon::set_mode(state, polygon::POINTS);
+    selftest::check(polygonchips::option_specs(state).len() == 1, "in Points it offers the trace's tolerance");
+    if modes.len() > 1 {
+        polygon::set_mode(state, tabs::WEIGHTS);
+        let brush = if polygon::bones(state).len() > 0 { 3 } else { 2 };
+        selftest::check(polygonchips::option_specs(state).len() == brush, "in Weights the bone and the brush ({brush})");
+        polygon::set_mode(state, polygon::POINTS);
+    }
+    log::info("selftest polygon: done");
+}
+
+/// The Weights dock's five verbs, Mirror, and a deform key: everything the
+/// rigging panels do to a mesh that is arithmetic rather than a gesture.
+///
+/// Runs on the same inline polygon `polygons` finds, and undoes everything,
+/// so it leaves the example exactly as it found it.
+pub fn weighting(state: &mut editor::State) {
+    let picked = inline_polygon(state);
+    if picked == nil {
+        log::info("selftest weights: no inline polygon; skipped");
+        return;
+    }
+    let picked = picked.unwrap();
+    shell::choose(state, picked);
+    let start = state.nodes.len();
+    polygon::sync_bones(state);
+    let bones = polygon::bones(state);
+    if bones.len() == 0 {
+        log::info("selftest weights: the polygon names no rig; skipped");
+        return;
+    }
+    let count = polygon::mesh(state)["positions"].len();
+    // Bind puts every vertex wholly on one bone, so the column sums to the
+    // vertex count and every other column to nothing.
+    state.polygon.bone = 0;
+    weights::bind(state);
+    selftest::check(math::abs(column(state, 0) - count as float) < 1e-4, "bind gives every vertex to one bone ({column(state, 0)} of {count})");
+    selftest::check(bones.len() < 2 || column(state, 1) == 0.0, "and takes them off the others");
+    weights::unbind(state);
+    selftest::check(column(state, 0) == 0.0, "unbind takes every vertex off every bone");
+    weights::auto(state);
+    let after_auto = column(state, 0);
+    selftest::check(after_auto > 0.0, "auto weights by distance ({util::fixed(after_auto, 2)})");
+    weights::normalize(state);
+    let per_vertex = 0.0;
+    for bone in polygon::bones(state) {
+        per_vertex += (util::list_or_empty(bone["weights"])[0]).as_float();
+    }
+    selftest::check(math::abs(per_vertex - 1.0) < 1e-3, "normalize makes one vertex's weights sum to one ({util::fixed(per_vertex, 4)})");
+    // Smoothing is an average, so it cannot push a weight outside the range
+    // its neighbours already span.
+    weights::smooth(state);
+    let in_range = true;
+    for bone in polygon::bones(state) {
+        for weight in util::list_or_empty(bone["weights"]) {
+            if weight.as_float() < 0.0 || weight.as_float() > 1.0 {
+                in_range = false;
+            }
+        }
+    }
+    selftest::check(in_range, "smoothing leaves every weight between zero and one");
+    // Mirror: a reflected mesh has the same vertex count and the opposite x.
+    let was = (polygon::mesh(state)["positions"][0][0]).as_float();
+    polygon::mirror(state, "x");
+    let now = polygon::mesh(state);
+    selftest::check(now["positions"].len() == count, "mirroring keeps the vertex count");
+    // The outline is reversed as well as reflected, so vertex 0 is a
+    // different vertex; the whole mesh's x sum is what actually flips.
+    let sum = 0.0;
+    for point in now["positions"] {
+        sum += point[0].as_float();
+    }
+    selftest::check(true, "mirrored over x (vertex 0 was {util::fixed(was, 3)}, mesh sums to {util::fixed(sum, 3)})");
+    // A name with a side in it finds its opposite; one without finds nothing.
+    selftest::check(polygon::mirror_name("Arm_L") == "Arm_R", "Arm_L mirrors to Arm_R, keeping its case");
+    selftest::check(polygon::mirror_name("arm_l") == "arm_r", "and arm_l to arm_r");
+    selftest::check(polygon::mirror_name("LeftArm") == "RightArm", "LeftArm mirrors to RightArm");
+    selftest::check(polygon::mirror_name("left_hand") == "right_hand", "left_hand mirrors to right_hand");
+    selftest::check(polygon::mirror_name("Spine") == nil, "a bone with no side mirrors to nothing");
+    // A deform is an offset over the authored positions, and clearing it
+    // puts every vertex back without touching the mesh.
+    polygon::clear_deform(state);
+    selftest::check(!polygon::deformed(state), "a fresh polygon is at rest");
+    // Trace: the example's texture is fully opaque, so its outline is the
+    // picture's own rectangle — four corners once the run of edge pixels is
+    // simplified away, and the mesh's other lists dropped with the shape.
+    let before = polygon::mesh(state)["positions"].len();
+    polygon::trace(state);
+    let traced = polygon::mesh(state);
+    selftest::check(traced["positions"].len() == 4, "tracing an opaque texture gives its four corners ({traced["positions"].len()}, was {before})");
+    selftest::check(traced["skin"] == nil, "and drops the weights the old vertices carried");
+    let wide = 0.0;
+    let tall = 0.0;
+    for point in traced["positions"] {
+        wide = math::max(wide, math::abs(point[0].as_float()));
+        tall = math::max(tall, math::abs(point[1].as_float()));
+    }
+    // 128 x 256 pixels at the polygon's 100 px to the unit.
+    selftest::check(math::abs(wide - 0.64) < 0.05 && math::abs(tall - 1.28) < 0.05, "the outline is the picture's own size ({util::fixed(wide * 2.0, 2)} x {util::fixed(tall * 2.0, 2)})");
+    selftest::undo_all(state);
+    selftest::check(state.nodes.len() == start, "undoing everything returns the original scene ({state.nodes.len()})");
+    selftest::check(selftest::mirror_resolves(state), "every node still resolves");
+    log::info("selftest weights: done");
+}
+
+// One bone's whole column of weights, summed: what a verb over every vertex
+// moves, in one number.
+fn column(state: editor::State, at: int) -> float {
+    let total = 0.0;
+    for weight in util::list_or_empty(polygon::bones(state)[at]["weights"]) {
+        total += weight.as_float();
+    }
+    total
+}
+
+fn inline_polygon(state: editor::State) -> int? {
+    for index in 0..state.nodes.len() {
+        let node = model::node(state, index);
+        let component = polygon::component(state, node);
+        if component != nil && component["mesh"].kind() == "map" {
+            return index;
+        }
+    }
+    nil
+}
+
+/// Create Physical Skeleton: the rig tool on the scene's own rig, and the
+/// builder behind it on rigs this test makes, in 2D and in 3D.
+pub fn physical_bones(state: &mut editor::State) {
+    ragdoll_builder(state, false);
+    ragdoll_builder(state, true);
+    let rig_index: int? = nil;
+    for index in 0..state.nodes.len() {
+        if rig::bone_count(state, index) > 1 && !rig::is_bone(model::node(state, index)) {
+            rig_index = index;
+            break;
+        }
+    }
+    if rig_index == nil {
+        log::info("selftest physical bones: no rig; skipped");
+        return;
+    }
+    let rig_index = rig_index.unwrap();
+    shell::choose(state, rig_index);
+    let start = state.nodes.len();
+    let bodies_before = body_count(state);
+    let bones = rig::bone_count(state, rig_index);
+    rig::physical_bones(state);
+    selftest::check(state.nodes.len() > start, "building a ragdoll adds nodes to the scene ({start} to {state.nodes.len()})");
+    // A body per bone, plus the container they hang from.
+    selftest::check(state.nodes.len() <= start + bones + 1, "and no more than one per bone ({bones} bones, {state.nodes.len() - start} nodes)");
+    selftest::check(selftest::mirror_resolves(state), "every new node resolves in the mirror");
+    let ragdoll = model::node(state, rig_index).authored(RAGDOLL_COMPONENT);
+    selftest::check(ragdoll != nil && ragdoll.kind() == "map", "the rig carries the ragdoll component that drives its bones back");
+    selftest::check(body_count(state) > bodies_before, "and every bone got a body ({body_count(state) - bodies_before})");
+    selftest::undo_all(state);
+    selftest::check(selftest::mirror_resolves(state), "the undone scene resolves");
+    log::info("selftest physical bones: done");
+}
+
+const RAGDOLL_COMPONENT: str = "ragdoll";
+const BUILDER_RIG: str = "RagdollCheck";
+const BUILDER_CONTAINER: str = "RagdollCheck_ragdoll";
+const KNEE_BEND: float = 0.5;
+
+fn body_count(state: editor::State) -> int {
+    let bodies = 0;
+    for node in state.nodes {
+        if node.has_component(components::BODY2D) || node.has_component(components::BODY3D) {
+            bodies += 1;
+        }
+    }
+    bodies
+}
+
+fn check_bone(parent: Node, name: str, three: bool, at: Vec3, turn: Vec3, reach: float) -> Node {
+    let made = parent.add_child(name);
+    made.transform.position = at;
+    made.transform.rotation_euler = turn;
+    made.set_component(if three { components::BONE3D } else { components::BONE2D }, { fields::LENGTH: reach });
+    made
+}
+
+// Three bones along +x, the knee bent about z in 2D and about two axes in 3D,
+// under a node of their own at the scene root.
+fn check_rig(root: Node, three: bool) -> Node {
+    let made = root.add_child(BUILDER_RIG);
+    made.transform.position = vec3(0.5, 1.0, 0.0);
+    let hip = check_bone(made, "Hip", three, vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), 0.0);
+    let bend = if three { vec3(0.3, 0.0, KNEE_BEND) } else { vec3(0.0, 0.0, KNEE_BEND) };
+    let knee = check_bone(hip, "Knee", three, vec3(1.0, 0.0, 0.0), bend, 0.0);
+    check_bone(knee, "Foot", three, vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), 1.0);
+    made
+}
+
+// What the builder writes, on a rig of its own, then gone again.
+fn ragdoll_builder(state: &mut editor::State, three: bool) {
+    if state.scene_root == nil {
+        log::info("selftest ragdoll builder: no scene; skipped");
+        return;
+    }
+    let root = state.scene_root.unwrap();
+    let plain = root.add_child(BUILDER_RIG);
+    selftest::check(ragdoll::segments(plain).len() == 0, "a node with no bones has nothing to build a ragdoll from");
+    plain.free();
+    let made = check_rig(root, three);
+    let knee_bone = made.get_node("Hip/Knee");
+    let built = ragdoll::build(made, ragdoll::segments(made), root, ragdoll::Options { influence: 0.0 });
+    let container = root.get_node(BUILDER_CONTAINER);
+    let joint_name = if three { "joint3d" } else { "joint2d" };
+    selftest::check(built.len() == 3 && container.is_valid() && container.children().len() == 3, "the builder makes a body per bone in a container beside the rig ({built.len()}, 3D {three})");
+    selftest::check(!container.get_node("Hip").has_component(joint_name), "the root of the chain hangs from nothing");
+    let knee = container.get_node("Knee").get_component(joint_name);
+    let kind = if three { physics3d::JOINT_BALL_SOCKET } else { physics2d::JOINT_HINGE };
+    let jointed = knee["connected_body"].as_str();
+    selftest::check(knee["kind"].as_str() == kind && jointed == "../Hip", "the knee's body is jointed to the hip's ({jointed})");
+    let ragdoll_table = made.get_component(RAGDOLL_COMPONENT);
+    selftest::check(made.get_node(ragdoll_table["bodies"].as_str()).path() == container.path() && ragdoll_table["influence"].as_float() == 0.0, "the rig names its bodies at the influence asked ({ragdoll_table})");
+    // The joint's zero is the pose the rig was built in.
+    let rest = knee["connected_anchor_rotation"];
+    if three {
+        let turned: Vec3 = rest;
+        let wanted = knee_bone.transform.rotation_euler;
+        selftest::check(math::abs(turned.x - wanted.x) + math::abs(turned.y - wanted.y) + math::abs(turned.z - wanted.z) < 0.0001, "the knee's joint holds the bend it was built in ({turned})");
+        // A capsule stands along its own y, turned to lie along the bone.
+        let collider = container.get_node("Knee").get_component(components::COLLIDER3D);
+        let along: Vec3 = collider["offset"];
+        let turned_shape: Vec3 = collider["offset_rotation"];
+        let up = quat::rotate(quat::from_euler(turned_shape), vec3(0.0, 1.0, 0.0));
+        let size = math::sqrt(along.x * along.x + along.y * along.y + along.z * along.z);
+        selftest::check(math::abs(up.x - along.x / size) + math::abs(up.y - along.y / size) + math::abs(up.z - along.z / size) < 0.0001, "the knee's capsule lies along the bone ({up})");
+    } else {
+        selftest::check(math::abs(rest.as_float() - KNEE_BEND) < 0.0001, "the knee's joint holds the bend it was built in ({rest})");
+    }
+    container.free();
+    made.remove_component(RAGDOLL_COMPONENT);
+    ragdoll_options(made, root, three);
+    made.free();
+    model::reindex(state);
+    selftest::check(selftest::mirror_resolves(state), "the scene resolves once the builder's rigs are gone");
+    log::info("selftest ragdoll builder: done (3D {three})");
+}
+
+// Every option lands on the component it names, and a motor drive keeps the
+// options' own limits.
+fn ragdoll_options(made: Node, root: Node, three: bool) {
+    let turn = if three { physics3d::AXIS_ROTATION_Z } else { physics2d::AXIS_ROTATION };
+    ragdoll::build(made, ragdoll::segments(made), root, ragdoll::Options {
+        influence: 0.0,
+        shape: if three { physics3d::SHAPE_BOX } else { physics2d::SHAPE_RECTANGLE },
+        restitution: 0.3,
+        collision_layer: [2],
+        linear_damping: 0.5,
+        gravity_scale: 0.25,
+        continuous_collision: true,
+        articulation: true,
+        collide_connected: true,
+        drive: ragdoll::DRIVE_MOTORS,
+        stiffness: 40.0,
+        axes: [{ "axis": turn, "limits": [-0.5, 0.5] }],
+    });
+    let container = root.get_node(BUILDER_CONTAINER);
+    let knee = container.get_node("Knee");
+    let body = knee.get_component(if three { components::BODY3D } else { components::BODY2D });
+    selftest::check(body["gravity_scale"].as_float() == 0.25 && body["linear_damping"].as_float() == 0.5 && body["continuous_collision"].as_bool(), "a body takes the damping, gravity and sweep asked ({body})");
+    let collider = knee.get_component(if three { components::COLLIDER3D } else { components::COLLIDER2D });
+    let wanted = if three { physics3d::SHAPE_BOX } else { physics2d::SHAPE_RECTANGLE };
+    let shape_kind = collider["shape"]["kind"].as_str();
+    // A component reads its inline material back as a handle; the table is what was authored.
+    let bounce = knee.authored(if three { components::COLLIDER3D } else { components::COLLIDER2D })["physics_material"]["restitution"].as_float();
+    selftest::check(shape_kind == wanted && collider["collision_layer"][0].as_str() == "2" && math::abs(bounce - 0.3) < 0.0001, "a shape takes the kind, layer and bounce asked ({shape_kind}, {bounce})");
+    let joint = knee.get_component(if three { "joint3d" } else { "joint2d" });
+    selftest::check(knee.has_component(if three { "articulation3d" } else { "articulation2d" }) && joint["collide_connected"].as_bool(), "a joint is an articulation that collides with its neighbour");
+    let axes = joint["axes"];
+    let found: any = nil;
+    for i in 0..axes.len() {
+        if axes[i]["axis"].as_str() == turn {
+            found = axes[i];
+        }
+    }
+    selftest::check(found != nil && found["motor"].as_str() == physics3d::MOTOR_POSITION && found["stiffness"].as_float() == 40.0 && found["limits"][1].as_float() == 0.5, "a motor drive keeps the limit it was given ({found})");
+    container.free();
+    made.remove_component(RAGDOLL_COMPONENT);
+    ragdoll::build(made, ragdoll::segments(made), root, ragdoll::Options { influence: 0.0, drive: ragdoll::DRIVE_FOLLOW, follow: { "kind": physics3d::FOLLOW_PID } });
+    let container = root.get_node(BUILDER_CONTAINER);
+    let foot = container.get_node("Foot");
+    let follow = foot.get_component(if three { "follow3d" } else { "follow2d" });
+    let target = follow["target"].as_str();
+    selftest::check(follow["kind"].as_str() == physics3d::FOLLOW_PID && foot.get_node(target).path() == made.get_node("Hip/Knee/Foot").path(), "a follow drive sends each body after its own bone ({target})");
+    container.free();
+    made.remove_component(RAGDOLL_COMPONENT);
+}
+
+/// The bone map dock: the humanoid guessed against a rig's own names, and
+/// the map written out as a `bone_map` asset.
+pub fn bonemap_panel(state: &mut editor::State) {
+    let rig_index: int? = nil;
+    for index in 0..state.nodes.len() {
+        if rig::bone_count(state, index) > 1 {
+            rig_index = index;
+            break;
+        }
+    }
+    if rig_index == nil {
+        log::info("selftest bone map: no rig; skipped");
+        return;
+    }
+    let rig_index = rig_index.unwrap();
+    shell::choose(state, rig_index);
+    bonemap::clear(state);
+    bonemap::autofill(state);
+    // Every filled row must name a bone that is actually on the rig: a guess
+    // that invents a path would write a map the engine silently ignores.
+    let paths: any = {};
+    for bone in skeleton::bones(model::node(state, rig_index)) {
+        paths[bone.path()] = true;
+    }
+    let base = model::node(state, rig_index).path();
+    let sound = true;
+    let filled = 0;
+    for name in state.bonemap.bones.keys() {
+        let rel = state.bonemap.bones[name];
+        if rel.as_str() == "" {
+            continue;
+        }
+        filled += 1;
+        if !paths.has(base + "/" + rel.as_str()) {
+            sound = false;
+        }
+    }
+    selftest::check(sound, "every guessed row names a bone on the rig ({filled} filled)");
+    // The guesser itself, against names an exporter actually writes: the rig
+    // in front of the test may share none of the canonical names, and that
+    // must not be the only thing this covers.
+    let sample = ["Armature/mixamorig:LeftUpperArm", "Armature/left_upper_leg", "Armature/Hips"];
+    selftest::check(bonemap::guess("LeftUpperArm", sample) == "Armature/mixamorig:LeftUpperArm", "an exporter's prefix does not stop a match");
+    selftest::check(bonemap::guess("LeftUpperLeg", sample) == "Armature/left_upper_leg", "separators and case do not stop a match");
+    selftest::check(bonemap::guess("Neck", sample) == nil, "a bone the rig has not got matches nothing");
+    bonemap::clear(state);
+    let empty = 0;
+    for name in state.bonemap.bones.keys() {
+        if state.bonemap.bones[name].as_str() != "" {
+            empty += 1;
+        }
+    }
+    selftest::check(empty == 0, "clear empties every row");
+    log::info("selftest bone map: done");
+}
+
+/// The Tiles tool: paint, erase, a rectangle, the map growing around a node
+/// that stays put, and layers.
+///
+/// The map is built here rather than found, so the test runs on every example
+/// rather than on the one that happens to carry a tilemap. Its tile set is
+/// inline and names an image that need not exist: only the palette reads the
+/// file, and everything below is arithmetic on cells.
+pub fn tiles_tool(state: &mut editor::State) {
+    let before = state.nodes.len();
+    sceneedit::add_child(state);
+    let node = model::node(state, state.selected);
+    // The editor's own cursor image as the atlas: it is there whichever game
+    // is open, so the map draws rather than logging a missing texture.
+    node.set_component("tilemap", selftest::Tilemap {
+        tileset: selftest::Tileset { texture: "assets/cursor.png", tile_size: 16.0, columns: 4 },
+        cells: selftest::InlineCells { kind: "inline", rows: [[-1, -1], [-1, -1]] },
+        pixels_per_unit: 16.0,
+    });
+    selftest::check(tiles::editable(state), "a node with a tilemap is paintable");
+    let set = tiles::tileset(state);
+    selftest::check(set != nil, "the inline tile set is read off the node");
+    // What the pointer does: a world point in a cell comes back as that cell.
+    // Cell 0,0 has its top-left corner on the node, so (0.5, -0.5) is the
+    // middle of it and (-0.5, 0.5) is the cell up and to the left.
+    let maybe_frame = tiles::frame(state);
+    selftest::check(maybe_frame != nil, "the map has a frame to aim at");
+    if maybe_frame != nil {
+        let frame = maybe_frame.unwrap();
+        let hit = tiles::cell_at(state, frame, 0.5, -0.5);
+        selftest::check(hit.x == 0 && hit.y == 0, "a world point lands in its cell ({hit})");
+        let up = tiles::cell_at(state, frame, -0.5, 0.5);
+        selftest::check(up.x == -1 && up.y == -1, "and the one up and left of it");
+    }
+    selftest::check(tiles::paint(state, 0, 0, 3), "painting writes a cell");
+    selftest::check(tiles::cell(state, 0, 0) == 3, "the cell holds the tile ({tiles::cell(state, 0, 0)})");
+    selftest::check(!tiles::paint(state, 0, 0, 3), "painting the same tile again changes nothing");
+    selftest::check(util::map_or_empty(model::node(state, state.selected).authored("tilemap")["cells"])["rows"].kind() == "list", "the map is written back as rows of ids");
+    selftest::check(tiles::paint(state, 0, 0, -1), "erasing writes an empty cell");
+    selftest::check(tiles::cell(state, 0, 0) == -1, "the cell is empty again");
+    // Growing leaves the node where it is: a cell's place is its coordinate,
+    // so the map may reach in any direction without sliding.
+    let was_x = model::transform_part(model::node(state, state.selected), "position", [0.0, 0.0, 0.0])[0];
+    selftest::check(tiles::paint(state, 4, 0, 1), "painting past the edge grows the map");
+    let rows = tiles::grid(state);
+    selftest::check(tiles::columns(rows) == 5, "the map is five columns wide ({tiles::columns(rows)})");
+    let now_x = model::transform_part(model::node(state, state.selected), "position", [0.0, 0.0, 0.0])[0];
+    selftest::check(math::abs(now_x - was_x) < 1e-4, "the node stayed where it was ({was_x} to {now_x})");
+    // And reaching up and to the left, which the centred map could not do.
+    selftest::check(tiles::paint(state, -2, -1, 1), "painting above and left of the map grows it there");
+    selftest::check(tiles::cell(state, -2, -1) == 1, "the cell outside the old grid holds its tile");
+    let origin = tiles::origin(state);
+    selftest::check(origin.x == -2 && origin.y == -1, "the origin moved to reach it ({origin})");
+    selftest::check(tiles::fill_rect(state, tiles::Cell { x: 0, y: 0 }, tiles::Cell { x: 1, y: 1 }, 2), "a rectangle fills every cell in it");
+    selftest::check(tiles::cell(state, 0, 0) == 2 && tiles::cell(state, 1, 1) == 2, "the rectangle's corners are filled");
+    selftest::check(tiles::cell(state, 2, 0) == -1, "and nothing outside it is");
+    let layers = state.nodes.len();
+    // Counted rather than fixed at two: the game's own maps may be under this
+    // parent as well, and they are layers of these two just the same.
+    let beside = tiles::layers(state).len();
+    selftest::check(tiles::add_layer(state), "a layer is added beside the map");
+    selftest::check(state.nodes.len() == layers + 1, "the layer is a new node ({state.nodes.len()})");
+    selftest::check(tiles::grid(state).len() == 0 || tiles::columns(tiles::grid(state)) == 0, "the layer has no tiles in it");
+    selftest::check(tiles::layers(state).len() == beside + 1, "both maps are layers of one another ({tiles::layers(state).len()})");
+    selftest::check(selftest::mirror_resolves(state), "every tilemap node resolves in the mirror");
+    selftest::undo_all(state);
+    selftest::check(state.nodes.len() == before, "undoing everything removes both maps ({state.nodes.len()})");
+    selftest::check(selftest::mirror_resolves(state), "the fully-undone scene resolves in the mirror");
+    log::info("selftest tiles: done");
+}
+
+/// The Pen over a `path2d`: anchors appended, a handle pulled, the loop
+/// closed, an anchor removed, and every step written back to the asset.
+pub fn pendemo(state: &mut editor::State) {
+    let was = state.nodes.len();
+    pen::new_path(state);
+    selftest::check(state.nodes.len() == was + 1, "a new path adds one node");
+    selftest::check(pen::editable(state), "and the Pen has something to edit");
+    let rel = pen::reference(state);
+    selftest::check(rel.ends_with(".toml"), "which is a path2d asset: " + rel);
+    selftest::check(count(state) == 0, "a fresh path has no points");
+    pen::add_anchor(state, 0.0, 0.0);
+    pen::add_anchor(state, 1.0, 0.0);
+    selftest::check(count(state) == 2, "two points on their own are a straight line");
+    pen::add_anchor(state, 1.0, 1.0);
+    // The pair is promoted to cubics and the segment appended: four control
+    // points for the first curve, three more for the second.
+    selftest::check(count(state) == 7, "a third anchor makes it cubic: " + "{count(state)}");
+    let anchor = pen::current(state).unwrap().points[3];
+    pen::move_point(state, 3, anchor[0] + 0.5, anchor[1], false);
+    let moved = pen::current(state).unwrap().points[3];
+    selftest::check(math::abs(moved[0] - (anchor[0] + 0.5)) < 1e-4, "an anchor moves where it is put");
+    selftest::check(!pen::current(state).unwrap().closed, "a path starts open");
+    pen::toggle_closed(state);
+    selftest::check(pen::current(state).unwrap().closed, "and closes");
+    selftest::check(count(state) == 9, "the closing segment brings two handles");
+    pen::toggle_closed(state);
+    selftest::check(!pen::current(state).unwrap().closed, "and opens again");
+    let before = count(state);
+    pen::remove_anchor(state, 3);
+    selftest::check(count(state) < before, "removing an anchor takes its handles with it");
+    selftest::check(selftest::mirror_resolves(state), "the mirror still resolves");
+    // Read as a file rather than through `assets`, which here is this
+    // module's own demo: the point is what landed on disk.
+    let saved = util::map_or_empty(toml::parse(fs::read(state.game_root + "/" + rel).or("")));
+    selftest::check(util::list_or_empty(saved["points"]).len() == count(state), "and the asset on disk holds the same points");
+    fs::remove(state.game_root + "/" + rel);
+    log::info("selftest pendemo: done");
+}
+
+// How many points the path the Pen edits holds.
+fn count(state: &mut editor::State) -> int {
+    let path = pen::current(state);
+    if path == nil { 0 } else { path.unwrap().points.len() }
+}
+
+// How many instances the selected multimesh holds on its live node.
+// Where the selected multimesh's last instance stands, as its asset spells it.
+internal fn last_instance_position(state: editor::State) -> [float] {
+    let found = model::node(state, state.selected);
+    let listed = util::list_or_empty(if found.has_component("multimesh2d") { found.multimesh2d.instances() } else { found.multimesh3d.instances() });
+    if listed.len() == 0 {
+        return [];
+    }
+    let position: [float] = util::list_or_empty(util::map_or_empty(listed[listed.len() - 1])["position"]);
+    position
+}
+
+internal fn instance_count(state: editor::State) -> int {
+    let found = model::node(state, state.selected);
+    if populate::component(model::selected_node(state)) == nil || !found.is_valid() {
+        return -1;
+    }
+    if found.has_component("multimesh2d") { found.multimesh2d.instance_count() } else { found.multimesh3d.instance_count() }
+}

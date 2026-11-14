@@ -1,4 +1,4 @@
-//! What the writes of a frame changed, for whoever listens (PLAN-events §5).
+//! What the writes of a frame changed, for whoever listens.
 //!
 //! The one way a component changes, its registry's write, records the node,
 //! the component and the properties it was asked for. Adding, freeing,
@@ -11,7 +11,7 @@
 //! The same calls keep the changes under one subtree as they happen, each
 //! with what it replaced, for whoever takes them (`scene.keep_changes`): an
 //! editor's undo, which cannot wait a frame for its step and needs every
-//! write rather than a node's merged (PLAN-editor-as-scene §10.2).
+//! write rather than a node's merged.
 
 use std::cell::RefCell;
 use std::rc::Rc;

@@ -459,3 +459,24 @@ fn every_offered_asset_source_is_one_the_boot_reader_accepts() {
         assert!(parsed.is_ok(), "{option} is offered and not accepted");
     }
 }
+
+// A recording, its replay and a match each step at one rate, so a platform
+// answering `tick_hz` differently is refused rather than stepped.
+#[test]
+fn an_override_of_the_tick_rate_is_refused_by_name() {
+    let mut pack = balaur_core::Pack {
+        manifest: "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\n\n\
+                   [build]\ntags = [\"demo\"]\n\n[override.demo.time]\ntick_hz = 30\n"
+            .to_string(),
+        ..balaur_core::Pack::default()
+    };
+    pack.scenes.insert("main.toml".to_string(), String::new());
+    let mut app = App::new(AppConfig::packed(pack)).unwrap();
+    let refused = app
+        .load_project()
+        .err()
+        .expect("a demo build ticking at 30 loaded");
+    let said = format!("{refused:#}");
+    assert!(said.contains("override/demo/time/tick_hz"), "{said}");
+    assert_eq!(balaur_core::tick_hz(), balaur_core::DEFAULT_TICK_HZ);
+}

@@ -429,8 +429,7 @@ fn a_handle_method_drops_its_components_name() {
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_BOX } });
         if self.node.collider3d.volume() <= 0.0 { log::error("a box encloses nothing"); }
-        if self.node.collider3d.total_mass() <= 0.0 { log::error("a box weighs nothing"); }
-        if self.node.collider3d.mass_properties().mass <= 0.0 { log::error("its mass properties are empty"); }
+        if self.node.collider3d.mass_properties().mass <= 0.0 { log::error("a box weighs nothing"); }
         "#,
     );
 }
@@ -526,9 +525,9 @@ fn a_collider_property_is_read_and_written_as_a_field() {
         self.node.collider3d.density = 15.0;
         let back = self.node.collider3d.density;
         if math::abs(back - 15.0) >= 0.0001 { log::error("density came back as {back}"); }
-        let heavy = self.node.collider3d.total_mass();
+        let heavy = self.node.collider3d.mass_properties().mass;
         self.node.collider3d.density = 1.0;
-        let light = self.node.collider3d.total_mass();
+        let light = self.node.collider3d.mass_properties().mass;
         if heavy <= light * 10.0 { log::error("{heavy} was not ten times {light}"); }
         "#,
     );

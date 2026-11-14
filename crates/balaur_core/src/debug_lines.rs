@@ -2,8 +2,8 @@
 //!
 //! The buffers live here rather than in `balaur_render` because more than one
 //! plugin fills them and only one drains them: scripts through
-//! `render.draw_line`, physics through its own debug draw, the editor through
-//! its gizmos. A producer that had to depend on the renderer to draw a line
+//! `render.draw_lines_3d` and `render.draw_polyline_2d`, physics through its
+//! own debug draw, the editor through its gizmos. A producer that had to depend on the renderer to draw a line
 //! would invert the plugin layering for a `Vec<f32>`.
 //!
 //! Appended during a frame, drained by whatever is drawing — and cleared even
@@ -12,7 +12,7 @@
 /// (a, b, straight-alpha colour, pixel width, perspective-correct width, always-on-top)
 pub type DebugLine3d = ([f32; 3], [f32; 3], [f32; 4], f32, bool, bool);
 
-/// Scripts append with `render.draw_line`; the windowed backend drains it as
+/// Scripts append with `render.draw_lines_3d`; the windowed backend drains it as
 /// it draws, and with no window the render plugin's Render-stage system
 /// clears it instead, so it is empty at the start of every frame either way.
 #[derive(Default)]
@@ -25,7 +25,7 @@ pub struct DebugLineBuffer3d {
 /// (a, b, color, pixel width)
 pub type DebugLine2d = ([f32; 2], [f32; 2], [f32; 4], f32);
 
-/// Appended by `render.draw_line_2d`, drained on the same terms as
+/// Appended by `render.draw_polyline_2d`, drained on the same terms as
 /// [`DebugLineBuffer3d`].
 #[derive(Default)]
 pub struct DebugLineBuffer2d {

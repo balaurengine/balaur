@@ -63,7 +63,6 @@ balaur_input = { path = "crates/balaur_input", version = "0.2.0-alpha.1" }
 balaur_http = { path = "crates/balaur_http", version = "0.2.0-alpha.1" }
 balaur_websocket = { path = "crates/balaur_websocket", version = "0.2.0-alpha.1" }
 balaur_webtransport = { path = "crates/balaur_webtransport", version = "0.2.0-alpha.1" }
-balaur_gamend = { path = "crates/balaur_gamend", version = "0.2.0-alpha.1" }
 balaur_multiplayer = { path = "crates/balaur_multiplayer", version = "0.2.0-alpha.1", default-features = false }
 balaur_browser = { path = "crates/balaur_browser", version = "0.2.0-alpha.1" }
 balaur_platform = { path = "crates/balaur_platform", version = "0.2.0-alpha.1" }
@@ -127,7 +126,7 @@ debug = true
 
 # The crates an editor frame runs through. The script runtime and the hecs,
 # glam and egui generics instantiate here: at 0 a 2000-node frame ran 2.6x the
-# instructions, and 2 or 3 buy 2% more. docs/PLAN-editor-performance.md §9.
+# instructions, and 2 or 3 buy 2% more.
 [profile.dev.package]
 balaur = { opt-level = 1 }
 balaur_core = { opt-level = 1 }

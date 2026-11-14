@@ -9,8 +9,7 @@
 //! pack to the executable works on a desktop because the OS runs that file;
 //! here `current_exe` is the app process, not this library, and the library
 //! lives inside a zip. So the pack travels as an APK asset, and exporting for
-//! Android means writing `game.bpak` into `assets/` and re-signing — see
-//! docs/PLAN-mobile-export.md.
+//! Android means writing `game.bpak` into `assets/` and re-signing.
 #![cfg(target_os = "android")]
 
 use kiss3d::winit::platform::android::activity::AndroidApp;

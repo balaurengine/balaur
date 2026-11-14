@@ -291,7 +291,7 @@ impl Scenario {
         let opts = physics3d::RayQuery { origin: vec3(0.0, 8.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 100.0 };
         if self.ticks == 2 {
             self.hit_before = physics3d::raycast(opts) != nil;
-            scene::get_node("/World/Target").queue_free();
+            scene::root().get_node("/World/Target").queue_free();
         }
         if self.ticks == 8 {
             if !self.hit_before { log::error("the ray never found the target to begin with"); }
@@ -312,7 +312,7 @@ fn a_call_on_a_freed_node_errors_rather_than_panicking() {
         r#"pub class Scenario { node: Node, ticks: int, target: Node }
 impl Scenario {
     fn init() {
-        self.target = scene::get_node("/World/Target");
+        self.target = scene::root().get_node("/World/Target");
     }
 
     fn fixed_update(dt: float) {
@@ -328,8 +328,8 @@ impl Scenario {
     }
 
     pub fn mass() {
-        self.target.collider3d.total_mass();
-        log::error("total_mass answered for a freed node");
+        self.target.collider3d.mass_properties().mass;
+        log::error("mass_properties answered for a freed node");
     }
 
     pub fn volume() {

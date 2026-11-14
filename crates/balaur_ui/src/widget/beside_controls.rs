@@ -1,9 +1,9 @@
 //! The components beside `widget` about what a control holds and how it
-//! dresses itself. No property shows on a condition (PLAN-property-types §5).
+//! dresses itself. No property shows on a condition.
 
 use std::sync::Arc;
 
-use balaur_core::components::derived::Component;
+use balaur_core::components::derived::{Component, Result};
 use balaur_text::vocabulary::words as tw;
 use smol_str::SmolStr;
 
@@ -196,9 +196,9 @@ pub(crate) fn tab_stops(spaces: i64) -> u16 {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_shortcut")]
 pub(crate) struct WidgetShortcut {
-    /// A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`
+    /// A chord that clicks this widget wherever it is, as `cmd+shift+KeyS` or `F5`, spelled as `[input.actions]` spells one; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`
     pub(crate) shortcut: SmolStr,
-    /// Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`
+    /// Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+KeyZ`
     #[property(default = true)]
     pub(crate) while_typing: bool,
     /// Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list's arrows, Enter and Escape while it is up
@@ -208,6 +208,17 @@ pub(crate) struct WidgetShortcut {
 impl Beside for WidgetShortcut {
     fn reads(_: &str) -> bool {
         true
+    }
+
+    /// A `shortcut` that is not a chord.
+    fn check(&self) -> Result<()> {
+        let chord = &self.shortcut;
+        if !chord.is_empty() && crate::chord::chord(chord).is_none() {
+            anyhow::bail!(
+                "widget_shortcut: `shortcut` `{chord}` is not a chord, as `F5` or `cmd+shift+KeyS`"
+            );
+        }
+        Ok(())
     }
 
     puts! { held, widget;

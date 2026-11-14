@@ -1,13 +1,14 @@
 ---
 title: Pattern matching
-description: "match in Balaur Script: arms, binding what a variant carries, catch-alls, exhaustiveness, match as a value, and leaving from an arm."
+description: "match in Balaur Script: binding what a variant carries, matching values and constants, catch-alls, exhaustiveness, match as a value, and leaving from an arm."
 image: /img/social/scripting.png
 sidebar_position: 4
 ---
 
 # Pattern matching
 
-`match` takes an [enum](enums.md) apart. Each arm names a variant and binds what it carries.
+`match` takes an [enum](enums.md) apart, or compares a value with each arm. On an enum, each arm names a
+variant and binds what it carries.
 
 ```bs
 enum Shape { Circle(float), Rect { w: float, h: float }, Empty }
@@ -37,11 +38,14 @@ pub fn run() -> str {
 | `Shape::Rect { w, h }` | that variant, binding fields by name |
 | `Shape::Rect { w, h: tall }` | the same, with `h` bound as `tall` |
 | `Shape::Rect { w, h: _ }` | the same, ignoring `h` |
+| `Shape::Circle(_) \| Shape::Empty` | either variant, binding nothing |
+| `"go"`, `3`, `-1`, `true`, `nil` | that value |
+| `STOP`, `verbs::STOP` | the value of that constant |
+| `"left" \| "right"` | either value |
 | `_` | any value |
-| `other` | any value, binding it to `other` |
+| `other` | any value, binding it to `other`, unless a constant is named `other` |
 
-A pattern stops at one level, so bind the inner enum and match it again. An arm has no `if` guard, and
-literals are not patterns. `match` is for enums, while `if` handles numbers and strings.
+A pattern stops at one level, so bind the inner enum and match it again. An arm has no `if` guard.
 
 ```bs
 enum Inner { A(int), B }
@@ -60,6 +64,43 @@ pub fn read(o: Outer) -> int {
 pub fn run() -> int { read(Outer::X(Inner::A(7))) + read(Outer::Y) }
 
 // run() == 7
+```
+
+## Matching a value
+
+A `match` on a string, an int, a bool or an optional compares the subject with each arm in order. The
+last arm takes whatever no arm named. A float is no pattern, since two floats seldom compare equal.
+
+```bs
+const STOP: str = "stop";
+
+fn verb(name: str) -> str {
+    match name {
+        "go" => "walk",
+        STOP => "halt",
+        "left" | "right" => "turn",
+        other => "no verb {other}",
+    }
+}
+
+pub fn run() -> str { "{verb("go")}, {verb("stop")}, {verb("left")}, {verb("fly")}" }
+
+// run() == "walk, halt, turn, no verb fly"
+```
+
+A bare name compares with the constant of that name, and binds when no constant has it. A `|` joins
+values or variants, and none of its alternatives binds a name.
+
+```bs
+pub fn f(s: str) -> int { match s { "a" => 1, "b" => 2 } }
+
+// error: 1:27: a `match` on a value ends with an arm that takes any value: `_ => ..`
+```
+
+```bs
+pub fn f(s: str) -> int { match s { "a" => 1, "b" | "a" => 2, _ => 3 } }
+
+// error: 1:47: `"a"` is matched twice
 ```
 
 ## Every variant is covered

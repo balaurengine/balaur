@@ -407,11 +407,17 @@ impl Linker<'_> {
         pos: Pos,
     ) -> Result<(), Error> {
         let name = name.to_string();
-        // Its functions would take the names of a built-in type's methods.
-        if crate::prelude::owns(&format!("{name}::")) {
+        // Its functions would take the names of the prelude's.
+        if crate::prelude::is_method(&format!("{name}::")) {
             return Err(Error {
                 pos,
                 msg: format!("`{name}` is a built-in type: give the module another name"),
+            });
+        }
+        if crate::prelude::is_called(&format!("{name}::")) {
+            return Err(Error {
+                pos,
+                msg: format!("`{name}` is a module of the prelude: give the module another name"),
             });
         }
         {
@@ -552,6 +558,11 @@ pub(crate) trait Rename {
     fn func(&self, n: &str) -> Option<String>;
     /// A name read as a value: a constant, or a function.
     fn value(&self, n: &str) -> Option<String>;
+    /// A bare name that is the module's own constant, which a pattern
+    /// compares with where any other bare name binds.
+    fn constant(&self, _n: &str) -> Option<String> {
+        None
+    }
     fn strukt(&self, n: &str) -> Option<String>;
 
     fn ty(&self, t: &mut Ty) {
@@ -598,11 +609,12 @@ impl Rename for Names {
         }
     }
     fn value(&self, n: &str) -> Option<String> {
-        if self.consts.contains(n) {
-            Some(format!("{}::{n}", self.prefix))
-        } else {
-            self.func(n)
-        }
+        self.constant(n).or_else(|| self.func(n))
+    }
+    fn constant(&self, n: &str) -> Option<String> {
+        self.consts
+            .contains(n)
+            .then(|| format!("{}::{n}", self.prefix))
     }
     fn strukt(&self, n: &str) -> Option<String> {
         self.structs
@@ -812,6 +824,37 @@ fn variant_path(n: &dyn Rename, path: &mut String) {
     }
 }
 
+// A path renamed as an expression's would be, so `verbs::UNDO` names the same
+// constant in both; the variants left are `enums::lower`'s to tell apart.
+fn pattern(n: &dyn Rename, scope: &mut Vec<String>, p: &mut Pattern, pos: Pos) {
+    match p {
+        Pattern::Variant { path, binds } if binds.is_empty() => match n.value(path) {
+            Some(full) => *path = full,
+            None => variant_path(n, path),
+        },
+        Pattern::Variant { path, binds } => {
+            variant_path(n, path);
+            scope.extend(binds.iter().map(|(_, bound)| bound.clone()));
+        }
+        Pattern::Bind(name) => match n.constant(name) {
+            Some(full) if !scope.contains(name) => {
+                *p = Pattern::Value(Expr {
+                    kind: ExprKind::Var(full),
+                    pos,
+                });
+            }
+            _ => scope.push(name.clone()),
+        },
+        Pattern::Value(e) => expr(n, scope, e),
+        Pattern::Or(alternatives) => {
+            for a in alternatives {
+                pattern(n, scope, a, pos);
+            }
+        }
+        Pattern::Any => {}
+    }
+}
+
 pub(crate) fn expr(n: &dyn Rename, scope: &mut Vec<String>, e: &mut Expr) {
     n.at(e.pos);
     let local = |scope: &Vec<String>, v: &str| scope.iter().any(|s| s == v);
@@ -844,14 +887,7 @@ pub(crate) fn expr(n: &dyn Rename, scope: &mut Vec<String>, e: &mut Expr) {
             expr(n, scope, subject);
             for arm in arms {
                 let mark = scope.len();
-                match &mut arm.pattern {
-                    Pattern::Variant { path, binds } => {
-                        variant_path(n, path);
-                        scope.extend(binds.iter().map(|(_, bound)| bound.clone()));
-                    }
-                    Pattern::Bind(name) => scope.push(name.clone()),
-                    Pattern::Any => {}
-                }
+                pattern(n, scope, &mut arm.pattern, arm.pos);
                 expr(n, scope, &mut arm.body);
                 scope.truncate(mark);
             }

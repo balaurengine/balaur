@@ -8,25 +8,26 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Cancel tournament (admin; terminal, no recurrence spawn)
 /// `POST /api/v1/admin/tournaments/{id}/cancel`
-pub fn cancel_tournament(id: str) -> int {
+pub async fn cancel_tournament(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_tournaments::cancel_tournament", "id");
     }
-    core::rest("POST", "/api/v1/admin/tournaments/{id}/cancel")
+    let reply = await core::rest("POST", "/api/v1/admin/tournaments/{id}/cancel");
+    reply
 }
 
 /// Create tournament (admin)
 /// `POST /api/v1/admin/tournaments`
-pub fn create_tournament(params: any) -> int {
+pub async fn create_tournament(params: any) -> any {
     if !core::given(params, "slug") {
         return core::missing("gamend::admin_tournaments::create_tournament", "slug");
     }
@@ -36,84 +37,92 @@ pub fn create_tournament(params: any) -> int {
     if !core::given(params, "round_window_sec") {
         return core::missing("gamend::admin_tournaments::create_tournament", "round_window_sec");
     }
-    core::rest("POST", "/api/v1/admin/tournaments", params)
+    let reply = await core::rest("POST", "/api/v1/admin/tournaments", params);
+    reply
 }
 
 /// Delete tournament and all its entries/matches (admin)
 /// `DELETE /api/v1/admin/tournaments/{id}`
-pub fn delete_tournament(id: str) -> int {
+pub async fn delete_tournament(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_tournaments::delete_tournament", "id");
     }
-    core::rest("DELETE", "/api/v1/admin/tournaments/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/admin/tournaments/{id}");
+    reply
 }
 
 /// Draw the bracket now (admin; pulls starts_at to now)
 /// `POST /api/v1/admin/tournaments/{id}/draw`
-pub fn draw_tournament(id: str) -> int {
+pub async fn draw_tournament(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_tournaments::draw_tournament", "id");
     }
-    core::rest("POST", "/api/v1/admin/tournaments/{id}/draw")
+    let reply = await core::rest("POST", "/api/v1/admin/tournaments/{id}/draw");
+    reply
 }
 
 /// Finish tournament now (admin; pulls ends_at to now)
 /// `POST /api/v1/admin/tournaments/{id}/finish`
-pub fn finish_tournament(id: str) -> int {
+pub async fn finish_tournament(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_tournaments::finish_tournament", "id");
     }
-    core::rest("POST", "/api/v1/admin/tournaments/{id}/finish")
+    let reply = await core::rest("POST", "/api/v1/admin/tournaments/{id}/finish");
+    reply
 }
 
 /// Reopen a cancelled tournament (admin)
 /// `POST /api/v1/admin/tournaments/{id}/reopen`
-pub fn reopen_tournament(id: str) -> int {
+pub async fn reopen_tournament(id: str) -> any {
     if id == "" {
         return core::missing("gamend::admin_tournaments::reopen_tournament", "id");
     }
-    core::rest("POST", "/api/v1/admin/tournaments/{id}/reopen")
+    let reply = await core::rest("POST", "/api/v1/admin/tournaments/{id}/reopen");
+    reply
 }
 
 /// Force a match verdict (admin)
 /// `POST /api/v1/admin/tournaments/{id}/matches/{match_id}/resolve`
-pub fn resolve_tournament_match(id: str, match_id: str, params: any) -> int {
+pub async fn resolve_tournament_match(id: str, match_id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::admin_tournaments::resolve_tournament_match", "id");
     }
     if match_id == "" {
         return core::missing("gamend::admin_tournaments::resolve_tournament_match", "match_id");
     }
-    core::rest("POST", "/api/v1/admin/tournaments/{id}/matches/{match_id}/resolve", params)
+    let reply = await core::rest("POST", "/api/v1/admin/tournaments/{id}/matches/{match_id}/resolve", params);
+    reply
 }
 
 /// Confirm an uploaded tournament icon (admin)
 /// `POST /api/v1/admin/tournaments/{id}/icon`
-pub fn set_tournament_icon(id: str, params: any) -> int {
+pub async fn set_tournament_icon(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::admin_tournaments::set_tournament_icon", "id");
     }
     if !core::given(params, "key") {
         return core::missing("gamend::admin_tournaments::set_tournament_icon", "key");
     }
-    core::rest("POST", "/api/v1/admin/tournaments/{id}/icon", params)
+    let reply = await core::rest("POST", "/api/v1/admin/tournaments/{id}/icon", params);
+    reply
 }
 
 /// Request an upload ticket for a tournament icon (admin)
 /// `POST /api/v1/admin/tournaments/{id}/icon/upload_url`
-pub fn tournament_icon_upload_url(id: str, params: any) -> int {
+pub async fn tournament_icon_upload_url(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::admin_tournaments::tournament_icon_upload_url", "id");
     }
     if !core::given(params, "content_type") {
         return core::missing("gamend::admin_tournaments::tournament_icon_upload_url", "content_type");
     }
-    core::rest("POST", "/api/v1/admin/tournaments/{id}/icon/upload_url", params)
+    let reply = await core::rest("POST", "/api/v1/admin/tournaments/{id}/icon/upload_url", params);
+    reply
 }
 
 /// Update tournament (admin)
 /// `PATCH /api/v1/admin/tournaments/{id}`
-pub fn update_tournament(id: str, params: any) -> int {
+pub async fn update_tournament(id: str, params: any) -> any {
     if id == "" {
         return core::missing("gamend::admin_tournaments::update_tournament", "id");
     }
@@ -126,5 +135,6 @@ pub fn update_tournament(id: str, params: any) -> int {
     if !core::given(params, "round_window_sec") {
         return core::missing("gamend::admin_tournaments::update_tournament", "round_window_sec");
     }
-    core::rest("PATCH", "/api/v1/admin/tournaments/{id}", params)
+    let reply = await core::rest("PATCH", "/api/v1/admin/tournaments/{id}", params);
+    reply
 }

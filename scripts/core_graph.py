@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The core split's `use` graph (docs/PLAN-core-split.md): every `crate::`
+"""The core split's `use` graph: every `crate::`
 path each balaur_core module uses, and the edges that cross the crate table.
 
 A crate may use the kernel and crates of a lower rank; crates of one rank

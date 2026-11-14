@@ -2,7 +2,7 @@
 # Sign an exported game with a certificate this script makes, and check what
 # came out. The root is a throwaway, so `codesign --verify` and `signtool
 # verify` answer for the shape of a signature and never for who signed it;
-# what needs a real identity is docs/PLAN-actions.md's, not this script's.
+# what needs a real identity is docs/actions.md's, not this script's.
 #
 # Usage: signing_check.sh <balaur-binary> <target>
 set -euo pipefail

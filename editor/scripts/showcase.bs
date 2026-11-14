@@ -21,12 +21,14 @@ use lint;
 use manager;
 use model;
 use rig;
+use sceneedit;
 use selection;
 use session;
 use settings;
 use shell;
 use signals;
 use theme;
+use themeedit;
 use themewin;
 use util;
 use viewport;
@@ -351,7 +353,7 @@ fn tool_spot(state: editor::State, tool: str) -> [float] {
 
 // The centre of the node at `path`, or nothing before it has drawn.
 fn centre_of(path: str) -> [float] {
-    let node = scene::get_node(path);
+    let node = scene::root().get_node(path);
     let rect = if node.is_valid() { ui::widget_rect(node) } else { nil };
     if rect == nil {
         return [];
@@ -406,9 +408,9 @@ fn scrolled_gutter_spot(state: &mut editor::State, rel: str, line: int, row: int
     let lines = model::source(state, rel).as_str().split("\n").len();
     // The pane stops scrolling at its last line, and the cursor has to stop
     // with it: past that the mark is drawn where the line is not.
-    let last = util::max(0.0, CODE_TOP + ((lines + 2) as float) * LINE_HEIGHT - doc["height"].as_float());
+    let last = math::max(0.0, CODE_TOP + ((lines + 2) as float) * LINE_HEIGHT - doc["height"].as_float());
     let want = if line > row { ((line - row) as float) * LINE_HEIGHT } else { 0.0 };
-    let off = util::min(want, last);
+    let off = math::min(want, last);
     state.code_scroll = off;
     return [doc["x"].as_float() + 17.0, doc["y"].as_float() + CODE_TOP + ((line - 1) as float) * LINE_HEIGHT - off];
 }
@@ -536,113 +538,104 @@ fn restore_source(state: &mut editor::State, rel: str) {
 // What the clips do, by the name a step carries, with what else it carries.
 fn verb(state: &mut editor::State, data: any) {
     let name = data["verb"].as_str();
-    if name == "workspace" {
-        shell::set_workspace(state, data["id"].as_str());
-    } else if name == "choose" {
-        let index = index_of(state, data["name"].as_str());
-        if index != nil {
-            shell::choose(state, index.unwrap());
+    match name {
+        "workspace" => { shell::set_workspace(state, data["id"].as_str()); }
+        "choose" => {
+            let index = index_of(state, data["name"].as_str());
+            if index != nil {
+                shell::choose(state, index.unwrap());
+            }
         }
-    } else if name == "play" {
-        shell::toggle_play(state);
-    } else if name == "stop" {
-        shell::stop_play(state);
-    } else if name == "undo" {
-        shell::undo(state);
-    } else if name == "save" {
-        shell::save_active(state);
-    } else if name == "focus" {
-        shell::toggle_focus(state);
-    } else if name == "palette" {
-        shell::open_palette(state, "");
-    } else if name == "dock" {
-        docks::show(state, data["id"].as_str());
-    } else if name == "doctab" {
-        state.doctab = data["id"].as_str();
-        signals::inspector(state);
-    } else if name == "shader" {
-        state.shader_rel = data["rel"].as_str();
-        state.doctab = "script";
-        signals::inspector(state);
-    } else if name == "debug_view" {
-        render::set_debug_view(data["id"].as_str());
-    } else if name == "zoom" {
-        shell::set_zoom(state, data["to"].as_float());
-    } else if name == "keep" {
-        state.showcase.unwrap().kept[data["rel"].as_str()] = model::source(state, data["rel"].as_str()).as_str();
-    } else if name == "edit" {
-        edit_source(state, data["rel"].as_str(), data["from"].as_str(), data["to"].as_str());
-    } else if name == "restore" {
-        restore_source(state, data["rel"].as_str());
-    } else if name == "breakpoint" {
-        let rel = data["rel"].as_str();
-        shell::toggle_breakpoint(state, rel, line_of(state, rel, data["needle"].as_str()));
-    } else if name == "step_over" {
-        if state.debug.paused.kind() == "map" {
-            shell::resume(state, debugger::STEP_OVER);
+        "play" => { shell::toggle_play(state); }
+        "stop" => { shell::stop_play(state); }
+        "undo" => { shell::undo(state); }
+        "save" => { shell::save_active(state); }
+        "focus" => { shell::toggle_focus(state); }
+        "palette" => { shell::open_palette(state, ""); }
+        "dock" => { docks::show(state, data["id"].as_str()); }
+        "doctab" => {
+            state.doctab = data["id"].as_str();
+            signals::inspector(state);
         }
-    } else if name == "continue" {
-        if state.debug.paused.kind() == "map" {
-            shell::resume(state, debugger::CONTINUE);
+        "shader" => {
+            state.shader_rel = data["rel"].as_str();
+            state.doctab = "script";
+            signals::inspector(state);
         }
-    } else if name == "record" {
-        history::record(state, data["label"].as_str());
-    } else if name == "seek" {
-        anim::seek(state, data["time"].as_float());
-    } else if name == "key" {
-        anim::add_key(state, state.anim.time);
-    } else if name == "bone_tool" {
-        state.tool = "bone";
-        signals::inspector(state);
-    } else if name == "fit_level" {
-        // The angrynerds level framed for the viewport: the game's own camera
-        // is set for a whole window, and the editor's panels cover its edges.
-        model::set_view_2d(1.0, 2.2, 30.0);
-    } else if name == "fit_figure" {
-        fit_figure(state);
-    } else if name == "open_newest" {
-        let rows = session::listing(state);
-        if rows.len() > 0 {
-            session::open(state, rows[0].name);
+        "debug_view" => { render::set_debug_view(data["id"].as_str()); }
+        "zoom" => { shell::set_zoom(state, data["to"].as_float()); }
+        "keep" => { state.showcase.unwrap().kept[data["rel"].as_str()] = model::source(state, data["rel"].as_str()).as_str(); }
+        "edit" => { edit_source(state, data["rel"].as_str(), data["from"].as_str(), data["to"].as_str()); }
+        "restore" => { restore_source(state, data["rel"].as_str()); }
+        "breakpoint" => {
+            let rel = data["rel"].as_str();
+            shell::toggle_breakpoint(state, rel, line_of(state, rel, data["needle"].as_str()));
         }
-    } else if name == "verify" {
-        state.session.verify = true;
-        signals::changed(state, "recordings");
-    } else if name == "manager" {
-        manager::open(state);
-    } else if name == "manager_tab" {
-        state.manager.tab = data["id"].as_str();
-    } else if name == "manager_new" {
-        manager::open_new(state);
-    } else if name == "drip_off" {
-        // The queue's own drip is off; the pointer takes one file per beat.
-        state.import_drip = false;
-    } else if name == "import_next" {
-        if state.import_queue.len() > 0 {
-            dropin::take(state, state.import_queue.remove(0));
+        "step_over" => {
+            if state.debug.paused.kind() == "map" {
+                shell::resume(state, debugger::STEP_OVER);
+            }
         }
-    } else if name == "theme" {
-        shell::close_palette(state);
-        themewin::open(state);
-    } else if name == "theme_duplicate" {
-        themewin::duplicate(state);
-    } else if name == "theme_page" {
-        state.themewin.page = data["id"].as_str();
-    } else if name == "theme_role" {
-        themewin::show_role(state, data["id"].as_str(), "");
-    } else if name == "theme_save" {
-        themewin::save(state);
-    } else if name == "window_hide" {
-        window::hide(state);
-    } else if name == "theme_put_back" {
-        // Put back what the take changed on disk, with the editor still
-        // wearing the copy for the frames already written.
-        fs::remove(theme::path_of(state.theme["name"].as_str(), state.theme["half"].as_str()));
-        if data["kept"].kind() == "str" {
-            fs::write(data["prefs"].as_str(), data["kept"].as_str());
-        } else {
-            fs::remove(data["prefs"].as_str());
+        "continue" => {
+            if state.debug.paused.kind() == "map" {
+                shell::resume(state, debugger::CONTINUE);
+            }
         }
+        "record" => { history::record(state, data["label"].as_str()); }
+        "seek" => { anim::seek(state, data["time"].as_float()); }
+        "key" => { anim::add_key(state, state.anim.time); }
+        "bone_tool" => {
+            state.tool = "bone";
+            signals::inspector(state);
+        }
+        "fit_level" => {
+            // The angrynerds level framed for the viewport: the game's own camera
+            // is set for a whole window, and the editor's panels cover its edges.
+            model::set_view_2d(1.0, 2.2, 30.0);
+        }
+        "fit_figure" => { fit_figure(state); }
+        "open_newest" => {
+            let rows = session::listing(state);
+            if rows.len() > 0 {
+                session::open(state, rows[0].name);
+            }
+        }
+        "verify" => {
+            state.session.verify = true;
+            signals::changed(state, "recordings");
+        }
+        "manager" => { manager::open(state); }
+        "manager_tab" => { state.manager.tab = data["id"].as_str(); }
+        "manager_new" => { manager::open_new(state); }
+        "drip_off" => {
+            // The queue's own drip is off; the pointer takes one file per beat.
+            state.import_drip = false;
+        }
+        "import_next" => {
+            if state.import_queue.len() > 0 {
+                dropin::take(state, state.import_queue.remove(0));
+            }
+        }
+        "theme" => {
+            shell::close_palette(state);
+            themewin::open(state);
+        }
+        "theme_duplicate" => { themeedit::duplicate(state); }
+        "theme_page" => { state.themewin.page = data["id"].as_str(); }
+        "theme_role" => { themewin::show_role(state, data["id"].as_str(), ""); }
+        "theme_save" => { themeedit::save(state); }
+        "window_hide" => { window::hide(state); }
+        "theme_put_back" => {
+            // Put back what the take changed on disk, with the editor still
+            // wearing the copy for the frames already written.
+            fs::remove(theme::path_of(state.theme["name"].as_str(), state.theme["half"].as_str()));
+            if data["kept"].kind() == "str" {
+                fs::write(data["prefs"].as_str(), data["kept"].as_str());
+            } else {
+                fs::remove(data["prefs"].as_str());
+            }
+        }
+        _ => {}
     }
 }
 
@@ -654,7 +647,7 @@ fn fit_figure(state: &mut editor::State) {
     if found != nil {
         selection::only(state, found.unwrap());
         model::set_transform(state, found.unwrap(), rig::Parts { position: [0.6, 0.1, 0.0], rotation_euler: [], scale: [] });
-        model::set_component_property(state, "camera2d", "pixels_per_unit", 150.0);
+        sceneedit::set_component_property(state, "camera2d", "pixels_per_unit", 150.0);
     }
     selection::only(state, held);
 }
@@ -925,7 +918,7 @@ const SIDE: str = "Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows";
 // A form row's control, found by the row's label: the rows are pooled, so a
 // row's index moves with whatever the page shows above it.
 fn form_control(label: str, at: int) -> [float] {
-    let host = scene::get_node(FORM);
+    let host = scene::root().get_node(FORM);
     if !host.is_valid() {
         return [];
     }
@@ -942,7 +935,7 @@ fn form_control(label: str, at: int) -> [float] {
 // The head row's buttons, by their caption.
 fn head_control(text: str) -> [float] {
     let slot = FORM + "/C0/C1";
-    let host = scene::get_node(slot);
+    let host = scene::root().get_node(slot);
     if !host.is_valid() {
         return [];
     }
@@ -995,13 +988,13 @@ fn theme_editor(state: &mut editor::State, sequence: Sequence) {
 fn typing(state: &mut editor::State, data: any, progress: float) {
     let word = data["word"].as_str();
     let last = word.len() as float;
-    state.palette_query = word.slice(0, util::min(last, progress * (last + 1.0)) as int);
+    state.palette_query = word.slice(0, math::min(last, progress * (last + 1.0)) as int);
 }
 
 fn recolouring(state: &mut editor::State, data: any, progress: float) {
-    themewin::edit(state, ["colors"], "primary", mix("#4287cc", "#c8843e", ease(progress)));
+    themeedit::edit(state, ["colors"], "primary", mix("#4287cc", "#c8843e", ease(progress)));
 }
 
 fn padding_out(state: &mut editor::State, data: any, progress: float) {
-    themewin::edit(state, ["roles", "chip"], "padding_x", (lerp(8.0, 16.0, ease(progress)) + 0.5) as int);
+    themeedit::edit(state, ["roles", "chip"], "padding_x", (lerp(8.0, 16.0, ease(progress)) + 0.5) as int);
 }

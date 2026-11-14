@@ -1,6 +1,5 @@
 //! The boxes the controls egui lays out are drawn in, worked out once for
-//! both the draw and the measure, so a row sized from one holds the other
-//! (docs/PLAN-ui-gaps.md §2).
+//! both the draw and the measure, so a row sized from one holds the other.
 
 use egui::{Color32, vec2};
 

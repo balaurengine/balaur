@@ -144,8 +144,61 @@ In the order they get fixed.
     `balaur_ui::widget::layer::tip`, which hashes the node and not the layer.
     It needs a run that reproduces it before a fix; a release build has no
     such check.
-
-## 3. The API
+19. **A replay asked the machine for its audio device.** Built: a script
+    that branched on `audio::device_ready` took the other branch when
+    replayed on a machine with other speakers or none. The answers of
+    `device_ready` and `devices` are recorded now, `init`'s in the header,
+    and a replay answers from them.
+20. **A replay reads `cmd` in a binding as its own machine does.** Not
+    fixed: `InputSnapshot::command_is_meta` is not recorded, so a Mac
+    recording replayed on Linux answers `input::action_*` for `cmd+KeyZ` as
+    Ctrl. It belongs in the header, with the web backend kept from
+    overwriting it each frame.
+21. **A replay's `init` read another dark mode.** Built: `balaur run` seeds
+    `DeviceFacts::dark_mode` before `init`, while `balaur replay` begins
+    playing first, so `update_device` was ignored and `init` read the
+    default. The device facts are in the header's setup now, amended by a
+    report in the frame the recording opens in, and a replay restores them
+    before `init`.
+22. **An `internal async fn` could not be called from another file.**
+    Built: the call compiled and failed at run time with "no `inner$start`
+    for scripts/other.bs". A unit gave the units that call it an async
+    function's `$start` and `$poll` only when it was `pub`; an `internal`
+    one's go to its package now, as a plain function's did.
+23. **A platform could tick at its own rate.** Built: `[time] tick_hz` was
+    read through `settings::get`, so `[override.android.time] tick_hz = 30`
+    stepped a phone at 30 while its recordings and matches assumed one rate.
+    Loading refuses an override of a setting whose spec says `overridable =
+    false`, as `tick_hz` does, and the rate is read from the base value.
+24. **A game the editor plays read the editor's files.** Built: its scripts
+    are keyed from the game's root, but `fs` resolved a relative path against
+    the editor's, so `fs::read("scenes/flat.toml")` answered nil and
+    `scene::source` was kept for it. A script keyed inside a root the host
+    added reads, writes and lists under that root, or its dependency's
+    folder; the editor's own scripts are keyed relative and keep its root.
+    `scene::source` is gone.
+25. **A replay took the project's tick rate.** Built: `balaur replay` began
+    the session, restoring the header's rate, and then loading the project
+    set `[time] tick_hz` over it, so a project edited since the recording
+    replayed at the new rate. A replay keeps the header's rate, and a
+    recording opened before the project loads, as `balaur run --record`
+    opens one, takes the rate the project sets into its header.
+26. **`task::seconds` woke a step late.** Built: it subtracted each step's
+    `dt` from an `f32`, so 226 of the 599 whole-step waits up to 10 seconds
+    woke one step late, 4/60 taking 5 steps. A wait is counted in steps now,
+    `ceil(seconds * tick_hz)` with a product within 1e-6 of a whole step
+    taken as that step, so a pause holds it as it holds `task::frames`. A
+    recording made before replays such a wait a step sooner.
+27. **Two file-watcher tests failed in a full suite run.** Built:
+    `script_reload::a_watched_directory_says_what_changed_and_reloads_its_scripts`
+    and `ten_thousand_files_changed_at_once_arrive_in_a_handful_of_lists`
+    heard nothing for over a minute in 1 of 8 parallel suite runs, and in 7
+    of 8 beside a docs build. Load was not the cause: macOS starts about 512
+    FSEvents streams a process, a new one past them hears nothing, and every
+    dropped `App` kept its script host and its stream, since the host and the
+    engine held each other. An `App` now takes its host out of the engine as
+    it drops. The tests write once and wait for the event itself, capped at a
+    minute of ticks, where they wrote again on a timer.
 
 Decided 2026-11-13. Each item breaks scripts, so each lands with the editor,
 the library, the examples and Polyglot Pirates changed in the same commit.
@@ -169,7 +222,6 @@ the library, the examples and Polyglot Pirates changed in the same commit.
    `project` and `forge`. `balaur::ToolsPlugin` holds `debugger` and the
    `script::` tool verbs, which the editor's binary registers and no game's
    runtime does, and `script::store` is `engine::store`.
-   `PLAN-engine-core.md` lists each.
 3. **The demo plugin leaves the editor.** Built: the Counter dock's plugin
    is `scripts/plugins/counter.bs`, which `scripts/e2e.sh` copies into the
    project it runs `test:plugin_docks` on.
@@ -177,7 +229,7 @@ the library, the examples and Polyglot Pirates changed in the same commit.
    `softbody2d.area()`, `joint2d.force()`, `vehicle3d.speed()`.
    `balaur_script::handle_method` names every handle's methods, and one that
    would spell a property takes a noun of its own, as
-   `collider2d.total_mass()` does. A soft body sleeps and wakes with the
+   `collider2d.mass_properties()` does. A soft body sleeps and wakes with the
    body's own `is_sleeping` and `wake_up`.
 5. **Vectors in, vectors out.** Built: a function that takes a point, an
    offset, a size, a direction or a velocity takes a `Vec2` or a `Vec3`, and
@@ -206,8 +258,9 @@ the library, the examples and Polyglot Pirates changed in the same commit.
    too for what nothing called: `multimesh2d.set_instance_region`, which drew
    nothing, and `render::set_shader_probe` with the `shader_probe` that read
    its answer. Kept, each the only reach a script has: the
-   `ui::focus_*` verbs, `engine::environment`, and `node.set_property`, which
-   is what `node.component.x = v` compiles to. The focus verbs have no test.
+   `ui::focus_*` verbs and `engine::environment`. The focus verbs have no
+   test. `node.set_property`, a second spelling of `patch_component`, is
+   gone; `node.component.x = v` compiles to the property's own binding.
 10. **An example plays sound.** Built: `examples/sound` loops a positional
     hum, rings a bell from a `timer` and counts its `sound_finished`, and
     plays a thud with `audio::play_file` when a ball lands. `scripts/make_sounds.py`
@@ -278,7 +331,9 @@ frame to see whether it moved.
    real mouse and a trackpad, an IME, a window resized and made full screen,
    a second display, the 14-inch window, an export opened on a real phone,
    on Windows and on Linux, sound by ear, and the first launch of the signed
-   download.
+   download. On a Linux desktop, a flip of the system's dark mode while the
+   editor idles redraws it in the new look: `appearance::is_dark` wakes the
+   loop, and no machine has run it yet.
 
 ## 6. The first app
 
@@ -292,8 +347,8 @@ Polyglot Pirates is seven scenes of a design mock in
 
 ## 7. Not planned here
 
-- **A CI job with a GPU.** `PLAN-hardening.md` phase 4 holds it; the
+- **A CI job with a GPU.** `PLAN-hardening.md` step 1 holds it; the
   pictures in §5 run on a developer's machine first.
 - **Scene `bindings` and `states`,** the `state_machine` and the built-in
-  focus controller stay in the engine: `PLAN-engine-core.md` lists them as
-  product decisions.
+  focus controller stay in the engine: `ARCHITECTURE.md` "What stays native"
+  lists them as product decisions.

@@ -12,19 +12,19 @@ impl Scenario {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE });
         n.softbody3d.pin_particle(0);
-        self.first = n.softbody3d.particle_position(0).y;
+        self.first = n.softbody3d.particle(0).position.y;
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 4 {
-            if math::abs(n.softbody3d.particle_position(0).y - self.first) >= 0.001 { log::error("the pinned particle fell"); }
-            if n.softbody3d.particle_position(7).y >= self.first { log::error("the free end did not fall"); }
+            if math::abs(n.softbody3d.particle(0).position.y - self.first) >= 0.001 { log::error("the pinned particle fell"); }
+            if n.softbody3d.particle(7).position.y >= self.first { log::error("the free end did not fall"); }
             n.softbody3d.unpin_particle(0);
         }
         if self.ticks == 10 {
-            if n.softbody3d.particle_position(0).y >= self.first - 0.001 { log::error("the released particle stayed put"); }
+            if n.softbody3d.particle(0).position.y >= self.first - 0.001 { log::error("the released particle stayed put"); }
             log::error("checked: held and let go");
         }
     }
@@ -49,7 +49,7 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
-            let at = self.node.softbody3d.particle_position(0);
+            let at = self.node.softbody3d.particle(0).position;
             if !(math::abs(at.x - 2.0) < 0.01 && math::abs(at.y - 1.0) < 0.01) { log::error("the held particle did not move to its target"); }
             log::error("checked: dragged");
         }
@@ -70,15 +70,15 @@ impl Scenario {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "pinned_particles": [0] });
         n.softbody3d.apply_impulse(vec3(0.0, 20.0, 0.0));
-        self.first = n.softbody3d.particle_position(7).y;
+        self.first = n.softbody3d.particle(7).position.y;
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 2 {
-            if n.softbody3d.particle_position(7).y <= self.first { log::error("the kick did not lift the free end"); }
-            if n.softbody3d.particle_velocity(7).y <= 0.0 { log::error("and it is not moving up"); }
+            if n.softbody3d.particle(7).position.y <= self.first { log::error("the kick did not lift the free end"); }
+            if n.softbody3d.particle(7).velocity.y <= 0.0 { log::error("and it is not moving up"); }
             let edges = n.softbody3d.edges();
             if !(edges.len() > 0 && edges.len() == n.softbody3d.stress().len()) { log::error("the edges and their stress do not line up"); }
             if edges[0].len() != 2 { log::error("an edge is two particle indices"); }
@@ -103,7 +103,7 @@ impl Scenario {
         hook.set_component("body3d", { "kind": physics3d::BODY_STATIC });
         self.node.set_component("soft_rope3d", { "particle_count": 8 }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE });
         self.hook = hook;
-        self.first = self.node.softbody3d.particle_position(0).y;
+        self.first = self.node.softbody3d.particle(0).position.y;
     }
 
     fn fixed_update(dt: float) {
@@ -113,7 +113,7 @@ impl Scenario {
             n.softbody3d.attach_particle(0, self.hook);
         }
         if self.ticks == 20 {
-            if n.softbody3d.particle_position(0).y <= self.first - 0.2 { log::error("the tied particle fell away from the body"); }
+            if n.softbody3d.particle(0).position.y <= self.first - 0.2 { log::error("the tied particle fell away from the body"); }
             if !n.softbody3d.detach_particle(0) { log::error("the particle was not attached"); }
             log::error("checked: tied");
         }
@@ -145,7 +145,7 @@ impl Scenario {
             if blob.softbody2d.is_sleeping() { log::error("a body just struck is asleep"); }
             let held = blob.softbody2d.particle(0);
             if !held.pinned { log::error("the pinned particle reads free"); }
-            if held.position.x != blob.softbody2d.particle_position(0).x { log::error("the particle's row is elsewhere"); }
+            if held.position.x != blob.softbody2d.particle(0).position.x { log::error("the particle's row is elsewhere"); }
             log::error("checked: 2d");
         }
     }

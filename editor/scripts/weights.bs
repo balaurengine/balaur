@@ -79,7 +79,7 @@ fn set_weight(bone: any, at: int, value: float) {
     while weights.len() <= at {
         weights.push(0.0);
     }
-    let clamped = util::clamp(value, 0.0, 1.0);
+    let clamped = math::clamp(value, 0.0, 1.0);
     weights[at] = if clamped < EPSILON { 0.0 } else { clamped };
 }
 
@@ -195,7 +195,7 @@ pub fn auto(state: &mut editor::State) {
             let distance = if segment != nil { rig::segment_distance(point, segment.unwrap().origin, segment.unwrap().tip) } else { -1.0 };
             // A vertex sitting on a bone would divide by zero; the floor
             // is a millimetre at the scale a 2D rig is built in.
-            let weight = if distance < 0.0 { 0.0 } else { 1.0 / util::max(distance * distance, 1e-6) };
+            let weight = if distance < 0.0 { 0.0 } else { 1.0 / math::max(distance * distance, 1e-6) };
             near.push(weight);
             total += weight;
         }
@@ -407,7 +407,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> form::Row {
     }
     // A sum that is not one is what a Normalise is for, so it is said rather
     // than silently corrected.
-    let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
+    let off = math::abs(total - 1.0) > 0.01 && total > 0.0;
     controls.push(label(util::fixed(total, 2), CELL_WIDTH, if off { "text_caption_primary" } else { roles::TEXT_CODE_QUIET }));
     form::Row { height: ROW_HEIGHT, controls: controls }
 }

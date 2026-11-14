@@ -160,7 +160,7 @@ fn derived_read(eng: &Engine, entity: Entity, index: usize, key: &str) -> Option
 /// Where a property sits and what a write of it feeds: its component's place
 /// in the registry, its own in the schema, the registry and the change log,
 /// found once by a caller that reads or writes it again and again, as a
-/// script's `node.c.p` does (PLAN-balaur-script §9 step 6).
+/// script's `node.c.p` does.
 pub struct PropertyPlace {
     component: usize,
     position: usize,

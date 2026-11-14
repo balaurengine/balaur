@@ -50,4 +50,9 @@ pub(crate) mod words {
     pub(crate) mod general {
         pub(crate) const AUDIO: &str = "audio";
     }
+
+    /// The names a recording files the crate's answers under.
+    pub(crate) mod replay {
+        pub(crate) const AUDIO_DEVICE: &str = "audio_device";
+    }
 }

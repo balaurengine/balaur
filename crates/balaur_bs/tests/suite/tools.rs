@@ -121,6 +121,22 @@ fn a_bare_name_completes_locals_functions_and_modules() {
 }
 
 #[test]
+fn a_prelude_module_completes_as_an_engine_one_does() {
+    assert!(complete_typing("enc").contains(&"encoding".to_string()));
+    assert_eq!(
+        complete_typing("encoding::"),
+        ["base64", "from_base64", "from_utf8"]
+    );
+    assert_eq!(complete_typing("random::"), ["at", "uuid"]);
+    assert!(complete_typing("label.").contains(&"bytes".to_string()));
+    let typed = analyze(
+        "pub fn f() -> str { let t = encoding::from_utf8([104]); t.unwrap() }",
+        &api(),
+    );
+    assert!(typed.error().is_none(), "{:?}", typed.error());
+}
+
+#[test]
 fn hover_names_the_type_and_definition_finds_the_declaration() {
     let a = analyze(SRC, &api());
     assert!(a.error().is_none(), "{:?}", a.error());

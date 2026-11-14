@@ -1,4 +1,4 @@
-//! Relationships (PLAN-ecs §2): a source's target and the target's sources
+//! Relationships: a source's target and the target's sources
 //! kept in step, the scene tree first.
 
 use balaur_core::relationships::{self, Relationship, Sources};

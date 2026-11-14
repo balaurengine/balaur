@@ -1,0 +1,807 @@
+// Self-tests of the Inspector and the panels built on it: the physics
+// panel, script and composite properties, recorded assets, recipes, type
+// changes, warnings, the pooled rows and their forms.
+
+use editor;
+use events;
+use inspector;
+use lint;
+use model;
+use newnode;
+use palette;
+use physics;
+use polygon;
+use pool;
+use recipes;
+use sceneedit;
+use search;
+use selection;
+use selftest;
+use shell;
+use tests::project_checks;
+use util;
+use tests::viewport_checks;
+
+/// The Physics panel: what its rows add, what its shape actions write, and
+/// that every property the soft body declares is one the inspector can draw.
+pub fn physics_panel(state: &mut editor::State) {
+    let target: int? = nil;
+    for index in 0..state.nodes.len() {
+        if model::node(state, index).has_component("mesh") || model::node(state, index).has_component("polygon") {
+            target = index;
+            break;
+        }
+    }
+    if target == nil {
+        log::info("selftest physics panel: no node with a mesh; skipped");
+        return;
+    }
+    let target = target.unwrap();
+    shell::choose(state, target);
+    let two_d = model::is_2d(state);
+    let collider = if two_d { "collider2d" } else { "collider3d" };
+    let soft = if two_d { "softbody2d" } else { "softbody3d" };
+    sceneedit::add_component(state, collider);
+    selftest::check(util::contains(inspector::node_components(state), collider), "the inspector lists the {collider} it added");
+    // What the mesh can become is the palette's, offered for this node alone.
+    let offered: [str] = [];
+    for verb in palette::node_verbs(state) {
+        offered.push(verb.label);
+    }
+    selftest::check(util::contains(offered, "Collide as hull") && util::contains(offered, "Deform as surface"), "the palette offers the shapes the mesh can be turned into");
+    // A shape action writes the mesh and the kind together, in one undo.
+    let source = if two_d {
+        polygon::component(state, model::node(state, target))["mesh"]
+    } else {
+        model::node(state, target).authored("mesh")["source"]
+    };
+    sceneedit::set_component_properties(state, collider, { "shape": { "kind": "convex_decomposition", "mesh": source } });
+    let written = util::map_or_empty(util::map_or_empty(model::node(state, target).authored(collider))["shape"]);
+    selftest::check(written["kind"].as_str() == "convex_decomposition", "the decomposition action wrote the collider's kind");
+    // The tetrahedrization, and every property it declares drawable.
+    sceneedit::set_component_properties(state, soft, { "kind": "volumetric", "mesh": source });
+    let schema = model::schema(state, soft);
+    let missing: [str] = [];
+    for property in util::keys_sorted(schema) {
+        let spec = schema[property];
+        if spec["type"].as_str() == "" {
+            missing.push(property);
+        }
+    }
+    selftest::check(missing.len() == 0, "every {soft} property has a type the inspector can draw");
+    selftest::check(schema.has("soft_material"), "the soft body names what it is made of");
+    let made = util::map_or_empty(assets::schema("soft_material"));
+    selftest::check(made.has("young_modulus") && made.has("tear_strain"), "the soft material holds the mechanical rows");
+    selftest::check(selftest::mirror_resolves(state), "the scene resolves with a soft body on it");
+    each_from_its_own_mesh(state, two_d, collider);
+    selftest::undo_all(state);
+    selftest::check(selftest::mirror_resolves(state), "the undone scene resolves");
+    log::info("selftest physics panel: done");
+}
+
+// Two meshed nodes turned into colliders at once: each is built from its own
+// mesh, not the active row's.
+fn each_from_its_own_mesh(state: &mut editor::State, two_d: bool, collider: str) {
+    let meshed: [int] = [];
+    for index in 0..state.nodes.len() {
+        if physics::drawn_mesh(model::node(state, index), two_d) != nil {
+            meshed.push(index);
+        }
+    }
+    if meshed.len() < 2 {
+        log::info("selftest physics panel: one meshed node, the selection not checked");
+        return;
+    }
+    let pair = [meshed[0], meshed[1]];
+    selection::set(state, pair);
+    let hull = if two_d { physics2d::SHAPE_CONVEX_HULL } else { physics3d::SHAPE_CONVEX_HULL };
+    physics::make_collider(state, two_d, { "kind": hull }, {});
+    for index in pair {
+        let wrote = util::map_or_empty(util::map_or_empty(model::node(state, index).authored(collider))["shape"])["mesh"];
+        let own = physics::drawn_mesh(model::node(state, index), two_d);
+        selftest::check(wrote == own, "'{model::node(state, index).name()}' is built from its own mesh ({wrote})");
+    }
+}
+
+// Exported script properties: what the script declares, what the node
+// overrides, and the sparseness that keeps a default reaching every node that
+// left it alone.
+pub fn script_props(state: &mut editor::State) {
+    let found = viewport_checks::first_number_export(state);
+    if found == nil {
+        log::info("selftest props: no script in this scene exports a number, skipped");
+        return;
+    }
+    let index = found.unwrap().at;
+    let export = found.unwrap().export;
+    shell::choose(state, index);
+    let rel = model::script_rel(model::node(state, index));
+    let name = export["name"].as_str();
+    selftest::check(export["type"].as_str() != "", "{rel} declares a type for {name}");
+    let was = export["default"].as_float();
+    model::set_script_property(state, name, was + 5.0);
+    let properties = model::script_props(model::node(state, index));
+    selftest::check(properties.has(name), "{name} became an override on the node");
+    selftest::check(math::abs(properties[name].as_float() - (was + 5.0)) < 1e-6, "{name} holds the written value ({properties[name]})");
+    inspector::refill(state);
+    selftest::check(inspector::line_named(state, "script.{name}") != nil, "{name} is a row of the `script` component's section");
+    // Back to the default: the override is dropped rather than written out,
+    // so a later change to the script's default reaches this node again.
+    model::set_script_property(state, name, was);
+    selftest::check(!model::script_props(model::node(state, index)).has(name), "{name} back at its default stops being an override");
+    shell::undo(state);
+    selftest::check(model::script_props(model::node(state, index)).has(name), "undo brings the override back");
+    selftest::check(selftest::mirror_resolves(state), "the mirror still resolves after editing properties");
+    log::info("selftest props: done");
+}
+
+// A node carrying a `list` property that holds what is written to it: some
+// are read back from a backend that only keeps what its own kind uses, and a
+// test of the editors needs one whose value stays put.
+fn writable_list(state: &mut editor::State) -> selftest::WritableList? {
+    for index in 0..state.nodes.len() {
+        let found = model::node(state, index);
+        if !found.is_valid() {
+            continue;
+        }
+        for component in found.component_names() {
+            let schema = model::schema(state, component);
+            for property in util::keys_sorted(schema) {
+                let spec = schema[property];
+                let writable = spec["readonly"].as_bool() != true;
+                if spec["type"].as_str() != "list" || !writable {
+                    continue;
+                }
+                if util::map_or_empty(spec["of"])["type"].as_str() != "string" {
+                    continue;
+                }
+                // Not the camera's frame passes: the schema says `string`,
+                // but a name the engine does not own is a material asset, so
+                // `one`/`two` make the renderer log every frame after.
+                if property == "post" {
+                    continue;
+                }
+                shell::choose(state, index);
+                sceneedit::set_component_property(state, component, property, ["one", "two"]);
+                if list_now(state, index, component, property).len() == 2 {
+                    return selftest::WritableList { at: index, component: component, property: property, spec: spec };
+                }
+            }
+        }
+    }
+    nil
+}
+
+fn list_now(state: editor::State, index: int, component: str, property: str) -> any {
+    let found = model::node(state, index);
+    if !found.is_valid() {
+        return [];
+    }
+    util::list_or_empty(util::map_or_empty(found.get_component(component))[property])
+}
+
+// A property that holds other properties: what the inspector writes when a
+// row inside one is edited, which is the whole value with that one part of it
+// replaced.
+pub fn composite_props(state: &mut editor::State) {
+    let found = writable_list(state);
+    if found == nil {
+        log::info("selftest composites: no component here holds a list that sticks; skipped");
+        return;
+    }
+    let index = found.unwrap().at;
+    let component = found.unwrap().component;
+    let property = found.unwrap().property;
+    let of = util::map_or_empty(found.unwrap().spec["of"]);
+    selftest::check(of.has("type"), "{component}.{property} says what it holds");
+    selftest::check(of.has("default"), "{component}.{property} holds a default for a new entry");
+    let at = inspector::at_top(component, property, ["one", "two"]);
+    inspector::write_at(state, inspector::at_step(at, 1, "1"), "three");
+    let now = list_now(state, index, component, property);
+    selftest::check(now.len() == 2, "{component}.{property} still holds two ({now.len()})");
+    selftest::check(now[0].as_str() == "one", "the entry beside it is untouched");
+    selftest::check(now[1].as_str() == "three", "the edited entry took the write ({now})");
+    inspector::drop_entry(state, at, 0);
+    let left = list_now(state, index, component, property);
+    selftest::check(left.len() == 1, "an entry taken out leaves one ({left.len()})");
+    selftest::check(left[0].as_str() == "three", "the one left is the one that stayed");
+    inspector::add_entry(state, at, of, "");
+    let grown = list_now(state, index, component, property);
+    selftest::check(grown.len() == 2, "an added entry makes two ({grown.len()})");
+    selftest::check(grown[1] == of["default"], "a new entry starts at the spec's default");
+    selftest::undo_all(state);
+    selftest::check(selftest::mirror_resolves(state), "the mirror still resolves after editing a list");
+    // Left where a picture of it is worth taking: three entries, the fold
+    // they sit in open, and the rest of the schema searched away.
+    sceneedit::set_component_property(state, component, property, ["ssao", "bloom", "tonemap"]);
+    inspector::fill(state, property);
+    let head = inspector::line_named(state, "{component}.{property}");
+    selftest::check(head != nil && head.unwrap().count == 4, "a list's rows are a head and one an entry ({head})");
+    selftest::check(inspector::line_named(state, "{component}.{property}/1").unwrap().holder != nil, "and an entry's row can take it out");
+    log::info("selftest composites: done");
+}
+
+/// A node with a collider, and which of the two it is: one naming its
+/// material in a file where the scene has one, so both kinds of edit run.
+fn collider_to_edit(state: &mut editor::State) -> any {
+    let first: any = nil;
+    for index in 0..state.nodes.len() {
+        let found = model::node(state, index);
+        if !found.is_valid() {
+            continue;
+        }
+        for component in ["collider2d", "collider3d"] {
+            if !found.has_component(component) {
+                continue;
+            }
+            let at: any = { "at": index, "comp": component };
+            let named = found.component_property(component, "physics_material").as_str();
+            if named != "" && !named.starts_with("#") {
+                return at;
+            }
+            if first == nil {
+                first = at;
+            }
+        }
+    }
+    first
+}
+
+/// `--state test:record_assets`: an edit on a row under a record asset lands
+/// in the definition. On a node naming none, the row takes the definition
+/// inline; naming a file, the file is saved, and put back after.
+pub fn record_assets(state: &mut editor::State) {
+    let found = collider_to_edit(state);
+    if found == nil {
+        log::info("selftest record assets: no collider here; skipped");
+        return;
+    }
+    let index = found["at"].as_int();
+    let component = found["comp"].as_str();
+    shell::choose(state, index);
+    let node = model::node(state, index);
+    let named = node.component_property(component, "physics_material").as_str();
+    let at = inspector::at_top(component, "physics_material", named);
+    let friction = inspector::at_step(at, "friction", "Friction");
+    if named != "" && !named.starts_with("#") {
+        let kept = assets::load(named);
+        inspector::write_at(state, friction, 0.125);
+        let saved = assets::load(named);
+        selftest::check(saved["friction"].as_float() == 0.125, "an edit under a file's row saves the file ({saved})");
+        selftest::check(saved["type"].as_str() == "physics_material", "the saved file keeps its type");
+        assets::save(named, kept);
+        log::info("selftest record assets: {named} edited and put back");
+    }
+    sceneedit::set_component_property(state, component, "physics_material", "");
+    inspector::write_at(state, friction, 0.25);
+    let inline = node.component_property(component, "physics_material").as_str();
+    selftest::check(inline.starts_with("#!"), "an edit on no material writes one inline ({inline})");
+    selftest::check(assets::load(inline)["friction"].as_float() == 0.25, "the inline material holds the edit");
+    inspector::fill(state, "physics_material");
+    let inner = inspector::line_named(state, "{component}.physics_material/friction");
+    selftest::check(inner != nil && inner.unwrap().value.as_float() == 0.25, "the asset's own properties are rows under its row ({inner})");
+    inspector::fill(state, "");
+    inspector::write_at(state, inspector::at_step(at, "restitution", "Restitution"), 0.5);
+    let both = assets::load(node.component_property(component, "physics_material").as_str());
+    selftest::check(both["friction"].as_float() == 0.25, "a second edit keeps the first ({both})");
+    selftest::check(both["restitution"].as_float() == 0.5, "and takes its own");
+    selftest::undo_all(state);
+    selftest::check(selftest::mirror_resolves(state), "the mirror still resolves after editing a material");
+    log::info("selftest record assets: done");
+}
+
+/// A node made a soft body from what it draws, in one undo step: a sprite is
+/// traced into a textured polygon the cells bend, a shape becomes the
+/// generator that matches it, and undo puts the node back.
+pub fn soft_recipes(state: &mut editor::State) {
+    let sprite_row: int? = nil;
+    let shape_row: int? = nil;
+    for index in 0..state.nodes.len() {
+        let source = recipes::soft_body_source(state, index).or("");
+        if source == "sprite" && sprite_row == nil {
+            sprite_row = index;
+        }
+        if source == "shape" && shape_row == nil {
+            shape_row = index;
+        }
+    }
+    if sprite_row == nil && shape_row == nil {
+        log::info("selftest recipes: nothing here to make a soft body of, skipped");
+        return;
+    }
+    if sprite_row != nil {
+        let row = sprite_row.unwrap();
+        selftest::check(recipes::soft_body(state, row), "a sprite becomes a soft body");
+        let node = model::node(state, row);
+        selftest::check(!node.has_component("sprite") && node.has_component("polygon") && node.has_component("softbody2d"), "drawn by a polygon of the image, bent by a soft body");
+        let drawn = util::list_or_empty(node.authored("polygon")["mesh"]["positions"]).len();
+        let built = util::list_or_empty(node.authored("softbody2d")["mesh"]["positions"]).len();
+        selftest::check(drawn >= 3 && drawn == built, "the body is built from the outline the polygon draws ({built} of {drawn})");
+        let bad = project_checks::warned(model::node(state, row));
+        selftest::check(bad.len() == 0, "and the node has nothing to warn about ({bad})");
+        selftest::undo_all(state);
+        selftest::check(model::node(state, row).has_component("sprite") && !model::node(state, row).has_component("softbody2d"), "undo puts the sprite back");
+    }
+    if shape_row != nil {
+        let row = shape_row.unwrap();
+        let two_d = model::node(state, row).has_component("shape2d");
+        selftest::check(recipes::soft_body(state, row), "a shape becomes a soft body");
+        let body = if two_d { "softbody2d" } else { "softbody3d" };
+        let shape = if two_d { "shape2d" } else { "shape3d" };
+        selftest::check(model::node(state, row).has_component(body) && !model::node(state, row).has_component(shape), "the {shape} became a {body} of its size");
+        selftest::check(model::node(state, row).has_component(body), "and the live node has it");
+        selftest::undo_all(state);
+    }
+    log::info("selftest recipes: done");
+}
+
+/// Changing a node's type keeps what it draws: a sprite made a rigid body
+/// gets a collider of its outline, a body made static keeps its collider, a
+/// shape made a polygon keeps its outline, and each is one undo step. A soft
+/// body added from the picker asks what to build it from first.
+pub fn change_types(state: &mut editor::State) {
+    let sprite_row: int? = nil;
+    let shape_row: int? = nil;
+    for index in 0..state.nodes.len() {
+        let node = model::node(state, index);
+        if node.has_component("sprite") && recipes::soft_body_source(state, index).or("") == "sprite" && sprite_row == nil {
+            sprite_row = index;
+        }
+        if node.has_component("shape2d") && !node.has_component("body2d") && shape_row == nil {
+            shape_row = index;
+        }
+    }
+    // Every node lists what it can become without throwing, whatever it holds.
+    let listed = 0;
+    for index in 0..state.nodes.len() {
+        listed += recipes::targets(state, index).len();
+    }
+    selftest::check(listed > 0, "every node lists what it can become ({listed} targets)");
+    if sprite_row == nil && shape_row == nil {
+        log::info("selftest change type: nothing 2D here to change, skipped");
+        return;
+    }
+    if sprite_row != nil {
+        let row = sprite_row.unwrap();
+        selection::only(state, row);
+        let offered: [str] = [];
+        for target in recipes::targets(state, row) {
+            offered.push(target.name);
+        }
+        selftest::check(util::contains(offered, "rigid_body2d") && !util::contains(offered, "rigid_body3d"), "a sprite is offered the 2D types and not the 3D ones ({offered})");
+        selftest::check(recipes::change_type(state, row, "rigid_body2d"), "a sprite becomes a rigid body");
+        let node = model::node(state, row);
+        selftest::check(node.has_component("sprite") && node.has_component("body2d"), "and keeps drawing its sprite");
+        let collider = util::map_or_empty(util::map_or_empty(node.authored("collider2d"))["shape"]);
+        selftest::check(collider["kind"].as_str() == physics2d::SHAPE_CONVEX_DECOMPOSITION && collider["mesh"] != nil, "its collider is cut from the sprite's outline ({collider["kind"]})");
+        selftest::check(model::node(state, row).has_component("collider2d"), "and the live node collides");
+        let bad = project_checks::warned(model::node(state, row));
+        selftest::check(bad.len() == 0, "with nothing to warn about ({bad})");
+        selftest::check(recipes::change_type(state, row, "static_body2d"), "a rigid body becomes a static one");
+        let body = util::map_or_empty(model::node(state, row).authored("body2d"));
+        selftest::check(body["kind"].as_str() == physics2d::BODY_STATIC && util::map_or_empty(util::map_or_empty(model::node(state, row).authored("collider2d"))["shape"])["kind"].as_str() == physics2d::SHAPE_CONVEX_DECOMPOSITION, "and keeps the collider it had");
+        selftest::undo_all(state);
+        selftest::check(!model::node(state, row).has_component("body2d") && !model::node(state, row).has_component("collider2d"), "undo takes both changes back");
+        // The picker's own path: a soft body over a node that draws a sprite
+        // is built from it without asking.
+        newnode::open_change(state);
+        selftest::check(state.newnode && state.newnode_change, "Change type opens the picker");
+        let soft: newnode::Entry? = nil;
+        for row_of in newnode::catalogue(state) {
+            if row_of.name == "soft_body2d" {
+                soft = row_of;
+            }
+        }
+        selftest::check(soft != nil, "and offers a soft body");
+        if soft != nil {
+            newnode::place(state, soft.unwrap());
+            selftest::check(!state.newnode && model::node(state, row).has_component("softbody2d") && !model::node(state, row).has_component("sprite"), "which is built from the sprite and closes the picker");
+        }
+        selftest::undo_all(state);
+    }
+    if shape_row != nil {
+        let row = shape_row.unwrap();
+        selftest::check(recipes::change_type(state, row, "polygon2d"), "a shape becomes a polygon");
+        let points = util::list_or_empty(util::map_or_empty(util::map_or_empty(model::node(state, row).authored("polygon"))["mesh"])["positions"]);
+        selftest::check(points.len() >= 4 && !model::node(state, row).has_component("shape2d"), "of the shape's outline ({points.len()} points)");
+        selftest::undo_all(state);
+    }
+    let before = state.nodes.len();
+    selection::only(state, 0);
+    newnode::open(state);
+    let soft: newnode::Entry? = nil;
+    for row_of in newnode::catalogue(state) {
+        if row_of.name == "soft_body2d" {
+            soft = row_of;
+        }
+    }
+    if soft != nil {
+        newnode::place(state, soft.unwrap());
+        selftest::check(state.newnode && state.newnode_soft == "2d", "a new soft body asks what to build it from");
+        let sources = newnode::catalogue(state);
+        selftest::check(sources.len() >= 2 && sources[0].label == "Rectangle", "a shape first ({sources.len()} sources)");
+        newnode::place_source(state, sources[1]);
+        selftest::check(state.nodes.len() == before + 1 && model::node(state, state.selected).has_component("softbody2d") && !state.newnode, "and builds it from the one picked");
+        shell::undo(state);
+        selftest::check(state.nodes.len() == before, "which one undo takes back");
+    }
+    log::info("selftest change type: done");
+}
+
+/// What the engine says is off reaches the editor: a mark on the tree's row,
+/// and a refused write that leaves the document as it was and names the
+/// property it was refused on, rather than throwing out of the inspector.
+pub fn warning_marks(state: &mut editor::State) {
+    sceneedit::add_child(state);
+    let row = state.selected;
+    sceneedit::add_component(state, "body2d");
+    state.lint.stale = true;
+    lint::node_warnings(state);
+    let id = model::node(state, row).stable_id();
+    selftest::check(lint::warned(state, id).len() > 0, "a body nothing collides with marks its row ({lint::warned(state, id)})");
+    sceneedit::add_component(state, "softbody2d");
+    sceneedit::add_component(state, "soft_grid2d");
+    let before = util::map_or_empty(model::node(state, row).authored("soft_grid2d"))["cells"];
+    selftest::expect_warning("write refused: applying component 'soft_grid2d'");
+    sceneedit::set_component_property(state, "soft_grid2d", "cells", [5000.0, 5000.0]);
+    let after = util::map_or_empty(model::node(state, row).authored("soft_grid2d"))["cells"];
+    selftest::check(after == before, "a refused write leaves the document as it was ({after})");
+    let named: [str] = [];
+    for warning in scene::warnings(model::node(state, row)) {
+        if warning.property != nil {
+            named.push(warning.property.unwrap());
+        }
+    }
+    selftest::check(util::contains(named, "cells"), "and the warning names the property ({named})");
+    inspector::fill(state, "cells");
+    let marked = inspector::line_named(state, "soft_grid2d.cells");
+    selftest::check(marked != nil && marked.unwrap().mark == inspector::MARK_WARNING, "and its row wears the mark, with no line under it ({marked})");
+    selftest::check(drawn_label(state, "soft_grid2d.cells").starts_with("⚠"), "the label says so");
+    inspector::fill(state, "");
+    sceneedit::delete_selected(state);
+    log::info("selftest warnings: done");
+}
+
+// The row the pool check builds its strip in, under the shell's root.
+const POOL_HOST: str = "Editor";
+const POOL_CHECK: str = "PoolCheck";
+
+/// A pooled slot that turns from one kind of control into another holds the
+/// old control's value for a pass, and that value is not the reader's edit.
+///
+/// A dropdown's slot spent a frame as a colour row's label, and coming back it
+/// reported the label's `0.20 0.22 0.26 1.00` as a pick: a script by that name.
+pub fn pool_kinds(state: &mut editor::State) {
+    let root = scene::root().get_node(POOL_HOST);
+    if !root.is_valid() {
+        log::info("selftest pool: no shell in this run, skipped");
+        return;
+    }
+    root.add_child(POOL_CHECK).set_component("widget", { "kind": ui::WIDGET_ROW });
+    state.pool_check = selftest::PoolCheck { stage: 0, heard: [] };
+    selftest::stepping(state, "pool_check");
+}
+
+// One strip a pass, as the inspector does: the host made above resolves by
+// path from the next one.
+pub fn pool_check_step(state: &mut editor::State) {
+    if state.pool_check == nil {
+        return;
+    }
+    let pool_check = state.pool_check.unwrap();
+    let path = POOL_HOST + "/" + POOL_CHECK;
+    let heard = pool_check.heard;
+    let pick = pool::on(ui::Control { kind: "dropdown", text: "pick", options: ["a", "b"] }, pool_heard, {});
+    let stage = pool_check.stage;
+    pool_check.stage = stage + 1;
+    if stage == 0 || stage == 2 || stage == 4 {
+        ui::fill_strip(path, [pick]);
+    } else if stage == 1 {
+        ui::fill_strip(path, [ui::Control { kind: "label", text: "0.20 0.22 0.26 1.00" }]);
+    } else if stage == 3 {
+        selftest::check(heard.len() == 0, "a slot that changed kind reports nothing ({heard})");
+        // The control: a pick on a slot that stayed a dropdown still reaches `on`.
+        ui::edit(scene::root().get_node(path + "/C0"), "b");
+    } else {
+        state.pool_check = nil;
+        selftest::check(heard.len() == 1 && heard[0] == "b", "and a pick on a dropdown is heard ({heard})");
+        scene::root().get_node(path).queue_free();
+        log::info("selftest pool: done");
+    }
+}
+
+// A pick the pool check's dropdown reports.
+fn pool_heard(state: &mut editor::State, data: any, value: any) {
+    if state.pool_check != nil {
+        state.pool_check.unwrap().heard.push(value.as_str());
+    }
+}
+
+/// What the pool's row for the line named `key` labels itself.
+fn drawn_label(state: editor::State, key: str) -> str {
+    let row = inspector::row_of_line(state, key);
+    if !row.is_valid() {
+        return "";
+    }
+    row.get_node("C0").widget.text
+}
+
+/// A run of `test:inspector_rows`.
+pub class FormCheck {
+    stage: int,
+    waited: int,
+    written: int,
+    past: int,
+}
+
+/// `--state test:inspector_rows`: an edit on a row lands on the property as
+/// one undo entry, a write the log names rewrites that row and no other, a
+/// hidden Inspector does nothing, a section's head carries `enabled`, and a
+/// node of hundreds of rows builds the ones on screen.
+pub fn inspector_rows(state: &mut editor::State) {
+    sceneedit::add_child(state);
+    sceneedit::add_component(state, "transform");
+    sceneedit::add_component(state, "text2d");
+    state.form_check = FormCheck { stage: 0, waited: 0, written: 0, past: 0 };
+    selftest::stepping(state, "form_check");
+}
+
+pub fn form_check_step(state: &mut editor::State) {
+    if state.form_check == nil {
+        return;
+    }
+    let run = state.form_check.unwrap();
+    run.waited += 1;
+    // A run of edits ends in a whole fill on a wall clock (`model::follow_changes`), so the
+    // count starts with none open and is read on the step that hears its write.
+    let following = state.inspector_after > 0.0;
+    if run.stage == 2 && following {
+        return;
+    }
+    if run.waited < viewport_checks::SETTLE && !(run.stage == 3 && following) {
+        return;
+    }
+    run.waited = 0;
+    let node = model::selected_node(state);
+    let stage = run.stage;
+    run.stage = stage + 1;
+    if stage == 0 {
+        let control = inspector::control_of(state, "Text");
+        if !selftest::check(control.is_valid(), "a text2d's text is a row on screen") {
+            state.form_check = nil;
+            return;
+        }
+        selftest::check(control.widget.kind == "text_field", "whose control is what its type takes");
+        run.past = state.history.past.len();
+        ui::edit(control, "typed");
+    } else if stage == 1 {
+        selftest::check(node.text2d.text == "typed", "an edit on the row lands on the property ({node.text2d.text})");
+        selftest::check(state.history.past.len() == run.past + 1, "as one undo entry ({state.history.past.len()}, was {run.past})");
+        shell::undo(state);
+    } else if stage == 2 {
+        selftest::check(node.text2d.text != "typed", "undo takes it back ({node.text2d.text})");
+        selftest::check(inspector::control_of(state, "Text").widget.text == node.text2d.text, "and the row follows");
+        run.written = state.inspect.written;
+        node.text2d.text = "engine";
+    } else if stage == 3 {
+        selftest::check(inspector::control_of(state, "Text").widget.text == "engine", "a write the log names reaches its row");
+        let wrote = state.inspect.written - run.written;
+        selftest::check(wrote == 1, "and rewrites that row alone ({wrote})");
+        inspector::hide_panel();
+        run.written = state.inspect.written;
+        node.text2d.text = "hidden";
+    } else if stage == 4 {
+        selftest::check(state.inspect.written == run.written, "a hidden Inspector writes nothing ({state.inspect.written - run.written})");
+        inspector::show_panel(state);
+    } else if stage == 5 {
+        selftest::check(inspector::control_of(state, "Text").widget.text == "hidden", "shown again, the row says what the node holds");
+        sceneedit::add_component(state, "body2d");
+    } else if stage == 6 {
+        let head = inspector::line_named(state, "body2d.enabled");
+        selftest::check(head != nil && head.unwrap().kind == inspector::HEAD, "a section's head carries its component's enabled");
+        ui::edit(inspector::row_of_line(state, "body2d.enabled").get_node("C1/C2"), false);
+    } else {
+        form_check_rows(state, run, node, stage);
+    }
+}
+
+// The panel's search, which reaches into the folds and stays through a fill.
+fn form_search(text: str) {
+    ui::edit(scene::root().get_node("Editor/Shell/Body/Right/RightSheet/Inspector/Search"), text);
+}
+
+// What each datatype's row does: a set's pill, a vector's channel in the unit
+// it shows, a list's add and take out. Then the window.
+fn form_check_rows(state: &mut editor::State, run: FormCheck, node: Node, stage: int) {
+    if stage == 7 {
+        selftest::check(!node.body2d.enabled, "and its switch writes it");
+        sceneedit::add_component(state, "character2d");
+        form_search("lock_translation");
+    } else if stage == 8 {
+        let pill = inspector::row_of_line(state, "body2d.lock_translation").get_node("C1/C0");
+        selftest::check(pill.widget.role == "chip_flag", "a set's row is a pill an option");
+        run.past = util::list_or_empty(node.component_property("body2d", "lock_translation")).len();
+        ui::click(pill);
+    } else if stage == 9 {
+        let held = util::list_or_empty(node.component_property("body2d", "lock_translation"));
+        selftest::check(held.len() == run.past + 1, "and a pill turns its option round ({held})");
+        form_search("rotation_euler");
+    } else if stage == 10 {
+        let channel = inspector::row_of_line(state, "transform.rotation_euler").get_node("C1/C1");
+        ui::edit(channel, 90.0);
+    } else if stage == 11 {
+        let held = node.transform.rotation_euler;
+        selftest::check(math::abs(held.y - 1.5707963) < 0.001, "a channel shown in degrees is stored in radians ({held})");
+        selftest::check(held.x == 0.0 && held.z == 0.0, "and the channels beside it stay");
+        let channel = inspector::row_of_line(state, "transform.rotation_euler").get_node("C1/C1");
+        selftest::check(math::abs(channel.widget_range.value - 90.0) < 0.001, "the row shows degrees ({channel.widget_range.value})");
+        form_search("exclude");
+    } else if stage == 12 {
+        selftest::check(inspector::line_named(state, "character2d.exclude").unwrap().count == 1, "an empty list is its head alone");
+        ui::click(inspector::row_of_line(state, "character2d.exclude").get_node("C1/C1"));
+    } else if stage == 13 {
+        selftest::check(node.character2d.exclude.len() == 1, "a list's chip adds an entry");
+        selftest::check(inspector::line_named(state, "character2d.exclude").unwrap().count == 2, "and the entry is a row");
+        ui::click(inspector::row_of_line(state, "character2d.exclude/0").get_node("C1/C2"));
+    } else if stage == 14 {
+        selftest::check(node.character2d.exclude.len() == 0, "the entry's chip takes it out");
+        selftest::check(inspector::line_named(state, "character2d.exclude").unwrap().count == 1, "and its row goes");
+        sceneedit::add_component(state, "environment");
+        form_search("e");
+    } else if stage == 15 {
+        form_check_scrolls(state);
+    } else {
+        form_search("");
+        state.form_check = nil;
+        sceneedit::delete_selected(state);
+        log::info("selftest inspector rows: done");
+    }
+}
+
+// The window: rows made for what is on screen, and to the end of the form
+// the rows entering are all that is written.
+fn form_check_scrolls(state: &mut editor::State) {
+    let form = state.inspect;
+    selftest::check(form.lines.len() > form.capacity, "a node of {form.lines.len()} rows keeps at most {form.capacity}");
+    selftest::check(inspector::made_rows() <= form.capacity, "and has made {inspector::made_rows()}");
+    let written = form.written;
+    inspector::scroll_to(state, form.total);
+    selftest::check(inspector::made_rows() <= form.capacity, "scrolling to its end makes no more ({inspector::made_rows()})");
+    selftest::check(form.last == form.lines.len(), "and the last line is on screen");
+    let wrote = form.written - written;
+    selftest::check(wrote > 0 && wrote <= form.capacity, "writing only the rows that entered ({wrote} of {form.lines.len()})");
+}
+
+pub fn rows_step(state: &mut editor::State) {
+    let tree = scene::root().get_node(project_checks::TREE_NODE);
+    if !tree.is_valid() {
+        state.rows_demo = -1;
+        log::info("selftest rowsdemo: no shell in this run, skipped");
+        return;
+    }
+    // The tree's rows, with the two rows of the widget's own these checks read.
+    let widget = util::map_or_empty(tree.get_component("widget_rows"));
+    widget["text"] = tree.widget.text;
+    widget["context"] = tree.widget.context;
+    let rows = util::list_or_empty(widget["items"]);
+    if rows.len() == 0 {
+        state.rows_waited = state.rows_waited + 1;
+        if state.rows_waited > 60 {
+            state.rows_demo = -1;
+            log::info("selftest rowsdemo: the outliner drew no rows this run, skipped");
+        }
+        return;
+    }
+    let stage = state.rows_demo;
+    state.rows_demo = stage + 1;
+    if stage == 0 {
+        rows_drawn(state, widget, rows);
+        rows_menu(widget);
+        rows_picked(state, tree, rows);
+    } else if stage == 1 {
+        rows_answered(state, widget, rows);
+        project_checks::rows_search(state, selftest::name_at(state, state.rows_want));
+    } else if stage == 2 {
+        rows_narrowed(state, rows);
+        project_checks::rows_search(state, "zzqq-nothing-matches-this");
+    } else if stage == 3 {
+        selftest::check(!tree.visible(), "a query matching nothing hides the tree");
+        project_checks::rows_search(state, "");
+    } else if stage == 4 {
+        selftest::check(rows.len() == state.nodes.len(), "and clearing the query brings every row back");
+        // A second node, to see the set drawn rather than the active node.
+        if state.nodes.len() > 1 {
+            selection::toggle(state, if state.selected == 0 { 1 } else { 0 });
+        }
+    } else {
+        state.rows_demo = -1;
+        let lit = util::list_or_empty(widget["selection"]);
+        // A project with one node has no second node to add to the set.
+        let want = if state.nodes.len() > 1 { 2 } else { 1 };
+        selftest::check(lit.len() == selection::count(state) && lit.len() == want, "every selected node lights a row ({lit.len()} lit, {want} wanted)");
+        log::info("selftest rowsdemo: done");
+    }
+}
+
+// The menu a right click on a row opens: a node beside the tree, every row of
+// it naming a method the Editor's script declares. A typo in a scene is a row
+// that does nothing, and nothing else says so.
+fn rows_menu(widget: any) {
+    let named = widget["context"].as_str();
+    selftest::check(named != "", "the outliner's tree names a context menu");
+    let menu = scene::root().get_node(project_checks::SCENE_PANEL + "/" + named);
+    if !menu.is_valid() {
+        selftest::check(false, "and the scene holds it ({named})");
+        return;
+    }
+    let rows = menu.children();
+    selftest::check(rows.len() > 0, "with rows on it ({rows.len()} of them)");
+    let editor = scene::root().get_node("Editor");
+    let missing = 0;
+    for row in rows {
+        let handler = events::click_method(row);
+        if handler == "" || !editor.has_method(handler) {
+            missing += 1;
+            log::warn("tree menu row {row.name()} calls nothing");
+        }
+    }
+    selftest::check(missing == 0, "and every row calls a method the editor declares");
+}
+
+// One row a node, the active one named and every selected one lit.
+fn rows_drawn(state: editor::State, widget: any, rows: any) {
+    selftest::check(rows.len() == state.nodes.len(), "the outliner draws one row a node ({rows.len()} of {state.nodes.len()})");
+    selftest::check(widget["multi_select"].as_bool() == true, "its tree holds many rows at once");
+    let lit = util::list_or_empty(widget["selection"]);
+    selftest::check(lit.len() == selection::count(state), "every selected node is lit ({lit.len()} of {selection::count(state)})");
+    selftest::check(widget["text"].as_str() == "", "and the pick channel is clear, so nothing here undoes a selection made elsewhere");
+    // The node knows a row by its key: two alike light and pick as one.
+    let seen: any = {};
+    let alike = 0;
+    for row in rows {
+        if seen.has(row["key"].as_str()) {
+            alike += 1;
+        }
+        seen[row["key"].as_str()] = true;
+    }
+    selftest::check(alike == 0, "no two rows have one key ({alike} repeat)");
+}
+
+// A pick as the pointer makes one: the tree announces it and the panel's
+// script answers, with nothing reading the node back.
+fn rows_picked(state: &mut editor::State, tree: Node, rows: any) {
+    let want = if state.selected == 0 && state.nodes.len() > 1 { 1 } else { 0 };
+    state.rows_want = want;
+    ui::edit(tree, rows[want]["key"].as_str());
+}
+
+fn rows_answered(state: editor::State, widget: any, rows: any) {
+    let want = state.rows_want;
+    selftest::check(state.selected == want, "a picked row selects its node ({want} wanted, {state.selected} selected)");
+    // Lit from the selection before the pick, the row went back to the old
+    // node for a pass, and stayed there while nothing asked for another.
+    let lit = util::list_or_empty(widget["selection"]);
+    selftest::check(lit.len() == 1 && lit[0] == rows[want]["key"], "and the pass that answered it lights that row ({lit})");
+    selftest::check(rows.len() == state.nodes.len(), "and the walk is the document's still");
+}
+
+// The search draws on the same node: fewer rows, every one of them a match.
+fn rows_narrowed(state: editor::State, rows: any) {
+    let query = state.rows_query;
+    let want = 0;
+    for node in state.nodes {
+        if search::matches(query, "{node.name()} {model::node_type(node)}") {
+            want += 1;
+        }
+    }
+    // The query leaves fewer rows than the document has, unless it holds one.
+    let narrowed = want < state.nodes.len() || state.nodes.len() == 1;
+    selftest::check(rows.len() == want && narrowed, "a query narrows the same tree node ({rows.len()} of {state.nodes.len()})");
+    let named = 0;
+    for row in rows {
+        if row["label"].as_str().contains(query) {
+            named += 1;
+        }
+    }
+    selftest::check(named == rows.len(), "and every row it leaves is a match");
+}

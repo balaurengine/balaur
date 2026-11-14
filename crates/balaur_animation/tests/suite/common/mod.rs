@@ -112,3 +112,17 @@ impl ScriptHost<balaur_core::Engine> for Calls {
         0
     }
 }
+
+/// Every bone under `root` takes its rest transform: a rig set up at rest,
+/// as the editor's Reset to Rest Pose leaves it.
+pub(crate) fn apply_rest(world: &balaur_core::hecs::World, root: Entity) {
+    use balaur_geometry::skeleton::{Bone, bones_under};
+    for bone in bones_under(world, root) {
+        let rest = world.get::<&Bone>(bone).map(|b| b.rest_transform());
+        if let (Ok(rest), Ok(mut transform)) =
+            (rest, world.get::<&mut balaur_core::scene::Transform>(bone))
+        {
+            *transform = rest;
+        }
+    }
+}

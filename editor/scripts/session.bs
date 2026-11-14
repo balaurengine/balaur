@@ -273,7 +273,7 @@ pub fn open(state: &mut editor::State, name: str) {
     }
     state.session.loaded = path;
     state.session.header = replay::header();
-    let span = util::map_or_empty(replay::length());
+    let span = util::map_or_empty(replay::header());
     state.session.first = span[FIRST].as_int();
     state.session.last = span[LAST].as_int();
     state.session.at = state.session.first;

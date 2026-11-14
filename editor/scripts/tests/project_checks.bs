@@ -1,0 +1,1028 @@
+// Self-tests of the project around the scene: assets and imports, fonts,
+// lint, the code tools, script paths, the start screen's manager, recordings,
+// plugin docks, the profiler, events and an import job.
+
+use about;
+use complete;
+use dock;
+use docks;
+use dropin;
+use editor;
+use events;
+use fonts;
+use importer;
+use inspector;
+use kit;
+use lanes;
+use lint;
+use manager;
+use model;
+use sceneedit;
+use selection;
+use selftest;
+use session;
+use shell;
+use shipped;
+use util;
+use versions;
+use window;
+use panels::scene_tree;
+use tests::scene_checks;
+
+/// The Assets dock's three verbs. Everything it makes it also removes, so a
+/// run leaves the example project exactly as it found it.
+pub fn assets(state: &mut editor::State) {
+    let root = state.game_root + "/";
+    state.assets.directory = "";
+    state.assets.selected = "";
+    dock::new_folder(state);
+    let made = state.assets.selected;
+    selftest::check(made == "new-folder", "a new folder is named for what it is ({made})");
+    selftest::check(fs::exists(root + made), "the new folder is on disk");
+    // A second one cannot take the same name.
+    dock::new_folder(state);
+    let second = state.assets.selected;
+    selftest::check(second != made, "a second folder gets its own name ({second})");
+    // A scene inside the folder names a file beside it; the rename rewrites
+    // the reference and keeps the comment next to it.
+    fs::write(root + made + "/thing.toml", "type = \"note\"\npitch = 1.0\n");
+    fs::write(root + made + "/user.toml", "[[nodes]]\nname = \"N\"\nsong = \"{made}/thing.toml\" # kept\n");
+    state.assets.selected = made;
+    dock::rename_asset(state, "renamed-folder");
+    selftest::check(!fs::exists(root + made), "the old name is gone");
+    selftest::check(fs::exists(root + "renamed-folder"), "the new name is there");
+    selftest::check(state.assets.selected == "renamed-folder", "the selection followed the rename");
+    let user = fs::read(root + "renamed-folder/user.toml").or("");
+    selftest::check(user.contains("\"renamed-folder/thing.toml\" # kept"), "the rename rewrote the reference and kept the comment");
+    selftest::expect_warning("a name cannot be empty or contain a slash");
+    dock::rename_asset(state, "with/slash");
+    selftest::check(fs::exists(root + "renamed-folder"), "a name with a slash is refused");
+    dock::delete_asset(state);
+    selftest::check(!fs::exists(root + "renamed-folder"), "delete removes it");
+    selftest::check(state.assets.selected == "", "and clears the selection");
+    state.assets.selected = second;
+    dock::delete_asset(state);
+    selftest::check(!fs::exists(root + second), "the second folder is cleaned up too");
+    log::info("selftest assets: done");
+}
+
+/// The Import panel: what it writes beside a picture, and what clearing a key
+/// leaves behind. The panel itself is drawn by the Assets dock; this drives
+/// the same calls its controls do.
+pub fn imports(state: &mut editor::State) {
+    let root = state.game_root + "/";
+    let rel = "selftest-import.png";
+    fs::write(root + rel, "not really a png, and never decoded here");
+    let side = root + importer::sidecar_of(rel);
+    selftest::check(importer::kind_of(rel) == "texture", "a .png is a texture");
+    selftest::check(importer::kind_of("scenes/main.toml") == "", "a scene is no importer's business");
+    selftest::check(importer::kind_of("ART/HERO.PNG") == "texture", "the extension is matched whatever its case");
+    selftest::check(!fs::exists(side), "a picture starts with no settings beside it");
+    importer::write(state, rel, "filter", "nearest");
+    selftest::check(fs::exists(side), "setting a key writes the sidecar");
+    let table = importer::sidecar(state, rel);
+    selftest::check(table["filter"] == "nearest", "and the sidecar holds what was set");
+    importer::write(state, rel, "srgb", false);
+    let both = importer::sidecar(state, rel);
+    selftest::check(both["filter"] == "nearest" && both["srgb"] == false, "a second key joins the first rather than replacing it");
+    importer::write(state, rel, "srgb");
+    let one = importer::sidecar(state, rel);
+    selftest::check(one["srgb"] == nil && one["filter"] == "nearest", "clearing one key leaves the other");
+    importer::write(state, rel, "filter");
+    selftest::check(!fs::exists(side), "clearing the last key removes the sidecar");
+    // A number rather than the text the dropdown handed back, or the engine
+    // reads no anisotropy at all.
+    importer::write(state, rel, "anisotropy", 8);
+    importer::write(state, rel, "mipmaps", true);
+    importer::write(state, rel, "repeat", "mirror");
+    importer::write(state, rel, "premultiply", true);
+    let sampler = importer::sidecar(state, rel);
+    selftest::check(sampler["anisotropy"] == 8, "anisotropy is written as a count");
+    selftest::check(sampler["mipmaps"] == true, "and mipmaps as a flag");
+    selftest::check(sampler["repeat"] == "mirror", "and repeat as a word");
+    selftest::check(sampler["premultiply"] == true, "and premultiply as a flag");
+    for key in ["anisotropy", "mipmaps", "repeat", "premultiply"] {
+        importer::write(state, rel, key);
+    }
+    selftest::check(!fs::exists(side), "clearing every key removes the sidecar again");
+    selftest::check(importer::kind_of("art/logo.svg") == "texture", "an SVG is a texture");
+    selftest::check(importer::kind_of("sfx/theme.ogg") == "audio", "a sound takes settings too");
+    selftest::check(importer::kind_of("fonts/ui-Face.ttf") == "font", "and a face");
+    selftest::check(importer::kind_of("models/crate.obj") == "model", "and a model");
+    importer::write(state, rel, "scale", 2.5);
+    selftest::check(importer::sidecar(state, rel)["scale"] == 2.5, "a number row writes a float");
+    importer::write(state, rel, "scale");
+    selftest::check(export::preview(rel, "web") == nil, "a file that is no picture ships no row, and nothing throws");
+    fs::remove(root + rel);
+    log::info("selftest imports: done");
+}
+
+/// `--state test:system_fonts`: a face this machine has installed is offered
+/// under a `font` row and copied into the game's `fonts/` when picked, and a
+/// file the list does not name is not copied at all.
+pub fn system_fonts(state: &mut editor::State) {
+    let single: [project::SystemFont] = [];
+    for installed in project::system_fonts() {
+        if installed.path.to_lower().ends_with(".ttf") {
+            single.push(installed);
+        }
+    }
+    if single.len() == 0 {
+        log::info("selftest system fonts: no single face installed; skipped");
+        return;
+    }
+    let face = single[0];
+    let offered = fonts::choices(state);
+    selftest::check(util::contains(offered, "{face.family} {face.style} · system"), "the picker offers the installed face");
+    let copied = dropin::copy_system_font(state, face.path);
+    if !selftest::check(copied != nil, "an installed face copies into the game") {
+        return;
+    }
+    let rel = copied.unwrap();
+    selftest::check(rel.starts_with("fonts/") && assets::kind_of(rel) == "font", "it lands under fonts/ as a font ({rel})");
+    selftest::check(fs::exists(state.game_root + "/" + rel), "the copy is on disk");
+    selftest::check(!project::copy_system_font(state.game_root + "/project.toml", state.game_root + "/fonts/probe.ttf"), "a file the list does not name is refused");
+    selftest::check(!fs::exists(state.game_root + "/fonts/probe.ttf"), "and nothing is written");
+    fs::remove(state.game_root + "/" + rel);
+    log::info("selftest system fonts: {face.family} {face.style} copied and taken away");
+}
+
+/// Forge's answer to a request the catalogue sent, stood in for: a desktop
+/// has no Forge to ask.
+fn answer(state: &mut editor::State, purpose: str, extra: any) -> bool {
+    let id = fonts::request_for(state, purpose);
+    if !selftest::check(id != nil, "the catalogue asked for its {purpose}") {
+        return false;
+    }
+    let reply: any = { "kind": http::EVENT_RESPONSE, "request": id, "status": 200 };
+    for key in extra.keys() {
+        reply[key] = extra[key];
+    }
+    fonts::answered(state, reply);
+    true
+}
+
+/// `--state test:font_catalogue`: a family picked from the catalogue lands
+/// under `fonts/` with its licence beside it and is named by the row it was
+/// picked for, with Forge's answers stood in.
+pub fn font_catalogue(state: &mut editor::State) {
+    sceneedit::add_child(state);
+    sceneedit::add_component(state, "text2d");
+    let node = model::node(state, state.selected);
+    fonts::open(state, inspector::at_top("text2d", "font", ""));
+    let listing = "[{{\"id\":\"probe\",\"family\":\"Probe Sans\",\"category\":\"sans-serif\",\"licence\":\"OFL-1.1\"}}]";
+    if !answer(state, "families", { "body": listing }) {
+        return;
+    }
+    selftest::check(util::list_or_empty(state.font_families).len() == 1, "the families are read ({state.font_families})");
+    fonts::take(state, util::list_or_empty(state.font_families)[0]);
+    selftest::check(!fonts::finding(state), "a pick closes the catalogue");
+    let faces = "{{\"files\":[{{\"file\":\"Probe-Bold.ttf\",\"style\":\"normal\",\"weight\":700}},{{\"file\":\"Probe-Regular.ttf\",\"style\":\"normal\",\"weight\":400}}],\"licence\":\"OFL.txt\"}}";
+    if !answer(state, "faces", { "body": faces }) {
+        return;
+    }
+    // The download lands under the user directory, as `save_to` puts it.
+    let saved = util::editor_data() + "/fonts/Probe-Regular.ttf";
+    fs::copy("fonts/SourceSans3-Regular.ttf", saved);
+    answer(state, "face", { "path": saved, "body": "" });
+    answer(state, "licence", { "body": "SIL Open Font License" });
+    // The live node holds the mirror's absolute path; the document, the
+    // project's own.
+    let named = model::relative_file(state, node.text2d.font).as_str();
+    selftest::check(named.starts_with("fonts/Probe-Regular"), "the row names the regular face ({named})");
+    selftest::check(fs::exists(state.game_root + "/" + named), "the face is in the project");
+    let licence = state.game_root + "/fonts/Probe-Regular.OFL.txt";
+    selftest::check(fs::exists(licence), "its licence is beside it");
+    fs::remove(state.game_root + "/" + named);
+    fs::remove(licence);
+    fs::remove(saved);
+    selftest::undo_all(state);
+    log::info("selftest font catalogue: a family fetched, named and taken away");
+}
+
+// The first script the scene attaches, which is what a lint sweep starts from.
+fn first_script(state: editor::State) -> str? {
+    for node in state.nodes {
+        let rel = model::script_rel(node);
+        if rel != nil {
+            return rel.as_str();
+        }
+    }
+    nil
+}
+
+fn found_in(state: editor::State, rel: str, severity: str) -> [any] {
+    let out: [any] = [];
+    for finding in state.lint.found {
+        if finding["file"].as_str() == rel && finding["severity"].as_str() == severity {
+            out.push(finding);
+        }
+    }
+    out
+}
+
+/// `--state test:lint`: a broken buffer is found at the line it broke on, and
+/// a good one leaves nothing behind. The buffer, not the file — a check is
+/// about what is on screen, and the test must not write a broken script out.
+pub fn linting(state: &mut editor::State) {
+    let script = first_script(state);
+    if !selftest::check(script != nil, "the scene attaches a script to lint") {
+        return;
+    }
+    let rel = script.unwrap();
+    let abs = state.game_root + "/" + rel;
+    let original = model::source(state, rel).as_str();
+    state.script_buffers[abs] = "fn probe() {{\n    input::just_pressd(\"jump\");\n}}\n";
+    lint::run(state);
+    let errors = found_in(state, rel, "error");
+    if selftest::check(errors.len() > 0, "a misspelled engine call is an error") {
+        selftest::check(errors[0]["line"].as_int() == 2, "the error's line is 2 (got {errors[0]["line"]})");
+        selftest::check(errors[0]["message"].as_str().contains("just_pressd"), "the message names the call: {errors[0]["message"]}");
+        let marked = false;
+        for line in lint::lines(state, rel, "error") {
+            if line.as_int() == 2 {
+                marked = true;
+            }
+        }
+        selftest::check(marked, "the gutter is given line 2");
+    }
+    state.script_buffers[abs] = "fn probe() {{\n    let unused = 1;\n}}\n";
+    lint::run(state);
+    selftest::check(found_in(state, rel, "error").len() == 0, "a script that compiles has no errors");
+    state.script_buffers[abs] = original;
+    lint::run(state);
+    selftest::check(found_in(state, rel, "error").len() == 0, "restoring the buffer clears the findings");
+    state.script_buffers.remove(abs);
+    docks::show(state, "problems");
+    log::info("selftest lint: done");
+}
+
+/// `--state test:tools`: what the caret is offered, what is under it, and what a
+/// rename would rewrite. The buffer, not the file: a tool answers about what
+/// is on screen, and the test must not write over a script.
+pub fn tooling(state: &mut editor::State) {
+    let script = first_script(state);
+    if !selftest::check(script != nil, "the scene attaches a script to ask about") {
+        return;
+    }
+    let rel = script.unwrap();
+    let source = model::source(state, rel).as_str();
+    // A function of its own at the foot, so the probe is code the file reads.
+    let typed = "    physics2d::r";
+    let probe = source + "\nfn completion_probe() {{\n" + typed + "\n}}\n";
+    let line = probe.split("\n").len() - 2;
+    // Completion: a module path offers that module and nothing else.
+    let found = script::complete(rel, probe, line, typed.len() + 1);
+    if selftest::check(found.len() > 0, "a module path completes") {
+        let names: [str] = [];
+        for one in found {
+            names.push(one.label);
+        }
+        selftest::check(util::contains(names, "raycast"), "physics2d::r offers raycast (got {util::join(names, ", ")})");
+        selftest::check(!util::contains(names, "reset_plasticity"), "and not reset_plasticity, which a soft body's handle calls");
+        selftest::check(found[0].doc != "", "the first completion carries its doc line");
+    }
+    // A component handle offers the functions that drive its component.
+    let handle_typed = "    node.body2d.a";
+    let handle = source + "\nfn handle_probe(node: Node) {{\n" + handle_typed + "\n}}\n";
+    let on_handle = script::complete(rel, handle, handle.split("\n").len() - 2, handle_typed.len() + 1);
+    let methods: [str] = [];
+    for one in on_handle {
+        methods.push(one.label);
+    }
+    selftest::check(util::contains(methods, "apply_impulse"), "node.body2d.a offers apply_impulse (got {util::join(methods, ", ")})");
+    // The popup opens on that caret and closes when it moves off.
+    let caret = probe.chars().len() - 3;
+    complete::update(state, rel, probe, complete::Caret { index: caret, x: 100.0, y: 100.0 });
+    selftest::check(state.complete.open, "the popup opens where a caret sits after a module path");
+    complete::reset(state);
+    selftest::check(!state.complete.open, "and closes when it is reset");
+    // The code pane asks as the game's file, which is offered none of the
+    // editor's calls; asked as the editor's own, the same text is.
+    let editors_typed = "    debugger::s";
+    let editors = source + "\nfn editors_probe() {{\n" + editors_typed + "\n}}\n";
+    let editors_line = editors.split("\n").len() - 2;
+    let offered = script::complete(rel, editors, editors_line, editors_typed.len() + 1);
+    selftest::check(offered.len() > 0, "the editor's own file is offered `debugger`");
+    let after = editors.chars().len() - 3;
+    complete::update(state, rel, editors, complete::Caret { index: after, x: 100.0, y: 100.0 });
+    selftest::check(!state.complete.open, "a game's file is offered nothing of `debugger`");
+    complete::reset(state);
+    // Hover: a declared function answers with what the host knows about it.
+    let at = line_of_text(source, "fn ");
+    if at > 0 {
+        let text = source.split("\n")[at - 1];
+        let column = util::index_of(text, "fn ").unwrap() + 4;
+        selftest::check(script::hover(rel, source, at, column) != nil, "hovering a declared function answers");
+    }
+    // Symbols: what the file declares, from the host rather than a parser.
+    selftest::check(script::symbols(rel, source).len() > 0, "the file reports its symbols");
+    // Find and replace reaches the same files a rename does.
+    let hits = script::find(rel, source, "fn ");
+    selftest::check(hits.len() > 0, "find reaches the text in the file");
+    // Formatting is idempotent, and neither verb writes anything.
+    let once = script::format(rel, source);
+    selftest::check(script::format(rel, once) == once, "formatting twice is formatting once");
+    let edits = script::rename(rel, source, "node", "owner");
+    selftest::check(model::source(state, rel).as_str() == source, "a rename answers with the {edits.len()} file(s) it would rewrite, and writes none of them");
+    log::info("selftest tooling: done");
+}
+
+// The 1-based line a needle first appears on, 0 when it does not.
+fn line_of_text(source: str, needle: str) -> int {
+    let lines = source.split("\n");
+    for index in 0..lines.len() {
+        if lines[index].contains(needle) {
+            return index + 1;
+        }
+    }
+    0
+}
+
+// The inspector's script field: a new name writes and attaches a file, a
+// changed name moves it, remove leaves it on disk, and undo walks it all back.
+pub fn script_paths(state: &mut editor::State) {
+    // Pure string rules, so they hold whatever the project has in it.
+    selftest::check(model::names_a_file("art/hero.png"), "a project-relative file is a file name");
+    selftest::check(!model::names_a_file("/games/art/hero.png"), "a rooted path is not");
+    selftest::check(!model::names_a_file("D:/games/art/hero.png"), "nor is a Windows drive path");
+    selftest::check(!model::names_a_file("D:\\games\\art\\hero.png"), "with either separator");
+    selftest::check(!model::names_a_file("../Rig"), "and a node path is not a file");
+    let picked: int? = nil;
+    for index in 0..state.nodes.len() {
+        let node = model::node(state, index);
+        if picked == nil && model::script_rel(node) == nil && !model::is_instanced(node) {
+            picked = index;
+        }
+    }
+    if picked == nil {
+        log::info("selftest scriptdemo: every node has a script; skipped");
+        return;
+    }
+    let index = picked.unwrap();
+    selection::only(state, index);
+    let root = state.game_root + "/";
+    // A project with no scripts/ would be left with an empty one.
+    if !fs::exists(root + "scripts") {
+        log::info("scriptdemo: skipped, the project has no scripts/");
+        return;
+    }
+    let name = model::node(state, index).name().to_lower();
+    let fresh = "scripts/selftest-" + name + ".bs";
+    let moved = "scripts/selftest-" + name + "-moved.bs";
+    fs::remove(root + fresh);
+    fs::remove(root + moved);
+    shell::set_script_path(state, fresh);
+    selftest::check(model::script_rel(model::node(state, index)).as_str() == fresh, "a new name attaches a new file");
+    selftest::check(fs::exists(root + fresh), "and writes it");
+    selftest::check(state.script_open, "attaching opens the script tab");
+    shell::set_script_path(state, moved);
+    selftest::check(model::script_rel(model::node(state, index)).as_str() == moved, "a changed name moves the script");
+    selftest::check(fs::exists(root + moved) && !fs::exists(root + fresh), "and the file with it");
+    shell::detach_script(state);
+    selftest::check(model::script_rel(model::node(state, index)) == nil, "detach takes the script off the node");
+    selftest::check(fs::exists(root + moved), "and leaves the file");
+    selftest::check(!state.script_open, "and closes the script tab");
+    shell::undo(state);
+    selftest::check(model::script_rel(model::node(state, index)).as_str() == moved, "undo re-attaches it");
+    shell::undo(state);
+    shell::undo(state);
+    selftest::check(model::script_rel(model::node(state, index)) == nil, "undoing everything leaves the node without a script");
+    selftest::check(selftest::mirror_resolves(state), "and every node still resolves");
+    fs::remove(root + moved);
+    log::info("selftest scriptdemo: done");
+}
+
+// The first row that came from a prefab and has a float the editor can write.
+internal fn first_instanced_float(state: &mut editor::State) -> selftest::InstancedFloat? {
+    for index in 0..state.nodes.len() {
+        if !model::is_instanced(model::node(state, index)) {
+            continue;
+        }
+        let found = model::node(state, index);
+        if found.is_valid() {
+            let writable = selftest::writable_float(state, found);
+            if writable != nil {
+                return selftest::InstancedFloat { at: index, float: writable.unwrap() };
+            }
+        }
+    }
+    nil
+}
+
+// Recording a play session, replaying it, and getting back to the edited
+// scene. Spread over frames because a recording is made of frames, and inside
+// the `--frames 90` an e2e run allows.
+const RECORD_UNTIL: int = 9;
+const OPEN_AT: int = 10;
+const CHECK_AT: int = 28;
+
+/// The start screen's own module: a project made from a template, the row it
+/// leaves in the list, and the row forgotten again. Writes under the editor's
+/// own data directory, which is the one place it owns on every machine.
+pub fn manager_screen(state: &mut editor::State) {
+    let home = util::editor_data() + "/selftest-project";
+    let made = util::map_or_empty(project::create(home, "empty"));
+    let failed = made["error"];
+    if failed != nil {
+        selftest::check(false, "a new project from the empty template ({failed})");
+        return;
+    }
+    selftest::check(made["name"].as_str() != "", "a new project from the empty template ({made["name"]})");
+    let listed = util::list_or_empty(project::recent());
+    selftest::check(lists_path(listed, home), "it is the newest of {listed.len()} remembered");
+    let first = util::map_or_empty(listed[0]);
+    selftest::check(first["exists"].as_bool() == true, "and its folder is there");
+    project::forget(home);
+    selftest::check(!lists_path(util::list_or_empty(project::recent()), home), "forgetting it drops the row and leaves the folder");
+    selftest::check(util::list_or_empty(shipped::templates()).len() > 0, "the library offers templates to start from");
+    selftest::check(project::home() != "", "and a folder to put a new project in");
+    // A tab opens a project through the page, and the screen's own commands
+    // are hidden there. This run is a process, so it says so.
+    selftest::check(!project::in_tab(), "a process, not a tab, so the screen may open one");
+    example_projects(state);
+    versions_half(state);
+}
+
+// Whether a row of the recent list is the project at `home`.
+fn lists_path(rows: any, home: str) -> bool {
+    for row in rows {
+        if util::map_or_empty(row)["path"].as_str() == home {
+            return true;
+        }
+    }
+    false
+}
+
+// The screen's other half: which build this is and what lines it may follow.
+// No network here: what a channel holds is a press, and CI has no releases.
+fn versions_half(state: &mut editor::State) {
+    let mine = util::map_or_empty(release::installed());
+    selftest::check(mine["version"].as_str() != "", "the build says which version it is ({mine["version"]})");
+    let lines = util::list_or_empty(release::channels());
+    selftest::check(lines.len() == 5, "and names {lines.len()} release lines to follow");
+    let named = names(lines, "nightly") && names(lines, "stable");
+    selftest::check(named, "the rolling one and the settled one among them");
+    // A source build has no id and no tag, and says so rather than guessing.
+    let source = mine["source"].as_bool() == true;
+    let told = if source { mine["id"].as_str() == "" } else { mine["id"].as_str() != "" };
+    selftest::check(told, "a build with no release id says so instead of inventing one");
+    // Run from cargo's output, the install is a build tree and says so before
+    // anything offers to replace it.
+    let held = mine["held"].as_str();
+    selftest::check(!source || held != "", "a build tree says it cannot be replaced ({held})");
+    // What a check reports, handed in as the feed would: the newest release on
+    // a line decides what the screen says about it.
+    let saved: [any] = state.manager.releases;
+    let rows: [any] = [
+        { "tag": "v9.0.0", "id": "v9.0.0", "channel": "stable", "order": "newer", "current": false },
+        { "tag": "v0.0.1", "id": "v0.0.1", "channel": "alpha", "order": "older", "current": false },
+    ];
+    versions::heard(state, { "kind": "listed", "rows": rows });
+    let ahead = versions::standing(state, "stable");
+    selftest::check(ahead == "v9.0.0 is newer", "a newer release reads as one ({ahead})");
+    let behind = versions::standing(state, "alpha");
+    selftest::check(behind.contains("older"), "an older one is not called newer ({behind})");
+    let none = versions::standing(state, "rc");
+    selftest::check(none == "no release on this line", "an empty line says so ({none})");
+    versions::heard(state, { "kind": "failed", "job": "check", "message": "offline" });
+    selftest::check(!state.manager.reading && state.manager.failed == "offline", "a failed read stops reading and says why");
+    state.manager.releases = saved;
+    state.manager.failed = "";
+    // The About sheet opens on the same state, without asking the network
+    // again once the screen has asked.
+    let asked = state.manager.asked;
+    state.manager.asked = true;
+    about::open(state);
+    selftest::check(window::showing(state, "about"), "the About dialog opens");
+    window::hide(state);
+    state.manager.asked = asked;
+    // Opened over a project, the screen goes back to it; opened by a state,
+    // as a bare launch shows it, there is nothing to go back to.
+    let was = state.manager.on;
+    manager::open(state);
+    manager::close(state);
+    selftest::check(state.manager.on, "a screen opened by a state stays");
+    manager::open_over(state);
+    manager::close(state);
+    selftest::check(!state.manager.on, "one opened over a project goes back to it ({state.game_name})");
+    state.manager.on = was;
+}
+
+// Whether a list of names holds `name`.
+internal fn names(items: any, name: str) -> bool {
+    for one in items {
+        if one.as_str() == name {
+            return true;
+        }
+    }
+    false
+}
+
+// The examples that ship beside the editor, and a copy of one. The copy is
+// what the screen opens, so the shipped example stays as it was.
+fn example_projects(state: editor::State) {
+    let rows = util::list_or_empty(shipped::examples());
+    selftest::check(rows.len() > 0, "{rows.len()} examples ship beside this build");
+    let hello = row_with_id(rows, "hello");
+    if hello == nil {
+        selftest::check(false, "one of them is hello");
+        return;
+    }
+    let one = util::map_or_empty(hello);
+    selftest::check(one["note"].as_str() != "", "and each says what it is ({one["note"]})");
+    let into = util::editor_data() + "/selftest-copies";
+    let made = util::map_or_empty(shipped::copy_example("hello", into));
+    let failed = made["error"];
+    if failed != nil {
+        selftest::check(false, "a copy of an example is a project of its own ({failed})");
+        return;
+    }
+    selftest::check(fs::exists(made["path"].as_str() + "/project.toml"), "a copy of an example is a project of its own");
+    selftest::check(made["path"] != one["path"], "written beside the reader's projects, not over the example");
+    project::forget(made["path"].as_str());
+}
+
+// The row of a list whose `id` is `id`, or nil.
+fn row_with_id(items: any, id: str) -> any {
+    for row in items {
+        if util::map_or_empty(row)["id"].as_str() == id {
+            return row;
+        }
+    }
+    nil
+}
+
+pub fn sessions(state: &mut editor::State) {
+    state.session.demo = selftest::Demo { frames: 0, file: "", was: 0 };
+    selftest::stepping(state, "session");
+    // With digests, so the replay is actually checked against the recording
+    // rather than merely running.
+    state.session.verify = true;
+    shell::toggle_play(state);
+    selftest::check(state.session.recording != "", "play starts a recording");
+    selftest::check(state.playing, "and the scene is running");
+}
+
+pub fn session_step(state: &mut editor::State) {
+    if state.session.demo == nil {
+        return;
+    }
+    let demo = state.session.demo.unwrap();
+    demo.frames += 1;
+    if demo.frames == RECORD_UNTIL {
+        stop_and_check(state, demo);
+    } else if demo.frames == OPEN_AT {
+        open_and_check(state, demo);
+    } else if demo.frames == CHECK_AT {
+        replayed_and_check(state, demo);
+    }
+}
+
+// Stopping closes the file. What it wrote is the session the dock lists.
+fn stop_and_check(state: &mut editor::State, demo: selftest::Demo) {
+    shell::stop_play(state);
+    selftest::check(state.session.recording == "", "stop closes the recording");
+    selftest::check(replay::recording() == nil, "and the engine has none open");
+    let rows = session::listing(state);
+    if !selftest::check(rows.len() > 0, "the recording it wrote is on disk") {
+        state.session.demo = nil;
+        return;
+    }
+    let row = rows[0];
+    demo.file = row.name;
+    selftest::check(row.started != "", "the list says when it ran");
+    selftest::check(row.ticks > 0, "and how long: {row.ticks} ticks");
+    selftest::check(row.reason == "stop", "and how it ended: {row.reason}");
+    selftest::check(!row.stale, "its scripts are the ones on disk");
+}
+
+// Replaying rebuilds the scene, feeds the recording into it, and hands the
+// dock its lanes.
+fn open_and_check(state: &mut editor::State, demo: selftest::Demo) {
+    if demo.file == "" {
+        state.session.demo = nil;
+        return;
+    }
+    session::open(state, demo.file);
+    if !selftest::check(session::loaded(state), "{demo.file} loads") {
+        state.session.demo = nil;
+        return;
+    }
+    selftest::check(replay::state() == replay::STATE_PLAYING, "and starts playing");
+    selftest::check(state.playing, "the scene runs while it plays");
+    let span = util::map_or_empty(replay::header());
+    selftest::check(span["frames"].as_int() > 0, "the recording has frames");
+    selftest::check(state.session.lanes.len() > 0, "the dock has lanes to draw");
+    lanes::fill(state);
+    let at = scene::root().get_node("Editor/Shell/Body/Centre/Bottom/Lanes/Head/At");
+    let reads = if at.is_valid() { at.widget.text } else { "" };
+    selftest::check(reads == "{replay::position()} / {state.session.last}", "the lanes' head reads the replay's tick ('{reads}')");
+    demo.was = replay::position();
+}
+
+// Playing walks the recording and parks at its end; closing puts the edited
+// scene back and lets the engine run again.
+fn replayed_and_check(state: &mut editor::State, demo: selftest::Demo) {
+    selftest::check(replay::position() > demo.was, "playing walks the recording forward");
+    selftest::check(replay::state() == replay::STATE_PAUSED, "a spent recording parks");
+    let split = replay::divergence_tick();
+    let where_ = if split == nil { "" } else { " (tick {split.unwrap().tick})" };
+    selftest::check(split == nil, "and reproduced what was recorded{where_}");
+    session::close(state);
+    exported_and_check(state, demo);
+    selftest::check(!session::loaded(state), "closing unloads the recording");
+    selftest::check(!state.playing, "and puts the edited scene back");
+    // A self-test that leaves files behind fills the ring it is testing.
+    fs::remove(session::directory(state) + "/" + demo.file);
+    state.session.demo = nil;
+    log::info("selftest recordings: done");
+}
+
+// Export puts a copy where a bug report or `balaur replay` can reach it.
+fn exported_and_check(state: editor::State, demo: selftest::Demo) {
+    session::export(state, demo.file);
+    let out = state.game_root + "/" + demo.file;
+    selftest::check(fs::exists(out), "copy to project puts the recording in the project");
+    fs::remove(out);
+}
+
+/// `--state test:plugin_docks`: the editor's half of the plugin seam. Registering a
+/// dock has to put a tab somewhere, or nothing can ever bring the panel up.
+pub fn plugin_docks(state: &mut editor::State) {
+    if !selftest::check(state.registry.panels.len() > 0, "a plugin registered a panel") {
+        return;
+    }
+    for entry in state.registry.panels {
+        let side = docks::side_of(state, entry["id"].as_str());
+        if !selftest::check(side != nil, "the {entry["id"]} dock has a tab") {
+            continue;
+        }
+        selftest::check(side.unwrap() == "bottom", "and it is in the bottom dock ({side.unwrap()})");
+        selftest::check(docks::panels(state).has(entry["id"].as_str()), "the panel table names {entry["id"]}");
+        docks::show(state, entry["id"].as_str());
+        selftest::check(docks::showing(state, entry["id"].as_str()), "showing {entry["id"]} brings it up");
+    }
+    // The User data dock with every file at its root opened: what a plugin
+    // fills its host with is rows, and a file's contents are rows under the
+    // row that opens it.
+    docks::show(state, "userdata");
+    open_user_files(state);
+    state.plugin_demo = 0;
+    selftest::stepping(state, "plugin");
+    log::info("selftest plugin docks: done");
+}
+
+// The file the dock is asked to open, written into the game's own user data
+// directory because a fresh project keeps nothing the dock could read.
+const PROBE_FILE: str = "kitprobe.toml";
+
+// The kit remembers an open file under `file:<dock>:<path>`; this is the one
+// place outside it that writes those keys, so the test sees a file's rows.
+fn open_user_files(state: &mut editor::State) {
+    if state.kit_state == nil {
+        state.kit_state = {};
+    }
+    fs::write(kit::game_data(state) + "/" + PROBE_FILE, "alpha = 1\nbeta = \"two\"\n");
+    state.kit_state["file:userdata:" + PROBE_FILE] = true;
+}
+
+// Two frames: the host is made and filled on the first draw after this, and a
+// node reports the box it was given the pass after it was laid out.
+const PLUGIN_SETTLED: int = 3;
+
+/// What a plugin left on the scene once its dock has drawn: the subtree the
+/// editor made for it, and a row per file under it.
+/// Frames `test:profiler` gives a rebuild to land, and the counts to
+/// gather after it.
+const PROFILE_SETTLED: int = 4;
+
+// The Profiler's scripts switch: every script, the editor's own among them,
+// is rebuilt with counters between frames and counts what it runs; switched
+// off, rebuilt without, it counts nothing.
+pub fn profiler(state: &mut editor::State) {
+    if state.script_profiling {
+        dock::profiler_scripts(state);
+    }
+    dock::profiler_scripts(state);
+    selftest::check(state.script_profiling, "the Profiler's scripts switch is on");
+    state.profile_demo = 0;
+    selftest::stepping(state, "profile");
+}
+
+pub fn profile_step(state: &mut editor::State) {
+    state.profile_demo += 1;
+    if state.profile_demo == PROFILE_SETTLED {
+        let costs = engine::script_costs();
+        selftest::check(costs.len() > 0, "the scripts count what they run once rebuilt");
+        let ran = costs.len() > 0 && costs[0].instructions > 0;
+        selftest::check(ran, "the dearest of them ran statements");
+        selftest::check(engine::function_costs().len() > 0, "and their functions are rows");
+        dock::profiler_scripts(state);
+        selftest::check(!state.script_profiling, "switched off");
+    } else if state.profile_demo == 2 * PROFILE_SETTLED {
+        state.profile_demo = -1;
+        selftest::check(engine::script_costs().len() == 0, "rebuilt without counters, nothing counts");
+        log::info("selftest profiler: done");
+    }
+}
+
+pub fn plugin_step(state: &mut editor::State) {
+    state.plugin_demo = state.plugin_demo + 1;
+    if state.plugin_demo < PLUGIN_SETTLED {
+        return;
+    }
+    state.plugin_demo = -1;
+    let host = docks::plugin_host(state, "bottom", "userdata");
+    let rows = scene::root().get_node(host + "/Split/Body/Rows");
+    if !selftest::check(rows.is_valid(), "the plugin's host is a subtree ({host})") {
+        return;
+    }
+    let shown = 0;
+    for row in rows.children() {
+        if row.visible() == true {
+            shown += 1;
+        }
+    }
+    selftest::check(shown > 1, "the dock's files are rows on it ({shown})");
+    let labels: [str] = [];
+    for row in rows.children() {
+        let label = row.get_node("C0");
+        if label.is_valid() && label.visible() == true {
+            labels.push(label.widget.text);
+        }
+    }
+    selftest::check(util::contains(labels, "alpha") && util::contains(labels, "beta"), "an opened file's keys are rows under it ({labels})");
+    fs::remove(kit::game_data(state) + "/" + PROBE_FILE);
+    selection::only(state, 0);
+    inspector::refill(state);
+    selftest::check(inspector::line_named(state, "counter.scripted") != nil, "a plugin's section is its own component's rows");
+}
+
+/// The Events view authors rows and writes the script they are equivalent to.
+pub fn eventviews(state: &mut editor::State) {
+    // A row that goes to a state under a `when`: what the written script is read for.
+    let target: int? = nil;
+    for index in 0..state.nodes.len() {
+        if events::sets_a_state(model::node(state, index)) {
+            target = index;
+        }
+    }
+    if target == nil {
+        log::info("selftest eventviews: no node here binds a state, skipping");
+        return;
+    }
+    let at = target.unwrap();
+    selection::only(state, at);
+    let was = events::rows(state).len();
+    selftest::check(was > 0, "the selected node carries binding rows");
+    events::add_row(state);
+    selftest::check(events::rows(state).len() == was + 1, "adding a row adds one");
+    shell::undo(state);
+    selftest::check(events::rows(state).len() == was, "and undo takes it back");
+    let written = events::as_script(state);
+    selftest::check(written.contains("pub fn on_pointer_click(button: any, source: Node)"), "the script it writes declares the hook the rows answer");
+    selftest::check(written.contains(".states.set_state(\"open\")"), "a state row becomes the call that goes to it");
+    selftest::check(written.contains("scene::variable(\"score\")"), "a `when` becomes the read that fetches the variable");
+    selftest::check(!written.contains("self.get_node") && !written.contains("self.queue_free"), "a row's call goes through the node, not the script's own fields");
+    let problems = scene_checks::errors_in(written);
+    selftest::check(problems.len() == 0, "and the script it writes compiles: {problems}");
+    let own = events::script_of("DoorEvents", [{ "event": events::EMITTED + "died", "action": "free" }]);
+    selftest::check(own.contains("pub fn on_died(payload: any, source: Node)") && own.contains("events::listen(self.node, \"died\", self.node)"), "a row on the node's own event hears it by subscribing: {own}");
+    let own_problems = scene_checks::errors_in(own);
+    selftest::check(own_problems.len() == 0, "and compiles: {own_problems}");
+    let calls = events::script_of("PartEvents", [
+        { "event": "pointer_drag", "action": "call", "value": "dragged" },
+        { "event": "pointer_click", "action": "call", "target": "../Screen", "value": "picked" },
+    ]);
+    selftest::check(calls.contains("self.call_up(\"dragged\", dx, dy, source);"), "a call naming no target climbs to its method with the hook's values and the node: {calls}");
+    selftest::check(calls.contains("self.node.get_node(\"../Screen\").call(\"picked\", button, source);"), "and one naming a target calls it with the same");
+    let call_problems = scene_checks::errors_in(calls);
+    selftest::check(call_problems.len() == 0, "and compiles: {call_problems}");
+    // The control: the name the old conversion wrote is one the check refuses.
+    let refused = scene_checks::errors_in("fn on_emitted:died() {{}}\n");
+    selftest::check(refused.len() > 0, "the check does refuse a name with a colon in it");
+    let known = util::list_or_empty(scene::bindable_events());
+    selftest::check(names(known, "pointer_click"), "the engine names the events");
+    let verbs = util::list_or_empty(scene::binding_actions());
+    selftest::check(names(verbs, "set_state") && names(verbs, "set_variable"), "and the actions");
+    selftest::check(selftest::mirror_resolves(state), "the mirror still resolves");
+    // Left on the tab, so the shot this state takes is of the rows and the
+    // step below sees what the pool put on the scene.
+    state.doctab = "events";
+    state.events_demo = 0;
+    selftest::stepping(state, "events");
+    log::info("selftest eventviews: done");
+}
+
+// Two frames: the pool writes the rows on the first draw after this, and a
+// node reports the box it was given the pass after it was laid out.
+const EVENTS_SETTLED: int = 3;
+
+/// The bindings as the pool left them: a row per binding, each carrying the
+/// controls that edit it.
+pub fn events_step(state: &mut editor::State) {
+    state.events_demo = state.events_demo + 1;
+    if state.events_demo < EVENTS_SETTLED {
+        return;
+    }
+    state.events_demo = -1;
+    let host = scene::root().get_node(events::rows_host());
+    if !selftest::check(host.is_valid(), "the bindings view is a node") {
+        return;
+    }
+    let shown = 0;
+    for row in host.children() {
+        if row.visible() == true {
+            shown += 1;
+        }
+    }
+    selftest::check(shown > events::rows(state).len(), "every binding is a row, and the headings under them ({shown})");
+    let box = ui::widget_rect(host);
+    selftest::check(box != nil && box.unwrap().width > 200.0, "the rows have the width the document area gives them ({box})");
+}
+
+/// The file a node's `mesh` asset names, read off the live node: the document
+/// held the right path all along, and the mirror's engine did not.
+fn mesh_file(state: editor::State, name: str) -> str {
+    for index in 0..state.nodes.len() {
+        let node = model::node(state, index);
+        if node.name() == name {
+            let found = model::node(state, index);
+            if found.is_valid() {
+                let reference = util::map_or_empty(found.get_component("mesh"))["source"].as_str();
+                // Loading nothing is an error that ends the call, not a nil.
+                if reference == "" {
+                    return "";
+                }
+                let definition = assets::load(reference);
+                if definition.kind() == "map" {
+                    return definition["source"].as_str();
+                }
+            }
+        }
+    }
+    ""
+}
+
+// What the engine warns about on a node, by message.
+internal fn warned(found: Node) -> [str] {
+    let out: [str] = [];
+    for warning in scene::warnings(found) {
+        out.push(warning.message);
+    }
+    out
+}
+
+/// The project-relative files directly under one directory.
+internal fn named_under(state: editor::State, directory: str) -> [str] {
+    let out: [str] = [];
+    for entry in util::list_or_empty(fs::list(state.game_root + "/" + directory)) {
+        if !entry["is_dir"].as_bool() {
+            out.push(directory + "/" + entry["name"].as_str());
+        }
+    }
+    out
+}
+
+/// The row views, read off the nodes they fill rather than off the scripts
+/// that fill them: what a view puts on a node is what the reader sees.
+///
+/// One stage a frame, because a node holds nothing until the shell has drawn
+/// it once and a pick is only answered by the pass after the one that made it.
+internal const SCENE_PANEL: str = "Editor/Shell/Body/Left/LeftSheet/SceneTree";
+internal const TREE_NODE: str = "Editor/Shell/Body/Left/LeftSheet/SceneTree/Tree";
+internal const ASSETS_PANEL: str = "Editor/Shell/Body/Centre/Bottom/Assets";
+
+/// Search the Scene panel as someone typing into it would be answered, and
+/// keep the query for the checks that follow.
+internal fn rows_search(state: &mut editor::State, query: str) {
+    state.rows_query = query;
+    let panel: scene_tree::SceneTree? = scene::root().get_node(SCENE_PANEL).script;
+    panel.unwrap().find(query);
+}
+
+pub fn row_views(state: &mut editor::State) {
+    state.rows_demo = 0;
+    selftest::stepping(state, "rows");
+    state.rows_want = 0;
+    state.rows_waited = 0;
+    state.rows_query = "";
+}
+
+/// A model dropped on the window: the import runs off the frame, so what it
+/// wrote is asserted once the job says it is finished rather than straight
+/// after the drop.
+const DROPPED_MODEL: str = "examples/rig3d/models/column.glb";
+
+/// What the import writes, and so what the teardown removes. A project that
+/// already has one of these is not a clean drop: `examples/rig3d` ships
+/// `models/column.glb`, and the demo would overwrite it and then delete it.
+fn IMPORT_WRITES() -> [str] {
+    ["models/column.glb", "scenes/column.toml", "animations/column.toml"]
+}
+
+/// What the import writes, so a run can take it back out: this imports into
+/// the example project the audit runs on, and a leftover would make the next
+/// run assert on files it did not write.
+fn clear_import(state: editor::State) {
+    for rel in IMPORT_WRITES() {
+        fs::remove(state.game_root + "/" + rel);
+    }
+}
+
+pub fn importing(state: &mut editor::State) {
+    if state.game_root == "" {
+        log::info("selftest jobdemo: no project open in this run, skipped");
+        return;
+    }
+    for rel in IMPORT_WRITES() {
+        if fs::exists(state.game_root + "/" + rel) {
+            log::info("selftest jobdemo: " + rel + " is already here, skipped rather than overwrite it");
+            return;
+        }
+    }
+    state.import_demo = 0;
+    selftest::stepping(state, "import");
+    state.import_waited = 0;
+}
+
+pub fn import_step(state: &mut editor::State) {
+    if state.import_demo == 0 {
+        state.import_demo = 1;
+        dropin::take(state, DROPPED_MODEL);
+        // A report reaches the list on the next pump at the soonest, whether
+        // the job runs on a thread or under the tick.
+        selftest::check(state.jobs.len() == 0, "nothing is claimed before a report arrives");
+        return;
+    }
+    if state.import_demo == 1 {
+        // On a desktop the job has a thread and may be done by the next frame,
+        // so what is asserted is where it ends, not when.
+        let job = util::map_or_empty(state.jobs[DROPPED_MODEL]);
+        if job["over"].as_str() == "" {
+            waited_for_import(state);
+            return;
+        }
+        selftest::check(import::running_count() == 0, "a finished import lets go of its place");
+        selftest::check(dropin::in_flight(state) == 0, "and nothing is in flight");
+        selftest::check(job["name"].as_str() == "column.glb", "the list says which file");
+        selftest::check(job["over"].as_str() == "imported", "and how it ended ({job["over"]})");
+        selftest::check(job["done"].as_int() == 3 && job["files"].as_int() == 3, "with what it wrote ({job["done"]} of {job["files"]})");
+        let root = state.game_root + "/";
+        selftest::check(fs::exists(root + "models/column.glb"), "the model landed in the project");
+        selftest::check(fs::exists(root + "scenes/column.toml"), "with a scene written beside it");
+        let named = false;
+        for node in state.nodes {
+            if node.name() == "Column" {
+                named = true;
+            }
+        }
+        selftest::check(named, "the scene it wrote was instanced");
+        // The engine reads the instanced scene itself, so the mesh inside it
+        // is the one thing the document cannot vouch for.
+        let names = mesh_file(state, "ColumnMesh");
+        selftest::check(names.starts_with(state.game_root), "the instanced mesh names a file in the game ({names})");
+        // The instanced node goes before its files do: left standing it names
+        // a model this teardown is about to delete, and the renderer says so
+        // every frame for the rest of the run.
+        shell::undo(state);
+        clear_import(state);
+        // Again, stopped as it starts. A thread may write all three files
+        // before the press lands, so either end is right if the two agree.
+        state.jobs = {};
+        state.import_waited = 0;
+        state.import_demo = 2;
+        dropin::take(state, DROPPED_MODEL);
+        import::cancel();
+        return;
+    }
+    let job = util::map_or_empty(state.jobs[DROPPED_MODEL]);
+    if job["over"].as_str() == "" {
+        waited_for_import(state);
+        return;
+    }
+    selftest::check(import::running_count() == 0, "a stopped import lets go of its place");
+    let landed = fs::exists(state.game_root + "/models/column.glb");
+    selftest::check(job["over"].as_str() == "stopped" || job["over"].as_str() == "imported", "it ends stopped or, on a thread already done, imported ({job["over"]})");
+    selftest::check(job["over"].as_str() != "imported" || landed, "an import that says it finished wrote its model");
+    selftest::check(job["over"].as_str() != "stopped" || job["done"].as_int() < 3, "a stop says how few files it wrote ({job["done"]})");
+    // The same argument as the first teardown, for the end the cancel loses:
+    // an import that finished anyway instanced its scene, and the node names
+    // the model the next line deletes.
+    if job["over"].as_str() == "imported" {
+        shell::undo(state);
+    }
+    clear_import(state);
+    state.import_demo = -1;
+    log::info("selftest jobdemo: done");
+}
+
+// A frame spent waiting for the import to end, and the give-up after 300.
+fn waited_for_import(state: &mut editor::State) {
+    state.import_waited = state.import_waited + 1;
+    if state.import_waited > 300 {
+        state.import_demo = -1;
+        selftest::check(false, "the import ended within 300 frames");
+    }
+}

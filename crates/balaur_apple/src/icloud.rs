@@ -2,8 +2,7 @@
 //!
 //! The store is the right size for what `save` writes — a small file, synced
 //! between the player's own devices — and the entitlement is one key. A
-//! record database is not what a save game is; docs/PLAN-apple.md says why
-//! CloudKit is not planned.
+//! record database is not what a save game is, so CloudKit is not planned.
 
 use std::ptr::NonNull;
 use std::sync::mpsc::Sender;

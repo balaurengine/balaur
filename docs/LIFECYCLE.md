@@ -51,7 +51,7 @@ flowchart TD
     ending --> code[Exit code]
 ```
 
-Scripts first run inside `load_project`, so what must see an `init` is set up before it: a recording, a debugger, the dark mode fact.
+Scripts first run inside `load_project`, so what must see an `init` is set up before it: a recording, a debugger, the dark mode fact. Dropping the `App` takes its script host out of the engine, so the host, and the file watch it holds, end with it.
 
 ### Run state
 
@@ -187,7 +187,7 @@ Eight things can stop part of the game. Each row reads as that one thing acting 
 
 `call_all` passes by whatever `update` passes by. `announce` reaches every instance but a parked one or one a debugger stop or a paused replay holds. A run driving at a fixed step ignores the time scale. Physics is one world, so a game pause holds an `always` node's bodies too.
 
-A node's sound holds with its node: `hold_sounds` asks `process::ticks` and `frozen_root` every frame. So a game pause holds a `pausable` node's sound and an `always` node's plays on. A cue has no node and plays through all of them.
+A node's sound holds with its node: `hold_sounds` asks `process::ticks` and `frozen_root` every frame. So a game pause holds a `pausable` node's sound and an `always` node's plays on. `audio::play_file` plays on a node of its own under the scene's root, which holds like any other.
 
 ### Debugger stop and replay hold
 
@@ -307,7 +307,7 @@ A batch of frees scans each parent's children once, so a frame freeing many sibl
 
 ## Components
 
-A component has no state value either. What a node holds of it moves through these hooks, declared on the component (`on_add`, `on_insert`, `on_replace`, `on_remove`, `on_despawn` in `components/derived.rs`).
+A component has no state value either. What a node holds of it moves through these hooks, declared on the component (`on_add`, `on_insert`, `on_replace`, `on_remove`, `on_despawn` in `balaur_core/src/components/derived.rs`).
 
 ```mermaid
 stateDiagram-v2

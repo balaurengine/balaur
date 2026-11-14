@@ -1,4 +1,4 @@
-//! A pair of components kept in step (PLAN-ecs §2, Bevy's relationships): a
+//! A pair of components kept in step (Bevy's relationships): a
 //! source holds the one target it points at, and the target holds every
 //! source pointing at it, in order. The scene tree is the first: a node's
 //! [`Parent`](crate::scene::Parent) is the relationship and its parent's

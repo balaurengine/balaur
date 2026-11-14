@@ -10,7 +10,7 @@ authors.workspace = true
 test = false
 
 [features]
-default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d", "bs", "bs-jit"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d", "bs", "bs-jit"]
 # rapier's solver on rayon. Native builds want it; a browser can only take it
 # with shared memory and atomics, which is the threaded web runtime alone.
 parallel = ["balaur_physics/parallel"]
@@ -30,15 +30,13 @@ extensions = ["balaur_plugin/extensions"]
 # `http.*` for scripts. Off, a build drops ureq and its TLS stack.
 http = ["dep:balaur_http"]
 # `websocket.*` for scripts, and the websocket `Transport`. Off, a build
-# without `gamend` drops tungstenite, rustls and the frame codec; Gamend's
-# realtime socket runs on them.
+# drops tungstenite, rustls and the frame codec; the Gamend addon's realtime
+# socket runs on them.
 websocket = ["dep:balaur_websocket", "balaur_multiplayer?/websocket"]
 # The WebTransport `Transport`, over QUIC: the transport rollback and
 # replication are meant to run on. Off, a build drops quinn, its runtime and
 # the certificate machinery, which is most of what a networked build costs.
 webtransport = ["dep:balaur_webtransport", "balaur_multiplayer?/webtransport"]
-# `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks).
-gamend = ["dep:balaur_gamend"]
 # `multiplayer.*` for scripts: host, join and play a rollback match over
 # whichever of `websocket` and `webtransport` the build has.
 multiplayer = ["dep:balaur_multiplayer"]
@@ -94,7 +92,6 @@ balaur_input.workspace = true
 balaur_http = { workspace = true, optional = true }
 balaur_websocket = { workspace = true, optional = true }
 balaur_webtransport = { workspace = true, optional = true }
-balaur_gamend = { workspace = true, optional = true }
 balaur_multiplayer = { workspace = true, optional = true }
 balaur_browser = { workspace = true, optional = true }
 balaur_platform.workspace = true
@@ -108,6 +105,9 @@ toml.workspace = true
 egui.workspace = true
 serde_json.workspace = true
 tempfile = "3"
+# The live Gamend suites: the e2e gate, and a second player over plain HTTP.
+balaur_testkit.workspace = true
+ureq.workspace = true
 
 [lints]
 workspace = true

@@ -3,6 +3,7 @@
 // `settle_reply` method; a game with its own loop writes the same.
 
 use addons::save::save;
+use client;
 use core;
 
 const DEBUG: str = "debug";
@@ -105,7 +106,7 @@ pub fn setup(url: str) -> Sink {
     let server = if url != "" { url } else { server_url() };
     let sink = Sink {
         url: trimmed(server),
-        run: gamend::run_id(),
+        run: "",
         cursor: 0,
         seq: 0,
         pending: [],
@@ -140,8 +141,7 @@ pub fn setup(url: str) -> Sink {
 
 /// The server this run talks to: the configured one, or `[gamend]`'s.
 pub fn server_url() -> str {
-    let url = gamend::connection().url;
-    if url != "" { url } else { gamend::server().url }
+    core::url()
 }
 
 /// One frame: ask for the policy until it comes, read the new lines, and
@@ -264,12 +264,12 @@ pub fn report(sink: Sink) -> any {
 /// once there is one, so an early line is adopted when the run signs in.
 pub fn headers(sink: Sink) -> [http::Header] {
     let out = [
-        http::Header { name: "content-type", value: "application/json" },
+        http::Header { name: core::CONTENT_TYPE, value: "application/json" },
         http::Header { name: "x-gamend-session", value: sink.run },
     ];
-    let session = gamend::session();
-    if session != nil && session.unwrap().access_token != "" {
-        out.push(http::Header { name: "authorization", value: "Bearer " + session.unwrap().access_token });
+    let token = core::access_token();
+    if token != "" {
+        out.push(http::Header { name: core::AUTHORIZATION, value: "Bearer " + token });
     }
     out
 }
@@ -414,7 +414,7 @@ fn bracket_word(message: str) -> str {
 /// The lobby the game's socket has joined: the server files the run under
 /// it, so a search for the lobby finds every player's lines.
 fn current_lobby() -> str {
-    for socket in gamend::connection().sockets {
+    for socket in client::connection().sockets {
         for topic in socket.topics {
             if topic.starts_with("lobby:") {
                 return topic.replace("lobby:", "");
@@ -602,6 +602,7 @@ fn started(sink: &mut Sink) -> bool {
         return false;
     }
     sink.started_at = now;
+    sink.run = core::run_id();
     // Read now rather than in `setup`: the log file opens after `init`.
     if !engine::target().editor {
         for line in previous_tail() {

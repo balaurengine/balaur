@@ -4,8 +4,7 @@ use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform, propagate_transforms};
 use balaur_core::{App, Engine, components};
 use balaur_geometry::skeleton::{
-    self, Bone, affine_2d, apply_rest, bones_under, joint_matrices_2d, overwrite_rest,
-    quat_about_z, skin_positions,
+    self, Bone, affine_2d, bones_under, joint_matrices_2d, quat_about_z, skin_positions,
 };
 use balaur_script::Value;
 use glamx::{Mat3, Vec2, Vec3};
@@ -62,75 +61,6 @@ fn bones_are_listed_in_tree_order_with_the_root_first_when_it_is_one() {
     assert_eq!(bones_under(&world, rig), vec![hip, thigh, toe]);
     assert_eq!(bones_under(&world, hip), vec![hip, thigh, toe]);
     assert!(bones_under(&world, not_a_bone).is_empty());
-}
-
-#[test]
-fn apply_rest_puts_a_posed_bone_back_and_overwrite_rest_records_where_it_is() {
-    let app = app();
-    let (rig, hip, _) = rig(&app.engine);
-    {
-        let world = app.engine.world_mut();
-        let mut t = world.get::<&mut Transform>(hip).unwrap();
-        t.position = Vec3::new(3.0, 4.0, 0.0);
-        t.rotation = quat_about_z(0.5);
-    }
-    apply_rest(&app.engine.world(), rig);
-    {
-        let world = app.engine.world();
-        let t = world.get::<&Transform>(hip).unwrap();
-        assert!(close2(t.position.truncate(), Vec2::new(0.0, 1.0)));
-        assert!(close(skeleton::angle_about_z(t.rotation), 0.0));
-    }
-    {
-        let world = app.engine.world_mut();
-        let mut t = world.get::<&mut Transform>(hip).unwrap();
-        t.position = Vec3::new(3.0, 4.0, 0.0);
-        t.rotation = quat_about_z(0.5);
-    }
-    overwrite_rest(&app.engine.world(), rig);
-    let world = app.engine.world();
-    let b = world.get::<&Bone>(hip).unwrap();
-    assert!(close2(b.rest_position.truncate(), Vec2::new(3.0, 4.0)));
-    assert!(close(b.rest_rotation.z, 0.5));
-}
-
-#[test]
-fn overwrite_then_apply_is_the_identity_bit_for_bit() {
-    let app = app();
-    let (rig, hip, thigh) = rig(&app.engine);
-    {
-        let world = app.engine.world_mut();
-        let mut t = world.get::<&mut Transform>(thigh).unwrap();
-        t.position = Vec3::new(0.25, -0.75, 0.0);
-        t.rotation = quat_about_z(-1.2);
-    }
-    let before: Vec<Transform> = {
-        let world = app.engine.world();
-        [hip, thigh]
-            .iter()
-            .map(|e| *world.get::<&Transform>(*e).unwrap())
-            .collect()
-    };
-    overwrite_rest(&app.engine.world(), rig);
-    apply_rest(&app.engine.world(), rig);
-    let world = app.engine.world();
-    for (entity, was) in [hip, thigh].iter().zip(before) {
-        let now = world.get::<&Transform>(*entity).unwrap();
-        assert_eq!(
-            now.position.to_array().map(f32::to_bits),
-            was.position.to_array().map(f32::to_bits)
-        );
-        assert_eq!(
-            now.scale.to_array().map(f32::to_bits),
-            was.scale.to_array().map(f32::to_bits)
-        );
-        // The rotation is rebuilt from an angle, so it is the same rotation
-        // to within float error rather than the same bits.
-        assert!(close(
-            skeleton::angle_about_z(now.rotation),
-            skeleton::angle_about_z(was.rotation)
-        ));
-    }
 }
 
 #[test]
@@ -322,7 +252,7 @@ fn call(eng: &Engine, name: &str, args: &[Value]) -> Value {
 }
 
 #[test]
-fn the_skeleton_module_lists_bones_and_resets_them() {
+fn the_skeleton_module_lists_bones_in_the_order_a_skin_numbers_them() {
     let app = app();
     let (rig, hip, thigh) = rig(&app.engine);
     let rig_id = Value::Node(balaur_core::node_id_of(rig).0);
@@ -334,23 +264,6 @@ fn the_skeleton_module_lists_bones_and_resets_them() {
             Value::Node(balaur_core::node_id_of(thigh).0),
         ])
     );
-    app.engine
-        .world_mut()
-        .get::<&mut Transform>(hip)
-        .unwrap()
-        .position = Vec3::new(9.0, 9.0, 0.0);
-    call(&app.engine, "overwrite_rest", std::slice::from_ref(&rig_id));
-    app.engine
-        .world_mut()
-        .get::<&mut Transform>(hip)
-        .unwrap()
-        .position = Vec3::ZERO;
-    call(&app.engine, "apply_rest", &[rig_id]);
-    let world = app.engine.world();
-    assert!(close2(
-        world.get::<&Transform>(hip).unwrap().position.truncate(),
-        Vec2::new(9.0, 9.0)
-    ));
 }
 
 fn bone3d(eng: &Engine, name: &str, parent: Entity, rest: Vec3, euler: Vec3) -> Entity {
@@ -489,9 +402,8 @@ fn bone3d_reads_back_every_axis() {
             .unwrap() as f32,
         2.0
     ));
-    apply_rest(&app.engine.world(), bone);
     let world = app.engine.world();
-    let t = world.get::<&Transform>(bone).unwrap();
+    let t = world.get::<&Bone>(bone).unwrap().rest_transform();
     assert!(close(t.position.z, 3.0) && close(t.scale.x, 2.0));
 }
 

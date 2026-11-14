@@ -54,6 +54,7 @@ pub(super) fn expr(e: &E) -> String {
         E::Var(v) => v.clone(),
         E::Bin(op, a, b) => format!("({} {} {})", expr(a), op.text(), expr(b)),
         E::Neg(a) => format!("(-{})", expr(a)),
+        E::BitNot(a) => format!("(~{})", expr(a)),
         E::Not(a) => format!("(!{})", expr(a)),
         E::If(c, a, b) => format!("(if {} {{ {} }} else {{ {} }})", expr(c), expr(a), expr(b)),
         E::Call(f, args) => format!("{f}({})", list(args)),

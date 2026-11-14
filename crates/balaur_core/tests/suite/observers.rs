@@ -1,4 +1,4 @@
-//! Observers (PLAN-ecs §2): Rust run the moment an event is announced, on a
+//! Observers: Rust run the moment an event is announced, on a
 //! node or any, carried up the tree for a name declared to bubble.
 
 use std::cell::RefCell;

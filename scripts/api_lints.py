@@ -41,7 +41,6 @@ SKIP_DIRS = {"target", ".git", "node_modules", "assets"}
 # precedent for the next `get_`. Both are recorded in NAMING.md's decisions.
 GETTER_ALLOW = {
     "node.get_node": "dropping the prefix gives `node:node(path)`",
-    "scene.get_node": "dropping the prefix gives `scene:node(path)`",
     "node.get_component": "pairs with `component_names`; `node:component(k)` beside "
                           "`node:components()` is two functions one character apart with "
                           "unrelated return types",
@@ -206,8 +205,8 @@ def check_functions(api: dict, sites: dict[str, list[Site]]) -> list[Finding]:
     bool_fns, bool_fields = boolean_vocabulary()
     for module in api["modules"]:
         mod = module["name"]
-        # A setter's reader may be named on the handle: `set_particle_position`
-        # beside `softbody_particle_position`, which a script calls `particle_position`.
+        # A setter's reader may be named on the handle, where the component's
+        # name drops out of the function's (`balaur_script::handle_method`).
         on_handles = {m for handles in module.get("methods", {}).values() for m in handles.values()}
         names = set(module["functions"]) | on_handles
         for fn in module["functions"]:
@@ -439,7 +438,6 @@ BY_NAME = "its shape follows a name given at run time; `node.<component>.<proper
 SPEC = "a property spec: `of`, `fields` and `variants` nest, and a record cannot hold itself"
 THEME = "a theme table: its keys are the roles the theme names"
 ANY_ALLOWED = {
-    "assets::duplicate": ("(str) -> any", BY_NAME),
     "assets::load": ("(str) -> any", BY_NAME),
     "assets::save": ("(str, any)", BY_NAME),
     "assets::schema": ("(str) -> any", SPEC),
@@ -447,11 +445,6 @@ ANY_ALLOWED = {
     "engine::store": ("(str, any)", CALLERS_OWN),
     "engine::stored": ("(str) -> any", CALLERS_OWN),
     "events::emit": ("(str, any)", CALLERS_OWN),
-    "gamend::call_hook": ("(int, str, str, any) -> int", FROM_OUTSIDE),
-    "gamend::join": ("(int, str, any) -> int", FROM_OUTSIDE),
-    "gamend::push": ("(int, str, str, any) -> int", FROM_OUTSIDE),
-    "gamend::reply": ("(int) -> any", FROM_OUTSIDE),
-    "gamend::rest": ("(str, str, any) -> int", FROM_OUTSIDE),
     "json::encode": ("(any) -> str", FROM_OUTSIDE),
     "json::parse": ("(str) -> any", FROM_OUTSIDE),
     "multiplayer::set_input": ("(any)", CALLERS_OWN),
@@ -468,9 +461,7 @@ ANY_ALLOWED = {
     "node.script_field": ("(Node, str) -> any", BY_NAME),
     "node.script_props": ("(Node) -> any", BY_NAME),
     "node.set_component": ("(Node, str, any)", BY_NAME),
-    "node.set_property": ("(Node, str, str, any) -> bool", BY_NAME),
     "node.set_script": ("(Node, str?, any)", BY_NAME),
-    "node.tilemap.tile_data": ("(Node, int, int) -> any", CALLERS_OWN),
     "rollback::input": ("(int) -> any", CALLERS_OWN),
     "scene::component_properties": ("(str, any) -> any", BY_NAME),
     "scene::component_schema": ("(str) -> any", SPEC),
@@ -489,6 +480,7 @@ ANY_ALLOWED = {
     "ui::colors_apart": ("(any) -> [ui::ColorsApart]", THEME),
     "ui::complete_theme": ("(any) -> any", THEME),
     "ui::contrast_pairs": ("(any, str) -> [ui::ContrastPair]", THEME),
+    "ui::edit": ("(Node, any) -> bool", "a widget's value follows its `kind`: a number, text, a flag or a colour"),
     "ui::set_theme": ("(any)", THEME),
 }
 

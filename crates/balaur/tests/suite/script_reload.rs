@@ -81,15 +81,21 @@ fn watched_app(project: &std::path::Path) -> balaur::App {
     app
 }
 
-const SETTLED_TICKS: usize = 40;
+/// The most ticks a wait takes, a minute and more of them at the pause below:
+/// a cap for a stuck watch, never what a passing run waits for.
+const CAP: usize = 12_000;
 
-/// Ticks past a burst's quiet time, for the frame after the last write.
-fn settle(app: &mut balaur::App, mut each: impl FnMut(&balaur::App)) {
-    for _ in 0..SETTLED_TICKS {
+/// Tick until `done` holds, with a pause between ticks: a watch's events come
+/// from the OS's own thread, and a burst ends once writes have been quiet.
+fn until(app: &mut balaur::App, mut done: impl FnMut(&balaur::App) -> bool) -> bool {
+    for _ in 0..CAP {
         app.tick(1.0 / 60.0);
-        each(app);
+        if done(app) {
+            return true;
+        }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
+    false
 }
 
 #[test]
@@ -120,22 +126,20 @@ fn a_watched_directory_says_what_changed_and_reloads_its_scripts() {
     let told = balaur_script::Value::Str(format!("{key}/scripts/visitor.bs"));
     let mut heard = false;
     let mut reloaded = false;
-    // A watch begins a moment after it is asked for, so the file is written
-    // again until something hears it.
-    for attempt in 1..=80 {
-        std::fs::write(&file, source(attempt)).unwrap();
-        settle(&mut app, |app| {
-            heard |= said(app).iter().any(|paths| paths.contains(&told));
-            reloaded |= !matches!(
-                host.script_field(node, "reloads"),
-                Some(balaur_script::Value::Int(0)) | None
-            );
-        });
-        if heard && reloaded {
-            return;
-        }
-    }
-    panic!("heard the change: {heard}, reloaded the script: {reloaded}");
+    // Once: a watch hears what is written the moment it returns.
+    std::fs::write(&file, source(1)).unwrap();
+    until(&mut app, |app| {
+        heard |= said(app).iter().any(|paths| paths.contains(&told));
+        reloaded |= !matches!(
+            host.script_field(node, "reloads"),
+            Some(balaur_script::Value::Int(0)) | None
+        );
+        heard && reloaded
+    });
+    assert!(
+        heard && reloaded,
+        "heard the change: {heard}, reloaded the script: {reloaded}"
+    );
 }
 
 #[test]
@@ -150,16 +154,11 @@ fn ten_thousand_files_changed_at_once_arrive_in_a_handful_of_lists() {
     let real = game.path().canonicalize().unwrap();
     assert!(host.watch(&real, &key, &["bs".to_string()]));
 
-    let probe = game.path().join("probe.bs");
-    let mut live = false;
-    for attempt in 0..80 {
-        std::fs::write(&probe, format!("// {attempt}")).unwrap();
-        settle(&mut app, |app| live |= !said(app).is_empty());
-        if live {
-            break;
-        }
-    }
-    assert!(live, "the watch never began");
+    std::fs::write(game.path().join("probe.bs"), "// a probe").unwrap();
+    assert!(
+        until(&mut app, |app| !said(app).is_empty()),
+        "the watch never began"
+    );
 
     for at in 0..FILES {
         std::fs::write(game.path().join(format!("f{at}.bs")), "// a file").unwrap();
@@ -169,21 +168,17 @@ fn ten_thousand_files_changed_at_once_arrive_in_a_handful_of_lists() {
     let mut lists = 0;
     let mut named: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut lost_count = false;
-    for _ in 0..60 {
-        settle(&mut app, |app| {
-            for paths in said(app) {
-                lists += 1;
-                lost_count |= paths.is_empty();
-                named.extend(paths.into_iter().map(|path| match path {
-                    balaur_script::Value::Str(path) => path,
-                    other => panic!("not a path: {other:?}"),
-                }));
-            }
-        });
-        if lost_count || named.len() >= FILES {
-            break;
+    until(&mut app, |app| {
+        for paths in said(app) {
+            lists += 1;
+            lost_count |= paths.is_empty();
+            named.extend(paths.into_iter().map(|path| match path {
+                balaur_script::Value::Str(path) => path,
+                other => panic!("not a path: {other:?}"),
+            }));
         }
-    }
+        lost_count || named.len() >= FILES
+    });
     assert!(
         lost_count || named.len() >= FILES,
         "{} of {FILES} heard",
@@ -204,4 +199,15 @@ fn a_run_with_watching_off_follows_nothing() {
     let host = app.engine.script_host().unwrap();
     let real = project.path().canonicalize().unwrap();
     assert!(!host.watch(&real, "elsewhere", &[]));
+}
+
+// macOS gives a process about 512 FSEvents streams; past them a new watch
+// starts and hears nothing. An app that outlived its owner kept its stream.
+#[test]
+fn dropping_an_app_frees_its_script_host_and_its_watch() {
+    let project = tempfile::tempdir().unwrap();
+    let app = watched_app(project.path());
+    let host = std::rc::Rc::downgrade(&app.engine.script_host().unwrap());
+    drop(app);
+    assert!(host.upgrade().is_none(), "the script host outlived its app");
 }

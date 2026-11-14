@@ -1,4 +1,4 @@
-//! A component written once: its struct is its schema (PLAN-property-types §5).
+//! A component written once: its struct is its schema.
 //!
 //! `#[derive(Component)]` on a struct writes the property specs, a property a
 //! field in field order, each field's doc comment as its `description`; the

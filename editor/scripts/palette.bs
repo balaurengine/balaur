@@ -23,6 +23,7 @@ use populate;
 use presets;
 use recipes;
 use rig;
+use sceneedit;
 use selection;
 use settings;
 use shell;
@@ -132,8 +133,6 @@ fn catalogue(state: &mut editor::State) -> Found {
 }
 
 fn commands(state: &mut editor::State) -> [Command] {
-    let undo = history::undo_label(state);
-    let redo = history::redo_label(state);
     // What the selected node itself can do first: what the tree menu's
     // Actions opens the palette for.
     let list: [Command] = node_verbs(state);
@@ -144,7 +143,36 @@ fn commands(state: &mut editor::State) -> [Command] {
         entry.key = "⌥{index + 1}";
         list.push(entry);
     }
-    for item in [
+    for item in built_in_commands(state) {
+        list.push(item);
+    }
+    // The start screen, from inside a project: the same module, so what opens
+    // from here is what opens on a bare launch. A tab has no folder picker and
+    // nowhere to write a template, but it reopens what the browser keeps.
+    if !manager::in_tab() {
+        list.push(command("Open project…", icons::panel(icons::ASSETS), "", OPEN_PROJECT));
+        list.push(command("New project…", icons::ui(icons::ADD), "", verbs::PROJECTS));
+    }
+    list.push(command("Recent projects…", icons::panel(icons::LIBRARY), "", verbs::PROJECTS));
+    // One command per scene file, the way the channel views are one per
+    // channel: a prefab is placed by name rather than through a picker.
+    for rel in model::scene_files(state) {
+        if rel != state.scene_rel {
+            list.push(command_with("Instantiate " + rel, icons::ui(icons::INSTANCE), run_instance, rel));
+        }
+    }
+    list.push(command("Open the prefab behind the selection", icons::ui(icons::INSTANCE), "", OPEN_PREFAB));
+    if model::has_selection(state) && populate::component(model::selected_node(state)) != nil {
+        list.push(command("Populate…", icons::workspace(icons::SCENE), "", verbs::POPULATE));
+    }
+    catalogue_commands(state, list);
+    list
+}
+
+fn built_in_commands(state: &mut editor::State) -> [Command] {
+    let undo = history::undo_label(state);
+    let redo = history::redo_label(state);
+    [
         command(if undo != nil { "Undo " + undo.unwrap() } else { "Undo" }, "⟲", "⌘Z", verbs::UNDO),
         command(if redo != nil { "Redo " + redo.unwrap() } else { "Redo" }, "⟳", "⇧⌘Z", verbs::REDO),
         command("Add child node…", icons::ui(icons::ADD), "⇧A", verbs::ADD_CHILD),
@@ -203,28 +231,12 @@ fn commands(state: &mut editor::State) -> [Command] {
         command("Embed clip", "◷", "", EMBED_CLIP),
         command("UI scale +", icons::ui(icons::ADD), "⌘=", SCALE_UP),
         command("UI scale −", "−", "⌘-", SCALE_DOWN),
-    ] {
-        list.push(item);
-    }
-    // The start screen, from inside a project: the same module, so what opens
-    // from here is what opens on a bare launch. A tab has no folder picker and
-    // nowhere to write a template, but it reopens what the browser keeps.
-    if !manager::in_tab() {
-        list.push(command("Open project…", icons::panel(icons::ASSETS), "", OPEN_PROJECT));
-        list.push(command("New project…", icons::ui(icons::ADD), "", verbs::PROJECTS));
-    }
-    list.push(command("Recent projects…", icons::panel(icons::LIBRARY), "", verbs::PROJECTS));
-    // One command per scene file, the way the channel views are one per
-    // channel: a prefab is placed by name rather than through a picker.
-    for rel in model::scene_files(state) {
-        if rel != state.scene_rel {
-            list.push(command_with("Instantiate " + rel, icons::ui(icons::INSTANCE), run_instance, rel));
-        }
-    }
-    list.push(command("Open the prefab behind the selection", icons::ui(icons::INSTANCE), "", OPEN_PREFAB));
-    if model::has_selection(state) && populate::component(model::selected_node(state)) != nil {
-        list.push(command("Populate…", icons::workspace(icons::SCENE), "", verbs::POPULATE));
-    }
+    ]
+}
+
+// What the registries offer: a view per channel, each plugin's commands and
+// dialogs, each preset, and each component the selection could add or drop.
+fn catalogue_commands(state: &mut editor::State, list: [Command]) {
     let known = catalogue(state);
     // Channel views: draw normals, UVs or depth instead of the picture.
     list.push(command_with("View: color", "◐", run_view, ""));
@@ -263,12 +275,11 @@ fn commands(state: &mut editor::State) -> [Command] {
             }
         }
     }
-    list
 }
 
 /// The verbs the selected node offers by what it carries: its rig, its
 /// polygon, its sprite, its mesh and its script. None is a property, so none
-/// is the Inspector's (PLAN-editor-as-scene §9.4).
+/// is the Inspector's.
 pub fn node_verbs(state: &mut editor::State) -> [Command] {
     let list: [Command] = [];
     let found = model::selected_node(state);
@@ -327,133 +338,92 @@ fn run_deform(state: &mut editor::State, data: any) {
 // The built-in verbs, by the name each command carries.
 fn run_verb(state: &mut editor::State, data: any) {
     let verb = data.as_str();
-    if verb.starts_with("align:") {
+    match verb {
+        verbs::ADD_CHILD => { newnode::open(state); }
+        CHANGE_TYPE => { newnode::open_change(state); }
+        SOFT_BODY => {
+            if model::has_selection(state) {
+                recipes::soft_body(state, state.selected);
+            }
+        }
+        verbs::ATTACH_SCRIPT => { shell::attach_script(state); }
+        OPEN_SCRIPT => { shell::set_workspace(state, defs::WORKSPACE_SCRIPT); }
+        DETACH_SCRIPT => { shell::detach_script(state); }
+        ADD_BINDING => { events::add_row(state); }
+        BINDINGS_TO_SCRIPT => { events::convert_to_script(state); }
+        DUPLICATE => { sceneedit::duplicate_selected(state); }
+        verbs::COPY => {
+            if model::has_selection(state) {
+                ui::set_clipboard(sceneedit::copy_selected(state));
+            }
+        }
+        DELETE => { sceneedit::delete_selected(state); }
+        OPEN_PREFAB => { sceneedit::open_prefab(state); }
+        verbs::POPULATE => { populate::open(state); }
+        ADD_BONE => {
+            let at = model::selected_node(state).transform.global_position();
+            rig::add_bone(state, state.selected, at.x, at.y + 1.0);
+        }
+        APPLY_REST => { rig::apply_rest(state); }
+        OVERWRITE_REST => { rig::overwrite_rest(state); }
+        verbs::RAGDOLL => { rig::physical_bones(state); }
+        TRACE_POLYGON => { polygon::trace(state); }
+        SYNC_BONES => { polygon::sync_bones(state); }
+        CLEAR_POLYGONS => { polygon::clear_polygons(state); }
+        KEY_DEFORM => { polygon::key_deform(state); }
+        CLEAR_DEFORM => { polygon::clear_deform(state); }
+        SPRITE_TO_POLYGON => { recipes::sprite_to_polygon(state, state.selected); }
+        verbs::SELECT_ALL => { selection::select_all(state); }
+        verbs::GROUP => { arrange::group(state); }
+        verbs::UNGROUP => { arrange::ungroup(state); }
+        verbs::HIDE => { arrange::toggle_hidden(state); }
+        verbs::SHOW_ALL => { arrange::show_all(state); }
+        verbs::LOCK => { arrange::toggle_locked(state); }
+        verbs::UNLOCK_ALL => { arrange::unlock_all(state); }
+        verbs::ISOLATE => { arrange::toggle_isolate(state); }
+        NEW_PATH => { pen::new_path(state); }
+        CLOSE_PATH => { pen::toggle_closed(state); }
+        verbs::UNDO => { shell::undo(state); }
+        verbs::REDO => { shell::redo(state); }
+        verbs::PLAY => { shell::toggle_play(state); }
+        verbs::SAVE => { shell::save_active(state); }
+        RELOAD_SCRIPTS => { shell::reload_scripts(state); }
+        PICTURE => { shell::write_picture(state); }
+        verbs::EXPORT => { exporter::open(state); }
+        verbs::SETTINGS => { settings::open(state); }
+        OPEN_PROJECT => { manager::pick(state); }
+        verbs::PROJECTS => { manager::open_over(state); }
+        theme_modes::DARK => { theme::toggle(state); }
+        verbs::THEME => { themewin::open(state); }
+        INPUT_OVERLAY => {
+            state.show_input = !state.show_input;
+            signals::changed(state, changes::INPUTVIEW);
+        }
+        verbs::TIMELINE | verbs::STATEMACHINE | verbs::COST | verbs::LIBRARY => { docks::show(state, verb); }
+        verbs::BINDINGS => { shell::open_doc(state, tabs::EVENTS); }
+        verbs::SPLIT => { shell::toggle_split(state); }
+        verbs::FOCUS => { shell::toggle_focus(state); }
+        SCALE_UP => { shell::step_ui_scale(state, shell::UI_SCALE_STEP); }
+        SCALE_DOWN => { shell::step_ui_scale(state, -shell::UI_SCALE_STEP); }
+        CLIP => { anim::ensure_clip(state); }
+        tools::KEY => { anim::add_key(state, state.anim.time); }
+        PROMOTE_CLIP => { anim::promote(state); }
+        EMBED_CLIP => { anim::make_inline(state); }
+        _ => { run_with_argument(state, verb); }
+    }
+}
+
+// The verbs that carry an argument after their `:`.
+fn run_with_argument(state: &mut editor::State, verb: str) {
+    if verb.starts_with("mirror_rig:") {
+        rig::mirror(state, verb.slice(11, verb.len()));
+    } else if verb.starts_with("mirror_vertices:") {
+        polygon::mirror(state, verb.slice(16, verb.len()));
+    } else if verb.starts_with("align:") {
         let parts = verb.split(":");
         arrange::align(state, parts[1].parse_int(), parts[2]);
     } else if verb.starts_with("distribute:") {
         arrange::distribute(state, verb.slice(11, verb.len()).parse_int());
-    } else if verb == verbs::UNDO {
-        shell::undo(state);
-    } else if verb == verbs::REDO {
-        shell::redo(state);
-    } else if verb == verbs::ADD_CHILD {
-        newnode::open(state);
-    } else if verb == CHANGE_TYPE {
-        newnode::open_change(state);
-    } else if verb == SOFT_BODY {
-        if model::has_selection(state) {
-            recipes::soft_body(state, state.selected);
-        }
-    } else if verb == verbs::ATTACH_SCRIPT {
-        shell::attach_script(state);
-    } else if verb == OPEN_SCRIPT {
-        shell::set_workspace(state, defs::WORKSPACE_SCRIPT);
-    } else if verb == DETACH_SCRIPT {
-        shell::detach_script(state);
-    } else if verb == ADD_BONE {
-        let at = model::selected_node(state).transform.global_position();
-        rig::add_bone(state, state.selected, at.x, at.y + 1.0);
-    } else if verb == APPLY_REST {
-        rig::apply_rest(state);
-    } else if verb == OVERWRITE_REST {
-        rig::overwrite_rest(state);
-    } else if verb.starts_with("mirror_rig:") {
-        rig::mirror(state, verb.slice(11, verb.len()));
-    } else if verb == verbs::RAGDOLL {
-        rig::physical_bones(state);
-    } else if verb == TRACE_POLYGON {
-        polygon::trace(state);
-    } else if verb == SYNC_BONES {
-        polygon::sync_bones(state);
-    } else if verb.starts_with("mirror_vertices:") {
-        polygon::mirror(state, verb.slice(16, verb.len()));
-    } else if verb == CLEAR_POLYGONS {
-        polygon::clear_polygons(state);
-    } else if verb == KEY_DEFORM {
-        polygon::key_deform(state);
-    } else if verb == CLEAR_DEFORM {
-        polygon::clear_deform(state);
-    } else if verb == SPRITE_TO_POLYGON {
-        recipes::sprite_to_polygon(state, state.selected);
-    } else if verb == verbs::PLAY {
-        shell::toggle_play(state);
-    } else if verb == verbs::SAVE {
-        shell::save_active(state);
-    } else if verb == RELOAD_SCRIPTS {
-        shell::reload_scripts(state);
-    } else if verb == PICTURE {
-        shell::write_picture(state);
-    } else if verb == verbs::EXPORT {
-        exporter::open(state);
-    } else if verb == verbs::SETTINGS {
-        settings::open(state);
-    } else if verb == theme_modes::DARK {
-        theme::toggle(state);
-    } else if verb == verbs::THEME {
-        themewin::open(state);
-    } else if verb == INPUT_OVERLAY {
-        state.show_input = !state.show_input;
-        signals::changed(state, changes::INPUTVIEW);
-    } else if verb == verbs::TIMELINE || verb == verbs::STATEMACHINE || verb == verbs::COST || verb == verbs::LIBRARY {
-        docks::show(state, verb);
-    } else if verb == verbs::BINDINGS {
-        shell::open_doc(state, tabs::EVENTS);
-    } else if verb == ADD_BINDING {
-        events::add_row(state);
-    } else if verb == BINDINGS_TO_SCRIPT {
-        events::convert_to_script(state);
-    } else if verb == verbs::SPLIT {
-        shell::toggle_split(state);
-    } else if verb == verbs::FOCUS {
-        shell::toggle_focus(state);
-    } else if verb == verbs::SELECT_ALL {
-        selection::select_all(state);
-    } else if verb == verbs::GROUP {
-        arrange::group(state);
-    } else if verb == verbs::UNGROUP {
-        arrange::ungroup(state);
-    } else if verb == verbs::HIDE {
-        arrange::toggle_hidden(state);
-    } else if verb == verbs::SHOW_ALL {
-        arrange::show_all(state);
-    } else if verb == verbs::LOCK {
-        arrange::toggle_locked(state);
-    } else if verb == verbs::UNLOCK_ALL {
-        arrange::unlock_all(state);
-    } else if verb == verbs::ISOLATE {
-        arrange::toggle_isolate(state);
-    } else if verb == NEW_PATH {
-        pen::new_path(state);
-    } else if verb == CLOSE_PATH {
-        pen::toggle_closed(state);
-    } else if verb == DUPLICATE {
-        model::duplicate_selected(state);
-    } else if verb == verbs::COPY {
-        if model::has_selection(state) {
-            ui::set_clipboard(model::copy_selected(state));
-        }
-    } else if verb == DELETE {
-        model::delete_selected(state);
-    } else if verb == CLIP {
-        anim::ensure_clip(state);
-    } else if verb == tools::KEY {
-        anim::add_key(state, state.anim.time);
-    } else if verb == PROMOTE_CLIP {
-        anim::promote(state);
-    } else if verb == EMBED_CLIP {
-        anim::make_inline(state);
-    } else if verb == SCALE_UP {
-        shell::step_ui_scale(state, shell::UI_SCALE_STEP);
-    } else if verb == SCALE_DOWN {
-        shell::step_ui_scale(state, -shell::UI_SCALE_STEP);
-    } else if verb == OPEN_PROJECT {
-        manager::pick(state);
-    } else if verb == verbs::PROJECTS {
-        manager::open_over(state);
-    } else if verb == OPEN_PREFAB {
-        model::open_prefab(state);
-    } else if verb == verbs::POPULATE {
-        populate::open(state);
     }
 }
 
@@ -462,7 +432,7 @@ fn run_workspace(state: &mut editor::State, data: any) {
 }
 
 fn run_instance(state: &mut editor::State, data: any) {
-    model::instance_scene(state, data.as_str());
+    sceneedit::instance_scene(state, data.as_str());
 }
 
 fn run_view(state: &mut editor::State, data: any) {
@@ -484,17 +454,17 @@ fn run_preset(state: &mut editor::State, data: any) {
 }
 
 fn run_remove_component(state: &mut editor::State, data: any) {
-    model::remove_component(state, data.as_str());
+    sceneedit::remove_component(state, data.as_str());
 }
 
 fn run_add_component(state: &mut editor::State, data: any) {
-    model::add_component(state, data.as_str());
+    sceneedit::add_component(state, data.as_str());
 }
 
 /// Fill the picker: what its script asks for while the palette is up.
 pub fn fill(state: &mut editor::State) {
     let matched = matches(state);
-    let row_height = util::max(style::row_height(state), 30.0);
+    let row_height = math::max(style::row_height(state), 30.0);
     let field: any = {
         layout_fields::WIDTH: 560.0,
         fields::MARK: icons::ui(icons::SEARCH),

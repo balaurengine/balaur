@@ -17,7 +17,7 @@ fn id_of(node: Node) -> str {
 
 impl Plugin {
     pub fn init() {
-        let editor = scene::get_node("Editor");
+        let editor = scene::root().get_node("Editor");
         for word in [signals::PLUGINS_CHANGED, signals::OUTLINE, signals::INSPECTOR, signals::DEBUGGER_CHANGED] {
             events::listen(self.node, word, editor);
         }
@@ -56,7 +56,7 @@ impl Plugin {
         if self.node.visible() == false {
             return;
         }
-        let found: editor::Editor? = scene::get_node("Editor").script;
+        let found: editor::Editor? = scene::root().get_node("Editor").script;
         if found != nil {
             found.unwrap().plugin_fill(id_of(self.node));
         }

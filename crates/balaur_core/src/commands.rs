@@ -1,4 +1,4 @@
-//! Writes asked for now and made later (PLAN-ecs §2): what a system reading
+//! Writes asked for now and made later: what a system reading
 //! the world, or a lifecycle call, asks for instead of changing the world
 //! under itself.
 //!

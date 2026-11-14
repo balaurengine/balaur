@@ -18,7 +18,6 @@ use crate::vocabulary::{Opts, keys as k, words as w};
 use crate::{PhysicsState2d, PhysicsState3d};
 
 const DEBUG_DRAW: &str = "debug_draw";
-const DEBUG_DRAW_DEFAULTS: &str = "debug_draw_defaults";
 const SET_DEBUG_DRAW: &str = "set_debug_draw";
 
 /// What the physics debug draw shows. Written by scripts and the editor, read
@@ -597,9 +596,8 @@ pub(crate) fn install_debug_api(m: &mut Module<Engine>) {
         "What the debug renderer draws: one flag per mode, `soft_stress` being soft-body edges coloured by load, with `nodes`, the nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `enabled` left out is whether any mode is named.",
     )]);
     m.describe(&[
-        (SET_DEBUG_DRAW, &[], "(modes: DebugDraw)", "Draw the physics world over the scene, as `modes` names it; `debug_draw_defaults()` is the usual shapes, and `enabled: false` nothing. `[physics.debug]` holds the colours and lengths."),
+        (SET_DEBUG_DRAW, &[], "(modes: DebugDraw)", "Draw the physics world over the scene, as `modes` names it: `DebugDraw { colliders: true }` is the shapes, and `enabled: false` nothing. `[physics.debug]` holds the colours and lengths."),
         (DEBUG_DRAW, &[], "() -> DebugDraw", "What the debug renderer is drawing now, every flag and `nodes` given."),
-        (DEBUG_DRAW_DEFAULTS, &[], "() -> DebugDraw", "The usual shapes, for `set_debug_draw`."),
     ]);
     m.function(SET_DEBUG_DRAW, |eng: &Engine, modes: Value| {
         let config = eng.resource::<PhysicsDebugConfig>();
@@ -629,10 +627,6 @@ pub(crate) fn install_debug_api(m: &mut Module<Engine>) {
         let config = eng.resource::<PhysicsDebugConfig>();
         let config = config.borrow();
         Ok(debug_draw_value(config.enabled, config.mode, &config.nodes))
-    });
-    m.function(DEBUG_DRAW_DEFAULTS, |_eng: &Engine, ()| {
-        let usual = PhysicsDebugConfig::default();
-        Ok(debug_draw_value(true, usual.mode, &usual.nodes))
     });
 }
 

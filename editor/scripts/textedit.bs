@@ -7,6 +7,7 @@ use editor;
 use gizmo;
 use model;
 use recipes;
+use sceneedit;
 use selection;
 use signals;
 use themewin;
@@ -114,7 +115,7 @@ pub fn update(state: &mut editor::State) {
     let pointer = viewport::pointer(state);
     let now = engine::unix_time();
     let quick = now - state.textedit.clicked_at < GAP;
-    let near = util::abs(pointer.x - state.textedit.click_x) < SLOP && util::abs(pointer.y - state.textedit.click_y) < SLOP;
+    let near = math::abs(pointer.x - state.textedit.click_x) < SLOP && math::abs(pointer.y - state.textedit.click_y) < SLOP;
     state.textedit.clicked_at = now;
     state.textedit.click_x = pointer.x;
     state.textedit.click_y = pointer.y;
@@ -153,13 +154,13 @@ fn open(state: &mut editor::State, row: int, design_x: float, design_y: float) {
         let world_per_pixel = viewport::world_per_pixel();
         let scale = found.transform.global_scale();
         let font = found.component_property(name, themewin::FONT_SIZE).as_float();
-        let per_unit = util::max(found.component_property(name, recipes::PIXELS_PER_UNIT).as_float(), 0.01);
-        edit.size = util::clamp(font / per_unit * util::abs(scale.y) / world_per_pixel, MIN_SIZE, MAX_SIZE);
+        let per_unit = math::max(found.component_property(name, recipes::PIXELS_PER_UNIT).as_float(), 0.01);
+        edit.size = math::clamp(font / per_unit * math::abs(scale.y) / world_per_pixel, MIN_SIZE, MAX_SIZE);
         let laid = render::bounds(found);
         let known = laid != nil && laid.unwrap().len() == 2;
         let local = if known { laid.unwrap()[0] } else { vec3(0.0, 0.0, 0.0) };
         if known {
-            drawn_width = 2.0 * laid.unwrap()[1].x * util::abs(scale.x) / world_per_pixel;
+            drawn_width = 2.0 * laid.unwrap()[1].x * math::abs(scale.x) / world_per_pixel;
         }
         let world = util::to_world(util::frame_of(found), local.x, local.y);
         let at = viewport::screen_of_2d(state, world.x, world.y);
@@ -167,8 +168,8 @@ fn open(state: &mut editor::State, row: int, design_x: float, design_y: float) {
         centre_y = at.y;
     }
     // Wide enough for the words as drawn, or as typed at this size.
-    let typed_width = (edit.buffer.len() as float) * util::max(edit.size, MIN_SIZE) * 0.6;
-    edit.box_width = util::max(MIN_WIDTH, util::max(drawn_width, typed_width) + PAD_WIDTH);
+    let typed_width = (edit.buffer.len() as float) * math::max(edit.size, MIN_SIZE) * 0.6;
+    edit.box_width = math::max(MIN_WIDTH, math::max(drawn_width, typed_width) + PAD_WIDTH);
     edit.box_x = centre_x - edit.box_width / 2.0;
     edit.box_y = centre_y - height(edit.size) / 2.0;
     signals::changed(state, TEXTEDIT);
@@ -211,7 +212,7 @@ fn commit(state: &mut editor::State) {
         // `set_component_property` writes the selection's node, which is this one.
         let was = state.selected;
         selection::only(state, row);
-        model::set_component_property(state, name, components::TEXT, state.textedit.buffer);
+        sceneedit::set_component_property(state, name, components::TEXT, state.textedit.buffer);
         selection::only(state, was);
     }
     close(state);

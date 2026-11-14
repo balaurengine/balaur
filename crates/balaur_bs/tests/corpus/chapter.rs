@@ -71,7 +71,7 @@ pub(crate) fn module_name(code: &str) -> Option<&str> {
 
 /// A fence that needs the engine's API to compile.
 pub(crate) fn needs_the_engine(code: &str) -> bool {
-    const ENGINE: [&str; 21] = [
+    const ENGINE: [&str; 20] = [
         "self.node",
         "node.",
         "node:",
@@ -81,7 +81,6 @@ pub(crate) fn needs_the_engine(code: &str) -> bool {
         "events::",
         "math::",
         "types::",
-        "gamend::",
         "http::",
         "scene::",
         "engine::",

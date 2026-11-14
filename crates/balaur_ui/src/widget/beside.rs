@@ -1,6 +1,6 @@
 //! Components beside `widget` holding the rows only some of its kinds read:
 //! a `code` widget's gutter, a `window`'s chrome.
-//! No property shows on a condition (PLAN-property-types §5), so a row that
+//! No property shows on a condition, so a row that
 //! applies to one kind is a component of its own on the same node.
 //!
 //! Each puts its rows on the [`Widget`] the layer reads, the node's own where
@@ -430,7 +430,7 @@ pub(crate) struct WidgetField {
     pub(crate) caret_at_end: bool,
     /// Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on
     pub(crate) tab_inserts: bool,
-    /// The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says
+    /// The chord that submits a `text_field`, as `Enter` or `cmd+Enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says
     pub(crate) submit_key: SmolStr,
     /// Text drawn before a `text_field`'s or `text_area`'s text
     pub(crate) prefix: SmolStr,
@@ -457,7 +457,7 @@ impl Beside for WidgetField {
         let chord = &self.submit_key;
         if !chord.is_empty() && crate::chord::chord(chord).is_none() {
             anyhow::bail!(
-                "widget_field: `submit_key` `{chord}` is not a chord, as `enter` or `cmd+enter`"
+                "widget_field: `submit_key` `{chord}` is not a chord, as `Enter` or `cmd+Enter`"
             );
         }
         Ok(())

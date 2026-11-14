@@ -11,6 +11,7 @@ use model;
 use pen;
 use polygon;
 use refactor;
+use sceneedit;
 use selection;
 use settings;
 use shell;
@@ -46,84 +47,49 @@ pub fn run(state: &mut editor::State, name: str) {
         workspace(state, name);
         return;
     }
-    if name == verbs::PALETTE {
-        if state.palette {
-            shell::close_palette(state);
-        } else {
-            shell::open_palette(state, "");
+    match name {
+        verbs::PALETTE => {
+            if state.palette {
+                shell::close_palette(state);
+            } else {
+                shell::open_palette(state, "");
+            }
         }
-    } else if name == verbs::SAVE {
-        shell::save_active(state);
-    } else if name == FORMAT {
-        shell::format_active(state);
-    } else if name == DEFINITION {
-        shell::goto_definition(state);
-    } else if name == RENAME_SYMBOL {
-        refactor::open(state, "rename");
-    } else if name == REPLACE {
-        refactor::open(state, REPLACE);
-    } else if name == verbs::FOCUS {
-        shell::toggle_focus(state);
-    } else if name == verbs::SPLIT {
-        shell::toggle_split(state);
-    } else if name == verbs::ZOOM_IN {
-        shell::step_ui_scale(state, shell::UI_SCALE_STEP);
-    } else if name == verbs::ZOOM_OUT {
-        shell::step_ui_scale(state, -shell::UI_SCALE_STEP);
-    } else if name == verbs::SETTINGS {
-        settings::open(state);
-    } else if name == verbs::EXPORT {
-        exporter::open(state);
-    } else if name == CONTINUE {
-        shell::resume(state, debugger::CONTINUE);
-    } else if name == verbs::STEP_OVER {
-        shell::resume(state, debugger::STEP_OVER);
-    } else if name == verbs::STEP_INTO {
-        shell::resume(state, debugger::STEP_INTO);
-    } else if name == verbs::STEP_OUT {
-        shell::resume(state, debugger::STEP_OUT);
-    } else if name == verbs::PLAY {
-        shell::toggle_play(state);
-    } else if name == BREAK {
-        debugger::request_break();
-    } else if name == verbs::ADD_CHILD {
-        model::add_child(state);
-    } else if name == verbs::ATTACH_SCRIPT {
-        shell::attach_script(state);
-    } else if name == RELOAD {
-        shell::reload_scripts(state);
-    } else if name == verbs::COPY {
-        copy(state);
-    } else if name == verbs::REDO {
-        shell::redo(state);
-    } else if name == REDO_Y {
-        shell::redo(state);
-    } else if name == verbs::UNDO {
-        shell::undo(state);
-    } else if name == verbs::THEME {
-        theme::toggle(state);
-    } else if name == verbs::SELECT_ALL {
-        selection::select_all(state);
-    } else if name == verbs::UNGROUP {
-        arrange::ungroup(state);
-    } else if name == verbs::GROUP {
-        arrange::group(state);
-    } else if name == verbs::UNLOCK_ALL {
-        arrange::unlock_all(state);
-    } else if name == verbs::LOCK {
-        arrange::toggle_locked(state);
-    } else if name == verbs::SHOW_ALL {
-        arrange::show_all(state);
-    } else if name == verbs::HIDE {
-        arrange::toggle_hidden(state);
-    } else if name == verbs::ISOLATE {
-        arrange::toggle_isolate(state);
-    } else if name == tools::KEY {
-        key(state);
-    } else if name == CANCEL {
-        cancel(state);
-    } else {
-        log::warn("no command named {name}");
+        verbs::SAVE => { shell::save_active(state); }
+        FORMAT => { shell::format_active(state); }
+        DEFINITION => { shell::goto_definition(state); }
+        RENAME_SYMBOL => { refactor::open(state, "rename"); }
+        REPLACE => { refactor::open(state, REPLACE); }
+        verbs::FOCUS => { shell::toggle_focus(state); }
+        verbs::SPLIT => { shell::toggle_split(state); }
+        verbs::ZOOM_IN => { shell::step_ui_scale(state, shell::UI_SCALE_STEP); }
+        verbs::ZOOM_OUT => { shell::step_ui_scale(state, -shell::UI_SCALE_STEP); }
+        verbs::SETTINGS => { settings::open(state); }
+        verbs::EXPORT => { exporter::open(state); }
+        CONTINUE => { shell::resume(state, debugger::CONTINUE); }
+        verbs::STEP_OVER => { shell::resume(state, debugger::STEP_OVER); }
+        verbs::STEP_INTO => { shell::resume(state, debugger::STEP_INTO); }
+        verbs::STEP_OUT => { shell::resume(state, debugger::STEP_OUT); }
+        verbs::PLAY => { shell::toggle_play(state); }
+        BREAK => { debugger::request_break(); }
+        verbs::ADD_CHILD => { sceneedit::add_child(state); }
+        verbs::ATTACH_SCRIPT => { shell::attach_script(state); }
+        RELOAD => { shell::reload_scripts(state); }
+        verbs::COPY => { copy(state); }
+        verbs::REDO | REDO_Y => { shell::redo(state); }
+        verbs::UNDO => { shell::undo(state); }
+        verbs::THEME => { theme::toggle(state); }
+        verbs::SELECT_ALL => { selection::select_all(state); }
+        verbs::UNGROUP => { arrange::ungroup(state); }
+        verbs::GROUP => { arrange::group(state); }
+        verbs::UNLOCK_ALL => { arrange::unlock_all(state); }
+        verbs::LOCK => { arrange::toggle_locked(state); }
+        verbs::SHOW_ALL => { arrange::show_all(state); }
+        verbs::HIDE => { arrange::toggle_hidden(state); }
+        verbs::ISOLATE => { arrange::toggle_isolate(state); }
+        tools::KEY => { key(state); }
+        CANCEL => { cancel(state); }
+        _ => { log::warn("no command named {name}"); }
     }
 }
 
@@ -142,7 +108,7 @@ fn workspace(state: &mut editor::State, name: str) {
 // ⌘V is the paste event the Editor hears; only the copy half is a chord.
 fn copy(state: editor::State) {
     if model::has_selection(state) {
-        ui::set_clipboard(model::copy_selected(state));
+        ui::set_clipboard(sceneedit::copy_selected(state));
     }
 }
 

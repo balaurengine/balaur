@@ -1,9 +1,10 @@
 // Undo/redo as lists of changes. The engine keeps every change to the edited
 // scene with what it replaced (`scene::keep_changes`); a step is the ones an
-// action made, and undoing it writes each back (PLAN-editor-as-scene §10.2).
+// action made, and undoing it writes each back.
 
 use editor;
 use model;
+use sceneedit;
 use signals;
 use util;
 use words::project_fields;
@@ -102,7 +103,7 @@ fn restore(state: &mut editor::State, into: [Step], from: [Step]) -> str? {
     model::drop_edited(state);
     let changes = top.changes;
     for at in 0..changes.len() {
-        model::undo_change(state, changes[changes.len() - 1 - at]);
+        sceneedit::undo_change(state, changes[changes.len() - 1 - at]);
     }
     held.changes = scene::take_changes();
     into.push(held);

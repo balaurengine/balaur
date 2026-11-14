@@ -1,7 +1,7 @@
 # Releasing
 
-Builds are created by `.github/workflows/build.yml`, and
-`scripts/release.sh` puts their files on a release.
+`.github/workflows/build.yml` builds every platform, and `scripts/release.sh`
+puts the files on a release.
 
 | | Tag | When | Who makes the release |
 | --- | --- | --- | --- |
@@ -12,83 +12,35 @@ Builds are created by `.github/workflows/build.yml`, and
 
 1. `scripts/bump_version.sh [patch|minor|major]`, patch by default. It moves
    every manifest and lockfile carrying the version; `--dry-run` shows the
-   move first, `--set 0.4.2` writes an exact one. A prerelease is set by hand
-   (`--set 0.2.0-alpha.1`), and a part bump refuses to guess its way off one.
+   move first, `--set 0.4.2` writes an exact one. A prerelease is moved by
+   hand (`--set 0.2.0-alpha.1`), and a part bump refuses to guess its way off
+   one.
 2. Rewrite the `docs/ROADMAP.md` rows the release finished as what landed, and
    say the new version in its opening.
 3. `python3 scripts/gen_docs.py`, so `docs/generated/` matches what shipped.
-4. Commit, push, and wait for CI to go green on `main`.
-5. On GitHub, **Releases → Draft a new release**: a new tag such as `v0.1.0`
+4. Retake the pictures the milestone changed:
+   `scripts/showcase.sh --milestone <version> ../forge`. Every take is filed
+   under a milestone, which `scripts/house_lints.py` holds the script to.
+5. Commit, push, and wait for CI to go green on `main`.
+6. On GitHub, **Releases → Draft a new release**: a new tag such as `v0.1.0`
    on `main`, the notes, the pre-release box ticked for a suffixed version
    (`v0.2.0-alpha.1`), and **Publish**.
-6. Publishing runs `runner.yml`, which builds every platform from that tag and
-   attaches the files to the release, about an hour later. Until then the
+7. Publishing runs `runner.yml`, which builds every platform from that tag and
+   attaches the files to the release about an hour later. Until then the
    release has no downloads.
-7. **Deploy the site** if `/play` and `/editor` should run what was just
-   published. The Download and Releases pages follow by themselves. See below.
 
-The tag has to match `Cargo.toml`: `release.sh` fails when it does not, and
+The tag has to match `Cargo.toml`: `release.sh` fails when it does not, since
 the version is compiled into each binary. For the same reason `nightly`
 cannot be retagged as a version, only built from its own tag.
 
-## The site
-
-balaurengine.org is served by Forge (`../forge`, with its own `AGENTS.md`);
-the manual, the devlog and the pictures live there, not in this repository.
-
-The pictures come first. `scripts/showcase.sh --milestone <version>` retakes
-what the milestone being cut changed and nothing else, so 0.1's screenshots
-are not rendered again for 0.2:
-
-```sh
-scripts/showcase.sh --milestone 0.2 ../forge
-cd ../forge && mix forge.site.images
-```
-
-The script writes PNGs and clips under forge's `priv/static/`; the pages show
-the WebP beside each PNG and a poster per clip, which `mix forge.site.images`
-writes, and both are committed there. Every take is filed under a milestone in
-that script, which `scripts/house_lints.py` holds it to, and forge's
-`mix forge.site.lint_media` fails on a picture no page shows.
-
-When `docs/generated/`, `docs/ROADMAP.md` or `docs/BENCHMARKS.md` moved,
-`mix forge.site.sync` in `../forge` copies them over and regenerates the
-reference and the roadmap page.
-
-The Download and Releases pages read GitHub while the site runs
-(`Forge.Site.Releases`), cached for ten minutes, so **a published release shows
-up by itself within ten minutes**. A draft has no fetchable assets and does not
-appear, and a release whose files CI has not attached yet shows none.
-
-`/play` and `/editor` are different: the engine's web build
-(`balaur-play.tar.gz`) is fetched when forge's image is built, so the site runs
-the engine it was last deployed with. Nothing in this repository tells the site
-about a nightly. Deploy forge (`./bin/deploy` on its host) to pick up the newest
-one; `ENGINE_TAG` in its `.env` pins a version instead.
-
-## Prereleases and `latest`
-
-**GitHub's `latest` skips prereleases.** While every release carries the
-prerelease flag, `/releases/latest` answers 404, and two things follow from
-that:
-
-- The site cannot ask for `latest`. It takes the newest entry from the full
-  release list instead, and reads each release's `prerelease` flag to decide
-  whether to call the channel "Pre-alpha" or "Stable" (fixed 2026-09-10; before
-  that the Download page said "no numbered release yet" with v0.1.0 published
-  and twenty-four assets on it).
-- **`balaur update` on a stable build fails while no stable release exists,
-  and that is correct.** `update.rs` resolves a release build to `latest` and
-  gets a 404, because there is nothing on the stable line to update to. It is
-  not given a quiet fallback to the newest prerelease: an alpha is not what
-  somebody asking for stable asked for. Naming a channel is how you get one —
-  see below.
+Forge's `docs/site.md` says how the site picks up a release: the pictures, the
+synced reference and roadmap, the Download page and `/play`.
 
 ## Versions and channels
 
-**The version string is what names the channel.** Not the GitHub prerelease
-checkbox, and not a setting on the machine: a binary reads its own version and
-knows which line it is on, with nothing to configure.
+**The version string names the channel.** Not the GitHub prerelease checkbox,
+and not a setting on the machine: a binary reads its own version and knows
+which line it is on.
 
 | Version | Channel | An update finds it by |
 | --- | --- | --- |
@@ -97,24 +49,21 @@ knows which line it is on, with nothing to configure.
 | `0.2.0-rc.1` | rc | the newest `-rc` release in the release list |
 | `0.2.0` | stable | GitHub's `latest` |
 
-These are ordinary SemVer prerelease identifiers and Cargo takes them:
-`version = "0.1.0-alpha.1"` builds, and `bump_version.sh --set 0.1.0-alpha.1`
-writes it across the workspace. The VS Code extension is the one exception: the
-marketplace takes no suffix, so `editors/code/package.json` carries the release
-the workspace is working towards. SemVer also orders them the way you would
-expect — `alpha` < `beta` < `rc` < the release itself — so "is this newer" needs
-no special case.
-
-Two rules that go with it:
+These are ordinary SemVer prerelease identifiers, which Cargo takes and orders
+`alpha` < `beta` < `rc` < the release. The VS Code extension is the one
+exception: the marketplace takes no suffix, so `editors/code/package.json`
+carries the release the workspace is working towards.
 
 - **Anything with a suffix keeps the prerelease flag ticked on GitHub.** The
-  flag's only job is to keep it out of `latest`; the suffix is what everything
-  else reads.
+  flag keeps it out of `latest`; the suffix is what everything else reads.
 - **Drop the suffix at 1.0 rather than living on one.** A Cargo requirement
-  like `^0.1.0` does not match `0.1.0-alpha.1`, which costs nothing while the
-  crates are unpublished and starts to matter the day they are on crates.io.
+  like `^0.1.0` does not match `0.1.0-alpha.1`, which starts to matter the day
+  the crates are on crates.io.
+- **GitHub's `latest` skips prereleases.** While every release is one,
+  `/releases/latest` answers 404, so the site reads the full release list and
+  each release's `prerelease` flag instead.
 
-### `balaur update`
+## `balaur update`
 
 An update follows the channel its own version names, so an alpha build tracks
 the alpha line without being told. Crossing lines is explicit:
@@ -123,29 +72,43 @@ the alpha line without being told. Crossing lines is explicit:
 balaur update                     # the channel this build is already on
 balaur update --channel alpha     # move to the alpha line
 balaur update --channel stable    # back to the stable line
+balaur update --version v0.2.0    # one exact release
+balaur update --check             # only report whether an update exists
 ```
-
-Two installs are refused rather than replaced: `Balaur.app`, whose notarised
-ticket is stapled to the bundle it shipped as, and a cargo target directory,
-which is a build tree a release would bury. The editor's Engine tab and About
-sheet are the same code. They say which it is before offering a press, and a
-bundle gets the release's zipped app instead.
 
 Stable and the nightly need no API: an update fetches
 `releases/latest/download/VERSION` or `releases/download/nightly/VERSION`, and
-every release carries its VERSION. A prerelease line has no tag of its own to
-fetch, so its update reads the release feed once, unauthenticated, against
-GitHub's 60 an hour, and takes the newest release whose tag names the line. The
-Engine tab's list is the same read. The nightly's VERSION names a build rather
-than a tag, so its files sit on the `nightly` release itself.
+every release carries its VERSION. A prerelease line has no tag of its own, so
+its update reads the release feed once, unauthenticated, against GitHub's 60
+an hour, and takes the newest release whose tag names the line. The editor's
+Engine tab lists releases with the same read. The nightly's VERSION names a
+build rather than a tag, so its files sit on the `nightly` release itself.
 
-A stable build with no stable release to find fails, and should. Falling back
-to a prerelease would hand somebody an alpha they did not ask for. The failure
-names the channels that do have a release, since the fix is usually one of
-them.
+A stable build with no stable release to find fails, and names the channels
+that have one. Falling back to a prerelease would hand somebody an alpha they
+did not ask for.
 
-Crossing lines can also go backwards: `--channel stable` from `0.2.0-alpha.3`
-onto a `0.1.0` release is a downgrade. Following that literally is probably not
-what was meant, so it is refused unless `--allow-downgrade` says otherwise. A
-nightly and a source build order against nothing, so neither is ever refused
-this way.
+`--channel stable` from `0.2.0-alpha.3` onto a `0.1.0` release is a downgrade,
+refused unless `--allow-downgrade` says otherwise. A nightly and a source build
+order against nothing, so neither is refused this way.
+
+Two installs are refused rather than replaced: `Balaur.app`, whose notarised
+ticket is stapled to the bundle it shipped as, and a cargo target directory,
+which is a build tree. The editor's Engine tab and About sheet run the same
+code, say which it is before offering a press, and give a bundle the release's
+zipped app instead.
+
+## Signing credentials
+
+The maintainers hold the certificates. CI reads them as repository secrets,
+which a contributor's fork never sees.
+
+| What | Where | Expires |
+| --- | --- | --- |
+| Developer ID Application | `MACOS_CERTIFICATE_BASE64` | 2027-02-01 |
+| Apple app-specific password | `APPLE_APP_PASSWORD` | when the Apple ID password changes |
+| Artifact Signing principal | `AZURE_CLIENT_SECRET` (app `balaur-ci-signing`) | 2028-09-06 |
+| Artifact Signing identity validation | the `balaur` account, portal only | 2028-12-09 |
+
+A lapsed credential does not fail loudly: the scripts skip when one is
+absent, so the download goes out unsigned. Renew before the dates above.

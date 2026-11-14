@@ -862,7 +862,7 @@
     },
     "state_machine": {
       "directory": "animations",
-      "doc": "Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `blend_time`, `ease` or `blend_curve`, `advance_mode`, `switch_mode`, `condition`, `check`, `priority`, `reset` and `break_loop_at_end`. A transition to `end` stops the machine until a travel or a jump.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]                         # state = clip in the player's library; \"\" is the state's own name\nidle = \"idle\"\n\n[states.move]                    # a nested machine: its states are move/walk and move/run\nstart = \"walk\"\nstates = { walk = \"\", run = \"run_cycle\" }\n\n[[transitions]]\nfrom = \"idle\"\nto = \"move\"                      # entering a nested machine enters its start\nblend_time = 0.2                 # seconds\nease = \"in_out_sine\"             # the curve the blend follows; linear by default\nadvance_mode = \"auto\"            # disabled, enabled (fires on animation.travel) or auto\nswitch_mode = \"immediate\"        # immediate, sync (keeps the playhead) or at_end\ncondition = \"moving\"             # turned on by animation.set_condition\ncheck = \"can_move\"               # a script method that has to answer true, asked each frame\npriority = 1                     # lower wins among auto transitions and on travel\nreset = true                     # false resumes where the state was last left\nbreak_loop_at_end = false        # true holds a looping clip's end while it blends out\n\n[[transitions]]\nfrom = \"move\"                    # leaves from any state inside the nested machine\nto = \"end\"\nblend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease\n```"
+      "doc": "Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `blend_time`, `ease` or `blend_curve`, `advance_mode`, `switch_mode`, `condition`, `check`, `priority`, `reset` and `break_loop_at_end`. A transition to `end` stops the machine until a travel or a jump.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]                         # state = clip in the player's library; \"\" is the state's own name\nidle = \"idle\"\n\n[states.move]                    # a nested machine: its states are move/walk and move/run\nstart = \"walk\"\nstates = { walk = \"\", run = \"run_cycle\" }\n\n[[transitions]]\nfrom = \"idle\"\nto = \"move\"                      # entering a nested machine enters its start\nblend_time = 0.2                 # seconds\nease = \"in_out_sine\"             # the curve the blend follows; linear by default\nadvance_mode = \"auto\"            # disabled, enabled (fires on state_machine.travel) or auto\nswitch_mode = \"immediate\"        # immediate, sync (keeps the playhead) or at_end\ncondition = \"moving\"             # turned on by animation.set_condition\ncheck = \"can_move\"               # a script method that has to answer true, asked each frame\npriority = 1                     # lower wins among auto transitions and on travel\nreset = true                     # false resumes where the state was last left\nbreak_loop_at_end = false        # true holds a looping clip's end while it blends out\n\n[[transitions]]\nfrom = \"move\"                    # leaves from any state inside the nested machine\nto = \"end\"\nblend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease\n```"
     },
     "text_style": {
       "directory": "text_styles",
@@ -1111,15 +1111,6 @@
       "debugger::STEP_INTO": "into",
       "debugger::STEP_OUT": "out",
       "debugger::STEP_OVER": "over",
-      "gamend::EVENT_CLOSED": "closed",
-      "gamend::EVENT_ERROR": "error",
-      "gamend::EVENT_LOGIN": "login",
-      "gamend::EVENT_MESSAGE": "message",
-      "gamend::EVENT_OPEN": "open",
-      "gamend::EVENT_RECONNECTING": "reconnecting",
-      "gamend::EVENT_REOPENED": "reopened",
-      "gamend::EVENT_REPLY": "reply",
-      "gamend::EVENT_REST": "rest",
       "http::EVENT_CANCELLED": "cancelled",
       "http::EVENT_ERROR": "error",
       "http::EVENT_PROGRESS": "progress",
@@ -1652,7 +1643,6 @@
       "ui::WIDGET_COLUMN": "column",
       "ui::WIDGET_DIALOG": "dialog",
       "ui::WIDGET_DROPDOWN": "dropdown",
-      "ui::WIDGET_FLOW": "flow",
       "ui::WIDGET_FOLD": "fold",
       "ui::WIDGET_GRID": "grid",
       "ui::WIDGET_IMAGE": "image",
@@ -1711,10 +1701,6 @@
       "apple::access_point": {
         "least": 1,
         "signature": "(bool, apple::AccessPointOptions?) -> bool"
-      },
-      "apple::authenticated": {
-        "least": 0,
-        "signature": "() -> bool"
       },
       "apple::available": {
         "least": 0,
@@ -1784,25 +1770,13 @@
         "least": 0,
         "signature": "() -> int"
       },
-      "assets::assign_id": {
-        "least": 1,
-        "signature": "(str) -> str"
-      },
       "assets::directory": {
         "least": 1,
         "signature": "(str) -> str"
       },
-      "assets::duplicate": {
-        "least": 1,
-        "signature": "(str) -> any"
-      },
       "assets::exists": {
         "least": 1,
         "signature": "(str) -> bool"
-      },
-      "assets::id": {
-        "least": 1,
-        "signature": "(str) -> str?"
       },
       "assets::invalidate": {
         "least": 0,
@@ -1815,10 +1789,6 @@
       "assets::load": {
         "least": 1,
         "signature": "(str) -> any"
-      },
-      "assets::path": {
-        "least": 1,
-        "signature": "(str) -> str"
       },
       "assets::reload": {
         "least": 1,
@@ -1880,10 +1850,6 @@
         "least": 1,
         "signature": "(int) -> float?"
       },
-      "audio::play_file": {
-        "least": 1,
-        "signature": "(str, audio::PlayFileOptions?) -> int"
-      },
       "audio::set_bus_volume_linear": {
         "least": 2,
         "signature": "(str, float)"
@@ -1892,21 +1858,9 @@
         "least": 2,
         "signature": "(int, Vec3)"
       },
-      "audio::set_pitch_scale": {
-        "least": 2,
-        "signature": "(int, float)"
-      },
-      "audio::set_volume_linear": {
-        "least": 2,
-        "signature": "(int, float)"
-      },
       "audio::stop_all": {
         "least": 0,
         "signature": "()"
-      },
-      "audio::stop_playback": {
-        "least": 1,
-        "signature": "(int)"
       },
       "browser::hardware_concurrency": {
         "least": 0,
@@ -1988,18 +1942,6 @@
         "least": 1,
         "signature": "(str) -> str?"
       },
-      "encoding::base64": {
-        "least": 1,
-        "signature": "([int]) -> str"
-      },
-      "encoding::base64_text": {
-        "least": 1,
-        "signature": "(str) -> str"
-      },
-      "encoding::from_base64": {
-        "least": 1,
-        "signature": "(str) -> [int]"
-      },
       "engine::args": {
         "least": 0,
         "signature": "() -> [str]"
@@ -2027,10 +1969,6 @@
       "engine::function_costs": {
         "least": 0,
         "signature": "() -> [engine::FunctionCost]"
-      },
-      "engine::has_plugin": {
-        "least": 1,
-        "signature": "(str) -> bool"
       },
       "engine::open_url": {
         "least": 1,
@@ -2220,93 +2158,9 @@
         "least": 2,
         "signature": "(str, str)"
       },
-      "gamend::call_hook": {
-        "least": 3,
-        "signature": "(int, str, str, any) -> int"
-      },
-      "gamend::close": {
-        "least": 1,
-        "signature": "(int) -> bool"
-      },
-      "gamend::configure": {
-        "least": 0,
-        "signature": "(str?) -> str"
-      },
-      "gamend::connect": {
-        "least": 0,
-        "signature": "(Node?, events::ListenOptions?) -> int"
-      },
-      "gamend::connection": {
-        "least": 0,
-        "signature": "() -> gamend::Connection"
-      },
-      "gamend::interrupt": {
-        "least": 1,
-        "signature": "(int) -> bool"
-      },
-      "gamend::join": {
-        "least": 2,
-        "signature": "(int, str, any) -> int"
-      },
-      "gamend::leave": {
-        "least": 2,
-        "signature": "(int, str) -> int"
-      },
-      "gamend::login": {
-        "least": 1,
-        "signature": "(gamend::Credentials) -> int"
-      },
-      "gamend::push": {
-        "least": 3,
-        "signature": "(int, str, str, any) -> int"
-      },
-      "gamend::refuse": {
-        "least": 1,
-        "signature": "(str) -> int"
-      },
-      "gamend::register": {
-        "least": 1,
-        "signature": "(gamend::Credentials) -> int"
-      },
-      "gamend::reply": {
-        "least": 1,
-        "signature": "(int) -> any"
-      },
-      "gamend::rest": {
-        "least": 2,
-        "signature": "(str, str, any) -> int"
-      },
-      "gamend::restore": {
-        "least": 0,
-        "signature": "(gamend::Session?) -> bool"
-      },
-      "gamend::run_id": {
-        "least": 0,
-        "signature": "() -> str"
-      },
-      "gamend::server": {
-        "least": 0,
-        "signature": "() -> gamend::Server"
-      },
-      "gamend::session": {
-        "least": 0,
-        "signature": "() -> gamend::Session?"
-      },
-      "geometry2d::area": {
-        "least": 1,
-        "signature": "([Vec2]) -> float"
-      },
-      "geometry2d::contains": {
-        "least": 2,
-        "signature": "([Vec2], Vec2) -> bool"
-      },
       "geometry2d::convex_decomposition": {
         "least": 1,
         "signature": "([Vec2], geometry2d::DecompositionOptions?) -> [[Vec2]]"
-      },
-      "geometry2d::convex_hull": {
-        "least": 1,
-        "signature": "([Vec2]) -> [Vec2]"
       },
       "geometry2d::difference": {
         "least": 2,
@@ -2315,18 +2169,6 @@
       "geometry2d::intersection": {
         "least": 2,
         "signature": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]"
-      },
-      "geometry2d::is_clockwise": {
-        "least": 1,
-        "signature": "([Vec2]) -> bool"
-      },
-      "geometry2d::reverse_difference": {
-        "least": 2,
-        "signature": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]"
-      },
-      "geometry2d::segments_intersect": {
-        "least": 4,
-        "signature": "(Vec2, Vec2, Vec2, Vec2) -> Vec2?"
       },
       "geometry2d::symmetric_difference": {
         "least": 2,
@@ -2368,7 +2210,7 @@
         "least": 1,
         "signature": "(geometry3d::Mesh, geometry3d::VoxelizeOptions?) -> geometry3d::Voxels"
       },
-      "hash::sha256": {
+      "hash::sha256_file": {
         "least": 1,
         "signature": "(str) -> str"
       },
@@ -2643,10 +2485,6 @@
       "log::print": {
         "least": 1,
         "signature": "(str)"
-      },
-      "log::recent": {
-        "least": 0,
-        "signature": "(int?) -> [log::Entry]"
       },
       "log::since": {
         "least": 0,
@@ -3100,6 +2938,10 @@
         "least": 1,
         "signature": "(Node) -> Vec3"
       },
+      "node.body3d.max_contact_impulse": {
+        "least": 1,
+        "signature": "(Node) -> float"
+      },
       "node.body3d.next_position": {
         "least": 1,
         "signature": "(Node) -> physics3d::Pose"
@@ -3180,17 +3022,9 @@
         "least": 2,
         "signature": "(Node, str, any, any, any, any) -> int"
       },
-      "node.character2d.is_on_floor": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
       "node.character2d.move_by": {
         "least": 2,
         "signature": "(Node, Vec2) -> physics2d::CharacterMove"
-      },
-      "node.character3d.is_on_floor": {
-        "least": 1,
-        "signature": "(Node) -> bool"
       },
       "node.character3d.move_by": {
         "least": 2,
@@ -3264,10 +3098,6 @@
         "least": 1,
         "signature": "(Node) -> physics2d::Aabb"
       },
-      "node.collider2d.total_mass": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
       "node.collider2d.volume": {
         "least": 1,
         "signature": "(Node) -> float"
@@ -3320,10 +3150,6 @@
         "least": 1,
         "signature": "(Node) -> physics3d::MassProperties"
       },
-      "node.collider3d.max_contact_impulse": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
       "node.collider3d.mesh": {
         "least": 1,
         "signature": "(Node) -> physics3d::ColliderMesh"
@@ -3351,10 +3177,6 @@
       "node.collider3d.swept_aabb": {
         "least": 1,
         "signature": "(Node) -> physics3d::Aabb"
-      },
-      "node.collider3d.total_mass": {
-        "least": 1,
-        "signature": "(Node) -> float"
       },
       "node.collider3d.volume": {
         "least": 1,
@@ -3388,17 +3210,9 @@
         "least": 1,
         "signature": "(Node)"
       },
-      "node.effective_material": {
-        "least": 1,
-        "signature": "(Node) -> str"
-      },
       "node.effective_tint": {
         "least": 1,
         "signature": "(Node) -> Color"
-      },
-      "node.effective_z_index": {
-        "least": 1,
-        "signature": "(Node) -> int"
       },
       "node.emit": {
         "least": 2,
@@ -3448,22 +3262,6 @@
         "least": 1,
         "signature": "(Node) -> physics2d::JointForce"
       },
-      "node.joint2d.remove": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "node.joint2d.set_limits": {
-        "least": 4,
-        "signature": "(Node, str, float, float)"
-      },
-      "node.joint2d.set_motor_position": {
-        "least": 5,
-        "signature": "(Node, str, float, float, float)"
-      },
-      "node.joint2d.set_motor_velocity": {
-        "least": 4,
-        "signature": "(Node, str, float, float)"
-      },
       "node.joint2d.solve_ik": {
         "least": 2,
         "signature": "(Node, Vec2, physics2d::IkOptions?)"
@@ -3476,22 +3274,6 @@
         "least": 1,
         "signature": "(Node) -> physics3d::JointForce"
       },
-      "node.joint3d.remove": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "node.joint3d.set_limits": {
-        "least": 4,
-        "signature": "(Node, str, float, float)"
-      },
-      "node.joint3d.set_motor_position": {
-        "least": 5,
-        "signature": "(Node, str, float, float, float)"
-      },
-      "node.joint3d.set_motor_velocity": {
-        "least": 4,
-        "signature": "(Node, str, float, float)"
-      },
       "node.joint3d.solve_ik": {
         "least": 2,
         "signature": "(Node, Vec3, physics3d::IkOptions?)"
@@ -3503,10 +3285,6 @@
       "node.material": {
         "least": 1,
         "signature": "(Node) -> str"
-      },
-      "node.multimesh2d.buffer": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
       },
       "node.multimesh2d.instance_color": {
         "least": 2,
@@ -3531,10 +3309,6 @@
       "node.multimesh2d.instances": {
         "least": 1,
         "signature": "(Node) -> [render::MultimeshInstance]"
-      },
-      "node.multimesh2d.set_buffer": {
-        "least": 2,
-        "signature": "(Node, [float])"
       },
       "node.multimesh2d.set_instance_color": {
         "least": 3,
@@ -3564,10 +3338,6 @@
         "least": 1,
         "signature": "(Node) -> int"
       },
-      "node.multimesh3d.buffer": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
       "node.multimesh3d.instance_color": {
         "least": 2,
         "signature": "(Node, int) -> Color"
@@ -3587,10 +3357,6 @@
       "node.multimesh3d.instances": {
         "least": 1,
         "signature": "(Node) -> [render::MultimeshInstance]"
-      },
-      "node.multimesh3d.set_buffer": {
-        "least": 2,
-        "signature": "(Node, [float])"
       },
       "node.multimesh3d.set_instance_color": {
         "least": 3,
@@ -3695,10 +3461,6 @@
       "node.set_process": {
         "least": 2,
         "signature": "(Node, str)"
-      },
-      "node.set_property": {
-        "least": 3,
-        "signature": "(Node, str, str, any) -> bool"
       },
       "node.set_script": {
         "least": 1,
@@ -3815,14 +3577,6 @@
       "node.softbody2d.particle_count": {
         "least": 1,
         "signature": "(Node) -> int"
-      },
-      "node.softbody2d.particle_position": {
-        "least": 2,
-        "signature": "(Node, int) -> Vec2"
-      },
-      "node.softbody2d.particle_velocity": {
-        "least": 2,
-        "signature": "(Node, int) -> Vec2"
       },
       "node.softbody2d.pin_particle": {
         "least": 2,
@@ -3996,14 +3750,6 @@
         "least": 1,
         "signature": "(Node) -> int"
       },
-      "node.softbody3d.particle_position": {
-        "least": 2,
-        "signature": "(Node, int) -> Vec3"
-      },
-      "node.softbody3d.particle_velocity": {
-        "least": 2,
-        "signature": "(Node, int) -> Vec3"
-      },
       "node.softbody3d.pin_particle": {
         "least": 2,
         "signature": "(Node, int)"
@@ -4124,17 +3870,9 @@
         "least": 2,
         "signature": "(Node, str)"
       },
-      "node.states.state": {
-        "least": 1,
-        "signature": "(Node) -> str"
-      },
       "node.tags": {
         "least": 1,
         "signature": "(Node) -> [str]"
-      },
-      "node.ticking": {
-        "least": 1,
-        "signature": "(Node) -> bool"
       },
       "node.tilemap.cell": {
         "least": 3,
@@ -4151,10 +3889,6 @@
       "node.tilemap.terrain": {
         "least": 3,
         "signature": "(Node, int, int) -> int"
-      },
-      "node.tilemap.tile_data": {
-        "least": 3,
-        "signature": "(Node, int, int) -> any"
       },
       "node.tint": {
         "least": 1,
@@ -4212,14 +3946,6 @@
         "least": 1,
         "signature": "(Node) -> int"
       },
-      "physics2d::active_bodies": {
-        "least": 0,
-        "signature": "() -> [Node]"
-      },
-      "physics2d::bodies": {
-        "least": 0,
-        "signature": "() -> [Node]"
-      },
       "physics2d::closest_point": {
         "least": 1,
         "signature": "(physics2d::PointQuery) -> physics2d::Closest?"
@@ -4227,10 +3953,6 @@
       "physics2d::closest_points": {
         "least": 2,
         "signature": "(Node, Node) -> physics2d::ClosestPoints?"
-      },
-      "physics2d::distance": {
-        "least": 2,
-        "signature": "(Node, Node) -> float"
       },
       "physics2d::gravity": {
         "least": 0,
@@ -4276,14 +3998,6 @@
         "least": 0,
         "signature": "()"
       },
-      "physics3d::active_bodies": {
-        "least": 0,
-        "signature": "() -> [Node]"
-      },
-      "physics3d::bodies": {
-        "least": 0,
-        "signature": "() -> [Node]"
-      },
       "physics3d::closest_point": {
         "least": 1,
         "signature": "(physics3d::PointQuery) -> physics3d::Closest?"
@@ -4291,10 +4005,6 @@
       "physics3d::closest_points": {
         "least": 2,
         "signature": "(Node, Node) -> physics3d::ClosestPoints?"
-      },
-      "physics3d::distance": {
-        "least": 2,
-        "signature": "(Node, Node) -> float"
       },
       "physics3d::gravity": {
         "least": 0,
@@ -4349,10 +4059,6 @@
         "signature": "() -> physics::Counters"
       },
       "physics::debug_draw": {
-        "least": 0,
-        "signature": "() -> physics::DebugDraw"
-      },
-      "physics::debug_draw_defaults": {
         "least": 0,
         "signature": "() -> physics::DebugDraw"
       },
@@ -4428,10 +4134,6 @@
         "least": 0,
         "signature": "() -> int"
       },
-      "platform::signed_in": {
-        "least": 0,
-        "signature": "() -> bool"
-      },
       "platform::submit_score": {
         "least": 2,
         "signature": "(str, int) -> int"
@@ -4500,42 +4202,6 @@
         "least": 0,
         "signature": "() -> str"
       },
-      "quat::from_arc": {
-        "least": 2,
-        "signature": "(Vec3, Vec3) -> quat::Quat"
-      },
-      "quat::from_axis_angle": {
-        "least": 2,
-        "signature": "(Vec3, float) -> quat::Quat"
-      },
-      "quat::from_euler": {
-        "least": 1,
-        "signature": "(Vec3) -> quat::Quat"
-      },
-      "quat::identity": {
-        "least": 0,
-        "signature": "() -> quat::Quat"
-      },
-      "quat::inverse": {
-        "least": 1,
-        "signature": "(quat::Quat) -> quat::Quat"
-      },
-      "quat::mul": {
-        "least": 2,
-        "signature": "(quat::Quat, quat::Quat) -> quat::Quat"
-      },
-      "quat::rotate": {
-        "least": 2,
-        "signature": "(quat::Quat, Vec3) -> Vec3"
-      },
-      "quat::to_euler": {
-        "least": 1,
-        "signature": "(quat::Quat) -> Vec3"
-      },
-      "random::at": {
-        "least": 2,
-        "signature": "(int, int) -> float"
-      },
       "random::float": {
         "least": 0,
         "signature": "() -> float"
@@ -4551,10 +4217,6 @@
       "random::seed": {
         "least": 1,
         "signature": "(int)"
-      },
-      "random::uuid": {
-        "least": 0,
-        "signature": "() -> str"
       },
       "regex::escape": {
         "least": 1,
@@ -4648,14 +4310,6 @@
         "least": 2,
         "signature": "(Vec2, float, Color?, render::DrawOptions?)"
       },
-      "render::draw_line_2d": {
-        "least": 3,
-        "signature": "(Vec2, Vec2, Color, float?, render::DrawOptions?)"
-      },
-      "render::draw_line_3d": {
-        "least": 3,
-        "signature": "(Vec3, Vec3, Color, float?, bool?, bool?)"
-      },
       "render::draw_lines_3d": {
         "least": 1,
         "signature": "([render::Line3d])"
@@ -4707,10 +4361,6 @@
       "render::mouse_world_2d": {
         "least": 0,
         "signature": "() -> Vec2"
-      },
-      "render::pick_ray": {
-        "least": 2,
-        "signature": "(Vec3, Vec3) -> Node"
       },
       "render::pick_ray_at": {
         "least": 2,
@@ -4775,10 +4425,6 @@
       "replay::info": {
         "least": 1,
         "signature": "(str) -> replay::Header?"
-      },
-      "replay::length": {
-        "least": 0,
-        "signature": "() -> replay::Length?"
       },
       "replay::load": {
         "least": 1,
@@ -4856,10 +4502,6 @@
         "least": 1,
         "signature": "(str, any) -> any"
       },
-      "scene::component_requires": {
-        "least": 1,
-        "signature": "(str) -> [str]?"
-      },
       "scene::component_schema": {
         "least": 1,
         "signature": "(str) -> any"
@@ -4871,10 +4513,6 @@
       "scene::component_types": {
         "least": 0,
         "signature": "() -> [str]"
-      },
-      "scene::get_node": {
-        "least": 1,
-        "signature": "(str) -> Node"
       },
       "scene::instantiate": {
         "least": 1,
@@ -4899,10 +4537,6 @@
       "scene::set_variable": {
         "least": 1,
         "signature": "(str, any)"
-      },
-      "scene::source": {
-        "least": 1,
-        "signature": "(str) -> str?"
       },
       "scene::switch": {
         "least": 1,
@@ -5028,25 +4662,13 @@
         "least": 1,
         "signature": "(str, any)"
       },
-      "settings::tags": {
-        "least": 0,
-        "signature": "() -> [str]"
-      },
       "settings::to_toml": {
         "least": 2,
         "signature": "(str, str) -> str"
       },
-      "skeleton::apply_rest": {
-        "least": 1,
-        "signature": "(Node)"
-      },
       "skeleton::bones": {
         "least": 1,
         "signature": "(Node) -> [Node]"
-      },
-      "skeleton::overwrite_rest": {
-        "least": 1,
-        "signature": "(Node)"
       },
       "strings::locale": {
         "least": 0,
@@ -5092,14 +4714,6 @@
         "least": 1,
         "signature": "(str, any) -> str"
       },
-      "ui::activate_focused": {
-        "least": 0,
-        "signature": "()"
-      },
-      "ui::all_sides": {
-        "least": 1,
-        "signature": "(float) -> ui::Sides"
-      },
       "ui::clear_focus": {
         "least": 0,
         "signature": "()"
@@ -5124,21 +4738,9 @@
         "least": 2,
         "signature": "(any, str) -> [ui::ContrastPair]"
       },
-      "ui::edit_bool": {
-        "least": 2,
-        "signature": "(Node, bool) -> bool"
-      },
-      "ui::edit_color": {
-        "least": 2,
-        "signature": "(Node, Color) -> bool"
-      },
-      "ui::edit_number": {
-        "least": 2,
-        "signature": "(Node, float) -> bool"
-      },
-      "ui::edit_text": {
-        "least": 2,
-        "signature": "(Node, str) -> bool"
+      "ui::edit": {
+        "least": 1,
+        "signature": "(Node, any) -> bool"
       },
       "ui::fill_slot": {
         "least": 2,
@@ -5231,10 +4833,6 @@
       "ui::set_widget_layer": {
         "least": 1,
         "signature": "(bool, Vec2?, Vec2?)"
-      },
-      "ui::sides": {
-        "least": 4,
-        "signature": "(float, float, float, float) -> ui::Sides"
       },
       "ui::tab_rect": {
         "least": 1,
@@ -5514,40 +5112,6 @@
       "fs::Entry": {
         "is_dir": "bool",
         "name": "str"
-      },
-      "gamend::Connection": {
-        "sockets": "[gamend::Socket]",
-        "url": "str",
-        "user_id": "str?",
-        "username": "str?"
-      },
-      "gamend::Credentials": {
-        "device_id": "str?",
-        "email": "str?",
-        "password": "str?",
-        "username": "str?"
-      },
-      "gamend::Server": {
-        "local": "str",
-        "name": "str",
-        "plugin": "str",
-        "production": "str",
-        "url": "str"
-      },
-      "gamend::Session": {
-        "access_token": "str",
-        "display_name": "str",
-        "expires_at": "int?",
-        "expires_in": "int",
-        "refresh_token": "str",
-        "user_id": "str",
-        "username": "str"
-      },
-      "gamend::Socket": {
-        "open": "bool",
-        "reason": "str?",
-        "socket": "int",
-        "topics": "[str]"
       },
       "geometry2d::BooleanOptions": {
         "clean_result": "bool?",
@@ -6459,6 +6023,7 @@
         "color": "Color",
         "from": "Vec3",
         "on_top": "bool?",
+        "perspective": "bool?",
         "to": "Vec3",
         "width": "float?"
       },
@@ -6549,11 +6114,6 @@
         "reason": "str?",
         "scripts": "str",
         "started": "str"
-      },
-      "replay::Length": {
-        "first": "int",
-        "frames": "int",
-        "last": "int"
       },
       "replay::Mark": {
         "tick": "int",
@@ -6869,8 +6429,8 @@
     "spring_joint2d": "The length a `joint2d` of kind spring pulls back to.",
     "spring_joint3d": "The length a `joint3d` of kind spring pulls back to.",
     "sprite": "A textured 2D quad at the node, sized by `pixels_per_unit`. A `sprite_sheet` in `sheet` cuts it into frames `frame` picks.",
-    "state_machine": "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.",
-    "states": "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node.",
+    "state_machine": "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `state_machine.travel` moves to a state.",
+    "states": "Named looks for the node. Every key beside `current` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node at once.",
     "text2d": "A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.",
     "text3d": "A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.",
     "tile_collision": "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes. `mass` weighs the whole map, shared across its colliders by area; `one_way` makes every cell a platform, holding bodies on `one_way_axis`.",
@@ -8001,8 +7561,7 @@
       "check_node"
     ],
     "states": [
-      "current",
-      "duration"
+      "current"
     ],
     "text2d": [
       "text",
@@ -16402,7 +15961,7 @@
       },
       "fade_out_time": {
         "default": 0.0,
-        "description": "Seconds the sound falls to silence over: the last ones before it plays out, and the first after `audio.stop`",
+        "description": "Seconds the sound falls to silence over: the last ones before it plays out, and the first after `sound.stop`",
         "group": "fades",
         "min": 0.0,
         "type": "float"
@@ -16654,12 +16213,6 @@
         "default": "",
         "description": "The state this node is in; empty is the pose the scene gave it",
         "type": "string"
-      },
-      "duration": {
-        "default": 0.0,
-        "description": "Seconds a transition takes; zero snaps",
-        "min": 0.0,
-        "type": "float"
       }
     },
     "text2d": {
@@ -18215,7 +17768,6 @@
           "number_field",
           "progress_bar",
           "grid",
-          "flow",
           "fold",
           "dialog",
           "window",
@@ -18704,7 +18256,7 @@
       },
       "submit_key": {
         "default": "",
-        "description": "The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says",
+        "description": "The chord that submits a `text_field`, as `Enter` or `cmd+Enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says",
         "type": "string"
       },
       "suffix": {
@@ -18917,7 +18469,7 @@
       },
       "reverse": {
         "default": false,
-        "description": "Lay a `row`, `column` or `flow`'s children out from its far end",
+        "description": "Lay a `row` or a `column`'s children out from its far end",
         "type": "bool"
       },
       "splitter_width": {
@@ -18927,10 +18479,9 @@
         "type": "float"
       },
       "wrap_children": {
-        "default": "auto",
-        "description": "Whether a container's children run onto more lines when they do not fit: `auto` wraps a `flow` and keeps every other container on one line; `balance` evens the lines out over at least `min_lines`; a `_reverse` word stacks the lines the other way",
+        "default": "none",
+        "description": "Whether a container's children run onto more lines when they do not fit: `none` keeps them on one line, `wrap` starts a line when the row is full, `balance` evens the lines out over at least `min_lines`, and a `_reverse` word stacks the lines the other way",
         "options": [
-          "auto",
           "none",
           "wrap",
           "wrap_reverse",
@@ -19443,7 +18994,7 @@
     "widget_shortcut": {
       "shortcut": {
         "default": "",
-        "description": "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`",
+        "description": "A chord that clicks this widget wherever it is, as `cmd+shift+KeyS` or `F5`, spelled as `[input.actions]` spells one; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`",
         "type": "string"
       },
       "takes_typing": {
@@ -19453,7 +19004,7 @@
       },
       "while_typing": {
         "default": true,
-        "description": "Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`",
+        "description": "Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+KeyZ`",
         "type": "bool"
       }
     },
@@ -20416,7 +19967,6 @@
       "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing.",
-        "authenticated": "Whether Game Center has a signed-in player right now.",
         "available": "Whether this build has Apple's frameworks behind it.",
         "cancel_notification": "Drop a scheduled notification, and take a delivered one out of the shade.",
         "credential_state": "Ask whether a saved Sign in with Apple account is still authorized, revoked, transferred or unknown, and return the id the answer carries.",
@@ -20425,7 +19975,7 @@
         "identity": "Fetch the items a server needs to verify this Game Center player, and return the id the answer carries.",
         "listen_for_cloud_changes": "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
         "listen_for_invites": "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
-        "listen_for_urls": "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
+        "listen_for_urls": "Hear about URLs the game is asked to open. A URL the game was launched with arrives the same way, once the engine is up.",
         "notify": "Schedule a local notification, and return the id its `scheduled` answer carries.",
         "products": "Ask the App Store about a list of product ids, and return the id whose `products` answer holds what it knows, each a `Product`.",
         "purchase": "Buy a product, and return the id its answer carries: `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
@@ -20438,7 +19988,6 @@
       "editor": [],
       "functions": [
         "access_point",
-        "authenticated",
         "available",
         "cancel_notification",
         "credential_state",
@@ -20461,7 +20010,6 @@
       "name": "apple",
       "signatures": {
         "access_point": "(bool, apple::AccessPointOptions?) -> bool",
-        "authenticated": "() -> bool",
         "available": "() -> bool",
         "cancel_notification": "(str)",
         "credential_state": "(str) -> int",
@@ -20487,15 +20035,11 @@
       "constants": [],
       "doc": "Asset definitions by reference: a project path, `file#entry` for one entry, `#id` for a scene block, or `id://<id>` from `assets/index.toml`. A script gets the definition table.",
       "docs": {
-        "assign_id": "The id a file has, giving it one if it has none: a digest of the path and content, written to `assets/index.toml` and, for an asset document, as its top-level `id`. Reference it as `id://<id>` afterwards.",
         "directory": "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none.",
-        "duplicate": "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference.",
         "exists": "Whether a reference resolves to a definition that is really there; false rather than an error when it does not.",
-        "id": "The id `assets/index.toml` gives a file, or nil when it has none.",
         "invalidate": "Declare everything derived from project files stale (a shader a material links, say) so it is rebuilt from disk; for a file the watcher does not cover. A script hears this and every reload with `events::listen(this.node, \"assets_reloaded\")`, as `on_assets_reloaded(generation)`.",
         "kind_of": "Which importer kind a file is by its extension \u2014 `texture`, `audio`, `font` or `model` \u2014 or empty for one none claims. A `.ttf`, `.otf`, `.ttc` or `.fnt` is a font.",
-        "load": "The definition table behind a reference, from the cache; an error when the reference resolves to nothing.",
-        "path": "The path an `id://` reference resolves to in the running project; a path comes back as itself, and an unknown id is an error naming the index.",
+        "load": "The definition table behind a reference, from the cache: the script's own copy, so editing it disturbs no other holder. An error when the reference resolves to nothing; `reload` first for a fresh read of the file.",
         "reload": "Forget a reference so the next load re-reads its file, along with every entry cut from that same file.",
         "rename": "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.bs` is the script's own value, and `id://` is the reference that survives a move.",
         "save": "Write a definition table to the project-relative file a reference names; an error unless it names a whole file.",
@@ -20503,15 +20047,11 @@
       },
       "editor": [],
       "functions": [
-        "assign_id",
         "directory",
-        "duplicate",
         "exists",
-        "id",
         "invalidate",
         "kind_of",
         "load",
-        "path",
         "reload",
         "rename",
         "save",
@@ -20520,15 +20060,11 @@
       "methods": {},
       "name": "assets",
       "signatures": {
-        "assign_id": "(str) -> str",
         "directory": "(str) -> str",
-        "duplicate": "(str) -> any",
         "exists": "(str) -> bool",
-        "id": "(str) -> str?",
         "invalidate": "()",
         "kind_of": "(str) -> str",
         "load": "(str) -> any",
-        "path": "(str) -> str",
         "reload": "(str)",
         "rename": "(str, str) -> [str]",
         "save": "(str, any)",
@@ -20559,30 +20095,27 @@
           "value": "\"sound_finished\""
         }
       ],
-      "doc": "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `sound_finished` (`EVENT_SOUND_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
+      "doc": "Sound playback: `play` starts a node's `sound` component and returns a handle that `is_playing` takes; `seek` and `skip` move it, and the node's `sound` properties change it as it plays. `play_file` plays a file on a node of its own, from a `position` heard from the `listener` when given one. A node's `sound` announces `sound_finished` (`EVENT_SOUND_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
       "docs": {
         "bus_effects": "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes. Built when the output device opens, as the limiter is. Nil for a bus with none switched on.",
         "bus_limit": "One bus's limiter as `[audio.buses]` declares it. Nil for a bus with none.",
         "bus_volume_linear": "One bus's own gain, without its parents'.",
         "buses": "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order.",
-        "device_ready": "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound.",
-        "devices": "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none.",
+        "device_ready": "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound. Recorded: a replay answers what its recording did, whatever the machine it runs on has.",
+        "devices": "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none. Recorded, as `device_ready` is.",
         "distance_gain": "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range.",
         "emitter_position": "Where a handle played with a `position` is; nil for a flat or unknown one.",
         "is_playing": "Whether a handle's sound is still going: false once it plays out or is stopped, on the same tick with or without an output device.",
         "listener_position": "Where the ears are: the current `listener` node's world position, else the current camera's.",
         "pan": "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right.",
         "play": "Start the node's own `sound` from the top, replacing what it had going, and return the new handle.",
-        "play_file": "Play a sound file no node carries, through `bus` at `volume_linear` and `pitch_scale`, looping when `loop` is true. Returns the handle `stop_playback` takes.",
+        "play_file": "Play a sound file on a node of its own under the scene's root, through `bus` at `volume_linear` and `pitch_scale`, looping when `loop` is true; a `position` places it, heard from the `listener` over `min_distance` to `max_distance`. Returns the node, which frees itself once the sound plays out: free it to stop the sound, or set its `sound` to change it.",
         "seek": "Jump the node's sound to `seconds` into the file it is playing; `playback_time` reads it back. A node with nothing playing is left alone.",
         "set_bus_volume_linear": "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is.",
         "set_emitter_position": "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved.",
-        "set_pitch_scale": "Set a playing handle's speed multiplier, which carries its pitch with it.",
-        "set_volume_linear": "Set a playing handle's linear gain, where 1 is the file's own level.",
         "skip": "Move the node's sound on to the next file in its `queue`. Past the last one it has played out, and the node announces `sound_finished`.",
         "stop": "Silence what the node's `sound` started, over its `fade_out_time`; a node carrying none is left alone.",
-        "stop_all": "Silence everything at once and clear the playback every `sound` component was holding.",
-        "stop_playback": "Silence the sound a handle names, over the `fade_out_time` its `sound` had; a finished, stopped or unknown handle is left alone."
+        "stop_all": "Silence everything at once and clear the playback every `sound` component was holding."
       },
       "editor": [],
       "functions": [
@@ -20602,12 +20135,9 @@
         "seek",
         "set_bus_volume_linear",
         "set_emitter_position",
-        "set_pitch_scale",
-        "set_volume_linear",
         "skip",
         "stop",
-        "stop_all",
-        "stop_playback"
+        "stop_all"
       ],
       "methods": {
         "play": {
@@ -20637,16 +20167,13 @@
         "listener_position": "() -> Vec3",
         "pan": "(int) -> float?",
         "play": "(Node) -> int",
-        "play_file": "(str, audio::PlayFileOptions?) -> int",
+        "play_file": "(str, audio::PlayFileOptions?) -> Node",
         "seek": "(Node, float)",
         "set_bus_volume_linear": "(str, float)",
         "set_emitter_position": "(int, Vec3)",
-        "set_pitch_scale": "(int, float)",
-        "set_volume_linear": "(int, float)",
         "skip": "(Node)",
         "stop": "(Node)",
-        "stop_all": "()",
-        "stop_playback": "(int)"
+        "stop_all": "()"
       }
     },
     {
@@ -20790,24 +20317,24 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Bytes to base64 text and back.",
+      "doc": "Bytes to base64 text and back, and UTF-8 bytes back to text.",
       "docs": {
-        "base64": "Bytes as standard base64 with padding.",
-        "base64_text": "A string's UTF-8 as standard base64 with padding.",
-        "from_base64": "The bytes a base64 string encodes; an error for text that is not base64."
+        "base64": "Bytes as standard base64 with padding; a value outside 0 to 255 traps.",
+        "from_base64": "The bytes a base64 string encodes, in the standard alphabet with its padding; text that is not base64 traps.",
+        "from_utf8": "The text UTF-8 bytes spell; nil when they are not UTF-8, a value outside 0 to 255 included."
       },
       "editor": [],
       "functions": [
         "base64",
-        "base64_text",
-        "from_base64"
+        "from_base64",
+        "from_utf8"
       ],
       "methods": {},
       "name": "encoding",
       "signatures": {
         "base64": "([int]) -> str",
-        "base64_text": "(str) -> str",
-        "from_base64": "(str) -> [int]"
+        "from_base64": "(str) -> [int]",
+        "from_utf8": "([int]) -> str?"
       }
     },
     {
@@ -20823,10 +20350,9 @@
         "environment": "An environment variable's value, nil when it is unset. Nil on the web, which has none. Outside the simulation, like `args`: a replay does not record it.",
         "focused": "Whether the window is in front of the player this tick; every script's `on_focused_changed(bool)` is called when it changes. True with no window.",
         "function_costs": "What each function has cost since `set_script_profiling(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own statements without its callees'. A function of a module two files use counts once for the two.",
-        "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
-        "open_url": "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays.",
+        "open_url": "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web, the browser on a phone. An effect on the world outside the game: never recorded, and it does nothing while a recording plays.",
         "paused": "Whether the game is paused.",
-        "plugin_version": "The version of one loaded plugin, or nil when it did not load.",
+        "plugin_version": "The version of one loaded plugin, or nil when it did not load: how a game shipped without `http` says so rather than call into a module that is not there.",
         "plugins": "Every plugin this build loaded, named, in load order.",
         "quit": "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out.",
         "reload_scripts": "Recompile scripts by their project-relative keys in one build, however many there are, for a tool editing files outside the watched root; answers what kept them from compiling, empty when they did.",
@@ -20858,7 +20384,6 @@
         "environment",
         "focused",
         "function_costs",
-        "has_plugin",
         "open_url",
         "paused",
         "plugin_version",
@@ -20894,7 +20419,6 @@
         "environment": "(str) -> str?",
         "focused": "() -> bool",
         "function_costs": "() -> [engine::FunctionCost]",
-        "has_plugin": "(str) -> bool",
         "open_url": "(str)",
         "paused": "() -> bool",
         "plugin_version": "(str) -> str?",
@@ -21024,7 +20548,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Files on disk, project-relative unless the path is absolute. A packed build's contents are reached through `assets` and `scene.source`.",
+      "doc": "Files on disk, project-relative unless the path is absolute. In a packed build `read`, `exists` and `list` reach what the pack holds.",
       "docs": {
         "copy": "Copy a file byte for byte, creating the destination's parent first. What `read` and `write` cannot do for an image or a model.",
         "create_directory": "Create a project-relative directory and every parent it needs.",
@@ -21065,123 +20589,16 @@
     {
       "acts_on": {},
       "components": [],
-      "constants": [
-        {
-          "name": "EVENT_CLOSED",
-          "value": "\"closed\""
-        },
-        {
-          "name": "EVENT_ERROR",
-          "value": "\"error\""
-        },
-        {
-          "name": "EVENT_LOGIN",
-          "value": "\"login\""
-        },
-        {
-          "name": "EVENT_MESSAGE",
-          "value": "\"message\""
-        },
-        {
-          "name": "EVENT_OPEN",
-          "value": "\"open\""
-        },
-        {
-          "name": "EVENT_RECONNECTING",
-          "value": "\"reconnecting\""
-        },
-        {
-          "name": "EVENT_REOPENED",
-          "value": "\"reopened\""
-        },
-        {
-          "name": "EVENT_REPLY",
-          "value": "\"reply\""
-        },
-        {
-          "name": "EVENT_REST",
-          "value": "\"rest\""
-        }
-      ],
-      "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; a `login`, `rest` or `reply` answer carries `ms`, its round trip in milliseconds, recorded with it. What a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).",
-      "docs": {
-        "call_hook": "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`.",
-        "close": "Shut the socket down; false when the connection was already gone.",
-        "configure": "Point the plugin at another server and answer its url; with none, the one `server` answers. The first call that reaches a server does this on its own.",
-        "connect": "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up.",
-        "connection": "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`.",
-        "interrupt": "Cut the connection as a network failure would, to try a game's reconnect path: the socket reports `reconnecting`, then `reopened`. False when it is already gone.",
-        "join": "Subscribe the socket to a topic and return the id the server's `reply` answers.",
-        "leave": "Unsubscribe the socket from a topic, returning the id the `reply` answers.",
-        "login": "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers.",
-        "push": "Send an event and its payload to a topic on the socket, returning the id the `reply` answers.",
-        "refuse": "Send nothing, and return an id whose `error` result carries the message: what a wrapper over `rest` answers for a call it will not make, so an await on it still resumes.",
-        "register": "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link.",
-        "reply": "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame.",
-        "rest": "Call a path on the configured server over HTTP, and return the id whose result carries the `status` and the decoded `body`. The body is the JSON the path takes, or left out for none.",
-        "restore": "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`.",
-        "run_id": "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it.",
-        "server": "The server this run talks to until a script names another: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`.",
-        "session": "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."
-      },
-      "editor": [],
-      "functions": [
-        "call_hook",
-        "close",
-        "configure",
-        "connect",
-        "connection",
-        "interrupt",
-        "join",
-        "leave",
-        "login",
-        "push",
-        "refuse",
-        "register",
-        "reply",
-        "rest",
-        "restore",
-        "run_id",
-        "server",
-        "session"
-      ],
-      "methods": {},
-      "name": "gamend",
-      "signatures": {
-        "call_hook": "(int, str, str, any) -> int",
-        "close": "(int) -> bool",
-        "configure": "(str?) -> str",
-        "connect": "(Node?, events::ListenOptions?) -> int",
-        "connection": "() -> gamend::Connection",
-        "interrupt": "(int) -> bool",
-        "join": "(int, str, any) -> int",
-        "leave": "(int, str) -> int",
-        "login": "(gamend::Credentials) -> int",
-        "push": "(int, str, str, any) -> int",
-        "refuse": "(str) -> int",
-        "register": "(gamend::Credentials) -> int",
-        "reply": "(int) -> any",
-        "rest": "(str, str, any) -> int",
-        "restore": "(gamend::Session?) -> bool",
-        "run_id": "() -> str",
-        "server": "() -> gamend::Server",
-        "session": "() -> gamend::Session?"
-      }
-    },
-    {
-      "acts_on": {},
-      "components": [],
       "constants": [],
       "doc": "Polygons on the plane as lists of `Vec2` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
       "docs": {
         "area": "The polygon's area, always positive whatever its winding.",
-        "contains": "Whether a point lies inside the polygon; a point on an edge counts as inside.",
+        "contains": "Whether a point lies inside the polygon. A point exactly on an edge may answer either way.",
         "convex_decomposition": "The polygon cut into convex pieces that overlap across their seams, so nothing wedges into one; `overlap` from 0 to 1 says how far each piece grows, 0.9 by default.",
         "convex_hull": "The smallest convex polygon around the points, counter-clockwise.",
         "difference": "Everything inside the first polygon and outside the second, shaped and tuned as `union` is.",
         "intersection": "Everything inside both polygons, shaped and tuned as `union` is.",
         "is_clockwise": "Whether the points run clockwise, with y up.",
-        "reverse_difference": "Everything inside the second polygon and outside the first, shaped and tuned as `union` is.",
         "segments_intersect": "Where two segments cross, or nil when they do not; touching at an endpoint counts.",
         "symmetric_difference": "Everything inside exactly one of the two polygons, shaped and tuned as `union` is.",
         "triangulate": "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted.",
@@ -21196,7 +20613,6 @@
         "difference",
         "intersection",
         "is_clockwise",
-        "reverse_difference",
         "segments_intersect",
         "symmetric_difference",
         "triangulate",
@@ -21212,7 +20628,6 @@
         "difference": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]",
         "intersection": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]",
         "is_clockwise": "([Vec2]) -> bool",
-        "reverse_difference": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]",
         "segments_intersect": "(Vec2, Vec2, Vec2, Vec2) -> Vec2?",
         "symmetric_difference": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]",
         "triangulate": "([Vec2]) -> [[int]]",
@@ -21261,18 +20676,18 @@
       "constants": [],
       "doc": "SHA-256 content hashes of files and strings.",
       "docs": {
-        "sha256": "The SHA-256 of a file as lowercase hex, read through the project's file roots; an absolute path is read as given.",
+        "sha256_file": "The SHA-256 of a file as lowercase hex, read through the project's file roots; an absolute path is read as given.",
         "sha256_text": "The SHA-256 of a string as lowercase hex."
       },
       "editor": [],
       "functions": [
-        "sha256",
+        "sha256_file",
         "sha256_text"
       ],
       "methods": {},
       "name": "hash",
       "signatures": {
-        "sha256": "(str) -> str",
+        "sha256_file": "(str) -> str",
         "sha256_text": "(str) -> str"
       }
     },
@@ -22314,7 +21729,6 @@
         "file": "The file this run's log is written to, or nil when it keeps none. `[log] file` turns it off and `[log] keep` says how many past runs stay beside it.",
         "info": "Write a line at info level, tagged as coming from a script.",
         "print": "Write a line to standard output as it stands, with no level or tag and not into the buffer: what a headless run prints for a tool to read.",
-        "recent": "The last n buffered entries, 100 by default, each `{ seq, time, level, tag, message, fields }`.",
         "since": "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read. A script hears that there is more with `events::listen(this.node, \"logged\")`, as `on_logged(total)`, rather than asking every frame.",
         "warn": "Write a line at warning level, tagged as coming from a script."
       },
@@ -22325,7 +21739,6 @@
         "file",
         "info",
         "print",
-        "recent",
         "since",
         "warn"
       ],
@@ -22337,7 +21750,6 @@
         "file": "() -> str?",
         "info": "(str)",
         "print": "(str)",
-        "recent": "(int?) -> [log::Entry]",
         "since": "(int?) -> log::Batch",
         "warn": "(str)"
       }
@@ -22444,9 +21856,6 @@
     },
     {
       "acts_on": {
-        "buffer": [
-          "multimesh2d"
-        ],
         "instance_color": [
           "multimesh2d"
         ],
@@ -22463,9 +21872,6 @@
           "multimesh2d"
         ],
         "instances": [
-          "multimesh2d"
-        ],
-        "set_buffer": [
           "multimesh2d"
         ],
         "set_instance_color": [
@@ -22496,14 +21902,12 @@
       "constants": [],
       "doc": "Thousands of copies of one sprite in one draw, each with its own transform, colour and custom data, through `node.multimesh2d`.",
       "docs": {
-        "buffer": "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.",
         "instance_color": "The colour one instance draws in.",
         "instance_count": "How many instances the node holds.",
         "instance_custom_data": "One instance's four floats of custom data, as a colour.",
         "instance_region": "The texture rectangle one instance's row names with `region_origin` and `region_size`, in pixels, or nil when it names none.",
         "instance_transform": "One instance's transform.",
         "instances": "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.",
-        "set_buffer": "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.",
         "set_instance_color": "The colour one instance draws in.",
         "set_instance_count": "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.",
         "set_instance_custom_data": "Four floats a material's shader reads for one instance, as a colour.",
@@ -22514,14 +21918,12 @@
       },
       "editor": [],
       "functions": [
-        "buffer",
         "instance_color",
         "instance_count",
         "instance_custom_data",
         "instance_region",
         "instance_transform",
         "instances",
-        "set_buffer",
         "set_instance_color",
         "set_instance_count",
         "set_instance_custom_data",
@@ -22531,9 +21933,6 @@
         "visible_instance_count"
       ],
       "methods": {
-        "buffer": {
-          "multimesh2d": "buffer"
-        },
         "instance_color": {
           "multimesh2d": "instance_color"
         },
@@ -22551,9 +21950,6 @@
         },
         "instances": {
           "multimesh2d": "instances"
-        },
-        "set_buffer": {
-          "multimesh2d": "set_buffer"
         },
         "set_instance_color": {
           "multimesh2d": "set_instance_color"
@@ -22579,14 +21975,12 @@
       },
       "name": "multimesh2d",
       "signatures": {
-        "buffer": "(Node) -> [float]",
         "instance_color": "(Node, int) -> Color",
         "instance_count": "(Node) -> int",
         "instance_custom_data": "(Node, int) -> Color",
         "instance_region": "(Node, int) -> render::InstanceRegion?",
         "instance_transform": "(Node, int) -> Transform2d",
         "instances": "(Node) -> [render::MultimeshInstance]",
-        "set_buffer": "(Node, [float])",
         "set_instance_color": "(Node, int, Color)",
         "set_instance_count": "(Node, int)",
         "set_instance_custom_data": "(Node, int, Color)",
@@ -22598,9 +21992,6 @@
     },
     {
       "acts_on": {
-        "buffer": [
-          "multimesh3d"
-        ],
         "instance_color": [
           "multimesh3d"
         ],
@@ -22614,9 +22005,6 @@
           "multimesh3d"
         ],
         "instances": [
-          "multimesh3d"
-        ],
-        "set_buffer": [
           "multimesh3d"
         ],
         "set_instance_color": [
@@ -22647,13 +22035,11 @@
       "constants": [],
       "doc": "Thousands of copies of one mesh in one draw, each with its own transform, colour and custom data, through `node.multimesh3d`.",
       "docs": {
-        "buffer": "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.",
         "instance_color": "The colour one instance draws in.",
         "instance_count": "How many instances the node holds.",
         "instance_custom_data": "One instance's four floats of custom data, as a colour.",
         "instance_transform": "One instance's transform.",
         "instances": "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.",
-        "set_buffer": "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.",
         "set_instance_color": "The colour one instance draws in.",
         "set_instance_count": "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.",
         "set_instance_custom_data": "Four floats a material's shader reads for one instance, as a colour.",
@@ -22664,13 +22050,11 @@
       },
       "editor": [],
       "functions": [
-        "buffer",
         "instance_color",
         "instance_count",
         "instance_custom_data",
         "instance_transform",
         "instances",
-        "set_buffer",
         "set_instance_color",
         "set_instance_count",
         "set_instance_custom_data",
@@ -22680,9 +22064,6 @@
         "visible_instance_count"
       ],
       "methods": {
-        "buffer": {
-          "multimesh3d": "buffer"
-        },
         "instance_color": {
           "multimesh3d": "instance_color"
         },
@@ -22697,9 +22078,6 @@
         },
         "instances": {
           "multimesh3d": "instances"
-        },
-        "set_buffer": {
-          "multimesh3d": "set_buffer"
         },
         "set_instance_color": {
           "multimesh3d": "set_instance_color"
@@ -22725,13 +22103,11 @@
       },
       "name": "multimesh3d",
       "signatures": {
-        "buffer": "(Node) -> [float]",
         "instance_color": "(Node, int) -> Color",
         "instance_count": "(Node) -> int",
         "instance_custom_data": "(Node, int) -> Color",
         "instance_transform": "(Node, int) -> Transform3d",
         "instances": "(Node) -> [render::MultimeshInstance]",
-        "set_buffer": "(Node, [float])",
         "set_instance_color": "(Node, int, Color)",
         "set_instance_count": "(Node, int)",
         "set_instance_custom_data": "(Node, int, Color)",
@@ -22887,9 +22263,6 @@
         ],
         "set_state": [
           "states"
-        ],
-        "state": [
-          "states"
         ]
       },
       "components": [
@@ -22910,9 +22283,7 @@
         "component_property": "One property of the named component, nil when the node does not carry it: what a caller reading a single value should ask for.",
         "descendants": "Every node under this one, in tree order, the node itself excluded.",
         "detach_script": "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay.",
-        "effective_material": "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.",
         "effective_tint": "What the renderer multiplies by: this node's tint with every ancestor's folded in.",
-        "effective_z_index": "The layer the node actually draws on, with every ancestor's added in.",
         "emit": "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now.",
         "free": "Destroy the node and its subtree now, scripts detached first: what a tool editing a scene does, where no script of the subtree is running. A game frees with `queue_free`.",
         "get_component": "The named component's properties as a table, nil when the node does not carry it.",
@@ -22944,7 +22315,6 @@
         "set_name": "Rename the node, doing nothing when it carries no name.",
         "set_parent": "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent.",
         "set_process": "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says.",
-        "set_property": "Write one property, by its place in the component: what `node.component.property` writes, for a name known only at run time. Answers whether the component took the value, as `patch_component` does.",
         "set_script": "Name the node's script and what it sets, without running it: what a scene's `script` key says and `attach_script` also starts. Nil takes the script off.",
         "set_sibling_index": "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.",
         "set_state": "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.",
@@ -22953,9 +22323,7 @@
         "set_z_index": "Put the node and its subtree on a draw layer: higher draws later. It adds to the parent's layer unless `relative` is false, which makes it absolute.",
         "sibling_index": "Where the node sits among its parent's children, counting from zero; 0 at the root.",
         "stable_id": "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not.",
-        "state": "The state the node is in, or \"\" for the pose the scene gave it.",
         "tags": "The names the node is filed under, sorted.",
-        "ticking": "Whether the node ticks this frame, its process mode and the game's pause together.",
         "tint": "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen.",
         "visible": "Whether the node itself is set to draw; an ancestor may still hide it.",
         "visible_in_tree": "What the renderer sees: false when the node or any ancestor is hidden.",
@@ -22974,9 +22342,7 @@
         "component_property",
         "descendants",
         "detach_script",
-        "effective_material",
         "effective_tint",
-        "effective_z_index",
         "emit",
         "free",
         "get_component",
@@ -23008,7 +22374,6 @@
         "set_name",
         "set_parent",
         "set_process",
-        "set_property",
         "set_script",
         "set_sibling_index",
         "set_state",
@@ -23017,9 +22382,7 @@
         "set_z_index",
         "sibling_index",
         "stable_id",
-        "state",
         "tags",
-        "ticking",
         "tint",
         "visible",
         "visible_in_tree",
@@ -23040,9 +22403,6 @@
         },
         "set_state": {
           "states": "set_state"
-        },
-        "state": {
-          "states": "state"
         }
       },
       "name": "node",
@@ -23058,9 +22418,7 @@
         "component_property": "(Node, str, str) -> any",
         "descendants": "(Node) -> [Node]",
         "detach_script": "(Node)",
-        "effective_material": "(Node) -> str",
         "effective_tint": "(Node) -> Color",
-        "effective_z_index": "(Node) -> int",
         "emit": "(Node, str, any)",
         "free": "(Node)",
         "get_component": "(Node, str) -> any",
@@ -23092,7 +22450,6 @@
         "set_name": "(Node, str)",
         "set_parent": "(Node, Node)",
         "set_process": "(Node, str)",
-        "set_property": "(Node, str, str, any) -> bool",
         "set_script": "(Node, str?, any)",
         "set_sibling_index": "(Node, int)",
         "set_state": "(Node, str)",
@@ -23101,9 +22458,7 @@
         "set_z_index": "(Node, int, bool?)",
         "sibling_index": "(Node) -> int",
         "stable_id": "(Node) -> str",
-        "state": "(Node) -> str",
         "tags": "(Node) -> [str]",
-        "ticking": "(Node) -> bool",
         "tint": "(Node) -> Color",
         "visible": "(Node) -> bool",
         "visible_in_tree": "(Node) -> bool",
@@ -23119,10 +22474,9 @@
         "clear": "Remove every body and collider from both worlds, as a play-in-editor session does on stop.",
         "counters": "What each world's last step spent its time on. The first call turns rapier's profilers on, so the numbers arrive from the step after it.",
         "debug_draw": "What the debug renderer is drawing now, every flag and `nodes` given.",
-        "debug_draw_defaults": "The usual shapes, for `set_debug_draw`.",
         "is_paused": "Whether stepping is stopped.",
         "quarantined": "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number. Empty lists are the normal answer.",
-        "set_debug_draw": "Draw the physics world over the scene, as `modes` names it; `debug_draw_defaults()` is the usual shapes, and `enabled: false` nothing. `[physics.debug]` holds the colours and lengths.",
+        "set_debug_draw": "Draw the physics world over the scene, as `modes` names it: `DebugDraw { colliders: true }` is the shapes, and `enabled: false` nothing. `[physics.debug]` holds the colours and lengths.",
         "set_paused": "Stop or resume stepping both worlds; nodes keep their poses.",
         "set_sleeping_allowed": "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later.",
         "set_tuning": "Change how the solver behaves: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness, the `soft_*` rows and a `soft_recovery` record, the keys `[physics]` takes. A key at the top reaches both worlds; a `physics3d` or `physics2d` record holds keys for that world alone, which win over the top. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]`, `[physics.3d]` and `[physics.2d]` in project.toml.",
@@ -23135,7 +22489,6 @@
         "clear",
         "counters",
         "debug_draw",
-        "debug_draw_defaults",
         "is_paused",
         "quarantined",
         "set_debug_draw",
@@ -23152,7 +22505,6 @@
         "clear": "()",
         "counters": "() -> physics::Counters",
         "debug_draw": "() -> physics::DebugDraw",
-        "debug_draw_defaults": "() -> physics::DebugDraw",
         "is_paused": "() -> bool",
         "quarantined": "() -> physics::Quarantined",
         "set_debug_draw": "(physics::DebugDraw)",
@@ -23229,9 +22581,6 @@
         "collider_mesh": [
           "collider2d"
         ],
-        "collider_total_mass": [
-          "collider2d"
-        ],
         "collider_volume": [
           "collider2d"
         ],
@@ -23283,9 +22632,6 @@
         "is_moving": [
           "body2d"
         ],
-        "is_on_floor": [
-          "character2d"
-        ],
         "is_sleeping": [
           "body2d"
         ],
@@ -23334,9 +22680,6 @@
         "predict_position_with_forces": [
           "body2d"
         ],
-        "remove_joint": [
-          "joint2d"
-        ],
         "reset_follow": [
           "follow2d"
         ],
@@ -23364,17 +22707,8 @@
         "set_heightfield_hole": [
           "collider2d"
         ],
-        "set_joint_limits": [
-          "joint2d"
-        ],
         "set_linear_velocity": [
           "body2d"
-        ],
-        "set_motor_position": [
-          "joint2d"
-        ],
-        "set_motor_velocity": [
-          "joint2d"
         ],
         "set_particle_damaged": [
           "softbody2d"
@@ -23431,12 +22765,6 @@
           "softbody2d"
         ],
         "softbody_particle_count": [
-          "softbody2d"
-        ],
-        "softbody_particle_position": [
-          "softbody2d"
-        ],
-        "softbody_particle_velocity": [
           "softbody2d"
         ],
         "softbody_rest_area": [
@@ -23943,7 +23271,6 @@
       "doc": "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
       "docs": {
         "aabb": "The world-space box the collider currently occupies, from its lowest corner to its highest.",
-        "active_bodies": "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving.",
         "add_constant_force": "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
         "add_constant_force_at_point": "Push at a world point every step, which also turns the body.",
         "add_constant_torque": "Turn the body every step until the constant torque is set back to zero.",
@@ -23961,13 +23288,11 @@
         "apply_torque": "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
         "attach_particle": "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other.",
-        "bodies": "Every node with a rigid body, sorted.",
         "broad_phase_aabb": "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance.",
         "closest_point": "The closest point on any collider to a world point.",
         "closest_points": "The nearest point on each of two nodes' colliders; nothing when they overlap.",
         "collider_mass_properties": "What this collider adds to its body, in its own space.",
         "collider_mesh": "A voxel collider's outline as points and the segments between them, for drawing it or for spawning the pieces it broke into.",
-        "collider_total_mass": "What this collider weighs, density and size together.",
         "collider_volume": "How much area the shape encloses.",
         "collision_aabb": "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance.",
         "combine_voxels": "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation.",
@@ -23977,7 +23302,6 @@
         "crop_voxels": "Empty every cell outside the cells from `(min_x, min_y)` to `(max_x, max_y)`, both included. A range holding no filled cell leaves the grid as it was.",
         "cut_softbody": "Cut the body along a blade at once, as `crossing` reads it; answers a record for each piece it changed, the one `on_torn` hears.",
         "detach_particle": "Untie one particle from every body it was attached to; answers whether it was attached.",
-        "distance": "The gap between two nodes' colliders, zero when they touch.",
         "effective_angular_inertia": "The inertia the solver turns: zero with rotation locked, and on any body that is not dynamic.",
         "effective_dominance": "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.",
         "effective_mass": "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.",
@@ -23988,7 +23312,6 @@
         "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
         "is_ccd_active": "Whether the body moved fast enough last step for rapier to sweep it, with or without continuous_collision.",
         "is_moving": "Whether the body is awake and actually going somewhere.",
-        "is_on_floor": "Whether the last move ended with ground under the character's feet.",
         "is_sleeping": "Whether the body is asleep and being skipped.",
         "is_softbody_sleeping": "Whether the body has come to rest and stopped being simulated.",
         "joint_force": "The force and the torque the joint held through the last step. An articulation has none to read, and says so.",
@@ -23996,7 +23319,7 @@
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "local_center_of_mass": "Where the body's whole mass sits, in the body's own space.",
-        "max_contact_impulse": "The hardest contact this body took in the last step, zero when nothing touched it.",
+        "max_contact_impulse": "The hardest contact this body took in the last step, every collider on it included; zero when nothing touched it.",
         "move_character_by": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update.",
         "next_position": "The pose a kinematic body has been told to move to.",
         "overlap_aabb": "Every collider whose bounds meet an axis-aligned box.",
@@ -24010,7 +23333,6 @@
         "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
         "raycast": "The first collider a ray meets, or nothing.",
         "raycast_all": "Every collider a ray meets, nearest first.",
-        "remove_joint": "Undo the node's joint, leaving both bodies free.",
         "reset_follow": "Forget what a `pid` follow summed, so it pulls from now as if it had just started.",
         "reset_plasticity": "Undo every permanent set the body took: rest lengths, rest angles and rest shapes go back to how it was built, and it springs back from where it is.",
         "reset_softbody_forces": "Take back every force `add_force` and `add_particle_force` gave the body.",
@@ -24021,10 +23343,7 @@
         "set_edge_tear_resistance": "How many times the material's threshold one edge takes to tear; 1 is the material's.",
         "set_gravity": "Set the 2D world's gravity, in units per second squared.",
         "set_heightfield_hole": "Remove or restore one segment of a heightfield's ground, numbered from the first height.",
-        "set_joint_limits": "Set how far one of the joint's free axes may travel; equal values lift the limit. Rewrites that axis's `axes` record.",
         "set_linear_velocity": "Set how fast the body travels, in units per second.",
-        "set_motor_position": "Drive one of the joint's free axes towards an angle or a distance, with a spring's stiffness and damping. Rewrites that axis's `axes` record.",
-        "set_motor_velocity": "Drive one of the joint's free axes towards a speed: how a wheel is powered. Rewrites that axis's `axes` record.",
         "set_particle_damaged": "Mark one particle as damaged or mend it: a damaged particle tears as an outside one does, which seeds where a crack starts.",
         "set_particle_position": "Put one particle at `at` with no change of velocity.",
         "set_particle_target": "Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.",
@@ -24045,8 +23364,6 @@
         "softbody_effective_particle_radius": "How thick the particles are: what was asked for, or what the layout worked out.",
         "softbody_particle": "Everything one particle holds.",
         "softbody_particle_count": "How many particles the body has, every piece torn off it included: a generator decides, not the author.",
-        "softbody_particle_position": "Where one particle is, in world space.",
-        "softbody_particle_velocity": "How fast one particle is moving, in world space.",
         "softbody_rest_area": "How much they enclose at rest.",
         "softbody_stress": "Each edge's load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set.",
         "softbody_total_mass": "What the whole body weighs, every piece included.",
@@ -24075,7 +23392,6 @@
       "editor": [],
       "functions": [
         "aabb",
-        "active_bodies",
         "add_constant_force",
         "add_constant_force_at_point",
         "add_constant_torque",
@@ -24093,13 +23409,11 @@
         "apply_torque",
         "apply_torque_impulse",
         "attach_particle",
-        "bodies",
         "broad_phase_aabb",
         "closest_point",
         "closest_points",
         "collider_mass_properties",
         "collider_mesh",
-        "collider_total_mass",
         "collider_volume",
         "collision_aabb",
         "combine_voxels",
@@ -24109,7 +23423,6 @@
         "crop_voxels",
         "cut_softbody",
         "detach_particle",
-        "distance",
         "effective_angular_inertia",
         "effective_dominance",
         "effective_mass",
@@ -24120,7 +23433,6 @@
         "intersects",
         "is_ccd_active",
         "is_moving",
-        "is_on_floor",
         "is_sleeping",
         "is_softbody_sleeping",
         "joint_force",
@@ -24142,7 +23454,6 @@
         "predict_position_with_forces",
         "raycast",
         "raycast_all",
-        "remove_joint",
         "reset_follow",
         "reset_plasticity",
         "reset_softbody_forces",
@@ -24153,10 +23464,7 @@
         "set_edge_tear_resistance",
         "set_gravity",
         "set_heightfield_hole",
-        "set_joint_limits",
         "set_linear_velocity",
-        "set_motor_position",
-        "set_motor_velocity",
         "set_particle_damaged",
         "set_particle_position",
         "set_particle_target",
@@ -24177,8 +23485,6 @@
         "softbody_effective_particle_radius",
         "softbody_particle",
         "softbody_particle_count",
-        "softbody_particle_position",
-        "softbody_particle_velocity",
         "softbody_rest_area",
         "softbody_stress",
         "softbody_total_mass",
@@ -24268,9 +23574,6 @@
         "collider_mesh": {
           "collider2d": "mesh"
         },
-        "collider_total_mass": {
-          "collider2d": "total_mass"
-        },
         "collider_volume": {
           "collider2d": "volume"
         },
@@ -24322,9 +23625,6 @@
         "is_moving": {
           "body2d": "is_moving"
         },
-        "is_on_floor": {
-          "character2d": "is_on_floor"
-        },
         "is_sleeping": {
           "body2d": "is_sleeping"
         },
@@ -24373,9 +23673,6 @@
         "predict_position_with_forces": {
           "body2d": "predict_position_with_forces"
         },
-        "remove_joint": {
-          "joint2d": "remove"
-        },
         "reset_follow": {
           "follow2d": "reset"
         },
@@ -24403,17 +23700,8 @@
         "set_heightfield_hole": {
           "collider2d": "set_heightfield_hole"
         },
-        "set_joint_limits": {
-          "joint2d": "set_limits"
-        },
         "set_linear_velocity": {
           "body2d": "set_linear_velocity"
-        },
-        "set_motor_position": {
-          "joint2d": "set_motor_position"
-        },
-        "set_motor_velocity": {
-          "joint2d": "set_motor_velocity"
         },
         "set_particle_damaged": {
           "softbody2d": "set_particle_damaged"
@@ -24471,12 +23759,6 @@
         },
         "softbody_particle_count": {
           "softbody2d": "particle_count"
-        },
-        "softbody_particle_position": {
-          "softbody2d": "particle_position"
-        },
-        "softbody_particle_velocity": {
-          "softbody2d": "particle_velocity"
         },
         "softbody_rest_area": {
           "softbody2d": "rest_area"
@@ -24548,7 +23830,6 @@
       "name": "physics2d",
       "signatures": {
         "aabb": "(Node) -> physics2d::Aabb",
-        "active_bodies": "() -> [Node]",
         "add_constant_force": "(Node, Vec2)",
         "add_constant_force_at_point": "(Node, Vec2, Vec2)",
         "add_constant_torque": "(Node, float)",
@@ -24566,13 +23847,11 @@
         "apply_torque": "(Node, float)",
         "apply_torque_impulse": "(Node, float)",
         "attach_particle": "(Node, int, Node)",
-        "bodies": "() -> [Node]",
         "broad_phase_aabb": "(Node) -> physics2d::Aabb",
         "closest_point": "(physics2d::PointQuery) -> physics2d::Closest?",
         "closest_points": "(Node, Node) -> physics2d::ClosestPoints?",
         "collider_mass_properties": "(Node) -> physics2d::MassProperties",
         "collider_mesh": "(Node) -> physics2d::ColliderMesh",
-        "collider_total_mass": "(Node) -> float",
         "collider_volume": "(Node) -> float",
         "collision_aabb": "(Node) -> physics2d::Aabb",
         "combine_voxels": "(Node, Node)",
@@ -24582,7 +23861,6 @@
         "crop_voxels": "(Node, int, int, int, int)",
         "cut_softbody": "(Node, [Vec2]) -> [physics2d::SoftTear]",
         "detach_particle": "(Node, int) -> bool",
-        "distance": "(Node, Node) -> float",
         "effective_angular_inertia": "(Node) -> float",
         "effective_dominance": "(Node) -> float",
         "effective_mass": "(Node) -> Vec2",
@@ -24593,7 +23871,6 @@
         "intersects": "(Node, Node) -> bool",
         "is_ccd_active": "(Node) -> bool",
         "is_moving": "(Node) -> bool",
-        "is_on_floor": "(Node) -> bool",
         "is_sleeping": "(Node) -> bool",
         "is_softbody_sleeping": "(Node) -> bool",
         "joint_force": "(Node) -> physics2d::JointForce",
@@ -24615,7 +23892,6 @@
         "predict_position_with_forces": "(Node, float) -> physics2d::Pose",
         "raycast": "(physics2d::RayQuery) -> physics2d::Hit?",
         "raycast_all": "(physics2d::RayQuery) -> [physics2d::Hit]",
-        "remove_joint": "(Node)",
         "reset_follow": "(Node)",
         "reset_plasticity": "(Node)",
         "reset_softbody_forces": "(Node)",
@@ -24626,10 +23902,7 @@
         "set_edge_tear_resistance": "(Node, int, float)",
         "set_gravity": "(Vec2)",
         "set_heightfield_hole": "(Node, int, bool)",
-        "set_joint_limits": "(Node, str, float, float)",
         "set_linear_velocity": "(Node, Vec2)",
-        "set_motor_position": "(Node, str, float, float, float)",
-        "set_motor_velocity": "(Node, str, float, float)",
         "set_particle_damaged": "(Node, int, bool)",
         "set_particle_position": "(Node, int, Vec2)",
         "set_particle_target": "(Node, int, Vec2)",
@@ -24650,8 +23923,6 @@
         "softbody_effective_particle_radius": "(Node) -> float",
         "softbody_particle": "(Node, int) -> physics2d::SoftParticle",
         "softbody_particle_count": "(Node) -> int",
-        "softbody_particle_position": "(Node, int) -> Vec2",
-        "softbody_particle_velocity": "(Node, int) -> Vec2",
         "softbody_rest_area": "(Node) -> float",
         "softbody_stress": "(Node) -> [float]",
         "softbody_total_mass": "(Node) -> float",
@@ -24743,9 +24014,6 @@
         "collider_mesh": [
           "collider3d"
         ],
-        "collider_total_mass": [
-          "collider3d"
-        ],
         "collider_volume": [
           "collider3d"
         ],
@@ -24797,9 +24065,6 @@
         "is_moving": [
           "body3d"
         ],
-        "is_on_floor": [
-          "character3d"
-        ],
         "is_sleeping": [
           "body3d"
         ],
@@ -24822,7 +24087,7 @@
           "body3d"
         ],
         "max_contact_impulse": [
-          "collider3d"
+          "body3d"
         ],
         "move_character_by": [
           "character3d"
@@ -24847,9 +24112,6 @@
         ],
         "predict_position_with_forces": [
           "body3d"
-        ],
-        "remove_joint": [
-          "joint3d"
         ],
         "reset_follow": [
           "follow3d"
@@ -24884,17 +24146,8 @@
         "set_heightfield_hole": [
           "collider3d"
         ],
-        "set_joint_limits": [
-          "joint3d"
-        ],
         "set_linear_velocity": [
           "body3d"
-        ],
-        "set_motor_position": [
-          "joint3d"
-        ],
-        "set_motor_velocity": [
-          "joint3d"
         ],
         "set_particle_damaged": [
           "softbody3d"
@@ -24960,12 +24213,6 @@
           "softbody3d"
         ],
         "softbody_particle_count": [
-          "softbody3d"
-        ],
-        "softbody_particle_position": [
-          "softbody3d"
-        ],
-        "softbody_particle_velocity": [
           "softbody3d"
         ],
         "softbody_rest_volume": [
@@ -25514,7 +24761,6 @@
       "doc": "The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
       "docs": {
         "aabb": "The world-space box the collider currently occupies, from its lowest corner to its highest.",
-        "active_bodies": "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving.",
         "add_constant_force": "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
         "add_constant_force_at_point": "Push at a world point every step, which also turns the body.",
         "add_constant_torque": "Turn the body every step until the constant torque is set back to zero.",
@@ -25532,13 +24778,11 @@
         "apply_torque": "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
         "attach_particle": "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other.",
-        "bodies": "Every node with a rigid body, sorted.",
         "broad_phase_aabb": "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance.",
         "closest_point": "The closest point on any collider to a world point.",
         "closest_points": "The nearest point on each of two nodes' colliders.",
         "collider_mass_properties": "What this collider adds to its body, in its own space.",
         "collider_mesh": "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into.",
-        "collider_total_mass": "What this collider weighs, density and size together.",
         "collider_volume": "How much space the shape encloses.",
         "collision_aabb": "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance.",
         "combine_voxels": "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation.",
@@ -25548,7 +24792,6 @@
         "crop_voxels": "Empty every cell outside the cells from `(min_x, min_y, min_z)` to `(max_x, max_y, max_z)`, both included. A range holding no filled cell leaves the grid as it was.",
         "cut_softbody": "Cut the body along a blade at once, as `crossing` reads it; answers a record for each piece it changed, the one `on_torn` hears.",
         "detach_particle": "Untie one particle from every body it was attached to; answers whether it was attached.",
-        "distance": "The gap between two nodes' colliders, zero when they touch or overlap.",
         "effective_angular_inertia": "The world-space inertia the solver turns, rotation locks applied, as its three rows.",
         "effective_dominance": "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.",
         "effective_mass": "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.",
@@ -25559,7 +24802,6 @@
         "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
         "is_ccd_active": "Whether the body moved fast enough last step for rapier to sweep it, with or without continuous_collision.",
         "is_moving": "Whether the body is awake and actually going somewhere.",
-        "is_on_floor": "Whether the last move ended with ground under the character's feet.",
         "is_sleeping": "Whether the body is asleep and being skipped.",
         "is_softbody_sleeping": "Whether the body has come to rest and stopped being simulated.",
         "joint_force": "The force and the torque the joint held through the last step: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so.",
@@ -25567,7 +24809,7 @@
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "local_center_of_mass": "Where the body's whole mass sits, in the body's own space.",
-        "max_contact_impulse": "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.",
+        "max_contact_impulse": "The hardest contact this body took in the last step, every collider on it included; zero when nothing touched it.",
         "move_character_by": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote.",
         "next_position": "The pose a kinematic body has been told to move to.",
         "overlap_aabb": "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits.",
@@ -25581,7 +24823,6 @@
         "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
         "raycast": "The first collider a ray meets, or nothing.",
         "raycast_all": "Every collider a ray meets, nearest first.",
-        "remove_joint": "Undo the node's joint, leaving both bodies free.",
         "reset_follow": "Forget what a `pid` follow summed, so it pulls from now as if it had just started.",
         "reset_plasticity": "Undo every permanent set the body took: rest lengths, rest angles and rest shapes go back to how it was built, and it springs back from where it is.",
         "reset_softbody_forces": "Take back every force `add_force` and `add_particle_force` gave the body.",
@@ -25594,10 +24835,7 @@
         "set_engine_force": "How hard this wheel drives, in newtons; negative reverses.",
         "set_gravity": "Set the 3D world's gravity, in units per second squared.",
         "set_heightfield_hole": "Remove or restore the ground of one heightfield cell, named by the row and column of its first corner.",
-        "set_joint_limits": "Set how far one of the joint's free axes may travel, in radians about a rotation axis and units along a linear one; equal values lift the limit. Rewrites that axis's `axes` record.",
         "set_linear_velocity": "Set how fast the body travels, in units per second.",
-        "set_motor_position": "Drive one of the joint's free axes towards an angle or a distance, with a spring's stiffness and damping. Rewrites that axis's `axes` record.",
-        "set_motor_velocity": "Drive one of the joint's free axes towards a speed: how a wheel is powered or a door swings itself shut. Rewrites that axis's `axes` record.",
         "set_particle_damaged": "Mark one particle as damaged or mend it: a damaged particle tears as an outside one does, which seeds where a crack starts.",
         "set_particle_position": "Put one particle at `at` with no change of velocity.",
         "set_particle_target": "Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.",
@@ -25621,8 +24859,6 @@
         "softbody_effective_particle_radius": "How thick the particles are: what was asked for, or what the layout worked out.",
         "softbody_particle": "Everything one particle holds.",
         "softbody_particle_count": "How many particles the body has, every piece torn off it included: a generator decides, not the author.",
-        "softbody_particle_position": "Where one particle is, in world space.",
-        "softbody_particle_velocity": "How fast one particle is moving, in world space.",
         "softbody_rest_volume": "How much they enclose at rest.",
         "softbody_stress": "Each edge's load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set.",
         "softbody_total_mass": "What the whole body weighs, every piece included.",
@@ -25655,7 +24891,6 @@
       "editor": [],
       "functions": [
         "aabb",
-        "active_bodies",
         "add_constant_force",
         "add_constant_force_at_point",
         "add_constant_torque",
@@ -25673,13 +24908,11 @@
         "apply_torque",
         "apply_torque_impulse",
         "attach_particle",
-        "bodies",
         "broad_phase_aabb",
         "closest_point",
         "closest_points",
         "collider_mass_properties",
         "collider_mesh",
-        "collider_total_mass",
         "collider_volume",
         "collision_aabb",
         "combine_voxels",
@@ -25689,7 +24922,6 @@
         "crop_voxels",
         "cut_softbody",
         "detach_particle",
-        "distance",
         "effective_angular_inertia",
         "effective_dominance",
         "effective_mass",
@@ -25700,7 +24932,6 @@
         "intersects",
         "is_ccd_active",
         "is_moving",
-        "is_on_floor",
         "is_sleeping",
         "is_softbody_sleeping",
         "joint_force",
@@ -25722,7 +24953,6 @@
         "predict_position_with_forces",
         "raycast",
         "raycast_all",
-        "remove_joint",
         "reset_follow",
         "reset_plasticity",
         "reset_softbody_forces",
@@ -25735,10 +24965,7 @@
         "set_engine_force",
         "set_gravity",
         "set_heightfield_hole",
-        "set_joint_limits",
         "set_linear_velocity",
-        "set_motor_position",
-        "set_motor_velocity",
         "set_particle_damaged",
         "set_particle_position",
         "set_particle_target",
@@ -25762,8 +24989,6 @@
         "softbody_effective_particle_radius",
         "softbody_particle",
         "softbody_particle_count",
-        "softbody_particle_position",
-        "softbody_particle_velocity",
         "softbody_rest_volume",
         "softbody_stress",
         "softbody_total_mass",
@@ -25857,9 +25082,6 @@
         "collider_mesh": {
           "collider3d": "mesh"
         },
-        "collider_total_mass": {
-          "collider3d": "total_mass"
-        },
         "collider_volume": {
           "collider3d": "volume"
         },
@@ -25911,9 +25133,6 @@
         "is_moving": {
           "body3d": "is_moving"
         },
-        "is_on_floor": {
-          "character3d": "is_on_floor"
-        },
         "is_sleeping": {
           "body3d": "is_sleeping"
         },
@@ -25936,7 +25155,7 @@
           "body3d": "local_center_of_mass"
         },
         "max_contact_impulse": {
-          "collider3d": "max_contact_impulse"
+          "body3d": "max_contact_impulse"
         },
         "move_character_by": {
           "character3d": "move_by"
@@ -25961,9 +25180,6 @@
         },
         "predict_position_with_forces": {
           "body3d": "predict_position_with_forces"
-        },
-        "remove_joint": {
-          "joint3d": "remove"
         },
         "reset_follow": {
           "follow3d": "reset"
@@ -25998,17 +25214,8 @@
         "set_heightfield_hole": {
           "collider3d": "set_heightfield_hole"
         },
-        "set_joint_limits": {
-          "joint3d": "set_limits"
-        },
         "set_linear_velocity": {
           "body3d": "set_linear_velocity"
-        },
-        "set_motor_position": {
-          "joint3d": "set_motor_position"
-        },
-        "set_motor_velocity": {
-          "joint3d": "set_motor_velocity"
         },
         "set_particle_damaged": {
           "softbody3d": "set_particle_damaged"
@@ -26075,12 +25282,6 @@
         },
         "softbody_particle_count": {
           "softbody3d": "particle_count"
-        },
-        "softbody_particle_position": {
-          "softbody3d": "particle_position"
-        },
-        "softbody_particle_velocity": {
-          "softbody3d": "particle_velocity"
         },
         "softbody_rest_volume": {
           "softbody3d": "rest_volume"
@@ -26164,7 +25365,6 @@
       "name": "physics3d",
       "signatures": {
         "aabb": "(Node) -> physics3d::Aabb",
-        "active_bodies": "() -> [Node]",
         "add_constant_force": "(Node, Vec3)",
         "add_constant_force_at_point": "(Node, Vec3, Vec3)",
         "add_constant_torque": "(Node, Vec3)",
@@ -26182,13 +25382,11 @@
         "apply_torque": "(Node, Vec3)",
         "apply_torque_impulse": "(Node, Vec3)",
         "attach_particle": "(Node, int, Node)",
-        "bodies": "() -> [Node]",
         "broad_phase_aabb": "(Node) -> physics3d::Aabb",
         "closest_point": "(physics3d::PointQuery) -> physics3d::Closest?",
         "closest_points": "(Node, Node) -> physics3d::ClosestPoints?",
         "collider_mass_properties": "(Node) -> physics3d::MassProperties",
         "collider_mesh": "(Node) -> physics3d::ColliderMesh",
-        "collider_total_mass": "(Node) -> float",
         "collider_volume": "(Node) -> float",
         "collision_aabb": "(Node) -> physics3d::Aabb",
         "combine_voxels": "(Node, Node)",
@@ -26198,7 +25396,6 @@
         "crop_voxels": "(Node, int, int, int, int, int, int)",
         "cut_softbody": "(Node, [Vec3]) -> [physics3d::SoftTear]",
         "detach_particle": "(Node, int) -> bool",
-        "distance": "(Node, Node) -> float",
         "effective_angular_inertia": "(Node) -> [Vec3]",
         "effective_dominance": "(Node) -> float",
         "effective_mass": "(Node) -> Vec3",
@@ -26209,7 +25406,6 @@
         "intersects": "(Node, Node) -> bool",
         "is_ccd_active": "(Node) -> bool",
         "is_moving": "(Node) -> bool",
-        "is_on_floor": "(Node) -> bool",
         "is_sleeping": "(Node) -> bool",
         "is_softbody_sleeping": "(Node) -> bool",
         "joint_force": "(Node) -> physics3d::JointForce",
@@ -26231,7 +25427,6 @@
         "predict_position_with_forces": "(Node, float) -> physics3d::Pose",
         "raycast": "(physics3d::RayQuery) -> physics3d::Hit?",
         "raycast_all": "(physics3d::RayQuery) -> [physics3d::Hit]",
-        "remove_joint": "(Node)",
         "reset_follow": "(Node)",
         "reset_plasticity": "(Node)",
         "reset_softbody_forces": "(Node)",
@@ -26244,10 +25439,7 @@
         "set_engine_force": "(Node, float)",
         "set_gravity": "(Vec3)",
         "set_heightfield_hole": "(Node, int, int, bool)",
-        "set_joint_limits": "(Node, str, float, float)",
         "set_linear_velocity": "(Node, Vec3)",
-        "set_motor_position": "(Node, str, float, float, float)",
-        "set_motor_velocity": "(Node, str, float, float)",
         "set_particle_damaged": "(Node, int, bool)",
         "set_particle_position": "(Node, int, Vec3)",
         "set_particle_target": "(Node, int, Vec3)",
@@ -26271,8 +25463,6 @@
         "softbody_effective_particle_radius": "(Node) -> float",
         "softbody_particle": "(Node, int) -> physics3d::SoftParticle",
         "softbody_particle_count": "(Node) -> int",
-        "softbody_particle_position": "(Node, int) -> Vec3",
-        "softbody_particle_velocity": "(Node, int) -> Vec3",
         "softbody_rest_volume": "(Node) -> float",
         "softbody_stress": "(Node) -> [float]",
         "softbody_total_mass": "(Node) -> float",
@@ -26366,7 +25556,6 @@
         "scores": "Read a leaderboard's entries, and return the id whose `scores` answer holds them as `entries`, each a `Score`.",
         "set_presence": "Say what the player is doing, where the store shows it, and return the id its answer carries.",
         "sign_in": "Ask the store who is playing, and return the id its answer carries. A later sign-out is the `platform_event` event.",
-        "signed_in": "Whether a sign-in has landed.",
         "submit_score": "Post a score to a leaderboard, and return the id its answer carries.",
         "unlock": "Award an achievement whole, and return the id its answer carries."
       },
@@ -26380,7 +25569,6 @@
         "scores",
         "set_presence",
         "sign_in",
-        "signed_in",
         "submit_score",
         "unlock"
       ],
@@ -26395,7 +25583,6 @@
         "scores": "(str, platform::ScoresOptions?) -> int",
         "set_presence": "(str) -> int",
         "sign_in": "() -> int",
-        "signed_in": "() -> bool",
         "submit_score": "(str, int) -> int",
         "unlock": "(str) -> int"
       }
@@ -26480,7 +25667,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Rotations as quaternions `{ x, y, z, w }`: from an axis and an angle, from one direction to another or from a `rotation_euler`, composed, inverted and applied to a vector. Through `glamx` on `libm`, so every platform turns alike.",
+      "doc": "Rotations as quaternions `{ x, y, z, w }`: from an axis and an angle, from one direction to another or from a `rotation_euler`, composed, inverted and applied to a vector. Balaur Script over glam's formulas, so every platform turns alike.",
       "docs": {
         "from_arc": "The shortest turn that takes the direction `from` onto `to`.",
         "from_axis_angle": "A turn of `angle` radians about `axis`, which need not be unit length.",
@@ -26634,9 +25821,6 @@
           "tilemap"
         ],
         "terrain": [
-          "tilemap"
-        ],
-        "tile_data": [
           "tilemap"
         ]
       },
@@ -26829,9 +26013,7 @@
         "draw_box_3d": "Draw a wireframe box centred at a point, `size` across along each axis in world units, for this frame.",
         "draw_capsule_3d": "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame.",
         "draw_circle_2d": "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead.",
-        "draw_line_2d": "Draw one 2D world-space line for this frame; width is in pixels, and `opts.z_index` places it among the nodes of that index.",
-        "draw_line_3d": "Draw one 3D world-space line for this frame; the width is in pixels unless `perspective` scales it with distance, and `on_top` draws it over the scene.",
-        "draw_lines_3d": "Draw many 3D lines in one call, each with its own ends, colour, width and `on_top`: a frame's worth crosses to the engine once.",
+        "draw_lines_3d": "Draw 3D world-space lines for this frame, each with its own ends, colour, width, `perspective` and `on_top`: a frame's worth crosses to the engine once.",
         "draw_polygon_2d": "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`.",
         "draw_polyline_2d": "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`.",
         "draw_rect_2d": "Fill a rectangle of `size` centred at `position`, in world units, for this frame; `opts` takes `z_index`.",
@@ -26846,8 +26028,7 @@
         "mouse_ray": "The picking ray through the mouse position, in world units: where it starts and which way it goes.",
         "mouse_world_2d": "The mouse position in 2D world coordinates, for picking.",
         "outline": "The outline this node blocks 2D light with, as its points in world space, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
-        "pick_ray": "The nearest node with a 3D shape that a world-space ray meets, from its origin along its direction.",
-        "pick_ray_at": "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing.",
+        "pick_ray_at": "The nearest node with a 3D shape that a world-space ray meets, from its origin along its direction, as `node` and `at`, how far along the ray it was met; nil when the ray meets nothing.",
         "screenshot": "Save the next rendered frame as a PNG at a project-relative path. `screenshot_saved` goes to every listener with the path once it is on disk, and `screenshot_failed` with `{ path, error }` when it cannot be, a run with no renderer included.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn: the colour a `#rrggbb` writes, each channel from 0 to 1. Its alpha is not read.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
@@ -26857,10 +26038,9 @@
         "snap_aov": "Render the 3D scene once more as `render.AOV_DEPTH` (nearest brightest), `AOV_NORMALS` (world space), `AOV_CAMERA_NORMALS` or `AOV_SEGMENTATION` (a colour per object) and save it as a PNG, announcing it as `screenshot` does. A read-back of the GPU, as `screenshot` is.",
         "stats": "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
         "terrain": "The terrain value painted at a column and row, or -1 where nothing was painted.",
-        "text_size": "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face \u2014 so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest.",
+        "text_size": "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face, so a run with no window open answers as a windowed one does. A build without the `window` feature has no shaper, and the call fails there. A width is presentation: writing one into state puts presentation in the digest.",
         "texture_pixels_per_unit": "How many of an image's pixels make a world unit when a sprite says 0: its own `pixels_per_unit` import setting, else 100.",
         "texture_size": "An image's width and height in pixels, read from the file's own header.",
-        "tile_data": "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none.",
         "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: each other island counter-clockwise and each hole clockwise; default false keeps the largest alone). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn.",
         "triangles_of": "The triangles `node` draws, from its mesh, its shape or its 2D polygon, as three corners each in the space of `space`, or of the world where it is left out."
       },
@@ -26881,8 +26061,6 @@
         "draw_box_3d",
         "draw_capsule_3d",
         "draw_circle_2d",
-        "draw_line_2d",
-        "draw_line_3d",
         "draw_lines_3d",
         "draw_polygon_2d",
         "draw_polyline_2d",
@@ -26898,7 +26076,6 @@
         "mouse_ray",
         "mouse_world_2d",
         "outline",
-        "pick_ray",
         "pick_ray_at",
         "screenshot",
         "set_background",
@@ -26912,7 +26089,6 @@
         "text_size",
         "texture_pixels_per_unit",
         "texture_size",
-        "tile_data",
         "trace_texture",
         "triangles_of"
       ],
@@ -26937,9 +26113,6 @@
         },
         "terrain": {
           "tilemap": "terrain"
-        },
-        "tile_data": {
-          "tilemap": "tile_data"
         }
       },
       "name": "render",
@@ -26959,8 +26132,6 @@
         "draw_box_3d": "(Vec3, Vec3, Color?)",
         "draw_capsule_3d": "(Vec3, float, float, Color?)",
         "draw_circle_2d": "(Vec2, float, Color?, render::DrawOptions?)",
-        "draw_line_2d": "(Vec2, Vec2, Color, float?, render::DrawOptions?)",
-        "draw_line_3d": "(Vec3, Vec3, Color, float?, bool?, bool?)",
         "draw_lines_3d": "([render::Line3d])",
         "draw_polygon_2d": "([Vec2], Color?, render::DrawOptions?)",
         "draw_polyline_2d": "([Vec2], float?, Color?, render::DrawOptions?)",
@@ -26976,7 +26147,6 @@
         "mouse_ray": "() -> render::Ray",
         "mouse_world_2d": "() -> Vec2",
         "outline": "(Node) -> [Vec2]",
-        "pick_ray": "(Vec3, Vec3) -> Node",
         "pick_ray_at": "(Vec3, Vec3) -> render::Hit?",
         "screenshot": "(str)",
         "set_background": "(Color)",
@@ -26990,7 +26160,6 @@
         "text_size": "(str, render::TextOptions?) -> Vec2",
         "texture_pixels_per_unit": "(str) -> float",
         "texture_size": "(str) -> Vec2",
-        "tile_data": "(Node, int, int) -> any",
         "trace_texture": "(str, render::TraceOptions?) -> [[Vec2]]",
         "triangles_of": "(Node, Node?) -> [Vec3]"
       }
@@ -27020,9 +26189,8 @@
       "docs": {
         "divergence_tick": "The first tick whose replay did not reproduce the recorded digest, or nil.",
         "events": "The events recorded between two ticks, each with its tick, kind, label and data.",
-        "header": "The loaded recording's project, start time, script fingerprint and how it ended.",
+        "header": "The loaded recording's project, start time, script fingerprint, its frame count and the ticks they span, and how it ended; nil with none loaded.",
         "info": "The same summary for a recording on disk, without loading it. Nil when it cannot be read.",
-        "length": "The loaded recording's frame count and the ticks it spans, or nil.",
         "load": "Read a recording and put it in front of the engine, paused before its first tick. Nil when it cannot be read, which is logged.",
         "marks": "The ticks at which one replay source held a non-empty list under a key, and what it held.",
         "pause": "Stop between ticks, holding the simulation still while the frame loop keeps drawing.",
@@ -27042,7 +26210,6 @@
         "events",
         "header",
         "info",
-        "length",
         "load",
         "marks",
         "pause",
@@ -27063,7 +26230,6 @@
         "events": "(int, int) -> [replay::Event]",
         "header": "() -> replay::Header?",
         "info": "(str) -> replay::Header?",
-        "length": "() -> replay::Length?",
         "load": "(str) -> replay::Header?",
         "marks": "(str, str?) -> [replay::Mark]",
         "pause": "()",
@@ -27110,18 +26276,15 @@
         "binding_actions": "Every action a binding row may do, in the order an editor offers them.",
         "component_expects": "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered.",
         "component_properties": "What a component's `apply` would receive for `params`: the schema's defaults with a partial table merged over them. This is how a tool compares two spellings of the same component.",
-        "component_requires": "The components a component type brings: each a node lacks is put on at its defaults before the type's first write. Nil for a name nothing registered.",
         "component_schema": "A component type's property schema as a table, its properties in the order it writes them; nil for a name nothing registered.",
         "component_tags": "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered.",
         "component_types": "The names of every registered component type, not the components on any node.",
-        "get_node": "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches.",
         "instantiate": "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it.",
         "keep_changes": "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged.",
         "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
         "parked": "Every scene `switch` kept built, by the path it was asked for, oldest first.",
         "root": "The tree's root node.",
         "set_variable": "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing.",
-        "source": "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing.",
         "switch": "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene left stays built and parked, and a scene already parked comes back as it was, with no node built and no `init` run; each of their scripts is told `on_parked_changed`. A parked scene does not update, draw, take input or hear a hook, an event or a call, and a task its script awaits holds until it returns. A script reaching it can still read and write its components; it takes no new node or script. A digest and a snapshot cover it, a save holds nothing of it, and the change log says nothing of a park or a return. A file edited since the scene was built is built again on the way back. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second. What stays parked is bounded by itself: past 20,000 parked nodes the scene left longest ago is freed, and a system memory warning frees them all; a scene freed is built again the next time it is asked for, its `init` running. Reset is a switch to the file already there, which frees it and builds it again; to come back to a scene new from elsewhere, `unload` it first.",
         "tagged": "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed.",
         "take_changes": "The changes kept since the last take, oldest first, emptying the list: `{ node, kind, id }` with `kind` one of `component` (`component`, `properties`, `was`: the table asked before), `attached`, `removed` (`was`), `added` (`parent`), `freed` (`parent`, `place`, `was`: the subtree as scene text), `renamed` (`was`), `moved` (`parent`, `was`: `{ parent, place }`), `script` (`was`: `{ source, props }`, nil for none) and `keys` (`was`: every one of the node's own keys, `visible` to `tags`). Parents are stable ids, so a change outlives the nodes it names.",
@@ -27139,18 +26302,15 @@
         "binding_actions",
         "component_expects",
         "component_properties",
-        "component_requires",
         "component_schema",
         "component_tags",
         "component_types",
-        "get_node",
         "instantiate",
         "keep_changes",
         "node_by_id",
         "parked",
         "root",
         "set_variable",
-        "source",
         "switch",
         "tagged",
         "take_changes",
@@ -27169,18 +26329,15 @@
         "binding_actions": "() -> [str]",
         "component_expects": "(str) -> [str]?",
         "component_properties": "(str, any) -> any",
-        "component_requires": "(str) -> [str]?",
         "component_schema": "(str) -> any",
         "component_tags": "(str) -> [str]?",
         "component_types": "() -> [str]",
-        "get_node": "(str) -> Node",
         "instantiate": "(str, Node?, scene::InstantiateOptions?)",
         "keep_changes": "(Node?)",
         "node_by_id": "(str, Node?) -> Node",
         "parked": "() -> [str]",
         "root": "() -> Node",
         "set_variable": "(str, any)",
-        "source": "(str) -> str?",
         "switch": "(str, scene::SwitchOptions?)",
         "tagged": "(str) -> [Node]",
         "take_changes": "() -> [scene::Change]",
@@ -27275,7 +26432,6 @@
         "merge_toml": "Read values out of a TOML text, folding them onto what is already loaded.",
         "overrides": "The tags this project holds an override for at `path`, in tag order.",
         "set": "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`.",
-        "tags": "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build.",
         "to_toml": "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."
       },
       "editor": [],
@@ -27289,7 +26445,6 @@
         "merge_toml",
         "overrides",
         "set",
-        "tags",
         "to_toml"
       ],
       "methods": {},
@@ -27304,7 +26459,6 @@
         "merge_toml": "(str)",
         "overrides": "(str) -> [str]",
         "set": "(str, any)",
-        "tags": "() -> [str]",
         "to_toml": "(str, str) -> str"
       }
     },
@@ -27312,24 +26466,18 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Bones under a rig node: their rest pose and the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`.",
+      "doc": "Bones under a rig node, in the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`, which holds its rest pose.",
       "docs": {
-        "apply_rest": "Move every bone under the node back to its rest transform.",
-        "bones": "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one.",
-        "overwrite_rest": "Record every bone's current transform under the node as its new rest pose."
+        "bones": "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one."
       },
       "editor": [],
       "functions": [
-        "apply_rest",
-        "bones",
-        "overwrite_rest"
+        "bones"
       ],
       "methods": {},
       "name": "skeleton",
       "signatures": {
-        "apply_rest": "(Node)",
-        "bones": "(Node) -> [Node]",
-        "overwrite_rest": "(Node)"
+        "bones": "(Node) -> [Node]"
       }
     },
     {
@@ -27369,7 +26517,7 @@
       "doc": "Waiting inside an async method: `init` and event handlers may await; `update` is synchronous.",
       "docs": {
         "frames": "Park an async method for a number of fixed steps; counted on the tick, so a replay waits exactly as long.",
-        "seconds": "Park an async method for a span of simulation time, in fixed steps; the wall clock never enters it.",
+        "seconds": "Park an async method for a span of simulation time, woken on fixed step `ceil(seconds * tick_hz)`, so 4/60 at 60 Hz is 4 steps; the wall clock never enters it.",
         "wait": "Park an async method until the engine wakes the token a binding gave it, and answer what it woke with."
       },
       "editor": [],
@@ -27616,10 +26764,6 @@
           "value": "\"dropdown\""
         },
         {
-          "name": "WIDGET_FLOW",
-          "value": "\"flow\""
-        },
-        {
           "name": "WIDGET_FOLD",
           "value": "\"fold\""
         },
@@ -27718,18 +26862,13 @@
       ],
       "doc": "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
       "docs": {
-        "activate_focused": "Activate the focused widget, exactly as a click on it would.",
-        "all_sides": "A `Sides` the same on every side.",
         "clear_focus": "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `focus_exited`.",
         "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         "colors_apart": "Every pair of a `widget_theme` document's colours that say something by hue (`primary`, `success`, `warning`, `danger`), closest first, as `{ first, second, distance, vision }`: how far apart they stand in CIELAB for the colour vision that sees them closest. Under 10 the two read as one colour to that reader.",
         "complete_theme": "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         "contrast": "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",
         "contrast_pairs": "Every ink a `widget_theme` document's roles draw on the fill each draws it on, as `{ role, ink, fill, ratio, need }`. A role with no fill is read on the `ground` token; `need` is 3 for large or bold text and 4.5 otherwise.",
-        "edit_bool": "Open or close a fold as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no boolean.",
-        "edit_color": "Change a swatch as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no colour.",
-        "edit_number": "Change a slider or a number field as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no number.",
-        "edit_text": "Change a text field, a dropdown's pick, a list's row or a tab as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no text.",
+        "edit": "Change a widget's value as the reader would, at the next tick, so it announces `value_changed`: a number for a slider or a number field, text for a text field, a dropdown's pick, a list's row or a tab, a colour for a swatch, a boolean for a fold. False for a disabled widget or a value its kind does not take.",
         "fill_slot": "One child of `host`, the one at `slot`, filled as `fill_strip` fills each, made with any before it that are missing, or hidden for nil. The others are left as they are, so a list of hundreds of rows writes the few on screen and, as they scroll, the ones entering. True when the control's table differed from the last one written to it.",
         "fill_strip": "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on_click` or `on_change` hears the reader's edit and `on_submit` hears Enter as they happen: the name of a method, called on the nearest node above the control whose script has it with the control's `data`, then the edit, then the control's node. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         "finish_loading": "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled.",
@@ -27753,7 +26892,6 @@
         "set_scale": "Set the global UI scale, clamped to between 0.25 and 3.0. It is egui's zoom factor, so it grows every control and every font; `screen_size` already answers in the design pixels it leaves.",
         "set_theme": "Put a theme in force over `[ui] theme` and `theme_dark`, for every widget and egui's own controls: a `widget_theme` file's path, or a theme document, with source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources. A root's own `theme` still dresses its subtree with that one, and nil goes back to the project's.",
         "set_widget_layer": "Turn drawing of the scene's `widget` nodes on or off, and confine it to the rect at `position` of `size`, in design pixels; the whole window when either is left out.",
-        "sides": "A `Sides` for a control's `padding`, `margin` or `inset`.",
         "tab_rect": "Where a `tabs` page's own button in the strip was last drawn, as `{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         "takes_pointer_at": "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on.",
         "wants_keyboard": "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone.",
@@ -27764,18 +26902,13 @@
       },
       "editor": [],
       "functions": [
-        "activate_focused",
-        "all_sides",
         "clear_focus",
         "click",
         "colors_apart",
         "complete_theme",
         "contrast",
         "contrast_pairs",
-        "edit_bool",
-        "edit_color",
-        "edit_number",
-        "edit_text",
+        "edit",
         "fill_slot",
         "fill_strip",
         "finish_loading",
@@ -27799,7 +26932,6 @@
         "set_scale",
         "set_theme",
         "set_widget_layer",
-        "sides",
         "tab_rect",
         "takes_pointer_at",
         "wants_keyboard",
@@ -27811,18 +26943,13 @@
       "methods": {},
       "name": "ui",
       "signatures": {
-        "activate_focused": "()",
-        "all_sides": "(float) -> ui::Sides",
         "clear_focus": "()",
         "click": "(Node, ui::ClickOptions?) -> bool",
         "colors_apart": "(any) -> [ui::ColorsApart]",
         "complete_theme": "(any) -> any",
         "contrast": "(str, str) -> float",
         "contrast_pairs": "(any, str) -> [ui::ContrastPair]",
-        "edit_bool": "(Node, bool) -> bool",
-        "edit_color": "(Node, Color) -> bool",
-        "edit_number": "(Node, float) -> bool",
-        "edit_text": "(Node, str) -> bool",
+        "edit": "(Node, any) -> bool",
         "fill_slot": "(Node, int, ui::Control?) -> bool",
         "fill_strip": "(str, [ui::Control]) -> bool",
         "finish_loading": "()",
@@ -27846,7 +26973,6 @@
         "set_scale": "(float)",
         "set_theme": "(any)",
         "set_widget_layer": "(bool, Vec2?, Vec2?)",
-        "sides": "(float, float, float, float) -> ui::Sides",
         "tab_rect": "(Node) -> ui::Rect?",
         "takes_pointer_at": "(Vec2) -> bool",
         "wants_keyboard": "() -> bool",
@@ -28457,10 +27583,11 @@
       "spec": {
         "applies": "restart",
         "default": 60,
-        "help": "How many fixed steps a second the simulation takes. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used.",
+        "help": "How many fixed steps a second the simulation takes, the same on every platform: a recording replays and a match steps at one rate. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used.",
         "max": 480,
         "min": 1,
         "order": 1,
+        "overridable": false,
         "type": "int"
       }
     },
@@ -28887,54 +28014,6 @@
         "min": 0,
         "order": 5,
         "type": "int"
-      }
-    },
-    {
-      "host": false,
-      "path": "gamend/url",
-      "scope": "project",
-      "spec": {
-        "default": "https://gamend.org",
-        "help": "The Gamend server a shipped game talks to.",
-        "order": 1,
-        "type": "string"
-      }
-    },
-    {
-      "host": false,
-      "path": "gamend/local_url",
-      "scope": "project",
-      "spec": {
-        "default": "http://localhost:4000",
-        "help": "A Gamend running on this machine, as `mix dev.start` serves it.",
-        "order": 2,
-        "type": "string"
-      }
-    },
-    {
-      "host": false,
-      "path": "gamend/plugin",
-      "scope": "project",
-      "spec": {
-        "default": "",
-        "help": "The server plugin a game's hooks are called in.",
-        "order": 3,
-        "type": "string"
-      }
-    },
-    {
-      "host": false,
-      "path": "gamend/server",
-      "scope": "editor",
-      "spec": {
-        "default": "local",
-        "help": "Which of the project's two servers a game played from this editor talks to. Kept in the editor's own file, so it never ships.",
-        "options": [
-          "production",
-          "local"
-        ],
-        "order": 4,
-        "type": "enum"
       }
     },
     {

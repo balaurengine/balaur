@@ -18,23 +18,19 @@ pub(crate) mod words {
         pub(crate) const EXPORT: &str = "export";
         pub(crate) const FINISH_PURCHASE: &str = "finish_purchase";
         pub(crate) const FORGE: &str = "forge";
-        pub(crate) const GAMEND: &str = "gamend";
         pub(crate) const HTTP: &str = "http";
         pub(crate) const IDENTITY: &str = "identity";
         pub(crate) const IMPORT: &str = "import";
         pub(crate) const LISTEN: &str = "listen";
-        pub(crate) const LOGIN: &str = "login";
         pub(crate) const NOTIFY: &str = "notify";
         pub(crate) const PICTURE: &str = "picture";
         pub(crate) const PLATFORM: &str = "platform";
         pub(crate) const PRODUCTS: &str = "products";
         pub(crate) const PROGRESS: &str = "progress";
         pub(crate) const PURCHASE: &str = "purchase";
-        pub(crate) const REGISTER: &str = "register";
         pub(crate) const RELEASE: &str = "release";
         pub(crate) const REQUEST: &str = "request";
         pub(crate) const REQUEST_NOTIFICATIONS: &str = "request_notifications";
-        pub(crate) const REST: &str = "rest";
         pub(crate) const RESTORE_PURCHASES: &str = "restore_purchases";
         pub(crate) const SCORES: &str = "scores";
         pub(crate) const SET_CAMERA: &str = "set_camera";
@@ -52,6 +48,15 @@ pub(crate) mod words {
         pub(crate) const PATCH_COMPONENT: &str = "patch_component";
         pub(crate) const VISIBLE: &str = "visible";
         pub(crate) const WIDGET: &str = "widget";
+    }
+
+    /// The modules the prelude writes, which a script calls by name.
+    pub(crate) mod library {
+        pub(crate) const AUDIO: &str = "audio";
+        pub(crate) const ENCODING: &str = "encoding";
+        pub(crate) const GEOMETRY_2D: &str = "geometry2d";
+        pub(crate) const QUAT: &str = "quat";
+        pub(crate) const RANDOM: &str = "random";
     }
 
     pub(crate) mod keywords {

@@ -1,0 +1,19 @@
+// A `match` that opens a statement ends it at its closing brace, as an `if`
+// does, so the next statement follows with no `;` between them.
+
+pub fn steps(verb: str) -> int {
+    let n = 0;
+    match verb {
+        "twice" => {
+            n += 2;
+        }
+        _ => {
+            n += 1;
+        }
+    }
+    n *= 10;
+    n
+}
+
+// expect: steps("twice") == 20
+// expect: steps("once") == 10

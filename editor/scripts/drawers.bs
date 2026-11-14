@@ -8,6 +8,7 @@ use icons;
 use inspector;
 use model;
 use plugins;
+use sceneedit;
 use shell;
 use signals;
 use util;
@@ -292,7 +293,7 @@ fn on_enabled_toggled(state: &mut editor::State, line: inspector::Line, _data: a
 }
 
 fn on_component_removed(state: &mut editor::State, line: inspector::Line, _data: any, _value: any) {
-    model::remove_component(state, line.at.component);
+    sceneedit::remove_component(state, line.at.component);
 }
 
 fn fold_row(state: &mut editor::State, line: inspector::Line) -> form::Row {
@@ -318,10 +319,10 @@ fn stored_as(spec: any, value: float) -> float {
 fn clamped(spec: any, value: float) -> float {
     let out = value;
     if spec[schema_fields::MIN] != nil {
-        out = util::max(spec[schema_fields::MIN].as_float(), out);
+        out = math::max(spec[schema_fields::MIN].as_float(), out);
     }
     if spec[schema_fields::MAX] != nil {
-        out = util::min(spec[schema_fields::MAX].as_float(), out);
+        out = math::min(spec[schema_fields::MAX].as_float(), out);
     }
     out
 }
@@ -723,11 +724,12 @@ fn promote_asset(state: &mut editor::State, at: inspector::AtTop, asset_type: st
     log::info("saved {rel}");
 }
 
-// Copy a file's definition onto the node, so the scene owns it outright.
-// `duplicate` reads past the cache, which is what makes the copy private
-// rather than a second name for the shared one.
+// Copy a file's definition onto the node, so the scene owns it outright: the
+// file as it is now, which the cache may be behind.
 fn inline_asset(state: &mut editor::State, at: inspector::AtTop, reference: str) {
-    let copy = assets::duplicate(state.game_root + "/" + reference);
+    let path = state.game_root + "/" + reference;
+    assets::reload(path);
+    let copy = assets::load(path);
     if copy.kind() != types::KIND_MAP {
         log::warn("cannot embed {reference}: {copy}");
         return;

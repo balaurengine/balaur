@@ -27,7 +27,7 @@ pub const MACHINE_ASSET_TYPE: &str = "state_machine";
 /// The component key that runs a machine on a node.
 pub const COMPONENT: &str = <StateMachine as Component>::NAME;
 
-/// Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.
+/// Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `state_machine.travel` moves to a state.
 #[derive(Clone, Debug, Component)]
 #[component(name = "state_machine", after_write = written)]
 pub struct StateMachine {
@@ -75,7 +75,7 @@ from = "idle"
 to = "move"                      # entering a nested machine enters its start
 blend_time = 0.2                 # seconds
 ease = "in_out_sine"             # the curve the blend follows; linear by default
-advance_mode = "auto"            # disabled, enabled (fires on animation.travel) or auto
+advance_mode = "auto"            # disabled, enabled (fires on state_machine.travel) or auto
 switch_mode = "immediate"        # immediate, sync (keeps the playhead) or at_end
 condition = "moving"             # turned on by animation.set_condition
 check = "can_move"               # a script method that has to answer true, asked each frame
@@ -938,12 +938,20 @@ fn route(run: &mut MachineRun, machine: &Machine, to: &str) {
 /// Cut to `to` on the next step, with no fade and no transition.
 ///
 /// # Errors
-/// When the node runs no machine.
+/// When the node runs no machine, or the machine has no such state.
 pub fn jump(eng: &Engine, entity: Entity, to: &str) -> Result<()> {
     with_run(eng, entity, |run| {
+        let to = match &run.machine {
+            Some(machine) => match machine.entry_of(to) {
+                Some(entry) => entry,
+                None => bail!("the state machine has no state '{to}'"),
+            },
+            None => to.to_string(),
+        };
         run.travel.clear();
-        run.jump = Some(to.to_string());
-    })
+        run.jump = Some(to);
+        Ok(())
+    })?
 }
 
 /// Turn a condition an `auto` transition waits on on or off.

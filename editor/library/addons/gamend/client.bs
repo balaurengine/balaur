@@ -1,12 +1,11 @@
-// The session, the socket and the server's hooks over `gamend::`. Rows,
-// topics and keys live in the script store, so every script sees one cache.
+// The session, the socket and the server's hooks. Rows, topics and keys live
+// in the script store, so every script sees one cache.
 
 use activity;
 use auth;
 use core;
 use events;
 use events::user;
-use authentication;
 use kv;
 use users;
 use lobbies;
@@ -20,6 +19,8 @@ const RECONNECTING: str = "reconnecting";
 const REOPENED: str = "reopened";
 const FAILED: str = "failed";
 const KEY: str = "key";
+const LOGIN: str = "login";
+const PASSWORD: str = "password";
 const KIND: str = "kind";
 const PAYLOAD: str = "payload";
 const SOCKET: str = "socket";
@@ -41,6 +42,22 @@ pub struct Write {
     pub reply: HookReply,
 }
 
+/// A realtime socket, whether it is open and the topics it joined.
+pub struct SocketRow {
+    pub socket: int,
+    pub open: bool,
+    pub topics: [str],
+    pub reason: str?,
+}
+
+/// The server, who is signed in and each socket.
+pub struct Connection {
+    pub url: str,
+    pub user_id: str?,
+    pub username: str?,
+    pub sockets: [SocketRow],
+}
+
 /// Where the hook calls go. Godot's SDK called this `plugin`.
 const PLUGIN_KEY: str = "gamend:plugin";
 /// The rows the server sent, by key.
@@ -53,14 +70,40 @@ const WRITES_KEY: str = "gamend:writes";
 /// What this client thinks of its connection.
 const NETWORK_KEY: str = "gamend:network";
 
-/// Point the plugin at another server, and name the server plugin `call`
-/// reaches; nil or empty for either takes `[gamend]`'s, which is what a game
-/// that never calls this talks to. Answers the server's url.
-pub fn configure(url: str?, plugin: str) -> str {
+/// Point every call at another server, and name the server plugin `call`
+/// reaches; empty for either takes `[gamend]`'s, which is what a game that
+/// never calls this talks to. A different server signs out here. Answers the
+/// server's url.
+pub fn configure(url: str, plugin: str) -> str {
     if plugin != "" {
         engine::store(PLUGIN_KEY, plugin);
     }
-    gamend::configure(url)
+    core::point(url)
+}
+
+/// The server this run talks to until a script names another, and the two
+/// the project names: `{ name, url, production, local, plugin }` from
+/// `[gamend]`, `name` being `production` or `local`.
+pub fn server() -> core::Server {
+    core::target()
+}
+
+/// The configured server, who is signed in, and each socket.
+pub fn connection() -> Connection {
+    let held = core::held();
+    let rows: [SocketRow] = [];
+    let all = core::sockets();
+    for key in all.keys() {
+        let row: SocketRow = all[key].as_node().call("row");
+        rows.push(row);
+    }
+    let user_id: str? = nil;
+    let username: str? = nil;
+    if held != nil {
+        user_id = held[core::USER_ID].as_str();
+        username = held[USERNAME].as_str();
+    }
+    Connection { url: core::url(), user_id: user_id, username: username, sockets: rows }
 }
 
 /// The server plugin this game's hooks live in.
@@ -69,44 +112,57 @@ pub fn plugin() -> str {
     if named.kind() == types::KIND_STRING && named.as_str() != "" {
         return named.as_str();
     }
-    gamend::server().plugin
+    core::target().plugin
 }
 
-/// Open a session from a device id. The returned id awaits a reply of
-/// `kind = "login"`.
-pub fn login_device(device_id: str) -> int {
-    core::login(gamend::Credentials { device_id: device_id }, "device")
+/// Open a session from a device id, which makes an account the first time
+/// the server sees one. Answers `{ kind: "login", user_id, username,
+/// display_name, ms }`, or `{ kind: "error", error }`.
+pub async fn login_device(device_id: str) -> any {
+    let reply = await signed("/api/v1/login/device", { "device_id": device_id }, "device");
+    reply
 }
 
-/// Open a session from an email and a password.
-pub fn login_email(email: str, password: str) -> int {
-    core::login(gamend::Credentials { email: email, password: password }, email)
+/// Open a session from an email and a password, answered as `login_device`.
+pub async fn login_email(email: str, password: str) -> any {
+    let reply = await signed("/api/v1/login", { core::EMAIL: email, PASSWORD: password }, email);
+    reply
 }
 
-/// Make an account from an email, with no password yet. Not a sign-in, as
-/// `login_device` is: no session opens, and the reply, a REST call's like any
-/// other (await the returned id, then `core::unpack`), carries the account.
-/// The server emails a link and a six-digit code; `auth::confirm_registration`
-/// takes the code and the password the player chooses, and opens a session.
-/// An empty `username` lets the server pick one.
-pub fn register_email(email: str, username: str) -> int {
-    let account: any = { core::EMAIL: email };
-    if username != "" {
-        account[USERNAME] = username;
+/// Open a session at a sign-in path: the reply's tokens become the session
+/// every later call carries. `who` is what the activity row shows.
+async fn signed(path: str, body: any, who: str) -> any {
+    while engine::unix_time() <= 0.0 {
+        await task::frames(1);
     }
-    authentication::register(account)
+    let row = activity::started(LOGIN, who);
+    let asked = core::request(core::POST, path, body, false);
+    let sent = engine::unix_time();
+    let reply = await task::wait(http::request(asked[core::URL].as_str(), asked[core::OPTIONS]));
+    let answer = core::opened(core::received(reply, sent), LOGIN);
+    activity::finished(row, answer);
+    answer
 }
 
-/// Email a `register_email` account a new code; only the newest works. The
-/// reply is `ok` whether or not the address has an account waiting.
-pub fn resend_confirmation(email: str) -> int {
-    authentication::resend_confirmation({ core::EMAIL: email })
+/// Confirm an account `authentication::register` made, with the six-digit
+/// code from its email, set its password, and open its session: answered as
+/// `login_device` is. A refusal's `error` says why: `invalid_code` (wrong,
+/// spent or expired), `account_locked` (too many wrong codes; the code is
+/// void, so `authentication::resend_confirmation` sends a new one), or
+/// `validation_failed` (the password).
+pub async fn confirm_registration(email: str, code: str, password: str) -> any {
+    let body: any = { core::EMAIL: email, "code": code, PASSWORD: password };
+    let reply = await signed("/api/v1/register/confirm", body, email);
+    reply
 }
 
-/// Open the realtime socket. The worker joins this session's own `user:<id>`
-/// topic before reporting `open`, so hooks work as soon as it does. A dropped
-/// connection comes back on its own and joins its topics again: `route`
-/// hands the node `on_socket_reconnecting`, then `on_socket_reopened`.
+/// Open the realtime socket, on a node of its own under `node`, and answer
+/// the id the other socket calls take. `task::wait` on it resumes with the
+/// `open` event once the session's own `user:<id>` topic is joined, so hooks
+/// work as soon as it does, or with the `error` that kept it shut. What the
+/// socket says reaches `node`'s `on_gamend_event`: `open`, `message`,
+/// `reconnecting` and `reopened` as a drop comes back on its own, `closed`
+/// and `error`. `route` hands each on to its own handler.
 pub fn connect(node: Node) -> int {
     core::connect(node)
 }
@@ -114,9 +170,9 @@ pub fn connect(node: Node) -> int {
 /// Hand an event to the node's own handler for it. A server message goes to
 /// `on_<kind>`, named as `events::decode` names it (`on_lobby_member_joined`),
 /// with the decoded event; the socket's own to `on_socket_<kind>` (`open`,
-/// `reconnecting`, `reopened`, `closed`, `error`); a call's result to
-/// `on_<kind>`. Call it from `on_gamend_event`; answers whether a handler
-/// took the event. What it routes is kept in the activity log.
+/// `reconnecting`, `reopened`, `closed`, `error`). Call it from
+/// `on_gamend_event`; answers whether a handler took the event. What it
+/// routes is kept in the activity log.
 pub fn route(node: Node, e: any) -> bool {
     let kind = e[KIND].text();
     let socket = e.has(SOCKET);
@@ -140,15 +196,18 @@ pub fn route(node: Node, e: any) -> bool {
     true
 }
 
+/// Shut the socket down; false when it was already gone.
 pub fn close(socket: int) -> bool {
     engine::store(TOPICS_KEY, {});
     engine::store(KEYS_KEY, {});
-    gamend::close(socket)
+    let held = core::socket_node(socket);
+    held.is_valid() && held.call("close").as_bool()
 }
 
 /// Join a topic and remember it: `party:<id>`, `group:<id>`, `lobbies`. A
 /// dropped connection rejoins what it held, so this is the whole record a
-/// game needs of what it is listening to.
+/// game needs of what it is listening to. The id answers the server's
+/// `reply`.
 pub fn join(socket: int, topic: str) -> int {
     let held = joined();
     if !contains(held, topic) {
@@ -189,11 +248,15 @@ pub fn send(socket: int, name: str, args: any) -> bool {
     core::call_hook(socket, plugin(), name, args) > 0
 }
 
-/// A nil reply or a server error is `ok: false` with the reason in `error`;
-/// a server error is also logged as a warning.
+/// A nil reply, a call the socket could not send, or a server error is
+/// `ok: false` with the reason in `error`; a server error is also logged as
+/// a warning.
 pub fn unpack_hook(name: str, reply: any) -> HookReply {
     if reply == nil {
         return HookReply { ok: false, data: nil, error: "gamend: {name} sent no reply" };
+    }
+    if reply[KIND].text() == ERROR {
+        return HookReply { ok: false, data: nil, error: reply[ERROR].text() };
     }
     let response = reply["response"];
     if response.has(core::ERROR) {
@@ -283,7 +346,7 @@ pub async fn fetch_row(key: str, force: bool) -> any {
     if !force && has_row(key) {
         return row(key);
     }
-    let reply = await task::wait(kv::get_kv(key));
+    let reply = await kv::get_kv(key);
     if !core::ok(reply) {
         if reply[core::STATUS].as_int() == 404 {
             keep_row(key, {});
@@ -299,13 +362,13 @@ pub async fn fetch_row(key: str, force: bool) -> any {
 
 /// The signed-in player's profile, fetched fresh, as `core::unpack` shapes it.
 pub async fn fetch_current_user() -> any {
-    let reply = await task::wait(users::get_current_user());
+    let reply = await users::get_current_user();
     core::unpack(reply)
 }
 
 /// One lobby, fetched fresh, its members inside it as the server sends them.
 pub async fn fetch_lobby(lobby_id: str) -> any {
-    let reply = await task::wait(lobbies::get_lobby(lobby_id));
+    let reply = await lobbies::get_lobby(lobby_id);
     core::unpack(reply)
 }
 
@@ -372,12 +435,15 @@ pub fn fail_network() {
     engine::store(NETWORK_KEY, FAILED);
 }
 
-/// Cut the socket so the worker opens it again, and report reconnecting
-/// until it does. False when the socket was already gone, which is when a
-/// caller opens a new one with `connect`.
+/// Cut the socket as a network failure would, so it opens again and joins
+/// its topics, and report reconnecting until it does: a game's way back
+/// from `fail_network`, and a test's way to try the reconnect path. False
+/// when the socket was already gone, which is when a caller opens a new one
+/// with `connect`.
 pub fn retry_network(socket: int) -> bool {
     engine::store(NETWORK_KEY, RECONNECTING);
-    gamend::interrupt(socket)
+    let held = core::socket_node(socket);
+    held.is_valid() && held.call("interrupt").as_bool()
 }
 
 /// The session's own channel, which `connect` joins before reporting `open`.
@@ -394,7 +460,7 @@ fn subscribe_again(socket: int) {
 }
 
 /// What the socket said on its own, for the activity log: a message, a drop
-/// and the way back, or its end. Its `open` is the reply to `connect`.
+/// and the way back, or its end. Its `open` is the answer to `connect`.
 fn keep_socket_event(kind: str, e: any) {
     if kind == MESSAGE {
         activity::noted(kind, e[TOPIC].text() + " " + e[EVENT].text(), e[PAYLOAD]);

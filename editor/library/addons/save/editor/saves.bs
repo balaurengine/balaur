@@ -21,7 +21,7 @@ impl Saves {
 
     /// A save the game wrote: the docks that list saves fill again.
     pub fn on_saved(_count: any) {
-        scene::get_node("Editor").call("kit_changed");
+        scene::root().get_node("Editor").call("kit_changed");
     }
 
     pub fn register() -> any {

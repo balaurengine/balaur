@@ -218,7 +218,6 @@ macro_rules! functions {
             state.body_authored.retain(|e, _| world.contains(*e));
             state.collider_params.retain(|e, _| world.contains(*e));
             state.joint_params.retain(|e, _| world.contains(*e));
-            state.grounded.retain(|e, _| world.contains(*e));
             state.asleep.retain(|e| world.contains(*e));
             if state.world.colliders.len() != before {
                 state.queries_ready = false;

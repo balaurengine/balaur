@@ -355,3 +355,38 @@ fn completion_offers_only_what_the_file_may_name() {
     assert!(!members.iter().any(|n| n == "kept"), "{members:?}");
     assert!(!members.iter().any(|n| n == "helper"), "{members:?}");
 }
+
+#[test]
+fn a_pattern_names_a_constant_of_its_own_module_or_of_one_it_uses() {
+    let root = "use words;\nuse picker;\nconst HOME: str = \"home\";\n\
+                pub fn own(v: str) -> int { match v { HOME => 1, words::GO => 2, _ => 0 } }\n\
+                pub fn module(v: str) -> int { picker::run(v) }";
+    let files = [
+        (
+            "scripts/words.bs",
+            "pub const GO: str = \"go\";\npub const STOP: str = \"stop\";",
+        ),
+        (
+            "scripts/picker.bs",
+            "use words;\nconst BACK: str = \"back\";\n\
+             pub fn run(v: str) -> int {\n\
+                 match v { BACK => 3, words::GO | words::STOP => 4, other => other.len() }\n\
+             }",
+        ),
+    ];
+    let options = Options {
+        modules: Some(modules(&files)),
+        path: "scripts/main.bs".into(),
+        ..Options::default()
+    };
+    let c = compile(root, &options).unwrap_or_else(|e| panic!("{e}"));
+    let mut rt = Runtime::new(&c, HostFns::default(), Limits::default()).unwrap();
+    let mut call = |f: &str, v: &str| rt.call(f, &[Value::Str(v.into())]);
+    assert_eq!(call("own", "home"), Ok(Value::Int(1)));
+    assert_eq!(call("own", "go"), Ok(Value::Int(2)));
+    assert_eq!(call("own", "away"), Ok(Value::Int(0)));
+    assert_eq!(call("module", "back"), Ok(Value::Int(3)));
+    assert_eq!(call("module", "go"), Ok(Value::Int(4)));
+    assert_eq!(call("module", "stop"), Ok(Value::Int(4)));
+    assert_eq!(call("module", "abcde"), Ok(Value::Int(5)));
+}

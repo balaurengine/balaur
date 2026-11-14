@@ -1,5 +1,5 @@
 //! The changes kept under one subtree as they happen, each with what it
-//! replaced: what an editor's undo is made of (PLAN-editor-as-scene §10.2).
+//! replaced: what an editor's undo is made of.
 
 use balaur_core::changes::{keep_changes, take_changes};
 use balaur_core::node_api::NODE_OPS;

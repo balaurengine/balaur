@@ -27,7 +27,6 @@ pub(crate) mod words {
     pub(crate) const SLIDER: &str = "slider";
     pub(crate) const PROGRESS_BAR: &str = "progress_bar";
     pub(crate) const GRID: &str = "grid";
-    pub(crate) const FLOW: &str = "flow";
     pub(crate) const FOLD: &str = "fold";
     pub(crate) const DIALOG: &str = "dialog";
     pub(crate) const WINDOW: &str = "window";
@@ -58,7 +57,6 @@ pub(crate) mod words {
         NUMBER_FIELD,
         PROGRESS_BAR,
         GRID,
-        FLOW,
         FOLD,
         DIALOG,
         WINDOW,
@@ -259,12 +257,12 @@ pub(crate) mod words {
 
     /// How a container wraps its children onto more lines.
     pub(crate) mod wrapping {
-        pub(crate) use super::{AUTO, NONE};
+        pub(crate) use super::NONE;
         pub(crate) const WRAP: &str = "wrap";
         pub(crate) const WRAP_REVERSE: &str = "wrap_reverse";
         pub(crate) const BALANCE: &str = "balance";
         pub(crate) const BALANCE_REVERSE: &str = "balance_reverse";
-        pub(crate) const ALL: &[&str] = &[AUTO, NONE, WRAP, WRAP_REVERSE, BALANCE, BALANCE_REVERSE];
+        pub(crate) const ALL: &[&str] = &[NONE, WRAP, WRAP_REVERSE, BALANCE, BALANCE_REVERSE];
     }
 
     /// The order a grid places children that name no cell.
@@ -400,7 +398,6 @@ pub(crate) mod words {
     }
     pub(crate) const GET_NODE: &str = "get_node";
     pub(crate) const HIDDEN: &str = "hidden";
-    pub(crate) const SCENE: &str = "scene";
 
     pub(crate) mod general {
         pub(crate) const UI: &str = "ui";

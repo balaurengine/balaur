@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 297 crates.
+`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 296 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
@@ -29,7 +29,6 @@ atomics only that build has.
 | `editor` | off | off | The editor: `edit` and `export`, the `export.*`, `project.*`, `debugger.*` and `script.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | nothing |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `flac` | off | on | One feature per container `audio` decodes; a build without one plays none of that format. | nothing |
-| `gamend` | off | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | nothing |
 | `headless` | on | off | Every default but the window: a tool that opens none, on a machine that may have no display. Its runs are headless. | nothing |
 | `http` | off | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | nothing |
 | `import` | off | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game runtime leaves it off: a game reads what an import and export wrote. | nothing |
@@ -41,7 +40,7 @@ atomics only that build has.
 | `physics3d` | off | on | The 3D physics world: `physics3d.*` and its components. | nothing |
 | `vorbis` | off | on |  | nothing |
 | `wav` | off | on |  | nothing |
-| `websocket` | off | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build without `gamend` drops tungstenite, rustls and the frame codec; Gamend's realtime socket runs on them. | nothing |
+| `websocket` | off | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops tungstenite, rustls and the frame codec; the Gamend addon's realtime socket runs on them. | nothing |
 | `webtransport` | off | on | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | nothing |
 | `window` | on | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `glow`, `kiss3d`, `naga`, `wgpu`, `winit`, … (27 crates) |
 

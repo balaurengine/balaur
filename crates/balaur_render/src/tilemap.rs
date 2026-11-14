@@ -20,7 +20,6 @@ const CELL: &str = "cell";
 const SET_CELL: &str = "set_cell";
 const SET_TERRAIN: &str = "set_terrain";
 const TERRAIN: &str = "terrain";
-const TILE_DATA: &str = "tile_data";
 
 /// What a definition table holds, for the generated reference.
 const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `kind`.
@@ -617,43 +616,13 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
     reg.add_component::<Tilemap>();
 }
 
-/// What a map painted by terrain answers: the values, the rules' output, and
-/// what a tile carries. Split from `install_tilemap_api` under `MAX_FN_LINES`.
+/// What a map painted by terrain answers: the values and the rules' output.
+/// Split from `install_tilemap_api` under `MAX_FN_LINES`.
 pub(crate) fn install_tilemap_terrain_api(m: &mut Module<Engine>) {
     m.describe(&[
         (SET_TERRAIN, &[keys::TILEMAP], "(x: int, y: int, terrain: int)", "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it."),
         (TERRAIN, &[keys::TILEMAP], "(x: int, y: int) -> int", "The terrain value painted at a column and row, or -1 where nothing was painted."),
-        (TILE_DATA, &[keys::TILEMAP], "(x: int, y: int) -> any", "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none."),
     ]);
-    m.function(
-        TILE_DATA,
-        |eng: &Engine, (node, x, y): (balaur_script::NodeId, i64, i64)| {
-            let entity = balaur_core::entity_of(node)?;
-            let world = eng.world();
-            let map = world
-                .get::<&TileLayout>(entity)
-                .map_err(|_| anyhow!("the node carries no tilemap"))?;
-            let (Ok(x), Ok(y)) = (i32::try_from(x), i32::try_from(y)) else {
-                return Ok(balaur_script::Value::Nil);
-            };
-            // Read out of the map's own rows: a `TileGrid` to ask one cell
-            // would copy every row of the map for every call.
-            let cell = balaur_geometry::tiles::cell_in(&map.grid, map.origin, x, y);
-            let tileset = map.tileset.clone();
-            drop(map);
-            drop(world);
-            let set = balaur_core::assets::load_typed::<TileSet>(eng, &tileset)?;
-            Ok(
-                match cell
-                    .and_then(|id| set.tile(id))
-                    .and_then(|t| t.data.as_ref())
-                {
-                    Some(data) => balaur_core::node_api::from_toml(data)?,
-                    None => balaur_script::Value::Nil,
-                },
-            )
-        },
-    );
     m.function(
         TERRAIN,
         |eng: &Engine, (node, x, y): (balaur_script::NodeId, i64, i64)| {

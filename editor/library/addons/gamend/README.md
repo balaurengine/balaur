@@ -3,32 +3,36 @@
 Written by `clients/sdkgen` (balaur), in Balaur Script. Copy this
 directory into a project as `addons/gamend/`, beside the Balaur
 library's `addons/save/`, which keeps the session and the prefs; the
-editor's Library dock adds both. A script links a module with
-`use addons::gamend::<module>;`, beside the engine's own `gamend::login`
-and `gamend::rest`:
+editor's Library dock adds both. It speaks to the server over the
+engine's `http` and `websocket`, so a recorded run replays with no
+server. A script links a module with `use addons::gamend::<module>;`,
+and awaits a call:
 
 ```rust
+use addons::gamend::client;
 use addons::gamend::lobbies;
 use addons::gamend::events::lobby;
 
-let reply = await task::wait(lobbies::quick_join({ "title": "duel", "max_users": 2 }));
+let login = await client::login_device(engine::device_id());
+let reply = await lobbies::quick_join({ "title": "duel", "max_users": 2 });
 if e["kind"].as_str() == lobby::MEMBER_JOINED { }
 ```
 
-285 operations in 44 modules, and 100 realtime events, 15 socket commands.
+281 operations in 44 modules, and 100 realtime events, 15 socket commands.
 
 Beside the generated modules and `events.bs`, written by hand:
 
 | Module | For |
 | --- | --- |
-| `gamend::client` | `configure`, the socket, hooks and the key-value cache |
-| `gamend::auth` | Sign-in through a provider, and the kept session |
+| `gamend::client` | `configure`, signing in by device or email and confirming an email account, the socket, hooks and the key-value cache |
+| `gamend::auth` | The session, sign-in through a provider, and the session kept for the next run |
+| `gamend::socket` | The realtime socket's node: Phoenix Channels over `websocket`, heartbeats, reconnects and rejoins |
 | `gamend::presence` | The user cache |
 | `gamend::prefs` | The player's prefs on this device |
 | `gamend::logs` | This run's log, shipped in batches; put `log_sink.bs` on a node that lives as long as the game |
 | `gamend::commands` | Generated: one function per event a channel answers |
-| `gamend::core` | The query string, the required-field check, the reply helpers, and the engine's calls, each kept in the activity log |
-| `gamend::activity` | The calls `core` sent and what `client::route` heard, for the dock; a call made on `gamend::` directly is not in it |
+| `gamend::core` | The server, HTTP with the session's token and its refresh, the query string, the required-field check and the reply helpers, each call kept in the activity log |
+| `gamend::activity` | The calls `core` and the socket sent and what `client::route` heard, for the dock |
 | `editor/gamend.bs` | The Gamend dock in the Balaur editor: the server, the session, and what the calls answered |
 
 ## admin_analytics
@@ -274,8 +278,6 @@ Authentication.
 
 | Function | Call | What it does |
 | --- | --- | --- |
-| `confirm_registration(params)` | `POST /api/v1/register/confirm` | Confirm a registration with its code |
-| `device_login(params)` | `POST /api/v1/login/device` | Device login |
 | `link_apple_ios(params)` | `POST /api/v1/me/providers/apple/ios` | Link Apple (native iOS) |
 | `link_device(params)` | `POST /api/v1/me/device` | Link device ID |
 | `link_google_id_token(params)` | `POST /api/v1/me/providers/google/id_token` | Link Google with an ID token |
@@ -283,14 +285,12 @@ Authentication.
 | `link_provider_request(provider)` | `POST /api/v1/me/providers/{provider}/authorize` | Start linking a provider |
 | `link_session_status(session_id)` | `GET /api/v1/me/providers/sessions/{session_id}` | Poll a provider link |
 | `list_auth_providers()` | `GET /api/v1/auth/providers` | List sign-in providers |
-| `login(params)` | `POST /api/v1/login` | Login |
 | `logout()` | `DELETE /api/v1/logout` | Logout |
 | `oauth_api_callback(provider, params)` | `POST /api/v1/auth/{provider}/callback` | Sign in with a provider code |
 | `oauth_callback_api_apple_ios(params)` | `POST /api/v1/auth/apple/ios/callback` | Sign in with Apple (native iOS) |
 | `oauth_google_id_token(params)` | `POST /api/v1/auth/google/id_token` | Sign in with a Google ID token |
 | `oauth_request(provider)` | `GET /api/v1/auth/{provider}` | Start a provider sign-in |
 | `oauth_session_status(session_id)` | `GET /api/v1/auth/session/{session_id}` | Poll a provider sign-in |
-| `refresh_token(params)` | `POST /api/v1/refresh` | Refresh access token |
 | `register(params)` | `POST /api/v1/register` | Register |
 | `resend_confirmation(params)` | `POST /api/v1/register/resend` | Send the confirmation email again |
 | `unlink_device()` | `DELETE /api/v1/me/device` | Unlink device ID |

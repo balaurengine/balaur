@@ -31,7 +31,7 @@ pub(crate) fn signatures() -> Vec<HostSignature> {
 /// What each wait does, keyed `task::name`.
 pub(crate) fn docs() -> impl Iterator<Item = (String, &'static str)> {
     [
-        (SECONDS, "Park an async method for a span of simulation time, in fixed steps; the wall clock never enters it."),
+        (SECONDS, "Park an async method for a span of simulation time, woken on fixed step `ceil(seconds * tick_hz)`, so 4/60 at 60 Hz is 4 steps; the wall clock never enters it."),
         (FRAMES, "Park an async method for a number of fixed steps; counted on the tick, so a replay waits exactly as long."),
         (WAIT, "Park an async method until the engine wakes the token a binding gave it, and answer what it woke with."),
     ]
@@ -55,7 +55,7 @@ pub(crate) fn is_wait(key: &str) -> bool {
 pub(crate) fn token(eng: &Engine, key: &str, args: &dyn CallArgs) -> Option<u64> {
     let name = key.strip_prefix(MODULE)?.strip_prefix("::")?;
     Some(match (name, args.float(0), args.int(0)) {
-        (SECONDS, Some(seconds), _) => balaur_core::timers::after_seconds(eng, seconds as f32),
+        (SECONDS, Some(seconds), _) => balaur_core::timers::after_seconds(eng, seconds),
         (FRAMES, _, Some(frames)) => {
             balaur_core::timers::after_frames(eng, u32::try_from(frames).unwrap_or(0))
         }

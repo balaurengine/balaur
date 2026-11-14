@@ -1,6 +1,6 @@
 //! Two engines, one process, playing the same scene over a real socket.
 //!
-//! The bar step 5 of `PLAN-networking.md` sets: two peers exchange only
+//! The bar: two peers exchange only
 //! inputs, predict each other, roll back when a prediction was wrong, and
 //! agree tick for tick. Nothing here compares positions — the digest is the
 //! judge, because it is what the peers themselves compare.

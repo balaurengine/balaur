@@ -29,7 +29,7 @@ names.
 
 Backends depend on core; core never depends on a backend. The compiler enforces
 the direction, and it is what keeps core language-free. The five crates around
-the kernel (`docs/PLAN-core-split.md`) depend on it and on nothing above it,
+the kernel depend on it and on nothing above it,
 and a test keeps the kernel's manifest free of them and of the image, glTF and
 mesh crates they took. `balaur::builtins()` composes an app: every crate's
 registration steps and script modules, in one order, handed to `App::new` as
@@ -39,11 +39,11 @@ a `Builtins`; a bare app gets the kernel's own.
 
 - **ECS: hecs 0.11** — minimal, archetype-based, the most used maintained ECS
   that is not `bevy_ecs`. Scheduling, hierarchy and resources are Balaur's own,
-  and so is what `bevy_ecs` adds over hecs (`docs/PLAN-ecs.md`): one door for
+  and so is what `bevy_ecs` adds over hecs: one door for
   every structural write (`Engine::spawn`, `insert`, `remove_one`,
   `despawn`, …; the `world-write` lint fails a `world_mut()` outside the
   kernel); change ticks stamped by the registry's writes
-  (`components::ticks`, `scene.changed_since`); lifecycle calls and required
+  (`components::ticks::changed_since`); lifecycle calls and required
   components declared on the derive (`#[component(on_add = f, requires =
   [..])]`); commands made at each stage's end (`Engine::defer*`); typed
   messages (`App::add_messages`, `MessageCursor`); observers inside
@@ -51,10 +51,12 @@ a `Builtins`; a bare app gets the kernel's own.
   `Parent` and `Children`); schedules (`schedule::System`, `Set`); typed systems
   (`system_param`, `App::add_typed`); and batches on the thread pool
   (`Query::par_for_each`).
+- Change stamps are not in a snapshot. A restore clears them, so a reader
+  that last ran before it hears every component as changed.
 - **Math: glamx** (glam + `Pose3`/`Rot3`), shared with rapier 0.35 and kiss3d
   0.46, so there are no conversion layers. It re-exports glam whole. The
-  workspace pins `libm` and `scalar-math` — the features parry's
-  `enhanced-determinism` turns on — so a build without physics matches one with.
+  workspace pins `libm` and `scalar-math`, the features parry's
+  `enhanced-determinism` turns on, so a build without physics matches one with.
 - **parry** ships in every build, so depending on it costs a game no bytes. Two
   constraints keep core backend-free: no parry type crosses a public API, and
   every crate reaching parry turns `enhanced-determinism` on, by name or through
@@ -63,66 +65,28 @@ a `Builtins`; a bare app gets the kernel's own.
 - Hand-written instead: `primitive` (parry returns no UVs or normals and lacks
   half the shapes), `csg` (parry has intersection only), `geometry2d`'s booleans
   on `i_overlay`, the 2D convex hull. Triangulation is `i_triangle`, named in
-  `balaur_geometry::triangulate` alone — parry's ear clipper is `pub(crate)` —
+  `balaur_geometry::triangulate` alone (parry's ear clipper is `pub(crate)`),
   with two forms: one over the caller's own points, which refuses a loop that
   crosses itself, and one that returns the vertex a crossing or a hole needed.
 - **`Engine`** is a clonable `Rc` handle over world, resources, command queue
   and script host, with interior mutability and short borrows: Rust systems and
   script bindings see one state, unmarshalled. Single-threaded by design;
   parallelism goes inside a system.
-- **What the ECS work costs**, measured with `examples/benchmark` in release
-  on an Apple M1 on 2026-10-31, `690bc856` (before PLAN-ecs step 3) against
-  the build after step 13, two alternating runs each, the median of a case:
-
-  | Case | Before | After |
-  | --- | ---: | ---: |
-  | `nodes/add_children`, 50,000 | 37.4–37.9 ms | 38.2–38.3 ms |
-  | `nodes/delete_children_random`, 50,000 | 27.7–27.9 ms | 28.1 ms |
-  | `nodes/get_node` | 51.3–51.4 ms | 51.7–52.0 ms |
-  | `3d/drop` frame, 8,000 bodies | 3.54–3.55 ms | 3.54–3.68 ms |
-  | its scene mirror | 2.11 ms | 0.42 ms |
-
-  Peak memory did not move past run-to-run noise (the `kind/*` cases at
-  5,000 nodes read 1.0–1.1 GB either way, ±50 MB a run). By its types, a
-  change stamp is 40 bytes for each registered component a write put on a
-  node, and nothing for a node's spawned transform. The web module (the
-  `web` profile with the runtime's features) went from 23,538,175 to
-  23,608,909 bytes, 6.39 to 6.41 MB under brotli: 22 KB on the wire. One regression was found and fixed on the way: a
-  frame's frees built a replay label for every freed node instead of the
-  first few the tick's log keeps, 10 ms on 50,000 frees.
-
-  Against hecs 0.11.2 and bevy_ecs 0.20.1 on the same operations (Apple M1,
-  release, fat LTO, the median of 11 to 201 runs, 2026-10-31):
-
-  | | hecs | balaur | bevy_ecs |
-  | --- | ---: | ---: | ---: |
-  | Spawn 100k entities, one at a time | 2.18 ms | 1.58 ms | 3.39 ms |
-  | Spawn 100k scene nodes (name, transform, parent, id) | — | 26.5 ms | — |
-  | Iterate 100k, `pos += vel` | 96 µs | 75 µs | 123 µs |
-  | The same, `par_for_each` in batches of 4,096 | — | 27 µs | — |
-  | Get 10k random entities | 117 µs | 121 µs | 60 µs |
-  | 10k tracked writes | 103 µs untracked | 1.17 ms | 75 µs |
-  | Despawn 100k entities | 1.27 ms | 1.35 ms | 2.53 ms |
-  | Free 100k scene nodes in one batch | — | 16.5 ms | — |
-  | 50 empty systems × 10k frames | 0.52 ms | 1.36 ms | 6.20 ms |
-  | The same, typed systems reading a resource | — | 2.66 ms | — |
-  | 1% of 100k written, then the written found | — | 251 µs | 107 µs |
-  | 100k written from a system, untracked | 41 µs | 41 µs | — |
-  | 100k written from a system, tracked | — | 181 µs | 64 µs |
-
-  The door, a query and a get are hecs's own, so they run at its speed (the
-  differences in those rows are where each world sits in memory). A
-  balaur system costs 2.7 ns a run, a typed one 5.3 ns, where bevy's
-  schedule costs 12. A tracked write is the one place balaur pays: a
-  property written through the registry, as a script, a scene or the editor
-  writes it, is 117 ns with its change stamp and its log entry, where bevy
-  stamps a column in 7.5. A Rust system's write through a typed query's
-  `Tracked<T>` is seen by change detection and costs 1.8 ns: like bevy, a
-  derived component carries a tick column beside it (`Ticked<T>`), and the
-  write stores the system's change tick there. A plain `&mut T` costs 0.4
-  ns and is not seen; bevy stamps every `&mut` it hands out, at 0.64. Finding
-  what changed scans that column, as bevy's `Changed` does (PLAN-ecs §2,
-  *Change detection*).
+- A native thread sleeps until its work arrives: a socket on `mio` with a
+  `wake::Commands` waker, blocking work on a `task::Pool`, a deadline through
+  `wake::at`. It never wakes on a timer to look.
+- HTTP shares one `ureq::Agent` per engine, and `[http] max_parallel` workers,
+  six by default, take requests from a queue. A websocket handshake blocks;
+  the socket then turns non-blocking, and a woken thread reads until
+  `WouldBlock`.
+- The door, a query and a get are hecs's own, so they run at its speed. A
+  system costs 2.7 ns a run, a typed one 5.3 ns (Apple M1, release,
+  2026-10-31). A property written through the registry, as a script, a scene
+  or the editor writes it, costs 117 ns with its change stamp and its log
+  entry. A Rust system's write through a typed query's `Tracked<T>` costs
+  1.8 ns and stores the system's change tick in the component's tick column
+  (`Ticked<T>`). A plain `&mut T` costs 0.4 ns, unseen by change detection. Finding
+  what changed scans that column, as bevy's `Changed` does.
 - **Scene tree over ECS.** A node is an entity with `Name`, `Parent`,
   `Children`, `GlobalTransform`. Its local `Transform` is the `transform`
   component, `[nodes.transform]` in a file, and a node without one sits at its
@@ -130,7 +94,7 @@ a `Builtins`; a bare app gets the kernel's own.
   plugins hang components off the same entities, so "node" is an API surface,
   not a cost.
 - A scene's `parent` is an id or a path of names; ids resolve first, and a path
-  may not climb out with `..`. The editor normalizes paths to ids on load — a
+  may not climb out with `..`. The editor normalizes paths to ids on load, since a
   replay addresses a node by id.
 
 **Frame schedule.** `First → PreUpdate (reload pump) → Update (scripts,
@@ -143,8 +107,11 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
   changes at the next frame's start, before `First`.
 - `FixedUpdate` drains one app-owned accumulator in whole `fixed_dt()` steps: 0
   in a fast frame, up to `max_substeps()` in a slow one. One accumulator, not one
-  per plugin — per-plugin ones made the step count depend on wall-clock jitter.
-  `DEFAULT_FIXED_DT` is the default rate, and `[time] tick_hz` is what moves it.
+  per plugin, so the step count never depends on wall-clock jitter.
+  `DEFAULT_FIXED_DT` is the default rate, and `[time] tick_hz` is what moves it,
+  to one value on every platform: a recording replays and a match steps at one
+  rate, so loading refuses an `[override.<tag>.time] tick_hz` (`overridable =
+  false` in its spec).
 - Order inside a stage is registration order unless a system says otherwise
   (`schedule::System::before`, `after`, `in_set`; sorted once, cycles named),
   and core registers the script callback first, so `fixed_update` runs before
@@ -153,6 +120,8 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
   stage runs and each per-node subsystem asks `process::ticks`, because
   `process = "always"` has to let one subtree run while its sibling is held.
   Physics is one world and is held whole either way.
+- A pause holds every `task` wait, an `always` subtree's too: a wait's
+  token carries no node to ask.
 - `SceneSync` places a node that opted into interpolation between the two
   poses the last fixed steps left it in. Render-side only: `Transform` and
   `composed_global` answer the tick, so no script and no digest sees a blend.
@@ -164,7 +133,7 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 `balaur_script` is traits and a neutral `Value`, three dependencies (`anyhow`,
 `serde`, `smol_str`), no language. Subsystems declare into a `Module<Engine>`; a backend implements
 `ScriptHost<Engine>`. Balaur Script (`balaur_bs`, `balaur_script_bs`) is the
-one backend; the Rune backend before it was one crate and went as one.
+one backend.
 
 - Operations are declared once in core (`node_api.rs` `NODE_OPS`,
   `engine_api.rs` `ENGINE_OPS`) and reach every language. A second language
@@ -183,12 +152,11 @@ one backend; the Rune backend before it was one crate and went as one.
   one is added or removed.
 - A `Str` and a `Map` key are `SmolStr`, which holds up to 22 bytes inline.
   Almost every string crossing the seam is a component name, a property key or
-  a node path, and each one used to reach the allocator on the way in: a short
-  string argument cost 81 ns more than an integer one.
+  a node path, so a short one never reaches the allocator.
 - `Value` is `Nil/Bool/Int/Num/Str/Bytes/Vec2/Vec3/Color/List/Map`, plus
   `Node(u64)` (opaque entity bits) and `Callback(id)`, valid only for the call
   that received it. `Many` is several return values, not a list.
-- Nothing subscribes with a closure — that lifetime is call-scoped. A
+- Nothing subscribes with a closure, since that lifetime is call-scoped. A
   subscription is a node plus a method name: `ScriptHost::call_on(node, method,
   args)`. Persistent callbacks would need an id space with explicit release.
 - Input also answers when asked (`input.key_just_pressed(key)`): a press is a
@@ -196,7 +164,7 @@ one backend; the Rune backend before it was one crate and went as one.
 - `events.listen(node, name)` / `events.emit(name, payload)` deliver
   `on_<name>(payload, source)` at the top of the next `Update`, in emission
   then subscription order. The frame of delay keeps a handler from freeing the
-  node being ticked. Not recorded — a replay re-runs the script, which emits again.
+  node being ticked. Not recorded: a replay re-runs the script, which emits again.
 - One handler shape: `on_<name>(payload, source)`, `source` the node the event
   was said on. A node hears its own engine events unasked and another's after
   `events.listen`. A method naming fewer parameters is handed fewer.
@@ -204,6 +172,20 @@ one backend; the Rune backend before it was one crate and went as one.
   own up whose script has the method (`bindings::nearest_with_method`), with
   the event's values and then the row's node. A core hook of two values keeps
   both: `on_pointer_drag(dx, dy, source)`.
+- A `bindings` row's `when` is a comparison of scene variables with values,
+  never a script expression: what a comparison cannot say is a script.
+  Convert to script writes the `.bs` a node's rows equal, one method a hook
+  and one line a row, and attaches it.
+- Every registry write appends its node, component and properties to the
+  frame's change log, heard next frame as one `changed` event and kept only
+  while someone listens. Adding, freeing, renaming and moving a node record
+  themselves in that log and announce `child_added`, `renamed` and the rest
+  from the same call; loads stay silent.
+- `events::listen(listener, "changed", root)` hears only entries under
+  `root`, so the editor hears the scene it edits and not its own widgets.
+- A `states` entry is a named table of component properties.
+  `node.states.set_state` patches it over the node, then calls
+  `on_state_changed(from, to)`.
 - A script names the events it sends with `event name;`, an item the compiler
   reads without running the file (`ScriptHost::events`), as a component names
   its own in `ComponentDef::events`. `scene.bindable_events(node)` lists both.
@@ -233,14 +215,25 @@ one backend; the Rune backend before it was one crate and went as one.
   and its items read as `name::item`; `use a::b;` is `a/b.bs`. A file with no
   class named after it is a module others use. Disk in a dev run, export pack when shipped.
 - Each file compiles once, alone, as a unit, and every unit of the project
-  is made in one instance, one memory, each on its first call
-  (`docs/PLAN-bs-linking.md`). A script holds another node's script as its
+  is made in one instance, one memory, each on its first call. A script
+  holds another node's script as its
   class, `let tree: scene_tree::SceneTree? = node.script;`, and calls it
   directly. A native build holds those units, translated to C, and links
   them the same way (`balaur_bs::c`, `runtime/native_engine.rs`); a
   debugger's probes, a profiler's counters and a browser's metering are built
   into a unit and link as ordinary ones do. A file from outside the project,
   as the editor reads a game's scripts, is a unit of the instance beside it.
+- Turning a debugger or a profiler on makes the whole instance again: a
+  filled slot has no way back to a unit's old code.
+- A script runs on wasmtime on desktop and Android, on wasmi under a
+  debugger, on the browser's own engine, and as native C where `[export]
+  native_scripts` builds it. A dev run keeps what wasmtime compiled for each
+  module in the game's data folder, under `bs-cache/`, across runs.
+- Strings, lists, `any` cells and class objects are reference counted and
+  released at every frame exit. No garbage collector runs, so a cycle leaks.
+- A module traps on fuel, its memory cap, unbounded recursion, an
+  out-of-bounds index and a division by zero; the host canonicalises every
+  NaN it reads out.
 
 ### Enums
 
@@ -273,12 +266,12 @@ A `pub` field with a literal default (`pub speed: float = 2.0`) is what a
 scene may tune; `script.props` overrides only what it names.
 
 - At attach: the struct is made with its defaults, `props` written over them,
-  then `init` — so `init` reads tuned values.
+  then `init`, so `init` reads tuned values.
 - A prop naming no field is dropped, and warns.
 - `props` is sparse: the inspector writes an override only where it differs, so
   changing a default reaches every node that never overrode it. The default's
   type is what the inspector draws, and what keeps `2` from becoming `2.0`.
-- It is scene data — packed, digested, replayed. `node.attach_script(path,
+- It is scene data: packed, digested, replayed. `node.attach_script(path,
   props)` is the same thing at run time.
 - A `node` export arrives as the node its path names, resolved from the
   scripted node once the whole scene exists, or nil: Godot's `@export var x:
@@ -296,12 +289,12 @@ scene may tune; `script.props` overrides only what it names.
 A scene has exactly one root, as a Godot scene and a Unity prefab do: it is
 what a path, a stable id and an instance all address, and a second root is an
 error naming it. `instance = "scenes/crate.toml"` makes the node *be* that
-prefab's root — the root's keys, components and script land on the node, under
+prefab's root: the root's keys, components and script land on the node, under
 the node's own, and the root's children become the node's.
 
 - `overrides` is keyed by path from the instance node and holds scene keys,
   including `script.props`.
-- **An override patches, it does not replace** (`components::patch`) — through
+- **An override patches, it does not replace** (`components::patch`): through
   `add`, overriding a collider's `size` would reset its `kind`.
 - Every `StableId` inside an instance is prefixed by the instance's id
   (`n_crate_b/n_lid`) and nests. That is what a replay prints and what
@@ -316,7 +309,7 @@ the node's own, and the root's children become the node's.
   when the value returns to the prefab's. Comparison needs
   `scene.component_properties`, since a partial table and the full one are
   one component spelled two ways. Structural edits inside an instance are
-  refused — the file has nowhere to put them.
+  refused, since the file has nowhere to put them.
 
 ### Hot reload
 
@@ -344,7 +337,7 @@ holds it. On a phone-sized screen of 55 cards, in release, the first visit takes
 
 - **Parked means out of the tree.** The scene's roots hang from a holder outside
   it, hidden and `process = disabled`. Whatever walks from the root passes it by:
-  transforms, the widget arena, input, cameras, lights, `scene.find`. Whatever
+  transforms, the widget arena, input, cameras, lights. Whatever
   asks the process mode stops, and whatever queries a component reads it as
   hidden.
 - **Nothing reaches a parked script.** The host takes the instance out of every
@@ -375,13 +368,13 @@ holds it. On a phone-sized screen of 55 cards, in release, the first visit takes
 
 Breakpoints, stepping and a call stack with locals, for scripts in the editor.
 
-- A pause is a parked coroutine plus an engine flag, never a blocked thread —
+- A pause is a parked coroutine plus an engine flag, never a blocked thread:
   play-in-editor shares the process and the host with the editor.
 - `Engine::set_debug_scope` names the game's subtree. While paused, inside that
   scope: no `FixedUpdate`, no `update`/`call_all`/`call_on`. Editor scripts keep
   drawing. Instances the tick had not reached run on resume.
-- The seam adds defaulted debugger methods — breakpoints, break-on-error,
-  `request_break`, `paused`, `resume(StepMode)` — so a backend without a
+- The seam adds defaulted debugger methods (breakpoints, break-on-error,
+  `request_break`, `paused`, `resume(StepMode)`), so a backend without a
   debugger compiles unchanged. The `debugger` module exposes them plus `scope`
   and `set_scope`, so the dock is plain script. `balaur::ToolsPlugin` declares
   it, and no runtime registers that plugin: `balaur_cli` does, on its `editor`
@@ -393,11 +386,11 @@ Breakpoints, stepping and a call stack with locals, for scripts in the editor.
 
 ### Components
 
-`App::register_component` takes a TOML schema — a `type` per property from the
-closed set (`float`, `int`, `bool`, `string`, `enum`, `flags`, `vec2`,
-`vec3`, `vec4`, `color`, `asset`, `node`, `list`, `map`, `record`), defaults,
-options, ranges, `readonly`, `description`, `unit`, `group` — plus apply, get
-and remove hooks.
+`App::register_component` takes a TOML schema and apply, get and remove hooks.
+The schema gives each property a `type` from the closed set (`float`, `int`,
+`bool`, `string`, `enum`, `flags`, `vec2`, `vec3`, `vec4`, `color`, `asset`,
+`node`, `list`, `map`, `record`), a default, options, ranges, `readonly`,
+`description`, `unit` and `group`.
 
 - `components::Attached` is one bit per component per node, so a free runs only
   the `remove` hooks whose bits are set. Attaching state by another path warns
@@ -415,7 +408,7 @@ and remove hooks.
   own type.
 - Two verbs: `set_component` merges over schema defaults (whole component),
   `components::patch` merges over the component's own `get` (leaves the rest).
-  Animation and the inspector need the second — patching `collider3d/radius` with the
+  Animation and the inspector need the second: patching `collider3d/radius` with the
   first would reset `size`.
 - A key the schema does not declare is refused by both verbs and by a scene
   file, naming the component and the key, since a typo would otherwise apply
@@ -429,6 +422,20 @@ and remove hooks.
   with no schema can be held the same way: `App::register_checked_asset` takes
   a check, which closes the levels that are closed and leaves the free names
   open. `state_machine` and `tileset` have one.
+- A record asset (`App::register_record_asset`) holds the rows several
+  components repeat: `physics_material`, `soft_material`, `camera_effects`,
+  `font` and `text_style`.
+- A schema writes its rows in the inspector's order (`Schema::order`): the
+  ungrouped ones first, then each group where it is first named. A group's
+  name is lowercase and shared across components: `placement`, `shadows`.
+- No property shows on a condition. A row only some kinds read is a
+  component beside the main one, and a node without it reads the defaults.
+- `#[derive(Component)]` writes the schema from a struct: a property per
+  field, in field order, its doc comment the description, read and written
+  by index.
+- The struct holds what was asked for, and what a system works out from it
+  is a cache beside it. A save spells it back less its defaults
+  (`components::written_of`).
 - A scene key nothing handles is an error and is kept for the build that
   handles it. A host without sound, a physics world or an extension it turned
   off inserts `LacksKeyOwner`, and there it only warns: it cannot tell that key
@@ -436,7 +443,7 @@ and remove hooks.
 - `meta` is the one component with no schema, so every key on it is the
   author's: values filed on a node for whoever holds the node rather than for
   its own script (Godot's `set_meta`). A scene writes `[nodes.meta]`, a script
-  reads `node.meta["fade"]`, and `node.meta = #{ … }` replaces the table.
+  reads `node.meta["fade"]`, and `node.meta = { … }` replaces the table.
 - A handle indexes as well as it reads fields: `node.widget["checked"]` names
   a property at run time, which is the only way to reach a schema-less one.
 - One registration buys the scene key, the node API (`set_component`,
@@ -444,18 +451,25 @@ and remove hooks.
   `scene.component_types`, `scene.component_schema`) and the editor: the
   Add-component palette and every inspector row are generated from the registry,
   so a third-party component needs no editor change.
+- A component exposes every setting the type it wraps offers; each is a key,
+  a reader, or a constraint stated in the code.
+- Render components store angles in degrees and name them `_degrees`; physics
+  components store radians and declare `unit = "degrees"`, so the inspector
+  draws degrees.
+- A controller answering the mouse or keys is a script, not a component: the
+  camera rigs in `editor/library/rigs/` place a camera through its node.
 - **A build may register 128**, one bit each in `components::Attached`, and
-  registering the 129th panics naming it. 48 are in tree, so 80 are left for
-  plugins; the cap is a `u128` per node that carries any, which is what makes
-  a presence test a shift and a free ask only the plugins it owes.
+  registering the 129th panics naming it. 112 are in tree, so 16 are left for
+  plugins. The cap is a `u128` per node that carries any, which makes a
+  presence test a shift and a free ask only the plugins it owes.
 - **A name is a number at run time.** Registration order is the component's
   index, and `index_of`, `property_at`, `patch_at` and the `Attached` bits all
   take that number. A backend resolves a name once, when it builds its
   handles, the way `MaterialId::intern` does for materials: dispatch costs
   neither a hash nor a string. `transform` registers first and owns bit 0, so
   the node bundle can say a node has one without reaching the registry.
-- In tree: 48, from `transform` in core through physics, render, UI and
-  animation; `docs/generated/components.md` lists them. `shape3d`, `shape2d`
+- `docs/generated/components.md` lists those in tree, from `transform` in core
+  through physics, render, UI and animation. `shape3d`, `shape2d`
   and `sprite` each carry their own `color` property, since a tint needs
   something to tint.
 - Materials split the same way. A renderable's `material` is its own; the
@@ -466,7 +480,7 @@ and remove hooks.
   `package::mesh`) says which dimension it draws, and an inherited material that
   reaches the other one keeps the built-in material.
 
-**Browsing them.** The list is flat — a node is exactly its components.
+**Browsing them.** The list is flat: a node is exactly its components.
 
 - **Tags** are facets, several at once (`collider2d` is `2d` *and* `physics`); a
   category path would bury whichever lost. 3D components are tagged `3d` though
@@ -476,7 +490,7 @@ and remove hooks.
   data, not the engine's: `editor/presets.toml` lists them, a game's
   `editor/presets.toml` and each addon's add more, and the picker builds one
   with `set_component`. Anything spanning nodes is a scene.
-- **Expectations** are advisory — a component names others it needs something
+- **Expectations** are advisory: a component names others it needs something
   from, and the editor warns while none is present. Nothing blocks. Built-ins
   declare one where a component is inert alone: a body or a bone expects
   `transform`, a joint a body, a character a collider, `tile_collision` a
@@ -489,21 +503,47 @@ A second set of components over the same tree, on the same `transform`.
 
 - `shape2d` (six kinds) and `sprite` render through a pan/zoom
   orthographic camera: a `camera2d` node's position and `pixels_per_unit`, in
-  logical px per world unit, plus `camera_2d`, `mouse_world_2d`, `draw_line_2d`.
-- `body2d`/`collider2d` run in a rapier2d world beside the 3D one — same
+  logical px per world unit, plus `camera_2d`, `mouse_world_2d`, `draw_polyline_2d`.
+- `body2d`/`collider2d` run in a rapier2d world beside the 3D one, with the same
   determinism build, accumulator and ordered collections. Both carry joints,
   character controller, queries, contacts and closest-point queries; 3D adds
   vehicles.
 - A sprite sizes from its image (`pixels_per_unit`, default 100) or one cell of
-  a `columns`/`rows` grid or a `sprite_sheet` in `sheet`, resolved when set rather than at draw time — so the
+  a `columns`/`rows` grid or a `sprite_sheet` in `sheet`, resolved when set rather than at draw time, so the
   image header is read in every build, headless included.
 - Changing the frame moves UVs only and does not bump the renderable's version;
   changing texture or sheet does.
 - `physics.set_paused`, `is_paused`, `clear`, `set_sleeping_allowed`,
   `sleeping_allowed`, `set_tuning`, `set_debug_draw` span both
   worlds, so an editor treats physics as one simulation.
+- 2D batching draws a run of sprites or shapes as one call, cut wherever
+  material, texture, mesh or blend changes, so draw order never moves.
+- A material with `features = { screen = true }` reads the frame so far: the
+  kiss3d fork splits the 2D pass and copies the HDR film first.
 - The editor detects a 2D scene from its components and switches grid, camera,
   gizmo, picking and collider overlays. `examples/angrynerds` is a full 2D game.
+- A `convex_decomposition2d` cuts `exact` by default, with parry's
+  Hertel-Mehlhorn merge. `overlap` then grows each piece through its seams,
+  so a thin body cannot wedge into one.
+- `vhacd` and `voxels` cut fewer, approximate pieces for a dense outline. 3D
+  has only those two, since nothing decomposes a closed mesh exactly.
+
+**Tile maps.** A `tileset` and a `tilemap`'s cells live in
+`balaur_geometry::tiles`, which the renderer and physics both read.
+
+- `tile_collision` makes one parry voxel collider per group from the full
+  cells, so a body sliding along a wall cannot catch on a seam.
+- Autotiling is one ordered rule table, first match wins, and bitmask
+  terrains are sugar over it.
+- A tile's `data` is the game's own table. A script finds it through
+  `tilemap.cell(x, y)` and `assets::load` of the tileset.
+- `balaur import level.tmx` reads Tiled through `tiled` 0.16, behind
+  `balaur_cli`'s `import` feature, which no game template has. Its
+  `quick-xml` 0.31 and `zstd` 0.13 advisories are ignored in `deny.toml`.
+  The XML is a file a developer chose, at author time. `tiled` leaves out
+  the seekable and legacy `zstd` decoders and opens a fresh one per layer,
+  so no `zstd` advisory is reached. Drop the ignores once `tiled` takes
+  `quick-xml` 0.41 and `zstd` 0.14.
 
 ### Assets
 
@@ -531,8 +571,9 @@ content is `asset`.
   against the disk, where an ignored module still is, so the export pack asks the
   compiler what each shipped script links in (`ScriptCompiler::uses`) and
   fails on one it left out, naming the pattern; `balaur check` says the same.
-- Sharing is the default; `assets.duplicate` opts out. Cache keys use a
-  hand-written FNV-1a over bytes and TOML structure — `std`'s hashers specify
+- Sharing is the default, and Rust's `assets::duplicate` opts out; a script's
+  `assets.load` is a table of its own already. Cache keys use a
+  hand-written FNV-1a over bytes and TOML structure, since `std`'s hashers specify
   nothing about their output, and this key must agree across platforms.
 - Resolution reuses `ScriptHost::scene_source` (export pack or disk), with a
   `ProjectRoot` + `std::fs` fallback for Rust-only apps and tests.
@@ -544,13 +585,18 @@ content is `asset`.
 - `assets.rename` moves a file and rewrites every `.toml` through `toml_edit`,
   comments intact. `assets/index.toml` maps `id = "path"`, and `id://<id>`
   stands in for a path anywhere, resolved before the cache key.
-  `assets.assign_id` writes a digest of path and content, so a rebuilt index
-  gives a file the id it had. Script sources are not rewritten. Binary assets
-  landed with export pack format 2, verified by sha256.
+  `asset_index::assign_id` writes a digest of path and content, so a rebuilt index
+  gives a file the id it had. Script sources are not rewritten.
+- A path stays the reference in a file, readable and diffable; `id://` is
+  the escape for content edited outside the editor.
+- `toml::patch` writes a table into a document's text through `toml_edit`
+  too, so a tool saving a hand-written file keeps its comments and key order.
+- `balaur import file.aseprite` writes one atlas page, a `sprite_sheet`
+  naming every frame, tag and slice on it, and a clip per tag.
 - **Import settings are a sidecar**, Godot's `.import` by another name:
   `art/hero.png.import.toml` states how `art/hero.png` is read, and `[import.<kind>]`
   in `project.toml` sets the default for every file of that kind. A file's kind
-  comes from its extension — texture, audio, font, model. `balaur_core::import`
+  comes from its extension: texture, audio, font, model. `balaur_core::import`
   resolves the two, and the resolved settings ride in the name a texture is
   uploaded under, so changing one image's filter re-uploads that image alone.
 - Settings change pixels and samples, never extents: a sprite is sized from its
@@ -569,11 +615,20 @@ content is `asset`.
 - A model's `lods` are index lists over its own vertices, simplified at load by
   `meshopt-rs` and swapped by camera distance in the renderer alone, so no
   simulation reads which copy is drawn.
+- `import.start` runs an import a few files a frame and reports each as
+  `import_event`; a replay hands a script the same events without importing
+  twice. A cancelled import keeps what it wrote: the files are the output, not
+  a transaction.
+- An importer takes bytes and writes through a `Sink` one file at a time;
+  `ProjectSink` writes through the files backend, so a tab imports with no
+  disk.
+- Every `fs.*` path resolves `..` and symlinks first, and is refused unless it
+  lands inside a root the host declared (`file_api::resolve`).
 
 ### Animation
 
-`balaur_animation` is a plugin: clips, state machines, retargeting and modifiers —
-four asset types, four components, one script module, two systems in `Update`. It depends on core and no other plugin crate — a test reads
+`balaur_animation` is a plugin: clips, state machines, retargeting and modifiers:
+four asset types, four components, one script module, two systems in `Update`. It depends on core and no other plugin crate, and a test reads
 its `Cargo.toml` and fails if one appears.
 
 - A clip is a length, a loop mode (`none | loop | pingpong`) and tracks; a track
@@ -589,10 +644,10 @@ its `Cargo.toml` and fails if one appears.
 - Rotation keys are authored as euler radians (the spelling
   `transform.rotation_euler` uses, readable in a diff) and interpolated as
   quaternions, the only way past ±180° that takes the short way. A `rotation`
-  track takes the quaternion — what an imported `.glb` holds.
+  track takes the quaternion, which is what an imported `.glb` holds.
 - The sampler is `(clip, time) -> pose`, pure and reachable with no `Engine`, so
   blend trees can compose samples later. Keys sharing one time are a jump, and
-  at that instant the last of them holds — including a track whose every key
+  at that instant the last of them holds, including a track whose every key
   sits at the end, which is what "hide when the fade lands" generates.
 - **A tween is a generated clip**: one sampler, two authoring front-ends, no
   second interpolation path. Steps are sequential; `parallel = true` joins the
@@ -600,11 +655,11 @@ its `Cargo.toml` and fails if one appears.
   `from`, `target`, `interval`, `call`. A tween dies with its node.
 - The spec is data, not a chainable builder: a handle object means new userdata
   in every backend and every future language. A handle travels as an integer,
-  and `animation.stop` takes a node or a handle rather than a second destruction
-  verb (N1). Data also makes a tween serialisable, so the editor authors one and
-  it hot reloads.
+  which `animation::stop_tween` takes; a clip on a node ends with
+  `node.animation.stop()`. Data also makes a tween serialisable, so the editor
+  authors one and it hot reloads.
 - Easing is Godot's 12 transitions in 4 modes, with its names and shapes. Every
-  curve maps 0→0 and 1→1 exactly, asserted with `assert_eq!` — without endpoint
+  curve maps 0→0 and 1→1 exactly, asserted with `assert_eq!`; without endpoint
   guards `expo` and `elastic` land a float short.
 - Determinism: playback has its own accumulator at `fixed_dt()`, capped at
   `max_substeps()` catch-up steps, so the sampler only sees the fixed step. Folding is floor-and-subtract;
@@ -613,7 +668,7 @@ its `Cargo.toml` and fails if one appears.
 - Scheduling: after the script tick, so `node.animation.play()` lands the same frame;
   before `FixedUpdate`, where physics reads `Transform` for kinematic bodies, so
   an animated platform pushes what stands on it with no wiring. A step records
-  deferred effects rather than applying in place — an `apply` may want the world
+  deferred effects rather than applying in place, since an `apply` may want the world
   mutably, and a handler may free its own node.
 - A crossfade keeps the clips it leaves on a stack, each still advancing, and
   poses every track either side keys: one only the old clip drives follows it
@@ -634,42 +689,50 @@ on `libm`. So a collider fitted to a torus, a ray picking one, a headless test
 and the triangles on screen are the same triangles.
 
 - Ten 3D primitives, six 2D; `path` adds beziers and what they extrude, revolve
-  and sweep into; `csg` combines two with a BSP over their faces — written out
+  and sweep into; `csg` combines two with a BSP over their faces, written out
   because the candidate crates reach for parry and a BSP has no transcendental
   to pin. `balaur_text::glyph` is the one mesher outside core: shaping a word
   needs that crate's font set.
 - A `mesh` asset names a model file, a primitive, a word or a path to thicken;
   the two that reach another asset resolve through `mesh::load_from`.
 - A node draws `Shape3d::Solid` (parameters), `Shape3d::Mesh` (an asset) or
-  `Shape3d::Built` (what a `boolean3d` settled on) — the split `Shape2d::Polygon`
+  `Shape3d::Built` (what a `boolean3d` settled on), the split `Shape2d::Polygon`
   already used. A `multimesh3d` or `multimesh2d` draws its `multimesh` asset's
   mesh once per instance, and `render::instancing` splits each instance's
   matrix for the shader; automatic instancing draws through the same seam.
   The node copies the asset's instances when it attaches, so a script's edits
   stay on that node.
+- There is no cloner: a row, a ring or a grid is a `multimesh` instance list
+  an asset holds or a script computes. An instance always carries a
+  position, a rotation, a scale, a colour and four custom floats.
+- 3D nodes sharing a mesh and a material draw as one instanced call; a
+  skinned, boolean or unevenly scaled node keeps its own object.
+- A soft body writes its solved mesh onto its node each fixed step,
+  `SolvedMesh` in 3D and `SolvedPolygon` in 2D, and the renderer draws that.
 
 ### Skeletons and skins
 
 A bone is a node with a rest pose (`bone2d`, registered by `core::skeleton`).
 There is no skeleton component: a skin names its rig by node path
 (`polygon.skeleton = ".."`), and the rig's bones are that node's descendants
-carrying a bone, in tree order — the order a skin numbers them.
+carrying a bone, in tree order, the order a skin numbers them.
 
 - A clip keys a bone by path, `target = "Hip/Thigh"`, so playback needs no
   bone type, and the digest and snapshot ring already cover it. Modifiers and
   retargeting are what name bones. Bones live in
   core so rendering, the editor's registry and future physics reach them. The
-  `skeleton` module is `apply_rest`, `overwrite_rest`, `bones`.
+  `skeleton` module is `bones`; the editor's `rig.bs` resets and records a
+  rest pose over it.
 - **A skin is a `polygon`** whose `mesh` asset holds `[x, y]` positions, an
   `internal` count of trailing interior vertices, optional `polygons` index
-  loops (with interior vertices the author draws them — automatic triangulation
+  loops (with interior vertices the author draws them, since automatic triangulation
   bends badly), `uvs`, and `skin.bones` folded at parse to the four heaviest
   influences, renormalised. Triangulation is `core::triangulate` over
   `i_triangle`, so a headless test asserts the triangle list. Absent UVs centre the texture at `pixels_per_unit`,
   v downward, from the image header.
 - **The palette is computed by the engine, uploaded by the backend.**
   `joint_matrices_2d` is a pure function of the tree: global pose × inverse rest
-  pose down the rig, carried into the skin's space — so a skin need not sit
+  pose down the rig, carried into the skin's space, so a skin need not sit
   under its rig, and a flipped rig flips its skin. The backend draws through
   `render::skinned_2d` (kiss3d's `Material2d`, self-contained WGSL) rather than
   kiss3d's `SkinnedMesh2d`, which walks its own bone chain and has no scale in
@@ -680,7 +743,7 @@ carrying a bone, in tree order — the order a skin numbers them.
   `.glb` (`core::glb`) with inverse bind matrices re-based to the rig root.
   `balaur import model.glb` writes the joint hierarchy, a mesh node and every
   animation as plain TOML the editor edits. The `gltf` crate builds without its
-  image feature — nothing here decodes a texture. GPU skinning is
+  image feature: nothing here decodes a texture. GPU skinning is
   `skinned_3d::attach`; the CPU twin stays for a node with its own `material`
   and for the tests. A `.gltf` reads its buffers through a caller-supplied
   `SideReader`, or a `data:` URI decoded in core.
@@ -689,6 +752,8 @@ carrying a bone, in tree order — the order a skin numbers them.
   analytic solve, `flip` choosing the elbow, an out-of-reach target
   straightening the chain), `fabrik`, `ccdik`, `jiggle` and `follow`. It runs after animation, from local transforms as
   they are now, in entity order, on `libm`.
+- There are no Spine slots or skins: a node with a `sprite` and `visible` does
+  that. 3D weights come from the file.
 
 ### Binding API
 
@@ -712,11 +777,53 @@ registration order. `balaur_physics` is the reference
 implementation; its `scalar.rs` is the one place a number changes width between
 the engine's `f32` and rapier's.
 
+### What stays native
+
+What a script can build from the engine's functions is Balaur Script: in the
+language's prelude under the engine's own names (`encoding`, `random::at`,
+`random::uuid`, the `geometry2d` helpers, `quat`, `audio::play_file`), or in
+the editor's scripts. A function stays in Rust where a script cannot reach
+what it needs, or where the script version was measured and cost too much.
+Each measurement is in instructions retired or milliseconds under wasmtime.
+
+- `hash::sha256_file` and `sha256_text`: 13.3 to 20.4 ms on 1 MiB as a script,
+  against 0.75 to 0.88 ms through `sha2`.
+- The immediate shapes, `draw_rect_2d` to `draw_capsule_3d`: 500 a frame took
+  2.6 times as long for rectangles and 50 times for spheres. A scripted
+  rectangle also builds a mesh each frame.
+- The `timer` component: 8.9 million instructions a tick for 1,000 timers as
+  scripts, against 44 thousand native.
+- Breakable joints: 2.5 to 5.1 times the native check for 100 joints a step.
+- The tree walks, `node::descendants` to `scene::node_by_id`: 4.2 to 18 times
+  native on the editor's 544-node tree and a 2,000-node scene.
+- Autotiling: a 32-cell brush stroke at 4.2 times native, and the brush and
+  the load share one resolver.
+- Tile collision: 431 million instructions for a 256 by 256 map with 30% of
+  its cells solid, against 27 million native.
+- `screen_notifier2d`: at least 1.8 million instructions a frame for 200
+  notifiers as scripts, against 0.26 million native.
+- `ui::fill_strip`: the widget pool hands each control's `data` to its
+  handler, which a script fill cannot do.
+- `max_contact_impulse`, the character, vehicle and follow controllers, and
+  rumble shaping: rapier's contact impulses and a pad's per-frame state are
+  out of a script's reach.
+- Touch buttons and sticks: hit-tested in the frame's first stage, where a
+  script would answer a frame late.
+- The splash and the log file: both open before scripts compile.
+- `ui::contrast`, `contrast_pairs` and `colors_apart`: they walk roles by the
+  engine's own theme inheritance.
+
+Kept as product decisions rather than for reach: scene `bindings` and
+`states`, the animation `state_machine`, the `code` widget's language tables,
+the `window` widget kind, gestures, the built-in UI focus controller, and
+gamepad repeat. `apply_force` stays beside `apply_impulse`, being Godot's and
+Unity's word for a push held over time.
+
 ### Modules and extensions
 
 A **module** is linked in behind a cargo feature; an **extension** is loaded
-from a shared library at run time. Both implement `balaur_plugin::Plugin` —
-`manifest()` and `declare(&mut Registry)` — so one source ships either way.
+from a shared library at run time. Both implement `balaur_plugin::Plugin`
+(`manifest()` and `declare(&mut Registry)`), so one source ships either way.
 
 - `Registry` names resources, systems, components, asset types, replay
   sources and setup, and script modules. No trait objects; generics only where a
@@ -729,11 +836,11 @@ from a shared library at run time. Both implement `balaur_plugin::Plugin` —
   checked against it, so a name crosses the module/extension boundary either
   way. `load_all` orders the whole set before any of it registers, so a missing
   requirement is refused rather than found halfway. Load order is by name then
-  requirements, never directory iteration — it decides registration order, which
+  requirements, never directory iteration, since it decides registration order, which
   decides the simulation.
 - `[plugins]` in `project.toml` switches modules off or configures them. Asking
   for one nothing registered is an error naming the feature to rebuild with;
-  turning off one every build has is refused — a setting that cannot be honoured
+  turning off one every build has is refused: a setting that cannot be honoured
   must not look like it was.
 - `balaur_plugin` re-exports every crate its API names (`balaur_core`,
   `balaur_script`, `anyhow`, `toml`) plus a `prelude`, so a plugin outside the
@@ -775,6 +882,10 @@ exported symbols.
 - **No allocation crosses it**: every `BalaurValue` is a borrowed view valid for
   its call, and the host copies before returning. Tier 1 today is script modules
   of functions and constants (`docs/PLAN-c-api.md`).
+- A C extension gets no `Engine` and no asynchrony; a service that needs
+  either, such as a store, is an engine crate behind a feature. The whole
+  `App` and `Engine` surface is never offered across the C ABI, since it would
+  freeze internals that still move.
 
 ### Export packs
 
@@ -790,9 +901,9 @@ such an export pack: the editor's, never a game template.
   bundled faces, 1.35 MiB); the editor's module adds `import,editor`.
 - `compile` off drops the `.bs` to C translator an iOS export uses, and the
   WESL linker. Every shader link goes through
-  `balaur_render::prelinked::cached`, keyed by what it links; an export runs
-  each one the game can draw with (the engine's in every variant, each
-  material morphed or not, in the transparency pass or not) and writes the
+  `balaur_render::prelinked::cached`, keyed by what it links. An export runs
+  each one the game can draw with: the engine's in every variant, each
+  material morphed or not, in the transparency pass or not. It writes the
   results to `.balaur/shaders.toml` in the export pack, which a template reads.
 - kiss3d links its built-in shaders in `build.rs`. Its object shader keeps
   three `@if` flags that change what it declares (8 modules); the other
@@ -801,7 +912,8 @@ such an export pack: the editor's, never a game template.
   balaur_text links already: a patch on epaint 0.36 (`Ughuuu/egui`) in place
   of `vello_cpu` and its SIMD kernels, 1.4 MB of a web build.
 - A runtime variant is a name with a suffix: `-2d` and `-3d` on every target
-  keep one physics world, `-server` on a desktop has no window or sound. A
+  keep one physics world, `-bare` neither, and `-server` on a desktop has no
+  window or sound. A
   variant is a game template, with no editor and no compiler, takes its
   platform's tags and is found as `balaur-runtime-<target>-<variant>`. A
   server is a target of its own; `[export] runtime` turns `web` into `web-2d`,
@@ -814,9 +926,10 @@ such an export pack: the editor's, never a game template.
   off registers no system, component or verb, so its solver never links.
   `physics.*` spans both and both resources always exist.
 
-- `balaur::boot_pack(include_bytes!(...))` makes a self-contained binary. It is
-  pure interpretation, so it ships where JIT is banned, iOS included. CI
-  cross-compiles to iOS, Android and wasm on every push to main.
+- `balaur::boot_pack(include_bytes!(...))` makes a self-contained binary. Where
+  JIT is banned, iOS included, the export translates the scripts to native C
+  (`crates/balaur_script_bs/src/native.rs`). CI cross-compiles to iOS, Android
+  and wasm on every push to main.
 - The web target is `wasm32-unknown-unknown` with wasm-bindgen: kiss3d declares
   its web dependencies there and wgpu reaches WebGPU through `web-sys`. Audio
   plays through cpal's WebAudio host, its device opened on the first
@@ -824,9 +937,17 @@ such an export pack: the editor's, never a game template.
   audio before a gesture. `balaur_webtransport` has a browser backend, but no plugin registers
   it and nothing outside its own tests opens a link, so it stays out of the
   default web feature set.
-- An export pack is written in sorted key order, so two exports of one source tree give
-  the same bytes anywhere. `scripts/e2e.sh` exports every example twice and
-  diffs the two — hashed maps once gave five files from ten exports.
+- An export pack is written in sorted key order, so two exports of one source
+  tree give the same bytes anywhere; `docs/QUALITY.md` says what checks it.
+- An export pack holds each entry as its original bytes with a SHA-256; the
+  hash catches a corrupt entry and hides nothing. Extensions reach the host
+  through a table of function pointers, so a shipped executable exports no
+  symbols of its own.
+- A web export ships the engine's `index.html` shell unless the project has
+  `web/index.html`; the rest of the project's `web/` folder ships beside it.
+- An export refuses to replace an output directory that is neither empty nor
+  an earlier export of the game, so `-o .` deletes nothing
+  (`bundle.rs`, `replace_export`).
 
 ### Dependencies
 
@@ -843,11 +964,13 @@ both a desktop and a Forge runner check, and what a running engine knows.
   so `file_api`'s root check and the asset loader see one tree. The `.bs`
   host watches the folder and keys its edits under the mount point.
 - The `.bs` host names the file of each instance it calls into
-  (`dependencies::calling`); `path_of` and `fs.*` read a relative path a
-  dependency's script builds under its folder. Building a scene is the
+  (`dependencies::calling`). `path_of` and `fs.*` read a relative path a
+  dependency's script builds under its folder, and one a played game's
+  script builds under that game's root. The editor keys the game it plays
+  by absolute path and its own scripts relative. Building a scene is the
   game's turn (`as_game`), since its document is already in game spelling.
 - A file under `deps/` is refused to `fs.*` writes, `assets.save`,
-  `assets.rename` and `assets.assign_id`. The `dependency` script module is
+  `assets.rename` and `asset_index::assign_id`. The `dependency` script module is
   two halves. The engine's is `list` and `of`, which a game reads. `install`,
   `add_path`, `make_local` and `move_into` write a project, so `balaur_cli`
   adds them beside `project` and `forge`, for the editor's docks.
@@ -858,6 +981,12 @@ both a desktop and a Forge runner check, and what a running engine knows.
 - `balaur add` and `balaur fetch` (`balaur_cli`'s `deps_cmd`) read a Forge
   project over its HTTP API by tree and blob, each blob checked against its
   git id and kept once under the editor's data folder.
+- The lock's sha256 covers a dependency's whole tracked tree less `deps/`:
+  each file in path order, as path, newline, length, newline, bytes.
+- Installing runs nothing, and a dependency's window, plugins and main-scene
+  settings never reach the game.
+- Files under `deps/` stay as their project wrote them; a binary asset is
+  taken over with Make local, never overridden.
 
 ### Fused executables
 
@@ -874,18 +1003,40 @@ both a desktop and a Forge runner check, and what a running engine knows.
 - Runtimes resolve from `BALAUR_RUNTIMES`, then `runtimes/` beside the
   executable, then `<data dir>/balaur/runtimes/<build id>`. A missing desktop
   template is offered for download from the release this build came from and
-  verified against its `SHA256SUMS` — pinned exactly, because an export pack must only
+  verified against its `SHA256SUMS`, pinned exactly, because an export pack must only
   meet the runtime its compiler shipped with. The prompt needs a terminal or
   `--download`; `--no-download` forbids it.
 - `scripts/package.sh` bakes a build id and every release carries a VERSION
   asset, which catches a Monday nightly meeting Wednesday's template and drives
-  `balaur update` — one command replacing binary, editor, template and header,
+  `balaur update`: one command replacing binary, editor, template and header,
   which only work as a set. A source build refuses and points at git. An update
-  follows the channel its own version names, and `--channel` crosses lines.
-- A signed macOS game is `export --app`: a `.app` with the export pack in
-  `Contents/Resources`, because codesign seals resources but never bytes
-  appended to a flat binary. `export --sign` signs it (and implies `--app` on
-  macOS), and `--notarize` staples Apple's ticket.
+  follows the channel its own version names, and `--channel` crosses lines
+  (`docs/RELEASING.md`). The editor's `release` module runs the same code on a
+  thread, so its Engine tab and the command cannot drift.
+- A signed macOS game is `export --bundle app`: a `.app` with the export pack
+  in `Contents/Resources`, because codesign seals resources but never bytes
+  appended to a flat binary. `--sign` signs it, and implies `--bundle app` on
+  macOS; `--notarize` staples Apple's ticket.
+- Only the editor download is signed. A runtime template is unsigned, because
+  appending a pack breaks a signature, so `balaur export` signs the fused
+  result.
+- An iOS or Android game cannot be fused, so the export pack travels as a
+  bundle resource: inside the `.app`, or `assets/game.bpak` in the APK. Its
+  scripts are native code, `Frameworks/BalaurScripts.framework` or
+  `lib/<abi>/libBalaurScripts.so` for each 64-bit ABI.
+- `--bundle aab` packs the base module with the `zip` crate over aapt2's proto
+  output, then runs `bundletool build-bundle` and `jarsigner`. The exporter
+  finds the Android SDK through `ANDROID_HOME` and never ships it;
+  `bundletool.jar` comes from `[android] bundletool` or
+  `BALAUR_ANDROID_BUNDLETOOL`. An `[android] min_sdk` below the template's own
+  `minSdkVersion` is an export error naming that floor.
+- `balaur export` applies every signature, profile, keystore and
+  notarization, so a CI action only places the credentials and calls it.
+- A password or an API key comes from the environment
+  (`BALAUR_APPLE_NOTARY_*`, `BALAUR_ANDROID_KEYSTORE_PASSWORD`); an identity
+  or a keystore path may sit in `project.toml`.
+- Authenticode appends its certificate table after the pack, so
+  `core::standalone` finds the trailer before that table.
 - The exporter sets the execute bits on its output: a template from a zip or an
   artifact store has lost them.
 - A `.bs` script compiles against the engine's modules, so `balaur::build_pack`
@@ -908,13 +1059,21 @@ too, so a game's runtime has no `script::check`.
 - Rename and references stay inside the file asked about.
 - Formatting is `balaur_bs::fmt`, which `balaur fmt` and the editor's format
   key call too.
+- `balaur check` builds every scene file with the run's own loader, so the
+  check and a load refuse the same keys, values and overrides. A `.bs` file
+  no scene reaches is compiled alone, as the module it is; a nested project
+  and `deps/` answer for themselves.
 
-## Game UI: widgets are nodes
+## UI: widget nodes, painted with egui
 
 A `widget` is a component on a node, so a menu is a subtree the editor edits
-like anything else.
+like anything else. `balaur_ui` lays each subtree out with taffy and paints it
+with egui inside the kiss3d window, once a pass. A script fills nodes and
+answers their events; it never draws. The `ui` module is what a script asks of
+the UI and tells it: where a node drew, focus, the scale, the theme, the
+clipboard, when the next pass runs and pooled rows.
 
-- `row`, `column` and `panel` lay out their widget children — along the
+- `row`, `column` and `panel` lay out their widget children: along the
   direction, `gap` apart, `padding` inside, `align`ed across. A child's own
   `anchor`/`x`/`y` is ignored: a menu that moved when you nudged one entry would
   not be a menu.
@@ -926,7 +1085,7 @@ like anything else.
 **Focus.** One focused widget per screen, held as a resource so moving it is one
 write. It walks widgets in scene order and wraps.
 
-- Whether a widget is a stop is **derived, not declared** — focus exists to
+- Whether a widget is a stop is **derived, not declared**: focus exists to
   activate something. `focusable = false` takes a candidate out; it cannot put
   one in. Hidden, freed or unfocusable releases focus.
 - A theme entry carries `gap` and `icon_color` as well as its frame and its
@@ -937,7 +1096,7 @@ write. It walks widgets in scene order and wraps.
 - A `button` with `toggle` holds down when clicked and releases on the next,
   flipping `checked` before its `pointer_click` is heard; a `group` makes a
   set of them exclusive, as it does for a `check`.
-- An `image` states how it sits in its box with `fit` — `contain`, `cover`,
+- An `image` states how it sits in its box with `fit`: `contain`, `cover`,
   `fill` or `none`, CSS's object-fit and Godot's expand and stretch modes.
   Without one the picture's own size decides the box, which is the default a
   scene written by hand wants.
@@ -966,11 +1125,11 @@ write. It walks widgets in scene order and wraps.
   control announces, with the spec's `data`, the edit and the control.
 - The keyboard drives focus until the game shows the keys are its own: an action
   binding an arrow, Tab, Enter or Space, or a script reading one, unless it also
-  declares a `ui_*` action. A pad goes through `ui.focus_next/previous/activate_focused`, which `standard_app` maps
-  to the actions `ui_next`, `ui_previous`, `ui_accept` — wiring in the
+  declares a `ui_*` action. A pad moves focus and accepts as `ui.focus_next`, `focus_previous` and a click do, which `standard_app` maps
+  to the actions `ui_next`, `ui_previous`, `ui_accept`, wiring in the
   assembling crate, since `balaur_ui` has no pads and `balaur_input` no widgets.
 
-**Themes.** A `widget_theme` asset owns how a *kind* is drawn — `fill`,
+**Themes.** A `widget_theme` asset owns how a *kind* is drawn: `fill`,
 `stroke`, `stroke_width`, `radius`, `padding` under a table named for the kind.
 
 - A widget takes the theme of the nearest ancestor naming one, so a screen is
@@ -980,6 +1139,60 @@ write. It walks widgets in scene order and wraps.
   would not start over one is worse than a game that starts plain.
 - Neither side can contradict the other, so no widget property needed an
   "unset" sentinel.
+- A widget, a `widget_theme` and a setting take one override shape: a table
+  per class word, merged over the base. The input class is the `touch` tag,
+  fixed for a run; the width and height classes are read each frame from the
+  recorded `DeviceFacts`.
+
+**Text.**
+
+- A theme's `[fonts]` names fonts by role: `default`, `heading`, `mono` and
+  `icon`. A text's `font` row takes a face file as it is, or a `font` asset
+  setting features, hinting and snapping. Size, weight and style stay on the
+  text.
+- Each project keeps its own `ProjectFonts`, so a game's faces never stand
+  in for the editor's. A missing glyph tries `fonts/` in path order, the
+  bundled face, then the system's.
+- `balaur_text` shapes (cosmic-text, swash) for both the widget layer and the
+  renderer's world text, so a label and a `text3d` share one font set.
+- A character no face of a project has a glyph for asks the operating system
+  through `fontique`, for drawing only: a measurement stays on the project's
+  faces. That reads every font on macOS, iOS and Android, tens of
+  milliseconds, so a worker does it once the first frame is out. A character
+  asking sooner waits for the worker and gets the same face, so what a frame
+  draws never depends on when it finishes. Text egui lays out itself is noted
+  as it goes by (`theme::asked_of_egui`), since egui never says what it could
+  not draw.
+- The `code` kind is an editable syntax-highlighted buffer with a gutter.
+- Every text kind types through `balaur_text::edit`, on the shaper a label
+  uses, so Arabic or Thai typed into a field draws as its label does.
+
+**Painting.**
+
+- Dimensions are design pixels. `ui.set_scale(f)` sets `UiConfig.scale`,
+  which is egui's one zoom (`set_zoom_factor`), and the queries divide back.
+  HiDPI is separate and automatic; `set_scale` is comfort zoom (⌘+/⌘−). A
+  touch screen scales the whole shell up rather than flooring each control
+  at 44.
+- A kind's draw and its measure take their box from one function
+  (`widget/sizing.rs`), so a row sized from the measure holds what is painted.
+- A change a container makes while drawing, a dragged seam or a chosen tab,
+  is written after the pass. No part of a frame lays out against
+  half-written numbers.
+- A `list`, `tree` or `table` builds only the rows in view
+  (`ScrollArea::show_rows`); each row is an item record named by its `key`.
+  A row view owns no model: `sort` orders only the drawing, and a reorder drag
+  announces `moved` and moves nothing.
+- There is no `popup` kind: a `menu` whose children are widgets is the popup,
+  and its `placement` says where it opens.
+- While a screen reader listens, each pass builds an AccessKit tree of the
+  drawn widgets (`balaur_ui::access`). The kiss3d fork holds the adapter, on
+  every platform but the web and Android.
+- egui paints and hit-tests. Every shape goes through `widget/paint.rs`,
+  which the `epaint-outside-paint` house lint holds; egui keeps scrolling,
+  popups, menus, modals, images and the colour picker.
+- A widget root's first pass costs egui a second one: egui sizes a new
+  `Area` itself and takes no size from outside.
 
 ## Audio
 
@@ -987,7 +1200,7 @@ write. It walks widgets in scene order and wraps.
 
 - A sound's gain is its own volume times every bus to the root. `master` exists
   whether declared or not.
-- `set_bus_volume_linear` re-applies to what is already sounding — the difference
+- `set_bus_volume_linear` re-applies to what is already sounding, the difference
   between a mixer and a default; a handle remembers its bus and starting volume.
 - An undeclared bus is unity, not silence, so a typo stays audible and findable.
   A parent cycle is cut and reported.
@@ -997,8 +1210,9 @@ write. It walks widgets in scene order and wraps.
   its own and passed through them once, before its parent; a sound wanting its
   own plays on a bus of its own. They are built when the device opens.
 
-**A file no node carries** plays through `audio.play_file(path, options)`,
-under the `sound` component's keys. A named table of sounds, or variations in
+**A one-shot sound** plays through `audio::play_file(path, options)`, under the
+`sound` component's keys: Balaur Script that adds a node carrying `sound`, which
+a `bindings` row frees once it plays out. A named table of sounds, or variations in
 turn, is a game's own script over it.
 
 **Positional.** A `listener` node is the ears, else the current camera, a 3D one
@@ -1008,14 +1222,14 @@ is placed by its `sound` component or per call.
 - Attenuation is `inverse`, halving per doubling, or `inverse_square`,
   quartering, full inside `min_distance` and cut at `max_distance`. Pan is
   equal-power amplitude computed with square roots rather than the usual sine
-  pair — platform trigonometry differs.
+  pair, since platform trigonometry differs.
 - Doppler is OpenAL's model over frame-to-frame velocities, off unless a sound
   asks, clamped to `max_doppler`, an octave by default: on a jittering
   position it is a warble, on a teleport a screech.
 - Placement multiplies the bus chain rather than replacing it, so a positional
   sound still answers the `sfx` slider. It runs in `SceneSync`, so ears and
   emitters use the poses the frame will draw.
-- rodio's `Spatial` is not used — it folds distance into pan through a fixed
+- rodio's `Spatial` is not used: it folds distance into pan through a fixed
   inverse square with no notion of a game's unit. `ChannelVolume` under the
   engine's arithmetic gives the scene's numbers, and makes a positional sound
   mono.
@@ -1028,7 +1242,7 @@ is placed by its `sound` component or per call.
 `strings/<locale>.toml` per language, read with `strings.tr("menu.play")`.
 
 - A missing key falls back one hop to the project's fallback locale. A key
-  neither has comes back **as itself** — visible in the game, where an empty
+  neither has comes back **as itself**, visible in the game, where an empty
   label would hide.
 - `{name}` takes the argument called `name`; an unfilled placeholder is left
   alone so the hole shows. An `n` argument picks the plural form.
@@ -1056,6 +1270,9 @@ addon decides the rest.
 - **Whose folder.** A game the editor plays keeps its slots in the folder it
   has when run alone: `project::use_data` points `engine::user_data_directory()`
   there, and the device id with it.
+- **A browser tab.** It mirrors `MemoryFs` into IndexedDB under one root, the
+  edited project or a game's user directory, so a reload starts where it
+  stopped.
 
 ## Store and platform services
 
@@ -1068,7 +1285,7 @@ things are shared.
   pretending. `balaur_platform` owns the seam, one backend fills it, and with
   none every call still answers.
 - **Delivery is the engine's usual one**: an id out, the answer across a
-  channel, `ExternalIo` landing it at `Stage::First` of a later tick — recorded,
+  channel, `ExternalIo` landing it at `Stage::First` of a later tick: recorded,
   replayable with no store present, waking whoever awaits the id; who is playing
   is also the `platform_event` event.
 - **A write waits for its tick to settle.** A rollback cannot take an
@@ -1077,18 +1294,20 @@ things are shared.
   held.
 - **One place needs Swift, fenced off.** StoreKit 2 has no Objective-C
   interface, so `crates/balaur_apple/swift` is ~160 lines linked by `swift-rs`,
-  with a request id out and a JSON object back — a field the App Store adds
+  with a request id out and a JSON object back, so a field the App Store adds
   reaches a script with no Rust changing.
 - **Arrivals nobody asked for carry request 0** (a sign-out, a renewal, a
   notification, an opened URL). They queue until a pump allowed to touch the
   outside moves them, since anything reaching the channel during a replay would
   be taken for recorded input. `Engine::next_token` starts at 1. The window
   layer owns the application delegate, so the engine proxies it, forwarding
-  unanswered selectors, from the first call that needs it.
+  unanswered selectors, from the first call that needs it. A URL the game was
+  launched with is held by the window layer and handed to the Apple queue on
+  the first frame, as an ordinary URL arrival.
 - **Capabilities are export-side.** `[apple]` in `project.toml` names identifier,
   team, deployment target and capabilities; `balaur export` writes the
   `Info.plist` and `.entitlements` and refuses what the minimum OS cannot
-  satisfy. Frameworks link into Apple templates unconditionally — a prebuilt
+  satisfy. Frameworks link into Apple templates unconditionally, since a prebuilt
   template cannot add one later.
 
 ## Timings
@@ -1099,7 +1318,7 @@ sees half of one.
 - `engine.timings()` gives `{ frame, fixed_steps, stages, spans }` in seconds;
   the Profiler dock draws a bar per stage against 16.7 ms, and `balaur run
   --timings` prints mean, worst and share of a frame.
-- Stages are coarse on purpose — nine `Instant::now()` calls a frame, beneath
+- Stages are coarse on purpose: nine `Instant::now()` calls a frame, beneath
   the noise. Finer is a named span (`timings::measure(eng, "physics3d/step",
   ...)`), paid for by the plugin that asks; work outside the stages files
   itself with `timings::record`. Core names `scripts/update`,
@@ -1110,8 +1329,12 @@ sees half of one.
   `renderer` and `shaders` are what opening the window cost, and `later shaders`
   counts pipelines built after it, each a stall on the frame that asked. A driver
   compiles what it has not seen, so a first launch and a later one are different
-  runs: `scripts/first_launch.py` measures both on macOS, and
-  [docs/PLAN-loading.md](docs/PLAN-loading.md) has what they cost.
+  runs: `scripts/first_launch.py` measures both on macOS.
+- A post pass compiles when settings turn it on (`Window::prepare_post`), not
+  on the frame it first draws. The 2D pass is skipped when the 2D scene has no
+  children, so a 3D-only project pays no 2D film traffic.
+- The app icon reaches the desktop from the third frame, and never on an
+  offscreen run (`app_icon.rs`, `AFTER_FRAMES`).
 - **Timings are an observer**: never recorded, replayed or hashed, so a
   `fixed_update` branching on one would desync and the digest would say so.
 
@@ -1127,14 +1350,12 @@ JIT, the native build and the interpreter run the same module. Its `Vec2`,
 | Hazard | Status |
 | --- | --- |
 | `f64::sin/cos/exp/pow/...` call the platform libm | **Done** — the `math` module is pure-Rust `libm`, and a script reaches transcendentals only through it |
-| A random source seeded from entropy | **Done** — `rng` is an engine-owned PCG32 with a fixed default seed |
+| A random source seeded from entropy | **Done** — `random` is an engine-owned PCG32 with a fixed default seed |
 | Wall-clock or variable `dt` in simulation | **Done** — `FixedUpdate` runs on one accumulator at `fixed_dt()`; `--fixed-tick` pins the frame too, so an interactive run reproduces a headless one. Input is one snapshot per frame |
 
 Engine-side:
 
-- rapier's `enhanced-determinism` workspace-wide; physics at `f32` (the `f64`
-  feature was dropped 2026-09-04 — nothing needed it, and a width CI never built
-  had rotted twice).
+- rapier's `enhanced-determinism` workspace-wide; physics at `f32` only.
 - `DetHashMap` (`IndexMap` + unseeded FxHasher) wherever order matters, never
   bare `HashMap`. Scene instantiation and scene-key order are deterministic.
 - Rendering and audio are pure observers; a headless run computes what a
@@ -1144,13 +1365,14 @@ Engine-side:
   script has no other path to one.
 - Dev-mode and shipped bytecode come from one compiler configuration.
 - The solver threads on rayon wherever the default `parallel` feature builds,
-  every native target: `tests/suite/threads.rs` asserts one thread and
-  eight give the same digest, so the default follows the machine (one less than
-  `available_parallelism`, capped at eight). The price was the three script
-  physics hooks — rapier compiles its threaded pipeline only under
-  `not(unsync-callbacks)`, so `filter_contact` and `filter_overlap` gave way to
-  the `layers`/`mask` groups and `modify_contacts` is gone. One-way platforms
-  survive: their axis was always collider data.
+  which is every native target. `tests/suite/threads.rs` asserts one thread and
+  eight give the same digest, so the default follows the machine: one less than
+  `available_parallelism`, capped at eight. rapier compiles its threaded
+  pipeline only under `not(unsync-callbacks)`, so a script has no physics
+  hooks: the `layers`/`mask` groups filter contacts, and a one-way platform's
+  axis is collider data.
+- Live particles are backend state seeded from their emitter's entity bits,
+  so the engine's `random` stream is untouched and headless runs digest alike.
 - `crates/balaur_physics/tests/suite/determinism.rs` asserts two runs match per tick,
   and CI diffs a per-tick digest across Linux, macOS and Windows
   (`scripts/determinism_trace.sh`). `macos-latest` is arm64, so the architecture
@@ -1169,29 +1391,31 @@ asserts, what CI diffs, what a peer would exchange.
 - **Labels are stable ids, not paths**, so two peers agree on the name of what
   diverged. Godot's `MultiplayerSynchronizer` resolves by `NodePath`, needs a
   negotiated path cache, breaks on reparent and cannot resolve run-time nodes.
-- **Components are not the whole simulation** — `body3d` reports its kind, not
+- **Components are not the whole simulation**: `body3d` reports its kind, not
   its velocity. Plugins add what a step computes through
   `App::add_digest_source`; physics adds velocity and sleep state in both
-  dimensions.
+  dimensions. A soft body's entry hashes every piece's particle velocities and
+  its topology version, so two machines that tore differently diverge on that
+  step.
 - The walk is scene-tree order: peers that agree have the same tree, and a
   reparent is state worth catching.
 
 ### Record and replay
 
-`balaur run <project> --record session.blr` writes JSON Lines: a header, then
-one line per tick with that tick's external input, its step and its digest.
-Line-oriented so it greps and streams, flushed per frame so a crash leaves every
-tick.
+A recording is JSON Lines: a header, then one line per tick with that tick's
+external input, its step and its digest. Line-oriented so it greps and
+streams, flushed per frame so a crash leaves every tick. `docs/DETERMINISM.md`
+has the commands.
 
-- `balaur replay session.blr --verify` re-feeds and re-checks, stopping at the
-  first disagreement with a non-zero exit. `--entries-at <tick>` prints that
-  tick's labelled components: run it on both machines and diff.
-- Twelve sources register (`input`, `gamepad`, `http`, `websocket`, `gamend`,
-  `platform`, `apple`, `multiplayer`, `device`, `wall_clock`, `ui`, `web`) plus
-  three setups (`input_bindings`, `platform`, `animation`). Most
-  serialize by derive; `Pad` needs a hand-written conversion because an axis
-  name is a `&'static str`.
-- **Restore re-enters the real path**: a recorded `NetEvent` goes down the same
+- Twelve sources register: `input`, `gamepad`, `http`, `websocket`,
+  `platform`, `apple`, `multiplayer`, `device`, `wall_clock`, `ui`, `browser`
+  and `audio_device`. Setups carry into the header what `init` read: the
+  bindings, the platform, the device, the physics world, the audio device and
+  animation. Most serialize by derive; `Pad` needs a hand-written conversion
+  because an axis name is a `&'static str`.
+- The header's `physics_world` carries both worlds' tuning and gravity, and a
+  replay restores them before its first tick, over the local manifest.
+- **Restore re-enters the real path**: a recorded event goes down the same
   channel the workers use, so dispatch, handler lookup, await-wake and arrival
   order are the originals.
 - **How work leaves a tick is `core::task`.** `ExternalIo` is how it reports
@@ -1202,9 +1426,9 @@ tick.
   moves to a thread natively, so it is `Send` there and not on the web, and it
   reads the file backend where it runs rather than carrying an `Rc` across.
   Work that waits on a socket or a fetch is not this shape: its two halves are
-  different code -- a thread blocking in `ureq` against a task awaiting Fetch
-  -- so each subsystem keeps a `mod backend` per target, and only the event
-  and the pump are shared.
+  different code, a thread blocking in `ureq` against a task awaiting Fetch.
+  So each subsystem keeps a `mod backend` per target, and only the event and
+  the pump are shared.
 - **Capture and restore are symmetric only for passive sources.** Input and the
   gamepad only receive, so `add_replay_resource::<T>` is one line. A socket is
   not: those subsystems hold a `replay::ExternalIo<E>`, which hands out the
@@ -1223,13 +1447,13 @@ tick.
 
 ### What determinism is still missing
 
-1. **Nothing forces gameplay into `fixed_update`** — a game may still simulate
-   from `update`. A lint is the likely answer.
+1. **Nothing forces gameplay into `fixed_update`**: a game may still simulate
+   from `update`.
 2. **Hot reload is a hazard by design.** A reload ends an open recording, with
    `reload` in its trailer; a networked run must still disable it.
 3. **A run-time `scene.instantiate` reuses the file's ids**, so two copies
-   collide. The fix is a minted prefix per instance, held back because the
-   editor mirrors the game scene through that call and addresses it by id.
+   collide. A minted prefix per instance is held back because the editor
+   builds the game's scene through that call and addresses it by id.
 4. **A channel outside core must answer for itself.** `house_lints.py` fails an
    `mpsc` channel in a file naming neither `ExternalIo` nor
    `replay::suppressed`; nothing else forces a new subsystem through it.
@@ -1237,14 +1461,15 @@ tick.
 ### Rollback
 
 `core::snapshot` keeps a registry of sources (`save` to JSON, `load` back) and a
-`SnapshotRing` of the last N ticks.
+`CheckpointRing` of the last N ticks. `docs/DETERMINISM.md` has how a game
+uses it.
 
 - Core snapshots the node set, transforms, appearance, tags, pause, clock,
   timers, each script's plain fields and the RNG; every
   other subsystem registers its own (physics through serde, animation). Core
   does not snapshot components: re-adding a `body3d` would rebuild the body and
   discard its velocity.
-- Scripts are hybrid — define the two methods, or get plain fields captured
+- Scripts are hybrid: define the two methods, or get plain fields captured
   (functions and userdata skipped, nodes as entity bits). `self.node` is never
   captured; the host owns that binding.
 - **Restore puts the node set back**: the `nodes` source records id, name,
@@ -1254,8 +1479,8 @@ tick.
   `StableId`, with the entity index as fallback for a hand-built tree. The id
   counter is snapshotted, so a re-run mints the id the first run did.
 - `rollback::Session` owns the tick, the ring and a journal of who pressed what
-  when. A missing input is predicted by repeating the last one — right for a
-  held button, wrong exactly when it changed; a disagreeing real input restores
+  when. A missing input is predicted by repeating the last one, right for a
+  held button and wrong exactly when it changed; a disagreeing real input restores
   and re-runs, an agreeing one costs nothing.
 - The re-run is invisible because the clock is a snapshot source, and
   `is_resimulating` is checked by `ExternalIo::start` alongside `is_playing`.
@@ -1263,15 +1488,15 @@ tick.
 - The session steps at `App::fixed_step` and takes no `dt`: the substep
   accumulator lives outside the snapshot, so a variable step could re-run a tick
   with a different number of steps.
-- `core::netsession` puts the session behind a `Transport`. Every datagram
-  carries the last twelve ticks of that player's input: inputs are never
-  retransmitted, so one dropped would be a permanent divergence — repeating
-  costs a few bytes and lets one packet repair every gap behind it. Invisible on
-  loopback, obvious under `transport::Faulty`.
+- `balaur_net::netsession` puts the session behind a `Transport`. Every
+  datagram carries the last twelve ticks of that player's input. Inputs are
+  never retransmitted, so one dropped would be a permanent divergence;
+  repeating costs a few bytes and lets one packet repair every gap behind it.
+  Invisible on loopback, obvious under `balaur_net::transport::Faulty`.
 - Payloads arrive through `PeerTraffic`, an `ExternalIo` behind a `multiplayer`
   replay source, so a recorded session replays with nothing on the other end.
   `NetSession::stats` (round trip, loss from sequence gaps, bytes) is an
-  observer. `Session::stale_inputs` counts inputs older than the ring — a
+  observer. `Session::stale_inputs` counts inputs older than the ring: a
   divergence to resync out of, not a log line.
 - Not done: replicating state. Inputs cross unreliably, digests reliably for
   the desync check.
@@ -1281,8 +1506,8 @@ tick.
 One registry (`core::settings`) addressed by path:
 `physics/solver_iterations`, `editor/appearance/theme`.
 
-- The path is the storage — `editor/appearance/theme` is `[editor.appearance]
-  theme` — so there is no second registry of tables. The manifest follows:
+- The path is the storage (`editor/appearance/theme` is `[editor.appearance]
+  theme`), so there is no second registry of tables. The manifest follows:
   `application/name` is `[application] name`.
 - A setting uses the same property spec a component does, so settings and
   inspector rows render from one code path. Plugins declare from `build`, a game
@@ -1295,6 +1520,14 @@ One registry (`core::settings`) addressed by path:
   unrelated tables survive.
 - Editor settings apply as they change; project settings do not. One read only
   at startup says `applies = "restart"`.
+- An override is a setting's own path under `override/<tag>/`,
+  `[override.android.window]` in the file. `settings::get` tries this run's
+  tags narrowest first, then the base value.
+- Tags come from the facts a recording restores, so a session recorded on a
+  phone replays against the phone's settings.
+- An asset variant is `name.<tag>.ext` beside the asset. An export packs the
+  one its target answers to under the plain name, so nothing downstream
+  learns variants exist.
 
 ## Networking and state sync
 
@@ -1326,121 +1559,130 @@ replicates third-party components with no code in the plugin.
   but needs full save/restore and cannot hide information; server-authoritative
   delta replication tolerates nondeterminism, allows join-in-progress and
   resists cheating, at bandwidth that scales with the world. Build the second,
-  factored so the first falls out — both need the same identity, property access
+  factored so the first falls out, since both need the same identity, property access
   and clock.
-- **Delta encoding** waits on change detection: a generation counter per
-  `(entity, component)`; today only assets carry one, and it is global. Per
-  tick and observer, send the changed properties since that observer's last ack
-  against a ring of baselines; quantisation comes off the schema's range.
+- **Delta encoding** reads the change ticks each `(entity, component)` carries
+  (`components::ticks`). Per tick and observer, send the changed properties
+  since that observer's last ack against a ring of baselines; quantisation
+  comes off the schema's range.
 - **Predicting and reconciling.** The client applies its own input on the tick
   it is pressed and holds it pending until a delta acks that tick; the
   correction restores and replays what is pending, over one node. Unowned nodes
-  are not predicted — drawn a send interval behind and interpolated between the
+  are not predicted: they are drawn a send interval behind and interpolated between the
   two states bracketing render time. A visible correction decays out of the
   render transform and never feeds back into simulation. A server testing a hit
   rewinds to the tick the shooter saw.
 - **Transport**: HTTP, WebSocket and WebTransport over QUIC (native, and the
-  browser's own `WebTransport`), plus Gamend. One crate per protocol — a game wanting `http.request` should not
-  compile a QUIC stack — and nothing shared beneath them, since `ExternalIo`,
-  `Transport`, `Handler` and the token space are in core.
+  browser's own `WebTransport`). One crate per protocol, so a game wanting
+  `http.request` compiles no QUIC stack. `ExternalIo`, `Handler` and the token
+  space are in core, and `Transport` in `balaur_net`, so nothing else is
+  shared beneath them.
+- **Gamend** is a client in Balaur Script, the library's `addons/gamend`,
+  generated in the Gamend repository: the session and its refresh over
+  `http`, Phoenix Channels over `websocket` on a node of its own. Its
+  arrivals are those two modules', so a recording replays it with no server.
+  A generated call is async and takes path parameters as text, `params` for
+  the body and `options` for the query. Signing in is `client::login_device`,
+  `login_email` or `confirm_registration`; the session refreshes inside
+  `core::rest`.
+- The server a run talks to is `GAMEND_URL`, else the editor's
+  `editor/gamend/server` pick between `gamend/local_url` and `gamend/url`.
+  `client::configure` overrides it at run time.
 - WebSocket is TCP, so one lost packet stalls everything behind it: right for
   turn-based, wrong for twitchy. Its worker speaks frames itself so
   `permessage-deflate` can set the reserved bit tungstenite's message API
   refuses, and so a listener can unmask client-to-server frames.
-- `core::transport::Transport` is the seam: one reliable ordered channel,
-  unreliable datagrams, and a `receive` polled once per tick. It is shaped by
-  QUIC, so a transport missing a guarantee fakes it — the websocket sends a
-  datagram reliably, which costs latency and is never wrong. Opening a link goes
-  through `ExternalIo::start`.
-- `balaur_webtransport` is where a datagram is genuinely one: `quinn` behind the
+- `balaur_net::transport::Transport` is the seam: one reliable ordered
+  channel, unreliable datagrams, and a `receive` polled once per tick. It is
+  shaped by QUIC, so a transport missing a guarantee fakes it: the websocket
+  sends a datagram reliably, which costs latency and is never wrong. Opening a
+  link goes through `ExternalIo::start`.
+- `balaur_webtransport` sends a datagram unreliably, as QUIC does: `quinn` behind the
   trait via `web-transport-quinn`, on a worker thread with a current-thread
   runtime, so no runtime goes near the tick. Its reliable channel is one
   bidirectional stream, so a payload travels behind a four-byte length. QUIC is
   always TLS: a self-signed certificate pinned by hash, which is what a browser
-  accepts; a shipped server passes real files.
+  accepts; a shipped server passes real files. A datagram carries at most 1200
+  bytes, the floor every QUIC path guarantees, whatever the path would take.
 - The target is QUIC/WebTransport as the *single* transport, native and
-  in-browser — not for raw speed, but to avoid maintaining a native UDP path and
-  a browser WebRTC path. WebRTC data channels stay a fallback for browser P2P
-  without a relay; raw UDP is never exposed to scripts.
+  in-browser: not for raw speed, but so there is no native UDP path and
+  browser WebRTC path to maintain. WebRTC data channels stay a fallback for
+  browser P2P without a relay; raw UDP is never exposed to scripts.
 - **The script-facing shape** is declarative in the scene (`replicate = {
   authority = "owner", components = [...], mode = "on_change" }`) and
   signal-shaped in scripts. RPCs address a node by `StableId`, never by path.
 
-## UI: widget nodes, painted with egui
-
-A UI is `widget` components on scene nodes. `balaur_ui` lays each subtree out
-with taffy and paints it with egui inside the kiss3d window, once a pass. A
-script fills nodes and answers their events; it never draws. The `ui` module
-is what a script asks of the UI and tells it: where a node drew, focus, the
-scale, the theme, the clipboard, when the next pass runs and pooled rows.
-
-- A `widget_theme` asset dresses each kind and role. Fonts load from
-  `<project>/fonts/*.ttf`; `heading` / `ui` / `mono` / `icon` always exist.
-- `balaur_text` shapes (cosmic-text, swash) for both the widget layer and the
-  renderer's world text, so a label and a `text3d` share one font set.
-- A character no face of a project has a glyph for asks the operating system
-  through `fontique`, for drawing only: a measurement stays on the project's
-  faces. That reads every font on macOS, iOS and Android, tens of
-  milliseconds, so a worker does it once the first frame is out. A character
-  asking sooner waits for the worker and gets the same face, so what a frame
-  draws never depends on when it finishes. Text egui lays out itself is noted
-  as it goes by (`theme::asked_of_egui`), since egui never says what it could
-  not draw.
-- Dimensions are design pixels: `ui.set_scale(f)` multiplies every metric and
-  the queries divide back. HiDPI is separate and automatic; `set_scale` is
-  comfort zoom (⌘+/⌘−).
-- The `code` kind is an editable syntax-highlighted buffer with a gutter.
-- [docs/PLAN-egui-as-painter.md](docs/PLAN-egui-as-painter.md) is what egui is
-  still used for, and what it is on its way to.
-
 ## The editor is a game
 
 `editor/` is a regular Balaur project: a tree of `widget` nodes the engine
-lays out, each panel a scene with one script that fills it —
-five personas, tabbed and resizable docks, the command palette as the single
-overlay, dark and light token sets.
+lays out, each panel a node with one script that fills it. Five workspaces,
+docks that fold and move, the command palette, dark and light token sets.
 
 - `balaur edit <project>` puts the game's path in `engine.args()`. The editor
-  parses the game's scene TOML into a document, mirrors it as a real subtree
-  (`scene.instantiate` with `scripts = false`) so the viewport shows the actual
-  scene and physics builds the actual bodies (paused until play), and writes
-  edits back with `toml.encode`/`fs.write`.
-- Play attaches the game's scripts to the mirrored nodes and unpauses; stop
-  rebuilds the mirror from the document. Editing an editor script hot reloads
-  the editor.
+  builds the game's scene under its `Edited` node with `scene.instantiate`,
+  `scripts = false` and the game's `root`. The viewport shows the actual scene,
+  and physics builds the actual bodies, paused until play.
+- The live nodes are the editor's document. `scene.to_toml` writes a scene
+  back from its nodes, defaults left out and a prefab instance as its
+  overrides.
+- Play attaches the game's scripts to the live nodes and unpauses. Play keeps
+  the scene's text, and stop builds the scene again from it. Editing an
+  editor script hot reloads the editor.
+- Undo is a list of changes `scene.keep_changes` kept, each with the value
+  it replaced, keyed by stable id.
 - A game's editor plugins sit in its `editor/` folder and in each addon's.
   Only those files and the editor's own may call the editor's modules, so a
   game script that calls one fails in Play as it would in an export.
-- Reusable bindings it is built on: `fs`, `toml`, `scene.instantiate`,
-  `engine.args`, `engine.reload_script`, `require` with in-place module reload,
-  `log.recent`, `physics.set_paused/clear/set_sleeping_allowed`,
-  `render.set_background/set_grid/set_grid_colors/draw_line_3d/draw_box_3d/draw_sphere_3d`,
-  `render.camera_pose`, `render.set_camera_input`.
+- One process edits one project. `project::open` relaunches the binary on the
+  new project and quits this one.
+- `layout.bs` computes every shell rect, and a folded dock hands its width
+  back to the centre. Focus is a remembered layout: `shell::toggle_focus`
+  records which docks were open, shuts them, and a second call restores them.
+- The selection is an ordered set whose head is the active node. A file
+  dropped or pasted becomes a node by one rule per extension (`dropin.bs`).
+- Lock and isolate are editor state, never in the file or the history.
+  Autosave writes a scene 0.6 s after its edits settle, a script 1.5 s
+  after typing rests.
+- An editor theme is a folder holding `dark.toml` and `light.toml`. A
+  person's theme names a bundled `base` and states only what differs.
+- Under mode `system` the editor wears the half `engine::dark_mode()` names,
+  on every platform. `crates/balaur/tests/suite/editor_theme.rs` holds every
+  bundled half to WCAG AA contrast.
+- An edit's cost is counted in instructions retired over many frames
+  (`scripts/edit_cost.sh`), never in wall time, which a loaded machine moves.
+- The editor keeps its window size in `window.toml` in its data folder,
+  from its own scripts; the engine has no setting for it.
+- The editor in a tab is the same `editor/` project on the wasm build. Its
+  files are `files::MemoryFs`, which `balaur_cli::web_store` mirrors into
+  IndexedDB. Hot reload follows the editor's own write, and a debugged script
+  moves to wasmi (`bs-wasmi`), which can park a call.
+- A file dropped, pasted or picked on the page is written under
+  `/handed/<n>/` and said as dropped, so `dropin.bs` places it as on desktop.
+- A rig is a library scene (`kind = "rig"` in `editor/library/catalog.toml`):
+  a `follow` modifier, plus a script from `editor/library/scripts/` where it
+  needs one.
 - The gizmo follows steadyum's: an orange bounding-box frame, a face drag
   translating in that face's plane, a rectangle at each face centre scaling
   along its normal, corner brackets scaling uniformly, and a rotation ball whose
   depth-biased rings win the pick over the face behind. Hit-testing and drag
   math are screen-space script in `gizmo.bs`; the backend inhibits the orbit
   camera while the gizmo is hot.
-- The Animate persona edits an engine clip: `anim.bs` is an adapter over the
+- The Animation workspace edits an engine clip: `anim.bs` is an adapter over the
   `assets` and `animation` modules, and the Timeline scrubs the node's actual
   player, so what is previewed is what ships. The clip lives inline
   (`[nodes.animation.library]`) or in `animations/<node>.toml`; **Save as file**
   and **Make inline** are exact inverses because both hold byte-identical
   documents. Preview goes through `animation.add_clip`, so the engine's parser
   reads the table before it is written.
-- The clip belongs to the *player* — the selection or its nearest ancestor
-  carrying `animation` — so keying a bone writes a track on the character's
+- The clip belongs to the *player*, the selection or its nearest ancestor
+  carrying `animation`, so keying a bone writes a track on the character's
   clip, addressed by path.
 - `rig.bs` draws bones as Godot's diamonds and grows a chain by clicking;
   `polygon.bs` turns Godot's UV window into four viewport modes (Points,
-  Polygons, UV, Weights). Every edit records history and then pushes the
-  document's polygon onto the live node, so undo and the saved scene agree.
-- The editor's engine resolves files against the editor's own root, so
-  `model.build_mirror` makes a game-relative path absolute and `doc_value` makes
-  it relative again.
-- `balaur edit <game> --state "anim,select:Limb,tool:polygon,mode:weights,shot=out.png"`
-  screenshots any state offscreen; `scripts/e2e.sh` runs the self-tests headless.
+  Polygons, UV, Weights). Every edit records history and then writes the
+  polygon onto the live node, so undo and the saved scene agree.
+- `balaur edit <game> --offscreen --state "animation,select:Limb,tool:polygon,mode:weights" --frames N --shot out.png`
+  screenshots any state; `scripts/e2e.sh` runs the self-tests headless.
 - The workspace patches `kiss3d` to `github.com/Ughuuu/kiss3d` (`balaur-hooks`):
   upstream v0.46.0 plus the opaque web canvas, IME events, a mid-pass screen
   copy for 2D materials and UIKit's safe area.
@@ -1472,13 +1714,17 @@ fire = ["mouse:left"]
 - **The raw snapshot stays underneath**: actions are recomputed in `First` after
   the pad poll and after a replay restored the recording's snapshot, so nothing
   about an action is recorded or rolled back.
-- The binding table *is* recorded, in the header beside the RNG seed — a player
+- The binding table *is* recorded, in the header beside the RNG seed, since a player
   who rebinds after recording would otherwise replay with a different action
   firing. `App::add_replay_setup` is that seam, and a recording made before a
   plugin declared its setup still plays.
 - `input.bind` saves every rebinding to `bindings.toml` in the user data directory;
   `reset_bindings` goes back to the project's. An undeclared action reads 0 and
   warns once.
+- A held value names its source and is read again when its event arrives;
+  an event only says that something moved.
+- Losing focus, or a page's `blur`, releases every held key and button, and
+  a pointer leaving the window ends hover. The kiss3d fork sends both.
 
 **Gamepads, motion and rumble.**
 
@@ -1488,7 +1734,7 @@ fire = ["mouse:left"]
   game. The thread sleeps until a pad changes and wakes the loop.
 - The tick takes that thread's changes in `First`, never waiting on it,
   rather than the windowed backend: a controller is not a window event, and a
-  headless run sees one. Not while replaying — the recorded pads were just
+  headless run sees one. Not while replaying: the recorded pads were just
   restored. What a script reads of a pad is the engine's contract, not
   gilrs's: `docs/PLAN-input.md` §1.
 - **Two readers, one pad, no overlap.** gilrs reads buttons and axes; gyro,
@@ -1496,12 +1742,18 @@ fire = ["mouse:left"]
   DualShock 4, USB and Bluetooth, offsets from Linux's `hid-playstation.c`),
   matched by vendor and product and told apart by order. A backend covering both
   readings replaces both rather than joining them.
-- Rumble is output, so a recording never carries it — the script asks again
+- Rumble is output, so a recording never carries it: the script asks again
   on replay, and the engine works out its shape in tick time. `can_rumble` *is*
   recorded, because a script may branch on it. No gyroscope, no HID and no pad
   all read zero.
+- gilrs silences an effect under gain 0.05, so each motor is three effects a
+  factor of 20 apart (`haptics.rs`).
+- The gamepad thread sleeps inside gilrs and cannot be woken, so motors are
+  built when a pad connects and mappings load at first read. A pad backend
+  whose waits come back empty 64 times in a row counts as stopped, and its
+  pads unplug.
 
-**Touch.** The whole design is `docs/PLAN-touch.md`; the rules it keeps:
+**Touch.**
 
 - Pointer and finger convert into each other at the top of the tick, once per
   frame, not per event: `emulate_mouse_from_touch` (on) makes a finger a left
@@ -1527,15 +1779,16 @@ fire = ["mouse:left"]
 ## Showcase: the manual's pictures are a test
 
 `scripts/showcase.sh` drives the editor offscreen with `--state`. A still is
-`shot=<png>` at frame 60; a clip is `show:<name>`, a sequence in `showcase.bs`
-of the calls the UI would make plus the input a person would feed, captured by
-`frames=<dir>` and encoded at 30 fps. Offscreen frames advance on the fixed
-step, so a clip is the same clip every time.
+`--shot <png>`, taken on the budget's last frame. A clip is `show:<name>`, a
+sequence in `showcase.bs` of the calls the UI would make plus the input a
+person would feed. The `frames:<dir>` state captures it, encoded at 30 fps.
+Offscreen frames advance on the fixed step, so a clip is the same clip every
+time.
 
 - Two phases: input is fed from `update`, before the game reads the snapshot;
   anything a click on the chrome would do runs at the end of the Editor's
-  `update`, after it. Driving the editor from the start of `update` rebuilt the
-  scene under the game's own `update`.
+  `update`, after it, so the scene is never rebuilt under the game's own
+  `update`.
 - Input goes through `input.set_key_down`/`set_mouse_position`/`set_mouse_down`, which
   call the snapshot's own feeders, so a fed frame is indistinguishable from a
   window's and the recorder records it. The pointer is drawn by `inputview.bs`
@@ -1544,12 +1797,8 @@ step, so a clip is the same clip every time.
   under it. The gizmo stands down while a sequence runs.
 - A sequence restores the files it edited, and the script restores its own
   backup after each take.
-- Taking the clips found three engine bugs: a material given by absolute path
-  resolved its shader against the editor's root; stopping play cleared the
-  physics world while script instances were attached (fixed by
-  `node.detach_script()`); and actions were read from the editor's own
-  `project.toml`, so a played game's actions read zero (fixed by `balaur edit`
-  handing the game's `[input]` to `actions::declare_manifest`).
+- `balaur edit` hands the game's `[input]` to `actions::declare_manifest`, so
+  a played game reads its own actions, not the editor's.
 
 ## Post-processing
 
@@ -1563,6 +1812,12 @@ Where a built-in pass runs is fixed by the pipeline; the list orders the
 materials. `tonemap` splits the chain: a material before it works in linear
 light, one after it on the finished frame, and a list that does not name it has
 it at the head. Post-processing is an observer like the rest of rendering.
+
+- A scene with no `light3d` keeps the backend's own sun, so every example
+  draws unchanged; the first `light3d` retires it.
+- A project material that blends draws in the kiss3d fork's
+  order-independent pass; the engine wraps its `fs_main` in a second `fs_oit`
+  entry point.
 
 ## Colour
 
@@ -1588,7 +1843,7 @@ moves the camera between. `render.screenshot(path)`
 saves a frame to PNG.
 
 Capture is a binding rather than a flag because *when* to capture is the
-caller's business — once the level loaded, or after the hit lands. The
+caller's business: once the level loaded, or after the hit lands. The
 `ScreenshotRequest` resource stays public for a Rust embedding.
 
 | Mode | GPU | Window | For |
@@ -1614,5 +1869,5 @@ caller's business — once the level loaded, or after the hit lands. The
   A worker thread reports with `replay::report`, which wakes it; a browser tab
   checks every 16 ms instead. The editor runs this way, so an idle editor runs
   no script and draws nothing.
-- Rendering stays a pure observer in every mode — that is what lets the three
+- Rendering stays a pure observer in every mode, which is what lets the three
   agree bit for bit.

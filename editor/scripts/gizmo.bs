@@ -208,7 +208,7 @@ fn camera_frame(state: editor::State) -> Camera {
     let up = util::vector_cross(right, forward);
     let screen_width = state.screen_width;
     let screen_height = state.screen_height;
-    let world_per_pixel = 2.0 * distance * math::tan(fov / 2.0) / util::max(screen_height, 1.0);
+    let world_per_pixel = 2.0 * distance * math::tan(fov / 2.0) / math::max(screen_height, 1.0);
     let ray = render::mouse_ray();
     let ray_origin_x = ray.origin.x;
     let ray_origin_y = ray.origin.y;
@@ -237,7 +237,7 @@ fn camera_frame(state: editor::State) -> Camera {
 // Intersect the current mouse ray with a plane (a `point` on it, its `normal`).
 fn ray_plane(camera: Camera, point: [float], normal: [float]) -> [float]? {
     let denominator = util::vector_dot(camera.ray_direction, normal);
-    if util::abs(denominator) < 1e-6 {
+    if math::abs(denominator) < 1e-6 {
         return nil;
     }
     let distance = util::vector_dot(util::vector_subtract(point, camera.ray_origin), normal) / denominator;
@@ -344,7 +344,7 @@ fn along(basis: [[float]], offset: [float]) -> [float] {
 fn world_half(half_extents: [float], basis: [[float]]) -> [float] {
     let out = [0.0, 0.0, 0.0];
     for axis in 0..3 {
-        out[axis] = util::abs(basis[0][axis]) * half_extents[0] + util::abs(basis[1][axis]) * half_extents[1] + util::abs(basis[2][axis]) * half_extents[2];
+        out[axis] = math::abs(basis[0][axis]) * half_extents[0] + math::abs(basis[1][axis]) * half_extents[1] + math::abs(basis[2][axis]) * half_extents[2];
     }
     out
 }
@@ -364,8 +364,8 @@ fn set_geometry(state: editor::State) -> Geometry3d? {
             found_any = true;
             let half_extents: [float] = world_half(half_extents, basis);
             for axis in 0..3 {
-                lowest[axis] = util::min(lowest[axis], (box_centre[axis] - half_extents[axis]));
-                highest[axis] = util::max(highest[axis], (box_centre[axis] + half_extents[axis]));
+                lowest[axis] = math::min(lowest[axis], (box_centre[axis] - half_extents[axis]));
+                highest[axis] = math::max(highest[axis], (box_centre[axis] + half_extents[axis]));
             }
         }
     }
@@ -380,13 +380,13 @@ fn set_geometry(state: editor::State) -> Geometry3d? {
     let eye_z = pose.eye.z;
     let distance = util::distance(center, [eye_x, eye_y, eye_z]);
     let marker = 0.6 * distance * 0.0144;
-    let min_half_extent = util::min(half_extents[0] + 0.06, util::min(half_extents[1] + 0.06, half_extents[2] + 0.06));
+    let min_half_extent = math::min(half_extents[0] + 0.06, math::min(half_extents[1] + 0.06, half_extents[2] + 0.06));
     Geometry3d {
         center: center,
         // Axis-aligned: a set has no one rotation to align the frame to.
         basis: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         half_extents: [half_extents[0] + 0.06, half_extents[1] + 0.06, half_extents[2] + 0.06],
-        ring: util::clamp(min_half_extent * 0.75, marker * 2.5, distance * 0.14),
+        ring: math::clamp(min_half_extent * 0.75, marker * 2.5, distance * 0.14),
         marker: marker,
     }
 }
@@ -405,7 +405,7 @@ fn geometry_at(state: editor::State, row: int) -> Geometry3d? {
     let half_x = half_extents[0] + 0.06;
     let half_y = half_extents[1] + 0.06;
     let half_z = half_extents[2] + 0.06;
-    let min_half_extent = util::min(half_x, util::min(half_y, half_z));
+    let min_half_extent = math::min(half_x, math::min(half_y, half_z));
     // steadyum: handle size scales with camera distance (constant on
     // screen), rings sit at 75% of the smallest extent.
     let pose = render::camera_pose();
@@ -420,7 +420,7 @@ fn geometry_at(state: editor::State, row: int) -> Geometry3d? {
         half_extents: [half_x, half_y, half_z],
         // The rotation ball tracks the selection but never grows past a
         // fraction of the camera distance (or shrinks below pickability).
-        ring: util::clamp(min_half_extent * 0.75, marker * 2.5, distance * 0.14),
+        ring: math::clamp(min_half_extent * 0.75, marker * 2.5, distance * 0.14),
         marker: marker,
     }
 }
@@ -441,7 +441,7 @@ fn took_click_in_front(state: &mut editor::State, camera: Camera, geometry: Geom
     // Clear of the whole gizmo, not merely nearer than its centre: the ground
     // a selected node stands on is nearer than that centre, and taking the
     // click there would cost the drag the handle was pressed for.
-    let reach: any = util::max(geometry.half_extents[0], util::max(geometry.half_extents[1], geometry.half_extents[2])) + geometry.marker;
+    let reach: any = math::max(geometry.half_extents[0], math::max(geometry.half_extents[1], geometry.half_extents[2])) + geometry.marker;
     if found.at >= math::sqrt(delta_x * delta_x + delta_y * delta_y + delta_z * delta_z) - reach.as_float() {
         return false;
     }
@@ -523,7 +523,7 @@ fn quad_contains(camera: Camera, quad: [[float]], pointer_x: float, pointer_y: f
         let from = points[edge];
         let to = points[(edge + 1) % 4];
         let cross = (to[0] - from[0]) * (pointer_y - from[1]) - (to[1] - from[1]) * (pointer_x - from[0]);
-        if util::abs(cross) > 1e-6 {
+        if math::abs(cross) > 1e-6 {
             let positive = cross > 0.0;
             if sign == nil {
                 sign = positive;
@@ -586,7 +586,7 @@ fn near(camera: Camera, point: [float], pointer_x: float, pointer_y: float, radi
 // How far from a handle still counts as aiming at it: a finger covers what
 // it points at, so half a touch target answers around the handle.
 fn reach(state: editor::State, drawn: float) -> float {
-    if state.touchscreen { util::max(drawn, shell::TOUCH_TARGET / 2.0) } else { drawn }
+    if state.touchscreen { math::max(drawn, shell::TOUCH_TARGET / 2.0) } else { drawn }
 }
 
 // What the cursor is over. Priority mirrors steadyum: the rotation ball
@@ -703,38 +703,7 @@ pub fn draw(state: &mut editor::State) {
         return;
     }
     let out: [render::Line3d] = [];
-    let half_extents = geometry.half_extents;
-    let hot_face = if hot_is(hot, gizmo_parts::FACE) { hot } else { nil };
-    // The 12 box edges, in the node's rotated frame. An edge bounds the
-    // hovered face when its fixed position on the face's normal axis
-    // matches the face's sign.
-    for axis in 0..3 {
-        let spanning = face_axes(axis);
-        let first_axis = spanning.first;
-        let second_axis = spanning.second;
-        for first_sign in [-1.0, 1.0] {
-            for second_sign in [-1.0, 1.0] {
-                let color = viewport::orange();
-                if hot_face != nil {
-                    let face = hot_face.unwrap();
-                    let axis = face.axis.or(-1);
-                    let sign = face.sign.or(0.0);
-                    if (first_axis == axis && first_sign == sign) || (second_axis == axis && second_sign == sign) {
-                        color = viewport::hover_color();
-                    }
-                }
-                let start_offset = [0.0, 0.0, 0.0];
-                let end_offset = [0.0, 0.0, 0.0];
-                start_offset[axis] = -half_extents[axis];
-                end_offset[axis] = half_extents[axis];
-                for edge_end in [start_offset, end_offset] {
-                    edge_end[first_axis] = first_sign * half_extents[first_axis];
-                    edge_end[second_axis] = second_sign * half_extents[second_axis];
-                }
-                line(out, local_point(geometry, start_offset[0], start_offset[1], start_offset[2]), local_point(geometry, end_offset[0], end_offset[1], end_offset[2]), color, STROKE_WIDTH, false);
-            }
-        }
-    }
+    draw_edges(out, geometry, hot);
     let all_corners = corners(geometry);
     for index in 0..all_corners.len() {
         let corner = all_corners[index];
@@ -780,6 +749,40 @@ pub fn draw(state: &mut editor::State) {
     render::draw_lines_3d(out);
     state.gizmo.drawn = key;
     state.gizmo.lines = out;
+}
+
+// The 12 box edges, in the node's rotated frame. An edge bounds the hovered
+// face when its fixed position on the face's normal axis matches the face's sign.
+fn draw_edges(out: [render::Line3d], geometry: Geometry3d, hot: Part?) {
+    let half_extents = geometry.half_extents;
+    let hot_face = if hot_is(hot, gizmo_parts::FACE) { hot } else { nil };
+    for axis in 0..3 {
+        let spanning = face_axes(axis);
+        let first_axis = spanning.first;
+        let second_axis = spanning.second;
+        for first_sign in [-1.0, 1.0] {
+            for second_sign in [-1.0, 1.0] {
+                let color = viewport::orange();
+                if hot_face != nil {
+                    let face = hot_face.unwrap();
+                    let axis = face.axis.or(-1);
+                    let sign = face.sign.or(0.0);
+                    if (first_axis == axis && first_sign == sign) || (second_axis == axis && second_sign == sign) {
+                        color = viewport::hover_color();
+                    }
+                }
+                let start_offset = [0.0, 0.0, 0.0];
+                let end_offset = [0.0, 0.0, 0.0];
+                start_offset[axis] = -half_extents[axis];
+                end_offset[axis] = half_extents[axis];
+                for edge_end in [start_offset, end_offset] {
+                    edge_end[first_axis] = first_sign * half_extents[first_axis];
+                    edge_end[second_axis] = second_sign * half_extents[second_axis];
+                }
+                line(out, local_point(geometry, start_offset[0], start_offset[1], start_offset[2]), local_point(geometry, end_offset[0], end_offset[1], end_offset[2]), color, STROKE_WIDTH, false);
+            }
+        }
+    }
 }
 
 // What the drawn lines follow from, as plain values so `==` compares them.
@@ -834,10 +837,10 @@ fn screen_direction(camera: Camera, center: [float], direction: [float]) -> [flo
 // Rows whose projected box overlaps the marquee. The box, not the origin: a
 // node whose origin sits off screen is still on screen.
 fn rows_in_box(state: editor::State, camera: Camera, start_x: float, start_y: float, end_x: float, end_y: float) -> [int] {
-    let low_x = util::min(start_x, end_x);
-    let high_x: any = util::max(start_x, end_x);
-    let low_y = util::min(start_y, end_y);
-    let high_y: any = util::max(start_y, end_y);
+    let low_x = math::min(start_x, end_x);
+    let high_x: any = math::max(start_x, end_x);
+    let low_y = math::min(start_y, end_y);
+    let high_y: any = math::max(start_y, end_y);
     let out: [int] = [];
     for row in 0..state.nodes.len() {
         if selection::is_locked(state, row) || !state.nodes[row].visible() {
@@ -862,10 +865,10 @@ fn rows_in_box(state: editor::State, camera: Camera, start_x: float, start_y: fl
                             let screen_x = at.unwrap().x;
                             let screen_y = at.unwrap().y;
                             seen = true;
-                            box_left = util::min(box_left, screen_x);
-                            box_top = util::min(box_top, screen_y);
-                            box_right = util::max(box_right, screen_x);
-                            box_bottom = util::max(box_bottom, screen_y);
+                            box_left = math::min(box_left, screen_x);
+                            box_top = math::min(box_top, screen_y);
+                            box_right = math::max(box_right, screen_x);
+                            box_bottom = math::max(box_bottom, screen_y);
                         }
                     }
                 }
@@ -886,13 +889,13 @@ pub fn fill_marquee(state: editor::State) {
         return;
     }
     let marquee: Marquee = state.gizmo.marquee.unwrap();
-    let width = util::abs(marquee.end_x - marquee.start_x);
-    let height = util::abs(marquee.end_y - marquee.start_y);
-    let filled = scene::get_node(MARQUEE);
+    let width = math::abs(marquee.end_x - marquee.start_x);
+    let height = math::abs(marquee.end_y - marquee.start_y);
+    let filled = scene::root().get_node(MARQUEE);
     if filled.is_valid() {
         filled.set_visible(state.viewport_live && (width >= 2.0 || height >= 2.0));
-        filled.widget.x = util::min(marquee.start_x, marquee.end_x);
-        filled.widget.y = util::min(marquee.start_y, marquee.end_y);
+        filled.widget.x = math::min(marquee.start_x, marquee.end_x);
+        filled.widget.y = math::min(marquee.start_y, marquee.end_y);
         filled.widget.width = width;
         filled.widget.height = height;
     }
@@ -948,9 +951,9 @@ fn apply_gizmo_drag(state: &mut editor::State, camera: Camera, pointer_x: float,
     }
     if drag.part.kind == gizmo_parts::HANDLE {
         // Uniform scale by radial distance from the projected center.
-        let start_distance = util::max(8.0, math::sqrt(((drag.mouse[0] - drag.center[0]) * (drag.mouse[0] - drag.center[0]) + (drag.mouse[1] - drag.center[1]) * (drag.mouse[1] - drag.center[1]))));
+        let start_distance = math::max(8.0, math::sqrt(((drag.mouse[0] - drag.center[0]) * (drag.mouse[0] - drag.center[0]) + (drag.mouse[1] - drag.center[1]) * (drag.mouse[1] - drag.center[1]))));
         let current_distance = math::sqrt((pointer_x - drag.center[0]) * (pointer_x - drag.center[0]) + (pointer_y - drag.center[1]) * (pointer_y - drag.center[1]));
-        let factor = util::clamp(current_distance / start_distance, 0.05, 20.0);
+        let factor = math::clamp(current_distance / start_distance, 0.05, 20.0);
         selection::scale_by(state, drag.set, [factor, factor, factor], drag.pivot);
     } else if drag.part.kind == gizmo_parts::RING {
         // Screen-angle delta around the projected center, applied about the
@@ -972,8 +975,8 @@ fn apply_gizmo_drag(state: &mut editor::State, camera: Camera, pointer_x: float,
             let length_squared = direction[0] * direction[0] + direction[1] * direction[1];
             if length_squared > 1e-6 {
                 let moved = ((pointer_x - drag.mouse[0]) * direction[0] + (pointer_y - drag.mouse[1]) * direction[1]) / length_squared;
-                let start_extent = util::max(drag.extent, 1e-3);
-                let factor = util::clamp((start_extent + moved * drag.part.sign.or(1.0)) / start_extent, 0.05, 20.0);
+                let start_extent = math::max(drag.extent, 1e-3);
+                let factor = math::clamp((start_extent + moved * drag.part.sign.or(1.0)) / start_extent, 0.05, 20.0);
                 let factors = [1.0, 1.0, 1.0];
                 factors[axis] = factor;
                 selection::scale_by(state, drag.set, factors, drag.pivot);
@@ -1004,108 +1007,17 @@ pub fn update(state: &mut editor::State) {
     let pointer_y = pointer.y;
     let geometry = selection_geometry(state);
     let over_viewport = viewport::owns_pointer(state, pointer_x, pointer_y);
-    // The Rig bone tool owns the click in 3D too: a bone under the cursor is
-    // selected, anywhere else grows one under the selection.
     if state.tool == tools::BONE {
-        state.gizmo.hover = nil;
-        state.gizmo.drag = nil;
-        state.rig.hover = if over_viewport { rig::pick_3d(state, pointer_x, pointer_y, camera) } else { nil };
-        if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
-            if state.rig.hover != nil {
-                let hover = state.rig.hover.unwrap();
-                shell::choose(state, hover);
-            } else {
-                rig::add_bone(state, state.selected, 0.0, 0.0);
-            }
-        }
+        bone_tool(state, camera, pointer_x, pointer_y, over_viewport);
         return;
     }
     state.rig.hover = nil;
-    if state.gizmo.drag == nil {
-        // Re-test only when something the answer depends on moved. A click is
-        // always let through: it acts on the hover rather than changing it.
-        let key = hover_key(state, camera, geometry.unwrap(), pointer_x, pointer_y);
-        let pressed = input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT);
-        if pressed || key != state.gizmo.key {
-            state.gizmo.key = key;
-            state.gizmo.hover = if geometry != nil {
-                let geometry = geometry.unwrap();
-                if over_viewport && state.workspace != defs::WORKSPACE_SCRIPT {
-                    hit_test(state, camera, geometry, pointer_x, pointer_y)
-                } else {
-                    nil
-                }
-            } else {
-                nil
-            };
-        }
-    } else {
-        // A drag moves the node under the gizmo, so the key it was tested
-        // against is stale the moment the drag ends.
-        state.gizmo.key = [];
+    refresh_hover(state, camera, geometry, pointer_x, pointer_y, over_viewport);
+    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && over_viewport && press(state, camera, geometry, pointer_x, pointer_y) {
+        return;
     }
-    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && over_viewport {
-        if state.gizmo.hover != nil && geometry != nil {
-            let part: Part = state.gizmo.hover;
-            let box_geometry = geometry.unwrap();
-            // A handle is drawn over whatever is behind it, so an object
-            // in front of the gizmo takes the click: what the user aimed
-            // at is the object, not the handle covering it.
-            if !took_click_in_front(state, camera, box_geometry) {
-                start_gizmo_drag(state, camera, box_geometry, part, pointer_x, pointer_y);
-            }
-        } else {
-            state.gizmo.in_viewport = true;
-            if state.tool == tools::SELECT {
-                // Rigging: a bone's thin octahedron loses to any origin
-                // near it, so in the Animation workspace bones are tried first.
-                let bone = if state.workspace == defs::WORKSPACE_ANIMATION { rig::pick_3d(state, pointer_x, pointer_y, camera) } else { nil };
-                if bone != nil {
-                    let bone = bone.unwrap();
-                    shell::choose(state, bone);
-                    return;
-                }
-                // What the ray meets, asked of the engine: it holds the
-                // geometry, and every shape including a mesh has bounds.
-                let hit = render::pick_ray(vec3(camera.ray_origin[0], camera.ray_origin[1], camera.ray_origin[2]), vec3(camera.ray_direction[0], camera.ray_direction[1], camera.ray_direction[2]));
-                let landed: int? = nil;
-                if hit.is_valid() {
-                    landed = model::index_of_live(state, hit);
-                }
-                if landed != nil {
-                    let row = landed.unwrap();
-                    if !selection::is_locked(state, row) {
-                        shell::choose_click(state, row);
-                    }
-                } else {
-                    // Nothing under the pointer starts a marquee; the
-                    // selection only changes when the drag is released.
-                    state.gizmo.marquee = { layout_fields::START_X: pointer_x, layout_fields::START_Y: pointer_y, layout_fields::END_X: pointer_x, layout_fields::END_Y: pointer_y };
-                }
-            }
-        }
-    }
-    let marquee: any = state.gizmo.marquee;
-    if marquee != nil {
-        let box_drag = marquee.unwrap();
-        box_drag[layout_fields::END_X] = pointer_x;
-        box_drag[layout_fields::END_Y] = pointer_y;
-        if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
-            state.gizmo.marquee = nil;
-            state.gizmo.in_viewport = false;
-            if util::abs(box_drag[layout_fields::END_X].as_float() - box_drag[layout_fields::START_X].as_float()) > 3.0 || util::abs(box_drag[layout_fields::END_Y].as_float() - box_drag[layout_fields::START_Y].as_float()) > 3.0 {
-                let rows = rows_in_box(state, camera, box_drag[layout_fields::START_X].as_float(), box_drag[layout_fields::START_Y].as_float(), box_drag[layout_fields::END_X].as_float(), box_drag[layout_fields::END_Y].as_float());
-                if rows.len() > 0 {
-                    history::commit(state);
-                    selection::set(state, rows);
-                }
-            } else {
-                // A click rather than a drag, and it landed on nothing: what
-                // was selected stops being.
-                history::commit(state);
-                selection::clear(state);
-            }
-        }
+    if state.gizmo.marquee != nil {
+        follow_marquee(state, camera, pointer_x, pointer_y);
         return;
     }
     if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
@@ -1114,38 +1026,160 @@ pub fn update(state: &mut editor::State) {
     }
     if state.gizmo.drag != nil {
         apply_gizmo_drag(state, camera, pointer_x, pointer_y);
+    } else if state.gizmo.in_viewport {
+        apply_rail_drag(state, camera);
+    }
+}
+
+// The Rig bone tool owns the click in 3D too: a bone under the cursor is
+// selected, anywhere else grows one under the selection.
+fn bone_tool(state: &mut editor::State, camera: Camera, pointer_x: float, pointer_y: float, over_viewport: bool) {
+    state.gizmo.hover = nil;
+    state.gizmo.drag = nil;
+    state.rig.hover = if over_viewport { rig::pick_3d(state, pointer_x, pointer_y, camera) } else { nil };
+    if !over_viewport || !input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         return;
     }
-    if !state.gizmo.in_viewport {
+    if state.rig.hover != nil {
+        let hover = state.rig.hover.unwrap();
+        shell::choose(state, hover);
+    } else {
+        rig::add_bone(state, state.selected, 0.0, 0.0);
+    }
+}
+
+// Re-test only when something the answer depends on moved. A click is
+// always let through: it acts on the hover rather than changing it.
+fn refresh_hover(state: &mut editor::State, camera: Camera, geometry: Geometry3d?, pointer_x: float, pointer_y: float, over_viewport: bool) {
+    if state.gizmo.drag != nil {
+        // A drag moves the node under the gizmo, so the key it was tested
+        // against is stale the moment the drag ends.
+        state.gizmo.key = [];
         return;
     }
-    // Rail-tool fallbacks: drag anywhere in the viewport.
+    let key = hover_key(state, camera, geometry, pointer_x, pointer_y);
+    if key == state.gizmo.key && !input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
+        return;
+    }
+    state.gizmo.key = key;
+    state.gizmo.hover = if geometry != nil && over_viewport && state.workspace != defs::WORKSPACE_SCRIPT {
+        hit_test(state, camera, geometry.unwrap(), pointer_x, pointer_y)
+    } else {
+        nil
+    };
+}
+
+// A press on a handle starts its drag; elsewhere the select tool picks what
+// the pointer is over. True when it chose a bone, which ends the frame.
+fn press(state: &mut editor::State, camera: Camera, geometry: Geometry3d?, pointer_x: float, pointer_y: float) -> bool {
+    if state.gizmo.hover != nil && geometry != nil {
+        let part: Part = state.gizmo.hover;
+        let box_geometry = geometry.unwrap();
+        // A handle is drawn over whatever is behind it, so an object in front
+        // of the gizmo takes the click: the user aimed at it, not the handle.
+        if !took_click_in_front(state, camera, box_geometry) {
+            start_gizmo_drag(state, camera, box_geometry, part, pointer_x, pointer_y);
+        }
+        return false;
+    }
+    state.gizmo.in_viewport = true;
+    if state.tool != tools::SELECT {
+        return false;
+    }
+    // Rigging: a bone's thin octahedron loses to any origin near it, so in
+    // the Animation workspace bones are tried first.
+    let bone = if state.workspace == defs::WORKSPACE_ANIMATION { rig::pick_3d(state, pointer_x, pointer_y, camera) } else { nil };
+    if bone != nil {
+        let bone = bone.unwrap();
+        shell::choose(state, bone);
+        return true;
+    }
+    pick(state, camera, pointer_x, pointer_y);
+    false
+}
+
+// What the ray meets, asked of the engine: it holds the geometry, and every
+// shape including a mesh has bounds. Nothing under the pointer starts a marquee.
+fn pick(state: &mut editor::State, camera: Camera, pointer_x: float, pointer_y: float) {
+    let hit = render::pick_ray_at(vec3(camera.ray_origin[0], camera.ray_origin[1], camera.ray_origin[2]), vec3(camera.ray_direction[0], camera.ray_direction[1], camera.ray_direction[2]));
+    let landed: int? = nil;
+    if hit != nil {
+        landed = model::index_of_live(state, hit.unwrap().node);
+    }
+    if landed == nil {
+        // The selection only changes when the marquee is released.
+        state.gizmo.marquee = { layout_fields::START_X: pointer_x, layout_fields::START_Y: pointer_y, layout_fields::END_X: pointer_x, layout_fields::END_Y: pointer_y };
+        return;
+    }
+    let row = landed.unwrap();
+    if !selection::is_locked(state, row) {
+        shell::choose_click(state, row);
+    }
+}
+
+// The box select follows the pointer while the button is held, and selects
+// what it covers on release.
+fn follow_marquee(state: &mut editor::State, camera: Camera, pointer_x: float, pointer_y: float) {
+    let marquee: any = state.gizmo.marquee;
+    let box_drag = marquee.unwrap();
+    box_drag[layout_fields::END_X] = pointer_x;
+    box_drag[layout_fields::END_Y] = pointer_y;
+    if input::mouse_down(input::MOUSE_BUTTON_LEFT) {
+        return;
+    }
+    state.gizmo.marquee = nil;
+    state.gizmo.in_viewport = false;
+    let start_x = box_drag[layout_fields::START_X].as_float();
+    let start_y = box_drag[layout_fields::START_Y].as_float();
+    if math::abs(pointer_x - start_x) > 3.0 || math::abs(pointer_y - start_y) > 3.0 {
+        let rows = rows_in_box(state, camera, start_x, start_y, pointer_x, pointer_y);
+        if rows.len() > 0 {
+            history::commit(state);
+            selection::set(state, rows);
+        }
+    } else {
+        // A click rather than a drag, and it landed on nothing: what was
+        // selected stops being.
+        history::commit(state);
+        selection::clear(state);
+    }
+}
+
+// Rail-tool fallbacks: drag anywhere in the viewport.
+fn apply_rail_drag(state: &mut editor::State, camera: Camera) {
     let dragged = viewport::rail_drag(state);
     if dragged == nil {
         return;
     }
     let delta_x = dragged.unwrap().delta_x;
     let delta_y = dragged.unwrap().delta_y;
-    let found = dragged.unwrap().node;
-    if state.tool == tools::MOVE {
-        let delta: [float] = [0.0, 0.0, 0.0];
-        if input::key_down(input::KEY_SHIFT) {
-            delta[1] = (-delta_y) * camera.world_per_pixel;
-        } else {
-            let flat_heading = util::vector_normalise([camera.forward[0], 0.0, camera.forward[2]]);
-            let flat = flat_heading.direction;
-            let moved = util::vector_add(util::vector_scale(camera.right, delta_x * camera.world_per_pixel), util::vector_scale(flat, (-delta_y) * camera.world_per_pixel));
-            delta[0] = moved[0];
-            delta[2] = moved[2];
+    match state.tool {
+        tools::MOVE => {
+            selection::nudge(state, rail_move(camera, delta_x, delta_y), viewport::snapping(state));
         }
-        selection::nudge(state, delta, viewport::snapping(state));
-    } else if state.tool == tools::ROTATE {
         // The live node, like every other writer here; the document copy
         // drifted when a rotation reached the node any other way.
-        selection::spin(state, 1, delta_x * 0.01);
-    } else if state.tool == tools::SCALE {
-        selection::grow(state, util::clamp(1.0 - delta_y * 0.01, 0.2, 5.0), false);
-    } else if state.tool == tools::ZOOM {
-        shell::set_zoom(state, state.zoom - delta_y * 0.5);
+        tools::ROTATE => {
+            selection::spin(state, 1, delta_x * 0.01);
+        }
+        tools::SCALE => {
+            selection::grow(state, math::clamp(1.0 - delta_y * 0.01, 0.2, 5.0), false);
+        }
+        tools::ZOOM => {
+            shell::set_zoom(state, state.zoom - delta_y * 0.5);
+        }
+        _ => {}
     }
+}
+
+// Shift lifts the selection; otherwise it slides on the ground under the
+// camera's heading.
+fn rail_move(camera: Camera, delta_x: float, delta_y: float) -> [float] {
+    if input::key_down(input::KEY_SHIFT) {
+        return [0.0, (-delta_y) * camera.world_per_pixel, 0.0];
+    }
+    let flat_heading = util::vector_normalise([camera.forward[0], 0.0, camera.forward[2]]);
+    let flat = flat_heading.direction;
+    let moved = util::vector_add(util::vector_scale(camera.right, delta_x * camera.world_per_pixel), util::vector_scale(flat, (-delta_y) * camera.world_per_pixel));
+    [moved[0], 0.0, moved[2]]
 }

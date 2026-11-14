@@ -1,4 +1,4 @@
-//! Schedules (PLAN-ecs §2): names, sets, order and conditions on a stage's
+//! Schedules: names, sets, order and conditions on a stage's
 //! systems, sorted once; no order keeps the order of adding.
 
 use std::cell::{Cell, RefCell};

@@ -67,7 +67,7 @@ pub fn control(row: Row, label_width: float, stacked: bool) -> ui::Control {
     };
     if row.y != nil {
         out.absolute = true;
-        out.inset = ui::sides(0.0, row.y.unwrap(), 0.0, -1.0);
+        out.inset = ui::Sides { left: 0.0, top: row.y.unwrap(), right: 0.0, bottom: -1.0 };
     }
     out
 }

@@ -1,49 +1,28 @@
 # A C API for addons
 
-Status: **Tier 1 shipped.** `crates/balaur_plugin/src/capi.rs` is the
-implementation, `crates/balaur_plugin/include/balaur_extension.h` the committed
-header, and `examples/extension_c_counter/counter.c` an extension in C that a
-script calls. The tiers above it are open, and this is what they would be.
-`docs/PLAN-wasm-extensions.md` carries the same ABI into a `.wasm` module.
+Tier 1 is built: script modules of functions and constants over a C ABI,
+`crates/balaur_plugin/src/capi.rs` and its header
+`crates/balaur_plugin/include/balaur_extension.h`. This plan holds what an
+addon would need next.
 
 ## What Tier 1 does not do
 
-Worth stating plainly, because the gap is what a real addon will hit first:
+1. **Tier 2: components, systems and scene keys.** An extension registers a
+   component type, a per-frame system and a scene key across the ABI. It waits
+   for an addon that asks, since the component and query ABI is costly to
+   change once published. Decide first whether component data crosses as a
+   schema or as `Value`. Done: an example beside `examples/extension_c_counter`
+   registers a component and a system, and a scene sets the component's key.
+2. **Calling back into script.** A script hands an extension a function, and
+   the extension calls it during its own call. Done: a test in
+   `crates/balaur_plugin/tests/suite/` where C calls a script function it was
+   given and returns the answer.
 
-- No components, systems, scene keys, or ECS access — that is Tier 2, and it
-  still deserves to wait for an addon that asks for it.
-- No calling *back* into script: a script hands an extension no function.
-- No `Engine` access at all: a C function receives its own `void*` and its
-  arguments, and nothing else.
-- No asynchrony. A Tier 1 extension has no `ExternalIo`, no await token and no
-  way to land an answer on a tick, which is why a platform's own services are
-  engine crates behind features rather than extensions (`docs/PLAN-apple.md`).
+## Open questions
 
-## The tiers above
-
-**Tier 2 — components and systems.** Registering a component type, a per-frame
-system, and a scene key. Now an addon is a real plugin.
-
-- Cost: entity ids and component storage cross the ABI, plus a query
-  interface. Component data would have to be described (a schema) or passed as
-  `Value`, and the cheap version of that is slow, while the fast version pins
-  memory layout into the ABI.
-- This is the tier where the ABI stops being obviously stable, which is why it
-  waits for a real addon to ask: the component and query ABI is expensive to
-  change once published, and guessing at it now means guessing at what addon
-  authors need before any exist.
-
-**Tier 3 — the whole `App`/`Engine` surface.** Everything a Rust plugin can
-do. Not recommended: it freezes internals that are still moving, and every
-future refactor becomes a compatibility problem.
-
-Loading addons the other way round — the engine `dlopen`ing an addon rather
-than an addon linking the engine — is the mirror image and needs its own
-decision. The tiers describe the API either way.
-
-## Open question
-
-Is the goal addons *for the editor* (tools, importers, panels) or addons *for
-games* (native gameplay code)? The answer changes what Tier 2 should expose
-first — the editor is itself a Balaur project, so editor addons may be better
-served by scripts than by C.
+- Are addons for the editor (tools, importers, panels) or for games (native
+  gameplay code)? The answer decides what Tier 2 exposes first. The editor is
+  a Balaur project, so its addons may be better served by scripts.
+- A plugin can read its own file through `ProjectFiles` or its `[plugins]`
+  table through `Registry::config`. No plugin in tree reads the second. Settle
+  which one a plugin prefers before one grows both.

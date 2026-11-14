@@ -2,7 +2,7 @@
 //! for a checker that holds every script of a project against the events
 //! something announces.
 
-use crate::ast::{Block, EventDecl, Expr, ExprKind, Part, Pos, Program, StmtKind};
+use crate::ast::{Block, EventDecl, Expr, ExprKind, Part, Pattern, Pos, Program, StmtKind};
 use crate::{Error, HostApi, Literal, Options, parse};
 
 /// How far a constant is followed through the constants it is made of.
@@ -211,6 +211,18 @@ impl Walk<'_> {
         }
     }
 
+    fn pattern(&mut self, p: &Pattern) {
+        match p {
+            Pattern::Value(e) => self.expr(e),
+            Pattern::Or(alternatives) => {
+                for a in alternatives {
+                    self.pattern(a);
+                }
+            }
+            Pattern::Any | Pattern::Bind(_) | Pattern::Variant { .. } => {}
+        }
+    }
+
     fn expr(&mut self, e: &Expr) {
         match &e.kind {
             ExprKind::Str(text) => self.found.strings.push(text.clone()),
@@ -272,6 +284,7 @@ impl Walk<'_> {
             ExprKind::Match(subject, arms) => {
                 self.expr(subject);
                 for arm in arms {
+                    self.pattern(&arm.pattern);
                     self.expr(&arm.body);
                 }
             }

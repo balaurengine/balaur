@@ -256,8 +256,8 @@ components = [
 description = "Children left to right, wrapping when the row is full"
 tags = ["ui"]
 components = [
-    { component = "widget", kind = "flow" },
-    { component = "widget_layout" },
+    { component = "widget", kind = "row" },
+    { component = "widget_layout", wrap_children = "wrap" },
 ]
 
 [fold]

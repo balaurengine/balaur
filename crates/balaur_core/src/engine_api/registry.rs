@@ -50,16 +50,6 @@ pub(super) fn component_expects(eng: &Engine, args: &[Value]) -> Result<Value> {
     }))
 }
 
-/// The components a component brings with it, put on at their defaults
-/// before its first write.
-pub(super) fn component_requires(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let registry = eng.resource::<crate::components::ComponentRegistry>();
-    let registry = registry.borrow();
-    Ok(registry.def(text(args, 0)?).map_or(Value::Nil, |def| {
-        Value::List(def.requires.iter().map(|name| Value::text(*name)).collect())
-    }))
-}
-
 /// What is off about this node, as a list of `{ component, property, message }`
 /// with `property` nil for the component as a whole. Advisory: nothing blocks.
 pub(super) fn warnings(eng: &Engine, args: &[Value]) -> Result<Value> {

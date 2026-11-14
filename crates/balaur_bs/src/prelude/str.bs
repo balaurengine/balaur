@@ -101,6 +101,16 @@ pub fn split_once(text: str, sep: str) -> [str] {
     return [part(text, 0, hit), part(text, hit + sep.len(), text.len())];
 }
 
+// Its UTF-8, a byte to an element: `encoding::from_utf8` is the way back.
+pub fn bytes(text: str) -> [int] {
+    let length = text.len();
+    let out = [0; length];
+    for at in 0..length {
+        out[at] = __byte(text, at);
+    }
+    out
+}
+
 pub fn chars(text: str) -> [str] {
     let out: [str] = [];
     let at = 0;

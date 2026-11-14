@@ -11,6 +11,7 @@ pub class ClickToMove {
     goal_z: float,
     walking: bool,
     vy: float,
+    on_floor: bool,
 }
 
 impl ClickToMove {
@@ -38,7 +39,7 @@ impl ClickToMove {
     }
 
     fn fixed_update(dt: float) {
-        if self.node.character3d.is_on_floor() {
+        if self.on_floor {
             self.vy = 0.0;
         } else {
             self.vy -= self.gravity * dt;
@@ -49,12 +50,12 @@ impl ClickToMove {
         let far = math::sqrt(toward_x * toward_x + toward_z * toward_z);
         if !self.walking || far < self.arrive {
             self.walking = false;
-            self.node.character3d.move_by(vec3(0.0, self.vy * dt, 0.0));
+            self.on_floor = self.node.character3d.move_by(vec3(0.0, self.vy * dt, 0.0)).on_floor;
             return;
         }
         // Normalised by the distance left, so the last step does not
         // overshoot into a walk that never settles.
         let step = self.speed * dt / far;
-        self.node.character3d.move_by(vec3(toward_x * step, self.vy * dt, toward_z * step));
+        self.on_floor = self.node.character3d.move_by(vec3(toward_x * step, self.vy * dt, toward_z * step)).on_floor;
     }
 }

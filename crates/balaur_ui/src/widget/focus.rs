@@ -208,7 +208,7 @@ pub(super) fn shortcuts(ctx: &egui::Context, placed: &[Placed], shown: &[usize])
 
 /// Whether a chord still clicks while a field is being typed into: only one
 /// the widget allows, and only one that is not itself typing. A plain or
-/// shifted key is a character for the field, so `h` cannot hide a node while
+/// shifted key is a character for the field, so `KeyH` cannot hide a node while
 /// someone writes a name; a function key and a command chord are not.
 fn fires_while_typing(widget: &Widget, modifiers: egui::Modifiers, key: egui::Key) -> bool {
     let commanded = modifiers.command || modifiers.ctrl || modifiers.alt || modifiers.mac_cmd;

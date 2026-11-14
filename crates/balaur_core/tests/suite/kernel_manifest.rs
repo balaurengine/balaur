@@ -1,4 +1,4 @@
-//! The kernel's dependencies (PLAN-core-split §2): it uses none of the crates
+//! The kernel's dependencies: it uses none of the crates
 //! around it, and none of the geometry, image, model or mesh crates they
 //! took with them, so the split cannot grow back one `use` at a time.
 

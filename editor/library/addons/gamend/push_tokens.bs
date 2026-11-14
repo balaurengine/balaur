@@ -8,37 +8,40 @@
 // A call takes the path's own parameters as text (`reply["id"].text()`
 // for an id a reply holds), then `params` for the request body and
 // `options` for the query where the operation has them; either may be
-// left out when the call has nothing to put in it. It answers the id
-// `core::rest` answers, to await with `task::wait`. With a path
-// parameter empty or a required field left out it sends nothing and
-// logs which, and the id answers an `error` naming it.
+// left out when the call has nothing to put in it. It is async, and
+// answers what `core::rest` answers: `await lobbies::get_lobby(id)`.
+// With a path parameter empty or a required field left out it sends
+// nothing and logs which, and answers an `error` naming it.
 
 use core;
 
 /// Unregister one of the current user's devices
 /// `DELETE /api/v1/me/push_tokens/{id}`
-pub fn delete_push_token(id: str) -> int {
+pub async fn delete_push_token(id: str) -> any {
     if id == "" {
         return core::missing("gamend::push_tokens::delete_push_token", "id");
     }
-    core::rest("DELETE", "/api/v1/me/push_tokens/{id}")
+    let reply = await core::rest("DELETE", "/api/v1/me/push_tokens/{id}");
+    reply
 }
 
 /// List the current user's registered devices
 /// `GET /api/v1/me/push_tokens`
-pub fn list_push_tokens(options: any) -> int {
+pub async fn list_push_tokens(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    core::rest("GET", "/api/v1/me/push_tokens{query}")
+    let reply = await core::rest("GET", "/api/v1/me/push_tokens{query}");
+    reply
 }
 
 /// Register a device push token
 /// `POST /api/v1/me/push_tokens`
-pub fn register_push_token(params: any) -> int {
+pub async fn register_push_token(params: any) -> any {
     if !core::given(params, "token") {
         return core::missing("gamend::push_tokens::register_push_token", "token");
     }
     if !core::given(params, "platform") {
         return core::missing("gamend::push_tokens::register_push_token", "platform");
     }
-    core::rest("POST", "/api/v1/me/push_tokens", params)
+    let reply = await core::rest("POST", "/api/v1/me/push_tokens", params);
+    reply
 }

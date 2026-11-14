@@ -75,10 +75,8 @@ pub const NODE_OPS: &[NodeOp] = &[
     op("sibling_index", &[], "() -> int", "Where the node sits among its parent's children, counting from zero; 0 at the root.", sibling_index),
     op("set_sibling_index", &[], "(index: int)", "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.", set_sibling_index),
     op("set_component", &[], "(component: string, params: any)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest. A script hears every write to the scene, this one and a node added, freed, renamed or moved, with `events::listen(this.node, \"changed\")`, as `on_changed(entries)` at the top of the next frame.", set_component),
-    op("set_property", &[], "(component: string, property: string, value: any) -> bool", "Write one property, by its place in the component: what `node.component.property` writes, for a name known only at run time. Answers whether the component took the value, as `patch_component` does.", set_property),
     op("patch_component", &[], "(component: string, params: any) -> bool", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds. Answers whether the component took the values: one it refuses goes to the log with its reason, and the script goes on. A component or property nothing has, or a node that is gone, is an error.", patch_component),
     op("set_state", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.", go_to_state),
-    op("state", &["states"], "() -> string", "The state the node is in, or \"\" for the pose the scene gave it.", current_state),
     op("remove_component", &[], "(component: string)", "Take the named component off the node.", remove_component),
     op("get_component", &[], "(component: string) -> any", "The named component's properties as a table, nil when the node does not carry it.", get_component),
     op("component_property", &[], "(component: string, property: string) -> any", "One property of the named component, nil when the node does not carry it: what a caller reading a single value should ask for.", component_property),
@@ -108,13 +106,10 @@ pub const NODE_OPS: &[NodeOp] = &[
     op("set_tint", &[], "(color: Color)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits.", set_tint),
     op("effective_tint", &[], "() -> color", "What the renderer multiplies by: this node's tint with every ancestor's folded in.", effective_tint),
     op("material", &[], "() -> string", "The `material` asset the node names itself, empty when it takes its parent's.", material),
-    op("effective_material", &[], "() -> string", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.", effective_material),
     op("z_index", &[], "() -> int", "The node's own draw layer, added to its parent's unless set absolute.", z_index),
     op("set_z_index", &[], "(z: int, relative: bool?)", "Put the node and its subtree on a draw layer: higher draws later. It adds to the parent's layer unless `relative` is false, which makes it absolute.", set_z_index),
-    op("effective_z_index", &[], "() -> int", "The layer the node actually draws on, with every ancestor's added in.", effective_z_index),
     op(crate::process::KEY, &[], "() -> string", "When this node ticks: \"inherit\", \"pausable\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer.", process),
     op("set_process", &[], "(mode: string)", "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says.", set_process),
-    op("ticking", &[], "() -> bool", "Whether the node ticks this frame, its process mode and the game's pause together.", ticking),
     op("reset_interpolation", &[], "()", "Throw away the poses the node was blending and start again from where it is, so a teleport does not streak across the level. `physics3d.teleport` and `physics2d.teleport` call it for you.", reset_interpolation),
     op("tags", &[], "() -> [string]", "The names the node is filed under, sorted.", tags),
     op("has_tag", &[], "(tag: string) -> bool", "Whether the node is filed under a name.", has_tag),
@@ -247,11 +242,6 @@ fn set_process(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-fn ticking(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    Ok(Value::Bool(crate::process::ticking(eng, e)))
-}
-
 fn reset_interpolation(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     crate::interpolate::reset(eng, e);
@@ -291,18 +281,6 @@ fn material(eng: &Engine, args: &[Value]) -> Result<Value> {
     })
 }
 
-/// What the renderer draws with: the nearest material from the node up.
-fn effective_material(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    let world = eng.world();
-    Ok(Value::Str(
-        scene::composed_appearance(&world, e)
-            .material
-            .reference()
-            .to_string(),
-    ))
-}
-
 fn z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
     with_appearance(eng, node(args)?, |a| Value::Int(i64::from(a.z_index)))
 }
@@ -319,14 +297,6 @@ fn set_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
         a.z_as_relative = relative;
     })?;
     Ok(Value::Nil)
-}
-
-fn effective_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    let world = eng.world();
-    Ok(Value::Int(i64::from(
-        scene::composed_appearance(&world, e).z_index,
-    )))
 }
 
 fn tags(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -637,43 +607,26 @@ pub fn set_property_at(
 /// typed expects them. A name nothing has is a typo, and ends the call.
 fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    let params = to_toml(
-        args.get(2)
-            .ok_or_else(|| anyhow!("patch_component needs the properties to change"))?,
-    )?;
+    let given = args
+        .get(2)
+        .ok_or_else(|| anyhow!("patch_component needs the properties to change"))?;
     let name = text(args, 1)?;
-    let Err(why) = patched(eng, e, name, &params) else {
-        return Ok(Value::Bool(true));
-    };
-    if names_nothing(eng, e, name, &params) {
-        return Err(why);
-    }
-    let node = scene::node_path(&eng.world(), e);
-    tracing::warn!(node, "write refused: {why:#}");
-    Ok(Value::Bool(false))
-}
-
-/// One property by name, through its place: `patch_component` for one key,
-/// with no table made for it.
-fn set_property(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    let name = text(args, 1)?;
-    let key = text(args, 2)?;
-    let value = args
-        .get(3)
-        .ok_or_else(|| anyhow!("set_property needs the value"))?;
-    let written = match crate::components::place_of(eng, name, key) {
-        Some(place) => write_placed(eng, e, &place, value),
-        None => crate::components::set_property(eng, e, name, key, &to_toml(value)?),
+    // One key whose place is known is written there, with no table made for
+    // it: an inspector's write of a name it learned at run time.
+    let written = match given {
+        Value::Map(pairs) if pairs.len() == 1 => {
+            let (key, value) = &pairs[0];
+            match crate::components::place_of(eng, name, key) {
+                Some(place) => write_placed(eng, e, &place, value),
+                None => patched(eng, e, name, &to_toml(given)?),
+            }
+        }
+        _ => patched(eng, e, name, &to_toml(given)?),
     };
     let Err(why) = written else {
         return Ok(Value::Bool(true));
     };
-    let params = toml::Value::Table(toml::map::Map::from_iter([(
-        key.to_string(),
-        to_toml(value)?,
-    )]));
-    if names_nothing(eng, e, name, &params) {
+    if names_nothing(eng, e, name, &to_toml(given)?) {
         return Err(why);
     }
     let node = scene::node_path(&eng.world(), e);
@@ -740,17 +693,6 @@ fn go_to_state(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 /// `node.state()` — the state it is in, `""` for the pose the scene gave it.
-fn current_state(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let entity = node(args)?;
-    let world = eng.world();
-    Ok(Value::Str(
-        world
-            .get::<&crate::states::States>(entity)
-            .map(|states| states.current.clone())
-            .unwrap_or_default(),
-    ))
-}
-
 fn remove_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     crate::components::remove(eng, e, text(args, 1)?)?;

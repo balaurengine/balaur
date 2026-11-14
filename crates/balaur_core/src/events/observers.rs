@@ -1,4 +1,4 @@
-//! Rust code run the moment an event is announced (PLAN-ecs §2, Bevy's
+//! Rust code run the moment an event is announced (Bevy's
 //! observers): on one node, or on any. An event declared to bubble is carried
 //! up the tree after the node's own observers, to each ancestor's in turn,
 //! until one stops it. Script listeners keep their delivery at the next pump.

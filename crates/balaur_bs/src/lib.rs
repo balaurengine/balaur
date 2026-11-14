@@ -2,8 +2,8 @@
 //! Balaur, compiled straight to WebAssembly so the same module runs on wasmtime, wasmi and a browser.
 //!
 //! Values: `int`, `float`, `bool`, `Node` and structs are plain values;
-//! `str`, `[T]` and a `class`'s objects are reference counted. `docs/PLAN-balaur-script.md` is the
-//! design and what is left.
+//! `str`, `[T]` and a `class`'s objects are reference counted. `ARCHITECTURE.md` "Scripting" is the
+//! design, and `docs/PLAN-balaur-script.md` what is left.
 
 // Wasm addresses, lengths and counts are i32 by definition; a module past 2 GiB fails to load first.
 #![allow(clippy::cast_possible_wrap)]
@@ -172,6 +172,61 @@ impl HostSignature {
             r => format!("({}) -> {}", params.join(", "), show(r)),
         }
     }
+}
+
+/// A function of a module the prelude writes in Balaur Script, which a
+/// script calls by name as it does an engine function: `encoding::base64`.
+#[derive(Clone, Debug)]
+pub struct LibraryFunction {
+    pub signature: HostSignature,
+    /// What it does: the `///` lines above it.
+    pub doc: String,
+}
+
+/// A module the prelude writes for a script to call by name.
+#[derive(Clone, Debug)]
+pub struct LibraryModule {
+    pub name: String,
+    /// What it is for: the `//!` lines it opens with.
+    pub doc: String,
+    pub functions: Vec<LibraryFunction>,
+}
+
+/// The prelude's modules a script calls by name, which a reference lists
+/// beside the engine's.
+#[must_use]
+pub fn library() -> Vec<LibraryModule> {
+    let lib = prelude::library();
+    lib.modules
+        .iter()
+        .map(|(module, doc)| {
+            let prefix = format!("{module}::");
+            let functions = prelude::called()
+                .into_iter()
+                .filter(|func| func.name.starts_with(&prefix))
+                .map(|func| LibraryFunction {
+                    doc: lib
+                        .docs
+                        .iter()
+                        .find(|(key, _)| *key == func.name)
+                        .map(|(_, doc)| doc.clone())
+                        .unwrap_or_default(),
+                    signature: HostSignature {
+                        params: func.params.iter().map(|param| param.ty.clone()).collect(),
+                        ret: func.ret,
+                        key: func.name,
+                        is_async: false,
+                        editor: false,
+                    },
+                })
+                .collect();
+            LibraryModule {
+                name: module.clone(),
+                doc: doc.clone(),
+                functions,
+            }
+        })
+        .collect()
 }
 
 pub(crate) fn least(params: &[Ty]) -> usize {

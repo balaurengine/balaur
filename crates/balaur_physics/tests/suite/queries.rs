@@ -175,7 +175,7 @@ fn a_filter_naming_no_body_kind_ends_the_call() {
 fn two_colliders_answer_their_closest_points_and_when_they_meet() {
     run_clean(
         r#"
-        let far = scene::get_node("World/Far");
+        let far = scene::root().get_node("World/Far");
         let points = physics3d::closest_points(self.node, far).unwrap();
         if math::abs(points.a.y - 5.5) > 0.001 { log::error("the near ball's point is at {points.a.y}"); }
         if math::abs(points.b.y - 2.5) > 0.001 { log::error("the far ball's point is at {points.b.y}"); }
@@ -234,8 +234,9 @@ fn a_shapecast_stops_at_the_first_thing_in_the_way() {
 fn two_nodes_can_be_measured_against_each_other() {
     run_clean(
         r#"
-        let far = scene::get_node("World/Far");
-        let gap = physics3d::distance(self.node, far);
+        let far = scene::root().get_node("World/Far");
+        let near = physics3d::closest_points(self.node, far).unwrap();
+        let gap = math::sqrt((near.b.x - near.a.x) * (near.b.x - near.a.x) + (near.b.y - near.a.y) * (near.b.y - near.a.y) + (near.b.z - near.a.z) * (near.b.z - near.a.z));
         if math::abs(gap - 3.0) >= 0.001 { log::error("the gap between the balls is {gap}"); }
         if physics3d::intersects(self.node, far) { log::error("they should not touch"); }
         "#,

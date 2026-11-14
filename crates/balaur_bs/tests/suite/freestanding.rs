@@ -13,6 +13,7 @@ pub fn index(i: int) -> int { let xs = [1, 2, 3]; xs[i] }
 pub fn grow(n: int) -> int { let xs = [0; n]; xs[n - 1] = 7; xs.len() + xs[n - 1] }
 pub fn deep(n: int) -> int { deep(n + 1) + 1 }
 pub fn text(n: int) -> int { let s = "n {n} and {n * 2}"; s.len() }
+pub fn bits(a: int, b: int) -> int { a & b ^ (a | ~b) ^ a << b ^ a >> b }
 "#;
 
 // Under GCC the prelude takes setjmp from the C library, so only clang builds
@@ -107,6 +108,12 @@ fn a_build_linked_against_nothing_answers_as_wasmi_does() {
         ("deep", vec![Value::Int(0)]),
         ("text", vec![Value::Int(-42)]),
     ];
+    // A count past 63 or below 0 is where C, unmasked, would be undefined.
+    for count in [0, 1, 63, 64, 65, -1, -64, 200, i64::MIN] {
+        for value in [1, -1, i64::MIN, 0x0123_4567_89ab_cdef] {
+            calls.push(("bits", vec![Value::Int(value), Value::Int(count)]));
+        }
+    }
     for x in [
         -0.0,
         0.5,

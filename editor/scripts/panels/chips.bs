@@ -13,7 +13,7 @@ pub class Chips {
 
 impl Chips {
     pub fn init() {
-        let source = scene::get_node("Editor");
+        let source = scene::root().get_node("Editor");
         self.editor = source.script;
         self.near = false;
         events::listen(self.node, signals::STAGE, source);

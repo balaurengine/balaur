@@ -220,13 +220,13 @@ fn a_falling_soft_body_moves_its_particles() {
         r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
 impl Scenario {
     fn init() {
-        self.first = self.node.softbody3d.particle_position(0);
+        self.first = self.node.softbody3d.particle(0).position;
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
-            let now = self.node.softbody3d.particle_position(0);
+            let now = self.node.softbody3d.particle(0).position;
             if now.y >= self.first.y { log::error("gravity did not move the body's particles"); }
         }
     }
@@ -244,15 +244,15 @@ fn a_pinned_particle_stays_where_it_was_put() {
 impl Scenario {
     fn init() {
         self.node.set_component("soft_rope3d", { "particle_count": 8 }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "pinned_particles": [0] });
-        self.first = self.node.softbody3d.particle_position(0);
+        self.first = self.node.softbody3d.particle(0).position;
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
-            let held = self.node.softbody3d.particle_position(0);
+            let held = self.node.softbody3d.particle(0).position;
             if math::abs(held.y - self.first.y) >= 0.001 { log::error("the pinned particle fell"); }
-            if self.node.softbody3d.particle_position(7).y >= self.first.y { log::error("the free end did not fall"); }
+            if self.node.softbody3d.particle(7).position.y >= self.first.y { log::error("the free end did not fall"); }
         }
     }
 }
@@ -579,13 +579,13 @@ impl Scenario {
         self.node.set_component("soft_grid3d", { "cells": [2.0, 2.0, 2.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "solver": physics3d::SOFT_SOLVER_FEM, "soft_material": { "cell_model": physics3d::CELL_COROTATIONAL } });
         let read = self.node.get_component("softbody3d");
         if read["solver"].as_str() != physics3d::SOFT_SOLVER_FEM { log::error("the body runs on the constraint solver"); }
-        self.first = self.node.softbody3d.particle_position(0);
+        self.first = self.node.softbody3d.particle(0).position;
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
-            let now = self.node.softbody3d.particle_position(0);
+            let now = self.node.softbody3d.particle(0).position;
             if now.y >= self.first.y { log::error("the implicit solver held the body still"); }
             log::error("checked: the body fell");
         }
@@ -869,13 +869,13 @@ impl Scenario {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 6 {
-            self.before = n.softbody3d.particle_position(0).y;
+            self.before = n.softbody3d.particle(0).position.y;
             n.patch_component("softbody3d", { "soft_material": { "edge_hz": 20.0 } });
         }
         if self.ticks == 7 {
             let made = assets::load(n.softbody3d.soft_material);
             if made["edge_hz"].as_float() != 20.0 { log::error("the stiffness did not take"); }
-            if n.softbody3d.particle_position(0).y > self.before + 0.0001 { log::error("the change snapped the body back to rest"); }
+            if n.softbody3d.particle(0).position.y > self.before + 0.0001 { log::error("the change snapped the body back to rest"); }
             log::error("checked: tuned in place");
         }
     }

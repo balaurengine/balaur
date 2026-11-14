@@ -1,4 +1,4 @@
-//! Typed messages between Rust systems (PLAN-ecs §2, Bevy's `Events`): one
+//! Typed messages between Rust systems (Bevy's `Events`): one
 //! system sends a value, every reader reads it once with a cursor of its
 //! own. A message is kept for the frame it was sent in and the next, so a
 //! reader that runs every frame hears each one whatever the order of

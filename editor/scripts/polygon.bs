@@ -11,8 +11,6 @@ use history;
 use model;
 use recipes;
 use signals;
-use style;
-use themewin;
 use util;
 use viewport;
 use words::components;
@@ -25,16 +23,14 @@ use words::theme_tokens;
 use words::tools;
 
 const OCCLUDER2D: str = "occluder2d";
-const POINTS: str = "points";
+internal const POINTS: str = "points";
 const POLYGONS: str = "polygons";
 const UV: str = "uv";
 const LEFT: str = "left";
 const POLYGON: str = "polygon";
-const PX: str = "px";
 const RIGHT: str = "right";
 const WEIGHTS: str = "weights";
 const INTERNAL: str = "internal";
-const PICKED: str = "picked";
 const UVS: str = "uvs";
 
 pub class PolygonState {
@@ -44,12 +40,12 @@ pub class PolygonState {
     internal mode: str,
     texture: Texture?,
     internal bone: int?,
-    radius: float,
-    strength: float,
+    internal radius: float,
+    internal strength: float,
     backdrop: Node,
     picked: [int],
     threshold: float,
-    tolerance: float,
+    internal tolerance: float,
     deform: [float],
 }
 
@@ -589,7 +585,7 @@ pub fn paint(state: &mut editor::State, at: int, amount: float) {
     while weights.len() <= at {
         weights.push(0.0);
     }
-    weights[at] = util::clamp(weights[at].as_float() + amount, 0.0, 1.0);
+    weights[at] = math::clamp(weights[at].as_float() + amount, 0.0, 1.0);
     write(state);
 }
 
@@ -908,16 +904,13 @@ fn pick(state: &mut editor::State, mesh: any, node_frame: util::Frame, world_x: 
 }
 
 fn line(from: [float], to: [float], color: [float]) {
-    render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), LINE_WIDTH);
+    render::draw_polyline_2d([vec2(from[0], from[1]), vec2(to[0], to[1])], LINE_WIDTH, util::as_color(color));
 }
 
 fn marker(state: editor::State, world_x: float, world_y: float, color: [float], filled: bool) {
     let half = MARK_PIXELS * viewport::world_per_pixel();
     let width = if filled { 2.0 * MARK_PIXELS } else { LINE_WIDTH };
-    render::draw_line_2d(vec2(world_x - half, world_y - half), vec2(world_x + half, world_y - half), util::as_color(color), width);
-    render::draw_line_2d(vec2(world_x + half, world_y - half), vec2(world_x + half, world_y + half), util::as_color(color), width);
-    render::draw_line_2d(vec2(world_x + half, world_y + half), vec2(world_x - half, world_y + half), util::as_color(color), width);
-    render::draw_line_2d(vec2(world_x - half, world_y + half), vec2(world_x - half, world_y - half), util::as_color(color), width);
+    render::draw_polyline_2d([vec2(world_x - half, world_y - half), vec2(world_x + half, world_y - half), vec2(world_x + half, world_y + half), vec2(world_x - half, world_y + half), vec2(world_x - half, world_y - half)], width, util::as_color(color));
 }
 
 pub fn draw(state: &mut editor::State) {
@@ -1092,153 +1085,81 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, wo
     if !over_viewport {
         return;
     }
-    if mode == POINTS {
-        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
-            if hover != nil {
+    match mode {
+        POINTS => {
+            click_points(state, hover, world_x, world_y);
+        }
+        POLYGONS => {
+            click_polygons(state, hover);
+        }
+        UV => {
+            if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && hover != nil {
                 state.polygon.drag = hover;
                 signals::inspector(state);
-            } else {
-                add_vertex(state, world_x, world_y, alt_down());
             }
-        } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) && hover != nil {
-            remove_vertex(state, hover.unwrap());
         }
-    } else if mode == POLYGONS {
-        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && hover != nil {
-            let at = hover.unwrap();
-            let ring: [int] = if state.polygon.chain != nil { state.polygon.chain.unwrap() } else { [] };
-            if ring.len() >= 3 && at == ring[0] {
-                state.polygon.chain = ring;
-                signals::inspector(state);
-                close_loop(state);
-            } else if !util::int_contains(ring, at) {
-                ring.push(at);
-                state.polygon.chain = ring;
-                signals::inspector(state);
-            }
-        } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) {
-            state.polygon.chain = nil;
-            signals::inspector(state);
+        tabs::WEIGHTS => {
+            brush(state, mesh, node_frame, world_x, world_y);
         }
-    } else if mode == UV {
-        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && hover != nil {
+        _ => {}
+    }
+}
+
+// A click grabs the point under it or adds one; a right click removes it.
+fn click_points(state: &mut editor::State, hover: int?, world_x: float, world_y: float) {
+    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
+        if hover != nil {
             state.polygon.drag = hover;
             signals::inspector(state);
-        }
-    } else if mode == tabs::WEIGHTS {
-        let sign = if input::mouse_down(input::MOUSE_BUTTON_LEFT) {
-            1.0
-        } else if input::mouse_down(input::MOUSE_BUTTON_RIGHT) {
-            -1.0
         } else {
-            0.0
-        };
-        if sign != 0.0 {
-            let radius = state.polygon.radius * viewport::world_per_pixel();
-            let amount = sign * state.polygon.strength * engine::delta() * 2.0;
-            let points = world_points(state, mesh, node_frame, false);
-            for at in 0..points.len() {
-                let point = points[at];
-                if math::sqrt((point[0] - world_x) * (point[0] - world_x) + (point[1] - world_y) * (point[1] - world_y)) <= radius {
-                    paint(state, at, amount);
-                }
-            }
+            add_vertex(state, world_x, world_y, alt_down());
+        }
+    } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) && hover != nil {
+        remove_vertex(state, hover.unwrap());
+    }
+}
+
+// A click adds the point under it to the chain, and the chain's first point
+// closes the loop. A right click drops the chain.
+fn click_polygons(state: &mut editor::State, hover: int?) {
+    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && hover != nil {
+        let at = hover.unwrap();
+        let ring: [int] = if state.polygon.chain != nil { state.polygon.chain.unwrap() } else { [] };
+        if ring.len() >= 3 && at == ring[0] {
+            state.polygon.chain = ring;
+            signals::inspector(state);
+            close_loop(state);
+        } else if !util::int_contains(ring, at) {
+            ring.push(at);
+            state.polygon.chain = ring;
+            signals::inspector(state);
+        }
+    } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) {
+        state.polygon.chain = nil;
+        signals::inspector(state);
+    }
+}
+
+// The left button paints the picked bone in and the right paints it out, on
+// every point inside the brush.
+fn brush(state: &mut editor::State, mesh: any, node_frame: util::Frame, world_x: float, world_y: float) {
+    let sign = if input::mouse_down(input::MOUSE_BUTTON_LEFT) {
+        1.0
+    } else if input::mouse_down(input::MOUSE_BUTTON_RIGHT) {
+        -1.0
+    } else {
+        0.0
+    };
+    if sign == 0.0 {
+        return;
+    }
+    let radius = state.polygon.radius * viewport::world_per_pixel();
+    let amount = sign * state.polygon.strength * engine::delta() * 2.0;
+    let points = world_points(state, mesh, node_frame, false);
+    for at in 0..points.len() {
+        let point = points[at];
+        if math::sqrt((point[0] - world_x) * (point[0] - world_x) + (point[1] - world_y) * (point[1] - world_y)) <= radius {
+            paint(state, at, amount);
         }
     }
-}
-
-pub fn mode_specs(state: editor::State) -> [ui::Control] {
-    let tokens = state.theme;
-    let mode = state.polygon.mode;
-    let out: [ui::Control] = [];
-    for id in modes(state) {
-        let on = mode == id;
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: mode_name(id),
-            height: 24,
-            font_size: style::SMALL,
-            font_weight: 700,
-            fill: if on { tokens[theme_tokens::PRIMARY_BG] } else { tokens[themewin::GROUND] },
-            stroke: tokens[theme_tokens::BORDER_DEFAULT],
-            text_color: if on { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_MUTED] },
-            on_click: "handle",
-            data: { fields::FN: on_mode_picked, PICKED: id },
-        });
-    }
-    out
-}
-
-fn on_mode_picked(state: &mut editor::State, data: any, _value: any) {
-    set_mode(state, data[PICKED].as_str());
-    signals::bars(state);
-}
-
-/// The mode's own settings, after the modes in the viewport's strip: the
-/// trace's tolerance for the points, and in weights the bone painted and
-/// the brush. Tool state, never a property, so never the Inspector's.
-pub fn option_specs(state: editor::State) -> [ui::Control] {
-    let out: [ui::Control] = [];
-    if state.polygon.mode == tabs::WEIGHTS {
-        let names: [str] = [];
-        for bone in bones(state) {
-            names.push(bone[project_fields::PATH].as_str());
-        }
-        if names.len() > 0 {
-            let active = if state.polygon.bone != nil { state.polygon.bone.unwrap() } else { 0 };
-            out.push(ui::Control {
-                kind: ui::WIDGET_DROPDOWN,
-                width: 140,
-                height: 24,
-                text: names[util::int_min(active, names.len() - 1)],
-                options: names,
-                tooltip: "The bone the brush paints",
-                on_change: "handle",
-                data: { fields::FN: option_bone, fields::NAMES: names },
-            });
-        }
-        out.push(option_field(state.polygon.radius, 0.5, 2.0, 400.0, PX, "How far the brush reaches", option_radius));
-        out.push(option_field(state.polygon.strength, 0.01, 0.01, 2.0, "×", "How much a stroke adds", option_strength));
-    } else if state.polygon.mode == POINTS {
-        out.push(option_field(state.polygon.tolerance, 0.1, 0.0, 64.0, PX, "How closely a trace follows the texture's alpha", option_tolerance));
-    }
-    out
-}
-
-fn option_field(value: float, step: float, low: float, high: float, prefix: str, tooltip: str, then: fn(&mut editor::State, any, any)) -> ui::Control {
-    ui::Control {
-        kind: ui::WIDGET_NUMBER_FIELD,
-        width: 76,
-        height: 24,
-        value: value,
-        drag_speed: step,
-        min: low,
-        max: high,
-        prefix: prefix,
-        tooltip: tooltip,
-        on_change: "handle",
-        data: { fields::FN: then },
-    }
-}
-
-fn option_bone(state: &mut editor::State, data: any, picked: any) {
-    let names = util::list_or_empty(data[fields::NAMES]);
-    for at in 0..names.len() {
-        if names[at].as_str() == picked.as_str() {
-            state.polygon.bone = at;
-        }
-    }
-    signals::bars(state);
-}
-
-fn option_radius(state: &mut editor::State, _data: any, value: any) {
-    state.polygon.radius = value.as_float();
-}
-
-fn option_strength(state: &mut editor::State, _data: any, value: any) {
-    state.polygon.strength = value.as_float();
-}
-
-fn option_tolerance(state: &mut editor::State, _data: any, value: any) {
-    state.polygon.tolerance = value.as_float();
 }

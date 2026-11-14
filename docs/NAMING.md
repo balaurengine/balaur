@@ -109,7 +109,7 @@ the words.
 ## Conventions by area
 
 What the principles give in each area, in one place. Every name itself is in
-`docs/generated/`, and `PLAN-naming.md` reserves names for what is not built.
+`docs/generated/`.
 
 - **Input**: A key's string is its W3C `KeyboardEvent.code` (`KEY_A` is
   `KeyA`). A pad button is named by its position, so `GAMEPAD_BUTTON_SOUTH` is

@@ -758,7 +758,7 @@ pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f
     {
         let _ = (eng, text, style);
         Err(anyhow::anyhow!(
-            "no text shaper: this build has no ui plugin, so nothing can measure text"
+            "no text shaper: this build was made without the `window` feature, so nothing can measure text"
         ))
     }
 }

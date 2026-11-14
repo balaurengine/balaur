@@ -1,5 +1,6 @@
-// What every generated call needs: query strings, required fields, reply
-// helpers, and the engine's calls, each kept in the activity log.
+// What every generated call needs: the server and the session, HTTP over
+// the engine's `http`, query strings, required fields, reply helpers, and
+// each call kept in the activity log. The socket is `socket.bs`.
 
 use activity;
 
@@ -12,12 +13,70 @@ const LOGIN: str = "login";
 const PUSH: str = "push";
 const REFUSED: str = "refused";
 const REST: str = "rest";
+const KIND: str = "kind";
+const MS: str = "ms";
+const METHOD: str = "method";
+const HEADERS: str = "headers";
+internal const LOCAL: str = "local";
+internal const PRODUCTION: str = "production";
+internal const ACCESS_TOKEN: str = "access_token";
+const REFRESH_TOKEN: str = "refresh_token";
+internal const USER_ID: str = "user_id";
+const USERNAME: str = "username";
+const DISPLAY_NAME: str = "display_name";
+const EXPIRES_IN: str = "expires_in";
+const EXPIRES_AT: str = "expires_at";
+internal const URL: str = "url";
+internal const OPTIONS: str = "options";
+internal const ENDED: str = "ended";
+internal const AUTHORIZATION: str = "authorization";
+internal const CONTENT_TYPE: str = "content-type";
 internal const BODY: str = "body";
 internal const DATA: str = "data";
+internal const POST: str = "POST";
 internal const EMAIL: str = "email";
 internal const ERROR: str = "error";
 internal const MESSAGE: str = "message";
 internal const STATUS: str = "status";
+
+/// The server `configure` named, the session, this run's id, each socket by
+/// its id, and the count that names a refusal's answer, in the script store.
+const URL_KEY: str = "gamend:url";
+const SESSION_KEY: str = "gamend:session";
+const RUN_KEY: str = "gamend:run";
+const SOCKETS_KEY: str = "gamend:sockets";
+const REFUSALS_KEY: str = "gamend:refusals";
+/// What a refused call's answer arrives as, numbered.
+const REFUSAL_EVENT: str = "gamend_refused_";
+/// The node a socket runs on, under the node `connect` names, its script,
+/// and its first answer: `open`, or why it never opened.
+const SOCKET_NODE: str = "gamend_socket";
+const SOCKET_SCRIPT: str = "addons/gamend/socket.bs";
+const OPENED: str = "gamend_opened";
+
+/// The project's servers, and the pick a person makes in the editor.
+internal const URL_SETTING: str = "gamend/url";
+internal const LOCAL_URL_SETTING: str = "gamend/local_url";
+internal const PLUGIN_SETTING: str = "gamend/plugin";
+internal const SERVER_SETTING: str = "editor/gamend/server";
+/// Where a new game talks to until it names its own server.
+internal const DEFAULT_URL: str = "https://gamend.org";
+internal const DEFAULT_LOCAL_URL: str = "http://localhost:4000";
+
+internal const REFRESH_PATH: str = "/api/v1/refresh";
+/// The header a call names its run in; the socket takes the same id as its
+/// `client_session`.
+const RUN_HEADER: str = "x-gamend-session";
+const JSON_TYPE: str = "application/json";
+
+/// The server a run talks to and the two the project names.
+pub struct Server {
+    pub name: str,
+    pub url: str,
+    pub production: str,
+    pub local: str,
+    pub plugin: str,
+}
 
 /// Whether a map carries a key with a value. A key set to nil is absent:
 /// the server would refuse it, and refusing here names the field instead.
@@ -26,45 +85,375 @@ pub fn given(table: any, key: str) -> bool {
 }
 
 /// A call this SDK would not send. It logs which field was missing and
-/// answers an id whose reply is an `error` naming it, so an await resumes.
-pub fn missing(call: str, field: str) -> int {
+/// answers an `error` naming it.
+pub fn missing(call: str, field: str) -> any {
     let message = "gamend: {call} needs `{field}`";
     log::error(message);
-    activity::started(gamend::refuse(message), REFUSED, message)
+    let answer = refusal(message);
+    activity::finished(activity::started(REFUSED, message), answer);
+    answer
 }
 
-// The engine's calls, each kept in the activity log as it goes out: what the
-// generated modules, `client` and the dock send through.
-
-/// `gamend::rest`: a path on the server over HTTP.
-pub fn rest(method: str, path: str, body: any) -> int {
-    activity::started(gamend::rest(method, path, body), REST, method + " " + path, body)
+/// What a call that went nowhere answers.
+internal fn refusal(message: str) -> any {
+    { KIND: ERROR, ERROR: message }
 }
 
-/// `gamend::login`; `who` is what the row shows: "device", or the email.
-pub fn login(credentials: gamend::Credentials, who: str) -> int {
-    activity::started(gamend::login(credentials), LOGIN, who)
+/// An id that wakes with `answer` on a later frame: what a call that sends
+/// nothing hands back, so an await on it still resumes.
+internal fn answer_later(answer: any) -> int {
+    let n = stored_int(REFUSALS_KEY) + 1;
+    engine::store(REFUSALS_KEY, n);
+    let name = REFUSAL_EVENT + "{n}";
+    let id = events::next(name);
+    events::emit(name, answer);
+    id
 }
 
-/// `gamend::connect`: the realtime socket, its events to `node`.
-pub fn connect(node: Node) -> int {
-    activity::started(gamend::connect(node), CONNECT, "realtime")
+/// A path on the server over HTTP, with the session's token. A 401 with a
+/// refresh token in hand renews the session once and asks again, so an
+/// expired token heals; a refused renewal answers the 401. Answers
+/// `{ kind: "rest", status, body, ms }`, the body decoded from JSON, or
+/// `{ kind: "error", error }` when no answer came.
+pub async fn rest(method: str, path: str, body: any) -> any {
+    let row = activity::started(REST, method + " " + path, body);
+    let reply = await send(method, path, body, true);
+    if reply[STATUS].as_int() == 401 && refresh_token() != "" {
+        let why = await renew();
+        if why == "" {
+            reply = await send(method, path, body, true);
+        }
+    }
+    activity::finished(row, reply);
+    reply
 }
 
-pub fn join(socket: int, topic: str) -> int {
-    activity::started(gamend::join(socket, topic), JOIN, topic)
+// An async fn reaches another file only when it is `pub`, so the calls
+// `client` and the socket make from their own files are built from the
+// plain helpers below.
+
+/// One HTTP call, nothing renewed, in this file.
+async fn send(method: str, path: str, body: any, authenticated: bool) -> any {
+    await clocked();
+    let asked = request(method, path, body, authenticated);
+    let sent = engine::unix_time();
+    let reply = await task::wait(http::request(asked[URL].as_str(), asked[OPTIONS]));
+    received(reply, sent)
 }
 
-pub fn leave(socket: int, topic: str) -> int {
-    activity::started(gamend::leave(socket, topic), LEAVE, topic)
+/// One HTTP call's `url` and `options`: the run's id, the session's token
+/// when `authenticated` (signing in and renewing go without), and the body
+/// as JSON.
+internal fn request(method: str, path: str, body: any, authenticated: bool) -> any {
+    let headers = [
+        http::Header { name: "accept", value: JSON_TYPE },
+        http::Header { name: RUN_HEADER, value: run_id() },
+    ];
+    let token = access_token();
+    if authenticated && token != "" {
+        headers.push(http::Header { name: AUTHORIZATION, value: "Bearer " + token });
+    }
+    // A body goes only on a call that writes, or one given a body: deleting
+    // an account that has a password sends its `current_password`.
+    let writes = method == POST || method == "PUT" || method == "PATCH" || body != nil;
+    if writes {
+        headers.push(http::Header { name: CONTENT_TYPE, value: JSON_TYPE });
+    }
+    let opts: any = { METHOD: method, HEADERS: headers };
+    if writes {
+        opts[BODY] = if body != nil { json::encode(body) } else { "{{}}" };
+    }
+    { URL: url() + path, OPTIONS: opts }
 }
 
+/// What `http` answered to a call sent at `sent`, as this client answers it.
+internal fn received(reply: any, sent: float) -> any {
+    let ms = (engine::unix_time() - sent) * 1000.0;
+    if reply[KIND].text() != http::EVENT_RESPONSE {
+        let why = if reply.has(ERROR) { reply[ERROR].text() } else { reply[KIND].text() };
+        return refusal(why);
+    }
+    let text = reply[BODY].as_str();
+    let decoded = if text == "" { nil } else { json::parse(text) };
+    { KIND: REST, STATUS: reply[STATUS], BODY: decoded, MS: ms }
+}
+
+/// Trade the refresh token for a fresh session. Empty when it worked,
+/// otherwise why not.
+async fn renew() -> str {
+    let body = renewal();
+    if body == nil {
+        return "no refresh token to renew with";
+    }
+    let reply = await send(POST, REFRESH_PATH, body, false);
+    renewed(reply)
+}
+
+/// What a renewal posts, or nil with no refresh token in hand.
+internal fn renewal() -> any {
+    let token = refresh_token();
+    if token == "" { nil } else { { REFRESH_TOKEN: token } }
+}
+
+/// A renewal's reply, its session kept: empty when it worked, otherwise why
+/// not.
+internal fn renewed(reply: any) -> str {
+    let answer = opened(reply, "refresh");
+    if answer[KIND].text() == ERROR { answer[ERROR].text() } else { "" }
+}
+
+/// A sign-in or refresh reply, its session kept. Answers `{ kind: "login",
+/// user_id, username, display_name, ms }`, or an `error` whose text carries
+/// the status, `login failed (429): ...`.
+internal fn opened(reply: any, what: str) -> any {
+    if reply[KIND].text() == ERROR {
+        return reply;
+    }
+    let status = reply[STATUS].as_int();
+    let data = body(reply)[DATA];
+    if !ok(reply) || data[ACCESS_TOKEN].kind() != types::KIND_STRING {
+        let said = body(reply)[ERROR];
+        let why = if said.kind() == types::KIND_STRING { said.as_str() } else { "unknown error" };
+        return refusal("{what} failed ({status}): {why}");
+    }
+    let before = held();
+    let lifetime = if data[EXPIRES_IN].kind() == types::KIND_INT { data[EXPIRES_IN].as_int() } else { 900 };
+    let session: any = {
+        USER_ID: kept_text(data, before, USER_ID),
+        USERNAME: kept_text(data, before, USERNAME),
+        DISPLAY_NAME: kept_text(data, before, DISPLAY_NAME),
+        ACCESS_TOKEN: data[ACCESS_TOKEN].as_str(),
+        REFRESH_TOKEN: kept_text(data, before, REFRESH_TOKEN),
+        EXPIRES_IN: lifetime,
+        EXPIRES_AT: (engine::unix_time() as int) + lifetime,
+    };
+    engine::store(SESSION_KEY, session);
+    {
+        KIND: LOGIN,
+        USER_ID: session[USER_ID],
+        USERNAME: session[USERNAME],
+        DISPLAY_NAME: session[DISPLAY_NAME],
+        MS: reply[MS],
+    }
+}
+
+/// A field of a fresh reply, or the session's own where the reply left it
+/// out: a refresh answers the tokens alone on some servers.
+fn kept_text(data: any, before: any, key: str) -> str {
+    if data[key].kind() == types::KIND_STRING { data[key].as_str() } else { before[key].as_str() }
+}
+
+/// The session a sign-in opened, as a map, or nil.
+internal fn held() -> any {
+    let session = engine::stored(SESSION_KEY);
+    if session.kind() == types::KIND_MAP && session[ACCESS_TOKEN].as_str() != "" { session } else { nil }
+}
+
+/// Sign in from a kept session without asking the server, or out with nil.
+/// False for a map with no `access_token`.
+internal fn hold(session: any) -> bool {
+    if session == nil {
+        engine::store(SESSION_KEY, {});
+        return true;
+    }
+    if session[ACCESS_TOKEN].kind() != types::KIND_STRING || session[ACCESS_TOKEN].as_str() == "" {
+        return false;
+    }
+    let kept: any = {
+        USER_ID: session[USER_ID].as_str(),
+        USERNAME: session[USERNAME].as_str(),
+        DISPLAY_NAME: session[DISPLAY_NAME].as_str(),
+        ACCESS_TOKEN: session[ACCESS_TOKEN].as_str(),
+        REFRESH_TOKEN: session[REFRESH_TOKEN].as_str(),
+        EXPIRES_IN: session[EXPIRES_IN].as_int(),
+    };
+    if session[EXPIRES_AT].kind() == types::KIND_INT {
+        kept[EXPIRES_AT] = session[EXPIRES_AT].as_int();
+    }
+    engine::store(SESSION_KEY, kept);
+    true
+}
+
+internal fn access_token() -> str {
+    held()[ACCESS_TOKEN].as_str()
+}
+
+internal fn refresh_token() -> str {
+    held()[REFRESH_TOKEN].as_str()
+}
+
+/// Whether the session's token is past its expiry, or within `margin`
+/// seconds of it. A session with no expiry to read counts as stale.
+internal fn stale(margin: float) -> bool {
+    let at = held()[EXPIRES_AT];
+    at.kind() != types::KIND_INT || (at.as_int() as float) - margin <= engine::unix_time()
+}
+
+/// Talk to `url` from now on; empty takes `[gamend]`'s. A different server
+/// signs out here, since the session is the old server's.
+internal fn point(named: str) -> str {
+    let was = url();
+    engine::store(URL_KEY, named);
+    let now = url();
+    if now != was {
+        engine::store(SESSION_KEY, {});
+    }
+    now
+}
+
+/// The server every call goes to.
+internal fn url() -> str {
+    let named = engine::stored(URL_KEY);
+    let chosen = if named.kind() == types::KIND_STRING && named.as_str() != "" { named.as_str() } else { target().url };
+    trimmed(chosen)
+}
+
+/// Which server a run talks to until a script names another. `GAMEND_URL`
+/// wins; then the editor's pick of the project's two; and a run from the
+/// sources talks to the local one.
+internal fn target() -> Server {
+    let production = text_setting(URL_SETTING, DEFAULT_URL);
+    let local = text_setting(LOCAL_URL_SETTING, DEFAULT_LOCAL_URL);
+    let picked = settings::get(SERVER_SETTING);
+    let near = if picked.kind() == types::KIND_STRING { picked.as_str() == LOCAL } else { engine::target().dev };
+    let name = if near { LOCAL } else { PRODUCTION };
+    let chosen = if near && local != "" { local } else { production };
+    let named = engine::environment("GAMEND_URL");
+    if named != nil && named.unwrap() != "" {
+        chosen = named.unwrap();
+    }
+    Server { name: name, url: chosen, production: production, local: local, plugin: text_setting(PLUGIN_SETTING, "") }
+}
+
+fn text_setting(path: str, fallback: str) -> str {
+    let set = settings::get(path);
+    if set.kind() == types::KIND_STRING && set.as_str() != "" { set.as_str() } else { fallback }
+}
+
+fn trimmed(url: str) -> str {
+    let out = url.trim();
+    while out.ends_with("/") {
+        out = out.slice(0, out.len() - 1);
+    }
+    out
+}
+
+/// The clock is read at the top of each tick, so in `init` it still says 0:
+/// a call made there waits a step, and its round trip and the run's id are
+/// then the clock's.
+async fn clocked() {
+    while engine::unix_time() <= 0.0 {
+        await task::frames(1);
+    }
+}
+
+/// This run's id: every call sends it, so the server files a run's lines
+/// together. Made once, from the clock a replay reads back; empty before
+/// the clock is read.
+internal fn run_id() -> str {
+    let kept = engine::stored(RUN_KEY);
+    if kept.kind() == types::KIND_STRING {
+        return kept.as_str();
+    }
+    if engine::unix_time() <= 0.0 {
+        return "";
+    }
+    let made = "balaur-" + "{(engine::unix_time() * 1000000.0) as int}";
+    engine::store(RUN_KEY, made);
+    made
+}
+
+// The socket's calls, each kept in the activity log: each answers an id to
+// await with `task::wait`, whose answer is a `reply`, or an `error`.
+
+/// A socket on a node of its own under `node`, which hears it: what
+/// `client::connect` answers. One that closed for good stays to say why
+/// until the next is made.
+internal fn connect(node: Node) -> int {
+    let all = sockets();
+    let kept: any = {};
+    for key in all.keys() {
+        let held = all[key].as_node();
+        if held.call("row")[ENDED].as_bool() {
+            held.queue_free();
+        } else {
+            kept[key] = held;
+        }
+    }
+    let row = activity::started(CONNECT, "realtime");
+    let held = node.add_child(SOCKET_NODE);
+    held.attach_script(SOCKET_SCRIPT);
+    let socket = events::next(OPENED, held);
+    kept["{socket}"] = held;
+    engine::store(SOCKETS_KEY, kept);
+    held.call("start", socket, node, row);
+    socket
+}
+
+/// Every socket this run made, still on its node, by id.
+internal fn sockets() -> any {
+    let held = engine::stored(SOCKETS_KEY);
+    let out: any = {};
+    if held.kind() != types::KIND_MAP {
+        return out;
+    }
+    for key in held.keys() {
+        let node = held[key].as_node();
+        if node.is_valid() {
+            out[key] = node;
+        }
+    }
+    out
+}
+
+/// The node a socket runs on; no node once it is gone.
+internal fn socket_node(socket: int) -> Node {
+    sockets()["{socket}"].as_node()
+}
+
+internal fn join(socket: int, topic: str, payload: any) -> int {
+    let row = activity::started(JOIN, topic, payload);
+    let held = socket_node(socket);
+    if !held.is_valid() {
+        return gone(row);
+    }
+    held.call(JOIN, topic, payload, row).as_int()
+}
+
+internal fn leave(socket: int, topic: str) -> int {
+    let row = activity::started(LEAVE, topic);
+    let held = socket_node(socket);
+    if !held.is_valid() {
+        return gone(row);
+    }
+    held.call(LEAVE, topic, row).as_int()
+}
+
+/// An event and its payload to a topic the socket joined: the escape hatch
+/// for a channel event no generated command names.
 pub fn push(socket: int, topic: str, event: str, payload: any) -> int {
-    activity::started(gamend::push(socket, topic, event, payload), PUSH, topic + " " + event, payload)
+    let row = activity::started(PUSH, topic + " " + event, payload);
+    let held = socket_node(socket);
+    if !held.is_valid() {
+        return gone(row);
+    }
+    held.call(PUSH, topic, event, payload, row).as_int()
 }
 
-pub fn call_hook(socket: int, plugin: str, name: str, args: any) -> int {
-    activity::started(gamend::call_hook(socket, plugin, name, args), HOOK, plugin + "." + name, args)
+internal fn call_hook(socket: int, plugin: str, name: str, args: any) -> int {
+    let row = activity::started(HOOK, plugin + "." + name, args);
+    let held = socket_node(socket);
+    if !held.is_valid() {
+        return gone(row);
+    }
+    held.call("call_hook", plugin, name, args, row).as_int()
+}
+
+/// A socket call with no socket to go on.
+fn gone(row: int) -> int {
+    let answer = refusal("no such gamend socket");
+    activity::finished(row, answer);
+    answer_later(answer)
 }
 
 /// `?a=1&b=2` for the keys an operation declares, in the order it declares
@@ -99,7 +488,7 @@ pub fn escape(text: str) -> str {
         .replace("/", "%2F")
 }
 
-/// Whether a `rest` completion carried a 2xx status.
+/// Whether a `rest` answer carried a 2xx status.
 pub fn ok(reply: any) -> bool {
     let status = reply[STATUS];
     status.kind() == types::KIND_INT && status.as_int() >= 200 && status.as_int() < 300
@@ -146,4 +535,9 @@ pub fn unpack(reply: any) -> any {
     }
     let data = if payload.has(DATA) { payload[DATA] } else { payload };
     { OK: true, DATA: data, ERROR: "", STATUS: status }
+}
+
+fn stored_int(key: str) -> int {
+    let held = engine::stored(key);
+    if held.kind() == types::KIND_INT { held.as_int() } else { 0 }
 }
