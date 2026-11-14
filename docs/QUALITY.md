@@ -36,7 +36,10 @@ machine runs one linter version. `cargo fmt --all --check`, then
 
 `scripts/house_lints.py` walks every `.rs`, every `.bs` for the three size
 rules, and reads `scripts/showcase.sh` and `scripts/features.sh`. **ERROR**
-fails CI; **REPORT** prints only.
+fails CI; **REPORT** prints only. `--stats FILE` appends what the size rules
+measured to `FILE`: per crate or top folder, the files, lines, test lines,
+functions, function length and branches, then the functions and files nearest
+a limit. CI writes it to the house-rules job's summary, and gates on none of it.
 
 | Rule | Fails on |
 | --- | --- |

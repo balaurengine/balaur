@@ -127,9 +127,10 @@ jobs:
         with:
           python-version: "3.13"
       # Naming, function length, file length, deterministic iteration, tracing
-      # over log — the rules in docs/NAMING.md that no compiler enforces.
+      # over log — the rules in docs/NAMING.md that no compiler enforces. The
+      # sizes the run measured go to its summary.
       - name: scripts/house_lints.py
-        run: python3 scripts/house_lints.py --fail-on-error
+        run: python3 scripts/house_lints.py --fail-on-error --stats "$GITHUB_STEP_SUMMARY"
       # Every language in the tree, not just Rust: scripts, the workflows and the
       # scripts themselves. Generated files are skipped by their banner.
       - name: scripts/comment_lints.py

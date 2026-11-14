@@ -18,6 +18,7 @@ Usage:
   python3 scripts/house_lints.py                 # everything, exit 0 unless ERROR
   python3 scripts/house_lints.py --fail-on-error # same, explicit
   python3 scripts/house_lints.py --reports       # show REPORT findings too
+  python3 scripts/house_lints.py --stats FILE    # append function and file sizes to FILE
 """
 from __future__ import annotations
 
@@ -147,6 +148,19 @@ BRANCH = re.compile(r"\b(?:if|match|for|while)\b|^\s*let\b(?!.*\b(?:if|match)\b)
 
 
 @dataclass
+class Measured:
+    path: Path
+    line: int
+    lines: int
+    branches: int
+
+
+# Every function and file the size rules measured, for `--stats`.
+MEASURED_FNS: list[Measured] = []
+MEASURED_FILES: list[tuple[Path, int]] = []
+
+
+@dataclass
 class Finding:
     path: Path
     line: int
@@ -175,6 +189,7 @@ class OpenFn:
             return []
         out = []
         length = end - self.start + 1
+        MEASURED_FNS.append(Measured(rel, self.start, length, self.branches))
         if length > MAX_FN_LINES:
             out.append(Finding(rel, self.start, "fn-too-long",
                                f"{length} lines, limit {MAX_FN_LINES}", "ERROR"))
@@ -210,6 +225,7 @@ def check_script(path: Path) -> list[Finding]:
     """The size rules, for Balaur Script: no clippy reads it."""
     rel = path.relative_to(ROOT)
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    MEASURED_FILES.append((rel, len(lines)))
     findings: list[Finding] = []
     if len(lines) > MAX_FILE_LINES:
         findings.append(Finding(rel, len(lines), "file-too-long",
@@ -528,6 +544,7 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
     crate = crate_of(path)
     findings: list[Finding] = []
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    MEASURED_FILES.append((rel, len(lines)))
     impl_name = ""
 
     if len(lines) > MAX_FILE_LINES:
@@ -963,6 +980,61 @@ def check_unit_test_targets() -> list[Finding]:
     return out
 
 
+def area_of(rel: Path) -> str:
+    """Its crate, or its top folder outside `crates/`, and its language."""
+    parts = rel.parts
+    name = parts[1] if parts[0] == "crates" and len(parts) > 2 else parts[0]
+    return f"{name} ({rel.suffix[1:]})"
+
+
+def quantile(values: list[int], q: float) -> int:
+    ordered = sorted(values)
+    return ordered[int(q * (len(ordered) - 1))] if ordered else 0
+
+
+def shape_row(name: str, files: int, lines: int, test_lines: int, fns: list[Measured]) -> str:
+    sizes = [f.lines for f in fns]
+    branches = [f.branches for f in fns]
+    return (f"| {name} | {files} | {lines} | {test_lines} | {len(fns)} "
+            f"| {quantile(sizes, 0.5)} · {quantile(sizes, 0.9)} · {max(sizes, default=0)} "
+            f"| {quantile(branches, 0.9)} · {max(branches, default=0)} |\n")
+
+
+def stats_markdown() -> str:
+    """What the size rules measured, as a run summary: reported, never gated."""
+    rows: dict[str, dict] = {}
+    for rel, n in MEASURED_FILES:
+        row = rows.setdefault(area_of(rel), {"files": 0, "lines": 0, "test_lines": 0, "fns": []})
+        if is_test_file(rel):
+            row["test_lines"] += n
+        else:
+            row["files"] += 1
+            row["lines"] += n
+    shipped = [f for f in MEASURED_FNS if not is_test_file(f.path)]
+    for fn in shipped:
+        rows[area_of(fn.path)]["fns"].append(fn)
+    out = ["### Code shape\n\n",
+           "Shipped code per crate or top folder, with its tests' lines beside it. "
+           "Branches are what `fn-too-many-branches` counts.\n\n",
+           "| Area | Files | Lines | Test lines | Fns | Fn lines p50 · p90 · max "
+           "| Branches p90 · max |\n| --- | --: | --: | --: | --: | --: | --: |\n"]
+    for name, row in sorted(rows.items()):
+        out.append(shape_row(name, row["files"], row["lines"], row["test_lines"], row["fns"]))
+    out.append(shape_row("**all**", sum(r["files"] for r in rows.values()),
+                         sum(r["lines"] for r in rows.values()),
+                         sum(r["test_lines"] for r in rows.values()), shipped))
+    out.append(f"\n<details><summary>Nearest the limits: {MAX_FN_LINES} lines and "
+               f"{MAX_FN_BRANCHES} branches a function, {MAX_FILE_LINES} lines a file"
+               "</summary>\n\n| Function | Lines | Branches |\n| --- | --: | --: |\n")
+    near = sorted(MEASURED_FNS, key=lambda f: -max(f.lines / MAX_FN_LINES,
+                                                    f.branches / MAX_FN_BRANCHES))
+    out.extend(f"| `{f.path}:{f.line}` | {f.lines} | {f.branches} |\n" for f in near[:10])
+    out.append("\n| File | Lines |\n| --- | --: |\n")
+    out.extend(f"| `{rel}` | {n} |\n" for rel, n in sorted(MEASURED_FILES, key=lambda f: -f[1])[:5])
+    out.append("\n</details>\n")
+    return "".join(out)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -970,6 +1042,8 @@ def main() -> int:
     ap.add_argument("--update-baseline", action="store_true",
                     help="record current violations as the accepted debt")
     ap.add_argument("--debt", action="store_true", help="print the outstanding debt and exit")
+    ap.add_argument("--stats", metavar="FILE",
+                    help="append a markdown table of function and file sizes to FILE")
     args = ap.parse_args()
 
     findings: list[Finding] = []
@@ -984,6 +1058,9 @@ def main() -> int:
     findings.extend(check_themes())
     findings.extend(check_template_features())
     findings.extend(check_unit_test_targets())
+    if args.stats:
+        with open(args.stats, "a", encoding="utf-8") as out:
+            out.write(stats_markdown())
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]
