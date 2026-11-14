@@ -1,5 +1,5 @@
-// The Restart button. `on_click` names a method on the button's own node, so
-// this one forwards to the game script next door.
+// The Restart button. Its `pointer_click` row names no target, so the method
+// is looked for here first, and this one forwards to the game script next door.
 
 pub class RestartButton {
     node: Node,

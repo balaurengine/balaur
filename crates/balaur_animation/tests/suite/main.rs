@@ -15,6 +15,7 @@ mod ease;
 mod machine;
 mod modifier;
 mod paused;
+mod rest;
 mod retarget;
 mod rollback;
 mod script;

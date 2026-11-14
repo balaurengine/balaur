@@ -44,7 +44,7 @@ same code for a level a script assembled, and it says how long it took.
 **An agent computes a velocity; the game applies it.** `agent2d` and
 `agent3d` replan when their target moves past `path_tolerance`, follow the
 next corner, and run ORCA against their neighbours and obstacles; the result
-is `agent.velocity()`, which a script hands to `move_character` or a body,
+is `agent.velocity()`, which a script hands to `move_by` or a body,
 as a Godot script does after `NavigationAgent`. `drive = "transform" |
 "character" | "none"` lets an agent move its own node for the common case.
 

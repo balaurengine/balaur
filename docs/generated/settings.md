@@ -475,7 +475,7 @@ question as an old one is a second way to say it.
 <tr><td><code>vsync</code></td><td>bool</td><td><code>true</code></td><td>host</td><td>Present in step with the display.</td></tr>
 <tr><td><code>msaa</code></td><td>int</td><td><code>1</code></td><td>host</td><td>Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each.</td></tr>
 <tr><td><code>max_fps</code></td><td>int</td><td><code>0</code></td><td>host, on restart</td><td>The most frames a second the loop draws. Zero paces it against the tick instead, which is what vsync already does on a display that runs at the tick rate.</td></tr>
-<tr><td><code>low_processor</code></td><td>bool</td><td><code>false</code></td><td>host, on restart</td><td>Run a frame only when something asks for one: input, ui.request_repaint, a log line, a changed file or work finished on another thread. What a tool that sits still wants; a game that moves every frame leaves it off.</td></tr>
+<tr><td><code>low_processor</code></td><td>bool</td><td><code>false</code></td><td>host, on restart</td><td>Run a frame only while something asks for one: input, ui.request_repaint, a log line, a changed file, work finished on another thread, or simulation still under way. That is a timer or a task wait counting, a clip or a tween playing, a body awake, particles alive, a sound that will end, a replay or a match. With none of them the loop sleeps. What a tool or an app of still screens wants; a game that moves every frame gains nothing from it.</td></tr>
 </tbody>
 </table>
 

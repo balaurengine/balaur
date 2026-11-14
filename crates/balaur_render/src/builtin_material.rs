@@ -1,7 +1,6 @@
 //! A material with no `shader`: its values set on kiss3d's own material,
 //! which reads every one of them.
 
-use kiss3d::color::Color;
 use kiss3d::scene::{ParallaxMethod, SceneNode3d};
 
 use crate::material::{Builtin, Parallax, View};
@@ -17,7 +16,7 @@ pub(crate) fn apply(
 ) {
     let plain = Builtin::default();
     let b = builtin.unwrap_or(&plain);
-    let color = |[r, g, b, a]: [f32; 4]| Color::new(r, g, b, a);
+    let color = crate::film::color;
     node.set_metallic(b.metallic);
     node.set_roughness(b.roughness);
     node.set_emissive(color(b.emission_color));

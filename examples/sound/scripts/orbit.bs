@@ -1,0 +1,21 @@
+// The hum's node circles the listener, so its `sound`, which is `positional`,
+// moves from one ear to the other and fades with the distance.
+
+const RADIUS: float = 3.0;
+const TURNS_PER_SECOND: float = 0.2;
+
+pub class Orbit {
+    node: Node,
+    angle: float,
+}
+
+impl Orbit {
+    fn init() {
+        render::set_background(color(0.07, 0.08, 0.10, 1.0));
+    }
+
+    fn fixed_update(dt: float) {
+        self.angle += dt * TURNS_PER_SECOND * math::TAU;
+        self.node.transform.position = vec3(math::cos(self.angle) * RADIUS, math::sin(self.angle) * RADIUS, 0.0);
+    }
+}

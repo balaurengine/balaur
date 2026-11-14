@@ -64,11 +64,11 @@ grow = 1
 id = "shuffle"
 name = "Shuffle"
 parent = "head"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "shuffle" }] }
 [nodes.widget]
 kind = "button"
 text = "Shuffle"
 tooltip = "Re-order the cards"
-on_click = "shuffle"
 [nodes.widget_button]
 # A glyph from the theme's icon family, drawn before the caption.
 icon = "\ue3ee"

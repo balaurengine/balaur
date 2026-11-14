@@ -29,8 +29,8 @@ gap = [4, 0]
 id = "search"
 name = "Search"
 parent = "find"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "search_typed" }] }
 [nodes.widget]
-on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
 grow = 1
@@ -41,8 +41,8 @@ placeholder = "Search"
 id = "add"
 name = "Add"
 parent = "find"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "add" }] }
 [nodes.widget]
-on_click = "add"
 kind = "button"
 role = "icon_action_primary"
 tooltip = "Add child node"
@@ -54,8 +54,8 @@ width = 24
 id = "facet"
 name = "Facet"
 parent = "panel"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "facet_picked" }] }
 [nodes.widget]
-on_change = "facet_picked"
 kind = "dropdown"
 role = "choice"
 text = "All nodes"
@@ -76,8 +76,11 @@ role = "text_note"
 id = "tree"
 name = "Tree"
 parent = "panel"
+bindings = { rows = [
+    { event = "emitted:value_changed", action = "call", value = "tree_picked" },
+    { event = "emitted:marked", action = "call", value = "tree_mark" },
+] }
 [nodes.widget]
-on_change = "tree_picked"
 kind = "tree"
 grow = 1
 # A right click or a long press picks the row it lands on and opens these.
@@ -86,8 +89,6 @@ context = "tree_menu"
 # The row a click landed on, which the script reads once and clears.
 multi_select = true
 row_height = 23
-[nodes.widget_list]
-on_mark = "tree_mark"
 
 # The eye and the lock a row draws at its right; the Editor answers them.
 [nodes.widget.touch]
@@ -107,108 +108,108 @@ kind = "menu"
 id = "tree_add"
 name = "TreeAdd"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_add_child" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Add child"
-on_click = "tree_add_child"
 
 [[nodes]]
 id = "tree_change"
 name = "TreeChange"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_change_type" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Change type…"
-on_click = "tree_change_type"
 
 [[nodes]]
 id = "tree_actions"
 name = "TreeActions"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_actions" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Actions…"
-on_click = "tree_actions"
 
 [[nodes]]
 id = "tree_up"
 name = "TreeUp"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_move_up" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Move up"
-on_click = "tree_move_up"
 
 [[nodes]]
 id = "tree_down"
 name = "TreeDown"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_move_down" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Move down"
-on_click = "tree_move_down"
 
 [[nodes]]
 id = "tree_rename"
 name = "TreeRename"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_rename" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Rename"
-on_click = "tree_rename"
 
 [[nodes]]
 id = "tree_script"
 name = "TreeScript"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_attach_script" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Attach script"
-on_click = "tree_attach_script"
 
 [[nodes]]
 id = "tree_duplicate"
 name = "TreeDuplicate"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_duplicate" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Duplicate"
-on_click = "tree_duplicate"
 
 [[nodes]]
 id = "tree_hidden"
 name = "TreeHidden"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_toggle_hidden" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Hide or show"
-on_click = "tree_toggle_hidden"
 
 [[nodes]]
 id = "tree_locked"
 name = "TreeLocked"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_toggle_locked" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Lock or unlock"
-on_click = "tree_toggle_locked"
 
 [[nodes]]
 id = "tree_delete"
 name = "TreeDelete"
 parent = "tree_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_delete" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
 text = "Delete"
-on_click = "tree_delete"

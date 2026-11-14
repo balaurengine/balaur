@@ -288,19 +288,58 @@ fn a_flow_wraps_when_the_row_is_full() {
 /// A label that names `on_click` is clicked by the pointer, not only by
 /// focus and accept.
 #[test]
-fn a_label_with_on_click_takes_a_pointer_click() {
+fn a_label_whose_click_is_heard_takes_a_pointer_click() {
     let (_dir, mut app) = app();
     let label = add_widget(
         &app,
-        &toml::toml! { kind = "label" text = "Continue" on_click = "on_go" x = 0.0 y = 0.0 }.into(),
+        &toml::toml! {
+            kind = "label" text = "Continue" x = 0.0 y = 0.0
+            bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_go" }] }
+        }
+        .into(),
+    );
+    let unheard = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "Idle" x = 0.0 y = 100.0 }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
+    for entity in [label, unheard] {
+        let rect = balaur_ui::widget_rect(entity).expect("the label drew");
+        pass(&app, &ctx, press(rect.center(), true));
+        pass(&app, &ctx, press(rect.center(), false));
+        consume_input(&mut app);
+        assert_eq!(clicked(&app, entity), entity == label);
+    }
+}
+
+// A label somebody begins to listen to senses the click from the next pass,
+// and stops when the listener does.
+#[test]
+fn a_label_takes_a_click_while_a_listener_names_it() {
+    let (_dir, mut app) = app();
+    let label = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "Continue" x = 0.0 y = 0.0 }.into(),
+    );
+    let listener = add_widget(&app, &toml::toml! { kind = "label" y = 100.0 }.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
     let rect = balaur_ui::widget_rect(label).expect("the label drew");
-    pass(&app, &ctx, press(rect.center(), true));
-    pass(&app, &ctx, press(rect.center(), false));
-    consume_input(&mut app);
-    assert!(clicked(&app, label));
+    let click = |app: &mut balaur_core::App| {
+        // egui presses what the pass before drew.
+        pass(app, &ctx, vec![]);
+        pass(app, &ctx, press(rect.center(), true));
+        pass(app, &ctx, press(rect.center(), false));
+        consume_input(app);
+        clicked(app, label)
+    };
+    assert!(!click(&mut app), "nothing hears it yet");
+    let name = balaur_core::hooks::POINTER_CLICK;
+    balaur_core::events::subscribe(&app.engine, listener, name, Some(label));
+    assert!(click(&mut app), "a listener names the label");
+    balaur_core::events::unsubscribe(&app.engine, listener, name, Some(label));
+    assert!(!click(&mut app), "and has stopped");
 }
 
 #[test]

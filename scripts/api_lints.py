@@ -77,6 +77,13 @@ H_ABBREVIATIONS = {
     "hscroll": "scroll", "hlayout": "layout",
 }
 
+# N26. A handle method that spells a property of its component, keyed
+# `component.method` with why it stays.
+HANDLE_PROPERTY_ALLOW = {
+    "tilemap.terrain": "predates the rule: the property is every painted row and the method "
+                       "one cell of it. Remove this when either is renamed",
+}
+
 # N6: the discriminant of a tagged union is `kind`, never one of these.
 DISCRIMINANT_SYNONYMS = ("shape", "type", "mode", "variant")
 
@@ -186,7 +193,7 @@ def boolean_shaped(body: str, bool_fns: set[str], bool_fields: set[str]) -> bool
         return True
     # ` < ` and friends, spaced so a generic's `Vec<T>` and a `-> bool` arrow
     # are not mistaken for comparisons.
-    if re.search(r"\b(true|false)\b|[=!]=|\s[<>]=?\s|\.contains\(|\.is_empty\(|\.any\(", body):
+    if re.search(r"\b(true|false)\b|[=!]=|\s[<>]=?\s|\.contains\(|\.is_empty\(|\.any\(|\.all\(", body):
         return True
     if any(name in bool_fns for name in re.findall(r"\.([a-z_][a-z0-9_]*)\s*\(", body)):
         return True
@@ -199,7 +206,10 @@ def check_functions(api: dict, sites: dict[str, list[Site]]) -> list[Finding]:
     bool_fns, bool_fields = boolean_vocabulary()
     for module in api["modules"]:
         mod = module["name"]
-        names = set(module["functions"])
+        # A setter's reader may be named on the handle: `set_particle_position`
+        # beside `softbody_particle_position`, which a script calls `particle_position`.
+        on_handles = {m for handles in module.get("methods", {}).values() for m in handles.values()}
+        names = set(module["functions"]) | on_handles
         for fn in module["functions"]:
             where = f"{mod}.{fn}"
             at = sites.get(fn, [])
@@ -358,6 +368,39 @@ def check_documented(api: dict) -> list[Finding]:
     return out
 
 
+def check_handles(api: dict) -> list[Finding]:
+    """N26: a handle's method names one thing on its component.
+
+    `balaur_script::handle_method` drops the component's name from a function's,
+    so two names that were apart can meet: a method and a property of the
+    component, or two functions its handle would call by one name.
+    """
+    out = []
+    components = api.get("components", {})
+    taken: dict[str, str] = {}
+    for module in api["modules"]:
+        for fn, handles in module.get("methods", {}).items():
+            where = f"{module['name']}.{fn}"
+            for component, method in handles.items():
+                on = f"{component}.{method}"
+                if method in components.get(component, {}) and on not in HANDLE_PROPERTY_ALLOW:
+                    out.append(Finding(where, "handle-method-property",
+                                       f"`node.{on}()` is also the property `node.{on}`: rename "
+                                       "the function so its handle has a name of its own, or "
+                                       "list it in HANDLE_PROPERTY_ALLOW with why (N26)", "ERROR"))
+                first = taken.setdefault(on, where)
+                if first != where:
+                    out.append(Finding(where, "handle-method-twice",
+                                       f"`node.{on}()` is `{first}` already: a handle calls one "
+                                       "function by a name (N26)", "ERROR"))
+    for on in HANDLE_PROPERTY_ALLOW:
+        component, method = on.split(".")
+        if on not in taken or method not in components.get(component, {}):
+            out.append(Finding(on, "handle-method-property",
+                               "in HANDLE_PROPERTY_ALLOW, but no such method and property", "ERROR"))
+    return out
+
+
 # N22: the hooks the engine calls ask by a bare name and tell with `on_`; a
 # hook told a flag's new value is `on_<reader>_changed`.
 ASKING_HOOKS = {"init", "update", "fixed_update", "draw_ui", "exports", "defaults",
@@ -401,6 +444,8 @@ ANY_ALLOWED = {
     "assets::save": ("(str, any)", BY_NAME),
     "assets::schema": ("(str) -> any", SPEC),
     "browser::post_message": ("(any) -> bool", FROM_OUTSIDE),
+    "engine::store": ("(str, any)", CALLERS_OWN),
+    "engine::stored": ("(str) -> any", CALLERS_OWN),
     "events::emit": ("(str, any)", CALLERS_OWN),
     "gamend::call_hook": ("(int, str, str, any) -> int", FROM_OUTSIDE),
     "gamend::join": ("(int, str, any) -> int", FROM_OUTSIDE),
@@ -432,8 +477,6 @@ ANY_ALLOWED = {
     "scene::set_variable": ("(str, any)", BY_NAME),
     "scene::variable": ("(str) -> any", BY_NAME),
     "script::exports": ("(str) -> any", SPEC),
-    "script::store": ("(str, any)", CALLERS_OWN),
-    "script::stored": ("(str) -> any", CALLERS_OWN),
     "settings::base": ("(str) -> any", BY_NAME),
     "settings::define": ("(str, any)", SPEC),
     "settings::get": ("(str) -> any", BY_NAME),
@@ -462,7 +505,6 @@ ANY_FIELDS = {
     "replay::Mark.values": FROM_OUTSIDE,
     "scene::Change.properties": BY_NAME,
     "scene::Change.was": BY_NAME,
-    "scene::Preset.parts": BY_NAME,
     "scene::Variable.value": BY_NAME,
     "settings::Setting.spec": SPEC,
     "ui::Control.data": CALLERS_OWN,
@@ -506,7 +548,8 @@ def main() -> int:
 
     api = script_api(args.api_json)
     findings = (check_modules(api) + check_functions(api, declaration_sites())
-                + check_schemas() + check_documented(api) + check_hooks(api) + check_any(api))
+                + check_schemas() + check_documented(api) + check_handles(api)
+                + check_hooks(api) + check_any(api))
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

@@ -11,8 +11,11 @@ Every construct on one page, for looking things up. The rest of this chapter tea
 
 ## A file
 
-A `.bs` file holds items in any order: `fn`, `struct`, `class`, `enum`, `impl`, `const`, `extern fn` and
+A `.bs` file holds items in any order: `fn`, `struct`, `class`, `enum`, `impl`, `const`, `extern fn`, `event` and
 `use`. An item with no mark belongs to its file, `internal` opens it to its package, and `pub` to every file. `//` starts a comment and `///` documents an item.
+
+`event name;` names an [event](110-engine/events.md) the file's node sends. It takes no mark, and `event` is a
+word only where an item starts.
 
 ## Types
 

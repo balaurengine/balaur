@@ -58,7 +58,7 @@ pub(crate) fn check_types(prog: &Program) -> R<()> {
         if f.owner.is_some() && f.name.rsplit("::").next() == Some("on_widget_event") {
             return err(
                 f.pos,
-                "`on_widget_event` is gone: name a method in the widget's key, `on_click = \"pressed\"`; it is handed the value, then the widget's node",
+                "`on_widget_event` is gone: a widget's event is heard as `on_<name>(payload, source)`, or a binding row calls a method by name",
             );
         }
         for p in &f.params {

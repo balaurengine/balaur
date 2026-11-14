@@ -1,4 +1,4 @@
-//! `input.gamepad_*` and `input.feed_gamepad`: what a script reads of a pad,
+//! `input.gamepad_*` and `input.set_gamepad`: what a script reads of a pad,
 //! and how a script stands in for one.
 //!
 //! Ids come from `input.gamepads()`; a query about a pad that is not connected
@@ -16,7 +16,7 @@ use crate::gamepad::{
 use crate::haptics::{field, number, vec3};
 use crate::vocabulary::{keys as k, words as w};
 
-const FEED_GAMEPAD: &str = "feed_gamepad";
+const SET_GAMEPAD: &str = "set_gamepad";
 const GAMEPAD_ACCELERATION: &str = "gamepad_acceleration";
 const GAMEPAD_AXIS: &str = "gamepad_axis";
 const GAMEPAD_DOWN: &str = "gamepad_down";
@@ -46,7 +46,7 @@ pub(crate) fn install_gamepad_api(m: &mut Module<Engine>) {
         (GAMEPAD_GYRO, &[], "(id: int) -> Vec3", "How fast the pad is turning, in radians per second about each axis. Read from PlayStation pads on desktop; zero for a pad with no gyroscope."),
         (GAMEPAD_ACCELERATION, &[], "(id: int) -> Vec3", "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer."),
         (GAMEPAD_TOUCHES, &[], "(id: int) -> [Touch]", "Every finger on the pad's touchpad, oldest first, with x and y running 0 to 1 across the surface. Read from PlayStation pads on desktop; empty for a pad with no touchpad."),
-        (FEED_GAMEPAD, &[], "(id: int, opts: PadFeed)", "Report a pad as if a backend had, from next frame. A pad fed anything connects; `connected: false` unplugs it."),
+        (SET_GAMEPAD, &[], "(id: int, report: GamepadReport)", "Report a pad as if a backend had, from next frame. A pad fed anything connects; `connected: false` unplugs it."),
     ]);
     install_pad_records(m);
     for name in PAD_BUTTON_NAMES {
@@ -133,7 +133,7 @@ fn install_pad_readers(m: &mut Module<Engine>) {
         ]))
     });
     install_sensor_readers(m);
-    m.function(FEED_GAMEPAD, |eng: &Engine, (id, opts): (i64, Value)| {
+    m.function(SET_GAMEPAD, |eng: &Engine, (id, opts): (i64, Value)| {
         feed(&mut eng.resource::<GamepadState>().borrow_mut(), id, &opts)
     });
     crate::haptics::install_haptics_api(m);
@@ -163,7 +163,7 @@ fn install_pad_records(m: &mut Module<Engine>) {
             "Where a fed pad's sticks and triggers are; one left out stays as it was.",
         ),
         (
-            "PadFeed",
+            "GamepadReport",
             "{ connected: bool?, name: string?, os_name: string?, guid: string?, vendor: int?, product: int?, mapping: string?, rumble: bool?, buttons: PadButtons?, axes: PadAxes?, power: GamepadPower?, gyro: Vec3?, acceleration: Vec3?, touches: [Touch]? }",
             "What a script reports of a pad: its identity, its buttons and sticks, its power, its motion and its touchpad.",
         ),
@@ -222,8 +222,7 @@ fn install_sensor_readers(m: &mut Module<Engine>) {
                 .map(|touch| {
                     Value::Map(vec![
                         (k::ID.to_string(), Value::Int(touch.id)),
-                        (k::X.to_string(), Value::Num(f64::from(touch.x))),
-                        (k::Y.to_string(), Value::Num(f64::from(touch.y))),
+                        (k::POSITION.to_string(), Value::Vec2([touch.x, touch.y])),
                     ])
                 })
                 .collect()
@@ -232,7 +231,7 @@ fn install_sensor_readers(m: &mut Module<Engine>) {
     });
 }
 
-/// `input.feed_gamepad`: the options table as the changes a backend would
+/// `input.set_gamepad`: the options table as the changes a backend would
 /// have reported.
 fn feed(state: &mut GamepadState, id: i64, opts: &Value) -> anyhow::Result<()> {
     let opts = Some(opts);
@@ -374,11 +373,10 @@ fn touches_of(value: &Value) -> Vec<PadTouch> {
                 Some(Value::Int(id)) => *id,
                 _ => return None,
             };
-            Some(PadTouch {
-                id,
-                x: number(touch, k::X)?,
-                y: number(touch, k::Y)?,
-            })
+            let Some(Value::Vec2([x, y])) = field(touch, k::POSITION) else {
+                return None;
+            };
+            Some(PadTouch { id, x: *x, y: *y })
         })
         .collect()
 }

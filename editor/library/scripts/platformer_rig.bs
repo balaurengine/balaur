@@ -22,6 +22,6 @@ impl PlatformerRig {
         } else {
             self.vy -= self.gravity * dt;
         }
-        self.node.character2d.move_character(sideways * self.speed * dt, self.vy * dt);
+        self.node.character2d.move_by(vec2(sideways * self.speed * dt, self.vy * dt));
     }
 }

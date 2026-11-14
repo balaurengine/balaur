@@ -57,14 +57,12 @@ pub enum LengthMode {
     Relative,
 }
 
-/// What a character's or a vehicle's sweep passes through.
+/// The body kinds a character's move or a vehicle's wheel rays pass through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
-pub enum SweepIgnore {
+pub enum ExcludeKind {
     Static,
     Kinematic,
     Dynamic,
-    Sensors,
-    Solids,
 }
 
 /// Whether a pair needs both colliders' layers to accept it, or either's.

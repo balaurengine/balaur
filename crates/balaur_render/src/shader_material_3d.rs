@@ -13,7 +13,6 @@
 //! while its surface blends and its colour is see-through, and the refraction
 //! pass when its surface is glass.
 
-use balaur_core::time::Instant;
 use std::any::Any;
 use std::cell::Cell;
 use std::sync::Arc;
@@ -155,7 +154,6 @@ pub(crate) struct ShaderMaterial3d {
     texture_layout: wgpu::BindGroupLayout,
     frame: FrameGroup,
     params_bind_group: Option<wgpu::BindGroup>,
-    started: Instant,
     frame_counter: Cell<u64>,
     last_frame: Cell<u64>,
     /// One entry per texture slot the material bound, in slot order; a slot
@@ -422,9 +420,6 @@ impl ShaderMaterial3d {
             texture_layout,
             frame: FrameGroup::new(),
             params_bind_group: params.map(|(_, group)| group),
-            // The render clock a shader reads, outside the simulation.
-            #[allow(clippy::disallowed_methods)]
-            started: Instant::now(),
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),
             vertex_color: compiled.vertex_color,
@@ -589,7 +584,7 @@ impl Material3d for ShaderMaterial3d {
         if frame != self.last_frame.get() {
             self.last_frame.set(frame);
             let (view, proj) = camera.view_transform_pair(pass);
-            let clock = self.started.elapsed().as_secs_f32();
+            let clock = crate::shader_clock::seconds();
             self.frame.write(
                 &view,
                 &proj,

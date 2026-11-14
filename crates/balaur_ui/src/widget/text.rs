@@ -486,8 +486,6 @@ fn spans(
         return;
     };
     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    // Emitted whether or not `on_link` names a handler: a row or a
-    // subscriber may be the one listening.
     if response.clicked() {
         at.edits.push((entity, Edit::Link(target.clone())));
     }

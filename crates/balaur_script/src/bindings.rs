@@ -34,10 +34,13 @@ pub struct Entry<C: ?Sized> {
     /// registered without Rust types spell it.
     pub documented: Option<&'static str>,
     /// The components the function drives, from its docs: a script calls it
-    /// on the first, `node.transform.translate(..)`.
+    /// on each by its [`handle_method`], `node.transform.translate(..)`.
     pub acts_on: &'static [&'static str],
     /// What the function does, in its module's words: the reference's text.
     pub doc: Option<&'static str>,
+    /// The editor's, from a [`Module::editor_only`] module: only a script of
+    /// the editor's may call it, and a game's runtime does not have it.
+    pub editor: bool,
 }
 
 impl<C: ?Sized> Default for Entry<C> {
@@ -48,6 +51,7 @@ impl<C: ?Sized> Default for Entry<C> {
             documented: None,
             acts_on: &[],
             doc: None,
+            editor: false,
         }
     }
 }
@@ -79,6 +83,7 @@ impl<C: ?Sized> Default for Declared<C> {
 pub struct Module<C: ?Sized> {
     name: String,
     declared: Rc<RefCell<Declared<C>>>,
+    editor: bool,
 }
 
 impl<C: ?Sized> Module<C> {
@@ -87,6 +92,7 @@ impl<C: ?Sized> Module<C> {
         Self {
             name: name.to_string(),
             declared,
+            editor: false,
         }
     }
 
@@ -94,6 +100,14 @@ impl<C: ?Sized> Module<C> {
     #[must_use]
     pub fn detached(name: &str) -> Self {
         Self::new(name, Rc::default())
+    }
+
+    /// Every function this declares is the editor's ([`Entry::editor`]): what
+    /// the editor's binary adds, which a game's runtime does not carry.
+    #[must_use]
+    pub fn editor_only(mut self) -> Self {
+        self.editor = true;
+        self
     }
 
     fn entry(&self, name: &str, f: impl FnOnce(&mut Entry<C>)) {
@@ -107,13 +121,21 @@ impl<C: ?Sized> Module<C> {
     }
 
     pub fn function_raw(&mut self, name: &str, func: BoundFn<C>) {
-        self.entry(name, |entry| entry.call = Some(Call::Raw(Rc::new(func))));
+        let editor = self.editor;
+        self.entry(name, |entry| {
+            entry.call = Some(Call::Raw(Rc::new(func)));
+            entry.editor = editor;
+        });
     }
 
     /// `function_raw` for an entry point that reads its arguments as it needs
     /// them, where the backend holds them.
     pub fn function_typed(&mut self, name: &str, func: TypedFn<C>) {
-        self.entry(name, |entry| entry.call = Some(Call::Typed(Rc::new(func))));
+        let editor = self.editor;
+        self.entry(name, |entry| {
+            entry.call = Some(Call::Typed(Rc::new(func)));
+            entry.editor = editor;
+        });
     }
 
     /// A Rust function with typed arguments and result, whose types are
@@ -163,9 +185,9 @@ impl<C: ?Sized> Module<C> {
     /// What each function does and which components it acts on.
     ///
     /// A function that names a component becomes a method on that component's
-    /// handle (`node.body2d.apply_impulse(..)`), so the list is API, not just
-    /// documentation. `scripts/api_lints.py` fails the build for a registered
-    /// function with no entry here.
+    /// handle (`node.body2d.apply_impulse(..)`), named by [`handle_method`],
+    /// so the list is API, not just documentation. `scripts/api_lints.py`
+    /// fails the build for a registered function with no entry here.
     pub fn describe(&mut self, entries: &[FnDoc]) {
         for (name, acts_on, signature, doc) in entries {
             if !doc.is_empty() {
@@ -215,6 +237,32 @@ pub type FnDoc = (
     &'static str,
     &'static str,
 );
+
+/// What a component's handle calls `function`: its name without the
+/// component's own, so `softbody_area` on `softbody2d` is `area`.
+///
+/// The component's name loses a trailing `2d` or `3d` and is matched as whole
+/// `_`-separated words. A name with nothing else in it stays as it is.
+#[must_use]
+pub fn handle_method(component: &str, function: &str) -> String {
+    let stem = DIMENSIONS
+        .iter()
+        .find_map(|dimension| component.strip_suffix(dimension))
+        .unwrap_or(component);
+    let stem: Vec<&str> = stem.split('_').collect();
+    let words: Vec<&str> = function.split('_').collect();
+    let Some(at) = words.windows(stem.len()).position(|run| run == stem) else {
+        return function.to_string();
+    };
+    let kept = [&words[..at], &words[at + stem.len()..]].concat();
+    if kept.is_empty() {
+        return function.to_string();
+    }
+    kept.join("_")
+}
+
+/// What a component's name ends in when it has a twin in the other dimension.
+const DIMENSIONS: [&str; 2] = ["2d", "3d"];
 
 /// A type name without its module paths: `alloc::string::String` reads
 /// `String`, `(balaur_script::value::NodeId, f32)` reads `(NodeId, f32)`.

@@ -406,6 +406,10 @@ fn log_level() -> tracing::level_filters::LevelFilter {
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<()> {
     balaur::timings::mark_start();
+    // A test run keeps its saves, logs and editor preferences out of the user's own.
+    if let Some(dir) = std::env::var_os("BALAUR_DATA_DIR") {
+        balaur::engine_api::set_platform_data_dir(dir.into());
+    }
     // The capturing logger tees to stderr and to the in-engine ring buffer
     // that powers `log.recent` (the editor's Output dock).
     balaur::logbuf::capture(log_level());
@@ -934,25 +938,8 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     } else {
         PathBuf::new()
     };
-    let editor_root = editor
-        .clone()
-        .or_else(|| std::env::var("BALAUR_EDITOR").ok().map(PathBuf::from))
-        .or_else(|| {
-            // A downloaded build: the editor project ships beside the binary.
-            // This has to come before the source-tree guess, whose baked-in
-            // path belongs to whatever machine did the build.
-            let exe = std::env::current_exe().ok()?;
-            balaur::standalone::data_roots(exe.parent()?)
-                .into_iter()
-                .find_map(|root| root.join("editor").canonicalize().ok())
-                .map(|p| joinable(&p))
-        })
-        .or_else(|| {
-            // The editor that ships next to the engine sources.
-            let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../editor");
-            candidate.canonicalize().ok().map(|p| joinable(&p))
-        })
-        .context("no editor project found; pass --editor <dir>")?;
+    let editor_root =
+        editor_project(editor.clone()).context("no editor project found; pass --editor <dir>")?;
     let mut config = AppConfig::dev(editor_root.to_string_lossy().as_ref());
     config.script_args = vec![game.to_string_lossy().into_owned()];
     // The start screen is a start-up state like any other, so a caller that
@@ -974,7 +961,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     // and the editor is the only app with a button for them.
     #[cfg(not(target_family = "wasm"))]
     balaur::timings::boot("plugins", || {
-        balaur_plugin::load_all(&mut app, &mut own_modules(&game))
+        balaur_plugin::load_all(&mut app, &mut own_modules(&game, Some(editor_root.clone())))
     })?;
     // The editor's project is the editor; the game it edits is another root,
     // and every path it reads back is an absolute one inside it. With no
@@ -1021,22 +1008,60 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     ran
 }
 
+/// The project this binary runs as the editor: `--editor`, `BALAUR_EDITOR`,
+/// the one beside a downloaded build, else the one beside the engine sources.
+pub(crate) fn editor_project(asked: Option<PathBuf>) -> Option<PathBuf> {
+    asked
+        .or_else(|| std::env::var("BALAUR_EDITOR").ok().map(PathBuf::from))
+        .or_else(|| {
+            // A downloaded build: the editor project ships beside the binary.
+            // This has to come before the source-tree guess, whose baked-in
+            // path belongs to whatever machine did the build.
+            let exe = std::env::current_exe().ok()?;
+            balaur::standalone::data_roots(exe.parent()?)
+                .into_iter()
+                .find_map(|root| root.join("editor").canonicalize().ok())
+                .map(|p| joinable(&p))
+        })
+        .or_else(|| {
+            // The editor that ships next to the engine sources.
+            let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../editor");
+            candidate.canonicalize().ok().map(|p| joinable(&p))
+        })
+}
+
 /// What this binary adds to a project it edits, compiles, checks or probes:
-/// `export`, `import` and `project`, which the editor's own scripts call and
-/// the engine does not carry.
+/// `export`, `import`, `project` with `forge` and the half of `dependency`
+/// that writes, `debugger` and `script`, each the editor's. Only a script of
+/// `editor`, the [`editor_project`], or one under a game's or an addon's
+/// `editor/` folder may call them, and a game's runtime does not carry them.
 ///
 /// One list rather than one per path. A module registered on some paths and
 /// not others is a project the editor cannot open, and the failure lands on
 /// the missing item — `bundle web` reporting "Missing item" — rather than on
 /// the path that forgot it.
 #[cfg(not(target_family = "wasm"))]
-pub(crate) fn own_modules(project: &std::path::Path) -> Vec<Box<dyn balaur_plugin::Plugin>> {
+#[cfg_attr(
+    not(feature = "editor"),
+    allow(
+        clippy::needless_pass_by_value,
+        reason = "only an editor build hands the editor's root on"
+    )
+)]
+pub(crate) fn own_modules(
+    project: &std::path::Path,
+    editor: Option<PathBuf>,
+) -> Vec<Box<dyn balaur_plugin::Plugin>> {
+    #[cfg(not(feature = "editor"))]
+    let _ = editor;
     vec![
         #[cfg(feature = "editor")]
         Box::new(export_api::ExportPlugin::new(project.to_path_buf())),
         Box::new(import_api::ImportPlugin::new(project.to_path_buf())),
         #[cfg(feature = "editor")]
         Box::new(project_api::ProjectPlugin::new()),
+        #[cfg(feature = "editor")]
+        Box::new(balaur::ToolsPlugin::new(editor)),
     ]
 }
 
@@ -1078,6 +1103,71 @@ mod tests {
         assert_eq!(
             joinable(Path::new("/Users/x/balaur/examples/hello")),
             PathBuf::from("/Users/x/balaur/examples/hello")
+        );
+    }
+
+    /// The functions a script on `app` is offered under `module`.
+    #[cfg(all(feature = "editor", any(feature = "bs", feature = "bs-jit")))]
+    fn offered(app: &balaur::App, module: &str) -> Vec<String> {
+        let prefix = format!("{module}::");
+        let mut found: Vec<String> = balaur::script_bs::BsHost::of(&app.engine)
+            .unwrap()
+            .api()
+            .functions
+            .into_iter()
+            .map(|function| function.key)
+            .filter(|key| key.starts_with(&prefix))
+            .collect();
+        found.sort();
+        found
+    }
+
+    // `run` and `play` boot the standard app alone; `edit`, `check`, `export`
+    // and `api` add this binary's own modules to it.
+    #[cfg(all(feature = "editor", any(feature = "bs", feature = "bs-jit")))]
+    #[test]
+    fn a_game_run_is_offered_none_of_the_editor_s_modules() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[application]\nname = \"game\"\nmain_scene = \"main.toml\"\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("main.toml"), "").unwrap();
+        let boot = || {
+            balaur::standard_app(balaur::AppConfig::dev(
+                dir.path().to_string_lossy().as_ref(),
+            ))
+            .unwrap()
+        };
+        let game = boot();
+        let mut editor = boot();
+        balaur_plugin::load_all(&mut editor, &mut super::own_modules(dir.path(), None)).unwrap();
+        for module in ["debugger", "script", "project", "forge"] {
+            assert_eq!(
+                offered(&game, module),
+                [""; 0],
+                "a game is offered `{module}`"
+            );
+            assert!(
+                !offered(&editor, module).is_empty(),
+                "the editor lacks `{module}`"
+            );
+        }
+        assert_eq!(
+            offered(&game, "dependency"),
+            ["dependency::list", "dependency::of"]
+        );
+        assert_eq!(
+            offered(&editor, "dependency"),
+            [
+                "dependency::add_path",
+                "dependency::install",
+                "dependency::list",
+                "dependency::make_local",
+                "dependency::move_into",
+                "dependency::of",
+            ]
         );
     }
 }

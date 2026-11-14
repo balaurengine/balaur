@@ -105,14 +105,6 @@ impl<'a> Registry<'a> {
         self.app.script_module(name)
     }
 
-    /// A named preset: a recipe of components, applied to one node.
-    ///
-    /// Takes `&mut self` rather than `&mut App`, as every verb here does: a
-    /// plugin registering through a dylib never sees the `App` behind it.
-    pub fn register_preset(&mut self, name: &str, def: balaur_core::presets::PresetDef) {
-        self.app.register_preset(name, def);
-    }
-
     /// A parser for one asset type, and the directory it is read from.
     ///
     /// Takes `&mut self` rather than `&mut App`, and a `fn` pointer rather

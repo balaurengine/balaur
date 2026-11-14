@@ -52,6 +52,12 @@ impl Calls {
             .map(|(_, _, args)| args.clone())
     }
 
+    /// What the first `method` on `node` was told: an event's payload, ahead
+    /// of the `source` that follows it.
+    pub(crate) fn payload(&self, node: Entity, method: &str) -> Option<Value> {
+        self.args(node, method)?.into_iter().next()
+    }
+
     /// The methods called on `node`, in the order they went out.
     pub(crate) fn order(&self, node: Entity) -> Vec<String> {
         let id = balaur_core::node_id_of(node).0;
@@ -81,6 +87,10 @@ impl ScriptHost<balaur_core::Engine> for Calls {
     fn pump_reloads(&self) {}
     fn reload(&self, _: &[&str]) -> anyhow::Result<()> {
         Ok(())
+    }
+    // An event reaches only a script that declares its handler; this one hears all.
+    fn has_method(&self, _: NodeId, _: &str) -> bool {
+        true
     }
     fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value> {
         self.0

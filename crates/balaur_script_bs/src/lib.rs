@@ -16,12 +16,13 @@ mod waits;
 
 pub use balaur_bs::analysis::{builtins, value_types};
 pub use balaur_bs::fmt;
-pub use balaur_bs::{HostApi, HostSignature, Literal};
+pub use balaur_bs::{HostApi, HostSignature, Literal, Names, Pos};
 pub use host::{BsHost, EXTENSION};
 #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 pub use native::load_native;
 #[cfg(feature = "c")]
 pub use native::native_source;
+pub use tool_verbs::install_tool_verbs;
 
 use anyhow::anyhow;
 use balaur_bs::Ty;
@@ -62,12 +63,6 @@ pub(crate) fn bind(
     if store::is_store(key) {
         let key = key.to_string();
         return Ok(Rc::new(move |args: &dyn CallArgs| store::call(&key, args)));
-    }
-    if let Some(verb) = tool_verbs::verb(key) {
-        let structs = registry.structs();
-        return Ok(Rc::new(move |args: &dyn CallArgs| {
-            tool_verbs::call(&eng, verb, args, &ret, &structs)
-        }));
     }
     if waits::is_wait(key) {
         let key = key.to_string();

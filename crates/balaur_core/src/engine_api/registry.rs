@@ -1,5 +1,5 @@
-//! What a script asks of the component and preset registries: the types,
-//! their tags, schemas and expectations, the presets, and a node's warnings.
+//! What a script asks of the component registry: the types, their tags,
+//! schemas and expectations, and a node's warnings.
 
 #[allow(
     clippy::wildcard_imports,
@@ -58,57 +58,6 @@ pub(super) fn component_requires(eng: &Engine, args: &[Value]) -> Result<Value> 
     Ok(registry.def(text(args, 0)?).map_or(Value::Nil, |def| {
         Value::List(def.requires.iter().map(|name| Value::text(*name)).collect())
     }))
-}
-
-pub(super) fn presets(eng: &Engine, _: &[Value]) -> Result<Value> {
-    Ok(Value::List(
-        crate::presets::names(eng)
-            .into_iter()
-            .map(Value::text)
-            .collect(),
-    ))
-}
-
-/// A preset's description, tags and the components it adds.
-pub(super) fn preset_info(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let name = text(args, 0)?;
-    let registry = eng.resource::<crate::presets::PresetRegistry>();
-    let registry = registry.borrow();
-    let Some(def) = registry.0.get(name) else {
-        return Ok(Value::Nil);
-    };
-    let mut parts = Vec::new();
-    for part in &def.parts {
-        let params = part.params.as_ref().map(crate::node_api::from_toml);
-        let params = params.transpose()?.unwrap_or(Value::Map(Vec::new()));
-        parts.push((part.component.clone(), params));
-    }
-    Ok(Value::Map(vec![
-        (
-            keys::DESCRIPTION.to_string(),
-            Value::Str(def.description.clone()),
-        ),
-        (
-            words::settings_api::TAGS.to_string(),
-            Value::List(def.tags.iter().cloned().map(Value::text).collect()),
-        ),
-        (
-            "components".to_string(),
-            Value::List(
-                def.parts
-                    .iter()
-                    .map(|p| Value::Str(p.component.clone()))
-                    .collect(),
-            ),
-        ),
-        ("parts".to_string(), Value::Map(parts)),
-    ]))
-}
-
-pub(super) fn apply_preset(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let entity = optional_node(args, 0)?.ok_or_else(|| anyhow!("apply_preset needs a node"))?;
-    crate::presets::apply(eng, entity, text(args, 1)?)?;
-    Ok(Value::Nil)
 }
 
 /// What is off about this node, as a list of `{ component, property, message }`

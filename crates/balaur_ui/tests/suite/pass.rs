@@ -284,8 +284,8 @@ fn a_paste_is_read_after_the_pass_that_saw_it() {
 fn a_pasted_image_is_said_and_written_out() {
     let (dir, mut app, ctx, errors) = run(&Script {
         fields: "got: str",
-        methods: "pub fn init() { events::listen(self.node, \"pasted_image\"); }\n\
-                  pub fn on_pasted_image(size: any) {\n\
+        methods: "pub fn init() { events::listen(self.node, \"image_pasted\"); }\n\
+                  pub fn on_image_pasted(size: any) {\n\
                   let saved = ui::save_pasted_image(\"pasted.png\");\n\
                   let again = ui::save_pasted_image(\"again.png\");\n\
                   self.got = \"{size[\"width\"]}x{size[\"height\"]} {saved} {again}\";\n\
@@ -318,10 +318,49 @@ fn a_theme_can_be_set_from_a_script() {
 }
 
 #[test]
-fn the_widget_layer_can_be_placed_and_turned_off() {
-    run_clean(
-        "ui::set_widget_layer(true, 0.0, 0.0, 320.0, 240.0);
-        ui::set_widget_layer(false, 0.0, 0.0, 0.0, 0.0);",
+fn the_widget_layer_is_placed_by_two_vectors_and_fills_the_window_without_them() {
+    let layer = |app: &App| {
+        let layer = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
+        let layer = layer.borrow();
+        (layer.enabled, layer.rect)
+    };
+    let (_dir, app, _, errors) =
+        run_with("ui::set_widget_layer(true, vec2(10.0, 20.0), vec2(320.0, 240.0));");
+    assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
+    assert_eq!(layer(&app), (true, Some([10.0, 20.0, 320.0, 240.0])));
+    let (_dir, app, _, errors) = run_with("ui::set_widget_layer(false);");
+    assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
+    assert_eq!(layer(&app), (false, None));
+}
+
+/// A button under `Root`, placed where a pass draws it whole.
+const BUTTON: &str = "[[nodes]]\nid = \"go\"\nname = \"Go\"\nparent = \"root\"\n\
+     widget = { kind = \"button\", text = \"Go\", x = 20.0, y = 20.0 }\n";
+
+#[test]
+fn a_script_asks_whether_the_ui_takes_a_point_with_a_vec2() {
+    let (_dir, mut app, _, errors) = run(&Script {
+        fields: "over: int, beside: int",
+        update: r#"let drawn = ui::widget_rect(self.node.get_node("Go"));
+if drawn != nil {
+    let at = drawn.unwrap();
+    if ui::takes_pointer_at(vec2(at.x + at.width / 2.0, at.y + at.height / 2.0)) { self.over += 1; }
+    if ui::takes_pointer_at(vec2(at.x + at.width + 400.0, at.y + at.height + 400.0)) { self.beside += 1; }
+}"#,
+        scene: BUTTON,
+        ..Script::default()
+    });
+    assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
+    // The button first draws in the run's second pass, after its last update.
+    app.tick(balaur_core::DEFAULT_FIXED_DT);
+    assert!(
+        field(&app, "over").unwrap_or(0.0) > 0.0,
+        "the middle of a button is the UI's"
+    );
+    assert_eq!(
+        field(&app, "beside"),
+        Some(0.0),
+        "a point off the button is the world's"
     );
 }
 
@@ -334,8 +373,9 @@ fn a_cmd_chord_answers_to_control_and_to_command() {
         fields: "focus: int",
         methods: "pub fn hit() { self.focus += 1; }",
         scene: "[[nodes]]\nid = \"go\"\nname = \"Go\"\nparent = \"root\"\n\
-                widget = { kind = \"button\", text = \"Go\", on_click = \"hit\" }\n\
-                widget_shortcut = { shortcut = \"cmd+shift+backslash\" }\n",
+                widget = { kind = \"button\", text = \"Go\" }\n\
+                widget_shortcut = { shortcut = \"cmd+shift+backslash\" }\n\
+                bindings = { rows = [{ event = \"pointer_click\", action = \"call\", value = \"hit\" }] }\n",
         ..Script::default()
     });
     assert!(errors.is_empty(), "{errors:#?}");

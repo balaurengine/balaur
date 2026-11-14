@@ -31,7 +31,7 @@ pub fn design_pixels(window_x: float, window_y: float) -> Vec2 {
 
 /// Logical pixels per design pixel: the engine's figure without the display.
 pub fn logical_per_design() -> float {
-    util::max(ui::pixels_per_design(), 0.01) / util::max(render::camera_pose()[7], 0.01)
+    util::max(ui::pixels_per_design(), 0.01) / util::max(render::camera_pose().scale_factor, 0.01)
 }
 
 /// Where the pointer is, in design px.
@@ -45,7 +45,7 @@ pub fn pointer(state: editor::State) -> Vec2 {
 pub fn screen_of_2d(state: editor::State, world_x: float, world_y: float) -> Vec2 {
     let camera = render::camera_2d();
     let scale = logical_per_design();
-    vec2(state.screen_width / 2.0 + (world_x - camera.x) * camera.z / scale, state.screen_height / 2.0 - (world_y - camera.y) * camera.z / scale)
+    vec2(state.screen_width / 2.0 + (world_x - camera.center.x) * camera.zoom / scale, state.screen_height / 2.0 - (world_y - camera.center.y) * camera.zoom / scale)
 }
 
 /// A rail tool's drag this frame, or `None` when the pointer stood still or
@@ -88,7 +88,8 @@ pub fn camera_gesture(state: editor::State) -> bool {
     }
     // Where the fingers are, not where a mouse is: a sheet under them owns
     // them, the way a pointer over a sheet is the sheet's.
-    let at = if scale > 0.0 { design_pixels(pinch.x.or(0.0), pinch.y.or(0.0)) } else { pointer(state) };
+    let between = pinch.center.or(vec2(0.0, 0.0));
+    let at = if scale > 0.0 { design_pixels(between.x, between.y) } else { pointer(state) };
     if !owns_pointer(state, at.x, at.y) {
         return false;
     }
@@ -111,7 +112,7 @@ pub fn camera_gesture(state: editor::State) -> bool {
 pub fn mouse_camera(state: &mut editor::State) -> bool {
     // `mouse_position` counts physical pixels, `dpi` of them to a logical one.
     let pose = render::camera_pose();
-    let dpi = pose[7];
+    let dpi = pose.scale_factor;
     let dpi = util::max(dpi, 0.01);
     let at = pointer(state);
     let over = owns_pointer(state, at.x, at.y);
@@ -133,9 +134,9 @@ pub fn mouse_camera(state: &mut editor::State) -> bool {
     let delta_y = if panning { motion_y / dpi } else { motion_y };
     if state.mode2d {
         let camera = render::camera_2d();
-        let centre_x = camera.x;
-        let centre_y = camera.y;
-        let zoom = camera.z;
+        let centre_x = camera.center.x;
+        let centre_y = camera.center.y;
+        let zoom = camera.zoom;
         let held = util::max(zoom, 0.01);
         let next = util::clamp(held * math::pow(dolly_step(), wheel), 0.02, 4000.0);
         if panning {
@@ -180,13 +181,13 @@ pub fn dolly_step() -> float {
 
 fn mouse_camera_3d(state: editor::State, wheel: any, orbiting: bool, panning: bool, delta_x: float, delta_y: float) {
     let pose = render::camera_pose();
-    let eye_x = pose[0];
-    let eye_y = pose[1];
-    let eye_z = pose[2];
-    let target_x = pose[3];
-    let target_y = pose[4];
-    let target_z = pose[5];
-    let fov = pose[6];
+    let eye_x = pose.eye.x;
+    let eye_y = pose.eye.y;
+    let eye_z = pose.eye.z;
+    let target_x = pose.target.x;
+    let target_y = pose.target.y;
+    let target_z = pose.target.z;
+    let fov = pose.fov;
     let offset_x = eye_x - target_x;
     let offset_y = eye_y - target_y;
     let offset_z = eye_z - target_z;
@@ -255,9 +256,9 @@ fn slide_axes(state: editor::State, unit: [float], distance: float, fov: any) ->
 // the centre, both in the world units the centre is kept in.
 fn pan_zoom_2d(state: editor::State, scale: float, delta_x: float, delta_y: float) {
     let camera = render::camera_2d();
-    let centre_x = camera.x;
-    let centre_y = camera.y;
-    let zoom = camera.z;
+    let centre_x = camera.center.x;
+    let centre_y = camera.center.y;
+    let zoom = camera.zoom;
     let held = util::max(zoom, 0.01);
     let next = if scale > 0.0 { util::clamp(held * scale, 0.02, 4000.0) } else { held };
     model::set_view_2d(centre_x - delta_x / next, centre_y + delta_y / next, next);
@@ -267,13 +268,13 @@ fn pan_zoom_2d(state: editor::State, scale: float, delta_x: float, delta_y: floa
 // line between them and a drag slides both across it.
 fn orbit_3d(state: editor::State, scale: float, delta_x: float, delta_y: float) {
     let pose = render::camera_pose();
-    let eye_x = pose[0];
-    let eye_y = pose[1];
-    let eye_z = pose[2];
-    let target_x = pose[3];
-    let target_y = pose[4];
-    let target_z = pose[5];
-    let fov = pose[6];
+    let eye_x = pose.eye.x;
+    let eye_y = pose.eye.y;
+    let eye_z = pose.eye.z;
+    let target_x = pose.target.x;
+    let target_y = pose.target.y;
+    let target_z = pose.target.z;
+    let fov = pose.fov;
     let offset_x = eye_x - target_x;
     let offset_y = eye_y - target_y;
     let offset_z = eye_z - target_z;
@@ -324,7 +325,7 @@ pub fn hover_color() -> [float] {
 /// World units per design pixel.
 pub fn world_per_pixel() -> float {
     let camera = render::camera_2d();
-    let zoom = camera.z;
+    let zoom = camera.zoom;
     logical_per_design() / util::max(zoom, 0.01)
 }
 
@@ -347,5 +348,5 @@ pub fn hot_part(state: editor::State) -> gizmo::Part? {
 /// whatever the UI does not take, from an open dialog down to the seams
 /// between the docks. The shell's own boxes let the pointer through.
 pub fn owns_pointer(state: editor::State, point_x: float, point_y: float) -> bool {
-    !ui::takes_pointer_at(point_x, point_y)
+    !ui::takes_pointer_at(vec2(point_x, point_y))
 }

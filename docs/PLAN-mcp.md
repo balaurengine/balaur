@@ -29,7 +29,7 @@ Built, and not built for this:
 | Scene edits that keep comments | the TOML patcher |
 | Scripts and assets reloaded when the file changes, in a game and in the editor | `App::watch`, asset generations |
 | Every editor command as a script, and named states for its tests | `palette.bs`, `selftest.bs`, `--state` |
-| Component schemas, presets and tags a caller can enumerate | `scene.component_schema`, `presets`, `component_tags` |
+| Component schemas and tags a caller can enumerate, and the editor's presets as a file | `scene.component_schema`, `component_tags`, `editor/presets.toml` |
 | `llms.txt` on the site | `../forge/lib/forge/llms_controller.ex` |
 
 Missing:

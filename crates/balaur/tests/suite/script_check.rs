@@ -60,17 +60,17 @@ fn one_error(body: &str) -> String {
 #[test]
 fn a_project_whose_scripts_are_right_has_nothing_to_report() {
     let found = check(
-        "        self.node.body2d.set_linear_velocity(2.0, 0.0);\n\
+        "        self.node.body2d.set_linear_velocity(vec2(2.0, 0.0));\n\
          \x20       let at = self.node.transform.position;\n\
          \x20       let n = self.node;\n\
-         \x20       n.body2d.apply_impulse(at.x, 1.0);",
+         \x20       n.body2d.apply_impulse(vec2(at.x, 1.0));",
     );
     assert_eq!(found, []);
 }
 
 #[test]
 fn a_method_no_module_drives_that_component_with_is_an_error_on_its_line() {
-    one_error("        self.node.body2d.apply_impulze(1.0, 0.0);");
+    one_error("        self.node.body2d.apply_impulze(vec2(1.0, 0.0));");
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn a_property_no_schema_declares_is_an_error_on_its_line() {
 
 #[test]
 fn a_field_that_is_no_component_at_all_is_named() {
-    let message = one_error("        self.node.bod2d.apply_impulse(1.0, 0.0);");
+    let message = one_error("        self.node.bod2d.apply_impulse(vec2(1.0, 0.0));");
     assert!(message.contains("bod2d"), "{message}");
 }
 
@@ -176,7 +176,11 @@ fn a_node_that_will_not_parse_leaves_its_components_unknown() {
     .unwrap();
     let attached = balaur_core::attachments::scene_attachments(dir.path());
     assert_eq!(attached.get("main.bs"), Some(&None));
-    assert_eq!(balaur::check_project(dir.path()).unwrap().len(), 0);
+    // The script is not blamed; the scene the loader will not read is.
+    let found = findings(dir.path());
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, "main.toml:0:error", "{found:?}");
+    assert!(found[0].1.contains("tags"), "{found:?}");
 }
 
 /// `[check] strict = true` is how a project says a warning is a failure
@@ -240,4 +244,125 @@ fn a_trailing_nil_a_call_may_leave_out_is_a_warning() {
     assert_eq!(found.len(), 1, "{found:?}");
     assert_eq!(found[0].0, "main.bs:4:warning", "{found:?}");
     assert!(found[0].1.contains("leave this `nil` out"), "{found:?}");
+}
+
+/// Every finding of a project as `file:line:severity`, with its message.
+fn findings(root: &Path) -> Vec<(String, String)> {
+    balaur::check_project(root)
+        .unwrap()
+        .into_iter()
+        .map(|one| {
+            (
+                format!("{}:{}:{}", one.file, one.line, one.severity),
+                one.message,
+            )
+        })
+        .collect()
+}
+
+/// `text` added to the end of the fixture's scene, which ends in its `body2d`.
+fn add_to_scene(root: &Path, text: &str) {
+    let scene = std::fs::read_to_string(root.join("main.toml")).unwrap();
+    std::fs::write(root.join("main.toml"), format!("{scene}{text}")).unwrap();
+}
+
+#[test]
+fn a_scene_with_a_property_no_schema_declares_is_an_error_on_its_line() {
+    let dir = project(&script(""));
+    assert_eq!(findings(dir.path()), []);
+    add_to_scene(dir.path(), "restitution = 0.85\n");
+    let found = findings(dir.path());
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, "main.toml:11:error", "{found:?}");
+    assert!(
+        found[0].1.contains("node 'Crate'")
+            && found[0]
+                .1
+                .contains("`body2d` has no property `restitution`"),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_scene_with_a_component_nothing_registers_is_an_error_on_its_line() {
+    let dir = project(&script(""));
+    add_to_scene(dir.path(), "\n[nodes.bodi2d]\nkind = \"static\"\n");
+    let found = findings(dir.path());
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, "main.toml:12:error", "{found:?}");
+    assert!(found[0].1.contains("bodi2d"), "{found:?}");
+}
+
+// A prefab answers for its own nodes, once, however many scenes instance
+// it; the scene answers for the overrides it lays over them.
+#[test]
+fn a_value_a_prefab_gets_wrong_is_reported_once_in_the_prefab() {
+    let dir = project(&script(""));
+    std::fs::write(
+        dir.path().join("crate.toml"),
+        "[[nodes]]\nname = \"Box\"\n\n[nodes.body2d]\nkind = \"wobbly\"\n",
+    )
+    .unwrap();
+    add_to_scene(
+        dir.path(),
+        "\n[[nodes]]\nname = \"One\"\nparent = \"n\"\ninstance = \"crate.toml\"\n\n\
+         [[nodes]]\nname = \"Two\"\nparent = \"n\"\ninstance = \"crate.toml\"\n\n\
+         [nodes.overrides.\".\".body2d]\nkind = 7\n",
+    );
+    let found = findings(dir.path());
+    let places: Vec<&str> = found.iter().map(|(place, _)| place.as_str()).collect();
+    assert_eq!(
+        places,
+        ["crate.toml:5:error", "main.toml:23:error"],
+        "{found:?}"
+    );
+    assert!(found[0].1.contains("node 'Box'"), "{found:?}");
+    assert!(
+        found[1].1.contains("override '..body2d' on node 'Two'"),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn an_addon_no_scene_attaches_is_compiled_and_its_warning_reported() {
+    let dir = project(&script(""));
+    std::fs::create_dir_all(dir.path().join("addons/kit/editor")).unwrap();
+    std::fs::write(
+        dir.path().join("addons/kit/lib.bs"),
+        "pub fn clear(node: Node) {\n    node.set_component(\"transform\", nil);\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("addons/kit/editor/dock.bs"),
+        "use lib;\npub fn tidy(node: Node) {\n    lib::clear(node);\n}\n",
+    )
+    .unwrap();
+    let found = findings(dir.path());
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, "addons/kit/lib.bs:2:warning", "{found:?}");
+    assert!(found[0].1.contains("leave this `nil` out"), "{found:?}");
+}
+
+// Each file answers for itself: a module two addon files use is reported
+// once, under its own name, not once under each of its users.
+#[test]
+fn an_addon_file_that_does_not_compile_is_an_error_in_that_file() {
+    let dir = project(&script(""));
+    std::fs::create_dir_all(dir.path().join("addons/kit")).unwrap();
+    std::fs::write(
+        dir.path().join("addons/kit/lib.bs"),
+        "pub fn next(n: int) -> int {\n    nowhere::at_all(n)\n}\n",
+    )
+    .unwrap();
+    for user in ["a", "b"] {
+        std::fs::write(
+            dir.path().join(format!("addons/kit/{user}.bs")),
+            "use lib;\npub fn twice(n: int) -> int {\n    lib::next(lib::next(n))\n}\n",
+        )
+        .unwrap();
+    }
+    let found = findings(dir.path());
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, "addons/kit/lib.bs:2:error", "{found:?}");
+    assert!(found[0].1.contains("nowhere"), "{found:?}");
 }

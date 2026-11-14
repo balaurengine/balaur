@@ -725,8 +725,8 @@ fn a_binding_that_takes_or_gives_a_value_is_typed_any() {
     let source = "pub class Fetcher { kept: any }
 impl Fetcher {
     fn init() {
-        script::store(\"key\", 1);
-        self.kept = script::stored(\"key\");
+        engine::store(\"key\", 1);
+        self.kept = engine::stored(\"key\");
     }
 }
 ";
@@ -796,7 +796,9 @@ fn a_bs_script_calls_the_engine_ops_its_docs_type() {
     );
 }
 
-const REACH_BS: &str = "pub class Reach {
+const REACH_BS: &str = "event ping;
+
+pub class Reach {
     node: Node,
     button: int,
     turn: float,
@@ -809,7 +811,7 @@ impl Reach {
         self.button = input::MOUSE_BUTTON_LEFT;
         self.turn = math::PI * 2.0;
         events::listen(self.node, \"ping\");
-        render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+        render::draw_line_2d(vec2(0.0, 0.0), vec2(1.0, 1.0), color(1.0, 1.0, 1.0, 1.0));
         self.missing = !scene::get_node(\"Nowhere\").is_valid();
         self.position = self.node.transform.position.x;
         self.pointer = input::mouse_position().x;
@@ -862,9 +864,9 @@ impl Checker {
 fn a_record_result_is_a_struct_a_script_reads_by_field() {
     use balaur_script::Value::{Int, Str};
     let dir = one_script("Checker", CHECKER_BS);
-    let found = balaur::check_project(dir.path()).unwrap();
+    let found = super::tool_modules::checked(dir.path());
     assert!(found.is_empty(), "{found:?}");
-    let app = booted(dir.path());
+    let app = super::tool_modules::booted(dir.path());
     assert_eq!(field(&app, "Checker", "count"), Some(Int(1)));
     assert_eq!(field(&app, "Checker", "line"), Some(Int(2)));
     let Some(Str(message)) = field(&app, "Checker", "message") else {
@@ -959,76 +961,6 @@ fn a_bs_file_answers_the_editor_s_tooling() {
     assert_eq!((def.file.as_str(), def.line), ("scripts/tooled.bs", 1));
     let found = tools.check("scripts/tooled.bs", "fn f() -> int { true }");
     assert_eq!((found.len(), found[0].line), (1, 1));
-}
-
-const ASKS_TOOLS_BS: &str = r#"pub class Editor {
-    node: Node,
-    completed: int,
-    first: str,
-    errors: int,
-    hover: str,
-    symbols: int,
-    hook: str,
-    renamed: str,
-    formatted: str,
-}
-
-impl Editor {
-    fn init() {
-        let src = "pub struct Racer {{ speed: float }}\nimpl Racer {{\n    fn update(dt: float) {{\n        self.\n    }}\n}}\n";
-        let rows = script::complete("scripts/racer.bs", src, 4, 14);
-        self.completed = rows.len();
-        self.first = rows[0].label;
-        self.errors = script::check("scripts/racer.bs", "fn wrong() -> int {{ true }}").len();
-        let hover = script::hover("scripts/racer.bs", "pub struct Racer {{ speed: float }}\nfn speed_of(racer: Racer) -> float {{ racer.speed }}\n", 2, 45);
-        self.hover = hover.unwrap().title;
-        let syms = script::symbols("scripts/racer.bs", "pub struct Racer {{ pub hp: int = 3 }}\nimpl Racer {{\n    fn update(dt: float) {{\n    }}\n}}\n");
-        self.symbols = syms.len();
-        self.hook = syms[2].name + ":" + syms[2].kind;
-        self.renamed = script::rename("scripts/racer.bs", "pub struct Racer {{ hp: int }}\n", "hp", "health")[0].source;
-        self.formatted = script::format("scripts/racer.bs", "fn tidy() {{\nlet count = 1;\n}}\n");
-    }
-}
-"#;
-
-#[test]
-fn the_editor_s_script_module_answers_for_a_bs_file() {
-    use balaur_script::Value::{Int, Str};
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"editor\"\nname = \"Editor\"\nscript = { source = \"scripts/editor.bs\" }\n",
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("scripts/editor.bs"), ASKS_TOOLS_BS).unwrap();
-    let app = booted(dir.path());
-    // The field and the method.
-    assert_eq!(field(&app, "Editor", "completed"), Some(Int(2)));
-    assert_eq!(field(&app, "Editor", "first"), Some(Str("speed".into())));
-    assert_eq!(field(&app, "Editor", "errors"), Some(Int(1)));
-    assert_eq!(
-        field(&app, "Editor", "hover"),
-        Some(Str("speed: float".into()))
-    );
-    assert_eq!(field(&app, "Editor", "symbols"), Some(Int(3)));
-    assert_eq!(
-        field(&app, "Editor", "hook"),
-        Some(Str("update:function".into()))
-    );
-    assert_eq!(
-        field(&app, "Editor", "renamed"),
-        Some(Str("pub struct Racer { health: int }\n".into()))
-    );
-    assert_eq!(
-        field(&app, "Editor", "formatted"),
-        Some(Str("fn tidy() {\n    let count = 1;\n}\n".into()))
-    );
 }
 
 /// One script, as `scripts/bench.bs` on a node named `Bench`.
@@ -1175,26 +1107,4 @@ fn a_pooled_control_calls_the_method_it_names_with_its_data() {
     ticked(&mut app, 4);
     assert_eq!(field(&app, "Panel", "said"), Some(Str("query=ball".into())));
     assert_eq!(field(&app, "Panel", "clicks"), Some(Int(7)));
-}
-
-const EXPORTER_BS: &str =
-    "pub class Tuned { pub speed: float = 2.5, pub label: str = \"go\", seen: str }
-impl Tuned {
-    fn init() {
-        let rows = script::exports(\"scripts/tuned.bs\");
-        self.seen = \"{rows.len()} {rows[0][\"name\"]}={rows[0][\"default\"]} {rows[1][\"name\"]}:{rows[1][\"type\"]}\";
-    }
-}
-";
-
-/// What a script declares tunable, as the Inspector reads it.
-#[test]
-fn a_script_reads_what_another_declares_tunable() {
-    use balaur_script::Value::Str;
-    let dir = one_script("Tuned", EXPORTER_BS);
-    let app = booted(dir.path());
-    assert_eq!(
-        field(&app, "Tuned", "seen"),
-        Some(Str("2 label=go speed:float".into()))
-    );
 }

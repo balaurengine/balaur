@@ -92,10 +92,9 @@ impl Timer {
                     held = match held.first() {
                         Some(first) => {
                             let left = first.saturating_duration_since(now);
-                            changed
-                                .wait_timeout(held, left)
-                                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                                .0
+                            // A deadline, not a poll: asleep until the earliest one or a new one.
+                            let slept = changed.wait_timeout(held, left);
+                            slept.unwrap_or_else(std::sync::PoisonError::into_inner).0
                         }
                         None => changed
                             .wait(held)

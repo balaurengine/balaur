@@ -194,6 +194,7 @@ fn engine_api() -> balaur_bs::HostApi {
         params,
         ret,
         is_async: true,
+        editor: false,
     };
     balaur_bs::HostApi {
         functions: vec![
@@ -272,6 +273,7 @@ fn an_await_hands_back_a_string_an_array_or_an_any() {
         params: vec![],
         ret,
         is_async: true,
+        editor: false,
     };
     let api = balaur_bs::HostApi {
         functions: vec![

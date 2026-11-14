@@ -191,7 +191,7 @@ impl balaur_plugin::Plugin for ImportPlugin {
         // What a job reported reaches a script here, ahead of every plugin's
         // own First work.
         reg.add_system(Stage::First, pump::<ImportState, ImportEvent>);
-        let mut m = reg.script_module(IMPORT)?;
+        let mut m = reg.script_module(IMPORT)?.editor_only();
         install_import_api(&mut m);
         Ok(())
     }

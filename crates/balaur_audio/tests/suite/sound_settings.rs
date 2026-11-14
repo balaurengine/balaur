@@ -240,7 +240,11 @@ fn the_queue_plays_after_the_file_and_skip_moves_through_it() {
     );
     app.tick(STEP);
     assert_eq!(
-        balaur_core::events::delivered_from(&app.engine, entity, balaur_audio::FINISHED_EVENT),
+        balaur_core::events::delivered_from(
+            &app.engine,
+            entity,
+            balaur_audio::SOUND_FINISHED_EVENT
+        ),
         vec![balaur_script::Value::Int(i64::try_from(handle).unwrap())]
     );
 }

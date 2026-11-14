@@ -105,12 +105,14 @@ impl Scan<'_> {
                         params: vec![Ty::Node],
                         ret: ty.clone(),
                         is_async: false,
+                        editor: false,
                     });
                     self.add(HostSignature {
                         key: set,
                         params: vec![Ty::Node, ty.clone()],
                         ret: Ty::Void,
                         is_async: false,
+                        editor: false,
                     });
                 }
                 self.expr(base);

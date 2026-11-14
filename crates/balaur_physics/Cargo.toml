@@ -35,7 +35,7 @@ rayon = { version = "1", optional = true }
 
 [features]
 default = ["parallel", "physics2d", "physics3d"]
-# Each world's systems, components, `physicsNd.*` verbs and presets. Both
+# Each world's systems, components and `physicsNd.*` verbs. Both
 # compile in every build, for the helpers they share; one left off registers
 # nothing, so a template for a game of the other dimension links none of it.
 physics2d = []

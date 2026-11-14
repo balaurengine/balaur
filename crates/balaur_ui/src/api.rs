@@ -222,7 +222,8 @@ fn install_widget_layer(m: &mut Module<Engine>) {
     m.describe(&[(
         SET_WIDGET_LAYER,
         &[],
-        "", "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
+        "(on: bool, position: Vec2?, size: Vec2?)",
+        "Turn drawing of the scene's `widget` nodes on or off, and confine it to the rect at `position` of `size`, in design pixels; the whole window when either is left out.",
     )]);
     {
         // No reader by design (N8): the `WidgetLayerConfig` entry already
@@ -230,32 +231,37 @@ fn install_widget_layer(m: &mut Module<Engine>) {
         // needs to read them back.
         m.function(
             SET_WIDGET_LAYER,
-            |eng: &Engine, (enabled, x, y, w, h): (
-                    bool,
-                    Option<f32>,
-                    Option<f32>,
-                    Option<f32>,
-                    Option<f32>,
-                )| {
-                    let layer = eng.resource::<crate::WidgetLayerConfig>();
-                    let mut layer = layer.borrow_mut();
-                    layer.enabled = enabled;
-                    layer.rect = rect_of(x, y, w, h);
-                    Ok(())
-                },
-            );
+            |eng: &Engine, (enabled, position, size): (bool, Option<Value>, Option<Value>)| {
+                let rect = rect_of(position.as_ref(), size.as_ref())?;
+                let layer = eng.resource::<crate::WidgetLayerConfig>();
+                let mut layer = layer.borrow_mut();
+                layer.enabled = enabled;
+                layer.rect = rect;
+                Ok(())
+            },
+        );
     }
     install_rects(m);
     install_focus(m);
     install_driving(m);
 }
 
-/// Four numbers or none: a partial rect is a caller that meant the screen.
-fn rect_of(x: Option<f32>, y: Option<f32>, w: Option<f32>, h: Option<f32>) -> Option<[f32; 4]> {
-    match (x, y, w, h) {
-        (Some(x), Some(y), Some(w), Some(h)) => Some([x, y, w, h]),
-        _ => None,
+/// A `Vec2` argument's two floats, or an error naming what came instead.
+fn vec2_of(what: &str, value: &Value) -> anyhow::Result<[f32; 2]> {
+    match value {
+        Value::Vec2(pair) => Ok(*pair),
+        other => anyhow::bail!("{what} is a Vec2, not a {}", other.type_name()),
     }
+}
+
+/// Both vectors or none: a partial rect is a caller that meant the screen.
+fn rect_of(position: Option<&Value>, size: Option<&Value>) -> anyhow::Result<Option<[f32; 4]>> {
+    let (Some(position), Some(size)) = (position, size) else {
+        return Ok(None);
+    };
+    let [x, y] = vec2_of("a widget layer's position", position)?;
+    let [w, h] = vec2_of("a widget layer's size", size)?;
+    Ok(Some([x, y, w, h]))
 }
 
 /// `ui.*` bindings: which widget the keyboard and the pad are pointing at.
@@ -324,7 +330,7 @@ fn install_focus(m: &mut Module<Engine>) {
             CLEAR_FOCUS,
             &[],
             "()",
-            "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `blur`.",
+            "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `focus_exited`.",
         ),
     ]);
     m.function(FOCUSED_WIDGET, |eng: &Engine, ()| {
@@ -374,25 +380,25 @@ fn install_driving(m: &mut Module<Engine>) {
             EDIT_NUMBER,
             &[],
             "(node: node, value: float) -> bool",
-            "Change a slider or a number field as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no number.",
+            "Change a slider or a number field as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no number.",
         ),
         (
             EDIT_TEXT,
             &[],
             "(node: node, value: string) -> bool",
-            "Change a text field, a dropdown's pick, a list's row or a tab as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no text.",
+            "Change a text field, a dropdown's pick, a list's row or a tab as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no text.",
         ),
         (
             EDIT_COLOR,
             &[],
             "(node: node, value: Color) -> bool",
-            "Change a swatch as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no colour.",
+            "Change a swatch as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no colour.",
         ),
         (
             EDIT_BOOL,
             &[],
             "(node: node, value: bool) -> bool",
-            "Open or close a fold as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no boolean.",
+            "Open or close a fold as the reader would, at the next tick, so it announces `value_changed`. False for a disabled widget or a kind that takes no boolean.",
         ),
     ]);
     m.records(&[(
@@ -499,10 +505,10 @@ fn install_queries(m: &mut Module<Engine>) {
         (WINDOW_SIZE, &[], "", "The window's width and height, in design pixels; a headless run, and a script's `init` before the window opens, answer the `[window]` size the project states at the UI scale."),
         (SET_CLIPBOARD, &[], "", "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself."),
         (PASTED_TEXT, &[], "", "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives."),
-        (SAVE_PASTED_IMAGE, &[], "(path: string) -> bool", "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already."),
+        (SAVE_PASTED_IMAGE, &[], "(path: string) -> bool", "Write the image last pasted where no field took it, which the `image_pasted` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already."),
         (WANTS_KEYBOARD, &[], "", "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone."),
         (WANTS_POINTER, &[], "", "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window."),
-        (TAKES_POINTER_AT, &[], "(x: number, y: number) -> bool", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
+        (TAKES_POINTER_AT, &[], "(point: Vec2) -> bool", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
     ]);
     m.function(WINDOW_SIZE, |eng: &Engine, ()| {
         // The backend publishes the screen before the tick, and the tick runs
@@ -554,11 +560,9 @@ fn install_clipboard(m: &mut Module<Engine>) {
     m.function(WANTS_POINTER, |eng: &Engine, ()| {
         Ok(crate::routing::pointer_is_ui(eng))
     });
-    m.function(TAKES_POINTER_AT, |eng: &Engine, (x, y): (f64, f64)| {
-        Ok(crate::routing::takes_point(
-            eng,
-            egui::pos2(x as f32, y as f32),
-        ))
+    m.function(TAKES_POINTER_AT, |eng: &Engine, point: Value| {
+        let [x, y] = vec2_of("a point", &point)?;
+        Ok(crate::routing::takes_point(eng, egui::pos2(x, y)))
     });
 }
 

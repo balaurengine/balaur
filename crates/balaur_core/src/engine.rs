@@ -48,6 +48,9 @@ pub(crate) struct EngineInner {
     /// A paused replay, held apart from `frozen` so releasing one does not
     /// release the other: a breakpoint inside a replay is both at once.
     pub(crate) replay_hold: Cell<bool>,
+    /// A recording began part-way through this frame. The rest of the frame
+    /// is not recorded, so the game holds through it; the next frame clears it.
+    pub(crate) opening_hold: Cell<bool>,
     /// The game's own pause, which a script owns and the debugger's freeze
     /// knows nothing about.
     pub(crate) paused: Cell<bool>,
@@ -84,6 +87,7 @@ impl Engine {
                 debug_scope: Cell::new(None),
                 frozen: Cell::new(false),
                 replay_hold: Cell::new(false),
+                opening_hold: Cell::new(false),
                 paused: Cell::new(false),
                 pause_change: Cell::new(None),
                 time_scale: Cell::new(1.0),
@@ -352,11 +356,17 @@ impl Engine {
         self.inner.replay_hold.set(held);
     }
 
-    /// The subtree a debugger pause or a paused replay holds still: no fixed
-    /// step runs, and the script hosts skip every instance under it. `None`
-    /// while nothing holds it.
+    /// Hold the game for the rest of this frame, or release it as a frame
+    /// starts: what a recording does with the frame it starts in.
+    pub(crate) fn set_opening_hold(&self, held: bool) {
+        self.inner.opening_hold.set(held);
+    }
+
+    /// The subtree a debugger pause, a paused replay or the frame a recording
+    /// starts in holds still: no fixed step runs, and the script hosts skip
+    /// every instance under it. `None` while nothing holds it.
     pub fn frozen_root(&self) -> Option<hecs::Entity> {
-        (self.inner.frozen.get() || self.inner.replay_hold.get())
+        (self.inner.frozen.get() || self.inner.replay_hold.get() || self.inner.opening_hold.get())
             .then(|| self.inner.debug_scope.get().unwrap_or_else(|| self.root()))
     }
 

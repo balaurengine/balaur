@@ -67,21 +67,38 @@ fn root_variable(e: &Expr) -> Option<&str> {
     }
 }
 
+/// Who the arguments of a call are lent to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Taker {
+    /// The engine or a built-in, which keeps nothing: a `str?`, a struct and a
+    /// class are lent as a string is.
+    Engine,
+    /// A prelude function or a map's method: it owns what is no string, list
+    /// or `any`.
+    Prelude,
+    /// A built-in that runs no code, so a string may be read where it is held.
+    Leaf,
+}
+
 impl FnGen<'_> {
-    /// `args` on the stack as `want` says, each heap one lent, and what to
-    /// release once the call has returned. A `leaf` call runs no code, so a
-    /// string it is lent may be read where it is held.
-    pub(crate) fn lent(&mut self, want: &[Ty], args: &[&Expr], leaf: bool) -> R<Vec<LVal>> {
+    /// Whether a value of `ty` holds anything counted: a string in a struct or
+    /// under a `T?` is one, though `ty` itself is no heap type.
+    pub(crate) fn counted(&self, ty: &Ty) -> bool {
+        self.g.slots(ty).iter().any(|(_, heap)| heap.is_some())
+    }
+
+    /// `args` on the stack as `want` says, each one `taker` borrows lent, and
+    /// what to release once the call has returned.
+    pub(crate) fn lent(&mut self, want: &[Ty], args: &[&Expr], taker: Taker) -> R<Vec<LVal>> {
         let mut held = vec![];
         for (at, (ty, arg)) in want.iter().zip(args).enumerate() {
             let rest = &args[at + 1..];
-            if ty.is_heap()
-                && let Some(local) = self.local_to_lend(arg, ty, rest)?
-            {
+            let borrowed = ty.is_heap() || (taker == Taker::Engine && self.counted(ty));
+            if borrowed && let Some(local) = self.local_to_lend(arg, ty, rest)? {
                 self.get_raw(&local);
                 continue;
             }
-            if leaf
+            if taker == Taker::Leaf
                 && rest.iter().all(|later| calls_nothing(later))
                 && let Some(place) = self.place_to_lend(arg)?
             {
@@ -92,7 +109,7 @@ impl FnGen<'_> {
             self.expr_as(arg, ty)?;
             // A literal string lives in the data segment; boxed into an
             // `any`, it is a fresh cell like any other.
-            if ty.is_heap() && !(matches!(arg.kind, ExprKind::Str(_)) && *ty == Ty::Str) {
+            if borrowed && !(matches!(arg.kind, ExprKind::Str(_)) && *ty == Ty::Str) {
                 // Only a later argument leaving the function needs the frame
                 // to release it, and the frame's exit pays for every temp.
                 let temp = if rest.iter().any(|later| holds_statements(later)) {
@@ -106,6 +123,18 @@ impl FnGen<'_> {
             }
         }
         Ok(held)
+    }
+
+    /// The owned `ty` on top of the stack, held for a call that borrows it:
+    /// what to release once the call has returned.
+    pub(crate) fn held_for_call(&mut self, ty: &Ty) -> Vec<LVal> {
+        if !self.counted(ty) {
+            return vec![];
+        }
+        let temp = self.alloc(ty);
+        self.set_raw(&temp);
+        self.get_raw(&temp);
+        vec![temp]
     }
 
     pub(crate) fn release_all(&mut self, held: Vec<LVal>) {
@@ -176,7 +205,7 @@ impl FnGen<'_> {
     /// `a == b` on two strings: lent, and compared by the helper that takes
     /// them as they are.
     pub(crate) fn str_compare(&mut self, op: BinOp, a: &Expr, b: &Expr) -> R<Ty> {
-        let held = self.lent(&[Ty::Str, Ty::Str], &[a, b], true)?;
+        let held = self.lent(&[Ty::Str, Ty::Str], &[a, b], Taker::Leaf)?;
         Ok(self.compare_lent(op, held))
     }
 

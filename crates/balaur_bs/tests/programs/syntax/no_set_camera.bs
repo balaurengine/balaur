@@ -1,3 +1,3 @@
 fn f() { render::set_camera(0.0, 0.0, 1.0, 0.0, 0.0, 0.0); }
 
-// error: 1:10: `render::set_camera` is gone: a `camera3d` node looks from its position at its `look_at`
+// error: 1:10: `render::set_camera` is gone: a `camera3d` node looks from its position along its rotation, and `transform.look_at` turns it

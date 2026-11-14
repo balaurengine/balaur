@@ -20,19 +20,23 @@ use balaur_plugin::Registry;
 use balaur_script::{Module, NodeId, Value};
 
 use crate::dim2::PhysicsState2d;
-use crate::properties::{LengthMode, NodePath, SweepIgnore};
+use crate::properties::{ExcludeKind, LengthMode, NodePath};
 use crate::vocabulary::words;
 use crate::vocabulary::{component as c, keys as k, map};
 use balaur_core::fixed_dt;
 use glamx::EulerRot;
 
-/// A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.
+/// A 2D character controller: `node.character2d.move_by` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.
 #[derive(Clone, Component)]
 #[component(
     name = "character2d",
     requires = [balaur_core::transform::COMPONENT],
     tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
     expects = [c::COLLIDER_2D],
+)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is its own property, not a state machine"
 )]
 pub struct Character2d {
     /// Which way is up for this character: the axis it stands along and measures slopes against
@@ -86,12 +90,18 @@ pub struct Character2d {
     /// The mass a push is worked out with; 0 takes the body's mass, or the colliders' when there is no body
     #[property(min = 0.0, group = "contacts")]
     pub push_mass: f32,
-    /// What a move passes through: static takes colliders with no body too. The character's own collision_layer and collision_mask filter the rest
-    #[property(flags, default = vec![SweepIgnore::Sensors], group = "filtering")]
-    pub ignore: Vec<SweepIgnore>,
+    /// Stop at sensors; off, a move passes through them
+    #[property(group = "filtering")]
+    pub hit_sensors: bool,
+    /// Stop at colliders that are not sensors; off, a move passes through them
+    #[property(default = true, group = "filtering")]
+    pub hit_solids: bool,
+    /// The body kinds a move passes through: static takes colliders with no body too. The character's own collision_layer and collision_mask filter the rest
+    #[property(flags, group = "filtering")]
+    pub exclude_kinds: Vec<ExcludeKind>,
     /// Nodes a move passes through: their colliders, and every collider on their body
     #[property(group = "filtering")]
-    pub ignore_nodes: Vec<NodePath>,
+    pub exclude: Vec<NodePath>,
 }
 
 crate::shared::character::functions!(
@@ -121,17 +131,17 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
     let controller = controller_of(&character, up);
     let push = character.push_bodies;
 
-    let ignored = ignored_nodes(eng, entity, &character.ignore_nodes);
+    let excluded = excluded_nodes(eng, entity, &character.exclude);
 
     let (movement, collisions) = {
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
         let state = &mut *state;
         let (shape, pose, groups) = sweep_shape(state, entity)?;
-        // Its own layers, never its own body, and nothing `ignore` names, as in 3D.
-        let skipped = Skipped::of(&ignored, state);
+        // Its own layers, never its own body, and nothing its filter excludes, as in 3D.
+        let skipped = Skipped::of(&excluded, state);
         let passes = |_: ColliderHandle, collider: &Collider| skipped.passes(collider);
-        let filter = QueryFilter::from(ignore_flags(&character.ignore))
+        let filter = QueryFilter::from(filter_flags(&character))
             .groups(groups)
             .predicate(&passes);
         let mut collisions = Vec::new();
@@ -167,8 +177,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
         return Ok(Value::Nil);
     }
     Ok(map([
-        (k::X, Value::Num(f64::from(movement.translation.x))),
-        (k::Y, Value::Num(f64::from(movement.translation.y))),
+        (k::APPLIED, Value::Vec2(scalar::a2(movement.translation))),
         (k::ON_FLOOR, Value::Bool(movement.grounded)),
         (k::SLIDING, Value::Bool(movement.is_sliding_down_slope)),
         (k::COLLISIONS, collision_list(eng, &collisions)),
@@ -222,18 +231,19 @@ pub(crate) fn install_character2d_api(m: &mut Module<Engine>) {
         ),
         (
             "CharacterMove",
-            "{ x: float, y: float, on_floor: bool, sliding: bool, collisions: [CharacterCollision] }",
-            "What a move did: how far the character went, whether it ended on the ground or sliding down a slope, and what it bumped into.",
+            "{ applied: Vec2, on_floor: bool, sliding: bool, collisions: [CharacterCollision] }",
+            "What a move did: the offset `applied`, which is how far the character went, whether it ended on the ground or sliding down a slope, and what it bumped into.",
         ),
     ]);
     m.describe(&[
-        (words::functions::MOVE_CHARACTER, &[c::CHARACTER_2D], "(node: node, x: float, y: float) -> CharacterMove", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update."),
+        (words::functions::MOVE_CHARACTER_BY, &[c::CHARACTER_2D], "(node: node, offset: Vec2) -> CharacterMove", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update."),
         (words::functions::IS_ON_FLOOR, &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
-        words::functions::MOVE_CHARACTER,
-        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
-            move_character(eng, entity_of(node)?, scalar::v2(x, y))
+        words::functions::MOVE_CHARACTER_BY,
+        |eng: &Engine, (node, offset): (NodeId, Value)| {
+            let offset = scalar::vec2_arg("an offset", &offset)?;
+            move_character(eng, entity_of(node)?, offset)
         },
     );
     // A reader, as in 3D: a zero-translation sweep would still snap to ground

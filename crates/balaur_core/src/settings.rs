@@ -863,7 +863,7 @@ orientation = { type = "enum", host = true, default = "any", options = ["any", "
 vsync = { type = "bool", host = true, default = true, order = 5, help = "Present in step with the display." }
 msaa = { type = "int", host = true, default = 1, min = 1, max = 4, order = 6, help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
 max_fps = { type = "int", host = true, default = 0, min = 0, max = 1000, order = 7, applies = "restart", help = "The most frames a second the loop draws. Zero paces it against the tick instead, which is what vsync already does on a display that runs at the tick rate." }
-low_processor = { type = "bool", host = true, default = false, order = 8, applies = "restart", help = "Run a frame only when something asks for one: input, ui.request_repaint, a log line, a changed file or work finished on another thread. What a tool that sits still wants; a game that moves every frame leaves it off." }
+low_processor = { type = "bool", host = true, default = false, order = 8, applies = "restart", help = "Run a frame only while something asks for one: input, ui.request_repaint, a log line, a changed file, work finished on another thread, or simulation still under way. That is a timer or a task wait counting, a clip or a tween playing, a body awake, particles alive, a sound that will end, a replay or a match. With none of them the loop sleeps. What a tool or an app of still screens wants; a game that moves every frame gains nothing from it." }
 "#,
         ),
     );

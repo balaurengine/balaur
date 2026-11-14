@@ -73,6 +73,22 @@ use crate::system::Effect;
 /// `animation::is_tween_running` take. Opaque: a script holds it and gives it back.
 pub type TweenId = u64;
 
+/// Where a tool's own handles count down from: the largest whole number a
+/// float holds exactly, since a script may keep a handle in one.
+const TOOL_TWEENS: TweenId = 1 << 53;
+
+/// Whether `node` is in the game, rather than in a tool hosting one.
+fn in_game(eng: &Engine, node: Entity) -> bool {
+    let Some(game) = eng.debug_scope() else {
+        return true;
+    };
+    let world = eng.world();
+    scene::is_within(&world, node, game)
+        || balaur_core::parked::holders(eng)
+            .into_iter()
+            .any(|(_, holder)| scene::is_within(&world, node, holder))
+}
+
 /// Where a call at the very head of a tween is placed.
 ///
 /// `sampler::passes` is exclusive at the start of a span, which is what stops
@@ -142,14 +158,20 @@ pub fn start(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<TweenId> 
     }
     let (clip, step_ends) = build(eng, node, spec)?;
     let after = after_of(spec)?;
+    let in_game = in_game(eng, node);
     let state = eng.resource::<AnimationState>();
     let mut state = state.borrow_mut();
     // Waiting only on a tween still in the table: one that already ended
     // names nothing, and this one starts now.
     let after = after.filter(|id| state.tweens.contains_key(id));
     let pending = after.map(|_| toml::to_string(spec)).transpose()?;
-    state.next_tween += 1;
-    let id = state.next_tween;
+    let id = if in_game {
+        state.next_tween += 1;
+        state.next_tween
+    } else {
+        state.tool_tweens += 1;
+        TOOL_TWEENS - state.tool_tweens
+    };
     state.tweens.insert(
         id,
         Tween {

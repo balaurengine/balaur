@@ -189,6 +189,14 @@ impl balaur_plugin::Plugin for BrowserPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        balaur_core::events::declare(
+            reg.engine(),
+            &[(
+                MESSAGE_EVENT,
+                "the message, as the parent frame posted it",
+                "The page's parent frame posted a message.",
+            )],
+        );
         let state = BrowserState {
             facts: backend::facts(),
             visible: backend::visible(),

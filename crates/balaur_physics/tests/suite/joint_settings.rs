@@ -1,6 +1,6 @@
 //! The joint settings past limits and motors: the frames, the softness, the
 //! coupled axes, the switch, an articulation's own numbers and gears, and what
-//! `joint_state` reads back.
+//! `state()` reads back.
 
 use balaur::standard_app;
 use balaur_core::components::StableId;
@@ -384,7 +384,7 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 20 {
-            let swing = self.node.joint3d.joint_state();
+            let swing = self.node.joint3d.state();
             let status = swing.status;
             if status != physics3d::JOINT_ENABLED { log::error("status {status}"); }
             let angle = swing.angle.unwrap();
@@ -392,11 +392,11 @@ impl Scenario {
             if math::abs(angle) <= 0.1 { log::error("the pendulum never swung: {angle}"); }
             if math::abs(angle - coordinate) >= 0.02 { log::error("angle {angle} against coordinate {coordinate}"); }
             if math::abs(swing.velocities.unwrap().rotation_x.unwrap()) <= 0.1 { log::error("no joint velocity"); }
-            let held = scene::get_node("World/Impulse").joint3d.joint_state();
+            let held = scene::get_node("World/Impulse").joint3d.state();
             let held_angle = held.angle.unwrap();
             if math::abs(held_angle) >= 0.35 { log::error("the limit did not hold: {held_angle}"); }
             if math::abs(held.limit_impulses.rotation_x.unwrap()) <= 0.0 { log::error("the limit carried no impulse"); }
-            let pull = scene::get_node("World/Impulse").joint3d.joint_force();
+            let pull = scene::get_node("World/Impulse").joint3d.force();
             if pull.force <= 0.0 { log::error("the hinge held no force: {pull.force}"); }
             log::error("checked: joint state");
         }
@@ -470,8 +470,8 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 30 {
-            let upper = self.node.joint3d.joint_state().coordinates.unwrap().rotation_x.unwrap();
-            let lower = scene::get_node("World/Lower").joint3d.joint_state().coordinates.unwrap().rotation_x.unwrap();
+            let upper = self.node.joint3d.state().coordinates.unwrap().rotation_x.unwrap();
+            let lower = scene::get_node("World/Lower").joint3d.state().coordinates.unwrap().rotation_x.unwrap();
             if math::abs(upper) <= 0.1 { log::error("the chain never swung: {upper}"); }
             if math::abs(lower - (0.2 - upper)) >= 0.05 { log::error("upper {upper} lower {lower}"); }
             log::error("checked: geared");

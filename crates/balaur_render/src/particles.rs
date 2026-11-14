@@ -5,7 +5,7 @@
 //! stream that scatters them, live backend-side — each emitter owns a PCG
 //! seeded from its entity bits, so the engine's `rng` stream is untouched and
 //! a headless run ticks bit-identically to a windowed one. The one thing an
-//! emitter tells a script, a one-shot burst's `finished`, is timed from its
+//! emitter tells a script, a one-shot burst's `particles_finished`, is timed from its
 //! settings on the fixed step for the same reason, never from live particles.
 
 use anyhow::{Result, anyhow};
@@ -20,7 +20,7 @@ use balaur_plugin::Registry;
 #[component(
     name = "particles2d",
     on_remove = particles2d_removed,
-    events = &[(FINISHED_EVENT, "nil, once a one-shot burst has died out")],
+    events = &[(PARTICLES_FINISHED_EVENT, "nil, once a one-shot burst has died out")],
     tags = [ crate::vocabulary::words::ORTHOGRAPHIC, balaur_core::components::tag::RENDER],
     after_write = after_write,
 )]
@@ -128,14 +128,30 @@ pub struct Particles {
 }
 
 /// What a one-shot emitter announces once its burst has had time to die out.
-pub(crate) const FINISHED_EVENT: &str = "finished";
+pub(crate) const PARTICLES_FINISHED_EVENT: &str = "particles_finished";
 
-/// How long each one-shot burst has been going; `None` once it has
-/// announced, until `emitting` falls and re-arms it.
+/// What the probe below answers to in `balaur_core::rest`.
+pub(crate) const PARTICLES: &str = "particles";
+
+/// What the fixed step keeps of every emitter, timed from its settings.
 #[derive(Default)]
-pub(crate) struct Bursts(balaur_core::collections::DetHashMap<Entity, Option<f32>>);
+pub(crate) struct Bursts {
+    /// How long each one-shot burst has been going; `None` once it has
+    /// announced, until `emitting` falls and re-arms it.
+    going: balaur_core::collections::DetHashMap<Entity, Option<f32>>,
+    /// Seconds the last particle each emitter bore has left to live.
+    tails: balaur_core::collections::DetHashMap<Entity, f32>,
+    /// Whether the last step left an emitter bearing or its particles alive.
+    moving: bool,
+}
 
-/// Announce `finished` for each one-shot burst whose last particle is due to
+/// Whether an emitter still bears particles, or has some left to die out.
+pub(crate) fn pending(eng: &Engine) -> bool {
+    eng.try_resource::<Bursts>()
+        .is_some_and(|bursts| bursts.borrow().moving)
+}
+
+/// Announce `particles_finished` for each one-shot burst whose last particle is due to
 /// have died: the last is born `lifetime * (1 - explosiveness)` in, and lives
 /// `lifetime`.
 pub(crate) fn burst_system(eng: &Engine, _dt: f32) {
@@ -144,7 +160,10 @@ pub(crate) fn burst_system(eng: &Engine, _dt: f32) {
         let paused = balaur_core::process::pause(eng);
         let bursts = eng.resource::<Bursts>();
         let mut bursts = bursts.borrow_mut();
+        let hosted = eng.debug_scope();
         let mut live = balaur_core::collections::DetHashMap::default();
+        let mut tails = balaur_core::collections::DetHashMap::default();
+        let mut moving = false;
         let mut finished = Vec::new();
         let mut armed: Vec<(Entity, Emission)> = world
             .query::<(Entity, &Particles)>()
@@ -158,33 +177,54 @@ pub(crate) fn burst_system(eng: &Engine, _dt: f32) {
                 .map(|(entity, emitter)| (entity, emitter.emission())),
         );
         for (entity, emitter) in armed {
-            if !(emitter.one_shot && emitter.emitting) {
-                continue;
+            let runs = balaur_core::process::ticks(&world, entity, paused);
+            let mut bearing = emitter.emitting && !emitter.one_shot;
+            if emitter.one_shot && emitter.emitting {
+                let next = match bursts.going.get(&entity).copied() {
+                    None => Some(0.0),
+                    Some(None) => None,
+                    Some(Some(elapsed)) if runs => Some(elapsed + balaur_core::fixed_dt()),
+                    Some(held) => held,
+                };
+                let due = emitter.lifetime * (2.0 - emitter.explosiveness);
+                let next = next.filter(|&elapsed| {
+                    let over = elapsed + f32::EPSILON >= due;
+                    if over {
+                        finished.push(entity);
+                    }
+                    !over
+                });
+                bearing = next.is_some();
+                live.insert(entity, next);
             }
-            let next = match bursts.0.get(&entity).copied() {
-                None => Some(0.0),
-                Some(None) => None,
-                Some(Some(elapsed)) if balaur_core::process::ticks(&world, entity, paused) => {
-                    Some(elapsed + balaur_core::fixed_dt())
-                }
-                Some(held) => held,
+            // What an emitter bore lives a lifetime past its last birth; a
+            // burst that played out has none left.
+            let left = if bearing {
+                Some(emitter.lifetime)
+            } else if emitter.emitting {
+                None
+            } else {
+                let spent = if runs { balaur_core::fixed_dt() } else { 0.0 };
+                bursts.tails.get(&entity).map(|left| left - spent)
             };
-            let due = emitter.lifetime * (2.0 - emitter.explosiveness);
-            let next = next.filter(|&elapsed| {
-                let over = elapsed + f32::EPSILON >= due;
-                if over {
-                    finished.push(entity);
-                }
-                !over
-            });
-            live.insert(entity, next);
+            if let Some(left) = left.filter(|left| *left > 0.0) {
+                tails.insert(entity, left);
+                moving = moving || (runs && balaur_core::rest::counts(&world, entity, hosted));
+            }
         }
-        bursts.0 = live;
+        bursts.going = live;
+        bursts.tails = tails;
+        bursts.moving = moving;
         finished.sort_by_key(|entity| entity.to_bits());
         finished
     };
     for entity in finished {
-        balaur_core::events::announce(eng, entity, FINISHED_EVENT, balaur_script::Value::Nil);
+        balaur_core::events::announce(
+            eng,
+            entity,
+            PARTICLES_FINISHED_EVENT,
+            balaur_script::Value::Nil,
+        );
     }
 }
 
@@ -516,8 +556,10 @@ pub(crate) fn sync_particles(
             .iter()
             .map(|particle| {
                 let t = (particle.age / particle.lifetime).clamp(0.0, 1.0);
-                let color =
-                    crate::sync_2d::modulate(blend(emitter.color, emitter.color_end, t), inherited);
+                let color = crate::film::rgba(crate::sync_2d::modulate(
+                    blend(emitter.color, emitter.color_end, t),
+                    inherited,
+                ));
                 let size = emitter.size + (end - emitter.size) * t;
                 let (sin, cos) = libm::sincosf(particle.turn + particle.spin * particle.age);
                 let uv = sheet.as_ref().filter(|s| !s.is_empty()).map_or(

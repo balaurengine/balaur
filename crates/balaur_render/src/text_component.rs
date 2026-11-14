@@ -27,9 +27,9 @@ pub enum FontStyle {
 /// Where a wrapped line may break.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum LineBreak {
-    WordOrGlyph,
+    WordSmart,
     Word,
-    Glyph,
+    Arbitrary,
 }
 
 /// Which part of a cut line the ellipsis stands in for.
@@ -94,7 +94,7 @@ pub struct Text2d {
     #[property(min = 0, group = "text")]
     pub max_lines: i64,
     /// Where a wrapped line may break: between words with a too-long word cut anywhere, between words only, or anywhere
-    #[property(default = LineBreak::WordOrGlyph, group = "text")]
+    #[property(default = LineBreak::WordSmart, group = "text")]
     pub line_break: LineBreak,
     /// End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line
     #[property(group = "text")]
@@ -104,7 +104,7 @@ pub struct Text2d {
     pub truncate_at: TruncateAt,
     /// Spaces between tab stops
     #[property(default = 8, min = 1, max = 64, group = "text")]
-    pub tab_width: i64,
+    pub tab_size: i64,
 }
 
 /// A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.
@@ -160,7 +160,7 @@ pub struct Text3d {
     #[property(min = 0, group = "text")]
     pub max_lines: i64,
     /// Where a wrapped line may break: between words with a too-long word cut anywhere, between words only, or anywhere
-    #[property(default = LineBreak::WordOrGlyph, group = "text")]
+    #[property(default = LineBreak::WordSmart, group = "text")]
     pub line_break: LineBreak,
     /// End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line
     #[property(group = "text")]
@@ -170,7 +170,7 @@ pub struct Text3d {
     pub truncate_at: TruncateAt,
     /// Spaces between tab stops
     #[property(default = 8, min = 1, max = 64, group = "text")]
-    pub tab_width: i64,
+    pub tab_size: i64,
     /// Turn to face the camera every frame; off leaves it in the node's own plane
     #[property(default = true)]
     pub billboard: bool,
@@ -220,7 +220,7 @@ macro_rules! renderable_of {
                     truncate_at: asked.truncate_at.option().into(),
                     max_lines: u32::try_from(asked.max_lines.max(0)).unwrap_or(u32::MAX),
                     max_height: asked.max_height.max(0.0),
-                    tab_width: u16::try_from(asked.tab_width.clamp(1, 64)).unwrap_or(8),
+                    tab_size: u16::try_from(asked.tab_size.clamp(1, 64)).unwrap_or(8),
                 },
             },
             pixels_per_unit: asked.pixels_per_unit.max(0.01),
@@ -358,6 +358,9 @@ pub(crate) struct TextSlot {
     /// The asset generation it was built under: a saved font or style file
     /// rebuilds a block naming one.
     assets: u64,
+    /// The shaper's generation its UVs were quoted under: an atlas that grew
+    /// or started over since holds its glyphs elsewhere.
+    atlas: u64,
 }
 
 /// The two material caches a block's layers draw through, 2D and 3D.
@@ -402,20 +405,9 @@ pub(crate) fn sync_text(
     slots: &mut std::collections::HashMap<Entity, TextSlot>,
     viewport_height: f32,
 ) {
-    let (seen, wanted) = stale_blocks(app, slots, viewport_height);
-
     // Shape3d every block that moved before the atlas is uploaded, so one
     // upload covers the lot.
-    let mut blocks = Vec::with_capacity(wanted.len());
-    for (entity, text, resolved, raster, _) in &wanted {
-        blocks.push(Some(crate::world_text::shape_at(
-            &app.engine,
-            resolved,
-            &text.style,
-            *raster,
-        )));
-        let _ = entity;
-    }
+    let (seen, wanted, blocks, atlas) = shaped_stale(app, slots, viewport_height);
     let texture = crate::world_text::atlas_texture(&app.engine);
 
     for ((entity, text, resolved, raster, from_parent), block) in wanted.into_iter().zip(blocks) {
@@ -423,7 +415,6 @@ pub(crate) fn sync_text(
             old.detach();
         }
         let debug = crate::debug_draw::DebugDraw::of(&app.engine.world(), entity);
-        let Some(block) = block else { continue };
         let Some(texture) = texture.clone() else {
             continue;
         };
@@ -453,6 +444,7 @@ pub(crate) fn sync_text(
             shaped: resolved,
             inherited: from_parent,
             assets: balaur_core::assets::generation(&app.engine),
+            atlas,
         };
         // Shadow, outline and text: a node each, drawn in that order.
         let look = balaur_text::text_style::of(&app.engine, &text.style.text_style);
@@ -461,7 +453,7 @@ pub(crate) fn sync_text(
                 .into_iter()
                 .enumerate()
         {
-            let tint = kiss3d::color::Color::new(r, g, b, a);
+            let tint = crate::film::color([r, g, b, a]);
             if text.in_3d {
                 if let Some(mesh) = crate::world_text::mesh_3d(
                     &block,
@@ -521,12 +513,39 @@ type Stale = (
     balaur_core::scene::MaterialId,
 );
 
-/// Every text node, and the ones whose block has to be built again.
+/// Every text node, the blocks to build again with each one shaped, and the
+/// shaper's generation their UVs quote.
+#[cfg(feature = "window")]
+fn shaped_stale(
+    app: &balaur_core::App,
+    slots: &std::collections::HashMap<Entity, TextSlot>,
+    viewport_height: f32,
+) -> (
+    std::collections::HashSet<Entity>,
+    Vec<Stale>,
+    Vec<std::rc::Rc<balaur_text::Shaped>>,
+    u64,
+) {
+    crate::world_text::shaped_together(&app.engine, |atlas| {
+        let (seen, wanted) = stale_blocks(app, slots, viewport_height, atlas);
+        let blocks = wanted
+            .iter()
+            .map(|(_, text, resolved, raster, _)| {
+                crate::world_text::shape_at(&app.engine, resolved, &text.style, *raster)
+            })
+            .collect();
+        (seen, wanted, blocks, atlas)
+    })
+}
+
+/// Every text node, and the ones whose block has to be built again: `atlas`
+/// is the shaper's generation now.
 #[cfg(feature = "window")]
 fn stale_blocks(
     app: &balaur_core::App,
     slots: &std::collections::HashMap<Entity, TextSlot>,
     viewport_height: f32,
+    atlas: u64,
 ) -> (std::collections::HashSet<Entity>, Vec<Stale>) {
     use balaur_core::{GlobalAppearance, GlobalTransform};
 
@@ -548,6 +567,7 @@ fn stale_blocks(
                 || (slot.raster - raster).abs() > f32::EPSILON
                 || (text.material.is_empty() && slot.inherited != from_parent)
                 || (slot.assets != generation && names_a_file(text))
+                || slot.atlas != atlas
         });
         if rebuild {
             wanted.push((entity, text.clone(), resolved, raster, from_parent));
@@ -642,7 +662,7 @@ fn place(
         let tinted = |layer: usize| {
             let own = slot.colors.get(layer).copied().unwrap_or(text.style.color);
             let [r, g, b, a] = crate::sync_2d::modulate(own, appearance.tint.to_array());
-            kiss3d::color::Color::new(r, g, b, a)
+            crate::film::color([r, g, b, a])
         };
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         for (layer, node) in slot.two_d.iter_mut().enumerate() {
@@ -731,8 +751,105 @@ fn raster_size(
 
 #[cfg(all(test, feature = "window"))]
 mod tests {
-    /// Text under a scaled parent is that much larger or smaller, as a
-    /// sprite is, whichever axis is flipped.
+    use std::collections::HashMap;
+
+    use balaur_core::components::derived::Component as _;
+    use balaur_core::hecs::Entity;
+
+    /// Enough glyphs, drawn large enough, to outgrow the atlas's first page.
+    const LONG: &str = "Sphinx of black quartz, judge my vow";
+
+    fn app() -> balaur_core::App {
+        let bare = balaur_core::AppConfig::bare(".");
+        let mut app = balaur_core::App::new(bare).expect("a bare app needs no project");
+        let loaded = balaur_plugin::load(&mut app, &mut crate::RenderPlugin);
+        loaded.expect("the render plugin loads into a bare app");
+        app
+    }
+
+    /// A `text3d` node drawing `text` at `font_size`.
+    fn sign(app: &balaur_core::App, text: &str, font_size: f32) -> Entity {
+        let node = app.engine.spawn_node("Sign", app.engine.root());
+        let params = format!("text = {text:?}\nfont_size = {font_size:?}");
+        let params: toml::Value = toml::from_str(&params).expect("two keys of plain TOML");
+        let name = super::Text3d::NAME;
+        let added = balaur_core::components::add(&app.engine, node, name, Some(&params));
+        added.expect("a text3d takes its text and its size");
+        node
+    }
+
+    fn atlas_side(app: &balaur_core::App) -> usize {
+        let state = balaur_text::state(&app.engine).expect("something was shaped");
+        state.borrow().atlas().side()
+    }
+
+    /// Whether each quad's UV box, in pixels of the atlas as it stands, is
+    /// the size of the glyph it draws.
+    fn quotes_the_atlas(app: &balaur_core::App, block: &balaur_text::Shaped) -> bool {
+        let side = atlas_side(app) as f32;
+        block
+            .quads
+            .iter()
+            .all(|quad| (quad.uv.size() * side - quad.rect.size()).abs().max_elem() < 0.01)
+    }
+
+    /// What `sync_text` keeps for a block it built, less the nodes a window draws.
+    fn kept(app: &balaur_core::App, stale: &super::Stale, atlas: u64) -> super::TextSlot {
+        let (_, text, resolved, raster, from_parent) = stale;
+        super::TextSlot {
+            group_2d: None,
+            two_d: Vec::new(),
+            three_d: Vec::new(),
+            colors: Vec::new(),
+            version: text.version,
+            raster: *raster,
+            shaped: resolved.clone(),
+            inherited: *from_parent,
+            assets: balaur_core::assets::generation(&app.engine),
+            atlas,
+        }
+    }
+
+    // The first frame of a scene: a small block is shaped, then a large one
+    // doubles the atlas under it.
+    #[test]
+    fn blocks_shaped_in_one_pass_all_quote_the_atlas_the_pass_left() {
+        let app = app();
+        let small = sign(&app, "a sign", 52.0);
+        sign(&app, LONG, 96.0);
+        let (_, wanted, blocks, _) = super::shaped_stale(&app, &HashMap::new(), 1000.0);
+        assert_eq!(wanted[0].0, small, "the small block is shaped first");
+        let alone = {
+            let app = self::app();
+            sign(&app, "a sign", 52.0);
+            super::shaped_stale(&app, &HashMap::new(), 1000.0);
+            atlas_side(&app)
+        };
+        assert!(atlas_side(&app) > alone, "the large block fitted the page");
+        assert_eq!(blocks.len(), 2);
+        assert!(blocks.iter().all(|block| quotes_the_atlas(&app, block)));
+    }
+
+    #[test]
+    fn a_block_built_under_a_smaller_atlas_is_built_again_when_it_grows() {
+        let app = app();
+        let small = sign(&app, "a sign", 52.0);
+        let mut slots = HashMap::new();
+        let (_, wanted, _, atlas) = super::shaped_stale(&app, &slots, 1000.0);
+        slots.insert(small, kept(&app, &wanted[0], atlas));
+        let opened = atlas_side(&app);
+        let (_, wanted, _, _) = super::shaped_stale(&app, &slots, 1000.0);
+        assert!(wanted.is_empty(), "a block nothing moved under is left be");
+
+        sign(&app, LONG, 96.0);
+        let (_, wanted, blocks, _) = super::shaped_stale(&app, &slots, 1000.0);
+        assert!(atlas_side(&app) > opened, "the large block fitted the page");
+        assert!(wanted.iter().any(|(entity, ..)| *entity == small));
+        assert!(blocks.iter().all(|block| quotes_the_atlas(&app, block)));
+    }
+
+    // Text under a scaled parent is that much larger or smaller, as a
+    // sprite is, whichever axis is flipped.
     #[test]
     fn a_scaled_node_s_em_is_scaled_with_it() {
         let em = |x, y| super::em_in_world(280.0, 100.0, glamx::Vec3::new(x, y, 1.0));

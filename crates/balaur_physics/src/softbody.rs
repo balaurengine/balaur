@@ -75,7 +75,7 @@ pub struct Softbody3d {
     /// Structural edges added between particles the layout left apart, each as long as its two particles stand at the start
     #[property(group = "shape")]
     pub seams: Vec<ParticlePair>,
-    /// The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from
+    /// The particles held where they are, by index: a cloth hangs from these, and `particle_count()` says how many there are to choose from
     #[property(group = "particles")]
     pub pinned_particles: Indices,
     /// Each particle's own mass, by index; empty spreads `mass` over them evenly

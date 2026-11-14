@@ -1,7 +1,9 @@
 //! The `camera` component, without a window: it writes the same
 //! `CameraConfig3d` / `CameraConfig2d` resources a windowed backend applies.
 
-use balaur_core::glamx::Vec3;
+use std::f32::consts::FRAC_PI_2;
+
+use balaur_core::glamx::{Quat, Vec3};
 use balaur_core::{App, AppConfig, Transform, components, scene};
 use balaur_render::{CameraConfig2d, CameraConfig3d, PostConfig, RenderPlugin};
 
@@ -63,7 +65,13 @@ fn a_current_camera_component_drives_the_camera_config() {
     let mut app = app();
     let rig = node_at(&app, app.engine.root(), Vec3::new(1.0, 0.0, 0.0));
     let cam = node_at(&app, rig, Vec3::new(2.0, 4.0, 5.0));
-    add_camera_3d(&app, cam, "look_at = [1.0, 2.0, 3.0]");
+    // A quarter turn about y faces -z down -x, and one about z rolls +y to -x.
+    app.engine
+        .world_mut()
+        .get::<&mut Transform>(cam)
+        .unwrap()
+        .rotation = Quat::from_rotation_y(FRAC_PI_2) * Quat::from_rotation_z(FRAC_PI_2);
+    add_camera_3d(&app, cam, "focus_distance = 2.0");
     {
         // Control: the boot default must differ from the node, and the boot
         // `changed` is cleared as a backend would after applying it.
@@ -76,7 +84,8 @@ fn a_current_camera_component_drives_the_camera_config() {
     let config = app.engine.resource::<CameraConfig3d>();
     let config = config.borrow();
     assert_close(config.eye, Vec3::new(3.0, 4.0, 5.0));
-    assert_close(config.target, Vec3::new(1.0, 2.0, 3.0));
+    assert_close(config.target, Vec3::new(1.0, 4.0, 5.0));
+    assert_close(config.up, Vec3::new(0.0, 0.0, 1.0));
     assert!(
         config.changed,
         "the backend was never told to apply the pose"
@@ -233,8 +242,8 @@ fn the_component_round_trips() {
     assert!((table["pixels_per_unit"].as_float().unwrap() - 25.0).abs() < 1e-6);
     // The split is what keeps this out: a flat camera has nothing to aim.
     assert!(
-        !table.contains_key("look_at"),
-        "2D camera reports a look_at"
+        !table.contains_key("focus_distance"),
+        "2D camera reports a focus_distance"
     );
 }
 
@@ -345,14 +354,14 @@ fn patching_one_camera_property_leaves_the_rest_alone() {
         "[effects]\npost = [\"ssao\", \"vignette\"]\nssao_bias = 0.25\nssao_radius = 0.6\nvignette_amount = 0.32",
     );
     // What a script driving the view does every frame.
-    let aim: toml::Value = toml::from_str("look_at = [1.0, 2.0, 3.0]").unwrap();
+    let aim: toml::Value = toml::from_str("focus_distance = 3.0").unwrap();
     components::patch(&app.engine, cam, "camera3d", &aim).unwrap();
     app.tick(1.0 / 60.0);
     let config = app.engine.resource::<PostConfig>();
     let config = config.borrow();
     assert!(
         (config.occlusion.bias - 0.25).abs() < 1e-6,
-        "a patched aim reset the occlusion bias to {}",
+        "a patched focus reset the occlusion bias to {}",
         config.occlusion.bias
     );
     assert!((config.occlusion.radius - 0.6).abs() < 1e-6);
@@ -676,17 +685,17 @@ fn a_cameras_bloom_levels_reach_the_post_config() {
 }
 
 #[test]
-fn an_eye_separation_makes_a_stereo_pair_and_reads_back() {
+fn a_stereo_separation_makes_a_stereo_pair_and_reads_back() {
     let mut app = app();
     let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
-    add_camera_3d(&app, cam, "eye_separation = 0.2");
+    add_camera_3d(&app, cam, "stereo_separation = 0.2");
     app.tick(1.0 / 60.0);
     {
         let config = app.engine.resource::<CameraConfig3d>();
-        assert!((config.borrow().lens.eye_separation - 0.2).abs() < 1e-6);
+        assert!((config.borrow().lens.stereo_separation - 0.2).abs() < 1e-6);
     }
     let read = components::get(&app.engine, cam, "camera3d").unwrap();
-    assert!((read["eye_separation"].as_float().unwrap() - 0.2).abs() < 1e-6);
+    assert!((read["stereo_separation"].as_float().unwrap() - 0.2).abs() < 1e-6);
     assert!(read.get("kind").is_none(), "a camera has no kind to pick");
 }
 

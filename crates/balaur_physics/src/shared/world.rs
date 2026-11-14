@@ -256,7 +256,31 @@ macro_rules! functions {
                 .map(|e| (*e, now.contains(e)))
                 .collect();
             state.asleep = now;
+            state.awake = moving(state);
             changed
+        }
+
+        /// Whether the step left anything moving: a dynamic body awake, a
+        /// kinematic one in motion, or a soft body or a torn piece not asleep.
+        fn moving(state: &$State) -> bool {
+            use crate::shared::softbody::Family;
+            let bodies = state.bodies.values();
+            let mut bodies = bodies.filter_map(|handle| state.world.bodies.get(*handle));
+            let rigid = bodies.any(|body| {
+                let moves = if body.is_kinematic() {
+                    body.is_moving()
+                } else {
+                    body.is_dynamic() && !body.is_sleeping()
+                };
+                moves && body.is_enabled()
+            });
+            let soft_bodies = &state.world.soft_bodies;
+            rigid
+                || state.soft_bodies.values().any(|&root| {
+                    let pieces = soft_bodies.family(root);
+                    let mut pieces = pieces.iter().filter_map(|piece| soft_bodies.get(*piece));
+                    pieces.any(|soft| soft.is_enabled() && !soft.is_sleeping())
+                })
         }
 
         /// Announce each change [`sleep_changes`] found, from the node.

@@ -273,7 +273,7 @@ fn snap_aov_asks_the_renderer_for_an_auxiliary_output() {
 fn every_3d_renderable_takes_its_flags_and_a_debug_drawing_beside_it() {
     let (_dir, app) = app();
     let keys = "segmentation_id = 9\nreceive_shadows = false";
-    let drawing = "wireframe_width = 2.0\nwireframe_sizing = \"screen\"\nwireframe_color = [0.0, 1.0, 0.0, 1.0]\ndot_size = 3.0\ndraw_surface = false";
+    let drawing = "wireframe_width = 2.0\nwireframe_sizing = \"screen\"\nwireframe_color = [0.0, 1.0, 0.0, 1.0]\npoint_size = 3.0\ndraw_surface = false";
     let solid = node(&app);
     add(
         &app,

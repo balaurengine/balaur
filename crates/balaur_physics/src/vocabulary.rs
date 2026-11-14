@@ -10,7 +10,7 @@ mod layers;
 mod read;
 mod soft;
 
-pub(crate) use layers::{flags, named_bits};
+pub(crate) use layers::flags;
 pub(crate) use read::{Opts, boolean, f, map, text};
 
 /// The closed sets of words a scene file, a script table and the inspector all
@@ -98,8 +98,6 @@ pub(crate) mod words {
     pub(crate) const ACCELERATION: &str = "acceleration";
     pub(crate) const FORCE: &str = "force";
 
-    pub(crate) const SENSORS: &str = "sensors";
-    pub(crate) const SOLIDS: &str = "solids";
     pub(crate) const PD: &str = "pd";
     pub(crate) const PID: &str = "pid";
 
@@ -166,9 +164,9 @@ pub(crate) mod words {
         pub(crate) const BROAD_PHASE_AABB: &str = "broad_phase_aabb";
         pub(crate) const CLOSEST_POINT: &str = "closest_point";
         pub(crate) const CLOSEST_POINTS: &str = "closest_points";
-        pub(crate) const COLLIDER_MASS: &str = "collider_mass";
         pub(crate) const COLLIDER_MASS_PROPERTIES: &str = "collider_mass_properties";
         pub(crate) const COLLIDER_MESH: &str = "collider_mesh";
+        pub(crate) const COLLIDER_TOTAL_MASS: &str = "collider_total_mass";
         pub(crate) const COLLIDER_VOLUME: &str = "collider_volume";
         pub(crate) const COLLISION_AABB: &str = "collision_aabb";
         pub(crate) const COMBINE_VOXELS: &str = "combine_voxels";
@@ -193,7 +191,7 @@ pub(crate) mod words {
         pub(crate) const LINEAR_VELOCITY: &str = "linear_velocity";
         pub(crate) const LOCAL_CENTER_OF_MASS: &str = "local_center_of_mass";
         pub(crate) const MAX_CONTACT_IMPULSE: &str = "max_contact_impulse";
-        pub(crate) const MOVE_CHARACTER: &str = "move_character";
+        pub(crate) const MOVE_CHARACTER_BY: &str = "move_character_by";
         pub(crate) const NEXT_POSITION: &str = "next_position";
         pub(crate) const OVERLAP_AABB: &str = "overlap_aabb";
         pub(crate) const OVERLAP_POINT: &str = "overlap_point";
@@ -221,7 +219,7 @@ pub(crate) mod words {
         pub(crate) const SET_VOXEL_SIZE: &str = "set_voxel_size";
         pub(crate) const SHAPECAST: &str = "shapecast";
         pub(crate) const SLEEP: &str = "sleep";
-        pub(crate) const SOFTBODY_CENTER: &str = "softbody_center";
+        pub(crate) const SOFTBODY_WORLD_CENTER_OF_MASS: &str = "softbody_world_center_of_mass";
         pub(crate) const SOLVE_IK: &str = "solve_ik";
         pub(crate) const SWEPT_AABB: &str = "swept_aabb";
         pub(crate) const TELEPORT: &str = "teleport";
@@ -312,6 +310,7 @@ pub(crate) mod keys {
     pub(crate) const ENGINE_FORCE: &str = "engine_force";
     pub(crate) const EXCLUDE: &str = "exclude";
     pub(crate) const EXCLUDE_BODY: &str = "exclude_body";
+    pub(crate) const EXCLUDE_KINDS: &str = "exclude_kinds";
     pub(crate) const FILL: &str = "fill";
     pub(crate) const FILTER: &str = "filter";
     pub(crate) const FINAL_BROAD_PHASE_MS: &str = "final_broad_phase_ms";
@@ -389,7 +388,7 @@ pub(crate) mod keys {
     pub(crate) const STARTED: &str = "started";
     pub(crate) const STATIC_COLOR: &str = "static_color";
     pub(crate) const SUSPENSION: &str = "suspension";
-    /// The particle pairs a tear cut, in a `tear` payload.
+    /// The particle pairs a tear cut, in a `torn` payload.
     pub(crate) const TORN_EDGES: &str = "edges";
     pub(crate) const POINT: &str = "point";
     pub(crate) const POINTS: &str = "points";
@@ -507,7 +506,7 @@ pub(crate) mod hook {
     pub(crate) use balaur_core::hooks::{COLLISION_ENTER, COLLISION_EXIT};
     pub(crate) const CONTACT_FORCE: &str = "contact_force";
     pub(crate) const JOINT_BREAK: &str = "joint_break";
-    pub(crate) const TEAR: &str = "tear";
+    pub(crate) const TORN: &str = "torn";
     pub(crate) const SLEEPING_CHANGED: &str = "sleeping_changed";
 
     /// What rapier raises only for a collider that asked, and each collider
@@ -549,8 +548,8 @@ pub(crate) mod hook {
         (CONTACT_FORCE, FORCE),
         (SLEEPING_CHANGED, "whether it sleeps now"),
         (
-            TEAR,
-            "`{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the record `tear_softbody` answers",
+            TORN,
+            "`{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the record `tear()` answers",
         ),
     ];
 }

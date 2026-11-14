@@ -34,13 +34,11 @@ use crate::scene;
 // declared; the code lives in `file_api`.
 pub(crate) use crate::file_api::resolve;
 pub use crate::file_api::{from_json, to_json};
-mod changes;
-use changes::{added_since, change_tick, changed_since, removed_since};
 mod registry;
 use crate::vocabulary::{keys, words};
 use registry::{
-    apply_preset, component_expects, component_requires, component_schema, component_tags,
-    component_types, preset_info, presets, warnings,
+    component_expects, component_requires, component_schema, component_tags, component_types,
+    warnings,
 };
 
 /// One engine operation, tagged with the module it belongs to.
@@ -69,11 +67,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: words::modules::ENGINE,
             name: keys::TICK,
             call: tick,
-        },
-        EngineOp {
-            module: words::modules::ENGINE,
-            name: "change_tick",
-            call: change_tick,
         },
         EngineOp {
             module: words::modules::ENGINE,
@@ -184,21 +177,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: words::modules::SCENE,
-            name: "added_since",
-            call: added_since,
-        },
-        EngineOp {
-            module: words::modules::SCENE,
-            name: "changed_since",
-            call: changed_since,
-        },
-        EngineOp {
-            module: words::modules::SCENE,
-            name: "removed_since",
-            call: removed_since,
-        },
-        EngineOp {
-            module: words::modules::SCENE,
             name: "instantiate",
             call: instantiate,
         },
@@ -246,21 +224,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: words::modules::SCENE,
             name: "component_requires",
             call: component_requires,
-        },
-        EngineOp {
-            module: words::modules::SCENE,
-            name: "presets",
-            call: presets,
-        },
-        EngineOp {
-            module: words::modules::SCENE,
-            name: "preset_info",
-            call: preset_info,
-        },
-        EngineOp {
-            module: words::modules::SCENE,
-            name: "apply_preset",
-            call: apply_preset,
         },
         EngineOp {
             module: words::modules::SCENE,

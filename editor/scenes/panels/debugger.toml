@@ -1,6 +1,6 @@
 # The Debugger tab: pause while running, the four steps and where it stopped
 # while stopped, and the call stack with each frame's locals a level in. One
-# script answers them; the stop is the engine's, heard as `debugger_stopped`.
+# script answers them; the stop is the engine's, heard as `debugger_stopped` and `debugger_resumed`.
 
 [[nodes]]
 id = "panel"
@@ -32,8 +32,8 @@ id = "pause"
 name = "Pause"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pause" }] }
 [nodes.widget]
-on_click = "pause"
 kind = "button"
 role = "action_primary"
 text = "⏸ Pause"
@@ -45,8 +45,8 @@ id = "continue"
 name = "continue"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
 [nodes.widget]
-on_click = "step"
 kind = "button"
 role = "action_primary"
 text = "▶ Continue"
@@ -57,8 +57,8 @@ id = "over"
 name = "over"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
 [nodes.widget]
-on_click = "step"
 kind = "button"
 role = "action_primary"
 text = "Over"
@@ -69,8 +69,8 @@ id = "into"
 name = "into"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
 [nodes.widget]
-on_click = "step"
 kind = "button"
 role = "action_primary"
 text = "Into"
@@ -81,8 +81,8 @@ id = "out"
 name = "out"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
 [nodes.widget]
-on_click = "step"
 kind = "button"
 role = "action_primary"
 text = "Out"
@@ -119,8 +119,8 @@ grow = 1
 id = "break"
 name = "BreakOnError"
 parent = "tools"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "break_on_error" }] }
 [nodes.widget]
-on_click = "break_on_error"
 kind = "button"
 role = "chip"
 text = "break on error"
@@ -131,8 +131,8 @@ id = "stack"
 name = "Stack"
 parent = "panel"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "frame_clicked" }] }
 [nodes.widget]
-on_click = "frame_clicked"
 kind = "tree"
 grow = 1
 font = "fonts/JetBrainsMono-Regular.ttf"

@@ -61,8 +61,8 @@ font_size = 11
 id = "bind"
 name = "bind"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "bind"
@@ -72,8 +72,8 @@ tooltip = "Give every listed vertex all of its weight to the bone picked in the 
 id = "unbind"
 name = "unbind"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "unbind"
@@ -83,8 +83,8 @@ tooltip = "Take the listed vertices off every bone"
 id = "normalize"
 name = "normalize"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "normalize"
@@ -94,8 +94,8 @@ tooltip = "Scale each listed vertex's weights so they sum to one"
 id = "auto"
 name = "auto"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "auto"
@@ -105,8 +105,8 @@ tooltip = "Weight by distance to each bone's segment"
 id = "smooth"
 name = "smooth"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "smooth"
@@ -117,8 +117,8 @@ id = "all"
 name = "all"
 parent = "verbs"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "all"

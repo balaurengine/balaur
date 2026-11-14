@@ -7,7 +7,6 @@
 use balaur_core::App;
 use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
 use glamx::{Vec2, Vec3};
-use kiss3d::color::Color;
 use kiss3d::window::Window;
 
 pub(crate) fn flush_debug_lines_2d(app: &App, window: &mut Window) {
@@ -18,7 +17,7 @@ pub(crate) fn flush_debug_lines_2d(app: &App, window: &mut Window) {
         window.draw_line_2d(
             Vec2::new(a[0], a[1]),
             Vec2::new(b[0], b[1]),
-            Color::new(c[0], c[1], c[2], c[3]),
+            crate::film::color(c),
             width,
         );
     }
@@ -33,7 +32,7 @@ pub(crate) fn flush_debug_lines(app: &App, window: &mut Window) {
     for (a, b, c, width, perspective, on_top) in lines.borrow_mut().lines.drain(..) {
         let a = Vec3::new(a[0], a[1], a[2]);
         let b = Vec3::new(b[0], b[1], b[2]);
-        let color = Color::new(c[0], c[1], c[2], c[3]);
+        let color = crate::film::color(c);
         if on_top {
             // depth_bias = 1.0 collapses depth to the near plane: the line
             // renders over everything (editor rotation ball, overlays).

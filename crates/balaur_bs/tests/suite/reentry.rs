@@ -37,6 +37,7 @@ fn api() -> HostApi {
             params: vec![Ty::Int],
             ret: Ty::Int,
             is_async: false,
+            editor: false,
         }],
         components: vec![],
         constants: vec![],

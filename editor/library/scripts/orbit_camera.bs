@@ -42,9 +42,5 @@ impl OrbitCamera {
             -math::sin(pitch) * self.range,
             math::cos(yaw) * flat);
         self.node.transform.rotation_euler = vec3(pitch, yaw, 0.0);
-        // A 3D camera aims by `camera.look_at`, not its rotation: name the
-        // pivot in world units, or the rig looks at the origin.
-        let at = self.node.parent().transform.global_position();
-        self.node.camera3d.look_at = vec3(at.x, at.y, at.z);
     }
 }

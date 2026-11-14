@@ -29,13 +29,17 @@ source = "#wedge"
 const SCRIPT: &str = r#"pub class Wedge { node: Node }
 impl Wedge {
     fn init() {
-        let through = render::pick_ray(-0.5, -0.5, 5.0, 0.0, 0.0, -1.0);
+        let through = render::pick_ray(vec3(-0.5, -0.5, 5.0), vec3(0.0, 0.0, -1.0));
         if !through.is_valid() {
             log::error("the ray through the triangle picked nothing");
         }
-        let gap = render::pick_ray(0.6, 0.6, 5.0, 0.0, 0.0, -1.0);
+        let gap = render::pick_ray(vec3(0.6, 0.6, 5.0), vec3(0.0, 0.0, -1.0));
         if gap.is_valid() {
             log::error("the ray through the gap picked the node's box, not its triangles");
+        }
+        let met = render::pick_ray_at(vec3(-0.5, -0.5, 5.0), vec3(0.0, 0.0, -1.0));
+        if met == nil || math::abs(met.unwrap().at - 5.0) >= 0.001 {
+            log::error("a triangle five units down the ray was not met there");
         }
         self.node.transform.position = vec3(0.0, 3.0, 0.0);
     }

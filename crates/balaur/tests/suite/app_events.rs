@@ -87,9 +87,9 @@ fn the_right_and_middle_buttons_reach_a_node_as_the_left_does() {
 fn an_action_let_go_is_heard_as_one_pressed_is() {
     let script = ear(r#"
     fn update(dt: float) {
-        if scene::variable("heard").as_int() == 0 { input::feed_action("jump", 1.0); }
+        if scene::variable("heard").as_int() == 0 { input::set_action_value("jump", 1.0); }
     }
-    pub fn on_action(name: str) { tell("pressed {name}"); }
+    pub fn on_action_pressed(name: str) { tell("pressed {name}"); }
     pub fn on_action_released(name: str) { tell("released {name}"); }
 "#);
     let (_dir, mut app) = app_with(&script);

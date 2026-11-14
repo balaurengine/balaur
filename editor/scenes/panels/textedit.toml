@@ -17,10 +17,11 @@ whole_window = true
 id = "field"
 name = "Field"
 parent = "textedit"
+bindings = { rows = [
+    { event = "emitted:focus_exited", action = "call", value = "blurred" },
+    { event = "emitted:value_changed", action = "call", value = "typed" },
+    { event = "emitted:submitted", action = "call", value = "submitted" },
+] }
 [nodes.widget]
-on_blur = "blurred"
-on_change = "typed"
 kind = "text_field"
 role = "input_form"
-[nodes.widget_field]
-on_submit = "submitted"

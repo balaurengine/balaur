@@ -289,7 +289,7 @@ Three rules belong to the importer rather than the translator:
    from a scene or a script), and `pointer_through` (`mouse_filter` of
    `IGNORE`), which the widget layer reports so `ui.wants_pointer()` stays
    false over it while a button inside still takes the click. Found on the
-   way: a press `input.feed_*` handed in was the frame's own and the pointer
+   way: a press `input.set_*` handed in was the frame's own and the pointer
    hooks run at the top of the next, so no fed press ever reached one; a fed
    event is now the next frame's, in a windowed and a headless run alike.
    Also built: a `regex` module in `balaur_core` over `regex-lite`

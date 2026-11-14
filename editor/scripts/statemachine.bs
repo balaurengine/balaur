@@ -6,12 +6,12 @@ use docks;
 use editor;
 use form;
 use history;
+use inspector;
 use model;
 use selftest;
 use shell;
 use signals;
 use util;
-use words::dock_fields;
 use words::fields;
 use words::general;
 use words::inspector_fields;
@@ -143,7 +143,7 @@ pub fn create(state: &mut editor::State) {
     }
     history::record(state, "add state machine");
     let machine: any = { fields::TYPE: MACHINE_TYPE, START: "", STATES: {}, TRANSITIONS: [] };
-    model::selected_node(state).set_component(COMPONENT, { MACHINE: machine, "player": "", dock_fields::ACTIVE: true });
+    model::selected_node(state).set_component(COMPONENT, { MACHINE: machine, "player": "", inspector::ENABLED: true });
     history::commit(state);
 }
 

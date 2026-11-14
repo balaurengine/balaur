@@ -236,7 +236,7 @@ pub(crate) fn register_particles_3d_component(reg: &mut Registry<'_>) {
         Particles3d::NAME,
         ComponentDef {
             events: &[(
-                crate::particles::FINISHED_EVENT,
+                crate::particles::PARTICLES_FINISHED_EVENT,
                 "nil, once a one-shot burst has died out",
             )],
             tags: &[
@@ -340,7 +340,6 @@ pub(crate) fn draw(
     (eye, dt): (glamx::Vec3, f32),
 ) -> bool {
     use glamx::{Mat4, Vec3};
-    use kiss3d::prelude::Color;
 
     live.step(emitter, global.position, dt);
     let here = crate::instancing::model_of(global);
@@ -377,11 +376,11 @@ pub(crate) fn draw(
                 particle.position,
             );
             let (deformation, position) = crate::instancing::split(here, placed, global.rotation)?;
-            let [r, g, b, a] = crate::particles::blend(emitter.color, emitter.color_end, t);
+            let color = crate::particles::blend(emitter.color, emitter.color_end, t);
             Some(kiss3d::scene::InstanceData3d {
                 position,
                 deformation,
-                color: Color::new(r, g, b, a),
+                color: crate::film::color(color),
                 ..Default::default()
             })
         })

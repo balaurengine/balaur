@@ -53,15 +53,13 @@ pub struct Observers {
     bubbling: DetHashSet<SmolStr>,
 }
 
-/// Whether an observer waits for `name` on `node`, or on any node.
-pub(super) fn watched(eng: &Engine, node: Entity, name: &str) -> bool {
+/// Whether an observer waits for `name` on `on`, or, for `None`, on any node.
+pub(super) fn watched(eng: &Engine, on: Option<Entity>, name: &str) -> bool {
     eng.try_resource::<Observers>().is_some_and(|held| {
-        let held = held.borrow();
-        [Some(node), None].into_iter().any(|on| {
-            held.by_name
-                .get(&(SmolStr::new(name), on))
-                .is_some_and(|list| !list.is_empty())
-        })
+        held.borrow()
+            .by_name
+            .get(&(SmolStr::new(name), on))
+            .is_some_and(|list| !list.is_empty())
     })
 }
 

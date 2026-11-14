@@ -21,7 +21,6 @@ impl Plugin {
         for word in [signals::PLUGINS_CHANGED, signals::OUTLINE, signals::INSPECTOR, signals::DEBUGGER_CHANGED] {
             events::listen(self.node, word, editor);
         }
-        events::listen(self.node, "saved");
         events::listen(self.node, ASSETS_RELOADED);
     }
 
@@ -38,10 +37,6 @@ impl Plugin {
     }
 
     pub fn on_debugger_changed(_change: any) {
-        self.refresh();
-    }
-
-    pub fn on_saved(_count: any) {
         self.refresh();
     }
 

@@ -49,6 +49,45 @@ internal const PROBLEMS_CHANGED: str = "problems_changed";
 internal const RECORDINGS: str = "recordings_changed";
 internal const TIMELINE: str = "timeline_changed";
 
+/// The document's outline, a lock, a warning or the selection moved.
+event outline_changed;
+/// What the Inspector's form is built from moved.
+event inspector_changed;
+/// What a dock's tab row and its panel are built from moved.
+event docks_changed;
+/// A frame of play went by.
+event play_frame;
+/// What the top bar is built from moved.
+event chrome_changed;
+/// What the status strip is built from moved.
+event status_changed;
+/// What the rail is built from moved.
+event rail_changed;
+/// What the stage's chrome is built from moved.
+event stage_changed;
+
+/// What one panel shows moved, one event for each of `panels()`.
+event problems_changed;
+event docs_changed;
+event assets_changed;
+event library_changed;
+event tiles_changed;
+event machine_changed;
+event recordings_changed;
+event debugger_changed;
+event sheet_changed;
+event picker_changed;
+event manager_changed;
+event textedit_changed;
+event plugins_changed;
+event inputview_changed;
+event code_changed;
+event complete_changed;
+event refactor_changed;
+event timeline_changed;
+event weights_changed;
+event bonemap_changed;
+
 /// What a panel showing one thing of the Editor's listens for, as
 /// `<what>_changed`: the Problems list, the Docs page, the files, the library,
 /// the tile brush, the state machine, the recordings and the debugger.
@@ -88,7 +127,7 @@ pub fn hear_boxes(state: editor::State, editor: Node) {
 /// viewport's tools look at it.
 pub fn hear_engine(editor: Node) {
     for word in [
-        ASSETS_RELOADED, FILES_CHANGED, "debugger_stopped", "pasted", "pasted_image",
+        ASSETS_RELOADED, FILES_CHANGED, "debugger_stopped", "debugger_resumed", "pasted", "image_pasted",
         "pointer_moved", "pointer_pressed", "pointer_released", "pointer_scrolled", "pointer_gestured",
         "files_dropped",
     ] {

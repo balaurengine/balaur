@@ -59,12 +59,15 @@ pub fn add_widget(app: &App, params: &toml::Value) -> Entity {
 }
 
 /// `params` on `entity` as a scene writes a widget: its own rows to
-/// `widget`, and each `widget_*` table in them to that component beside it.
+/// `widget`, and each `widget_*` table in them, and a `bindings` one, to
+/// that component beside it.
 pub fn add_widget_to(app: &App, entity: Entity, params: &toml::Value) {
     let mut own = params.as_table().cloned().unwrap_or_default();
     let beside: Vec<(String, toml::Value)> = own
         .iter()
-        .filter(|(key, value)| key.starts_with("widget_") && value.is_table())
+        .filter(|(key, value)| {
+            (key.starts_with("widget_") || key.as_str() == "bindings") && value.is_table()
+        })
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
     for (key, _) in &beside {
@@ -193,7 +196,8 @@ pub fn consume_input(app: &mut App) {
 }
 
 pub fn clicked(app: &App, entity: Entity) -> bool {
-    !balaur_core::events::delivered_from(&app.engine, entity, "click").is_empty()
+    !balaur_core::events::delivered_from(&app.engine, entity, balaur_core::hooks::POINTER_CLICK)
+        .is_empty()
 }
 
 /// A widget under a container, as a scene node under a scene node. The tree

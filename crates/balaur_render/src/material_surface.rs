@@ -46,9 +46,9 @@ pub struct Builtin {
     pub parallax_method: Parallax,
     pub parallax_relief_steps: u32,
     /// How far the `normal` slot bends a 2D surface; zero lights it flat.
-    pub normal_strength: f32,
+    pub normal_scale: f32,
     /// How tight a light's highlight is on a normal-mapped 2D surface.
-    pub shininess: f32,
+    pub specular_shininess: f32,
     /// How bright that highlight is; zero draws none.
     pub specular_strength: f32,
     /// The image each of [`TEXTURE_SLOTS`] is bound to, in order.
@@ -74,8 +74,8 @@ impl Default for Builtin {
             parallax_layers: 16.0,
             parallax_method: Parallax::Occlusion,
             parallax_relief_steps: 8,
-            normal_strength: 1.0,
-            shininess: 16.0,
+            normal_scale: 1.0,
+            specular_shininess: 16.0,
             specular_strength: 0.0,
             maps: vec![None; TEXTURE_SLOTS.len()],
             view: None,
@@ -101,8 +101,8 @@ const BUILTIN_KEYS: &[&str] = &[
     k::PARALLAX_LAYERS,
     k::PARALLAX_METHOD,
     k::PARALLAX_RELIEF_STEPS,
-    k::NORMAL_STRENGTH,
-    k::SHININESS,
+    k::NORMAL_SCALE,
+    k::SPECULAR_SHININESS,
     k::SPECULAR_STRENGTH,
 ];
 
@@ -146,8 +146,8 @@ pub(crate) fn parse_builtin(
             k::PARALLAX_RELIEF_STEPS => {
                 out.parallax_relief_steps = number()?.round().clamp(1.0, 64.0) as u32;
             }
-            k::NORMAL_STRENGTH => out.normal_strength = number()?.max(0.0),
-            k::SHININESS => out.shininess = number()?.max(1.0),
+            k::NORMAL_SCALE => out.normal_scale = number()?.max(0.0),
+            k::SPECULAR_SHININESS => out.specular_shininess = number()?.max(1.0),
             k::SPECULAR_STRENGTH => out.specular_strength = number()?.max(0.0),
             k::PARALLAX_METHOD => {
                 out.parallax_method = match item.as_str() {

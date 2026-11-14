@@ -40,8 +40,8 @@ role = "text_code_quiet"
 id = "create"
 name = "Create"
 parent = "missing"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form_primary"
 text = "Create clip"
@@ -72,8 +72,8 @@ align_items = "center"
 id = "add"
 name = "AddKey"
 parent = "head"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "chip"
 text = "Key"
@@ -85,8 +85,8 @@ checked = true
 id = "delete"
 name = "DeleteKey"
 parent = "head"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "chip"
 text = "− Key"
@@ -97,8 +97,8 @@ tooltip = "Delete keyframe at playhead"
 id = "length"
 name = "Length"
 parent = "head"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "clip_changed" }] }
 [nodes.widget]
-on_change = "clip_changed"
 kind = "number_field"
 width = 72
 tooltip = "How long the clip runs"
@@ -110,8 +110,8 @@ suffix = " s"
 id = "loop"
 name = "Loop"
 parent = "head"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "clip_changed" }] }
 [nodes.widget]
-on_change = "clip_changed"
 kind = "dropdown"
 width = 92
 tooltip = "What the clip does at its end"
@@ -213,8 +213,8 @@ height = 20
 id = "scrub"
 name = "Scrub"
 parent = "scrub_row"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "seek" }] }
 [nodes.widget]
-on_change = "seek"
 kind = "slider"
 [nodes.widget_range]
 value = 0.0

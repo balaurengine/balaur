@@ -408,21 +408,21 @@ pub fn draw(state: &mut editor::State) {
         let color = if state.pen.hover == index || is_anchor { accent } else { dim };
         if is_anchor {
             let half = mark;
-            render::draw_line_2d(world_x - half, world_y - half, world_x + half, world_y - half, color[0], color[1], color[2], LINE_WIDTH);
-            render::draw_line_2d(world_x + half, world_y - half, world_x + half, world_y + half, color[0], color[1], color[2], LINE_WIDTH);
-            render::draw_line_2d(world_x + half, world_y + half, world_x - half, world_y + half, color[0], color[1], color[2], LINE_WIDTH);
-            render::draw_line_2d(world_x - half, world_y + half, world_x - half, world_y - half, color[0], color[1], color[2], LINE_WIDTH);
+            render::draw_line_2d(vec2(world_x - half, world_y - half), vec2(world_x + half, world_y - half), util::as_color(color), LINE_WIDTH);
+            render::draw_line_2d(vec2(world_x + half, world_y - half), vec2(world_x + half, world_y + half), util::as_color(color), LINE_WIDTH);
+            render::draw_line_2d(vec2(world_x + half, world_y + half), vec2(world_x - half, world_y + half), util::as_color(color), LINE_WIDTH);
+            render::draw_line_2d(vec2(world_x - half, world_y + half), vec2(world_x - half, world_y - half), util::as_color(color), LINE_WIDTH);
         } else {
             // The tether to the anchor this handle belongs to.
             let anchor = if index % 3 == 1 { index - 1 } else { index + 1 };
             if anchor < path.points.len() {
                 let anchor_point = path.points[anchor];
                 let anchor_world = util::to_world(node_frame, anchor_point[0], anchor_point[1]);
-                render::draw_line_2d(anchor_world.x, anchor_world.y, world_x, world_y, dim[0], dim[1], dim[2], 1.0);
+                render::draw_line_2d(anchor_world, vec2(world_x, world_y), util::as_color(dim), 1.0);
             }
             let half = mark * 0.7;
-            render::draw_line_2d(world_x - half, world_y, world_x + half, world_y, color[0], color[1], color[2], LINE_WIDTH);
-            render::draw_line_2d(world_x, world_y - half, world_x, world_y + half, color[0], color[1], color[2], LINE_WIDTH);
+            render::draw_line_2d(vec2(world_x - half, world_y), vec2(world_x + half, world_y), util::as_color(color), LINE_WIDTH);
+            render::draw_line_2d(vec2(world_x, world_y - half), vec2(world_x, world_y + half), util::as_color(color), LINE_WIDTH);
         }
     }
 }

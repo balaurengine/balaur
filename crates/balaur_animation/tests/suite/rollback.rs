@@ -363,3 +363,38 @@ fn a_session_starts_the_playhead_step_from_a_frame_boundary() {
     );
     balaur_core::replay::stop_recording(&app.engine, "stop").unwrap();
 }
+
+// A script holds the number its tween was given, and an editor's docks tween while a session
+// records and while it replays: the game's handles cannot move with them.
+#[test]
+fn a_hosted_game_takes_the_tween_handles_its_recording_did() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+    let app = app();
+    let root = app.engine.root();
+    let (game, tool) = {
+        let mut world = app.engine.world_mut();
+        let game = scene::spawn_node(&mut world, "Game", root);
+        let tool = scene::spawn_node(&mut world, "Dock", root);
+        (game, tool)
+    };
+    let hero = scene::spawn_node(&mut app.engine.world_mut(), "Hero", game);
+    app.engine.set_debug_scope(Some(game));
+    let to = toml::Value::Array(vec![0.0.into(), 1.0.into(), 0.0.into()]);
+    let tween = |node| {
+        balaur_animation::tween::start_to(&app.engine, node, "position", &to, 1.0, None).unwrap()
+    };
+    // A play session before this one left the game's counter running.
+    tween(hero);
+
+    balaur_core::replay::start_recording(&app.engine, &path, ".", "hash", true).unwrap();
+    tween(tool);
+    let recorded = tween(hero);
+    balaur_core::replay::stop_recording(&app.engine, "stop").unwrap();
+
+    let session = balaur_core::replay::Session::read(&path).unwrap();
+    balaur_core::replay::begin(&app.engine, session);
+    tween(tool);
+    tween(tool);
+    assert_eq!(tween(hero), recorded);
+}

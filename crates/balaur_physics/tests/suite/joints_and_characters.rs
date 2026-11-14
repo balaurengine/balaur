@@ -447,7 +447,7 @@ floor_snap_length = 0.0
 impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
-        self.node.character3d.move_character(0.1, 0.0, 0.05);
+        self.node.character3d.move_by(vec3(0.1, 0.0, 0.05));
         if self.ticks == 110 {
             let position = self.node.transform.position;
             if position.x >= 1.2 { log::error("the character walked into the wall: x is {position.x}"); }
@@ -590,7 +590,7 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks < 40 {
-            self.node.character3d.move_character(0.0, -0.2, 0.0);
+            self.node.character3d.move_by(vec3(0.0, -0.2, 0.0));
             return;
         }
         if self.ticks == 40 {
@@ -638,7 +638,7 @@ step_height = 0.0
 impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
-        self.node.character2d.move_character(0.0, 0.0);
+        self.node.character2d.move_by(vec2(0.0, 0.0));
         if self.ticks == 30 {
             let flat = physics2d::raycast(physics2d::RayQuery { origin: vec2(0.5, 3.0), direction: vec2(0.0, -1.0), max_distance: 100.0 });
             if flat != nil { log::error("the character lay back down: a ray beside it still hits"); }

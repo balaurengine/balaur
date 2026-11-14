@@ -1,0 +1,24 @@
+// A thud from a file no node carries, each time the ball lands: louder the
+// faster it was falling, and placed where it hit.
+
+const THUD: str = "audio/thud.wav";
+const BUS: str = "effects";
+
+// The fall speed, in units a second, that plays the thud at its full level.
+const LOUDEST_SPEED: float = 8.0;
+
+pub class Ball {
+    node: Node,
+    falling: float,
+}
+
+impl Ball {
+    fn fixed_update(dt: float) {
+        self.falling = math::abs(self.node.body2d.linear_velocity().y);
+    }
+
+    fn on_collision_enter(collision: any) {
+        let level = math::min(self.falling / LOUDEST_SPEED, 1.0);
+        audio::play_file(THUD, audio::PlayFileOptions { bus: BUS, volume_linear: level, position: self.node.transform.position });
+    }
+}

@@ -76,11 +76,11 @@ pub mod words {
     /// The lines an underline draws.
     pub const UNDERLINES: &[&str] = &[NONE, SINGLE, DOUBLE];
 
-    pub const WORD_OR_GLYPH: &str = "word_or_glyph";
+    pub const WORD_SMART: &str = "word_smart";
     pub const WORD: &str = "word";
-    pub const GLYPH: &str = "glyph";
+    pub const ARBITRARY: &str = "arbitrary";
     /// Where a wrapped line may break.
-    pub const LINE_BREAKS: &[&str] = &[WORD_OR_GLYPH, WORD, GLYPH];
+    pub const LINE_BREAKS: &[&str] = &[WORD_SMART, WORD, ARBITRARY];
 
     pub const START: &str = "start";
     pub const CENTER: &str = "center";

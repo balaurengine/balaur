@@ -21,7 +21,7 @@ Raw touch was built and recorded. Everything above it was not.
 - **`deadzone` on `scroll`**: a drag threshold in design pixels, so a tap on a
   child lands rather than being taken as a scroll.
 
-Missing: any touch widget kind, any gesture recogniser, `input.feed_touch`,
+Missing: any touch widget kind, any gesture recogniser, `input.set_touch`,
 and any way for a layout to read the keyboard height. Already built and easy
 to miss: the backend raised the system keyboard on both phones whenever egui
 held keyboard focus, so a focused `field` summoned one before this plan.
@@ -88,7 +88,7 @@ plan's own.
    events can arrive.
 2. **A touch control feeds the action layer, never the game.** Godot's
    injection, as `InputActions::feed` and the script verb
-   `input.feed_action`. Game code reads `input.action_value("move_x")` and
+   `input.set_action_value`. Game code reads `input.action_value("move_x")` and
    carries no platform branch.
 3. **A gesture is derived, never fed.** Pinch, swipe and long press are a
    function of the recorded touches and the fixed step, so they stay out of
@@ -138,8 +138,8 @@ decision, not an oversight.
 
 | Need | Decision |
 | --- | --- |
-| A finger fed by a script or a test | Have: `input.feed_touch(id, x, y, phase)`, `phase` one of `start`, `move`, `end`, `cancel`, through the feeder the window calls |
-| An action fed without a binding | Have: `input.feed_action(name, value)`, Godot's `parse_input_event`; the furthest from rest wins against the action's bindings, and an undeclared action still answers |
+| A finger fed by a script or a test | Have: `input.set_touch(id, vec2(x, y), phase)`, `phase` one of `start`, `move`, `end`, `cancel`, through the feeder the window calls |
+| An action fed without a binding | Have: `input.set_action_value(name, value)`, Godot's `parse_input_event`; the furthest from rest wins against the action's bindings, and an undeclared action still answers |
 | A finger driving mouse code | Have: `emulate_mouse_from_touch` in `[input]`, on by default. The first finger down drives the cursor until it lifts; a second finger is only a touch |
 | A mouse driving touch code on a desktop | Have: `emulate_touch_from_mouse`, off by default. A held left button is finger `input.EMULATED_TOUCH_ID`; a hover is not a touch. With both settings on, a finger's own button is not converted back |
 | Knowing a widget took the finger | Have: `ui.wants_pointer()` |
@@ -174,7 +174,7 @@ decision, not an oversight.
 All four are built. Each ended as the plan said except where §3 notes a
 change of shape.
 
-1. **Feeding and emulation.** `input.feed_touch`; the two emulation settings
+1. **Feeding and emulation.** `input.set_touch`; the two emulation settings
    in the backend; `ui.wants_pointer()`. Ends with: a test that drags a
    `scroll` with a fed finger, and a mouse that scrolls the same view.
 2. **Gestures.** `gestures.rs` under `balaur_input`, derived in `Stage::First`

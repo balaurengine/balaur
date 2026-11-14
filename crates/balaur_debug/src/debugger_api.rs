@@ -66,7 +66,7 @@ pub const DEBUGGER_OPS: &[EngineOp] = &[
 /// Declare the module's functions and the `STEP_*` constants `resume` takes.
 pub fn install_debugger_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Breakpoints, pausing a script and resuming it. The editor's Debugger dock and the Debug Adapter Protocol server drive the same machinery.",
+        "Breakpoints, pausing a script and resuming it. The editor's Debugger dock and the Debug Adapter Protocol server drive the same machinery. The editor has this module; a game's runtime does not.",
     );
     m.records(&[
         (
@@ -83,7 +83,7 @@ pub fn install_debugger_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_breakpoints", &[], "(path: string, lines: [int]) -> [int]", "Replace one file's breakpoints with the given lines, returning the lines they landed on."),
         ("breakpoints", &[], "(path: string) -> [int]", "The lines one file's breakpoints landed on."),
-        ("stop_location", &[], "() -> Stop?", "Where a script is stopped, or nil while none is. A script hears each change with `events::listen(this.node, \"debugger_stopped\")`, as `on_debugger_stopped(stop)`, rather than asking every frame."),
+        ("stop_location", &[], "() -> Stop?", "Where a script is stopped, or nil while none is. A script hears a stop with `events::listen(this.node, \"debugger_stopped\")`, as `on_debugger_stopped(stop)`, and the script going on as `debugger_resumed`, rather than asking every frame."),
         ("resume", &[], "(mode: string?)", "Let the stopped script go on, in the given step mode (`CONTINUE`, `STEP_OVER`, `STEP_INTO`, `STEP_OUT`)."),
         ("set_break_on_error", &[], "(on: bool)", "Stop where a script throws instead of logging it and moving on; off by default."),
         ("break_on_error", &[], "() -> bool", "Whether a script that throws stops rather than being logged."),

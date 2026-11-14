@@ -645,6 +645,21 @@
     "keywords": {
       "patterns": [
         {
+          "comment": "an event item: a word only where an item starts",
+          "match": "^\\s*(event)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(;)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.event.rune storage.type.rune"
+            },
+            "2": {
+              "name": "entity.name.type.event.rune"
+            },
+            "3": {
+              "name": "punctuation.semi.rune"
+            }
+          }
+        },
+        {
           "comment": "control flow keywords",
           "name": "keyword.control.rune",
           "match": "\\b(await|break|continue|do|else|for|if|loop|match|return|try|while|yield|select)\\b"

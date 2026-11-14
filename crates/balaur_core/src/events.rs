@@ -30,7 +30,12 @@ use crate::collections::DetHashMap;
 use crate::engine::Engine;
 use crate::hecs::Entity;
 
+mod declared;
 mod observers;
+pub use declared::{
+    Announced, Declared, HANDLER_PREFIX, HEARING, MODULE, MODULE_EVENT_SUFFIX, Names, SAID,
+    SENDING, Said, declare, declare_on_nodes, names, on_nodes, said,
+};
 pub use observers::{Observed, ObserverFn, ObserverId, Observers, bubble, observe, unobserve};
 
 const EMIT: &str = "emit";
@@ -89,63 +94,77 @@ pub struct EventState {
     assets_seen: u64,
     /// Where a script was stopped at the last pump, for [`DEBUGGER_STOPPED`].
     stop_seen: Option<balaur_script::Pause>,
-    /// Whose hearers changed, for a plugin paying for an event only where it
-    /// is heard.
-    hearers: Hearers,
+    /// Whether the last word about a stop was [`DEBUGGER_STOPPED`], so the
+    /// script going on is said once, as [`DEBUGGER_RESUMED`].
+    stop_told: bool,
+    /// Whose hearers changed, one for each [`watch_hearers`], for a plugin
+    /// paying for an event only where it is heard.
+    hearers: Vec<Hearers>,
 }
 
-/// What [`watch_hearers`] has not yet been told.
+/// What one [`watch_hearers`] has not yet been told.
 #[derive(Default)]
 struct Hearers {
-    /// The events somebody watches; a listener for another is nobody's news.
+    /// The events it watches; a listener for another is not its news.
     watched: Vec<&'static str>,
     /// Somebody began to listen for a watched event from anyone.
     everyone: bool,
     nodes: Vec<Entity>,
 }
 
-impl Hearers {
+impl EventState {
+    /// Who hears `name` from `from` changed: somebody began or stopped.
     fn listening(&mut self, name: &str, from: Option<Entity>) {
-        if self.watched.contains(&name) {
-            match from {
-                Some(node) => self.nodes.push(node),
-                None => self.everyone = true,
+        for hearers in &mut self.hearers {
+            if hearers.watched.contains(&name) {
+                match from {
+                    Some(node) => hearers.nodes.push(node),
+                    None => hearers.everyone = true,
+                }
             }
         }
     }
 }
 
+/// Names one [`watch_hearers`], to ask what it has since been told.
+#[derive(Clone, Copy, Debug)]
+pub struct HearerWatch(usize);
+
 /// Keep track of which nodes' hearers of `names` may have changed, until
 /// [`take_changed_hearers`] is asked. For an event that costs a plugin
 /// something to raise.
-pub fn watch_hearers(eng: &Engine, names: &[&'static str]) {
-    eng.resource::<EventState>()
-        .borrow_mut()
-        .hearers
-        .watched
-        .extend_from_slice(names);
+pub fn watch_hearers(eng: &Engine, names: &[&'static str]) -> HearerWatch {
+    let state = eng.resource::<EventState>();
+    let mut state = state.borrow_mut();
+    state.hearers.push(Hearers {
+        watched: names.to_vec(),
+        ..Hearers::default()
+    });
+    HearerWatch(state.hearers.len() - 1)
 }
 
 /// `node` may hear differently now: a script came onto it, or a row, or what a
 /// watcher charges for was built on it.
 pub fn hearers_may_have_changed(eng: &Engine, node: Entity) {
     if let Some(state) = eng.try_resource::<EventState>() {
-        let mut state = state.borrow_mut();
-        if !state.hearers.watched.is_empty() {
-            state.hearers.nodes.push(node);
+        for hearers in &mut state.borrow_mut().hearers {
+            hearers.nodes.push(node);
         }
     }
 }
 
-/// The nodes whose hearers may have changed since the last ask, one each, in
-/// node order; `true` where that may be every node.
-pub fn take_changed_hearers(eng: &Engine) -> (bool, Vec<Entity>) {
+/// The nodes whose hearers may have changed since `watch` last asked, one
+/// each, in node order; `true` where that may be every node.
+pub fn take_changed_hearers(eng: &Engine, watch: HearerWatch) -> (bool, Vec<Entity>) {
     let Some(state) = eng.try_resource::<EventState>() else {
         return (false, Vec::new());
     };
     let mut state = state.borrow_mut();
-    let everyone = std::mem::take(&mut state.hearers.everyone);
-    let mut nodes = std::mem::take(&mut state.hearers.nodes);
+    let Some(hearers) = state.hearers.get_mut(watch.0) else {
+        return (false, Vec::new());
+    };
+    let everyone = std::mem::take(&mut hearers.everyone);
+    let mut nodes = std::mem::take(&mut hearers.nodes);
     nodes.sort_unstable_by_key(|node| node.to_bits());
     nodes.dedup();
     (everyone, nodes)
@@ -155,6 +174,28 @@ pub fn take_changed_hearers(eng: &Engine) -> (bool, Vec<Entity>) {
 /// its rows, an observer, a listener or a waiter on it or on anyone.
 #[must_use]
 pub fn is_heard(eng: &Engine, node: Entity, name: &str) -> bool {
+    if is_heard_on(eng, node, name) || observers::watched(eng, None, name) {
+        return true;
+    }
+    let Some(state) = eng.try_resource::<EventState>() else {
+        return false;
+    };
+    let state = state.borrow();
+    state
+        .listeners
+        .get(&(SmolStr::new(name), None))
+        .is_some_and(|held| !held.is_empty())
+        || state
+            .waiters
+            .iter()
+            .any(|(heard, from, _)| heard == name && from.is_none())
+}
+
+/// Whether anything asks to hear `name` from `node` itself: its script's hook,
+/// one of its rows, an observer, or a listener or a waiter naming it. Not one
+/// hearing the name from anyone, which says nothing about this node.
+#[must_use]
+pub fn is_heard_on(eng: &Engine, node: Entity, name: &str) -> bool {
     // Most nodes carry neither, and finding a script's instance is a walk.
     {
         let world = eng.world();
@@ -173,26 +214,21 @@ pub fn is_heard(eng: &Engine, node: Entity, name: &str) -> bool {
             return true;
         }
     }
-    if observers::watched(eng, node, name) {
+    if observers::watched(eng, Some(node), name) {
         return true;
     }
     let Some(state) = eng.try_resource::<EventState>() else {
         return false;
     };
     let state = state.borrow();
-    let key = |from: Option<Entity>| (SmolStr::new(name), from);
-    let listened = |from| {
-        state
-            .listeners
-            .get(&key(from))
-            .is_some_and(|held| !held.is_empty())
-    };
-    listened(Some(node))
-        || listened(None)
+    state
+        .listeners
+        .get(&(SmolStr::new(name), Some(node)))
+        .is_some_and(|held| !held.is_empty())
         || state
             .waiters
             .iter()
-            .any(|(heard, from, _)| heard == name && from.is_none_or(|from| from == node))
+            .any(|(heard, from, _)| heard == name && *from == Some(node))
 }
 
 /// What the log says from no node when lines arrived since the last pump,
@@ -211,11 +247,15 @@ pub const ASSETS_RELOADED: &str = "assets_reloaded";
 /// Empty when the watcher lost count, so anything may have changed.
 pub const FILES_CHANGED: &str = "files_changed";
 
-/// What the debugger says from no node when a script stopped, stopped
-/// somewhere else or went on since the last pump, with where it is stopped
-/// or nil: what an editor's debugger view listens for instead of asking. A
-/// stop after a `resume` is new even where it is the same line again.
+/// What the debugger says from no node when a script stopped, or stopped
+/// somewhere else, since the last pump, with where it is stopped: what an
+/// editor's debugger view listens for instead of asking. A stop after a
+/// `resume` is new even where it is the same line again.
 pub const DEBUGGER_STOPPED: &str = "debugger_stopped";
+
+/// What the debugger says from no node, with nil, when the script it last
+/// said was stopped went on.
+pub const DEBUGGER_RESUMED: &str = "debugger_resumed";
 
 /// What the scene says from no node when a write changed it since the last
 /// pump: a list of `{node, kind, ..}` maps, one for each node and component
@@ -234,7 +274,7 @@ pub fn next(eng: &Engine, name: &str, from: Option<Entity>) -> u64 {
     let token = eng.next_token();
     let state = eng.resource::<EventState>();
     let mut state = state.borrow_mut();
-    state.hearers.listening(name, from);
+    state.listening(name, from);
     state.waiters.push((name.into(), from, token));
     token
 }
@@ -249,7 +289,7 @@ pub fn next(eng: &Engine, name: &str, from: Option<Entity>) -> u64 {
 pub fn subscribe(eng: &Engine, entity: Entity, name: &str, from: Option<Entity>) {
     let state = eng.resource::<EventState>();
     let mut state = state.borrow_mut();
-    state.hearers.listening(name, from);
+    state.listening(name, from);
     let seq = state.next_seq;
     let listeners = state.listeners.entry((name.into(), from)).or_default();
     if listeners.iter().any(|l| l.entity == entity) {
@@ -266,6 +306,7 @@ pub fn unsubscribe(eng: &Engine, entity: Entity, name: &str, from: Option<Entity
     if let Some(listeners) = state.listeners.get_mut(&(name.into(), from)) {
         listeners.retain(|l| l.entity != entity);
     }
+    state.listening(name, from);
 }
 
 /// The nodes someone listens to `name` from, for an engine that says `name`
@@ -321,8 +362,8 @@ fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
 }
 
 /// An engine event on a node, heard every way at once: its Rust observers
-/// ([`observe`]), the node's rows and its own `on_<name>(payload)` now, its
-/// subscribers and awaiters at the next pump.
+/// ([`observe`]), the node's rows and its own `on_<name>(payload, source)`
+/// now, its subscribers and awaiters at the next pump. `source` is the node.
 ///
 /// A name in [`crate::hooks::BINDABLE`] runs the rows spelled with that name;
 /// any other runs the `emitted:<name>` rows. Observers run first, then rows,
@@ -347,11 +388,12 @@ pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
         );
     }
     if let Some(host) = eng.script_host() {
-        host.call_on(
-            crate::node_id_of(entity),
-            &crate::hooks::hook_of(name),
-            std::slice::from_ref(&payload),
-        );
+        let node = crate::node_id_of(entity);
+        let hook = crate::hooks::hook_of(name);
+        // Asked first: most announcing nodes have no hook to build a call for.
+        if host.has_method(node, &hook) {
+            host.call_on(node, &hook, &[payload.clone(), Value::Node(node.0)]);
+        }
     }
     // A bare engine, with no event system installed, has nobody to queue for.
     let Some(state) = eng.try_resource::<EventState>() else {
@@ -451,11 +493,15 @@ fn notice(eng: &Engine, state: &mut EventState, stop: Option<balaur_script::Paus
         say_if_heard(state, ASSETS_RELOADED, || count(assets));
     }
     if stop != state.stop_seen {
-        say_if_heard(state, DEBUGGER_STOPPED, || {
-            stop.as_ref()
-                .map_or(Value::Nil, balaur_script::Pause::to_value)
-        });
+        if let Some(at) = &stop {
+            say_if_heard(state, DEBUGGER_STOPPED, || at.to_value());
+            state.stop_told = true;
+        }
         state.stop_seen = stop;
+    }
+    if state.stop_seen.is_none() && state.stop_told {
+        say_if_heard(state, DEBUGGER_RESUMED, || Value::Nil);
+        state.stop_told = false;
     }
     // Once for each scope it is heard from: all of it, or a root's.
     let scopes: Vec<Option<Entity>> = state
@@ -556,13 +602,14 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
     {
         let listeners = hearing(eng, &name, from, announced, scoped);
         let method = format!("on_{name}");
-        if let Some(host) = &host {
+        if let Some(host) = &host
+            && !listeners.is_empty()
+        {
+            // The payload, then who said it: nil for an event from no node.
+            let source = from.map_or(Value::Nil, |from| Value::Node(crate::node_id_of(from).0));
+            let args = [payload.clone(), source];
             for entity in listeners {
-                host.call_on(
-                    crate::node_id_of(entity),
-                    &method,
-                    std::slice::from_ref(&payload),
-                );
+                host.call_on(crate::node_id_of(entity), &method, &args);
             }
         }
         // Every task parked on this event resumes with it, once.
@@ -583,6 +630,10 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
                 }
                 !hit
             });
+            // A waiter gone is a hearer fewer on the node it named.
+            if !woken.is_empty() {
+                state.listening(&name, from);
+            }
             woken
         };
         if let Some(host) = &host {
@@ -625,7 +676,7 @@ fn sweep(eng: &Engine) {
 /// where every other core module is declared.
 pub fn install_events_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Named events between scripts. A node listens for a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
+        "Named events between scripts. A node hears its own events, and after `listen` another node's, as its `on_<name>(payload, source)` method; `node.emit` and `events.emit` send one.",
     );
     m.records(&[(
         "ListenOptions",
@@ -637,7 +688,7 @@ pub fn install_events_api(m: &mut Module<Engine>) {
             LISTEN,
             &[],
             "(node: node, name: string, from: node?)",
-            "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Listening twice is once.",
+            "Hear an event on this node, as its script's `on_<name>(payload, source)`, `source` being the node that said it, or nil for one said from no node. Pass the node whose events to hear, or leave it out for every emitter. Listening twice is once.",
         ),
         (
             STOP_LISTENING,

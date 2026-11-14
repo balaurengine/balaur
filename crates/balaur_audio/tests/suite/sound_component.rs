@@ -308,7 +308,11 @@ fn a_sound_announces_finished_on_the_tick_it_plays_out() {
     // Heard at the next frame's pump, which runs before its fixed step.
     app.tick(1.0 / 60.0);
     assert_eq!(
-        balaur_core::events::delivered_from(&app.engine, entity, balaur_audio::FINISHED_EVENT),
+        balaur_core::events::delivered_from(
+            &app.engine,
+            entity,
+            balaur_audio::SOUND_FINISHED_EVENT
+        ),
         vec![balaur_script::Value::Int(i64::try_from(handle).unwrap())]
     );
 }

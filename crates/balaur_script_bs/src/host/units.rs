@@ -160,7 +160,9 @@ impl BsHost {
         };
         self.inner.api_hash.set(Some(api.clone()));
         let build = build.name();
-        let name = balaur_bs::module_hash(format!("{api}\n{key}{build}\n{source}").as_bytes());
+        let editor = if self.editors(key) { "\neditor" } else { "" };
+        let name =
+            balaur_bs::module_hash(format!("{api}\n{key}{build}{editor}\n{source}").as_bytes());
         let dir = balaur_core::engine_api::user_data_dir_of(&self.inner.engine).join(CACHE_DIR);
         Some(dir.join(format!("{name}.unit")))
     }
@@ -234,6 +236,7 @@ impl BsHost {
             path: key.to_string(),
             unit: true,
             parsed: Some(self.inner.parsed.clone()),
+            editor: Some(self.editor_files()),
             ..Options::default()
         }
     }

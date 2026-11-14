@@ -311,7 +311,7 @@ pub(crate) mod words {
     pub(crate) const OBLIQUE: &str = "oblique";
     pub(crate) const FONT_STYLES: &[&str] = &[NORMAL, ITALIC, OBLIQUE];
 
-    /// Where a dragged row landed, as `on_move` reports it.
+    /// Where a dragged row landed, as `moved` reports it.
     pub(crate) const BEFORE: &str = "before";
     pub(crate) const INTO: &str = "into";
     pub(crate) const AFTER: &str = "after";
@@ -470,11 +470,6 @@ pub(crate) mod keys {
     pub(crate) const HIDE_TALLER: &str = "hide_taller";
     pub(crate) const MIN_HEIGHT: &str = "min_height";
     pub(crate) const MIN_WIDTH: &str = "min_width";
-    pub(crate) const ON_CHANGE: &str = "on_change";
-    pub(crate) const ON_CLICK: &str = "on_click";
-    pub(crate) const ON_FOCUS: &str = "on_focus";
-    pub(crate) const ON_DOUBLE_CLICK: &str = "on_double_click";
-    pub(crate) const ON_BLUR: &str = "on_blur";
     pub(crate) const OPEN: &str = "open";
     pub(crate) const PADDING: &str = "padding";
     pub(crate) const PADDING_X: &str = "padding_x";
@@ -488,10 +483,10 @@ pub(crate) mod keys {
     pub(crate) const ANNOUNCE: &str = "announce";
     pub(crate) const ENABLED: &str = "enabled";
     pub(crate) const ROLE: &str = "role";
-    /// The row a `fold` event names.
+    /// The row a `folded` event names.
     pub(crate) const ROW: &str = "row";
     pub(crate) const REVERSE: &str = "reverse";
-    /// The mark a `mark` event names, beside its `row`.
+    /// The mark a `marked` event names, beside its `row`.
     pub(crate) const MARK: &str = "mark";
     /// The `[colors]` a `list`, `tree` or `table` paints its parts with.
     pub(crate) const ROW_SELECTED: &str = "row_selected";
@@ -570,6 +565,11 @@ pub(crate) mod pool {
     pub(crate) const DATA: &str = "data";
     /// A spec's children: the spec is a group, one node holding them.
     pub(crate) const CONTROLS: &str = "controls";
+    /// The method a control calls when it is clicked, changed and submitted:
+    /// kept by the pool, never written to the widget.
+    pub(crate) const ON_CLICK: &str = "on_click";
+    pub(crate) const ON_CHANGE: &str = "on_change";
+    pub(crate) const ON_SUBMIT: &str = "on_submit";
 }
 
 /// The state tables a theme entry holds, by CSS's words. `checked` answers

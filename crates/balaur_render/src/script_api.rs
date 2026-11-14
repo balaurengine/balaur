@@ -9,22 +9,24 @@ use balaur_core::Engine;
 use balaur_plugin::Registry;
 use balaur_script::{Module, Value};
 
+use crate::draw_2d::vec2_of;
+use crate::vocabulary::keys;
 use crate::vocabulary::words as vocab;
 use crate::{
     AppIconConfig, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer2d, DebugLineBuffer3d,
-    DrawLineArgs, ScreenshotRequest, ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
+    ScreenshotRequest, ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
 };
 
 const BOUNDS: &str = "bounds";
 const CAMERA_2D: &str = "camera_2d";
 const CAMERA_MATRIX: &str = "camera_matrix";
 const CAMERA_POSE: &str = "camera_pose";
-const DRAW_BOX: &str = "draw_box";
-const DRAW_CAPSULE: &str = "draw_capsule";
+const DRAW_BOX_3D: &str = "draw_box_3d";
+const DRAW_CAPSULE_3D: &str = "draw_capsule_3d";
 const DRAW_LINE_2D: &str = "draw_line_2d";
 const DRAW_LINE_3D: &str = "draw_line_3d";
-const DRAW_LINES: &str = "draw_lines";
-const DRAW_SPHERE: &str = "draw_sphere";
+const DRAW_LINES_3D: &str = "draw_lines_3d";
+const DRAW_SPHERE_3D: &str = "draw_sphere_3d";
 const DRAW_TEXT_2D: &str = "draw_text_2d";
 const DRAW_TEXT_3D: &str = "draw_text_3d";
 const HOLD_CAMERAS: &str = "hold_cameras";
@@ -46,6 +48,34 @@ const TEXT_SIZE: &str = "text_size";
 const TEXTURE_PIXELS_PER_UNIT: &str = "texture_pixels_per_unit";
 const TEXTURE_SIZE: &str = "texture_size";
 const TRACE_TEXTURE: &str = "trace_texture";
+
+/// The fields of the records this file answers in and reads.
+const DIRECTION: &str = "direction";
+const EYE: &str = "eye";
+const FOV: &str = "fov";
+const FROM: &str = "from";
+const ON_TOP: &str = "on_top";
+const SCALE_FACTOR: &str = "scale_factor";
+const TARGET: &str = "target";
+const TO: &str = "to";
+const WIDTH: &str = "width";
+const ZOOM: &str = "zoom";
+
+/// A script's `Vec3` argument; `what` opens the error for anything else.
+fn vec3_of(what: &str, value: &Value) -> anyhow::Result<[f32; 3]> {
+    match value {
+        Value::Vec3(v) => Ok(*v),
+        other => anyhow::bail!("{what} is a Vec3, not a {}", other.type_name()),
+    }
+}
+
+/// A line's colour, which it has to be given: a `Color`, alpha included.
+fn line_color(value: &Value) -> anyhow::Result<[f32; 4]> {
+    match value {
+        Value::Color(rgba) => Ok(*rgba),
+        other => anyhow::bail!("a line's colour is a Color, not a {}", other.type_name()),
+    }
+}
 
 /// Queue one block of text for this frame. `pixels_per_unit` sizes the quad;
 /// the rest of `opts` is the shaper's.
@@ -89,7 +119,7 @@ fn push_text(
 pub(crate) fn install_camera_api(m: &mut Module<Engine>) {
     m.describe(&[
         (CAMERA_MATRIX, &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
-        (CAMERA_POSE, &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
+        (CAMERA_POSE, &[], "() -> CameraPose", "The camera the renderer actually used, which is where a backend put it and not what a `camera3d` asked: its `eye` and `target`, the vertical `fov` in radians and the HiDPI `scale_factor`. Zeros and a scale of one with no window."),
         (HOLD_CAMERAS, &[], "(root: node?)", "Let no camera under a node drive the view, whatever its `current` says, until it is called with nil: an editor looking at a game through its own camera. The cameras keep what the scene asked of them."),
         (BOUNDS, &[], "(node: node) -> [vec3]?", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built; a text, the lines it was last laid out in."),
     ]);
@@ -100,21 +130,24 @@ pub(crate) fn install_camera_api(m: &mut Module<Engine>) {
         let view_proj = cam.borrow().view_proj;
         Ok(view_proj.to_vec())
     });
-    // Eye xyz, target xyz, fov (rad), HiDPI scale; zeros and a scale of one
-    // with no windowed backend. Reads the published snapshot.
+    m.records(&[(
+        "CameraPose",
+        "{ eye: Vec3, target: Vec3, fov: float, scale_factor: float }",
+        "Where the renderer's 3D camera stood this frame and what it looked at, its vertical field of view in radians, and how many pixels the display draws a logical one with.",
+    )]);
+    // Reads the published snapshot: zeros and a scale of one with no window.
     m.function(CAMERA_POSE, |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportSnapshot3d>();
         let cam = cam.borrow();
-        Ok((
-            cam.eye[0],
-            cam.eye[1],
-            cam.eye[2],
-            cam.target[0],
-            cam.target[1],
-            cam.target[2],
-            cam.fov,
-            cam.scale_factor,
-        ))
+        Ok(Value::Map(vec![
+            (EYE.to_string(), Value::Vec3(cam.eye)),
+            (TARGET.to_string(), Value::Vec3(cam.target)),
+            (FOV.to_string(), Value::Num(f64::from(cam.fov))),
+            (
+                SCALE_FACTOR.to_string(),
+                Value::Num(f64::from(cam.scale_factor)),
+            ),
+        ]))
     });
     m.function(
         HOLD_CAMERAS,
@@ -158,36 +191,38 @@ pub(crate) fn install_camera_api(m: &mut Module<Engine>) {
 /// Picking: the ray through the mouse, and what a ray meets first.
 fn install_pick_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (MOUSE_RAY, &[], "", "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
-        (PICK_RAY, &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
-        (PICK_RAY_AT, &[], "-> Hit?", "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing."),
+        (MOUSE_RAY, &[], "() -> Ray", "The picking ray through the mouse position, in world units: where it starts and which way it goes."),
+        (PICK_RAY, &[], "(origin: Vec3, direction: Vec3) -> node", "The nearest node with a 3D shape that a world-space ray meets, from its origin along its direction."),
+        (PICK_RAY_AT, &[], "(origin: Vec3, direction: Vec3) -> Hit?", "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing."),
     ]);
-    m.records(&[(
-        "Hit",
-        "{ node: node, at: float }",
-        "The nearest node a ray met and how far along the ray it was met.",
-    )]);
-    // Picking ray through the mouse: origin xyz, direction xyz.
+    m.records(&[
+        (
+            "Hit",
+            "{ node: node, at: float }",
+            "The nearest node a ray met and how far along the ray it was met.",
+        ),
+        (
+            "Ray",
+            "{ origin: Vec3, direction: Vec3 }",
+            "A ray in world units: where it starts and which way it goes.",
+        ),
+    ]);
     m.function(MOUSE_RAY, |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportSnapshot3d>();
         let cam = cam.borrow();
-        Ok((
-            cam.ray_origin[0],
-            cam.ray_origin[1],
-            cam.ray_origin[2],
-            cam.ray_dir[0],
-            cam.ray_dir[1],
-            cam.ray_dir[2],
-        ))
+        Ok(Value::Map(vec![
+            (keys::ORIGIN.to_string(), Value::Vec3(cam.ray_origin)),
+            (DIRECTION.to_string(), Value::Vec3(cam.ray_dir)),
+        ]))
     });
     // What a ray meets first, or `()`. The ray is an argument rather than
     // the mouse because the viewport snapshot is empty without a window,
     // and the editor's own tests run headless.
     m.function(
         PICK_RAY,
-        |eng: &Engine, (ox, oy, oz, dx, dy, dz): (f64, f64, f64, f64, f64, f64)| {
-            let origin = glamx::Vec3::new(ox as f32, oy as f32, oz as f32);
-            let dir = glamx::Vec3::new(dx as f32, dy as f32, dz as f32);
+        |eng: &Engine, (origin, direction): (Value, Value)| {
+            let origin = glamx::Vec3::from_array(vec3_of("a ray's origin", &origin)?);
+            let dir = glamx::Vec3::from_array(vec3_of("a ray's direction", &direction)?);
             Ok(crate::pick::along_ray(eng, origin, dir)
                 .map(|(entity, _)| balaur_core::node_id_of(entity)))
         },
@@ -196,9 +231,9 @@ fn install_pick_api(m: &mut Module<Engine>) {
     // things under the pointer needs to know which one is in front.
     m.function(
         PICK_RAY_AT,
-        |eng: &Engine, (ox, oy, oz, dx, dy, dz): (f64, f64, f64, f64, f64, f64)| {
-            let origin = glamx::Vec3::new(ox as f32, oy as f32, oz as f32);
-            let dir = glamx::Vec3::new(dx as f32, dy as f32, dz as f32);
+        |eng: &Engine, (origin, direction): (Value, Value)| {
+            let origin = glamx::Vec3::from_array(vec3_of("a ray's origin", &origin)?);
+            let dir = glamx::Vec3::from_array(vec3_of("a ray's direction", &direction)?);
             let Some((entity, at)) = crate::pick::along_ray(eng, origin, dir) else {
                 return Ok(balaur_script::Value::Nil);
             };
@@ -217,15 +252,23 @@ fn install_pick_api(m: &mut Module<Engine>) {
 /// frame, and the mouse unprojected through it.
 pub(crate) fn install_camera_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (CAMERA_2D, &[], "", "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window."),
+        (CAMERA_2D, &[], "() -> Viewport2d", "The 2D camera this frame: its `center` and its `zoom` in logical pixels per world unit; all zeros with no window."),
         (MOUSE_WORLD_2D, &[], "", "The mouse position in 2D world coordinates, for picking."),
     ]);
     // Center xy, zoom, from the published snapshot rather than the config —
     // so headless answers all zeros, zoom included, not the config's default.
+    m.records(&[(
+        "Viewport2d",
+        "{ center: Vec2, zoom: float }",
+        "What the 2D camera showed this frame: the world point at the middle of the view, and how many logical pixels a world unit took.",
+    )]);
     m.function(CAMERA_2D, |eng: &Engine, ()| {
         let vp = eng.resource::<ViewportSnapshot2d>();
         let vp = vp.borrow();
-        Ok((vp.center[0], vp.center[1], vp.zoom))
+        Ok(Value::Map(vec![
+            (vocab::CENTER.to_string(), Value::Vec2(vp.center)),
+            (ZOOM.to_string(), Value::Num(f64::from(vp.zoom))),
+        ]))
     });
     // The mouse position in 2D world coordinates (picking).
     m.function(MOUSE_WORLD_2D, |eng: &Engine, ()| {
@@ -252,7 +295,7 @@ fn install_screenshot_api(m: &mut Module<Engine>) {
             SCREENSHOT,
             &[],
             "",
-            "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `{ path, error }` when it cannot be, a run with no renderer included.",
+            "Save the next rendered frame as a PNG at a project-relative path. `screenshot_saved` goes to every listener with the path once it is on disk, and `screenshot_failed` with `{ path, error }` when it cannot be, a run with no renderer included.",
         ),
         (
             SNAP_AOV,
@@ -492,45 +535,50 @@ fn ring(center: [f32; 3], radius: f32, axis: usize, out: &mut Vec<([f32; 3], [f3
 
 pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (SET_BACKGROUND, &[], "", "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats."),
-        (DRAW_LINE_3D, &[], "", "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
-        (DRAW_LINE_2D, &[], "(x1: float, y1: float, x2: float, y2: float, r: float, g: float, b: float, width: float?, opts: DrawOptions?)", "Draw one 2D world-space line for this frame; width is in pixels, and `opts.z_index` places it among the nodes of that index."),
-        (DRAW_LINES, &[], "(segments: [float])", "Draw many 3D lines in one call: eleven numbers a segment, being both ends, an rgb, a width and an on-top flag."),
-        (DRAW_BOX, &[], "(x: float, y: float, z: float, hx: float, hy: float, hz: float, color: Color?)", "Draw a wireframe box centred at a point, from its three half-extents in world units, for this frame."),
-        (DRAW_SPHERE, &[], "(x: float, y: float, z: float, radius: float, color: Color?)", "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame."),
-        (DRAW_CAPSULE, &[], "(x: float, y: float, z: float, radius: float, height: float, color: Color?)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
-        (DRAW_TEXT_2D, &[], "(x: float, y: float, text: string, opts: TextOptions?)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font`, `text_style`, …), `pixels_per_unit` and `z_index`; `font` and `text_style` name an asset."),
-        (DRAW_TEXT_3D, &[], "(x: float, y: float, z: float, text: string, opts: TextOptions?)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
+        (SET_BACKGROUND, &[], "(color: Color)", "Set the colour the viewport is cleared to behind everything drawn: the colour a `#rrggbb` writes, each channel from 0 to 1. Its alpha is not read."),
+        (DRAW_LINE_3D, &[], "(from: Vec3, to: Vec3, color: Color, width: float?, perspective: bool?, on_top: bool?)", "Draw one 3D world-space line for this frame; the width is in pixels unless `perspective` scales it with distance, and `on_top` draws it over the scene."),
+        (DRAW_LINE_2D, &[], "(from: Vec2, to: Vec2, color: Color, width: float?, opts: DrawOptions?)", "Draw one 2D world-space line for this frame; width is in pixels, and `opts.z_index` places it among the nodes of that index."),
+        (DRAW_LINES_3D, &[], "(lines: [Line3d])", "Draw many 3D lines in one call, each with its own ends, colour, width and `on_top`: a frame's worth crosses to the engine once."),
+        (DRAW_BOX_3D, &[], "(center: Vec3, size: Vec3, color: Color?)", "Draw a wireframe box centred at a point, `size` across along each axis in world units, for this frame."),
+        (DRAW_SPHERE_3D, &[], "(center: Vec3, radius: float, color: Color?)", "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame."),
+        (DRAW_CAPSULE_3D, &[], "(center: Vec3, radius: float, height: float, color: Color?)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
+        (DRAW_TEXT_2D, &[], "(position: Vec2, text: string, opts: TextOptions?)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font`, `text_style`, …), `pixels_per_unit` and `z_index`; `font` and `text_style` name an asset."),
+        (DRAW_TEXT_3D, &[], "(position: Vec3, text: string, opts: TextOptions?)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
         (TEXT_SIZE, &[], "(text: string, opts: TextOptions?) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
     m.records(&[(
+        "Line3d",
+        "{ from: Vec3, to: Vec3, color: Color, width: float?, on_top: bool? }",
+        "One 3D line for `draw_lines_3d`: its two ends in world units and its colour, a `width` in pixels where the default of 1 is not wanted, and `on_top` to draw it over the scene.",
+    ), (
         "TextOptions",
-        "{ font_size: float?, font_weight: int?, font_style: string?, color: Color?, text_align: string?, markup: bool?, max_width: float?, max_height: float?, max_lines: int?, line_break: string?, truncate: bool?, truncate_at: string?, tab_width: int?, font: string?, text_style: string?, alpha_cutoff: float?, pixels_per_unit: float?, z_index: int? }",
+        "{ font_size: float?, font_weight: int?, font_style: string?, color: Color?, text_align: string?, markup: bool?, max_width: float?, max_height: float?, max_lines: int?, line_break: string?, truncate: bool?, truncate_at: string?, tab_size: int?, font: string?, text_style: string?, alpha_cutoff: float?, pixels_per_unit: float?, z_index: int? }",
         "How drawn text is shaped and placed: the `text2d` keys, a `font` or `text_style` naming an asset, `pixels_per_unit` for its size in the world and `z_index` among the nodes of that index.",
     )]);
     // No reader by design (N8): the `ClearColorConfig` entry already holds
     // the colour; add `background` when a caller needs to read it back.
-    m.function(
-        SET_BACKGROUND,
-        |eng: &Engine, (r, g, b): (f32, f32, f32)| {
-            let clear = eng.resource::<ClearColorConfig>();
-            let mut clear = clear.borrow_mut();
-            clear.color = [r, g, b];
-            clear.changed = true;
-            Ok(())
-        },
-    );
+    m.function(SET_BACKGROUND, |eng: &Engine, color: Value| {
+        let Value::Color([r, g, b, _]) = color else {
+            anyhow::bail!("a background is a Color, not a {}", color.type_name());
+        };
+        let clear = eng.resource::<ClearColorConfig>();
+        let mut clear = clear.borrow_mut();
+        clear.color = [r, g, b];
+        clear.changed = true;
+        Ok(())
+    });
     // One line for one frame, world space. Width is in pixels; pass
     // perspective = true for distance-scaled width (gizmos want false).
     m.function(
         DRAW_LINE_3D,
-        |eng: &Engine,
-         (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective, on_top): DrawLineArgs| {
+        |eng: &Engine, (from, to, color, width, perspective, on_top): LineArgs3d| {
+            let (from, to) = (vec3_of(LINE_START, &from)?, vec3_of(LINE_END, &to)?);
+            let rgba = line_color(&color)?;
             let lines = eng.resource::<DebugLineBuffer3d>();
             lines.borrow_mut().lines.push((
-                [x1, y1, z1],
-                [x2, y2, z2],
-                [r, g, b, 1.0],
+                from,
+                to,
+                rgba,
                 width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
                 perspective.unwrap_or(false),
                 on_top.unwrap_or(false),
@@ -538,7 +586,7 @@ pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
             Ok(())
         },
     );
-    m.function(DRAW_LINES, push_lines);
+    m.function(DRAW_LINES_3D, push_lines);
     install_wireframe_api(m);
     install_text_api(m);
 }
@@ -548,14 +596,15 @@ pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
 fn install_text_api(m: &mut Module<Engine>) {
     m.function(
         DRAW_TEXT_2D,
-        |eng: &Engine, (x, y, text, opts): (f32, f32, String, Option<Value>)| {
+        |eng: &Engine, (position, text, opts): (Value, String, Option<Value>)| {
+            let [x, y] = vec2_of(TEXT_POSITION, &position)?;
             push_text(eng, [x, y, 0.0], text, opts, false)
         },
     );
     m.function(
         DRAW_TEXT_3D,
-        |eng: &Engine, (x, y, z, text, opts): (f32, f32, f32, String, Option<Value>)| {
-            push_text(eng, [x, y, z], text, opts, true)
+        |eng: &Engine, (position, text, opts): (Value, String, Option<Value>)| {
+            push_text(eng, vec3_of(TEXT_POSITION, &position)?, text, opts, true)
         },
     );
     m.function(
@@ -569,76 +618,71 @@ fn install_text_api(m: &mut Module<Engine>) {
     // One 2D world-space line for one frame; width in pixels.
     m.function(
         DRAW_LINE_2D,
-        |eng, (x1, y1, x2, y2, r, g, b, width, opts): LineArgs2d| {
+        |eng, (from, to, color, width, opts): LineArgs2d| {
+            let (from, to) = (vec2_of(LINE_START, &from)?, vec2_of(LINE_END, &to)?);
+            let color = line_color(&color)?;
+            let width = width.unwrap_or(crate::DEFAULT_LINE_WIDTH);
             let options = crate::draw_2d::options_of(opts, false)?;
             if options.z_index.is_some() {
                 let line = crate::draw_2d::Draw2d::Polyline {
-                    points: vec![[x1, y1], [x2, y2]],
-                    width: width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
-                    color: [r, g, b, 1.0],
+                    points: vec![from, to],
+                    width,
+                    color,
                 };
                 crate::draw_2d::push_at(eng, line, options.z_index);
                 return Ok(());
             }
             let lines = eng.resource::<DebugLineBuffer2d>();
-            lines.borrow_mut().lines.push((
-                [x1, y1],
-                [x2, y2],
-                [r, g, b, 1.0],
-                width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
-            ));
+            lines.borrow_mut().lines.push((from, to, color, width));
             Ok(())
         },
     );
 }
 
-/// `draw_line_2d`'s arguments: both ends, the colour's channels, the width in
-/// pixels and options.
-type LineArgs2d = (
-    f32,
-    f32,
-    f32,
-    f32,
-    f32,
-    f32,
-    f32,
-    Option<f32>,
-    Option<Value>,
-);
+/// `draw_line_2d`'s arguments: both ends, the colour, the width in pixels and
+/// options.
+type LineArgs2d = (Value, Value, Value, Option<f32>, Option<Value>);
+
+/// `draw_line_3d`'s arguments: both ends, the colour, then the width, whether
+/// perspective scales it and whether it draws over the scene.
+type LineArgs3d = (Value, Value, Value, Option<f32>, Option<bool>, Option<bool>);
+
+const LINE_START: &str = "a line's start";
+const LINE_END: &str = "a line's end";
+const TEXT_POSITION: &str = "a text's position";
+const SHAPE_CENTER: &str = "a shape's centre";
 
 /// The 3D immediate primitives, split from [`install_backdrop_api`] under
 /// `MAX_FN_LINES`: a box, a sphere and a capsule as wireframes, the shapes
 /// the 2D side fills.
 fn install_wireframe_api(m: &mut Module<Engine>) {
     m.function(
-        DRAW_BOX,
-        |eng: &Engine,
-         (x, y, z, hx, hy, hz, color): (f32, f32, f32, f32, f32, f32, Option<Value>)| {
+        DRAW_BOX_3D,
+        |eng: &Engine, (center, size, color): (Value, Value, Option<Value>)| {
+            let center = vec3_of(SHAPE_CENTER, &center)?;
+            let half = vec3_of("a box's size", &size)?.map(|side| side.abs() / 2.0);
             let rgba = line_rgba(color.as_ref())?;
-            push_segments(
-                eng,
-                &box_edges([x, y, z], [hx.abs(), hy.abs(), hz.abs()]),
-                rgba,
-            );
+            push_segments(eng, &box_edges(center, half), rgba);
             Ok(())
         },
     );
     m.function(
-        DRAW_SPHERE,
-        |eng: &Engine, (x, y, z, radius, color): (f32, f32, f32, f32, Option<Value>)| {
+        DRAW_SPHERE_3D,
+        |eng: &Engine, (center, radius, color): (Value, f32, Option<Value>)| {
+            let center = vec3_of(SHAPE_CENTER, &center)?;
             let rgba = line_rgba(color.as_ref())?;
             let mut out = Vec::new();
             for axis in 0..3 {
-                ring([x, y, z], radius.abs(), axis, &mut out);
+                ring(center, radius.abs(), axis, &mut out);
             }
             push_segments(eng, &out, rgba);
             Ok(())
         },
     );
     m.function(
-        DRAW_CAPSULE,
-        |eng: &Engine,
-         (x, y, z, radius, height, color): (f32, f32, f32, f32, f32, Option<Value>)| {
+        DRAW_CAPSULE_3D,
+        |eng: &Engine, (center, radius, height, color): (Value, f32, f32, Option<Value>)| {
+            let [x, y, z] = vec3_of(SHAPE_CENTER, &center)?;
             let rgba = line_rgba(color.as_ref())?;
             let (r, half) = (radius.abs(), height.abs() / 2.0);
             let mut out = Vec::new();
@@ -715,7 +759,7 @@ pub(crate) fn install_texture_api(m: &mut Module<Engine>) {
         (
             TEXTURE_SIZE,
             &[],
-            "",
+            "(path: string) -> Vec2",
             "An image's width and height in pixels, read from the file's own header.",
         ),
         (
@@ -744,7 +788,8 @@ pub(crate) fn install_texture_api(m: &mut Module<Engine>) {
         "How `trace_texture` reads an image: the alpha counted as opaque, the pixels of detail dropped, the pixels in a world unit, and whether every loop is kept.",
     )]);
     m.function(TEXTURE_SIZE, |eng: &Engine, path: String| {
-        crate::texture::size_of(eng, &path)
+        let (width, height) = crate::texture::size_of(eng, &path)?;
+        Ok(Value::Vec2([width as f32, height as f32]))
     });
     m.function(TEXTURE_PIXELS_PER_UNIT, |eng: &Engine, path: String| {
         Ok(crate::texture::pixels_per_unit(eng, &path))
@@ -800,39 +845,46 @@ pub(crate) fn install_sprite_state_api(m: &mut Module<Engine>) {
     m.describe(&[]);
 }
 
-/// Eleven numbers a segment: both ends, an rgb, a width and an on-top flag.
-/// One call for a frame's worth of lines, so a tool drawing hundreds of them
-/// crosses the script boundary once rather than once a segment.
-fn push_lines(eng: &Engine, flat: Value) -> anyhow::Result<()> {
-    const STRIDE: usize = 11;
-    let Value::List(items) = flat else {
-        anyhow::bail!("draw_lines takes a flat list of numbers");
-    };
-    if items.len() % STRIDE != 0 {
+/// A list of `Line3d` records. One call for a frame's worth of lines, so a
+/// tool drawing hundreds of them crosses the script boundary once rather
+/// than once a line.
+fn push_lines(eng: &Engine, lines: Value) -> anyhow::Result<()> {
+    let Value::List(items) = lines else {
         anyhow::bail!(
-            "draw_lines wants {STRIDE} numbers a segment, got {}",
-            items.len()
+            "draw_lines_3d takes a list of Line3d, not a {}",
+            lines.type_name()
         );
-    }
-    let number = |v: &Value| -> f32 {
-        match v {
-            Value::Num(n) => *n as f32,
-            Value::Int(n) => *n as f32,
-            _ => 0.0,
-        }
     };
-    let lines = eng.resource::<DebugLineBuffer3d>();
-    let mut buffer = lines.borrow_mut();
-    for segment in items.as_chunks::<STRIDE>().0 {
-        let n: Vec<f32> = segment.iter().map(number).collect();
-        buffer.lines.push((
-            [n[0], n[1], n[2]],
-            [n[3], n[4], n[5]],
-            [n[6], n[7], n[8], 1.0],
-            n[9],
+    let mut read = Vec::with_capacity(items.len());
+    for item in &items {
+        let Value::Map(fields) = item else {
+            anyhow::bail!(
+                "draw_lines_3d takes a list of Line3d, and one is a {}",
+                item.type_name()
+            );
+        };
+        let field = |name: &str| fields.iter().find(|(key, _)| key == name).map(|(_, v)| v);
+        let missing = |name: &str| anyhow::anyhow!("a Line3d needs its `{name}`");
+        let from = field(FROM).ok_or_else(|| missing(FROM))?;
+        let to = field(TO).ok_or_else(|| missing(TO))?;
+        let color = field(keys::COLOR).ok_or_else(|| missing(keys::COLOR))?;
+        let width = match field(WIDTH) {
+            Some(Value::Num(width)) => *width as f32,
+            Some(Value::Int(width)) => *width as f32,
+            _ => crate::DEFAULT_LINE_WIDTH,
+        };
+        read.push((
+            vec3_of(LINE_START, from)?,
+            vec3_of(LINE_END, to)?,
+            line_color(color)?,
+            width,
             false,
-            n[10] != 0.0,
+            matches!(field(ON_TOP), Some(Value::Bool(true))),
         ));
     }
+    eng.resource::<DebugLineBuffer3d>()
+        .borrow_mut()
+        .lines
+        .extend(read);
     Ok(())
 }

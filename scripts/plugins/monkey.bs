@@ -1,0 +1,75 @@
+// A monkey: seeded random pointer moves, clicks, drags, scrolls and keys fed
+// into the editor every frame, to find what crashes, freezes or logs an error.
+
+const SEED: int = 1;
+const WARM_UP_FRAMES: int = 40;
+const REPORT_EVERY_FRAMES: int = 250;
+
+pub class Monkey {
+    node: Node,
+    frame: int = 0,
+    held: bool = false,
+    held_right: bool = false,
+    key: str = "",
+}
+
+fn keys() -> [str] {
+    ["Escape", "Tab", "Enter", "Delete", "Backspace", "Space", "KeyA", "KeyZ", "KeyS", "KeyD",
+     "KeyF", "KeyW", "KeyE", "KeyR", "KeyG", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
+     "Digit1", "Digit2", "F2", "F5"]
+}
+
+impl Monkey {
+    pub fn register() -> any {
+        {}
+    }
+
+    fn init() {
+        random::seed(SEED);
+        log::info("monkey: seed {SEED}");
+    }
+
+    fn update(dt: float) {
+        self.frame += 1;
+        if self.frame < WARM_UP_FRAMES {
+            return;
+        }
+        if self.frame % REPORT_EVERY_FRAMES == 0 {
+            log::info("monkey: frame {self.frame}");
+        }
+        let size = ui::window_size();
+        let per_design = ui::pixels_per_design();
+        input::set_mouse_position(vec2(random::range(0.0, size.x) * per_design, random::range(0.0, size.y) * per_design));
+        if self.key != "" {
+            input::set_key_down(self.key, false);
+            self.key = "";
+        }
+        if self.held {
+            // Half the time the button stays down one more frame: a drag.
+            if random::int(0, 100) < 50 {
+                input::set_mouse_down(input::MOUSE_BUTTON_LEFT, false);
+                self.held = false;
+            }
+            return;
+        }
+        if self.held_right {
+            input::set_mouse_down(input::MOUSE_BUTTON_RIGHT, false);
+            self.held_right = false;
+            return;
+        }
+        let roll = random::int(0, 100);
+        if roll < 45 {
+            input::set_mouse_down(input::MOUSE_BUTTON_LEFT, true);
+            self.held = true;
+        } else if roll < 52 {
+            input::set_mouse_down(input::MOUSE_BUTTON_RIGHT, true);
+            self.held_right = true;
+        } else if roll < 65 {
+            input::set_scroll_delta(vec2(0.0, random::range(-4.0, 4.0)));
+        } else if roll < 80 {
+            let names = keys();
+            self.key = names[random::int(0, names.len() - 1)];
+            input::set_key_down(self.key, true);
+        }
+    }
+}

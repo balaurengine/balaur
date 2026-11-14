@@ -541,12 +541,12 @@ fn on_bookmark_pressed(state: &mut editor::State, data: any, _value: any) {
 fn bookmark(state: &mut editor::State, key: str) {
     if input::key_down(input::KEY_SHIFT) {
         let camera = render::camera_pose();
-        let eye_x = camera[0];
-        let eye_y = camera[1];
-        let eye_z = camera[2];
-        let target_x = camera[3];
-        let target_y = camera[4];
-        let target_z = camera[5];
+        let eye_x = camera.eye.x;
+        let eye_y = camera.eye.y;
+        let eye_z = camera.eye.z;
+        let target_x = camera.target.x;
+        let target_y = camera.target.y;
+        let target_z = camera.target.z;
         state.bookmarks[key] = [eye_x, eye_y, eye_z, target_x, target_y, target_z];
         log::info("stored view " + key);
         signals::bars(state);

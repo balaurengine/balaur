@@ -157,7 +157,7 @@ impl Screen {
         }
     }
 
-    /// The header button's `on_click`. A deterministic shuffle: the example is a
+    /// What the header button's click calls. A deterministic shuffle: the example is a
     /// screenshot as often as it is a screen, and a random one never matches.
     pub fn shuffle() {
         let held = self.order;

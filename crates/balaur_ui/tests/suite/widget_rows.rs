@@ -389,7 +389,7 @@ fn a_secondary_click_picks_the_row_it_lands_on() {
     );
     assert!(
         !clicked(&app, entity),
-        "and it is not a click: the widget's own on_click stays quiet"
+        "and it is not a click: the widget's own pointer_click stays quiet"
     );
 }
 
@@ -760,7 +760,7 @@ fn a_click_on_a_sortable_header_orders_by_that_column() {
 fn a_dragged_row_reports_where_it_was_let_go() {
     let script = "pub class Owner { node: Node, said: str }
 impl Owner {
-    pub fn on_move(what: any) { self.said = \"{what[0]}|{what[1]}|{what[2]}\"; }
+    pub fn on_moved(what: any) { self.said = \"{what[0]}|{what[1]}|{what[2]}\"; }
     pub fn said() -> str { self.said }
 }
 ";
@@ -779,7 +779,8 @@ impl Owner {
             "Rows",
             &toml::toml! {
                 kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-                widget_list = { reorderable = true, on_move = "on_move" }
+                widget_list = { reorderable = true }
+                bindings = { rows = [{ event = "emitted:moved", action = "call", value = "on_moved" }] }
                 widget_rows = { row_height = 20.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
             }
             .into(),
@@ -822,7 +823,7 @@ impl Owner {
 fn a_list_that_does_not_reorder_reports_no_drop() {
     let script = "pub class Owner { node: Node, said: str }
 impl Owner {
-    pub fn on_move(what: any) { self.said = \"{what[0]}\"; }
+    pub fn on_moved(what: any) { self.said = \"{what[0]}\"; }
     pub fn said() -> str { self.said }
 }
 ";
@@ -838,7 +839,7 @@ impl Owner {
         "Rows",
         &toml::toml! {
             kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-            widget_list = { on_move = "on_move" }
+            bindings = { rows = [{ event = "emitted:moved", action = "call", value = "on_moved" }] }
             widget_rows = { row_height = 20.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
         }
         .into(),
@@ -868,7 +869,7 @@ impl Owner {
 fn a_card_dragged_out_of_its_list_reports_itself_where_it_was_let_go() {
     let script = "pub class Owner { node: Node, said: str }
 impl Owner {
-    pub fn on_drop(card: str) { self.said = card; }
+    pub fn on_dropped(card: str) { self.said = card; }
     pub fn said() -> str { self.said }
 }
 ";
@@ -885,7 +886,8 @@ impl Owner {
             "Cards",
             &toml::toml! {
                 kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
-                widget_list = { draggable = true, on_drop = "on_drop", grid_columns = "repeat(3, 1fr)" }
+                widget_list = { draggable = true, grid_columns = "repeat(3, 1fr)" }
+                bindings = { rows = [{ event = "emitted:dropped", action = "call", value = "on_dropped" }] }
                 widget_rows = { items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
             }
             .into(),
@@ -963,7 +965,7 @@ fn marked_tree() -> (
 ) {
     let script = "pub class Owner { node: Node, said: str }
 impl Owner {
-    pub fn on_mark(what: any) {
+    pub fn on_marked(what: any) {
         let row = what[\"row\"];
         let mark = what[\"mark\"];
         self.said = \"{row}|{mark}\";
@@ -983,7 +985,7 @@ impl Owner {
         "Rows",
         &toml::toml! {
             kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-            widget_list = { on_mark = "on_mark" }
+            bindings = { rows = [{ event = "emitted:marked", action = "call", value = "on_marked" }] }
             widget_rows = { row_height = 20.0, items = [{ label = "One", key = "one", marks = [{ name = "eye", glyph = "E" }, { name = "lock", glyph = "L" }] }, { label = "Two", key = "two", marks = [{ name = "eye", glyph = "E" }] }] }
         }
         .into(),

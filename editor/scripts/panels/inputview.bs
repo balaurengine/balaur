@@ -93,7 +93,7 @@ impl Inputview {
         self.let_go(self.editor.unwrap().inputview_key(key));
     }
 
-    pub fn on_action(name: str) {
+    pub fn on_action_pressed(name: str) {
         self.hold(ACTION + name);
     }
 

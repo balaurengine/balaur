@@ -73,7 +73,10 @@ REENTRANT_CALL = re.compile(
 )
 # A thread woken on a timer to look, rather than by what it waits for:
 # docs/PLAN-io.md. A frame cap or a real deadline says why on its line.
-TIMED_WAIT = re.compile(r"\bthread::sleep\s*\(|\.set_(?:read|write)_timeout\s*\(|\btokio::time::sleep\s*\(")
+TIMED_WAIT = re.compile(
+    r"\bthread::sleep\s*\(|\.set_(?:read|write)_timeout\s*\(|\btokio::time::(?:sleep|interval)\s*\("
+    r"|\.(?:recv|wait|park)_timeout\s*\(|\bthread::park_timeout\s*\("
+)
 
 # `let x = <something>.borrow_mut();` — the exclusive binding, not a temporary,
 # which is dropped at the end of its statement and cannot span a call.

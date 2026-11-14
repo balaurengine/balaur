@@ -20,6 +20,7 @@ use plugins;
 use polygon;
 use pool;
 use populate;
+use presets;
 use recipes;
 use rig;
 use selection;
@@ -83,7 +84,7 @@ pub struct Entry {
     tags: str,
 }
 
-/// The engine's registries, as the palette offers them.
+/// The recipes and the engine's registries, as the palette offers them.
 pub struct Found {
     presets: [Entry],
     components: [Entry],
@@ -109,24 +110,23 @@ fn command_with(label: str, icon: str, run: fn(&mut editor::State, any), data: a
     Command { label: label, icon: icon, key: "", tags: "", run: run, data: data }
 }
 
-// The engine's registries, asked once per opening rather than once per frame:
-// every preset and every component type carries a tag list, and walking them
-// all is a list rebuild on every keystroke.
+// The recipes and the engine's registries, asked once per opening rather than
+// once per frame: every preset and every component type carries a tag list,
+// and walking them all is a list rebuild on every keystroke.
 fn catalogue(state: &mut editor::State) -> Found {
     if state.palette_cache != nil {
         return state.palette_cache.unwrap();
     }
-    let presets: [Entry] = [];
-    for preset in scene::presets() {
-        let info = scene::preset_info(preset);
-        presets.push(Entry { name: preset, tags: if info != nil { util::join(info.unwrap().tags, " ") } else { "" } });
+    let offered: [Entry] = [];
+    for preset in presets::all(state) {
+        offered.push(Entry { name: preset.name, tags: util::join(preset.tags, " ") });
     }
     let components: [Entry] = [];
     for name in scene::component_types() {
         let tags = scene::component_tags(name);
         components.push(Entry { name: name, tags: if tags != nil { util::join(tags.unwrap(), " ") } else { "" } });
     }
-    let found = Found { presets: presets, components: components, channels: render::debug_views() };
+    let found = Found { presets: offered, components: components, channels: render::debug_views() };
     state.palette_cache = found;
     found
 }

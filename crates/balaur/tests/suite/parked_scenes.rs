@@ -29,7 +29,7 @@ impl Screen {
     }
     fn update(dt: float) {
         self.updates = self.updates + 1;
-        if script::stored(\"freed\") != nil { self.saw_free = 1; }
+        if engine::stored(\"freed\") != nil { self.saw_free = 1; }
     }
     fn fixed_update(dt: float) {
         self.fixed = self.fixed + 1;
@@ -45,7 +45,7 @@ impl Screen {
         self.clicks = self.clicks + 1;
     }
     fn on_free() {
-        script::store(\"freed\", true);
+        engine::store(\"freed\", true);
     }
     pub fn count_parked() {
         self.listed = scene::parked().len();

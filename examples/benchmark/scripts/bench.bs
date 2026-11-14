@@ -107,8 +107,8 @@ impl Bench {
         self.steps = STEPS;
         self.warmup = WARMUP;
         self.read_args();
-        render::set_background(0.09, 0.10, 0.12);
-        frame_view(3, []);
+        render::set_background(color(0.09, 0.10, 0.12, 1.0));
+        frame_view(self.node, 3, []);
         self.show_menu();
     }
 
@@ -287,7 +287,7 @@ impl Bench {
             }
             random::seed(e.seed);
             tune(c);
-            frame_view(c.dimensions, c.view);
+            frame_view(self.node, c.dimensions, c.view);
             let w = world::new(self.node, c.dimensions, self.draw);
             self.world = w;
             self.started = engine::time();
@@ -619,17 +619,17 @@ fn release(w: world::World) {
 /// Where to stand to watch a case: its own `view` when it names one, an eye
 /// and a target in 3D, a centre and a zoom in 2D, else a default that fits
 /// most of them.
-fn frame_view(dimensions: int, view: [float]) {
+fn frame_view(bench: Node, dimensions: int, view: [float]) {
     if dimensions == 2 {
         let picked = if view.len() == 3 { view } else { [0.0, 0.0, 0.16] };
-        let camera = scene::get_node("Bench/Camera2D");
+        let camera = bench.get_node("Camera2D");
         camera.transform.position = vec3(picked[0], picked[1], 0.0);
         camera.camera2d.pixels_per_unit = picked[2];
     } else {
         let picked = if view.len() == 6 { view } else { [0.0, 40.0, 110.0, 0.0, 10.0, 0.0] };
-        let camera = scene::get_node("Bench/Camera3D");
+        let camera = bench.get_node("Camera3D");
         camera.transform.position = vec3(picked[0], picked[1], picked[2]);
-        camera.camera3d.look_at = vec3(picked[3], picked[4], picked[5]);
+        camera.transform.look_at(vec3(picked[3], picked[4], picked[5]));
     }
 }
 
@@ -643,10 +643,10 @@ fn tune(c: load::Case) {
     physics::set_sleeping_allowed(false);
     if c.dimensions == 2 {
         physics::set_tuning(physics::TuningOptions { length_unit: 100.0 });
-        physics2d::set_gravity(0.0, -980.0);
+        physics2d::set_gravity(vec2(0.0, -980.0));
     } else {
         physics::set_tuning(physics::TuningOptions { length_unit: 1.0 });
-        physics3d::set_gravity(0.0, -9.81, 0.0);
+        physics3d::set_gravity(vec3(0.0, -9.81, 0.0));
     }
 }
 

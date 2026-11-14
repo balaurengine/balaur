@@ -274,8 +274,7 @@ impl<Q: hecs::Query + 'static> SystemParam for Query<'_, Q> {
 /// A query term that writes a component and is seen doing it:
 /// `Query<'_, (Tracked<Pos>, &Vel)>`. Its item, [`Mut`], notes the write the
 /// first time it is written through, and the write is stamped with the
-/// system's change tick when the system ends, so [`Changed`] and
-/// `scene.changed_since` hear it. A plain `&mut T` is free and unseen.
+/// system's change tick when the system ends, so [`Changed`] hears it. A plain `&mut T` is free and unseen.
 pub struct Tracked<T>(std::marker::PhantomData<fn() -> T>);
 
 /// A tracked query's component, borrowed: read freely, stamped when written.

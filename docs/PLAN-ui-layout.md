@@ -259,12 +259,12 @@ still be sitting where the short label left it.
 ### Node types, or recipes
 
 A widget is a component with a `kind`, not a node type, and the eight kinds
-are registered as **presets** — `label`, `button`, `panel`, `row`, `column`,
-`scroll`, `tab`, `draw` — so the editor's picker offers "Column" beside
+are the editor's **presets** — `label`, `button`, `panel`, `row`, `column`,
+`scroll`, `tab`, `draw` — so its picker offers "Column" beside
 "Sprite2D" rather than "add a `widget`, then set `kind`".
 
 Presets rather than node classes because balaur has no classes at all, on
-purpose: `balaur_core::presets` says a preset is a recipe, not a type, and
+purpose: `editor/scripts/presets.bs` says a preset is a recipe, not a type, and
 "an engine that records 'this is a RigidBody2D' has to defend that claim
 forever". `sprite`, `body2d`, `light2d` and `tilemap` are components too. UI
 being the one place with real node types would be a second model of what a

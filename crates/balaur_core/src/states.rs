@@ -88,6 +88,7 @@ pub fn go(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
     if let Some(host) = eng.script_host() {
         let node = crate::node_id_of(entity);
         if host.has_method(node, hooks::ON_STATE_CHANGED) {
+            let args = crate::bindings::with_source(&args, entity);
             host.call_on(node, hooks::ON_STATE_CHANGED, &args);
         }
     }

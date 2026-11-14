@@ -66,7 +66,7 @@ use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage};
 
 pub use crate::bindings::install_animation_api;
-pub use crate::machine::{STATE_FINISHED_EVENT, STATE_STARTED_EVENT, StateMachine};
+pub use crate::machine::{STATE_ENTERED_EVENT, STATE_EXITED_EVENT, StateMachine};
 pub use crate::player::{
     AnimationState, LIBRARY_ASSET_TYPE, Playback, add_clip, current_clip, is_playing, pause, play,
     play_blended, play_from, queue, resume, seek, set_retarget, set_speed_scale, stop, time,
@@ -107,6 +107,14 @@ keys = [
 keys = [{ time = 2.0, call = "on_halfway" }]
 ```"#;
 
+/// What a tween announces on the node it runs on, which carries no
+/// component for it: each one's payload.
+const TWEEN_EVENTS: &[balaur_core::events::Announced] = &[
+    (TWEEN_FINISHED_EVENT, "the tween's handle"),
+    (TWEEN_LOOPED_EVENT, "`{ tween, played }`"),
+    (TWEEN_STEP_EVENT, "`{ tween, step }`"),
+];
+
 impl balaur_plugin::Plugin for AnimationPlugin {
     fn name(&self) -> &'static str {
         ANIMATION
@@ -114,6 +122,11 @@ impl balaur_plugin::Plugin for AnimationPlugin {
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(AnimationState::default());
+        balaur_core::events::declare_on_nodes(reg.engine(), TWEEN_EVENTS);
+        balaur_core::rest::add_probe(reg.engine(), ANIMATION, |eng| {
+            eng.try_resource::<AnimationState>()
+                .is_some_and(|state| state.borrow().moving)
+        });
         reg.add_system(Stage::Update, system::advance_system);
         snapshot::register(reg);
         // After the clip has posed the rig, so a modifier has the last word.
@@ -196,8 +209,8 @@ fn register_machine_component(reg: &mut Registry<'_>) {
         machine::COMPONENT,
         ComponentDef {
             events: &[
-                (machine::STATE_STARTED_EVENT, "the state entered"),
-                (machine::STATE_FINISHED_EVENT, "the state left"),
+                (machine::STATE_ENTERED_EVENT, "the state entered"),
+                (machine::STATE_EXITED_EVENT, "the state left"),
             ],
             tags: &[balaur_core::components::tag::ANIMATION],
             remove: Box::new(|eng, entity| {

@@ -1,16 +1,11 @@
 //! `script::check(path, source)` and the editor's other questions about a
 //! file: answered by whichever backend serves it, in the shapes the editor
-//! reads (`balaur_script::tool_answer`).
-use crate::api::Structs;
-use crate::convert::{from_neutral, to_neutral};
-use crate::doc_types::Cx;
+//! reads (`balaur_script::tool_answer`). A module a tool's binary installs
+//! ([`install_tool_verbs`]); a game's runtime has none of it.
 use crate::vocabulary::keys;
 use crate::vocabulary::words;
-use balaur_bs::runtime::{CallArgs, Value as L};
-use balaur_bs::{HostSignature, Ty};
 use balaur_core::Engine;
-use balaur_script::Value;
-use std::collections::BTreeSet;
+use balaur_script::{FnDoc, Module, Value};
 
 pub(crate) const MODULE: &str = "script::";
 
@@ -31,10 +26,7 @@ pub(crate) const KINDS: &[(&str, &str)] = &[
 ];
 
 /// What the module is for, as the reference opens it.
-pub(crate) const MODULE_DOC: (&str, &str) = (
-    "script",
-    "What a tool asks about a script file, and state no node owns.",
-);
+const MODULE_DOC: &str = "What a tool asks about a script file. The editor and `balaur check` have it; a game's runtime does not.";
 
 /// What `types` is for, as the reference opens it.
 pub(crate) const TYPES_MODULE_DOC: (&str, &str) = (
@@ -52,93 +44,57 @@ pub(crate) const RECORDS: &[(&str, &str)] = &[
     ("Symbol", "{ name: string, kind: string, detail: string, line: int, column: int }"),
     ("Signature", "{ title: string, detail: string, doc: string, active: int }"),
     ("Edit", "{ file: string, source: string }"),
-    ("ApiFunction", "{ name: string, signature: string, doc: string, acts_on: [string] }"),
+    ("ApiFunction", "{ name: string, signature: string, doc: string, acts_on: [string], methods: [string] }"),
     ("ApiConstant", "{ name: string, value: string }"),
     ("ApiModule", "{ name: string, doc: string, functions: [ApiFunction], constants: [ApiConstant] }"),
 ];
 
-/// Each verb, what it takes after the path and gives back, and what it does.
+/// Each verb: what it takes and gives back, and what it does.
 #[rustfmt::skip]
-const VERBS: &[(&str, &str, &str)] = &[
-    ("check", "(source: string) -> [Diagnostic]", "Every compiler error in the source, read as the file at the path: one for each function that does not compile."),
-    ("complete", "(source: string, line: int, column: int) -> [Completion]", "Every completion valid at that caret; an editor passes the buffer it is showing."),
-    ("hover", "(source: string, line: int, column: int) -> Hover?", "What the name at that caret is: its type, or its signature; nil when it is nothing."),
-    ("definition", "(source: string, line: int, column: int) -> Place?", "Where the name at that caret is declared in the file; nil when it is not."),
-    ("symbols", "(source: string) -> [Symbol]", "What the file declares: its structs, their fields and methods, and its functions."),
-    ("signature", "(source: string, line: int, column: int) -> Signature?", "The call the caret is inside, and which argument it is on."),
-    ("references", "(source: string, name: string) -> [Place]", "Every use of that name in the file."),
-    ("rename", "(source: string, from: string, to: string) -> [Edit]", "The file with a name renamed; nothing is written, so a caller can show it first."),
-    ("find", "(source: string, needle: string) -> [Place]", "Every place that text appears in the file, matched as text rather than as a name."),
-    ("replace", "(source: string, from: string, to: string) -> [Edit]", "The file with that text replaced; nothing is written, so a caller can show it first."),
-    ("format", "(source: string) -> string", "The source laid out as `balaur fmt` lays it out; unchanged when it will not parse."),
-    ("exports", "() -> list", "The `pub` fields of the script's struct, which a scene tunes, with their types and defaults."),
-    ("api", "() -> [ApiModule]", "Every module a script can reach: its functions, their signatures and what each does, and its constants."),
+const VERBS: &[FnDoc] = &[
+    ("check", &[], "(path: string, source: string) -> [Diagnostic]", "Every compiler error in the source, read as the file at the path: one for each function that does not compile."),
+    ("complete", &[], "(path: string, source: string, line: int, column: int) -> [Completion]", "Every completion valid at that caret; an editor passes the buffer it is showing."),
+    ("hover", &[], "(path: string, source: string, line: int, column: int) -> Hover?", "What the name at that caret is: its type, or its signature; nil when it is nothing."),
+    ("definition", &[], "(path: string, source: string, line: int, column: int) -> Place?", "Where the name at that caret is declared in the file; nil when it is not."),
+    ("symbols", &[], "(path: string, source: string) -> [Symbol]", "What the file declares: its structs, their fields and methods, its functions, and each `event` with its description for a detail."),
+    ("signature", &[], "(path: string, source: string, line: int, column: int) -> Signature?", "The call the caret is inside, and which argument it is on."),
+    ("references", &[], "(path: string, source: string, name: string) -> [Place]", "Every use of that name in the file."),
+    ("rename", &[], "(path: string, source: string, from: string, to: string) -> [Edit]", "The file with a name renamed; nothing is written, so a caller can show it first."),
+    ("find", &[], "(path: string, source: string, needle: string) -> [Place]", "Every place that text appears in the file, matched as text rather than as a name."),
+    ("replace", &[], "(path: string, source: string, from: string, to: string) -> [Edit]", "The file with that text replaced; nothing is written, so a caller can show it first."),
+    ("format", &[], "(path: string, source: string) -> string", "The source laid out as `balaur fmt` lays it out; unchanged when it will not parse."),
+    (words::EXPORTS, &[], "(path: string) -> list", "The `pub` fields of the script's struct, which a scene tunes, with their types and defaults."),
+    (words::API, &[], "() -> [ApiModule]", "Every module a script can reach: its functions, their signatures and what each does, and its constants."),
 ];
 
-// The verbs about the engine rather than a file: no path first.
-const PATHLESS: &[&str] = &["api"];
-
-/// Their signatures, read against the records every module declared.
-pub(crate) fn signatures(records: &BTreeSet<String>) -> Vec<HostSignature> {
-    let cx = Cx {
-        module: MODULE.trim_end_matches("::"),
-        records,
-    };
-    VERBS
-        .iter()
-        .filter_map(|(name, doc, _)| {
-            let (params, ret) = crate::doc_types::signature(doc, &cx)?;
-            let path = (!PATHLESS.contains(name)).then_some(Ty::Str);
-            Some(HostSignature {
-                key: format!("{MODULE}{name}"),
-                params: path.into_iter().chain(params).collect(),
-                ret,
-                is_async: false,
-            })
-        })
-        .collect()
-}
-
-/// What each verb does, keyed `script::name`.
-pub(crate) fn docs() -> impl Iterator<Item = (String, &'static str)> {
-    VERBS
-        .iter()
-        .map(|(name, _, doc)| (format!("{MODULE}{name}"), *doc))
-}
-
-/// The verb a key names, when it is one of these.
-pub(crate) fn verb(key: &str) -> Option<&'static str> {
-    let name = key.strip_prefix(MODULE)?;
-    VERBS.iter().find(|(v, ..)| *v == name).map(|(v, ..)| *v)
+/// Declare the `script` module: every verb above, on whichever backend
+/// serves the file it is asked about.
+pub fn install_tool_verbs(m: &mut Module<Engine>) {
+    m.module_doc(MODULE_DOC);
+    m.describe(VERBS);
+    for &(verb, ..) in VERBS {
+        m.function_raw(verb, Box::new(move |eng, args| Ok(call(eng, verb, args))));
+    }
 }
 
 /// What the file's backend answers; nil when no backend serves it.
-pub(crate) fn call(
-    eng: &Engine,
-    verb: &str,
-    args: &dyn CallArgs,
-    ret: &Ty,
-    structs: &Structs,
-) -> Result<L, String> {
+fn call(eng: &Engine, verb: &str, args: &[Value]) -> Value {
     if verb == words::API {
         let answer = crate::BsHost::of(eng).map_or(Value::List(vec![]), |host| host.reference());
-        return Ok(from_neutral(&by_function(&answer), ret, structs));
+        return by_function(&answer);
     }
-    let Some(path) = args.text(0) else {
-        return Err(format!("`script::{verb}` wants a path first"));
+    let Some(Value::Str(path)) = args.first() else {
+        return Value::Nil;
     };
     let key = crate::host::key_of(path);
     if verb == words::EXPORTS {
-        return Ok(from_neutral(&exports(eng, &key), ret, structs));
+        return exports(eng, &key);
     }
-    let after: Vec<Value> = (1..args.len())
-        .map(|index| to_neutral(&args.value(index)))
-        .collect();
     let answer = eng.script_host().and_then(|scripts| {
         let tools = scripts.tools_for(&key)?;
-        balaur_script::tool_answer(tools, verb, &key, &after)
+        balaur_script::tool_answer(tools, verb, &key, &args[1..])
     });
-    Ok(from_neutral(&answer.unwrap_or(Value::Nil), ret, structs))
+    answer.unwrap_or(Value::Nil)
 }
 
 // `balaur api`'s reference as a script reads it: a row a function, where the
@@ -155,11 +111,23 @@ fn by_function(reference: &Value) -> Value {
                     return None;
                 };
                 let of = |key: &str| at(at(module, key), name).cloned().unwrap_or(Value::Nil);
+                // What a script writes after `node.`, a handle each.
+                let methods = match of(keys::METHODS) {
+                    Value::Map(on) => on
+                        .iter()
+                        .filter_map(|(comp, method)| match method {
+                            Value::Str(method) => Some(Value::text(format!("{comp}.{method}"))),
+                            _ => None,
+                        })
+                        .collect(),
+                    _ => vec![],
+                };
                 Some(Value::Map(vec![
                     (keys::NAME.into(), function.clone()),
                     ("signature".into(), of("signatures")),
                     (keys::DOC.into(), of("docs")),
                     (keys::ACTS_ON.into(), of(keys::ACTS_ON)),
+                    (keys::METHODS.into(), Value::List(methods)),
                 ]))
             });
         Value::Map(vec![

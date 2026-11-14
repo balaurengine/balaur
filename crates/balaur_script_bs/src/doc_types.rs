@@ -171,7 +171,7 @@ mod tests {
     }
 
     fn records() -> BTreeSet<String> {
-        ["ui::Rect".to_string(), "scene::Preset".to_string()].into()
+        ["ui::Rect".to_string(), "scene::Warning".to_string()].into()
     }
 
     #[test]
@@ -248,8 +248,8 @@ mod tests {
             Some((vec![Ty::Node], rect.clone()))
         );
         assert_eq!(
-            signature("() -> [scene::Preset]", &ui),
-            Some((vec![], list(Ty::Struct("scene::Preset".into()))))
+            signature("() -> [scene::Warning]", &ui),
+            Some((vec![], list(Ty::Struct("scene::Warning".into()))))
         );
         assert_eq!(
             result("-> Rect?", &ui),

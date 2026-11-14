@@ -132,6 +132,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         )
     };
     let screen = ctx.viewport_rect();
+    crate::widget::input::follow_hearers(eng);
     let stamp = stamp_now(eng);
     let Begun {
         placed,
@@ -184,7 +185,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         fresh,
         touched: Written::new(touched),
         // An `accept` is a click by another name: same `clicked`, same
-        // `on_click`, so it starts the frame's list rather than a second one.
+        // `pointer_click`, so it starts the frame's list rather than a second.
         clicked: accepted.into_iter().chain(fired).collect(),
         state: WidgetState::default(),
         context_opened: false,
@@ -822,7 +823,7 @@ fn turned_fold(placed: &[Placed], accepted: Option<Entity>) -> Option<(Entity, E
 }
 
 /// A click on a widget that draws nothing clickable of its own, when its
-/// `on_click` names a handler. Sensed before the kind draws, so a child
+/// `pointer_click` is heard. Sensed before the kind draws, so a child
 /// drawn inside it still takes its own clicks first.
 fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
@@ -839,7 +840,7 @@ fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
             | w::SCROLL
             | w::PROGRESS_BAR
     );
-    if !passive || widget.on_click.is_empty() || widget.disabled {
+    if !passive || !widget.hears_click || widget.disabled {
         return;
     }
     let id = egui::Id::unique(("balaur-click", placed.entity));

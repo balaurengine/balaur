@@ -56,7 +56,7 @@ impl Rows {
     /// A row dropped somewhere else in the list, which the kind reports and this
     /// acts on: the view draws the rows a script hands it, so moving one is
     /// moving it here.
-    pub fn on_move(what: any) {
+    pub fn on_moved(what: any) {
         let moved = what[0].as_str();
         let onto = what[1].as_str();
         let side = what[2].as_str();

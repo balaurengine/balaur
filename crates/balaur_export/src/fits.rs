@@ -189,7 +189,7 @@ mod tests {
         std::fs::create_dir(dir.path().join("scripts")).unwrap();
         std::fs::write(
             dir.path().join("scripts/game.rn"),
-            "// physics2d::gravity in a comment is no use\npub fn init() {\n    physics2d::set_gravity(0.0, -9.8);\n}\n",
+            "// physics2d::gravity in a comment is no use\npub fn init() {\n    physics2d::set_gravity(vec2(0.0, -9.8));\n}\n",
         )
         .unwrap();
         let mut pack = pack("");

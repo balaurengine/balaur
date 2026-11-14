@@ -1,5 +1,5 @@
-# Eyes on a capsule: the camera and the character controller are one node, so
-# looking and walking are the same transform and nothing can drift apart.
+# Eyes on a capsule: the body turns and walks, and the camera on the child
+# under it tilts, so looking up never leans the capsule.
 
 [[nodes]]
 id = "rig_first_person"
@@ -14,6 +14,14 @@ floor_snap_length = 0.3
 
 [nodes.collider3d]
 shape = { kind = "capsule", radius = 0.35, height = 1.9 }
+
+[[nodes]]
+id = "rig_first_person_eye"
+name = "Eye"
+parent = "rig_first_person"
+
+[nodes.transform]
+position = [0, 0.75, 0]
 
 [nodes.camera3d]
 current = true

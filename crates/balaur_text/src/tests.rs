@@ -167,8 +167,30 @@ fn an_atlas_that_fills_up_doubles_instead_of_starting_over() {
     assert!(inked, "the glyph's box in the grown atlas is blank");
 }
 
-/// A second consumer must see a stable atlas: shaping the same run twice
-/// comes from the cache and writes nothing new.
+// A UV is a fraction of the side, so a quad placed before the glyph that
+// doubled the atlas reads another glyph's cell unless it is placed again.
+#[test]
+fn a_block_that_grows_the_atlas_quotes_the_grown_side_in_every_quad() {
+    let mut state = TextState::new(&faces(), "en-US");
+    let opened = state.atlas().side();
+    let shaped = state.shape(&Request::new("Sphinx of black quartz, judge my vow", 96.0));
+    let side = state.atlas().side();
+    assert!(side > opened, "the block fitted a page of {opened}");
+    for quad in &shaped.quads {
+        let quoted = quad.uv.size() * side as f32;
+        assert!(
+            (quoted - quad.rect.size()).abs().max_elem() < 0.01,
+            "a glyph of {:?} pixels quotes {quoted:?} of the atlas",
+            quad.rect.size()
+        );
+    }
+    // Filed under the atlas it left, so asking again is the same block.
+    let again = state.shape(&Request::new("Sphinx of black quartz, judge my vow", 96.0));
+    assert!(Rc::ptr_eq(&shaped, &again));
+}
+
+// A second consumer must see a stable atlas: shaping the same run twice
+// comes from the cache and writes nothing new.
 #[test]
 fn shaping_the_same_run_twice_writes_the_atlas_once() {
     let mut state = asking();
@@ -666,7 +688,7 @@ fn a_font_not_read_yet_draws_in_the_default_and_is_wanted() {
 }
 
 #[test]
-fn line_break_by_glyph_fills_the_line_where_by_word_leaves_a_gap() {
+fn an_arbitrary_line_break_fills_the_line_where_by_word_leaves_a_gap() {
     let rows = |mode: LineBreak| {
         let (_, shaped) = shaped_with("aaa bbbbbbbbbb", |r| {
             r.width = Some(70.0);
@@ -674,7 +696,7 @@ fn line_break_by_glyph_fills_the_line_where_by_word_leaves_a_gap() {
         });
         shaped.quads.iter().filter(|q| q.rect.min.y < 10.0).count()
     };
-    assert!(rows(LineBreak::Glyph) > rows(LineBreak::Word));
+    assert!(rows(LineBreak::Arbitrary) > rows(LineBreak::Word));
 }
 
 #[test]
@@ -737,7 +759,7 @@ fn monospace_width_resizes_a_monospace_face_to_the_advance_asked() {
 #[test]
 fn a_wider_tab_pushes_the_text_after_it_further() {
     let after = |tab: u16| {
-        let (_, shaped) = shaped_with("a\tb", |r| r.options.tab_width = tab);
+        let (_, shaped) = shaped_with("a\tb", |r| r.options.tab_size = tab);
         shaped.quads.last().unwrap().rect.min.x
     };
     assert!(after(8) > after(2) + 10.0);

@@ -9,11 +9,11 @@ use balaur_core::hecs::Entity;
 use crate::bus::Buses;
 use crate::spatial::Attenuation;
 use crate::{
-    AudioState, DEFAULT_MAX_DISTANCE, DEFAULT_MIN_DISTANCE, FINISHED_EVENT, play_node,
+    AudioState, DEFAULT_MAX_DISTANCE, DEFAULT_MIN_DISTANCE, SOUND_FINISHED_EVENT, play_node,
     publish_playback_times, seconds,
 };
 
-/// A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `stems` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out. What it passes through on the way out is its `bus`'s, declared in `[audio.buses]`.
+/// A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `stems` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `sound_finished` when it plays out. What it passes through on the way out is its `bus`'s, declared in `[audio.buses]`.
 #[allow(
     clippy::struct_excessive_bools,
     reason = "each is a scene key of its own"
@@ -22,7 +22,7 @@ use crate::{
 #[component(
     name = "sound",
     on_remove = sound_removed,
-    events = &[(FINISHED_EVENT, "the handle that played out")],
+    events = &[(SOUND_FINISHED_EVENT, "the handle that played out")],
     tags = [balaur_core::components::tag::AUDIO],
     after_write = written,
 )]
@@ -60,7 +60,7 @@ pub struct Sound {
     /// How much the closing speed bends the pitch; 0 is off, 1 physical
     #[property(name = "doppler_level", min = 0.0, group = "positional")]
     pub doppler: f32,
-    /// Hold the sound where it is; `playback_time` and the count to `finished` hold with it
+    /// Hold the sound where it is; `playback_time` and the count to `sound_finished` hold with it
     #[property(group = "playback")]
     pub paused: bool,
     /// Seconds into the file playing now, counted on the fixed step so a run with no output device reads the same; 0 when nothing plays

@@ -28,8 +28,8 @@ id = "cards"
 name = "Cards"
 parent = "panel"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "card_clicked" }] }
 [nodes.widget]
-on_click = "card_clicked"
 kind = "list"
 grow = 1
 

@@ -36,6 +36,23 @@ fn settings_reference(eng: &balaur::Engine) -> Result<serde_json::Value> {
     Ok(serde_json::Value::Array(settings))
 }
 
+/// What each component announces from its node, as `(name, payload)`.
+fn component_events(
+    engine: &balaur::Engine,
+) -> std::collections::BTreeMap<String, Vec<balaur::events::Announced>> {
+    engine
+        .try_resource::<balaur::components::ComponentRegistry>()
+        .map(|registry| {
+            registry
+                .borrow()
+                .iter()
+                .filter(|(_, def)| !def.events.is_empty())
+                .map(|(name, def)| (name.to_string(), def.events.to_vec()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Boot a standard app in a scratch project and ask it what scripts can reach.
 ///
 /// The engine is asked, not the source: constants like `input::KEY_SPACE` are
@@ -56,7 +73,10 @@ pub(crate) fn api_value() -> Result<serde_json::Value> {
     // The editor's own modules are registered by this binary rather than by
     // the engine, so the probe loads them or the reference would list none.
     #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load_all(&mut app, &mut crate::own_modules(&dir))?;
+    balaur_plugin::load_all(
+        &mut app,
+        &mut crate::own_modules(&dir, crate::editor_project(None)),
+    )?;
     app.load_project()?;
     let mut api = serde_json::json!({"modules": [], "types": [], "builtins": {}});
     #[cfg(any(feature = "bs", feature = "bs-jit", feature = "bs-web"))]
@@ -109,24 +129,13 @@ pub(crate) fn api_value() -> Result<serde_json::Value> {
         })
         .unwrap_or_default();
     api["component_tags"] = serde_json::to_value(component_tags)?;
-    // What each component announces from its node, as `(name, payload)`.
-    let component_events: std::collections::BTreeMap<String, Vec<(&'static str, &'static str)>> =
-        app.engine
-            .try_resource::<balaur::components::ComponentRegistry>()
-            .map(|registry| {
-                registry
-                    .borrow()
-                    .iter()
-                    .filter(|(_, def)| !def.events.is_empty())
-                    .map(|(name, def)| (name.to_string(), def.events.to_vec()))
-                    .collect()
-            })
-            .unwrap_or_default();
-    api["component_events"] = serde_json::to_value(component_events)?;
+    api["component_events"] = serde_json::to_value(component_events(&app.engine))?;
     // Every method the engine calls on a script by name.
     api["hooks"] = serde_json::to_value(balaur::hooks::REFERENCE)?;
     api["settings"] = settings_reference(&app.engine)?;
-    api["node_events"] = serde_json::to_value(balaur::node_api::NODE_EVENTS)?;
+    api["node_events"] = serde_json::to_value(balaur::events::on_nodes(&app.engine))?;
+    // What is said from no node, as `(name, payload, when)`.
+    api["said_events"] = serde_json::to_value(balaur::events::said(&app.engine))?;
     let asset_types: std::collections::BTreeMap<String, serde_json::Value> = app
         .engine
         .try_resource::<balaur::assets::AssetTypeRegistry>()

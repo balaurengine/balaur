@@ -212,7 +212,7 @@ pub fn link_everything(eng: &balaur_core::Engine, pack: &balaur_core::Pack) {
                 .and_then(toml::Value::as_str)
                 == Some(crate::material::MATERIAL_ASSET_TYPE)
         });
-        if !is_material {
+        if !is_material || in_nested_project(pack, path) {
             continue;
         }
         let linked = (|| {
@@ -231,6 +231,22 @@ pub fn link_everything(eng: &balaur_core::Engine, pack: &balaur_core::Pack) {
         })();
         warn(path, linked);
     }
+}
+
+/// Whether `path` sits in a project of its own inside the exported one, as the
+/// editor's library does: its paths name that project's files, and it links them.
+#[cfg(feature = "compile")]
+fn in_nested_project(pack: &balaur_core::Pack, path: &str) -> bool {
+    std::path::Path::new(path)
+        .ancestors()
+        .skip(1)
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .any(|dir| {
+            let manifest = dir.join(balaur_core::project::MANIFEST);
+            let manifest = manifest.to_string_lossy();
+            pack.scenes.contains_key(manifest.as_ref())
+                || pack.assets.contains_key(manifest.as_ref())
+        })
 }
 
 fn write(table: &BTreeMap<u64, Linked>) -> String {
@@ -315,6 +331,17 @@ fn parse(text: &str) -> Result<BTreeMap<u64, Linked>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "compile")]
+    #[test]
+    fn a_material_in_a_project_of_its_own_is_left_to_that_project() {
+        let mut pack = balaur_core::Pack::default();
+        pack.scenes
+            .insert("library/project.toml".into(), String::new());
+        assert!(in_nested_project(&pack, "library/materials/metal.toml"));
+        assert!(!in_nested_project(&pack, "materials/metal.toml"));
+        assert!(!in_nested_project(&pack, "librarian/metal.toml"));
+    }
 
     #[test]
     fn a_table_reads_back_what_it_wrote() {

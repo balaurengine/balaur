@@ -4,7 +4,7 @@
 > `ui::color`, `script::functions`, `script::shared` and `render::pick_ray`.
 > Plugins load from `editor/plugins/`, `<game>/editor/` and each
 > `<game>/addons/<name>/editor/`, with
-> `editor/plugins/counter.bs` as the worked example the e2e suite runs. What
+> `scripts/plugins/counter.bs` as the worked example the e2e suite runs. What
 > is left is below; see [generated/](generated/) for what the code does.
 
 # Plan: the editor after the port

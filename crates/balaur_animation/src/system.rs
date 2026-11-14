@@ -213,12 +213,34 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
             }
             state.accumulator -= step;
         }
+        state.moving = still_moving(state, &world, paused, eng.debug_scope());
     }
     apply_effects(eng, &effects);
     // After the effects, so a tween's last call runs before it is let go.
     settle_ended(eng, &ended);
     crate::machine::announce(eng, &moved);
     announce_began(eng);
+}
+
+/// Whether anything still animates: a clip playing, a tween running, or a
+/// machine with a state to enter. A node the pause holds, or one in a game a
+/// tool hosts, does not count.
+fn still_moving(
+    state: &AnimationState,
+    world: &World,
+    paused: balaur_core::process::Pause,
+    hosted: Option<Entity>,
+) -> bool {
+    let counts = |entity: Entity| {
+        balaur_core::process::ticks(world, entity, paused)
+            && balaur_core::rest::counts(world, entity, hosted)
+    };
+    let mut players = state.players.iter();
+    let mut tweens = state.tweens.values();
+    let mut machines = state.machines.iter();
+    players.any(|(&entity, playback)| playback.playing && counts(entity))
+        || tweens.any(|tween| tween.running && counts(tween.node))
+        || machines.any(|(&entity, run)| run.in_transition() && counts(entity))
 }
 
 /// Tell each player's node which clip it began since the last frame, and
@@ -666,7 +688,7 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                 balaur_core::events::announce(
                     eng,
                     *entity,
-                    balaur_core::node_api::VISIBILITY_EVENT,
+                    balaur_core::node_api::VISIBILITY_CHANGED_EVENT,
                     balaur_script::Value::Bool(*visible),
                 );
             }

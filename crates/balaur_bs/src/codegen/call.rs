@@ -1,5 +1,6 @@
 use super::Kind;
 use super::func::{FnGen, R, RefPlace, err, show};
+use super::lend::Taker;
 use super::rt::{load, mem, store};
 use crate::Error;
 use crate::ast::{Block, Expr, ExprKind, Pos, Stmt, StmtKind, Ty};
@@ -149,6 +150,7 @@ impl FnGen<'_> {
             msg: self.no_function(name),
         })?;
         if matches!(sig.kind, Kind::Extern | Kind::Host) {
+            self.editors_only(name, pos)?;
             self.no_node_for_a_reply(name, args, pos)?;
         }
         match sig.kind {
@@ -174,7 +176,7 @@ impl FnGen<'_> {
             }
             Kind::Script if self.g.lends_to(name) => {
                 let held =
-                    self.host_args(&sig.params, &args.iter().collect::<Vec<_>>(), pos, name)?;
+                    self.prelude_args(&sig.params, &args.iter().collect::<Vec<_>>(), pos, name)?;
                 self.spill();
                 self.e(I::Call(self.g.callee(name, &sig)));
                 self.release_all(held);
@@ -199,6 +201,21 @@ impl FnGen<'_> {
                 .unwrap_or_else(|| format!("the engine has no `{name}`")),
             None => format!("unknown function `{name}`"),
         }
+    }
+
+    /// An engine function only the editor's files may call, from a file that
+    /// is not one.
+    fn editors_only(&self, name: &str, pos: Pos) -> R<()> {
+        let marked = self.g.host_calls.iter().any(|f| f.editor && f.key == name);
+        if !marked || self.g.editor {
+            return Ok(());
+        }
+        err(
+            pos,
+            format!(
+                "`{name}` is the editor's: a game's runtime does not have it. Call it from a file under `editor/`"
+            ),
+        )
     }
 
     // A module's function that drives a component is called on it.
@@ -318,6 +335,7 @@ impl FnGen<'_> {
             && let Some(sig) = self.g.sigs.get(&format!("node.{comp}.{name}")).cloned()
             && sig.kind == Kind::Host
         {
+            self.editors_only(&format!("node.{comp}.{name}"), pos)?;
             if self.type_of(node)? == Ty::Any {
                 return err(
                     pos,
@@ -395,7 +413,8 @@ impl FnGen<'_> {
         };
         self.get_raw(&lv);
         if self.g.lends_to(&key) {
-            let lent = self.host_args(&sig.params, &args.iter().collect::<Vec<_>>(), pos, &key)?;
+            let lent =
+                self.prelude_args(&sig.params, &args.iter().collect::<Vec<_>>(), pos, &key)?;
             self.spill();
             self.e(I::Call(sig.idx));
             self.release_all(lent);
@@ -596,7 +615,7 @@ impl FnGen<'_> {
             );
         }
         let all: Vec<&Expr> = std::iter::once(base).chain(args).collect();
-        let held = self.lent(&sig.params, &all, false)?;
+        let held = self.lent(&sig.params, &all, Taker::Prelude)?;
         self.spill();
         self.e(I::Call(self.g.callee(&key, &sig)));
         self.release_all(held);

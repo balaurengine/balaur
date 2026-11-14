@@ -38,7 +38,7 @@ private struct Probe {
 struct FrameUniforms {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
-    // xyz the camera, w seconds since the run began.
+    // xyz the camera, w `engine::time()`.
     eye_clock: vec4<f32>,
     // rgb ambient light, w how many of `lights` are live.
     ambient_count: vec4<f32>,

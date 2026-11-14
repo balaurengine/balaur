@@ -1,0 +1,138 @@
+# Sound three ways: a looping hum heard from where its node is, a bell a timer
+# rings, and a thud played from a file when a ball lands.
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+# The mix is heard from the camera's node.
+[[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_scene"
+
+[nodes.camera2d]
+pixels_per_unit = 90.0
+
+[nodes.listener]
+
+[[nodes]]
+id = "n_hum"
+name = "Hum"
+parent = "n_scene"
+
+[nodes.script]
+source = "scripts/orbit.bs"
+
+[nodes.shape2d]
+color = "#f0b24d"
+shape = { kind = "circle", radius = 0.3 }
+
+[nodes.sound]
+file = "audio/hum.wav"
+autoplay = true
+loop = true
+positional = true
+bus = "music"
+min_distance = 1.0
+max_distance = 9.0
+
+[[nodes]]
+id = "n_hum_label"
+name = "HumLabel"
+parent = "n_hum"
+
+[nodes.transform]
+position = [0.0, 0.6, 0.0]
+
+[nodes.text2d]
+text = "hum: pans and fades as it circles"
+font_size = 26
+color = [0.94, 0.95, 0.97, 1.0]
+pixels_per_unit = 90
+
+[[nodes]]
+id = "n_bell"
+name = "Bell"
+parent = "n_scene"
+
+[nodes.transform]
+position = [-4.5, 2.6, 0.0]
+
+[nodes.script]
+source = "scripts/bell.bs"
+
+[nodes.shape2d]
+color = "#7fd4ff"
+shape = { kind = "circle", radius = 0.35 }
+
+[nodes.sound]
+file = "audio/bell.wav"
+
+[nodes.timer]
+wait_time = 1.5
+autostart = true
+
+[[nodes]]
+id = "n_bell_label"
+name = "BellLabel"
+parent = "n_bell"
+
+[nodes.transform]
+position = [1.9, 0.0, 0.0]
+
+[nodes.text2d]
+text = "bell: rung 0, finished 0"
+font_size = 26
+color = [0.94, 0.95, 0.97, 1.0]
+pixels_per_unit = 90
+
+[[nodes]]
+body2d = { kind = "dynamic" }
+id = "n_ball"
+name = "Ball"
+parent = "n_scene"
+
+[nodes.transform]
+position = [4.0, 2.5, 0.0]
+
+[nodes.script]
+source = "scripts/ball.bs"
+
+[nodes.collider2d]
+physics_material = { restitution = 0.85 }
+shape = { kind = "circle", radius = 0.3 }
+
+[nodes.shape2d]
+color = "#9be08a"
+shape = { kind = "circle", radius = 0.3 }
+
+[[nodes]]
+body2d = { kind = "static" }
+id = "n_ground"
+name = "Ground"
+parent = "n_scene"
+
+[nodes.transform]
+position = [0.0, -3.4, 0.0]
+
+[nodes.collider2d]
+shape = { kind = "rectangle", size = [14.0, 0.5] }
+
+[nodes.shape2d]
+color = "#3c4753"
+shape = { kind = "rectangle", size = [14.0, 0.5] }
+
+[[nodes]]
+id = "n_ball_label"
+name = "BallLabel"
+parent = "n_scene"
+
+[nodes.transform]
+position = [4.0, 3.3, 0.0]
+
+[nodes.text2d]
+text = "thud: louder the harder it lands"
+font_size = 26
+color = [0.94, 0.95, 0.97, 1.0]
+pixels_per_unit = 90

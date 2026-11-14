@@ -268,7 +268,7 @@ keys = [ { time = 0.5, call = "on_footstep" } ]
 }
 
 #[test]
-fn a_clip_that_ends_calls_on_animation_finished_once() {
+fn a_clip_that_ends_calls_on_animation_end_once() {
     let (mut app, calls) = app_recording_calls();
     let entity = spawn(&app, "Box");
     set(
@@ -294,8 +294,8 @@ keys = [ { time = 0.0, value = [0.0, 0.0, 0.0] }, { time = 0.5, value = [0.0, 1.
         "the signal is one event, not one a frame after the clip ended"
     );
     assert_eq!(
-        calls.args(entity, "on_animation_finished"),
-        Some(vec![balaur_script::Value::Str(String::new())]),
+        calls.payload(entity, "on_animation_finished"),
+        Some(balaur_script::Value::Str(String::new())),
         "the handler is told which clip ended; this one was addressed by the \
          library reference itself, so its name is empty"
     );
@@ -768,12 +768,12 @@ tracks = [ { property = "position", keys = [ { time = 0.0, value = [0.0, 1.0, 0.
     tick(&mut app, 5);
 
     assert_eq!(calls.count(entity, "on_animation_started"), 2);
-    let changed = calls.args(entity, "on_animation_changed");
+    let changed = calls.payload(entity, "on_animation_changed");
     assert_eq!(
         changed,
-        Some(vec![balaur_script::Value::Map(vec![
+        Some(balaur_script::Value::Map(vec![
             ("from".into(), balaur_script::Value::Str("walk".into())),
             ("to".into(), balaur_script::Value::Str("run".into())),
-        ])])
+        ]))
     );
 }

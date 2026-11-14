@@ -665,8 +665,8 @@ pub(crate) fn install_voxel_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         (words::functions::SET_VOXEL, &[c::COLLIDER_2D], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
         (words::functions::VOXEL, &[c::COLLIDER_2D], "", "Whether one cell of a voxel collider is filled."),
-        (words::functions::VOXEL_AT, &[c::COLLIDER_2D], "", "The cell a world position falls in, as two whole numbers."),
-        (words::functions::SET_VOXEL_SIZE, &[c::COLLIDER_2D], "", "Resize every cell of a voxel collider, keeping which cells are filled."),
+        (words::functions::VOXEL_AT, &[c::COLLIDER_2D], "(node: node, position: Vec2) -> [int]", "The cell a world position falls in, as two whole numbers."),
+        (words::functions::SET_VOXEL_SIZE, &[c::COLLIDER_2D], "(node: node, size: Vec2)", "Resize every cell of a voxel collider, keeping which cells are filled."),
         (words::functions::VOXEL_SIZE, &[c::COLLIDER_2D], "(node: node) -> Vec2", "How big one cell of a voxel collider is, along each axis."),
         (words::functions::CROP_VOXELS, &[c::COLLIDER_2D], "", "Empty every cell outside the cells from `(min_x, min_y)` to `(max_x, max_y)`, both included. A range holding no filled cell leaves the grid as it was."),
         (words::functions::COMBINE_VOXELS, &[c::COLLIDER_2D], "", "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation."),
@@ -697,7 +697,8 @@ pub(crate) fn install_voxel_2d_api(m: &mut Module<Engine>) {
     );
     m.function(
         words::functions::VOXEL_AT,
-        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+        |eng: &Engine, (node, position): (NodeId, balaur_script::Value)| {
+            let position = scalar::vec2_arg("a position", &position)?;
             let entity = balaur_core::entity_of(node)?;
             let state = eng.resource::<PhysicsState2d>();
             let state = state.borrow();
@@ -709,7 +710,7 @@ pub(crate) fn install_voxel_2d_api(m: &mut Module<Engine>) {
                 .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
             // The grid is in the collider's own space, so a world point has to
             // come home first.
-            let local = collider.position().inverse() * scalar::v2(x, y);
+            let local = collider.position().inverse() * position;
             let cell = voxels.voxel_at_point(local);
             Ok((i64::from(cell.x), i64::from(cell.y)))
         },
@@ -723,8 +724,8 @@ pub(crate) fn install_voxel_2d_api(m: &mut Module<Engine>) {
 fn install_voxel_2d_edit_api(m: &mut Module<Engine>) {
     m.function(
         words::functions::SET_VOXEL_SIZE,
-        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
-            let size = scalar::v2(x.max(0.001), y.max(0.001));
+        |eng: &Engine, (node, size): (NodeId, balaur_script::Value)| {
+            let size = scalar::vec2_arg("a voxel size", &size)?.max(scalar::Vector2::splat(0.001));
             with_voxels(eng, node, |voxels| voxels.set_voxel_size(size))
         },
     );

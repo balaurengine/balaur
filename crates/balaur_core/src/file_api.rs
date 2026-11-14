@@ -67,6 +67,106 @@ pub fn project_roots(eng: &Engine) -> Vec<PathBuf> {
     out
 }
 
+/// The editor project's folder, as the binary that runs the editor names it:
+/// every script of that project is the editor's ([`editors_script`]).
+pub struct EditorRoot(pub PathBuf);
+
+/// Why a script is the editor's ([`editors_script`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditorsScript {
+    /// A file of the [`EditorRoot`] project.
+    Project,
+    /// A file under the `editor/` folder of a game or of one of its addons: a
+    /// plugin the editor loads, which a game's runtime never runs.
+    Plugin,
+}
+
+/// The roots [`editors_script`] judges against, resolved once while the roots
+/// named stay the same: resolving each on every call cost a warm editor boot
+/// 14 ms of 310.
+#[derive(Default)]
+struct ResolvedRoots {
+    named: Vec<PathBuf>,
+    editor_named: Option<PathBuf>,
+    /// `named`, each resolved.
+    real: Vec<PathBuf>,
+    /// The project's own, resolved: what a relative path is inside.
+    project: Option<PathBuf>,
+    editor: Option<PathBuf>,
+}
+
+/// [`ResolvedRoots`] for the roots named now, resolved again when one was
+/// added or removed since.
+fn resolved_roots(
+    eng: &Engine,
+    fs: &dyn FileBackend,
+) -> std::rc::Rc<std::cell::RefCell<ResolvedRoots>> {
+    let named = project_roots(eng);
+    let editor_named = eng
+        .try_resource::<EditorRoot>()
+        .map(|editor| editor.borrow().0.clone());
+    let resolved = eng.try_resource::<ResolvedRoots>().unwrap_or_else(|| {
+        eng.insert_resource(ResolvedRoots::default());
+        eng.resource::<ResolvedRoots>()
+    });
+    let stale = {
+        let kept = resolved.borrow();
+        kept.named != named || kept.editor_named != editor_named
+    };
+    if stale {
+        let own = eng.try_resource::<crate::project::ProjectRoot>().is_some();
+        let real: Vec<PathBuf> = named.iter().map(|root| real_path(fs, root)).collect();
+        *resolved.borrow_mut() = ResolvedRoots {
+            project: own.then(|| real.first().cloned()).flatten(),
+            editor: editor_named.as_ref().map(|editor| real_path(fs, editor)),
+            real,
+            named,
+            editor_named,
+        };
+    }
+    resolved
+}
+
+/// Whether the script at `path` is the editor's, and why; `None` for a game's.
+/// Only the editor's scripts may call what only the editor has. A relative
+/// path is the project's.
+pub fn editors_script(eng: &Engine, path: &Path) -> Option<EditorsScript> {
+    let fs = files::backend(eng);
+    let roots = resolved_roots(eng, fs.as_ref());
+    let roots = roots.borrow();
+    let joined = match &roots.project {
+        Some(project) if !files::rooted(path) => files::lexical(&project.join(path)),
+        _ => files::lexical(path),
+    };
+    // A path spelled inside a resolved root needs no resolving of its own.
+    let real = if roots.real.iter().any(|root| joined.starts_with(root)) {
+        joined
+    } else {
+        real_path(fs.as_ref(), &joined)
+    };
+    // The innermost root holding it: a game the editor opened is a root of its own.
+    let root = roots
+        .real
+        .iter()
+        .filter(|root| real.starts_with(root))
+        .max_by_key(|root| root.components().count())?;
+    if roots.editor.as_ref() == Some(root) {
+        return Some(EditorsScript::Project);
+    }
+    let inside: Vec<&str> = real
+        .strip_prefix(root)
+        .unwrap_or(&real)
+        .iter()
+        .map(|part| part.to_str().unwrap_or_default())
+        .collect();
+    let plugin = match inside.as_slice() {
+        [folder, _, ..] if *folder == words::EDITOR => true,
+        [addons, _, folder, _, ..] => *addons == words::ADDONS && *folder == words::EDITOR,
+        _ => false,
+    };
+    plugin.then_some(EditorsScript::Plugin)
+}
+
 /// Every directory `fs.*` may write inside, in the order they are checked.
 fn writable_roots(eng: &Engine) -> Vec<PathBuf> {
     let mut out = Vec::new();
@@ -620,6 +720,7 @@ mod tests {
             self.fs.list(path)
         }
         fn canonicalize(&self, path: &Path) -> PathBuf {
+            self.note("canonicalize", path);
             self.fs.canonicalize(path)
         }
         fn sync(&self, path: &Path) {
@@ -641,6 +742,39 @@ mod tests {
         );
         assert_eq!(fs.read(path).unwrap(), b"new");
         assert!(!fs.exists(&part));
+    }
+
+    #[test]
+    fn a_judgment_resolves_each_root_once_until_one_is_added() {
+        let fs = std::rc::Rc::new(Recording::default());
+        let engine = crate::Engine::default();
+        files::set_backend(&engine, fs.clone());
+        engine.insert_resource(crate::project::ProjectRoot(PathBuf::from("/editor")));
+        engine.insert_resource(EditorRoot(PathBuf::from("/editor")));
+        let resolved = || {
+            let asked = fs.asked.borrow();
+            asked
+                .iter()
+                .filter(|one| one.starts_with("canonicalize"))
+                .count()
+        };
+        let own = Path::new("scripts/tools.bs");
+        assert_eq!(editors_script(&engine, own), Some(EditorsScript::Project));
+        let first = resolved();
+        assert_eq!(editors_script(&engine, own), Some(EditorsScript::Project));
+        assert_eq!(resolved(), first, "the roots stay resolved");
+        let plugin = Path::new("/game/editor/plugin.bs");
+        assert_eq!(
+            editors_script(&engine, plugin),
+            None,
+            "no root holds it yet"
+        );
+        add_root(&engine, "/game");
+        assert_eq!(editors_script(&engine, plugin), Some(EditorsScript::Plugin));
+        let game = Path::new("/game/scripts/main.bs");
+        let before = resolved();
+        assert_eq!(editors_script(&engine, game), None);
+        assert_eq!(resolved(), before, "a path inside a root resolves nothing");
     }
 
     fn patched(existing: &str, table: &str) -> String {

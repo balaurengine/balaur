@@ -114,7 +114,7 @@ fn a_3d_text_block_is_on_every_layer_until_it_names_some() {
 fn a_text_block_takes_every_shaping_key_and_reads_it_back() {
     let text = text_component(
         "text2d",
-        "text = \"hi\"\nfont_style = \"oblique\"\ntext_align = \"justify\"\ntruncate = true\ntruncate_at = \"start\"\nmax_lines = 2\ntab_width = 4\nfont = { shaping = \"simple\", hinting = \"off\", features = [\"smcp\"] }",
+        "text = \"hi\"\nfont_style = \"oblique\"\ntext_align = \"justify\"\ntruncate = true\ntruncate_at = \"start\"\nmax_lines = 2\ntab_size = 4\nfont = { shaping = \"simple\", hinting = \"off\", features = [\"smcp\"] }",
     );
     assert_eq!(word(&text, "font_style").as_deref(), Some("oblique"));
     assert_eq!(word(&text, "text_align").as_deref(), Some("justify"));
@@ -124,7 +124,7 @@ fn a_text_block_takes_every_shaping_key_and_reads_it_back() {
         Some(2)
     );
     assert_eq!(
-        text.get("tab_width").and_then(toml::Value::as_integer),
+        text.get("tab_size").and_then(toml::Value::as_integer),
         Some(4)
     );
     // How the font is shaped is the font's: the inline definition is filed

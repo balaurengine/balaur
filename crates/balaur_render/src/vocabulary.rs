@@ -160,7 +160,7 @@ pub(crate) mod words {
     pub(crate) const NORMAL: &str = "normal";
     pub(crate) const ITALIC: &str = "italic";
 
-    pub(crate) const WORD_OR_GLYPH: &str = "word_or_glyph";
+    pub(crate) const WORD_SMART: &str = "word_smart";
 
     pub(crate) const LEFT: &str = "left";
     pub(crate) const RIGHT: &str = "right";
@@ -335,8 +335,8 @@ pub(crate) mod keys {
     pub(crate) const FONT_WEIGHT: &str = "font_weight";
     pub(crate) const HEIGHT: &str = p::HEIGHT;
     pub(crate) const SPECULAR_STRENGTH: &str = "specular_strength";
-    pub(crate) const SHININESS: &str = "shininess";
-    pub(crate) const NORMAL_STRENGTH: &str = "normal_strength";
+    pub(crate) const SPECULAR_SHININESS: &str = "specular_shininess";
+    pub(crate) const NORMAL_SCALE: &str = "normal_scale";
     /// A `draw_text` option; `text2d` spells it `font_style`.
     pub(crate) const MIRROR: &str = "mirror";
     pub(crate) const KIND: &str = p::KIND;
@@ -345,7 +345,7 @@ pub(crate) mod keys {
     pub(crate) const TRUNCATE_AT: &str = "truncate_at";
     pub(crate) const MAX_LINES: &str = "max_lines";
     pub(crate) const MAX_HEIGHT: &str = "max_height";
-    pub(crate) const TAB_WIDTH: &str = "tab_width";
+    pub(crate) const TAB_SIZE: &str = "tab_size";
     pub(crate) const MATERIAL: &str = "material";
     pub(crate) const MARKUP: &str = "markup";
     pub(crate) const MAX_WIDTH: &str = "max_width";
@@ -385,8 +385,8 @@ pub(crate) mod keys {
     /// flags: the renderable keys of both dimensions.
     pub(crate) const WIREFRAME_WIDTH: &str = "wireframe_width";
     pub(crate) const WIREFRAME_COLOR: &str = "wireframe_color";
-    pub(crate) const DOT_SIZE: &str = "dot_size";
-    pub(crate) const DOT_COLOR: &str = "dot_color";
+    pub(crate) const POINT_SIZE: &str = "point_size";
+    pub(crate) const POINT_COLOR: &str = "point_color";
     pub(crate) const SEGMENTATION_ID: &str = "segmentation_id";
     pub(crate) const RECEIVE_SHADOWS: &str = "receive_shadows";
     /// An instance's 3x3, columns first, shear and all.

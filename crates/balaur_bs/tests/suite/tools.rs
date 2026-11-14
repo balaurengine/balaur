@@ -33,6 +33,7 @@ fn api() -> HostApi {
         params,
         ret,
         is_async: false,
+        editor: false,
     };
     HostApi {
         functions: vec![
@@ -133,6 +134,13 @@ fn hover_names_the_type_and_definition_finds_the_declaration() {
     assert_eq!((speed.line, speed.col), (2, 9));
     let label = a.definition(10, 13).expect("a local");
     assert_eq!(label.line, 10);
+}
+
+#[test]
+fn hovering_a_methods_name_where_it_is_declared_shows_its_signature() {
+    let a = analyze(SRC, &api());
+    assert_eq!(a.hover(8, 9).as_deref(), Some("fn update(float)"));
+    assert_eq!(a.hover(17, 13).as_deref(), Some("fn boost(float) -> float"));
 }
 
 #[test]

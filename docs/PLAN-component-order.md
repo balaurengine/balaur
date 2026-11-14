@@ -83,13 +83,13 @@ New asset-typed rows are written `+name` in the lists below; they are not in api
 | `material` (exists) `[surface]` | blend_mode → `alpha` (needs add/multiply/screen), alpha_cutoff, cull_back_faces → `double_sided` (inverted) | boolean2d, multimesh2d, particles2d, polygon, shape2d, sprite, text2d, tilemap; alpha_cutoff also text3d | Decided. Rasterization, already the `[surface]` table's job. |
 | `material` `[surface]` | double_sided | text3d | Same key the material already has. |
 | `material` `[surface]` | depth_test | boolean3d, mesh, multimesh3d, particles3d, shape3d, text3d | Proposed. Same kind of rasterization row; Godot keeps `no_depth_test` on the material. A node needing it alone gets an inline material. |
-| `material` `[params]` (2D lit) | normal_map (beside the existing `normal` slot), normal_strength, shininess, specular_strength | shape2d, sprite | Decided. |
+| `material` `[params]` (2D lit) | normal_map (beside the existing `normal` slot), normal_scale, specular_shininess, specular_strength | shape2d, sprite | Decided. |
 | `font` (new) | font_name (face), font_family (fallback chain), bitmap_font, font_features, font_stretch, shaping, hinting, pixel_snap, snap_advances, monospace_width | text2d, text3d, widget | Decided. font_size, font_weight and font_style stay on the node: weight and style pick a face of one font per use. Empty `+font` = project (or theme) chain. |
 | `text_style` (new) | line_height, letter_spacing, outline_size, outline_color, shadow_color, shadow_offset_x, shadow_offset_y, underline, underline_color, overline, overline_color, strikethrough, strikethrough_color | text2d, text3d, widget | Decided (Godot's LabelSettings). |
 | `camera_effects` (new) | `post` (the pass list) and every per-pass row: bloom_*, vignette_*, dof_*, ssao_*, ssr_*, fxaa_*, sharpen_amount, aberration_amount, grain_amount, pixelate_size, crt_*, edges_threshold, loupe_*, gi_* (51 rows each camera) | camera2d, camera3d | Decided. `post` goes too: the parameters mean nothing without the list, and one asset gives split-screen and cutscene cameras the same look. Internal order: post, then passes in the order listed in the per-component lists (bloom first, gi last). |
 | `physics_material` (new) | friction, friction_combine, restitution, restitution_combine | collider2d, collider3d, tile_collision, softbody2d, softbody3d | Proposed. The same four rows on five components; values repeat as presets (ice, rubber); a tileset tile could name one; Godot's PhysicsMaterial. Frees the physics `surface` group name, which collided with material `[surface]`. |
 | `soft_material` (new) | elasticity (cell_model, young_modulus, poisson_ratio, elastic_damping, deformation_damping), springs (edge_*, bend_*, volume_hz/damping, shape_matching_hz/damping; 3D shear_*, warp_*, weft_*), volume (shape_matching, volume_preservation, volume_factor), plasticity (plastic_*, edge_plastic_*), tearing thresholds (tear_force, tear_strain, tear_smoothing, interior_strength): 27 rows 2D, 33 rows 3D | softbody2d, softbody3d | Proposed. The component doc already says the body is "made of what the material rows say"; jelly, cloth, rubber and clay are presets; `regions` can name one per part. Takes softbody2d from 85 rows to 54, softbody3d from 98 to 61. Per-edge lists (edge_springs, tension_only_edges, tear_resistance, seams) stay: their indices mean something only on that body. |
-| `debug_draw` (new component) | draw_surface, wireframe_width, wireframe_color, wireframe_sizing, dot_size, dot_color, dot_sizing (that order) | boolean2d/3d, mesh, multimesh2d/3d, particles2d/3d, polygon, shape2d/3d, sprite, text2d/3d, tilemap | Decided. |
+| `debug_draw` (new component) | draw_surface, wireframe_width, wireframe_color, wireframe_sizing, point_size, point_color, point_sizing (that order) | boolean2d/3d, mesh, multimesh2d/3d, particles2d/3d, polygon, shape2d/3d, sprite, text2d/3d, tilemap | Decided. |
 
 Considered and not moved:
 - **Particle process asset** (Godot 4's ParticleProcessMaterial). Not moved. Every emitter row is the effect being made, so the extra hop costs the common case (a known Godot 4 complaint), and 2D/3D vector types differ. They get `emission`, `motion` and `paint` groups instead. Revisit if people want presets.
@@ -200,7 +200,7 @@ Stays: `kind`, `text` (17 kinds), `enabled`, every `placement` row (any child or
 | `wrap`, `truncate` | `label`, `button`, `menu`, `dropdown` | `widget_text` |
 | `selectable`, `on_link`, `show_tooltip_when_elided` | `label` | `widget_text` |
 | `text_align` | `label`, `button`, `menu`; `text_field`, `text_area`; `table` | `widget_text`; `widget_field`; `widget_table` |
-| `line_break`, `tab_width` | `label`, `button`, `menu`; `text_field`, `text_area` | `widget_text`; `widget_field` |
+| `line_break`, `tab_size` | `label`, `button`, `menu`; `text_field`, `text_area` | `widget_text`; `widget_field` |
 | `text_background` | `checkbox`, `dropdown`, `menu`, `tabs`, `panel`, `dialog`, `toast`, `progress_bar` | `widget_text` |
 | `icon`, `icon_color`, `icon_size`, `trailing`, `sense` | `button`, `menu` | `widget_button` |
 | `image` | `image`; `button`, `menu` | `widget_image`; `widget_button` |
@@ -283,4 +283,4 @@ Order of the moves, smallest first, one commit each:
    `depth_test` joins it; and a 2D node reads its material's surface. A
    cutoff is `alpha = "mask"`. The 2D lit rows built the same day: a
    shader-less material's `normal` slot normal-maps a 2D node, beside
-   `normal_strength`, `shininess` and `specular_strength` in its `[params]`.
+   `normal_scale`, `specular_shininess` and `specular_strength` in its `[params]`.

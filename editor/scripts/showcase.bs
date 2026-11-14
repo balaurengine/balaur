@@ -214,7 +214,7 @@ fn lerp(from: float, to: float, progress: float) -> float {
 // kept on the sequence, because a glide has to know where it starts from.
 fn feed_pointer(state: &mut editor::State, pointer_x: float, pointer_y: float) {
     let per_design = ui::pixels_per_design();
-    input::feed_mouse(pointer_x * per_design, pointer_y * per_design);
+    input::set_mouse_position(vec2(pointer_x * per_design, pointer_y * per_design));
     if state.showcase != nil {
         let sequence = state.showcase.unwrap();
         sequence.pointer = [pointer_x, pointer_y];
@@ -261,17 +261,17 @@ fn selection_spot(state: editor::State) -> [float] {
 }
 
 fn press(state: &mut editor::State, data: any) {
-    input::feed_mouse_button(input::MOUSE_BUTTON_LEFT, true);
+    input::set_mouse_down(input::MOUSE_BUTTON_LEFT, true);
 }
 
 fn release(state: &mut editor::State, data: any) {
-    input::feed_mouse_button(input::MOUSE_BUTTON_LEFT, false);
+    input::set_mouse_down(input::MOUSE_BUTTON_LEFT, false);
 }
 
 // Each of `data.keys` down, or up.
 fn keys(state: &mut editor::State, data: any) {
     for key in util::list_or_empty(data["keys"]) {
-        input::feed_key(key.as_str(), data["down"].as_bool());
+        input::set_key_down(key.as_str(), data["down"].as_bool());
     }
 }
 

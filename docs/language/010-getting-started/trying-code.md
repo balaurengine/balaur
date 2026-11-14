@@ -56,7 +56,7 @@ fn double(x: int) -> int { x * 2 }
 ## Checking and formatting
 
 ```bash
-balaur check hello       # compile every script a scene attaches, and print each finding
+balaur check hello       # compile every script of the project, and print each finding
 balaur fmt hello         # lay out every script
 balaur fmt hello --check # name the files that would change
 ```

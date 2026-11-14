@@ -17,6 +17,11 @@ shift || true
 only=("$@")
 mkdir -p "$out_dir"
 
+# Each run's saves, logs and editor preferences, under the output folder: a
+# self-test rewrites the preferences, and they are not the developer's own.
+export BALAUR_DATA_DIR="$(cd "$out_dir" && pwd)/data"
+rm -rf "$BALAUR_DATA_DIR"
+
 # Built once, then run directly: `cargo run` takes the build lock on every call.
 # Built without the renderer, `--offscreen` runs headless and checks nothing.
 # `BALAUR_BIN` names one already built, as uiaudit.sh and views.sh take it.
@@ -44,9 +49,25 @@ sha() {
   fi
 }
 
+# `BALAUR_E2E_KEEP_GOING=1` is a survey: a failure is listed and the run goes
+# on, so one broken example does not hide the ones after it.
+keep_going=${BALAUR_E2E_KEEP_GOING:-0}
+failures=()
 fail() {
   printf '::error::%s\n' "$1"
-  exit 1
+  [ "$keep_going" = 1 ] || exit 1
+  failures+=("$1")
+}
+
+# What a step prints once it is through: a survey's failed step must not say ok.
+told=0
+ok() {
+  if [ ${#failures[@]} -gt "$told" ]; then
+    told=${#failures[@]}
+    printf 'FAILED\n'
+  else
+    printf 'ok%s\n' "${1:+ $1}"
+  fi
 }
 
 # Hold a run to both bars: a clean exit and a clean log.
@@ -119,6 +140,7 @@ EXAMPLE_STATES=(
   test:disk_changed                         # a file changed under a code buffer
   test:focus                                # the shell folds round the code
   test:rig test:populate                    # a bone grown and keyed; a multimesh
+  test:state_machine                        # a state and a transition, undone
   test:marks                                # the outliner's eye and lock
   test:polygons test:weights test:bone_map test:ragdoll  # Polygon tool, rig
   test:physics test:recipes test:change_types  # the Physics panel's rows
@@ -128,6 +150,7 @@ EXAMPLE_STATES=(
   test:system_fonts                         # an installed face copied in
   test:font_catalogue                       # a catalogue family fetched in
   test:instances test:placing test:selection  # prefabs, the selection set
+  test:recordings                           # a play session replayed to its digest
   test:import_job                           # last: it writes into the project
 )
 
@@ -141,16 +164,19 @@ EDITOR_STATES=(
   test:timings                              # first: it reads the frame before
   test:layout test:picker test:every_node   # the centre; the node picker
   test:tiles "show:input,input@90"          # Tiles; a showcase, ninety frames
-  test:plugin_docks                         # editor/plugins/counter.bs
+  test:plugin_docks                         # scripts/plugins/counter.bs
   test:clipboard test:script_paths          # copy, paste; Assets' file verbs
-  test:recordings                           # session recording
-  test:profiler                             # scripts rebuilt with counters
+  test:profiler                            # scripts rebuilt with counters
   test:theme_switch test:theme_editing      # light and back; a theme diff
   test:sheet_close test:settings test:export_runtime
   test:drop test:events                     # drag-in; the Events view
   test:library test:rows test:pool test:camera_document test:warnings
   test:inspector_rows                       # a row's edit, its log, the window
   test:pen                                  # anchors, a handle, its asset
+  test:tools test:lint                      # the code pane's answers; Problems
+  test:palette test:panels test:imports     # the palette; the menu's panels; Import
+  test:deselect test:viewport_clicks        # nothing selected; a click on the stage
+  test:gestures                             # two fingers: a pinch and a drag
   test:picture                              # the scene drawn by a second run
 )
 
@@ -211,6 +237,14 @@ suite_step() { # suite_step <label> <project> <state>...
   mkdir -p "$(dirname "$copy")"
   cp -R "${2%/}" "$copy"
   shift 2
+  # The plugin seam's worked example, a plugin of the project for the run
+  # that tests it: the editor itself ships no demo dock.
+  case " $* " in
+    *" test:plugin_docks "*)
+      mkdir -p "$copy/editor"
+      cp scripts/plugins/counter.bs "$copy/editor/"
+      ;;
+  esac
   local list="" state
   for state in "$@"; do
     list+="${list:++}$(tr ',' '&' <<<"$state")"
@@ -242,17 +276,25 @@ suite_step() { # suite_step <label> <project> <state>...
       fail "$label: $state: the state ran nothing, so it asserted nothing"
     }
     grep -qF "suite: done $token " <<<"$part" || fail "$label: $state did not finish"
-    printf 'ok\n'
+    ok
   done
 }
 
 # The editor is a Balaur project, and so are the library it copies from and
-# each template: a manifest each, so each is checked from its own root.
+# each template. A template is checked as the project `balaur new` makes of
+# it: a scene holding braces only `new` fills does not load as it stands.
 printf '== editor\n'
 for project in editor editor/library editor/library/templates/*/; do
   printf '  check %-38s' "$project"
-  step "check $project" check "$project" --strict
-  printf 'ok\n'
+  root=$project
+  case $project in
+    editor/library/templates/*)
+      root=$out_dir/templates/$(basename "$project")
+      step "new $project" new "$root" --template "$(basename "$project")"
+      ;;
+  esac
+  step "check $project" check "$root" --strict
+  ok
 done
 
 # `EDITOR_STATES` on the first example, after the start screen, which needs a
@@ -266,7 +308,7 @@ editor_states() {
   printf '  start ... '
   mkdir -p "$out_dir/no-project"
   edit_step "start screen" "$out_dir/no-project" test:start_screen
-  printf 'ok\n'
+  ok
 
   suite_step "$name: editor states" "$ex" "${EDITOR_STATES[@]}"
 }
@@ -297,11 +339,11 @@ for ex in examples/*/; do
 
   printf '  check ...  '
   step "$name: check" check "$ex" --strict
-  printf 'ok\n'
+  ok
 
   printf '  run ...    '
   step "$name: run" run "$ex" --headless --frames 120
-  printf 'ok\n'
+  ok
 
   # Two separate processes on purpose. A pack used to be written in hash order,
   # which is stable within one process and different in the next, so exporting
@@ -313,11 +355,11 @@ for ex in examples/*/; do
   again=$(sha "$out_dir/$name.again.bpak")
   [ "$first" = "$again" ] ||
     fail "$name: two exports of the same sources differ ($first vs $again)"
-  printf 'ok %s\n' "${first:0:16}"
+  ok "${first:0:16}"
 
   printf '  play ...   '
   step "$name: play" play "$out_dir/$name.bpak" --frames 120
-  printf 'ok\n'
+  ok
 
   # The GPU, which every step above skips: a texture the backend cannot bind,
   # a shader it rejects, a material with no pipeline. The editor renders too,
@@ -330,7 +372,7 @@ for ex in examples/*/; do
   printf '  render ... '
   render_step "$name: render" run "$ex" --offscreen --frames 120
   render_step "$name: render in the editor" edit "$ex" --offscreen --frames 90
-  printf 'ok\n'
+  ok
 
   # The editor's own assertions, which log an ERROR on failure, in one launch;
   # an example named on the command line runs them too.
@@ -343,4 +385,26 @@ done
 
 if [ "$gpu" = 1 ] && [ -n "${states_on:-}" ]; then
   editor_states "$states_on"
+fi
+
+# Games kept beside this checkout, held to an example's first two gates: the
+# first app built on the engine has to build on every change to it.
+if [ ${#only[@]} -eq 0 ]; then
+  for project in ${BALAUR_E2E_PROJECTS-../polyglot-pirates-app}; do
+    [ -f "$project/project.toml" ] || continue
+    name=$(basename "$project")
+    printf '\n== %s\n' "$name"
+    printf '  check ...  '
+    step "$name: check" check "$project" --strict
+    ok
+    printf '  run ...    '
+    step "$name: run" run "$project" --headless --frames 120
+    ok
+  done
+fi
+
+if [ ${#failures[@]} -gt 0 ]; then
+  printf '\n%d failed:\n' "${#failures[@]}"
+  printf '  %s\n' "${failures[@]}"
+  exit 1
 fi

@@ -273,8 +273,8 @@ subsurface = 0.0             # read by the path tracer only
 subsurface_radius = 0.0      # read by nothing yet
 normal = "art/panel_n.png"   # albedo, normal, metallic_roughness, occlusion, emissive, height;
                              # on a 2D node, `normal` lights it per pixel by every light2d
-normal_strength = 1.0        # 2D: how far the normal map bends the surface; zero lights it flat
-shininess = 16.0             # 2D: how tight a light's highlight is; higher is smaller and sharper
+normal_scale = 1.0           # 2D: how far the normal map bends the surface; zero lights it flat
+specular_shininess = 16.0    # 2D: how tight a light's highlight is; higher is smaller and sharper
 specular_strength = 0.0      # 2D: how bright the highlight is; zero draws none
 height = "art/panel_h.png"
 parallax_scale = 0.1         # how deep the height map reads, in UV units

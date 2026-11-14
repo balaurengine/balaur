@@ -1,5 +1,5 @@
 //! The fixed-step clock a play keeps: what `playback_time`, the queue and the
-//! `finished` event are read from.
+//! `sound_finished` event are read from.
 
 use balaur_audio::FileSettings;
 use balaur_audio::playback::{Clip, Program, Timeline};

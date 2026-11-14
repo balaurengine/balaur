@@ -771,7 +771,7 @@ impl Scenario {
         let shape = self.node.collider3d.aabb();
         let collision = self.node.collider3d.collision_aabb();
         let broad = self.node.collider3d.broad_phase_aabb();
-        [self.node.collider3d.collider_mass_properties(), self.node.collider3d.pose_in_body(), shape[3], collision[3], broad[3], true]
+        [self.node.collider3d.mass_properties(), self.node.collider3d.pose_in_body(), shape.max.x, collision.max.x, broad.max.x, true]
     }
 }
 ",

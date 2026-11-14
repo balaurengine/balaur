@@ -142,9 +142,9 @@ impl Underline {
 pub enum LineBreak {
     /// Between words, and inside a word too long for a line of its own.
     #[default]
-    WordOrGlyph,
+    WordSmart,
     Word,
-    Glyph,
+    Arbitrary,
 }
 
 impl LineBreak {
@@ -152,25 +152,25 @@ impl LineBreak {
     pub fn of(word: &str) -> Self {
         match word {
             w::WORD => Self::Word,
-            w::GLYPH => Self::Glyph,
-            _ => Self::WordOrGlyph,
+            w::ARBITRARY => Self::Arbitrary,
+            _ => Self::WordSmart,
         }
     }
 
     #[must_use]
     pub fn word(self) -> &'static str {
         match self {
-            Self::WordOrGlyph => w::WORD_OR_GLYPH,
+            Self::WordSmart => w::WORD_SMART,
             Self::Word => w::WORD,
-            Self::Glyph => w::GLYPH,
+            Self::Arbitrary => w::ARBITRARY,
         }
     }
 
     pub(crate) fn wrap(self) -> cosmic_text::Wrap {
         match self {
-            Self::WordOrGlyph => cosmic_text::Wrap::WordOrGlyph,
+            Self::WordSmart => cosmic_text::Wrap::WordOrGlyph,
             Self::Word => cosmic_text::Wrap::Word,
-            Self::Glyph => cosmic_text::Wrap::Glyph,
+            Self::Arbitrary => cosmic_text::Wrap::Glyph,
         }
     }
 }
@@ -327,7 +327,7 @@ pub struct Options {
     /// The height lines stop at, in the request's pixels.
     pub max_height: Option<f32>,
     /// Spaces between tab stops.
-    pub tab_width: u16,
+    pub tab_size: u16,
 }
 
 pub static PLAIN: Options = Options {
@@ -339,11 +339,11 @@ pub static PLAIN: Options = Options {
         overline: false,
         overline_color: None,
     },
-    line_break: LineBreak::WordOrGlyph,
+    line_break: LineBreak::WordSmart,
     truncate_at: TruncateAt::End,
     max_lines: 0,
     max_height: None,
-    tab_width: 8,
+    tab_size: 8,
 };
 
 impl Default for Options {
@@ -367,7 +367,7 @@ impl Options {
             .hash(hasher);
         (self.line_break, self.truncate_at, self.max_lines).hash(hasher);
         self.max_height.map(f32::to_bits).hash(hasher);
-        self.tab_width.hash(hasher);
+        self.tab_size.hash(hasher);
     }
 }
 

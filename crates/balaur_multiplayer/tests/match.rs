@@ -31,6 +31,10 @@ impl Lobby {
     pub fn join_match(url: str, hash: any) {
         multiplayer::join(url, multiplayer::JoinOptions { cert_hash: hash, name: "guest" });
     }
+
+    pub fn leave_lobby() {
+        multiplayer::leave();
+    }
 }
 "#;
 
@@ -352,4 +356,25 @@ fn starting_outside_a_lobby_leaves_a_machine_where_it_is() {
     call(&app, "start_match", &[]);
     assert_eq!(state(&app).borrow().state(), joining);
     app.tick(1.0 / 60.0);
+}
+
+// A lobby waits on the wall clock and a match steps on it, so either is owed
+// its frames by a loop that would otherwise sleep.
+#[test]
+fn a_machine_in_a_lobby_keeps_a_sleeping_loop_awake_until_it_leaves() {
+    let dir = project();
+    let app = boot(&dir);
+    let pends = || balaur::rest::pending_names(&app.engine).contains(&"multiplayer");
+    assert!(!pends(), "an idle machine asks for no frames");
+
+    call(&app, "host_match", &[Value::Str("websocket".into())]);
+    assert!(
+        state(&app).borrow().address().is_some(),
+        "the control: it hosts"
+    );
+    assert!(pends());
+
+    call(&app, "leave_lobby", &[]);
+    assert_eq!(state(&app).borrow().state(), State::Idle);
+    assert!(!pends(), "left, it is idle again");
 }

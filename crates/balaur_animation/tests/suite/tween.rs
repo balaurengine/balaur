@@ -1066,10 +1066,10 @@ duration = 0.2
     assert_eq!(calls.count(entity, "on_tween_finished"), 1);
     let handle = balaur_script::Value::Int(i64::try_from(id).unwrap());
     assert_eq!(
-        calls.args(entity, "on_tween_looped"),
-        Some(vec![balaur_script::Value::Map(vec![
+        calls.payload(entity, "on_tween_looped"),
+        Some(balaur_script::Value::Map(vec![
             ("tween".into(), handle),
             ("played".into(), balaur_script::Value::Int(1)),
-        ])])
+        ]))
     );
 }

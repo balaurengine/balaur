@@ -170,8 +170,7 @@ pub(crate) fn push_at(eng: &Engine, shape: Draw2d, z_index: Option<i32>) {
 /// `draw_arc_2d`'s arguments: centre, radius, the two angles, width, colour
 /// and options.
 type ArcArgs = (
-    f32,
-    f32,
+    Value,
     f32,
     f32,
     f32,
@@ -181,16 +180,27 @@ type ArcArgs = (
 );
 
 /// `draw_texture_2d`'s arguments: the path, centre, size, tint and options.
-type TextureArgs = (String, f32, f32, f32, f32, Option<Value>, Option<Value>);
+type TextureArgs = (String, Value, Value, Option<Value>, Option<Value>);
+
+/// A `Vec2` argument; `what` opens the error for anything else.
+pub(crate) fn vec2_of(what: &str, value: &Value) -> anyhow::Result<[f32; 2]> {
+    match value {
+        Value::Vec2(pair) => Ok(*pair),
+        other => bail!("{what} is a Vec2, not a {}", other.type_name()),
+    }
+}
+
+const CENTER: &str = "a shape's centre";
+const SIZE: &str = "a shape's size";
 
 pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (DRAW_CIRCLE_2D, &[], "(x: float, y: float, radius: float, color: Color?, opts: DrawOptions?)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
-        (DRAW_RECT_2D, &[], "(x: float, y: float, width: float, height: float, color: Color?, opts: DrawOptions?)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
-        (DRAW_ARC_2D, &[], "(x: float, y: float, radius: float, from: float, to: float, width: float?, color: Color?, opts: DrawOptions?)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
+        (DRAW_CIRCLE_2D, &[], "(center: Vec2, radius: float, color: Color?, opts: DrawOptions?)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
+        (DRAW_RECT_2D, &[], "(position: Vec2, size: Vec2, color: Color?, opts: DrawOptions?)", "Fill a rectangle of `size` centred at `position`, in world units, for this frame; `opts` takes `z_index`."),
+        (DRAW_ARC_2D, &[], "(center: Vec2, radius: float, from: float, to: float, width: float?, color: Color?, opts: DrawOptions?)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
         (DRAW_POLYGON_2D, &[], "(points: [Vec2], color: Color?, opts: DrawOptions?)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
         (DRAW_POLYLINE_2D, &[], "(points: [Vec2], width: float?, color: Color?, opts: DrawOptions?)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
-        (DRAW_TEXTURE_2D, &[], "(path: string, x: float, y: float, width: float, height: float, color: Color?, opts: TextureOptions?)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
+        (DRAW_TEXTURE_2D, &[], "(path: string, position: Vec2, size: Vec2, color: Color?, opts: TextureOptions?)", "Draw a project image over a rectangle of `size` centred at `position`, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
     ]);
     m.records(&[
         (
@@ -207,9 +217,9 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     m.function(
         DRAW_CIRCLE_2D,
         |eng: &Engine,
-         (x, y, radius, color, opts): (f32, f32, f32, Option<Value>, Option<Value>)| {
+         (center, radius, color, opts): (Value, f32, Option<Value>, Option<Value>)| {
             let shape = Draw2d::Circle {
-                center: [x, y],
+                center: vec2_of(CENTER, &center)?,
                 radius: radius.max(0.0),
                 color: color_of(&color.unwrap_or(Value::Nil))?,
             };
@@ -219,10 +229,10 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     m.function(
         DRAW_RECT_2D,
         |eng: &Engine,
-         (x, y, w, h, color, opts): (f32, f32, f32, f32, Option<Value>, Option<Value>)| {
+         (position, size, color, opts): (Value, Value, Option<Value>, Option<Value>)| {
             let shape = Draw2d::Rect {
-                center: [x, y],
-                size: [w.max(0.0), h.max(0.0)],
+                center: vec2_of(CENTER, &position)?,
+                size: vec2_of(SIZE, &size)?.map(|side| side.max(0.0)),
                 color: color_of(&color.unwrap_or(Value::Nil))?,
             };
             push(eng, shape, opts)
@@ -230,9 +240,9 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     );
     m.function(
         DRAW_ARC_2D,
-        |eng: &Engine, (x, y, radius, from, to, width, color, opts): ArcArgs| {
+        |eng: &Engine, (center, radius, from, to, width, color, opts): ArcArgs| {
             let shape = Draw2d::Arc {
-                center: [x, y],
+                center: vec2_of(CENTER, &center)?,
                 radius: radius.max(0.0),
                 from,
                 to,
@@ -245,12 +255,12 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     install_outline_api(m);
     m.function(
         DRAW_TEXTURE_2D,
-        |eng: &Engine, (path, x, y, w, h, color, opts): TextureArgs| {
+        |eng: &Engine, (path, position, size, color, opts): TextureArgs| {
             let options = options_of(opts, true)?;
             let shape = Draw2d::Texture {
                 path,
-                center: [x, y],
-                size: [w.max(0.0), h.max(0.0)],
+                center: vec2_of(CENTER, &position)?,
+                size: vec2_of(SIZE, &size)?.map(|side| side.max(0.0)),
                 color: color_of(&color.unwrap_or(Value::Nil))?,
                 region: options.region,
             };
@@ -391,9 +401,7 @@ fn draw_one(
     placed: Option<f32>,
 ) -> Option<kiss3d::scene::SceneNode2d> {
     use glamx::Vec2;
-    use kiss3d::color::Color;
-
-    let paint = |[r, g, b, a]: [f32; 4]| Color::new(r, g, b, a);
+    let paint = crate::film::color;
     match shape {
         Draw2d::Circle {
             center,

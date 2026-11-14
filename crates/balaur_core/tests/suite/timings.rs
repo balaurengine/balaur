@@ -223,6 +223,26 @@ fn a_spike_is_named_after_what_the_loop_filed_after_it() {
     );
 }
 
+// The loop notes the period before the next tick, so the table carrying a
+// frame's stages carries the period they ran in.
+#[test]
+fn a_period_the_loop_measured_counts_for_the_stages_that_ran_in_it() {
+    let mut log = TimingLog::default();
+    let table = |wall_ms| {
+        let mut timings = Timings::default();
+        timings.frame = Duration::from_millis(2);
+        timings.wall = Duration::from_millis(wall_ms);
+        timings
+    };
+    for _ in 0..10 {
+        log.observe(&table(16));
+    }
+    log.observe(&table(900));
+    log.observe(&table(16));
+    let report = log.report();
+    assert!(report.contains("frame 10: 900.000 ms"), "{report}");
+}
+
 #[test]
 fn the_report_names_every_stage_and_the_frame() {
     let mut app = app();

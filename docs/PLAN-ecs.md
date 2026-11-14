@@ -3,8 +3,8 @@
 > `remove`, `reparent`, `despawn`) and every crate moved onto it; the
 > `world-write` house lint fails a `world_mut()` outside the kernel's own
 > code and tests. Step 3 built 2026-10-31: `Engine::change_tick`, stamps in
-> `components::ticks` fed by the calls that feed the change log, and
-> `scene.added_since`, `changed_since`, `removed_since` for scripts. Two
+> `components::ticks` fed by the calls that feed the change log; a script
+> hears a write as the `changed` event and has no reader of its own. Two
 > calls differ from §2 below, each with its reason there. Step 4 built
 > 2026-10-31: `Lifecycle` on every definition, declared on the derive, run by
 > the registry's three write paths and a freed node; `Written::Added` gone

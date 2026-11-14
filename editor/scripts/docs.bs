@@ -92,7 +92,7 @@ pub fn view(state: &mut editor::State, query: str) -> View {
         }
         shown += 1;
         let tint = if name == state.docs.function_pick { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_DEFAULT] };
-        let called = if function.acts_on.len() == 0 { name } else { "node.{function.acts_on[0]}.{name}" };
+        let called = if function.methods.len() == 0 { name } else { "node.{function.methods[0]}" };
         items.push(ui::Item { label: called + function.signature, tint: tint.as_str() });
         if function.doc != "" {
             items.push(ui::Item { label: "\t  " + function.doc, tint: tokens[theme_tokens::TEXT_SUBTLE].as_str() });

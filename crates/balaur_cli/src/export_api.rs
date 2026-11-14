@@ -63,7 +63,7 @@ impl balaur_plugin::Plugin for ExportPlugin {
         balaur_export::settings::declare(reg.engine());
         reg.insert_resource(ExportState(ExportCore::new(self.project.clone())));
         reg.add_system(Stage::First, pump::<ExportState, ExportEvent>);
-        let mut m = reg.script_module(words::export_api::EXPORT)?;
+        let mut m = reg.script_module(words::export_api::EXPORT)?.editor_only();
         install_export_api(&mut m);
         Ok(())
     }

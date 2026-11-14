@@ -1,5 +1,6 @@
 // Lists `[save] version` in the editor's Settings window while the game
-// carries this addon. A run reads it with `settings::get`, declared or not.
+// carries this addon, and refills the plugin docks when the game saves. A run
+// reads the setting with `settings::get`, declared or not.
 
 use addons::save::save;
 
@@ -14,6 +15,15 @@ pub class Saves {
 }
 
 impl Saves {
+    pub fn init() {
+        events::listen(self.node, save::SAVED);
+    }
+
+    /// A save the game wrote: the docks that list saves fill again.
+    pub fn on_saved(_count: any) {
+        scene::get_node("Editor").call("kit_changed");
+    }
+
     pub fn register() -> any {
         settings::define(save::VERSION_SETTING, {
             TYPE: "int",

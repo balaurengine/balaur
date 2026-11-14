@@ -1,4 +1,5 @@
 use super::func::{FnGen, LVal, MemPlace, R, err, op_text, show};
+use super::lend::Taker;
 use super::rt::{load, mem};
 use crate::Error;
 use crate::ast::{BinOp, Block, Expr, ExprKind, Pos, Stmt, StmtKind, Ty};
@@ -118,7 +119,7 @@ impl FnGen<'_> {
     fn assign(&mut self, target: &Expr, op: Option<BinOp>, value: &Expr, pos: Pos) -> R<()> {
         if let Some((node, get, set, ty)) = self.component_access(target)? {
             self.expr(&node)?;
-            if let Some(op) = op {
+            let held = if let Some(op) = op {
                 self.expr(&node)?;
                 self.host_call(&get);
                 let vt = self.expr(value)?;
@@ -128,10 +129,13 @@ impl FnGen<'_> {
                     msg: format!("cannot apply `{}=` to {}", op_text(op), show(&ty)),
                 })?;
                 self.e(i);
+                self.held_for_call(&ty)
             } else {
-                self.expr_as(value, &ty)?;
-            }
+                self.lent(std::slice::from_ref(&ty), &[value], Taker::Engine)?
+            };
             self.host_call(&set);
+            // The engine copies what it is written, so the value is still this frame's to let go.
+            self.release_all(held);
             return Ok(());
         }
         if let Some(lv) = self.place(target)? {

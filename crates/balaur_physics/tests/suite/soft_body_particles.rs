@@ -12,19 +12,19 @@ impl Scenario {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE });
         n.softbody3d.pin_particle(0);
-        self.first = n.softbody3d.softbody_position(0).y;
+        self.first = n.softbody3d.particle_position(0).y;
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 4 {
-            if math::abs(n.softbody3d.softbody_position(0).y - self.first) >= 0.001 { log::error("the pinned particle fell"); }
-            if n.softbody3d.softbody_position(7).y >= self.first { log::error("the free end did not fall"); }
+            if math::abs(n.softbody3d.particle_position(0).y - self.first) >= 0.001 { log::error("the pinned particle fell"); }
+            if n.softbody3d.particle_position(7).y >= self.first { log::error("the free end did not fall"); }
             n.softbody3d.unpin_particle(0);
         }
         if self.ticks == 10 {
-            if n.softbody3d.softbody_position(0).y >= self.first - 0.001 { log::error("the released particle stayed put"); }
+            if n.softbody3d.particle_position(0).y >= self.first - 0.001 { log::error("the released particle stayed put"); }
             log::error("checked: held and let go");
         }
     }
@@ -49,7 +49,7 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
-            let at = self.node.softbody3d.softbody_position(0);
+            let at = self.node.softbody3d.particle_position(0);
             if !(math::abs(at.x - 2.0) < 0.01 && math::abs(at.y - 1.0) < 0.01) { log::error("the held particle did not move to its target"); }
             log::error("checked: dragged");
         }
@@ -69,18 +69,18 @@ impl Scenario {
     fn init() {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "pinned_particles": [0] });
-        n.softbody3d.apply_softbody_impulse(vec3(0.0, 20.0, 0.0));
-        self.first = n.softbody3d.softbody_position(7).y;
+        n.softbody3d.apply_impulse(vec3(0.0, 20.0, 0.0));
+        self.first = n.softbody3d.particle_position(7).y;
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 2 {
-            if n.softbody3d.softbody_position(7).y <= self.first { log::error("the kick did not lift the free end"); }
-            if n.softbody3d.softbody_velocity(7).y <= 0.0 { log::error("and it is not moving up"); }
-            let edges = n.softbody3d.softbody_edges();
-            if !(edges.len() > 0 && edges.len() == n.softbody3d.softbody_stress().len()) { log::error("the edges and their stress do not line up"); }
+            if n.softbody3d.particle_position(7).y <= self.first { log::error("the kick did not lift the free end"); }
+            if n.softbody3d.particle_velocity(7).y <= 0.0 { log::error("and it is not moving up"); }
+            let edges = n.softbody3d.edges();
+            if !(edges.len() > 0 && edges.len() == n.softbody3d.stress().len()) { log::error("the edges and their stress do not line up"); }
             if edges[0].len() != 2 { log::error("an edge is two particle indices"); }
             log::error("checked: kicked");
         }
@@ -103,7 +103,7 @@ impl Scenario {
         hook.set_component("body3d", { "kind": physics3d::BODY_STATIC });
         self.node.set_component("soft_rope3d", { "particle_count": 8 }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE });
         self.hook = hook;
-        self.first = self.node.softbody3d.softbody_position(0).y;
+        self.first = self.node.softbody3d.particle_position(0).y;
     }
 
     fn fixed_update(dt: float) {
@@ -113,7 +113,7 @@ impl Scenario {
             n.softbody3d.attach_particle(0, self.hook);
         }
         if self.ticks == 20 {
-            if n.softbody3d.softbody_position(0).y <= self.first - 0.2 { log::error("the tied particle fell away from the body"); }
+            if n.softbody3d.particle_position(0).y <= self.first - 0.2 { log::error("the tied particle fell away from the body"); }
             if !n.softbody3d.detach_particle(0) { log::error("the particle was not attached"); }
             log::error("checked: tied");
         }
@@ -134,18 +134,18 @@ impl Scenario {
         let blob = self.node.get_node("Blob2d");
         blob.set_component("soft_rope2d", { "particle_count": 6 }); blob.set_component("softbody2d", { "kind": physics2d::SOFT_ROPE });
         blob.softbody2d.pin_particle(0);
-        blob.softbody2d.apply_softbody_radial_impulse(vec2(0.0, 0.0), 5.0, 0.0);
+        blob.softbody2d.apply_radial_impulse(vec2(0.0, 0.0), 5.0, 0.0);
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             let blob = self.node.get_node("Blob2d");
-            if blob.softbody2d.softbody_edges().len() != blob.softbody2d.softbody_stress().len() { log::error("the edges and their stress do not line up"); }
-            if blob.softbody2d.softbody_sleeping() { log::error("a body just struck is asleep"); }
-            let held = blob.softbody2d.softbody_particle(0);
+            if blob.softbody2d.edges().len() != blob.softbody2d.stress().len() { log::error("the edges and their stress do not line up"); }
+            if blob.softbody2d.is_sleeping() { log::error("a body just struck is asleep"); }
+            let held = blob.softbody2d.particle(0);
             if !held.pinned { log::error("the pinned particle reads free"); }
-            if held.position.x != blob.softbody2d.softbody_position(0).x { log::error("the particle's row is elsewhere"); }
+            if held.position.x != blob.softbody2d.particle_position(0).x { log::error("the particle's row is elsewhere"); }
             log::error("checked: 2d");
         }
     }
@@ -169,7 +169,7 @@ impl Scenario {
             "tear_resistance": [{ "a": 1, "b": 2, "resistance": 0.2 }],
             "edge_springs": [{ "a": 0, "b": 1, "frequency": 90.0, "damping": 1.0 }],
         });
-        if self.node.softbody3d.softbody_particles() != 4 { log::error("the rows changed the layout"); }
+        if self.node.softbody3d.particle_count() != 4 { log::error("the rows changed the layout"); }
         log::error("checked: rows built");
     }
 }

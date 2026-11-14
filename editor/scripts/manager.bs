@@ -328,7 +328,7 @@ pub fn fill(state: &mut editor::State) {
     refresh(state);
     let tokens = state.theme;
     // The screen is the window: a project's own widgets are not behind this.
-    ui::set_widget_layer(false, 0.0, 0.0, 0.0, 0.0);
+    ui::set_widget_layer(false, vec2(0.0, 0.0), vec2(0.0, 0.0));
     util::set_visible(GROUND, true);
     cover(state, true);
     ui::fill_strip(HEAD_NODE(), head_controls(state, tokens));

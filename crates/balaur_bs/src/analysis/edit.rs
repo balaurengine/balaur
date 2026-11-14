@@ -6,7 +6,8 @@ use crate::ast::{ExprKind, Pos};
 
 /// Something a file declares, for an outline. A script's methods are
 /// functions, as the engine calls them; a `pub` field with a default is a
-/// property, as a scene tunes it.
+/// property, as a scene tunes it; an `event` is one its node sends, with its
+/// description for a detail.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Symbol {
     pub name: String,
@@ -53,6 +54,14 @@ impl Analysis {
                 kind: Kind::Function,
                 detail: types::fn_signature(f),
                 pos: f.pos,
+            });
+        }
+        for event in &prog.events {
+            out.push(Symbol {
+                name: event.name.clone(),
+                kind: Kind::Event,
+                detail: event.doc.clone(),
+                pos: event.pos,
             });
         }
         out.sort_by_key(|s| (s.pos.line, s.pos.col));

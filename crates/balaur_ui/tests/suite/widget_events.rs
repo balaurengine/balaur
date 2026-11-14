@@ -5,7 +5,10 @@ use balaur_core::hecs::Entity;
 use balaur_script::Value;
 use egui::pos2;
 
-use crate::support::{add_widget, app, consume_input, pass, pass_at, press, settle, texts};
+use crate::support::{
+    add_widget, add_widget_to, app, app_with_script, consume_input, pass, pass_at, press,
+    script_text, settle, texts,
+};
 
 /// What the widget's node heard under `event` on the last tick.
 fn heard(app: &balaur::App, entity: Entity, event: &str) -> Vec<Value> {
@@ -23,12 +26,12 @@ fn a_slider_commits_its_value_when_the_press_lets_go() {
     pass(&app, &ctx, press(target, true));
     consume_input(&mut app);
     assert!(
-        heard(&app, slider, "commit").is_empty(),
+        heard(&app, slider, "committed").is_empty(),
         "committed while held"
     );
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
-    let committed = heard(&app, slider, "commit");
+    let committed = heard(&app, slider, "committed");
     assert!(
         matches!(committed.as_slice(), [Value::Num(n)] if *n > 5.0),
         "the release commits where it landed: {committed:?}"
@@ -82,7 +85,7 @@ fn a_double_clicked_row_is_activated() {
     }
     consume_input(&mut app);
     assert_eq!(
-        heard(&app, list, "activate"),
+        heard(&app, list, "activated"),
         vec![Value::Str("Second".into())]
     );
 }
@@ -108,7 +111,7 @@ fn a_tree_row_says_when_its_caret_folds_it() {
     pass(&app, &ctx, press(caret, true));
     pass(&app, &ctx, press(caret, false));
     consume_input(&mut app);
-    let folded = heard(&app, tree, "fold");
+    let folded = heard(&app, tree, "folded");
     let [Value::Map(said)] = folded.as_slice() else {
         panic!("no single fold: {folded:?}");
     };
@@ -182,7 +185,7 @@ fn a_window_that_keeps_itself_open_only_asks_to_close() {
     pass(&app, &ctx, press(cross, true));
     pass(&app, &ctx, press(cross, false));
     consume_input(&mut app);
-    assert_eq!(heard(&app, window, "close_request"), vec![Value::Nil]);
+    assert_eq!(heard(&app, window, "close_requested"), vec![Value::Nil]);
     let open = balaur::components::get(&app.engine, window, "widget_window")
         .and_then(|w| w.get("open").and_then(toml::Value::as_bool));
     assert_eq!(open, Some(true), "the script decides whether it shuts");
@@ -206,4 +209,98 @@ fn a_paste_no_field_took_is_heard_with_its_text() {
         balaur_core::events::delivered(&app.engine, "pasted"),
         vec![balaur_script::Value::Str("[[nodes]]".into())]
     );
+}
+
+// A clicked widget says `pointer_click` from its node, as a clicked world
+// node does: its own script hears it unasked, with the button and itself.
+#[test]
+fn a_clicked_button_is_heard_as_pointer_click_by_its_own_script() {
+    let script = "pub class Go { node: Node, said: str, changes: int }
+impl Go {
+    pub fn on_pointer_click(button: str, source: Node) {
+        self.said = \"{button} on {source.name()}\";
+    }
+    pub fn on_value_changed(now: bool) { self.changes += 1; }
+}
+";
+    let (_dir, mut app) = app_with_script("go.bs", script);
+    let root = app.engine.root();
+    let go = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Go", root);
+    add_widget_to(
+        &app,
+        go,
+        &toml::toml! { kind = "checkbox" text = "Go" x = 0.0 y = 0.0 }.into(),
+    );
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur::node_id_of(go), "scripts/go.bs")
+        .unwrap();
+    let waiting =
+        balaur_core::events::next(&app.engine, balaur_core::hooks::POINTER_CLICK, Some(go));
+    assert!(balaur_ui::click(&app.engine, go, false));
+    consume_input(&mut app);
+    assert_eq!(script_text(&app, go, "said"), Some("left on Go".into()));
+    assert_eq!(
+        heard(&app, go, balaur_core::hooks::POINTER_CLICK),
+        vec![Value::Str("left".into())],
+        "and whoever awaits it hears the same name: token {waiting}"
+    );
+    assert!(
+        heard(&app, go, "click").is_empty(),
+        "the press has one name"
+    );
+    assert_eq!(
+        crate::support::script_number(&app, go, "changes"),
+        Some(1.0),
+        "a widget's own event reaches its node's hook unasked, once"
+    );
+}
+
+#[test]
+fn a_handler_key_on_a_widget_is_refused() {
+    let (_dir, app) = app();
+    let root = app.engine.root();
+    let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), "W", root);
+    let add = |component: &str, rows: toml::Value| {
+        balaur::components::add(&app.engine, node, component, Some(&rows))
+    };
+    for key in [
+        "on_click",
+        "on_change",
+        "on_focus",
+        "on_blur",
+        "on_double_clicked",
+    ] {
+        let mut rows = toml::map::Map::new();
+        rows.insert("kind".into(), "button".into());
+        rows.insert(key.into(), "pressed".into());
+        let refused = add("widget", rows.into()).expect_err(key).to_string();
+        assert!(refused.contains(key), "{key}: {refused}");
+    }
+    add("widget", toml::toml! { kind = "list" }.into()).unwrap();
+    for (component, key) in [
+        ("widget_list", "on_move"),
+        ("widget_list", "on_drop"),
+        ("widget_list", "on_mark"),
+        ("widget_list", "on_fold"),
+        ("widget_rows", "on_activate"),
+        ("widget_text", "on_link"),
+        ("widget_code", "on_gutter"),
+        ("widget_field", "on_submit"),
+        ("widget_field", "on_caret"),
+        ("widget_range", "on_commit"),
+        ("widget_color_picker", "on_commit"),
+        ("widget_scroll", "on_scrolled"),
+        ("widget_window", "on_opened"),
+        ("widget_window", "on_closed"),
+        ("widget_window", "on_close_requested"),
+        ("widget_menu", "on_opened"),
+        ("widget_dropdown", "on_closed"),
+    ] {
+        let mut rows = toml::map::Map::new();
+        rows.insert(key.into(), "handler".into());
+        let refused = add(component, rows.into())
+            .expect_err(&format!("{component}.{key}"))
+            .to_string();
+        assert!(refused.contains(key), "{component}.{key}: {refused}");
+    }
 }

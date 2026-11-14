@@ -187,6 +187,11 @@ pub fn advance_parked_system(_: &Engine, _: f32) {
     });
 }
 
+/// Whether a job waits on this thread for the pump's next slice.
+pub(crate) fn parked() -> bool {
+    PARKED.with_borrow(|parked| !parked.is_empty())
+}
+
 /// How many jobs are started and not yet finished.
 #[must_use]
 pub fn running() -> usize {

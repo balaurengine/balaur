@@ -2,16 +2,17 @@
 //! pass. A form whose fields change with the selection cannot be authored,
 //! so a script says what it wants and the pool makes, reuses and hides nodes.
 //!
-//! A spec is a `widget` property table plus `on` and `on_submit`, which hear
-//! the reader's edit: a callback, or the name of a method, called on the
-//! nearest node above the control whose script has it, with the spec's
-//! `data`, then the edit, then the control's node. A script that hands the engine no functions
-//! names its handler. A spec carrying `controls` is a group: one node
-//! holding its controls. A node is written only when what is
-//! asked of it changed, and spare nodes are hidden rather than freed.
+//! A spec is a `widget` property table plus `on_click`, `on_change` and
+//! `on_submit`, each the name of a method that hears the control's
+//! `pointer_click`, `value_changed` or `submitted`: called on the nearest node above
+//! the control whose script has it, with the spec's `data`, then the edit,
+//! then the control's node. The pool keeps the names; no widget holds one.
+//! A spec carrying `controls` is a group: one node holding its controls. A
+//! node is written only when what is asked of it changed, and spare nodes
+//! are hidden rather than freed.
 //!
-//! Nothing is polled: the widget input system calls a control's keys when it
-//! is edited, so a strip whose spec did not change need not be filled again.
+//! Nothing is polled: the widget input system tells the pool what each
+//! control said, so a strip whose spec did not change need not be filled again.
 //!
 //! In Rust because the shell asks for a hundred controls a pass, and merging
 //! and comparing their tables in a script was two fifths of the editor's work.
@@ -57,12 +58,36 @@ struct HostMemo {
     worn: FxHashMap<String, FxHashSet<String>>,
 }
 
-/// A control the pool filled: where its last write is remembered, and the
-/// `data` its handlers are handed first.
+/// A control the pool filled: where its last write is remembered, the
+/// `data` its handlers are handed first, and the method each event calls.
 struct Pooled {
     host: u64,
     key: String,
     data: Value,
+    /// The method each of [`HANDLERS`] names, in its order; empty for none.
+    calls: [String; HANDLERS.len()],
+}
+
+/// The spec keys that name a handler, and the event each hears.
+const HANDLERS: [(&str, &str); 3] = [
+    (p::ON_CLICK, balaur_core::hooks::POINTER_CLICK),
+    (p::ON_CHANGE, crate::widget::input::VALUE_CHANGED_EVENT),
+    (p::ON_SUBMIT, crate::widget::input::SUBMITTED_EVENT),
+];
+
+/// One handler a pooled control's event calls, found before any runs.
+pub(crate) struct PoolCall {
+    on: balaur_core::hecs::Entity,
+    method: String,
+    args: Vec<Value>,
+}
+
+impl PoolCall {
+    pub(crate) fn run(self, eng: &Engine) {
+        if let Some(host) = eng.script_host() {
+            host.call_on(balaur_core::node_id_of(self.on), &self.method, &self.args);
+        }
+    }
 }
 
 /// The node operations the pool writes through, resolved once.
@@ -118,8 +143,6 @@ fn shapeless() -> Spec {
         (k::FILL.into(), Value::text("")),
         (k::TOOLTIP.into(), Value::text("")),
         (k::TEXT.into(), Value::text("")),
-        (k::ON_CLICK.into(), Value::text("")),
-        (k::ON_CHANGE.into(), Value::text("")),
     ])
 }
 
@@ -288,18 +311,29 @@ impl Pool<'_> {
         self.with_memo(|memo| memo.written.clear());
     }
 
-    /// Keep what `node`'s handlers are handed first.
-    fn listen(&self, key: &str, node: &Value, want: &Spec) {
+    /// Keep what `node`'s handlers are handed first and the method each of
+    /// its events calls, taken off `want`: neither is the widget's to hold.
+    fn listen(&self, key: &str, node: &Value, want: &mut Spec) {
+        let data = want.remove(p::DATA).unwrap_or(Value::Nil);
+        let calls = HANDLERS.map(|(named, _)| match want.remove(named) {
+            Some(Value::Str(method)) => method,
+            _ => String::new(),
+        });
         let Value::Node(id) = node else {
             return;
         };
         let fresh = Pooled {
             host: self.host,
             key: key.to_string(),
-            data: want.get(p::DATA).cloned().unwrap_or(Value::Nil),
+            data,
+            calls,
         };
+        let clicks = fresh.hears(balaur_core::hooks::POINTER_CLICK);
         let state = self.eng.resource::<PoolState>();
-        state.borrow_mut().pooled.insert(*id, fresh);
+        let was = state.borrow_mut().pooled.insert(*id, fresh);
+        if was.is_some_and(|was| was.hears(balaur_core::hooks::POINTER_CLICK)) != clicks {
+            self.click_hearer_changed(*id);
+        }
     }
 
     /// A spare control hears nothing.
@@ -308,7 +342,17 @@ impl Pool<'_> {
             return;
         };
         let state = self.eng.resource::<PoolState>();
-        state.borrow_mut().pooled.remove(id);
+        let was = state.borrow_mut().pooled.remove(id);
+        if was.is_some_and(|was| was.hears(balaur_core::hooks::POINTER_CLICK)) {
+            self.click_hearer_changed(*id);
+        }
+    }
+
+    /// A label or a panel senses a click only where one is heard.
+    fn click_hearer_changed(&self, id: u64) {
+        if let Ok(entity) = balaur_core::entity_of(balaur_script::NodeId(id)) {
+            balaur_core::events::hearers_may_have_changed(self.eng, entity);
+        }
     }
 
     /// Write `spec` to `node` unless it is what was written last pass; a
@@ -430,10 +474,9 @@ impl Pool<'_> {
 
     /// One control: who hears it, then what the spec wants it to hold.
     fn control(&self, key: &str, node: &Value, want: Spec) -> Result<()> {
-        self.listen(key, node, &want);
         let mut set = want;
+        self.listen(key, node, &mut set);
         set.entry(p::VISIBLE.into()).or_insert(Value::Bool(true));
-        set.remove(p::DATA);
         self.patched(key, node, &set)
     }
 
@@ -451,6 +494,7 @@ impl Pool<'_> {
     fn group(&self, key: &str, node: &Value, want: Spec, inner: &Value) -> Result<()> {
         let mut set = table(&[(k::KIND, Value::text(w::ROW)), (k::GAP, both(0))]);
         set.extend(want);
+        self.listen(key, node, &mut set);
         set.entry(p::VISIBLE.into()).or_insert(Value::Bool(true));
         set.remove(p::CONTROLS);
         self.patched(key, node, &set)?;
@@ -549,42 +593,70 @@ fn sweep(eng: &Engine) {
     state.pooled.retain(|id, _| alive(id));
 }
 
-/// Mark what an edit changed behind the memo's back, so the next fill writes
-/// it again.
-pub(crate) fn heard(eng: &Engine, emitted: &[(balaur_core::hecs::Entity, &'static str, Value)]) {
-    let Some(state) = eng.try_resource::<PoolState>() else {
-        return;
-    };
-    let mut state = state.borrow_mut();
-    let state = &mut *state;
-    for (entity, _, _) in emitted {
-        let id = balaur_core::node_id_of(*entity).0;
-        let Some(pooled) = state.pooled.get(&id) else {
-            continue;
-        };
-        if let Some(memo) = state.hosts.get_mut(&pooled.host) {
-            memo.written.remove(&format!("{}#", pooled.key));
-        }
+impl Pooled {
+    /// The method this control's spec names for `event`.
+    fn method(&self, event: &str) -> Option<&String> {
+        let at = HANDLERS.iter().position(|(_, heard)| *heard == event)?;
+        Some(&self.calls[at]).filter(|method| !method.is_empty())
+    }
+
+    fn hears(&self, event: &str) -> bool {
+        self.method(event).is_some()
     }
 }
 
-/// What a handler on `entity` is handed: the value and then the node, with a
-/// pooled control's `data` first. A pooled button's click is a `true`.
-pub(crate) fn handler_args(
-    eng: &Engine,
-    entity: balaur_core::hecs::Entity,
-    value: Value,
-    node: Value,
-) -> Vec<Value> {
+/// Whether a pooled control's spec names a handler for `event`.
+pub(crate) fn hears(eng: &Engine, entity: balaur_core::hecs::Entity, event: &str) -> bool {
     let id = balaur_core::node_id_of(entity).0;
-    let data = eng
-        .try_resource::<PoolState>()
-        .and_then(|state| state.borrow().pooled.get(&id).map(|one| one.data.clone()));
-    match data {
-        Some(data) if value == Value::Nil => vec![data, Value::Bool(true), node],
-        Some(data) => vec![data, as_reported(&value), node],
-        None => vec![value, node],
+    eng.try_resource::<PoolState>().is_some_and(|state| {
+        state
+            .borrow()
+            .pooled
+            .get(&id)
+            .is_some_and(|one| one.hears(event))
+    })
+}
+
+/// What the pool's controls said this tick: mark what an edit changed behind
+/// the memo's back, so the next fill writes it again, and answer, for each
+/// event in turn, the handler its control's spec names for it.
+pub(crate) fn heard(
+    eng: &Engine,
+    said: &[(balaur_core::hecs::Entity, &'static str, Value)],
+) -> Vec<Option<PoolCall>> {
+    let Some(state) = eng.try_resource::<PoolState>() else {
+        return Vec::new();
+    };
+    let mut state = state.borrow_mut();
+    let state = &mut *state;
+    let mut calls = Vec::with_capacity(said.len());
+    for (entity, event, value) in said {
+        let id = balaur_core::node_id_of(*entity).0;
+        let Some(pooled) = state.pooled.get(&id) else {
+            calls.push(None);
+            continue;
+        };
+        // A click alone writes nothing onto the control.
+        if *event != balaur_core::hooks::POINTER_CLICK
+            && let Some(memo) = state.hosts.get_mut(&pooled.host)
+        {
+            memo.written.remove(&format!("{}#", pooled.key));
+        }
+        calls.push(pooled.method(event).and_then(|method| {
+            // A pooled button's click is a `true`.
+            let edit = if *event == balaur_core::hooks::POINTER_CLICK {
+                Value::Bool(true)
+            } else {
+                as_reported(value)
+            };
+            Some(PoolCall {
+                on: balaur_core::bindings::nearest_with_method(eng, *entity, method)?,
+                method: method.clone(),
+                args: vec![pooled.data.clone(), edit, Value::Node(id)],
+            })
+        }));
     }
+    calls
 }
 
 /// A value as the widget's own reader reports it, which is what a handler
@@ -699,7 +771,7 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
             FILL_STRIP,
             &[],
             "(host: string, controls: [Control]) -> bool",
-            "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on_click` or `on_change` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
+            "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on_click` or `on_change` hears the reader's edit and `on_submit` hears Enter as they happen: the name of a method, called on the nearest node above the control whose script has it with the control's `data`, then the edit, then the control's node. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         ),
         (
             FILL_SLOT,
@@ -711,7 +783,7 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
             PATCH_CONTROL,
             &[],
             "(host: node, at: [int], patch: Control) -> bool",
-            "What `patch` names written to the pooled control at `at`, child indices down from `host`, and remembered, so the next fill compares against it. For a value that follows the node: what the patch leaves out is not asked about. False where no control is there or nothing moved.",
+            "What `patch` names written to the pooled control at `at`, child indices down from `host`, and remembered, so the next fill compares against it. For a value that follows the node: what the patch leaves out is not asked about, and a handler's name is a fill's to give. False where no control is there or nothing moved.",
         ),
     ]);
     m.records(&[
@@ -733,7 +805,7 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         (
             "Mark",
             "{ name: string, glyph: string }",
-            "A mark at the right of a row: the glyph it draws from the icon face, and the name `on_mark` reports.",
+            "A mark at the right of a row: the glyph it draws from the icon face, and the name its `marked` event reports.",
         ),
     ]);
     let Some(ops) = Ops::resolve() else {

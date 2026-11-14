@@ -630,6 +630,9 @@ pub fn start_recording(
         eng.tick(),
     )?;
     eng.resource::<Recording>().borrow_mut().0 = Some(recorder);
+    // The rest of this frame is not recorded (`born`) and a replay holds the
+    // frame it loads in: whatever stepped here would run a tick ahead of it.
+    eng.set_opening_hold(true);
     Ok(())
 }
 

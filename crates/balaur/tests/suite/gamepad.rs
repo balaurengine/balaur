@@ -1,5 +1,5 @@
 //! The gamepad contract, end to end and backend-free: every rule in
-//! `docs/PLAN-input.md`'s contract checked through `input.feed_gamepad` and
+//! `docs/PLAN-input.md`'s contract checked through `input.set_gamepad` and
 //! the script verbs, then a session recorded and replayed against its own
 //! digest chain.
 //!
@@ -84,7 +84,7 @@ impl Runner {
         self.tick += 1;
         let pad = 7;
         if self.tick == 1 {
-            input::feed_gamepad(pad, input::PadFeed {
+            input::set_gamepad(pad, input::GamepadReport {
                 name: "Fed Pad",
                 os_name: "Fed OS",
                 guid: "0300aabb",
@@ -95,7 +95,7 @@ impl Runner {
                 buttons: input::PadButtons { south: 1.0, left_trigger: 0.3 },
                 axes: input::PadAxes { left_x: 0.1, right_x: 1.0 },
                 power: input::GamepadPower { state: input::GAMEPAD_POWER_ON_BATTERY, level: 0.5 },
-                touches: [input::Touch { id: 1, x: 0.25, y: 0.75 }],
+                touches: [input::Touch { id: 1, position: vec2(0.25, 0.75) }],
             });
         } else if self.tick == 2 {
             let pads = input::gamepads();
@@ -114,20 +114,20 @@ impl Runner {
             self.check(info.os_name == "Fed OS" && info.mapping == "sdl", "info names");
             let power = input::gamepad_power(pad);
             self.check(power.state == "on_battery" && near(power.level, 0.5), "power");
-            self.check(near(input::gamepad_touches(pad)[0].x, 0.25), "touch x");
+            self.check(near(input::gamepad_touches(pad)[0].position.x, 0.25), "touch x");
             self.check(input::gamepad_can_rumble(pad), "can rumble");
-            input::feed_gamepad(pad, input::PadFeed { buttons: input::PadButtons { south: 0.0 } });
+            input::set_gamepad(pad, input::GamepadReport { buttons: input::PadButtons { south: 0.0 } });
         } else if self.tick == 3 {
             let south = input::GAMEPAD_BUTTON_SOUTH;
             self.check(input::gamepad_just_released(pad, south) && !input::gamepad_down(pad, south), "south released");
-            input::feed_gamepad(pad, input::PadFeed { buttons: input::PadButtons { east: 1.0 } });
-            input::feed_gamepad(pad, input::PadFeed { buttons: input::PadButtons { east: 0.0 } });
+            input::set_gamepad(pad, input::GamepadReport { buttons: input::PadButtons { east: 1.0 } });
+            input::set_gamepad(pad, input::GamepadReport { buttons: input::PadButtons { east: 0.0 } });
         } else if self.tick == 4 {
             let east = input::GAMEPAD_BUTTON_EAST;
             self.check(input::gamepad_just_pressed(pad, east), "a tap between frames presses");
             self.check(input::gamepad_just_released(pad, east), "and releases");
             self.check(!input::gamepad_down(pad, east), "east up");
-            input::feed_gamepad(pad, input::PadFeed { connected: false });
+            input::set_gamepad(pad, input::GamepadReport { connected: false });
         } else if self.tick == 5 {
             self.check(input::gamepads().len() == 0, "unplugged");
             self.check(input::gamepad_name(pad) == "" && !input::gamepad_can_rumble(pad), "no name, no rumble");
@@ -168,8 +168,8 @@ impl Runner {
     fn update(dt: float) {
         self.tick += 1;
         if self.tick == 1 {
-            input::feed_gamepad(7, input::PadFeed { rumble: true });
-            input::feed_gamepad(8, input::PadFeed { rumble: false });
+            input::set_gamepad(7, input::GamepadReport { rumble: true });
+            input::set_gamepad(8, input::GamepadReport { rumble: false });
         } else if self.tick == 2 {
             let shaped: any = {
                 "strong": 0.02,

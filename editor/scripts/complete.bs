@@ -140,11 +140,14 @@ pub fn update(state: &mut editor::State, rel: str, source: str, caret: Caret) {
         return;
     }
     let at = line_column(source, index);
-    let found = script::complete(rel, source, at.line, at.column);
+    // Asked by the game's path, as the Problems list asks: the host judges a
+    // file by where it sits, and offers a game's file none of the editor's calls.
+    let path = state.game_root + "/" + rel;
+    let found = script::complete(path, source, at.line, at.column);
     state.complete.items = found;
     state.complete.pick = 0;
     state.complete.open = found.len() > 0;
-    state.complete.signature = script::signature(rel, source, at.line, at.column);
+    state.complete.signature = script::signature(path, source, at.line, at.column);
 }
 
 /// The list's keys while it is up: the arrows move the pick, Enter and Tab

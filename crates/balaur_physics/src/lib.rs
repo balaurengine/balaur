@@ -51,6 +51,7 @@ pub mod properties;
 pub mod query;
 pub mod ragdoll;
 mod readers;
+mod rest;
 pub(crate) mod scalar;
 mod shapes;
 mod shared;
@@ -108,6 +109,10 @@ const SET_PAUSED: &str = "set_paused";
 const SET_SLEEPING_ALLOWED: &str = "set_sleeping_allowed";
 const SLEEPING_ALLOWED: &str = "sleeping_allowed";
 
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent facts, each with its own writer: a script, a query, the step"
+)]
 pub struct PhysicsState3d {
     pub world: PhysicsWorld,
     /// Insertion-ordered with an unseeded hasher: iteration order must be
@@ -124,6 +129,8 @@ pub struct PhysicsState3d {
     /// The bodies and soft bodies asleep after the last step, so the next
     /// one can say which fell asleep or woke.
     pub(crate) asleep: balaur_core::collections::DetHashSet<Entity>,
+    /// Whether the last step left a body moving, for `balaur_core::rest`.
+    pub(crate) awake: bool,
     /// Joints per entity. Which of rapier's two sets a joint lives in is
     /// decided when it is made and never changes.
     pub joints: DetHashMap<Entity, joint::JointRef3d>,
@@ -186,6 +193,7 @@ impl PhysicsState3d {
             body_authored: DetHashMap::default(),
             gone: DetHashMap::default(),
             asleep: balaur_core::collections::DetHashSet::default(),
+            awake: false,
             joints: DetHashMap::default(),
             soft_bodies: DetHashMap::default(),
             soft_params: DetHashMap::default(),
@@ -248,6 +256,7 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         // build with one dimension registers nothing that fills the other.
         reg.insert_resource(PhysicsState3d::new());
         reg.insert_resource(PhysicsState2d::new());
+        balaur_core::rest::add_probe(reg.engine(), w::general::PHYSICS, rest::pending);
         balaur_core::parked::on_change(reg.engine(), parked_changed);
         balaur_core::parked::on_change(reg.engine(), dim2::parked_changed);
         balaur_core::parked::on_change(reg.engine(), dim2::tiles::parked_changed);
@@ -274,8 +283,11 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
             debug::install_debug_api(&mut m);
             tuning::install_tuning_api(&mut m);
         }
-        balaur_core::events::watch_hearers(reg.engine(), &vocabulary::hook::RAISED_BY_THE_STEP);
-        reg.add_system(Stage::FixedUpdate, follow_hearers_system);
+        let hearers =
+            balaur_core::events::watch_hearers(reg.engine(), &vocabulary::hook::RAISED_BY_THE_STEP);
+        reg.add_system(Stage::FixedUpdate, move |eng: &Engine, _dt: f32| {
+            follow_hearers_system(eng, hearers);
+        });
         #[cfg(feature = "physics3d")]
         declare_3d(reg)?;
         #[cfg(feature = "physics2d")]
@@ -291,11 +303,11 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
     }
 }
 
-/// The 3D world's systems, components, verbs and presets.
+/// The 3D world's systems, components and verbs.
 /// Each collider reports what somebody hears, and rapier raises nothing else:
 /// settled before the step, so a collider or a script made this tick counts.
-fn follow_hearers_system(eng: &Engine, _dt: f32) {
-    let (everyone, nodes) = balaur_core::events::take_changed_hearers(eng);
+fn follow_hearers_system(eng: &Engine, hearers: balaur_core::events::HearerWatch) {
+    let (everyone, nodes) = balaur_core::events::take_changed_hearers(eng, hearers);
     if !everyone && nodes.is_empty() {
         return;
     }
@@ -350,7 +362,6 @@ fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
     softbody::register_softbody_component(reg);
     character::register_character_component(reg);
     vehicle::register_vehicle_components(reg);
-    register_physics_presets(reg)?;
 
     {
         let mut m = reg.script_module(vocabulary::module::GEOMETRY_3D)?;
@@ -475,100 +486,6 @@ pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState3d) {
     state
         .surfaces
         .retain(|handle, _| colliders.contains(*handle));
-}
-
-/// The 3D body presets. Both dimensions carry their marker (D5).
-fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
-    reg.register_preset(
-        "rigid_body3d",
-        balaur_core::presets::preset(
-            "A body physics simulates, with a box collider",
-            &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            &[
-                (c::BODY_3D, Some("kind = \"dynamic\"")),
-                (c::COLLIDER_3D, None),
-            ],
-        )?,
-    );
-    reg.register_preset(
-        "static_body3d",
-        balaur_core::presets::preset(
-            "An immovable body with a box collider: ground, walls",
-            &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            &[
-                (c::BODY_3D, Some("kind = \"static\"")),
-                (c::COLLIDER_3D, None),
-            ],
-        )?,
-    );
-    // The three soft bodies worth one click. Everything else a `softbody3d`
-    // can be is the same component with another `kind`, and that kind's
-    // shape beside it.
-    reg.register_preset(
-        "soft_body3d",
-        balaur_core::presets::preset(
-            "A deformable block that squashes and springs back",
-            &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            &[(
-                c::SOFTBODY_3D,
-                Some("kind = \"box\"\nsoft_material = { cell_model = \"corotational\", shape_matching = \"on\" }"),
-            )],
-        )?,
-    );
-    reg.register_preset(
-        "cloth3d",
-        balaur_core::presets::preset(
-            "A sheet of cloth hanging from two corners",
-            &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            // 13 particles along each side, so 0 and 12 are the two ends of
-            // the sheet's first row.
-            &[
-                // Beside first, so the body is built once, with its shape.
-                (
-                    <softbody::SoftGrid3d as balaur_core::components::derived::Component>::NAME,
-                    Some("size = [2.0, 0.0, 2.0]\ncells = [12.0, 12.0, 1.0]"),
-                ),
-                (
-                    c::SOFTBODY_3D,
-                    Some("kind = \"cloth\"\nself_collision = true\npinned_particles = [0, 12]"),
-                ),
-            ],
-        )?,
-    );
-    reg.register_preset(
-        "rope3d",
-        balaur_core::presets::preset(
-            "A rope of linked particles, pinned at one end",
-            &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            &[
-                // Beside first, so the body is built once, with its shape.
-                (
-                    <softbody::SoftRope3d as balaur_core::components::derived::Component>::NAME,
-                    Some("particle_count = 24"),
-                ),
-                (
-                    c::SOFTBODY_3D,
-                    Some("kind = \"rope\"\npinned_particles = [0]"),
-                ),
-            ],
-        )?,
-    );
-    Ok(())
 }
 
 pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<scalar::Pose> {
@@ -1061,13 +978,12 @@ pub const SHAPE_MATCHING_MODES: &[(&str, &str)] = &[
     ("SHAPE_MATCHING_OFF", w::OFF),
 ];
 
-/// What a character's or a vehicle's sweep passes through.
-pub const IGNORES: &[(&str, &str)] = &[
-    ("IGNORE_STATIC", w::STATIC),
-    ("IGNORE_KINEMATIC", w::KINEMATIC),
-    ("IGNORE_DYNAMIC", w::DYNAMIC),
-    ("IGNORE_SENSORS", w::SENSORS),
-    ("IGNORE_SOLIDS", w::SOLIDS),
+/// The body kinds a query, a character's move or a vehicle's wheel rays pass
+/// through.
+pub const EXCLUDE_KINDS: &[(&str, &str)] = &[
+    ("EXCLUDE_STATIC", w::STATIC),
+    ("EXCLUDE_KINEMATIC", w::KINEMATIC),
+    ("EXCLUDE_DYNAMIC", w::DYNAMIC),
 ];
 
 /// Every table `physics3d` spells as constants.
@@ -1098,7 +1014,7 @@ pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
     ORIENTATIONS,
     SHAPE_MATCHING_MODES,
     TENSION_MODES,
-    IGNORES,
+    EXCLUDE_KINDS,
     FOLLOW_KINDS,
     COLLISION_BINDINGS,
 ];
@@ -1130,7 +1046,7 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     ORIENTATIONS,
     SHAPE_MATCHING_MODES,
     TENSION_MODES,
-    IGNORES,
+    EXCLUDE_KINDS,
     FOLLOW_KINDS,
     COLLISION_BINDINGS,
 ];

@@ -1,7 +1,7 @@
 use crate::Error;
 use crate::ast::{
-    Arm, BinOp, Block, EnumDecl, Expr, ExprKind, ExternDecl, Field, FnDecl, Param, Part, Pattern,
-    Pos, Program, Stmt, StmtKind, Ty, UnOp, Variant,
+    Arm, BinOp, Block, EnumDecl, EventDecl, Expr, ExprKind, ExternDecl, Field, FnDecl, Param, Part,
+    Pattern, Pos, Program, Stmt, StmtKind, Ty, UnOp, Variant,
 };
 use crate::vocabulary::words;
 
@@ -249,7 +249,28 @@ pub(crate) fn parse(src: &str) -> Result<Program, Error> {
     while p.peek() != &Tok::Eof {
         p.item(&mut prog)?;
     }
+    if !prog.events.is_empty() {
+        let lines: Vec<&str> = src.lines().collect();
+        for event in &mut prog.events {
+            event.doc = doc_above(&lines, event.pos.line);
+        }
+    }
     Ok(prog)
+}
+
+/// The `///` lines directly above 1-based `line`, as one line of text.
+fn doc_above(lines: &[&str], line: u32) -> String {
+    let mut doc = vec![];
+    let mut at = (line as usize).saturating_sub(1).min(lines.len());
+    while at > 0 {
+        let Some(text) = lines[at - 1].trim_start().strip_prefix("///") else {
+            break;
+        };
+        doc.push(text.trim());
+        at -= 1;
+    }
+    doc.reverse();
+    doc.join(" ")
 }
 
 /// One expression on its own: what an editor finds before a `.`.
@@ -329,7 +350,13 @@ impl Parser {
             prog.uses.push((name, pos));
             return Ok(());
         }
+        if self.starts_event() {
+            return self.event(prog);
+        }
         let (public, internal) = self.reach();
+        if self.starts_event() {
+            return self.fail("an `event` takes no `pub` or `internal`: any script may hear it");
+        }
         let keep = |prog: &mut Program, name: &str| {
             if !public {
                 prog.kept.push((name.to_string(), internal));
@@ -398,6 +425,29 @@ impl Parser {
             keep(prog, &f.name);
             prog.fns.push(f);
         }
+        Ok(())
+    }
+
+    // `event` is a word only here, where an item starts and a name follows:
+    // anywhere else it is a name like any other.
+    fn starts_event(&self) -> bool {
+        self.is_kw(words::parse::EVENT) && matches!(self.peek_at(1), Tok::Ident(_))
+    }
+
+    // `event scored;`.
+    fn event(&mut self, prog: &mut Program) -> Result<(), Error> {
+        self.i += 1;
+        let pos = self.pos();
+        let name = self.ident()?;
+        if prog.events.iter().any(|event| event.name == name) {
+            return err(pos, format!("event `{name}` is declared twice"));
+        }
+        self.want(";")?;
+        prog.events.push(EventDecl {
+            name,
+            doc: String::new(),
+            pos,
+        });
         Ok(())
     }
 

@@ -22,6 +22,53 @@ impl std::fmt::Debug for Modules {
     }
 }
 
+/// Which files are the editor's, by key, as the host judges them from where
+/// each sits ([`crate::Options::editor`]).
+#[derive(Clone)]
+pub struct EditorFiles(pub Rc<dyn Fn(&str) -> bool>);
+
+impl EditorFiles {
+    #[must_use]
+    pub fn holds(&self, key: &str) -> bool {
+        (self.0)(key)
+    }
+}
+
+impl std::fmt::Debug for EditorFiles {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("EditorFiles")
+    }
+}
+
+/// A `use` in `root`, the file at `from`, of a module that is the editor's
+/// when `from` is not: a game's runtime never runs the editor's files.
+pub(crate) fn no_editors_use(
+    root: &Program,
+    from: &str,
+    modules: Option<&Modules>,
+    editor: Option<&EditorFiles>,
+) -> Result<(), Error> {
+    let (Some(modules), Some(editor)) = (modules, editor) else {
+        return Ok(());
+    };
+    if root.uses.is_empty() || editor.holds(from) {
+        return Ok(());
+    }
+    for (path, pos) in &root.uses {
+        if let Some((key, _)) = (modules.0)(from, path)
+            && editor.holds(&key)
+        {
+            return Err(Error {
+                pos: *pos,
+                msg: format!(
+                    "`use {path};` reaches `{key}`, which is the editor's: a game's runtime does not run the editor's files, so only a file under `editor/` may use it"
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Each module file read for its declarations, and where each `use` led,
 /// kept across compiles: every unit reads the declarations of the modules it
 /// uses, and the scripts of a game use the same ones. What owns it says when
@@ -59,6 +106,15 @@ impl Parsed {
     /// A file that does not parse.
     pub fn declarations(&self, key: &str, source: &str) -> Result<u64, Error> {
         Ok(self.get(key, source)?.1)
+    }
+
+    /// The events `source`, the file at `key`, declares, in order.
+    ///
+    /// # Errors
+    /// A file that does not parse.
+    pub fn events(&self, key: &str, source: &str) -> Result<Vec<crate::Event>, Error> {
+        let (program, _) = self.get(key, source)?;
+        Ok(program.events.iter().map(crate::Event::from).collect())
     }
 
     /// What the file at `key` declared when last read, by hash, if it was.

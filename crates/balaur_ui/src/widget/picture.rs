@@ -48,13 +48,13 @@ pub(crate) fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     if widget.source.is_empty() {
         return;
     }
-    // A picture that names a handler is a button made of a picture: it senses
-    // the click and `settle_clicks` calls `on_click` as it does for any other.
+    // A picture whose click is heard is a button made of a picture: it
+    // senses the click, which `settle_clicks` says as it does any other.
     let entity = placed.entity;
-    let sense = if widget.on_click.is_empty() {
-        egui::Sense::hover()
-    } else {
+    let sense = if widget.hears_click {
         egui::Sense::click()
+    } else {
+        egui::Sense::hover()
     };
     let ctx = ui.ctx().clone();
     let texture = match crate::images::texture_of(at.eng, &ctx, &widget.source) {

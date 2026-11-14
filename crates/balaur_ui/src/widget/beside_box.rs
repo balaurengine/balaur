@@ -90,10 +90,6 @@ impl Beside for WidgetBox {
         true
     }
 
-    fn brought_by(_: &str) -> bool {
-        false
-    }
-
     puts! { held, widget;
         box_sizing => widget.layout.box_sizing = held.box_sizing.0.clone();
         overflow => widget.layout.overflow = held.overflow.0.clone();
@@ -187,10 +183,6 @@ impl Beside for WidgetChild {
         true
     }
 
-    fn brought_by(_: &str) -> bool {
-        false
-    }
-
     /// A line or a span that does not read.
     fn check(&self) -> Result<()> {
         grid::check_placement(Self::NAME, crate::vocabulary::keys::ROW, &self.row)?;
@@ -209,7 +201,7 @@ impl Beside for WidgetChild {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_fold")]
 pub(crate) struct WidgetFold {
-    /// Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state
+    /// Whether a `fold` shows its children; its header flips it and announces `value_changed` with the new state
     #[property(default = true)]
     pub(crate) open: bool,
 }
@@ -228,7 +220,7 @@ impl Beside for WidgetFold {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_tabs")]
 pub(crate) struct WidgetTabs {
-    /// Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page's name
+    /// Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and announces `value_changed` with the page's name
     pub(crate) current_page: SmolStr,
 }
 

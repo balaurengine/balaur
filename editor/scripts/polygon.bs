@@ -253,8 +253,8 @@ fn texture_size(state: &mut editor::State) -> Size? {
     }
     let size = render::texture_size(state.game_root + "/" + texture);
     let found: Size? = nil;
-    if size.len() == 2 {
-        found = Size { width: size[0] as float, height: size[1] as float };
+    if size.x > 0.0 && size.y > 0.0 {
+        found = Size { width: size.x, height: size.y };
     } else {
         log::warn("texture {texture}: no size");
     }
@@ -908,16 +908,16 @@ fn pick(state: &mut editor::State, mesh: any, node_frame: util::Frame, world_x: 
 }
 
 fn line(from: [float], to: [float], color: [float]) {
-    render::draw_line_2d(from[0], from[1], to[0], to[1], color[0], color[1], color[2], LINE_WIDTH);
+    render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), LINE_WIDTH);
 }
 
 fn marker(state: editor::State, world_x: float, world_y: float, color: [float], filled: bool) {
     let half = MARK_PIXELS * viewport::world_per_pixel();
     let width = if filled { 2.0 * MARK_PIXELS } else { LINE_WIDTH };
-    render::draw_line_2d(world_x - half, world_y - half, world_x + half, world_y - half, color[0], color[1], color[2], width);
-    render::draw_line_2d(world_x + half, world_y - half, world_x + half, world_y + half, color[0], color[1], color[2], width);
-    render::draw_line_2d(world_x + half, world_y + half, world_x - half, world_y + half, color[0], color[1], color[2], width);
-    render::draw_line_2d(world_x - half, world_y + half, world_x - half, world_y - half, color[0], color[1], color[2], width);
+    render::draw_line_2d(vec2(world_x - half, world_y - half), vec2(world_x + half, world_y - half), util::as_color(color), width);
+    render::draw_line_2d(vec2(world_x + half, world_y - half), vec2(world_x + half, world_y + half), util::as_color(color), width);
+    render::draw_line_2d(vec2(world_x + half, world_y + half), vec2(world_x - half, world_y + half), util::as_color(color), width);
+    render::draw_line_2d(vec2(world_x - half, world_y + half), vec2(world_x - half, world_y - half), util::as_color(color), width);
 }
 
 pub fn draw(state: &mut editor::State) {

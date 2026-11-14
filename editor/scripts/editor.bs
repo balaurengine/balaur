@@ -302,7 +302,7 @@ pub class State {
 /// The 3D light and camera marks, and what they were drawn for.
 pub struct Overlay3d {
     internal key: [any],
-    internal lines: [float],
+    internal lines: [render::Line3d],
 }
 
 /// The viewport's rect in design pixels, and the frame it was read on.
@@ -858,7 +858,7 @@ fn widget_layer(state: State) {
     // Inset by the strip the axis and zoom pills own, so a bottom-anchored
     // HUD label sits above the editor's chrome instead of under it.
     let band = if widgets_on { center::hud_height(state) + 6.0 } else { 0.0 };
-    ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.width, util::max(0.0, rect.height - band));
+    ui::set_widget_layer(widgets_on, vec2(rect.x, rect.y), vec2(rect.width, util::max(0.0, rect.height - band)));
 }
 
 /// What the layout is decided from besides the boxes themselves, so a word
@@ -1580,7 +1580,7 @@ impl Editor {
 
     /// An image pasted where no field took it is a sprite at the pointer, as
     /// a dropped one is.
-    pub fn on_pasted_image(_size: any) {
+    pub fn on_image_pasted(_size: any) {
         dropin::paste_image(self.state);
     }
 
@@ -1595,10 +1595,15 @@ impl Editor {
         commands::keys_view(self.state)
     }
 
-    /// A script stopped, stopped somewhere else or went on: the engine's word,
-    /// where the editor used to ask it every frame.
+    /// A script stopped, or stopped somewhere else: the engine's word, where
+    /// the editor used to ask it every frame.
     pub fn on_debugger_stopped(stop: any) {
         shell::stopped(self.state, stop);
+    }
+
+    /// The stopped script went on.
+    pub fn on_debugger_resumed(_nothing: any) {
+        shell::stopped(self.state);
     }
 
     /// The Assets panel's cards and strip for a search, a card picked, and its

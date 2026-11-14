@@ -63,7 +63,7 @@ What a script sees of a pad is the engine's to define, so a second backend
 reports changes and holds two motor levels. Every rule below is enforced in
 `gamepad.rs`, `pad_thread.rs` and `rumble.rs`. The unit tests beside them and
 `crates/balaur/tests/suite/gamepad.rs` check each one through
-`input.feed_gamepad` or `GamepadState::feed`, the path a backend's changes
+`input.set_gamepad` or `GamepadState::feed`, the path a backend's changes
 take, and never through gilrs.
 
 - **Ids are player slots.** A pad takes the lowest free slot last held by the
@@ -171,8 +171,8 @@ planned" is a decision, not an oversight.
 
 | Thing | Verdict |
 | --- | --- |
-| Feeding a pad: buttons, axes, power, identity, motion, touch | Have: `input.feed_gamepad`, through the same path a backend's changes take |
-| A fed key, click or finger is the next frame's | Have. `input.feed_*` queues the event and the frame delivers it when it begins, headless or windowed, so a hook dispatched at the top of a tick sees it as it would an OS event |
+| Feeding a pad: buttons, axes, power, identity, motion, touch | Have: `input.set_gamepad`, through the same path a backend's changes take |
+| A fed key, click or finger is the next frame's | Have. `input.set_*` queues the event and the frame delivers it when it begins, headless or windowed, so a hook dispatched at the top of a tick sees it as it would an OS event |
 | Sensor decode asserted against captured reports | Step 1. Synthetic fixtures today; the ones worth having come off real hardware — see §4 |
 
 ## 3. Steps

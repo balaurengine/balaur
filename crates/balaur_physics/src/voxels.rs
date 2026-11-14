@@ -13,15 +13,15 @@ use crate::vocabulary::words;
 
 pub(crate) fn install_voxel_edit_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (words::functions::SET_VOXEL_SIZE, &[c::COLLIDER_3D], "", "Resize every cell of a voxel collider, keeping which cells are filled."),
+        (words::functions::SET_VOXEL_SIZE, &[c::COLLIDER_3D], "(node: node, size: Vec3)", "Resize every cell of a voxel collider, keeping which cells are filled."),
         (words::functions::VOXEL_SIZE, &[c::COLLIDER_3D], "(node: node) -> Vec3", "How big one cell of a voxel collider is, along each axis."),
         (words::functions::CROP_VOXELS, &[c::COLLIDER_3D], "", "Empty every cell outside the cells from `(min_x, min_y, min_z)` to `(max_x, max_y, max_z)`, both included. A range holding no filled cell leaves the grid as it was."),
         (words::functions::COMBINE_VOXELS, &[c::COLLIDER_3D], "", "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation."),
     ]);
     m.function(
         words::functions::SET_VOXEL_SIZE,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
-            let size = scalar::v3(x.max(0.001), y.max(0.001), z.max(0.001));
+        |eng: &Engine, (node, size): (NodeId, balaur_script::Value)| {
+            let size = scalar::vec3_arg("a voxel size", &size)?.max(scalar::Vector::splat(0.001));
             with_voxels(eng, node, |voxels| voxels.set_voxel_size(size))
         },
     );

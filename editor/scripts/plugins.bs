@@ -70,12 +70,21 @@ const HOST: str = "Editor/Plugins";
 /// Where a plugin lives: the editor's own, on for every project; the game's;
 /// and each addon's `editor/`, on while the game carries that addon.
 fn roots(state: editor::State) -> [str] {
-    // With no project open there is only the editor's own directory: a
-    // relative path off an empty root is a path outside every root there is.
-    if state.game_root == "" {
-        return [PLUGINS];
+    let found = [PLUGINS];
+    for root in game_roots(state) {
+        found.push(root);
     }
-    let found = [PLUGINS, state.game_root + "/editor"];
+    found
+}
+
+/// The folders a game adds to the editor from: its own `editor/` and each of
+/// its addons'. None with no project open.
+internal fn game_roots(state: editor::State) -> [str] {
+    // A relative path off an empty root is a path outside every root there is.
+    if state.game_root == "" {
+        return [];
+    }
+    let found = [state.game_root + "/editor"];
     let addons = state.game_root + "/addons";
     for entry in util::list_or_empty(fs::list(addons)) {
         if entry[project_fields::IS_DIR].as_bool() {

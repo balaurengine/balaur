@@ -538,7 +538,7 @@ fn a_normal_mapped_shape_takes_its_shading_from_its_material_and_a_light_its_hei
         &app,
         sprite,
         "shape2d",
-        "material = { params = { normal = \"art/bumps_n.png\", specular_strength = 0.5, shininess = 32.0 } }",
+        "material = { params = { normal = \"art/bumps_n.png\", specular_strength = 0.5, specular_shininess = 32.0, normal_scale = 0.5 } }",
     );
     let table = components::get(&app.engine, sprite, "shape2d").unwrap();
     let named = table["material"].as_str().unwrap();
@@ -555,8 +555,8 @@ fn a_normal_mapped_shape_takes_its_shading_from_its_material_and_a_light_its_hei
         builtin.maps
     );
     assert!((builtin.specular_strength - 0.5).abs() < 1e-6);
-    assert!((builtin.shininess - 32.0).abs() < 1e-6);
-    assert!((builtin.normal_strength - 1.0).abs() < 1e-6);
+    assert!((builtin.specular_shininess - 32.0).abs() < 1e-6);
+    assert!((builtin.normal_scale - 0.5).abs() < 1e-6);
 
     let lamp = node(&app);
     add(&app, lamp, "light2d", "height = 0.4");

@@ -25,9 +25,9 @@ pub(crate) fn install_softbody_api(m: &mut Module<Engine>) {
         "Everything one bending hinge holds, angles in radians; `plastic_set` is how far its rest angle has flowed from the one it was built with.",
     )]);
     m.describe(&[
-        (SOFTBODY_VOLUME, &[c::SOFTBODY_3D], "", "How much space the body and every piece torn off it enclose right now, against `softbody_rest_volume` for how far it is squeezed."),
+        (SOFTBODY_VOLUME, &[c::SOFTBODY_3D], "", "How much space the body and every piece torn off it enclose right now, against `rest_volume` for how far it is squeezed."),
         (SOFTBODY_REST_VOLUME, &[c::SOFTBODY_3D], "", "How much they enclose at rest."),
-        (words::functions::SOFTBODY_CENTER, &[c::SOFTBODY_3D], "(node: node) -> Vec3", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
+        (words::functions::SOFTBODY_WORLD_CENTER_OF_MASS, &[c::SOFTBODY_3D], "(node: node) -> Vec3", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
         (SOFTBODY_DIHEDRALS, &[c::SOFTBODY_3D], "(node: node) -> [[int]]", "Every bending hinge between two surface triangles, as four particle indices: the shared edge, then the two opposite particles."),
         (SOFTBODY_DIHEDRAL, &[c::SOFTBODY_3D], "(node: node, index: int) -> SoftDihedral", "Everything one hinge holds."),
     ]);
@@ -42,7 +42,7 @@ pub(crate) fn install_softbody_api(m: &mut Module<Engine>) {
         })
     });
     m.function(
-        words::functions::SOFTBODY_CENTER,
+        words::functions::SOFTBODY_WORLD_CENTER_OF_MASS,
         |eng: &Engine, node: NodeId| {
             with_family(eng, node, |bodies| {
                 let mass: Real = bodies.iter().map(|(b, _)| b.mass()).sum();

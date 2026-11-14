@@ -109,7 +109,7 @@ fn handle_signs() -> [[float]] {
 }
 
 fn line(from: [float], to: [float], color: [float], width: float?) {
-    render::draw_line_2d(from[0], from[1], to[0], to[1], color[0], color[1], color[2], width);
+    render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), width);
 }
 
 // A box's own frame: its centre, turned with it, unscaled.

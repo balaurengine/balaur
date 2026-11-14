@@ -295,19 +295,19 @@ pub(crate) fn install_body_api(m: &mut Module<Engine>) {
         (
             words::functions::APPLY_IMPULSE,
             &[c::BODY_3D],
-            "",
+            "(node: node, impulse: Vec3)",
             "Add an instant change in momentum, as if the body were struck.",
         ),
         (
             words::functions::APPLY_IMPULSE_AT_POINT,
             &[c::BODY_3D],
-            "",
+            "(node: node, impulse: Vec3, point: Vec3)",
             "Strike the body at a world point, which spins it as well as moves it.",
         ),
         (
             words::functions::APPLY_TORQUE_IMPULSE,
             &[c::BODY_3D],
-            "",
+            "(node: node, impulse: Vec3)",
             "Add an instant change in angular momentum, as if the body were spun.",
         ),
     ]);
@@ -316,29 +316,30 @@ pub(crate) fn install_body_api(m: &mut Module<Engine>) {
     // vocabulary covers scripts and scene files, as `physics2d` does.
     m.function(
         words::functions::APPLY_IMPULSE,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, impulse): (NodeId, balaur_script::Value)| {
+            let impulse = scalar::vec3_arg("an impulse", &impulse)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_impulse(scalar::v3(x, y, z), true);
+                state.world.bodies[handle].apply_impulse(impulse, true);
             })
         },
     );
     m.function(
         words::functions::APPLY_IMPULSE_AT_POINT,
-        |eng: &Engine, (node, x, y, z, px, py, pz): (NodeId, f32, f32, f32, f32, f32, f32)| {
+        |eng: &Engine,
+         (node, impulse, point): (NodeId, balaur_script::Value, balaur_script::Value)| {
+            let impulse = scalar::vec3_arg("an impulse", &impulse)?;
+            let point = scalar::vec3_arg("a point", &point)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_impulse_at_point(
-                    scalar::v3(x, y, z),
-                    scalar::v3(px, py, pz),
-                    true,
-                );
+                state.world.bodies[handle].apply_impulse_at_point(impulse, point, true);
             })
         },
     );
     m.function(
         words::functions::APPLY_TORQUE_IMPULSE,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, impulse): (NodeId, balaur_script::Value)| {
+            let impulse = scalar::vec3_arg("a torque impulse", &impulse)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_torque_impulse(scalar::v3(x, y, z), true);
+                state.world.bodies[handle].apply_torque_impulse(impulse, true);
             })
         },
     );
@@ -360,48 +361,49 @@ fn install_step_force_api(m: &mut Module<Engine>) {
         (
             words::functions::APPLY_FORCE,
             &[c::BODY_3D],
-            "",
+            "(node: node, force: Vec3)",
             "Push the body for the next step only; `add_constant_force` keeps pushing.",
         ),
         (
             words::functions::APPLY_FORCE_AT_POINT,
             &[c::BODY_3D],
-            "",
+            "(node: node, force: Vec3, point: Vec3)",
             "Push at a world point for the next step only, which also turns the body.",
         ),
         (
             words::functions::APPLY_TORQUE,
             &[c::BODY_3D],
-            "",
+            "(node: node, torque: Vec3)",
             "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
         ),
     ]);
     let dt = || balaur_core::fixed_dt();
     m.function(
         words::functions::APPLY_FORCE,
-        move |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        move |eng: &Engine, (node, force): (NodeId, balaur_script::Value)| {
+            let force = scalar::vec3_arg("a force", &force)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_impulse(scalar::v3(x, y, z) * dt(), true);
+                state.world.bodies[handle].apply_impulse(force * dt(), true);
             })
         },
     );
     m.function(
         words::functions::APPLY_FORCE_AT_POINT,
-        move |eng: &Engine, (node, x, y, z, px, py, pz): (NodeId, f32, f32, f32, f32, f32, f32)| {
+        move |eng: &Engine,
+              (node, force, point): (NodeId, balaur_script::Value, balaur_script::Value)| {
+            let force = scalar::vec3_arg("a force", &force)?;
+            let point = scalar::vec3_arg("a point", &point)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_impulse_at_point(
-                    scalar::v3(x, y, z) * dt(),
-                    scalar::v3(px, py, pz),
-                    true,
-                );
+                state.world.bodies[handle].apply_impulse_at_point(force * dt(), point, true);
             })
         },
     );
     m.function(
         words::functions::APPLY_TORQUE,
-        move |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        move |eng: &Engine, (node, torque): (NodeId, balaur_script::Value)| {
+            let torque = scalar::vec3_arg("a torque", &torque)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_torque_impulse(scalar::v3(x, y, z) * dt(), true);
+                state.world.bodies[handle].apply_torque_impulse(torque * dt(), true);
             })
         },
     );
@@ -413,31 +415,31 @@ pub(crate) fn install_force_api(m: &mut Module<Engine>) {
         (
             words::functions::ADD_CONSTANT_FORCE,
             &[c::BODY_3D],
-            "",
+            "(node: node, force: Vec3)",
             "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
         ),
         (
             words::functions::ADD_CONSTANT_FORCE_AT_POINT,
             &[c::BODY_3D],
-            "",
+            "(node: node, force: Vec3, point: Vec3)",
             "Push at a world point every step, which also turns the body.",
         ),
         (
             words::functions::ADD_CONSTANT_TORQUE,
             &[c::BODY_3D],
-            "",
+            "(node: node, torque: Vec3)",
             "Turn the body every step until the constant torque is set back to zero.",
         ),
         (
             words::functions::SET_CONSTANT_FORCE,
             &[c::BODY_3D],
-            "",
+            "(node: node, force: Vec3)",
             "Replace the constant force with this one; zero stops the push.",
         ),
         (
             words::functions::SET_CONSTANT_TORQUE,
             &[c::BODY_3D],
-            "",
+            "(node: node, torque: Vec3)",
             "Replace the constant torque with this one; zero stops the turn.",
         ),
         (
@@ -455,7 +457,7 @@ pub(crate) fn install_force_api(m: &mut Module<Engine>) {
         (
             words::functions::SET_GRAVITY,
             &[],
-            "",
+            "(gravity: Vec3)",
             "Set the 3D world's gravity, in units per second squared.",
         ),
         (
@@ -467,29 +469,30 @@ pub(crate) fn install_force_api(m: &mut Module<Engine>) {
     ]);
     m.function(
         words::functions::ADD_CONSTANT_FORCE,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, force): (NodeId, balaur_script::Value)| {
+            let force = scalar::vec3_arg("a force", &force)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].add_force(scalar::v3(x, y, z), true);
+                state.world.bodies[handle].add_force(force, true);
             })
         },
     );
     m.function(
         words::functions::ADD_CONSTANT_FORCE_AT_POINT,
-        |eng: &Engine, (node, x, y, z, px, py, pz): (NodeId, f32, f32, f32, f32, f32, f32)| {
+        |eng: &Engine,
+         (node, force, point): (NodeId, balaur_script::Value, balaur_script::Value)| {
+            let force = scalar::vec3_arg("a force", &force)?;
+            let point = scalar::vec3_arg("a point", &point)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].add_force_at_point(
-                    scalar::v3(x, y, z),
-                    scalar::v3(px, py, pz),
-                    true,
-                );
+                state.world.bodies[handle].add_force_at_point(force, point, true);
             })
         },
     );
     m.function(
         words::functions::ADD_CONSTANT_TORQUE,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, torque): (NodeId, balaur_script::Value)| {
+            let torque = scalar::vec3_arg("a torque", &torque)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].add_torque(scalar::v3(x, y, z), true);
+                state.world.bodies[handle].add_torque(torque, true);
             })
         },
     );
@@ -505,21 +508,23 @@ pub(crate) fn install_force_reader_api(m: &mut Module<Engine>) {
     ]);
     m.function(
         words::functions::SET_CONSTANT_FORCE,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, force): (NodeId, balaur_script::Value)| {
+            let force = scalar::vec3_arg("a force", &force)?;
             with_body(eng, entity_of(node)?, |state, handle| {
                 let body = &mut state.world.bodies[handle];
                 body.reset_forces(true);
-                body.add_force(scalar::v3(x, y, z), true);
+                body.add_force(force, true);
             })
         },
     );
     m.function(
         words::functions::SET_CONSTANT_TORQUE,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, torque): (NodeId, balaur_script::Value)| {
+            let torque = scalar::vec3_arg("a torque", &torque)?;
             with_body(eng, entity_of(node)?, |state, handle| {
                 let body = &mut state.world.bodies[handle];
                 body.reset_torques(true);
-                body.add_torque(scalar::v3(x, y, z), true);
+                body.add_torque(torque, true);
             })
         },
     );
@@ -543,9 +548,10 @@ pub(crate) fn install_force_reader_api(m: &mut Module<Engine>) {
     );
     m.function(
         words::functions::SET_GRAVITY,
-        |eng: &Engine, (x, y, z): (f32, f32, f32)| {
+        |eng: &Engine, gravity: balaur_script::Value| {
+            let gravity = scalar::vec3_arg("the world's gravity", &gravity)?;
             let state = eng.resource::<PhysicsState3d>();
-            state.borrow_mut().world.gravity = scalar::v3(x, y, z);
+            state.borrow_mut().world.gravity = gravity;
             Ok(())
         },
     );
@@ -571,7 +577,7 @@ pub(crate) fn install_body_state_api(m: &mut Module<Engine>) {
         (
             words::functions::SET_LINEAR_VELOCITY,
             &[c::BODY_3D],
-            "",
+            "(node: node, velocity: Vec3)",
             "Set how fast the body travels, in units per second.",
         ),
         (
@@ -583,7 +589,7 @@ pub(crate) fn install_body_state_api(m: &mut Module<Engine>) {
         (
             words::functions::SET_ANGULAR_VELOCITY,
             &[c::BODY_3D],
-            "",
+            "(node: node, velocity: Vec3)",
             "Set how fast the body spins, in radians per second about each axis.",
         ),
         (
@@ -595,7 +601,7 @@ pub(crate) fn install_body_state_api(m: &mut Module<Engine>) {
         (
             words::functions::VELOCITY_AT_POINT,
             &[c::BODY_3D],
-            "",
+            "(node: node, point: Vec3) -> Vec3",
             "How fast a world point on the body is moving, spin included.",
         ),
         (
@@ -613,9 +619,10 @@ pub(crate) fn install_body_state_api(m: &mut Module<Engine>) {
     ]);
     m.function(
         words::functions::SET_LINEAR_VELOCITY,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, velocity): (NodeId, balaur_script::Value)| {
+            let velocity = scalar::vec3_arg("a linear velocity", &velocity)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].set_linvel(scalar::v3(x, y, z), true);
+                state.world.bodies[handle].set_linvel(velocity, true);
             })
         },
     );
@@ -630,9 +637,10 @@ pub(crate) fn install_body_state_api(m: &mut Module<Engine>) {
     );
     m.function(
         words::functions::SET_ANGULAR_VELOCITY,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, velocity): (NodeId, balaur_script::Value)| {
+            let velocity = scalar::vec3_arg("an angular velocity", &velocity)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].set_angvel(scalar::v3(x, y, z), true);
+                state.world.bodies[handle].set_angvel(velocity, true);
             })
         },
     );
@@ -647,9 +655,10 @@ pub(crate) fn install_body_state_api(m: &mut Module<Engine>) {
     );
     m.function(
         words::functions::VELOCITY_AT_POINT,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, point): (NodeId, balaur_script::Value)| {
+            let point = scalar::vec3_arg("a point", &point)?;
             read_body(eng, entity_of(node)?, |body| {
-                let v = body.velocity_at_point(scalar::v3(x, y, z));
+                let v = body.velocity_at_point(point);
                 (v.x, v.y, v.z)
             })
         },
@@ -718,7 +727,7 @@ fn pose_value(pose: &scalar::Pose) -> balaur_script::Value {
 /// Split from [`install_body_state_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (words::functions::TELEPORT, &[c::BODY_3D], "(node: node, x: float, y: float, z: float, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians."),
+        (words::functions::TELEPORT, &[c::BODY_3D], "(node: node, position: Vec3, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians."),
         (words::functions::PREDICT_POSITION, &[c::BODY_3D], "(node: node, dt: float) -> Pose", "Where the body will be after `dt` seconds at its current velocity."),
         (words::functions::PREDICT_POSITION_WITH_FORCES, &[c::BODY_3D], "(node: node, dt: float) -> Pose", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
         (words::functions::NEXT_POSITION, &[c::BODY_3D], "(node: node) -> Pose", "The pose a kinematic body has been told to move to."),
@@ -738,7 +747,8 @@ pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
     m.function(
         words::functions::TELEPORT,
         |eng: &Engine,
-         (node, x, y, z, opts): (NodeId, f32, f32, f32, Option<balaur_script::Value>)| {
+         (node, position, opts): (NodeId, balaur_script::Value, Option<balaur_script::Value>)| {
+            let position = scalar::vec3_arg("a position", &position)?;
             let entity = entity_of(node)?;
             let opts = crate::vocabulary::Opts(opts.as_ref());
             let turn = opts
@@ -746,7 +756,7 @@ pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
                 .map(|_| opts.vec3(k::ROTATION, [0.0; 3]));
             with_body(eng, entity, |state, handle| {
                 let body = &mut state.world.bodies[handle];
-                body.set_translation(scalar::v3(x, y, z), true);
+                body.set_translation(position, true);
                 if let Some(turn) = turn {
                     body.set_rotation(rotation_from_euler(turn), true);
                 }

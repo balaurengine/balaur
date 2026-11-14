@@ -8,6 +8,7 @@ mod debugger;
 mod determinism;
 mod direct;
 mod engine_api;
+mod events;
 mod fnrefs;
 mod format;
 #[cfg(all(feature = "c", feature = "native"))]

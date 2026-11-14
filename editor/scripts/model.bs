@@ -9,8 +9,10 @@ use editor;
 use history;
 use icons;
 use inspector;
+use presets;
 use rig;
 use selection;
+use shell;
 use signals;
 use util;
 use words::changes;
@@ -454,6 +456,22 @@ pub fn nodes_are_2d(nodes: [Node]) -> bool {
     flat > deep
 }
 
+/// Whether `nodes` are an interface: widgets, and nothing of the 2D or the
+/// 3D world beside them.
+pub fn nodes_are_interface(nodes: [Node]) -> bool {
+    let widgets = 0;
+    for found in nodes {
+        let kind = facet(found);
+        if kind == DIM_2D || kind == DIM_3D {
+            return false;
+        }
+        if kind == UI {
+            widgets += 1;
+        }
+    }
+    widgets > 0
+}
+
 pub const DIM_2D: str = "2d";
 
 pub const DIM_3D: str = "3d";
@@ -610,6 +628,10 @@ pub fn open_scene(state: &mut editor::State, rel: str) {
     build(state, text);
     selection::only(state, 0);
     history::reset(state);
+    // The Scene workspace draws the world, and an interface has none.
+    if state.workspace == defs::WORKSPACE_SCENE && nodes_are_interface(state.nodes) {
+        shell::set_workspace(state, defs::WORKSPACE_UI);
+    }
     log::info("opened " + rel);
 }
 
@@ -666,6 +688,9 @@ pub fn relative_file(state: editor::State, value: any) -> any {
 /// game looks through.
 pub const CAMERA_3D: str = "camera3d";
 
+// The nearest a `camera3d` takes its focus.
+const NEAREST_FOCUS: float = 0.001;
+
 pub const CAMERA_2D: str = "camera2d";
 
 pub const CAMERA_CURRENT: str = "current";
@@ -693,8 +718,8 @@ fn view_3d() -> Node {
         return found;
     }
     let made = root.add_child(VIEW_3D);
-    made.transform.position = vec3(8.0, 5.0, 12.0);
-    made.set_component(CAMERA_3D, { animation::MODIFIER_LOOK_AT: [0.0, 1.0, 0.0] });
+    made.set_component(CAMERA_3D);
+    aim_3d(made, vec3(8.0, 5.0, 12.0), vec3(0.0, 1.0, 0.0));
     made
 }
 
@@ -709,11 +734,20 @@ fn view_2d() -> Node {
     made
 }
 
+/// Stand a view at `eye` facing `target`, focused there: `render::camera_pose`
+/// answers `target` back, which is the point the viewport orbits.
+fn aim_3d(view: Node, eye: Vec3, target: Vec3) {
+    let x = target.x - eye.x;
+    let y = target.y - eye.y;
+    let z = target.z - eye.z;
+    view.transform.position = eye;
+    view.transform.look_at(target);
+    view.camera3d.focus_distance = util::max(math::sqrt(x * x + y * y + z * z), NEAREST_FOCUS);
+}
+
 /// Point the editor's 3D view: the eye, then the world point it looks at.
 pub fn set_view_3d(eye_x: float, eye_y: float, eye_z: float, target_x: float, target_y: float, target_z: float) {
-    let view = view_3d();
-    view.transform.position = vec3(eye_x, eye_y, eye_z);
-    view.camera3d.look_at = vec3(target_x, target_y, target_z);
+    aim_3d(view_3d(), vec3(eye_x, eye_y, eye_z), vec3(target_x, target_y, target_z));
 }
 
 /// Point the editor's 2D view: the world centre, then the zoom in logical
@@ -1221,8 +1255,9 @@ pub fn add_child(state: &mut editor::State, kind: str?) {
     history::record(state, "add {name}");
     let made = spawn(state, parent, name, { TRANSFORM: { inspector_fields::POSITION: landing(state, parent) } });
     if kind != nil {
-        if util::contains(scene::presets(), kind.unwrap()) {
-            scene::apply_preset(made, kind.unwrap());
+        let preset = presets::find(state, kind.unwrap());
+        if preset != nil {
+            presets::build(made, preset.unwrap());
         } else {
             made.set_component(kind.unwrap());
         }
@@ -1244,10 +1279,10 @@ pub fn kind_name(kind: str) -> str {
 pub fn view_centre(state: editor::State) -> [float] {
     if is_2d(state) {
         let camera = render::camera_2d();
-        return [camera.x, camera.y, 0.0];
+        return [camera.center.x, camera.center.y, 0.0];
     }
     let pose = render::camera_pose();
-    [pose[3], pose[4], pose[5]]
+    [pose.target.x, pose.target.y, pose.target.z]
 }
 
 // Where a node added under `parent` lands, in the parent's space: where the
@@ -1638,7 +1673,7 @@ fn restore_keys(found: Node, was: any) {
     let tint = util::list_or_empty(was["tint"]);
     let now = found.tint();
     if tint.len() == 4 && (now.r != tint[0].as_float() || now.g != tint[1].as_float() || now.b != tint[2].as_float() || now.a != tint[3].as_float()) {
-        found.set_tint(tint[0].as_float(), tint[1].as_float(), tint[2].as_float(), tint[3].as_float());
+        found.set_tint(color(tint[0].as_float(), tint[1].as_float(), tint[2].as_float(), tint[3].as_float()));
     }
     if found.z_index() != was[Z_INDEX].as_int() {
         found.set_z_index(was[Z_INDEX].as_int(), was["z_as_relative"].as_bool());

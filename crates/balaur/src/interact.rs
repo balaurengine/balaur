@@ -48,6 +48,18 @@ pub(crate) const POINTER_GESTURED: &str = "pointer_gestured";
 /// frame. Only while someone listens.
 pub(crate) const FILES_DROPPED: &str = "files_dropped";
 
+/// What this module says from no node, for `events::declare`: each one's
+/// payload, and when it is said.
+#[rustfmt::skip]
+const SAID: &[balaur_core::events::Said] = &[
+    (POINTER_MOVED, "where the pointer is in window pixels, `[x, y]`", "The pointer moved."),
+    (POINTER_PRESSED, "`{ button, x, y }`", "A button went down anywhere, the UI included."),
+    (POINTER_RELEASED, "`{ button, x, y }`", "A button came up anywhere, the UI included."),
+    (POINTER_SCROLLED, "the turn, `[x, y]`", "The wheel turned."),
+    (POINTER_GESTURED, "`{ scale, x, y, pan_x, pan_y }`, `scale` zero for a pan alone", "Two fingers pinched or panned."),
+    (FILES_DROPPED, "the files' paths, as a list", "Files were dropped on the window."),
+];
+
 /// Say where the pointer went and which buttons moved, from no node, to
 /// whoever listens.
 fn say_pointer(eng: &Engine, state: &mut Pointer, at: (f32, f32), buttons: &[(bool, bool)]) {
@@ -109,8 +121,9 @@ fn say_motion(eng: &Engine, scroll: (f32, f32)) {
     balaur_core::events::emit(eng, POINTER_GESTURED, report);
 }
 
-/// Send one hook to a node: its bindings, then its script. True when the
-/// script answered `true`: the node has handled the event.
+/// Send one hook to a node: its bindings, then its script, each handed the
+/// hook's values and then the node. True when the script answered `true`:
+/// the node has handled the event.
 ///
 /// Bindings first, so a node carrying both sees the world the table left, and
 /// a script that wants to run first simply does not use a binding.
@@ -121,7 +134,8 @@ fn dispatch(eng: &Engine, entity: Entity, event: &str, args: &[Value]) -> bool {
     };
     let node = node_id_of(entity);
     let hook = hooks::hook_of(event);
-    host.has_method(node, &hook) && handled(host.call_on(node, &hook, args))
+    host.has_method(node, &hook)
+        && handled(host.call_on(node, &hook, &bindings::with_source(args, entity)))
 }
 
 fn handled(answer: Option<Value>) -> bool {
@@ -148,7 +162,9 @@ fn broadcast(eng: &Engine, event: &str, args: &[Value], skip: Option<Entity>) {
             continue;
         };
         let node = node_id_of(entity);
-        if host.has_method(node, &hook) && handled(host.call_on(node, &hook, args)) {
+        if host.has_method(node, &hook)
+            && handled(host.call_on(node, &hook, &bindings::with_source(args, entity)))
+        {
             return;
         }
     }
@@ -257,11 +273,12 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         under_pointer(eng)
     };
     if over != state.over {
+        // Nil where a widget's own enter and exit carry nil: one shape.
         if let Some(was) = state.over {
-            dispatch(eng, was, hooks::POINTER_EXIT, &[]);
+            dispatch(eng, was, hooks::POINTER_EXIT, &[Value::Nil]);
         }
         if let Some(now) = over {
-            dispatch(eng, now, hooks::POINTER_ENTER, &[]);
+            dispatch(eng, now, hooks::POINTER_ENTER, &[Value::Nil]);
         }
         state.over = over;
     }
@@ -348,7 +365,7 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
             )
         };
         for name in fired {
-            broadcast(eng, hooks::ACTION, &[Value::text(name)], None);
+            broadcast(eng, hooks::ACTION_PRESSED, &[Value::text(name)], None);
         }
         for name in let_go {
             broadcast(eng, hooks::ACTION_RELEASED, &[Value::text(name)], None);
@@ -444,6 +461,7 @@ fn text_of(value: &Value) -> String {
 /// At `First`, after input has been pumped and before scripts update, so a
 /// hook and the tick's own `update` see the same world.
 pub(crate) fn install(app: &mut balaur_core::App) {
+    balaur_core::events::declare(&app.engine, SAID);
     fill_action_runners(app);
     let mut state = Pointer::default();
     app.add_system(Stage::First, move |eng: &Engine, _| {

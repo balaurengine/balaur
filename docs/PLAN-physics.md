@@ -77,7 +77,7 @@ place, and `pin_particle` doing it from a script.
 A threshold that, once an element gives, breaks it mid-step. **Done:**
 `tear_strain` and `tear_force` on the component, with `tear_smoothing`,
 `interior_strength`, `max_tears_per_step` and `min_piece` shaping how a crack
-runs, and the node's `on_tear` hearing about it. The topology version is in the
+runs, and the node's `on_torn` hearing about it. The topology version is in the
 digest, so two machines that tore differently are caught on the step they did.
 
 ### Fluids

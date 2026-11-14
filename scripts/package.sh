@@ -136,8 +136,10 @@ step "the editor's scripts as native code"
 # Built as a game's are (docs/PLAN-balaur-script.md §7a); opened beside the binary.
 native="$dist/.editor-native"
 rm -rf "$native"
-"$bundle/balaur$exe" export editor --target "$target" --runtime "$bundle/balaur$exe" \
-  -o "$native/editor$exe" >/dev/null
+# The staged binary's own editor is the copy beside it; this tree's is the one
+# exported, and only the editor's scripts may call the editor's modules.
+BALAUR_EDITOR="$PWD/editor" "$bundle/balaur$exe" export editor --target "$target" \
+  --runtime "$bundle/balaur$exe" -o "$native/editor$exe" >/dev/null
 rm -f "$native/editor$exe"
 lib=$(find "$native" -maxdepth 1 -name '*BalaurScripts*' | head -1)
 [ -n "$lib" ] || { printf '::error::the editor export built no native scripts\n'; exit 1; }

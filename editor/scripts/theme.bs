@@ -318,7 +318,7 @@ pub fn apply(state: editor::State) {
         }
     }
     let background = util::hex_to_rgb(tokens["bg_app"].as_str());
-    render::set_background(background.red, background.green, background.blue);
+    render::set_background(color(background.red, background.green, background.blue, 1.0));
 }
 
 /// Wear the named pair, in the half the mode and the system pick. The same

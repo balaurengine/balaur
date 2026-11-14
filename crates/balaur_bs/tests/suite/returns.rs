@@ -29,6 +29,7 @@ fn api() -> HostApi {
             params: vec![],
             ret: Ty::Array(Box::new(Ty::Str)),
             is_async: false,
+            editor: false,
         }],
         components: vec![],
         constants: vec![],

@@ -45,17 +45,17 @@ pub fn grid3d(state: editor::State) {
         let color = if line % GRID_MAJOR_EVERY == 0 { major } else { minor };
         let at = line as float;
         let width = if line == 0 { 2.0 } else { 1.0 };
-        render::draw_line_3d(at, 0.0, -half, at, 0.0, half, color[0], color[1], color[2], width, true, false);
-        render::draw_line_3d(-half, 0.0, at, half, 0.0, at, color[0], color[1], color[2], width, true, false);
+        render::draw_line_3d(vec3(at, 0.0, -half), vec3(at, 0.0, half), util::as_color(color), width, true, false);
+        render::draw_line_3d(vec3(-half, 0.0, at), vec3(half, 0.0, at), util::as_color(color), width, true, false);
     }
 }
 
 pub fn grid2d(state: editor::State) {
     let tokens = state.theme;
     let camera = render::camera_2d();
-    let center_x = camera.x;
-    let center_y = camera.y;
-    let zoom = camera.z;
+    let center_x = camera.center.x;
+    let center_y = camera.center.y;
+    let zoom = camera.zoom;
     let logical = viewport::logical_per_design();
     let screen_width = state.screen_width * logical;
     let screen_height = state.screen_height * logical;
@@ -71,14 +71,14 @@ pub fn grid2d(state: editor::State) {
     for column in first_x..last_x + 1 {
         let color = if column % GRID_MAJOR_EVERY == 0 { major } else { minor };
         let column_x = column as float;
-        render::draw_line_2d(column_x, center_y - half_height, column_x, center_y + half_height, color[0], color[1], color[2], if column == 0 { 2.0 } else { 1.0 });
+        render::draw_line_2d(vec2(column_x, center_y - half_height), vec2(column_x, center_y + half_height), util::as_color(color), if column == 0 { 2.0 } else { 1.0 });
     }
     let first_y = math::floor(center_y - half_height) as int;
     let last_y = math::ceil(center_y + half_height) as int;
     for row in first_y..last_y + 1 {
         let color = if row % GRID_MAJOR_EVERY == 0 { major } else { minor };
         let row_y = row as float;
-        render::draw_line_2d(center_x - half_width, row_y, center_x + half_width, row_y, color[0], color[1], color[2], if row == 0 { 2.0 } else { 1.0 });
+        render::draw_line_2d(vec2(center_x - half_width, row_y), vec2(center_x + half_width, row_y), util::as_color(color), if row == 0 { 2.0 } else { 1.0 });
     }
 }
 
@@ -92,14 +92,14 @@ pub fn guides(state: &mut editor::State) {
     let x_color = util::rgb(tokens["axis_x"].as_str());
     let y_color = util::rgb(tokens["axis_y"].as_str());
     if model::is_2d(state) {
-        render::draw_line_2d(position.x - 4.0, position.y, position.x + 4.0, position.y, x_color[0], x_color[1], x_color[2], 1.0);
-        render::draw_line_2d(position.x, position.y - 4.0, position.x, position.y + 4.0, y_color[0], y_color[1], y_color[2], 1.0);
+        render::draw_line_2d(vec2(position.x - 4.0, position.y), vec2(position.x + 4.0, position.y), util::as_color(x_color), 1.0);
+        render::draw_line_2d(vec2(position.x, position.y - 4.0), vec2(position.x, position.y + 4.0), util::as_color(y_color), 1.0);
         return;
     }
     let z_color = util::rgb(tokens["axis_z"].as_str());
-    render::draw_line_3d(position.x - 4.0, position.y, position.z, position.x + 4.0, position.y, position.z, x_color[0], x_color[1], x_color[2], 1.0);
-    render::draw_line_3d(position.x, position.y - 4.0, position.z, position.x, position.y + 4.0, position.z, y_color[0], y_color[1], y_color[2], 1.0);
-    render::draw_line_3d(position.x, position.y, position.z - 4.0, position.x, position.y, position.z + 4.0, z_color[0], z_color[1], z_color[2], 1.0);
+    render::draw_line_3d(vec3(position.x - 4.0, position.y, position.z), vec3(position.x + 4.0, position.y, position.z), util::as_color(x_color), 1.0);
+    render::draw_line_3d(vec3(position.x, position.y - 4.0, position.z), vec3(position.x, position.y + 4.0, position.z), util::as_color(y_color), 1.0);
+    render::draw_line_3d(vec3(position.x, position.y, position.z - 4.0), vec3(position.x, position.y, position.z + 4.0), util::as_color(z_color), 1.0);
 }
 
 // The selected clip's position keys, joined in order, with a marker on each
@@ -136,18 +136,18 @@ pub fn motion_path(state: &mut editor::State) {
         if previous != nil {
             let previous_point = previous.unwrap();
             if is2d {
-                render::draw_line_2d(previous_point[0], previous_point[1], key_x, key_y, color[0], color[1], color[2], 1.0);
+                render::draw_line_2d(vec2(previous_point[0], previous_point[1]), vec2(key_x, key_y), util::as_color(color), 1.0);
             } else {
-                render::draw_line_3d(previous_point[0], previous_point[1], previous_point[2], key_x, key_y, key_z, color[0], color[1], color[2], 1.0);
+                render::draw_line_3d(vec3(previous_point[0], previous_point[1], previous_point[2]), vec3(key_x, key_y, key_z), util::as_color(color), 1.0);
             }
         }
         let arm = 0.15;
         if is2d {
-            render::draw_line_2d(key_x - arm, key_y, key_x + arm, key_y, color[0], color[1], color[2], 2.0);
-            render::draw_line_2d(key_x, key_y - arm, key_x, key_y + arm, color[0], color[1], color[2], 2.0);
+            render::draw_line_2d(vec2(key_x - arm, key_y), vec2(key_x + arm, key_y), util::as_color(color), 2.0);
+            render::draw_line_2d(vec2(key_x, key_y - arm), vec2(key_x, key_y + arm), util::as_color(color), 2.0);
         } else {
-            render::draw_line_3d(key_x - arm, key_y, key_z, key_x + arm, key_y, key_z, color[0], color[1], color[2], 2.0);
-            render::draw_line_3d(key_x, key_y - arm, key_z, key_x, key_y + arm, key_z, color[0], color[1], color[2], 2.0);
+            render::draw_line_3d(vec3(key_x - arm, key_y, key_z), vec3(key_x + arm, key_y, key_z), util::as_color(color), 2.0);
+            render::draw_line_3d(vec3(key_x, key_y - arm, key_z), vec3(key_x, key_y + arm, key_z), util::as_color(color), 2.0);
         }
         previous = [key_x, key_y, key_z];
     }
@@ -173,7 +173,7 @@ pub fn colliders2d(state: editor::State) {
             for step in 1..33 {
                 let step_angle = step as float / 32.0 * math::PI * 2.0;
                 let to = turned(position, cosine, sine, math::cos(step_angle) * radius, math::sin(step_angle) * radius);
-                render::draw_line_2d(from.x, from.y, to.x, to.y, color[0], color[1], color[2], 1.0);
+                render::draw_line_2d(from, to, util::as_color(color), 1.0);
                 from = to;
             }
         } else {
@@ -184,14 +184,14 @@ pub fn colliders2d(state: editor::State) {
             let second_corner = turned(position, cosine, sine, half_x, -half_y);
             let third_corner = turned(position, cosine, sine, half_x, half_y);
             let fourth_corner = turned(position, cosine, sine, -half_x, half_y);
-            render::draw_line_2d(first_corner.x, first_corner.y, second_corner.x, second_corner.y, color[0], color[1], color[2], 1.0);
-            render::draw_line_2d(second_corner.x, second_corner.y, third_corner.x, third_corner.y, color[0], color[1], color[2], 1.0);
-            render::draw_line_2d(third_corner.x, third_corner.y, fourth_corner.x, fourth_corner.y, color[0], color[1], color[2], 1.0);
-            render::draw_line_2d(fourth_corner.x, fourth_corner.y, first_corner.x, first_corner.y, color[0], color[1], color[2], 1.0);
+            render::draw_line_2d(first_corner, second_corner, util::as_color(color), 1.0);
+            render::draw_line_2d(second_corner, third_corner, util::as_color(color), 1.0);
+            render::draw_line_2d(third_corner, fourth_corner, util::as_color(color), 1.0);
+            render::draw_line_2d(fourth_corner, first_corner, util::as_color(color), 1.0);
         }
         // Center of mass.
-        render::draw_line_2d(position.x - 0.1, position.y, position.x + 0.1, position.y, color[0], color[1], color[2], 3.0);
-        render::draw_line_2d(position.x, position.y - 0.1, position.x, position.y + 0.1, color[0], color[1], color[2], 3.0);
+        render::draw_line_2d(vec2(position.x - 0.1, position.y), vec2(position.x + 0.1, position.y), util::as_color(color), 3.0);
+        render::draw_line_2d(vec2(position.x, position.y - 0.1), vec2(position.x, position.y + 0.1), util::as_color(color), 3.0);
     }
 }
 
@@ -237,14 +237,14 @@ fn light_gizmo(found: Node, light: any) {
     // At rest a light2d shines along -y; the node's z rotation turns it.
     let direction_x = sine;
     let direction_y = -cosine;
-    render::draw_line_2d(position.x - 0.2, position.y, position.x + 0.2, position.y, color[0], color[1], color[2], 2.0);
-    render::draw_line_2d(position.x, position.y - 0.2, position.x, position.y + 0.2, color[0], color[1], color[2], 2.0);
+    render::draw_line_2d(vec2(position.x - 0.2, position.y), vec2(position.x + 0.2, position.y), util::as_color(color), 2.0);
+    render::draw_line_2d(vec2(position.x, position.y - 0.2), vec2(position.x, position.y + 0.2), util::as_color(color), 2.0);
     let held_kind = light[fields::KIND];
     if if held_kind == nil { render::LIGHT_POINT } else { held_kind.as_str() } == render::LIGHT_DIRECTIONAL {
         for step in -2..3 {
             let offset_x = -direction_y * (step as float) * 0.4;
             let offset_y = direction_x * (step as float) * 0.4;
-            render::draw_line_2d(position.x + offset_x, position.y + offset_y, position.x + offset_x + direction_x, position.y + offset_y + direction_y, color[0], color[1], color[2], 1.0);
+            render::draw_line_2d(vec2(position.x + offset_x, position.y + offset_y), vec2(position.x + offset_x + direction_x, position.y + offset_y + direction_y), util::as_color(color), 1.0);
         }
         return;
     }
@@ -256,7 +256,7 @@ fn light_gizmo(found: Node, light: any) {
         let step_angle = (step as float) / 32.0 * math::PI * 2.0;
         let next_x = position.x + math::cos(step_angle) * radius;
         let next_y = position.y + math::sin(step_angle) * radius;
-        render::draw_line_2d(previous_x.as_float(), previous_y, next_x, next_y, color[0], color[1], color[2], 1.0);
+        render::draw_line_2d(vec2(previous_x.as_float(), previous_y), vec2(next_x, next_y), util::as_color(color), 1.0);
         previous_x = next_x;
         previous_y = next_y;
     }
@@ -267,14 +267,13 @@ fn light_gizmo(found: Node, light: any) {
 fn occluder_outline(state: editor::State, found: Node) {
     let tokens = state.theme;
     let color = util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str());
-    // Flat x, y pairs, already closed when the occluder is.
-    let flat = found.occluder2d.outline();
-    let count = flat.len() / 2;
-    if count < 2 {
+    // Already closed when the occluder is.
+    let points = found.occluder2d.outline();
+    if points.len() < 2 {
         return;
     }
-    for index in 0..count - 1 {
-        render::draw_line_2d(flat[index * 2], flat[index * 2 + 1], flat[index * 2 + 2], flat[index * 2 + 3], color[0], color[1], color[2], 1.0);
+    for index in 0..points.len() - 1 {
+        render::draw_line_2d(points[index], points[index + 1], util::as_color(color), 1.0);
     }
 }
 
@@ -310,22 +309,22 @@ pub fn colliders(state: editor::State) {
         let z_bounds = [position.z - half_z, position.z + half_z];
         for bound_y in y_bounds {
             for bound_z in z_bounds {
-                render::draw_line_3d(x_bounds[0], bound_y, bound_z, x_bounds[1], bound_y, bound_z, color[0], color[1], color[2], 1.0);
+                render::draw_line_3d(vec3(x_bounds[0], bound_y, bound_z), vec3(x_bounds[1], bound_y, bound_z), util::as_color(color), 1.0);
             }
         }
         for bound_x in x_bounds {
             for bound_z in z_bounds {
-                render::draw_line_3d(bound_x, y_bounds[0], bound_z, bound_x, y_bounds[1], bound_z, color[0], color[1], color[2], 1.0);
+                render::draw_line_3d(vec3(bound_x, y_bounds[0], bound_z), vec3(bound_x, y_bounds[1], bound_z), util::as_color(color), 1.0);
             }
         }
         for bound_x in x_bounds {
             for bound_y in y_bounds {
-                render::draw_line_3d(bound_x, bound_y, z_bounds[0], bound_x, bound_y, z_bounds[1], color[0], color[1], color[2], 1.0);
+                render::draw_line_3d(vec3(bound_x, bound_y, z_bounds[0]), vec3(bound_x, bound_y, z_bounds[1]), util::as_color(color), 1.0);
             }
         }
         // Center of mass.
-        render::draw_line_3d(position.x - 0.15, position.y, position.z, position.x + 0.15, position.y, position.z, color[0], color[1], color[2], 3.0);
-        render::draw_line_3d(position.x, position.y - 0.15, position.z, position.x, position.y + 0.15, position.z, color[0], color[1], color[2], 3.0);
+        render::draw_line_3d(vec3(position.x - 0.15, position.y, position.z), vec3(position.x + 0.15, position.y, position.z), util::as_color(color), 3.0);
+        render::draw_line_3d(vec3(position.x, position.y - 0.15, position.z), vec3(position.x, position.y + 0.15, position.z), util::as_color(color), 3.0);
     }
 }
 
@@ -338,14 +337,14 @@ fn forward_of(found: any) -> [float] {
     [-basis[2][0], -basis[2][1], -basis[2][2]]
 }
 
-// One segment onto `out`, in `render::draw_lines`' eleven numbers.
-fn push_line_3d(out: [float], from: [float], to: [float], color: [float], width: float) {
-    out.extend([from[0], from[1], from[2], to[0], to[1], to[2], color[0], color[1], color[2], width, 0.0]);
+// One segment onto `out`, as `render::draw_lines_3d` takes it.
+fn push_line_3d(out: [render::Line3d], from: [float], to: [float], color: [float], width: float) {
+    out.push(render::Line3d { from: vec3(from[0], from[1], from[2]), to: vec3(to[0], to[1], to[2]), color: util::as_color(color), width: width });
 }
 
 /// A ring of `radius` about `center` in the plane spanned by `first_axis` and
 /// `second_axis`.
-fn push_ring_3d(out: [float], center: [float], first_axis: [float], second_axis: [float], radius: float, color: [float], width: float) {
+fn push_ring_3d(out: [render::Line3d], center: [float], first_axis: [float], second_axis: [float], radius: float, color: [float], width: float) {
     let previous = util::vector_add(center, util::vector_scale(first_axis, radius));
     for step in 1..25 {
         let step_angle = (step as float) / 24.0 * math::PI * 2.0;
@@ -398,10 +397,10 @@ pub fn lights3d(state: &mut editor::State) {
         marked.push(Marked { node: found, light: light, camera: camera, selected: selected });
     }
     if key == state.overlay3d.key {
-        render::draw_lines(state.overlay3d.lines);
+        render::draw_lines_3d(state.overlay3d.lines);
         return;
     }
-    let out: [float] = [];
+    let out: [render::Line3d] = [];
     for marked_node in marked {
         if marked_node.light != nil {
             light3d_gizmo(out, marked_node.node, marked_node.light, marked_node.selected, tokens);
@@ -410,12 +409,12 @@ pub fn lights3d(state: &mut editor::State) {
             camera_gizmo(out, state, marked_node.node, marked_node.selected, tokens);
         }
     }
-    render::draw_lines(out);
+    render::draw_lines_3d(out);
     state.overlay3d.key = key;
     state.overlay3d.lines = out;
 }
 
-fn light3d_gizmo(out: [float], found: Node, light: any, selected: bool, tokens: any) {
+fn light3d_gizmo(out: [render::Line3d], found: Node, light: any, selected: bool, tokens: any) {
     let color = if selected {
         util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str())
     } else {
@@ -480,7 +479,7 @@ fn light3d_gizmo(out: [float], found: Node, light: any, selected: bool, tokens: 
 /// far plane, which is usually past the whole scene.
 const FRUSTUM_REACH: float = 4.0;
 
-fn camera_gizmo(out: [float], state: editor::State, found: Node, selected: bool, tokens: any) {
+fn camera_gizmo(out: [render::Line3d], state: editor::State, found: Node, selected: bool, tokens: any) {
     let color = if selected {
         util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str())
     } else {

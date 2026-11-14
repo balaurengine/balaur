@@ -501,6 +501,7 @@ id = "n_restart"
 name = "Restart"
 parent = "n_main"
 script = { source = "scripts/restart_button.bs" }
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_restart" }] }
 
 [nodes.widget]
 kind = "button"
@@ -510,4 +511,3 @@ x = 20
 y = 14
 font_size = 15
 text_color = "#2b2b2b"
-on_click = "on_restart"

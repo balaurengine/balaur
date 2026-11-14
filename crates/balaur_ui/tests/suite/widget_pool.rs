@@ -172,8 +172,63 @@ impl Root {
     );
 }
 
-/// The editor hides its inspector's form with a plain write when nothing is
-/// selected, and selecting the same node a third time drew an empty panel.
+// A spec's handler name is the pool's to keep: the pooled label senses the
+// pointer's click for it, the method above is handed the spec's data, a
+// `true` and the control, and the widget holds no such row.
+#[test]
+fn a_pooled_label_s_click_calls_the_method_its_spec_names() {
+    let (_dir, mut app) = app_with(
+        "pub class Root { node: Node, picked: str, with: bool }
+impl Root {
+    fn init() {
+        scene::get_node(\"Root/Bar\").patch_component(\"widget\", { \"x\": 0.0, \"y\": 0.0 });
+    }
+    fn update(dt: float) {
+        let controls: [any] = [
+            { \"kind\": \"label\", \"text\": \"One\", \"width\": 80, \"on_click\": \"pick\", \"data\": \"one\" },
+            { \"kind\": \"label\", \"text\": \"Two\", \"width\": 80 },
+        ];
+        ui::fill_strip(\"Root/Bar\", controls);
+    }
+    pub fn pick(data: str, on: bool, node: Node) {
+        self.picked = \"{data} from {node.name()}\";
+        self.with = on;
+    }
+}
+",
+    );
+    let ctx = egui::Context::default();
+    app.tick(1.0 / 60.0);
+    crate::support::settle(&app, &ctx);
+    let made = kids(&app);
+    assert_eq!(prop(&app, made[0], "on_click"), None, "no row holds it");
+    let root = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Root")
+        .expect("the scene has a Root node");
+    let picked = |app: &App| crate::support::script_text(app, root, "picked");
+    let click = |app: &mut App, slot: Entity| {
+        let at = balaur_ui::widget_rect(slot).expect("drawn").center();
+        crate::support::pass(app, &ctx, crate::support::press(at, true));
+        crate::support::pass(app, &ctx, crate::support::press(at, false));
+        app.tick(1.0 / 60.0);
+    };
+    click(&mut app, made[1]);
+    assert_eq!(
+        picked(&app),
+        Some(String::new()),
+        "a label naming none lets it by"
+    );
+    click(&mut app, made[0]);
+    assert_eq!(picked(&app), Some("one from C0".into()));
+    let host = app.engine.script_host().unwrap();
+    assert_eq!(
+        host.script_field(balaur_core::node_id_of(root), "with"),
+        Some(balaur_script::Value::Bool(true)),
+        "a pooled click is a `true`"
+    );
+}
+
+// The editor hides its inspector's form with a plain write when nothing is
+// selected, and selecting the same node a third time drew an empty panel.
 #[test]
 fn a_host_a_script_hid_shows_again_every_time_it_is_filled() {
     let (_dir, mut app) = app_with(

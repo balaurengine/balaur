@@ -105,7 +105,7 @@ impl AsMut<Reporting<ForgeEvent>> for ForgeState {
 pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(ForgeState(Reporting::new(std::path::PathBuf::new())));
     reg.add_system(Stage::First, pump::<ForgeState, ForgeEvent>);
-    let mut m = reg.script_module("forge")?;
+    let mut m = reg.script_module("forge")?.editor_only();
     install_forge_api(&mut m);
     Ok(())
 }

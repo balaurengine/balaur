@@ -10,13 +10,11 @@ use balaur_core::Engine;
 use balaur_script::Module;
 
 use crate::shaders;
-use crate::vocabulary::words;
 
 const DEBUG_VIEW: &str = "debug_view";
 const DEBUG_VIEWS: &str = "debug_views";
 const SET_DEBUG_VIEW: &str = "set_debug_view";
 const SET_SHADER_PREVIEW: &str = "set_shader_preview";
-const SET_SHADER_PROBE: &str = "set_shader_probe";
 
 /// Which channel a windowed backend draws instead of the scene's colour:
 /// one of [`shaders::CHANNELS`], or empty for the scene as it is.
@@ -59,7 +57,7 @@ pub(crate) fn probe_at(eng: &Engine) -> Option<[f32; 2]> {
         .map(|request| request.borrow().at)
 }
 
-/// Record what the shader wrote, for `render::shader_probe` to answer with.
+/// Record what the shader wrote for the probed pixel.
 ///
 /// `None` clears it: a pixel that drew nothing has no value, and leaving the
 /// last one standing would report a number for empty space.
@@ -86,8 +84,6 @@ pub(crate) fn install_debug_view_api(m: &mut Module<Engine>) {
         (DEBUG_VIEW, &[], "", "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is."),
         (DEBUG_VIEWS, &[], "-> [string]", "Every channel name `set_debug_view` accepts, as a list."),
         (SET_SHADER_PREVIEW, &[], "", "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back."),
-        (SET_SHADER_PROBE, &[], "", "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later."),
-        (words::functions::SHADER_PROBE, &[], "() -> Color?", "The four channels the previewed line wrote at the probed pixel, as a colour, or nil when nothing has been read yet."),
     ]);
     // Draw one channel of the scene instead of its colour: "normals", "uv",
     // "depth", "albedo", or "" for the scene as it is.
@@ -129,20 +125,4 @@ pub(crate) fn install_debug_view_api(m: &mut Module<Engine>) {
             Ok(())
         },
     );
-    // Ask what a previewed line computed at one pixel. The answer arrives
-    // through `shader_probe` a frame later: reading it waits on the GPU, and
-    // a frame does not.
-    m.function(SET_SHADER_PROBE, |eng: &Engine, (x, y): (f64, f64)| {
-        eng.insert_resource(ProbeRequest {
-            at: [x as f32, y as f32],
-        });
-        Ok(())
-    });
-    m.function(words::functions::SHADER_PROBE, |eng: &Engine, ()| {
-        Ok(eng
-            .try_resource::<ProbeReading>()
-            .map_or(balaur_script::Value::Nil, |reading| {
-                balaur_script::Value::Color(reading.borrow().value)
-            }))
-    });
 }

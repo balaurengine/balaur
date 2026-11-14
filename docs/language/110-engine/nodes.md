@@ -51,9 +51,9 @@ lists them.
 
 ```bs
 pub fn kick(node: Node) {
-    node.body2d.apply_impulse(0.0, 12.0);
+    node.body2d.apply_impulse(vec2(0.0, 12.0));
     if node.body2d.linear_velocity().x > 5.0 {
-        node.body2d.set_linear_velocity(5.0, 0.0);
+        node.body2d.set_linear_velocity(vec2(5.0, 0.0));
     }
 }
 ```

@@ -16,7 +16,6 @@ parent = "n_tour"
 position = [0.0, 0.9, 11.0]
 
 [nodes.camera3d]
-look_at = [0.0, 0.9, 0.0]
 
 [[nodes]]
 id = "title"

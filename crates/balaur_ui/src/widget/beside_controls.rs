@@ -56,9 +56,9 @@ impl Beside for WidgetButton {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_check")]
 pub(crate) struct WidgetCheck {
-    /// Whether a `checkbox` or `switch` is on, every click flipping it and calling `on_change` with the new state; a checked `button` or `menu` is held down, wearing its pressed look
+    /// Whether a `checkbox` or `switch` is on, every click flipping it and announcing `value_changed` with the new state; a checked `button` or `menu` is held down, wearing its pressed look
     pub(crate) checked: bool,
-    /// A `button` a click holds down and the next releases, flipping `checked` as a `checkbox` does, before `on_click` runs: Godot's toggle mode
+    /// A `button` a click holds down and the next releases, flipping `checked` as a `checkbox` does, before its `pointer_click` is heard: Godot's toggle mode
     pub(crate) toggle: bool,
     /// A name this `checkbox`, `switch` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own
     pub(crate) radio_group: SmolStr,
@@ -85,15 +85,13 @@ impl Beside for WidgetCheck {
 pub(crate) struct WidgetRows {
     /// The rows a `list`, `tree` or `table` holds. `text` is the key of the one picked, and every row event reports a row by its key
     pub(crate) items: Vec<Item>,
-    /// The keys of the rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the key of the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the key where it holds one
+    /// The keys of the rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the key of the last row clicked, which is where a shift range measures from; `value_changed` carries the whole list where the widget holds many, and the key where it holds one
     pub(crate) selection: Vec<SmolStr>,
     /// Let a `list`, `tree` or `table` hold more than one row: the platform's command key toggles a row and shift takes the run from the last one clicked
     pub(crate) multi_select: bool,
     /// The pitch of a `list`, `tree` or `table` row, in design pixels; 0 takes the font's own line height
     #[property(min = 0.0)]
     pub(crate) row_height: f32,
-    /// Script method called with the row double-clicked in a `list`, `tree` or `table`, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_activate: SmolStr,
 }
 
 impl Beside for WidgetRows {
@@ -106,7 +104,6 @@ impl Beside for WidgetRows {
         selection => widget.selection.clone_from(&held.selection);
         multi_select => widget.multi = held.multi_select;
         row_height => widget.row_height = held.row_height;
-        on_activate => widget.on_activate = held.on_activate.clone();
     }
 }
 
@@ -137,15 +134,13 @@ pub(crate) struct WidgetText {
     #[property(min = 0)]
     pub(crate) max_lines: i64,
     /// Where a wrapped line may break
-    #[property(default = LineBreak::new(tw::WORD_OR_GLYPH))]
+    #[property(default = LineBreak::new(tw::WORD_SMART))]
     pub(crate) line_break: LineBreak,
     /// Spaces between tab stops
     #[property(default = 8, min = 1, max = 64)]
-    pub(crate) tab_width: i64,
+    pub(crate) tab_size: i64,
     /// Let a drag over this label select its text, and the platform's copy key take it
     pub(crate) selectable: bool,
-    /// Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_link: SmolStr,
     /// A wash behind the text of the kinds egui draws, a `checkbox`, `dropdown`, `menu`, `tabs`, `panel` and the like, where a `label` and a `button` shape their own; alpha 0 is none
     #[property(color, default = [0.0, 0.0, 0.0, 0.0])]
     pub(crate) text_background: [f32; 4],
@@ -167,10 +162,6 @@ impl Beside for WidgetText {
         )
     }
 
-    fn brought_by(kind: &str) -> bool {
-        matches!(kind, w::LABEL | w::BUTTON | w::MENU | w::DROPDOWN)
-    }
-
     puts! { held, widget;
         text_align => widget.text_align = held.text_align.0.clone();
         markup => widget.markup = held.markup;
@@ -184,9 +175,8 @@ impl Beside for WidgetText {
             u32::try_from(held.max_lines.max(0)).unwrap_or(u32::MAX);
         line_break => look(widget).options.line_break =
             balaur_text::LineBreak::of(&held.line_break.0);
-        tab_width => look(widget).options.tab_width = tab_stops(held.tab_width);
+        tab_size => look(widget).options.tab_size = tab_stops(held.tab_size);
         selectable => widget.selectable = held.selectable;
-        on_link => widget.on_link = held.on_link.clone();
         text_background => look(widget).background = color_of(held.text_background);
     }
 }
@@ -218,10 +208,6 @@ pub(crate) struct WidgetShortcut {
 impl Beside for WidgetShortcut {
     fn reads(_: &str) -> bool {
         true
-    }
-
-    fn brought_by(_: &str) -> bool {
-        false
     }
 
     puts! { held, widget;

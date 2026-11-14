@@ -39,14 +39,15 @@ axis = "vertical"
 id = "editor"
 name = "Editor"
 parent = "scroll"
+bindings = { rows = [
+    { event = "emitted:value_changed", action = "call", value = "typed" },
+    { event = "emitted:caret_changed", action = "call", value = "caret" },
+    { event = "emitted:gutter_clicked", action = "call", value = "gutter" },
+] }
 [nodes.widget]
-on_change = "typed"
 kind = "code"
 font_size = 13
-[nodes.widget_field]
-on_caret = "caret"
 [nodes.widget_code]
-on_gutter = "gutter"
 gutter_width = 34
 
 # Rename a name across the scripts, or find and replace: over the code's top

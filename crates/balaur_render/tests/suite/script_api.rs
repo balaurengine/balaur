@@ -139,12 +139,16 @@ fn the_cameras_pose_can_be_read() {
     run_clean(
         r#"
         let pose = render::camera_pose();
-        let count = pose.len();
-        if count != 8 { log::error("camera_pose answered {count} numbers"); }
+        let eye: Vec3 = pose.eye;
+        let target: Vec3 = pose.target;
+        if eye.x != 0.0 || target.z != 0.0 || pose.fov != 0.0 { log::error("a headless pose should be zeros"); }
         // Screen maths divides by it; a zero made the editor's pointer NaN.
-        let dpi = pose[7];
+        let dpi = pose.scale_factor;
         if dpi != 1.0 { log::error("a headless scale should be one, got {dpi}"); }
         let matrix: [float] = render::camera_matrix();
+        let ray = render::mouse_ray();
+        let origin: Vec3 = ray.origin;
+        let direction: Vec3 = ray.direction;
         "#,
     );
 }
@@ -152,11 +156,13 @@ fn the_cameras_pose_can_be_read() {
 #[test]
 fn the_2d_camera_reports_its_centre_and_zoom() {
     run_clean(
-        r"
+        r#"
         // Like camera_pose, this reports the viewport a backend writes each
         // frame, so headless it stays at its default rather than echoing back.
-        let view: Vec3 = render::camera_2d();
-        ",
+        let view = render::camera_2d();
+        let center: Vec2 = view.center;
+        if center.x != 0.0 || view.zoom != 0.0 { log::error("a headless 2D view should be zeros"); }
+        "#,
     );
 }
 
@@ -186,21 +192,114 @@ fn bounds_reports_the_box_a_2d_shape_draws() {
 }
 
 #[test]
-fn the_background_is_settable() {
-    run_clean(
-        r"
-        render::set_background(0.1, 0.1, 0.1);
-        ",
+fn the_background_is_the_colour_a_script_sets() {
+    let (app, errors) = run("render::set_background(color(0.1, 0.2, 0.3, 1.0));");
+    assert!(errors.is_empty(), "{errors:#?}");
+    let clear = app.engine.resource::<balaur_render::ClearColorConfig>();
+    let color = clear.borrow().color;
+    assert!(matches!(color, [0.1, 0.2, 0.3]), "cleared to {color:?}");
+    let why = refused("render::set_background(0.1, 0.2, 0.3);");
+    assert!(why.contains("takes 1 argument"), "{why}");
+}
+
+#[test]
+fn a_line_is_drawn_between_two_vectors_in_a_colour() {
+    let (app, errors, _) = run_frames(
+        r"render::draw_line_3d(vec3(0.0, 1.0, 2.0), vec3(3.0, 4.0, 5.0), color(1.0, 0.5, 0.0, 0.25));
+render::draw_line_3d(vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), color(0.0, 0.0, 1.0, 1.0), 3.0, true, true);
+render::draw_line_2d(vec2(0.0, 1.0), vec2(2.0, 3.0), color(1.0, 0.0, 0.0, 1.0), 2.0);",
+        0,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let lines_3d = app.engine.resource::<balaur_render::DebugLineBuffer3d>();
+    assert_eq!(
+        lines_3d.borrow().lines,
+        [
+            (
+                [0.0, 1.0, 2.0],
+                [3.0, 4.0, 5.0],
+                [1.0, 0.5, 0.0, 0.25],
+                1.0,
+                false,
+                false
+            ),
+            (
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 1.0],
+                3.0,
+                true,
+                true
+            ),
+        ]
+    );
+    let lines_2d = app.engine.resource::<balaur_render::DebugLineBuffer2d>();
+    assert_eq!(
+        lines_2d.borrow().lines,
+        [([0.0, 1.0], [2.0, 3.0], [1.0, 0.0, 0.0, 1.0], 2.0)]
+    );
+    let why = refused("render::draw_line_2d(0.0, 1.0, 2.0, 3.0, 1.0, 0.0, 0.0, 2.0);");
+    assert!(why.contains("takes 3 to 5 argument"), "{why}");
+}
+
+#[test]
+fn many_3d_lines_cross_in_one_call_each_with_its_own_colour_and_width() {
+    let (app, errors, _) = run_frames(
+        r"let lines = [
+    render::Line3d { from: vec3(0.0, 0.0, 0.0), to: vec3(1.0, 0.0, 0.0), color: color(1.0, 0.0, 0.0, 1.0) },
+    render::Line3d { from: vec3(0.0, 2.0, 0.0), to: vec3(0.0, 3.0, 0.0), color: color(0.0, 1.0, 0.0, 0.5), width: 4.0, on_top: true },
+];
+render::draw_lines_3d(lines);",
+        0,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let lines = app.engine.resource::<balaur_render::DebugLineBuffer3d>();
+    assert_eq!(
+        lines.borrow().lines,
+        [
+            (
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0, 1.0],
+                1.0,
+                false,
+                false
+            ),
+            (
+                [0.0, 2.0, 0.0],
+                [0.0, 3.0, 0.0],
+                [0.0, 1.0, 0.0, 0.5],
+                4.0,
+                false,
+                true
+            ),
+        ]
     );
 }
 
 #[test]
-fn debug_lines_can_be_drawn_in_both_dimensions() {
-    run_clean(
-        r"
-        render::draw_line_3d(0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0);
-        render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 2.0);
-        ",
+fn text_is_drawn_at_a_vector_in_either_pass() {
+    let (app, errors, _) = run_frames(
+        r#"render::draw_text_2d(vec2(1.0, 2.0), "flat");
+render::draw_text_3d(vec3(3.0, 4.0, 5.0), "deep", render::TextOptions { font_size: 20.0 });"#,
+        0,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let drawn = app
+        .engine
+        .resource::<balaur_render::world_text::TextDrawBuffer>();
+    let placed: Vec<(String, [f32; 3], bool)> = drawn
+        .borrow()
+        .items
+        .iter()
+        .map(|item| (item.text.clone(), item.at, item.in_3d))
+        .collect();
+    assert_eq!(
+        placed,
+        [
+            ("flat".to_string(), [1.0, 2.0, 0.0], false),
+            ("deep".to_string(), [3.0, 4.0, 5.0], true),
+        ]
     );
 }
 
@@ -250,29 +349,190 @@ fn a_node_with_no_shape_says_so() {
     );
 }
 
+// A box is twelve edges, a sphere three rings of twenty-four, and a capsule
+// two rings and four sides: each lands in the frame's lines where it was put.
 #[test]
-fn immediate_shapes_are_accepted_from_a_script() {
-    run_clean(
-        r#"render::draw_box(0.0, 0.0, 0.0, 0.5, 0.5, 0.5, color(1.0, 1.0, 1.0, 1.0));
-render::draw_sphere(1.0, 0.0, 0.0, 0.5, color(0.0, 1.0, 0.0, 1.0));
-render::draw_capsule(2.0, 0.0, 0.0, 0.25, 1.0, color(0.0, 0.0, 1.0, 1.0));
-let triangle = [vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0)];
+fn a_3d_shape_is_drawn_as_a_wireframe_about_the_vector_it_is_given() {
+    let (app, errors, _) = run_frames(
+        r"render::draw_box_3d(vec3(10.0, 0.0, 0.0), vec3(2.0, 4.0, 6.0), color(1.0, 1.0, 1.0, 1.0));
+render::draw_sphere_3d(vec3(0.0, 20.0, 0.0), 0.5, color(0.0, 1.0, 0.0, 1.0));
+render::draw_capsule_3d(vec3(0.0, 0.0, 30.0), 0.25, 1.0, color(0.0, 0.0, 1.0, 1.0));",
+        0,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let lines = app.engine.resource::<balaur_render::DebugLineBuffer3d>();
+    let lines = lines.borrow();
+    assert_eq!(lines.lines.len(), 12 + 3 * 24 + 2 * 24 + 4);
+    let reach = |of: &[balaur_render::DebugLine3d], axis: usize| {
+        let ends = of.iter().flat_map(|line| [line.0[axis], line.1[axis]]);
+        ends.fold((f32::MAX, f32::MIN), |(low, high), at| {
+            (low.min(at), high.max(at))
+        })
+    };
+    let (cube, rest) = lines.lines.split_at(12);
+    assert_eq!(reach(cube, 0), (9.0, 11.0), "a size of 2 across x");
+    assert_eq!(reach(cube, 1), (-2.0, 2.0), "a size of 4 across y");
+    assert_eq!(reach(cube, 2), (-3.0, 3.0), "a size of 6 across z");
+    let (ball, pill) = rest.split_at(3 * 24);
+    assert_eq!(reach(ball, 1), (19.5, 20.5), "a radius of 0.5 about y 20");
+    assert!(
+        matches!(ball[0].2, [0.0, 1.0, 0.0, 1.0]),
+        "the ball is green"
+    );
+    let (low, high) = reach(pill, 2);
+    assert!((low - 29.75).abs() < 1e-5 && (high - 30.25).abs() < 1e-5);
+    assert_eq!(reach(pill, 1), (-0.5, 0.5), "a straight part of 1 along y");
+}
+
+#[test]
+fn a_2d_shape_is_drawn_at_the_vector_it_is_given() {
+    use balaur_render::Draw2d;
+    let (app, errors, _) = run_frames(
+        r#"let triangle = [vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0)];
 render::draw_polygon_2d(triangle, color(1.0, 1.0, 0.0, 1.0));
-render::draw_circle_2d(0.0, 0.0, 1.0, color(1.0, 0.0, 0.0, 1.0));
-render::draw_rect_2d(0.5, 0.5, 2.0, 1.0);
-render::draw_arc_2d(0.0, 0.0, 1.0, 0.0, math::PI / 2.0, 2.0);
+render::draw_circle_2d(vec2(1.0, 2.0), 3.0, color(1.0, 0.0, 0.0, 1.0));
+render::draw_rect_2d(vec2(0.5, 1.5), vec2(2.0, 1.0));
+render::draw_arc_2d(vec2(4.0, 5.0), 1.0, 0.0, math::PI / 2.0, 2.0);
 let line = [vec2(0.0, 0.0), vec2(1.0, 1.0), vec2(2.0, 0.0)];
 render::draw_polyline_2d(line, 1.0, color(0.0, 1.0, 0.0, 1.0));
-render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
+render::draw_texture_2d("art/missing.png", vec2(6.0, 7.0), vec2(8.0, 9.0));"#,
+        0,
     );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let drawn = app.engine.resource::<balaur_render::DrawBuffer2d>();
+    let drawn = drawn.borrow();
+    let shapes: Vec<&Draw2d> = drawn.shapes.iter().map(|d| &d.shape).collect();
+    assert!(
+        matches!(
+            shapes[1],
+            Draw2d::Circle {
+                center: [1.0, 2.0],
+                radius: 3.0,
+                ..
+            }
+        ),
+        "{shapes:?}"
+    );
+    assert!(
+        matches!(
+            shapes[2],
+            Draw2d::Rect {
+                center: [0.5, 1.5],
+                size: [2.0, 1.0],
+                ..
+            }
+        ),
+        "{shapes:?}"
+    );
+    assert!(
+        matches!(
+            shapes[3],
+            Draw2d::Arc {
+                center: [4.0, 5.0],
+                ..
+            }
+        ),
+        "{shapes:?}"
+    );
+    assert!(
+        matches!(
+            shapes[5],
+            Draw2d::Texture {
+                center: [6.0, 7.0],
+                size: [8.0, 9.0],
+                ..
+            }
+        ),
+        "{shapes:?}"
+    );
+    let why = refused("render::draw_circle_2d(1.0, 2.0, 3.0);");
+    assert!(why.contains("Vec2"), "{why}");
+}
+
+// The split closes `init` early: an outline resolves in the frame after its
+// occluder is written, so the reading is `update`'s.
+#[test]
+fn an_occluders_outline_answers_its_points_as_vectors() {
+    let (_app, errors, lines) = run_frames(
+        r#"self.node.set_component("shape2d", { "shape": { "kind": "rectangle", "size": [2.0, 4.0] } });
+self.node.set_component("occluder2d", {});
+}
+fn update(dt: float) {
+let points = self.node.occluder2d.outline();
+if points.len() == 5 {
+    let first: Vec2 = points[0];
+    let last: Vec2 = points[4];
+    let closed = first.x == last.x && first.y == last.y;
+    let wide = math::abs(first.x);
+    let tall = math::abs(first.y);
+    log::info("outline {closed} {wide} {tall}");
+}"#,
+        3,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert!(
+        lines.iter().any(|l| l == "outline true 1.0 2.0"),
+        "a 2 by 4 rectangle was not traced corner to corner: {lines:#?}"
+    );
+}
+
+#[test]
+fn a_node_is_tinted_by_one_colour_that_its_child_multiplies_in() {
+    let (_app, errors, lines) = run_logged(
+        r#"let child = self.node.add_child("Child");
+self.node.set_tint(color(0.5, 1.0, 1.0, 1.0));
+child.set_tint(color(0.5, 0.5, 1.0, 0.5));
+let own = self.node.tint();
+let seen = child.effective_tint();
+log::info("tint {own.r} {seen.r} {seen.g} {seen.a}");"#,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert!(
+        lines.iter().any(|l| l == "tint 0.5 0.25 0.5 0.5"),
+        "{lines:#?}"
+    );
+    let why = refused("self.node.set_tint(0.5, 1.0, 1.0, 1.0);");
+    assert!(why.contains("takes 1 argument"), "{why}");
+}
+
+#[test]
+fn a_textures_size_answers_as_one_vector() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = project(
+        r#"let size = render::texture_size("art/sprite.png");
+log::info("size {size.x} {size.y}");"#,
+    );
+    std::fs::create_dir_all(dir.path().join("art")).unwrap();
+    std::fs::copy(
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/sprite_200x100.png"
+        ),
+        dir.path().join("art/sprite.png"),
+    )
+    .unwrap();
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    let lines: Vec<String> = balaur_core::logbuf::recent(500)
+        .into_iter()
+        .map(|e| e.message)
+        .collect();
+    assert!(lines.iter().any(|l| l == "size 200.0 100.0"), "{lines:#?}");
 }
 
 #[test]
 fn a_shape_drawn_at_a_z_index_carries_it_and_a_picture_its_region() {
     let (app, errors, _) = run_frames(
-        r#"render::draw_circle_2d(0.0, 0.0, 1.0, color(1.0, 0.0, 0.0, 1.0), render::DrawOptions { z_index: 2 });
-render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, render::DrawOptions { z_index: -1 });
-render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil, render::TextureOptions { region_origin: vec2(8.0, 0.0), region_size: vec2(8.0, 8.0) });"#,
+        r#"render::draw_circle_2d(vec2(0.0, 0.0), 1.0, color(1.0, 0.0, 0.0, 1.0), render::DrawOptions { z_index: 2 });
+render::draw_line_2d(vec2(0.0, 0.0), vec2(1.0, 1.0), color(1.0, 1.0, 1.0, 1.0), 2.0, render::DrawOptions { z_index: -1 });
+render::draw_texture_2d("art/missing.png", vec2(0.0, 0.0), vec2(1.0, 1.0), nil, render::TextureOptions { region_origin: vec2(8.0, 0.0), region_size: vec2(8.0, 8.0) });"#,
         0,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -294,8 +554,9 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil, render::Text
         ),
         "{shapes:?}"
     );
-    let why =
-        refused(r"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, nil, render::DrawOptions { z: 1 });");
+    let why = refused(
+        r"render::draw_rect_2d(vec2(0.0, 0.0), vec2(1.0, 1.0), nil, render::DrawOptions { z: 1 });",
+    );
     assert!(
         why.contains("no field `z`"),
         "a misspelt option does not compile: {why}"

@@ -76,7 +76,7 @@ pub(crate) mod keys {
     pub(crate) const FALLOFF: &str = "falloff";
     pub(crate) const ROLLOFF: &str = "rolloff";
 
-    /// `gamepad_info`, `gamepad_power` and `feed_gamepad`.
+    /// `gamepad_info`, `gamepad_power` and `set_gamepad`.
     pub(crate) const CONNECTED: &str = "connected";
     pub(crate) const NAME: &str = "name";
     pub(crate) const OS_NAME: &str = "os_name";

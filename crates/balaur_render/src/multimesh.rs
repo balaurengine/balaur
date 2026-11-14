@@ -104,7 +104,7 @@ pub const MAX_INSTANCES: usize = 1 << 20;
 
 /// One instance: where it sits in its node's space, the colour it draws in,
 /// four floats a material's shader reads, and the overrides of its node's
-/// wireframe, vertex dots and, in 2D, the image rectangle it draws.
+/// wireframe, vertex points and, in 2D, the image rectangle it draws.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Instance {
     pub position: Vec3,
@@ -116,8 +116,8 @@ pub struct Instance {
     pub custom: [f32; 4],
     pub wireframe_color: Option<[f32; 4]>,
     pub wireframe_width: Option<f32>,
-    pub dot_color: Option<[f32; 4]>,
-    pub dot_size: Option<f32>,
+    pub point_color: Option<[f32; 4]>,
+    pub point_size: Option<f32>,
     /// `[x, y, w, h]` of the texture in pixels; `None` draws all of it.
     pub region: Option<[f32; 4]>,
 }
@@ -133,8 +133,8 @@ impl Default for Instance {
             custom: [0.0; 4],
             wireframe_color: None,
             wireframe_width: None,
-            dot_color: None,
-            dot_size: None,
+            point_color: None,
+            point_size: None,
             region: None,
         }
     }
@@ -150,8 +150,8 @@ const INSTANCE_KEYS: &[&str] = &[
     k::CUSTOM,
     k::WIREFRAME_COLOR,
     k::WIREFRAME_WIDTH,
-    k::DOT_COLOR,
-    k::DOT_SIZE,
+    k::POINT_COLOR,
+    k::POINT_SIZE,
     k::REGION_ORIGIN,
     k::REGION_SIZE,
 ];
@@ -228,8 +228,8 @@ impl Instance {
                 k::CUSTOM => out.custom = floats(value, [0.0; 4]),
                 k::WIREFRAME_COLOR => out.wireframe_color = Some(colour(value, key)?),
                 k::WIREFRAME_WIDTH => out.wireframe_width = Some(number(value, key)?.max(0.0)),
-                k::DOT_COLOR => out.dot_color = Some(colour(value, key)?),
-                k::DOT_SIZE => out.dot_size = Some(number(value, key)?.max(0.0)),
+                k::POINT_COLOR => out.point_color = Some(colour(value, key)?),
+                k::POINT_SIZE => out.point_size = Some(number(value, key)?.max(0.0)),
                 k::REGION_ORIGIN => origin = Some(floats(value, [0.0; 2])),
                 k::REGION_SIZE => size = Some(floats(value, [0.0; 2])),
                 other => bail!(
@@ -286,7 +286,7 @@ impl Instance {
             k::WIREFRAME_COLOR,
             self.wireframe_color.as_ref().map(|c| &c[..]),
         );
-        maybe(k::DOT_COLOR, self.dot_color.as_ref().map(|c| &c[..]));
+        maybe(k::POINT_COLOR, self.point_color.as_ref().map(|c| &c[..]));
         maybe(k::REGION_ORIGIN, self.region.as_ref().map(|r| &r[..2]));
         maybe(k::REGION_SIZE, self.region.as_ref().map(|r| &r[2..]));
         if let Some(width) = self.wireframe_width {
@@ -295,8 +295,8 @@ impl Instance {
                 toml::Value::Float(f64::from(width)),
             );
         }
-        if let Some(size) = self.dot_size {
-            map.insert(k::DOT_SIZE.into(), toml::Value::Float(f64::from(size)));
+        if let Some(size) = self.point_size {
+            map.insert(k::POINT_SIZE.into(), toml::Value::Float(f64::from(size)));
         }
         toml::Value::Table(map)
     }
@@ -491,9 +491,9 @@ instances = [                      # a 2D instance writes [x, y] and turns about
   { position = [1.8, 0.0, 0.0], color = "#ff8080", custom = [1.0, 0.0, 0.0, 0.0] },
   # a 3x3, columns first, in place of rotation_euler and scale: it keeps a shear
   { position = [2.7, 0.0, 0.0], basis = [1.0, 0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0] },
-  # the node's wireframe and vertex dots, for this instance alone; they draw
-  # only while the node's own wireframe_width and dot_size are above zero
-  { position = [3.6, 0.0, 0.0], wireframe_color = "#00ff00", wireframe_width = 2.0, dot_color = "#ffff00", dot_size = 4.0 },
+  # the node's wireframe and vertex points, for this instance alone; they draw
+  # only while the node's own wireframe_width and point_size are above zero
+  { position = [3.6, 0.0, 0.0], wireframe_color = "#00ff00", wireframe_width = 2.0, point_color = "#ffff00", point_size = 4.0 },
 ]
 ```
 
@@ -991,12 +991,12 @@ instances = [{}, { rotation = [0.0, 1.0, 0.0] }]"#,
     #[test]
     fn an_instance_carries_its_overrides_and_region_through_its_file() {
         let row = toml::from_str::<toml::Value>(
-            "wireframe_color = \"#00ff00\"\nwireframe_width = 2.0\ndot_size = 3.0\nregion_origin = [8.0, 16.0]\nregion_size = [32.0, 32.0]",
+            "wireframe_color = \"#00ff00\"\nwireframe_width = 2.0\npoint_size = 3.0\nregion_origin = [8.0, 16.0]\nregion_size = [32.0, 32.0]",
         )
         .unwrap();
         let instance = Instance::from_table(0, &row).unwrap();
         assert_eq!(instance.wireframe_color, Some([0.0, 1.0, 0.0, 1.0]));
-        assert_eq!(instance.dot_size, Some(3.0));
+        assert_eq!(instance.point_size, Some(3.0));
         assert_eq!(instance.region, Some([8.0, 16.0, 32.0, 32.0]));
         assert_eq!(
             Instance::from_table(0, &instance.to_table()).unwrap(),

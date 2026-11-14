@@ -80,30 +80,41 @@ fn added(eng: &Engine, entity: Entity) {
     }
 }
 
+/// Whether the last fixed step left a timer counting, for [`crate::rest`].
+#[derive(Default)]
+pub(crate) struct TimerState {
+    counting: bool,
+}
+
 /// One fixed step of every running timer, emitting `timeout` from each one
 /// that ran out: a one-shot stops, any other counts the next wait on from
 /// where this one ended.
 pub(crate) fn step_system(eng: &Engine, dt: f32) {
     let mut fired = Vec::new();
+    let mut counting = false;
     {
         let paused = crate::process::pause(eng);
+        let hosted = eng.debug_scope();
         let world = eng.world();
         for (entity, timer) in &mut world.query::<(Entity, &mut Timer)>() {
             if !timer.running || !crate::process::ticks(&world, entity, paused) {
                 continue;
             }
             timer.left -= dt;
-            if timer.left > 0.0 {
-                continue;
-            }
-            fired.push(entity);
-            if timer.one_shot {
-                timer.running = false;
-                timer.left = 0.0;
-            } else {
+            if timer.left <= 0.0 {
+                fired.push(entity);
+                if timer.one_shot {
+                    timer.running = false;
+                    timer.left = 0.0;
+                    continue;
+                }
                 timer.left += timer.wait_seconds();
             }
+            counting = counting || crate::rest::counts(&world, entity, hosted);
         }
+    }
+    if let Some(state) = eng.try_resource::<TimerState>() {
+        state.borrow_mut().counting = counting;
     }
     for entity in fired {
         crate::events::announce(eng, entity, TIMEOUT, Value::Nil);
@@ -112,4 +123,9 @@ pub(crate) fn step_system(eng: &Engine, dt: f32) {
 
 pub fn register_timer_component(app: &mut App) {
     app.add_component::<Timer>();
+    app.engine.insert_resource(TimerState::default());
+    crate::rest::add_probe(&app.engine, COMPONENT, |eng| {
+        eng.try_resource::<TimerState>()
+            .is_some_and(|state| state.borrow().counting)
+    });
 }

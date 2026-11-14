@@ -114,7 +114,7 @@ fn a_cuboid_soft_body_has_the_particles_its_cell_counts_ask_for() {
 impl Scenario {
     fn init() {
         // Three particles an axis for two cells an axis.
-        if self.node.softbody3d.softbody_particles() != 27 { log::error("the cuboid was not 3x3x3 particles"); }
+        if self.node.softbody3d.particle_count() != 27 { log::error("the cuboid was not 3x3x3 particles"); }
     }
 }
 "#,
@@ -129,15 +129,15 @@ impl Scenario {
     fn init() {
         let n = self.node;
         n.set_component("soft_sphere3d", { "radius": 0.5, "subdivisions": 1 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_SPHERE });
-        if n.softbody3d.softbody_particles() <= 0 { log::error("the sphere has no particles"); }
+        if n.softbody3d.particle_count() <= 0 { log::error("the sphere has no particles"); }
         n.set_component("soft_grid3d", { "cells": [3.0, 3.0, 1.0], "size": [1.0, 0.0, 1.0] }); n.set_component("softbody3d", { "kind": physics3d::SOFT_CLOTH });
-        if n.softbody3d.softbody_particles() != 16 { log::error("a 3x3 cloth is 4x4 particles"); }
+        if n.softbody3d.particle_count() != 16 { log::error("a 3x3 cloth is 4x4 particles"); }
         n.set_component("soft_cloth_tube3d", { "radius": 0.3, "cells": [6.0, 4.0, 1.0] }); n.set_component("softbody3d", { "kind": physics3d::SOFT_CLOTH_TUBE });
-        if n.softbody3d.softbody_particles() <= 0 { log::error("the tube has no particles"); }
+        if n.softbody3d.particle_count() <= 0 { log::error("the tube has no particles"); }
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE });
-        if n.softbody3d.softbody_particles() != 8 { log::error("the rope has the wrong particle count"); }
+        if n.softbody3d.particle_count() != 8 { log::error("the rope has the wrong particle count"); }
         n.set_component("softbody3d", { "kind": physics3d::SOFT_TRIANGLE_MESH, "mesh": "#wedge" });
-        if n.softbody3d.softbody_particles() != 4 { log::error("the wedge has four corners"); }
+        if n.softbody3d.particle_count() != 4 { log::error("the wedge has four corners"); }
     }
 }
 "##,
@@ -154,8 +154,8 @@ impl Scenario {
     fn init() {
         let n = self.node;
         n.set_component("soft_volumetric3d", { "cell_size": 0.2 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
-        if n.softbody3d.softbody_particles() <= 4 { log::error("the tetrahedrization added no particles"); }
-        if n.softbody3d.softbody_volume() <= 0.0 { log::error("the filled body encloses nothing"); }
+        if n.softbody3d.particle_count() <= 4 { log::error("the tetrahedrization added no particles"); }
+        if n.softbody3d.volume() <= 0.0 { log::error("the filled body encloses nothing"); }
     }
 }
 "##,
@@ -171,9 +171,9 @@ impl Scenario {
     fn init() {
         let n = self.node;
         n.set_component("soft_volumetric3d", { "cell_size": 0.4 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
-        let coarse = n.softbody3d.softbody_particles();
+        let coarse = n.softbody3d.particle_count();
         n.set_component("soft_volumetric3d", { "cell_size": 0.15 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
-        if n.softbody3d.softbody_particles() <= coarse { log::error("halving the cell size added no particles"); }
+        if n.softbody3d.particle_count() <= coarse { log::error("halving the cell size added no particles"); }
     }
 }
 "##,
@@ -220,13 +220,13 @@ fn a_falling_soft_body_moves_its_particles() {
         r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
 impl Scenario {
     fn init() {
-        self.first = self.node.softbody3d.softbody_position(0);
+        self.first = self.node.softbody3d.particle_position(0);
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
-            let now = self.node.softbody3d.softbody_position(0);
+            let now = self.node.softbody3d.particle_position(0);
             if now.y >= self.first.y { log::error("gravity did not move the body's particles"); }
         }
     }
@@ -244,15 +244,15 @@ fn a_pinned_particle_stays_where_it_was_put() {
 impl Scenario {
     fn init() {
         self.node.set_component("soft_rope3d", { "particle_count": 8 }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "pinned_particles": [0] });
-        self.first = self.node.softbody3d.softbody_position(0);
+        self.first = self.node.softbody3d.particle_position(0);
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
-            let held = self.node.softbody3d.softbody_position(0);
+            let held = self.node.softbody3d.particle_position(0);
             if math::abs(held.y - self.first.y) >= 0.001 { log::error("the pinned particle fell"); }
-            if self.node.softbody3d.softbody_position(7).y >= self.first.y { log::error("the free end did not fall"); }
+            if self.node.softbody3d.particle_position(7).y >= self.first.y { log::error("the free end did not fall"); }
         }
     }
 }
@@ -267,14 +267,14 @@ fn the_2d_world_has_the_same_shape_of_api() {
 impl Scenario {
     fn init() {
         let blob = self.node.get_node("Blob2d");
-        if blob.softbody2d.softbody_particles() != 9 { log::error("the grid was not 3x3 particles"); }
-        if blob.softbody2d.softbody_rest_area() <= 0.0 { log::error("the grid encloses nothing"); }
+        if blob.softbody2d.particle_count() != 9 { log::error("the grid was not 3x3 particles"); }
+        if blob.softbody2d.rest_area() <= 0.0 { log::error("the grid encloses nothing"); }
         blob.set_component("soft_circle2d", { "radius": 0.5, "particle_count": 12 }); blob.set_component("softbody2d", { "kind": physics2d::SOFT_CIRCLE });
-        if blob.softbody2d.softbody_particles() <= 0 { log::error("the disk has no particles"); }
+        if blob.softbody2d.particle_count() <= 0 { log::error("the disk has no particles"); }
         blob.set_component("soft_rope2d", { "particle_count": 6 }); blob.set_component("softbody2d", { "kind": physics2d::SOFT_ROPE });
-        if blob.softbody2d.softbody_particles() != 6 { log::error("the 2D rope has the wrong count"); }
+        if blob.softbody2d.particle_count() != 6 { log::error("the 2D rope has the wrong count"); }
         blob.set_component("softbody2d", { "kind": physics2d::SOFT_TRIANGLE_MESH, "mesh": "#square" });
-        if blob.softbody2d.softbody_particles() != 4 { log::error("the square has four corners"); }
+        if blob.softbody2d.particle_count() != 4 { log::error("the square has four corners"); }
     }
 }
 "##,
@@ -291,8 +291,8 @@ impl Scenario {
     fn init() {
         let blob = self.node.get_node("Blob2d");
         blob.set_component("soft_volumetric2d", { "cell_size": 0.2 }); blob.set_component("softbody2d", { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": "#square" });
-        if blob.softbody2d.softbody_particles() <= 4 { log::error("the triangulation added no particles"); }
-        if blob.softbody2d.softbody_area() <= 0.0 { log::error("the filled body encloses nothing"); }
+        if blob.softbody2d.particle_count() <= 4 { log::error("the triangulation added no particles"); }
+        if blob.softbody2d.area() <= 0.0 { log::error("the filled body encloses nothing"); }
     }
 }
 "##,
@@ -317,10 +317,10 @@ impl Scenario {
             "mass": 400.0,
             "soft_material": { "tear_strain": 0.05, "tear_force": 2.0, "edge_hz": 4.0 },
         });
-        self.before = self.node.softbody3d.softbody_particles();
+        self.before = self.node.softbody3d.particle_count();
     }
 
-    pub fn on_tear(tear: any) {
+    pub fn on_torn(tear: any) {
         if tear.has("pieces") { self.torn += 1; }
     }
 
@@ -587,13 +587,13 @@ impl Scenario {
         self.node.set_component("soft_grid3d", { "cells": [2.0, 2.0, 2.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "solver": physics3d::SOFT_SOLVER_FEM, "soft_material": { "cell_model": physics3d::CELL_COROTATIONAL } });
         let read = self.node.get_component("softbody3d");
         if read["solver"].as_str() != physics3d::SOFT_SOLVER_FEM { log::error("the body runs on the constraint solver"); }
-        self.first = self.node.softbody3d.softbody_position(0);
+        self.first = self.node.softbody3d.particle_position(0);
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
-            let now = self.node.softbody3d.softbody_position(0);
+            let now = self.node.softbody3d.particle_position(0);
             if now.y >= self.first.y { log::error("the implicit solver held the body still"); }
             log::error("checked: the body fell");
         }
@@ -616,7 +616,7 @@ fn a_skinned_body_can_collide_through_its_skin() {
 impl Scenario {
     fn init() {
         self.node.set_component("soft_volumetric3d", { "cell_size": 0.2 }); self.node.set_component("soft_skin3d", { "skin": true, "skin_collision": true }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
-        if self.node.softbody3d.softbody_particles() <= 0 { log::error("the skinned body has no particles"); }
+        if self.node.softbody3d.particle_count() <= 0 { log::error("the skinned body has no particles"); }
     }
 }
 "##,
@@ -636,13 +636,13 @@ impl Scenario {
         floor.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_RECTANGLE, "size": [10.0, 0.4] } });
         let blob = self.node.get_node("Blob2d");
         blob.set_component("soft_circle2d", { "radius": 0.5, "particle_count": 24 }); blob.set_component("softbody2d", { "kind": physics2d::SOFT_CIRCLE });
-        self.before = blob.softbody2d.softbody_area();
+        self.before = blob.softbody2d.area();
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 90 {
-            let now = self.node.get_node("Blob2d").softbody2d.softbody_area();
+            let now = self.node.get_node("Blob2d").softbody2d.area();
             if now <= self.before * 0.8 { log::error("the disk caved in when it landed"); }
             log::error("checked: the disk held");
         }
@@ -878,13 +878,13 @@ impl Scenario {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 6 {
-            self.before = n.softbody3d.softbody_position(0).y;
+            self.before = n.softbody3d.particle_position(0).y;
             n.patch_component("softbody3d", { "soft_material": { "edge_hz": 20.0 } });
         }
         if self.ticks == 7 {
             let made = assets::load(n.softbody3d.soft_material);
             if made["edge_hz"].as_float() != 20.0 { log::error("the stiffness did not take"); }
-            if n.softbody3d.softbody_position(0).y > self.before + 0.0001 { log::error("the change snapped the body back to rest"); }
+            if n.softbody3d.particle_position(0).y > self.before + 0.0001 { log::error("the change snapped the body back to rest"); }
             log::error("checked: tuned in place");
         }
     }
@@ -938,10 +938,10 @@ fn a_woven_cloth_and_a_2d_skin_collision_build() {
 impl Scenario {
     fn init() {
         self.node.set_component("soft_grid3d", { "cells": [4.0, 4.0, 1.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_CLOTH, "soft_material": { "warp_hz": 80.0, "weft_hz": 10.0 } });
-        if self.node.softbody3d.softbody_particles() != 25 { log::error("a woven 4x4 cloth is not 5x5 particles"); }
+        if self.node.softbody3d.particle_count() != 25 { log::error("a woven 4x4 cloth is not 5x5 particles"); }
         let flat = self.node.get_node("Blob2d");
         flat.set_component("soft_volumetric2d", { "cell_size": 0.2 }); flat.set_component("soft_skin2d", { "skin_collision": true }); flat.set_component("softbody2d", { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": "#square" });
-        if flat.softbody2d.softbody_particles() <= 4 { log::error("the skinned 2D body has no cells"); }
+        if flat.softbody2d.particle_count() <= 4 { log::error("the skinned 2D body has no cells"); }
         log::error("checked: woven");
     }
 }

@@ -45,15 +45,14 @@ pub struct Widget {
     /// The text's colour as `[r, g, b, a]` in 0..=1, the same representation
     /// the `color` component uses.
     pub text_color: [f32; 4],
-    /// Method on this node's script, called when the widget is clicked.
-    /// Empty means nothing is connected. A name rather than a function value:
-    /// scene files cannot hold closures, and a name works on any backend.
-    pub on_click: SmolStr,
+    /// Whether anything hears this widget's `pointer_click`: a row on its
+    /// node, its script, a listener, or its pool spec. Not a property: kept
+    /// by `input::follow_hearers`. A kind that draws nothing clickable
+    /// senses a click only where this is set.
+    pub hears_click: bool,
     /// Name of a `menu` node whose rows open at the pointer on a secondary
     /// click or a long touch. Empty means none.
     pub context: SmolStr,
-    /// Method called with the target of a `[url]` span that was clicked.
-    pub on_link: SmolStr,
     /// Whether a drag over this label selects its text.
     pub selectable: bool,
     /// Units drawn after a `number_field`'s number, as `placeholder` is drawn
@@ -72,8 +71,6 @@ pub struct Widget {
     /// How wide a `code` widget's gutter is, in design pixels; 0 takes the
     /// built-in width.
     pub gutter_width: f32,
-    /// Method called with the 1-based line a click on the gutter landed on.
-    pub on_gutter: SmolStr,
     pub clicked: bool,
     /// True for the one frame a `text_field` was submitted, as `clicked` is for the
     /// frame a button was pressed.
@@ -98,19 +95,6 @@ pub struct Widget {
     /// The widgets focus goes to pointing up, down, left and right, by node
     /// name; an empty one leaves it to where the widgets were drawn.
     pub neighbours: [SmolStr; 4],
-    /// Method on this node's script, called when focus arrives.
-    pub on_focus: SmolStr,
-    /// The methods the rest of a widget's events call, each key's own.
-    pub on_double_click: SmolStr,
-    pub on_blur: SmolStr,
-    pub on_commit: SmolStr,
-    pub on_caret: SmolStr,
-    pub on_activate: SmolStr,
-    pub on_fold: SmolStr,
-    pub on_opened: SmolStr,
-    pub on_closed: SmolStr,
-    pub on_scrolled: SmolStr,
-    pub on_close_request: SmolStr,
     /// A `widget_theme` reference, or empty to take the one above.
     pub theme: SmolStr,
     /// A localization key drawn instead of `text` when it is set.
@@ -182,11 +166,6 @@ pub struct Widget {
     pub secret: bool,
     /// Keep a `text_field` to digits, a sign and a point.
     pub numeric: bool,
-    /// Method on this node's script, called with the text after every edit.
-    pub on_change: SmolStr,
-    /// Method on this node's script, called with the text on Enter or when
-    /// focus leaves the field.
-    pub on_submit: SmolStr,
     /// What a `color_picker` holds, as `[r, g, b, a]` in 0..=1. Separate from
     /// `text_color`, which is the ink a widget draws its caption in.
     pub color: [f32; 4],
@@ -239,17 +218,10 @@ pub struct Widget {
     pub reverse: bool,
     /// Whether a drag moves a row of a `list` or a `tree`.
     pub reorderable: bool,
-    /// Method called with the row moved, the row it landed on, and whether it
-    /// went `before` it, `after` it or `into` it.
-    pub on_move: SmolStr,
-    /// Method called with the row and the name of the mark clicked on it.
-    pub on_mark: SmolStr,
     /// Whether a drag carries a card of a `list` out of it.
     pub draggable: bool,
     /// Whether a `window`'s close button shuts it, or only asks.
     pub hide_on_close: bool,
-    /// Method called with the card let go outside the list.
-    pub on_drop: SmolStr,
     /// Whether a `fold` shows its children.
     pub open: bool,
     /// A `fold`'s child drawn in the fold's header after its arrow and

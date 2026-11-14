@@ -80,6 +80,15 @@ pub trait ScriptHost<C: ?Sized> {
         Ok(Vec::new())
     }
 
+    /// The events `path` declares its node sends, each with its description,
+    /// in the file's order: what a component's `events` is to a script. Read
+    /// from the source, so no script runs and one that does not compile yet
+    /// still answers. Empty for a file that declares none or does not parse.
+    fn events(&self, path: &str) -> Vec<(String, String)> {
+        let _ = path;
+        Vec::new()
+    }
+
     /// Detach and run `on_free`. Not an error for a node without a script.
     fn detach(&self, node: NodeId);
 

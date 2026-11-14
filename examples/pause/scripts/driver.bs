@@ -41,7 +41,7 @@ impl Driver {
     pub fn init() {
         self.frame = 0;
         self.spin = 0.0;
-        render::set_background(0.06, 0.07, 0.09);
+        render::set_background(color(0.06, 0.07, 0.09, 1.0));
         let n = 0;
         while n < BOXES {
             drop_box(self.node.parent(), n);
@@ -77,7 +77,7 @@ fn tint(n: int) -> str {
 }
 
 fn label(x: float, y: float, text: str, size: float, color: Color) {
-    render::draw_text_2d(x, y, text, render::TextOptions { font_size: size, color: color, text_align: "center" });
+    render::draw_text_2d(vec2(x, y), text, render::TextOptions { font_size: size, color: color, text_align: "center" });
 }
 
 // A square that turns every frame, paused or not: what an `always` subtree

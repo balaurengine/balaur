@@ -62,7 +62,7 @@ impl AsMut<Reporting<PictureEvent>> for PictureState {
 pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(PictureState(Reporting::new(PathBuf::new())));
     reg.add_system(Stage::First, pump::<PictureState, PictureEvent>);
-    let mut m = reg.script_module(PICTURE)?;
+    let mut m = reg.script_module(PICTURE)?.editor_only();
     install_picture_api(&mut m);
     Ok(())
 }

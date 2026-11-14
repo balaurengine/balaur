@@ -15,7 +15,7 @@ where a node has no class.
 
 | Have | Where |
 | --- | --- |
-| A node is an entity plus named components; a preset is a recipe that is forgotten | `crates/balaur_core/src/presets.rs:1` |
+| A node is an entity plus named components; a preset is a recipe that is forgotten | `editor/scripts/presets.bs` |
 | Add and remove a component, from a schema, at run time and in the inspector | `components::add:686`, `remove:763`, `model::add_component:1122` |
 | Scenes are a **forest**: an empty `parent` puts a node at the top level | `project.rs:891` |
 | Reparent keeping the world pose, with the new local transform computed | `scene::reparent:565`, script `node.set_parent` |
@@ -322,7 +322,7 @@ are not reopened:
 | Not planned | Why |
 | --- | --- |
 | A `convert` script API | Conversion is an authoring verb over a document. At run time a script sets and removes components already, and giving it a second spelling would be N1's homonym |
-| Recording what a node was converted from | `presets.rs:1` is explicit that a node does not remember the recipe that made it, and an engine that records "this was a sprite" has to defend the claim forever |
+| Recording what a node was converted from | `presets.bs` is explicit that a node does not remember the recipe that made it, and an engine that records "this was a sprite" has to defend the claim forever |
 | Converting a `widget` to anything, or anything to a `widget` | A widget is laid out by the UI pass and drawn on its own surface; there is no geometry in common |
 | Polygon → sprite | The inverse throws away the polygon and cannot rebuild the quad's region or sheet. A node wanting a sprite adds one |
 | Godot's "Change Type" as a dialog | It is the Add component palette, already reachable at `inspector.bs` |

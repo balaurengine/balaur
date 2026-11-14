@@ -19,7 +19,7 @@ pub(crate) fn function(name: &str) -> Option<String> {
                 .to_string()
         }
         (RENDER, words::droppable::SET_CAMERA) => {
-            "`render::set_camera` is gone: a `camera3d` node looks from its position at its `look_at`"
+            "`render::set_camera` is gone: a `camera3d` node looks from its position along its rotation, and `transform.look_at` turns it"
                 .to_string()
         }
         (RENDER, words::droppable::SET_CAMERA_2D) => {

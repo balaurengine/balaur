@@ -18,7 +18,7 @@ use crate::PhysicsState3d;
 use crate::vocabulary::component as c;
 use crate::vocabulary::words;
 
-/// Pulls the node's `body3d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow3d.reset_follow()` forgets what a PID summed.
+/// Pulls the node's `body3d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow3d.reset()` forgets what a PID summed.
 #[derive(Clone, Component)]
 #[component(
     name = "follow3d",

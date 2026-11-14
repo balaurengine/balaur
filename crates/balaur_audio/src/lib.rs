@@ -132,6 +132,9 @@ pub struct AudioState {
     /// Counts up from 1 and never reuses, so a held handle names nothing
     /// rather than something else once its sound is gone.
     next_handle: u64,
+    /// Whether the last fixed step left a sound that will play out, or a
+    /// fade still falling, for `balaur_core::rest`.
+    ending: bool,
 }
 
 /// Where a live handle plays and where it has got to. The gains are
@@ -204,7 +207,7 @@ impl Release {
 }
 
 /// What a node announces when its sound plays out, with the handle.
-pub const FINISHED_EVENT: &str = "finished";
+pub const SOUND_FINISHED_EVENT: &str = "sound_finished";
 
 /// One `play`: how loud and fast, looping or not, on which bus at what chain
 /// gain, and, for a positional sound, where it plays from; then where it
@@ -923,7 +926,7 @@ pub fn seek_on(eng: &Engine, entity: Entity, seconds: f64) {
 }
 
 /// Move `entity`'s sound on to the next file in its queue. Past the last one
-/// it has played out, and the node announces `finished`.
+/// it has played out, and the node announces `sound_finished`.
 pub fn skip_on(eng: &Engine, entity: Entity) {
     let ended = {
         let state = eng.resource::<AudioState>();
@@ -979,6 +982,9 @@ fn count_down_system(eng: &Engine, dt: f32) {
             ..
         } = &mut *state;
         let mut ended = Vec::new();
+        // A looping sound never says it finished, and the device plays it on
+        // its own thread: only one that will end needs the loop awake.
+        let mut ending = false;
         for (handle, routed) in routing.iter_mut() {
             if routed.paused {
                 continue;
@@ -990,6 +996,9 @@ fn count_down_system(eng: &Engine, dt: f32) {
                 ended.push(*handle);
                 continue;
             }
+            // One of unknown length ends with its sink, and has none without a device.
+            let told = routed.timeline.counted() || playing.contains_key(handle);
+            ending = ending || (told && routed.timeline.ends());
             let fade = routed.end_fade();
             if (fade - routed.fade).abs() > f32::EPSILON {
                 routed.fade = fade;
@@ -1011,6 +1020,7 @@ fn count_down_system(eng: &Engine, dt: f32) {
             sink.stop();
             false
         });
+        state.ending = ending || !state.releasing.is_empty();
         for handle in &ended {
             state.stop(*handle);
         }
@@ -1062,7 +1072,7 @@ fn announce_finished(eng: &Engine, ended: &[u64]) {
         balaur_core::events::announce(
             eng,
             entity,
-            FINISHED_EVENT,
+            SOUND_FINISHED_EVENT,
             balaur_script::Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)),
         );
     }
@@ -1095,6 +1105,11 @@ impl balaur_plugin::Plugin for AudioPlugin {
             listeners: DetHashMap::default(),
             listener: ListenerPose::default(),
             next_handle: 1,
+            ending: false,
+        });
+        balaur_core::rest::add_probe(reg.engine(), words::general::AUDIO, |eng| {
+            eng.try_resource::<AudioState>()
+                .is_some_and(|state| state.borrow().ending)
         });
         reg.insert_resource(bus::Buses::default());
         reg.insert_resource(cache::SoundCache::default());

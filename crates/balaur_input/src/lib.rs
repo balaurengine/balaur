@@ -44,13 +44,14 @@ pub use keys::{EITHER_SIDE, FOCUS_KEYS, KEYS};
 pub use settings::{InputConfig, PadSettings};
 pub use touch_controls::{TouchButton, TouchStick};
 
+const CENTER: &str = "center";
 const COMPOSING: &str = "composing";
-const DROPPED_FILES: &str = "dropped_files";
-const FEED_KEY: &str = "feed_key";
-const FEED_MOUSE: &str = "feed_mouse";
-const FEED_MOUSE_BUTTON: &str = "feed_mouse_button";
-const FEED_SCROLL: &str = "feed_scroll";
-const FEED_TOUCH: &str = "feed_touch";
+const DIRECTION: &str = "direction";
+const SET_KEY_DOWN: &str = "set_key_down";
+const SET_MOUSE_POSITION: &str = "set_mouse_position";
+const SET_MOUSE_DOWN: &str = "set_mouse_down";
+const SET_SCROLL_DELTA: &str = "set_scroll_delta";
+const SET_TOUCH: &str = "set_touch";
 const KEY_DOWN: &str = "key_down";
 const KEY_JUST_PRESSED: &str = "key_just_pressed";
 const KEY_JUST_RELEASED: &str = "key_just_released";
@@ -112,7 +113,7 @@ pub enum TouchPhase {
 ///
 /// The backend calls [`InputSnapshot::begin_frame`] and then the `*_event`
 /// feeders once per frame; everything else reads. The one script-side writer
-/// is `input.feed_*`, the automation seam: it calls the same feeders, so a
+/// is `input.set_*`, the automation seam: it calls the same feeders, so a
 /// fed frame records and replays like one the window fed.
 ///
 /// **Under a headless backend the entry exists but nothing ever feeds it**, so
@@ -168,7 +169,7 @@ pub struct InputSnapshot {
     /// fields it produced are what got recorded.
     #[serde(skip)]
     emulate: Emulation,
-    /// What `input.feed_*` handed in this frame, delivered as the next
+    /// What `input.set_*` handed in this frame, delivered as the next
     /// frame's events: a script feeds during the tick, and the systems that
     /// dispatch a press run at the top of one.
     #[serde(skip)]
@@ -817,25 +818,20 @@ fn install_input_api(m: &mut Module<Engine>) {
 /// a desktop and a headless run answer the same as a still screen.
 fn install_gesture_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (PINCH, &[], "-> Pinch", "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down."),
-        (PAN, &[], "-> Pan", "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down."),
+        (PINCH, &[], "-> Pinch", "Two fingers moving apart or together as `{ scale, center }`: `scale` above 1 is apart, measured against last frame, and `center` is the point between them. Empty with fewer than two fingers down."),
+        (PAN, &[], "() -> Vec2", "Two or more fingers moving together: the average movement since last frame, in the same pixels as `mouse_position`. Zero with fewer than two down."),
         (SWIPE, &[], "() -> Swipe?", "A finger that travelled far enough before it lifted. Reported on the frame it lifted and never again; nil otherwise."),
         (LONG_PRESS, &[], "() -> Vec2?", "Where a finger has been held still past `long_press_seconds`. Reported once per finger, on the frame the hold passes; nil otherwise."),
     ]);
     m.records(&[
         (
             "Pinch",
-            "{ scale: float?, x: float?, y: float? }",
+            "{ scale: float?, center: Vec2? }",
             "Two fingers moving apart or together since last frame, and the point between them; every field is nil with fewer than two fingers down.",
         ),
         (
-            "Pan",
-            "{ x: float, y: float }",
-            "The average movement of two or more fingers since last frame, in the same pixels as the mouse position.",
-        ),
-        (
             "Swipe",
-            "{ x: float, y: float, speed: float }",
+            "{ direction: Vec2, speed: float }",
             "A finger that travelled before it lifted: a unit direction and pixels per second.",
         ),
     ]);
@@ -845,24 +841,25 @@ fn install_gesture_api(m: &mut Module<Engine>) {
         };
         Ok(Value::Map(vec![
             ("scale".to_string(), Value::Num(f64::from(pinch.scale))),
-            ("x".to_string(), Value::Num(f64::from(pinch.center.0))),
-            ("y".to_string(), Value::Num(f64::from(pinch.center.1))),
+            (
+                CENTER.to_string(),
+                Value::Vec2([pinch.center.0, pinch.center.1]),
+            ),
         ]))
     });
     m.function(PAN, |eng: &Engine, ()| {
         let (x, y) = eng.resource::<Gestures>().borrow().pan();
-        Ok(Value::Map(vec![
-            ("x".to_string(), Value::Num(f64::from(x))),
-            ("y".to_string(), Value::Num(f64::from(y))),
-        ]))
+        Ok(Value::Vec2([x, y]))
     });
     m.function(SWIPE, |eng: &Engine, ()| {
         let Some(swipe) = eng.resource::<Gestures>().borrow().swipe() else {
             return Ok(Value::Nil);
         };
         Ok(Value::Map(vec![
-            ("x".to_string(), Value::Num(f64::from(swipe.direction.0))),
-            ("y".to_string(), Value::Num(f64::from(swipe.direction.1))),
+            (
+                DIRECTION.to_string(),
+                Value::Vec2([swipe.direction.0, swipe.direction.1]),
+            ),
             ("speed".to_string(), Value::Num(f64::from(swipe.speed))),
         ]))
     });
@@ -872,39 +869,49 @@ fn install_gesture_api(m: &mut Module<Engine>) {
     });
 }
 
-/// `input.feed_*`: the window backend's feeders, for a script that stands in
+/// A `Vec2` argument's two floats, or an error naming what came instead.
+fn vec2_of(what: &str, value: &Value) -> anyhow::Result<(f32, f32)> {
+    match value {
+        Value::Vec2([x, y]) => Ok((*x, *y)),
+        other => anyhow::bail!("{what} is a Vec2, not a {}", other.type_name()),
+    }
+}
+
+/// `input.set_*`: the window backend's feeders, for a script that stands in
 /// for a person: a showcase, a test, an automation client. A fed event is
 /// the next frame's, delivered when it begins, so the systems that dispatch
 /// a press at the top of a tick see it exactly like an OS event.
 fn install_feed_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (FEED_KEY, &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite feed."),
-        (FEED_MOUSE, &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame."),
-        (FEED_SCROLL, &[], "(x: float, y: float)", "Turn the wheel as if the window had reported it, from next frame; adds to that frame's `scroll_delta`."),
-        (FEED_MOUSE_BUTTON, &[], "(button: int, down: bool)", "Press or release a `MOUSE_BUTTON_*` button as if the window had reported it, from next frame."),
-        (FEED_TOUCH, &[], "(id: int, x: float, y: float, phase: string)", "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`."),
+        (SET_KEY_DOWN, &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite call."),
+        (SET_MOUSE_POSITION, &[], "(position: Vec2)", "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame."),
+        (SET_SCROLL_DELTA, &[], "(delta: Vec2)", "Turn the wheel as if the window had reported it, from next frame; adds to that frame's `scroll_delta`."),
+        (SET_MOUSE_DOWN, &[], "(button: int, down: bool)", "Press or release a `MOUSE_BUTTON_*` button as if the window had reported it, from next frame."),
+        (SET_TOUCH, &[], "(id: int, position: Vec2, phase: string)", "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`."),
     ]);
-    m.function(FEED_KEY, |eng: &Engine, (key, down): (String, bool)| {
+    m.function(SET_KEY_DOWN, |eng: &Engine, (key, down): (String, bool)| {
         check_key(&key);
         eng.resource::<InputSnapshot>()
             .borrow_mut()
             .feed(Fed::Key(key, down));
         Ok(())
     });
-    m.function(FEED_MOUSE, |eng: &Engine, (x, y): (f32, f32)| {
+    m.function(SET_MOUSE_POSITION, |eng: &Engine, (position,): (Value,)| {
+        let (x, y) = vec2_of("a mouse position", &position)?;
         eng.resource::<InputSnapshot>()
             .borrow_mut()
             .feed(Fed::Mouse(x, y));
         Ok(())
     });
-    m.function(FEED_SCROLL, |eng: &Engine, (x, y): (f32, f32)| {
+    m.function(SET_SCROLL_DELTA, |eng: &Engine, (delta,): (Value,)| {
+        let (x, y) = vec2_of("a scroll delta", &delta)?;
         eng.resource::<InputSnapshot>()
             .borrow_mut()
             .feed(Fed::Scroll(x, y));
         Ok(())
     });
     m.function(
-        FEED_MOUSE_BUTTON,
+        SET_MOUSE_DOWN,
         |eng: &Engine, (button, down): (usize, bool)| {
             eng.resource::<InputSnapshot>()
                 .borrow_mut()
@@ -913,8 +920,9 @@ fn install_feed_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        FEED_TOUCH,
-        |eng: &Engine, (id, x, y, phase): (i64, f32, f32, String)| {
+        SET_TOUCH,
+        |eng: &Engine, (id, position, phase): (i64, Value, String)| {
+            let (x, y) = vec2_of("a touch position", &position)?;
             let phase = match phase.as_str() {
                 words::phases::START => TouchPhase::Start,
                 words::phases::MOVE => TouchPhase::Move,
@@ -932,21 +940,19 @@ fn install_feed_api(m: &mut Module<Engine>) {
     );
 }
 
-/// `input.touches*` and `input.dropped_files`: the per-frame lists the
-/// window backend feeds.
+/// `input.touches*`: the per-frame lists the window backend feeds.
 fn install_touch_api(m: &mut Module<Engine>) {
     m.describe(&[
         (TOUCHES, &[], "() -> [Touch]", "Every finger on the screen, oldest first, in the same pixels as `mouse_position`."),
         (TOUCHES_JUST_STARTED, &[], "() -> [int]", "The ids of the fingers that touched down this frame."),
         (TOUCHES_JUST_ENDED, &[], "() -> [int]", "The ids of the fingers that lifted or were cancelled this frame."),
-        (DROPPED_FILES, &[], "() -> [string]", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only. A script hears a drop with `events::listen(this.node, \"files_dropped\")`, as `on_files_dropped(paths)`."),
         (TYPED, &[], "() -> string", "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down."),
         (KEYBOARD_HEIGHT, &[], "() -> float", "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop."),
         (COMPOSING, &[], "() -> string", "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method."),
     ]);
     m.records(&[(
         "Touch",
-        "{ id: int, x: float, y: float }",
+        "{ id: int, position: Vec2 }",
         "One finger: its id and where it is.",
     )]);
     m.function(COMPOSING, |eng: &Engine, ()| {
@@ -954,7 +960,7 @@ fn install_touch_api(m: &mut Module<Engine>) {
         let composing = state.borrow().composing().to_string();
         Ok(Value::Str(composing))
     });
-    // Active touches as `{ id, x, y }` maps, oldest finger first. Pixel
+    // Active touches as `{ id, position }` maps, oldest finger first. Pixel
     // coordinates, same space as `mouse_position`.
     m.function(TOUCHES, |eng: &Engine, ()| {
         let state = eng.resource::<InputSnapshot>();
@@ -965,8 +971,10 @@ fn install_touch_api(m: &mut Module<Engine>) {
             .map(|(id, x, y)| {
                 Value::Map(vec![
                     ("id".to_string(), Value::Int(id.cast_signed())),
-                    ("x".to_string(), Value::Num(f64::from(*x))),
-                    ("y".to_string(), Value::Num(f64::from(*y))),
+                    (
+                        crate::vocabulary::keys::POSITION.to_string(),
+                        Value::Vec2([*x, *y]),
+                    ),
                 ])
             })
             .collect();
@@ -1005,18 +1013,6 @@ fn install_touch_api(m: &mut Module<Engine>) {
     m.function(KEYBOARD_HEIGHT, |eng: &Engine, ()| {
         let height = balaur_core::facts::device(eng).keyboard_height;
         Ok(Value::Num(f64::from(height)))
-    });
-    // Files dropped onto the window this frame, absolute paths in drop order.
-    // Desktop only: browsers and phones have no window to drop onto.
-    m.function(DROPPED_FILES, |eng: &Engine, ()| {
-        let state = eng.resource::<InputSnapshot>();
-        let files = state
-            .borrow()
-            .dropped_files()
-            .iter()
-            .map(|path| Value::Str(path.clone()))
-            .collect();
-        Ok(Value::List(files))
     });
 }
 

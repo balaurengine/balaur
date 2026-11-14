@@ -28,8 +28,8 @@ gap = [6, 0]
 id = "module"
 name = "Module"
 parent = "tools"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "module_picked" }] }
 [nodes.widget]
-on_change = "module_picked"
 kind = "dropdown"
 role = "choice"
 width = 150
@@ -40,8 +40,8 @@ options = []
 id = "search"
 name = "Search"
 parent = "tools"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "search_typed" }] }
 [nodes.widget]
-on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
 width = 150

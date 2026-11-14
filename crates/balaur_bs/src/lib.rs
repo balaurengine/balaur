@@ -18,6 +18,7 @@ mod enums;
 pub mod fmt;
 mod maps;
 mod modules;
+mod names;
 mod parse;
 mod prelude;
 mod reach;
@@ -27,7 +28,8 @@ mod vocabulary;
 pub mod words;
 
 pub use ast::{Pos, Ty};
-pub use modules::{Find, Modules, Parsed};
+pub use modules::{EditorFiles, Find, Modules, Parsed};
+pub use names::{Event, NamedCall, Names, events, names};
 use rustc_hash::FxHashMap;
 
 /// What a module is known by outside the runtime: a compiled-module cache's
@@ -113,6 +115,10 @@ pub struct Options {
     pub unit: bool,
     /// The module files read so far, kept across compiles by the caller.
     pub parsed: Option<Parsed>,
+    /// Which files are the editor's; none without it. Such a file may call a
+    /// host function marked [`HostSignature::editor`], and a file that is not
+    /// may not `use` one that is.
+    pub editor: Option<EditorFiles>,
 }
 
 /// The engine's side, as the compiler types it: functions a script calls as
@@ -139,6 +145,9 @@ pub struct HostSignature {
     /// Awaited, as an `extern async fn` is: the call hands back a token, and
     /// the host resolves it with [`runtime::Runtime::wake`].
     pub is_async: bool,
+    /// The editor's: only a file [`Options::editor`] holds may call it, and a
+    /// game's runtime does not have it.
+    pub editor: bool,
 }
 
 /// A type as a script writes it: `[str]`, `ui::Rect?`.
@@ -451,6 +460,12 @@ fn no_reserved_names(prog: &ast::Program) -> Result<(), Error> {
 // records beside its own structs; the files linked.
 fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Error> {
     let mut prog = parse::parse(src)?;
+    modules::no_editors_use(
+        &prog,
+        &options.path,
+        options.modules.as_ref(),
+        options.editor.as_ref(),
+    )?;
     let uses = if prog.uses.is_empty() {
         vec![]
     } else {

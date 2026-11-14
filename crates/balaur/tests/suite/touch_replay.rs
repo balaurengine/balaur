@@ -147,17 +147,17 @@ fn nobody_touching_the_stick_leaves_the_runner_still() {
 const VERBS: &str = "pub class Runner { node: Node }
 impl Runner {
     fn update(dt: float) {
-        input::feed_action(\"jump\", 1.0);
-        input::feed_touch(3, 500.0, 300.0, \"start\");
+        input::set_action_value(\"jump\", 1.0);
+        input::set_touch(3, vec2(500.0, 300.0), \"start\");
         let zoom = 1.0;
         let pinch = input::pinch();
         if pinch.scale != nil { zoom *= pinch.scale.unwrap(); }
         let pan = input::pan();
         zoom += pan.x * 0.0;
         let swipe = input::swipe();
-        if swipe != nil { zoom += swipe.unwrap().x; }
+        if swipe != nil { zoom += swipe.unwrap().direction.x; }
         if input::long_press() != nil { zoom = 1.0; }
-        input::feed_action(\"reached\", 1.0);
+        input::set_action_value(\"reached\", 1.0);
     }
     fn fixed_update(dt: float) {
         if input::action_down(\"jump\") { let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0); }

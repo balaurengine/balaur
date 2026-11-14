@@ -539,25 +539,53 @@ impl BsHost {
 
     pub fn check(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
         let key = key_of(rel);
-        let options = self.check_options(&key);
-        let found = balaur_bs::errors(source, &options);
-        if !found.is_empty() {
-            return found;
+        match self.unit_or_errors(&key, source) {
+            Ok(unit) => self.module_errors(&key, &unit),
+            Err(found) => found,
         }
-        self.unit_of(&key, source).map_or_else(
-            |error| {
-                vec![balaur_bs::Error {
-                    pos: balaur_bs::Pos { line: 1, col: 1 },
-                    msg: format!("{error:#}"),
-                }]
-            },
-            |unit| self.module_errors(&key, &unit),
-        )
+    }
+
+    /// [`Self::check`] of the file alone, each file it uses left to answer
+    /// for itself: for a caller that checks every one of those too.
+    pub fn check_alone(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
+        self.unit_or_errors(&key_of(rel), source)
+            .err()
+            .unwrap_or_default()
+    }
+
+    // The file's unit, or every error that keeps it from being one.
+    fn unit_or_errors(&self, key: &str, source: &str) -> Result<Compiled, Vec<balaur_bs::Error>> {
+        let found = balaur_bs::errors(source, &self.check_options(key));
+        if !found.is_empty() {
+            return Err(found);
+        }
+        self.unit_of(key, source).map_err(|error| {
+            vec![balaur_bs::Error {
+                pos: balaur_bs::Pos { line: 1, col: 1 },
+                msg: format!("{error:#}"),
+            }]
+        })
     }
 
     /// What the file's own functions should say otherwise, though they compile.
     pub fn lints(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
         balaur_bs::lints(source, &self.check_options(&key_of(rel)))
+    }
+
+    /// What the file declares, calls and spells by name, for a checker of
+    /// the events a project hears; `None` when it does not parse or link.
+    pub fn names(&self, rel: &str, source: &str) -> Option<crate::Names> {
+        balaur_bs::names(source, &self.check_options(&key_of(rel))).ok()
+    }
+
+    /// Every module a script may call into, by name.
+    pub fn module_names(&self) -> std::collections::BTreeSet<String> {
+        self.api()
+            .functions
+            .iter()
+            .filter_map(|function| function.key.split_once("::"))
+            .map(|(module, _)| module.to_string())
+            .collect()
     }
 
     // A file's own functions: each module answers for its own.
@@ -569,8 +597,25 @@ impl BsHost {
             path: key.to_string(),
             unit: true,
             parsed: Some(self.inner.parsed.clone()),
+            editor: Some(self.editor_files()),
             ..Options::default()
         }
+    }
+
+    /// Whether the file at `key` is the editor's, by where it sits among the
+    /// roots the engine knows ([`balaur_core::file_api::editors_script`]).
+    pub(crate) fn editors(&self, key: &str) -> bool {
+        let path = self.inner.root.join(key);
+        balaur_core::file_api::editors_script(&self.inner.engine, &path).is_some()
+    }
+
+    /// [`Self::editors`], for the compiler to ask of a file and its `use`s.
+    pub(crate) fn editor_files(&self) -> balaur_bs::EditorFiles {
+        let host = Rc::downgrade(&self.inner);
+        balaur_bs::EditorFiles(Rc::new(move |key: &str| {
+            host.upgrade()
+                .is_some_and(|inner| BsHost { inner }.editors(key))
+        }))
     }
 
     // Every error of every module `unit` uses, near or far, each named by its

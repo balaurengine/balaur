@@ -18,6 +18,7 @@ pub(crate) fn signatures() -> Vec<HostSignature> {
         params: vec![param],
         ret,
         is_async: true,
+        editor: false,
     };
     vec![
         wait(SECONDS, Ty::Float, Ty::Void),

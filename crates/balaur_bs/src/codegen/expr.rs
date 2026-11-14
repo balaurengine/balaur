@@ -1,5 +1,6 @@
 use super::Site;
 use super::func::{FnGen, LVal, Mode, R, any_read, err, op_text, show, vector_fn};
+use super::lend::Taker;
 use super::rt::{load, mem, store};
 use crate::Error;
 use crate::ast::{BinOp, Block, Expr, ExprKind, Part, Pos, StmtKind, Ty, UnOp};
@@ -805,7 +806,7 @@ impl FnGen<'_> {
         Ok(())
     }
 
-    // A host call borrows its strings: they are released once it returns.
+    // A host call borrows every argument: each is released once it returns.
     // Trailing `T?` and `any` parameters may be left out, and are nil.
     pub(crate) fn host_args(
         &mut self,
@@ -813,6 +814,29 @@ impl FnGen<'_> {
         args: &[&Expr],
         pos: Pos,
         what: &str,
+    ) -> R<Vec<LVal>> {
+        self.lent_args(want, args, pos, what, Taker::Engine)
+    }
+
+    /// A prelude function's or a map method's arguments, which it borrows only
+    /// the strings, lists and `any`s of.
+    pub(crate) fn prelude_args(
+        &mut self,
+        want: &[Ty],
+        args: &[&Expr],
+        pos: Pos,
+        what: &str,
+    ) -> R<Vec<LVal>> {
+        self.lent_args(want, args, pos, what, Taker::Prelude)
+    }
+
+    fn lent_args(
+        &mut self,
+        want: &[Ty],
+        args: &[&Expr],
+        pos: Pos,
+        what: &str,
+        taker: Taker,
     ) -> R<Vec<LVal>> {
         self.arg_count(
             crate::least(want),
@@ -822,7 +846,7 @@ impl FnGen<'_> {
             pos,
             what,
         )?;
-        let held = self.lent(want, args, false)?;
+        let held = self.lent(want, args, taker)?;
         for w in &want[args.len()..] {
             self.nil_as(w, pos)?;
         }

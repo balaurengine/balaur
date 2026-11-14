@@ -13,8 +13,8 @@
 pub(crate) struct Lit2d {
     pub(crate) normal_map: String,
     pub(crate) specular_strength: f32,
-    pub(crate) shininess: f32,
-    pub(crate) normal_strength: f32,
+    pub(crate) specular_shininess: f32,
+    pub(crate) normal_scale: f32,
 }
 
 /// The lit settings a node's material gives it: a shader-less material
@@ -30,8 +30,8 @@ pub(crate) fn of(eng: &balaur_core::Engine, reference: &str) -> Option<Lit2d> {
     Some(Lit2d {
         normal_map,
         specular_strength: builtin.specular_strength,
-        shininess: builtin.shininess,
-        normal_strength: builtin.normal_strength,
+        specular_shininess: builtin.specular_shininess,
+        normal_scale: builtin.normal_scale,
     })
 }
 
@@ -75,8 +75,8 @@ pub(crate) fn dress(app: &balaur_core::App, node: &mut kiss3d::scene::SceneNode2
         crate::texture::PREMULTIPLY_DROPPED,
     );
     let params = kiss3d::builtin::LitParams::default()
-        .with_specular(lit.specular_strength, lit.shininess)
-        .with_normal_strength(lit.normal_strength);
+        .with_specular(lit.specular_strength, lit.specular_shininess)
+        .with_normal_strength(lit.normal_scale);
     node.apply_to_objects_mut_recursive(&mut |object| {
         object.set_normal_map(normal.clone());
         object.set_lit_params(Some(params));
@@ -87,7 +87,6 @@ pub(crate) fn dress(app: &balaur_core::App, node: &mut kiss3d::scene::SceneNode2
 /// is white, so a normal-mapped node draws as an unlit scene does.
 #[cfg(feature = "window")]
 pub(crate) fn feed_lights(app: &balaur_core::App) {
-    use kiss3d::color::Color;
     use kiss3d::light2d::{Light2d, Light2dManager};
 
     let world = app.engine.world();
@@ -106,7 +105,7 @@ pub(crate) fn feed_lights(app: &balaur_core::App) {
             continue;
         };
         let [r, g, b, _] = light.color;
-        let color = Color::new(r, g, b, 1.0);
+        let color = crate::film::opaque([r, g, b]);
         let at = glamx::Vec2::new(global.position.x, global.position.y);
         let aimed = global.rotation * glamx::Vec3::NEG_Y;
         let aim = glamx::Vec2::new(aimed.x, aimed.y);
@@ -136,6 +135,6 @@ pub(crate) fn feed_lights(app: &balaur_core::App) {
     };
     Light2dManager::get_global_manager(|manager| {
         manager.set_lights(&lights);
-        manager.set_ambient(Color::new(ambient[0], ambient[1], ambient[2], 1.0));
+        manager.set_ambient(crate::film::opaque(ambient));
     });
 }

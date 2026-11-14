@@ -83,8 +83,8 @@ inset = [0.0, 0.0, -1.0, -1.0]
 id = "left_open"
 name = "Open"
 parent = "left"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "open" }] }
 [nodes.widget]
-on_click = "open"
 kind = "button"
 role = "icon_action"
 padding = 0
@@ -104,8 +104,8 @@ inset = [-1.0, 0.0, 0.0, -1.0]
 id = "right_open"
 name = "Open"
 parent = "right"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "open" }] }
 [nodes.widget]
-on_click = "open"
 kind = "button"
 role = "icon_action"
 padding = 0

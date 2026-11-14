@@ -207,6 +207,7 @@ impl Server {
                         "label": c.label,
                         "kind": item_kind(c.kind),
                         "detail": c.detail,
+                        "documentation": c.doc,
                         "insertText": c.label,
                     })
                 })
@@ -387,6 +388,7 @@ fn symbol_kind(kind: &str) -> u8 {
     match kind {
         words::lsp::FUNCTION | words::lsp::METHOD => 12,
         words::lsp::STRUCT => 23,
+        words::lsp::EVENT => 24,
         _ => 7,
     }
 }

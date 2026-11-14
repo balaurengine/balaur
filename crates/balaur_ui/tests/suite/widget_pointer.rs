@@ -110,11 +110,19 @@ fn a_field_hears_focus_arrive_and_leave() {
         Some(field),
         "the click did not focus the field"
     );
-    assert_eq!(heard(&app, field, "focus").len(), 1, "no focus event");
+    assert_eq!(
+        heard(&app, field, "focus_entered").len(),
+        1,
+        "no focus_entered event"
+    );
     let away = egui::pos2(inside.x + 400.0, inside.y + 400.0);
     pass(&app, &ctx, press(away, true));
     pass(&app, &ctx, press(away, false));
     consume_input(&mut app);
-    assert_eq!(heard(&app, field, "blur").len(), 1, "no blur event");
+    assert_eq!(
+        heard(&app, field, "focus_exited").len(),
+        1,
+        "no focus_exited event"
+    );
     assert_eq!(focused(&app), None, "focus stayed on the field");
 }

@@ -175,6 +175,20 @@ impl balaur_plugin::Plugin for MultiplayerPlugin {
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(MultiplayerState::default());
+        balaur_core::events::declare(
+            reg.engine(),
+            &[(
+                EVENT,
+                "a map whose `kind` is an `EVENT_*` constant",
+                "A match had something to say.",
+            )],
+        );
+        // A lobby waits on the wall clock and a match steps on it, so either
+        // needs its frames whether or not anything else moves.
+        balaur_core::rest::add_probe(reg.engine(), MULTIPLAYER, |eng| {
+            eng.try_resource::<MultiplayerState>()
+                .is_some_and(|state| !matches!(state.borrow().phase, Phase::Idle))
+        });
         reg.insert_resource(balaur_core::app::FrameDriver(Some(Box::new(play::drive))));
         reg.add_system(Stage::First, poll_system);
         reg.add_system(Stage::First, deliver_system);

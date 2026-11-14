@@ -17,7 +17,7 @@ struct PostInput {
 @group(0) @binding(1) var frame_sampler: sampler;
 
 private struct PostFrame {
-    // The frame in pixels, then seconds since the run began and a spare.
+    // The frame in pixels, then `engine::time()` and a spare.
     size_clock: vec4<f32>,
 }
 

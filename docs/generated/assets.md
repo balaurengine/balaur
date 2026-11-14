@@ -265,8 +265,8 @@ subsurface = 0.0             # read by the path tracer only
 subsurface_radius = 0.0      # read by nothing yet
 normal = "art/panel_n.png"   # albedo, normal, metallic_roughness, occlusion, emissive, height;
                              # on a 2D node, `normal` lights it per pixel by every light2d
-normal_strength = 1.0        # 2D: how far the normal map bends the surface; zero lights it flat
-shininess = 16.0             # 2D: how tight a light's highlight is; higher is smaller and sharper
+normal_scale = 1.0           # 2D: how far the normal map bends the surface; zero lights it flat
+specular_shininess = 16.0    # 2D: how tight a light's highlight is; higher is smaller and sharper
 specular_strength = 0.0      # 2D: how bright the highlight is; zero draws none
 height = "art/panel_h.png"
 parallax_scale = 0.1         # how deep the height map reads, in UV units
@@ -321,9 +321,9 @@ instances = [                      # a 2D instance writes [x, y] and turns about
   { position = [1.8, 0.0, 0.0], color = "#ff8080", custom = [1.0, 0.0, 0.0, 0.0] },
   # a 3x3, columns first, in place of rotation_euler and scale: it keeps a shear
   { position = [2.7, 0.0, 0.0], basis = [1.0, 0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0] },
-  # the node's wireframe and vertex dots, for this instance alone; they draw
-  # only while the node's own wireframe_width and dot_size are above zero
-  { position = [3.6, 0.0, 0.0], wireframe_color = "#00ff00", wireframe_width = 2.0, dot_color = "#ffff00", dot_size = 4.0 },
+  # the node's wireframe and vertex points, for this instance alone; they draw
+  # only while the node's own wireframe_width and point_size are above zero
+  { position = [3.6, 0.0, 0.0], wireframe_color = "#00ff00", wireframe_width = 2.0, point_color = "#ffff00", point_size = 4.0 },
 ]
 ```
 

@@ -119,7 +119,7 @@ pub use values::{merge_defaults, properties, rgba};
 
 use crate::vocabulary::keys;
 use crate::vocabulary::words;
-pub use accepts::{AcceptsFn, refuse_unknown_keys};
+pub use accepts::{AcceptsFn, refuse_unknown_keys, unknown_key};
 use attached::mark;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
 pub use derived::{Lifecycle, LifecycleFn};

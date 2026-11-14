@@ -29,6 +29,7 @@ const RECENT: &str = "recent";
 const SYSTEM_FONTS: &str = "system_fonts";
 const USE_DATA: &str = "use_data";
 
+mod dependency;
 mod forge;
 mod picture;
 mod release;
@@ -71,13 +72,14 @@ impl balaur_plugin::Plugin for ProjectPlugin {
                 state.home = shared_dir(eng);
             }
         });
-        let mut m = reg.script_module(keys::PROJECT)?;
+        let mut m = reg.script_module(keys::PROJECT)?.editor_only();
         install_project_api(&mut m);
         install_project_verbs(&mut m);
         install_font_verbs(&mut m);
         drop(m);
         picture::declare(reg)?;
         release::declare(reg)?;
+        dependency::declare(reg)?;
         forge::declare(reg)
     }
 }

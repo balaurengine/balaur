@@ -26,7 +26,6 @@ const SET_BUFFER: &str = "set_buffer";
 const SET_INSTANCE_COLOR: &str = "set_instance_color";
 const SET_INSTANCE_COUNT: &str = "set_instance_count";
 const SET_INSTANCE_CUSTOM_DATA: &str = "set_instance_custom_data";
-const SET_INSTANCE_REGION: &str = "set_instance_region";
 const SET_INSTANCE_TRANSFORM: &str = "set_instance_transform";
 const SET_INSTANCES: &str = "set_instances";
 const SET_VISIBLE_INSTANCE_COUNT: &str = "set_visible_instance_count";
@@ -107,29 +106,6 @@ fn transform_of(instance: &Instance, flat: bool) -> Value {
     }
 }
 
-/// Two floats from a `Vec2` or a list of two numbers.
-fn two(value: &Value, what: &str) -> Result<[f32; 2]> {
-    match value {
-        Value::Vec2(v) => Ok(*v),
-        Value::List(items) => match items.as_slice() {
-            [x, y] => Ok([number_of(x, what)?, number_of(y, what)?]),
-            _ => bail!("{what} is two numbers, not {}", items.len()),
-        },
-        other => bail!(
-            "{what} is a Vec2 or two numbers, not a {}",
-            other.type_name()
-        ),
-    }
-}
-
-fn number_of(value: &Value, what: &str) -> Result<f32> {
-    match value {
-        Value::Num(n) => Ok(*n as f32),
-        Value::Int(n) => Ok(*n as f32),
-        other => bail!("{what} holds a {}, not a number", other.type_name()),
-    }
-}
-
 fn four(value: &Value, what: &str) -> Result<[f32; 4]> {
     match value {
         Value::Color(c) => Ok(*c),
@@ -207,8 +183,7 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
     let on = handle.on;
     m.describe(&[
         (SET_INSTANCE_TRANSFORM, on, handle.set_transform, "Place one instance. A shear is kept, as the instance's `basis`."),
-        (SET_INSTANCE_REGION, &[MULTIMESH_2D], "(node: node, index: int, origin: Vec2, size: Vec2)", "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance."),
-        (INSTANCE_REGION, &[MULTIMESH_2D], "(node: node, index: int) -> render::InstanceRegion?", "One instance's texture rectangle in pixels, or nil when it draws the whole texture."),
+        (INSTANCE_REGION, &[MULTIMESH_2D], "(node: node, index: int) -> render::InstanceRegion?", "The texture rectangle one instance's row names with `region_origin` and `region_size`, in pixels, or nil when it names none."),
         (INSTANCE_TRANSFORM, on, handle.transform, "One instance's transform."),
         (SET_INSTANCE_COLOR, on, "(node: node, index: int, color: Color)", "The colour one instance draws in."),
         (INSTANCE_COLOR, on, "(node: node, index: int) -> Color", "The colour one instance draws in."),
@@ -221,18 +196,6 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
             with_multimesh(eng, node, |multimesh| {
                 let at = slot(multimesh, index)?;
                 place(&mut multimesh.instances[at], &transform)
-            })
-        },
-    );
-    m.function(
-        SET_INSTANCE_REGION,
-        |eng: &Engine, (node, index, origin, size): (NodeId, i64, Value, Value)| {
-            let (origin, size) = (two(&origin, k::REGION_ORIGIN)?, two(&size, k::REGION_SIZE)?);
-            with_multimesh(eng, node, |multimesh| {
-                let at = slot(multimesh, index)?;
-                multimesh.instances[at].region = (size[0] > 0.0 && size[1] > 0.0)
-                    .then_some([origin[0], origin[1], size[0], size[1]]);
-                Ok(())
             })
         },
     );

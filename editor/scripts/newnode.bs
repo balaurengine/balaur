@@ -7,6 +7,7 @@ use form;
 use icons;
 use model;
 use pool;
+use presets;
 use recipes;
 use search;
 use style;
@@ -53,8 +54,8 @@ fn entry(name: str, note: str, tags: [str], preset: bool) -> Entry {
     Entry { name: name, note: note, tags: util::join(tags, " "), group: group_of(tags), preset: preset, label: "", parts: nil }
 }
 
-// Asked once per opening rather than once per frame: both registries are
-// walked whole, and doing that on every keystroke is a list rebuild.
+// Asked once per opening rather than once per frame: the recipes are read
+// from their files and the registry walked whole.
 pub fn catalogue(state: &mut editor::State) -> [Entry] {
     if state.newnode_cache != nil {
         return state.newnode_cache.unwrap();
@@ -81,20 +82,18 @@ fn changes(state: editor::State) -> [Entry] {
 
 fn everything(state: editor::State) -> [Entry] {
     let rows: [Entry] = [];
-    for name in scene::presets() {
-        let info = scene::preset_info(name);
-        let note = if info != nil { info.unwrap().description } else { "" };
-        let tags: [str] = if info != nil { info.unwrap().tags } else { [] };
-        rows.push(entry(name, note, tags, true));
+    let named: [str] = [];
+    for preset in presets::all(state) {
+        rows.push(entry(preset.name, preset.description, preset.tags, true));
+        named.push(preset.name);
     }
     // Components too, so a node can be made of one thing the presets do not
     // cover; `camera3d` has no preset and is still a node someone adds.
-    let presets = scene::presets();
     for name in scene::component_types() {
         // `transform` is not a node to add: `add_child` has already given the
         // new node one, and every node in the tree carries it. A component a
         // preset is named for is that preset's row, once.
-        if name == model::TRANSFORM || util::contains(presets, name) {
+        if name == model::TRANSFORM || util::contains(named, name) {
             continue;
         }
         let tags = scene::component_tags(name);

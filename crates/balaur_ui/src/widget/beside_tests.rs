@@ -6,8 +6,8 @@ use balaur_core::components::derived::Fields;
 use crate::vocabulary::words as w;
 use crate::widget::beside::{
     Beside, WidgetCode, WidgetColorPicker, WidgetDropdown, WidgetField, WidgetImage, WidgetList,
-    WidgetMenu, WidgetRange, WidgetScroll, WidgetSeparator, WidgetTable, WidgetWindow, brought_by,
-    each_beside, owners_of,
+    WidgetMenu, WidgetRange, WidgetScroll, WidgetSeparator, WidgetTable, WidgetWindow, each_beside,
+    owners_of,
 };
 use crate::widget::beside_box::{
     WidgetBox, WidgetChild, WidgetFold, WidgetGrid, WidgetLayout, WidgetTabs,
@@ -89,18 +89,8 @@ fn no_kind_reads_two_components_holding_one_row() {
     }
 }
 
-#[test]
-fn a_preset_brings_what_its_kind_reads_and_not_what_any_kind_may_carry() {
-    let label = brought_by(w::LABEL);
-    assert!(label.contains(&"widget_text"), "{label:?}");
-    assert!(!label.contains(&"widget_box"), "{label:?}");
-    assert!(!label.contains(&"widget_shortcut"), "{label:?}");
-    assert!(brought_by(w::ROW).contains(&"widget_layout"));
-    assert!(!brought_by(w::LABEL).contains(&"widget_layout"));
-}
-
-/// No component holds a row of `widget` itself, or a pooled control's
-/// table could not say which it meant.
+// No component holds a row of `widget` itself, or a pooled control's
+// table could not say which it meant.
 #[test]
 fn no_row_beside_the_widget_is_a_row_of_the_widget() {
     for row in WidgetProperties::NAMES {

@@ -16,8 +16,26 @@ use crate::engine_api::text;
 use crate::vocabulary::keys;
 use crate::vocabulary::words;
 
+/// The events the node's script declares with `event`, read from its file.
+fn script_events(eng: &Engine, entity: crate::hecs::Entity) -> Vec<String> {
+    let path = eng
+        .world()
+        .get::<&crate::scene::NodeScript>(entity)
+        .ok()
+        .map(|script| script.path.clone());
+    match (path, eng.script_host()) {
+        (Some(path), Some(host)) => host
+            .events(&path)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 /// The events a `[[nodes.bindings.rows]]` row may answer, for the Events view:
-/// the core hooks, then on a node what it and its components announce.
+/// the core hooks, then on a node what it, its components and its script
+/// announce.
 pub(crate) fn bindable_events(eng: &Engine, args: &[Value]) -> Result<Value> {
     let mut events: Vec<String> = crate::hooks::BINDABLE
         .iter()
@@ -28,14 +46,19 @@ pub(crate) fn bindable_events(eng: &Engine, args: &[Value]) -> Result<Value> {
         _ => None,
     };
     if let Some(entity) = node {
-        let mut announced: Vec<&str> = crate::node_api::NODE_EVENTS
+        let mut announced: Vec<String> = crate::events::on_nodes(eng)
             .iter()
-            .map(|(name, _)| *name)
+            .map(|(name, _)| (*name).to_string())
             .collect();
-        announced.extend(crate::components::events_on(eng, entity));
+        announced.extend(
+            crate::components::events_on(eng, entity)
+                .into_iter()
+                .map(str::to_string),
+        );
+        announced.extend(script_events(eng, entity));
         // A core hook's name is already listed, spelled without the prefix.
         for name in announced {
-            if crate::hooks::BINDABLE.contains(&name) {
+            if crate::hooks::BINDABLE.contains(&name.as_str()) {
                 continue;
             }
             let row = format!("{}{name}", crate::hooks::EMITTED);

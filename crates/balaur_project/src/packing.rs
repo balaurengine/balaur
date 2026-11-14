@@ -48,7 +48,7 @@ pub const LOADED_WHOLE: &[&str] = &["fonts/", ".balaur/"];
 /// a game pays only for what it uses of a large dependency. Its own
 /// `[export] include` globs keep what its scripts build.
 pub fn build(project_root: &Path, compiler: &dyn balaur_script::ScriptCompiler) -> Result<Pack> {
-    build_with(project_root, compiler, false)
+    build_with(project_root, compiler, false, &|_| false)
 }
 
 /// [`build`], with a say over what a script entry holds.
@@ -59,10 +59,14 @@ pub fn build(project_root: &Path, compiler: &dyn balaur_script::ScriptCompiler) 
 /// pointer width than this machine needs: the compiled form writes
 /// `usize` sentinels that do not read back on 32-bit targets, the web
 /// build first among them, until the bytecode format is portable.
+///
+/// `editors` names the editor's plugins by path from the root, which no
+/// game's runtime runs: the pack leaves them out whatever `ignore` says.
 pub fn build_with(
     project_root: &Path,
     compiler: &dyn balaur_script::ScriptCompiler,
     keep_sources: bool,
+    editors: &dyn Fn(&str) -> bool,
 ) -> Result<Pack> {
     // Through the file backend, not `std::fs`: on a desktop that is the
     // disk, and in a browser it is the project the editor is editing, so
@@ -75,7 +79,8 @@ pub fn build_with(
         ..Default::default()
     };
     let ignored = balaur_core::ignore::from_manifest(&pack.manifest);
-    let (fs, files, shipped) = gathered(fs, project_root, &pack.manifest, &ignored)?;
+    let (fs, mut files, shipped) = gathered(fs, project_root, &pack.manifest, &ignored)?;
+    files.retain(|rel| !editors(rel));
     let nested = nested_roots(&files);
     // Every script is compiled before the build fails, so one export
     // names every file that does not compile rather than the first.

@@ -67,7 +67,7 @@ pub const POINTER_DROP: &str = "pointer_drop";
 pub const BUTTONS: [&str; 3] = ["left", "right", "middle"];
 pub const KEY_DOWN: &str = "key_down";
 pub const KEY_UP: &str = "key_up";
-pub const ACTION: &str = "action";
+pub const ACTION_PRESSED: &str = "action_pressed";
 pub const ACTION_RELEASED: &str = "action_released";
 pub const SCROLL: &str = "scroll";
 pub const RESIZE: &str = "resize";
@@ -87,7 +87,7 @@ pub const BINDABLE: &[&str] = &[
     POINTER_DROP,
     KEY_DOWN,
     KEY_UP,
-    ACTION,
+    ACTION_PRESSED,
     ACTION_RELEASED,
     SCROLL,
     RESIZE,
@@ -121,7 +121,8 @@ pub fn hook_of(event: &str) -> smol_str::SmolStr {
 
 /// Every method the engine calls on a script by name, its arguments after
 /// `this`, and when: what the generated hooks page lists. A component's own
-/// events are listed with the component instead.
+/// events are listed with the component instead. `source` is the node the
+/// event happened on: the script's own, or the one a `call` row sits on.
 #[rustfmt::skip]
 pub const REFERENCE: &[(&str, &str, &str)] = &[
     (INIT, "()", "Once, when the script is attached and its scene has loaded."),
@@ -129,21 +130,21 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (FIXED_UPDATE, "(dt)", "Every fixed step, with the step's length; not while a pause or the node's `process` mode holds it."),
     (ON_FREE, "()", "Once, as the node is freed or its script detached."),
     (ON_HOT_RELOAD, "()", "After the script's file changed and it was rebuilt, with its state kept."),
-    ("on_pointer_enter", "()", "The pointer came over the node."),
-    ("on_pointer_exit", "()", "The pointer left the node."),
-    ("on_pointer_down", "(button)", "A button went down over the node, then over every other node unless one answers `true`."),
-    ("on_pointer_up", "(button)", "A button came up, reaching nodes as `on_pointer_down` does."),
-    ("on_pointer_click", "(button)", "A press and release over the same node."),
-    ("on_pointer_drag", "(dx, dy)", "The pointer moved with a button held, having pressed on the node."),
-    ("on_pointer_drop", "(node)", "A drag ended over this node, from the node given."),
-    ("on_key_down", "(key)", "A key went down; every node hears it, the last child first, until one answers `true`."),
-    ("on_key_up", "(key)", "A key came up, reaching nodes as `on_key_down` does."),
-    ("on_action", "(name)", "A declared input action was pressed, reaching nodes as `on_key_down` does."),
-    ("on_action_released", "(name)", "A declared input action was let go, reaching nodes as `on_key_down` does."),
-    ("on_scroll", "(dx, dy)", "The wheel turned, over the node or, over nothing, to every node."),
-    ("on_resize", "(width, height)", "The window's size, told to every node once the window first has one and whenever it changes."),
-    (ON_VARIABLE_CHANGED, "(name, value)", "A scene variable changed, told to every node at the end of the frame."),
-    (ON_STATE_CHANGED, "(was, now)", "The node's `states` moved to another state."),
+    ("on_pointer_enter", "(nil, source)", "The pointer came over the node."),
+    ("on_pointer_exit", "(nil, source)", "The pointer left the node."),
+    ("on_pointer_down", "(button, source)", "A button went down over the node, then over every other node unless one answers `true`."),
+    ("on_pointer_up", "(button, source)", "A button came up, reaching nodes as `on_pointer_down` does."),
+    ("on_pointer_click", "(button, source)", "A press and release over the same node, or a click on its widget."),
+    ("on_pointer_drag", "(dx, dy, source)", "The pointer moved with a button held, having pressed on the node."),
+    ("on_pointer_drop", "(node, source)", "A drag ended over this node, from the node given."),
+    ("on_key_down", "(key, source)", "A key went down; every node hears it, the last child first, until one answers `true`."),
+    ("on_key_up", "(key, source)", "A key came up, reaching nodes as `on_key_down` does."),
+    ("on_action_pressed", "(name, source)", "A declared input action was pressed, reaching nodes as `on_key_down` does."),
+    ("on_action_released", "(name, source)", "A declared input action was let go, reaching nodes as `on_key_down` does."),
+    ("on_scroll", "(dx, dy, source)", "The wheel turned, over the node or, over nothing, to every node."),
+    ("on_resize", "(width, height, source)", "The window's size, told to every node once the window first has one and whenever it changes."),
+    (ON_VARIABLE_CHANGED, "(name, value, source)", "A scene variable changed, told to every node at the end of the frame."),
+    (ON_STATE_CHANGED, "(was, now, source)", "The node's `states` moved to another state."),
     (ON_PAUSED_CHANGED, "(paused)", "The game paused or resumed, told to every script, a paused one too."),
     (ON_PARKED_CHANGED, "(parked)", "A `scene.switch` parked the script's scene, or brought it back; nothing else reaches it between the two, and `init` does not run again, so coming back is where it catches up."),
     (ON_FOCUSED_CHANGED, "(focused)", "The window came to the front or left it, told to every script."),

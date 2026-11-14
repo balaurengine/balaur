@@ -98,11 +98,11 @@ fn instances_2d(
             Some(kiss3d::scene::InstanceData2d {
                 position,
                 deformation,
-                color: placed.color,
-                lines_color: instance.wireframe_color,
+                color: crate::film::rgba(placed.color),
+                lines_color: instance.wireframe_color.map(crate::film::rgba),
                 lines_width: instance.wireframe_width,
-                points_color: instance.dot_color,
-                points_size: instance.dot_size,
+                points_color: instance.point_color.map(crate::film::rgba),
+                points_size: instance.point_size,
                 uv: region_uv(instance.region, drawn),
             })
         })
@@ -117,7 +117,6 @@ pub(crate) fn draw_multimesh_3d(
     multimesh: &crate::MultiMesh,
     global: &GlobalTransform,
 ) {
-    use kiss3d::prelude::Color;
     use kiss3d::scene::InstanceData3d;
 
     if multimesh.drawn().is_empty() {
@@ -129,18 +128,17 @@ pub(crate) fn draw_multimesh_3d(
         .iter()
         .filter_map(|placed| {
             let (deformation, position) = split(here, placed.at, global.rotation)?;
-            let [r, g, b, a] = placed.color;
             let instance = &placed.instance;
-            let colour = |c: Option<[f32; 4]>| c.map(|[r, g, b, a]| Color::new(r, g, b, a));
+            let colour = |c: Option<[f32; 4]>| c.map(crate::film::color);
             Some(InstanceData3d {
                 position,
                 deformation,
                 // An instance's colour multiplies the node's own.
-                color: Color::new(r, g, b, a),
+                color: crate::film::color(placed.color),
                 lines_color: colour(instance.wireframe_color),
                 lines_width: instance.wireframe_width,
-                points_color: colour(instance.dot_color),
-                points_size: instance.dot_size,
+                points_color: colour(instance.point_color),
+                points_size: instance.point_size,
             })
         })
         .collect();

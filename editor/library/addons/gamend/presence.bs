@@ -12,7 +12,7 @@ pub fn cache(user: any) {
     }
     let roster = all();
     roster[user[ID].text()] = user;
-    script::store(ROSTER_KEY, roster);
+    engine::store(ROSTER_KEY, roster);
 }
 
 /// The user this client last saw under that id, or nil.
@@ -22,11 +22,11 @@ pub fn user(id: str) -> any {
 
 /// Everyone cached, by id.
 pub fn all() -> any {
-    let kept = script::stored(ROSTER_KEY);
+    let kept = engine::stored(ROSTER_KEY);
     if kept.kind() == types::KIND_MAP { kept } else { {} }
 }
 
 /// Forget everyone: the roster after a sign-out.
 pub fn forget() {
-    script::store(ROSTER_KEY, {});
+    engine::store(ROSTER_KEY, {});
 }

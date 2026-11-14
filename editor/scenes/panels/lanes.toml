@@ -30,8 +30,8 @@ align_items = "center"
 id = "play"
 name = "Play"
 parent = "head"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form_primary"
 text = "▶ Play"
@@ -40,8 +40,8 @@ text = "▶ Play"
 id = "step"
 name = "Step"
 parent = "head"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "⇥"
@@ -51,8 +51,8 @@ tooltip = "One recorded tick forward"
 id = "stop"
 name = "Stop"
 parent = "head"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "■"
@@ -62,8 +62,8 @@ tooltip = "Back to the edited scene"
 id = "scrub"
 name = "Scrub"
 parent = "head"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "seek" }] }
 [nodes.widget]
-on_change = "seek"
 kind = "slider"
 grow = 1
 [nodes.widget_range]

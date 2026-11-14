@@ -50,7 +50,7 @@ mechanical; **REPORT** prints only.
 | `channel-outside-external-io` | an `mpsc` channel in a file naming neither `ExternalIo` nor `replay::suppressed` |
 | `allow-without-reason` | `#[allow(..)]` with no `reason = ".."` and no comment |
 | `unjustified-unwrap` | `unwrap`/`expect` outside tests with no justification and no descriptive message |
-| `timed-wait` | a `thread::sleep`, a socket read or write timeout or a `tokio::time::sleep` outside tests with no comment saying why: a thread sleeps on its event, `docs/PLAN-io.md` |
+| `timed-wait` | a `thread::sleep`, a socket read or write timeout, a `recv_timeout`, `wait_timeout` or `park_timeout`, or a `tokio::time::sleep` or `interval`, outside tests with no comment saying why: a thread sleeps on its event, `docs/PLAN-io.md` |
 | `log-instead-of-tracing` | `log::*` in our own code; its records carry no fields to filter on |
 | `todo-without-issue` | a TODO or FIXME with no issue |
 | `fn-too-long`, `file-too-long` | 120 lines, 1200 lines |
@@ -117,6 +117,8 @@ fails if that file is stale.
 | `module-undocumented`, `function-undocumented`, `component-undocumented`, `asset-undocumented` | anything the generated reference could not describe |
 | `describes-nothing` | a doc entry for a function no longer registered |
 | `acts-on-unknown` | a function documented as acting on a component nobody registers |
+| `handle-method-property` | a handle method spelled as a property of its component (N26) |
+| `handle-method-twice` | two functions one handle would call by the same name (N26) |
 | `setter-without-reader` (report) | a `set_x` with no `x` reader and no comment saying why |
 
 Every exemption carries its reason inline, so it stops being cited as precedent.
@@ -211,11 +213,12 @@ crate built at opt 0.
 
 ## End to end, over every example
 
-`scripts/e2e.sh` runs each of the fifteen examples these ways. CI does not
+`scripts/e2e.sh` runs each of the sixteen examples these ways. CI does not
 run it; `scripts/precommit.sh --e2e` does.
 
 - **check** — every script a scene attaches, compiled, plus the handle calls
-  no compiler can see. The cheapest gate, and the only one that names a file
+  no compiler can see, and each handler, listener and row naming an event
+  nothing announces. The cheapest gate, and the only one that names a file
   and a line rather than a symptom. Run `--strict`, so a warning fails.
   Before the examples, the same gate over the editor, the library it copies
   from and each template it starts a project with: each carries a manifest,
@@ -238,6 +241,27 @@ bar a warning a self-test names first with `expect_warning`. The editor's
 `did not resolve in the mirror` is why warnings count: when it broke, nested
 nodes silently had no ref, so no inspector, no gizmo, no transform read, and
 nothing else failed.
+
+`BALAUR_E2E_KEEP_GOING=1` turns the run into a survey: a failure is listed
+and the run goes on, so one broken example does not hide the ones after it.
+A game checked out beside the engine is checked and run too:
+`../polyglot-pirates-app`, or the folders `BALAUR_E2E_PROJECTS` names. Every
+run keeps its saves, logs and editor preferences under the output folder,
+through `BALAUR_DATA_DIR`, so a self-test never rewrites the developer's own.
+
+Three more runs look where a log does not. `scripts/monkey.sh` feeds the
+editor seeded random input, a pointer, clicks, drags, scrolls and keys, from
+`scripts/plugins/monkey.bs`, and fails on a crash, a hang, an `ERROR` or a
+`WARN`. Fed input reaches what a script reads, the viewport and the
+shortcuts; a widget hears the window's own events, so no button is pressed
+by it. `scripts/soak.sh` runs each example headless for 600 frames and for
+12,000, and fails one whose peak memory grew by more than 32 MB between them.
+`scripts/pictures.py` runs each example offscreen at a fixed tick for 200
+frames and compares the last one with the PNG in `scripts/pictures/`: it
+fails when over 0.5% of the pixels moved, and `--update` writes the set. The
+pictures are one GPU's, so the set is the release Mac's. A shader's
+`time()` reads `engine::time()`, so an animated material draws the same frame
+at a fixed tick. None of the three runs on a push.
 
 Headless covers loading, mirroring, node resolution and asset rebinding; the
 render steps cover what drawing reports. What a screen looks like is

@@ -161,6 +161,7 @@ impl Server {
             let Some(left) = deadline.checked_duration_since(Instant::now()) else {
                 break;
             };
+            // The attach deadline: woken by a request before it, never on a timer.
             match session.inbox.recv_timeout(left) {
                 Ok(message) => session.dispatch(&self.engine, &message),
                 Err(_) => break,

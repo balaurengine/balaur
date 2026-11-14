@@ -86,6 +86,12 @@ pub(crate) fn queue_pack(eng: &Engine, pack: Option<&crate::pack::Pack>, main_sc
     eng.insert_resource(ToWarm(scenes));
 }
 
+/// Whether a scene is still to warm, which takes a frame each.
+pub(crate) fn warming(eng: &Engine) -> bool {
+    eng.try_resource::<ToWarm>()
+        .is_some_and(|waiting| !waiting.borrow().0.is_empty())
+}
+
 /// One scene a frame, each once the frame is drawn: a memory warning ends it,
 /// the way it frees what a switch parked. A scene that does not read is left
 /// for the switch to it to report.

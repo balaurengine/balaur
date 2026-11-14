@@ -33,6 +33,8 @@ pub struct Item {
     pub kind: &'static str,
     /// A signature or a type; empty when there is none.
     pub detail: String,
+    /// What it does, as the reference says it; empty when nothing says.
+    pub doc: String,
 }
 
 /// Where a name is declared.
@@ -155,7 +157,7 @@ fn item(c: Item) -> Value {
         ("label".into(), text(c.label.clone())),
         (KIND.into(), text(c.kind)),
         (DETAIL.into(), text(c.detail)),
-        (DOC.into(), text("")),
+        (DOC.into(), text(c.doc)),
         ("insert".into(), text(c.label)),
     ])
 }

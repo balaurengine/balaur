@@ -189,7 +189,7 @@ fn rows(
     let id = egui::Id::unique(("balaur-list", entity));
     let depth_of = |item: &Item| if indent { item.depth as usize } else { 0 };
     // Folded branches are the tree's own business: a script hands over the
-    // whole outline and only hears a caret as a `fold` event.
+    // whole outline and only hears a caret as a `folded` event.
     let shut: BTreeSet<String> = ui.data(|d| d.get_temp(id).unwrap_or_default());
     let open_rows = open_walk(items, &shut, &depth_of);
     // Where each open row's branch still continues, so a guide is drawn only
@@ -349,7 +349,7 @@ fn held_to(area: egui::ScrollArea, id: egui::Id, want: egui::Vec2) -> egui::Scro
 }
 
 /// A fold a caret was clicked on, written down under the widget's own id: a
-/// script hands over the whole outline and hears a `fold` event, never
+/// script hands over the whole outline and hears a `folded` event, never
 /// keeping the set itself. Answers the row and whether it is open now.
 fn settle_folds(
     ui: &egui::Ui,
@@ -702,7 +702,7 @@ struct Drag<'a> {
 /// Remember what a drag picked up, and report where it was let go.
 ///
 /// The kind moves nothing itself: what a row stands for is the script's.
-/// `on_move` says what was dropped where, and the rows come back in the order
+/// `moved` says what was dropped where, and the rows come back in the order
 /// the script decided.
 fn settle_drag(ui: &egui::Ui, at: &mut Painting<'_>, drag: &Drag<'_>) {
     let key = drag.id.with(DRAG);
@@ -736,8 +736,8 @@ fn settle_drag(ui: &egui::Ui, at: &mut Painting<'_>, drag: &Drag<'_>) {
 ///
 /// A secondary click picks the row it lands on so a `context` menu acts on
 /// what it opened over. It takes the row alone whatever is held down, and it
-/// is not a click: the widget's own `on_click` stays quiet, which is what the
-/// menu's own rows are for.
+/// is not a click: the widget's own `pointer_click` stays quiet, which is
+/// what the menu's own rows are for.
 pub(super) fn landed(
     clicked: Option<usize>,
     aimed: Option<usize>,

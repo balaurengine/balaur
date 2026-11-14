@@ -51,19 +51,19 @@ pub struct Shaping {
     pub max_lines: u32,
     /// Font pixels the lines stop at; zero has no limit.
     pub max_height: f32,
-    pub tab_width: u16,
+    pub tab_size: u16,
 }
 
 impl Default for Shaping {
     fn default() -> Self {
         Self {
             font_style: w::NORMAL.into(),
-            line_break: w::WORD_OR_GLYPH.into(),
+            line_break: w::WORD_SMART.into(),
             truncate: false,
             truncate_at: w::END.into(),
             max_lines: 0,
             max_height: 0.0,
-            tab_width: 8,
+            tab_size: 8,
         }
     }
 }
@@ -98,10 +98,10 @@ impl Shaping {
             truncate_at: word(k::TRUNCATE_AT, &base.truncate_at),
             max_lines: number(k::MAX_LINES).max(0.0) as u32,
             max_height: number(k::MAX_HEIGHT).max(0.0),
-            tab_width: params
-                .get(k::TAB_WIDTH)
+            tab_size: params
+                .get(k::TAB_SIZE)
                 .and_then(balaur_core::components::as_f64)
-                .map_or(base.tab_width, |v| v.clamp(1.0, 64.0) as u16),
+                .map_or(base.tab_size, |v| v.clamp(1.0, 64.0) as u16),
         }
     }
 }
@@ -316,7 +316,7 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
 #[cfg(feature = "window")]
 pub(crate) use backend::{
     atlas_texture, bucket_ratio, laid_box, layers, mask_2d, mask_3d, mesh_2d, mesh_3d, request_of,
-    shape, shape_at,
+    shape, shape_at, shaped_together,
 };
 
 #[cfg(feature = "window")]
@@ -478,6 +478,25 @@ mod backend {
         state.borrow_mut().shape(&request)
     }
 
+    /// What a block's UVs answer to past its own text: the shaper's
+    /// generation, which moves when the atlas grows or starts over.
+    fn shaper_generation(eng: &Engine) -> u64 {
+        balaur_text::state(eng).map_or(0, |state| state.borrow().generation())
+    }
+
+    /// One pass's blocks, shaped by `shape` and again when that moved the
+    /// atlas: growing it voids the UVs of every block shaped before.
+    pub(crate) fn shaped_together<T>(eng: &Engine, mut shape: impl FnMut(u64) -> T) -> T {
+        let before = shaper_generation(eng);
+        let shaped = shape(before);
+        let after = shaper_generation(eng);
+        if after == before {
+            shaped
+        } else {
+            shape(after)
+        }
+    }
+
     /// The shaper's request for a style, dressed by its `text_style`.
     ///
     /// The size is the bucket above what was asked for, so a camera zooming
@@ -526,7 +545,7 @@ mod backend {
             truncate_at: balaur_text::TruncateAt::of(&shaping.truncate_at),
             max_lines: shaping.max_lines,
             max_height: positive(shaping.max_height),
-            tab_width: shaping.tab_width,
+            tab_size: shaping.tab_size,
         }
     }
 
@@ -835,8 +854,6 @@ fn flush(
     placed: &crate::draw_2d::Layers2d,
     transients: &mut Transients,
 ) {
-    use kiss3d::color::Color;
-
     let Some(buffer) = app.engine.try_resource::<TextDrawBuffer>() else {
         return;
     };
@@ -846,10 +863,12 @@ fn flush(
     }
     // Shape3d every block first: each may grow the atlas, and the texture is
     // uploaded once for the lot rather than once per block.
-    let shaped: Vec<_> = items
-        .iter()
-        .map(|item| shape(&app.engine, &item.text, &item.style))
-        .collect();
+    let shaped: Vec<_> = shaped_together(&app.engine, |_| {
+        items
+            .iter()
+            .map(|item| shape(&app.engine, &item.text, &item.style))
+            .collect()
+    });
     let Some(texture) = atlas_texture(&app.engine) else {
         return;
     };
@@ -879,7 +898,7 @@ fn flush(
                 let mut node = scene_3d.add_mesh(mesh, glamx::Vec3::ONE);
                 node.set_texture(texture.clone());
                 node.set_position(glamx::Vec3::new(item.at[0], item.at[1], item.at[2]));
-                node.set_color(Color::new(r, g, b, a));
+                node.set_color(crate::film::color([r, g, b, a]));
                 mask_3d(&mut node, item.style.alpha_cutoff);
                 transients.three_d.push(node);
             } else {
@@ -890,7 +909,7 @@ fn flush(
                 let mut node = parent.add_mesh(mesh, glamx::Vec2::ONE);
                 node.set_texture(texture.clone());
                 node.set_position(glamx::Vec2::new(item.at[0], item.at[1]));
-                node.set_color(Color::new(r, g, b, a));
+                node.set_color(crate::film::color([r, g, b, a]));
                 mask_2d(&mut node, item.style.alpha_cutoff);
                 transients.two_d.push(node);
             }

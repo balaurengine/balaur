@@ -40,6 +40,7 @@ mod joints_and_characters;
 mod paused;
 mod queries;
 mod ragdoll;
+mod rest;
 mod script_api;
 mod settings;
 mod shapes_and_geometry;

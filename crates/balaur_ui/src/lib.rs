@@ -41,11 +41,11 @@ pub use routing::{pointer_is_ui, takes_point};
 pub use theme::ThemeTokens;
 pub use touch::draw_touch_controls;
 pub use widget::input::{
-    ACTIVATE_EVENT, BLUR_EVENT, CARET_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT,
-    CLOSED_EVENT, COMMIT_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT, FOLD_EVENT,
-    GUTTER_EVENT, LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, PASTED_EVENT,
-    PASTED_IMAGE_EVENT, RESIZED_EVENT, SCROLLED_EVENT, SUBMIT_EVENT, WidgetInputBuffer,
-    WidgetInputSnapshot, click, edit, submit,
+    ACTIVATED_EVENT, CARET_CHANGED_EVENT, CLOSE_REQUESTED_EVENT, CLOSED_EVENT, COMMITTED_EVENT,
+    DOUBLE_CLICKED_EVENT, DROPPED_EVENT, FOCUS_ENTERED_EVENT, FOCUS_EXITED_EVENT, FOLDED_EVENT,
+    GUTTER_CLICKED_EVENT, IMAGE_PASTED_EVENT, LINK_CLICKED_EVENT, MARKED_EVENT, MOVED_EVENT,
+    OPENED_EVENT, PASTED_EVENT, RESIZED_EVENT, SCROLLED_EVENT, SUBMITTED_EVENT,
+    VALUE_CHANGED_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
 };
 pub use widget::node::{Move, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
@@ -261,6 +261,14 @@ pub struct ScrollDrag {
 #[derive(Default)]
 pub struct UiPlugin;
 
+/// What the UI says from no node, for `events::declare`: each one's payload,
+/// and when it is said.
+#[rustfmt::skip]
+const SAID: &[balaur_core::events::Said] = &[
+    (PASTED_EVENT, "the text", "Text was pasted where no field took it."),
+    (IMAGE_PASTED_EVENT, "`{ width, height }`; `ui::save_pasted_image` writes it out", "An image was pasted where no field took it."),
+];
+
 impl balaur_plugin::Plugin for UiPlugin {
     fn name(&self) -> &'static str {
         words::general::UI
@@ -290,12 +298,12 @@ impl balaur_plugin::Plugin for UiPlugin {
             },
         );
         api::install_ui_api(&mut reg.script_module(words::general::UI)?);
+        balaur_core::events::declare(reg.engine(), SAID);
         widget::input::register(reg);
         // Before `widget`, so a scene gives a node these first and builds
         // its widget once, with their rows.
         widget::beside::register_all(reg);
         widget::schema::register_widget_component(reg);
-        widget::presets::register_widget_presets(reg)?;
         // The two components holding a picture a widget draws.
         for component in [
             <widget::beside::WidgetImage as balaur_core::components::derived::Component>::NAME,

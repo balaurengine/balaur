@@ -1,4 +1,4 @@
-//! `script::store(key, value)` and `script::stored(key)`: state no one node
+//! `engine::store(key, value)` and `engine::stored(key)`: state no one node
 //! owns, what a Godot `static var` is. What one
 //! scene leaves for the next: a round's results for the summary that
 //! follows it. Held as neutral values, so a map stored by one file is read
@@ -10,8 +10,8 @@ use balaur_script::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-const STORE_FN: &str = "script::store";
-const STORED_FN: &str = "script::stored";
+const STORE_FN: &str = "engine::store";
+const STORED_FN: &str = "engine::stored";
 
 thread_local! {
     static STORE: RefCell<HashMap<String, Value>> = RefCell::new(HashMap::new());
@@ -24,12 +24,14 @@ pub(crate) fn signatures() -> Vec<HostSignature> {
             params: vec![Ty::Str, Ty::Any],
             ret: Ty::Void,
             is_async: false,
+            editor: false,
         },
         HostSignature {
             key: STORED_FN.to_string(),
             params: vec![Ty::Str],
             ret: Ty::Any,
             is_async: false,
+            editor: false,
         },
     ]
 }

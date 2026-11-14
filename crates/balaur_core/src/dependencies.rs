@@ -38,10 +38,6 @@ use crate::files::{self, FileBackend};
 use crate::vocabulary::keys;
 use crate::vocabulary::words;
 
-const ADD_PATH: &str = "add_path";
-const INSTALL: &str = "install";
-const MAKE_LOCAL: &str = "make_local";
-const MOVE_INTO: &str = "move_into";
 const DEPENDENCIES: &str = "dependencies";
 const LICENSE: &str = "license";
 
@@ -931,21 +927,22 @@ stash = { path = "../stash" }
     }
 }
 
-/// The `dependency` script module: what the editor shows and does with them.
+/// The `dependency` script module: what a running game reads of them. The
+/// verbs that install one or move files into one are the editor binary's.
 // A raw binding answers a `Result`, whether or not it can fail.
 #[allow(clippy::unnecessary_wraps)]
 pub(crate) mod api {
-    use anyhow::{Result, anyhow, bail};
+    use anyhow::Result;
     use balaur_script::{Module, Value};
 
-    use super::{Source, folder, install, installed, owning, spelling, valid_alias};
+    use super::{Source, installed, owning, spelling};
     use crate::engine::Engine;
     use crate::engine_api::text;
 
     /// The `dependency` module and its reference text.
     pub(crate) fn install_dependencies_api(m: &mut Module<Engine>) {
         m.module_doc(
-            "The projects a game imports whole under `deps/<alias>/`, declared in `[dependencies]`. An installed dependency is read-only: `fs.*` and `assets.save` refuse to write into one. A relative path a dependency's script builds reads from that dependency's own folder.",
+            "The projects a game imports whole under `deps/<alias>/`, declared in `[dependencies]`. An installed dependency is read-only: `fs.*` and `assets.save` refuse to write into one. A relative path a dependency's script builds reads from that dependency's own folder. Every runtime has `list` and `of`; the verbs that write a project are the editor's.",
         );
         m.records(&[(
             "Dependency",
@@ -955,17 +952,9 @@ pub(crate) mod api {
         m.describe(&[
             (crate::vocabulary::words::datatypes::LIST, &[], "() -> [Dependency]", "Every installed dependency: its alias, where it sits, where it came from and its licence."),
             (crate::vocabulary::keys::OF, &[], "(path: string) -> string?", "The alias of the dependency a path lies in, or nil for one of the game's own."),
-            (super::MAKE_LOCAL, &[], "(from: string, to: string) -> [string]", "Copy a dependency's file into the game and point the game's references at the copy; answers the game's files rewritten. The copy never updates. A document's own paths come out as the game names the dependency's files."),
-            (super::MOVE_INTO, &[], "(paths: [string], alias: string) -> [string]", "Move game files into a `path` dependency, each at the same place under its root, and point the game's references at `deps/<alias>/…`; answers the files rewritten."),
-            (super::ADD_PATH, &[], "(game: string, alias: string, path: string)", "Declare `alias = { path = \"<path>\" }` in a game's `[dependencies]`, comments kept, and install it. An empty game is the open project."),
-            (super::INSTALL, &[], "(game: string)", "Read a game's `[dependencies]` again and install each: what a dependency fetched while the editor runs needs to become a root. An empty game is the open project."),
         ]);
         m.function_raw(crate::vocabulary::words::datatypes::LIST, Box::new(list));
         m.function_raw(crate::vocabulary::keys::OF, Box::new(of));
-        m.function_raw(super::MAKE_LOCAL, Box::new(make_local));
-        m.function_raw(super::MOVE_INTO, Box::new(move_into));
-        m.function_raw(super::ADD_PATH, Box::new(add_path));
-        m.function_raw(super::INSTALL, Box::new(reinstall));
     }
 
     fn word(value: Option<&String>) -> Value {
@@ -1025,83 +1014,5 @@ pub(crate) mod api {
     pub(crate) fn of(eng: &Engine, args: &[Value]) -> Result<Value> {
         let path = super::scoped(eng, text(args, 0)?);
         Ok(owning(eng, &path).map_or(Value::Nil, |dep| Value::text(dep.alias.clone())))
-    }
-
-    pub(crate) fn make_local(eng: &Engine, args: &[Value]) -> Result<Value> {
-        let rewritten = crate::asset_index::make_local(eng, text(args, 0)?, text(args, 1)?)?;
-        Ok(Value::List(
-            rewritten.into_iter().map(Value::text).collect(),
-        ))
-    }
-
-    pub(crate) fn move_into(eng: &Engine, args: &[Value]) -> Result<Value> {
-        let Some(Value::List(items)) = args.first() else {
-            bail!("argument 0 should be a list of paths");
-        };
-        let paths = items
-            .iter()
-            .map(|item| match item {
-                Value::Str(path) => Ok(path.clone()),
-                other => Err(anyhow!("a path should be a string, got {other:?}")),
-            })
-            .collect::<Result<Vec<_>>>()?;
-        let rewritten = crate::asset_index::move_into(eng, &paths, text(args, 1)?)?;
-        Ok(Value::List(
-            rewritten.into_iter().map(Value::text).collect(),
-        ))
-    }
-
-    /// Read a game's `[dependencies]` again and install what it declares: a
-    /// dependency fetched while the editor runs.
-    pub(crate) fn reinstall(eng: &Engine, args: &[Value]) -> Result<Value> {
-        let game = text(args, 0)?;
-        let game = if game.is_empty() {
-            crate::file_api::project_roots(eng)
-                .into_iter()
-                .next()
-                .ok_or_else(|| anyhow!("no project is open"))?
-        } else {
-            std::path::PathBuf::from(game)
-        };
-        install(eng, &game);
-        Ok(Value::Nil)
-    }
-
-    /// Declare a `path` dependency in a game's `project.toml`, comments kept,
-    /// and install it.
-    pub(crate) fn add_path(eng: &Engine, args: &[Value]) -> Result<Value> {
-        let (game, alias, path) = (text(args, 0)?, text(args, 1)?, text(args, 2)?);
-        if !valid_alias(alias) {
-            bail!("`{alias}` is not a dependency name: lowercase words joined by `_`");
-        }
-        let game = if game.is_empty() {
-            crate::file_api::project_roots(eng)
-                .into_iter()
-                .next()
-                .ok_or_else(|| anyhow!("no project is open"))?
-        } else {
-            std::path::PathBuf::from(game)
-        };
-        let backend = crate::files::backend(eng);
-        let manifest = game.join(crate::project::MANIFEST);
-        let text = String::from_utf8(backend.read(&manifest)?)?;
-        let mut document: toml_edit::DocumentMut = text.parse()?;
-        let table = document
-            .entry(super::DEPENDENCIES)
-            .or_insert_with(toml_edit::table)
-            .as_table_mut()
-            .ok_or_else(|| anyhow!("[dependencies] is not a table"))?;
-        if table.contains_key(alias) {
-            bail!("the game already has a dependency named `{alias}`");
-        }
-        let mut entry = toml_edit::InlineTable::new();
-        entry.insert(crate::vocabulary::keys::PATH, path.into());
-        table.insert(alias, toml_edit::value(entry));
-        backend.write(&manifest, document.to_string().as_bytes())?;
-        install(eng, &game);
-        if !installed(eng).iter().any(|dep| dep.alias == alias) {
-            bail!("{} did not install", folder(alias));
-        }
-        Ok(Value::Nil)
     }
 }

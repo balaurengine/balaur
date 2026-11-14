@@ -50,11 +50,11 @@ const fn handle_of(raw: i64) -> u64 {
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
 pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
+        "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `sound_finished` (`EVENT_SOUND_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
     );
     m.constant(
-        "EVENT_FINISHED",
-        Value::Str(crate::FINISHED_EVENT.to_string()),
+        "EVENT_SOUND_FINISHED",
+        Value::Str(crate::SOUND_FINISHED_EVENT.to_string()),
     );
     m.describe(&[
         (STOP_PLAYBACK, &[], "", "Silence the sound a handle names, over the `fade_out_time` its `sound` had; a finished, stopped or unknown handle is left alone."),
@@ -66,7 +66,7 @@ pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
         (PLAY, &[SOUND], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
         (STOP, &[SOUND], "", "Silence what the node's `sound` started, over its `fade_out_time`; a node carrying none is left alone."),
         (SEEK, &[SOUND], "", "Jump the node's sound to `seconds` into the file it is playing; `playback_time` reads it back. A node with nothing playing is left alone."),
-        (SKIP, &[SOUND], "", "Move the node's sound on to the next file in its `queue`. Past the last one it has played out, and the node announces `finished`."),
+        (SKIP, &[SOUND], "", "Move the node's sound on to the next file in its `queue`. Past the last one it has played out, and the node announces `sound_finished`."),
         (DEVICES, &[], "() -> [string]", "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none."),
     ]);
     m.function(STOP_PLAYBACK, |eng: &Engine, handle: i64| {

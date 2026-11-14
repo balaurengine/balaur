@@ -30,9 +30,9 @@ parent = "n_bench"
 
 [nodes.transform]
 position = [0.0, 40.0, 110.0]
+rotation_euler = [-0.26625, 0.0, 0.0]
 
 [nodes.camera3d]
-look_at = [0.0, 10.0, 0.0]
 
 [[nodes]]
 id = "n_camera2d"
@@ -72,11 +72,11 @@ role = "caption"
 id = "n_menu_draw"
 name = "Draw"
 parent = "n_menu"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "on_draw" }] }
 
 [nodes.widget]
 kind = "checkbox"
 text = "Draw the shapes"
-on_change = "on_draw"
 [nodes.widget_check]
 checked = true
 
@@ -85,11 +85,11 @@ checked = true
 id = "n_menu_cases"
 name = "Cases"
 parent = "n_menu"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "on_pick" }] }
 
 [nodes.widget]
 kind = "list"
 height = 600
-on_change = "on_pick"
 [nodes.widget_rows]
 row_height = 22
 

@@ -17,7 +17,7 @@ pub class Ball { node: Node, speed: float = 4.0 }
 impl Ball {
     fn init() {
         let node = self.node;
-        node.body2d.apply_impulse(0.0, 5.0);
+        node.body2d.apply_impulse(vec2(0.0, 5.0));
     }
     fn update(dt: float) {
         let hit = physics2d::raycast(physics2d::RayQuery {});
@@ -61,14 +61,18 @@ fn tools(app: &App) -> balaur::script_bs::BsHost {
 
 /// The completions for `probe` typed as a statement at the start of `init`,
 /// the caret at its end.
-fn complete_after(app: &App, probe: &str) -> Vec<String> {
+fn items_after(app: &App, probe: &str) -> Vec<balaur_script::Item> {
     let source = SCRIPT.replace(
         "        let node = self.node;",
         &format!("        {probe}\n        let node = self.node;"),
     );
     let column = 8 + probe.chars().count() + 1;
-    tools(app)
-        .complete(PATH, &source, 6, column)
+    tools(app).complete(PATH, &source, 6, column)
+}
+
+/// [`items_after`], by label.
+fn complete_after(app: &App, probe: &str) -> Vec<String> {
+    items_after(app, probe)
         .into_iter()
         .map(|one| one.label)
         .collect()
@@ -113,6 +117,17 @@ fn a_component_handle_offers_what_acts_on_that_component() {
 }
 
 #[test]
+fn a_component_handle_offers_a_method_without_the_components_name() {
+    let (_dir, app) = host();
+    let found = complete_after(&app, "self.node.collider2d.");
+    assert!(found.contains(&"volume".to_string()), "{found:?}");
+    assert!(
+        !found.contains(&"collider_volume".to_string()),
+        "the handle repeats its component: {found:?}"
+    );
+}
+
+#[test]
 fn self_offers_the_scripts_own_fields_and_methods() {
     let (_dir, app) = host();
     let found = complete_after(&app, "self.");
@@ -135,6 +150,22 @@ fn hovering_an_engine_function_shows_what_a_script_passes_it() {
         .hover(PATH, SCRIPT, line, column)
         .expect("raycast is engine API");
     assert!(found.contains("raycast"), "{found}");
+}
+
+#[test]
+fn an_engine_function_offered_carries_what_it_does() {
+    let (_dir, app) = host();
+    for (probe, label) in [
+        ("physics2d::ray", "raycast"),
+        ("self.node.body2d.apply", "apply_impulse"),
+    ] {
+        let found = items_after(&app, probe);
+        let item = found
+            .iter()
+            .find(|one| one.label == label)
+            .unwrap_or_else(|| panic!("{probe} offers no {label}: {found:?}"));
+        assert!(!item.doc.is_empty(), "{label} has no doc line: {item:?}");
+    }
 }
 
 #[test]

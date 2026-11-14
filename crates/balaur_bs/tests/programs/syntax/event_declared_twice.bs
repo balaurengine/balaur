@@ -1,0 +1,4 @@
+event done;
+event done;
+
+// error: 2:7: event `done` is declared twice

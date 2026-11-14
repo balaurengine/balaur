@@ -1,0 +1,15 @@
+/// The round ended; the payload is the winner's name.
+event round_over;
+
+event lost;
+
+pub struct Queued { event: int }
+
+pub fn total(queued: [int]) -> int {
+    let held = Queued { event: 2 };
+    let sum = held.event;
+    for event in queued { sum += event; }
+    sum
+}
+
+// expect: total([3, 4]) == 9

@@ -434,7 +434,7 @@ impl Scenario {
     pub fn boxes() -> [float] {
         let shape = self.node.collider3d.aabb();
         let swept = self.node.collider3d.swept_aabb();
-        [shape[0], shape[3], swept[0], swept[3]]
+        [shape.min.x, shape.max.x, swept.min.x, swept.max.x]
     }
 }
 ",

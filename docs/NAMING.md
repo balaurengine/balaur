@@ -1,15 +1,60 @@
 # Balaur naming
 
-Names are the part of the engine that cannot be refactored later without
-breaking someone's project, so they are decided here once and checked
-mechanically where possible. This file governs the other docs: where
-`ARCHITECTURE.md`, `README.md` or a plan disagrees with it, this file wins.
+A name is the part of the engine people type, read and build on, and the
+part that costs most to change: a renamed function or key breaks every
+project that spelled it. This file decides names once. Where `ARCHITECTURE.md`,
+a plan or the code disagrees with it, this file wins.
 
-The rule for adding a rule is the one `scripts/house_lints.py` states for
-itself: when the same bad pattern shows up twice, it becomes a lint.
-`house_lints.py` enforces the Rust half, `scripts/api_lints.py` the script API.
+Four principles decide every name. Each rule below follows from one of them
+and says which. A name no rule covers is decided by the principles, in their
+order; a rule that follows from none of them is cut.
 
-## Scopes
+## Principles
+
+### A. Use the words the reader already knows
+
+A name is read far more often than it is written, and a word the reader has
+to look up teaches them nothing. So the words come from what the reader
+already knows, and who reads a name decides whose words it uses.
+
+- **A game developer** reads the script API, scene files, the editor and the
+  command line. Balaur opens Godot projects and its editor shows Godot's class
+  names, so Godot's word comes first. Unity's comes next, when Godot has none
+  or Godot's would break principle B. Where neither engine has the thing, the
+  domain's own standard: W3C key codes, glTF materials, CSS for layout and
+  theme properties, Cargo for the command line. Plain English otherwise.
+- **A Rust developer** reads `crates/`: Bevy's word for an ECS concept, the
+  Rust API Guidelines for the rest.
+- **Nobody reads a backend's words.** rapier, kiss3d, egui and cosmic-text are
+  how the engine is built today; a user never met them, and they change.
+- A word is spelled out, in US spelling.
+
+### B. One word, one meaning
+
+A second word for one thing makes the reader ask how the two differ. One word
+for two things makes them confuse the two. So within a scope a word means one
+thing, a thing has one word, and an API offers one way to do a thing: a new
+spelling replaces the old one rather than joining it.
+
+### C. One kind of thing, one shape of name
+
+A reader who has learned one name can then guess the next: `shape2d` from
+`body2d`, `mouse_down` from `key_down`, `set_volume_linear` from
+`volume_linear`. So the names of one kind follow one pattern, written down
+here, and a new name takes its kind's pattern.
+
+### D. The name says what the call site cannot
+
+At a call site a reader sees only the name and its arguments. So the name
+carries what they would otherwise look up: the unit (`timeout_seconds`),
+the dimension (`body2d`), a yes-or-no answer (`is_sleeping`), whether a thing
+happened or is asked for (`finished`, `quit_requested`), and in Rust who owns
+a value (`*Config`, `*Snapshot`).
+
+## What a name costs
+
+Where a name appears decides what changing it breaks, and so how hard it is
+held to the rules.
 
 | Scope | Where the name appears | Cost of changing it |
 | --- | --- | --- |
@@ -22,120 +67,99 @@ itself: when the same bad pattern shows up twice, it becomes a lint.
 | `on-disk` | Files and folders the engine writes: per-user data, caches, sidecars | Leaves old files behind; there is no migration before 1.0 |
 | `editor-ui` | Words the editor shows: panel titles, buttons, menu rows, settings labels | Free to change, but a word that differs from the API is two words for one thing |
 
-## Decisions
-
-**D1 — The typemap stays `resource`; game content is an `asset`.**
-`Engine::resource::<T>()` is a `HashMap<TypeId, Rc<dyn Any>>` of engine
-singletons (Bevy's word); Godot calls disk-loaded content a Resource, and five
-of six surveyed engines call it an Asset. Content takes `asset`, so the
-collision never happens and no existing code is renamed. Rejected: `Singleton`
-(~170 sites to free a word we decided not to use), `Subsystem` and `Server`
-(wrong for `ScreenshotRequest`), `Global` (already means world-space here). The
-cache is `AssetState`, the parser table `AssetTypeRegistry`.
-
-**D2 — A module is the noun for what it owns, and singular unless it is a keyed
-store.** The five plurals are `assets`, `settings` (pages by table, values by
-name), `strings` (one translation per key per locale), `events` (subscribers
-by name) and `types` (one word per kind of value, compared against `kind()`).
-Do not add a sixth without adding a line here.
-
-**D3 — Six suffixes, chosen by ownership and lifetime, never by subject.** Is
-the value a message or durable data? If durable, does the subsystem that reads
-it also own it?
-
-| Suffix | Contract |
-| --- | --- |
-| `*Config` | Written by callers (scripts, editor, CLI); a consumer applies it and does not own the truth. Pending changes are flagged by a field named `changed` |
-| `*Snapshot` | A backend writes it once per frame; everyone else reads. Its doc comment must say what it is under a headless backend |
-| `*Buffer` | Anyone appends during the frame; its consumer drains it; empty at frame start |
-| `*Request` | One caller inserts it; its handler consumes and removes it |
-| `*Registry` | Appended during plugin build only; read-only afterwards |
-| `*State` | Owned and mutated by exactly one subsystem, across frames; every writer goes through that subsystem's API |
-| *(none)* | Immutable after insertion (`ProjectRoot`, `ScriptArgs`, `ProjectManifest`) |
-
-The suffix does work, not decoration: `DebugLineBuffer3d` names the owner that
-must drain it (as `DebugLines`, a headless run grew a `Vec` nothing emptied),
-and `*Snapshot`'s headless clause is why a script reading `render.camera_2d()`
-headless gets zeros rather than the config's defaults. A type spanning two
-categories is **split**, not renamed. `Settings` is reserved for user-authored,
-disk-persisted config and must not land on `Config`.
-
-**D4 — Abbreviations: banned where users read them, standardised where they do
-not.** `script-api` and `scene-file` spell words out (`string`, not `str`;
-`ui.slider`, not `hslider`). `rust-internal` picks one spelling per concept by
-what already dominates: `eng: &Engine`, `m` for a binding module. `Det` is a
-contrast rule, not an abbreviation rule — see N3.
-
-**D5 — Dimension: lowercase, terminal, and on both sides.** `body2d`, not
-`Body2D` or `Physics2DState`: a terminal `2d` sorts next to its `3d` twin, and
-one grep finds both. Every name with a sibling carries its dimension
-(`shape3d`/`shape2d`, `Renderable3d`/`Renderable2d`), because a reader should
-not have to know that bare means 3D — Rust type names included, so
-`PhysicsState3d` rather than a bare `PhysicsState` beside `PhysicsState2d`.
-A name with no sibling stays plain (`sprite`, `Environment`, `Tonemap`), and so
-does one that genuinely spans both dimensions: `MeshSkin` deforms a
-`Shape2d::Polygon` as well as a mesh, and suffixing it would be a lie. Splitting
-is the other way out, and usually the better one: a component's tags are what
-the editor files a node under, and a tag is per type while a `kind` property is
-per node, so a single component can only ever claim one dimension for both. `physics` keeps only what spans
-both worlds — pausing, sleeping, tuning, threads, debug drawing, counters and
-`clear` — so a module name is not a lie about what is in it.
-In snake_case `_2d`/`_3d` is its own word unless the segment quotes a key or
-module name (`register_shape2d_component`).
+A bad pattern seen twice becomes a lint: `scripts/house_lints.py` holds the
+Rust half, `scripts/api_lints.py` the script API, `scripts/string_lints.py`
+the words.
 
 ## Rules
 
+The rules apply the principles. Their numbers stay fixed, because the lints
+and the code cite them; a rule that took in another keeps both numbers.
+
+### From A: the reader's words
+
 | # | Rule | Scope | Lint |
 | --- | --- | --- | --- |
-| N1 | One word, one meaning **within a scope**. `resource` = typemap entry; `asset` = game content; `load` = a live object from a path (raw text is `source`). Synonyms across the Rust/script boundary are fine; homonyms are not | all | REPORT |
-| N2 | Every typemap type ends in a D3 suffix or none. A type spanning two categories is split. A `*Config`'s pending flag is `changed`. A `*Snapshot` documents its headless value | rust-internal | REPORT + denylist ERROR |
-| N3 | `Det` marks exactly one thing: a collection with fixed iteration order standing in for a std type the house lint forbids. Determinism is otherwise carried by the module and its doc comment | rust-internal | ERROR |
-| N4 | In CamelCase the dimension is a lowercase `2d`/`3d` at the **end**, and a type with a sibling in the other dimension carries one. SCREAMING_SNAKE is exempt | rust-internal | ERROR |
-| N5 | In snake_case `_2d`/`_3d` is its own word, unless the segment quotes a component key or module name | all | ERROR |
-| N6 | Component schema vocabulary is fixed: the tagged-union discriminant is always `kind`; the meta key declaring a datatype is always `type`; type names come from the closed set `parse_schema` rejects departures from. A property never repeats its component's name or reuses another component's name for a different type | scene-file | ERROR |
-| N7 | A reader is named for what it returns: no `get_` prefix, and `is_` only for a boolean | script-api | ERROR |
-| N8 | Every `set_x` on a `*Config` or `*State` has a reader, or a justification comment. `*Snapshot` and `*Buffer` readers take no setter. Where a setter writes a Config and the reader reads a Snapshot, both say so — command in, truth out, not a round trip | script-api | REPORT |
-| N9 | Never encode a flag or mode in a function name: optional flags go in the trailing options table, fixed choices take a `FAMILY_VALUE` constant. Constructors whose argument lists differ in length and meaning stay separate functions | script-api | — |
-| N10 | The verb is bound to the parameter type: `install_*(m: &mut dyn Bindings<Engine>)` declares script functions, `register_*(reg: &mut Registry)` registers components, `build_*(reg: &mut Registry)` inserts typemap entries and systems | rust-internal | ERROR |
-| N11 | An `install_*` group name is true of every function it registers. Where a line limit forces a split with no honest name, say so at the split | rust-internal | — |
-| N12 | `Fn` is reserved for type aliases of a boxed or pointer callable; no struct or enum ends in `Fn`, and no `pub` item is named `*Inner`. A const is named for its contents | rust-internal | ERROR |
-| N13 | One local name per concept: `eng` for `&Engine`, `m` for a binding module. `scripts` = script files or compiled bytes, `script_host` = the running host, `script_backend` = what builds one | rust-internal | ERROR |
-| N14 | Enum option strings are Balaur's vocabulary, not the backend crate's. If the editor, docs or a test carries a translation for an option, that option has the wrong name | scene-file | — |
-| N15 | `*_system` is reserved for anything passed to `App::add_system`. A backend loop step takes a verb bound to the N2 category it touches: `apply_*` (Config in), `publish_*` (Snapshot out), `flush_*` (drain a Buffer), `pump_*` (fill a Snapshot from the OS), `sync_*` (mirror ECS into the backend) | rust-internal | ERROR |
-| N16 | A component key names what the scene author manipulates, and its registration says in a doc comment what state it writes — the mapping from key to storage is neither one-to-one nor total | rust-internal | REPORT |
-| N17 | A crate's words and keys live in one `vocabulary.rs`: the strings a schema, its reader, a matcher and a read-back all spell, as `words` and `keys` modules with the script constants beside them. A script's words are `const` items, or the engine's constant. Shared words group by topic (`words::datatypes::FLOAT`, `types::KIND_MAP`), never one long list; a word one file alone spells is a `const` in that file. A call site names a constant, never the string | rust-internal, script | ERROR, `string_lints` |
-| N18 | A colour token is `<group>_<role>`: `bg_*`, `text_*`, `border_*`, or a family (`primary`, `secondary`, `success`, `warning`, `danger`) taking `_fill`, `_fill_hover`, `_text` and `_bg`, with `text_on_<family>` for ink on its fill. A token never names a hue | theme | `house_lints` theme-token |
-| N19 | A theme key is the widget property it styles, spelled the same: `text_color`, `font_size`, `corner_radius`. A number may be a size's name instead | theme | `house_lints` theme-key |
-| N20 | A role is `<component>[_<context>][_<emphasis>]`, emphasis one of `primary`, `secondary`, `success`, `warning`, `danger` or `quiet`. A state is a sub-table, never a suffix, and no role takes a widget kind's word | theme | test |
-| N21 | A key or parameter carries its unit (`_seconds`, `_ticks`, `_hz`, `_pixels`, `_degrees`) unless it is the module's own. Radians and seconds are the default | settings-path, script-api, scene-file | `house_lints` setting-unit, on settings |
-| N22 | A bare hook is the engine asking (`init`, `update`, `exports`), `on_` is the engine telling, and a boolean change is `on_<reader>_changed` | script-api | `api_lints` hook-name |
-| N23 | The editor names a thing the way the API and the file do, in sentence case and US spelling, with the glossary's words for its own parts | editor-ui | — |
-| N24 | No name in a script is one letter: the editor's state is `state`, the theme's tokens it draws with are `tokens`, and an index, a coordinate or a loop variable is named for what it counts or holds. `balaur check` stands behind a rename that once had no compiler | script, editor | — |
-| N25 | A script function has one shape, and it is written down: a parameter, a result or a record field names its type. `any` is for what no one type is true of (data from outside, the caller's own value, a shape chosen by a name at run time), each listed with its reason; two shapes are two functions | script-api | `api_lints` any |
+| D4 | A name a user reads spells its words out: `string`, not `str`; `ui.slider`, not `hslider`. Inside `crates/`, one short form per concept is fine where it already dominates: `eng: &Engine`, `m` for a binding module | script-api, scene-file | `api_lints` |
+| N14 | An option string, a cargo feature and a key are Balaur's words, never a backend's. If the editor, a doc or a test carries a translation for one, it has the wrong name | scene-file, cli | — |
+| N22 | A bare hook is the engine asking (`init`, `update`, `exports`), and `on_<event>(payload, source)` is the engine telling. An event says what happened, in the past tense, as Godot's signals do: `finished`, `child_added`, `visibility_changed`. A pointer, key or contact event keeps Unity's pairs, `pointer_enter`, `key_down`, `collision_enter`: Godot spells those per node class (`mouse_entered`, `body_entered`), and Balaur has one name for every node (B). An ask before an act ends in `_requested`, and a value that moved is `<value>_changed` | script-api | `api_lints` hook-name |
+| N23 | The editor names a thing as the API and the file do, in sentence case, with the glossary's words for its own parts | editor-ui | — |
+
+### From B: one word, one meaning
+
+| # | Rule | Scope | Lint |
+| --- | --- | --- | --- |
+| N1 | Within a scope a word means one thing. `resource` is a typemap entry, `asset` game content, `load` a live object from a path, and `source` raw text. A synonym across the Rust and script boundary is fine; a homonym is not | all | report |
+| D1 | `resource` is the typemap of engine singletons, Bevy's word for the Rust reader. Game content is an `asset`, Unity's word and five of six surveyed engines', because Godot's `Resource` would take the typemap's word. The cache is `AssetState`, the parser table `AssetTypeRegistry` | rust-internal, script-api | — |
+| N13 | One local name per concept in Rust: `eng` for `&Engine`, `m` for a binding module; `scripts` are script files or compiled bytes, `script_host` the running host, `script_backend` what builds one | rust-internal | ERROR |
+| N17 | A word is spelled once, as a constant, so two spellings cannot drift. A crate keeps its words and keys in one `vocabulary.rs`, grouped by topic (`words::datatypes::FLOAT`); a script names a `const` or the engine's constant; a call site never spells the string | rust-internal, script | ERROR, `string_lints` |
+| N25 | A script function has one shape: a parameter, a result or a record field names its type, and two shapes are two functions. `any` is for what no one type is true of, each use listed with its reason | script-api | `api_lints` any |
+| N27 | Two components on one node that announce the same happening put their own name first, so one handler does not hear both: `sound_finished`, `particles_finished`, `animation_finished` | script-api | — |
+
+### From C: one kind, one shape
+
+| # | Rule | Scope | Lint |
+| --- | --- | --- | --- |
+| D2 | A module is the noun for what it owns, singular unless it is a keyed store. The five plurals: `assets`, `settings`, `strings`, `events` and `types` | script-api | `api_lints` |
+| D5, N4, N5 | The dimension is a lowercase `2d` or `3d` at the end of the name, on both of a pair: `body2d` and `body3d`, `PhysicsState3d` beside `PhysicsState2d`. A name with no twin stays plain (`sprite`). In snake case `_2d` is its own word unless it quotes a key or module (`register_shape2d_component`). SCREAMING_SNAKE is exempt | all | ERROR |
+| N6 | A component's schema has fixed words: the variant's discriminant is `kind`, a datatype is `type`, from the closed set `parse_schema` takes. A property never repeats its component's name | scene-file | ERROR |
+| N7, N8 | A reader is named for what it answers, with no `get_`, and `is_` only for a yes or no. Its setter is `set_` and the reader's name, beside it. A `*Snapshot` or `*Buffer` reader takes no setter; where a setter writes a Config and the reader reads a Snapshot, both say so | script-api | ERROR, report |
+| N9 | A flag or a mode is never in a function's name: an optional flag goes in the trailing options record (`<Function>Options`), a fixed choice takes a `FAMILY_VALUE` constant | script-api | — |
+| N26 | A method on a component's handle leaves the component out: `softbody_area` is `node.softbody2d.area()`. The registered name stays unique in its module, and a method never spells a property of its component | script-api | `api_lints` handle-method-property, handle-method-twice |
+| N10, N11, N15 | In Rust the verb says what it acts on. `install_*` declares script functions, `register_*` components, `build_*` typemap entries and systems; `*_system` is only what `App::add_system` takes; a backend step is `apply_*` (Config in), `publish_*` (Snapshot out), `flush_*` (drain a Buffer), `pump_*` (OS in) or `sync_*` (ECS to the backend). A group's name is true of everything in it | rust-internal | ERROR |
+| N18, N19, N20 | A colour token is `<group>_<role>` (`bg_*`, `text_*`, `border_*`, or a family's `_fill`, `_fill_hover`, `_text`, `_bg`, and `text_on_<family>`) and never names a hue. A theme key is the widget property it styles, spelled the same. A role is `<component>[_<context>][_<emphasis>]`, and a state is a sub-table, never a suffix | theme | `house_lints` theme-token, theme-key; test |
+
+### From D: what the call site cannot show
+
+| # | Rule | Scope | Lint |
+| --- | --- | --- | --- |
+| N21 | A key or parameter carries its unit (`_seconds`, `_ticks`, `_hz`, `_pixels`, `_degrees`) unless it is the module's own. Radians and seconds are the default | settings-path, script-api, scene-file | `house_lints` setting-unit |
+| D3, N2 | A typemap type's suffix says who owns it and how long it lives, from the table below. A type that is two of them is split, not renamed. A `*Config`'s pending flag is `changed`, and a `*Snapshot` says in its doc comment what it holds headless | rust-internal | report, denylist ERROR |
+| N3 | `Det` marks one thing: a collection with a fixed iteration order standing in for a std type the house lint forbids | rust-internal | ERROR |
+| N12 | `Fn` ends only the alias of a boxed or pointer callable, no `pub` item is `*Inner`, and a const is named for what it holds | rust-internal | ERROR |
+| N16 | A component key names what the scene's author changes, and its registration says in a doc comment what state it writes | rust-internal | report |
+| N24 | No name in a script is one letter: the editor's state is `state`, and an index, a coordinate or a loop variable is named for what it counts or holds | script, editor | — |
+
+D3's suffixes:
+
+| Suffix | Who owns it, and for how long |
+| --- | --- |
+| `*Config` | Written by callers (scripts, editor, CLI); a consumer applies it and does not own the truth. Pending changes are flagged by a field named `changed` |
+| `*Snapshot` | A backend writes it once per frame; everyone else reads |
+| `*Buffer` | Anyone appends during the frame; its consumer drains it; empty at frame start |
+| `*Request` | One caller inserts it; its handler consumes and removes it |
+| `*Registry` | Appended during plugin build only; read-only afterwards |
+| `*State` | Owned and changed by exactly one subsystem, across frames; every writer goes through that subsystem's API |
+| *(none)* | Immutable after insertion: `ProjectRoot`, `ScriptArgs`, `ProjectManifest` |
+
+`Settings` is kept for user-authored config on disk and never ends a `Config`.
 
 ## Deliberate exemptions
 
-Recorded so each stops being cited as precedent for the next.
+A name that bends a rule, and why. Recorded so none becomes the precedent for
+the next.
 
-| Name | Why it stays |
-| --- | --- |
-| `resource` for the typemap | D1 |
-| `DetHashMap` / `DetHashSet` | The prefix is the whole job: it says which one the house lint wants you to use |
-| `node.get_component` / `get_node` | N7 exemption. Dropping the prefix gives `node.component(name)` beside `node.component_names()`, and `node.node(path)` |
-| `render.camera_pose` | Reads the published `ViewportSnapshot3d`, what a `camera3d` node asked as the backend applied it — fixed by a doc line under N8 |
-| `render.camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
-| `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is met in part: each keeps a `vocabulary.rs` for the words it compares, core keeps the rest in the domain module that owns them (`primitive`, `csg`, `skeleton`), and the importer spells the scene keys it writes. `vocabulary-literal` binds a crate the moment it has a `vocabulary.rs`, and `string_lints.py` holds these like any other crate |
-| `render` as one large module | Revisited at 58 functions: the eight that drive the OS window and read the display moved to `window`, leaving 50. A `render2d` split would break 58 call sites for a boundary `ui` manages without. Revisit past ~70 functions |
-| `rotation_euler` | The Rust field is a quaternion, so bare `rotation` becomes ambiguous the day a quaternion accessor lands. Degrees are additive (`set_rotation_degrees`) |
-| `widget.x` / `widget.y` | Anchor-relative offsets against five anchor corners, not a position vector |
-| `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to be consistent with (N4) |
-| `Flat` / `Solid` | A word-pair that already says which dimension it is, in one file. Suffixing `Solid` alone would orphan `Flat` and make the pair read less consistently, not more |
-| `PostPass::Material` beside `Material3d` | A screen-space post pass is not a surface material and carries no dimension; the 3D asset took the suffix, which is what separates them (N1) |
-| The editor's display types (`RigidBody3D`, `MeshInstance2D`, …) | Godot 4's class names throughout, a deliberate affordance for Godot users; one table, `model::display_types` |
-| `scale`, four times over | `node.transform.scale`, `ui.scale()`, `ViewportSnapshot3d.scale_factor` and the 2D camera's `zoom` are four scopes, not one. N1 bans a word meaning two things in one scope |
-| `node.add_child` vs `scene.instantiate` | Not synonyms: one empty node against a whole scene file |
+| Name | Bends | Why it stays |
+| --- | --- | --- |
+| `resource` for the typemap | A | D1: a Rust reader's word, kept so the game's word stays free |
+| `DetHashMap` / `DetHashSet` | D4 | The prefix is the whole job: it says which one the house lint wants |
+| `node.get_component` / `get_node` | N7 | Dropping the prefix gives `node.component(name)` beside `node.component_names()`, and `node.node(path)` |
+| `render.camera_pose` | N7, N8 | Reads the published `ViewportSnapshot3d`, what the backend applied for a `camera3d` node; its doc line says so |
+| `render.camera_2d`, `mouse_world_2d`, `draw_line_2d` | D5 | Correct under N5; none quotes a key or module name |
+| `balaur_core`, `balaur_import`, `balaur_cli` words | N17 | Met in part: each keeps a `vocabulary.rs` for the words it compares, core keeps the rest in the module that owns them, and the importer spells the scene keys it writes |
+| `render` as one large module | D2 | Revisited at 58 functions: the window's eight moved to `window`. A `render2d` split would break 58 call sites for a line `ui` manages without. Revisit past about 70 |
+| `rotation_euler` | A | The Rust field is a quaternion, so a bare `rotation` turns ambiguous the day a quaternion reader lands. Degrees are `set_rotation_degrees` |
+| `widget.x` / `widget.y` | C | Anchor-relative offsets against five anchor corners, not a position vector |
+| `SHAPE_KINDS_2D` | N4 | SCREAMING_SNAKE has no lowercase to agree with |
+| `Flat` / `Solid` | D5 | A pair that already says which dimension it is, in one file |
+| `PostPass::Material` beside `Material3d` | N1 | A screen-space pass is not a surface material and has no dimension; the 3D asset took the suffix, which is what tells them apart |
+| The editor's display types (`RigidBody3D`, `MeshInstance2D`) | D5 | Godot 4's class names, shown as they are to Godot users (A); one table, `model::display_types` |
+| `scale`, four times | N1 | `node.transform.scale`, `ui.scale()`, `ViewportSnapshot3d.scale_factor` and the 2D camera's `zoom` are four scopes, not one |
+| `node.add_child` and `scene.instantiate` | B | Not synonyms: one empty node against a whole scene file |
 
 ## Glossary
+
+The words B fixes, one meaning each.
 
 `resource` = typemap entry. `asset` = game content from a file. `system` = a
 closure in a stage. `load` = produce a live object from a path. `source` = raw
@@ -152,9 +176,11 @@ sheet over the editor. `window` = the OS window only.
 
 ## Picked names, by system
 
-This section lists the name Balaur picked for each concept a game developer meets, per system. `PLAN-naming.md` lists the ones the engine does not use yet, in the order they land.
-
-The last column names the engine, standard or rule a pick was drawn from, and `none` where the survey found no match.
+The name Balaur picked for each concept a game developer meets. The last
+column is principle A at work: it names where the word came from, Godot
+first, then Unity, then the domain's standard, and `none` for plain English.
+A section's opening line says when it draws from elsewhere and why.
+`PLAN-naming.md` lists the names the engine does not use yet.
 
 ### Input
 
@@ -178,7 +204,7 @@ A key's string value is its W3C `KeyboardEvent.code`, verbatim: `KEY_A` is `KeyA
 | Numpad decimal point | `KEY_NUMPAD_PERIOD` | SDL3, Godot |
 | Media, browser and IME keys | the W3C code in capitals: `KEY_MEDIA_PLAY_PAUSE`, `KEY_MEDIA_TRACK_NEXT`, `KEY_AUDIO_VOLUME_UP`, `KEY_BROWSER_BACK`, `KEY_KANA_MODE` | W3C |
 
-A gamepad button is named by its position, not its glyph, so `SOUTH` is the same button on every pad.
+Pad words follow SDL3's game controller names, the standard most engines' pad layers read. A button is named by its position, not its glyph, so `SOUTH` is the same button on every pad.
 
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
@@ -190,7 +216,7 @@ A gamepad button is named by its position, not its glyph, so `SOUTH` is the same
 | Back, Start, Guide | `GAMEPAD_BUTTON_BACK`, `_START`, `_GUIDE` | SDL3, Godot, GLFW |
 | Stick clicks | `GAMEPAD_BUTTON_LEFT_STICK`, `_RIGHT_STICK` | SDL3, Godot |
 | D-pad | `GAMEPAD_BUTTON_DPAD_UP`, `_DOWN`, `_LEFT`, `_RIGHT` | SDL3, Godot, GLFW, Unity, W3C |
-| Six-button pads' third column | `GAMEPAD_BUTTON_C`, `_Z` | gilrs, the printed labels |
+| Six-button pads' third column | `GAMEPAD_BUTTON_C`, `_Z` | the printed labels |
 | Reserved: touchpad and paddles | `GAMEPAD_BUTTON_TOUCHPAD`, `_LEFT_PADDLE1`, `_RIGHT_PADDLE1` | SDL3 |
 | Stick axes | `GAMEPAD_AXIS_LEFT_X`, `_LEFT_Y`, `_RIGHT_X`, `_RIGHT_Y` | SDL3, Godot, GLFW |
 | Trigger axes | `GAMEPAD_AXIS_LEFT_TRIGGER`, `_RIGHT_TRIGGER` | SDL3, GLFW, Unity |
@@ -206,23 +232,23 @@ Sticks read -1 to 1 with up as +1, and triggers read 0 to 1. A reader's device w
 | Analog value | `gamepad_axis`, `action_value` | none |
 | Pointer | `mouse_position`, `mouse_delta`, `scroll_delta` | none |
 | Touches | `touches`, `touches_just_started`, `touches_just_ended` | none |
-| Touch phases | `start`, `move`, `end`, `cancel` | W3C, winit |
+| Touch phases | `start`, `move`, `end`, `cancel` | W3C |
 | An action's bindings | `bindings`, `set_bindings`, `reset_bindings` | Unity |
 | Connected pads | `gamepads`, `gamepad_name` | SDL3, Godot |
 | Pad motors, 0 to 1 and seconds | `gamepad_rumble` with `strong`, `weak`, `duration`, `left_trigger`, `right_trigger` | Godot, W3C, SDL3 |
 | Shaping a rumble | `delay`, `pulse`, `gap`, `attack`, `attack_level`, `fade`, `fade_level` | W3C, SDL haptics |
 | A rumble in the world | `position`, `min_distance`, `max_distance`, `falloff`, `rolloff`, `gamepad_set_listener`; falloffs `inverse`, `linear`, `exponential` | OpenAL, the `audio` module |
-| A rumble's end | `on_gamepad_rumble_finished` | gilrs |
+| A rumble's end | `on_gamepad_rumble_finished` | N22 |
 | Pressure and repeat | `gamepad_pressure`, `gamepad_repeated` | W3C, none |
 | Who a pad is | `gamepad_info` with `os_name`, `guid`, `vendor`, `product`, `mapping` (`sdl` or `driver`) | SDL3, Godot |
 | A pad's power | `gamepad_power` with `state` (`on_battery`, `no_battery`, `charging`, `charged`, `unknown`) and `level` | SDL3 |
 | Stop or check rumble | `gamepad_stop_rumble`, `gamepad_can_rumble` | Godot |
 | Device vibration, in seconds | `vibrate` | none |
-| Test input | `feed_key`, `feed_mouse_position`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `feed_action`, `feed_gamepad` | none |
+| Test input | `set_key_down`, `set_mouse_position`, `set_mouse_down`, `set_scroll_delta`, `set_touch`, `set_action_value`, `set_gamepad` | none |
 
 ### UI and themes
 
-A widget kind and the `ui::*` function that draws it share one word.
+Godot names few widgets, so a widget's word is the one every toolkit shares, else the web's (HTML, ARIA, CSS), and theme tokens follow the web's design systems. A widget kind and the `ui::*` function that draws it share one word.
 
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
@@ -230,14 +256,14 @@ A widget kind and the `ui::*` function that draws it share one word.
 | Button | `button` | every surveyed toolkit |
 | Slider | `slider` | every surveyed toolkit |
 | On and off | `switch` | every surveyed toolkit but Godot |
-| Checkbox | `checkbox` | HTML, ARIA, Godot, Flutter, egui |
+| Checkbox | `checkbox` | HTML, ARIA, Godot, Flutter |
 | A theme table's fill through colours, and its shadow | `gradient` (`kind`: `linear`, `radial`; `stops`, `at`, `angle`, `center`, `radius`), `shadow` (`x`, `y`, `blur`, `spread`, `color`) | CSS's `linear-gradient`, `radial-gradient`, `box-shadow` |
 | One line of text | `text_field` | Flutter, SwiftUI, Unity |
 | Many lines of text | `text_area` | HTML, shadcn |
 | A number | `number_field` | Unity |
 | One choice of many | `dropdown` | Flutter, Unity |
 | A set of tabs | `tabs` | Radix, shadcn, ARIA |
-| Progress | `progress_bar` | Godot, Unity, egui, ARIA |
+| Progress | `progress_bar` | Godot, Unity, ARIA |
 | Colour choice | `color_picker` | Godot, SwiftUI |
 | Containers | `panel`, `row`, `column`, `stack`, `grid`, `flow`, `scroll` | Flutter, CSS, Godot |
 | Collapsible section | `fold` | Godot, Unity |
@@ -331,7 +357,7 @@ An editor role is `<component>[_<context>][_<emphasis>]`, as in `action_form_dan
 
 ### Scenes and rendering
 
-`global_` means world space, and `effective_` means resolved through a node's ancestors.
+Godot's words first, and glTF's for a surface, the format a model arrives in. `global_` means world space, and `effective_` means resolved through a node's ancestors.
 
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
@@ -365,7 +391,7 @@ A light's switch is `shadow_enabled`, and a caster's is `cast_shadow`.
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
 | 2D camera scale | `pixels_per_unit` | Unity |
-| Active camera, aim | `current`, `look_at` | Godot |
+| Active camera, aim | `current`; the node's rotation, which `transform.look_at(point)` turns | Godot |
 | Bloom | `bloom_intensity`, `bloom_threshold` | Unity, Bevy |
 | Ambient light | `ambient_color` | Godot, Bevy |
 | Reserved: field of view, vertical | `fov_degrees` | Godot, Unity |
@@ -387,8 +413,9 @@ A light's switch is `shadow_enabled`, and a caster's is `cast_shadow`.
 | Geometry shadows | `cast_shadow`, reserved `receive_shadows` | Godot, Unreal, Unity |
 | Surface | `base_color`, `metallic`, `roughness`, `emission_color`, `emission_strength`; texture slots `albedo`, `normal`, `metallic_roughness`, `occlusion`, `emissive`, `height` | glTF, Bevy, Blender |
 | A drawable's inputs | `material`, `texture`, `skeleton` | Godot |
-| A drawable's overlay | `wireframe_width`, `wireframe_sizing`, `wireframe_color`, `dot_size`, `dot_sizing`, `dot_color`, `draw_surface`, `depth_test` | kiss3d |
-| Stereo camera, above 0 | `eye_separation` | kiss3d |
+| A drawable's overlay | `wireframe_width`, `wireframe_sizing`, `wireframe_color`, `draw_surface`, `depth_test` | Blender, Godot (`no_depth_test`) |
+| A dot on every vertex | `point_size`, `point_sizing`, `point_color` | Godot (`point_size`) |
+| Stereo camera, above 0 | `stereo_separation` | Unity (`stereoSeparation`) |
 
 Every angle a scene stores in degrees carries `_degrees`; radians are the default.
 
@@ -403,7 +430,10 @@ Every angle a scene stores in degrees carries `_degrees`; radians are the defaul
 | Text layout | `text_align`, `max_width`, `markup` | CSS, Godot |
 | The face a text draws in, shared as an asset | `font`: `source`, `features`, `stretch`, `shaping`, `hinting`, `pixel_snap`, `snap_advances`, `monospace_width` | Godot (`FontFile`, `FontVariation`), CSS |
 | How a text is dressed, shared as an asset | `text_style`: `line_height`, `letter_spacing`, `outline_size`, `outline_color`, `shadow_color`, `shadow_offset_x`, `shadow_offset_y`, `underline`, `underline_color`, `overline`, `overline_color`, `strikethrough`, `strikethrough_color` | Godot (`LabelSettings`), CSS |
-| Text shaping | `font_style` (`normal`, `italic`, `oblique`), `line_break`, `truncate`, `truncate_at`, `max_lines`, `tab_width` | CSS, cosmic-text |
+| Text style | `font_style` (`normal`, `italic`, `oblique`) | CSS |
+| Where a wrapped line breaks | `line_break`: `word_smart`, `word`, `arbitrary` | Godot (`AutowrapMode`) |
+| A block cut short | `truncate`, `truncate_at` (`start`, `middle`, `end`), `max_lines` | Apple (`truncatingMiddle`), Flutter (`maxLines`) |
+| Spaces in a tab | `tab_size` | Godot (`RichTextLabel`), CSS |
 | 3D text | `billboard`, `double_sided`, `depth_test` | Godot |
 | Particles | `particles2d`, `particles3d` with `billboard` | Godot |
 | Particles born per second | `rate` | Unity |
@@ -414,7 +444,8 @@ Every angle a scene stores in degrees carries `_degrees`; radians are the defaul
 | Tile flips | `flags` | Tiled |
 | Tile map | `tileset`, `origin`, `seed`, `pixels_per_unit` | Tiled, LDtk |
 | Boolean shapes | `operation`, with `difference` | Godot, Unreal |
-| 2D lighting | `light2d` `source_radius` for the `post` word `gi` and its `gi_*` knobs; `normal_map`, `specular_strength`, `shininess`, `normal_strength` with light `height` | kiss3d, Godot |
+| 2D lighting | `light2d` `height`; `normal_map`, `normal_scale`, `specular_strength`, `specular_shininess` | Godot (`CanvasTexture`, `normal_scale`) |
+| The disc a light shines from, for the `post` word `gi` and its `gi_*` knobs | `source_radius` | Unreal |
 | One mesh drawn per instance | `multimesh` asset, `multimesh3d`, `multimesh2d`, `set_instance_transform`, `instance_count`, `visible_instance_count` | Godot |
 | 3D debug drawing | `draw_line_3d`, `draw_lines_3d`, `draw_text_3d`, `draw_box_3d`, `draw_sphere_3d`, `draw_capsule_3d` | Bevy |
 | 2D debug drawing, in radians | `draw_rect_2d`, `draw_circle_2d`, `draw_arc_2d`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_texture_2d` | Godot |
@@ -453,7 +484,7 @@ A physics word follows Godot where the importer maps it, and otherwise the word 
 | Rounded edges | `edge_radius` | Unity, Box2D |
 | Shell around a shape | `collision_margin` | Godot |
 | Convex decomposition | `max_concavity`, `max_convex_hulls`, `resolution` | Godot |
-| Mesh cleanup on a collider | `merge_vertices`, `drop_degenerate_triangles`, `drop_duplicate_triangles`, `drop_bad_topology` | parry |
+| Mesh cleanup on a collider | `merge_vertices`, `drop_degenerate_triangles`, `drop_duplicate_triangles`, `drop_bad_topology` | none |
 | Matter | `density`, `mass` | Box2D, Jolt, PhysX |
 | A surface, shared as an asset | `physics_material`: `friction`, `restitution`, `*_combine` | Godot (`PhysicsMaterial`), Box2D, Jolt |
 | Collider switches | `sensor`, `one_way`, `one_way_axis`, `offset`, `offset_rotation`, `fix_internal_edges`, `oriented` | Box2D, Jolt, Godot |
@@ -472,27 +503,27 @@ A physics word follows Godot where the importer maps it, and otherwise the word 
 | Locked axes, flags `x`, `y`, `z` | `lock_translation`, `lock_rotation` | Godot |
 | Reduced-coordinate solver | `articulation` | Unity, PhysX |
 | Limits and motor, one record per free axis | `axes`: `axis` (`x`, `y`, `z`, `rotation_x`, `rotation_y`, `rotation_z`; 2D `rotation`), `limits`, `motor` (`off`, `velocity`, `position`), `motor_target`, `motor_target_velocity`, `motor_max_force`, `motor_model`, `stiffness`, `damping` | Jolt, Box2D |
-| Joint readers | `joint_force`, answering `force` and `torque`; `joint_state`, answering `status`, `angle`, `limit_impulses`, `motor_impulses`, `coordinates`, `velocities` | none |
+| Joint readers | `force()`, answering `force` and `torque`; `state()`, answering `status`, `angle`, `limit_impulses`, `motor_impulses`, `coordinates`, `velocities` | none |
 | Character contact shell | `safe_margin` | Godot |
 | Floor | `floor_snap_length`, `floor_max_angle`, `is_on_floor`, result `on_floor` | Godot |
-| Slide limit, in radians | `min_slide_angle` | rapier |
+| Slide limit, in radians | `min_slide_angle` | none: Godot's `wall_min_slide_angle` is another setting |
 | Steps | `step_height`, `step_min_width`, `step_on_dynamic` | Unity, Unreal, PhysX |
 | Up | `up_direction` | Godot |
-| Move by a displacement | `move_character`, with `slide`, `push_bodies`, `push_mass`, `normal_nudge`, and one `lengths` (`absolute`, `relative`) for every length | Unity |
-| What a sweep passes through | `ignore` (flags `static`, `kinematic`, `dynamic`, `sensors`, `solids`), `ignore_nodes` | rapier |
+| Move by a displacement | `move_by`, with `slide`, `push_bodies`, `push_mass`, `normal_nudge`, and one `lengths` (`absolute`, `relative`) for every length | Unity |
+| What a sweep or a wheel ray passes through | the query filter's words: `exclude`, `exclude_kinds`, `hit_sensors`, `hit_solids` | N1 |
 | Wheel suspension | `suspension_stiffness`, `suspension_travel`, `suspension_max_force`, `suspension_direction`, `damping_compression`, `damping_relaxation` | Godot |
 | Wheel | `radius`, `rest_length`, `friction_slip`, `side_friction`, `axle`, `in_contact` | Godot, Unity |
-| Driving | `set_engine_force`, `set_brake`, `set_steering`, `vehicle_speed` | Godot |
+| Driving | `set_engine_force`, `set_brake`, `set_steering`, `speed` | Godot |
 | Vehicle axes | `forward_axis`, `up_axis`: `x`, `y`, `z`, `-x`, `-y`, `-z` | none |
 | Soft body particles | `particle_count`, `pinned_particles`, `self_collision`, `orientation` (`auto`, `solid`, `shell`) | Jolt, Unity, Godot |
 | Soft body solver | `solver_iterations`, `solver_substeps` | Jolt |
 | Soft body shapes | `box`, `sphere`, `triangle_mesh`, `circle`, with `size` | Godot, Unity |
 | Soft body material | `mass`, `edge_*`, `bend_*`, `young_modulus`, `poisson_ratio`, `tear_*`, `shape_matching` (`auto`, `on`, `off`) | Box2D, Jolt, Godot |
 | Ragdoll weight, 0 to 1 | `ragdoll` `influence` | Godot, Unreal |
-| Soft body parts | `regions`, `collision_mesh`, `collision_binding` (`nearest`, `particles`, `cells`) | rapier |
-| Pulling a body to a pose | `follow3d`, `follow2d`: `kind` (`pd`, `pid`), `target`, `*_gain`, `translation_axes`, `rotation_axes` (in 2D the one `rotation`, as a 2D joint names it), `reset_follow` | rapier |
+| Soft body parts | `regions`, `collision_mesh`, `collision_binding` (`nearest`, `particles`, `cells`) | none |
+| Pulling a body to a pose | `follow3d`, `follow2d`: `kind` (`pd`, `pid`), `target`, `*_gain`, `translation_axes`, `rotation_axes` (in 2D the one `rotation`, as a 2D joint names it), `reset` | control theory (PID) |
 | Ray | `origin`, `direction`, `max_distance`, `hit_from_inside` | Unity, PhysX, Godot |
-| Query filter | `collision_mask`, `hit_sensors`, `hit_solids`, `exclude`, `only` | Godot, Unity |
+| Query filter | `collision_mask`, `hit_sensors`, `hit_solids`, `exclude`, `exclude_body`, `exclude_kinds`, `only` | Godot, Unity |
 | Casts | `raycast`, `raycast_all`, `shapecast`, `time_of_impact` | Unity, Box2D |
 | Overlaps | `overlap_point`, `overlap_shape`, `overlap_aabb`, `overlaps`, `intersects` | Unity, Box2D, PhysX |
 | Nearest surface | `closest_point`, `closest_points` | Unity |
@@ -555,7 +586,7 @@ A volume names its unit, because Godot reads a bare `volume` as decibels. A cue 
 
 ### Editor, files and the CLI
 
-Every string is sentence case, and a button is a verb.
+The editor takes the word Godot and Unity share for what both editors show, and VS Code's for what a code editor shows; the command line follows Cargo. Every string is sentence case, and a button is a verb.
 
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
@@ -646,11 +677,12 @@ A command is a verb, a long flag is kebab-case, and an environment variable spel
 | Self-test state | `--state test:<name>` | none |
 | Signing and store tools | `BALAUR_WINDOWS_CERTIFICATE_PASSWORD`, `BALAUR_ANDROID_KEYSTORE_PASSWORD`, `BALAUR_ANDROID_KEY_PASSWORD`, `BALAUR_APPLE_NOTARY_*`, `BALAUR_ANDROID_BUNDLETOOL`, `BALAUR_WINDOWS_SIGN_DLIB` | Cargo |
 | Replay dump | `BALAUR_REPLAY_DUMP` | none |
+| Per-user data folder of a test run | `BALAUR_DATA_DIR` | none |
 | Run flags | `--headless`, `--frames`, `--debug`, `--debug-wait`, `--offscreen`, `--timings`, `--fixed-tick`, `--trace-digest` | Godot |
 
 ### Engine, files and scripts
 
-A reader that answers a count, a tick or a place says so in its name, and a setter starts with `set_`.
+The Rust rows follow Bevy, the ECS a Rust reader knows. A reader that answers a count, a tick or a place says so in its name, and a setter starts with `set_`.
 
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
@@ -660,7 +692,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | A primitive and its dimensions, on a shape | `shape` (`shape3d`, `shape2d`): `kind` and that kind's fields | Godot's mesh resources |
 | A component written by hand, not derived | `ComponentDef::by_hand(schema, apply, remove, get)` | none |
 | A component as a save writes it | `components::written`, `written_of`; `node.authored` | none |
-| The counter writes are stamped with, apart from the simulation's `tick` | `Engine::change_tick`, `advance_change_tick`; `engine.change_tick` | Bevy's change ticks |
+| The counter writes are stamped with, apart from the simulation's `tick` | `Engine::change_tick`, `advance_change_tick` | Bevy's change ticks |
 | What a component runs at each point of its life on a node | `Lifecycle` (`on_add`, `on_insert`, `on_replace`, `on_remove`, `on_despawn`), declared as `#[component(on_add = f)]` | Bevy's component hooks |
 | A write asked for now and made at the end of the stage | `Engine::defer`, `defer_spawn_node`, `defer_spawn`, `defer_insert`, `defer_insert_one`, `defer_remove_one`, `defer_despawn`, `apply_deferred` | Bevy's `Commands`, `apply_deferred` |
 | A typed value one Rust system sends and others read once each | `App::add_messages`, `Engine::send`, `Messages`, `MessageCursor` (`read`, `read_cloned`) | Bevy's `Events`, `EventReader` |
@@ -674,7 +706,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | A system whose parameters say what it reads and writes | `system_param::SystemParam`, `TypedSystem`; `Res`, `ResMut`, `Query` (`borrow`, `for_each`, `one`), `Commands`, `Local`, `Step`, `MessageReader`, `MessageWriter`, `Changed`, `Added`; `App::add_typed`, `System::typed` | Bevy's system parameters |
 | The tree in order, kept until its shape moves | `scene::tree_rank`, `TreeRank` (`of`, `order`, `sorted`) | none |
 | A system's matches worked in batches on the thread pool | `Query::par_for_each`, `par_fold` | Bevy's `par_iter` |
-| What was put on, written or taken off after a tick | `ticks::added_since`, `changed_since`, `removed_since` (and `scene.` in scripts); a component's `Stamp` (`added`, `changed`); `ChangeCursor::read` | Bevy's `Added`, `Changed`, `RemovedComponents` |
+| What was put on, written or taken off after a tick | `ticks::added_since`, `changed_since`, `removed_since`; a component's `Stamp` (`added`, `changed`); `ChangeCursor::read` | Bevy's `Added`, `Changed`, `RemovedComponents` |
 | Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |
 | Where the debugger stopped | `debugger.stop_location` | none |
 | Jobs in flight | `export.running_count`, `import.running_count` | none |
@@ -714,15 +746,12 @@ There is no `late_update`, `draw` or `input` hook. Draw from `update` with `rend
 
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
-| Handler and event key | `on_<event>`, keyed by the name without `on_` | Unity, Unreal, Godot |
-| An event's verb | the base form: `press`, `submit`, `land` | Unity, DOM |
-| A value changed | `<reader>_changed`: `on_paused_changed`, `on_focused_changed`, `on_dark_mode_changed` | Godot, Unity |
-| An ask before an act | `_requested`: `on_quit_requested` | Godot |
-| Space and states | `enter`, `exit`: `on_collision_enter`, `pointer_enter`, `on_state_enter` | Unity |
-| Anything time-bound | `start`, `end`: `on_start`, `on_animation_end`, `on_tween_end` | DOM |
-| Button edges | `down`, `up`: `on_key_down` | Godot, DOM |
-| Pressed by any device | `on_press` | Godot |
-| Touched the ground | `on_land` | none |
+| A handler and its event | `on_<event>(payload, source)`, the event named without `on_`; a click on a node or a widget is `pointer_click` | Unity, Unreal, Godot |
+| An event | what happened, in the past tense: `logged`, `saved`, `child_added`, `visibility_changed`, `action_pressed` | Godot |
+| Input and contact | the pairs: `pointer_enter`, `pointer_exit`, `pointer_down`, `pointer_up`, `pointer_click`, `pointer_drag`, `pointer_drop`, `key_down`, `key_up`, `collision_enter`, `collision_exit`; the hooks `scroll` and `resize` | Unity |
+| Two of a kind on one node | the thing first: `sound_finished`, `particles_finished`, `animation_finished`, `tween_finished` | N27 |
+| A value changed | `<reader>_changed`: `on_paused_changed`, `on_dark_mode_changed`, `current_changed`, `sleeping_changed`, `files_changed` | Godot, Unity |
+| An ask before an act | `_requested`: `on_quit_requested`, `close_requested` | Godot |
 | A timer ran out | `timeout` | Godot |
 | Hear a named event | `events.listen`, `events.stop_listening` | none |
 | Hear a module's reports | `<module>.listen(node, options)`, calling `on_<module>_event` unless `on_event` names another | none |

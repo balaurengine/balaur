@@ -49,7 +49,6 @@ kind = "label"
 text = "The [b]Sunken Vault[/b] opens at dusk. Read the [url=docs/manual/ui]manual[/url] first, and mind your [hint=a point a second]stamina[/hint]."
 [nodes.widget_text]
 markup = true
-on_link = "open"
 
 [[nodes]]
 id = "links_note"
@@ -58,7 +57,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "label"
 role = "caption"
-text = "[url=target] calls on_link; [hint=text] says it on hover"
+text = "[url=target] says link when clicked; [hint=text] says it on hover"
 
 [[nodes]]
 id = "select_head"

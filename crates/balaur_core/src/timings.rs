@@ -187,8 +187,9 @@ pub struct Timings {
     /// Wall time of the whole frame, stages and everything between them.
     pub frame: Duration,
     /// Frame to frame as the loop driving the window measured it: the stages,
-    /// the syncs, the UI pass, present and the wait for the next frame. Zero
-    /// under a driver that reports none, such as a headless run.
+    /// the syncs, the UI pass, present and the wait for the next frame. Noted
+    /// before a tick, so inside one it is the period [`Timings::frame`] ran in.
+    /// Zero under a driver that reports none, such as a headless run.
     pub wall: Duration,
     /// Per stage, in `STAGE_NAMES` order.
     pub stages: [Duration; 8],
@@ -413,14 +414,10 @@ struct SpanTotal {
 impl TimingLog {
     /// Fold the last frame in. Called once per frame while `--timings` is on.
     pub fn observe(&mut self, timings: &Timings) {
-        // The loop notes the period of the frame it last drew after this
-        // table's stages ran, so it is the previous frame's: frame to frame
-        // where the loop measured one, the stages where nothing did.
-        if let Some(previous) = self.marks.last_mut() {
-            previous.period = previous.period.max(timings.wall);
-        }
+        // The loop notes the period these stages ran in before the next tick:
+        // frame to frame where it measured one, the stages where nothing did.
         self.marks.push(Mark {
-            period: timings.frame,
+            period: timings.frame.max(timings.wall),
             cpu: timings.cpu,
             interval: timings.interval,
             costliest: costliest(timings),
@@ -566,9 +563,9 @@ impl TimingLog {
         let _ = writeln!(out, "spikes  {} over twice the median", spikes.len());
         spikes.sort_by_key(|(_, m)| std::cmp::Reverse(m.period));
         for (frame, mark) in spikes.iter().take(8) {
-            // What the loop spent drawing a frame is filed after the next frame's
-            // stages and published with the one after that, so a frame's cause can
-            // be two tables behind it.
+            // What the loop spent drawing a frame is published with the next
+            // frame's stages, and a shader it built after them with the one after
+            // that, so a frame's cause can be two tables behind it.
             let (name, cost) = self.marks[*frame..]
                 .iter()
                 .take(3)

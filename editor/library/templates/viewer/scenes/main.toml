@@ -23,7 +23,7 @@ name = "Environment"
 parent = "n_world"
 
 [nodes.environment]
-ambient_color = "#1c2026"
+ambient_color = "#5d636b"
 tonemap = "neutral"
 
 [[nodes]]

@@ -27,7 +27,7 @@ pub class GizmoState {
     key: [any],
     internal marquee: any,
     drawn: [any],
-    lines: [float],
+    lines: [render::Line3d],
 }
 
 pub struct Camera {
@@ -191,14 +191,14 @@ pub fn viewport_rect(state: editor::State) -> editor::Viewport {
 // maps NDC to the full screen, not the visible viewport region.
 fn camera_frame(state: editor::State) -> Camera {
     let pose = render::camera_pose();
-    let eye_x = pose[0];
-    let eye_y = pose[1];
-    let eye_z = pose[2];
-    let target_x = pose[3];
-    let target_y = pose[4];
-    let target_z = pose[5];
-    let fov = pose[6];
-    let dpi = pose[7];
+    let eye_x = pose.eye.x;
+    let eye_y = pose.eye.y;
+    let eye_z = pose.eye.z;
+    let target_x = pose.target.x;
+    let target_y = pose.target.y;
+    let target_z = pose.target.z;
+    let fov = pose.fov;
+    let dpi = pose.scale_factor;
     let eye = [eye_x, eye_y, eye_z];
     let heading = util::vector_normalise(util::vector_subtract([target_x, target_y, target_z], eye));
     let forward = heading.direction;
@@ -210,12 +210,12 @@ fn camera_frame(state: editor::State) -> Camera {
     let screen_height = state.screen_height;
     let world_per_pixel = 2.0 * distance * math::tan(fov / 2.0) / util::max(screen_height, 1.0);
     let ray = render::mouse_ray();
-    let ray_origin_x = ray[0];
-    let ray_origin_y = ray[1];
-    let ray_origin_z = ray[2];
-    let ray_direction_x = ray[3];
-    let ray_direction_y = ray[4];
-    let ray_direction_z = ray[5];
+    let ray_origin_x = ray.origin.x;
+    let ray_origin_y = ray.origin.y;
+    let ray_origin_z = ray.origin.z;
+    let ray_direction_x = ray.direction.x;
+    let ray_direction_y = ray.direction.y;
+    let ray_direction_z = ray.direction.z;
     Camera {
         eye: eye,
         forward: forward,
@@ -375,9 +375,9 @@ fn set_geometry(state: editor::State) -> Geometry3d? {
     let center = util::vector_scale(util::vector_add(lowest, highest), 0.5);
     let half_extents: [float] = util::vector_scale(util::vector_subtract(highest, lowest), 0.5);
     let pose = render::camera_pose();
-    let eye_x = pose[0];
-    let eye_y = pose[1];
-    let eye_z = pose[2];
+    let eye_x = pose.eye.x;
+    let eye_y = pose.eye.y;
+    let eye_z = pose.eye.z;
     let distance = util::distance(center, [eye_x, eye_y, eye_z]);
     let marker = 0.6 * distance * 0.0144;
     let min_half_extent = util::min(half_extents[0] + 0.06, util::min(half_extents[1] + 0.06, half_extents[2] + 0.06));
@@ -409,9 +409,9 @@ fn geometry_at(state: editor::State, row: int) -> Geometry3d? {
     // steadyum: handle size scales with camera distance (constant on
     // screen), rings sit at 75% of the smallest extent.
     let pose = render::camera_pose();
-    let eye_x = pose[0];
-    let eye_y = pose[1];
-    let eye_z = pose[2];
+    let eye_x = pose.eye.x;
+    let eye_y = pose.eye.y;
+    let eye_z = pose.eye.z;
     let distance = math::sqrt(((centre[0] - eye_x) * (centre[0] - eye_x) + (centre[1] - eye_y) * (centre[1] - eye_y) + (centre[2] - eye_z) * (centre[2] - eye_z)));
     let marker = 0.6 * distance * 0.0144;
     Geometry3d {
@@ -430,7 +430,7 @@ fn geometry_at(state: editor::State, row: int) -> Geometry3d? {
 /// Measured against the gizmo's centre, which is the selected node's own: an
 /// object closer than that is between the camera and what is selected.
 fn took_click_in_front(state: &mut editor::State, camera: Camera, geometry: Geometry3d) -> bool {
-    let hit = render::pick_ray_at(camera.ray_origin[0], camera.ray_origin[1], camera.ray_origin[2], camera.ray_direction[0], camera.ray_direction[1], camera.ray_direction[2]);
+    let hit = render::pick_ray_at(vec3(camera.ray_origin[0], camera.ray_origin[1], camera.ray_origin[2]), vec3(camera.ray_direction[0], camera.ray_direction[1], camera.ray_direction[2]));
     if hit == nil {
         return false;
     }
@@ -631,16 +631,15 @@ fn hit_test(state: editor::State, camera: Camera, geometry: Geometry3d, pointer_
 // steadyum's 6px stroke, 30% thinner per taste.
 const STROKE_WIDTH: float = 4.2;
 
-// One segment onto `out`, in `render::draw_lines`' eleven numbers.
-fn line(out: [float], from: [float], to: [float], color: [float], width: float, on_top: bool) {
-    let top = if on_top { 1.0 } else { 0.0 };
-    out.extend([from[0], from[1], from[2], to[0], to[1], to[2], color[0], color[1], color[2], width, top]);
+// One segment onto `out`, as `render::draw_lines_3d` takes it.
+fn line(out: [render::Line3d], from: [float], to: [float], color: [float], width: float, on_top: bool) {
+    out.push(render::Line3d { from: vec3(from[0], from[1], from[2]), to: vec3(to[0], to[1], to[2]), color: util::as_color(color), width: width, on_top: on_top });
 }
 
 // Corner marker in steadyum's open-bracket style: of the mini-cube's 12
 // edges, draw only those with at least one outward face (faces whose sign
 // matches the handle's corner sign), leaving an open bracket.
-fn draw_handle_marker(out: [float], geometry: Geometry3d, signs: [float], half: float, color: [float]) {
+fn draw_handle_marker(out: [render::Line3d], geometry: Geometry3d, signs: [float], half: float, color: [float]) {
     // Corner offset in the box's local frame.
     let base = [signs[0] * geometry.half_extents[0], signs[1] * geometry.half_extents[1], signs[2] * geometry.half_extents[2]];
     for axis in 0..3 {
@@ -700,10 +699,10 @@ pub fn draw(state: &mut editor::State) {
     // none of them moves while the pointer is still: replay the list.
     let key = drawn_key(geometry, hot);
     if key == state.gizmo.drawn {
-        render::draw_lines(state.gizmo.lines);
+        render::draw_lines_3d(state.gizmo.lines);
         return;
     }
-    let out: [float] = [];
+    let out: [render::Line3d] = [];
     let half_extents = geometry.half_extents;
     let hot_face = if hot_is(hot, gizmo_parts::FACE) { hot } else { nil };
     // The 12 box edges, in the node's rotated frame. An edge bounds the
@@ -778,7 +777,7 @@ pub fn draw(state: &mut editor::State) {
             previous = next;
         }
     }
-    render::draw_lines(out);
+    render::draw_lines_3d(out);
     state.gizmo.drawn = key;
     state.gizmo.lines = out;
 }
@@ -1068,7 +1067,7 @@ pub fn update(state: &mut editor::State) {
                 }
                 // What the ray meets, asked of the engine: it holds the
                 // geometry, and every shape including a mesh has bounds.
-                let hit = render::pick_ray(camera.ray_origin[0], camera.ray_origin[1], camera.ray_origin[2], camera.ray_direction[0], camera.ray_direction[1], camera.ray_direction[2]);
+                let hit = render::pick_ray(vec3(camera.ray_origin[0], camera.ray_origin[1], camera.ray_origin[2]), vec3(camera.ray_direction[0], camera.ray_direction[1], camera.ray_direction[2]));
                 let landed: int? = nil;
                 if hit.is_valid() {
                     landed = model::index_of_live(state, hit);

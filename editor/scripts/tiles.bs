@@ -427,8 +427,8 @@ pub fn tile_count(state: &mut editor::State) -> int {
     if state.tiles.sheet == nil || state.tiles.sheet.unwrap().path != set.texture {
         let size = render::texture_size(util::engine_path(state.game_root, set.texture));
         let height = 0.0;
-        if size.len() == 2 {
-            height = size[1] as float;
+        if size.y > 0.0 {
+            height = size.y;
         } else {
             log::warn("tile set texture {set.texture}: no size");
         }
@@ -792,7 +792,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, wo
 }
 
 fn line(from: [float], to: [float], color: [float], width: float) {
-    render::draw_line_2d(from[0], from[1], to[0], to[1], color[0], color[1], color[2], width);
+    render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), width);
 }
 
 fn outline(frame: Frame, column: int, row: int, color: [float], width: float) {

@@ -722,14 +722,8 @@ pub(crate) fn install_collider_api(m: &mut Module<Engine>) {
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let handle = first_collider(&state, entity)?;
-        let aabb = state.world.colliders[handle].compute_aabb();
-        Ok((
-            aabb.mins.x,
-            aabb.mins.y,
-            aabb.mins.z,
-            aabb.maxs.x,
-            aabb.maxs.y,
-            aabb.maxs.z,
+        Ok(crate::readers::aabb_value(
+            &state.world.colliders[handle].compute_aabb(),
         ))
     });
 }
@@ -743,7 +737,7 @@ pub(crate) fn install_voxel_api(m: &mut Module<Engine>) {
     m.describe(&[
         (f::SET_VOXEL, &[c::COLLIDER_3D], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
         (f::VOXEL, &[c::COLLIDER_3D], "", "Whether one cell of a voxel collider is filled."),
-        (f::VOXEL_AT, &[c::COLLIDER_3D], "", "The cell a world position falls in, as three whole numbers."),
+        (f::VOXEL_AT, &[c::COLLIDER_3D], "(node: node, position: Vec3) -> [int]", "The cell a world position falls in, as three whole numbers."),
     ]);
     // Voxels are the one shape a game edits rather than replaces, so they get
     // calls of their own rather than going through `set_collider`.
@@ -773,7 +767,8 @@ pub(crate) fn install_voxel_api(m: &mut Module<Engine>) {
     );
     m.function(
         f::VOXEL_AT,
-        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+        |eng: &Engine, (node, position): (NodeId, balaur_script::Value)| {
+            let position = scalar::vec3_arg("a position", &position)?;
             let entity = balaur_core::entity_of(node)?;
             let state = eng.resource::<PhysicsState3d>();
             let state = state.borrow();
@@ -785,7 +780,7 @@ pub(crate) fn install_voxel_api(m: &mut Module<Engine>) {
                 .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
             // The grid is in the collider's own space, so a world point has to
             // come home first.
-            let local = collider.position().inverse() * scalar::v3(x, y, z);
+            let local = collider.position().inverse() * position;
             let cell = voxels.voxel_at_point(local);
             Ok((i64::from(cell.x), i64::from(cell.y), i64::from(cell.z)))
         },
@@ -798,6 +793,11 @@ const READER_RECORDS: &[balaur_script::RecordDoc] = &[
         "ColliderMesh",
         "{ points: [Vec3], indices: [int] }",
         "A collider's shape as points and the three point indices of each triangle, one after the other.",
+    ),
+    (
+        "Aabb",
+        "{ min: Vec3, max: Vec3 }",
+        "An axis-aligned box in world space, from its lowest corner to its highest.",
     ),
     (
         "Handles",
@@ -819,12 +819,12 @@ pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
     m.records(READER_RECORDS);
     m.describe(&[
         (f::COLLIDER_MESH, &[c::COLLIDER_3D], "(node: node) -> ColliderMesh", "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into."),
-        (f::COLLIDER_MASS, &[c::COLLIDER_3D], "", "What this collider weighs, density and size together."),
+        (f::COLLIDER_TOTAL_MASS, &[c::COLLIDER_3D], "", "What this collider weighs, density and size together."),
         (f::COLLIDER_VOLUME, &[c::COLLIDER_3D], "", "How much space the shape encloses."),
-        (f::SWEPT_AABB, &[c::COLLIDER_3D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
+        (f::SWEPT_AABB, &[c::COLLIDER_3D], "(node: node) -> Aabb", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
         (f::HANDLES, &[c::COLLIDER_3D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
         (f::COLLIDER_MASS_PROPERTIES, &[c::COLLIDER_3D], "(node: node) -> MassProperties", "What this collider adds to its body, in its own space."),
-        (words::AABB, &[c::COLLIDER_3D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
+        (words::AABB, &[c::COLLIDER_3D], "(node: node) -> Aabb", "The world-space box the collider currently occupies, from its lowest corner to its highest."),
     ]);
     m.function(f::COLLIDER_MESH, |eng: &Engine, node: NodeId| {
         collider_mesh_value(eng, node)
@@ -847,14 +847,8 @@ pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
             .map_or(*collider.position(), |(body, local)| {
                 body.predict_position_using_velocity_and_forces(dt) * local
             });
-        let aabb = collider.compute_swept_aabb(&next);
-        Ok((
-            aabb.mins.x,
-            aabb.mins.y,
-            aabb.mins.z,
-            aabb.maxs.x,
-            aabb.maxs.y,
-            aabb.maxs.z,
+        Ok(crate::readers::aabb_value(
+            &collider.compute_swept_aabb(&next),
         ))
     });
     m.function(f::HANDLES, |eng: &Engine, node: NodeId| {
@@ -893,7 +887,7 @@ pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
             (k::COLLIDERS, colliders),
         ]))
     });
-    m.function(f::COLLIDER_MASS, |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_TOTAL_MASS, |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();

@@ -656,13 +656,16 @@ impl Scenario {
 
 /// Scenario 2D instance's texture rectangle reads back as it was set.
 #[test]
-fn a_script_sets_a_texture_rectangle() {
+fn an_instance_answers_the_texture_rectangle_its_row_names() {
     let (_app, errors, lines) = run_shared_as(
         "multimesh2d",
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.multimesh2d.set_instance_region(1, vec2(8.0, 16.0), vec2(32.0, 24.0));
+        self.node.multimesh2d.set_instances([
+            render::MultimeshInstance { position: vec3(0.0, 0.0, 0.0) },
+            render::MultimeshInstance { position: vec3(1.0, 0.0, 0.0), region_origin: vec2(8.0, 16.0), region_size: vec2(32.0, 24.0) },
+        ]);
         let region = self.node.multimesh2d.instance_region(1).unwrap();
         let whole = self.node.multimesh2d.instance_region(0) == nil;
         log::info("region {region.origin.y} {region.size.y} {whole}");

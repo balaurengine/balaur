@@ -92,7 +92,11 @@ impl Owner {
         &app,
         column,
         "Go",
-        &toml::toml! { kind = "button" text = "Sail" on_click = "on_go" }.into(),
+        &toml::toml! {
+            kind = "button" text = "Sail"
+            bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_go" }] }
+        }
+        .into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -112,12 +116,12 @@ impl Owner {
 /// A panel's one script answers the controls under it that name its method,
 /// and the method is told which control spoke.
 #[test]
-fn a_key_hands_its_method_the_value_and_the_widget() {
+fn a_row_with_no_target_hands_the_nearest_script_the_value_and_the_widget() {
     let script = "pub class Panel { node: Node, heard: int, last: str }
 impl Panel {
-    pub fn pressed(_value: any, node: Node) {
+    pub fn pressed(button: str, node: Node) {
         self.heard += 1;
-        self.last = \"click {node.name()}\";
+        self.last = \"{button} click {node.name()}\";
     }
     pub fn last() -> str { self.last }
     pub fn heard() -> int { self.heard }
@@ -139,22 +143,36 @@ impl Panel {
         &app,
         column,
         "Go",
-        &toml::toml! { kind = "button" text = "Go" on_click = "pressed" }.into(),
+        &toml::toml! {
+            kind = "button" text = "Go"
+            bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
+        }
+        .into(),
     );
     let stop = add_child_widget(
         &app,
         column,
         "Stop",
-        &toml::toml! { kind = "button" text = "Stop" on_click = "pressed" }.into(),
+        &toml::toml! {
+            kind = "button" text = "Stop"
+            bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
+        }
+        .into(),
     );
     app.tick(1.0 / 60.0);
     let last = || host.call_on(balaur::node_id_of(panel), "last", &[]);
     assert!(balaur_ui::click(&app.engine, go, false));
     app.tick(1.0 / 60.0);
-    assert_eq!(last(), Some(balaur_script::Value::Str("click Go".into())));
+    assert_eq!(
+        last(),
+        Some(balaur_script::Value::Str("left click Go".into()))
+    );
     assert!(balaur_ui::click(&app.engine, stop, false));
     app.tick(1.0 / 60.0);
-    assert_eq!(last(), Some(balaur_script::Value::Str("click Stop".into())));
+    assert_eq!(
+        last(),
+        Some(balaur_script::Value::Str("left click Stop".into()))
+    );
     assert_eq!(
         host.call_on(balaur::node_id_of(panel), "heard", &[]),
         Some(balaur_script::Value::Int(2)),
@@ -203,7 +221,7 @@ fn a_ticked_check_emits_change_for_its_bindings() {
         &toml::toml! { kind = "checkbox" text = "Sails" x = 0.0 y = 0.0 }.into(),
     );
     let rows = toml::toml! {
-        rows = [{ event = "emitted:change", action = "add_variable", target = "flips", value = 1.0 }]
+        rows = [{ event = "emitted:value_changed", action = "add_variable", target = "flips", value = 1.0 }]
     };
     balaur::components::add(&app.engine, tick, "bindings", Some(&rows.into())).unwrap();
     let declared = toml::toml! { flips = { type = "float", value = 0.0 } };
@@ -259,9 +277,9 @@ fn a_click_with_no_draw_pass_runs_the_buttons_rows_and_skips_a_disabled_one() {
         .map(balaur_core::variables::as_num);
     assert_eq!(sailed, Some(1.0), "one click, from the enabled button");
     assert_eq!(
-        balaur_core::events::delivered_from(&app.engine, go, balaur_ui::CLICK_EVENT).len(),
-        1,
-        "the click is also the button's `click` event"
+        balaur_core::events::delivered_from(&app.engine, go, balaur_core::hooks::POINTER_CLICK),
+        vec![balaur_script::Value::Str("left".into())],
+        "the click is the button's `pointer_click`, as a world node's is"
     );
 }
 

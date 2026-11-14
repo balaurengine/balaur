@@ -29,8 +29,8 @@ text = "RENAME"
 id = "from"
 name = "From"
 parent = "panel"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "field_typed" }] }
 [nodes.widget]
-on_change = "field_typed"
 kind = "text_field"
 role = "input_form"
 [nodes.widget_field]
@@ -40,8 +40,8 @@ placeholder = "name"
 id = "to"
 name = "To"
 parent = "panel"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "field_typed" }] }
 [nodes.widget]
-on_change = "field_typed"
 kind = "text_field"
 role = "input_form"
 [nodes.widget_field]
@@ -80,8 +80,8 @@ gap = [6, 6]
 id = "apply"
 name = "Apply"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "apply" }] }
 [nodes.widget]
-on_click = "apply"
 kind = "button"
 role = "action_form_primary"
 text = "Apply"
@@ -91,8 +91,8 @@ min_width = 70
 id = "cancel"
 name = "Cancel"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "cancel" }] }
 [nodes.widget]
-on_click = "cancel"
 kind = "button"
 role = "action_form"
 text = "Cancel"

@@ -10,31 +10,39 @@
 pub(crate) mod flags {
     use crate::vocabulary::words as w;
 
-    /// What an `ignore` property's words exclude from a sweep; `static` takes
+    /// The body kinds an `exclude_kinds` row passes through; `static` takes
     /// colliders with no body along with static bodies, as rapier's flag does.
-    pub(crate) fn query_ignores() -> [(&'static str, u32); 5] {
+    fn exclude_kinds() -> [(&'static str, u32); 3] {
         use crate::rapier3d::prelude::QueryFilterFlags as Flags;
         [
             (w::STATIC, Flags::EXCLUDE_FIXED.bits()),
             (w::KINEMATIC, Flags::EXCLUDE_KINEMATIC.bits()),
             (w::DYNAMIC, Flags::EXCLUDE_DYNAMIC.bits()),
-            (w::SENSORS, Flags::EXCLUDE_SENSORS.bits()),
-            (w::SOLIDS, Flags::EXCLUDE_SOLIDS.bits()),
         ]
     }
-}
 
-/// The bits a set of words sets, given the table for that property: what a
-/// derived `flags` field's options name.
-pub(crate) fn named_bits<T: Copy + std::ops::BitOrAssign + Default>(
-    names: impl IntoIterator<Item = &'static str>,
-    table: &[(&str, T)],
-) -> T {
-    let mut out = T::default();
-    for name in names {
-        if let Some((_, bit)) = table.iter().find(|(word, _)| *word == name) {
-            out |= *bit;
+    /// The query flags a filter's rows set, shared by a query, a character's
+    /// move and a vehicle's wheel rays: the body kinds `exclude_kinds` names,
+    /// and sensors or solids when `hit_sensors` or `hit_solids` is off.
+    pub(crate) fn filter_bits<'a>(
+        exclude_kinds: impl IntoIterator<Item = &'a str>,
+        hit_sensors: bool,
+        hit_solids: bool,
+    ) -> u32 {
+        use crate::rapier3d::prelude::QueryFilterFlags as Flags;
+        let table = self::exclude_kinds();
+        let mut bits = 0;
+        for kind in exclude_kinds {
+            if let Some((_, bit)) = table.iter().find(|(word, _)| *word == kind) {
+                bits |= bit;
+            }
         }
+        if !hit_sensors {
+            bits |= Flags::EXCLUDE_SENSORS.bits();
+        }
+        if !hit_solids {
+            bits |= Flags::EXCLUDE_SOLIDS.bits();
+        }
+        bits
     }
-    out
 }

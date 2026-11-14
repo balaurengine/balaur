@@ -26,7 +26,7 @@ atomics only that build has.
 | `bs-wasmi` | off | off | The interpreter alone: what the web editor's module adds beside `bs-web` so a debugger can park a call. | nothing |
 | `bs-web` | off | on |  | nothing |
 | `compile` | off | off | The WESL shader linker and the `.bs` to C translator: a dev run, the editor and an export. A template leaves it off and draws with the shaders an export linked into the export pack. | nothing |
-| `editor` | off | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | nothing |
+| `editor` | off | off | The editor: `edit` and `export`, the `export.*`, `project.*`, `debugger.*` and `script.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | nothing |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `flac` | off | on | One feature per container `audio` decodes; a build without one plays none of that format. | nothing |
 | `gamend` | off | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | nothing |
@@ -37,8 +37,8 @@ atomics only that build has.
 | `mp4` | off | on |  | nothing |
 | `multiplayer` | off | on | `multiplayer.*` for scripts: host, join and play a rollback match over whichever of `websocket` and `webtransport` the build has. | nothing |
 | `parallel` | off | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web runtime alone. | nothing |
-| `physics2d` | off | on | The 2D physics world: `physics2d.*`, its components and presets. | nothing |
-| `physics3d` | off | on | The 3D physics world: `physics3d.*`, its components and presets. | nothing |
+| `physics2d` | off | on | The 2D physics world: `physics2d.*` and its components. | nothing |
+| `physics3d` | off | on | The 3D physics world: `physics3d.*` and its components. | nothing |
 | `vorbis` | off | on |  | nothing |
 | `wav` | off | on |  | nothing |
 | `websocket` | off | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build without `gamend` drops tungstenite, rustls and the frame codec; Gamend's realtime socket runs on them. | nothing |

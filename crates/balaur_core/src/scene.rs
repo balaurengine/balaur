@@ -284,9 +284,8 @@ impl Default for Appearance {
     }
 }
 
-/// The names a node is filed under, for a query: `door`, `enemy`. The same
-/// word `presets.toml` uses for components, so one vocabulary classifies
-/// both. Kept sorted and unique, so two runs list them alike.
+/// The names a node is filed under, for a query: `door`, `enemy`. Kept
+/// sorted and unique, so two runs list them alike.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Tags(pub Vec<String>);
 
@@ -413,7 +412,7 @@ impl GlobalTransform {
         )
     }
 
-    fn mul(&self, local: &Transform) -> Self {
+    pub(crate) fn mul(&self, local: &Transform) -> Self {
         let flat = |q: Quat| q.x == 0.0 && q.y == 0.0;
         if (self.skew == 0.0 && local.skew == 0.0) || !flat(self.rotation) || !flat(local.rotation)
         {
@@ -1037,7 +1036,7 @@ pub fn set_visible(eng: &Engine, entity: Entity, on: bool) -> bool {
         crate::events::announce(
             eng,
             entity,
-            crate::node_api::VISIBILITY_EVENT,
+            crate::node_api::VISIBILITY_CHANGED_EVENT,
             balaur_script::Value::Bool(on),
         );
     }

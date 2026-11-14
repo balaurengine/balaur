@@ -35,9 +35,9 @@ node, and the generated reference names no event at all.
 
 **An engine event is one call:** `events::announce(eng, node, name,
 payload)`. It runs the node's rows for the event, calls the node's own
-`on_<name>(this, payload)` at once, and queues the event for subscribers and
-awaiters. The pump then skips the rows it already ran and the emitter's own
-subscription, so no handler runs twice.
+`on_<name>(this, payload, source)` at once, and queues the event for
+subscribers and awaiters. The pump then skips the rows it already ran and
+the emitter's own subscription, so no handler runs twice.
 
 **One payload.** Every engine event carries exactly one value: the clip for
 `animation_finished`, a map when there is more to say (`on_collision_enter`
@@ -93,8 +93,8 @@ Each is a wrong result today, not a missing feature.
 7. **`visibility_changed` from one writer in three.** Only `node.set_visible`
    emits it; the binding `visible` action and the animation `visible` track
    write the flag silently.
-8. **Docs that name the wrong key.** `move_character` says `grounded` for
-   `on_floor`, `wheel_state` says `grounded` for `in_contact`, and the joint
+8. **Docs that name the wrong key.** `move_by` says `grounded` for
+   `on_floor`, a wheel's `state` says `grounded` for `in_contact`, and the joint
    break doc says both ends hear it while only the joint's node does.
 
 ## 3. One path
@@ -106,10 +106,9 @@ Each is a wrong result today, not a missing feature.
    `api.json` reading it.
 3. Every engine event through `announce`: collisions, contact force, joint
    break, tear, tween, animation, state machine, timer, visibility. Contact
-   force, joint break and tear carry one map. A widget's key
-   (`on_click = "method"`) is how a script hears it, one key for each of its
-   events; it also emits `click`, `change` and the rest, for a scene's row and
-   for `events::next`, and the key's method is not called a second time.
+   force, joint break and tear carry one map. A widget announces its events
+   the same way, and §6 took away the key (`on_click = "method"`) it called a
+   script with.
 4. The network modules: an `EVENT_*` constant per `kind` in every crate, a
    `kind` on every http event, and `error` as the one failure kind. A web
    message stays the payload the parent frame posted.
@@ -121,22 +120,23 @@ Each is a wrong result today, not a missing feature.
 In order of how often a game needs them.
 
 1. **Sound finished:** built. The node whose `sound` played announces
-   `finished` with the handle, from the decoded length counted on the fixed
-   step, so a headless run and a replay end it on the same tick;
-   `events::next("finished", node)` awaits it.
+   `sound_finished` with the handle, from the decoded length counted on
+   the fixed step, so a headless run and a replay end it on the same tick;
+   `events::next("sound_finished", node)` awaits it.
 2. **Widget pointer and focus:** built. Every widget announces
    `pointer_enter`, `pointer_exit`, `pointer_down` and `pointer_up` with the
-   button, as a world node does, and emits `double_click`, `focus` and
-   `blur`; a click into a field is focus arriving. A field still submits on
-   Enter and on a click away, and only the click away is a `blur`; Escape
-   is a `blur` alone, which keeps nothing, as it is on a number. Focus a
+   button, as a world node does, and emits `double_clicked`,
+   `focus_entered` and `focus_exited`; a click into a field is focus
+   arriving. A field still submits on Enter and on a click away, and only
+   the click away is a `focus_exited`; Escape is a `focus_exited` alone,
+   which keeps nothing, as it is on a number. Focus a
    script gives a field selects what it holds, so typing replaces it.
 3. **Widget commits:** built. A slider, number field and colour picker emit
-   `commit` once a drag or an edit ends. A double-clicked row emits
-   `activate`, and a tree caret emits `fold` with the row and whether it is
-   open. Menus, dropdowns and dialogs emit `opened` and `closed`; a scroll
-   emits `scrolled` with its offset. A window's cross emits `close_request`,
-   and with `hide_on_close = false` it only asks.
+   `committed` once a drag or an edit ends. A double-clicked row emits
+   `activated`, and a tree caret emits `folded` with the row and whether it
+   is open. Menus, dropdowns and dialogs emit `opened` and `closed`; a
+   scroll emits `scrolled` with its offset. A window's cross emits
+   `close_requested`, and with `hide_on_close = false` it only asks.
 4. **The tree:** built. A parent announces `child_added` and `child_removed`
    for a node added, instantiated, moved or freed under it, and a freed child
    is still readable in the parent's own hook. A node announces `renamed` with
@@ -145,7 +145,7 @@ In order of how often a game needs them.
 5. **Physics:** built. A body and a soft body announce `sleeping_changed`
    with whether they sleep now. A body hears the collisions and contact
    forces of every collider under it. A soft body takes `events` and
-   `contact_force_threshold` as a collider does, and its `tear` carries the
+   `contact_force_threshold` as a collider does, and its `torn` carries the
    torn edges. A joint break names both ends and the force. 2D gained
    `is_moving`, `contacts`, `bodies`, `active_bodies`, `potential_energy` and
    `effective_dominance`.
@@ -154,7 +154,7 @@ In order of how often a game needs them.
    `play` or a state machine started the clip. A tween announces
    `tween_looped` with `#{ tween, played }` and `tween_step` with
    `#{ tween, step }`. A method key hands its `args` to the method. A
-   one-shot `particles` burst announces `finished`, timed from its settings
+   one-shot `particles` burst announces `particles_finished`, timed from its settings
    on the fixed step so a headless run hears it too.
 7. **The app and input:** built. Right and middle buttons reach a world
    node as the left does, and `on_action_released` answers an action let
@@ -168,9 +168,9 @@ In order of how often a game needs them.
    payload, a Game Center invite and an iCloud change.
 8. **Render:** built. A camera announces `current_changed` when it becomes
    or stops being the one drawn from. `render.screenshot` answers every
-   listener with `screenshot_written` or `screenshot_failed`, a run with no
-   renderer included. A `screen_notifier2d` box announces `screen_enter` and
-   `screen_exit` against the current 2D camera's view.
+   listener with `screenshot_saved` or `screenshot_failed`, a run with no
+   renderer included. A `screen_notifier2d` box announces `screen_entered` and
+   `screen_exited` against the current 2D camera's view.
 9. **Network:** built. `http.cancel` drops a reply, stops a download
    writing and tells the handler `cancelled`. A websocket `closed` carries
    its close `code`, and `websocket.state` says where a connection is. A
@@ -180,7 +180,7 @@ In order of how often a game needs them.
    events, and a `signaling` module, from gamend's `clients/events.json`.
 10. **The Godot import:** built. `ENGINE_EVENTS` in the translator names the
     engine's event for each Godot signal it sends its own way (`body_entered`
-    is `collision_enter`, `screen_exited` is `screen_exit`), for a connect, an
+    is `collision_enter`, `screen_exited` is `screen_exited`), for a connect, an
     await and a scene row alike. `_notification` also hears the app pausing,
     resuming and changing language. A signal whose values differ from the
     event's, such as `item_activated`'s index, is left as the script's own.
@@ -224,7 +224,139 @@ one word; networking plans a generation counter per `(entity, component)`
 - **What goes**: `doc_rev`, `settle_revision` and the editor's `told`
   guards; networking's generation counter.
 
-## 6. Not planned
+## 6. One way to hear
+
+Decided 2026-11-13. Built. §1 made one way to send an event. This makes one
+way to hear it, and takes the widget's own away.
+
+**From a script.** Built. A handler is `on_<name>(payload, source)`: the
+node's own events unasked, another node's after
+`events::listen(listener, name, source)`. `source` is the node that announced
+it, so one handler can hear many nodes, and nil for an event said from no
+node. A handler that names fewer parameters is handed fewer. A core hook
+keeps the values it had and takes `source` after them:
+
+| Hook | Handed |
+| --- | --- |
+| `on_pointer_enter`, `on_pointer_exit` | `(nil, source)` |
+| `on_pointer_down`, `on_pointer_up`, `on_pointer_click` | `(button, source)` |
+| `on_pointer_drag`, `on_scroll` | `(dx, dy, source)` |
+| `on_pointer_drop` | `(node, source)`, the node dragged and the node it landed on |
+| `on_key_down`, `on_key_up` | `(key, source)` |
+| `on_action_pressed`, `on_action_released` | `(name, source)` |
+| `on_resize` | `(width, height, source)` |
+| `on_variable_changed` | `(name, value, source)` |
+| `on_state_changed` | `(was, now, source)` |
+| `on_collision_enter`, `on_collision_exit` | `(contact, source)` |
+
+A hook every node hears, a key or a resize, names the hearing node as its
+`source`.
+
+**From a scene.** Built. A binding row, as now. A `call` row with no `target`
+reaches the nearest node up the tree whose script has the method, the node
+itself first (`bindings::nearest_with_method`), and hands it the event's
+values and then `source`, the node the row sits on. A row naming a `target`
+calls that node with the same. A part instanced under two screens then
+reaches whichever screen holds it. A row whose method no script up the tree
+has does nothing, as a handler nobody declared always did.
+
+**The widget's keys go.** Built. `on_click`, `on_change`, `on_submit` and the
+other `on_*` properties of `widget` and the parts beside it are removed, with
+`recipient` and the handler call in `widget/input.rs`, and a scene writing
+one is refused as it is for any key the component does not have. A scene
+that wrote `on_click = "start"` writes a row:
+
+    bindings = { rows = [{ event = "pointer_click", action = "call", value = "start" }] }
+
+Every widget event goes through `events::announce`, so a widget's own script
+hears `on_change(value, source)` with no row and no `listen`. The 189 keys in
+the editor, the examples and Polyglot Pirates are rows. A `label`, a
+container, a `progress_bar` and an `image` sensed a click where `on_click`
+named a handler; they sense one while anything hears `pointer_click` on the
+node: a row, the script's hook, a listener or a waiter naming it, or a pool
+spec (`Widget::hears_click`, kept by `input::follow_hearers`). The Events
+view's "Convert to script" writes a `call` row as the call it now is.
+
+**The pool keeps its specs.** Built. `ui::fill_slot` takes a handler's name
+in a spec as it did: `on_click`, `on_change` and `on_submit`. The pool holds
+the names itself and calls them from the events its controls announce
+(`widget/pool.rs`, `heard`), on the nearest node above the control whose
+script has the method, with the spec's `data`, the edit and the control's
+node. No widget property carries one.
+
+**One name for a click.** Built. A clicked widget announces `pointer_click`
+with `left`, as a world node does: its rows and its script's
+`on_pointer_click(button, source)` at once, a listener and
+`events::next("pointer_click", button)` at the next pump. The `click` event
+is gone: it was the same press under a second name.
+
+**Names in `docs/NAMING.md`'s forms.** Built. An event says what happened,
+in the past tense, as a Godot signal does. Input and contact keep Unity's
+pairs, `pointer_down` and `collision_enter`, and the `scroll` and `resize`
+hooks stay. The thing goes first only where one node can carry two that say
+it. An ask ends in `_requested`, and a value that moved is
+`<reader>_changed`.
+
+| Was | Is |
+| --- | --- |
+| `finished` on `sound` | `sound_finished` |
+| `finished` on `particles2d` and `particles3d` | `particles_finished` |
+| `state_started`, `state_finished` | `state_entered`, `state_exited` |
+| `close_request` | `close_requested` |
+| widget `change`, `submit` | `value_changed`, `submitted` |
+| widget `focus`, `blur` | `focus_entered`, `focus_exited` |
+| widget `double_click`, `activate`, `fold`, `drop`, `move` | `double_clicked`, `activated`, `folded`, `dropped`, `moved` |
+| widget `caret`, `link`, `gutter`, `mark`, `commit` | `caret_changed`, `link_clicked`, `gutter_clicked`, `marked`, `committed` |
+| `pasted_image` | `image_pasted` |
+| `action` | `action_pressed` |
+| `screenshot_written` | `screenshot_saved` |
+| `debugger_stopped`, with nil when the script went on | `debugger_stopped` with where it stopped, and `debugger_resumed` with nil |
+| `screen_enter`, `screen_exit` | `screen_entered`, `screen_exited` |
+
+The script constants follow: `audio::EVENT_SOUND_FINISHED`,
+`animation::EVENT_STATE_ENTERED`. A `kind` inside a module's
+`<module>_event` is not an event's name and keeps its word: a websocket's
+`open`, `multiplayer::EVENT_JOINED`. A pool spec's `on_click`, `on_change`
+and `on_submit` are the spec's keys, not events, and stay.
+
+**A script declares what its node sends.** Built. Beside
+`ComponentDef::events`, a script names the events it announces with an item,
+`event scored;`, which the compiler reads without running the file. `event`
+is a word only where an item starts, and the `///` lines above the item are
+its description. `scene.bindable_events(node)` and the Events view list them
+with the components' own, a file's outline and the language server show
+them, and `ScriptHost::events` answers for a file. An item takes no payload
+type and no reach yet.
+
+**`balaur check` reads the names.** Built. Each is a warning on the line that
+spells the name:
+
+- A method named `on_<name>` that no hook, component, node, module or script
+  in the project announces, unless something calls the method by its own
+  name: a call, a string in a script, or a string in a scene or another data
+  file, which is where a `call` row and a pool's spec name one.
+- An `events::listen`, an `events::next` or an `emitted:` row naming an event
+  nothing announces.
+- An `emit` whose name its file does not declare with `event`.
+
+A handler left behind by a rename is then a line `balaur check` prints, where
+it was silence. What the engine announces is read from where it is declared:
+`hooks.rs`, each component's `events`, `events::declare_on_nodes` for what a
+plugin announces on any node and `events::declare` for what one says from no
+node. A module's own event is `<module>_event`. A name a script builds at run
+time is not read.
+
+Left: the editor's Problems list checks a file at a time and does not run
+these yet, and a script no scene attaches is read for what it declares and
+calls but gets no warning of its own, as it gets no compile.
+
+**The events only a listener hears go on the hooks page:** built.
+`pointer_moved`, `pointer_pressed`, `pointer_released`, `pointer_scrolled`,
+`pointer_gestured`, `files_dropped`, `pasted` and `image_pasted` are declared
+with their payloads by the code that says them, and `docs/generated/hooks.md`
+lists them under "Only a listener" beside the others said from no node.
+
+## 7. Not planned
 
 - **Upload progress in a browser:** `fetch` reports no upload, so a web
   build hears only the reply.

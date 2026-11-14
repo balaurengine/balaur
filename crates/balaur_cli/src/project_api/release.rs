@@ -165,7 +165,7 @@ impl AsMut<Reporting<ReleaseEvent>> for ReleaseState {
 pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(ReleaseState(Reporting::new(std::path::PathBuf::new())));
     reg.add_system(Stage::First, pump::<ReleaseState, ReleaseEvent>);
-    let mut m = reg.script_module("release")?;
+    let mut m = reg.script_module("release")?.editor_only();
     install_release_api(&mut m);
     Ok(())
 }

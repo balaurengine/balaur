@@ -46,6 +46,10 @@ use balaur_core::fixed_dt;
 
 const PHYSICS_2D: &str = "physics2d";
 
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent facts, each with its own writer: a script, a query, the step"
+)]
 pub struct PhysicsState2d {
     pub world: PhysicsWorld2,
     pub bodies: DetHashMap<Entity, RigidBodyHandle2>,
@@ -56,6 +60,8 @@ pub struct PhysicsState2d {
     pub(crate) gone: DetHashMap<ColliderHandle2, crate::shared::events::Owner>,
     /// Asleep after the last step, as in 3D.
     pub(crate) asleep: balaur_core::collections::DetHashSet<Entity>,
+    /// Whether the last step left a body moving, as in 3D.
+    pub(crate) awake: bool,
     /// Whether the broad phase's tree matches the colliders, as in 3D.
     pub queries_ready: bool,
     /// Joints per entity, as in the 3D world.
@@ -105,6 +111,7 @@ impl PhysicsState2d {
             body_authored: DetHashMap::default(),
             gone: DetHashMap::default(),
             asleep: balaur_core::collections::DetHashSet::default(),
+            awake: false,
             queries_ready: false,
             joints: DetHashMap::default(),
             soft_bodies: DetHashMap::default(),
@@ -336,70 +343,6 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
     joint::register_joint2d_component(reg);
     softbody::register_softbody_component_2d(reg);
     character::register_character2d_component(reg);
-
-    reg.register_preset(
-        "rigid_body2d",
-        balaur_core::presets::preset(
-            "A 2D body physics simulates, with a rect collider",
-            &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            &[
-                (c::BODY_2D, Some("kind = \"dynamic\"")),
-                (c::COLLIDER_2D, None),
-            ],
-        )?,
-    );
-    reg.register_preset(
-        "static_body2d",
-        balaur_core::presets::preset(
-            "An immovable 2D body with a rect collider: ground, walls",
-            &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            &[
-                (c::BODY_2D, Some("kind = \"static\"")),
-                (c::COLLIDER_2D, None),
-            ],
-        )?,
-    );
-    reg.register_preset(
-        "soft_body2d",
-        balaur_core::presets::preset(
-            "A deformable 2D block that squashes and springs back",
-            &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            &[(
-                c::SOFTBODY_2D,
-                Some("kind = \"grid\"\nsoft_material = { cell_model = \"corotational\", shape_matching = \"on\" }"),
-            )],
-        )?,
-    );
-    reg.register_preset(
-        "rope2d",
-        balaur_core::presets::preset(
-            "A 2D rope of linked particles, pinned at one end",
-            &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            &[
-                // Beside first, so the body is built once, with its shape.
-                (
-                    <softbody::SoftRope2d as balaur_core::components::derived::Component>::NAME,
-                    Some("particle_count = 24"),
-                ),
-                (
-                    c::SOFTBODY_2D,
-                    Some("kind = \"rope\"\npinned_particles = [0]"),
-                ),
-            ],
-        )?,
-    );
 
     Ok(())
 }
@@ -717,9 +660,9 @@ fn install_physics2d_api(m: &mut Module<Engine>) {
         "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
     );
     m.describe(&[
-        (words::functions::SET_GRAVITY, &[], "", "Set the 2D world's gravity, in units per second squared."),
-        (words::functions::APPLY_IMPULSE, &[c::BODY_2D], "", "Add an instant change in momentum, as if the body were struck."),
-        (words::functions::SET_LINEAR_VELOCITY, &[c::BODY_2D], "", "Set how fast the body travels, in units per second."),
+        (words::functions::SET_GRAVITY, &[], "(gravity: Vec2)", "Set the 2D world's gravity, in units per second squared."),
+        (words::functions::APPLY_IMPULSE, &[c::BODY_2D], "(node: node, impulse: Vec2)", "Add an instant change in momentum, as if the body were struck."),
+        (words::functions::SET_LINEAR_VELOCITY, &[c::BODY_2D], "(node: node, velocity: Vec2)", "Set how fast the body travels, in units per second."),
         (words::functions::LINEAR_VELOCITY, &[c::BODY_2D], "", "How fast the body is travelling, in units per second."),
         (words::functions::SET_ANGULAR_VELOCITY, &[c::BODY_2D], "", "Set how fast the body spins, in radians per second."),
         (words::functions::ANGULAR_VELOCITY, &[c::BODY_2D], "", "How fast the body is spinning, in radians per second."),
@@ -730,25 +673,28 @@ fn install_physics2d_api(m: &mut Module<Engine>) {
     // add `physics2d.gravity` when a caller needs to read it back.
     m.function(
         words::functions::SET_GRAVITY,
-        |eng: &Engine, (x, y): (f32, f32)| {
+        |eng: &Engine, gravity: balaur_script::Value| {
+            let gravity = scalar::vec2_arg("the world's gravity", &gravity)?;
             let state = eng.resource::<PhysicsState2d>();
-            state.borrow_mut().world.gravity = scalar::v2(x, y);
+            state.borrow_mut().world.gravity = gravity;
             Ok(())
         },
     );
     m.function(
         words::functions::APPLY_IMPULSE,
-        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+        |eng: &Engine, (node, impulse): (NodeId, balaur_script::Value)| {
+            let impulse = scalar::vec2_arg("an impulse", &impulse)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_impulse(scalar::v2(x, y), true);
+                state.world.bodies[handle].apply_impulse(impulse, true);
             })
         },
     );
     m.function(
         words::functions::SET_LINEAR_VELOCITY,
-        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+        |eng: &Engine, (node, velocity): (NodeId, balaur_script::Value)| {
+            let velocity = scalar::vec2_arg("a linear velocity", &velocity)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].set_linvel(scalar::v2(x, y), true);
+                state.world.bodies[handle].set_linvel(velocity, true);
             })
         },
     );

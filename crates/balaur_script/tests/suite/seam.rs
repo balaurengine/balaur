@@ -170,3 +170,20 @@ fn a_backend_that_does_not_keeps_its_arguments() {
     m.call("play", &host, &args).unwrap();
     assert_eq!(args[0], Value::Str("shot.ogg".into()));
 }
+
+// Two plugins declare into one module, as core and the editor's binary do
+// into `dependency`: each function is the editor's or not by its declarer.
+#[test]
+fn an_editor_only_module_marks_only_the_functions_it_declares() {
+    let declared: Rc<RefCell<Declared<Host>>> = Rc::default();
+    let mut core = Module::new("dependency", declared.clone());
+    core.function("list", |_: &Host, ()| Ok(0));
+    let mut editor = Module::new("dependency", declared.clone()).editor_only();
+    editor.function("install", |_: &Host, game: String| Ok(game));
+    editor.function_raw("make_local", Box::new(|_, _| Ok(Value::Nil)));
+    let declared = declared.borrow();
+    let entries = &declared.modules["dependency"];
+    assert!(!entries["list"].editor, "core's own stays a game's");
+    assert!(entries["install"].editor);
+    assert!(entries["make_local"].editor);
+}

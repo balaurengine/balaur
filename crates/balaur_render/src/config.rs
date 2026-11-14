@@ -198,7 +198,10 @@ impl Default for ViewportSnapshot3d {
 /// backends apply it whenever it changes.
 pub struct CameraConfig3d {
     pub eye: glamx::Vec3,
+    /// The point `focus_distance` ahead of the eye.
     pub target: glamx::Vec3,
+    /// The node's own +y, which is what rolls the view.
+    pub up: glamx::Vec3,
     pub changed: bool,
     /// The current camera's lens and controls, or the defaults with none, so
     /// a game's lens does not outlive its play in the editor.
@@ -211,6 +214,7 @@ impl Default for CameraConfig3d {
         Self {
             eye: glamx::Vec3::new(8.0, 5.0, 12.0),
             target: glamx::Vec3::new(0.0, 1.0, 0.0),
+            up: glamx::Vec3::Y,
             changed: true,
             lens: crate::lens::Lens3d::default(),
             lens_changed: true,

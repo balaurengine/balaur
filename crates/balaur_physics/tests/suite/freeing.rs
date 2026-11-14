@@ -332,13 +332,13 @@ impl Scenario {
     }
 
     pub fn mass() {
-        self.target.collider3d.collider_mass();
-        log::error("collider_mass answered for a freed node");
+        self.target.collider3d.total_mass();
+        log::error("total_mass answered for a freed node");
     }
 
     pub fn volume() {
-        self.target.collider3d.collider_volume();
-        log::error("collider_volume answered for a freed node");
+        self.target.collider3d.volume();
+        log::error("volume answered for a freed node");
     }
 
     pub fn swept() {

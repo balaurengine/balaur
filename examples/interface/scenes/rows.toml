@@ -62,11 +62,12 @@ role = "group"
 
 # `multi` lets more than one row be picked: the command key toggles one and
 # shift takes the run. `selection` is what it holds. `reorder` senses a drag
-# and `on_move` says where the row was let go; the script does the moving.
+# and `moved` says where the row was let go; the script does the moving.
 [[nodes]]
 id = "list"
 name = "List"
 parent = "list_box"
+bindings = { rows = [{ event = "emitted:moved", action = "call", value = "on_moved" }] }
 [nodes.widget]
 kind = "list"
 grow = 1
@@ -75,7 +76,6 @@ multi_select = true
 row_height = 22
 [nodes.widget_list]
 reorderable = true
-on_move = "on_move"
 
 [[nodes]]
 id = "tree_box"
@@ -100,6 +100,7 @@ role = "group"
 id = "outline"
 name = "Outline"
 parent = "tree_box"
+bindings = { rows = [{ event = "emitted:moved", action = "call", value = "on_moved" }] }
 [nodes.widget]
 kind = "tree"
 font = "fonts/JetBrainsMono-Regular.ttf"
@@ -108,7 +109,6 @@ grow = 1
 row_height = 22
 [nodes.widget_list]
 reorderable = true
-on_move = "on_move"
 
 [[nodes]]
 id = "table_box"

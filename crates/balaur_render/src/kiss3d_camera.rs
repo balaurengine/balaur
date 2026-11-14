@@ -16,7 +16,7 @@ use crate::lens::Lens3d;
 
 use crate::{CameraConfig2d, CameraConfig3d, ViewportSnapshot2d, ViewportSnapshot3d};
 
-/// kiss3d's orbit camera, or its stereo pair when `eye_separation` is set.
+/// kiss3d's orbit camera, or its stereo pair when `stereo_separation` is set.
 pub(crate) enum Eye {
     Orbit(OrbitCamera3d),
     Stereo(FirstPersonCamera3dStereo),
@@ -50,9 +50,13 @@ impl Eye {
         }
     }
 
-    pub(crate) fn look_at(&mut self, eye: Vec3, at: Vec3) {
+    /// Stand at `eye` facing `at`. The stereo pair keeps +y up whatever `up` says.
+    pub(crate) fn aim(&mut self, eye: Vec3, at: Vec3, up: Vec3) {
         match self {
-            Self::Orbit(c) => c.look_at(eye, at),
+            Self::Orbit(c) => {
+                c.set_up_axis(up);
+                c.look_at(eye, at);
+            }
             Self::Stereo(c) => c.look_at(eye, at),
         }
     }
@@ -149,15 +153,13 @@ pub(crate) fn apply_camera(app: &App, camera: &mut Eye, window: &Window) {
     let mut config = config.borrow_mut();
     if config.lens_changed {
         *camera = with_lens(camera, &config.lens, window);
-        // A stereo camera's eyes converge as far ahead as the point it was
-        // last told to look at.
-        if matches!(camera, Eye::Stereo(_)) {
-            camera.look_at(config.eye, config.target);
-        }
         config.lens_changed = false;
+        // A camera built again has kiss3d's own up, and a stereo pair
+        // converges where it was last aimed.
+        config.changed = true;
     }
     if config.changed {
-        camera.look_at(config.eye, config.target);
+        camera.aim(config.eye, config.target, config.up);
         config.changed = false;
     }
 }
@@ -166,7 +168,7 @@ pub(crate) fn apply_camera(app: &App, camera: &mut Eye, window: &Window) {
 /// rather than set, because kiss3d's cameras take their clip planes only
 /// when they are made; the framebuffer size is fed back so the aspect holds.
 fn with_lens(old: &Eye, lens: &Lens3d, window: &Window) -> Eye {
-    if lens.eye_separation <= 0.0 {
+    if lens.stereo_separation <= 0.0 {
         return Eye::Orbit(orbit_with(old, lens, window));
     }
     let mut c = FirstPersonCamera3dStereo::new_with_frustum(
@@ -175,7 +177,7 @@ fn with_lens(old: &Eye, lens: &Lens3d, window: &Window) -> Eye {
         lens.far,
         old.eye(),
         old.at(),
-        lens.eye_separation,
+        lens.stereo_separation,
     );
     c.set_render_layers(lens.render_layers);
     let mut camera = Eye::Stereo(c);
@@ -194,8 +196,6 @@ fn orbit_with(old: &Eye, lens: &Lens3d, window: &Window) -> OrbitCamera3d {
         old.eye(),
         old.at(),
     );
-    camera.set_up_axis(lens.up);
-    camera.look_at(old.eye(), old.at());
     camera.set_render_layers(lens.render_layers);
     camera.handle_event(
         window.canvas(),

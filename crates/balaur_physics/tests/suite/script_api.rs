@@ -70,7 +70,7 @@ fn linear_velocity_is_set_and_read_back() {
         r#"
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
-        self.node.body3d.set_linear_velocity(1.0, 2.0, 3.0);
+        self.node.body3d.set_linear_velocity(vec3(1.0, 2.0, 3.0));
         let v = self.node.body3d.linear_velocity();
         if math::abs(v.x - 1.0) >= 0.0001 { log::error("x was not kept: {v.x}"); }
         if math::abs(v.y - 2.0) >= 0.0001 { log::error("y was not kept"); }
@@ -85,7 +85,7 @@ fn an_impulse_starts_a_body_moving() {
         r#"
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
-        self.node.body3d.apply_impulse(10.0, 0.0, 0.0);
+        self.node.body3d.apply_impulse(vec3(10.0, 0.0, 0.0));
         let x = self.node.body3d.linear_velocity().x;
         if x <= 0.0 { log::error("the impulse did nothing: {x}"); }
         "#,
@@ -112,7 +112,7 @@ fn pause_and_sleeping_are_readable_after_being_set() {
 fn gravity_and_clear_are_callable() {
     run_clean(
         r"
-        physics3d::set_gravity(0.0, -1.0, 0.0);
+        physics3d::set_gravity(vec3(0.0, -1.0, 0.0));
         physics::clear();
         ",
     );
@@ -124,13 +124,13 @@ fn the_2d_world_has_the_same_shape_of_api() {
         r#"
         self.node.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
         self.node.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_CIRCLE, "radius": 0.5 } });
-        self.node.body2d.set_linear_velocity(1.0, 2.0);
+        self.node.body2d.set_linear_velocity(vec2(1.0, 2.0));
         let v = self.node.body2d.linear_velocity();
         if !(math::abs(v.x - 1.0) < 0.0001 && math::abs(v.y - 2.0) < 0.0001) { log::error("the velocity was not kept"); }
         self.node.body2d.set_angular_velocity(1.5);
         if math::abs(self.node.body2d.angular_velocity() - 1.5) >= 0.0001 { log::error("the spin was not kept"); }
-        self.node.body2d.apply_impulse(1.0, 0.0);
-        physics2d::set_gravity(0.0, -9.81);
+        self.node.body2d.apply_impulse(vec2(1.0, 0.0));
+        physics2d::set_gravity(vec2(0.0, -9.81));
         "#,
     );
 }
@@ -155,11 +155,11 @@ fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
 fn a_wrong_argument_is_reported_not_fatal() {
     let errors = run(
         "self.node.set_component(\"body3d\", { \"kind\": physics3d::BODY_DYNAMIC });\n\
-         self.node.body3d.apply_impulse(\"sideways\", 0.0, 0.0);",
+         self.node.body3d.apply_impulse(\"sideways\");",
     );
     assert!(!errors.is_empty(), "a string was accepted as an impulse");
     assert!(
-        errors[0].contains("str") && errors[0].contains("float"),
+        errors[0].contains("str") && errors[0].contains("Vec3"),
         "unhelpful: {errors:#?}"
     );
 }
@@ -169,8 +169,8 @@ fn a_component_call_binds_the_node_for_the_module_driving_it() {
     run_clean(
         r#"
         self.node.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
-        self.node.body2d.apply_impulse(1.0, 0.0);
-        self.node.body2d.set_linear_velocity(2.0, 0.0);
+        self.node.body2d.apply_impulse(vec2(1.0, 0.0));
+        self.node.body2d.set_linear_velocity(vec2(2.0, 0.0));
         if !self.node.has_component("body2d") {
             log::error("the node should carry the body2d it was given");
         }
@@ -184,15 +184,276 @@ fn a_component_call_binds_the_node_for_the_module_driving_it() {
 
 #[test]
 fn a_component_call_no_driving_module_declares_is_refused() {
-    let errors = run("self.node.sprite.apply_impulse(1.0, 0.0);");
+    let errors = run("self.node.sprite.apply_impulse(vec2(1.0, 0.0));");
     assert!(
         errors.iter().any(|e| e.contains("sprite")),
         "expected an error naming the component, got {errors:#?}"
     );
 }
 
-/// Every setter owes a reader (N8), and seven of the nineteen keys were
-/// write-only.
+/// As `run_clean`, with proof the script reached its last line: a call that
+/// errors ends the script, and nothing after it would log.
+fn run_to_the_end(body: &str) {
+    let errors = run(&format!("{body}\nlog::error(\"reached the end\");"));
+    assert_eq!(errors, ["reached the end"], "the script did not run clean");
+}
+
+const BALL_3D: &str = r#"
+        self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC, "gravity_scale": 0.0, "mass": 1.0 });
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
+"#;
+
+const BALL_2D: &str = r#"
+        self.node.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC, "gravity_scale": 0.0, "mass": 1.0 });
+        self.node.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_CIRCLE, "radius": 0.5 } });
+"#;
+
+#[test]
+fn a_3d_body_is_struck_and_pushed_by_a_vec3() {
+    run_to_the_end(&format!(
+        r#"{BALL_3D}
+        self.node.body3d.set_linear_velocity(vec3(1.0, 2.0, 3.0));
+        self.node.body3d.apply_impulse(vec3(0.0, 0.0, 2.0));
+        let struck = self.node.body3d.linear_velocity().z;
+        if math::abs(struck - 5.0) >= 0.0001 {{ log::error("2 Ns on 1 kg at 3 m/s left z at {{struck}}"); }}
+        self.node.body3d.apply_force(vec3(0.0, 60.0, 0.0));
+        let pushed = self.node.body3d.linear_velocity().y;
+        if math::abs(pushed - 3.0) >= 0.01 {{ log::error("one step of 60 N on 1 kg left y at {{pushed}}"); }}
+        self.node.body3d.set_constant_force(vec3(3.0, 0.0, 0.0));
+        self.node.body3d.add_constant_force(vec3(1.0, 0.0, 0.0));
+        let held = self.node.body3d.constant_force().x;
+        if math::abs(held - 4.0) >= 0.0001 {{ log::error("3 N and 1 N more hold {{held}}"); }}
+        "#
+    ));
+}
+
+#[test]
+fn a_3d_body_is_turned_by_a_vec3() {
+    run_to_the_end(&format!(
+        r#"{BALL_3D}
+        self.node.body3d.set_angular_velocity(vec3(0.0, 4.0, 0.0));
+        let spin = self.node.body3d.angular_velocity().y;
+        if math::abs(spin - 4.0) >= 0.0001 {{ log::error("the spin came back as {{spin}}"); }}
+        self.node.body3d.apply_torque_impulse(vec3(1.0, 0.0, 0.0));
+        let kicked = self.node.body3d.angular_velocity().x;
+        if kicked <= 0.0 {{ log::error("a torque impulse about x left x at {{kicked}}"); }}
+        self.node.body3d.apply_torque(vec3(0.0, 0.0, 60.0));
+        let turned = self.node.body3d.angular_velocity().z;
+        if turned <= 0.0 {{ log::error("a torque about z left z at {{turned}}"); }}
+        self.node.body3d.set_constant_torque(vec3(0.0, 0.0, 2.0));
+        self.node.body3d.add_constant_torque(vec3(0.0, 0.0, 1.0));
+        let held = self.node.body3d.constant_torque().z;
+        if math::abs(held - 3.0) >= 0.0001 {{ log::error("2 Nm and 1 Nm more hold {{held}}"); }}
+        "#
+    ));
+}
+
+// A push off the centre of mass turns the body as well as moving it, and a
+// point away from the axis moves faster than the centre does.
+#[test]
+fn a_3d_push_at_a_point_takes_the_push_and_the_point_as_two_vectors() {
+    run_to_the_end(&format!(
+        r#"{BALL_3D}
+        self.node.body3d.apply_impulse_at_point(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0));
+        let moved = self.node.body3d.linear_velocity().z;
+        if math::abs(moved - 1.0) >= 0.0001 {{ log::error("1 Ns on 1 kg left z at {{moved}}"); }}
+        let spun = self.node.body3d.angular_velocity().y;
+        if spun >= 0.0 {{ log::error("a strike off the centre did not turn the body: {{spun}}"); }}
+        let centre = self.node.body3d.velocity_at_point(vec3(0.0, 0.0, 0.0)).z;
+        let rim = self.node.body3d.velocity_at_point(vec3(1.0, 0.0, 0.0)).z;
+        if rim <= centre {{ log::error("the struck side moves at {{rim}}, the centre at {{centre}}"); }}
+        self.node.body3d.apply_force_at_point(vec3(0.0, 60.0, 0.0), vec3(0.0, 0.0, 0.0));
+        let pushed = self.node.body3d.linear_velocity().y;
+        if math::abs(pushed - 1.0) >= 0.01 {{ log::error("one step of 60 N through the centre left y at {{pushed}}"); }}
+        self.node.body3d.add_constant_force_at_point(vec3(0.0, 5.0, 0.0), vec3(1.0, 0.0, 0.0));
+        if math::abs(self.node.body3d.constant_force().y - 5.0) >= 0.0001 {{ log::error("the constant force was not kept"); }}
+        if self.node.body3d.constant_torque().z <= 0.0 {{ log::error("a constant force off the centre holds no torque"); }}
+        "#
+    ));
+}
+
+#[test]
+fn a_2d_body_is_struck_and_pushed_by_a_vec2() {
+    run_to_the_end(&format!(
+        r#"{BALL_2D}
+        self.node.body2d.set_linear_velocity(vec2(1.0, 2.0));
+        self.node.body2d.apply_impulse(vec2(2.0, 0.0));
+        let struck = self.node.body2d.linear_velocity().x;
+        if math::abs(struck - 3.0) >= 0.0001 {{ log::error("2 Ns on 1 kg at 1 m/s left x at {{struck}}"); }}
+        self.node.body2d.apply_force(vec2(0.0, 60.0));
+        let pushed = self.node.body2d.linear_velocity().y;
+        if math::abs(pushed - 3.0) >= 0.01 {{ log::error("one step of 60 N on 1 kg left y at {{pushed}}"); }}
+        self.node.body2d.set_constant_force(vec2(3.0, 0.0));
+        self.node.body2d.add_constant_force(vec2(1.0, 0.0));
+        let held = self.node.body2d.constant_force().x;
+        if math::abs(held - 4.0) >= 0.0001 {{ log::error("3 N and 1 N more hold {{held}}"); }}
+        "#
+    ));
+}
+
+#[test]
+fn a_2d_push_at_a_point_takes_the_push_and_the_point_as_two_vectors() {
+    run_to_the_end(&format!(
+        r#"{BALL_2D}
+        self.node.body2d.apply_impulse_at_point(vec2(0.0, 1.0), vec2(1.0, 0.0));
+        let moved = self.node.body2d.linear_velocity().y;
+        if math::abs(moved - 1.0) >= 0.0001 {{ log::error("1 Ns on 1 kg left y at {{moved}}"); }}
+        let spun = self.node.body2d.angular_velocity();
+        if spun <= 0.0 {{ log::error("a strike off the centre did not turn the body: {{spun}}"); }}
+        let centre = self.node.body2d.velocity_at_point(vec2(0.0, 0.0)).y;
+        let rim = self.node.body2d.velocity_at_point(vec2(1.0, 0.0)).y;
+        if rim <= centre {{ log::error("the struck side moves at {{rim}}, the centre at {{centre}}"); }}
+        self.node.body2d.apply_force_at_point(vec2(60.0, 0.0), vec2(0.0, 0.0));
+        let pushed = self.node.body2d.linear_velocity().x;
+        if math::abs(pushed - 1.0) >= 0.01 {{ log::error("one step of 60 N through the centre left x at {{pushed}}"); }}
+        self.node.body2d.add_constant_force_at_point(vec2(0.0, 5.0), vec2(1.0, 0.0));
+        if math::abs(self.node.body2d.constant_force().y - 5.0) >= 0.0001 {{ log::error("the constant force was not kept"); }}
+        if self.node.body2d.constant_torque() <= 0.0 {{ log::error("a constant force off the centre holds no torque"); }}
+        "#
+    ));
+}
+
+#[test]
+fn each_world_takes_its_gravity_as_a_vector_and_reads_it_back() {
+    run_to_the_end(
+        r#"
+        physics3d::set_gravity(vec3(0.0, -1.5, 0.25));
+        let down = physics3d::gravity();
+        if !(down.y == -1.5 && down.z == 0.25) { log::error("3D gravity came back as {down.y}, {down.z}"); }
+        physics2d::set_gravity(vec2(0.5, -980.0));
+        let flat = physics2d::gravity();
+        if !(flat.x == 0.5 && flat.y == -980.0) { log::error("2D gravity came back as {flat.x}, {flat.y}"); }
+        "#,
+    );
+}
+
+#[test]
+fn teleport_puts_a_body_at_the_vector_it_is_given() {
+    run_to_the_end(&format!(
+        r#"{BALL_3D}
+        self.node.body3d.set_linear_velocity(vec3(9.0, 0.0, 0.0));
+        self.node.body3d.teleport(vec3(1.0, 2.0, 3.0));
+        let at = self.node.body3d.predict_position(0.0).position;
+        if !(at.x == 1.0 && at.y == 2.0 && at.z == 3.0) {{ log::error("the 3D body is at {{at.x}}, {{at.y}}, {{at.z}}"); }}
+        if self.node.body3d.linear_velocity().x != 0.0 {{ log::error("a teleport kept the velocity"); }}
+        {BALL_2D}
+        self.node.body2d.teleport(vec2(-4.0, 6.0));
+        let flat = self.node.body2d.predict_position(0.0).position;
+        if !(flat.x == -4.0 && flat.y == 6.0) {{ log::error("the 2D body is at {{flat.x}}, {{flat.y}}"); }}
+        "#
+    ));
+}
+
+#[test]
+fn a_character_moves_by_a_vector_and_answers_the_offset_it_applied() {
+    run_to_the_end(
+        r#"
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_CAPSULE, "radius": 0.4, "height": 1.0 } });
+        self.node.set_component("character3d", { "floor_snap_length": 0.0 });
+        let moved = self.node.character3d.move_by(vec3(0.25, 0.0, -0.5));
+        if !(math::abs(moved.applied.x - 0.25) < 0.001 && math::abs(moved.applied.z + 0.5) < 0.001) {
+            log::error("nothing was in the way, yet it applied {moved.applied.x}, {moved.applied.z}");
+        }
+        let at = self.node.transform.position;
+        if !(math::abs(at.x - 0.25) < 0.001 && math::abs(at.z + 0.5) < 0.001) { log::error("the node is at {at.x}, {at.z}"); }
+        "#,
+    );
+    run_to_the_end(
+        r#"
+        self.node.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_CAPSULE, "radius": 0.4, "height": 1.0 } });
+        self.node.set_component("character2d", { "floor_snap_length": 0.0 });
+        let moved = self.node.character2d.move_by(vec2(0.25, 0.5));
+        if !(math::abs(moved.applied.x - 0.25) < 0.001 && math::abs(moved.applied.y - 0.5) < 0.001) {
+            log::error("nothing was in the way, yet it applied {moved.applied.x}, {moved.applied.y}");
+        }
+        let at = self.node.transform.position;
+        if !(math::abs(at.x - 0.25) < 0.001 && math::abs(at.y - 0.5) < 0.001) { log::error("the node is at {at.x}, {at.y}"); }
+        "#,
+    );
+}
+
+#[test]
+fn a_colliders_boxes_answer_their_two_corners_as_vectors() {
+    run_to_the_end(&format!(
+        r#"{BALL_3D}
+        self.node.body3d.set_linear_velocity(vec3(6.0, 0.0, 0.0));
+        let shape = self.node.collider3d.aabb();
+        if !(math::abs(shape.min.x + 0.5) < 0.001 && math::abs(shape.max.y - 0.5) < 0.001 && math::abs(shape.max.z - 0.5) < 0.001) {{
+            log::error("a ball of radius 0.5 spans {{shape.min.x}} to {{shape.max.y}}");
+        }}
+        if self.node.collider3d.swept_aabb().max.x <= shape.max.x {{ log::error("the swept box does not reach ahead"); }}
+        if self.node.collider3d.collision_aabb().max.x < shape.max.x {{ log::error("the collision box is inside the shape's"); }}
+        if self.node.collider3d.broad_phase_aabb().min.x > shape.min.x {{ log::error("the broad-phase box is inside the shape's"); }}
+        {BALL_2D}
+        self.node.body2d.set_linear_velocity(vec2(0.0, 6.0));
+        let flat = self.node.collider2d.aabb();
+        if !(math::abs(flat.min.x + 0.5) < 0.001 && math::abs(flat.max.y - 0.5) < 0.001) {{
+            log::error("a disc of radius 0.5 spans {{flat.min.x}} to {{flat.max.y}}");
+        }}
+        if self.node.collider2d.swept_aabb().max.y <= flat.max.y {{ log::error("the 2D swept box does not reach ahead"); }}
+        if self.node.collider2d.collision_aabb().max.y < flat.max.y {{ log::error("the 2D collision box is inside the shape's"); }}
+        if self.node.collider2d.broad_phase_aabb().min.y > flat.min.y {{ log::error("the 2D broad-phase box is inside the shape's"); }}
+        "#
+    ));
+}
+
+#[test]
+fn a_body_refuses_loose_floats_and_the_other_dimensions_vector() {
+    for (body, named) in [
+        (
+            "self.node.body3d.apply_impulse(1.0, 0.0, 0.0);",
+            "takes 1 argument",
+        ),
+        (
+            "self.node.body3d.set_linear_velocity(vec2(1.0, 0.0));",
+            "Vec3",
+        ),
+        (
+            "self.node.body2d.set_linear_velocity(1.0, 0.0);",
+            "takes 1 argument",
+        ),
+        ("physics2d::set_gravity(vec3(0.0, -9.81, 0.0));", "Vec2"),
+    ] {
+        let errors = run(body);
+        assert!(
+            errors.iter().any(|e| e.contains(named)),
+            "`{body}` was accepted: {errors:#?}"
+        );
+    }
+}
+
+#[test]
+fn a_handle_method_drops_its_components_name() {
+    run_clean(
+        r#"
+        self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_BOX } });
+        if self.node.collider3d.volume() <= 0.0 { log::error("a box encloses nothing"); }
+        if self.node.collider3d.total_mass() <= 0.0 { log::error("a box weighs nothing"); }
+        if self.node.collider3d.mass_properties().mass <= 0.0 { log::error("its mass properties are empty"); }
+        "#,
+    );
+}
+
+#[test]
+fn a_handle_method_spelled_with_its_components_name_is_refused() {
+    for (body, named) in [
+        ("self.node.collider3d.collider_volume();", "collider3d"),
+        (
+            "self.node.character3d.move_character_by(vec3(0.0, 0.0, 0.0));",
+            "character3d",
+        ),
+        ("physics3d::collider_volume(self.node);", "collider_volume"),
+    ] {
+        let errors = run(body);
+        assert!(
+            errors.iter().any(|e| e.contains(named)),
+            "`{body}` was accepted: {errors:#?}"
+        );
+    }
+}
+
+// Every setter owes a reader (N8).
 #[test]
 fn every_tuning_key_that_can_be_written_reads_back() {
     run_clean(
@@ -249,8 +510,8 @@ fn vehicle_speed_measures_along_the_chassis_forward_axis() {
         self.node.set_component("body3d", { "kind": "dynamic" });
         self.node.set_component("collider3d", { "shape": { "kind": "box" } });
         self.node.set_component("vehicle3d", { "forward_axis": physics3d::AXIS_X });
-        self.node.body3d.set_linear_velocity(5.0, 0.0, 0.0);
-        let along_x = self.node.vehicle3d.vehicle_speed();
+        self.node.body3d.set_linear_velocity(vec3(5.0, 0.0, 0.0));
+        let along_x = self.node.vehicle3d.speed();
         if along_x <= 4.9 { log::error("a car built on x reads {along_x} along its own forward"); }
         "#,
     );
@@ -267,9 +528,9 @@ fn a_collider_property_is_read_and_written_as_a_field() {
         self.node.collider3d.density = 15.0;
         let back = self.node.collider3d.density;
         if math::abs(back - 15.0) >= 0.0001 { log::error("density came back as {back}"); }
-        let heavy = self.node.collider3d.collider_mass();
+        let heavy = self.node.collider3d.total_mass();
         self.node.collider3d.density = 1.0;
-        let light = self.node.collider3d.collider_mass();
+        let light = self.node.collider3d.total_mass();
         if heavy <= light * 10.0 { log::error("{heavy} was not ten times {light}"); }
         "#,
     );
@@ -312,7 +573,7 @@ fn apply_force_pushes_for_one_step_and_leaves_no_constant_force() {
         r#"
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC, "gravity_scale": 0.0, "mass": 1.0 });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
-        self.node.body3d.apply_force(60.0, 0.0, 0.0);
+        self.node.body3d.apply_force(vec3(60.0, 0.0, 0.0));
         let vx = self.node.body3d.linear_velocity().x;
         if !(vx > 0.9 && vx < 1.1) { log::error("one step of 60 N on 1 kg is 1 m/s at 60 Hz, got {vx}"); }
         let fx = self.node.body3d.constant_force().x;

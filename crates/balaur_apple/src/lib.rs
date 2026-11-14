@@ -623,6 +623,14 @@ impl balaur_plugin::Plugin for ApplePlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(AppleState::default());
         reg.insert_resource(AppleSnapshot::default());
+        balaur_core::events::declare(
+            reg.engine(),
+            &[(
+                ARRIVAL_EVENT,
+                "what arrived, carrying request 0",
+                "Something nobody asked for arrived: a notification tapped, a URL opened, a push token, a transaction from another device.",
+            )],
+        );
         reg.add_system(Stage::First, pump_apple_system);
         reg.add_replay_source(APPLE, capture, restore);
         balaur_platform::set_backend(reg.engine(), Box::new(AppleBackend))?;

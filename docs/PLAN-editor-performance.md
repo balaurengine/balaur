@@ -555,7 +555,7 @@ merged again and compared, in Rune, on every pass.
   `hello`, and a screenshot of each matches the Rune pool's but for the
   Output dock's timestamps.
 - The gizmo keeps its line list against the box, the hot part and the two
-  colours, and replays it with one `render::draw_lines`. The 3D overlays do
+  colours, and replays it with one `render::draw_lines_3d`. The 3D overlays do
   the same, keyed on each light's and camera's pose, its table by value and
   the selection.
 

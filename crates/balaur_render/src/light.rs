@@ -240,16 +240,18 @@ pub(crate) fn install_occluder_api(m: &mut Module<Engine>) {
     m.describe(&[(
         OUTLINE,
         &["occluder2d"],
-        "",
-        "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
+        "(node: node) -> [Vec2]",
+        "The outline this node blocks 2D light with, as its points in world space, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
     )]);
     m.function(OUTLINE, |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let world = eng.world();
-        Ok(outline(&world, entity)
-            .into_iter()
-            .flat_map(|p| [p.x, p.y])
-            .collect::<Vec<f32>>())
+        Ok(balaur_script::Value::List(
+            outline(&world, entity)
+                .into_iter()
+                .map(|p| balaur_script::Value::Vec2([p.x, p.y]))
+                .collect(),
+        ))
     });
 }
 

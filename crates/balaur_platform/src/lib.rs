@@ -500,6 +500,14 @@ impl balaur_plugin::Plugin for PlatformPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(PlatformState::default());
         reg.insert_resource(PlatformSnapshot::default());
+        balaur_core::events::declare(
+            reg.engine(),
+            &[(
+                PLAYER_EVENT,
+                "who is playing now",
+                "The player signed out in the OS, or signed in as someone else.",
+            )],
+        );
         reg.add_system(Stage::First, pump_platform_system);
         reg.add_replay_source(PLATFORM, capture, restore);
         let mut m = reg.script_module(PLATFORM)?;

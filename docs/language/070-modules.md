@@ -164,6 +164,11 @@ pub fn broken() { nope::call(); }
 // error: 1:19: the engine has no `nope::call`
 ```
 
+Some functions are the editor's: all of `debugger`, `script`, `project` and `export`, and the verbs of
+`dependency` that write a project. The reference marks each one. Only a file of the editor, or one under a
+game's or an addon's `editor/` folder, may call them. A game's runtime does not have them, so a call from any
+other file stops at compile time. For the same reason a game's file may not `use` one of the editor's files.
+
 ## Saving
 
 Saving a module reloads every script that uses it, and each object keeps its fields across the reload.

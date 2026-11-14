@@ -208,7 +208,7 @@ pub(crate) fn shape_into(
             Hinting::Disabled
         });
         borrowed.set_monospace_width(font.settings.monospace_width);
-        borrowed.set_tab_width(options.tab_width.max(1));
+        borrowed.set_tab_width(options.tab_size.max(1));
         let spans: Vec<(&str, Attrs<'_>)> = pieces
             .iter()
             .map(|piece| {

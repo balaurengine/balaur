@@ -54,7 +54,7 @@
    asked for, and broke twice unnoticed between CI runs that never built it.
 5. **2D parity.** The twenty readers this item listed are built:
    `physics2d` has `aabb`, `swept_aabb`, `active_bodies`, `bodies`,
-   `closest_points`, `time_of_impact`, `contacts`, `collider_mass`,
+   `closest_points`, `time_of_impact`, `contacts`, `collider_total_mass`,
    `collider_volume`, `collider_mesh`, `handles`, `effective_dominance`,
    `is_moving`, `potential_energy`, `predict_position_with_forces`,
    `solve_ik`, `voxel`, `voxel_at` and `set_voxel`, and
@@ -82,7 +82,7 @@
    [PLAN-wrapped-surface.md](PLAN-wrapped-surface.md), component by component,
    with the defects that audit found. What stays here is the query pipeline,
    which that pass did not re-read: `QueryFilterFlags` beyond the body-kind,
-   sensor and solid filters `shared/query.rs:52-65` builds,
+   sensor and solid filters `shared/query.rs:47-66` builds,
    `cast_shape_nonlinear`, `project_point_and_get_feature`,
    `ShapeCastOptions.target_distance` and a rotated shape cast. The stale
    handles after a free are `docs/PLAN-hardening.md` phase 1.

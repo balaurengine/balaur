@@ -77,9 +77,9 @@ parent = "n_main"
 
 [nodes.transform]
 position = [4.0, 3.2, 5.5]
+rotation_euler = [-0.24495, 0.6288, 0.0]
 
 [nodes.camera3d]
-look_at = [0.0, 1.5, 0.0]
 
 [[nodes]]
 id = "n_floor"

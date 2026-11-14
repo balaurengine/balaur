@@ -184,6 +184,8 @@ pub(crate) struct Gen {
     pub imp: Builtins,
     pub host: HostApi,
     pub host_calls: Vec<HostSignature>,
+    /// The file is the editor's ([`crate::Options::editor`]).
+    pub editor: bool,
     pub meter: bool,
     /// A metered module's fuel.
     pub fuel: u32,
@@ -532,6 +534,10 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         imp,
         host: options.host.clone(),
         host_calls,
+        editor: options
+            .editor
+            .as_ref()
+            .is_some_and(|editor| editor.holds(&options.path)),
         meter: options.meter,
         fuel: asked.fuel,
         prof_globals: asked.prof,

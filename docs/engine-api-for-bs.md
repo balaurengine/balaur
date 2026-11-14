@@ -51,7 +51,7 @@ Consequences seen in the compiler, all probed:
 
 - `any` flows into nothing typed: ``expected bool, got any``. A typed value flows into `any`.
 - An optional argument must still be passed. `HostSignature` has no arity range: ``takes 4 argument(s), 3 given``. A Rust `Option<f32>` is a required `float`; a documented `float?` is a required `any` (`nil()`). A Rust `Option<NodeId>` is a required `Node`, and `nil()` is an `any` (``expected Node, got any``), so `events::listen(node, name)` without its third argument has no spelling.
-- A function that `acts_on` a component is called on it: `node.animation.play(..)`, and `animation::play(node, ..)` does not compile. The handle is the one form.
+- A function that `acts_on` a component is called on it: `node.animation.play(..)`, and `animation::play(node, ..)` does not compile. The handle is the one form, and it leaves the component's name out: `physics2d`'s `softbody_area` is `node.softbody2d.area()`.
 - `get_component` takes exactly one argument in `.bs` (``takes 1 argument(s), 2 given``), `call` exactly two, `set_component` exactly two.
 - The checker stops at the first error in a file, so one probe file per function was used (§11).
 
@@ -335,7 +335,7 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 | `camera_2d` | 9 | 9 | seam | absent | result `(f32, f32, f32)` has no `.bs` type |
 | `set_debug_view` | 6 | 5 | seam | `(str)` |  |
 | `bounds` | 4 | 4 | seam | `(Node) -> any` | any in result `Value` |
-| `draw_lines` | 4 | 0 | seam | `(any)` | any in arg 1 `Value` |
+| `draw_lines_3d` | 4 | 0 | seam | `(any)` | any in arg 1 `Value` |
 | `pick_ray` | 4 | 4 | seam | `(float, float, float, float, float, float) -> Node` |  |
 | `pick_ray_at` | 3 | 3 | seam | `(float, float, float, float, float, float) -> any` | any in result `Value` |
 | `texture_size` | 3 | 3 | seam | absent | result `(u32, u32)` has no `.bs` type |
@@ -395,16 +395,16 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 | `mouse_just_pressed` | 17 | 17 | seam | `(int) -> bool` |  |
 | `mouse_down` | 14 | 14 | seam | `(int) -> bool` |  |
 | `key_down` | 13 | 13 | seam | `(str) -> bool` |  |
-| `feed_key` | 12 | 6 | seam | `(str, bool)` |  |
-| `feed_touch` | 8 | 0 | seam | `(int, float, float, str)` |  |
+| `set_key_down` | 12 | 6 | seam | `(str, bool)` |  |
+| `set_touch` | 8 | 0 | seam | `(int, float, float, str)` |  |
 | `mouse_position` | 7 | 7 | seam | absent | result `(f32, f32)` has no `.bs` type |
-| `feed_mouse` | 6 | 0 | seam | `(float, float)` |  |
-| `feed_mouse_button` | 6 | 0 | seam | `(int, bool)` |  |
+| `set_mouse_position` | 6 | 0 | seam | `(float, float)` |  |
+| `set_mouse_down` | 6 | 0 | seam | `(int, bool)` |  |
 | `mouse_delta` | 4 | 4 | seam | absent | result `(f32, f32)` has no `.bs` type |
 | `scroll_delta` | 2 | 2 | seam | absent | result `(f32, f32)` has no `.bs` type |
 | `action_just_pressed` | 1 | 1 | seam | `(str) -> bool` |  |
 | `action_value` | 1 | 1 | seam | `(str) -> float` |  |
-| `feed_scroll` | 1 | 0 | seam | `(float, float)` |  |
+| `set_scroll_delta` | 1 | 0 | seam | `(float, float)` |  |
 | `key_just_pressed` | 1 | 1 | seam | `(str) -> bool` |  |
 | `pan` | 1 | 1 | seam | `() -> any` | any in result `Value` |
 | `pinch` | 1 | 1 | seam | `() -> any` | any in result `Value` |
@@ -789,8 +789,8 @@ Component functions called as `node.<component>.fn(..)` in the editor, which `.b
 
 | method | sites | reaches as | component | .bs signature |
 | --- | ---: | --- | --- | --- |
-| `.move_character(..)` | 5 | `physics2d::move_character` | character2d | `(Node, float, float) -> any` |
-| `.move_character(..)` | 5 | `physics3d::move_character` | character3d | `(Node, float, float, float) -> any` |
+| `.move_by(..)` | 5 | `physics2d::move_character_by` | character2d | `(Node, float, float) -> any` |
+| `.move_by(..)` | 5 | `physics3d::move_character_by` | character3d | `(Node, float, float, float) -> any` |
 | `.is_on_floor(..)` | 4 | `physics2d::is_on_floor` | character2d | `(Node) -> bool` |
 | `.is_on_floor(..)` | 4 | `physics3d::is_on_floor` | character3d | `(Node) -> bool` |
 | `.pause(..)` | 3 | `animation::pause` | animation | `(Node)` |

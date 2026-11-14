@@ -232,10 +232,14 @@ pub struct AnimationState {
     /// the same reason `players` is: two tweens driving one property must
     /// land in the same order every run.
     pub tweens: DetHashMap<TweenId, Tween>,
-    /// The last handle given out. Counts up and never reuses, so a handle
-    /// held past the end of its tween names nothing rather than something
-    /// else.
+    /// The last handle given to a tween in the game. Counts up and never
+    /// reuses, so a handle held past the end of its tween names nothing
+    /// rather than something else.
     pub(crate) next_tween: TweenId,
+    /// How many handles a tool's own tweens have taken, counting down from
+    /// 2^53: an editor's docks tween while a session records and while it
+    /// replays, and the game's handles must not move with them.
+    pub(crate) tool_tweens: TweenId,
     pub(crate) accumulator: f32,
     /// Every jiggle chain's dynamic points, keyed by the node carrying the
     /// modifier. Ordered like `players`, and for the same reason.
@@ -253,6 +257,8 @@ pub struct AnimationState {
     /// Every node running a state machine, keyed by that node. Ordered like
     /// `players`, and for the same reason.
     pub machines: DetHashMap<Entity, crate::machine::MachineRun>,
+    /// Whether the last frame left anything animating, for `balaur_core::rest`.
+    pub(crate) moving: bool,
 }
 
 impl AnimationState {

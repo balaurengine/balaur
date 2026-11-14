@@ -49,7 +49,28 @@ pub(crate) fn register(reg: &mut Registry<'_>) {
             }
         },
     );
+    // The game's tween handles go on counting across an editor's sessions,
+    // and a script holds the number it was given.
+    reg.add_replay_setup(
+        TWEEN_SETUP,
+        |eng| {
+            Value::from(
+                eng.try_resource::<AnimationState>()
+                    .map_or(0, |state| state.borrow().next_tween),
+            )
+        },
+        |eng, value| {
+            if let (Some(state), Some(next)) =
+                (eng.try_resource::<AnimationState>(), value.as_u64())
+            {
+                state.borrow_mut().next_tween = next;
+            }
+        },
+    );
 }
+
+/// The game's tween counter, in a recording's header.
+const TWEEN_SETUP: &str = "animation_tweens";
 
 fn accumulator(eng: &Engine) -> f32 {
     eng.try_resource::<AnimationState>()

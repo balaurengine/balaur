@@ -48,8 +48,8 @@ const BIRDS: int = 3;
 impl Game {
     pub fn init() {
         self.root = self.node.parent();
-        physics2d::set_gravity(0.0, -9.81);
-        render::set_background(0.55, 0.78, 0.92);
+        physics2d::set_gravity(vec2(0.0, -9.81));
+        render::set_background(color(0.55, 0.78, 0.92, 1.0));
         self.score = 0;
         self.birds_left = BIRDS;
         self.aiming = false;
@@ -199,7 +199,7 @@ impl Game {
                     let iy = (ANCHOR_Y - p.y) * POWER;
                     if math::sqrt(ix * ix + iy * iy) > 1.0 {
                         self.bird.set_component(BODY2D, { KIND: physics2d::BODY_DYNAMIC });
-                        self.bird.body2d.apply_impulse(ix, iy);
+                        self.bird.body2d.apply_impulse(vec2(ix, iy));
                         self.launched = true;
                         self.birds_left -= 1;
                         self.set_widget_text("Birds", "Birds {self.birds_left}");
@@ -210,8 +210,8 @@ impl Game {
             }
             // Sling bands, drawn from the post to the bird.
             let p = self.bird.transform.position;
-            render::draw_line_2d(ANCHOR_X - 0.14, ANCHOR_Y - 0.5, p.x, p.y, 0.35, 0.2, 0.12, 4.0);
-            render::draw_line_2d(ANCHOR_X + 0.14, ANCHOR_Y - 0.45, p.x, p.y, 0.3, 0.16, 0.1, 4.0);
+            render::draw_line_2d(vec2(ANCHOR_X - 0.14, ANCHOR_Y - 0.5), vec2(p.x, p.y), color(0.35, 0.2, 0.12, 1.0), 4.0);
+            render::draw_line_2d(vec2(ANCHOR_X + 0.14, ANCHOR_Y - 0.45), vec2(p.x, p.y), color(0.3, 0.16, 0.1, 1.0), 4.0);
         }
         // Pigs pop when anything hits them hard enough.
         for name in self.pigs.keys() {

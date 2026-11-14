@@ -17,8 +17,8 @@ whole_window = true
 id = "palette"
 name = "palette"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -28,8 +28,8 @@ shortcut = "cmd+k"
 id = "save"
 name = "save"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -39,8 +39,8 @@ shortcut = "cmd+s"
 id = "format"
 name = "format"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -50,8 +50,8 @@ shortcut = "alt+shift+f"
 id = "definition"
 name = "definition"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -61,8 +61,8 @@ shortcut = "cmd+b"
 id = "rename_symbol"
 name = "rename_symbol"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -72,8 +72,8 @@ shortcut = "cmd+shift+r"
 id = "replace"
 name = "replace"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -83,8 +83,8 @@ shortcut = "cmd+shift+f"
 id = "focus"
 name = "focus"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -94,8 +94,8 @@ shortcut = "cmd+shift+backslash"
 id = "split"
 name = "split"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -105,8 +105,8 @@ shortcut = "cmd+backslash"
 id = "zoom_in"
 name = "zoom_in"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -116,8 +116,8 @@ shortcut = "cmd+equals"
 id = "zoom_out"
 name = "zoom_out"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -127,8 +127,8 @@ shortcut = "cmd+minus"
 id = "settings"
 name = "settings"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -138,8 +138,8 @@ shortcut = "cmd+comma"
 id = "export"
 name = "export"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -149,8 +149,8 @@ shortcut = "cmd+e"
 id = "step_out"
 name = "step_out"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -161,8 +161,8 @@ shortcut = "shift+f11"
 id = "continue"
 name = "continue"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -173,8 +173,8 @@ shortcut = "f5"
 id = "step_over"
 name = "step_over"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -185,8 +185,8 @@ shortcut = "f10"
 id = "step_into"
 name = "step_into"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -197,8 +197,8 @@ shortcut = "f11"
 id = "play"
 name = "play"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -209,8 +209,8 @@ while_typing = false
 id = "break"
 name = "break"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -222,8 +222,8 @@ while_typing = false
 id = "workspace_1"
 name = "workspace_1"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -234,8 +234,8 @@ while_typing = false
 id = "workspace_2"
 name = "workspace_2"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -246,8 +246,8 @@ while_typing = false
 id = "workspace_3"
 name = "workspace_3"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -258,8 +258,8 @@ while_typing = false
 id = "workspace_4"
 name = "workspace_4"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -270,8 +270,8 @@ while_typing = false
 id = "workspace_5"
 name = "workspace_5"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -282,8 +282,8 @@ while_typing = false
 id = "add_child"
 name = "add_child"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -294,8 +294,8 @@ while_typing = false
 id = "attach_script"
 name = "attach_script"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -306,8 +306,8 @@ while_typing = false
 id = "reload"
 name = "reload"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -318,8 +318,8 @@ while_typing = false
 id = "copy"
 name = "copy"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -330,8 +330,8 @@ while_typing = false
 id = "redo"
 name = "redo"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -342,8 +342,8 @@ while_typing = false
 id = "redo_y"
 name = "redo_y"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -354,8 +354,8 @@ while_typing = false
 id = "undo"
 name = "undo"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -366,8 +366,8 @@ while_typing = false
 id = "theme"
 name = "theme"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -378,8 +378,8 @@ while_typing = false
 id = "select_all"
 name = "select_all"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -390,8 +390,8 @@ while_typing = false
 id = "ungroup"
 name = "ungroup"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -402,8 +402,8 @@ while_typing = false
 id = "group"
 name = "group"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -414,8 +414,8 @@ while_typing = false
 id = "unlock_all"
 name = "unlock_all"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -426,8 +426,8 @@ while_typing = false
 id = "lock"
 name = "lock"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -438,8 +438,8 @@ while_typing = false
 id = "show_all"
 name = "show_all"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -450,8 +450,8 @@ while_typing = false
 id = "hide"
 name = "hide"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -462,8 +462,8 @@ while_typing = false
 id = "isolate"
 name = "isolate"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -474,8 +474,8 @@ while_typing = false
 id = "key"
 name = "key"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]
@@ -486,8 +486,8 @@ while_typing = false
 id = "cancel"
 name = "cancel"
 parent = "keys"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
 [nodes.widget]
-on_click = "pressed"
 kind = "button"
 focusable = false
 [nodes.widget_shortcut]

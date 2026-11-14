@@ -1,6 +1,7 @@
 use super::run_with;
 use balaur_bs::runtime::{HostFns, Value};
-use balaur_bs::{HostApi, HostSignature, Literal, Options, Ty, compile};
+use balaur_bs::{EditorFiles, HostApi, HostSignature, Literal, Modules, Options, Ty, compile};
+use std::rc::Rc;
 
 const SCRIPT: &str = r#"
 pub fn bare() -> str { draw::line(1.0, 2.0) }
@@ -23,18 +24,21 @@ fn options() -> Options {
         ],
         ret: Ty::Str,
         is_async: false,
+        editor: false,
     };
     let clear = HostSignature {
         key: "draw::clear".into(),
         params: vec![Ty::Any],
         ret: Ty::Void,
         is_async: false,
+        editor: false,
     };
     let request = HostSignature {
         key: "http::request".into(),
         params: vec![Ty::Any],
         ret: Ty::Any,
         is_async: false,
+        editor: false,
     };
     Options {
         host: HostApi {
@@ -227,6 +231,7 @@ fn an_engine_record_is_a_struct_a_script_reads_and_builds() {
         params,
         ret: Ty::Struct(ret.into()),
         is_async: false,
+        editor: false,
     };
     let rect_ty = Ty::Struct("ui::Rect".into());
     let options = Options {
@@ -239,6 +244,7 @@ fn an_engine_record_is_a_struct_a_script_reads_and_builds() {
                     params: vec![rect_ty.clone()],
                     ret: Ty::Float,
                     is_async: false,
+                    editor: false,
                 },
             ],
             components: vec![],
@@ -303,6 +309,7 @@ fn a_call_that_answers_by_await_refuses_a_node_by_name() {
         params: vec![Ty::Str],
         ret: Ty::Int,
         is_async: false,
+        editor: false,
     };
     let options = Options {
         host: HostApi {
@@ -326,6 +333,7 @@ fn a_function_that_drives_a_component_is_refused_by_its_module_and_names_it() {
         params: vec![Ty::Node, Ty::Float],
         ret: Ty::Void,
         is_async: false,
+        editor: false,
     };
     let options = Options {
         host: HostApi {
@@ -340,4 +348,96 @@ fn a_function_that_drives_a_component_is_refused_by_its_module_and_names_it() {
         .unwrap_err()
         .to_string();
     assert!(error.contains("`node.body2d.apply_impulse(..)`"), "{error}");
+}
+
+// A function the editor's binary adds compiles in a file of the editor's
+// and is refused in any other, by name, saying where it may be called from.
+#[test]
+fn an_editor_function_is_refused_outside_the_editor_s_files() {
+    let scope = HostSignature {
+        key: "debugger::scope".into(),
+        params: vec![],
+        ret: Ty::Node,
+        is_async: false,
+        editor: true,
+    };
+    let list = HostSignature {
+        key: "dependency::list".into(),
+        params: vec![],
+        ret: Ty::Int,
+        is_async: false,
+        editor: false,
+    };
+    let game = Options {
+        host: HostApi {
+            functions: vec![scope, list],
+            ..HostApi::default()
+        },
+        path: "scripts/game.bs".into(),
+        editor: Some(editor_folder()),
+        ..Options::default()
+    };
+    let editor = Options {
+        path: "editor/plugin.bs".into(),
+        ..game.clone()
+    };
+    let calls = "pub fn scoped() -> Node {\n    debugger::scope()\n}\n";
+    let errors = balaur_bs::errors(calls, &game);
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert_eq!(errors[0].pos.line, 2);
+    assert_eq!(
+        errors[0].msg,
+        "`debugger::scope` is the editor's: a game's runtime does not have it. Call it from a file under `editor/`"
+    );
+    assert!(
+        compile(calls, &editor).is_ok(),
+        "the editor's file calls it"
+    );
+    let reads = "pub fn counted() -> int { dependency::list() }";
+    assert!(compile(reads, &game).is_ok(), "a game's own stays a game's");
+}
+
+/// The files under `editor/` are the editor's, as a host judges them.
+fn editor_folder() -> EditorFiles {
+    EditorFiles(Rc::new(|key: &str| key.starts_with("editor/")))
+}
+
+// A game's file reaches nothing of the editor's through a module either: a
+// `use` of the editor's file is refused where it is written.
+#[test]
+fn a_game_file_may_not_use_a_module_that_is_the_editor_s() {
+    // Found wherever it is asked from, as `editor/tool.bs` is from both files.
+    let tool = |_: &str, name: &str| {
+        (name == "tool").then(|| {
+            let source = "pub fn ping() -> int { 1 }\n";
+            ("editor/tool.bs".to_string(), source.to_string())
+        })
+    };
+    let game = Options {
+        modules: Some(Modules(Rc::new(tool))),
+        path: "scripts/game.bs".into(),
+        editor: Some(editor_folder()),
+        ..Options::default()
+    };
+    let uses = "// a game's script\nuse tool;\n\npub fn pinged() -> int {\n    tool::ping()\n}\n";
+    let errors = balaur_bs::errors(uses, &game);
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert_eq!(errors[0].pos.line, 2);
+    assert_eq!(
+        errors[0].msg,
+        "`use tool;` reaches `editor/tool.bs`, which is the editor's: a game's runtime does not run the editor's files, so only a file under `editor/` may use it"
+    );
+    let editor = Options {
+        path: "editor/plugin.bs".into(),
+        ..game.clone()
+    };
+    assert!(compile(uses, &editor).is_ok(), "the editor's file uses it");
+    let unjudged = Options {
+        editor: None,
+        ..game
+    };
+    assert!(
+        compile(uses, &unjudged).is_ok(),
+        "the control: the module links"
+    );
 }

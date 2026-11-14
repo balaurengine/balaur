@@ -24,6 +24,7 @@ pub(crate) mod words {
 
     pub(crate) mod lsp {
         pub(crate) const CONSTANT: &str = "constant";
+        pub(crate) const EVENT: &str = "event";
         pub(crate) const EXIT: &str = "exit";
         pub(crate) const FIELD: &str = "field";
         pub(crate) const FUNCTION: &str = "function";

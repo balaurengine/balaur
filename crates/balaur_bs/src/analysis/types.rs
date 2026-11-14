@@ -229,6 +229,7 @@ impl Scope<'_> {
                 label: label.to_string(),
                 kind,
                 detail,
+                key: String::new(),
             });
         };
         match recv {
@@ -258,11 +259,6 @@ impl Scope<'_> {
                 }
             }
             Recv::Ty(Ty::Node) => {
-                for f in &self.host.functions {
-                    if let Some(name) = f.key.strip_prefix("node.").filter(|n| !n.contains('.')) {
-                        add(name, Kind::Method, host_signature(name, f, true));
-                    }
-                }
                 for (c, _) in &self.host.components {
                     add(c, Kind::Property, format!("the node's `{c}`"));
                 }
@@ -271,12 +267,6 @@ impl Scope<'_> {
                 if let Some((_, props)) = self.host.components.iter().find(|(n, _)| n == c) {
                     for (p, t) in props {
                         add(p, Kind::Property, show(t));
-                    }
-                }
-                let prefix = format!("node.{c}.");
-                for f in &self.host.functions {
-                    if let Some(name) = f.key.strip_prefix(&prefix) {
-                        add(name, Kind::Method, host_signature(name, f, true));
                     }
                 }
             }
@@ -311,7 +301,31 @@ impl Scope<'_> {
             }
             Recv::Ty(_) => {}
         }
+        out.extend(self.host_methods(recv));
         out
+    }
+
+    // The engine's functions a `.` on `recv` calls: a node's own operations,
+    // or a component handle's methods.
+    fn host_methods(&self, recv: &Recv) -> Vec<Completion> {
+        let prefix = match recv {
+            Recv::Ty(Ty::Node) => "node.".to_string(),
+            Recv::Component(c) => format!("node.{c}."),
+            Recv::Ty(_) => return vec![],
+        };
+        self.host
+            .functions
+            .iter()
+            .filter_map(|f| {
+                let name = f.key.strip_prefix(&prefix).filter(|n| !n.contains('.'))?;
+                Some(Completion {
+                    label: name.to_string(),
+                    kind: Kind::Method,
+                    detail: host_signature(name, f, true),
+                    key: f.key.clone(),
+                })
+            })
+            .collect()
     }
 }
 

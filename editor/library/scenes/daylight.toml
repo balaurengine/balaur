@@ -4,7 +4,7 @@
 name = "Daylight"
 
 [nodes.environment]
-ambient_color = "#33404f"
+ambient_color = "#7b8896"
 tonemap = "neutral"
 exposure = 1.2
 fog_mode = "exponential"

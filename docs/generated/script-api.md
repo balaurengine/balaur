@@ -17,7 +17,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 3 | 0 |
-| [`engine`](#engine) | 31 | 0 |
+| [`engine`](#engine) | 32 | 0 |
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
@@ -28,7 +28,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`hash`](#hash) | 2 | 0 |
 | [`http`](#http) | 2 | 5 |
 | [`import`](#import) | 6 | 0 |
-| [`input`](#input) | 53 | 188 |
+| [`input`](#input) | 52 | 188 |
 | [`json`](#json) | 2 | 0 |
 | [`log`](#log) | 8 | 0 |
 | [`math`](#math) | 24 | 3 |
@@ -37,8 +37,8 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`multiplayer`](#multiplayer) | 14 | 18 |
 | [`node`](#node) | 55 | 0 |
 | [`physics`](#physics) | 13 | 0 |
-| [`physics2d`](#physics2d) | 16 | 108 |
-| [`physics3d`](#physics3d) | 16 | 115 |
+| [`physics2d`](#physics2d) | 16 | 106 |
+| [`physics3d`](#physics3d) | 16 | 113 |
 | [`picture`](#picture) | 1 | 0 |
 | [`platform`](#platform) | 11 | 7 |
 | [`project`](#project) | 15 | 0 |
@@ -46,12 +46,12 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`random`](#random) | 6 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 4 | 0 |
-| [`render`](#render) | 43 | 41 |
+| [`render`](#render) | 41 | 41 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
-| [`scene`](#scene) | 32 | 0 |
-| [`script`](#script) | 15 | 0 |
-| [`settings`](#settings) | 12 | 0 |
+| [`scene`](#scene) | 26 | 0 |
+| [`script`](#script) | 13 | 0 |
+| [`settings`](#settings) | 11 | 0 |
 | [`skeleton`](#skeleton) | 3 | 0 |
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
@@ -185,7 +185,7 @@ Asset definitions by reference: a project path, `file#entry` for one entry, `#id
 
 ## `audio`
 
-Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.
+Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `sound_finished` (`EVENT_SOUND_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.
 
 | Function | Signature |
 | --- | --- |
@@ -214,7 +214,7 @@ Called on a node's component: `sound`. See [components](components.md).
 
 | Name | Value |
 | --- | --- |
-| `EVENT_FINISHED` | `"finished"` |
+| `EVENT_SOUND_FINISHED` | `"sound_finished"` |
 
 ## `browser`
 
@@ -230,7 +230,7 @@ The page a browser build runs in; off the web every query answers nil. A parent-
 
 ## `debugger`
 
-Breakpoints, pausing a script and resuming it. The editor's Debugger dock and the Debug Adapter Protocol server drive the same machinery.
+Breakpoints, pausing a script and resuming it. The editor's Debugger dock and the Debug Adapter Protocol server drive the same machinery. The editor has this module; a game's runtime does not.
 
 | Function | Signature |
 | --- | --- |
@@ -244,6 +244,8 @@ Breakpoints, pausing a script and resuming it. The editor's Debugger dock and th
 | `set_scope` | `(Node?)` |
 | `stop_location` | `() -> debugger::Stop?` |
 
+Every function here is the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
+
 **Constants** (4):
 
 | Name | Value |
@@ -255,7 +257,7 @@ Breakpoints, pausing a script and resuming it. The editor's Debugger dock and th
 
 ## `dependency`
 
-The projects a game imports whole under `deps/<alias>/`, declared in `[dependencies]`. An installed dependency is read-only: `fs.*` and `assets.save` refuse to write into one. A relative path a dependency's script builds reads from that dependency's own folder.
+The projects a game imports whole under `deps/<alias>/`, declared in `[dependencies]`. An installed dependency is read-only: `fs.*` and `assets.save` refuse to write into one. A relative path a dependency's script builds reads from that dependency's own folder. Every runtime has `list` and `of`; the verbs that write a project are the editor's.
 
 | Function | Signature |
 | --- | --- |
@@ -265,6 +267,8 @@ The projects a game imports whole under `deps/<alias>/`, declared in `[dependenc
 | `make_local` | `(str, str) -> [str]` |
 | `move_into` | `([str], str) -> [str]` |
 | `of` | `(str) -> str?` |
+
+`add_path`, `install`, `make_local`, `move_into` are the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
 
 ## `encoding`
 
@@ -278,12 +282,11 @@ Bytes to base64 text and back.
 
 ## `engine`
 
-The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.
+The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins`, `quit`, and `store` for state no node owns.
 
 | Function | Signature |
 | --- | --- |
 | `args` | `() -> [str]` |
-| `change_tick` | `() -> int` |
 | `dark_mode` | `() -> bool` |
 | `delta` | `() -> float` |
 | `device_id` | `() -> str` |
@@ -303,6 +306,8 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | `set_paused` | `(bool)` |
 | `set_script_profiling` | `(bool)` |
 | `set_time_scale` | `(float)` |
+| `store` | `(str, any)` |
+| `stored` | `(str) -> any` |
 | `target` | `() -> engine::Target` |
 | `tick` | `() -> int` |
 | `tick_hz` | `() -> int` |
@@ -316,7 +321,7 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 
 ## `events`
 
-Named events between scripts. A node listens for a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.
+Named events between scripts. A node hears its own events, and after `listen` another node's, as its `on_<name>(payload, source)` method; `node.emit` and `events.emit` send one.
 
 | Function | Signature |
 | --- | --- |
@@ -337,6 +342,8 @@ Exports the project being edited. `targets` lists what this install can build; `
 | `start` | `(str, export::StartOptions?) -> bool` |
 | `targets` | `() -> [export::Target]` |
 
+Every function here is the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
+
 ## `forge`
 
 Projects kept on Forge, for the editor's pickers, and adding one to a game as a dependency. `balaur add` and `balaur fetch` are the same code. `BALAUR_FORGE` names the Forge and `BALAUR_FORGE_TOKEN` reads private projects.
@@ -348,6 +355,8 @@ Projects kept on Forge, for the editor's pickers, and adding one to a game as a 
 | `fetch` | `(str, bool) -> bool` |
 | `search` | `(str, str) -> bool` |
 | `url` | `() -> str` |
+
+Every function here is the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
 
 ## `fs`
 
@@ -478,6 +487,8 @@ Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk`
 | `running_count` | `() -> int` |
 | `start` | `(str, str?) -> bool` |
 
+Every function here is the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
+
 ## `input`
 
 One frame of input: keyboard, mouse, touch screen and gamepads, plus what went down or came up this frame. A headless run answers every query neutrally.
@@ -492,14 +503,6 @@ One frame of input: keyboard, mouse, touch screen and gamepads, plus what went d
 | `bind` | `(str, [str])` |
 | `bindings` | `(str) -> [str]` |
 | `composing` | `() -> str` |
-| `dropped_files` | `() -> [str]` |
-| `feed_action` | `(str, float)` |
-| `feed_gamepad` | `(int, input::PadFeed)` |
-| `feed_key` | `(str, bool)` |
-| `feed_mouse` | `(float, float)` |
-| `feed_mouse_button` | `(int, bool)` |
-| `feed_scroll` | `(float, float)` |
-| `feed_touch` | `(int, float, float, str)` |
 | `gamepad_acceleration` | `(int) -> Vec3` |
 | `gamepad_axis` | `(int, str) -> float` |
 | `gamepad_can_rumble` | `(int) -> bool` |
@@ -527,10 +530,17 @@ One frame of input: keyboard, mouse, touch screen and gamepads, plus what went d
 | `mouse_just_pressed` | `(int) -> bool` |
 | `mouse_just_released` | `(int) -> bool` |
 | `mouse_position` | `() -> Vec2` |
-| `pan` | `() -> input::Pan` |
+| `pan` | `() -> Vec2` |
 | `pinch` | `() -> input::Pinch` |
 | `reset_bindings` | `()` |
 | `scroll_delta` | `() -> Vec2` |
+| `set_action_value` | `(str, float)` |
+| `set_gamepad` | `(int, input::GamepadReport)` |
+| `set_key_down` | `(str, bool)` |
+| `set_mouse_down` | `(int, bool)` |
+| `set_mouse_position` | `(Vec2)` |
+| `set_scroll_delta` | `(Vec2)` |
+| `set_touch` | `(int, Vec2, str)` |
 | `swipe` | `() -> input::Swipe?` |
 | `touches` | `() -> [input::Touch]` |
 | `touches_just_ended` | `() -> [int]` |
@@ -738,7 +748,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `set_property` | `(Node, str, str, any) -> bool` |
 | `set_script` | `(Node, str?, any)` |
 | `set_sibling_index` | `(Node, int)` |
-| `set_tint` | `(Node, float, float, float, float)` |
+| `set_tint` | `(Node, Color)` |
 | `set_visible` | `(Node, bool)` |
 | `set_z_index` | `(Node, int, bool?)` |
 | `sibling_index` | `(Node) -> int` |
@@ -790,14 +800,14 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `overlap_shape` | `(physics2d::ShapeQuery) -> [Node]` |
 | `raycast` | `(physics2d::RayQuery) -> physics2d::Hit?` |
 | `raycast_all` | `(physics2d::RayQuery) -> [physics2d::Hit]` |
-| `set_gravity` | `(float, float)` |
+| `set_gravity` | `(Vec2)` |
 | `shapecast` | `(physics2d::ShapeQuery) -> physics2d::Hit?` |
 | `time_of_impact` | `(Node, Node, physics2d::ImpactOptions) -> physics2d::Impact?` |
 | `wake_all` | `()` |
 
 Called on a node's component: `body2d`, `character2d`, `collider2d`, `follow2d`, `joint2d`, `softbody2d`. See [components](components.md).
 
-**Constants** (108):
+**Constants** (106):
 
 | Name | Value |
 | --- | --- |
@@ -826,7 +836,7 @@ Called on a node's component: `body2d`, `character2d`, `collider2d`, `follow2d`,
 | `COMBINE_MAX` | `"max"` |
 | `COMBINE_MIN` | `"min"` |
 
-…and 84 more.
+…and 82 more.
 
 ## `physics3d`
 
@@ -846,14 +856,14 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `overlap_shape` | `(physics3d::ShapeQuery) -> [Node]` |
 | `raycast` | `(physics3d::RayQuery) -> physics3d::Hit?` |
 | `raycast_all` | `(physics3d::RayQuery) -> [physics3d::Hit]` |
-| `set_gravity` | `(float, float, float)` |
+| `set_gravity` | `(Vec3)` |
 | `shapecast` | `(physics3d::ShapeQuery) -> physics3d::Hit?` |
 | `time_of_impact` | `(Node, Node, physics3d::ImpactOptions) -> physics3d::Impact?` |
 | `wake_all` | `()` |
 
 Called on a node's component: `body3d`, `character3d`, `collider3d`, `follow3d`, `joint3d`, `softbody3d`, `vehicle3d`, `wheel3d`. See [components](components.md).
 
-**Constants** (115):
+**Constants** (113):
 
 | Name | Value |
 | --- | --- |
@@ -882,7 +892,7 @@ Called on a node's component: `body3d`, `character3d`, `collider3d`, `follow3d`,
 | `COLLIDE_KINEMATIC_KINEMATIC` | `"kinematic_kinematic"` |
 | `COLLIDE_KINEMATIC_STATIC` | `"kinematic_static"` |
 
-…and 91 more.
+…and 89 more.
 
 ## `picture`
 
@@ -891,6 +901,8 @@ A picture of a project: its scene through its current camera, at its `[window]` 
 | Function | Signature |
 | --- | --- |
 | `write` | `(str, str) -> str?` |
+
+Every function here is the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
 
 ## `platform`
 
@@ -944,6 +956,8 @@ The projects this machine has opened, the templates a new one starts from, and t
 | `use_data` | `(str?) -> str?` |
 | `version` | `() -> str` |
 
+Every function here is the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
+
 ## `quat`
 
 Rotations as quaternions `{ x, y, z, w }`: from an axis and an angle, from one direction to another or from a `rotation_euler`, composed, inverted and applied to a vector. Through `glamx` on `libm`, so every platform turns alike.
@@ -996,6 +1010,8 @@ Which build of the engine this is, what the channels are publishing, and replaci
 | `install` | `(str, str, release::InstallOptions?) -> bool` |
 | `installed` | `() -> release::Build` |
 
+Every function here is the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
+
 ## `render`
 
 What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.
@@ -1004,45 +1020,43 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | --- | --- |
 | `begin_retained` | `(str)` |
 | `bounds` | `(Node) -> [Vec3]?` |
-| `camera_2d` | `() -> Vec3` |
+| `camera_2d` | `() -> render::Viewport2d` |
 | `camera_matrix` | `() -> [float]` |
-| `camera_pose` | `() -> [float]` |
+| `camera_pose` | `() -> render::CameraPose` |
 | `check_material` | `(str) -> [script::Diagnostic]` |
 | `clear_retained` | `(str)` |
 | `debug_view` | `() -> str` |
 | `debug_views` | `() -> [str]` |
-| `draw_arc_2d` | `(float, float, float, float, float, float?, Color?, render::DrawOptions?)` |
-| `draw_box` | `(float, float, float, float, float, float, Color?)` |
-| `draw_capsule` | `(float, float, float, float, float, Color?)` |
-| `draw_circle_2d` | `(float, float, float, Color?, render::DrawOptions?)` |
-| `draw_line_2d` | `(float, float, float, float, float, float, float, float?, render::DrawOptions?)` |
-| `draw_line_3d` | `(float, float, float, float, float, float, float, float, float, float?, bool?, bool?)` |
-| `draw_lines` | `([float])` |
+| `draw_arc_2d` | `(Vec2, float, float, float, float?, Color?, render::DrawOptions?)` |
+| `draw_box_3d` | `(Vec3, Vec3, Color?)` |
+| `draw_capsule_3d` | `(Vec3, float, float, Color?)` |
+| `draw_circle_2d` | `(Vec2, float, Color?, render::DrawOptions?)` |
+| `draw_line_2d` | `(Vec2, Vec2, Color, float?, render::DrawOptions?)` |
+| `draw_line_3d` | `(Vec3, Vec3, Color, float?, bool?, bool?)` |
+| `draw_lines_3d` | `([render::Line3d])` |
 | `draw_polygon_2d` | `([Vec2], Color?, render::DrawOptions?)` |
 | `draw_polyline_2d` | `([Vec2], float?, Color?, render::DrawOptions?)` |
-| `draw_rect_2d` | `(float, float, float, float, Color?, render::DrawOptions?)` |
-| `draw_sphere` | `(float, float, float, float, Color?)` |
-| `draw_text_2d` | `(float, float, str, render::TextOptions?)` |
-| `draw_text_3d` | `(float, float, float, str, render::TextOptions?)` |
-| `draw_texture_2d` | `(str, float, float, float, float, Color?, render::TextureOptions?)` |
+| `draw_rect_2d` | `(Vec2, Vec2, Color?, render::DrawOptions?)` |
+| `draw_sphere_3d` | `(Vec3, float, Color?)` |
+| `draw_text_2d` | `(Vec2, str, render::TextOptions?)` |
+| `draw_text_3d` | `(Vec3, str, render::TextOptions?)` |
+| `draw_texture_2d` | `(str, Vec2, Vec2, Color?, render::TextureOptions?)` |
 | `end_retained` | `()` |
 | `hold_cameras` | `(Node?)` |
 | `material_params` | `(str) -> [render::Param]` |
-| `mouse_ray` | `() -> [float]` |
+| `mouse_ray` | `() -> render::Ray` |
 | `mouse_world_2d` | `() -> Vec2` |
-| `pick_ray` | `(float, float, float, float, float, float) -> Node` |
-| `pick_ray_at` | `(float, float, float, float, float, float) -> render::Hit?` |
+| `pick_ray` | `(Vec3, Vec3) -> Node` |
+| `pick_ray_at` | `(Vec3, Vec3) -> render::Hit?` |
 | `screenshot` | `(str)` |
-| `set_background` | `(float, float, float)` |
+| `set_background` | `(Color)` |
 | `set_debug_view` | `(str)` |
 | `set_shader_preview` | `(str, int)` |
-| `set_shader_probe` | `(float, float)` |
-| `shader_probe` | `() -> Color?` |
 | `snap_aov` | `(str, str)` |
 | `stats` | `() -> render::Stats` |
 | `text_size` | `(str, render::TextOptions?) -> Vec2` |
 | `texture_pixels_per_unit` | `(str) -> float` |
-| `texture_size` | `(str) -> [int]` |
+| `texture_size` | `(str) -> Vec2` |
 | `trace_texture` | `(str, render::TraceOptions?) -> [[Vec2]]` |
 | `triangles_of` | `(Node, Node?) -> [Vec3]` |
 
@@ -1123,16 +1137,13 @@ Rollback netcode from a script's side. `input` reads this tick's input, real or 
 
 ## `scene`
 
-The node tree: its root, lookup by path and instancing, plus the component and preset vocabulary an editor's palette lists.
+The node tree: its root, lookup by path and instancing, plus the component vocabulary an editor's palette lists.
 
 | Function | Signature |
 | --- | --- |
-| `added_since` | `(str, int) -> [Node]` |
-| `apply_preset` | `(Node, str)` |
 | `attach_scripts` | `(Node)` |
 | `bindable_events` | `(Node?) -> [str]` |
 | `binding_actions` | `() -> [str]` |
-| `changed_since` | `(str, int) -> [Node]` |
 | `component_expects` | `(str) -> [str]?` |
 | `component_properties` | `(str, any) -> any` |
 | `component_requires` | `(str) -> [str]?` |
@@ -1144,9 +1155,6 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 | `keep_changes` | `(Node?)` |
 | `node_by_id` | `(str, Node?) -> Node` |
 | `parked` | `() -> [str]` |
-| `preset_info` | `(str) -> scene::Preset?` |
-| `presets` | `() -> [str]` |
-| `removed_since` | `(str, int) -> [Node]` |
 | `root` | `() -> Node` |
 | `set_variable` | `(str, any)` |
 | `source` | `(str) -> str?` |
@@ -1162,7 +1170,7 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 
 ## `script`
 
-What a tool asks about a script file, and state no node owns.
+What a tool asks about a script file. The editor and `balaur check` have it; a game's runtime does not.
 
 | Function | Signature |
 | --- | --- |
@@ -1178,9 +1186,9 @@ What a tool asks about a script file, and state no node owns.
 | `rename` | `(str, str, str, str) -> [script::Edit]` |
 | `replace` | `(str, str, str, str) -> [script::Edit]` |
 | `signature` | `(str, str, int, int) -> script::Signature?` |
-| `store` | `(str, any)` |
-| `stored` | `(str) -> any` |
 | `symbols` | `(str, str) -> [script::Symbol]` |
+
+Every function here is the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
 
 ## `settings`
 
@@ -1196,7 +1204,6 @@ Every setting the engine, its plugins and the game declare, by path: `physics/so
 | `known_tags` | `() -> [str]` |
 | `merge_toml` | `(str)` |
 | `overrides` | `(str) -> [str]` |
-| `revision` | `() -> int` |
 | `set` | `(str, any)` |
 | `tags` | `() -> [str]` |
 | `to_toml` | `(str, str) -> str` |
@@ -1300,10 +1307,10 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `set_load_progress` | `(float, str?)` |
 | `set_scale` | `(float)` |
 | `set_theme` | `(any)` |
-| `set_widget_layer` | `(bool, float?, float?, float?, float?)` |
+| `set_widget_layer` | `(bool, Vec2?, Vec2?)` |
 | `sides` | `(float, float, float, float) -> ui::Sides` |
 | `tab_rect` | `(Node) -> ui::Rect?` |
-| `takes_pointer_at` | `(float, float) -> bool` |
+| `takes_pointer_at` | `(Vec2) -> bool` |
 | `wants_keyboard` | `() -> bool` |
 | `wants_pointer` | `() -> bool` |
 | `widget_rect` | `(Node) -> ui::Rect?` |

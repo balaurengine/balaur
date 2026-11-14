@@ -26,7 +26,7 @@ const EMIT: str = "emit";
 const FALSE: str = "false";
 const FREE: str = "free";
 const INSTANTIATE: str = "instantiate";
-const ON_ACTION: str = "on_action";
+const ON_ACTION_PRESSED: str = "on_action_pressed";
 const ON_COLLISION_ENTER: str = "on_collision_enter";
 const ON_COLLISION_EXIT: str = "on_collision_exit";
 const ON_KEY_DOWN: str = "on_key_down";
@@ -73,6 +73,30 @@ pub fn rows(state: editor::State) -> any {
 
 /// The component a node's bindings are.
 const COMPONENT: str = "bindings";
+
+/// The method `node`'s rows call when it is clicked, empty where none does.
+pub fn click_method(node: Node) -> str {
+    for row in rows_on(node) {
+        if event_of(row) == DEFAULT_EVENT && action_of(row) == CALL {
+            return as_text(row[fields::VALUE]);
+        }
+    }
+    ""
+}
+
+/// Whether one of `node`'s rows goes to a state.
+pub fn sets_a_state(node: Node) -> bool {
+    for row in rows_on(node) {
+        if action_of(row) == SET_STATE {
+            return true;
+        }
+    }
+    false
+}
+
+fn rows_on(node: Node) -> [any] {
+    util::list_or_empty(util::map_or_empty(node.get_component(COMPONENT))[fields::ROWS])
+}
 
 fn write(state: &mut editor::State, rows: any, label: str) {
     let found = model::selected_node(state);
@@ -309,21 +333,43 @@ pub fn script_of(class_name: str, rows: any) -> str {
         out += "    }}\n";
     }
     let first = heard.len() == 0;
+    let climbs = false;
     for hook in util::keys_sorted(byhook) {
         let own = util::contains(heard, hook.slice(HOOK_PREFIX.len(), hook.len()));
-        let arguments = if own { "payload: any" } else { hook_arguments(hook) };
+        let arguments = (if own { PAYLOAD } else { hook_arguments(hook) }) + ", source: Node";
         out += (if first { "" } else { "\n" }) + "    pub fn {hook}({arguments}) {{\n";
         first = false;
         for row in byhook[hook] {
-            out += "        " + guarded(row) + "\n";
+            climbs = climbs || climbs_to_its_method(row);
+            out += "        " + guarded(row, handed(arguments)) + "\n";
         }
         out += "    }}\n";
+    }
+    if climbs {
+        out += call_up();
     }
     out + "}}\n"
 }
 
-/// The arguments each hook is handed, so the written method's signature is
-/// the one the engine calls.
+// What a hook with one value, or none the engine names, is handed first.
+const PAYLOAD: str = "payload: any";
+
+// What a `call` row naming no target does: the method on the nearest node
+// from this one up whose script has it.
+fn call_up() -> str {
+    "\n    fn call_up(method: str, first: any, second: any, third: any) {{\n"
+        + "        let at = self.node;\n"
+        + "        while at.is_valid() && !at.has_method(method) {{\n"
+        + "            at = at.parent();\n"
+        + "        }}\n"
+        + "        if at.is_valid() {{\n"
+        + "            at.call(method, first, second, third);\n"
+        + "        }}\n"
+        + "    }}\n"
+}
+
+/// The arguments each hook is handed before the node it happened on, so the
+/// written method's signature is the one the engine calls.
 fn hook_arguments(hook: str) -> str {
     if hook == ON_POINTER_DOWN || hook == ON_POINTER_UP || hook == ON_POINTER_CLICK {
         "button: any"
@@ -333,7 +379,7 @@ fn hook_arguments(hook: str) -> str {
         "dropped: any"
     } else if hook == ON_KEY_DOWN || hook == ON_KEY_UP {
         "key: str"
-    } else if hook == ON_ACTION {
+    } else if hook == ON_ACTION_PRESSED {
         "action: str"
     } else if hook == ON_RESIZE {
         "width: float, height: float"
@@ -344,12 +390,25 @@ fn hook_arguments(hook: str) -> str {
     } else if hook == ON_COLLISION_ENTER || hook == ON_COLLISION_EXIT {
         "collision: any"
     } else {
-        ""
+        PAYLOAD
     }
 }
 
-fn guarded(row: any) -> str {
-    let call = as_call(row);
+// The names a signature declares, as a call passes them on.
+fn handed(arguments: str) -> [str] {
+    let out: [str] = [];
+    for argument in arguments.split(", ") {
+        out.push(argument.split(":")[0].trim());
+    }
+    out
+}
+
+fn climbs_to_its_method(row: any) -> bool {
+    action_of(row) == CALL && row[inspector_fields::TARGET].as_str() == ""
+}
+
+fn guarded(row: any, handed: [str]) -> str {
+    let call = as_call(row, handed);
     let when = row[fields::WHEN].as_str();
     if when == "" {
         return call;
@@ -392,7 +451,7 @@ fn read_as(rest: str) -> str {
     }
 }
 
-fn as_call(row: any) -> str {
+fn as_call(row: any, handed: [str]) -> str {
     let action = action_of(row);
     let target = row[inspector_fields::TARGET].as_str();
     let value = as_text(row[fields::VALUE]);
@@ -417,8 +476,18 @@ fn as_call(row: any) -> str {
         "engine::open_url(\"{value}\");"
     } else if action == EMIT {
         "{node}.emit(\"{value}\", nil);"
+    } else if action == CALL && target == "" {
+        // Three places, the most a hook hands on: nil fills what it does not.
+        let passed: [str] = [];
+        for name in handed {
+            passed.push(name);
+        }
+        while passed.len() < 3 {
+            passed.push("nil");
+        }
+        "self.call_up(\"{value}\", {util::join(passed, ", ")});"
     } else if action == CALL {
-        "{node}.call(\"{value}\");"
+        "{node}.call(\"{value}\", {util::join(handed, ", ")});"
     } else if action == components::VISIBLE {
         "{node}.set_visible({literal(value)});"
     } else {

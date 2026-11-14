@@ -50,8 +50,8 @@ truncate = true
 id = "search"
 name = "Search"
 parent = "panel"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "search_typed" }] }
 [nodes.widget]
-on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
 [nodes.widget_field]
@@ -71,12 +71,12 @@ text = "nothing selected"
 id = "scroll"
 name = "Scroll"
 parent = "panel"
+bindings = { rows = [{ event = "emitted:scrolled", action = "call", value = "scrolled" }] }
 [nodes.widget]
 kind = "scroll"
 grow = 1
 [nodes.widget_scroll]
 axis = "vertical"
-on_scrolled = "scrolled"
 
 # The rows on screen, each placed at its height in a column as tall as the whole
 # form, so a node of hundreds of rows builds the few it shows: the pool makes
@@ -102,8 +102,8 @@ align_items = "center"
 id = "add"
 name = "Add"
 parent = "foot"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "add" }] }
 [nodes.widget]
-on_click = "add"
 kind = "button"
 role = "action"
 text = "Add component"

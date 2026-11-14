@@ -82,7 +82,7 @@ pub struct LitLight3d {
 
 /// The direction a node aims. At rest a `light3d` shines along -z, which is
 /// what kiss3d, glTF and every camera in the tree already call forward.
-fn aim(global: &GlobalTransform) -> Vec3 {
+pub(crate) fn aim(global: &GlobalTransform) -> Vec3 {
     (global.rotation * Vec3::NEG_Z)
         .try_normalize()
         .unwrap_or(Vec3::NEG_Z)
@@ -229,7 +229,7 @@ pub struct Environment {
     /// Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky
     pub sky: String,
     /// Light every surface gets whatever the lights do, a 2D one's before any `light2d` as a 3D one's
-    #[property(color, default = [0.125, 0.14, 0.157, 1.0])]
+    #[property(color, default = [0.389, 0.409, 0.431, 1.0])]
     pub ambient_color: [f32; 4],
     /// The curve the HDR film is mapped through. A scene with no `environment` node draws untonemapped
     #[property(default = Tonemap::Neutral)]
@@ -408,7 +408,7 @@ impl Default for LitEnvironment {
             sky_intensity: 1.0,
             sky_rotation: 0.0,
             show_sky: true,
-            ambient: [0.125, 0.14, 0.157, 1.0],
+            ambient: [0.389, 0.409, 0.431, 1.0],
             fog: FogKind::Off,
             fog_color: [0.624, 0.706, 0.784, 1.0],
             fog_density: 0.02,
@@ -645,10 +645,9 @@ fn as_kiss3d(light: &LitLight3d) -> kiss3d::light::Light {
             attenuation_radius: light.radius,
         },
     };
-    let [r, g, b] = light.color;
     Light {
         light_type,
-        color: kiss3d::color::Color::new(r, g, b, 1.0),
+        color: crate::film::opaque(light.color),
         intensity: light.intensity,
         radius: light.source_radius,
         enabled: light.enabled,
@@ -721,12 +720,11 @@ pub(crate) fn sync_environment(
         return;
     }
     let [r, g, b, _] = env.ambient;
-    window.set_ambient_color(kiss3d::color::Color::new(r, g, b, 1.0));
+    window.set_ambient_color(crate::film::opaque([r, g, b]));
     // The fork's ambient is one scalar over the colour, and the colour already
     // carries the brightness a designer set.
     window.set_ambient(1.0);
-    let [fr, fg, fb, fa] = env.fog_color;
-    let fog_color = kiss3d::color::Color::new(fr, fg, fb, fa);
+    let fog_color = crate::film::color(env.fog_color);
     let mode = match env.fog {
         FogKind::Off => kiss3d::light::FogMode::Off,
         FogKind::Linear => kiss3d::light::FogMode::Linear {

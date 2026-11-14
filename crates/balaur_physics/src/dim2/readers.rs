@@ -8,7 +8,7 @@ use balaur_script::{Module, NodeId, Value};
 use crate::dim2::PhysicsState2d;
 use crate::dim2::collider::first_collider;
 use crate::rapier2d::prelude::{Aabb, Collider};
-use crate::scalar::{self, Real};
+use crate::scalar;
 use crate::vocabulary::words;
 use crate::vocabulary::words::functions as f;
 use crate::vocabulary::{component as c, keys as k, map};
@@ -26,22 +26,25 @@ fn with_first_collider<R>(
     f(&state, &state.world.colliders[handle])
 }
 
-/// A box as a script reads one: its two opposite corners, flattened.
-fn corners(aabb: &Aabb) -> (Real, Real, Real, Real) {
-    (aabb.mins.x, aabb.mins.y, aabb.maxs.x, aabb.maxs.y)
+/// A box as a script reads one, the `Aabb` record: its lowest and highest corners.
+fn aabb_value(aabb: &Aabb) -> Value {
+    map([
+        (k::MIN, Value::Vec2(scalar::a2(aabb.mins))),
+        (k::MAX, Value::Vec2(scalar::a2(aabb.maxs))),
+    ])
 }
 
 /// Replacing a 2D collider, and the boxes it covers.
 pub(crate) fn install_collider2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (words::AABB, &[c::COLLIDER_2D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
-        (f::SWEPT_AABB, &[c::COLLIDER_2D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
-        (f::COLLISION_AABB, &[c::COLLIDER_2D], "", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
-        (f::BROAD_PHASE_AABB, &[c::COLLIDER_2D], "", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
+        (words::AABB, &[c::COLLIDER_2D], "(node: node) -> Aabb", "The world-space box the collider currently occupies, from its lowest corner to its highest."),
+        (f::SWEPT_AABB, &[c::COLLIDER_2D], "(node: node) -> Aabb", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
+        (f::COLLISION_AABB, &[c::COLLIDER_2D], "(node: node) -> Aabb", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
+        (f::BROAD_PHASE_AABB, &[c::COLLIDER_2D], "(node: node) -> Aabb", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
     ]);
     m.function(words::AABB, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| {
-            Ok(corners(&collider.compute_aabb()))
+            Ok(aabb_value(&collider.compute_aabb()))
         })
     });
     m.function(f::SWEPT_AABB, |eng: &Engine, node: NodeId| {
@@ -55,19 +58,19 @@ pub(crate) fn install_collider2d_api(m: &mut Module<Engine>) {
                 .map_or(*collider.position(), |(body, local)| {
                     body.predict_position_using_velocity_and_forces(dt) * local
                 });
-            Ok(corners(&collider.compute_swept_aabb(&next)))
+            Ok(aabb_value(&collider.compute_swept_aabb(&next)))
         })
     });
     m.function(f::COLLISION_AABB, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |state, collider| {
             let prediction = state.world.integration_parameters.prediction_distance();
-            Ok(corners(&collider.compute_collision_aabb(prediction)))
+            Ok(aabb_value(&collider.compute_collision_aabb(prediction)))
         })
     });
     m.function(f::BROAD_PHASE_AABB, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |state, collider| {
             let params = &state.world.integration_parameters;
-            Ok(corners(
+            Ok(aabb_value(
                 &collider.compute_broad_phase_aabb(params, &state.world.bodies),
             ))
         })
@@ -78,6 +81,11 @@ pub(crate) fn install_collider2d_api(m: &mut Module<Engine>) {
 /// the handles rapier knows it by.
 pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
     m.records(&[
+        (
+            "Aabb",
+            "{ min: Vec2, max: Vec2 }",
+            "An axis-aligned box in world space, from its lowest corner to its highest.",
+        ),
         (
             "ColliderMesh",
             "{ points: [Vec2], indices: [int] }",
@@ -95,14 +103,14 @@ pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        (f::COLLIDER_MASS, &[c::COLLIDER_2D], "", "What this collider weighs, density and size together."),
+        (f::COLLIDER_TOTAL_MASS, &[c::COLLIDER_2D], "", "What this collider weighs, density and size together."),
         (f::COLLIDER_VOLUME, &[c::COLLIDER_2D], "", "How much area the shape encloses."),
         (f::COLLIDER_MASS_PROPERTIES, &[c::COLLIDER_2D], "(node: node) -> MassProperties", "What this collider adds to its body, in its own space."),
         (f::COLLIDER_MESH, &[c::COLLIDER_2D], "(node: node) -> ColliderMesh", "A voxel collider's outline as points and the segments between them, for drawing it or for spawning the pieces it broke into."),
         (f::POSE_IN_BODY, &[c::COLLIDER_2D], "(node: node) -> Pose?", "Where the collider sits in its body's frame; nothing for a collider with no body."),
         (f::HANDLES, &[c::COLLIDER_2D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
     ]);
-    m.function(f::COLLIDER_MASS, |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_TOTAL_MASS, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| Ok(collider.mass()))
     });
     m.function(f::COLLIDER_VOLUME, |eng: &Engine, node: NodeId| {

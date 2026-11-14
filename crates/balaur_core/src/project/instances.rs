@@ -1,6 +1,7 @@
 //! A prefab instanced into a scene: its nodes built under the instance's
 //! root, the instance's own keys applied, and its overrides laid over them.
 
+use super::problems::{Level, checking, keep, property_of};
 #[allow(
     clippy::wildcard_imports,
     reason = "a part of the module above, split for length"
@@ -30,7 +31,7 @@ pub(super) fn instance(
 /// replaced by the node's own.
 pub(super) fn apply_own_keys(
     eng: &Engine,
-    node: &SceneNode,
+    (index, node): (usize, &SceneNode),
     entity: Entity,
     handlers: &[(String, SceneKeyHandler)],
     build: &mut Build,
@@ -72,7 +73,14 @@ pub(super) fn apply_own_keys(
             // A component it refuses leaves the node without it, and says why
             // on the node, rather than failing the whole scene over one value.
             if crate::components::is_registered(eng, key) {
-                tracing::error!(node = %node.name, component = %key, "{why:#}");
+                let property = property_of(eng, key, value, &why);
+                let path: Vec<&str> = std::iter::once(key.as_str())
+                    .chain(property.as_deref())
+                    .collect();
+                let said = format!("node '{}': {why:#}", node.name);
+                if !keep(eng, build, index, &path, Level::Error, &said) {
+                    tracing::error!(node = %node.name, component = %key, "{why:#}");
+                }
                 continue;
             }
             return Err(why.context(format!("scene key '{key}' on node '{}'", node.name)));
@@ -82,10 +90,8 @@ pub(super) fn apply_own_keys(
     let mut unhandled = toml::Table::new();
     for (key, value) in &node.extra {
         if !handlers.iter().any(|(k, _)| k == key) {
-            report_unhandled(
-                eng,
-                format_args!("scene key '{key}' on node '{}'", node.name),
-            );
+            let said = format!("scene key '{key}' on node '{}'", node.name);
+            report_unhandled(eng, build, index, &[key.as_str()], &said);
             unhandled.insert(key.clone(), value.clone());
         }
     }
@@ -100,6 +106,12 @@ pub(super) fn apply_own_keys(
         let props = script
             .props()
             .with_context(|| format!("script properties on node '{}'", node.name))?;
+        // A checker holds the scripts, so it hears here what attaching refuses.
+        if checking(eng)
+            && let Some(why) = plugin_attached(eng, script.source())
+        {
+            keep(eng, build, index, &[keys::SCRIPT], Level::Error, &why);
+        }
         build.pending.retain(|(e, _, _)| *e != entity);
         build
             .pending
@@ -110,11 +122,22 @@ pub(super) fn apply_own_keys(
 
 /// Report a key nothing handles: a typo or a component that is gone, unless
 /// this host lacks a module that may own it. The scene loads either way.
-fn report_unhandled(eng: &Engine, key: std::fmt::Arguments<'_>) {
+fn report_unhandled(eng: &Engine, build: &Build, index: usize, path: &[&str], key: &str) {
+    let said = format!("{key} has no registered handler");
     if eng.try_resource::<LacksKeyOwner>().is_some() {
-        tracing::warn!("{key} has no registered handler");
+        if !keep(eng, build, index, path, Level::Warning, &said) {
+            tracing::warn!("{said}");
+        }
     } else {
-        tracing::error!("{key} has no registered handler");
+        refuse(eng, build, index, path, &said);
+    }
+}
+
+/// Say what the build refused and went on without: to the checker building
+/// the scene, or to the log of a run.
+fn refuse(eng: &Engine, build: &Build, index: usize, path: &[&str], said: &str) {
+    if !keep(eng, build, index, path, Level::Error, said) {
+        tracing::error!("{said}");
     }
 }
 
@@ -153,33 +176,37 @@ fn build_instance(
 /// components and the transform both.
 pub(super) fn apply_overrides(
     eng: &Engine,
-    node: &SceneNode,
+    (index, node): (usize, &SceneNode),
     entity: Entity,
     handlers: &[(String, SceneKeyHandler)],
     build: &mut Build,
 ) -> toml::Table {
     let mut unmatched = toml::Table::new();
     for (path, table) in &node.overrides {
+        let over = [keys::OVERRIDES, path.as_str()];
         let Some(target) = scene::find_node(&eng.world(), entity, path) else {
-            tracing::error!(
+            let said = format!(
                 "override '{path}' on node '{}' names nothing inside the instance",
                 node.name
             );
+            refuse(eng, build, index, &over, &said);
             unmatched.insert(path.clone(), table.clone());
             continue;
         };
         let Some(table) = table.as_table() else {
-            tracing::error!(
+            let said = format!(
                 "override '{path}' on node '{}' is not a table of scene keys",
                 node.name
             );
+            refuse(eng, build, index, &over, &said);
             continue;
         };
         apply_node_keys(eng, target, table);
         if let Some(script) = table.get(keys::SCRIPT)
             && let Err(err) = override_script(build, target, script)
         {
-            tracing::error!("override '{path}.script' on node '{}': {err:#}", node.name);
+            let said = format!("override '{path}.script' on node '{}': {err:#}", node.name);
+            refuse(eng, build, index, &[over[0], over[1], keys::SCRIPT], &said);
         }
         for (key, handler) in handlers {
             let Some(value) = table.get(key) else {
@@ -194,7 +221,14 @@ pub(super) fn apply_overrides(
                 handler(eng, target, value)
             };
             if let Err(err) = applied {
-                tracing::error!("override '{path}.{key}' on node '{}': {err:#}", node.name);
+                let property = property_of(eng, key, value, &err);
+                let at: Vec<&str> = over
+                    .into_iter()
+                    .chain([key.as_str()])
+                    .chain(property.as_deref())
+                    .collect();
+                let said = format!("override '{path}.{key}' on node '{}': {err:#}", node.name);
+                refuse(eng, build, index, &at, &said);
             }
         }
         for key in table.keys() {
@@ -202,10 +236,8 @@ pub(super) fn apply_overrides(
                 && !NODE_KEYS.contains(&key.as_str())
                 && !handlers.iter().any(|(k, _)| k == key)
             {
-                report_unhandled(
-                    eng,
-                    format_args!("override '{path}.{key}' on node '{}'", node.name),
-                );
+                let said = format!("override '{path}.{key}' on node '{}'", node.name);
+                report_unhandled(eng, build, index, &[over[0], over[1], key.as_str()], &said);
             }
         }
     }

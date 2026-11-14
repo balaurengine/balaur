@@ -139,5 +139,6 @@ pub(crate) mod words {
     pub(crate) mod parse {
         pub(crate) const ASYNC: &str = "async";
         pub(crate) const CLASS: &str = "class";
+        pub(crate) const EVENT: &str = "event";
     }
 }

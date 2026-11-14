@@ -39,7 +39,7 @@ fn text_of(app: &balaur_core::App, field: balaur_core::hecs::Entity) -> String {
 }
 
 fn changes(app: &balaur_core::App, field: balaur_core::hecs::Entity) -> usize {
-    balaur_core::events::delivered_from(&app.engine, field, balaur_ui::CHANGE_EVENT).len()
+    balaur_core::events::delivered_from(&app.engine, field, balaur_ui::VALUE_CHANGED_EVENT).len()
 }
 
 fn chord(key: egui::Key, modifiers: egui::Modifiers) -> Vec<egui::Event> {

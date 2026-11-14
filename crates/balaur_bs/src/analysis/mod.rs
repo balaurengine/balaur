@@ -24,6 +24,8 @@ pub enum Kind {
     Property,
     Keyword,
     Constant,
+    /// An `event` a file declares its node sends.
+    Event,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -32,6 +34,9 @@ pub struct Completion {
     pub kind: Kind,
     /// A signature or a type.
     pub detail: String,
+    /// The engine function it is, `physics2d::raycast` or
+    /// `node.body2d.apply_impulse`, for a host to say what it does; else empty.
+    pub key: String,
 }
 
 const KEYWORDS: [&str; 26] = [
@@ -177,6 +182,7 @@ impl Analysis {
                     label: name.to_string(),
                     kind: Kind::Function,
                     detail: host_signature(name, f, false),
+                    key: f.key.clone(),
                 })
             })
             .collect();
@@ -186,6 +192,7 @@ impl Analysis {
                     label: name.to_string(),
                     kind: Kind::Struct,
                     detail: record_detail(key, fields),
+                    key: String::new(),
                 });
             }
         }
@@ -195,6 +202,7 @@ impl Analysis {
                     label: name.to_string(),
                     kind: Kind::Constant,
                     detail: constant_detail(key, v),
+                    key: String::new(),
                 });
             }
         }
@@ -212,6 +220,7 @@ impl Analysis {
                     label: name.to_string(),
                     kind: Kind::Function,
                     detail: fn_signature(f),
+                    key: String::new(),
                 });
             }
         }
@@ -221,6 +230,7 @@ impl Analysis {
                     label: name.to_string(),
                     kind: Kind::Struct,
                     detail: format!("struct {s}"),
+                    key: String::new(),
                 });
             }
         }
@@ -267,8 +277,30 @@ impl Analysis {
     /// What the name at `line`, `col` is: a type or a signature.
     pub fn hover(&self, line: u32, col: u32) -> Option<String> {
         let (prog, word, start) = self.word(line, col)?;
-        let scope = scope::at(&prog, &self.host, Pos { line, col });
+        if let Some(event) = prog
+            .events
+            .iter()
+            .find(|event| event.name == word && event.pos.line == line)
+        {
+            let doc = if event.doc.is_empty() {
+                String::new()
+            } else {
+                format!("/// {}\n", event.doc)
+            };
+            return Some(format!("{doc}{} {word}", words::parse::EVENT));
+        }
         let head = &self.src[..start];
+        // A function's name where it is declared: a method's too, which no bare
+        // name reaches. The file's own come first, before what it links.
+        if head.trim_end().ends_with(words::keywords::FN)
+            && let Some(f) = prog
+                .fns
+                .iter()
+                .find(|f| f.name == word && f.pos.line == line)
+        {
+            return Some(fn_signature(f));
+        }
+        let scope = scope::at(&prog, &self.host, Pos { line, col });
         if let Some(recv) = head.strip_suffix('.') {
             let r = scope.resolve(&crate::parse::parse_expr(scan::receiver(recv)).ok()?)?;
             return scope
@@ -331,6 +363,7 @@ fn names(scope: &types::Scope<'_>, host: &HostApi) -> Vec<Completion> {
             label: label.to_string(),
             kind,
             detail,
+            key: String::new(),
         });
     };
     for (n, t, _) in scope.vars.iter().rev() {
@@ -378,5 +411,7 @@ fn names(scope: &types::Scope<'_>, host: &HostApi) -> Vec<Completion> {
     for k in KEYWORDS {
         add(k, Kind::Keyword, String::new());
     }
+    // Not one of `KEYWORDS`: a word only where an item starts, a name elsewhere.
+    add(words::parse::EVENT, Kind::Keyword, String::new());
     out
 }

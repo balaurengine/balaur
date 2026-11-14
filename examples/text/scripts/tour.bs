@@ -15,7 +15,7 @@ const RADIUS: float = 11.0;
 
 impl Tour {
     pub fn init() {
-        render::set_background(0.09, 0.10, 0.14);
+        render::set_background(color(0.09, 0.10, 0.14, 1.0));
         self.score = 0;
         self.at = 0.0;
     }
@@ -26,7 +26,9 @@ impl Tour {
         let angle = math::sin(self.at) * (ARC / 8.0);
         let x = math::sin(angle) * RADIUS;
         let z = math::cos(angle) * RADIUS;
-        self.node.get_node("Camera").transform.position = vec3(x, HEIGHT, z);
+        let camera = self.node.get_node("Camera");
+        camera.transform.position = vec3(x, HEIGHT, z);
+        camera.transform.look_at(vec3(0.0, HEIGHT, 0.0));
         // A score on a sign: the node keeps its style, the script the number.
         self.score += 1;
         let node = scene::get_node("Tour/Nameplate");
@@ -34,7 +36,7 @@ impl Tour {
             node.text3d.text = "a name\nfollows you · {self.score / 60}";
         }
         // The immediate calls need no node: a label for one frame, over the floor.
-        render::draw_text_3d(0.0, -4.4, 0.0, "drawn for one frame, from a script", render::TextOptions {
+        render::draw_text_3d(vec3(0.0, -4.4, 0.0), "drawn for one frame, from a script", render::TextOptions {
             font_size: 32.0,
             color: color(0.55, 0.58, 0.68, 1.0),
             text_align: "center",

@@ -48,6 +48,8 @@ pub(crate) mod keys {
     pub(crate) const ACTS_ON: &str = "acts_on";
     pub(crate) const CONSTANTS: &str = "constants";
     pub(crate) const DOC: &str = "doc";
+    pub(crate) const EDITOR: &str = "editor";
     pub(crate) const FUNCTIONS: &str = "functions";
+    pub(crate) const METHODS: &str = "methods";
     pub(crate) const NAME: &str = "name";
 }

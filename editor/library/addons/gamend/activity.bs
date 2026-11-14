@@ -53,7 +53,7 @@ pub fn started(request: int, kind: str, what: str, args: any) -> int {
     let seq = push({ REQUEST: request, KIND: kind, WHAT: what, STATUS: WAITING, MS: nil, ARGS: kept(args), REPLY: nil });
     let waiting = waiting();
     waiting["{request}"] = seq;
-    script::store(WAITING_KEY, waiting);
+    engine::store(WAITING_KEY, waiting);
     request
 }
 
@@ -83,7 +83,7 @@ pub fn settle() {
             finish(seq, reply);
         }
     }
-    script::store(WAITING_KEY, left);
+    engine::store(WAITING_KEY, left);
 }
 
 /// Every row, newest first.
@@ -94,7 +94,7 @@ pub fn rows() -> [Entry] {
     let first = max(stored_int(FROM_KEY), last - KEPT);
     let seq = last;
     while seq > first {
-        let row = script::stored(ROW_KEY + "{seq % KEPT}");
+        let row = engine::stored(ROW_KEY + "{seq % KEPT}");
         if row.kind() == types::KIND_MAP && row[SEQ].as_int() == seq {
             out.push(entry(row));
         }
@@ -105,21 +105,21 @@ pub fn rows() -> [Entry] {
 
 /// Forget the rows kept so far; calls still waiting are forgotten too.
 pub fn clear() {
-    script::store(FROM_KEY, count());
-    script::store(WAITING_KEY, {});
+    engine::store(FROM_KEY, count());
+    engine::store(WAITING_KEY, {});
 }
 
 fn push(row: any) -> int {
     let seq = count() + 1;
     row[SEQ] = seq;
-    script::store(ROW_KEY + "{seq % KEPT}", row);
-    script::store(COUNT_KEY, seq);
+    engine::store(ROW_KEY + "{seq % KEPT}", row);
+    engine::store(COUNT_KEY, seq);
     let plain = seq - DETAILED;
-    let older = script::stored(ROW_KEY + "{plain % KEPT}");
+    let older = engine::stored(ROW_KEY + "{plain % KEPT}");
     if plain > 0 && older.kind() == types::KIND_MAP && older[SEQ].as_int() == plain {
         older[ARGS] = nil;
         older[REPLY] = nil;
-        script::store(ROW_KEY + "{plain % KEPT}", older);
+        engine::store(ROW_KEY + "{plain % KEPT}", older);
     }
     seq
 }
@@ -128,7 +128,7 @@ fn push(row: any) -> int {
 /// login, or why it failed; and its round trip where the engine measured one.
 fn finish(seq: int, reply: any) {
     let key = ROW_KEY + "{seq % KEPT}";
-    let row = script::stored(key);
+    let row = engine::stored(key);
     if row.kind() != types::KIND_MAP || row[SEQ].as_int() != seq {
         return;
     }
@@ -146,7 +146,7 @@ fn finish(seq: int, reply: any) {
     if seq > count() - DETAILED {
         row[REPLY] = kept(if kind == REST { reply["body"] } else { reply });
     }
-    script::store(key, row);
+    engine::store(key, row);
 }
 
 fn entry(row: any) -> Entry {
@@ -176,7 +176,7 @@ fn kept(payload: any) -> any {
 }
 
 fn waiting() -> any {
-    let held = script::stored(WAITING_KEY);
+    let held = engine::stored(WAITING_KEY);
     if held.kind() == types::KIND_MAP { held } else { {} }
 }
 
@@ -185,7 +185,7 @@ fn count() -> int {
 }
 
 fn stored_int(key: str) -> int {
-    let held = script::stored(key);
+    let held = engine::stored(key);
     if held.kind() == types::KIND_INT { held.as_int() } else { 0 }
 }
 

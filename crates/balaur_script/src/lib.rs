@@ -12,7 +12,9 @@ mod tools;
 mod value;
 mod vocabulary;
 
-pub use bindings::{BoundFn, Call, Declared, Entry, FnDoc, Module, RecordDoc, TypedFn};
+pub use bindings::{
+    BoundFn, Call, Declared, Entry, FnDoc, Module, RecordDoc, TypedFn, handle_method,
+};
 pub use debug::{Frame, Pause, PauseReason, StepMode};
 pub use language::{ScriptCompiler, ScriptHost};
 pub use tools::{Diagnostic, Item, LanguageTools, Location, Symbol, tool_answer};

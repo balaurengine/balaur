@@ -346,7 +346,10 @@ pub(crate) fn write_instance(
     if !appearance.visible {
         return;
     }
-    let [r, g, b, a] = crate::sync_2d::modulate(renderable.color, appearance.tint.to_array());
+    let color = crate::film::color(crate::sync_2d::modulate(
+        renderable.color,
+        appearance.tint.to_array(),
+    ));
     let (position, deformation) = pose(&global);
     let Some(group) = batches.groups.get_mut(group) else {
         return;
@@ -354,7 +357,7 @@ pub(crate) fn write_instance(
     group.pending.push(kiss3d::scene::InstanceData3d {
         position,
         deformation,
-        color: kiss3d::prelude::Color::new(r, g, b, a),
+        color,
         lines_color: None,
         lines_width: None,
         points_color: None,

@@ -15,21 +15,21 @@ in [components.md](./components.md).
 <tr><td><code>fixed_update(dt)</code></td><td>Every fixed step, with the step&#x27;s length; not while a pause or the node&#x27;s <code>process</code> mode holds it.</td></tr>
 <tr><td><code>on_free()</code></td><td>Once, as the node is freed or its script detached.</td></tr>
 <tr><td><code>on_hot_reload()</code></td><td>After the script&#x27;s file changed and it was rebuilt, with its state kept.</td></tr>
-<tr><td><code>on_pointer_enter()</code></td><td>The pointer came over the node.</td></tr>
-<tr><td><code>on_pointer_exit()</code></td><td>The pointer left the node.</td></tr>
-<tr><td><code>on_pointer_down(button)</code></td><td>A button went down over the node, then over every other node unless one answers <code>true</code>.</td></tr>
-<tr><td><code>on_pointer_up(button)</code></td><td>A button came up, reaching nodes as <code>on_pointer_down</code> does.</td></tr>
-<tr><td><code>on_pointer_click(button)</code></td><td>A press and release over the same node.</td></tr>
-<tr><td><code>on_pointer_drag(dx, dy)</code></td><td>The pointer moved with a button held, having pressed on the node.</td></tr>
-<tr><td><code>on_pointer_drop(node)</code></td><td>A drag ended over this node, from the node given.</td></tr>
-<tr><td><code>on_key_down(key)</code></td><td>A key went down; every node hears it, the last child first, until one answers <code>true</code>.</td></tr>
-<tr><td><code>on_key_up(key)</code></td><td>A key came up, reaching nodes as <code>on_key_down</code> does.</td></tr>
-<tr><td><code>on_action(name)</code></td><td>A declared input action was pressed, reaching nodes as <code>on_key_down</code> does.</td></tr>
-<tr><td><code>on_action_released(name)</code></td><td>A declared input action was let go, reaching nodes as <code>on_key_down</code> does.</td></tr>
-<tr><td><code>on_scroll(dx, dy)</code></td><td>The wheel turned, over the node or, over nothing, to every node.</td></tr>
-<tr><td><code>on_resize(width, height)</code></td><td>The window&#x27;s size, told to every node once the window first has one and whenever it changes.</td></tr>
-<tr><td><code>on_variable_changed(name, value)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
-<tr><td><code>on_state_changed(was, now)</code></td><td>The node&#x27;s <code>states</code> moved to another state.</td></tr>
+<tr><td><code>on_pointer_enter(nil, source)</code></td><td>The pointer came over the node.</td></tr>
+<tr><td><code>on_pointer_exit(nil, source)</code></td><td>The pointer left the node.</td></tr>
+<tr><td><code>on_pointer_down(button, source)</code></td><td>A button went down over the node, then over every other node unless one answers <code>true</code>.</td></tr>
+<tr><td><code>on_pointer_up(button, source)</code></td><td>A button came up, reaching nodes as <code>on_pointer_down</code> does.</td></tr>
+<tr><td><code>on_pointer_click(button, source)</code></td><td>A press and release over the same node, or a click on its widget.</td></tr>
+<tr><td><code>on_pointer_drag(dx, dy, source)</code></td><td>The pointer moved with a button held, having pressed on the node.</td></tr>
+<tr><td><code>on_pointer_drop(node, source)</code></td><td>A drag ended over this node, from the node given.</td></tr>
+<tr><td><code>on_key_down(key, source)</code></td><td>A key went down; every node hears it, the last child first, until one answers <code>true</code>.</td></tr>
+<tr><td><code>on_key_up(key, source)</code></td><td>A key came up, reaching nodes as <code>on_key_down</code> does.</td></tr>
+<tr><td><code>on_action_pressed(name, source)</code></td><td>A declared input action was pressed, reaching nodes as <code>on_key_down</code> does.</td></tr>
+<tr><td><code>on_action_released(name, source)</code></td><td>A declared input action was let go, reaching nodes as <code>on_key_down</code> does.</td></tr>
+<tr><td><code>on_scroll(dx, dy, source)</code></td><td>The wheel turned, over the node or, over nothing, to every node.</td></tr>
+<tr><td><code>on_resize(width, height, source)</code></td><td>The window&#x27;s size, told to every node once the window first has one and whenever it changes.</td></tr>
+<tr><td><code>on_variable_changed(name, value, source)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
+<tr><td><code>on_state_changed(was, now, source)</code></td><td>The node&#x27;s <code>states</code> moved to another state.</td></tr>
 <tr><td><code>on_paused_changed(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>
 <tr><td><code>on_parked_changed(parked)</code></td><td>A <code>scene.switch</code> parked the script&#x27;s scene, or brought it back; nothing else reaches it between the two, and <code>init</code> does not run again, so coming back is where it catches up.</td></tr>
 <tr><td><code>on_focused_changed(focused)</code></td><td>The window came to the front or left it, told to every script.</td></tr>
@@ -61,5 +61,43 @@ Every node announces these, whatever its components: its own script hears
 <tr><td><code>child_removed</code></td><td>the child; freed, it is still readable in this node&#x27;s own hook</td></tr>
 <tr><td><code>renamed</code></td><td>the name it had; <code>name()</code> says the new one</td></tr>
 <tr><td><code>reparented</code></td><td>the parent it left; <code>parent()</code> says the new one</td></tr>
+<tr><td><code>tween_finished</code></td><td>the tween&#x27;s handle</td></tr>
+<tr><td><code>tween_looped</code></td><td><code>{ tween, played }</code></td></tr>
+<tr><td><code>tween_step</code></td><td><code>{ tween, step }</code></td></tr>
+</tbody>
+</table>
+
+## Only a listener
+
+The engine says these from no node, so no script hears one unasked and no
+scene row answers it. A script asks with `events::listen(self.node, name)`
+and hears `on_<event>(payload)`, or awaits `events::next(name)`. Most are
+said only while someone listens.
+
+<table>
+<thead><tr><th>event</th><th>payload</th><th>when</th></tr></thead>
+<tbody>
+<tr><td><code>logged</code></td><td>the log&#x27;s running count</td><td>Lines were logged since the last frame.</td></tr>
+<tr><td><code>assets_reloaded</code></td><td>the asset cache&#x27;s generation</td><td>A file the asset cache holds was reloaded or declared stale.</td></tr>
+<tr><td><code>files_changed</code></td><td>the paths, as a list; empty when the watcher lost count</td><td>A burst of file writes under a directory <code>engine::watch</code> follows has ended.</td></tr>
+<tr><td><code>debugger_stopped</code></td><td>where a script is stopped</td><td>A script stopped, or stopped somewhere else.</td></tr>
+<tr><td><code>debugger_resumed</code></td><td>nil</td><td>The script the debugger last said was stopped went on.</td></tr>
+<tr><td><code>changed</code></td><td>a list of <code>{ node, kind, .. }</code> maps</td><td>A write changed the scene since the last frame; heard from a node, the entries under it alone.</td></tr>
+<tr><td><code>platform_event</code></td><td>who is playing now</td><td>The player signed out in the OS, or signed in as someone else.</td></tr>
+<tr><td><code>apple_event</code></td><td>what arrived, carrying request 0</td><td>Something nobody asked for arrived: a notification tapped, a URL opened, a push token, a transaction from another device.</td></tr>
+<tr><td><code>browser_event</code></td><td>the message, as the parent frame posted it</td><td>The page&#x27;s parent frame posted a message.</td></tr>
+<tr><td><code>http_progress</code></td><td>the progress, with the <code>request</code> it belongs to</td><td>A download or a long body moved on.</td></tr>
+<tr><td><code>multiplayer_event</code></td><td>a map whose <code>kind</code> is an <code>EVENT_*</code> constant</td><td>A match had something to say.</td></tr>
+<tr><td><code>camera_moved</code></td><td>nil</td><td>The camera a frame was drawn with moved, or the window it was drawn into did.</td></tr>
+<tr><td><code>screenshot_saved</code></td><td>the path</td><td>A screenshot&#x27;s file was written.</td></tr>
+<tr><td><code>screenshot_failed</code></td><td><code>{ path, error }</code></td><td>A screenshot came to no file.</td></tr>
+<tr><td><code>pasted</code></td><td>the text</td><td>Text was pasted where no field took it.</td></tr>
+<tr><td><code>image_pasted</code></td><td><code>{ width, height }</code>; <code>ui::save_pasted_image</code> writes it out</td><td>An image was pasted where no field took it.</td></tr>
+<tr><td><code>pointer_moved</code></td><td>where the pointer is in window pixels, <code>[x, y]</code></td><td>The pointer moved.</td></tr>
+<tr><td><code>pointer_pressed</code></td><td><code>{ button, x, y }</code></td><td>A button went down anywhere, the UI included.</td></tr>
+<tr><td><code>pointer_released</code></td><td><code>{ button, x, y }</code></td><td>A button came up anywhere, the UI included.</td></tr>
+<tr><td><code>pointer_scrolled</code></td><td>the turn, <code>[x, y]</code></td><td>The wheel turned.</td></tr>
+<tr><td><code>pointer_gestured</code></td><td><code>{ scale, x, y, pan_x, pan_y }</code>, <code>scale</code> zero for a pan alone</td><td>Two fingers pinched or panned.</td></tr>
+<tr><td><code>files_dropped</code></td><td>the files&#x27; paths, as a list</td><td>Files were dropped on the window.</td></tr>
 </tbody>
 </table>

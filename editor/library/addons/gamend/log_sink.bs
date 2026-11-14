@@ -24,15 +24,15 @@ impl LogSink {
 
     fn update(dt: float) {
         logs::pump(self.sink, self.node, dt);
-        if script::stored(FLUSH_KEY).text() == YES {
-            script::store(FLUSH_KEY, "");
+        if engine::stored(FLUSH_KEY).text() == YES {
+            engine::store(FLUSH_KEY, "");
             logs::flush(self.sink, self.node);
         }
         // Twice a second is enough for a person reading the dock.
         self.report_in -= 1;
         if self.report_in <= 0 {
             self.report_in = 30;
-            script::store(REPORT_KEY, logs::report(self.sink));
+            engine::store(REPORT_KEY, logs::report(self.sink));
         }
     }
 

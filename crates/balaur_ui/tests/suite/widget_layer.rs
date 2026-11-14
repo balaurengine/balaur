@@ -854,7 +854,7 @@ fn clicking_a_tab_writes_the_pages_node_name_and_says_so() {
         "a tab click wrote the page's label, not its node name"
     );
     assert_eq!(
-        balaur_core::events::delivered_from(&app.engine, tabs, balaur_ui::CHANGE_EVENT),
+        balaur_core::events::delivered_from(&app.engine, tabs, balaur_ui::VALUE_CHANGED_EVENT),
         vec![balaur_script::Value::Str("second".into())],
         "the page change is the tab's `change`, carrying the page's name"
     );

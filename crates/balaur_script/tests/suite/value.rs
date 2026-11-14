@@ -158,3 +158,31 @@ fn a_value_of_the_wrong_kind_names_both() {
         "{err}"
     );
 }
+
+#[test]
+fn a_handle_method_is_the_function_without_its_components_name() {
+    use balaur_script::handle_method;
+    for (component, function, method) in [
+        ("softbody2d", "softbody_area", "area"),
+        ("softbody3d", "add_softbody_force", "add_force"),
+        ("softbody2d", "tear_softbody", "tear"),
+        ("collider3d", "collider_mass_properties", "mass_properties"),
+        ("state_machine", "set_state_machine_speed", "set_speed"),
+    ] {
+        assert_eq!(handle_method(component, function), method);
+    }
+}
+
+#[test]
+fn a_handle_method_keeps_a_name_that_only_resembles_its_components() {
+    use balaur_script::handle_method;
+    for (component, function) in [
+        ("body2d", "apply_impulse"),
+        ("softbody2d", "softbody"),
+        ("body3d", "softbody_area"),
+        ("states", "set_state"),
+        ("state_machine", "machine_state"),
+    ] {
+        assert_eq!(handle_method(component, function), function);
+    }
+}

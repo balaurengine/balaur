@@ -58,14 +58,14 @@ const NETWORK_KEY: str = "gamend:network";
 /// that never calls this talks to. Answers the server's url.
 pub fn configure(url: str?, plugin: str) -> str {
     if plugin != "" {
-        script::store(PLUGIN_KEY, plugin);
+        engine::store(PLUGIN_KEY, plugin);
     }
     gamend::configure(url)
 }
 
 /// The server plugin this game's hooks live in.
 pub fn plugin() -> str {
-    let named = script::stored(PLUGIN_KEY);
+    let named = engine::stored(PLUGIN_KEY);
     if named.kind() == types::KIND_STRING && named.as_str() != "" {
         return named.as_str();
     }
@@ -141,8 +141,8 @@ pub fn route(node: Node, e: any) -> bool {
 }
 
 pub fn close(socket: int) -> bool {
-    script::store(TOPICS_KEY, {});
-    script::store(KEYS_KEY, {});
+    engine::store(TOPICS_KEY, {});
+    engine::store(KEYS_KEY, {});
     gamend::close(socket)
 }
 
@@ -153,14 +153,14 @@ pub fn join(socket: int, topic: str) -> int {
     let held = joined();
     if !contains(held, topic) {
         held.push(topic);
-        script::store(TOPICS_KEY, held);
+        engine::store(TOPICS_KEY, held);
     }
     core::join(socket, topic)
 }
 
 /// Leave a topic and drop it from the record.
 pub fn leave(socket: int, topic: str) -> int {
-    script::store(TOPICS_KEY, without(joined(), topic));
+    engine::store(TOPICS_KEY, without(joined(), topic));
     core::leave(socket, topic)
 }
 
@@ -213,7 +213,7 @@ pub fn register_kv(socket: int, key: str) -> bool {
     let held = registered();
     if !contains(held, key) {
         held.push(key);
-        script::store(KEYS_KEY, held);
+        engine::store(KEYS_KEY, held);
     }
     core::push(socket, user_topic(), "kv:subscribe", { KEY: key }) > 0
 }
@@ -222,7 +222,7 @@ pub fn unregister_kv(socket: int, key: str) -> bool {
     if socket <= 0 {
         return false;
     }
-    script::store(KEYS_KEY, without(registered(), key));
+    engine::store(KEYS_KEY, without(registered(), key));
     core::push(socket, user_topic(), "kv:unsubscribe", { KEY: key }) > 0
 }
 
@@ -317,10 +317,10 @@ pub async fn write_deduped(socket: int, key: str, value: any, hook: str, args: a
     }
     let held = writes();
     held[key] = sent;
-    script::store(WRITES_KEY, held);
+    engine::store(WRITES_KEY, held);
     let reply = await call(socket, hook, args);
     if writes()[key].text() == sent {
-        script::store(WRITES_KEY, dropped(writes(), key));
+        engine::store(WRITES_KEY, dropped(writes(), key));
     }
     Write { skipped: false, reply: reply }
 }
@@ -345,37 +345,37 @@ pub fn sync_lobby_channel(socket: int, lobby_id: str) -> str {
 pub fn keep_row(key: str, value: any) {
     let held = rows();
     held[key] = value;
-    script::store(ROWS_KEY, held);
+    engine::store(ROWS_KEY, held);
 }
 
 /// Forget one row, or all of them: what a sign-out does.
 pub fn clear_row(key: str) {
-    script::store(ROWS_KEY, dropped(rows(), key));
+    engine::store(ROWS_KEY, dropped(rows(), key));
 }
 
 pub fn clear_rows() {
-    script::store(ROWS_KEY, {});
+    engine::store(ROWS_KEY, {});
 }
 
 /// `"open"`, `"reconnecting"` or `"failed"`. The socket's own events move the
 /// first two as `route` sees them; `fail_network` is what moves it to the
 /// third.
 pub fn network_state() -> str {
-    let held = script::stored(NETWORK_KEY);
+    let held = engine::stored(NETWORK_KEY);
     if held.kind() == types::KIND_STRING { held.as_str() } else { OPEN }
 }
 
 /// Say the connection is gone: what a game calls when a request it needed
 /// failed and it wants its offline screen. `retry_network` is the way back.
 pub fn fail_network() {
-    script::store(NETWORK_KEY, FAILED);
+    engine::store(NETWORK_KEY, FAILED);
 }
 
 /// Cut the socket so the worker opens it again, and report reconnecting
 /// until it does. False when the socket was already gone, which is when a
 /// caller opens a new one with `connect`.
 pub fn retry_network(socket: int) -> bool {
-    script::store(NETWORK_KEY, RECONNECTING);
+    engine::store(NETWORK_KEY, RECONNECTING);
     gamend::interrupt(socket)
 }
 
@@ -398,39 +398,39 @@ fn keep_socket_event(kind: str, e: any) {
     if kind == MESSAGE {
         activity::noted(kind, e[TOPIC].text() + " " + e[EVENT].text(), e[PAYLOAD]);
     } else if kind == RECONNECTING {
-        activity::noted(kind, "try {e["attempt"].as_int()} in {e["wait"].as_float()}s: {e[REASON].text()}", nil);
+        activity::noted(kind, "try {e["attempt"].as_int()} in {e["wait"].as_float()}s: {e[REASON].text()}");
     } else if kind == REOPENED {
         let lost = e["lost"];
         let what = if lost.len() == 0 { "every topic joined again" } else { "refused again: " + json::encode(lost) };
-        activity::noted(kind, what, nil);
+        activity::noted(kind, what);
     } else if kind == CLOSED || kind == ERROR {
-        activity::noted(kind, e[REASON].text(), nil);
+        activity::noted(kind, e[REASON].text());
     }
 }
 
 fn note_socket(kind: str) {
     if kind == RECONNECTING {
-        script::store(NETWORK_KEY, RECONNECTING);
+        engine::store(NETWORK_KEY, RECONNECTING);
     } else if kind == OPEN || kind == REOPENED {
-        script::store(NETWORK_KEY, OPEN);
+        engine::store(NETWORK_KEY, OPEN);
     } else if kind == CLOSED {
-        script::store(NETWORK_KEY, FAILED);
+        engine::store(NETWORK_KEY, FAILED);
     }
 }
 
 fn rows() -> any {
-    let held = script::stored(ROWS_KEY);
+    let held = engine::stored(ROWS_KEY);
     if held.kind() == types::KIND_MAP { held } else { {} }
 }
 
 fn writes() -> any {
-    let held = script::stored(WRITES_KEY);
+    let held = engine::stored(WRITES_KEY);
     if held.kind() == types::KIND_MAP { held } else { {} }
 }
 
 /// A list of names the store holds, as names.
 fn stored_list(key: str) -> [str] {
-    let held = script::stored(key);
+    let held = engine::stored(key);
     let out: [str] = [];
     for i in 0..held.len() {
         out.push(held[i].text());

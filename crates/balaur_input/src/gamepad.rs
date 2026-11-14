@@ -3,7 +3,7 @@
 //!
 //! Same shape as the rest of input: a per-frame snapshot scripts read through
 //! `input.*`, with neutral answers when there is no pad. A backend (gilrs, on
-//! the thread in `pad_thread.rs`) or a script (`input.feed_gamepad`) reports
+//! the thread in `pad_thread.rs`) or a script (`input.set_gamepad`) reports
 //! changes as [`PadEvent`]s, and this file turns them into the snapshot by the
 //! contract in `docs/PLAN-input.md`: one deadzone, a threshold on pressure,
 //! every edge kept, repeat counted in tick time.

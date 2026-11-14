@@ -21,7 +21,7 @@ Built:
 
 | Have | Where |
 | --- | --- |
-| Components attached by name, and presets that attach several: `scene.apply_preset(node, "rigid_body2d")` | `balaur_core/src/engine_api.rs` |
+| Components attached by name, `node.set_component("body2d", ..)`, and the editor's presets, which attach several | `balaur_core/src/node_api.rs`, `editor/presets.toml` |
 | Binding rows: an event, a `when` over scene variables, one of twelve actions, a target | `balaur_core/src/bindings.rs` |
 | The Events view that authors those rows, and Convert to script, which writes the Rune a row equals | `editor/scripts/events.bs` |
 | Pointer, key, action, scroll and resize hooks on any drawn node | `balaur/src/interact.rs` |
@@ -75,10 +75,10 @@ The set to ship, each under thirty lines and each with `exports()`:
 and click to move cameras, follow, patrol a path, spawner, timer, health and
 damage, pickup, parallax, turntable, hover highlight.
 
-The same files are `docs/PLAN-interactivity.md` step 5. A rig preset is one
-of these scripts plus the component it needs, so `apply_preset("orbit_camera")`
-attaches `camera` and this file, and a project that outgrows the preset opens
-the script it already has.
+The same files are `docs/PLAN-interactivity.md` step 5. A rig is one of
+these scripts plus the component it needs, in a library scene: the orbit rig
+is `camera` and this file, and a project that outgrows the rig opens the
+script it already has.
 
 ### B. A graph writes Rune
 

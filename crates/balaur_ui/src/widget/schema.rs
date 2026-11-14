@@ -129,23 +129,27 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
 /// Build the [`Widget`] whole from the properties and the components beside
 /// them.
 fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
-    let mut next = {
+    let (mut next, fresh) = {
         let world = eng.world();
         let Ok(asked) = world.get::<&WidgetProperties>(entity) else {
             return Ok(());
         };
         let mut next = widget_of(&asked);
         crate::widget::beside::put_all(&world, entity, &asked, &mut next);
-        next.classes = world
-            .get::<&Widget>(entity)
-            .ok()
-            .and_then(|held| held.classes.clone());
-        next
+        // What the properties do not hold is kept from the widget before.
+        let held = world.get::<&Widget>(entity).ok();
+        next.classes = held.as_ref().and_then(|held| held.classes.clone());
+        next.hears_click = held.as_ref().is_some_and(|held| held.hears_click);
+        (next, held.is_none())
     };
     dress(eng, &mut next);
     eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))?;
     crate::widget::arena::widget_changed(entity);
+    // A row or a script may have been on the node before its widget was.
+    if fresh {
+        balaur_core::events::hearers_may_have_changed(eng, entity);
+    }
     Ok(())
 }
 
@@ -282,6 +286,7 @@ pub(crate) fn for_classes(
     crate::widget::beside::put_class_rows(&world, entity, &merged.kind.0, &beside, &mut classed);
     drop(world);
     classed.classes.clone_from(&widget.classes);
+    classed.hears_click = widget.hears_click;
     dress(eng, &mut classed);
     Some(classed)
 }
@@ -403,11 +408,6 @@ cache_fields! {
         k::FONT_STYLE => widget.font_style = asked.font_style.0.clone();
         k::TEXT_KEY => widget.text_key = asked.text_key.clone();
         k::TOOLTIP => widget.tooltip = asked.tooltip.clone();
-        k::ON_CLICK => widget.on_click = asked.on_click.clone();
-        k::ON_CHANGE => widget.on_change = asked.on_change.clone();
-        k::ON_FOCUS => widget.on_focus = asked.on_focus.clone();
-        k::ON_DOUBLE_CLICK => widget.on_double_click = asked.on_double_click.clone();
-        k::ON_BLUR => widget.on_blur = asked.on_blur.clone();
         k::INTERACTIVE => widget.pointer_through = !asked.interactive;
         k::ON_TOP => widget.on_top = asked.on_top;
         k::ANNOUNCE => widget.announce = asked.announce;

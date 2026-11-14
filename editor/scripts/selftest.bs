@@ -38,6 +38,7 @@ use physics;
 use polygon;
 use pool;
 use populate;
+use presets;
 use ragdoll;
 use scatter;
 use recipes;
@@ -544,19 +545,57 @@ pub fn node_picker(state: &mut editor::State) {
     let field = textedit::view(state);
     check(field.open && field.text == "Text", "and opens ready to type over ({field.open}, '{field.text}')");
     textedit::close(state);
+    // A game's own recipe, in its `editor/presets.toml`, is a row the picker builds.
+    let folder = state.game_root + "/editor";
+    fs::create_directory(folder);
+    fs::write(folder + "/presets.toml", "[marker2d]\ntags = [\"2d\"]\ncomponents = [{{ component = \"shape2d\", shape = {{ kind = \"circle\" }} }}]\n");
+    selection::only(state, 0);
+    newnode::open(state);
+    let offered = false;
+    for row in newnode::catalogue(state) {
+        if row.name == "marker2d" && row.preset {
+            offered = true;
+            newnode::place(state, row);
+            break;
+        }
+    }
+    let marker = model::node(state, state.selected);
+    check(offered && marker.has_component(components::SHAPE2D), "a game's editor/presets.toml adds a row the picker builds ({offered})");
+    fs::remove(folder + "/presets.toml");
+}
+
+// Whether a component reads `held` where a recipe set `set`: a table key by
+// key over what the recipe names, a number whichever of int and float it is.
+fn reads_as(held: any, set: any) -> bool {
+    if set.kind() != types::KIND_MAP {
+        return recipes::same(held, set);
+    }
+    if held.kind() != types::KIND_MAP {
+        return false;
+    }
+    for key in set.keys() {
+        if !reads_as(held[key], set[key]) {
+            return false;
+        }
+    }
+    true
 }
 
 /// Every row the node picker offers, preset or component, placed under the
-/// root: it builds what it names, the inspector lists every component it
-/// adds, and a scene of a 2D or 3D row's node alone opens in that view. The
-/// nodes stay, so the frames after draw every one of them.
+/// root: it builds what it names, a preset's node reads back every property
+/// `presets.toml` sets, the inspector lists every component it adds, and a
+/// scene of a 2D or 3D row's node alone opens in that view. The nodes stay,
+/// so the frames after draw every one of them.
 pub fn every_node(state: &mut editor::State) {
     newnode::open(state);
     let rows = newnode::catalogue(state);
     newnode::close(state);
+    let known = presets::all(state);
     let unbuilt: [str] = [];
+    let unset: [str] = [];
     let unlisted: [str] = [];
     let misfiled: [str] = [];
+    let misopened: [str] = [];
     for row in rows {
         let before = state.nodes.len();
         selection::only(state, 0);
@@ -572,7 +611,22 @@ pub fn every_node(state: &mut editor::State) {
             continue;
         }
         let node = model::node(state, state.selected);
-        let wanted = if row.preset { scene::preset_info(row.name).unwrap().components } else { [row.name] };
+        let wanted = [row.name];
+        for preset in known {
+            if !row.preset || preset.name != row.name {
+                continue;
+            }
+            wanted = preset.components;
+            // A soft body is rebuilt from its source, so it keeps its own kind.
+            if recipes::soft_dimension(row.name) != "" {
+                continue;
+            }
+            for component in preset.components {
+                if !reads_as(node.get_component(component), preset.parts[component]) {
+                    unset.push("{row.name}.{component}");
+                }
+            }
+        }
         let listed = inspector::node_components(state);
         for component in wanted {
             if !node.has_component(component) {
@@ -590,11 +644,20 @@ pub fn every_node(state: &mut editor::State) {
             let opened_as = if flat { "2D" } else { "3D" };
             misfiled.push("{row.name} ({row.group} opens as {opened_as})");
         }
+        // Which workspace such a scene opens in: UI for widgets alone, a
+        // touch control among them.
+        let widget = row.group == "UI" || model::facet(node) == model::UI;
+        if (dimensioned || row.group == "UI") && widget != model::nodes_are_interface([node]) {
+            misopened.push("{row.name} ({row.group})");
+        }
     }
     check(rows.len() > 40, "the picker offers every node ({rows.len()} rows)");
+    check(known.len() >= 35, "the picker reads its presets from the editor's data ({known.len()})");
     check(unbuilt.len() == 0, "every row builds what it names; not: {util::join(unbuilt, ", ")}");
+    check(unset.len() == 0, "a preset's node reads back what its recipe sets; not: {util::join(unset, ", ")}");
     check(unlisted.len() == 0, "the inspector lists every component a row adds; not: {util::join(unlisted, ", ")}");
     check(misfiled.len() == 0, "a scene of one 2D or 3D row's node opens in that view; not: {util::join(misfiled, ", ")}");
+    check(misopened.len() == 0, "a scene of one UI row's node opens in the UI workspace, and no other does; not: {util::join(misopened, ", ")}");
 }
 
 // Mutate, undo, redo; assert the document, the mirror and the selection all
@@ -1056,6 +1119,8 @@ fn ragdoll_options(made: Node, root: Node, three: bool) {
 /// begun over a dock moves nothing. The backend's own camera never holds a
 /// button: it would pan from where it last saw the cursor, a drag ago.
 pub fn camera_keeps_pointer(state: &mut editor::State) {
+    // An interface opens in the UI workspace, whose stage has no camera to move.
+    shell::set_workspace(state, defs::WORKSPACE_SCENE);
     state.camera_check = CameraCheck { waited: 0, stage: 0, was: 0.0, drag: nil };
     stepping(state, "camera_check");
 }
@@ -1086,16 +1151,25 @@ pub fn camera_check_step(state: &mut editor::State) {
         camera_drag_step(state, camera_check);
         return;
     }
-    camera_check.stage = 1;
-    // The wheel the editor drives itself, fed into the snapshot it reads. A
-    // fed event lands next frame, and the pose it moves is published the one after.
     let stage = state.layout["stage"];
     let centre_x = stage["x"].as_float() + stage["width"].as_float() / 2.0;
     let centre_y = stage["y"].as_float() + stage["height"].as_float() / 2.0;
+    // The workspace just left holds its widgets over the stage a pass longer.
+    if !viewport::owns_pointer(state, centre_x, centre_y) {
+        camera_check.waited += 1;
+        if camera_check.waited > 30 {
+            state.camera_check = nil;
+            check(false, "the Scene workspace's stage is the viewport's to point at");
+        }
+        return;
+    }
+    camera_check.stage = 1;
+    // The wheel the editor drives itself, fed into the snapshot it reads. A
+    // fed event lands next frame, and the pose it moves is published the one after.
     let per_design = ui::pixels_per_design();
-    input::feed_mouse(centre_x * per_design, centre_y * per_design);
+    input::set_mouse_position(vec2(centre_x * per_design, centre_y * per_design));
     camera_check.was = closeness(state);
-    input::feed_scroll(0.0, flick(viewport::dolly_step()));
+    input::set_scroll_delta(vec2(0.0, flick(viewport::dolly_step())));
 }
 
 // A right-drag fed a frame at a time: where the pointer lands, the press, the
@@ -1112,7 +1186,7 @@ fn camera_drag_step(state: &mut editor::State, camera_check: CameraCheck) {
         let to = [util::min(stage["x"].as_float() + stage["width"].as_float() + 24.0, state.screen_width - 2.0), from[1] - 12.0];
         camera_check.drag = CameraDrag { from: from, to: to, tool: state.tool, world: [], at: nil };
         state.tool = "move";
-        input::feed_mouse(from[0] * pixels_per_point, from[1] * pixels_per_point);
+        input::set_mouse_position(vec2(from[0] * pixels_per_point, from[1] * pixels_per_point));
         camera_check.stage += 1;
         return;
     }
@@ -1120,11 +1194,11 @@ fn camera_drag_step(state: &mut editor::State, camera_check: CameraCheck) {
     if step == 1 {
         drag.world = looked_at(state);
         drag.at = drawn_at(state, drag.world);
-        input::feed_mouse_button(right, true);
+        input::set_mouse_down(right, true);
     } else if step == 2 {
-        input::feed_mouse(drag.to[0] * pixels_per_point, drag.to[1] * pixels_per_point);
+        input::set_mouse_position(vec2(drag.to[0] * pixels_per_point, drag.to[1] * pixels_per_point));
     } else if step == 3 {
-        input::feed_mouse_button(right, false);
+        input::set_mouse_down(right, false);
     } else if step == 4 {
         camera_dragged(state, drag);
         // A press over a dock, dragged onto the middle of the stage.
@@ -1134,14 +1208,14 @@ fn camera_drag_step(state: &mut editor::State, camera_check: CameraCheck) {
             return;
         }
         drag.world = looked_at(state);
-        input::feed_mouse(dock.unwrap()[0] * pixels_per_point, dock.unwrap()[1] * pixels_per_point);
+        input::set_mouse_position(vec2(dock.unwrap()[0] * pixels_per_point, dock.unwrap()[1] * pixels_per_point));
     } else if step == 5 {
-        input::feed_mouse_button(right, true);
+        input::set_mouse_down(right, true);
     } else if step == 6 {
         let stage = state.layout["stage"];
-        input::feed_mouse((stage["x"].as_float() + stage["width"].as_float() / 2.0) * pixels_per_point, (stage["y"].as_float() + stage["height"].as_float() / 2.0) * pixels_per_point);
+        input::set_mouse_position(vec2((stage["x"].as_float() + stage["width"].as_float() / 2.0) * pixels_per_point, (stage["y"].as_float() + stage["height"].as_float() / 2.0) * pixels_per_point));
     } else if step == 7 {
-        input::feed_mouse_button(right, false);
+        input::set_mouse_down(right, false);
     } else {
         let now = looked_at(state);
         let moved = util::abs(now[0] - drag.world[0]) + util::abs(now[1] - drag.world[1]) + util::abs(now[2] - drag.world[2]);
@@ -1189,10 +1263,10 @@ fn dock_point(state: editor::State) -> [float]? {
 fn looked_at(state: editor::State) -> [float] {
     if state.mode2d {
         let camera_2d = render::camera_2d();
-        return [camera_2d.x, camera_2d.y, 0.0];
+        return [camera_2d.center.x, camera_2d.center.y, 0.0];
     }
     let pose = render::camera_pose();
-    [pose[3], pose[4], pose[5]]
+    [pose.target.x, pose.target.y, pose.target.z]
 }
 
 // Where a world point draws, in design px: through the renderer's own matrix
@@ -1200,8 +1274,8 @@ fn looked_at(state: editor::State) -> [float] {
 fn drawn_at(state: editor::State, point: [float]) -> gizmo::Project? {
     if state.mode2d {
         let camera_2d = render::camera_2d();
-        let scale = camera_2d.z / viewport::logical_per_design();
-        return gizmo::Project { x: (point[0] - camera_2d.x) * scale, y: (camera_2d.y - point[1]) * scale };
+        let scale = camera_2d.zoom / viewport::logical_per_design();
+        return gizmo::Project { x: (point[0] - camera_2d.center.x) * scale, y: (camera_2d.center.y - point[1]) * scale };
     }
     let camera = gizmo::Camera {
         eye: [],
@@ -1225,12 +1299,12 @@ fn drawn_at(state: editor::State, point: [float]) -> gizmo::Project? {
 // far the 3D eye stands from what it looks at.
 fn closeness(state: editor::State) -> float {
     if state.mode2d {
-        return render::camera_2d().z;
+        return render::camera_2d().zoom;
     }
     let pose = render::camera_pose();
-    let delta_x = pose[0] - pose[3];
-    let delta_y = pose[1] - pose[4];
-    let delta_z = pose[2] - pose[5];
+    let delta_x = pose.eye.x - pose.target.x;
+    let delta_y = pose.eye.y - pose.target.y;
+    let delta_z = pose.eye.z - pose.target.z;
     1.0 / util::max(math::sqrt(delta_x * delta_x + delta_y * delta_y + delta_z * delta_z), EPSILON)
 }
 
@@ -1804,7 +1878,7 @@ pub fn assets(state: &mut editor::State) {
 /// The Import panel: what it writes beside a picture, and what clearing a key
 /// leaves behind. The panel itself is drawn by the Assets dock; this drives
 /// the same calls its controls do.
-pub fn imports(state: editor::State) {
+pub fn imports(state: &mut editor::State) {
     let root = state.game_root + "/";
     let rel = "selftest-import.png";
     fs::write(root + rel, "not really a png, and never decoded here");
@@ -1878,27 +1952,27 @@ pub fn picking(state: &mut editor::State) {
     let position = found.transform.global_position();
     let name = model::node(state, index).name();
     // Straight down -z at it from well outside anything.
-    let hit = render::pick_ray(position.x, position.y, position.z + 200.0, 0.0, 0.0, -1.0);
+    let hit = render::pick_ray(vec3(position.x, position.y, position.z + 200.0), vec3(0.0, 0.0, -1.0));
     if check(hit.is_valid(), "a ray aimed at '{name}' meets a node") {
         check(model::index_of_live(state, hit) != nil, "and it is one of the document's");
     }
     // The distance too, which decides between two things under the pointer:
     // a gizmo handle yields to an object in front of it.
-    let at = render::pick_ray_at(position.x, position.y, position.z + 200.0, 0.0, 0.0, -1.0);
+    let at = render::pick_ray_at(vec3(position.x, position.y, position.z + 200.0), vec3(0.0, 0.0, -1.0));
     if check(at != nil, "the ray reports what it met and how far ({at})") {
         let met = at.unwrap();
         check(met.at > 0.0 && met.at < 400.0, "at a sane distance along the ray ({met.at})");
         check(model::index_of_live(state, met.node) != nil, "and that node is one of the document's");
     }
-    check(render::pick_ray_at(position.x, position.y, position.z + 200.0, 0.0, 0.0, 1.0) == nil, "a ray pointing away reports no distance either");
+    check(render::pick_ray_at(vec3(position.x, position.y, position.z + 200.0), vec3(0.0, 0.0, 1.0)) == nil, "a ray pointing away reports no distance either");
     // A pick can land on a node the document never named: a mesh's own child,
     // or one a solver owns. The row that owns it is what the click meant.
     check_climbs_to_owner(state);
     // The same ray pointing away meets nothing.
-    let behind = render::pick_ray(position.x, position.y, position.z + 200.0, 0.0, 0.0, 1.0);
+    let behind = render::pick_ray(vec3(position.x, position.y, position.z + 200.0), vec3(0.0, 0.0, 1.0));
     check(!behind.is_valid(), "a ray pointing away from the scene picks nothing");
     // Far to the side, past anything the scene contains.
-    let aside = render::pick_ray(position.x + 10000.0, position.y, position.z + 200.0, 0.0, 0.0, -1.0);
+    let aside = render::pick_ray(vec3(position.x + 10000.0, position.y, position.z + 200.0), vec3(0.0, 0.0, -1.0));
     check(!aside.is_valid(), "a ray beside the scene picks nothing");
     log::info("selftest picking: done");
 }
@@ -2405,15 +2479,36 @@ pub fn tooling(state: &mut editor::State) {
         for one in found {
             names.push(one.label);
         }
-        check(util::contains(names, "apply_impulse"), "physics2d::a offers apply_impulse (got {util::join(names, ", ")})");
+        check(util::contains(names, "active_bodies"), "physics2d::a offers active_bodies (got {util::join(names, ", ")})");
+        check(!util::contains(names, "apply_impulse"), "and not apply_impulse, which a body's handle calls");
         check(found[0].doc != "", "the first completion carries its doc line");
     }
+    // A component handle offers the functions that drive its component.
+    let handle_typed = "    node.body2d.a";
+    let handle = source + "\nfn handle_probe(node: Node) {{\n" + handle_typed + "\n}}\n";
+    let on_handle = script::complete(rel, handle, handle.split("\n").len() - 2, handle_typed.len() + 1);
+    let methods: [str] = [];
+    for one in on_handle {
+        methods.push(one.label);
+    }
+    check(util::contains(methods, "apply_impulse"), "node.body2d.a offers apply_impulse (got {util::join(methods, ", ")})");
     // The popup opens on that caret and closes when it moves off.
     let caret = probe.chars().len() - 3;
     complete::update(state, rel, probe, complete::Caret { index: caret, x: 100.0, y: 100.0 });
     check(state.complete.open, "the popup opens where a caret sits after a module path");
     complete::reset(state);
     check(!state.complete.open, "and closes when it is reset");
+    // The code pane asks as the game's file, which is offered none of the
+    // editor's calls; asked as the editor's own, the same text is.
+    let editors_typed = "    debugger::s";
+    let editors = source + "\nfn editors_probe() {{\n" + editors_typed + "\n}}\n";
+    let editors_line = editors.split("\n").len() - 2;
+    let offered = script::complete(rel, editors, editors_line, editors_typed.len() + 1);
+    check(offered.len() > 0, "the editor's own file is offered `debugger`");
+    let after = editors.chars().len() - 3;
+    complete::update(state, rel, editors, complete::Caret { index: after, x: 100.0, y: 100.0 });
+    check(!state.complete.open, "a game's file is offered nothing of `debugger`");
+    complete::reset(state);
     // Hover: a declared function answers with what the host knows about it.
     let at = line_of_text(source, "fn ");
     if at > 0 {
@@ -2747,42 +2842,51 @@ pub fn gesture_step(state: &mut editor::State) {
     let centre_y = mid[1] * logical;
     let step = 40.0 * logical;
     if frame == 0 {
-        let pose = render::camera_pose();
-        state.gesture_from = [pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]];
-        input::feed_touch(1, centre_x - step, centre_y, "start");
-        input::feed_touch(2, centre_x + step, centre_y, "start");
+        state.gesture_from = gesture_reading(state);
+        input::set_touch(1, vec2(centre_x - step, centre_y), "start");
+        input::set_touch(2, vec2(centre_x + step, centre_y), "start");
         return;
     }
     if frame == 1 {
         // Apart: a pinch out, which walks the eye towards what it looks at.
-        input::feed_touch(1, centre_x - step * 2.0, centre_y, "move");
-        input::feed_touch(2, centre_x + step * 2.0, centre_y, "move");
+        input::set_touch(1, vec2(centre_x - step * 2.0, centre_y), "move");
+        input::set_touch(2, vec2(centre_x + step * 2.0, centre_y), "move");
         return;
     }
     if frame == 3 {
         let before = state.gesture_from;
-        let pose = render::camera_pose();
-        let was = span(before[0] - before[3], before[1] - before[4], before[2] - before[5]);
-        let now = span(pose[0] - pose[3], pose[1] - pose[4], pose[2] - pose[5]);
-        check(now < was - 0.001, "a pinch out walks the camera in ({was} to {now})");
-        state.gesture_from = [pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]];
+        let now = gesture_reading(state);
+        check(now[0] < before[0] * 0.999, "a pinch out walks the camera in ({before[0]} to {now[0]})");
+        state.gesture_from = now;
         // Both fingers the same way: a two-finger drag, which slides the pair.
-        input::feed_touch(1, centre_x - step, centre_y, "move");
-        input::feed_touch(2, centre_x + step * 3.0, centre_y, "move");
+        input::set_touch(1, vec2(centre_x - step, centre_y), "move");
+        input::set_touch(2, vec2(centre_x + step * 3.0, centre_y), "move");
         return;
     }
     if frame == 5 {
         let before = state.gesture_from;
-        let pose = render::camera_pose();
-        let moved = span(pose[3] - before[3], pose[4] - before[4], pose[5] - before[5]);
-        let want = span(before[0] - before[3], before[1] - before[4], before[2] - before[5]);
+        let now = gesture_reading(state);
+        let moved = span(now[1] - before[1], now[2] - before[2], now[3] - before[3]);
         // A finger's own travel, near enough: the world under it moved with
-        // it rather than by a constant nobody picked.
-        check(moved > 0.05 && moved < want, "a two-finger drag slides what it looks at ({moved})");
-        input::feed_touch(1, centre_x, centre_y, "end");
-        input::feed_touch(2, centre_x, centre_y, "end");
+        // it, by less than the view reaches, rather than by a constant nobody picked.
+        check(moved > before[0] * 0.001 && moved < before[0], "a two-finger drag slides what it looks at ({moved})");
+        input::set_touch(1, vec2(centre_x, centre_y), "end");
+        input::set_touch(2, vec2(centre_x, centre_y), "end");
         state.gesture_demo = -1;
     }
+}
+
+// How far the view reaches, then the point it looks at: the eye's distance
+// from its target in 3D, the stage's width in world units in 2D.
+fn gesture_reading(state: editor::State) -> [float] {
+    if state.mode2d {
+        let view = render::camera_2d();
+        let reach = state.layout["stage"]["width"].as_float() / util::max(view.zoom, 0.01);
+        return [reach, view.center.x, view.center.y, 0.0];
+    }
+    let pose = render::camera_pose();
+    let reach = span(pose.eye.x - pose.target.x, pose.eye.y - pose.target.y, pose.eye.z - pose.target.z);
+    [reach, pose.target.x, pose.target.y, pose.target.z]
 }
 
 fn span(delta_x: float, delta_y: float, delta_z: float) -> float {
@@ -4001,14 +4105,15 @@ fn errors_in(text: str) -> [str] {
 
 /// The Events view authors rows and writes the script they are equivalent to.
 pub fn eventviews(state: &mut editor::State) {
+    // A row that goes to a state under a `when`: what the written script is read for.
     let target: int? = nil;
     for index in 0..state.nodes.len() {
-        if model::node(state, index).has_component("bindings") {
+        if events::sets_a_state(model::node(state, index)) {
             target = index;
         }
     }
     if target == nil {
-        log::info("selftest eventviews: this scene has no bindings, skipping");
+        log::info("selftest eventviews: no node here binds a state, skipping");
         return;
     }
     let at = target.unwrap();
@@ -4020,16 +4125,24 @@ pub fn eventviews(state: &mut editor::State) {
     shell::undo(state);
     check(events::rows(state).len() == was, "and undo takes it back");
     let written = events::as_script(state);
-    check(written.contains("pub fn on_pointer_click(button: any)"), "the script it writes declares the hook the rows answer");
+    check(written.contains("pub fn on_pointer_click(button: any, source: Node)"), "the script it writes declares the hook the rows answer");
     check(written.contains(".states.set_state(\"open\")"), "a state row becomes the call that goes to it");
     check(written.contains("scene::variable(\"score\")"), "a `when` becomes the read that fetches the variable");
     check(!written.contains("self.get_node") && !written.contains("self.queue_free"), "a row's call goes through the node, not the script's own fields");
     let problems = errors_in(written);
     check(problems.len() == 0, "and the script it writes compiles: {problems}");
     let own = events::script_of("DoorEvents", [{ "event": events::EMITTED + "died", "action": "free" }]);
-    check(own.contains("pub fn on_died(payload: any)") && own.contains("events::listen(self.node, \"died\", self.node)"), "a row on the node's own event hears it by subscribing: {own}");
+    check(own.contains("pub fn on_died(payload: any, source: Node)") && own.contains("events::listen(self.node, \"died\", self.node)"), "a row on the node's own event hears it by subscribing: {own}");
     let own_problems = errors_in(own);
     check(own_problems.len() == 0, "and compiles: {own_problems}");
+    let calls = events::script_of("PartEvents", [
+        { "event": "pointer_drag", "action": "call", "value": "dragged" },
+        { "event": "pointer_click", "action": "call", "target": "../Screen", "value": "picked" },
+    ]);
+    check(calls.contains("self.call_up(\"dragged\", dx, dy, source);"), "a call naming no target climbs to its method with the hook's values and the node: {calls}");
+    check(calls.contains("self.node.get_node(\"../Screen\").call(\"picked\", button, source);"), "and one naming a target calls it with the same");
+    let call_problems = errors_in(calls);
+    check(call_problems.len() == 0, "and compiles: {call_problems}");
     // The control: the name the old conversion wrote is one the check refuses.
     let refused = errors_in("fn on_emitted:died() {{}}\n");
     check(refused.len() > 0, "the check does refuse a name with a colon in it");
@@ -4546,7 +4659,13 @@ pub fn form_check_step(state: &mut editor::State) {
     }
     let run = state.form_check.unwrap();
     run.waited += 1;
-    if run.waited < SETTLE {
+    // A run of edits ends in a whole fill on a wall clock (`model::follow_changes`), so the
+    // count starts with none open and is read on the step that hears its write.
+    let following = state.inspector_after > 0.0;
+    if run.stage == 2 && following {
+        return;
+    }
+    if run.waited < SETTLE && !(run.stage == 3 && following) {
         return;
     }
     run.waited = 0;
@@ -4623,17 +4742,17 @@ fn form_check_rows(state: &mut editor::State, run: FormCheck, node: Node, stage:
         check(held.x == 0.0 && held.z == 0.0, "and the channels beside it stay");
         let channel = inspector::row_of_line(state, "transform.rotation_euler").get_node("C1/C1");
         check(util::abs(channel.widget_range.value - 90.0) < 0.001, "the row shows degrees ({channel.widget_range.value})");
-        form_search("ignore_nodes");
+        form_search("exclude");
     } else if stage == 12 {
-        check(inspector::line_named(state, "character2d.ignore_nodes").unwrap().count == 1, "an empty list is its head alone");
-        ui::click(inspector::row_of_line(state, "character2d.ignore_nodes").get_node("C1/C1"));
+        check(inspector::line_named(state, "character2d.exclude").unwrap().count == 1, "an empty list is its head alone");
+        ui::click(inspector::row_of_line(state, "character2d.exclude").get_node("C1/C1"));
     } else if stage == 13 {
-        check(node.character2d.ignore_nodes.len() == 1, "a list's chip adds an entry");
-        check(inspector::line_named(state, "character2d.ignore_nodes").unwrap().count == 2, "and the entry is a row");
-        ui::click(inspector::row_of_line(state, "character2d.ignore_nodes/0").get_node("C1/C2"));
+        check(node.character2d.exclude.len() == 1, "a list's chip adds an entry");
+        check(inspector::line_named(state, "character2d.exclude").unwrap().count == 2, "and the entry is a row");
+        ui::click(inspector::row_of_line(state, "character2d.exclude/0").get_node("C1/C2"));
     } else if stage == 14 {
-        check(node.character2d.ignore_nodes.len() == 0, "the entry's chip takes it out");
-        check(inspector::line_named(state, "character2d.ignore_nodes").unwrap().count == 1, "and its row goes");
+        check(node.character2d.exclude.len() == 0, "the entry's chip takes it out");
+        check(inspector::line_named(state, "character2d.exclude").unwrap().count == 1, "and its row goes");
         model::add_component(state, "environment");
         form_search("e");
     } else if stage == 15 {
@@ -4727,7 +4846,7 @@ fn rows_menu(widget: any) {
     let editor = scene::get_node("Editor");
     let missing = 0;
     for row in rows {
-        let handler = util::map_or_empty(row.get_component("widget"))["on_click"].as_str();
+        let handler = events::click_method(row);
         if handler == "" || !editor.has_method(handler) {
             missing += 1;
             log::warn("tree menu row {row.name()} calls nothing");
@@ -5037,8 +5156,9 @@ pub fn tree_marks(state: &mut editor::State) {
     let row = node.stable_id();
     let shown = !arrange::is_hidden(state, index);
     left::mark_clicked(state, row, "eye");
-    check(arrange::is_hidden(state, index) == shown, "the eye hides {node.name()}");
-    check(shows_mark(left::row_marks(state, index), icons::ui("eye-closed")), "and its row shows the eye closed");
+    check(arrange::is_hidden(state, index) == shown, "the eye flips whether {node.name()} shows");
+    // A node the scene hides starts with the eye closed, and the click opens it.
+    check(shows_mark(left::row_marks(state, index), icons::ui("eye-closed")) == shown, "and its row's eye says which");
     check(state.selected == 0, "a mark picks nothing");
     shell::undo(state);
     check(arrange::is_hidden(state, index) != shown, "undo shows it again");

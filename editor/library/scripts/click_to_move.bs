@@ -20,8 +20,8 @@ impl ClickToMove {
         }
         // Origin then direction: ox, oy, oz, dx, dy, dz.
         let ray = render::mouse_ray();
-        let oy = ray[1];
-        let dy = ray[4];
+        let oy = ray.origin.y;
+        let dy = ray.direction.y;
         // A ray running along the plane never meets it, and one pointing
         // above the horizon meets it behind the camera.
         if dy > -1e-4 {
@@ -32,8 +32,8 @@ impl ClickToMove {
         if t <= 0.0 {
             return;
         }
-        self.goal_x = ray[0] + ray[3] * t;
-        self.goal_z = ray[2] + ray[5] * t;
+        self.goal_x = ray.origin.x + ray.direction.x * t;
+        self.goal_z = ray.origin.z + ray.direction.z * t;
         self.walking = true;
     }
 
@@ -49,12 +49,12 @@ impl ClickToMove {
         let far = math::sqrt(toward_x * toward_x + toward_z * toward_z);
         if !self.walking || far < self.arrive {
             self.walking = false;
-            self.node.character3d.move_character(0.0, self.vy * dt, 0.0);
+            self.node.character3d.move_by(vec3(0.0, self.vy * dt, 0.0));
             return;
         }
         // Normalised by the distance left, so the last step does not
         // overshoot into a walk that never settles.
         let step = self.speed * dt / far;
-        self.node.character3d.move_character(toward_x * step, self.vy * dt, toward_z * step);
+        self.node.character3d.move_by(vec3(toward_x * step, self.vy * dt, toward_z * step));
     }
 }

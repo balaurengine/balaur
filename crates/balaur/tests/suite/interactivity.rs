@@ -110,7 +110,7 @@ const BYSTANDER_FEEDS: &str = r#"pub class Bystander { node: Node }
 impl Bystander {
     fn update(dt: float) {
         if scene::variable("hits").as_int() == 0 {
-            input::feed_mouse_button(0, true);
+            input::set_mouse_down(0, true);
         }
     }
     pub fn on_pointer_down(button: any) { hit(10); }
@@ -789,4 +789,257 @@ fn a_node_offers_the_events_its_components_announce() {
             "`{wanted}` is not offered: {offered:?}"
         );
     }
+}
+
+/// A part two levels under the screen that holds it, a bell beside them, and
+/// rows on the part's button: one naming no target, one naming the bell.
+const PART: &str = r#"
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_screen"
+name = "Screen"
+parent = "n_scene"
+script = { source = "scripts/hearer.bs" }
+
+[[nodes]]
+id = "n_bell"
+name = "Bell"
+parent = "n_screen"
+script = { source = "scripts/hearer.bs" }
+
+[[nodes]]
+id = "n_part"
+name = "Part"
+parent = "n_screen"
+
+[[nodes]]
+id = "n_button"
+name = "Button"
+parent = "n_part"
+
+[[nodes.bindings.rows]]
+event = "emitted:picked"
+action = "call"
+value = "chosen"
+
+[[nodes.bindings.rows]]
+event = "emitted:rung"
+action = "call"
+target = "../../Bell"
+value = "chosen"
+
+[[nodes.bindings.rows]]
+event = "pointer_drag"
+action = "call"
+value = "dragged"
+"#;
+
+/// Keeps what each handler was handed, and proves it ran at all.
+const HEARER: &str = r#"pub class Hearer { node: Node, got: int, from: str, calls: int, alone: int, by: str }
+impl Hearer {
+    pub fn chosen(payload: any, source: Node) {
+        self.calls += 1;
+        self.got = payload.as_int();
+        self.from = source.name();
+    }
+    pub fn dragged(dx: float, dy: float, source: Node) {
+        self.got = (dx * 10.0 + dy) as int;
+        self.from = source.name();
+    }
+    pub fn on_ping(payload: any, source: any) {
+        self.calls += 1;
+        self.got = payload.as_int();
+        self.by = if source == nil { "nobody" } else { "somebody" };
+    }
+    pub fn on_pong(payload: any) { self.alone = payload.as_int(); }
+}
+"#;
+
+fn held(app: &balaur::App, name: &str, field: &str) -> Option<Value> {
+    let host = app.engine.script_host().unwrap();
+    host.script_field(balaur::node_id_of(node(app, name)), field)
+}
+
+#[test]
+fn a_call_row_with_no_target_reaches_the_nearest_script_above_with_the_payload_and_its_node() {
+    let (_dir, mut app) = app_with_scripts(PART, &[("scripts/hearer.bs", HEARER)]);
+    let button = node(&app, "Screen/Part/Button");
+    balaur_core::events::emit_from(&app.engine, button, "picked", Value::Int(7));
+    app.tick(1.0 / 60.0);
+    assert_eq!(held(&app, "Screen", "calls"), Some(Value::Int(1)));
+    assert_eq!(held(&app, "Screen", "got"), Some(Value::Int(7)));
+    assert_eq!(
+        held(&app, "Screen", "from"),
+        Some(Value::Str("Button".into())),
+        "the source is the node the row sits on"
+    );
+    assert_eq!(
+        held(&app, "Screen/Bell", "calls"),
+        Some(Value::Int(0)),
+        "a sibling is not on the way up"
+    );
+}
+
+#[test]
+fn a_call_row_with_a_target_calls_that_node_with_the_payload_and_the_rows_node() {
+    let (_dir, mut app) = app_with_scripts(PART, &[("scripts/hearer.bs", HEARER)]);
+    let button = node(&app, "Screen/Part/Button");
+    balaur_core::events::emit_from(&app.engine, button, "rung", Value::Int(3));
+    app.tick(1.0 / 60.0);
+    assert_eq!(held(&app, "Screen/Bell", "got"), Some(Value::Int(3)));
+    assert_eq!(
+        held(&app, "Screen/Bell", "from"),
+        Some(Value::Str("Button".into()))
+    );
+    assert_eq!(held(&app, "Screen", "calls"), Some(Value::Int(0)));
+}
+
+#[test]
+fn a_call_row_on_a_hook_of_several_values_appends_the_source() {
+    let (_dir, app) = app_with_scripts(PART, &[("scripts/hearer.bs", HEARER)]);
+    let button = node(&app, "Screen/Part/Button");
+    let moved = [Value::Num(2.0), Value::Num(5.0)];
+    bindings::fire(
+        &app.engine,
+        button,
+        balaur_core::hooks::POINTER_DRAG,
+        &moved,
+    );
+    assert_eq!(held(&app, "Screen", "got"), Some(Value::Int(25)));
+    assert_eq!(
+        held(&app, "Screen", "from"),
+        Some(Value::Str("Button".into()))
+    );
+}
+
+#[test]
+fn a_listener_is_handed_the_payload_and_then_who_said_it() {
+    let (_dir, mut app) = app_with_scripts(PART, &[("scripts/hearer.bs", HEARER)]);
+    let (screen, bell) = (node(&app, "Screen"), node(&app, "Screen/Bell"));
+    for name in ["ping", "pong"] {
+        balaur_core::events::subscribe(&app.engine, screen, name, None);
+    }
+    balaur_core::events::emit_from(&app.engine, bell, "ping", Value::Int(4));
+    balaur_core::events::emit_from(&app.engine, bell, "pong", Value::Int(9));
+    app.tick(1.0 / 60.0);
+    assert_eq!(held(&app, "Screen", "got"), Some(Value::Int(4)));
+    assert_eq!(
+        held(&app, "Screen", "by"),
+        Some(Value::Str("somebody".into())),
+        "the bell said it"
+    );
+    assert_eq!(
+        held(&app, "Screen", "alone"),
+        Some(Value::Int(9)),
+        "a handler naming one parameter is handed the payload alone"
+    );
+    balaur_core::events::emit(&app.engine, "ping", Value::Int(5));
+    app.tick(1.0 / 60.0);
+    assert_eq!(held(&app, "Screen", "got"), Some(Value::Int(5)));
+    assert_eq!(
+        held(&app, "Screen", "by"),
+        Some(Value::Str("nobody".into())),
+        "an event from no node has no source"
+    );
+}
+
+#[test]
+fn a_nodes_own_event_reaches_its_hook_with_itself_as_the_source() {
+    let (_dir, app) = app_with_scripts(PART, &[("scripts/hearer.bs", HEARER)]);
+    let bell = node(&app, "Screen/Bell");
+    balaur_core::events::announce(&app.engine, bell, "ping", Value::Int(6));
+    assert_eq!(held(&app, "Screen/Bell", "got"), Some(Value::Int(6)));
+    assert_eq!(
+        held(&app, "Screen/Bell", "by"),
+        Some(Value::Str("somebody".into()))
+    );
+    assert_eq!(held(&app, "Screen", "calls"), Some(Value::Int(0)));
+}
+
+/// A part whose button calls `go_home`, instanced twice: once as it is, once
+/// with the row overridden to call `go_account`.
+const BAR: &str = r#"
+[[nodes]]
+id = "bar"
+name = "Bar"
+[nodes.widget]
+kind = "row"
+
+[[nodes]]
+id = "left"
+name = "Left"
+parent = "bar"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "go_home" }] }
+[nodes.widget]
+kind = "button"
+text = "Back"
+"#;
+
+const TWO_BARS: &str = r#"
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+script = { source = "scripts/screen.bs" }
+
+[[nodes]]
+id = "plain"
+name = "Plain"
+parent = "n_scene"
+instance = "scenes/bar.toml"
+
+[[nodes]]
+id = "over"
+name = "Over"
+parent = "n_scene"
+instance = "scenes/bar.toml"
+
+[nodes.overrides.Left]
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "go_account" }] }
+"#;
+
+const SCREEN: &str = r#"pub class Screen { node: Node, went: str }
+impl Screen {
+    pub fn go_home(button: str, source: Node) {
+        self.went = "{self.went}home by {button} from {source.name()};";
+    }
+    pub fn go_account() { self.went = "{self.went}account;"; }
+}
+"#;
+
+#[test]
+fn a_parts_button_reaches_the_screen_that_holds_it_and_an_override_renames_its_method() {
+    let dir = tempfile::tempdir().unwrap();
+    for folder in ["scenes", "scripts"] {
+        std::fs::create_dir_all(dir.path().join(folder)).unwrap();
+    }
+    let files = [
+        (
+            "project.toml",
+            "[application]\nname = \"fixture\"\nmain_scene = \"scenes/main.toml\"\n",
+        ),
+        ("scenes/main.toml", TWO_BARS),
+        ("scenes/bar.toml", BAR),
+        ("scripts/screen.bs", SCREEN),
+    ];
+    for (path, text) in files {
+        std::fs::write(dir.path().join(path), text).unwrap();
+    }
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    for button in ["Plain/Left", "Over/Left"] {
+        assert!(balaur_ui::click(&app.engine, node(&app, button), false));
+        app.tick(1.0 / 60.0);
+    }
+    let host = app.engine.script_host().unwrap();
+    let scene = balaur::scene::find_node(&app.engine.world(), app.engine.root(), "Scene").unwrap();
+    assert_eq!(
+        host.script_field(balaur::node_id_of(scene), "went"),
+        Some(Value::Str("home by left from Left;account;".into()))
+    );
 }

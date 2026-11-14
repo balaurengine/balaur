@@ -1,7 +1,7 @@
 > **Status:** the scene-aware pass is in, as warnings, and `--strict` is the
 > gate. Written 2026-09-07, after a CI failure raised the question of why a
 > bad script call is only ever found at run time; steps 1 to 6 landed
-> 2026-09-10, leaving step 7.
+> 2026-09-10, and steps 8 and 9 on 2026-11-13, leaving step 7.
 
 # Plan: static analysis for Rune — what `balaur check` cannot see yet
 
@@ -19,6 +19,12 @@
 - `scene_scripts` treats an attached script as the compile root. A `mod`
   submodule is not a root, and its diagnostics arrive through the root that
   imports it.
+- It builds every scene file of the project with the loader a run uses, the
+  scripts held, and reports what the loader refuses: a component nothing
+  registers, a property no schema declares, a value its component will not
+  read, an `overrides` path that names nothing. Step 8.
+- It compiles every `.bs` file under `addons/` that no scene reached, as the
+  module it is, and each file such a module uses. Step 9.
 
 What was missing was not the tool but the gate. Until 2026-09-07 nothing ran
 it: `scripts/e2e.sh` exercised `run`, `export`, `play` and `edit` over every
@@ -46,7 +52,7 @@ let Some(&handle) = targets.get(&name) else {
 
 `apply_impulse` is registered on the handle type in general, not on
 `body2d`. Whether the component under the handle drives it is knowable only
-once the handle has a value, so `this.node.sprite.apply_impulse(1.0, 0.0)`
+once the handle has a value, so `this.node.sprite.apply_impulse(vec2(1.0, 0.0))`
 compiles clean and fails on the tick that runs it.
 
 Catching that statically means three things, all of them now done:
@@ -117,6 +123,23 @@ own scripts are clean under `--strict`, and only then is promoted.
    (only the script's own string literals suppress it today), and a script a
    scene attaches that is also attached at run time to a node the scene never
    describes.
+8. **The scenes themselves.** *Done 2026-11-13.*
+   `balaur_core::project::problems` builds one scene file under a node of its
+   own, with `attach_scripts` off, and frees it. While it builds, the loader
+   keeps each refusal it would log in a run, so the check and the load are one
+   validator. A finding is an error naming the scene file, the node, the
+   component and the property, on the line `toml_edit` gives the key. A prefab
+   answers for its own nodes once, however many scenes instance it, and the
+   scene that instances it answers for its `overrides`. A key nothing handles
+   is a warning on a host that lacks a module, as it is in a run.
+9. **Addons no scene attaches.** *Done 2026-11-13.* Every `.bs` file under
+   `addons/`, the `editor/` plugins of an addon included, is compiled with
+   `BsHost::check_alone` and linted, unless a scene's script already reached
+   it. Each file answers for itself, so a module sixty files use is reported
+   once, under its own name. An editor plugin compiles here because it
+   reaches the editor through its node's methods, not through a module only
+   the editor has. Still unread: a game's own `editor/` folder, the editor's
+   `plugins/`, and a `deps/` package no scene reaches.
 
 ## 4. What this is not
 

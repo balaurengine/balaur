@@ -73,7 +73,7 @@ pub struct Softbody2d {
     /// Structural edges added between particles the layout left apart, each as long as its two particles stand at the start
     #[property(group = "shape")]
     pub seams: Vec<ParticlePair>,
-    /// The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from
+    /// The particles held where they are, by index: a cloth hangs from these, and `particle_count()` says how many there are to choose from
     #[property(group = "particles")]
     pub pinned_particles: Indices,
     /// Each particle's own mass, by index; empty spreads `mass` over them evenly
@@ -1128,9 +1128,9 @@ crate::softbody::runtime::runtime_api!(
 
 pub(crate) fn install_softbody_api_2d(m: &mut Module<Engine>) {
     m.describe(&[
-        (SOFTBODY_AREA, &[c::SOFTBODY_2D], "", "How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed."),
+        (SOFTBODY_AREA, &[c::SOFTBODY_2D], "", "How much area the body and every piece torn off it enclose right now, against `rest_area` for how far it is squeezed."),
         (SOFTBODY_REST_AREA, &[c::SOFTBODY_2D], "", "How much they enclose at rest."),
-        (w::functions::SOFTBODY_CENTER, &[c::SOFTBODY_2D], "(node: node) -> Vec2", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
+        (w::functions::SOFTBODY_WORLD_CENTER_OF_MASS, &[c::SOFTBODY_2D], "(node: node) -> Vec2", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
     ]);
     m.function(SOFTBODY_AREA, |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {
@@ -1143,7 +1143,7 @@ pub(crate) fn install_softbody_api_2d(m: &mut Module<Engine>) {
         })
     });
     m.function(
-        w::functions::SOFTBODY_CENTER,
+        w::functions::SOFTBODY_WORLD_CENTER_OF_MASS,
         |eng: &Engine, node: NodeId| {
             with_family_2d(eng, node, |bodies| {
                 let mass: scalar::Real = bodies.iter().map(|b| b.mass()).sum();

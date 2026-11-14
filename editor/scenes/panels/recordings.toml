@@ -39,8 +39,8 @@ grow = 1
 id = "verify"
 name = "Verify"
 parent = "tools"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verify" }] }
 [nodes.widget]
-on_click = "verify"
 kind = "button"
 role = "chip"
 text = "verify"

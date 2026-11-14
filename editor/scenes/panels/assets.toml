@@ -29,8 +29,8 @@ id = "up"
 name = "Up"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "↑"
@@ -51,13 +51,13 @@ id = "name"
 name = "Name"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "emitted:submitted", action = "call", value = "name_submitted" }] }
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
 width = 180
 [nodes.widget_field]
 placeholder = "new name"
-on_submit = "name_submitted"
 
 [[nodes]]
 id = "gap"
@@ -81,8 +81,8 @@ role = "text_caption"
 id = "import"
 name = "Import"
 parent = "tools"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "import"
@@ -92,8 +92,8 @@ tooltip = "Bring in a model, a sprite or a level"
 id = "folder"
 name = "Folder"
 parent = "tools"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "folder"
@@ -105,8 +105,8 @@ id = "local"
 name = "Local"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "make local"
@@ -118,8 +118,8 @@ id = "move"
 name = "Move"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "move to project"
@@ -131,8 +131,8 @@ id = "source"
 name = "Source"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "edit dependency"
@@ -143,8 +143,8 @@ id = "update"
 name = "Update"
 parent = "tools"
 visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "update"
@@ -154,8 +154,8 @@ tooltip = "Fetch the newest commit of each dependency's branch or tag"
 id = "rename"
 name = "Rename"
 parent = "tools"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_dock_quiet"
 text = "rename"
@@ -165,8 +165,8 @@ tooltip = "Select an item first"
 id = "delete"
 name = "Delete"
 parent = "tools"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_dock_quiet"
 text = "delete"
@@ -176,8 +176,8 @@ tooltip = "Select an item first"
 id = "search"
 name = "Search"
 parent = "tools"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "search_typed" }] }
 [nodes.widget]
-on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
 width = 140
@@ -189,12 +189,14 @@ placeholder = "Search"
 id = "cards"
 name = "Cards"
 parent = "panel"
+bindings = { rows = [
+    { event = "pointer_click", action = "call", value = "card_clicked" },
+    { event = "emitted:dropped", action = "call", value = "card_dropped" },
+] }
 [nodes.widget]
-on_click = "card_clicked"
 kind = "list"
 grow = 1
 [nodes.widget_list]
-on_drop = "card_dropped"
 draggable = true
 grid_columns = "repeat(6, 1fr)"
 

@@ -17,6 +17,8 @@ mod api;
 mod aseprite;
 mod boolean;
 mod camera;
+#[cfg(feature = "window")]
+mod film;
 mod light;
 mod material;
 mod mesh;
@@ -27,6 +29,7 @@ mod particles;
 mod picking;
 mod polygon;
 mod reflection;
+mod rest;
 mod script_api;
 mod sheet;
 mod sprite;

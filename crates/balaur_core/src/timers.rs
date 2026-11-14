@@ -48,6 +48,16 @@ pub fn after_seconds(eng: &Engine, seconds: f32) -> u64 {
     token
 }
 
+/// Whether a wait is still to be woken: a result owed on the next step, or a
+/// count the pause is not holding.
+pub(crate) fn pending(eng: &Engine) -> bool {
+    eng.try_resource::<Timers>().is_some_and(|timers| {
+        let timers = timers.borrow();
+        let counting = !(timers.frames.is_empty() && timers.seconds.is_empty());
+        !timers.results.is_empty() || (counting && !eng.paused())
+    })
+}
+
 pub(crate) fn step_timers_system(eng: &Engine, dt: f32) {
     // An awaited call's result is owed to its caller, not timed: it is
     // delivered through a pause, or a script that awaited one inside an

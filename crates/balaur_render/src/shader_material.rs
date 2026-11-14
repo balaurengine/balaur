@@ -6,7 +6,6 @@
 //! the material's own values — and the shader, which is whatever the project
 //! wrote. `shaders/sprite.wesl` is the contract between the two.
 
-use balaur_core::time::Instant;
 use std::any::Any;
 use std::cell::Cell;
 use std::sync::Arc;
@@ -111,9 +110,6 @@ pub(crate) struct ShaderMaterial {
     /// The material's own values. `None` when the shader declares no `Params`,
     /// in which case group 3 is not in the pipeline layout either.
     params_bind_group: Option<wgpu::BindGroup>,
-    /// Where `time()` counts from. Wall clock, not the tick: a shader is an
-    /// observer, so nothing it reads can reach the simulation.
-    started: Instant,
     frame_counter: Cell<u64>,
     last_frame: Cell<u64>,
     /// The sampler `screen_texture` is read through, for a screen reader.
@@ -307,9 +303,6 @@ impl ShaderMaterial {
             frame_uniform,
             frame_bind_group,
             params_bind_group: params.map(|(_, group)| group),
-            // The render clock a shader reads, outside the simulation.
-            #[allow(clippy::disallowed_methods)]
-            started: Instant::now(),
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),
             screen,
@@ -409,7 +402,7 @@ impl Material2d for ShaderMaterial {
         if frame != self.last_frame.get() {
             self.last_frame.set(frame);
             let (view, proj) = camera.view_transform_pair();
-            let elapsed = self.started.elapsed().as_secs_f32();
+            let elapsed = crate::shader_clock::seconds();
             ctxt.write_buffer(
                 &self.frame_uniform,
                 0,

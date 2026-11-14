@@ -137,11 +137,11 @@ on_pointer_click(this, button)` so a designer's scene graduates to code
 without a rewrite. Bindings and scripts coexist on one node; bindings run
 first.
 
-**Rigs are presets over a camera or a character.** An orbit rig is `camera`
-plus a shipped script module with `exports` for its limits;
-`apply_preset("orbit_camera")` attaches both. `first_person`, `third_person`,
+**Rigs are library scenes over a camera or a character.** An orbit rig is
+`camera` plus a shipped script module with `exports` for its limits, in one
+scene a project instances. `first_person`, `third_person`,
 `click_to_move` and `platformer` do the same over `character3d` and
-`character2d`, with the input actions the preset declares. They are ordinary
+`character2d`, with the input actions the rig declares. They are ordinary
 Rune under the runtime's own modules, so a project reads and forks them.
 
 **Look-at and follow are modifiers.** `modifier3d` has `look_at`; `follow`
@@ -161,7 +161,7 @@ Spline's event and action lists, and where each lands.
 | Mouse down, up, press, hover | `on_pointer_*`, step 1 |
 | Key down, up, press | `on_key_*` and `on_action`, step 1 |
 | Scroll | `on_scroll`, step 1 |
-| Drag and drop | `on_pointer_drag`, with `on_pointer_drop(this, node)` when released over another node, step 1; OS files stay `input.dropped_files` |
+| Drag and drop | `on_pointer_drag`, with `on_pointer_drop(this, node)` when released over another node, step 1; OS files are the `files_dropped` event |
 | Look at, follow | modifiers, step 5 |
 | Game controls | rigs, step 5 |
 | Start | `init` (have) |
@@ -207,7 +207,7 @@ Spline's event and action lists, and where each lands.
    gap per fixed tick so the path is the same at any frame rate; the node's
    own transform is the memory, so a rollback needs nothing extra. The five
    rigs are library scenes under a Rigs shelf rather than presets:
-   `apply_preset` adds components and a rig is a script beside them, which
+   a preset adds components and a rig is a script beside them, which
    only a scene can carry. `third_person` needs no script at all -- a pivot
    with `follow` and a camera hanging off it.
 

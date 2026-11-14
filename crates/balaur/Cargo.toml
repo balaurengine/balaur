@@ -52,9 +52,9 @@ apple = ["dep:balaur_apple"]
 # SVG textures read in place. An export pack holds their rasters, so a game
 # template leaves it off.
 svg = ["balaur_asset/svg"]
-# The 2D physics world: `physics2d.*`, its components and presets.
+# The 2D physics world: `physics2d.*` and its components.
 physics2d = ["balaur_physics/physics2d"]
-# The 3D physics world: `physics3d.*`, its components and presets.
+# The 3D physics world: `physics3d.*` and its components.
 physics3d = ["balaur_physics/physics3d"]
 # The WESL shader linker and the `.bs` to C translator: a dev run, the editor
 # and an export. A template leaves it off and draws with the shaders an export

@@ -574,7 +574,7 @@ impl LightMapMaterial {
             instances.push(LightInstance {
                 position: light.position.to_array(),
                 radius_kind: [light.radius, kind],
-                color: light.color,
+                color: crate::film::rgb(light.color),
                 intensity: light.intensity,
                 cone: [
                     light.direction.x,
@@ -739,7 +739,7 @@ impl Material2d for LightMapMaterial {
         }
         let ctxt = Context::get();
         let (view, proj) = camera.view_transform_pair();
-        let [r, g, b] = scene.ambient;
+        let [r, g, b] = crate::film::rgb(scene.ambient);
         let frame = FrameUniforms {
             view: padded(&view),
             proj: padded(&proj),

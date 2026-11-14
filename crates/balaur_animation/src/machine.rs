@@ -46,9 +46,9 @@ pub struct StateMachine {
 }
 
 /// Emitted from the machine's node, with the state, as it enters one.
-pub const STATE_STARTED_EVENT: &str = "state_started";
+pub const STATE_ENTERED_EVENT: &str = "state_entered";
 /// Emitted from the machine's node, with the state, as it leaves one.
-pub const STATE_FINISHED_EVENT: &str = "state_finished";
+pub const STATE_EXITED_EVENT: &str = "state_exited";
 
 /// Godot's default priority: every hop costs the same, so travel takes the
 /// fewest.
@@ -504,6 +504,18 @@ pub struct MachineRun {
     pub(crate) resolved_at: Option<u64>,
 }
 
+impl MachineRun {
+    /// Whether the next step moves it without anything new being asked: a
+    /// travel or a jump still to take, or `start` still to enter.
+    pub(crate) fn in_transition(&self) -> bool {
+        let Some(machine) = self.machine.as_ref().filter(|_| self.enabled) else {
+            return false;
+        };
+        let unentered = self.current.is_empty() && !self.ended && !machine.start.is_empty();
+        unentered || self.pending.is_some() || self.jump.is_some() || !self.travel.is_empty()
+    }
+}
+
 /// Load what every machine needs before the fixed steps run: its asset, and
 /// the clip each state plays from its player's library.
 pub(crate) fn prepare(eng: &Engine) {
@@ -723,10 +735,10 @@ pub(crate) fn announce(eng: &Engine, moved: &[Moved]) {
     let state = |name: &str| balaur_script::Value::Str(name.to_string());
     for m in moved {
         if !m.left.is_empty() {
-            balaur_core::events::announce(eng, m.entity, STATE_FINISHED_EVENT, state(&m.left));
+            balaur_core::events::announce(eng, m.entity, STATE_EXITED_EVENT, state(&m.left));
         }
         if !m.entered.is_empty() {
-            balaur_core::events::announce(eng, m.entity, STATE_STARTED_EVENT, state(&m.entered));
+            balaur_core::events::announce(eng, m.entity, STATE_ENTERED_EVENT, state(&m.entered));
         }
     }
 }

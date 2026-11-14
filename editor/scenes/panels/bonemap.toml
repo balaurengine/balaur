@@ -61,8 +61,8 @@ font_size = 11
 id = "guess"
 name = "guess"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "guess by name"
@@ -72,8 +72,8 @@ tooltip = "Fill every row whose canonical name matches a bone, ignoring case and
 id = "clear"
 name = "clear"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "clear"
@@ -83,8 +83,8 @@ tooltip = "Empty every row"
 id = "save"
 name = "save"
 parent = "verbs"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
 [nodes.widget]
-on_click = "verb"
 kind = "button"
 role = "action_form_primary"
 text = "save"

@@ -220,6 +220,7 @@ pub fn dispatch_changes_system(eng: &Engine, _dt: f32) {
             if let Some(host) = &host
                 && host.has_method(node, crate::hooks::ON_VARIABLE_CHANGED)
             {
+                let args = crate::bindings::with_source(&args, *entity);
                 host.call_on(node, crate::hooks::ON_VARIABLE_CHANGED, &args);
             }
         }

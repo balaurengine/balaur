@@ -210,7 +210,7 @@ fn smash_shot(w: world::World, c: load::Case) {
         "gravity_scale": 0.0,
         "continuous_collision": true,
     });
-    shot.body2d.set_linear_velocity(4000.0, 0.0);
+    shot.body2d.set_linear_velocity(vec2(4000.0, 0.0));
 }
 
 fn smash_at(i: int) -> Vec3 {
@@ -276,7 +276,7 @@ fn storm_body(w: world::World, c: load::Case, i: int) {
     } else {
         let node = world::body(w, scatter(), { KIND: CIRCLE, RADIUS: random::range(10.0, 24.0) });
         node.body2d.gravity_scale = 0.0;
-        node.body2d.set_linear_velocity(random::range(-60.0, 60.0), random::range(-60.0, 60.0));
+        node.body2d.set_linear_velocity(vec2(random::range(-60.0, 60.0), random::range(-60.0, 60.0)));
     }
 }
 

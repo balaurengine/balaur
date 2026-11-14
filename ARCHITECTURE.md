@@ -169,6 +169,18 @@ one backend; the Rune backend before it was one crate and went as one.
 - Operations are declared once in core (`node_api.rs` `NODE_OPS`,
   `engine_api.rs` `ENGINE_OPS`) and reach every language. A second language
   costs the call sugar, not the operations.
+- A module the editor's binary declares is `editor_only()`, and each function
+  it registers carries the mark to the compiler (`HostSignature::editor`). The
+  host judges each file by its path (`file_api::editors_script`): a file of
+  the `EditorRoot` that `ToolsPlugin` names, or one under a game's or an
+  addon's `editor/` folder, may call one. Any other call fails to compile. A
+  game's runtime registers none, so there the name is simply missing.
+- The same judgment (`Options::editor`) refuses a `use` of the editor's file
+  from one that is not, and the scene loader refuses a node's script under an
+  `editor/` folder (`project::plugin_attached`). The editor loads its plugins
+  with `node.attach_script`, which no scene does, and an export leaves them out
+  of the pack. The roots a judgment compares against are resolved once, until
+  one is added or removed.
 - A `Str` and a `Map` key are `SmolStr`, which holds up to 22 bytes inline.
   Almost every string crossing the seam is a component name, a property key or
   a node path, and each one used to reach the allocator on the way in: a short
@@ -182,9 +194,24 @@ one backend; the Rune backend before it was one crate and went as one.
 - Input also answers when asked (`input.key_just_pressed(key)`): a press is a
   frame-scoped snapshot.
 - `events.listen(node, name)` / `events.emit(name, payload)` deliver
-  `on_<name>(payload)` at the top of the next `Update`, in emission then
-  subscription order. The frame of delay keeps a handler from freeing the node
-  being ticked. Not recorded — a replay re-runs the script, which emits again.
+  `on_<name>(payload, source)` at the top of the next `Update`, in emission
+  then subscription order. The frame of delay keeps a handler from freeing the
+  node being ticked. Not recorded — a replay re-runs the script, which emits again.
+- One handler shape: `on_<name>(payload, source)`, `source` the node the event
+  was said on. A node hears its own engine events unasked and another's after
+  `events.listen`. A method naming fewer parameters is handed fewer.
+- A `call` row in `bindings` naming no `target` calls the nearest node from its
+  own up whose script has the method (`bindings::nearest_with_method`), with
+  the event's values and then the row's node. A core hook of two values keeps
+  both: `on_pointer_drag(dx, dy, source)`.
+- A script names the events it sends with `event name;`, an item the compiler
+  reads without running the file (`ScriptHost::events`), as a component names
+  its own in `ComponentDef::events`. `scene.bindable_events(node)` lists both.
+- `balaur check` holds every `on_<name>` method, `events.listen`,
+  `events.next` and `emitted:` row to the names something announces, and an
+  `emit` to its file's `event` items. The engine's names come from where each
+  is declared (`events::names`): the hooks table, each component's `events`,
+  and `events::declare` for what a plugin says from no node.
 - Awaiting, GDScript's `await`: `task::wait(events.next(name, from?))` wakes
   with the next matching event's payload, and
   `task::wait(node.call_async(method, args))` with that method's return value,
@@ -356,7 +383,9 @@ Breakpoints, stepping and a call stack with locals, for scripts in the editor.
 - The seam adds defaulted debugger methods — breakpoints, break-on-error,
   `request_break`, `paused`, `resume(StepMode)` — so a backend without a
   debugger compiles unchanged. The `debugger` module exposes them plus `scope`
-  and `set_scope`, so the dock is plain script.
+  and `set_scope`, so the dock is plain script. `balaur::ToolsPlugin` declares
+  it, and no runtime registers that plugin: `balaur_cli` does, on its `editor`
+  feature, beside `project`. A game run, played or exported has no `debugger`.
 - A file with breakpoints compiles with a probe per statement and runs
   stepwise; one without keeps the plain module, so the no-debugger cost is
   unchanged. A requested line lands on the next line with code, re-applied
@@ -443,8 +472,10 @@ and remove hooks.
   category path would bury whichever lost. 3D components are tagged `3d` though
   their names carry no marker (D5).
 - **Presets** are named recipes over components on one node. Nothing records
-  which was used, so components stay free to come and go. Plugins register their
-  own; a project adds more in `presets.toml`. Anything spanning nodes is a scene.
+  which was used, so components stay free to come and go. They are the editor's
+  data, not the engine's: `editor/presets.toml` lists them, a game's
+  `editor/presets.toml` and each addon's add more, and the picker builds one
+  with `set_component`. Anything spanning nodes is a scene.
 - **Expectations** are advisory — a component names others it needs something
   from, and the editor warns while none is present. Nothing blocks. Built-ins
   declare one where a component is inert alone: a body or a bone expects
@@ -665,10 +696,16 @@ One call per entry point; conversions are inferred.
 
 ```rust
 let m = reg.script_module("physics3d")?;
-m.function("apply_impulse", |eng, (node, x, y, z): (NodeId, f32, f32, f32)| {
+m.describe(&[("apply_impulse", &["body3d"], "(node: node, impulse: Vec3)", "...")]);
+m.function("apply_impulse", |eng, (node, impulse): (NodeId, Value)| {
     ...
-})?;
+});
 ```
+
+A point, an offset, a size or a velocity crosses as one `Vec2` or `Vec3` and a
+colour as one `Color`, never as loose floats. The closure takes it as a `Value`,
+and the signature in `describe` names its type for the compiler and the
+reference.
 
 A component's scene key comes with `register_component`, applied in plugin
 registration order. `balaur_physics` is the reference
@@ -681,7 +718,7 @@ A **module** is linked in behind a cargo feature; an **extension** is loaded
 from a shared library at run time. Both implement `balaur_plugin::Plugin` —
 `manifest()` and `declare(&mut Registry)` — so one source ships either way.
 
-- `Registry` names resources, systems, components, presets, asset types, replay
+- `Registry` names resources, systems, components, asset types, replay
   sources and setup, and script modules. No trait objects; generics only where a
   Rust type must be named, since a `fn` pointer crosses an ABI boundary where an
   `impl Trait` does not.
@@ -811,7 +848,9 @@ both a desktop and a Forge runner check, and what a running engine knows.
   game's turn (`as_game`), since its document is already in game spelling.
 - A file under `deps/` is refused to `fs.*` writes, `assets.save`,
   `assets.rename` and `assets.assign_id`. The `dependency` script module is
-  what the editor's docks call: `list`, `of`, `make_local`, `move_into`.
+  two halves. The engine's is `list` and `of`, which a game reads. `install`,
+  `add_path`, `make_local` and `move_into` write a project, so `balaur_cli`
+  adds them beside `project` and `forge`, for the editor's docks.
 - `Pack::build` gathers each dependency with its own `ignore`, rewrites its
   documents, bakes its `[import.<kind>]` into sidecars, and drops what
   nothing names, reading script literals from the sources. It writes
@@ -858,7 +897,8 @@ both a desktop and a Forge runner check, and what a running engine knows.
 file, line and column: what completes, what is under the cursor, where it is
 defined, what this file's symbols are*. `balaur lsp` maps LSP methods onto it
 through `ScriptHost::tools_for`, and the editor's `script` module calls the
-same verbs, so a script means one thing to both.
+same verbs, so a script means one thing to both. `script` is `ToolsPlugin`'s
+too, so a game's runtime has no `script::check`.
 
 - Completions and hover text for a module path, `self.`, a component handle
   and a constant come off the `HostApi` a script compiles against, which
@@ -895,8 +935,8 @@ write. It walks widgets in scene order and wraps.
   `padding` takes one number for every side or four for left, top, right and
   bottom, which is what a MarginContainer's margins convert to.
 - A `button` with `toggle` holds down when clicked and releases on the next,
-  flipping `checked` before `on_click` runs; a `group` makes a set of them
-  exclusive, as it does for a `check`.
+  flipping `checked` before its `pointer_click` is heard; a `group` makes a
+  set of them exclusive, as it does for a `check`.
 - An `image` states how it sits in its box with `fit` — `contain`, `cover`,
   `fill` or `none`, CSS's object-fit and Godot's expand and stretch modes.
   Without one the picture's own size decides the box, which is the default a
@@ -904,8 +944,8 @@ write. It walks widgets in scene order and wraps.
 - A button fills the box the layout handed it and never hugs its caption
   inside one: a button in a column is as wide as the column, as it is in a
   browser and in Godot.
-- An accept is a click by another name (same `clicked`, same `on_click`), so a
-  mouse menu works on a pad unchanged. `on_focus` fires only on arrival.
+- An accept is a click by another name (same `clicked`, same `pointer_click`),
+  so a mouse menu works on a pad unchanged. `focus_entered` is said only on arrival.
 - **2D draws in one order**: every sprite, polygon and tilemap under the root
   by `z_index`, then z, then tree order. A tilemap's mesh is built by a pass
   of its own, so it is put back in that order after both passes have run.
@@ -913,9 +953,17 @@ write. It walks widgets in scene order and wraps.
   its own `anchor`: what a Godot MarginContainer does, and what a plain
   Control's anchored children do. Every other container queues its children
   up, so `anchor` is read on a root and inside a stack, nowhere else.
-- A widget calls the method its `on_<verb>` key names and emits the event of
-  that name without the `on_`: `click`, `change`, `submit`. The key reaches one
-  method, the event reaches whoever subscribed or is awaiting it.
+- A widget holds no handler name. It announces its events from its node
+  (`value_changed`, `submitted`, and a click as `pointer_click`, a world node's name for
+  it), and a scene hears one with a `bindings` row: `{ event = "pointer_click",
+  action = "call", value = "start" }`.
+- A `label`, a `panel` or an `image` senses a click only while one is heard on
+  its node: a row, its script's `on_pointer_click`, a listener or a waiter
+  naming it, or its pool spec's `on_click` (`Widget::hears_click`, kept by
+  `input::follow_hearers` from `events::watch_hearers`).
+- `ui.fill_strip` and `ui.fill_slot` specs keep `on_click`, `on_change` and
+  `on_submit`. The pool holds the names and calls each from the event its
+  control announces, with the spec's `data`, the edit and the control.
 - The keyboard drives focus until the game shows the keys are its own: an action
   binding an arrow, Tab, Enter or Space, or a script reading one, unless it also
   declares a `ui_*` action. A pad goes through `ui.focus_next/previous/activate_focused`, which `standard_app` maps
@@ -1360,10 +1408,13 @@ overlay, dark and light token sets.
 - Play attaches the game's scripts to the mirrored nodes and unpauses; stop
   rebuilds the mirror from the document. Editing an editor script hot reloads
   the editor.
+- A game's editor plugins sit in its `editor/` folder and in each addon's.
+  Only those files and the editor's own may call the editor's modules, so a
+  game script that calls one fails in Play as it would in an export.
 - Reusable bindings it is built on: `fs`, `toml`, `scene.instantiate`,
   `engine.args`, `engine.reload_script`, `require` with in-place module reload,
   `log.recent`, `physics.set_paused/clear/set_sleeping_allowed`,
-  `render.set_background/set_grid/set_grid_colors/draw_line/draw_box/draw_sphere`,
+  `render.set_background/set_grid/set_grid_colors/draw_line_3d/draw_box_3d/draw_sphere_3d`,
   `render.camera_pose`, `render.set_camera_input`.
 - The gizmo follows steadyum's: an orange bounding-box frame, a face drag
   translating in that face's plane, a rectangle at each face centre scaling
@@ -1464,7 +1515,7 @@ fire = ["mouse:left"]
   `safe_area` and `game_area`, the widget layer's default surface, so a game
   played in the editor keeps them in the viewport. `balaur_render` only paints
   them.
-- A control *feeds* an action (`InputActions::feed`, `input.feed_action`)
+- A control *feeds* an action (`InputActions::feed`, `input.set_action_value`)
   rather than being bound to one: the furthest from rest wins against the
   bindings, and a fed action answers even if undeclared.
 - Pinch, pan, swipe and long press are derived from the recorded touches and
@@ -1485,7 +1536,7 @@ step, so a clip is the same clip every time.
   anything a click on the chrome would do runs at the end of the Editor's
   `update`, after it. Driving the editor from the start of `update` rebuilt the
   scene under the game's own `update`.
-- Input goes through `input.feed_key`/`feed_mouse`/`feed_mouse_button`, which
+- Input goes through `input.set_key_down`/`set_mouse_position`/`set_mouse_down`, which
   call the snapshot's own feeders, so a fed frame is indistinguishable from a
   window's and the recorder records it. The pointer is drawn by `inputview.bs`
   from the snapshot rather than the OS cursor, for the same reason. egui never
@@ -1513,10 +1564,27 @@ materials. `tonemap` splits the chain: a material before it works in linear
 light, one after it on the finished frame, and a list that does not name it has
 it at the head. Post-processing is an observer like the rest of rendering.
 
+## Colour
+
+A colour is authored as a screen shows it: `#3c4753` on an unlit shape is the
+pixel (60, 71, 83), and `render::set_background(color(0.2, 0.4, 0.6, 1.0))` clears to
+(51, 102, 153). The film holds linear light, so `balaur_render::film` decodes
+each authored colour once, where the backend hands it to the renderer. Lights
+multiply light, and the resolve encodes the frame once.
+
+The decode is the inverse of the fork's resolve, a 2.2 power, so an unlit
+colour comes back as the byte written. A light's `color`, `ambient_color` and
+`fog_color` are colours like a shape's, and `intensity` multiplies in linear
+light. An image is decoded by its sampler, which `srgb` in its import settings
+turns off. A shader's `[params]` and a mesh's `colors` are numbers, and reach
+the shader as written.
+
 ## Camera and screenshots
 
-A `camera3d` node's position and `look_at` write a `CameraConfig3d`; the backend
-applies it, and no mouse or key moves the camera between. `render.screenshot(path)`
+A `camera3d` node's position and rotation write a `CameraConfig3d`: it looks
+along the node's -z, as a `light3d` shines, and `transform.look_at(point)` turns
+any node to face a world point. The backend applies it, and no mouse or key
+moves the camera between. `render.screenshot(path)`
 saves a frame to PNG.
 
 Capture is a binding rather than a flag because *when* to capture is the

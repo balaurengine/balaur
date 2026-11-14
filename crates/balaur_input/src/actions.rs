@@ -34,7 +34,7 @@ const ACTION_VALUE: &str = "action_value";
 const ACTIONS: &str = "actions";
 const BIND: &str = "bind";
 const BINDINGS: &str = "bindings";
-const FEED_ACTION: &str = "feed_action";
+const SET_ACTION_VALUE: &str = "set_action_value";
 const RESET_BINDINGS: &str = "reset_bindings";
 
 /// At or past this magnitude an action counts as pressed. Half of full throw:
@@ -631,18 +631,21 @@ pub(crate) fn install_actions(m: &mut Module<Engine>) {
         (BINDINGS, &[], "(action: string) -> [string]", "What the action is bound to now, whether from the project or from the player's own rebinding."),
         (BIND, &[], "(action: string, bindings: [string])", "Rebind the action to a list of bindings, spelled as `[input.actions]` spells them, replacing what it had and saving to the user data directory."),
         (RESET_BINDINGS, &[], "", "Drop every saved rebinding and go back to what the project declared."),
-        (FEED_ACTION, &[], "(name: string, value: float)", "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one."),
+        (SET_ACTION_VALUE, &[], "(name: string, value: float)", "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one."),
     ]);
 
     // Godot's `parse_input_event` with an `InputEventAction`, and the seam a
     // `touch_button` goes through: an action gains a source without gaining a
     // binding, so a project that never mentioned touch still answers.
-    m.function(FEED_ACTION, |eng: &Engine, (name, value): (String, f32)| {
-        eng.resource::<InputActions>()
-            .borrow_mut()
-            .feed(&name, value.clamp(-1.0, 1.0));
-        Ok(())
-    });
+    m.function(
+        SET_ACTION_VALUE,
+        |eng: &Engine, (name, value): (String, f32)| {
+            eng.resource::<InputActions>()
+                .borrow_mut()
+                .feed(&name, value.clamp(-1.0, 1.0));
+            Ok(())
+        },
+    );
     // Every declared action, so a rebinding screen can list them.
     m.function(ACTIONS, |eng: &Engine, ()| {
         let names = eng.resource::<InputActions>().borrow().names();

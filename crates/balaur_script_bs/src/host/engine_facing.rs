@@ -107,6 +107,20 @@ impl ScriptHost<Engine> for BsHost {
             .collect())
     }
 
+    fn events(&self, path: &str) -> Vec<(String, String)> {
+        let key = key_of(path);
+        let Some(source) = self.kept_source(&key) else {
+            return Vec::new();
+        };
+        self.inner
+            .parsed
+            .events(&key, &source)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|event| (event.name, event.doc))
+            .collect()
+    }
+
     fn detach(&self, node: NodeId) {
         let Some((file, inst)) = self.instance(node).or_else(|| self.parked_instance(node)) else {
             return;

@@ -523,6 +523,8 @@ impl TextState {
             self.layouts.clear();
         }
         let shaped = Rc::new(self.layout(request, scale));
+        // Filed under the atlas it left: laying it out may have grown the one it met.
+        let key = key_of(request, self.atlas.generation, scale);
         self.layouts.insert(key, Rc::clone(&shaped));
         shaped
     }
@@ -645,9 +647,27 @@ impl TextState {
     }
 }
 
+/// [`place_once`], and again when that moved the atlas: a glyph that grows it
+/// or starts it over voids the UV of every quad placed before it.
+fn place(
+    atlas: &mut GlyphAtlas,
+    fonts: &mut ProjectFonts,
+    buffer: &Buffer,
+    parsed: &markup::Markup,
+    request: &RequestRef<'_>,
+    scale: f32,
+) -> Shaped {
+    let met = atlas.generation;
+    let shaped = place_once(atlas, fonts, buffer, parsed, request, scale);
+    if atlas.generation == met {
+        return shaped;
+    }
+    place_once(atlas, fonts, buffer, parsed, request, scale)
+}
+
 /// Every laid-out glyph as a quad on the atlas, every decoration as a line,
 /// and every picture's box.
-fn place(
+fn place_once(
     atlas: &mut GlyphAtlas,
     fonts: &mut ProjectFonts,
     buffer: &Buffer,

@@ -13,7 +13,6 @@ use balaur_core::hecs::Entity;
 use balaur_core::system_param::{Res, ResMut};
 use balaur_core::{Engine, Stage};
 pub use balaur_geometry::primitive::{Flat, Solid};
-use balaur_plugin::Registry;
 
 #[cfg(feature = "aseprite")]
 pub mod aseprite;
@@ -25,6 +24,7 @@ mod config;
 pub mod debug_draw;
 mod debug_view;
 mod draw_2d;
+pub mod film;
 mod instancing;
 mod lens;
 pub mod light;
@@ -180,6 +180,8 @@ mod pipeline;
 #[cfg(feature = "window")]
 mod post_material;
 #[cfg(feature = "window")]
+mod shader_clock;
+#[cfg(feature = "window")]
 mod shader_material;
 #[cfg(feature = "window")]
 mod shader_material_3d;
@@ -223,9 +225,18 @@ pub enum Aov {
 
 /// What a screenshot announces to anyone listening once its file is written,
 /// with the path.
-pub const SCREENSHOT_WRITTEN_EVENT: &str = "screenshot_written";
+pub const SCREENSHOT_SAVED_EVENT: &str = "screenshot_saved";
 /// What it announces when no file came of it, `{ path, error }`.
 pub const SCREENSHOT_FAILED_EVENT: &str = "screenshot_failed";
+
+/// What the renderer says from no node, for `events::declare`: each one's
+/// payload, and when it is said.
+#[rustfmt::skip]
+const SAID: &[balaur_core::events::Said] = &[
+    (retained::CAMERA_MOVED, "nil", "The camera a frame was drawn with moved, or the window it was drawn into did."),
+    (SCREENSHOT_SAVED_EVENT, "the path", "A screenshot's file was written."),
+    (SCREENSHOT_FAILED_EVENT, "`{ path, error }`", "A screenshot came to no file."),
+];
 
 /// Tell every listener a screenshot could not be written.
 pub(crate) fn screenshot_failed(eng: &Engine, path: &std::path::Path, error: String) {
@@ -276,23 +287,6 @@ fn unserved_screenshot_system(eng: &Engine, _dt: f32) {
 /// headless fallback drain stands down while this is present.
 pub use config::*;
 
-/// Script arguments for `draw_line`: two endpoints, colour, then optional
-/// width, perspective-correct width and always-on-top flags.
-type DrawLineArgs = (
-    f32,
-    f32,
-    f32,
-    f32,
-    f32,
-    f32,
-    f32,
-    f32,
-    f32,
-    Option<f32>,
-    Option<bool>,
-    Option<bool>,
-);
-
 use crate::vocabulary::keys;
 use crate::vocabulary::words;
 /// The debug-line buffers, in `balaur_core` because physics and the editor fill
@@ -300,9 +294,6 @@ use crate::vocabulary::words;
 pub use balaur_core::debug_lines::{DebugLine2d, DebugLine3d};
 pub use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
 pub use draw_2d::{Draw2d, DrawBuffer2d, Drawn2d};
-
-const TEXT_2D: &str = "text2d";
-const TEXT_3D: &str = "text3d";
 
 pub struct WindowedBackend;
 
@@ -968,6 +959,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
             ),
         );
         insert_render_resources(reg);
+        balaur_core::events::declare(reg.engine(), SAID);
         let mut m = reg.script_module(words::general::RENDER)?;
         m.module_doc(
             "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",
@@ -1005,7 +997,6 @@ impl balaur_plugin::Plugin for RenderPlugin {
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
         shape::register_line2d_component(reg);
-        register_render_presets(reg)?;
         sprite::register_sprite_component(reg);
         polygon::register_polygon_component(reg);
         camera::register_camera_components(reg);
@@ -1031,6 +1022,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         debug_draw::register_debug_draw_component(reg);
         post::register_camera_effects_asset(reg);
         reg.insert_resource(particles::Bursts::default());
+        balaur_core::rest::add_probe(reg.engine(), particles::PARTICLES, particles::pending);
         reg.add_system(Stage::FixedUpdate, particles::burst_system);
         // SceneSync, and after the core propagation system registered at
         // `App::new`: the camera follows the node's settled global pose.
@@ -1088,77 +1080,4 @@ fn clear_debug_lines_system(
     if let Some(mut text) = text {
         text.items.clear();
     }
-}
-
-/// Presets over the render components. `2d` is terminal and lowercase; 3D
-/// names carry no marker (N/D5).
-fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
-    reg.register_preset(
-        "sprite2d",
-        balaur_core::presets::preset(
-            "A textured 2D quad",
-            &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::RENDER,
-            ],
-            &[("sprite", None)],
-        )?,
-    );
-    reg.register_preset(
-        "rect2d",
-        balaur_core::presets::preset(
-            "An untextured 2D rectangle",
-            &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::RENDER,
-            ],
-            &[("shape2d", Some("shape = { kind = \"rectangle\" }"))],
-        )?,
-    );
-    reg.register_preset(
-        TEXT_2D,
-        balaur_core::presets::preset(
-            "A block of text in the 2D pass",
-            &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::RENDER,
-            ],
-            &[(TEXT_2D, Some(r#"text = "Text""#))],
-        )?,
-    );
-    reg.register_preset(
-        TEXT_3D,
-        balaur_core::presets::preset(
-            "A block of text facing the camera",
-            &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::RENDER,
-            ],
-            &[(TEXT_3D, Some(r#"text = "Text""#))],
-        )?,
-    );
-    reg.register_preset(
-        "tilemap2d",
-        balaur_core::presets::preset(
-            "A grid of tiles from one tileset",
-            &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::RENDER,
-            ],
-            &[(keys::TILEMAP, None)],
-        )?,
-    );
-    reg.register_preset(
-        "polygon2d",
-        balaur_core::presets::preset(
-            "A textured polygon that a rig can deform",
-            &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::RENDER,
-                balaur_core::components::tag::ANIMATION,
-            ],
-            &[("polygon", None)],
-        )?,
-    );
-    Ok(())
 }

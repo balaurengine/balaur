@@ -124,7 +124,8 @@ pub async fn open_project(
 /// which is how a page serves the set. `import` is here so a drop answers the same way it does on
 /// a desktop, with the error a tab has to give. `project` is the start
 /// screen's: the editor's scripts name it on every platform, and the page
-/// rather than the screen is what opens a project in a tab.
+/// rather than the screen is what opens a project in a tab. `debugger` and
+/// `script` are the tools a game's runtime leaves out.
 /// `?state=` on the page: the start-up states `balaur edit --state` takes, so
 /// a self-test runs in a tab as it does on a desktop.
 fn page_states() -> Option<String> {
@@ -136,7 +137,7 @@ fn page_states() -> Option<String> {
     js_sys::decode_uri_component(value).ok().map(String::from)
 }
 
-fn editor_plugins(editor_pack_url: &str) -> [Box<dyn balaur_plugin::Plugin>; 3] {
+fn editor_plugins(editor_pack_url: &str) -> [Box<dyn balaur_plugin::Plugin>; 4] {
     [
         Box::new(crate::web_export::WebExportPlugin::new(
             std::path::PathBuf::from(PROJECT_ROOT),
@@ -146,6 +147,9 @@ fn editor_plugins(editor_pack_url: &str) -> [Box<dyn balaur_plugin::Plugin>; 3] 
             std::path::PathBuf::from(PROJECT_ROOT),
         )),
         Box::new(crate::project_api::ProjectPlugin::new()),
+        Box::new(balaur::ToolsPlugin::new(Some(std::path::PathBuf::from(
+            EDITOR_ROOT,
+        )))),
     ]
 }
 

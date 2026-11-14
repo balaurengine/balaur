@@ -250,6 +250,7 @@ impl Frontend {
     /// One frame: apply what scripts asked for, tick, mirror the world into
     /// the scene graph, draw the overlays. Answers whether to keep going.
     fn step(&mut self, app: &mut App, window: &mut Window, dt: f32) -> bool {
+        crate::shader_clock::set(&app.engine);
         apply_camera(app, &mut self.camera, window);
         apply_camera_2d(app, &mut self.camera_2d, window);
         crate::app_icon::apply_app_icon(app, window, self.on_screen, self.frame);
@@ -267,10 +268,10 @@ impl Frontend {
         publish_camera_2d(app, &self.camera_2d, window);
         apply_ui_zoom(app, window);
         self.device.publish(app, window, dt);
-        app.advance(dt);
-        // What the window last spent, filed before this frame's own spans so
-        // a dock reads the frame in the order it ran.
+        // Before the tick, which publishes the frame: the period the window
+        // last measured holds the previous tick's stages, and nothing later.
         report_render_cost(app, window);
+        app.advance(dt);
         boot_cost::report_shader_builds(app, self.frame);
         // Read once for the whole frame: three syncs ask, and each would
         // otherwise see the reload and hide it from the next.
@@ -527,27 +528,34 @@ pub async fn run_windowed_async(
 }
 
 /// Wait out the frames nothing is owed under `[window] low_processor`: no
-/// input, no `balaur_core::wake`, no repaint due. A desktop blocks in the
-/// window system; a browser owns its loop, so a tab waits for its next
-/// animation frame, or for turning hidden, which is the loop's own case.
+/// input, no `balaur_core::wake`, no repaint due, and the simulation at rest
+/// (`balaur_core::rest`). A desktop blocks in the window system; a browser
+/// owns its loop, so a tab waits for its next animation frame, or for
+/// turning hidden, which is the loop's own case.
 #[cfg_attr(
     not(target_family = "wasm"),
     allow(clippy::unused_async, reason = "only a tab's wait is awaited")
 )]
 async fn sleep_until_owed(app: &App, window: &mut Window) {
+    // A frame run for a reason of its own: the step after it counts what it started.
+    let owed = || balaur_core::rest::disturb(&app.engine);
     loop {
         if balaur_core::wake::take() || window.has_unread_ui_input() {
-            return;
+            return owed();
         }
         let wait = match balaur_ui::next_frame(&app.engine, window.egui_context()) {
-            balaur_ui::NextFrame::Now => return,
+            balaur_ui::NextFrame::Now => return owed(),
             balaur_ui::NextFrame::Sleep(wait) => wait,
         };
+        // Simulated time moves only on frames: a timer counting is owed them.
+        if balaur_core::rest::busy(&app.engine) {
+            return;
+        }
         #[cfg(target_family = "wasm")]
         {
             let _ = wait;
             if window.wait_events(None) || crate::hidden_tab::is_hidden() {
-                return;
+                return owed();
             }
             crate::hidden_tab::next_frame_or_hidden().await;
         }
@@ -555,7 +563,7 @@ async fn sleep_until_owed(app: &App, window: &mut Window) {
         if window.wait_events(wait) {
             // The frame about to run serves a wake that came with the input.
             balaur_core::wake::take();
-            return;
+            return owed();
         }
     }
 }
@@ -660,8 +668,7 @@ fn apply_clear_color(app: &App, window: &mut Window) {
     };
     let mut clear = clear.borrow_mut();
     if clear.changed {
-        let [r, g, b] = clear.color;
-        window.set_background_color(Color::new(r, g, b, 1.0));
+        window.set_background_color(crate::film::opaque(clear.color));
         clear.changed = false;
     }
 }
@@ -816,7 +823,10 @@ fn sync(
         // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
         deform_node(&world, entity, slot);
-        let [r, g, b, a] = crate::sync_2d::modulate(renderable.color, appearance.tint.to_array());
+        let color = crate::film::color(crate::sync_2d::modulate(
+            renderable.color,
+            appearance.tint.to_array(),
+        ));
         // Every shape is real geometry at its authored size now, so the node
         // carries the scene's scale and nothing of the shape's.
         let scale = global.scale;
@@ -827,12 +837,12 @@ fn sync(
         slot.node
             .set_pose(Pose3::from_parts(global.position, global.rotation))
             .set_local_scale(scale.x, scale.y, scale.z)
-            .set_color(Color::new(r, g, b, a))
+            .set_color(color)
             .set_visible(visible);
         lit_and_layered(&mut slot.node, renderable);
         let debug = crate::debug_draw::DebugDraw::of(&world, entity);
         dress(app, slot, renderable, &debug, reference);
-        crate::overlay::follow_3d(slot.companion.as_mut(), Color::new(r, g, b, a), scale);
+        crate::overlay::follow_3d(slot.companion.as_mut(), color, scale);
         instances::draw(app, &world, entity, slot, (global, eye, visible));
     }
     crate::batch_3d::flush(batches);
@@ -945,7 +955,7 @@ pub(crate) fn apply_surface(node: &mut SceneNode3d, surface: &crate::material::S
     node.set_ior(surface.ior);
     node.set_thickness(surface.thickness);
     let [r, g, b, _] = surface.attenuation_color;
-    node.set_attenuation(Color::new(r, g, b, 1.0), surface.absorbing_distance());
+    node.set_attenuation(crate::film::opaque([r, g, b]), surface.absorbing_distance());
     node.set_bsdf(match surface.trace_surface {
         TraceSurface::Opaque => kiss3d::scene::Bsdf::Opaque,
         TraceSurface::Glass => kiss3d::scene::Bsdf::Glass,

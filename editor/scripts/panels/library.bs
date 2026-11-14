@@ -51,6 +51,14 @@ impl Library {
         }
     }
 
+    /// Laid out on screen by the dock, a frame after `docks_changed`: what it
+    /// skipped while hidden fills now.
+    pub fn on_visibility_changed(visible: bool) {
+        if visible {
+            self.refresh();
+        }
+    }
+
     /// The dock showed or hid this panel: shown, it fills.
     pub fn on_docks_changed(_change: any) {
         if self.node.visible() {

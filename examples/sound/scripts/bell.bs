@@ -1,0 +1,25 @@
+// A bell on a timer: the node's `timer` announces `timeout`, the script rings
+// the node's own `sound`, and the node announces `sound_finished` when it plays out.
+
+pub class Bell {
+    node: Node,
+    rung: int,
+    finished: int,
+}
+
+impl Bell {
+    fn on_timeout(payload: any) {
+        self.node.sound.play();
+        self.rung += 1;
+        self.tell();
+    }
+
+    fn on_sound_finished(handle: any) {
+        self.finished += 1;
+        self.tell();
+    }
+
+    fn tell() {
+        self.node.get_node("BellLabel").text2d.text = "bell: rung {self.rung}, finished {self.finished}";
+    }
+}

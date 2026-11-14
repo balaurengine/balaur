@@ -162,7 +162,7 @@ the fault.
     and angular parts mixed (`crates/balaur_physics/src/joint.rs:289-291`). It
     is impulse per step, so the threshold moves with the fixed step, and on an
     articulation it never fires (`crates/balaur_physics/src/shared/joint.rs:138-142`).
-23. After `set_joint_limits` or `set_motor_*`, `get` still reports the
+23. After `set_limits` or `set_motor_*`, `get` still reports the
     authored values and the next patch rebuilds the joint from them
     (`crates/balaur_physics/src/joint.rs:249-283`).
 24. On a `rope` joint `limits` overrides `max_length` silently: both write the
@@ -191,7 +191,7 @@ the fault.
     Balaur's `false` is rapier's `None`, "auto". `shape_matching = false` is
     applied after the generator and undoes the `trimesh` and `polyline`
     generators' own choice (`crates/balaur_physics/src/softbody.rs:218`).
-31. `move_character` passes `QueryFilter::default()` with only its own collider
+31. `move_by` passes `QueryFilter::default()` with only its own collider
     excluded (`crates/balaur_physics/src/character.rs:127`): the sweep hits
     sensors, ignores the character's `collision_mask`, and hits the body's
     other colliders. Wheel rays do the same (`crates/balaur_physics/src/vehicle.rs:137`).
@@ -199,7 +199,7 @@ the fault.
     (`crates/balaur_physics/src/vehicle.rs:95`), so an airborne wheel stops
     dead instead of slowing by 0.99 per step
     (`rapier: control/ray_cast_vehicle_controller.rs:481-486`).
-    `wheel_state().suspension_force` reads the force before the
+    `state().suspension_force` reads the force before the
     `suspension_max_force` cap (`:447-450`). Reverse, steer and brake do not
     wake a sleeping chassis (`:442`).
 33. `physics.counters` and `physics.quarantined` read the 3D world alone
@@ -300,7 +300,7 @@ mouse controls are not wrapped: no mouse or key moves a camera.
 | `Loupe` (`kiss3d: post_processing/loupe.rs:41-50,262-317`) | `post` word `loupe`; `loupe_zoom`, `loupe_focus`, `loupe_corner` (`top_left`/`top_right`/`bottom_left`/`bottom_right`), `loupe_size`, `loupe_border_color` | 8, [0.5, 0.5], bottom_right, 0.4, [1, 0.9, 0.2] | |
 | `OculusStereo` (`kiss3d: post_processing/oculus_stereo.rs:30`) | `post` word `stereo` | | Useful only with the stereo camera below |
 | `FirstPersonCamera3d` (`kiss3d: camera/first_person3d.rs`) | none | | Not wrapped. It is a game's controller inside kiss3d's event loop: it moves per rendered frame on raw keys, outside the fixed step and the input actions. A first-person camera is a script moving the node, as the editor library's First person rig does |
-| `FirstPersonCamera3dStereo::set_ipd` (`kiss3d: camera/first_person_stereo3d.rs:216`) | `eye_separation`; above 0 the camera is a stereo pair | 0 | Built. Each eye draws its half of the frame and the eyes converge on the point looked at. The node alone places it: its keys, buttons and scroll are off, and +y stays up |
+| `FirstPersonCamera3dStereo::set_ipd` (`kiss3d: camera/first_person_stereo3d.rs:216`) | `stereo_separation`; above 0 the camera is a stereo pair | 0 | Built. Each eye draws its half of the frame and the eyes converge `focus_distance` ahead. The node alone places it: its keys, buttons and scroll are off, and +y stays up |
 | `FixedView3d` (`kiss3d: camera/fixed_view3d.rs`) | none | | Pinned at the origin; an orbit with both buttons `none` covers it |
 
 The bloom settings on `camera3d` and the exposure settings on `environment`
@@ -395,7 +395,7 @@ On `mesh`, `shape3d`, `multimesh3d`, `boolean3d` and `text3d`.
 | --- | --- | --- | --- |
 | `set_lines_width(width, use_perspective)` (`object3d.rs:1473`) | `wireframe_width`, `wireframe_sizing` (`world`/`screen`) | 0 (off), world | **pipeline**; **web**: the storage-backed line renderer (`kiss3d: window/wgpu_canvas.rs:600-607`) |
 | `set_lines_color` (`object3d.rs:1486`) | `wireframe_color` | the node's colour | as above |
-| `set_points_size`, `set_points_color` (`object3d.rs:1501,1514`) | `dot_size`, `dot_sizing`, `dot_color` | 0 (off) | as above; `dot`, because `shape2d` has `points` and a material has the `vertex_color` feature |
+| `set_points_size`, `set_points_color` (`object3d.rs:1501,1514`) | `point_size`, `point_sizing`, `point_color` | 0 (off) | as above; Godot's `BaseMaterial3D.point_size` |
 | `set_surface_rendering_activation` (`object3d.rs:1526`) | `draw_surface` | true | `SkinnedMaterial3d` ignores it |
 | `set_segmentation_id` (`object3d.rs:1444`) | `segmentation_id` | automatic, ≥ 1 | Read only by the segmentation output |
 | Receive shadows | `receive_shadows` | true | **fork**: nothing in the fork; NAMING reserves the key |
@@ -433,7 +433,7 @@ Exposed: component `source`, `texture`, `material`, `cast_shadow`,
 
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |
-| `InstanceData3d::{lines_color, lines_width, points_color, points_size}` (`object3d.rs:843-850`) | instance `wireframe_color`, `wireframe_width`, `dot_color`, `dot_size` | none | as the renderable keys |
+| `InstanceData3d::{lines_color, lines_width, points_color, points_size}` (`object3d.rs:843-850`) | instance `wireframe_color`, `wireframe_width`, `point_color`, `point_size` | none | as the renderable keys |
 | `InstanceData3d::deformation` (`object3d.rs:840`) | instance `basis` (9 floats) | | Shear is dropped today |
 | `Object3d::set_color` on the node | `color` | white | Forced to white (`crates/balaur_render/src/multimesh.rs:526-527`); `multimesh2d` has it |
 | `instance_compute_buffers` (`object3d.rs:1412`) | none | | A compute pass writes instances; Rust only, not scene data |
@@ -503,10 +503,10 @@ the 3D ones, and the wireframe and dot keys to a `debug_draw` component
 | --- | --- | --- | --- |
 | `Object2d::set_blend(Blend2d)` (`object2d.rs:24-43,620`) | `blend_mode` (`auto`/`alpha`/`premultiplied`/`add`/`multiply`/`screen`/`opaque`) | `auto`, from the texture's `premultiply` | `Blend2d::blend_state` is `pub(crate)` (`object2d.rs:48`): **fork**, or Balaur copies it |
 | `set_lines_width`, `set_lines_color` (`object2d.rs:688,701`) | `wireframe_width`, `wireframe_sizing`, `wireframe_color` | 0, white | Every triangle edge, not the outline |
-| `set_points_size`, `set_points_color` (`object2d.rs:716,729`) | `dot_size`, `dot_sizing`, `dot_color` | 0, white | |
+| `set_points_size`, `set_points_color` (`object2d.rs:716,729`) | `point_size`, `point_sizing`, `point_color` | 0, white | |
 | `set_surface_rendering_activation` (`object2d.rs:741`) | `draw_surface` | true | |
 | `enable_backface_culling` (`object2d.rs:612`) | `cull_back_faces` | | **fork**: stored, never read; every 2D material builds with `cull_mode: None` |
-| `set_normal_map`, `set_lit_params` (`object2d.rs:633,653`; `LitParams` at `kiss3d: builtin/lit_material2d.rs:28-42`) | `normal_map`, `specular_strength`, `shininess`, `normal_strength` | "", 0.0, 16.0, 1.0 | Read only by `LitMaterial2d` (below) |
+| `set_normal_map`, `set_lit_params` (`object2d.rs:633,653`; `LitParams` at `kiss3d: builtin/lit_material2d.rs:28-42`) | `normal_map`, `specular_strength`, `specular_shininess`, `normal_scale` | "", 0.0, 16.0, 1.0 | Read only by `LitMaterial2d` (below) |
 
 ### `sprite`
 
@@ -558,8 +558,8 @@ Exposed: `source`, `texture`, `color`.
 
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |
-| `InstanceData2d::uv` (`object2d.rs:231`) | instance `region_origin`, `region_size`; `set_instance_region` | whole texture | **pipeline**: `SkinnedMaterial` binds no uv buffer |
-| `InstanceData2d` overlay overrides (`object2d.rs:221-227`) | instance `wireframe_color`, `wireframe_width`, `dot_color`, `dot_size` | none | **pipeline** |
+| `InstanceData2d::uv` (`object2d.rs:231`) | instance `region_origin`, `region_size` | whole texture | **pipeline**: `SkinnedMaterial` binds no uv buffer |
+| `InstanceData2d` overlay overrides (`object2d.rs:221-227`) | instance `wireframe_color`, `wireframe_width`, `point_color`, `point_size` | none | **pipeline** |
 | `Object2d::set_material` | `material` | "" | `multimesh3d` has it |
 | Default UV scale | `pixels_per_unit` | | Fixed to the default (`crates/balaur_render/src/multimesh.rs:540`); `polygon` has it |
 
@@ -793,7 +793,7 @@ the VHACD keys `symmetry_bias`, `revolution_bias`, `plane_downsampling`,
 | `Voxels::set_voxel_size`, `crop`, `split_with_box`, `combine_voxel_states` (`parry2d: shape/voxels/voxels_edition.rs:13,208-281`) | `voxel_size` on `kind = voxels`; script calls for the rest | | |
 
 Readers 2D still lacks, from `docs/PLAN-rapier.md` item 5: `aabb`,
-`swept_aabb`, `closest_points`, `time_of_impact`, `collider_mass`,
+`swept_aabb`, `closest_points`, `time_of_impact`, `collider_total_mass`,
 `collider_volume`, `collider_mesh`, `handles`,
 `predict_position_with_forces` and `solve_ik`. `max_contact_impulse` sits on
 `body2d` here and on `collider3d` in 3D. 3D's `convex_decomposition` has no
@@ -879,8 +879,8 @@ mirrors the 3D code line for line.
 | --- | --- | --- | --- |
 | `CharacterLength` per field (`rapier: control/character_controller.rs:70-72,180,196`) | `safe_margin_lengths`, `step_height_lengths`, `step_min_width_lengths`, `floor_snap_lengths` (`absolute`/`relative`) | relative in rapier | Replaces `lengths`: **two spellings** if both stay |
 | `solve_character_collision_impulses`'s `character_mass` (`:880-886`) | `push_mass` | 0, the body's mass | Floored at 1 today |
-| `QueryFilter.flags` (`rapier: pipeline/query_pipeline.rs:593-610`) | `ignore` (flags `static`/`kinematic`/`dynamic`/`sensors`/`solids`) | none | Defect 31: `groups` from the collider's own layers and the own body excluded need no key |
-| `QueryFilter.predicate` (`query_pipeline.rs:690`) | `ignore_nodes` (list of node) | [] | A closure would call Rune once per candidate mid-query |
+| `QueryFilter.flags` (`rapier: pipeline/query_pipeline.rs:593-610`) | `exclude_kinds` (flags `static`/`kinematic`/`dynamic`), `hit_sensors`, `hit_solids` | none, false, true | Defect 31: `groups` from the collider's own layers and the own body excluded need no key |
+| `QueryFilter.predicate` (`query_pipeline.rs:690`) | `exclude` (list of node) | [] | A closure would call Rune once per candidate mid-query |
 | `CharacterCollision.character_pos`, `translation_applied`, and `hit` (`character_controller.rs:108-110`; `parry3d: query/shape_cast/shape_cast.rs:44-83`) | collision record `position`, `applied`, `distance`, `own_point`, `own_normal`, `status` (`converged`/`out_of_iterations`/`failed`/`penetrating`), `subshape` | | Script return value; `time_of_impact` is a distance here |
 | `move_shape` takes any shape (`:297-304`) | none | | Only the first collider is swept (`crates/balaur_physics/src/character.rs:120`); a compound is Balaur work |
 | 20 sweep iterations, the depenetration budget, the ground probe, the grounded threshold, platform friction transfer (`:249-612`) | none | | **upstream**: hard-coded |
@@ -898,25 +898,25 @@ Exposed: `forward_axis`, `up_axis`. rapier's vehicle is 3D only
 
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |
-| `current_vehicle_speed` (`rapier: control/ray_cast_vehicle_controller.rs:22,417-422`) | reader `speed()` | | The speed signed by heading; `vehicle_speed` projects onto the forward axis, a different number. Copied out after `update_vehicle` |
-| `update_vehicle`'s query filter (`:409`) | `collision_mask`, `ignore` | | Defect 31; one filter per vehicle, not per wheel |
+| `current_vehicle_speed` (`rapier: control/ray_cast_vehicle_controller.rs:22,417-422`) | a reader, not named yet | | The speed signed by heading; `speed()` projects onto the forward axis, a different number, so this one takes another name. Copied out after `update_vehicle` |
+| `update_vehicle`'s query filter (`:409`) | `collision_mask`, `exclude_kinds`, `hit_sensors`, `hit_solids` | | Defect 31; one filter per vehicle, not per wheel |
 | Axis sign: `index_up_axis`, `index_forward_axis` are 0–2 (`:27-29`) | `forward_axis` words `-x`, `-y`, `-z` | | **upstream**, or Balaur negates engine force and steering |
 | The controller across steps (`:14-15`, `Serialize`) | none | | Defect 32; keeping it puts it in the snapshot: **digest** |
 
 ### `wheel3d`
 
 Exposed: every `WheelTuning` field and every `add_wheel` argument. Script:
-`set_engine_force`, `set_brake`, `set_steering`, `wheel_state()`. Readers
+`set_engine_force`, `set_brake`, `set_steering`, `state()`. Readers
 are copied out after the step, because the controller is rebuilt.
 
 | Wrapped item | Key | Default | Constraint |
 | --- | --- | --- | --- |
-| `forward_impulse`, `side_impulse` (`ray_cast_vehicle_controller.rs:160-162`) | `wheel_state` fields of the same names | | |
-| `RayCastInfo` (`:238-250`) | `wheel_state` fields `contact_normal`, `contact_point`, `suspension_length`, `ray_origin`, `ground` | | Only `in_contact` is read today |
-| `center()`, `suspension()`, `axle()` (`:219-229`) | `wheel_state` fields `center`, `suspension`, `axle` | | World space, after steering |
-| `Wheel.rotation`, writable (`:153`) | `set_wheel_rotation` | | |
+| `forward_impulse`, `side_impulse` (`ray_cast_vehicle_controller.rs:160-162`) | `state()` fields of the same names | | |
+| `RayCastInfo` (`:238-250`) | `state()` fields `contact_normal`, `contact_point`, `suspension_length`, `ray_origin`, `ground` | | Only `in_contact` is read today |
+| `center()`, `suspension()`, `axle()` (`:219-229`) | `state()` fields `center`, `suspension`, `axle` | | World space, after steering |
+| `Wheel.rotation`, writable (`:153`) | `set_rotation` | | |
 | `roll_influence` (`:155,200`) | `roll_influence` | 0.1 | **upstream**: private; rapier's own TODO asks to make it public |
-| `skid_info` (`:175`) | `wheel_state` field `skid` | | **upstream**: private |
+| `skid_info` (`:175`) | `state()` field `skid` | | **upstream**: private |
 | `side_factor`, `fwd_factor` in `update_friction` (`:602-603`) | none | 1.0, 0.5 | **upstream**: hard-coded |
 
 The docs say more than rapier in four places, fixed with the readers: the
@@ -945,7 +945,7 @@ new component pair, run each fixed step as the vehicle system is
 | `translation_axes`, `rotation_axes` | `axes` (`rapier: dynamics/rigid_body_components.rs:228-244`), the words `lock_*` uses | all |
 | `follow_rotation` in 2D, for the one turn | `AxesMask::ANG_Z` | true |
 
-Built. A script `reset_follow()` maps to `reset_integrals` (`pid_controller.rs:277-300`).
+Built. A script `reset()` maps to `reset_integrals` (`pid_controller.rs:277-300`).
 The ragdoll builder's `drive = "follow"` puts a `follow3d` or `follow2d` on every body,
 its keys in a `follow` table, aimed at the bone the body was built from.
 The PID integrals change each step: **digest**. The gains are tied to the
@@ -1019,7 +1019,7 @@ Script calls and readers:
   (`shared/softbody.rs:389-405`), so a particle torn into a new piece cannot
   be read or moved.
 
-Docs to fix with the keys: `softbody_stress` is the load as a fraction of the
+Docs to fix with the keys: `stress()` is the load as a fraction of the
 tear threshold, 0 with no tear criterion (`soft_body_elements.rs:191-197`), not
 a stretch; the 3D `mesh` description names a `polyline` kind 3D lacks; and
 the `*_frequency` keys are hertz with no `_hz` suffix (N21).
@@ -1118,7 +1118,7 @@ shapes complex scripts, and rasterises with default flags
 | `Family::Name` and generic families | `font_name` | "", the chain | Measurement sees project faces alone (`lib.rs:348-376`), so an OS family draws but does not measure |
 | `Attrs::font_features` (`attrs.rs:137-195,377`) | `font_features` (list: `"smcp"`, `"liga=0"`) | [] | |
 | `underline`, `strikethrough`, `overline` and their colours (`attrs.rs:227-233,382-407`) | the same six names, `underline` an enum `none`/`single`/`double` | none | Balaur paints glyph quads and drops run decorations (`lib.rs:589-628`); markup gains `[u]`, `[s]` |
-| `Wrap::Word`, `Wrap::Glyph` (`cosmic-text: layout.rs:128-137`) | `line_break` (`word_or_glyph`/`word`/`glyph`) | word_or_glyph | |
+| `Wrap::Word`, `Wrap::Glyph` (`cosmic-text: layout.rs:128-137`) | `line_break` (`word_smart`/`word`/`arbitrary`) | word_smart | |
 | `Buffer::set_ellipsize` (`buffer.rs:773`, `layout.rs:173-193`) | `truncate`, `truncate_at` (`end`/`start`/`middle`), `max_lines` | false, end, 0 | The widget's truncation is Balaur's own end-only search; it moves onto this |
 | `set_size` height (`buffer.rs:818`) | `max_height` | 0, none | |
 | `Align::Justified`, `Left`, `Right` (`layout.rs:152-158`) | `text_align` words `justify`, `left`, `right` | | Start and end follow the direction; left and right do not |
@@ -1126,7 +1126,7 @@ shapes complex scripts, and rasterises with default flags
 | `Buffer::set_hinting` (`buffer.rs:745`) | `snap_advances` | false | Layout turns resolution-dependent and measurement stops being platform-independent |
 | Cache flags `DISABLE_HINTING`, `PIXEL_FONT` (`glyph_cache.rs:9-13`) | `hinting`, `pixel_snap` | true, false | Defect 35: the font import's `hinting` is the same switch |
 | `set_monospace_width` (`buffer.rs:787`) | `monospace_width` | 0, none | |
-| `set_tab_width` (`buffer.rs:801`) | `tab_width` | 8 | |
+| `set_tab_width` (`buffer.rs:801`) | `tab_size` | 8 | |
 | `Attrs::metrics`, family per span (`attrs.rs:365`) | markup `[size=N]`, `[font=chain]` | | The parser knows b, i, color, wave, align, img, url, hint (`crates/balaur_text/src/markup.rs:218-242`) |
 
 ## 14. Widgets
@@ -1261,7 +1261,7 @@ one choice `transform` takes from glam is the Euler order, ZYX
 10. A sky lighting intensity and image apart from the drawn sky.
 11. Morph weights checked against the mesh's own targets, and an offscreen
     depth target a post pass can sample.
-12. The stereo camera's eyes converge on the point it looks at.
+12. The stereo camera's eyes converge `focus_distance` ahead.
 13. A translucent instance sends its object to the transparent pass.
 14. 2D GI marches in field pixels and thins a segment occluder to half of one.
 
@@ -1321,7 +1321,7 @@ replacement.
 | Soft-body orientation | `orientation` (`auto`/`solid`/`shell`) | `oriented` |
 
 The joint change is the widest: scenes, presets, the Godot importer and the
-editor move to `axes`, and `set_joint_limits` and `set_motor_*` take an axis.
+editor move to `axes`, and `set_limits` and `set_motor_*` take an axis.
 
 ## 19. Docs to correct with the work
 

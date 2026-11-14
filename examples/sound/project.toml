@@ -1,0 +1,16 @@
+[application]
+name = "sound"
+main_scene = "scenes/main.toml"
+
+[time]
+tick_hz = 60
+
+[window]
+width = 1280
+height = 720
+
+# The hum plays through `music` and the thud through `effects`, so each has
+# a level of its own under `master`.
+[audio.buses]
+music = { volume_linear = 0.5 }
+effects = { volume_linear = 0.9 }

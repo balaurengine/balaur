@@ -204,7 +204,7 @@ pub fn pick_3d(state: editor::State, pointer_x: float, pointer_y: float, camera:
 }
 
 fn line(from: [float], to: [float], color: [float]) {
-    render::draw_line_2d(from[0], from[1], to[0], to[1], color[0], color[1], color[2], LINE_WIDTH);
+    render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), LINE_WIDTH);
 }
 
 // Godot's bone: a diamond from origin to tip, widest a fifth of the way.
@@ -257,9 +257,9 @@ fn draw_bone_3d(spine: Geometry, color: [float]) {
     for corner in 0..waist.len() {
         let waist_point = waist[corner];
         let next_point = waist[(corner + 1) % 4];
-        render::draw_line_3d(spine.origin[0], spine.origin[1], spine.origin[2], waist_point[0], waist_point[1], waist_point[2], color[0], color[1], color[2], LINE_WIDTH);
-        render::draw_line_3d(waist_point[0], waist_point[1], waist_point[2], spine.tip[0], spine.tip[1], spine.tip[2], color[0], color[1], color[2], LINE_WIDTH);
-        render::draw_line_3d(waist_point[0], waist_point[1], waist_point[2], next_point[0], next_point[1], next_point[2], color[0], color[1], color[2], LINE_WIDTH);
+        render::draw_line_3d(vec3(spine.origin[0], spine.origin[1], spine.origin[2]), vec3(waist_point[0], waist_point[1], waist_point[2]), util::as_color(color), LINE_WIDTH);
+        render::draw_line_3d(vec3(waist_point[0], waist_point[1], waist_point[2]), vec3(spine.tip[0], spine.tip[1], spine.tip[2]), util::as_color(color), LINE_WIDTH);
+        render::draw_line_3d(vec3(waist_point[0], waist_point[1], waist_point[2]), vec3(next_point[0], next_point[1], next_point[2]), util::as_color(color), LINE_WIDTH);
     }
 }
 
@@ -406,9 +406,9 @@ fn draw_modifiers(state: editor::State) {
 // and a 3D line in a 2D scene lands where nothing is looking.
 fn line_at(state: editor::State, from: [float], to: [float], color: [float], width: float) {
     if state.mode2d {
-        render::draw_line_2d(from[0], from[1], to[0], to[1], color[0], color[1], color[2], width);
+        render::draw_line_2d(vec2(from[0], from[1]), vec2(to[0], to[1]), util::as_color(color), width);
     } else {
-        render::draw_line_3d(from[0], from[1], from[2], to[0], to[1], to[2], color[0], color[1], color[2], width);
+        render::draw_line_3d(vec3(from[0], from[1], from[2]), vec3(to[0], to[1], to[2]), util::as_color(color), width);
     }
 }
 
@@ -620,9 +620,9 @@ fn label_bone(state: editor::State, row: int, node: Node, spine: Geometry, ink: 
         pixels_per_unit: LABEL_PIXELS_PER_UNIT,
     };
     if state.mode2d {
-        render::draw_text_2d(spine.origin[0], spine.origin[1] + LABEL_LIFT, node.name(), options);
+        render::draw_text_2d(vec2(spine.origin[0], spine.origin[1] + LABEL_LIFT), node.name(), options);
     } else {
-        render::draw_text_3d(spine.origin[0], spine.origin[1] + LABEL_LIFT, spine.origin[2], node.name(), options);
+        render::draw_text_3d(vec3(spine.origin[0], spine.origin[1] + LABEL_LIFT, spine.origin[2]), node.name(), options);
     }
 }
 

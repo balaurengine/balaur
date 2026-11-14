@@ -176,3 +176,45 @@ fn a_file_from_outside_the_project_stops_beside_it() {
     assert!(host.paused().is_none());
     assert_eq!(field(&app, "game", "frames"), 4);
 }
+
+// A stop is said with where it is, and the script going on is said once,
+// with nil, under a name of its own.
+#[test]
+fn a_stop_and_the_resume_after_it_are_two_events() {
+    let (_dir, mut app) = booted();
+    app.engine.set_debug_scope(Some(node(&app, "game")));
+    let ear = node(&app, "shell");
+    for name in [
+        balaur_core::events::DEBUGGER_STOPPED,
+        balaur_core::events::DEBUGGER_RESUMED,
+    ] {
+        balaur_core::events::subscribe(&app.engine, ear, name, None);
+    }
+    let heard = |app: &App, name: &str| balaur_core::events::delivered(&app.engine, name);
+    let host = app.engine.script_host().unwrap();
+    host.set_breakpoints("scripts/game.bs", &[4]).unwrap();
+    app.tick(DEFAULT_FIXED_DT);
+    assert!(host.paused().is_some(), "the control: it stopped");
+    app.tick(DEFAULT_FIXED_DT);
+    let stopped = heard(&app, balaur_core::events::DEBUGGER_STOPPED);
+    assert!(
+        matches!(stopped.as_slice(), [Value::Map(_)]),
+        "where it stopped: {stopped:?}"
+    );
+    assert!(heard(&app, balaur_core::events::DEBUGGER_RESUMED).is_empty());
+
+    host.set_breakpoints("scripts/game.bs", &[]).unwrap();
+    host.resume(StepMode::Continue);
+    balaur_core::events::resumed(&app.engine);
+    app.tick(DEFAULT_FIXED_DT);
+    assert_eq!(
+        heard(&app, balaur_core::events::DEBUGGER_RESUMED),
+        [Value::Nil]
+    );
+    assert!(heard(&app, balaur_core::events::DEBUGGER_STOPPED).is_empty());
+    app.tick(DEFAULT_FIXED_DT);
+    assert!(
+        heard(&app, balaur_core::events::DEBUGGER_RESUMED).is_empty(),
+        "said once"
+    );
+}

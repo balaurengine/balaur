@@ -459,10 +459,15 @@ pub fn to_hex(rgba: [float]) -> str {
     out
 }
 
-/// A colour as the `[r, g, b]` the draw calls take.
+/// A colour as `[r, g, b]`, which `as_color` turns into what a draw call takes.
 pub fn rgb(hex: str) -> [float] {
     let color = hex_to_rgb(hex);
     [color.red, color.green, color.blue]
+}
+
+/// Three channels as an opaque `Color`.
+pub fn as_color(channels: [float]) -> Color {
+    color(channels[0], channels[1], channels[2], 1.0)
 }
 
 // Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):

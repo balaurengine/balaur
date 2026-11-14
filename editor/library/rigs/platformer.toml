@@ -39,4 +39,4 @@ pixels_per_unit = 48
 kind = "follow"
 target = "../Player"
 lag = 0.18
-offset = [0, 1, 0]
+offset = [0, 1]

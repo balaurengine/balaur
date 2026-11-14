@@ -271,7 +271,6 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::components::ComponentRegistry::default());
     eng.insert_resource(crate::warnings::Refusals::default());
     eng.insert_resource(crate::plugins::PluginRegistry::default());
-    eng.insert_resource(crate::presets::PresetRegistry::default());
     eng.insert_resource(crate::assets::AssetTypeRegistry::default());
     eng.insert_resource(crate::assets::AssetState::default());
     eng.insert_resource(ProjectRoot(config.project_root.clone()));
@@ -330,6 +329,8 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::replay::ReplayPlayer::default());
     eng.insert_resource(crate::replay::EventLog::default());
     eng.insert_resource(crate::snapshot::SnapshotRegistry::default());
+    eng.insert_resource(crate::rest::ProbeRegistry::default());
+    eng.insert_resource(crate::rest::RestState::default());
 }
 
 /// The facts and timers every app carries: recorded as replay sources so a
@@ -453,6 +454,7 @@ impl App {
         app.add_system(Stage::First, crate::process::announce_pause_system);
         app.add_system(Stage::FixedUpdate, crate::timers::step_timers_system);
         app.add_system(Stage::FixedUpdate, crate::timer::step_system);
+        crate::rest::add_core_probes(&app.engine);
         app.add_system(Stage::PreUpdate, |eng, _| {
             if let Some(host) = eng.script_host() {
                 crate::timings::measure(eng, "scripts/reload", || host.pump_reloads());
@@ -781,17 +783,6 @@ impl App {
         self
     }
 
-    /// Register a preset: a named set of components applied to one node.
-    ///
-    /// A recipe, not a type -- see `balaur_core::presets`. Plugins register
-    /// the presets for the components they own, so the physics plugin ships
-    /// the body ones and a headless build offers neither.
-    pub fn register_preset(&mut self, name: &str, def: crate::presets::PresetDef) -> &mut Self {
-        let registry = self.engine.resource::<crate::presets::PresetRegistry>();
-        registry.borrow_mut().0.insert(name.to_string(), def);
-        self
-    }
-
     /// Teach scene files a new key handled by the calling plugin.
     pub fn scene_key_handler(
         &mut self,
@@ -866,7 +857,6 @@ impl App {
         }
         self.engine
             .insert_resource(project::ManifestSource(manifest_src.clone()));
-        self.load_project_presets()?;
         let root = self.engine.root();
         project::instantiate_main_scene(&self.engine, &main_scene, &scene_src, root)?;
         crate::preload::queue_pack(&self.engine, self.pack.as_ref(), &main_scene);
@@ -886,27 +876,6 @@ impl App {
             reason = "a rate from a setting bounded at 1..=480"
         )]
         set_tick_hz(hz.map_or(DEFAULT_TICK_HZ, |n| n as u32));
-    }
-
-    /// Load `presets.toml`, letting a project name its own recipes.
-    ///
-    /// Read through `project::scene_text`, which is where a pack keeps its
-    /// documents: `ProjectFiles` serves the pack's *assets*, and a shipped
-    /// game found no presets there at all. Absent is the normal case, not an
-    /// error; malformed is an error, because ignoring it hides a typo forever.
-    fn load_project_presets(&mut self) -> Result<()> {
-        let Ok(text) = project::scene_text(&self.engine, "presets.toml") else {
-            return Ok(());
-        };
-        let table: toml::Value = toml::from_str(&text).context("parsing presets.toml")?;
-        let table = table
-            .as_table()
-            .ok_or_else(|| anyhow::anyhow!("presets.toml should be a table of presets"))?;
-        for (name, body) in table {
-            let def = crate::presets::from_toml(name, body)?;
-            self.register_preset(name, def);
-        }
-        Ok(())
     }
 
     pub const fn manifest(&self) -> Option<&ProjectManifest> {
@@ -1051,6 +1020,7 @@ impl App {
         // A re-run tick is simulation only: nothing draws a world about to be
         // stepped again.
         let resimulating = crate::rollback::is_resimulating(&self.engine);
+        self.engine.set_opening_hold(false);
         crate::components::ticks::frame_started(&self.engine);
         crate::messages::frame_started(&self.engine);
         for (stage, elapsed) in stages.iter_mut().enumerate() {
@@ -1105,6 +1075,7 @@ impl App {
             // After the step, so the pair kept is the pose this step left and
             // the one before it: what a frame between the two blends.
             crate::interpolate::capture(&self.engine);
+            crate::rest::note_step(&self.engine);
             self.accumulator -= step;
             steps += 1;
         }

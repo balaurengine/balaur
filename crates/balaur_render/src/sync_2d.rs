@@ -476,7 +476,7 @@ fn write_instance(
         return;
     }
     let (at, deformation) = crate::batch_2d::pose(&renderable, &global);
-    let color = modulate(renderable.color, appearance.tint.to_array());
+    let color = crate::film::rgba(modulate(renderable.color, appearance.tint.to_array()));
     let Some(run) = batches.runs.get_mut(run) else {
         return;
     };
@@ -580,7 +580,7 @@ pub(crate) fn sync_2d(
         // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
         let inherited = appearance.tint.to_array();
-        let [r, g, b, a] = modulate(renderable.color, inherited);
+        let color = crate::film::color(modulate(renderable.color, inherited));
         let size = frame_sprite(app, slot, &renderable);
         // Every frame: the rig moved even when nothing about the polygon did.
         if let (Some(handle), Some(polygon)) = (&slot.skin, renderable.polygon.as_deref()) {
@@ -613,7 +613,7 @@ pub(crate) fn sync_2d(
             .set_position(Vec2::new(global.position.x, global.position.y) + shift)
             .set_rotation(angle)
             .set_local_scale(size.x * global.scale.x, size.y * global.scale.y)
-            .set_color(Color::new(r, g, b, a))
+            .set_color(color)
             .set_visible(visible);
     }
     flush(batches, slots, &seen);
@@ -764,12 +764,14 @@ pub(crate) fn tint_pieces(slot: &mut Slot2d, renderable: &Renderable2d, inherite
         .map_or([r, g, b, a], |gradient| modulate(gradient, inherited));
     for (piece, along) in &mut slot.pieces {
         let t = *along;
-        piece.set_color(Color::new(
+        // Mixed as written and decoded after, so the midpoint is the one a
+        // picker shows between the two ends.
+        piece.set_color(crate::film::color([
             r + (end[0] - r) * t,
             g + (end[1] - g) * t,
             b + (end[2] - b) * t,
             a + (end[3] - a) * t,
-        ));
+        ]));
     }
 }
 

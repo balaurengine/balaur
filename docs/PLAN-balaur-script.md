@@ -129,7 +129,9 @@ a script as from TOML, a component or the engine, so a `Vec3` in a patch works.
   method with plain arguments: one host call runs it over `count` objects
   whose pointers sit at `base`, for each run of nodes in scene order sharing
   a script.
-- A host call borrows its string arguments. A string or array it returns is
+- A host call borrows every argument, and so does a property's write: the
+  caller releases a string, a list, an `any`, and what a `T?`, a struct or a
+  class holds, once the call returns. A string or array it returns is
   allocated in the module by calling the module's own allocator back from
   inside the host call, and the script owns it.
 - `any` holds what the engine hands over without one type: an http reply, a

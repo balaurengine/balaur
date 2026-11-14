@@ -43,7 +43,8 @@ pub enum Action {
     OpenUrl,
     /// `events.emit(value)`.
     Emit,
-    /// Call the method `value` on the target's script.
+    /// Call the method `value` with the event's values, then the bound node:
+    /// on the target, or with none on the nearest node up whose script has it.
     Call,
     /// Show or hide the target; `value` is read as a bool.
     Visible,
@@ -95,7 +96,8 @@ pub struct Binding {
     pub when_source: String,
     pub action: Action,
     /// A node path relative to the bound node, or a variable name for the
-    /// variable actions. Empty means the bound node itself.
+    /// variable actions. Empty means the bound node itself, and for `call`
+    /// the nearest node from it up whose script has the method.
     pub target: String,
     pub value: Value,
 }
@@ -423,9 +425,12 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
 
 /// What a removed `BindingRows` leaves behind, taken with it.
 fn binding_rows_removed(eng: &Engine, entity: Entity) {
-    let mut world = eng.world_mut();
-    let _ = world.remove_one::<BindingRows>(entity);
-    let _ = world.remove_one::<Bindings>(entity);
+    {
+        let mut world = eng.world_mut();
+        let _ = world.remove_one::<BindingRows>(entity);
+        let _ = world.remove_one::<Bindings>(entity);
+    }
+    crate::events::hearers_may_have_changed(eng, entity);
 }
 
 /// The `bindings` component: the rows as written, and [`Bindings`] parsed.
@@ -474,6 +479,32 @@ fn target_of(eng: &Engine, entity: Entity, row: &Binding) -> Result<Entity> {
         .ok_or_else(|| anyhow!("`{}` names no node from here", row.target))
 }
 
+/// The nearest node, `from` first and then up the tree, whose script declares
+/// `method`: where a `call` row naming no target lands, so a part instanced
+/// under two screens reaches whichever holds it.
+#[must_use]
+pub fn nearest_with_method(eng: &Engine, from: Entity, method: &str) -> Option<Entity> {
+    let host = eng.script_host()?;
+    let world = eng.world();
+    let mut current = from;
+    loop {
+        if host.has_method(crate::node_id_of(current), method) {
+            return Some(current);
+        }
+        current = world.get::<&crate::scene::Parent>(current).ok()?.0;
+    }
+}
+
+/// An event's values as a handler is handed them: `args`, then `source`, the
+/// node the event was said on.
+#[must_use]
+pub fn with_source(args: &[Value], source: Entity) -> Vec<Value> {
+    let mut out = Vec::with_capacity(args.len() + 1);
+    out.extend_from_slice(args);
+    out.push(Value::Node(crate::node_id_of(source).0));
+    out
+}
+
 fn text_of(value: &Value) -> String {
     match value {
         Value::Str(s) => s.clone(),
@@ -517,11 +548,16 @@ fn run(eng: &Engine, entity: Entity, row: &Binding, args: &[Value]) -> Result<()
             Ok(())
         }
         Action::Call => {
-            let target = target_of(eng, entity, row)?;
-            let Some(host) = eng.script_host() else {
-                return Ok(());
+            let method = text_of(&row.value);
+            let target = if row.target.is_empty() {
+                nearest_with_method(eng, entity, &method)
+            } else {
+                Some(target_of(eng, entity, row)?)
             };
-            host.call_on(crate::node_id_of(target), &text_of(&row.value), args);
+            if let (Some(target), Some(host)) = (target, eng.script_host()) {
+                let args = with_source(args, entity);
+                host.call_on(crate::node_id_of(target), &method, &args);
+            }
             Ok(())
         }
         // The rest reach verbs core does not own. Each plugin that owns one

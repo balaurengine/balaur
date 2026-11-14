@@ -11,11 +11,14 @@
 
 use anyhow::{Result, anyhow, bail};
 use balaur_script::{Module, Value};
-use glamx::{EulerRot, Vec3};
+use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
 
 use crate::engine::Engine;
-use crate::scene::{self, Appearance, Children, GlobalTransform, Name, NodeScript, Parent, Tags};
+use crate::scene::{
+    self, Appearance, Children, GlobalTransform, Name, NodeScript, Parent, Tags, Transform,
+};
+use crate::vocabulary::keys as k;
 
 mod scripts;
 use scripts::{
@@ -63,6 +66,7 @@ pub const NODE_OPS: &[NodeOp] = &[
     op("global_position", &["transform"], "() -> vec3", "The node's position in world space, as of the last transform sync.", global_position),
     op("global_rotation_euler", &["transform"], "() -> vec3", "The node's world rotation as euler angles in radians, as of the last transform sync.", global_rotation_euler),
     op("global_scale", &["transform"], "() -> vec3", "The node's scale in world space, as of the last transform sync.", global_scale),
+    op("look_at", &["transform"], "(point: vec3)", "Turn the node so its -z, the way a camera and a light face, points at a world point, with +y up. It faces from where its `position` puts it now, under its parent's pose as of the last transform sync.", look_at),
     op("get_node", &[], "(path: string) -> node", "The node at an `A/B/C` path relative to this one, `..` climbing to the parent and a leading `/` starting from the root; nil when nothing matches.", get_node),
     op("add_child", &[], "(name: string) -> node", "Create a named child node under this one and return it.", add_child),
     op("parent", &[], "() -> node", "The node's parent, nil at the root.", parent),
@@ -101,7 +105,7 @@ pub const NODE_OPS: &[NodeOp] = &[
     op("set_visible", &[], "(on: bool)", "Show or hide the node and everything under it, emitting `visibility_changed` with the new value when the flag moves. Physics is untouched: a hidden collider still collides.", set_visible),
     op("visible_in_tree", &[], "() -> bool", "What the renderer sees: false when the node or any ancestor is hidden.", visible_in_tree),
     op("tint", &[], "() -> color", "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen.", tint),
-    op("set_tint", &[], "(r: float, g: float, b: float, a: float)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits.", set_tint),
+    op("set_tint", &[], "(color: Color)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits.", set_tint),
     op("effective_tint", &[], "() -> color", "What the renderer multiplies by: this node's tint with every ancestor's folded in.", effective_tint),
     op("material", &[], "() -> string", "The `material` asset the node names itself, empty when it takes its parent's.", material),
     op("effective_material", &[], "() -> string", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.", effective_material),
@@ -143,14 +147,6 @@ fn text(args: &[Value], i: usize) -> Result<&str> {
     match args.get(i) {
         Some(Value::Str(s)) => Ok(s),
         other => Err(anyhow!("argument {i} should be a string, got {other:?}")),
-    }
-}
-
-fn number(args: &[Value], i: usize) -> Result<f32> {
-    match args.get(i) {
-        Some(Value::Num(n)) => Ok(*n as f32),
-        Some(Value::Int(n)) => Ok(*n as f32),
-        other => Err(anyhow!("argument {i} should be a number, got {other:?}")),
     }
 }
 
@@ -201,7 +197,7 @@ fn set_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 /// What a node emits when its own `visible` flips, carrying the new value.
 /// An ancestor hiding it does not: the flag this reports is the node's own.
-pub const VISIBILITY_EVENT: &str = "visibility_changed";
+pub const VISIBILITY_CHANGED_EVENT: &str = "visibility_changed";
 /// What a parent announces when a node is added under it, carrying the child.
 pub const CHILD_ADDED_EVENT: &str = "child_added";
 /// What a parent announces as a child leaves it, freed or moved: a freed
@@ -215,7 +211,7 @@ pub const REPARENTED_EVENT: &str = "reparented";
 
 /// What every node announces, whatever its components, with its payload.
 pub const NODE_EVENTS: &[(&str, &str)] = &[
-    (VISIBILITY_EVENT, "its own `visible`, now"),
+    (VISIBILITY_CHANGED_EVENT, "its own `visible`, now"),
     (CHILD_ADDED_EVENT, "the child"),
     (
         CHILD_REMOVED_EVENT,
@@ -266,16 +262,14 @@ fn tint(eng: &Engine, args: &[Value]) -> Result<Value> {
     with_appearance(eng, node(args)?, |a| Value::Color(a.tint.into()))
 }
 
-/// `set_tint(node, r, g, b, a)`, the alpha optional and one when left out.
-/// It multiplies into every descendant's, which is what a renderable's own
-/// `color` does not do.
+/// `set_tint(node, color)`. It multiplies into every descendant's, which is
+/// what a renderable's own `color` does not do.
 fn set_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let alpha = if args.len() > 4 {
-        number(args, 4)?
-    } else {
-        1.0
+    let colour = match args.get(1) {
+        Some(Value::Color(rgba)) => glamx::Vec4::from_array(*rgba),
+        Some(other) => bail!("a tint is a Color, not a {}", other.type_name()),
+        None => bail!("a tint is a Color, and none was given"),
     };
-    let colour = glamx::Vec4::new(number(args, 1)?, number(args, 2)?, number(args, 3)?, alpha);
     let e = node(args)?;
     crate::changes::node_keys(eng, e);
     with_appearance(eng, e, |a| a.tint = colour)?;
@@ -446,6 +440,48 @@ fn global_rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
         let (yaw, pitch, roll) = g.rotation.to_euler(EulerRot::ZYX);
         Value::Vec3([roll, pitch, yaw])
     })
+}
+
+/// The rotation that faces -z along `ahead` with +y up. Straight up or down
+/// has no +y to keep, so the top of the view takes z instead.
+#[must_use]
+pub fn facing(ahead: Vec3) -> Option<Quat> {
+    let ahead = ahead.try_normalize()?;
+    let right = ahead.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X);
+    let up = right.cross(ahead);
+    Some(Quat::from_mat3(&glamx::Mat3::from_cols(right, up, -ahead)).normalize())
+}
+
+fn look_at(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let point = match args.get(1) {
+        Some(Value::Vec3(v)) => Vec3::from_array(*v),
+        other => bail!("look_at takes the point as a Vec3, got {other:?}"),
+    };
+    let (eye, above) = {
+        let world = eng.world();
+        let above = world
+            .get::<&Parent>(e)
+            .ok()
+            .and_then(|parent| world.get::<&GlobalTransform>(parent.0).ok().map(|g| *g))
+            .unwrap_or(GlobalTransform::identity());
+        let own = world.get::<&Transform>(e).map(|t| *t).unwrap_or_default();
+        (above.mul(&own).position, above.rotation)
+    };
+    // A point the node stands on has no direction to face: it keeps its own.
+    let Some(turned) = facing(point - eye) else {
+        return Ok(Value::Nil);
+    };
+    let (z, y, x) = (above.inverse() * turned).to_euler(EulerRot::ZYX);
+    let euler = toml::Value::Array([x, y, z].map(|a| toml::Value::Float(f64::from(a))).to_vec());
+    crate::components::set_property(
+        eng,
+        e,
+        crate::transform::COMPONENT,
+        k::ROTATION_EULER,
+        &euler,
+    )?;
+    Ok(Value::Nil)
 }
 
 fn get_node(eng: &Engine, args: &[Value]) -> Result<Value> {

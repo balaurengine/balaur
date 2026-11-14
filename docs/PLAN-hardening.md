@@ -106,7 +106,7 @@ switch enables both scalar widths. Each is in its phase below with the line.
 Two of the same kind in physics, smaller: `is_grounded` is a move
 (`character.rs:261-267`, `dim2/character.rs:222-228`: a zero-translation
 `move_shape` that snaps, writes the transform and pushes bodies), and
-nothing says which stage `move_character` may run in. Cache the last move's
+nothing says which stage `move_by` may run in. Cache the last move's
 `grounded` and give `Engine` a `current_stage()` so both can refuse `update`.
 
 ### Phase 2 — panics, limits and confinement

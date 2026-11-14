@@ -93,9 +93,19 @@ pub(crate) fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()
 mod tests {
     use super::{run_test, test_project, test_scripts};
 
+    // The log buffer is the process's: one test's `clear` would wipe the
+    // error another is about to read.
+    static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn log_held() -> std::sync::MutexGuard<'static, ()> {
+        LOG.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     /// What `balaur test` answers for a main scene: a project with one test
     /// that holds nothing, so only the scene can fail it.
     fn tests_a_scene(prefab: &str, scene: &str) -> anyhow::Result<()> {
+        let _held = log_held();
         balaur::logbuf::capture_for_test();
         let dir = tempfile::tempdir().unwrap();
         let write = |name: &str, text: &str| std::fs::write(dir.path().join(name), text).unwrap();
@@ -164,6 +174,7 @@ mod tests {
 
     #[test]
     fn a_bs_test_fails_on_a_logged_error_or_a_trap() {
+        let _held = log_held();
         balaur::logbuf::capture_for_test();
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(

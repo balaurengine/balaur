@@ -19,7 +19,7 @@ fn rects(out: &egui::FullOutput) -> Vec<egui::Rect> {
 /// A `[url]` span reports its target to the script, and the click is the
 /// span's rather than the label's.
 #[test]
-fn a_url_span_calls_on_link_with_its_target() {
+fn a_url_span_says_link_with_its_target() {
     let script = "pub class Owner { node: Node, went: str }
 impl Owner {
     pub fn on_go(target: str) { self.went = target; }
@@ -35,7 +35,8 @@ impl Owner {
     let label = toml::toml! {
         kind = "label" x = 10.0 y = 10.0
         text = "read the [url=docs/ui]manual[/url] first"
-        widget_text = { markup = true, on_link = "on_go" }
+        widget_text = { markup = true }
+        bindings = { rows = [{ event = "emitted:link_clicked", action = "call", value = "on_go" }] }
     };
     let entity = add_child_widget(&app, owner, "Label", &label.into());
     let ctx = egui::Context::default();
@@ -56,7 +57,7 @@ impl Owner {
 /// A link a label names no handler for still says what was clicked, so a
 /// row or a subscriber can be the one that follows it.
 #[test]
-fn a_url_span_emits_its_target_with_no_handler_named() {
+fn a_url_span_says_its_target_with_no_row_on_it() {
     let (_dir, mut app) = app();
     let label = toml::toml! {
         kind = "label" x = 10.0 y = 10.0
@@ -72,7 +73,7 @@ fn a_url_span_emits_its_target_with_no_handler_named() {
     pass(&app, &ctx, press(at, false));
     consume_input(&mut app);
     assert_eq!(
-        balaur_core::events::delivered_from(&app.engine, entity, balaur_ui::LINK_EVENT),
+        balaur_core::events::delivered_from(&app.engine, entity, balaur_ui::LINK_CLICKED_EVENT),
         vec![balaur_script::Value::Str("docs/ui".into())]
     );
 }
@@ -96,7 +97,8 @@ impl Owner {
     let label = toml::toml! {
         kind = "label" x = 10.0 y = 10.0
         text = "read the [url=docs/ui]manual[/url] first"
-        widget_text = { markup = true, on_link = "on_go" }
+        widget_text = { markup = true }
+        bindings = { rows = [{ event = "emitted:link_clicked", action = "call", value = "on_go" }] }
     };
     let entity = add_child_widget(&app, owner, "Label", &label.into());
     let ctx = egui::Context::default();

@@ -49,7 +49,7 @@ Built, and not built for this:
 | 2D lights, occluders and a light map, resolved headless | `light.rs`, `light_map.rs` |
 | glTF import that keeps every factor and map, one `material` and one mesh node per material | `balaur_asset::glb`, `mesh::parse_part` |
 | An HDR film, tonemap and bloom in the fork, driven by Balaur for bloom only | `kiss3d::post_processing::hdr` |
-| Headless `wesl` evaluation of pure shader functions, and offscreen golden frames | `render.shader_probe`, `balaur run --offscreen`, `scripts/showcase.sh` |
+| Headless `wesl` evaluation of pure shader functions, and offscreen golden frames | `balaur run --offscreen`, `scripts/showcase.sh` |
 
 Missing:
 
@@ -90,8 +90,7 @@ constants.
 ```toml
 [[nodes]]
 name = "Key"
-transform = { position = [4.0, 6.0, 2.0] }
-look_at = [0.0, 0.0, 0.0]
+transform = { position = [4.0, 6.0, 2.0], rotation_euler = [-0.9303, 1.1071, 0.0] }
 light3d = { kind = "spot", color = "#fff2e0", intensity = 8.0, radius = 30.0, inner = 20.0, outer = 35.0, shadows = true }
 ```
 

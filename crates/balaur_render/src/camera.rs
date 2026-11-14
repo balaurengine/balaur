@@ -19,7 +19,11 @@ use balaur_core::layers::Layer;
 /// and a camera that cannot show it whole is a camera that cannot frame it.
 pub(crate) const MIN_ZOOM_2D: f32 = 0.01;
 
-/// The camera the scene is drawn from. `look_at` and `up` aim it, the lens rows say how it projects and what it draws, `effects` how the frame resolves, and the last `current` camera wins.
+/// The nearest a 3D camera's focus sits. Mirrors the `min` the `camera3d`
+/// schema states.
+const MIN_FOCUS: f32 = 0.001;
+
+/// The camera the scene is drawn from. Its node places and aims it, looking along the node's -z as a `light3d` shines; the lens rows say how it projects and what it draws, `effects` how the frame resolves, and the last `current` camera wins.
 // `drive_camera_system` copies the current one into [`CameraConfig3d`],
 // through the [`Lens3d`] a write leaves beside it.
 #[derive(Component)]
@@ -37,15 +41,13 @@ pub struct Camera3d {
     /// Perspective, or parallel lines that stay parallel
     #[property(default = Projection::Perspective)]
     pub projection: Projection,
-    /// The vertical field of view; in orthographic, how much of the distance to the point looked at the frame covers
+    /// The vertical field of view; in orthographic, how much of `focus_distance` the frame covers
     #[property(default = 45.0, min = 1.0, max = 179.0)]
     pub fov_degrees: f32,
-    /// World point the camera looks at
-    pub look_at: Vec3,
     /// The passes the frame resolves through and how each is tuned; empty draws the frame as it is
     #[property(asset = "camera_effects")]
     pub effects: String,
-    /// The orthographic frame's full height in world units; zero sizes it from the distance to the point looked at and `fov_degrees`
+    /// The orthographic frame's full height in world units; zero sizes it from `focus_distance` and `fov_degrees`
     #[property(min = 0.0, group = "lens")]
     pub orthographic_height: f32,
     /// The nearest distance drawn, in world units
@@ -54,12 +56,12 @@ pub struct Camera3d {
     /// The farthest distance drawn, in world units
     #[property(default = 1000.0, min = 0.000_001, group = "lens")]
     pub far: f32,
-    /// The direction the camera keeps up
-    #[property(default = Vec3::Y, group = "lens")]
-    pub up: Vec3,
-    /// Above zero, a stereo pair this far apart in world units: one eye in each half of the frame, both converging on the point looked at. A stereo camera ignores `projection` and keeps +y up
+    /// How far ahead the camera's focus sits, in world units: an orthographic frame with no `orthographic_height` is sized from it, and a stereo pair converges there
+    #[property(default = 10.0, min = 0.001, group = "lens")]
+    pub focus_distance: f32,
+    /// Above zero, a stereo pair this far apart in world units: one eye in each half of the frame, both converging `focus_distance` ahead. A stereo camera ignores `projection` and keeps +y up
     #[property(min = 0.0, group = "lens")]
-    pub eye_separation: f32,
+    pub stereo_separation: f32,
     /// The layers this camera draws: a node whose `render_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
     pub render_layers: Vec<Layer>,
@@ -115,15 +117,17 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                 && let Ok(lens) = world.get::<&Lens3d>(entity)
             {
                 post = Some(cam.effects.clone());
-                spatial = Some((global.position, cam.look_at, Lens3d::clone(&lens)));
-                winners.0 = Some(entity);
-                let right = (cam.look_at - global.position)
-                    .cross(lens.up)
-                    .try_normalize();
-                view.0 = Some((
-                    global.position,
-                    right.unwrap_or(global.rotation * glamx::Vec3::X),
+                let ahead = crate::light3d::aim(&global) * cam.focus_distance.max(MIN_FOCUS);
+                spatial = Some((
+                    [
+                        global.position,
+                        global.position + ahead,
+                        global.rotation * Vec3::Y,
+                    ],
+                    Lens3d::clone(&lens),
                 ));
+                winners.0 = Some(entity);
+                view.0 = Some((global.position, global.rotation * Vec3::X));
             }
             if let Ok(cam) = world.get::<&Camera2d>(entity)
                 && cam.current
@@ -144,7 +148,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
     if let Some(effects) = post {
         drive_post(eng, &effects_of(eng, &effects));
     }
-    let lens = spatial.as_ref().map(|s| s.2.clone()).unwrap_or_default();
+    let lens = spatial.as_ref().map(|s| s.1.clone()).unwrap_or_default();
     {
         let config = eng.resource::<CameraConfig3d>();
         let mut config = config.borrow_mut();
@@ -153,12 +157,13 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             config.lens_changed = true;
         }
     }
-    if let Some((eye, target, _)) = spatial {
+    if let Some(([eye, target, up], _)) = spatial {
         let config = eng.resource::<CameraConfig3d>();
         let mut config = config.borrow_mut();
-        if config.eye != eye || config.target != target {
+        if config.eye != eye || config.target != target || config.up != up {
             config.eye = eye;
             config.target = target;
+            config.up = up;
             config.changed = true;
         }
     }
@@ -285,8 +290,8 @@ fn camera3d_removed(eng: &Engine, entity: Entity) {
 /// `kind`: a component's tags are what the editor files a node under, and a
 /// tag is per type while a kind would be per node -- so one component could
 /// only ever claim one dimension for both. Splitting also drops the property
-/// that was inert either way (`look_at` on a flat camera, `pixels_per_unit`
-/// on a spatial one).
+/// that was inert either way (`focus_distance` on a flat camera,
+/// `pixels_per_unit` on a spatial one).
 pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
     reg.add_component::<Camera3d>();
     reg.add_component::<Camera2d>();

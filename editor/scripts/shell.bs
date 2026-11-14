@@ -674,7 +674,7 @@ pub fn apply_camera(state: &mut editor::State) {
     if model::is_2d(state) {
         // Keep the current pan; zoom in logical px per world unit.
         let at = render::camera_2d();
-        model::set_view_2d(at.x, at.y, 55.0 * state.zoom / 100.0);
+        model::set_view_2d(at.center.x, at.center.y, 55.0 * state.zoom / 100.0);
         return;
     }
     let scale = 100.0 / state.zoom;

@@ -245,19 +245,20 @@ fn write_mass(body: &mut RigidBody, asked: &Body2d) {
 /// differ, the dimension is the reason.
 pub(crate) fn install_body2d_state_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (f::VELOCITY_AT_POINT, &[c::BODY_2D], "", "How fast a world point on the body is moving, spin included."),
+        (f::VELOCITY_AT_POINT, &[c::BODY_2D], "(node: node, point: Vec2) -> Vec2", "How fast a world point on the body is moving, spin included."),
         (f::TOTAL_MASS, &[c::BODY_2D], "", "The body's total mass: its `mass` when it states one, or what its colliders weigh."),
         (f::KINETIC_ENERGY, &[c::BODY_2D], "", "The body's kinetic energy, for a rest test the solver agrees with."),
         (f::POTENTIAL_ENERGY, &[c::BODY_2D], "", "The body's gravitational potential energy over one step."),
         (f::IS_MOVING, &[c::BODY_2D], "", "Whether the body is awake and actually going somewhere."),
         (f::EFFECTIVE_DOMINANCE, &[c::BODY_2D], "", "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with."),
-        (f::TELEPORT, &[c::BODY_2D], "(node: node, x: float, y: float, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in radians."),
+        (f::TELEPORT, &[c::BODY_2D], "(node: node, position: Vec2, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in radians."),
     ]);
     m.function(
         f::VELOCITY_AT_POINT,
-        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+        |eng: &Engine, (node, point): (NodeId, balaur_script::Value)| {
+            let point = scalar::vec2_arg("a point", &point)?;
             read_body(eng, entity_of(node)?, |body| {
-                let v = body.velocity_at_point(scalar::v2(x, y));
+                let v = body.velocity_at_point(point);
                 (v.x, v.y)
             })
         },
@@ -296,13 +297,14 @@ pub(crate) fn install_body2d_state_api(m: &mut Module<Engine>) {
     ]);
     m.function(
         f::TELEPORT,
-        |eng: &Engine, (node, x, y, opts): (NodeId, f32, f32, Option<balaur_script::Value>)| {
+        |eng: &Engine, (node, position, opts): (NodeId, balaur_script::Value, Option<balaur_script::Value>)| {
+            let position = scalar::vec2_arg("a position", &position)?;
             let entity = entity_of(node)?;
             let opts = crate::vocabulary::Opts(opts.as_ref());
             let turn = opts.get(k::ROTATION).map(|_| opts.f32(k::ROTATION, 0.0));
             with_body(eng, entity, |state, handle| {
                 let body = &mut state.world.bodies[handle];
-                body.set_translation(scalar::v2(x, y), true);
+                body.set_translation(position, true);
                 if let Some(turn) = turn {
                     let turn = crate::rapier2d::math::Rotation::from_angle(turn);
                     body.set_rotation(turn, true);
@@ -501,7 +503,7 @@ pub(crate) fn install_body2d_force_api(m: &mut Module<Engine>) {
         (
             f::APPLY_IMPULSE_AT_POINT,
             &[c::BODY_2D],
-            "",
+            "(node: node, impulse: Vec2, point: Vec2)",
             "Strike the body at a world point, which spins it as well as moves it.",
         ),
         (
@@ -513,13 +515,13 @@ pub(crate) fn install_body2d_force_api(m: &mut Module<Engine>) {
         (
             f::ADD_CONSTANT_FORCE,
             &[c::BODY_2D],
-            "",
+            "(node: node, force: Vec2)",
             "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
         ),
         (
             f::ADD_CONSTANT_FORCE_AT_POINT,
             &[c::BODY_2D],
-            "",
+            "(node: node, force: Vec2, point: Vec2)",
             "Push at a world point every step, which also turns the body.",
         ),
         (
@@ -531,7 +533,7 @@ pub(crate) fn install_body2d_force_api(m: &mut Module<Engine>) {
         (
             f::SET_CONSTANT_FORCE,
             &[c::BODY_2D],
-            "",
+            "(node: node, force: Vec2)",
             "Replace the constant force with this one; zero stops the push.",
         ),
         (
@@ -555,13 +557,12 @@ pub(crate) fn install_body2d_force_api(m: &mut Module<Engine>) {
     ]);
     m.function(
         f::APPLY_IMPULSE_AT_POINT,
-        |eng: &Engine, (node, x, y, px, py): (NodeId, f32, f32, f32, f32)| {
+        |eng: &Engine,
+         (node, impulse, point): (NodeId, balaur_script::Value, balaur_script::Value)| {
+            let impulse = scalar::vec2_arg("an impulse", &impulse)?;
+            let point = scalar::vec2_arg("a point", &point)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_impulse_at_point(
-                    scalar::v2(x, y),
-                    scalar::v2(px, py),
-                    true,
-                );
+                state.world.bodies[handle].apply_impulse_at_point(impulse, point, true);
             })
         },
     );
@@ -584,13 +585,13 @@ fn install_step_force_api(m: &mut Module<Engine>) {
         (
             f::APPLY_FORCE,
             &[c::BODY_2D],
-            "",
+            "(node: node, force: Vec2)",
             "Push the body for the next step only; `add_constant_force` keeps pushing.",
         ),
         (
             f::APPLY_FORCE_AT_POINT,
             &[c::BODY_2D],
-            "",
+            "(node: node, force: Vec2, point: Vec2)",
             "Push at a world point for the next step only, which also turns the body.",
         ),
         (
@@ -603,21 +604,21 @@ fn install_step_force_api(m: &mut Module<Engine>) {
     let dt = || balaur_core::fixed_dt();
     m.function(
         f::APPLY_FORCE,
-        move |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+        move |eng: &Engine, (node, force): (NodeId, balaur_script::Value)| {
+            let force = scalar::vec2_arg("a force", &force)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_impulse(scalar::v2(x, y) * dt(), true);
+                state.world.bodies[handle].apply_impulse(force * dt(), true);
             })
         },
     );
     m.function(
         f::APPLY_FORCE_AT_POINT,
-        move |eng: &Engine, (node, x, y, px, py): (NodeId, f32, f32, f32, f32)| {
+        move |eng: &Engine,
+              (node, force, point): (NodeId, balaur_script::Value, balaur_script::Value)| {
+            let force = scalar::vec2_arg("a force", &force)?;
+            let point = scalar::vec2_arg("a point", &point)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_impulse_at_point(
-                    scalar::v2(x, y) * dt(),
-                    scalar::v2(px, py),
-                    true,
-                );
+                state.world.bodies[handle].apply_impulse_at_point(force * dt(), point, true);
             })
         },
     );
@@ -636,21 +637,21 @@ fn install_body_forces(m: &mut Module<Engine>) {
     install_step_force_api(m);
     m.function(
         f::ADD_CONSTANT_FORCE,
-        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+        |eng: &Engine, (node, force): (NodeId, balaur_script::Value)| {
+            let force = scalar::vec2_arg("a force", &force)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].add_force(scalar::v2(x, y), true);
+                state.world.bodies[handle].add_force(force, true);
             })
         },
     );
     m.function(
         f::ADD_CONSTANT_FORCE_AT_POINT,
-        |eng: &Engine, (node, x, y, px, py): (NodeId, f32, f32, f32, f32)| {
+        |eng: &Engine,
+         (node, force, point): (NodeId, balaur_script::Value, balaur_script::Value)| {
+            let force = scalar::vec2_arg("a force", &force)?;
+            let point = scalar::vec2_arg("a point", &point)?;
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].add_force_at_point(
-                    scalar::v2(x, y),
-                    scalar::v2(px, py),
-                    true,
-                );
+                state.world.bodies[handle].add_force_at_point(force, point, true);
             })
         },
     );
@@ -671,11 +672,12 @@ pub(crate) fn install_body2d_force_reader_api(m: &mut Module<Engine>) {
     m.describe(&[]);
     m.function(
         f::SET_CONSTANT_FORCE,
-        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+        |eng: &Engine, (node, force): (NodeId, balaur_script::Value)| {
+            let force = scalar::vec2_arg("a force", &force)?;
             with_body(eng, entity_of(node)?, |state, handle| {
                 let body = &mut state.world.bodies[handle];
                 body.reset_forces(true);
-                body.add_force(scalar::v2(x, y), true);
+                body.add_force(force, true);
             })
         },
     );

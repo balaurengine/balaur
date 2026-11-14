@@ -6,9 +6,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use balaur_core::components::ticks::{self, ChangeCursor};
-use balaur_core::engine_api::{ApiPart, kernel_api};
 use balaur_core::{App, AppConfig, Engine, Stage, snapshot};
-use balaur_script::Value;
 
 fn timer() -> usize {
     let app = App::new(AppConfig::bare(".")).unwrap();
@@ -150,38 +148,4 @@ fn a_restore_is_heard_as_every_holder_changed() {
         vec![post],
         "a write after the restore is stamped as before"
     );
-}
-
-#[test]
-fn scripts_ask_by_name() {
-    let app = App::new(AppConfig::bare(".")).unwrap();
-    let lamp = app.engine.spawn_node("Lamp", app.engine.root());
-    let call = |module: &str, name: &str, args: &[Value]| {
-        let decl = kernel_api()
-            .into_iter()
-            .filter_map(|part| match part {
-                ApiPart::Ops(ops) => Some(ops.iter()),
-                ApiPart::Module(..) => None,
-            })
-            .flatten()
-            .find(|d| d.module == module && d.name == name)
-            .unwrap();
-        (decl.call)(&app.engine, args).unwrap()
-    };
-    let Value::Int(now) = call("engine", "change_tick", &[]) else {
-        panic!("change_tick is an int");
-    };
-    let before = now - 1;
-    balaur_core::components::add(&app.engine, lamp, "timer", None).unwrap();
-    let asked = [Value::Str("timer".into()), Value::Int(before)];
-    let lamp_value = Value::Node(balaur_core::node_id_of(lamp).0);
-    let Value::List(added) = call("scene", "added_since", &asked) else {
-        panic!("added_since is a list");
-    };
-    assert_eq!(added, vec![lamp_value.clone()]);
-    balaur_core::components::remove(&app.engine, lamp, "timer").unwrap();
-    let Value::List(removed) = call("scene", "removed_since", &asked) else {
-        panic!("removed_since is a list");
-    };
-    assert_eq!(removed, vec![lamp_value]);
 }

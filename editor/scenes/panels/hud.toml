@@ -101,8 +101,8 @@ align_items = "center"
 id = "out"
 name = "Out"
 parent = "zoom_row"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "zoom_out" }] }
 [nodes.widget]
-on_click = "zoom_out"
 kind = "button"
 text = "−"
 fill = "none"
@@ -122,8 +122,8 @@ text = "100 %"
 id = "in"
 name = "In"
 parent = "zoom_row"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "zoom_in" }] }
 [nodes.widget]
-on_click = "zoom_in"
 kind = "button"
 fill = "none"
 padding = 0
@@ -143,8 +143,8 @@ padding = 0
 id = "bottom_open"
 name = "Open"
 parent = "bottom"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "open_bottom" }] }
 [nodes.widget]
-on_click = "open_bottom"
 kind = "button"
 fill = "none"
 padding = 0

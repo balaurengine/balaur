@@ -1,7 +1,7 @@
 > **Status:** phases 1-8 shipped between 2026-09-02 and 2026-09-04 — WESL
 > shaders linked at build and at run time, the `material` asset in 2D and 3D,
 > hot reload with sourcemapped errors, `features` variants, channel views,
-> the caret value preview and `render::shader_probe`, headless `eval` tests
+> the caret value preview, headless `eval` tests
 > and validation, and `shaders::register_shader_module` for a plugin's own
 > module. ARCHITECTURE.md's shader sections and the manual's Shaders page are
 > the record; all of it is verified on a GPU through `balaur run --offscreen`.

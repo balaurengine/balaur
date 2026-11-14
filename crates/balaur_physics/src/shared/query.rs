@@ -39,26 +39,44 @@ macro_rules! functions {
             Entity::from_bits(collider.user_data as u64)
         }
 
-        /// A `filter` table as rapier's `QueryFilter`.
+        /// A `filter` table as rapier's `QueryFilter`. A body kind it does not
+        /// know is an error: a typo would otherwise filter nothing, silently.
         fn filter_of<'a>(
             opts: &Opts<'_>,
             groups: &'a mut Option<InteractionGroups>,
-        ) -> QueryFilter<'a> {
+        ) -> Result<QueryFilter<'a>> {
+            use crate::vocabulary::words as w;
             let filter = Opts(opts.get(k::FILTER));
-            let mut flags = QueryFilterFlags::empty();
-            match filter.text(k::ONLY) {
-                Some(crate::vocabulary::words::DYNAMIC) => flags |= QueryFilterFlags::ONLY_DYNAMIC,
-                Some(crate::vocabulary::words::KINEMATIC) => {
+            let kinds = filter.list(k::EXCLUDE_KINDS).unwrap_or_default();
+            let mut words = Vec::with_capacity(kinds.len());
+            for kind in kinds {
+                match kind {
+                    Value::Str(word)
+                        if [w::STATIC, w::KINEMATIC, w::DYNAMIC].contains(&word.as_str()) =>
+                    {
+                        words.push(word.as_str());
+                    }
+                    other => return Err(not_a_body_kind(k::EXCLUDE_KINDS, other)),
+                }
+            }
+            let bits = crate::vocabulary::flags::filter_bits(
+                words,
+                filter.boolean(k::HIT_SENSORS, true),
+                filter.boolean(k::HIT_SOLIDS, true),
+            );
+            let mut flags = QueryFilterFlags::from_bits_truncate(bits);
+            match filter.get(k::ONLY) {
+                None | Some(Value::Nil) => {}
+                Some(Value::Str(word)) if word == w::DYNAMIC => {
+                    flags |= QueryFilterFlags::ONLY_DYNAMIC
+                }
+                Some(Value::Str(word)) if word == w::KINEMATIC => {
                     flags |= QueryFilterFlags::ONLY_KINEMATIC;
                 }
-                Some(crate::vocabulary::words::STATIC) => flags |= QueryFilterFlags::ONLY_FIXED,
-                _ => {}
-            }
-            if !filter.boolean(k::HIT_SENSORS, true) {
-                flags |= QueryFilterFlags::EXCLUDE_SENSORS;
-            }
-            if !filter.boolean(k::HIT_SOLIDS, true) {
-                flags |= QueryFilterFlags::EXCLUDE_SOLIDS;
+                Some(Value::Str(word)) if word == w::STATIC => {
+                    flags |= QueryFilterFlags::ONLY_FIXED
+                }
+                Some(other) => return Err(not_a_body_kind(k::ONLY, other)),
             }
             let mut out = QueryFilter::from(flags);
             if let Some(Value::List(items)) = filter.get(k::COLLISION_MASK) {
@@ -83,7 +101,17 @@ macro_rules! functions {
                     out = out.groups(*groups);
                 }
             }
-            out
+            Ok(out)
+        }
+
+        fn not_a_body_kind(key: &str, given: &Value) -> anyhow::Error {
+            use crate::vocabulary::words as w;
+            anyhow!(
+                "a filter's `{key}` names a body kind, one of `{}`, `{}` or `{}`; got {given:?}",
+                w::STATIC,
+                w::KINEMATIC,
+                w::DYNAMIC
+            )
         }
 
         /// The nodes a filter's `exclude` and `exclude_body` name.

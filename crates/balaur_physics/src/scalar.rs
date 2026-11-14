@@ -25,6 +25,21 @@ pub(crate) fn v2a(v: [f32; 2]) -> Vector2 {
     v2(v[0], v[1])
 }
 
+/// A script's `Vec3` argument; `what` opens the error for anything else.
+pub(crate) fn vec3_arg(what: &str, value: &balaur_script::Value) -> anyhow::Result<Vector> {
+    match value {
+        balaur_script::Value::Vec3(v) => Ok(v3a(*v)),
+        other => anyhow::bail!("{what} is a Vec3, not a {}", other.type_name()),
+    }
+}
+
+pub(crate) fn vec2_arg(what: &str, value: &balaur_script::Value) -> anyhow::Result<Vector2> {
+    match value {
+        balaur_script::Value::Vec2(v) => Ok(v2a(*v)),
+        other => anyhow::bail!("{what} is a Vec2, not a {}", other.type_name()),
+    }
+}
+
 /// A vector on its way back out.
 pub(crate) fn a3(v: Vector) -> [f32; 3] {
     [v.x, v.y, v.z]

@@ -33,7 +33,7 @@ impl Scenario {
         if self.node.collider2d.voxel(4, 4) { log::error("a cell nobody wrote should be empty"); }
         self.node.collider2d.set_voxel(0, 1, false);
         if self.node.collider2d.voxel(0, 1) { log::error("digging left the cell filled"); }
-        let cell = self.node.collider2d.voxel_at(0.5, 0.5);
+        let cell = self.node.collider2d.voxel_at(vec2(0.5, 0.5));
         if !(cell[0] == 0 && cell[1] == 0) { log::error("a world point landed in the wrong cell"); }
         self.node.collider2d.set_voxel(7, 7, true);
     }

@@ -334,15 +334,15 @@ fn the_machine_says_which_state_it_left_and_which_it_entered() {
         order.filter(|m| m.starts_with("on_state_")).collect()
     };
     tick(&mut app, 2);
-    assert_eq!(states(), ["on_state_started"]);
+    assert_eq!(states(), ["on_state_entered"]);
     machine::set_condition(&app.engine, hero, "moving", true).unwrap();
     tick(&mut app, 1);
     assert_eq!(
         states(),
-        ["on_state_started", "on_state_finished", "on_state_started"]
+        ["on_state_entered", "on_state_exited", "on_state_entered"]
     );
-    let text = |s: &str| Some(vec![balaur_script::Value::Str(s.to_string())]);
-    assert_eq!(calls.args(hero, "on_state_finished"), text("idle"));
+    let text = |s: &str| Some(balaur_script::Value::Str(s.to_string()));
+    assert_eq!(calls.payload(hero, "on_state_exited"), text("idle"));
 }
 
 #[test]

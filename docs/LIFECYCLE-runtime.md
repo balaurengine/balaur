@@ -175,7 +175,7 @@ stateDiagram-v2
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | none | `start`, spec `then` names a live tween | Waiting | Keeps the spec in `pending`. |
-| none | `start`, `start_to`, `start_script` | Running | Builds the clip and reads the start values. The handle counts up and is never reused. |
+| none | `start`, `start_to`, `start_script` | Running | Builds the clip and reads the start values. The handle counts up and is never reused. A node outside the debug scope, a tool's own, takes one counting down from 2^53, so the game's handles are the ones its recording took. |
 | Waiting | `advance_system` finds `after` names nothing, then `begin` | Running | Rebuilds the clip, so `by` and a captured `from` read the node now. |
 | Waiting | `begin` fails | Gone | Warns. No event. |
 | Running | `advance` passes a step's end | Running | Announces `tween_step` `#{ tween, step }`. |
@@ -222,11 +222,11 @@ stateDiagram-v2
 | any | `written` with another `machine` or `player` | Unresolved | Resets the whole run, `conditions` and `times` included. |
 | any | `written`, other properties | same | `enabled` and `check_node` land on the run. |
 | any | `prepare`, before the fixed steps, when the asset generation moved | Not entered or as it was, Unresolved on a failure | Loads the asset and each state's clip. A load failure warns and leaves `machine` empty. `current` stays. |
-| Not entered | `decide` with `start` set | In state | Cuts to `start`. Announces `state_started`. |
-| In state | `decide`: lowest-priority `auto` transition with its condition and check true, and `ready` | In state | `enter` runs the fade the transition names. Announces `state_finished` with the old state, then `state_started` with the new one. |
+| Not entered | `decide` with `start` set | In state | Cuts to `start`. Announces `state_entered`. |
+| In state | `decide`: lowest-priority `auto` transition with its condition and check true, and `ready` | In state | `enter` runs the fade the transition names. Announces `state_exited` with the old state, then `state_entered` with the new one. |
 | In state | `decide`: next hop of `travel`, its transition `ready` | In state | As above. |
-| any | `decide` takes `jump` | In state | Cuts with no fade, `reset` true. Announces as above; from Ended, `state_started` only. |
-| In state | A transition's `to` is `end`, through `finish` | Ended | Stores the clip's `time`, clears `travel`, stops the player and clears its fades. Announces `state_finished` only. |
+| any | `decide` takes `jump` | In state | Cuts with no fade, `reset` true. Announces as above; from Ended, `state_entered` only. |
+| In state | A transition's `to` is `end`, through `finish` | Ended | Stores the clip's `time`, clears `travel`, stops the player and clears its fades. Announces `state_exited` only. |
 | Ended | `decide` | Ended | Stays until a jump, or a travel that `route` turns into a jump. |
 | any | Component removed, or the node freed (`advance_system`) | gone | Drops the run. |
 
@@ -340,8 +340,8 @@ Source: `crates/balaur_audio/src/lib.rs`, `Voice.handle`.
 | `Some` | Component `written`, `file` changed | `None`, then maybe `Some(new)` | `release_over` with `crossfade_time`, then autoplay. |
 | `Some` | Component `written`, same file | same | `retune` lands volume, pitch, pause, pan, `fade_out_time` and distances. `hold_sounds` puts any hold back over the pause. |
 | `Some` | `stop_on`, script `node.sound.stop()` | `None` | `release` over the sound's `fade_out_time`. No event. |
-| `Some` | `announce_finished` after the clock ran out or a sink of unknown length ended | `None` | Announces `finished` with the handle. |
-| `Some` | `skip_on` past the last file | `None` | Announces `finished` with the handle. |
+| `Some` | `announce_finished` after the clock ran out or a sink of unknown length ended | `None` | Announces `sound_finished` with the handle. |
+| `Some` | `skip_on` past the last file | `None` | Announces `sound_finished` with the handle. |
 | any | `stop_all` | `None` | Stops everything. No event. |
 | any | `sound_removed`, or the node freed (`sweep_sounds_system`) | gone | Stops the handle at once. |
 
@@ -386,7 +386,7 @@ stateDiagram-v2
 | Sounding, Silent | `set_paused`, `retune` | same | Sets `Routed.paused` and pauses the sink. |
 | Sounding, Silent | `hold_sounds`, a voice's handle, each frame | same | Sets `Routed.paused` to `Sound.paused`, or to true when `process::ticks` is false or the node sits under `frozen_root`. |
 | Sounding, Silent | `count_down_system`, not paused | same | Advances the clock by `dt * pitch` and updates the end fade. |
-| Sounding, Silent | `count_down_system`, clock over | Gone | `stop`, then `announce_finished`. A voice owner hears `finished`. |
+| Sounding, Silent | `count_down_system`, clock over | Gone | `stop`, then `announce_finished`. A voice owner hears `sound_finished`. |
 | Sounding | `sweep_sounds_system`, sink empty, clock not `counted` | Gone | `announce_finished`. |
 | Sounding | `sweep_sounds_system`, sink empty, clock `counted` | Silent | The clock decides the end. |
 | Sounding, Silent | `release`, `release_over` above 0 seconds, script `stop_playback` | Releasing | Keeps the sink, falling from the applied gain. |
@@ -396,7 +396,7 @@ stateDiagram-v2
 | any | `stop`, `stop_all` | Gone | Stops the sink. No event. |
 | Sounding, Silent | `seek` | same | Moves the clock and rebuilds a live sink through `restart`. |
 | Sounding, Silent | `skip`, a next file | same | As `seek`. |
-| Sounding, Silent | `skip`, no next file | Gone | `skip_on` announces `finished`. |
+| Sounding, Silent | `skip`, no next file | Gone | `skip_on` announces `sound_finished`. |
 | Sounding | `restart` does not decode | Silent | Warns. |
 
 Starts in Sounding or Silent. Ends in Gone.
@@ -448,7 +448,7 @@ Held by a pause, a `process` mode or a parked scene: `count_down_system` skips a
 
 Source: `crates/balaur_audio/src/play_file.rs`, `play_file`.
 
-Refused or ignored: an option the `sound` component does not spell ends the call. No voice owns its handle, so `finished` is never announced for it. `Playback::default` gives it a `fade_out_time` of 0, so `stop_playback` stops it at once.
+Refused or ignored: an option the `sound` component does not spell ends the call. No voice owns its handle, so `sound_finished` is never announced for it. `Playback::default` gives it a `fade_out_time` of 0, so `stop_playback` stops it at once.
 
 Held by a pause, a `process` mode or a parked scene: no voice owns the handle, so `hold_sounds` never reaches it. A played file sounds through all three, so a pause menu's click still sounds. A freeze stops its clock and leaves its sink playing.
 
@@ -620,14 +620,14 @@ Source: `crates/balaur_physics/src/shared/world.rs`, `sleep_changes` and `Physic
 | State | What is true |
 |---|---|
 | Awake (script: `is_sleeping` false) | Simulated. Listed by `active_bodies`. |
-| Asleep (script: `is_sleeping` true; `softbody_sleeping` true when every piece is) | Skipped until something wakes it. |
+| Asleep (script: `is_sleeping` true; on a soft body, when every piece is) | Skipped until something wakes it. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | Awake | Rapier: under `sleep_threshold` and `sleep_angular_threshold` for `time_to_sleep` | Asleep | After the step, `sleep_changes` finds it and `announce_sleep` announces `sleeping_changed` true. |
 | Awake | `sleep` | Asleep | The next step's diff announces it. |
 | none | `start_body`, `start_asleep` set and sleeping allowed | Asleep | Read once, when the body is made. |
-| Asleep | `wake_up`, `wake_all`, `wake_softbody` | Awake | The next step's diff announces `sleeping_changed` false. |
+| Asleep | `wake_up`, `wake_all` | Awake | The next step's diff announces `sleeping_changed` false. |
 | Asleep | Any component write, `write_body` | Awake | Calls `wake_up`. |
 | Asleep | `allow_sleep` with sleep forbidden | Awake | Sets the thresholds to -1 and wakes it. |
 | Asleep | A vehicle's drive input on a resting chassis | Awake | Engine force, brake or steering, in the vehicle update. |
@@ -639,7 +639,7 @@ Held by a pause, a `process` mode or a parked scene: no step means no change and
 
 ### Joint
 
-A `joint3d` or `joint2d` component holds one joint, and `joint_state` reports its status.
+A `joint3d` or `joint2d` component holds one joint, and `state()` on its handle reports its status.
 
 Source: `crates/balaur_physics/src/joint.rs`, `crates/balaur_physics/src/dim2/joint.rs` and `crates/balaur_physics/src/shared/joint.rs`, `joint_state`, `PhysicsState3d.joints` and `PhysicsState3d.joint_params`.
 
@@ -666,7 +666,7 @@ stateDiagram-v2
 | `disabled` | Made and switched off, or no rapier joint at all for an articulation that is off. |
 | `enabled` | Solved. |
 | `body_disabled` | Made, and a body at either end is disabled. |
-| Gone: no row in `joint_params` | `joint_state` errors. |
+| Gone: no row in `joint_params` | `state()` errors. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -679,7 +679,7 @@ stateDiagram-v2
 | `enabled` | A body at an end disabled, rapier | `body_disabled` | Rapier's `JointEnabled::DisabledByAttachedBody`. |
 | `body_disabled` | An end body enabled again, rapier | `enabled` | Rapier's `JointEnabled::Enabled`. |
 | `enabled` | After a step, reaction over `break_force` or `break_torque`, `broken` | Gone | `break_joints` removes it and announces `joint_break` `#{ a, b, force, torque }`. |
-| any | Script `remove_joint`, `joint3d_removed` | Gone | `remove_joint`. No event. |
+| any | Script `remove()`, `joint3d_removed` | Gone | `remove_joint`. No event. |
 
 Starts in `waiting`, `enabled` or `disabled`. Ends in Gone.
 
@@ -697,29 +697,29 @@ Source: `crates/balaur_physics/src/softbody/runtime.rs`, `crates/balaur_physics/
 stateDiagram-v2
     [*] --> intact
     intact --> marked: tear_edge, tear_cell
-    intact --> torn: step past threshold, tear_softbody, cut_softbody
+    intact --> torn: step past threshold, tear, cut
     marked --> torn: end of next step
     torn --> [*]
 ```
 
 | State | What is true |
 |---|---|
-| Intact | Carries load. `softbody_stress` reads it from 0 slack to 1 tearing. |
+| Intact | Carries load. `stress()` reads it from 0 slack to 1 tearing. |
 | Marked (script: `has_pending_tears` true) | Tears at the end of the next step. |
 | Torn | Gone from the body. A piece it split off counts as the same node, through `stamp_colliders` and `pieces`. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| Intact | Rapier's step: load past `tear_force` or `tear_strain`, within `max_tears_per_step` | Torn | `handle_soft_body_tear_event` files `Event::Tear`. After the meshes are written, `dispatch` announces `tear` with the record. |
+| Intact | Rapier's step: load past `tear_force` or `tear_strain`, within `max_tears_per_step` | Torn | `handle_soft_body_tear_event` files `Event::Tear`. After the meshes are written, `dispatch` announces `torn` with the record. |
 | Intact | `tear_edge`, `tear_cell` | Marked | No event. |
-| Marked | Rapier's step | Torn | Announces `tear` as above. |
-| Intact | `tear_softbody`, `cut_softbody` | Torn | Done at once. The records are the call's answer, and no `tear` is announced. |
+| Marked | Rapier's step | Torn | Announces `torn` as above. |
+| Intact | `tear()`, `cut()` | Torn | Done at once. The records are the call's answer, and no `torn` is announced. |
 
 Starts in Intact. Ends in Torn.
 
-Refused or ignored: who hears does not gate `tear`, because rapier calls the handler on every tear in a step. `set_edge_tear_resistance` and `set_cell_tear_resistance` move the threshold. A `tear_force` and a `tear_strain` of 0 never tear.
+Refused or ignored: who hears does not gate `torn`, because rapier calls the handler on every tear in a step. `set_edge_tear_resistance` and `set_cell_tear_resistance` move the threshold. A `tear_force` and a `tear_strain` of 0 never tear.
 
-Held by a pause, a `process` mode or a parked scene: step tears wait. `tear_softbody` and `cut_softbody` ask nothing and run through a pause.
+Held by a pause, a `process` mode or a parked scene: step tears wait. `tear()` and `cut()` ask nothing and run through a pause.
 
 ### Damaged particle
 
@@ -740,7 +740,7 @@ Starts Whole. Ends with the body.
 
 ### Character on floor
 
-The world keeps what the last `move_character` said about the ground, so `is_on_floor` need not sweep again.
+The world keeps what the last `move_by` said about the ground, so `is_on_floor` need not sweep again.
 
 Source: `crates/balaur_physics/src/lib.rs`, `crates/balaur_physics/src/character.rs` and `crates/balaur_physics/src/dim2/character.rs`, `PhysicsState3d.grounded` and `PhysicsState2d.grounded`.
 
@@ -763,14 +763,14 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `move_character` | as `movement.grounded` says | Writes the row. Between moves the value stays as it was. |
+| any | `move_by` | as `movement.grounded` says | Writes the row. Between moves the value stays as it was. |
 | any | World `clear` | No row | Empties the map. |
 | any | Snapshot restore | as captured | Replaces the map. |
 | any | The node freed, prune in `step_system` | gone | Drops the row. |
 
 Starts in No row. Ends when the row is dropped.
 
-Held by a pause, a `process` mode or a parked scene: `move_character` asks nothing, so a call through a pause still sweeps and writes. A held script makes no call from `fixed_update`.
+Held by a pause, a `process` mode or a parked scene: `move_by` asks nothing, so a call through a pause still sweeps and writes. A held script makes no call from `fixed_update`.
 
 ### Wheel in contact
 
@@ -849,7 +849,7 @@ Source: `crates/balaur_input/src/lib.rs`, `InputSnapshot.begun`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `begin_frame` | `true` | Clears the edges and delivers what `input.feed_*` held. |
+| any | `begin_frame` | `true` | Clears the edges and delivers what `input.set_*` held. |
 | `true` | `begin_frame_unless_begun` | `false` | Leaves the backend's frame alone. |
 | `false` | `begin_frame_unless_begun` | `false` | Begins a frame for a headless run. |
 
@@ -948,7 +948,7 @@ stateDiagram-v2
 
 Starts in Absent. Never ends.
 
-Refused or ignored: `Start` on a finger already down and `Move` on an unknown one do nothing. `End` on an unknown one still lands in `touches_ended`. `input.feed_touch` lands on the next frame.
+Refused or ignored: `Start` on a finger already down and `Move` on an unknown one do nothing. `End` on an unknown one still lands in `touches_ended`. `input.set_touch` lands on the next frame.
 
 ### Emulated pointer
 
@@ -997,7 +997,7 @@ stateDiagram-v2
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `tick`, each frame | per the table | `previous` takes `value`. `value` takes the binding or fed source furthest from rest, then `fed` empties. |
-| any | `feed`, script `feed_action`, a touch control | next `tick` | A source for one frame. The furthest from rest wins. |
+| any | `feed`, script `set_action_value`, a touch control | next `tick` | A source for one frame. The furthest from rest wins. |
 | any | `restore_bindings` for a replay | Up | Clears `state`. |
 
 Starts in Up. Never ends.
@@ -1019,7 +1019,7 @@ Source: `crates/balaur_input/src/gamepad.rs`, `GamepadState.live` and `GamepadSt
 |---|---|---|---|
 | any | `apply_one`, `PadEvent::Connected` | Connected | Starts a fresh `Live`, all zero. Next frame `announce_pads_system` tells every script `on_gamepad_connected`, a held one too. |
 | Connected | `apply_one`, `PadEvent::Disconnected` | Absent | Drops the `Live`. `announce_pads_system` tells every script `on_gamepad_disconnected`. |
-| any | Script `feed_gamepad` | next `poll` | Feeds events. Anything fed connects a pad, and `connected: false` unplugs it. |
+| any | Script `set_gamepad` | next `poll` | Feeds events. Anything fed connects a pad, and `connected: false` unplugs it. |
 | any | Replay `restore` | as recorded | Replaces `pads`. |
 
 Starts Absent. Ends when the pad goes.
@@ -1091,7 +1091,7 @@ stateDiagram-v2
 |---|---|---|---|
 | any | `apply_one`, `PadEvent::Power` | as reported | Writes `Live.power`. No event; script `gamepad_power` reads it. |
 | any | `read_power`, whenever a pad sends anything | as `power_of` maps it | The gamepad thread forwards a change only. |
-| any | Script `feed_gamepad` with `power` | as fed | From the next frame. |
+| any | Script `set_gamepad` with `power` | as fed | From the next frame. |
 | any | Replay `restore` | as recorded | From `PadFrame.power`. |
 
 Starts in `Unknown`. Ends when the pad goes.
@@ -1304,7 +1304,7 @@ Starts false. Never ends.
 
 ## UI
 
-The draw only reports what it saw, and `apply_system` writes it in the next tick, in `Stage::First`. No system here asks about a pause or a `process` mode, so a held script's `on_click` and `on_change` still run through `call_on`. A parked node reads hidden and is not drawn.
+The draw only reports what it saw, and `apply_system` writes it in the next tick, in `Stage::First`. No system here asks about a pause or a `process` mode, so a held script still hears a widget's `pointer_click` and `value_changed`, its own or through a row, by `call_on`. A parked node reads hidden and is not drawn.
 
 ### Widget input buffer
 
@@ -1429,7 +1429,7 @@ stateDiagram-v2
 | any | `Pointer::of` on the kind's own response | per the response | A `button` and a `fold` header use it. `Held` lasts until the button comes up, wherever the pointer is. |
 | Away | `pointer_edits`, widget newly in `under` | Over | Next tick announces `pointer_enter`. |
 | Over, Held | `pointer_edits`, widget gone from `under` | Away | Next tick announces `pointer_exit`. |
-| any | `pointer_edits`, a button pressed, released or double-clicked over the innermost widget | same | Next tick announces `pointer_down` or `pointer_up` with `left`, `right` or `middle`, or emits `double_click`. |
+| any | `pointer_edits`, a button pressed, released or double-clicked over the innermost widget | same | Next tick announces `pointer_down` or `pointer_up` with `left`, `right` or `middle`, or emits `double_clicked`. |
 
 Starts in `Away`. Never ends.
 
@@ -1490,6 +1490,27 @@ Starts as authored, enabled by default. Ends when the component is removed.
 
 Refused or ignored: `click`, `submit`, `edit`, a `shortcut` and `takes_focus` refuse a disabled widget.
 
+### Widget click heard
+
+A widget holds whether anything hears its `pointer_click`, which is what makes a kind that draws nothing clickable sense one.
+
+Source: `crates/balaur_ui/src/widget/input.rs`, `follow_hearers` and `hears_click`, `crates/balaur_ui/src/widget/node.rs`, `Widget.hears_click`, and `crates/balaur_core/src/events.rs`, `is_heard_on`.
+
+| State | What is true |
+|---|---|
+| `hears_click=false` | A `label`, a container, a `progress_bar` and an `image` let the pointer by, and none is a focus stop. |
+| `hears_click=true` | `click_sensor` and `picture::image` sense a click, and `takes_focus` makes it a stop. |
+
+| From | Trigger | To | What it does |
+|---|---|---|---|
+| any | `follow_hearers`, each tick and at the top of each pass, for a node whose hearers may have changed | as `hears_click` finds | True for a `pointer_click` row, the script's `on_pointer_click`, a listener or a waiter naming the node, an observer on it, or a pool spec's `on_click`. |
+
+A node's hearers may have changed when its `bindings` are written or removed, a script is attached, something listens or stops, a waiter is woken, its `widget` is first built, or the pool gives or takes a spec's handler.
+
+Starts false. Ends when the component is removed.
+
+Refused or ignored: a listener for `pointer_click` from anyone turns no widget on. A `button` and every other kind with a control of its own clicks whatever this says.
+
 ### Widget checked
 
 A check, a switch or a `toggle` button holds whether it is on.
@@ -1504,8 +1525,8 @@ Source: `crates/balaur_ui/src/widget/input.rs` and `crates/balaur_ui/src/widget/
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | A scene or script write | as written | No event. |
-| any | `settle_clicks`, a click or an accept, no `radio_group` | flipped | Emits `change` with the new value and calls `on_change`. |
-| any | `settle_clicks`, a click or an accept, in a `radio_group` | `true` | Unticks the rest of its group, each emitting `change` false. A second click changes nothing. |
+| any | `settle_clicks`, a click or an accept, no `radio_group` | flipped | Announces `value_changed` with the new value. |
+| any | `settle_clicks`, a click or an accept, in a `radio_group` | `true` | Unticks the rest of its group, each emitting `value_changed` false. A second click changes nothing. |
 
 Starts as authored. Ends when the component is removed.
 
@@ -1523,7 +1544,7 @@ Source: `crates/balaur_ui/src/widget/input.rs`, `WidgetProperties.clicked`, `Wid
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `settle_clicks`, every widget every tick | per this tick's hits | A click runs the node's `pointer_click` rows, emits `click` and calls `on_click`. A submit emits `submit` and calls `on_submit`. |
+| any | `settle_clicks`, every widget every tick | per this tick's hits | A click announces `pointer_click` with the button: the node's rows and its `on_pointer_click` now, its listeners at the pump. A submit announces `submitted`. A pooled control's spec handler is called after each. |
 
 Starts false. Never ends.
 
@@ -1563,12 +1584,12 @@ Source: `crates/balaur_ui/src/widget/node.rs` and `crates/balaur_ui/src/widget/f
 | any | Tab, Shift+Tab, `Move::Next`, `Move::Previous` | next or previous stop | `advance` walks the stops in scene order and wraps. |
 | any | An arrow, `Move::Up`, `Down`, `Left`, `Right` | a stop on that side | The named neighbor, else `toward`, else `around`. From nothing: last for up and left, first for down and right. |
 | `Some` | Enter, Space, `Move::Accept` | same | `advance` hands it to `clicked`, and a fold flips through `turned_fold`. |
-| `Some` | The widget stops being a stop: hidden, disabled, freed or unfocusable | `None` | Next tick it emits `blur`. |
-| any | `Move::Leave`, script `clear_focus` | `None` | Next tick it emits `blur`. |
+| `Some` | The widget stops being a stop: hidden, disabled, freed or unfocusable | `None` | Next tick it emits `focus_exited`. |
+| any | `Move::Leave`, script `clear_focus` | `None` | Next tick it emits `focus_exited`. |
 | any | A click into a field, `gained_focus` | `Some` | `edit` writes it. |
-| `Some` | A field left by Escape or a click away, `left` | `None` | A click away emits `submit`, then `blur`. Escape emits `blur` only. |
-| `Some` | A field's submit chord, `left` | same | Emits `submit`. |
-| any | `focus_moved` sees an arrival | same | `announce_focus` emits `focus` and calls `on_focus` in the next tick. |
+| `Some` | A field left by Escape or a click away, `left` | `None` | A click away emits `submitted`, then `focus_exited`. Escape emits `focus_exited` only. |
+| `Some` | A field's submit chord, `left` | same | Emits `submitted`. |
+| any | `focus_moved` sees an arrival | same | `announce_focus` announces `focus_entered` in the next tick. |
 
 Starts in `None`. Never ends.
 
@@ -1609,7 +1630,7 @@ Source: `crates/balaur_text/src/edit.rs`, `Editing.composing`, kept in `UiState.
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `compose`, `ImeEvent::Preedit` | `Some`, or `None` for empty text | `Editing::compose`. No edit is reported. |
-| `Some` | `compose`, `ImeEvent::Commit` | `None` | `Editing::commit` inserts what `admit` lets through, so the field reports `Edit::Text`, which emits `change`. |
+| `Some` | `compose`, `ImeEvent::Commit` | `None` | `Editing::commit` inserts what `admit` lets through, so the field reports `Edit::Text`, which emits `value_changed`. |
 | `Some` | `compose`, a commit `admit` empties | `None` | Reports nothing. |
 | any | `set_text`, a script's write of other text | `None` | `Field::refill` calls it. Undo clears too. |
 
@@ -1688,12 +1709,12 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| Resting | `dragged`, `response.dragged` | Dragging | Reports `Edit::Value`, which emits `change`. |
-| Dragging | `drag_stopped` | Resting | Reports `Edit::Committed`, which emits `commit`. |
+| Resting | `dragged`, `response.dragged` | Dragging | Reports `Edit::Value`, which emits `value_changed`. |
+| Dragging | `drag_stopped` | Resting | Reports `Edit::Committed`, which emits `committed`. |
 | Resting | `dragged`, `response.clicked` | Typing | Requests focus. |
-| Typing | `keep_typed`, Enter or a click away | Resting | Parses, clamps and writes it unless the value moved under it. Emits `change` and `commit`. |
-| Typing | Escape | Resting | Drops the text. `lost_focus` still reports `commit`. |
-| any | `drag_value`, an arrow beside it | same | Steps the value. Emits `change` and `commit`. |
+| Typing | `keep_typed`, Enter or a click away | Resting | Parses, clamps and writes it unless the value moved under it. Emits `value_changed` and `committed`. |
+| Typing | Escape | Resting | Drops the text. `lost_focus` still reports `committed`. |
+| any | `drag_value`, an arrow beside it | same | Steps the value. Emits `value_changed` and `committed`. |
 
 Starts in Resting. Ends with the widget.
 
@@ -1710,8 +1731,8 @@ Source: `crates/balaur_ui/src/widget/kinds.rs`, `color` and the `balaur-color-dr
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | A change with a button down | `true` | Reports `Edit::Color`, which emits `change`. |
-| `true` | A button released | `false` | Reports `Edit::ColorCommitted`, which emits `commit`. |
+| any | A change with a button down | `true` | Reports `Edit::Color`, which emits `value_changed`. |
+| `true` | A button released | `false` | Reports `Edit::ColorCommitted`, which emits `committed`. |
 | any | A change with no button down | `false` | Reports `Edit::Color` and `Edit::ColorCommitted`. |
 
 Starts false. Ends with the widget.
@@ -1730,9 +1751,9 @@ Source: `crates/balaur_ui/src/widget/rows.rs`, `Dragging.row`, `settle_drag` and
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | empty | `drag_started` on a row or card | names one | Stored under the widget's id. |
-| names one | `settle_drag`, buttons up over a row | empty | Reports `Edit::Dropped`, which emits `move` `[moved, target, side]` and calls `on_move`. The rows are the script's to reorder. |
+| names one | `settle_drag`, buttons up over a row | empty | Reports `Edit::Dropped`, which announces `moved` `[moved, target, side]`. The rows are the script's to reorder. |
 | names one | `settle_drag`, buttons up elsewhere | empty | The row stays. No event. |
-| names one | `carry`, buttons up outside the list | empty | Reports `Edit::Carried`, which emits `drop` with the card and calls `on_drop`. |
+| names one | `carry`, buttons up outside the list | empty | Reports `Edit::Carried`, which announces `dropped` with the card. |
 | names one | `carry`, buttons up inside the list | empty | No event. |
 
 Starts empty. Ends with the widget.
@@ -1750,7 +1771,7 @@ Source: `crates/balaur_ui/src/widget/rows.rs`, `settle_folds` and `open_walk`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | A caret clicked, `settle_folds` | flipped | Reports `Edit::Folded`, which emits `fold` `#{ row, open }`. |
+| any | A caret clicked, `settle_folds` | flipped | Reports `Edit::Folded`, which emits `folded` `#{ row, open }`. |
 
 Starts Open. Never ends. The set stays in egui's temp data after its widget.
 
@@ -1805,12 +1826,12 @@ Source: `crates/balaur_ui/src/widget/properties.rs`, `crates/balaur_ui/src/widge
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | A `fold`'s header clicked, `fold_header` | flipped | Reports `Edit::Open`, which emits `change` with the bool and calls `on_change`. |
+| any | A `fold`'s header clicked, `fold_header` | flipped | Reports `Edit::Open`, which announces `value_changed` with the bool. |
 | any | Accept on a `fold`, `turned_fold` | flipped | Same. |
-| `true` | Escape or a click on a `dialog`'s dim, with `dismissable`, `draw_root` | `false` | Reports `Edit::Open(false)`, which emits `change`. |
-| `true` | A `window`'s cross, with `hide_on_close`, `title_bar` | `false` | Reports `Edit::CloseRequested` then `Edit::Open(false)`. Emits `close_request`, then `change`. |
-| `true` | A `window`'s cross, with `hide_on_close` off | same | Emits `close_request` alone. |
-| any | A scene or script write, or `ui.edit` with a bool | as asked | A write emits nothing. `edit` emits `change`. |
+| `true` | Escape or a click on a `dialog`'s dim, with `dismissable`, `draw_root` | `false` | Reports `Edit::Open(false)`, which emits `value_changed`. |
+| `true` | A `window`'s cross, with `hide_on_close`, `title_bar` | `false` | Reports `Edit::CloseRequested` then `Edit::Open(false)`. Emits `close_requested`, then `value_changed`. |
+| `true` | A `window`'s cross, with `hide_on_close` off | same | Emits `close_requested` alone. |
+| any | A scene or script write, or `ui.edit` with a bool | as asked | A write emits nothing. `edit` emits `value_changed`. |
 | any | A `dialog` or `window` comes up or goes away | same | `pass_edits` compares `Painting.shown` with last pass's `Shown`, and the next tick emits `opened` or `closed`. |
 
 Starts as authored, true by default. Ends when the component is removed.
@@ -1855,7 +1876,7 @@ Source: `crates/balaur_ui/src/widget/kinds.rs`, `dropdown`, `menu`, `dropped`, `
 | any | `placement` `pointer`, a click | toggled | Opens at the pointer. |
 | Shut | A secondary click or a long touch, `context_menu` | Up | The innermost widget naming a menu takes it. Next tick the menu node emits `opened`. |
 | Shut | Hover on a menu inside an open menu, `SubMenu` | Up | One submenu at a time. |
-| Up | A row clicked, `popup_rows` | Shut | Unless the row says `keep_open` or is a submenu. A pick reports `Edit::Choice`, which emits `change`. |
+| Up | A row clicked, `popup_rows` | Shut | Unless the row says `keep_open` or is a submenu. A pick reports `Edit::Choice`, which emits `value_changed`. |
 | Up | A click, as `close_on` says: `click_outside`, `click`, `never` | Shut, or Up for `never` | egui's `PopupCloseBehavior`. A `dropdown` uses `keep_open` to choose between the first two. |
 | Up | Escape | Shut | egui closes every kind. |
 
@@ -1874,7 +1895,7 @@ Source: `crates/balaur_ui/src/widget/arrange.rs` and `crates/balaur_ui/src/widge
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | A click on the strip, `tabs` | that page | Reports `Edit::Active`, which emits `change` with the name and calls `on_change`. |
+| any | A click on the strip, `tabs` | that page | Reports `Edit::Active`, which announces `value_changed` with the name. |
 | any | A scene or script write, or `ui.edit` with text | as asked | A write emits nothing. |
 
 Starts as authored. Ends when the component is removed.
@@ -2134,7 +2155,7 @@ Source: `crates/balaur_render/src/lib.rs` and `crates/balaur_render/src/kiss3d_b
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | none | Script `render.screenshot`, `snap_aov`, or `request_screenshot` | Requested | A second request replaces the first. |
-| Requested | `take_if_due`, the file written | none | Emits `screenshot_written` with the path. |
+| Requested | `take_if_due`, the file written | none | Emits `screenshot_saved` with the path. |
 | Requested | `take_if_due`, the encode or the write fails | none | Emits `screenshot_failed` `#{ path, error }`. |
 | Requested | `unserved_screenshot_system`, no backend, `Stage::Last` | none | Logs an error and emits `screenshot_failed`. |
 
@@ -2153,8 +2174,8 @@ Source: `crates/balaur_render/src/notifier.rs`, `OnScreen.on_screen`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| false | `notify_screen_system`, in `Stage::SceneSync`, overlap and shown | true | Announces `screen_enter`. |
-| true | `notify_screen_system`, no overlap or hidden | false | Announces `screen_exit`. |
+| false | `notify_screen_system`, in `Stage::SceneSync`, overlap and shown | true | Announces `screen_entered`. |
+| true | `notify_screen_system`, no overlap or hidden | false | Announces `screen_exited`. |
 | none | `added` | false | A written notifier keeps what it saw. |
 | any | `removed` | gone | Drops it. |
 
@@ -2182,13 +2203,13 @@ stateDiagram-v2
 |---|---|
 | No key | The emitter is not one-shot, or not emitting. |
 | Running: `Some(elapsed)` | The burst is timing out. |
-| Announced: `None` | `finished` went out. It waits for `emitting` to fall. |
+| Announced: `None` | `particles_finished` went out. It waits for `emitting` to fall. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | No key | `burst_system`, `one_shot` and `emitting` | Running | Starts at 0. |
 | Running | `burst_system`, `process::ticks` true | Running | Adds `fixed_dt`. |
-| Running | `burst_system`, `elapsed` reaches `lifetime * (2 - explosiveness)` | Announced | Announces `finished`, in entity order. |
+| Running | `burst_system`, `elapsed` reaches `lifetime * (2 - explosiveness)` | Announced | Announces `particles_finished`, in entity order. |
 | Running, Announced | `burst_system`, `emitting` false or not one-shot | No key | The next rise fires again. |
 
 Starts in No key. Never ends.
@@ -2429,17 +2450,17 @@ Starts in None. Ends with the run.
 | `Effect` | `crates/balaur_animation/src/system.rs` | `Patch`, `Call`, `Invoke`, `TweenFinished`, `TweenLooped`, `TweenStep`, `Looped`, `Deform`, `Shown` | What a fixed step wants done once the borrows are gone. |
 | `Moved` | `crates/balaur_animation/src/machine.rs` | `entity`, `left`, `entered` | One machine's change on a step, for `announce`. |
 | `Event` | `crates/balaur_physics/src/shared/events.rs` | `Started`, `Stopped`, `Force`, `Tear` | One thing a step reported, before delivery. |
-| Sweep status | `crates/balaur_physics/src/shared/character.rs` | `converged`, `out_of_iterations`, `failed`, `penetrating` | How one collision's sweep ended, in `move_character`'s answer. |
+| Sweep status | `crates/balaur_physics/src/shared/character.rs` | `converged`, `out_of_iterations`, `failed`, `penetrating` | How one collision's sweep ended, in `move_by`'s answer. |
 | `TouchPhase` | `crates/balaur_input/src/lib.rs` | `Start` (`start`), `Move` (`move`), `End` (`end`), `Cancel` (`cancel`) | What one report says a finger did. |
 | `PadEvent` | `crates/balaur_input/src/gamepad.rs` | `Connected`, `Disconnected`, `Info`, `Button`, `Axis`, `Power` | One change a backend or a script reports for a pad. |
-| `Fed` | `crates/balaur_input/src/lib.rs` | `Key`, `Mouse`, `Scroll`, `Button`, `Touch` | One `input.feed_*` event, held for the next frame. |
+| `Fed` | `crates/balaur_input/src/lib.rs` | `Key`, `Mouse`, `Scroll`, `Button`, `Touch` | One `input.set_*` event, held for the next frame. |
 | `Batch` | `crates/balaur_input/src/pad_thread.rs` | `events`, `motors` | What one wait on the gamepad backend brought. |
 | `Step` | `crates/balaur_input/src/rumble.rs` | `holds`, `finished`, `next` | What one rumble step asks of the motors and tells the scripts. |
 | Gesture reads | `crates/balaur_input/src/gestures.rs` | `Pinch`, `pan`, `Swipe`, `long_press` | This frame's answers, each neutral with no gesture. |
 | `Pressed` | `crates/balaur_ui/src/widget/typing.rs` | `Nothing`, `Moved`, `Changed`, `Left` | What one key did in a field. `Left` means it ended the line and gave up focus. |
 | `Typed` | `crates/balaur_ui/src/widget/typing.rs` | `response`, `changed`, `caret` | What one pass of a field did. |
 | `Moment` | `crates/balaur_ui/src/widget/drag.rs` | `id`, `slow`, `aim`, `auto`, `most`, `typing`, `gained`, `lost` | What one pass of a number knows before it draws. |
-| `CARETS` | `crates/balaur_ui/src/widget/code.rs` | One byte offset per `code` node | Where `caret` was last said to be, so it is emitted only when it moves. `forget_freed` drops a freed node's. |
+| `CARETS` | `crates/balaur_ui/src/widget/code.rs` | One byte offset per `code` node | Where the caret was last said to be, so `caret_changed` is emitted only when it moves. `forget_freed` drops a freed node's. |
 | `Move` | `crates/balaur_ui/src/widget/node.rs` | `Next`, `Previous`, `Accept`, `Up`, `Down`, `Left`, `Right`, `Leave` | One request to focus, from a key, a pad or a script. |
 | `Side` (focus) | `crates/balaur_ui/src/widget/focus.rs` | `Up`, `Down`, `Left`, `Right` | An arrow's way across the screen. |
 | `Side` (rows) | `crates/balaur_ui/src/widget/rows.rs` | `Before` (`before`), `Into` (`into`), `After` (`after`) | Where a dragged row would land. |

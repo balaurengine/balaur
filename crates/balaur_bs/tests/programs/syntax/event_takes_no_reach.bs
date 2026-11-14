@@ -1,0 +1,3 @@
+pub event done;
+
+// error: 1:5: an `event` takes no `pub` or `internal`: any script may hear it, found `event`

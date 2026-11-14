@@ -146,6 +146,8 @@ impl Compiled {
                 params: r.list(Reader::ty)?,
                 ret: r.ty()?,
                 is_async: r.bool()?,
+                // Who may call it was settled when the unit compiled.
+                editor: false,
             })
         })?;
         let defaults = r.list(|r| {

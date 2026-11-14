@@ -21,7 +21,7 @@ use crate::vocabulary::words as w;
 /// A mark at the right of a `list` or `tree` row.
 #[derive(Clone, Debug, PartialEq, Record)]
 pub(crate) struct Mark {
-    /// What `on_mark` reports when it is clicked
+    /// What the `marked` event names when it is clicked
     pub(crate) name: SmolStr,
     /// What it draws, from the icon face
     pub(crate) glyph: SmolStr,
@@ -42,7 +42,7 @@ pub(crate) struct Item {
     pub(crate) key: SmolStr,
     /// How many levels into a `tree` the row sits
     pub(crate) depth: u32,
-    /// Drawn at the right, the last rightmost, and reported by `on_mark`
+    /// Drawn at the right, the last rightmost, and reported by the `marked` event
     pub(crate) marks: Vec<Mark>,
     /// A `table` row's text, one cell a column
     pub(crate) cells: Vec<SmolStr>,
@@ -250,7 +250,7 @@ impl Property for Numeral {
     }
 }
 
-/// A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button calls `on_click`.
+/// A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A click on one is its node's `pointer_click`, which a `bindings` row or its script's `on_pointer_click` answers; a `label`, a `panel` or an `image` senses a click only where one is heard.
 #[derive(Clone, Component)]
 #[component(name = "widget")]
 #[allow(
@@ -404,21 +404,6 @@ pub(crate) struct WidgetProperties {
     /// A screen reader reads its text out as it arrives and as it changes, as a status line
     #[property(group = "text")]
     pub(crate) announce: bool,
-    /// Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button
-    #[property(group = "events")]
-    pub(crate) on_click: SmolStr,
-    /// Script method called with a `text_field`'s text after every edit, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_change: SmolStr,
-    /// Script method called when focus arrives, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_focus: SmolStr,
-    /// Script method called on a double click, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_double_click: SmolStr,
-    /// Script method called when focus leaves, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_blur: SmolStr,
     /// Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this
     #[property(default = true, group = "events")]
     pub(crate) interactive: bool,

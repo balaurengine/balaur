@@ -3,7 +3,7 @@
 //! has got to.
 //!
 //! The clock is the truth a script reads (`playback_time`, `is_playing`, the
-//! `finished` event). It is advanced on the fixed step from the play's own
+//! `sound_finished` event). It is advanced on the fixed step from the play's own
 //! numbers, never read off a sink, so a run with no sound card and a replay
 //! reach every boundary on the same tick as one with speakers.
 
@@ -247,6 +247,14 @@ impl Timeline {
             0.0
         };
         self.at = end.map_or(at, |end| at.min(end));
+    }
+
+    /// Whether this plays out some day and says so: no file from here on
+    /// loops.
+    #[must_use]
+    pub fn ends(&self) -> bool {
+        let rest = self.segments.get(self.index..).unwrap_or_default();
+        rest.iter().all(|segment| !segment.looped)
     }
 
     /// Whether the clock, rather than the sink, decides when this ends: every

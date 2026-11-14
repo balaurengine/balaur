@@ -23,7 +23,7 @@ bandwidth per player rather than per object.
 ```bs
 pub fn fixed_update(dt: float) {         // simulation
     if input::key_down(input::KEY_SPACE) {
-        self.node.body3d.apply_impulse(0.0, 5.0, 0.0);
+        self.node.body3d.apply_impulse(vec3(0.0, 5.0, 0.0));
     }
 }
 
@@ -123,7 +123,10 @@ source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 | Variable `dt` | Handled if you simulate in `fixed_update` |
 | Network replies | Handled — recorded and replayed, outbound suppressed |
 | `engine::time()`, `engine::delta()` | **Yours** — both accumulate real frame time. Use `engine::tick()` or `fixed_update`'s `dt` |
+| A shader's `time()` | Handled — it reads `engine::time()`, so a run at `--fixed-tick` and a replay draw the same frames |
 | Iterating a map's keys | Handled — a map keeps the order its keys were added |
+| A recording started part-way through a frame | Handled — the game holds through the rest of that frame, as a replay holds the frame it loads in |
+| A tween's handle | Handled — the editor's own tweens count apart from the game's, and the header carries where the game's start |
 | Hot reload mid-session | Handled in the editor, which ends the session on a reload. Under `--record` the recording spans the change, with only the header's script fingerprint to say so |
 
 Every `math` function is safe to call: `sqrt`, `abs`, `floor`, `ceil`, `round`,

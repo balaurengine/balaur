@@ -39,12 +39,6 @@ pub(crate) trait Beside: Component + Clone {
     /// Whether a widget of this kind reads the rows.
     fn reads(kind: &str) -> bool;
 
-    /// Whether a preset of this kind brings the component. Every kind may
-    /// carry one any kind reads, and a node names it where it asks for a row.
-    fn brought_by(kind: &str) -> bool {
-        Self::reads(kind)
-    }
-
     /// The rows onto the widget the layer reads.
     fn put(&self, widget: &mut Widget);
 
@@ -85,7 +79,7 @@ pub(crate) use puts;
 pub(crate) struct WidgetCode {
     /// The language a `code` widget highlights
     pub(crate) language: SmolStr,
-    /// The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means
+    /// The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter announces `gutter_clicked` with its line and the script decides what the mark means
     pub(crate) breakpoints: Vec<Numeral>,
     /// The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter
     pub(crate) problems: Vec<Numeral>,
@@ -97,8 +91,6 @@ pub(crate) struct WidgetCode {
     /// How wide a `code` widget's gutter is, in design pixels; 0 takes the built-in width, which holds four digits
     #[property(min = 0.0)]
     pub(crate) gutter_width: f32,
-    /// Script method called with the line a click on a `code` widget's gutter landed on, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_gutter: SmolStr,
 }
 
 impl Beside for WidgetCode {
@@ -114,7 +106,6 @@ impl Beside for WidgetCode {
         current_line => widget.current_line =
             u32::try_from(held.current_line.max(0)).unwrap_or(u32::MAX);
         gutter_width => widget.gutter_width = held.gutter_width;
-        on_gutter => widget.on_gutter = held.on_gutter.clone();
     }
 }
 
@@ -182,7 +173,7 @@ pub(crate) struct WidgetWindow {
     /// Draw a `window`'s cross
     #[property(default = true)]
     pub(crate) closable: bool,
-    /// Whether a `window`'s close button shuts it; off, the button only emits `close_request` and the script decides
+    /// Whether a `window`'s close button shuts it; off, the button only emits `close_requested` and the script decides
     #[property(default = true)]
     pub(crate) hide_on_close: bool,
     /// Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`
@@ -193,12 +184,6 @@ pub(crate) struct WidgetWindow {
     /// What a `dialog` dims the screen behind it with
     #[property(color, default = [0.0, 0.0, 0.0, 0.549])]
     pub(crate) backdrop_color: [f32; 4],
-    /// Script method called when a `window` or `dialog` comes up, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_opened: SmolStr,
-    /// Script method called when a `window` or `dialog` goes away, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_closed: SmolStr,
-    /// Script method called when a `window`'s close button is pressed, before it shuts or, with `hide_on_close` off, instead of shutting, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_close_request: SmolStr,
 }
 
 impl Beside for WidgetWindow {
@@ -216,9 +201,6 @@ impl Beside for WidgetWindow {
         resizable => egui(widget).resizable = held.resizable;
         dismissable => egui(widget).dismissable = held.dismissable;
         backdrop_color => egui(widget).backdrop_color = held.backdrop_color;
-        on_opened => widget.on_opened = held.on_opened.clone();
-        on_closed => widget.on_closed = held.on_closed.clone();
-        on_close_request => widget.on_close_request = held.on_close_request.clone();
     }
 }
 
@@ -268,12 +250,8 @@ pub(crate) struct WidgetMenu {
     pub(crate) close_on: CloseOn,
     /// Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there
     pub(crate) showing: bool,
-    /// The words a `menu` of strings offers, its `text` being the button's caption; `on_change` hears every pick
+    /// The words a `menu` of strings offers, its `text` being the button's caption; `value_changed` carries every pick
     pub(crate) options: Vec<SmolStr>,
-    /// Script method called when a `menu`'s popup comes up, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_opened: SmolStr,
-    /// Script method called when a `menu`'s popup goes away, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_closed: SmolStr,
 }
 
 impl Beside for WidgetMenu {
@@ -290,8 +268,6 @@ impl Beside for WidgetMenu {
         close_on => egui(widget).close_on = held.close_on.0.clone();
         showing => widget.showing = held.showing;
         options => widget.options.clone_from(&held.options);
-        on_opened => widget.on_opened = held.on_opened.clone();
-        on_closed => widget.on_closed = held.on_closed.clone();
     }
 }
 
@@ -299,7 +275,7 @@ impl Beside for WidgetMenu {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_color_picker")]
 pub(crate) struct WidgetColorPicker {
-    /// What a `color_picker` holds; `on_change` hears the new one
+    /// What a `color_picker` holds; `value_changed` carries the new one
     #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
     pub(crate) picked_color: [f32; 4],
     /// What a `color_picker` offers for alpha: `none` keeps the colour opaque, `blend` offers transparency, `additive` that and additive blending
@@ -307,8 +283,6 @@ pub(crate) struct WidgetColorPicker {
     pub(crate) alpha: Alpha,
     /// Draw a `color_picker`'s picker in place, rather than behind a swatch that opens it
     pub(crate) inline: bool,
-    /// Script method called with the colour once a drag that changed it is over, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_commit: SmolStr,
 }
 
 impl Beside for WidgetColorPicker {
@@ -320,7 +294,6 @@ impl Beside for WidgetColorPicker {
         picked_color => widget.color = held.picked_color;
         alpha => egui(widget).alpha = held.alpha.0.clone();
         inline => egui(widget).inline = held.inline;
-        on_commit => widget.on_commit = held.on_commit.clone();
     }
 }
 
@@ -332,7 +305,7 @@ impl Beside for WidgetColorPicker {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_range")]
 pub(crate) struct WidgetRange {
-    /// Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it
+    /// Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and announce `value_changed` with it
     pub(crate) value: f32,
     /// The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1
     pub(crate) min: f32,
@@ -393,8 +366,6 @@ pub(crate) struct WidgetRange {
     pub(crate) prefix: SmolStr,
     /// Units drawn after a `number_field`'s or a shown `slider`'s number with a space between
     pub(crate) suffix: SmolStr,
-    /// Script method called with the number once a drag or a typed number that changed it is over, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_commit: SmolStr,
 }
 
 impl Beside for WidgetRange {
@@ -428,7 +399,6 @@ impl Beside for WidgetRange {
         axis => widget.axis = held.axis.0.clone();
         prefix => egui(widget).prefix = held.prefix.clone();
         suffix => widget.suffix = held.suffix.clone();
-        on_commit => widget.on_commit = held.on_commit.clone();
     }
 }
 
@@ -466,19 +436,15 @@ pub(crate) struct WidgetField {
     pub(crate) prefix: SmolStr,
     /// Text drawn after a `text_field`'s or `text_area`'s text
     pub(crate) suffix: SmolStr,
-    /// Script method called with a `text_field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_submit: SmolStr,
-    /// Script method called with `{ x, y, index }` when a `code` widget's caret moves, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_caret: SmolStr,
     /// Where what a `text_field` or `text_area` edits sits in its width
     #[property(default = TextAlign::new(w::START))]
     pub(crate) text_align: TextAlign,
     /// Where a `text_area`'s wrapped line may break
-    #[property(default = LineBreak::new(tw::WORD_OR_GLYPH))]
+    #[property(default = LineBreak::new(tw::WORD_SMART))]
     pub(crate) line_break: LineBreak,
     /// Spaces between a `text_field`'s or `text_area`'s tab stops
     #[property(default = 8, min = 1, max = 64)]
-    pub(crate) tab_width: i64,
+    pub(crate) tab_size: i64,
 }
 
 impl Beside for WidgetField {
@@ -509,12 +475,10 @@ impl Beside for WidgetField {
         submit_key => egui(widget).submit_key = held.submit_key.clone();
         prefix => egui(widget).prefix = held.prefix.clone();
         suffix => widget.suffix = held.suffix.clone();
-        on_submit => widget.on_submit = held.on_submit.clone();
-        on_caret => widget.on_caret = held.on_caret.clone();
         text_align => widget.text_align = held.text_align.0.clone();
         line_break => look(widget).options.line_break =
             balaur_text::LineBreak::of(&held.line_break.0);
-        tab_width => look(widget).options.tab_width = tab_stops(held.tab_width);
+        tab_size => look(widget).options.tab_size = tab_stops(held.tab_size);
     }
 }
 
@@ -557,8 +521,6 @@ pub(crate) struct WidgetScroll {
     /// The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui's
     #[property(min = 0.0)]
     pub(crate) min_scrolled_height: f32,
-    /// Script method called with the offset, `[x, y]`, when a `scroll`, `list`, `tree` or `table` moves, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_scrolled: SmolStr,
 }
 
 impl Beside for WidgetScroll {
@@ -579,7 +541,6 @@ impl Beside for WidgetScroll {
         scroll_deadzone => widget.deadzone = held.scroll_deadzone;
         min_scrolled_width => egui(widget).min_scrolled_width = held.min_scrolled_width;
         min_scrolled_height => egui(widget).min_scrolled_height = held.min_scrolled_height;
-        on_scrolled => widget.on_scrolled = held.on_scrolled.clone();
     }
 }
 
@@ -634,18 +595,10 @@ pub(crate) struct WidgetList {
     pub(crate) grid_columns: SmolStr,
     /// The picture a `list` cuts its card faces from
     pub(crate) sheet: SmolStr,
-    /// Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go
+    /// Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `dropped` says which card was let go
     pub(crate) draggable: bool,
-    /// Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder
+    /// Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and announces `moved`, and the rows are the script's to reorder
     pub(crate) reorderable: bool,
-    /// Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed
-    pub(crate) on_drop: SmolStr,
-    /// Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_move: SmolStr,
-    /// Script method called with `{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing
-    pub(crate) on_mark: SmolStr,
-    /// Script method called with `{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_fold: SmolStr,
 }
 
 impl Beside for WidgetList {
@@ -663,10 +616,6 @@ impl Beside for WidgetList {
         sheet => widget.source = held.sheet.clone();
         draggable => widget.draggable = held.draggable;
         reorderable => widget.reorderable = held.reorderable;
-        on_drop => widget.on_drop = held.on_drop.clone();
-        on_move => widget.on_move = held.on_move.clone();
-        on_mark => widget.on_mark = held.on_mark.clone();
-        on_fold => widget.on_fold = held.on_fold.clone();
     }
 }
 
@@ -674,7 +623,7 @@ impl Beside for WidgetList {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_dropdown")]
 pub(crate) struct WidgetDropdown {
-    /// The words a `dropdown` offers; `text` is the one picked, and `on_change` hears every pick
+    /// The words a `dropdown` offers; `text` is the one picked, and `value_changed` carries every pick
     pub(crate) options: Vec<SmolStr>,
     /// The tallest a `dropdown`'s list grows before it scrolls, in design pixels; 0 takes egui's
     #[property(min = 0.0)]
@@ -682,10 +631,6 @@ pub(crate) struct WidgetDropdown {
     /// What shuts a `dropdown`'s list: any click, a pick included, a click outside it, or nothing but Escape
     #[property(default = CloseOn::new(w::CLICK))]
     pub(crate) close_on: CloseOn,
-    /// Script method called when a `dropdown`'s list comes up, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_opened: SmolStr,
-    /// Script method called when a `dropdown`'s list goes away, on this node or the nearest ancestor whose script declares it
-    pub(crate) on_closed: SmolStr,
 }
 
 impl Beside for WidgetDropdown {
@@ -697,8 +642,6 @@ impl Beside for WidgetDropdown {
         options => widget.options.clone_from(&held.options);
         list_height => egui(widget).list_height = held.list_height;
         close_on => egui(widget).close_on = held.close_on.0.clone();
-        on_opened => widget.on_opened = held.on_opened.clone();
-        on_closed => widget.on_closed = held.on_closed.clone();
     }
 }
 
@@ -745,19 +688,6 @@ pub(crate) fn names() -> &'static [&'static str] {
         };
     }
     each_beside!(name_each!())
-}
-
-/// The components beside `widget` a preset of `kind` gives the node, by name.
-pub(crate) fn brought_by(kind: &str) -> Vec<&'static str> {
-    macro_rules! bring_each {
-        ($kind:expr; $($beside:ty),*) => {
-            [$((<$beside>::brought_by($kind), <$beside as Component>::NAME)),*]
-        };
-    }
-    each_beside!(bring_each!(kind))
-        .into_iter()
-        .filter_map(|(brought, name)| brought.then_some(name))
-        .collect()
 }
 
 /// A component beside `widget` holding a row, and the kinds it holds it for.

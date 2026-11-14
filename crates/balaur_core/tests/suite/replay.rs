@@ -590,11 +590,83 @@ fn a_frame_recorded_while_the_debugger_froze_the_root_replays_frozen() {
     assert!(!app.engine.is_frozen(), "and the freeze did not leak out");
 }
 
-/// The browser records into the store its project lives in: no disk, and the
-/// path the editor names is the one the session comes back from.
-///
-/// On a thread of its own: the default backend is thread-local, and no other
-/// test in this binary may find a memory filesystem where the disk should be.
+/// Steps a system takes after the frame's scripts, as an animation player
+/// does, wherever nothing holds the game.
+struct Late(u64);
+
+/// A recording to start from inside the next frame, as the editor's Play does.
+struct RecordNext(Option<std::path::PathBuf>);
+
+fn late(app: &mut App) {
+    app.engine.insert_resource(Late(0));
+    app.engine.insert_resource(RecordNext(None));
+    app.add_system(balaur_core::Stage::PreUpdate, |eng: &Engine, _| {
+        let Some(path) = eng.resource::<RecordNext>().borrow_mut().0.take() else {
+            return;
+        };
+        eng.resource::<Late>().borrow_mut().0 = 0;
+        replay::start_recording(eng, &path, ".", "", true).unwrap();
+    });
+    app.add_system(balaur_core::Stage::Update, |eng: &Engine, _| {
+        if eng.frozen_root().is_none() {
+            eng.resource::<Late>().borrow_mut().0 += 1;
+        }
+    });
+    app.add_digest_source("late", |eng: &Engine, out| {
+        let mut h = balaur_core::digest::Hasher::new();
+        h.write_u64(eng.resource::<Late>().borrow().0);
+        out.push(balaur_core::digest::Entry {
+            label: String::from("late"),
+            digest: h.finish(),
+        });
+    });
+}
+
+// The frame a recording starts in is not recorded and a replay holds the one it loads in, so a
+// system that stepped after the start ran the recording one step ahead of every replay of it.
+#[test]
+fn a_recording_started_part_way_through_a_frame_steps_nothing_after_the_start() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut recording = app();
+    late(&mut recording);
+    recording.advance(1.0 / 60.0);
+    recording.engine.resource::<RecordNext>().borrow_mut().0 = Some(path.clone());
+    recording.advance(1.0 / 60.0);
+    assert_eq!(
+        recording.engine.resource::<Late>().borrow().0,
+        0,
+        "the rest of the frame the recording started in held the game"
+    );
+    for _ in 0..4 {
+        recording.advance(1.0 / 60.0);
+    }
+    let recorded = recording.engine.resource::<Late>().borrow().0;
+    assert_eq!(recorded, 4, "and the frames after it ran");
+    replay::stop_recording(&recording.engine, "stop").unwrap();
+
+    let mut replaying = app();
+    late(&mut replaying);
+    replay::begin(&replaying.engine, Session::read(&path).unwrap());
+    replay::play(&replaying.engine);
+    while replay::is_running(&replaying.engine) {
+        replaying.advance(1.0 / 60.0);
+    }
+    assert_eq!(replaying.engine.resource::<Late>().borrow().0, recorded);
+    assert!(
+        replaying
+            .engine
+            .resource::<ReplayPlayer>()
+            .borrow()
+            .diverged
+            .is_none(),
+        "the replay took the steps its recording did, from its first frame"
+    );
+}
+
+// On a thread of its own: the default backend is thread-local, and no other test here may find a
+// memory filesystem where the disk should be.
 #[test]
 fn a_session_records_into_the_backend_rather_than_the_disk() {
     std::thread::spawn(|| {

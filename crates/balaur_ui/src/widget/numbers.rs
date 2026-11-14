@@ -18,8 +18,8 @@ const ARROWS: f32 = 18.0;
 const RAIL: f32 = 160.0;
 
 /// A number dragged between `min` and `max`. egui draws it; the value it
-/// reports lands on the widget next tick, which is also when `on_change`
-/// hears it.
+/// reports lands on the widget next tick, which is also when `value_changed` is
+/// said.
 pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let widget = &placed.widget;

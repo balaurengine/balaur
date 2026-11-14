@@ -235,6 +235,7 @@ def gen_script_api(api):
             for f in module_functions(m):
                 body += f"| `{f}` | `{m['signatures'].get(f, '')}` |\n"
             body += "\n"
+        body += editor_note(m)
         if m.get("acts_on"):
             on = ", ".join(f"`{c}`" for c in m.get("components", []))
             body += f"Called on a node's component: {on}. See [components](components.md).\n\n"
@@ -248,6 +249,27 @@ def gen_script_api(api):
                 body += f"\n…and {len(m['constants']) - len(shown)} more.\n"
             body += "\n"
     return body
+
+
+EDITOR_CALLERS = (
+    "a script of the editor, or one under a game's or an addon's `editor/` "
+    "folder. A game's runtime does not have {them}, and `balaur check` refuses "
+    "a call from any other file."
+)
+
+
+def editor_note(module):
+    """Which of the module's functions only the editor's scripts may call."""
+    editor = module.get("editor") or []
+    if not editor:
+        return ""
+    if len(editor) == len(module["functions"]):
+        which, them = "Every function here is", "them"
+    elif len(editor) == 1:
+        which, them = f"`{editor[0]}` is", "it"
+    else:
+        which, them = ", ".join(f"`{f}`" for f in editor) + " are", "them"
+    return f"{which} the editor's, called only from {EDITOR_CALLERS.format(them=them)}\n\n"
 
 
 def module_functions(module):
@@ -329,19 +351,20 @@ def component_group(tags):
 
 
 def component_methods(api):
-    """`component -> [(module, function, signature, doc)]`.
+    """`component -> [(module, method, signature, doc)]`.
 
-    Read from what each binding declared it acts on, which is the same
-    declaration the script backend turns into `node.<component>.<method>`.
+    Read from what each binding declared it acts on, by the name the script
+    backend gives it on `node.<component>`: the function's, less the
+    component's own.
     """
     out = {}
     for module in api.get("modules", []):
-        for function, components in (module.get("acts_on") or {}).items():
-            for component in components:
+        for function, handles in (module.get("methods") or {}).items():
+            for component, method in handles.items():
                 out.setdefault(component, []).append(
                     (
                         module["name"],
-                        function,
+                        method,
                         module.get("signatures", {}).get(function, ""),
                         module.get("docs", {}).get(function, ""),
                     )
@@ -359,8 +382,8 @@ def bound_signature(signature):
     return signature
 
 
-def method_row(module, function, signature, doc):
-    call = f"{html.escape(function)}{html.escape(bound_signature(signature).split(' -> ')[0])}"
+def method_row(module, method, signature, doc):
+    call = f"{html.escape(method)}{html.escape(bound_signature(signature).split(' -> ')[0])}"
     returns = bound_signature(signature).split(" -> ")
     gives = html.escape(returns[1]) if len(returns) > 1 else ""
     cells = (
@@ -393,7 +416,9 @@ def gen_components(components, tags, docs=None, methods=None, events=None, order
         "module driving that component, so `node.body2d.apply_impulse(1.0, 0.0)`\n"
         "reaches `physics2d` and the same call on a `body3d` handle reaches\n"
         "`physics3d`. It is the only way to call one. The methods listed per component\n"
-        "below are the functions that declared they act on it. A component with\n"
+        "below are the functions that declared they act on it, each named without\n"
+        "the component's own name: the function `softbody_area` is\n"
+        "`node.softbody2d.area()`. A component with\n"
         "no methods of its own is reached through its properties, or through\n"
         "`node.get_component(name)` and `node.set_component(name, value)`.\n\n"
         "**Events.** What a component announces from its node reaches the\n"
@@ -670,6 +695,10 @@ def gen_hooks(api):
         f"<tr><td><code>{html.escape(name)}</code></td><td>{code_spans(payload)}</td></tr>"
         for name, payload in api.get("node_events", [])
     )
+    said = "\n".join(
+        f"<tr><td><code>{html.escape(name)}</code></td><td>{code_spans(payload)}</td><td>{code_spans(doc)}</td></tr>"
+        for name, payload, doc in api.get("said_events", [])
+    )
     return (
         "# Hooks\n\n"
         "The methods the engine calls on a node's script by name. Each is a method\n"
@@ -683,7 +712,14 @@ def gen_hooks(api):
         "`on_<event>(this, payload)`, a scene row answers `emitted:<event>`, and\n"
         "`events::listen` hears it at the next pump.\n\n"
         "<table>\n<thead><tr><th>event</th><th>payload</th></tr></thead>\n"
-        f"<tbody>\n{events}\n</tbody>\n</table>\n"
+        f"<tbody>\n{events}\n</tbody>\n</table>\n\n"
+        "## Only a listener\n\n"
+        "The engine says these from no node, so no script hears one unasked and no\n"
+        "scene row answers it. A script asks with `events::listen(self.node, name)`\n"
+        "and hears `on_<event>(payload)`, or awaits `events::next(name)`. Most are\n"
+        "said only while someone listens.\n\n"
+        "<table>\n<thead><tr><th>event</th><th>payload</th><th>when</th></tr></thead>\n"
+        f"<tbody>\n{said}\n</tbody>\n</table>\n"
     )
 
 

@@ -133,6 +133,45 @@ fn a_filter_excludes_the_node_it_names() {
 }
 
 #[test]
+fn a_filter_passes_through_the_body_kinds_it_excludes() {
+    run_clean(
+        r#"
+        let down = vec3(0.0, -1.0, 0.0);
+        let dynamic = physics3d::QueryFilter { exclude_kinds: [physics3d::EXCLUDE_DYNAMIC] };
+        let kept = physics3d::raycast(physics3d::RayQuery { origin: vec3(0.0, 10.0, 0.0), direction: down, max_distance: 100.0, filter: dynamic });
+        if kept == nil { log::error("excluding dynamic bodies passed two bodiless balls"); }
+        let fixed = physics3d::QueryFilter { exclude_kinds: [physics3d::EXCLUDE_STATIC] };
+        let hit = physics3d::raycast(physics3d::RayQuery { origin: vec3(0.0, 10.0, 0.0), direction: down, max_distance: 100.0, filter: fixed });
+        if hit != nil { log::error("excluding static bodies still hit {hit.unwrap().node.name()}"); }
+        "#,
+    );
+}
+
+#[test]
+fn a_filter_naming_no_body_kind_ends_the_call() {
+    for filter in [
+        r#"physics3d::QueryFilter { exclude_kinds: ["dynamc"] }"#,
+        r#"physics3d::QueryFilter { only: "statc" }"#,
+    ] {
+        let errors = run_with(
+            "",
+            &format!(
+                "physics3d::raycast(physics3d::RayQuery {{ origin: vec3(0.0, 10.0, 0.0), direction: vec3(0.0, -1.0, 0.0), filter: {filter} }});\n\
+                 log::error(\"the typo filtered nothing and the call went on\");"
+            ),
+        );
+        assert!(
+            errors.iter().any(|e| e.contains("names a body kind")),
+            "{filter} was not refused: {errors:#?}"
+        );
+        assert!(
+            !errors.iter().any(|e| e.contains("went on")),
+            "{filter} let the call go on: {errors:#?}"
+        );
+    }
+}
+
+#[test]
 fn two_colliders_answer_their_closest_points_and_when_they_meet() {
     run_clean(
         r#"

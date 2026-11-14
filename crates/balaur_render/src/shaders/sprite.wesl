@@ -5,7 +5,8 @@ import package::common::unpack_mat3;
 private struct FrameUniforms {
     view_0: vec4<f32>, view_1: vec4<f32>, view_2: vec4<f32>,
     proj_0: vec4<f32>, proj_1: vec4<f32>, proj_2: vec4<f32>,
-    // x is seconds since the run began; y and z are the viewport in pixels.
+    // x is `engine::time()`, the simulation's seconds; y and z are the
+    // viewport in pixels.
     clock: vec4<f32>,
 }
 private struct ObjectUniforms {

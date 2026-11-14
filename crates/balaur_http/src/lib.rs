@@ -403,6 +403,14 @@ impl balaur_plugin::Plugin for HttpPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(HttpState::default());
         reg.insert_resource(HttpSnapshot::default());
+        balaur_core::events::declare(
+            reg.engine(),
+            &[(
+                PROGRESS_EVENT,
+                "the progress, with the `request` it belongs to",
+                "A download or a long body moved on.",
+            )],
+        );
         reg.add_system(Stage::First, pump_http_system);
         reg.add_replay_source(HTTP, capture, restore);
         balaur_core::settings::define_group(

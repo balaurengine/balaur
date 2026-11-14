@@ -87,7 +87,7 @@ fn a_voxel_collider_can_be_turned_into_a_mesh() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        let mesh = self.node.collider3d.collider_mesh();
+        let mesh = self.node.collider3d.mesh();
         if mesh.points.len() <= 0 { log::error("the grid tessellated to nothing"); }
         if mesh.indices.len() % 3 != 0 { log::error("the triangles are not triples"); }
     }

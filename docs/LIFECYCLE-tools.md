@@ -191,7 +191,7 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `none` | `start_recording` | open, header pending | Reads the header's origin, seed and setup. `Recorder::create` empties the file. |
+| `none` | `start_recording` | open, header pending | Reads the header's origin, seed and setup. `Recorder::create` empties the file. Sets `opening_hold`, so nothing steps in the rest of the frame. |
 | open | `record_frame_system` on the tick `born` | same | Clears `EventLog` and writes nothing. |
 | open, header pending | `record_frame_system` on a later tick | open, writing | Settles the origin's tick and time from the clock, then writes the header and the frame. |
 | open, writing | `record_frame_system` | open, writing | Writes the tick, step, sources, `frozen`, digest when asked, and events. |
@@ -828,16 +828,18 @@ Starts with `reported_stop` false. Never ends.
 
 What the event pump last said about a stop.
 
-Source: `crates/balaur_core/src/events.rs`, `EventState.stop_seen`, `DEBUGGER_STOPPED`.
+Source: `crates/balaur_core/src/events.rs`, `EventState.stop_seen`, `EventState.stop_told`, `DEBUGGER_STOPPED`, `DEBUGGER_RESUMED`.
 
 | State | What is true |
 |---|---|
 | `None` | No stop was announced, or a resume forgot it. |
 | `Some(Pause)` | This stop was announced as `debugger_stopped`. |
+| `stop_told` | The last word was `debugger_stopped`; cleared once `debugger_resumed` is said. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | event pump, stop differs from `stop_seen` | new value | Queues `debugger_stopped` with the stop's map or nil, only if someone listens. |
+| any | event pump, a stop differs from `stop_seen` | new value | Queues `debugger_stopped` with the stop's map, only if someone listens, and sets `stop_told`. |
+| `None`, `stop_told` | event pump | `None` | Queues `debugger_resumed` with nil, only if someone listens, and clears `stop_told`. |
 | any | `debugger.resume`, through `events::resumed` | `None` | A stop on the same line after a resume is new. |
 
 Starts in `None`. Never ends.
@@ -1439,13 +1441,14 @@ Source: `editor/scripts/shell.bs`, `DebugState.paused`, `stopped`, `resume`, `on
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | `nil` | `on_debugger_stopped(map)` | a map | `on_pause` sets `paused_rel` and frame 0, selects the node, opens the Script workspace and the debugger dock, and logs. |
-| a map | `on_debugger_stopped(map or nil)` | new value | Tells the debugger panel. |
+| a map | `on_debugger_stopped(map)` | new value | Tells the debugger panel. |
+| a map | `on_debugger_resumed` | `nil` | Tells the debugger panel. |
 | a map | `shell::resume(mode)`: keys, dock, showcase | `nil` | `debugger::resume(mode)`. |
 | a map | `stop_play` | `nil` | Calls `debugger::resume` until the stop is gone, then clears `paused`. |
 
 Starts in `nil`. Never ends.
 
-Refused or ignored: Break calls `debugger::request_break` and changes nothing until a stop lands. `events::resumed` forgets the stop, so no `debugger_stopped` nil follows `stop_play`.
+Refused or ignored: Break calls `debugger::request_break` and changes nothing until a stop lands. `events::resumed` forgets the stop, so a stop on the same line after a resume is a new `debugger_stopped`; `debugger_resumed` follows `stop_play` at the next pump.
 
 ### Break self-test
 

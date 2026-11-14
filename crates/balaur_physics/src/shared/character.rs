@@ -112,8 +112,8 @@ macro_rules! functions {
         }
 
         /// The nodes whose colliders a move passes through: the character's own,
-        /// and every node `ignore_nodes` names.
-        fn ignored_nodes(
+        /// and every node `exclude` names.
+        fn excluded_nodes(
             eng: &Engine,
             entity: Entity,
             nodes: &[crate::properties::NodePath],
@@ -127,8 +127,8 @@ macro_rules! functions {
             out
         }
 
-        /// The colliders a move passes through beyond `ignore`'s kinds: those
-        /// of the nodes `ignored_nodes` answers, and every one on their bodies.
+        /// The colliders a move passes through beyond `exclude_kinds`: those
+        /// of the nodes `excluded_nodes` answers, and every one on their bodies.
         struct Skipped {
             nodes: Vec<u64>,
             bodies: Vec<RigidBodyHandle>,
@@ -153,12 +153,15 @@ macro_rules! functions {
             }
         }
 
-        /// The kinds of collider `ignore` names, as rapier's query flags.
-        fn ignore_flags(ignore: &[crate::properties::SweepIgnore]) -> QueryFilterFlags {
-            let table = crate::vocabulary::flags::query_ignores();
-            QueryFilterFlags::from_bits_truncate(crate::vocabulary::named_bits(
-                ignore.iter().map(crate::properties::SweepIgnore::option),
-                &table,
+        /// What the character's filter rows pass through, as rapier's query flags.
+        fn filter_flags(character: &$Character) -> QueryFilterFlags {
+            QueryFilterFlags::from_bits_truncate(crate::vocabulary::flags::filter_bits(
+                character
+                    .exclude_kinds
+                    .iter()
+                    .map(crate::properties::ExcludeKind::option),
+                character.hit_sensors,
+                character.hit_solids,
             ))
         }
 

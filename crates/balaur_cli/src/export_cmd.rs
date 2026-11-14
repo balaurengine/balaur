@@ -49,7 +49,7 @@ pub(crate) fn export_game(args: &ExportArgs) -> Result<()> {
     #[cfg(not(target_family = "wasm"))]
     let modules = {
         let project = args.path.clone();
-        move || crate::own_modules(&project)
+        move || crate::own_modules(&project, crate::editor_project(None))
     };
     #[cfg(not(target_family = "wasm"))]
     let plugins: Option<&balaur_export::ExtraModules> = Some(&modules);

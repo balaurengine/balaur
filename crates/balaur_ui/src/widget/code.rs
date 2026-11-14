@@ -461,7 +461,7 @@ pub(crate) struct Coded {
 
 thread_local! {
     /// Where each `code` widget's caret was last said to be, by byte, so
-    /// `caret` is emitted when it moves rather than every pass it is drawn.
+    /// `caret_changed` is emitted when it moves rather than every pass it is drawn.
     static CARETS: std::cell::RefCell<rustc_hash::FxHashMap<u64, usize>> =
         std::cell::RefCell::new(rustc_hash::FxHashMap::default());
 }

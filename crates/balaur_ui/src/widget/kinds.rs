@@ -347,7 +347,7 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// A button that drops a list of items: Godot's `MenuButton`, and the same
 /// list a `PopupMenu` shows. `options` are the entries and `text` is the
 /// button; picking one reports it the way a dropdown reports a choice, so a
-/// script hears it through `on_change`.
+/// script hears it as `value_changed`.
 pub(crate) fn menu(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -1123,8 +1123,8 @@ pub(crate) fn context_sensor(ui: &egui::Ui, at: &Painting<'_>, index: usize) {
 /// Read from the input rather than a response: the kind's own controls take
 /// the click first, and a list's row or a check's box hands no response
 /// back. The innermost widget under the pointer that names a menu takes the
-/// press; a widget's own `on_click` never fires for it, egui counting only
-/// the primary button as a click. The menu's own button is not drawn here,
+/// press; the widget's own `pointer_click` is never said for it, egui
+/// counting only the primary button as a click. The menu's own button is not drawn here,
 /// so a menu that is only ever a context menu names no caption and no icon.
 pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];

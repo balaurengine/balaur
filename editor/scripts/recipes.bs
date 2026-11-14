@@ -7,6 +7,7 @@ use editor;
 use history;
 use model;
 use newnode;
+use presets;
 use selection;
 use util;
 use words::asset_kinds;
@@ -185,20 +186,15 @@ pub fn targets(state: editor::State, index: int) -> [Target] {
     let found = model::node(state, index);
     let facet = model::facet(found);
     let out: [Target] = [];
-    for name in scene::presets() {
-        let info = scene::preset_info(name);
-        if info == nil {
-            continue;
-        }
-        let preset = info.unwrap();
+    for preset in presets::all(state) {
         if facet != "" && !util::contains(preset.tags, facet) {
             continue;
         }
-        if found.is_valid() && already(found, preset.parts) {
+        if found.is_valid() && already(found, preset) {
             continue;
         }
-        let note = recipe_note(state, index, name);
-        out.push(Target { name: name, note: note.or(preset.description), tags: preset.tags });
+        let note = recipe_note(state, index, preset);
+        out.push(Target { name: preset.name, note: note.or(preset.description), tags: preset.tags });
     }
     out
 }
@@ -215,12 +211,12 @@ pub fn change_type(state: &mut editor::State, index: int, name: str) -> bool {
     if name == POLYGON_2D && outline_2d(state, node, false) != nil {
         return to_polygon(state, index);
     }
-    let info = scene::preset_info(name);
-    if info == nil {
+    let preset = presets::find(state, name);
+    if preset == nil {
         log::warn("no preset named {name}");
         return false;
     }
-    let parts = info.unwrap().parts;
+    let parts = preset.unwrap().parts;
     history::record(state, "change to " + name);
     let fresh: [str] = [];
     for component in parts.keys() {
@@ -401,13 +397,13 @@ fn to_polygon(state: &mut editor::State, index: int) -> bool {
 }
 
 // A preset whose every part the node holds as the preset sets it.
-fn already(found: Node, parts: any) -> bool {
-    for component in parts.keys() {
+fn already(found: Node, preset: presets::Preset) -> bool {
+    for component in preset.components {
         if !found.has_component(component) {
             return false;
         }
         let held = util::map_or_empty(found.get_component(component));
-        let parameters = util::map_or_empty(parts[component]);
+        let parameters = util::map_or_empty(preset.parts[component]);
         for key in parameters.keys() {
             let had = held[key];
             if had == nil || !same(had, parameters[key]) {
@@ -420,7 +416,7 @@ fn already(found: Node, parts: any) -> bool {
 
 // Equal, with an integer and a float of one value alike: a preset spells
 // `pinned_particles = [0]` where the component reads back `[0.0]`.
-fn same(first: any, second: any) -> bool {
+internal fn same(first: any, second: any) -> bool {
     let numbers = (first.kind() == types::KIND_INT || first.kind() == types::KIND_FLOAT) && (second.kind() == types::KIND_INT || second.kind() == types::KIND_FLOAT);
     if numbers {
         return first.as_float() == second.as_float();
@@ -442,9 +438,10 @@ fn same(first: any, second: any) -> bool {
     false
 }
 
-// What a recipe makes of row `index` as preset `name`, for the picker's line; nil
+// What a recipe makes of row `index` as `preset`, for the picker's line; nil
 // where the preset's own description says it.
-fn recipe_note(state: editor::State, index: int, name: str) -> str? {
+fn recipe_note(state: editor::State, index: int, preset: presets::Preset) -> str? {
+    let name = preset.name;
     let node = model::row_of(model::node(state, index));
     if name == SOFT_2D || name == SOFT_3D {
         let source = soft_body_source(state, index);
@@ -456,15 +453,11 @@ fn recipe_note(state: editor::State, index: int, name: str) -> str? {
     if name == POLYGON_2D && outline_2d(state, node, false) != nil {
         return "the same outline as a polygon a rig or a soft body can bend";
     }
-    let info = scene::preset_info(name);
-    if info == nil {
-        return nil;
-    }
-    let parts = info.unwrap().parts;
+    let parts = preset.parts;
     let collider = parts.has(COLLIDER2D) && !node.has(COLLIDER2D) || parts.has(COLLIDER3D) && !node.has(COLLIDER3D);
     let drawn = outline_2d(state, node, false) != nil || mesh_source(node) != nil || node.has(components::SHAPE3D);
     if collider && drawn {
-        return "{info.unwrap().description}, its collider fitted to what it draws";
+        return "{preset.description}, its collider fitted to what it draws";
     }
     nil
 }
@@ -744,8 +737,8 @@ fn islands(sprite: any, loops: [[Vec2]]) -> any {
 fn drawn_scale(state: editor::State, sprite: any, texture: str) -> float {
     let size = sprite[SIZE];
     if size != nil && size[0].as_float() > 0.0 {
-        let texture_width = render::texture_size(state.game_root + "/" + texture)[0];
-        return texture_width as float / size[0].as_float();
+        let texture_width = render::texture_size(state.game_root + "/" + texture).x;
+        return texture_width / size[0].as_float();
     }
     let own = sprite[PIXELS_PER_UNIT].as_float();
     if own > 0.0 { own } else { render::texture_pixels_per_unit(state.game_root + "/" + texture) }

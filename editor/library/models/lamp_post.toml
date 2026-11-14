@@ -39,7 +39,7 @@ color = "#ffe9b8"
 
 [[nodes]]
 name = "Glow"
-parent = "Head"
+parent = "LampPost/Head"
 
 [nodes.light3d]
 kind = "point"

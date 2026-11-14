@@ -7,7 +7,7 @@ use crate::vocabulary::keys;
 use crate::vocabulary::words;
 use balaur_bs::{HostApi, HostSignature, Literal, Ty};
 use balaur_core::Engine;
-use balaur_script::Value;
+use balaur_script::{Value, handle_method};
 use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -22,6 +22,7 @@ pub(crate) type Call = balaur_script::Call<Engine>;
 pub(crate) struct Registry {
     pub declared: Rc<RefCell<balaur_script::Declared<Engine>>>,
     read: OnceCell<Rc<Structs>>,
+    handles: OnceCell<BTreeMap<String, (String, String)>>,
 }
 
 impl Registry {
@@ -77,18 +78,36 @@ impl Registry {
             .clone()
     }
 
-    /// What `node.<component>.<name>` calls when a module's function drives
-    /// that component: `node.character2d.move_character` is
-    /// `physics2d::move_character`.
+    /// What `node.<component>.<method>` calls when a module's function drives
+    /// that component: `node.character2d.move_by` is
+    /// `physics2d::move_character_by`.
     pub(crate) fn component_fn(&self, key: &str) -> Option<(String, String)> {
-        let (comp, name) = key.strip_prefix(crate::node_ops::PREFIX)?.split_once('.')?;
-        self.declared
-            .borrow()
-            .modules
-            .iter()
-            .filter(|(m, _)| m.as_str() != crate::node_ops::MODULE)
-            .find(|(_, entries)| entries.get(name).is_some_and(|e| e.acts_on.contains(&comp)))
-            .map(|(m, _)| (m.clone(), name.to_string()))
+        let on = key.strip_prefix(crate::node_ops::PREFIX)?;
+        self.handles().get(on).cloned()
+    }
+
+    /// Each handle method a module's function is, `component.method`, with
+    /// its module and name. Read once, after every plugin has registered.
+    fn handles(&self) -> &BTreeMap<String, (String, String)> {
+        self.handles.get_or_init(|| {
+            let declared = self.declared.borrow();
+            let mut handles = BTreeMap::new();
+            let driving = declared
+                .modules
+                .iter()
+                .filter(|(m, _)| m.as_str() != crate::node_ops::MODULE);
+            for (module, entries) in driving {
+                for (name, entry) in entries {
+                    for comp in entry.acts_on {
+                        let on = format!("{comp}.{}", handle_method(comp, name));
+                        handles
+                            .entry(on)
+                            .or_insert_with(|| (module.clone(), name.clone()));
+                    }
+                }
+            }
+            handles
+        })
     }
 
     /// Declared records a script cannot read: a field's type is no `.bs` type.
@@ -179,6 +198,7 @@ pub(crate) fn lines(api: &HostApi) -> Vec<String> {
                 params,
                 ret,
                 is_async: false,
+                editor: false,
             };
             lines.push(line(&accessor("get", vec![Ty::Node], ty.clone())));
             lines.push(line(&accessor("set", vec![Ty::Node, ty.clone()], Ty::Void)));
@@ -188,12 +208,18 @@ pub(crate) fn lines(api: &HostApi) -> Vec<String> {
     lines
 }
 
-/// What a compiled unit rests on, as text to hash: every function, and the
-/// records and constants the unit holds its own copies of. A record's fields
-/// are its layout, so a unit built against other fields cannot call one built
-/// against these.
+/// What a compiled unit rests on, as text to hash: every function and which
+/// are the editor's, and the records and constants the unit holds its own
+/// copies of. A record's fields are its layout, so a unit built against other
+/// fields cannot call one built against these.
 pub(crate) fn compiled_against(api: &HostApi) -> String {
     let mut all = lines(api);
+    all.extend(
+        api.functions
+            .iter()
+            .filter(|f| f.editor)
+            .map(|f| format!("{} editor", f.key)),
+    );
     all.extend(
         api.structs
             .iter()
@@ -215,7 +241,6 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
     let known: BTreeSet<String> = structs.keys().cloned().collect();
     let mut functions = crate::waits::signatures();
     functions.extend(crate::store::signatures());
-    functions.extend(crate::tool_verbs::signatures(&known));
     functions.extend(crate::node_ops::signatures());
     let typed_here: Vec<String> = functions.iter().map(|f| f.key.clone()).collect();
     let declared = registry.declared.borrow();
@@ -252,13 +277,15 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
                 // One that drives a component is called on it, and only on it.
                 if !entry.acts_on.is_empty() && params.first() == Some(&Ty::Node) {
                     for comp in entry.acts_on {
-                        let on = format!("{}{comp}.{name}", crate::node_ops::PREFIX);
+                        let method = handle_method(comp, name);
+                        let on = format!("{}{comp}.{method}", crate::node_ops::PREFIX);
                         if !typed_here.contains(&on) {
                             functions.push(HostSignature {
                                 key: on,
                                 params: params.clone(),
                                 ret: ret.clone(),
                                 is_async: false,
+                                editor: entry.editor,
                             });
                         }
                     }
@@ -269,6 +296,7 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
                     params,
                     ret,
                     is_async: false,
+                    editor: entry.editor,
                 });
             }
         }
@@ -357,26 +385,26 @@ struct Page {
     signatures: Vec<(String, Value)>,
     docs: Vec<(String, Value)>,
     acts_on: Vec<(String, Value)>,
+    methods: Vec<(String, Value)>,
     components: BTreeSet<&'static str>,
+    /// The functions only the editor's scripts may call.
+    editor: Vec<Value>,
 }
 
 /// The node operation a key calls, `node.add_tag` or `node.transform.translate`
 /// alike; `None` for another module's function called on a component.
-fn node_op<'k>(registry: &Registry, key: &'k str) -> Option<&'k str> {
+fn node_op(key: &str) -> Option<&str> {
     let rest = key.strip_prefix(crate::node_ops::PREFIX)?;
-    let Some((comp, op)) = rest.split_once('.') else {
-        return Some(rest);
-    };
-    let declared = registry.declared.borrow();
-    let entry = declared.modules.get(crate::node_ops::MODULE)?.get(op)?;
-    (entry.acts_on.first() == Some(&comp)).then_some(op)
+    match rest.split_once('.') {
+        Some((comp, method)) => crate::node_ops::driven(comp, method),
+        None => Some(rest),
+    }
 }
 
 /// What a module only the host fills is for.
 fn own_module_doc(module: &str) -> Option<&'static str> {
     [
         crate::waits::MODULE_DOC,
-        crate::tool_verbs::MODULE_DOC,
         crate::tool_verbs::TYPES_MODULE_DOC,
     ]
     .into_iter()
@@ -384,32 +412,57 @@ fn own_module_doc(module: &str) -> Option<&'static str> {
     .map(|(_, doc)| doc)
 }
 
+/// The module and name the reference lists the engine function `key` under:
+/// `node.body2d.apply_impulse` is `physics2d`'s `apply_impulse`.
+fn listed_as(registry: &Registry, key: &str) -> Option<(String, String)> {
+    if let Some((module, name)) = key.split_once("::") {
+        return Some((module.to_string(), name.to_string()));
+    }
+    if let Some(found) = registry.component_fn(key) {
+        return Some(found);
+    }
+    let name = node_op(key)?;
+    Some((crate::node_ops::MODULE.to_string(), name.to_string()))
+}
+
+/// What the engine function `key` does, as the reference says it; empty
+/// when nothing says.
+pub(crate) fn doc_of(registry: &Registry, key: &str) -> &'static str {
+    let Some((module, name)) = listed_as(registry, key) else {
+        return "";
+    };
+    let declared = registry.declared.borrow();
+    declared
+        .modules
+        .get(&module)
+        .and_then(|m| m.get(name.as_str()))
+        .and_then(|entry| entry.doc)
+        // The host's own functions, which no plugin registers.
+        .or_else(|| {
+            crate::waits::docs()
+                .chain(crate::store::docs())
+                .find(|(own, _)| own == key)
+                .map(|(_, doc)| doc)
+        })
+        .unwrap_or("")
+}
+
 /// The script reference `script::api()` answers and `balaur api` prints: one
 /// row a module in name order, each with what it is for, its functions'
 /// names, their signatures as a script compiles against them, what each
-/// does and the components it drives, and the module's constants. A node's
-/// own operations are the `node` module's.
+/// does, the components it drives with the method each handle calls it by,
+/// which are the editor's, and the module's constants. A node's own
+/// operations are the `node` module's.
 pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
     let declared = registry.declared.borrow();
-    // The host's own functions, which no plugin registers.
-    let own: BTreeMap<String, &'static str> = crate::tool_verbs::docs()
-        .chain(crate::waits::docs())
-        .chain(crate::store::docs())
-        .collect();
     // A function called on a component is its module's all the same, listed
     // once however many components take it.
     let mut named: Vec<(String, String, &HostSignature)> = api
         .functions
         .iter()
         .filter_map(|f| {
-            if let Some((module, name)) = f.key.split_once("::") {
-                return Some((module.to_string(), name.to_string(), f));
-            }
-            if let Some((module, name)) = registry.component_fn(&f.key) {
-                return Some((module, name, f));
-            }
-            let name = node_op(registry, &f.key)?;
-            Some((crate::node_ops::MODULE.to_string(), name.to_string(), f))
+            let (module, name) = listed_as(registry, &f.key)?;
+            Some((module, name, f))
         })
         .collect();
     named.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
@@ -423,15 +476,26 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
         let row = modules.entry(module).or_default();
         row.functions.push(Value::text(name.as_str()));
         row.signatures.push((name.clone(), Value::text(f.text())));
-        let doc = entry
-            .and_then(|e| e.doc)
-            .or_else(|| own.get(&f.key).copied())
-            .unwrap_or("");
-        row.docs.push((name.clone(), Value::text(doc)));
+        row.docs
+            .push((name.clone(), Value::text(doc_of(registry, &f.key))));
+        if f.editor {
+            row.editor.push(Value::text(name.as_str()));
+        }
         let acts_on = entry.map_or(&[][..], |e| e.acts_on);
         if !acts_on.is_empty() {
             let list = acts_on.iter().map(|c| Value::text(*c)).collect();
             row.acts_on.push((name.clone(), Value::List(list)));
+            // Only where a handle has it: a node operation is on its first.
+            let methods = acts_on
+                .iter()
+                .filter_map(|comp| {
+                    let method = handle_method(comp, &name);
+                    let on = format!("{}{comp}.{method}", crate::node_ops::PREFIX);
+                    api.function(&on)?;
+                    Some(((*comp).to_string(), Value::text(method)))
+                })
+                .collect();
+            row.methods.push((name.clone(), Value::Map(methods)));
             row.components.extend(acts_on);
         }
     }
@@ -473,6 +537,8 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
                 ("signatures".into(), Value::Map(row.signatures)),
                 ("docs".into(), Value::Map(row.docs)),
                 (keys::ACTS_ON.into(), Value::Map(row.acts_on)),
+                (keys::METHODS.into(), Value::Map(row.methods)),
+                (keys::EDITOR.into(), Value::List(row.editor)),
                 ("components".into(), Value::List(components)),
                 (keys::CONSTANTS.into(), Value::List(constants)),
             ])

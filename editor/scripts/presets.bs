@@ -1,0 +1,113 @@
+// The nodes the picker offers beside the bare components: a name, the line
+// its row reads, its tags and the components it is made of. Data, read from
+// `presets.toml` in the editor, in the game's `editor/` and in each addon's.
+
+use editor;
+use plugins;
+use util;
+use words::fields;
+use words::inspector_fields;
+
+const FILE: str = "presets.toml";
+const COMPONENTS: str = "components";
+
+/// A recipe, not a type: the components land on a node and nothing records
+/// which recipe put them there.
+pub struct Preset {
+    internal name: str,
+    internal description: str,
+    internal tags: [str],
+    internal components: [str],
+    internal parts: any,
+}
+
+/// Every recipe in name order. A file read later replaces a recipe of the
+/// same name: the game's over the editor's, an addon's over both.
+pub fn all(state: editor::State) -> [Preset] {
+    let bodies: any = {};
+    let paths = [FILE];
+    for root in plugins::game_roots(state) {
+        paths.push(root + "/" + FILE);
+    }
+    for path in paths {
+        let text = fs::read(path);
+        if text == nil {
+            continue;
+        }
+        let table = toml::parse(text.unwrap());
+        if table.kind() != types::KIND_MAP {
+            log::warn("{path} does not parse");
+            continue;
+        }
+        for name in table.keys() {
+            bodies[name] = table[name];
+        }
+    }
+    let names: [str] = bodies.keys();
+    names.sort();
+    let out: [Preset] = [];
+    for name in names {
+        let preset = read(name, bodies[name]);
+        if preset != nil {
+            out.push(preset.unwrap());
+        }
+    }
+    out
+}
+
+/// The recipe called `name`, or nil.
+pub fn find(state: editor::State, name: str) -> Preset? {
+    for preset in all(state) {
+        if preset.name == name {
+            return preset;
+        }
+    }
+    nil
+}
+
+/// Set each of a recipe's components on a node, in the order it lists them:
+/// a part may rely on an earlier one being there.
+pub fn build(node: Node, preset: Preset) {
+    for component in preset.components {
+        let own = preset.parts[component];
+        if own.len() == 0 {
+            node.set_component(component);
+        } else {
+            node.set_component(component, own);
+        }
+    }
+}
+
+// One table of the file: `components` is a list of tables, each naming its
+// `component` and carrying that component's own properties beside the name.
+fn read(name: str, body: any) -> Preset? {
+    let entries = util::list_or_empty(util::map_or_empty(body)[COMPONENTS]);
+    if entries.len() == 0 {
+        log::warn("preset {name} needs a `components` list");
+        return nil;
+    }
+    let components: [str] = [];
+    let parts: any = {};
+    for entry in entries {
+        let component = util::map_or_empty(entry)[inspector_fields::COMPONENT];
+        if component.kind() != types::KIND_STRING {
+            log::warn("preset {name}: an entry of `components` needs a `component`");
+            return nil;
+        }
+        let own: any = {};
+        for key in entry.keys() {
+            if key != inspector_fields::COMPONENT {
+                own[key] = entry[key];
+            }
+        }
+        components.push(component.as_str());
+        parts[component.as_str()] = own;
+    }
+    let tags: [str] = [];
+    for tag in util::list_or_empty(body[fields::TAGS]) {
+        tags.push(tag.as_str());
+    }
+    let said = body[fields::DESCRIPTION];
+    let description = if said.kind() == types::KIND_STRING { said.as_str() } else { name };
+    Preset { name: name, description: description, tags: tags, components: components, parts: parts }
+}

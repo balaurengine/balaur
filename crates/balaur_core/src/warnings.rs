@@ -89,11 +89,41 @@ pub(crate) fn forget(eng: &Engine, entity: Entity) {
     }
 }
 
+/// Every component a node is missing something for, as `(component, expected)`.
+///
+/// Advisory: a script may add the missing piece on a later tick, so this
+/// warns and never blocks. The editor shows it; the runtime ignores it.
+#[must_use]
+pub fn unmet_expectations(eng: &Engine, entity: Entity) -> Vec<(String, Vec<String>)> {
+    let present = crate::components::present_on(eng, entity);
+    let registry = eng.resource::<crate::components::ComponentRegistry>();
+    let registry = registry.borrow();
+    let mut unmet = Vec::new();
+    for name in &present {
+        let Some(def) = registry.def(name) else {
+            continue;
+        };
+        if def.expects.is_empty() {
+            continue;
+        }
+        // Any one of them satisfies it: `color` needs something to tint, not
+        // every kind of thing at once.
+        if def.expects.iter().any(|e| present.iter().any(|p| p == e)) {
+            continue;
+        }
+        unmet.push((
+            name.clone(),
+            def.expects.iter().map(|e| (*e).to_string()).collect(),
+        ));
+    }
+    unmet
+}
+
 /// Every warning about `entity`, by component name.
 #[must_use]
 pub fn warnings(eng: &Engine, entity: Entity) -> Vec<NodeWarning> {
     let mut out = Vec::new();
-    for (component, expects) in crate::presets::unmet_expectations(eng, entity) {
+    for (component, expects) in unmet_expectations(eng, entity) {
         out.push(NodeWarning {
             component,
             warning: Warning::whole(format!("needs one of: {}", expects.join(", "))),

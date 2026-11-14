@@ -75,7 +75,7 @@ impl Owner {
     let params = toml::toml! {
         kind = "code" x = 0.0 y = 0.0 width = 300.0 height = 120.0
         text = "one\ntwo\nthree"
-        widget_code = { on_gutter = "on_hit" }
+        bindings = { rows = [{ event = "emitted:gutter_clicked", action = "call", value = "on_hit" }] }
     };
     let entity = add_child_widget(&app, owner, "Code", &params.into());
     let ctx = egui::Context::default();

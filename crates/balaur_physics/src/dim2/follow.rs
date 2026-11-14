@@ -14,7 +14,7 @@ use super::PhysicsState2d;
 use crate::vocabulary::component as c;
 use crate::vocabulary::words;
 
-/// Pulls the node's `body2d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow2d.reset_follow()` forgets what a PID summed.
+/// Pulls the node's `body2d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow2d.reset()` forgets what a PID summed.
 #[derive(Clone, Component)]
 #[component(
     name = "follow2d",

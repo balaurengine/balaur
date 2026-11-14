@@ -355,7 +355,7 @@ anchor = [-1.0, 0.0, 0.0]
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
     fn init() {
-        self.node.joint3d.set_joint_limits(physics3d::AXIS_ROTATION_X, -0.2, 0.2);
+        self.node.joint3d.set_limits(physics3d::AXIS_ROTATION_X, -0.2, 0.2);
         self.node.joint3d.set_motor_velocity(physics3d::AXIS_ROTATION_X, 0.0, 0.5);
         self.node.joint3d.collide_connected = true;
         let axes = self.node.joint3d.axes;
@@ -476,7 +476,7 @@ fn solving_for_a_position_leaves_the_end_links_turn_free() {
     let arm = arm_3d();
     let reach = arm_reach(
         &arm,
-        "self.node.joint3d.solve_ik(1.2, 1.2, 0.0, physics3d::IkOptions { damping: 0.1, iterations: 100 })",
+        "self.node.joint3d.solve_ik(vec3(1.2, 1.2, 0.0), physics3d::IkOptions { damping: 0.1, iterations: 100 })",
     );
     assert!(
         reach < 0.05,
@@ -484,7 +484,7 @@ fn solving_for_a_position_leaves_the_end_links_turn_free() {
     );
     let held = arm_reach(
         &arm,
-        "self.node.joint3d.solve_ik(1.2, 1.2, 0.0, physics3d::IkOptions { damping: 0.1, iterations: 100, constrain: [\"x\", \"y\", \"z\", \"rotation_x\", \"rotation_y\", \"rotation_z\"] })",
+        "self.node.joint3d.solve_ik(vec3(1.2, 1.2, 0.0), physics3d::IkOptions { damping: 0.1, iterations: 100, constrain: [\"x\", \"y\", \"z\", \"rotation_x\", \"rotation_y\", \"rotation_z\"] })",
     );
     assert!(
         held > reach,
@@ -496,7 +496,7 @@ fn solving_for_a_position_leaves_the_end_links_turn_free() {
 fn a_2d_chain_is_solved_for_a_position() {
     let reach = arm_reach(
         &arm_2d(),
-        "self.node.joint2d.solve_ik(1.2, 1.2, physics2d::IkOptions { damping: 0.1, iterations: 100 })",
+        "self.node.joint2d.solve_ik(vec2(1.2, 1.2), physics2d::IkOptions { damping: 0.1, iterations: 100 })",
     );
     assert!(
         reach < 0.05,

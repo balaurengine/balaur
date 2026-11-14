@@ -217,7 +217,7 @@ impl Scenario {
     fn init() {
         self.node.get_node("A").collider2d.combine_voxels(self.node.get_node("B"));
         self.node.get_node("Cropped").collider2d.crop_voxels(0, 0, 1, 0);
-        self.node.get_node("Alone").collider2d.set_voxel_size(0.5, 0.5);
+        self.node.get_node("Alone").collider2d.set_voxel_size(vec2(0.5, 0.5));
     }
 
     pub fn probe() -> any {
@@ -290,12 +290,12 @@ impl Scenario {
         let n = self.node;
         let wall = n.parent().get_node("Wall");
         let cells = n.parent().get_node("Cells");
-        let found = [n.collider2d.aabb()[2], n.collider2d.swept_aabb()[2], n.collider2d.collision_aabb()[2],
-            n.collider2d.broad_phase_aabb()[2], n.collider2d.collider_mass(), n.collider2d.collider_volume(),
+        let found = [n.collider2d.aabb().max.x, n.collider2d.swept_aabb().max.x, n.collider2d.collision_aabb().max.x,
+            n.collider2d.broad_phase_aabb().max.x, n.collider2d.total_mass(), n.collider2d.volume(),
             physics2d::closest_points(n, wall),
             physics2d::time_of_impact(n, wall, physics2d::ImpactOptions { velocity_a: vec2(6.0, 0.0) }),
-            n.collider2d.collider_mass_properties(), n.collider2d.pose_in_body(), n.collider2d.handles(),
-            cells.collider2d.collider_mesh(), true];
+            n.collider2d.mass_properties(), n.collider2d.pose_in_body(), n.collider2d.handles(),
+            cells.collider2d.mesh(), true];
         n.set_component("collider2d", { "shape": { "kind": "rectangle", "size": [2.0, 2.0] } });
         found
     }

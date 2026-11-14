@@ -40,8 +40,8 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
 const RECORDS: &[balaur_script::RecordDoc] = &[
     (
         "QueryFilter",
-        "{ only: string?, hit_sensors: bool?, hit_solids: bool?, collision_mask: [int]?, exclude: node?, exclude_body: node? }",
-        "Which colliders a query sees: `only` dynamic, kinematic or static bodies, sensors and solids or not, the layers of `collision_mask`, a node's colliders or its body's left out, and a `predicate` function that keeps a node or not.",
+        "{ only: string?, exclude_kinds: [string]?, hit_sensors: bool?, hit_solids: bool?, collision_mask: [int]?, exclude: node?, exclude_body: node? }",
+        "Which colliders a query sees: `only` dynamic, kinematic or static bodies, none of the body kinds `exclude_kinds` names, sensors and solids or not, the layers of `collision_mask`, a node's colliders or its body's left out, and a `predicate` function that keeps a node or not.",
     ),
     (
         "RayQuery",
@@ -119,7 +119,7 @@ pub(crate) fn install_physics2d_query_api(m: &mut Module<Engine>) {
         let mut groups = None;
         let skip = excluded(&opts, &state);
         let keep = |handle: ColliderHandle, _: &Collider| !skip.contains(&handle);
-        let filter = filter_of(&opts, &mut groups).predicate(&keep);
+        let filter = filter_of(&opts, &mut groups)?.predicate(&keep);
         let found = state
             .world
             .query_pipeline_with_filter(filter)
@@ -161,7 +161,7 @@ pub(crate) fn install_physics2d_raycast_all_api(m: &mut Module<Engine>) {
                 let state = eng.resource::<PhysicsState2d>();
                 let state = state.borrow();
                 let mut groups = None;
-                let filter = filter_of(&opts, &mut groups);
+                let filter = filter_of(&opts, &mut groups)?;
                 let skip = excluded(&opts, &state);
                 for (handle, collider, hit) in state
                     .world
@@ -217,7 +217,7 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut Module<Engine>) {
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut groups = None;
-        let filter = filter_of(&opts, &mut groups);
+        let filter = filter_of(&opts, &mut groups)?;
         let hit = state.world.query_pipeline_with_filter(filter).cast_shape(
             &Pose2::from_translation(from),
             dir,
@@ -290,7 +290,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut Module<Engine>) {
             let state = eng.resource::<PhysicsState2d>();
             let state = state.borrow();
             let mut groups = None;
-            let filter = filter_of(&opts, &mut groups);
+            let filter = filter_of(&opts, &mut groups)?;
             let found = state
                 .world
                 .query_pipeline_with_filter(filter)
@@ -326,7 +326,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut Module<Engine>) {
             let state = eng.resource::<PhysicsState2d>();
             let state = state.borrow();
             let mut groups = None;
-            let filter = filter_of(&opts, &mut groups);
+            let filter = filter_of(&opts, &mut groups)?;
             let mut hits: Vec<Entity> = state
                 .world
                 .query_pipeline_with_filter(filter)
@@ -354,7 +354,7 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut Module<Engine>) {
             let state = eng.resource::<PhysicsState2d>();
             let state = state.borrow();
             let mut groups = None;
-            let filter = filter_of(&opts, &mut groups);
+            let filter = filter_of(&opts, &mut groups)?;
             let mut hits: Vec<Entity> = state
                 .world
                 .query_pipeline_with_filter(filter)
@@ -374,7 +374,7 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut Module<Engine>) {
             let state = eng.resource::<PhysicsState2d>();
             let state = state.borrow();
             let mut groups = None;
-            let filter = filter_of(&opts, &mut groups);
+            let filter = filter_of(&opts, &mut groups)?;
             let mut hits: Vec<Entity> = state
                 .world
                 .query_pipeline_with_filter(filter)

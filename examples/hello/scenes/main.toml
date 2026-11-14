@@ -196,7 +196,7 @@ name = "Environment"
 parent = "n_main"
 
 [nodes.environment]
-ambient_color = "#20242a"
+ambient_color = "#636970"
 tonemap = "neutral"
 exposure = 1.1
 fog_mode = "exponential"
@@ -218,8 +218,8 @@ x = 16
 y = 16
 
 # A menu is nodes. The panel lays its children out in a column; each entry is
-# a button whose `on_click` names a method on the menu's own script, and none
-# of them says where it goes — the container decides that.
+# a button whose `pointer_click` row names a method on the menu's own script,
+# and none of them says where it goes — the container decides that.
 [[nodes]]
 id = "n_menu"
 name = "Menu"
@@ -244,34 +244,34 @@ gap = [6, 6]
 id = "n_menu_faster"
 name = "Faster"
 parent = "n_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_faster" }] }
 
 [nodes.widget]
 kind = "button"
 text_key = "menu.faster"
 font_size = 13
-on_click = "on_faster"
 
 [[nodes]]
 id = "n_menu_slower"
 name = "Slower"
 parent = "n_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_slower" }] }
 
 [nodes.widget]
 kind = "button"
 text_key = "menu.slower"
 font_size = 13
-on_click = "on_slower"
 
 [[nodes]]
 id = "n_menu_reverse"
 name = "Reverse"
 parent = "n_menu"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_reverse" }] }
 
 [nodes.widget]
 kind = "button"
 text_key = "menu.reverse"
 font_size = 13
-on_click = "on_reverse"
 
 # On-screen controls for a phone. They feed the same actions the keys do, so
 # the spinner's script never learns a finger moved it.

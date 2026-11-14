@@ -15,8 +15,8 @@ grow = 1
 id = "list"
 name = "List"
 parent = "panel"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "list_picked" }] }
 [nodes.widget]
-on_change = "list_picked"
 kind = "list"
 grow = 1
 font = "fonts/JetBrainsMono-Regular.ttf"

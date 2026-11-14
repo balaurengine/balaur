@@ -33,9 +33,6 @@ pub(crate) struct PostMaterial {
     sampler: wgpu::Sampler,
     frame_uniform: wgpu::Buffer,
     params: Option<wgpu::BindGroup>,
-    /// The render clock a pass reads. Started when the pass was built, which
-    /// is close enough for anything that moves.
-    started: balaur_core::time::Instant,
     /// The frame's size in pixels, as the chain last reported it.
     size: (f32, f32),
 }
@@ -129,10 +126,6 @@ impl PostMaterial {
                 mapped_at_creation: false,
             }),
             params: params.map(|(_, group)| group),
-            // Render time, outside the simulation: a pass that moves must
-            // never be something a replay can disagree about.
-            #[allow(clippy::disallowed_methods)]
-            started: balaur_core::time::Instant::now(),
             size: (1.0, 1.0),
         }
     }
@@ -160,7 +153,7 @@ impl PostProcessingEffect for PostMaterial {
                 size_clock: [
                     self.size.0,
                     self.size.1,
-                    self.started.elapsed().as_secs_f32(),
+                    crate::shader_clock::seconds(),
                     0.0,
                 ],
             }),
@@ -437,7 +430,7 @@ pub(crate) fn feed_gi(chain: &mut PostChain, app: &balaur_core::App) {
                     post::GiEmitter2d::new(
                         glamx::Vec2::new(global.position.x, global.position.y),
                         light.source_radius.max(0.0),
-                        kiss3d::color::Color::new(r, g, b, 1.0),
+                        crate::film::opaque([r, g, b]),
                         light.intensity.max(0.0),
                     )
                 })
@@ -448,14 +441,14 @@ pub(crate) fn feed_gi(chain: &mut PostChain, app: &balaur_core::App) {
         .into_iter()
         .map(|[a, b]| post::GiSegmentOccluder2d::new(a, b, 0.0))
         .collect();
-    let [r, g, b] = app
+    let ambient = app
         .engine
         .try_resource::<crate::CameraConfig2d>()
         .map_or([0.0; 3], |config| config.borrow().ambient);
     for gi in &mut passes {
         gi.set_emitters(&emitters);
         gi.set_segment_occluders(&segments);
-        gi.set_ambient(kiss3d::color::Color::new(r, g, b, 1.0));
+        gi.set_ambient(crate::film::opaque(ambient));
     }
 }
 

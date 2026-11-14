@@ -25,7 +25,7 @@ fn heard(app: &mut App, entity: balaur_core::hecs::Entity) -> Vec<&'static str> 
     let mut out = Vec::new();
     for _ in 0..2 {
         app.tick(1.0 / 60.0);
-        for event in ["screen_enter", "screen_exit"] {
+        for event in ["screen_entered", "screen_exited"] {
             if !balaur_core::events::delivered_from(&app.engine, entity, event).is_empty() {
                 out.push(event);
             }
@@ -48,14 +48,14 @@ fn a_notifier_says_when_its_box_comes_on_screen_and_when_it_leaves() {
         "far off to the right"
     );
     move_to(&app, node, 0.0);
-    assert_eq!(heard(&mut app, node), vec!["screen_enter"]);
+    assert_eq!(heard(&mut app, node), vec!["screen_entered"]);
     assert_eq!(
         heard(&mut app, node),
         Vec::<&str>::new(),
         "once, not every frame"
     );
     move_to(&app, node, -1000.0);
-    assert_eq!(heard(&mut app, node), vec!["screen_exit"]);
+    assert_eq!(heard(&mut app, node), vec!["screen_exited"]);
 }
 
 #[test]
@@ -78,5 +78,5 @@ fn a_notifier_measures_against_the_view_a_mouse_pan_left() {
         snapshot.center = [1000.0, 0.0];
         snapshot.zoom = 60.0;
     }
-    assert_eq!(heard(&mut app, node), vec!["screen_enter"]);
+    assert_eq!(heard(&mut app, node), vec!["screen_entered"]);
 }

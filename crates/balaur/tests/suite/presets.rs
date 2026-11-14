@@ -4,9 +4,10 @@
 //! component is *about* (tags), a shortcut for the combinations people
 //! actually want (presets), and a nudge when a combination is incomplete
 //! (expectations). None of them adds a type -- a node is still exactly the
-//! components on it.
+//! components on it. Tags and expectations are the engine's; the presets are
+//! the editor's data, `editor/presets.toml`, built with `set_component`.
 
-use balaur::{App, AppConfig, components, presets, scene};
+use balaur::{App, AppConfig, components, scene};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()
@@ -70,63 +71,10 @@ fn every_registered_component_is_tagged() {
     }
 }
 
+// The editor is a Balaur project, so it reaches all of this through the
+// script API rather than through Rust. This is that surface.
 #[test]
-fn a_preset_applies_every_component_it_names() {
-    let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
-    let entity = node(&app);
-    presets::apply(&app.engine, entity, "rigid_body2d").unwrap();
-    let present = components::present_on(&app.engine, entity);
-    assert!(present.iter().any(|c| c == "body2d"), "{present:?}");
-    assert!(present.iter().any(|c| c == "collider2d"), "{present:?}");
-}
-
-/// The parameters are the point: `static_body2d` and `rigid_body2d` add the
-/// same two components and differ only in what the body is set to.
-#[test]
-fn presets_carry_the_parameters_that_distinguish_them() {
-    let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
-    let dynamic = node(&app);
-    let stationary = node(&app);
-    presets::apply(&app.engine, dynamic, "rigid_body2d").unwrap();
-    presets::apply(&app.engine, stationary, "static_body2d").unwrap();
-    let kind = |e| {
-        components::get(&app.engine, e, "body2d").unwrap()["kind"]
-            .as_str()
-            .unwrap()
-            .to_string()
-    };
-    assert_eq!(kind(dynamic), "dynamic");
-    assert_eq!(kind(stationary), "static");
-}
-
-/// A preset is a recipe, not a type: nothing records which one was used, so
-/// removing a component afterwards is ordinary and leaves no broken claim.
-#[test]
-fn a_node_does_not_remember_its_preset() {
-    let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
-    let entity = node(&app);
-    presets::apply(&app.engine, entity, "rigid_body2d").unwrap();
-    components::remove(&app.engine, entity, "collider2d").unwrap();
-    let present = components::present_on(&app.engine, entity);
-    assert!(!present.iter().any(|c| c == "collider2d"));
-    assert!(present.iter().any(|c| c == "body2d"), "the rest survives");
-}
-
-#[test]
-fn an_unknown_preset_is_an_error() {
-    let app = app();
-    let entity = node(&app);
-    let err = presets::apply(&app.engine, entity, "nope").unwrap_err();
-    assert!(err.to_string().contains("nope"), "{err}");
-}
-
-/// The editor is a Balaur project, so it reaches all of this through the
-/// script API rather than through Rust. This is that surface.
-#[test]
-fn the_script_api_exposes_tags_presets_and_warnings() {
+fn the_script_api_exposes_tags_and_warnings_and_builds_a_recipe() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
@@ -157,31 +105,11 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
                 self.check(has(tags, "physics"), "collider2d should be tagged physics");
                 self.check(scene::component_tags("nope") == nil, "unknown component has no tags");
 
-                let names = scene::presets();
-                self.check(has(names, "rigid_body2d"), "rigid_body2d missing");
-                self.check(has(names, "static_body2d"), "static_body2d missing");
-                // Both dimensions are marked (D5): there is no bare `rigid_body`.
-                self.check(has(names, "rigid_body3d"), "rigid_body3d missing");
-                self.check(has(names, "static_body3d"), "static_body3d missing");
-                self.check(!has(names, "rigid_body"), "the unmarked 3D name is gone");
-                self.check(has(names, "sprite2d"), "sprite2d missing");
-
-                let found = scene::preset_info("rigid_body2d");
-                self.check(found != nil, "no info for rigid_body2d");
-                if found != nil {
-                    let info = found.unwrap();
-                    self.check(info.components.len() == 2, "rigid_body2d adds two components");
-                    self.check(info.description != "", "a preset needs a description");
-                    // Each part's own properties, which is what makes the preset mean
-                    // something: a rigid body is a dynamic one.
-                    self.check(info.parts["body2d"]["kind"].as_str() == "dynamic", "the body part carries its kind");
-                    self.check(info.parts["collider2d"].len() == 0, "a part with no properties is an empty table");
-                }
-
-                // Applying one puts the components on the node, and nothing records
-                // that a preset was used.
+                // A recipe is its components set in order, as the editor's picker
+                // builds one; nothing records that a recipe was used.
                 let n = scene::root().add_child("Thing");
-                scene::apply_preset(n, "rigid_body2d");
+                n.set_component("body2d", { "kind": "dynamic" });
+                n.set_component("collider2d");
                 let present = n.component_names();
                 self.check(has(present, "body2d"), "body2d not applied");
                 self.check(has(present, "collider2d"), "collider2d not applied");
@@ -223,58 +151,137 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
     );
 }
 
-/// Every preset the picker lists names only keys its components read, lands
-/// whole on a fresh node and survives the frames after it.
+/// What the engine's own preset registry held when the recipes moved to the
+/// editor: each name, and the components it gave a node, in order.
+#[rustfmt::skip]
+const REGISTRY: &[(&str, &[&str])] = &[
+    ("button", &["widget", "widget_check", "widget_button", "widget_text"]),
+    ("checkbox", &["widget", "widget_check"]),
+    ("cloth3d", &["soft_grid3d", "softbody3d"]),
+    ("column", &["widget", "widget_layout"]),
+    ("dialog", &["widget", "widget_window", "widget_layout"]),
+    ("dropdown", &["widget", "widget_dropdown", "widget_text"]),
+    ("flow", &["widget", "widget_layout"]),
+    ("fold", &["widget", "widget_layout", "widget_fold"]),
+    ("grid", &["widget", "widget_layout", "widget_grid"]),
+    ("image", &["widget", "widget_image"]),
+    ("label", &["widget", "widget_text"]),
+    ("panel", &["widget", "widget_layout"]),
+    ("polygon2d", &["polygon"]),
+    ("progress_bar", &["widget", "widget_range"]),
+    ("rect2d", &["shape2d"]),
+    ("rigid_body2d", &["body2d", "collider2d"]),
+    ("rigid_body3d", &["body3d", "collider3d"]),
+    ("rope2d", &["soft_rope2d", "softbody2d"]),
+    ("rope3d", &["soft_rope3d", "softbody3d"]),
+    ("row", &["widget", "widget_layout"]),
+    ("scroll", &["widget", "widget_scroll", "widget_layout"]),
+    ("separator", &["widget", "widget_separator"]),
+    ("slider", &["widget", "widget_range"]),
+    ("soft_body2d", &["softbody2d"]),
+    ("soft_body3d", &["softbody3d"]),
+    ("sprite2d", &["sprite"]),
+    ("stack", &["widget", "widget_layout"]),
+    ("static_body2d", &["body2d", "collider2d"]),
+    ("static_body3d", &["body3d", "collider3d"]),
+    ("tabs", &["widget", "widget_layout", "widget_tabs"]),
+    ("text2d", &["text2d"]),
+    ("text3d", &["text3d"]),
+    ("text_field", &["widget", "widget_field"]),
+    ("tilemap2d", &["tilemap"]),
+    ("window", &["widget", "widget_window", "widget_layout"]),
+];
+
+/// The editor's recipes, as `presets.toml` writes them: each name, and its
+/// components in order with the properties the recipe sets on each.
+fn editor_presets() -> Vec<(String, Vec<(String, toml::Table)>)> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/presets.toml");
+    let text = std::fs::read_to_string(path).unwrap();
+    let file: toml::Table = toml::from_str(&text).unwrap();
+    file.into_iter()
+        .map(|(name, body)| {
+            let parts = body["components"]
+                .as_array()
+                .unwrap_or_else(|| panic!("`{name}` has no `components` list"))
+                .iter()
+                .map(|entry| {
+                    let mut own = entry.as_table().unwrap().clone();
+                    let component = own.remove("component").unwrap();
+                    (component.as_str().unwrap().to_string(), own)
+                })
+                .collect();
+            (name, parts)
+        })
+        .collect()
+}
+
+// Every recipe the picker reads names only keys its components read, lands
+// whole on a fresh node as `set_component` builds it, and survives the
+// frames after it.
 #[test]
-fn every_preset_applies_whole_and_runs() {
+fn every_editor_preset_builds_whole_and_runs() {
     let (_dir, mut app) = every_plugin();
-    let names = presets::names(&app.engine);
-    for name in &names {
+    let recipes = editor_presets();
+    for (name, parts) in &recipes {
         let root = app.engine.root();
         let entity = scene::spawn_node(&mut app.engine.world_mut(), name, root);
-        if let Err(e) = presets::apply(&app.engine, entity, name) {
-            panic!("`{name}` did not apply: {e:#}");
-        }
-        let info = {
-            let registry = app.engine.resource::<presets::PresetRegistry>();
-            let registry = registry.borrow();
-            registry.0[name].parts.clone()
-        };
-        let present = components::present_on(&app.engine, entity);
-        for part in &info {
-            assert!(
-                present.contains(&part.component),
-                "`{name}` left out `{}`: {present:?}",
-                part.component
-            );
-            let schema = def(&app, &part.component).schema;
-            let keys = part
-                .params
-                .as_ref()
-                .and_then(toml::Value::as_table)
-                .into_iter()
-                .flat_map(|t| t.keys());
-            for key in keys {
+        for (component, own) in parts {
+            let schema = def(&app, component).schema;
+            for key in own.keys() {
                 assert!(
                     schema.get(key).is_some(),
-                    "`{name}` sets `{key}`, which `{}` does not read",
-                    part.component
+                    "`{name}` sets `{key}`, which `{component}` does not read"
                 );
             }
+            let params = (!own.is_empty()).then(|| toml::Value::Table(own.clone()));
+            if let Err(e) = components::add(&app.engine, entity, component, params.as_ref()) {
+                panic!("`{name}` did not build `{component}`: {e:#}");
+            }
+        }
+        let present = components::present_on(&app.engine, entity);
+        for (component, _) in parts {
+            assert!(
+                present.contains(component),
+                "`{name}` left out `{component}`: {present:?}"
+            );
         }
         for _ in 0..3 {
             app.tick(1.0 / 60.0);
         }
     }
     assert!(
-        names.len() >= 10,
+        recipes.len() >= REGISTRY.len(),
         "only {} presets, so this proved little",
-        names.len()
+        recipes.len()
     );
 }
 
-/// A component that leaves its node a mesh the solver draws carries `render`,
-/// or the tree's Rendering filter misses the one thing that draws a rope.
+// The move to the editor lost no recipe: each one the registry held is in
+// the editor's data, giving a node the same components in the same order.
+#[test]
+fn the_editor_s_presets_give_what_the_registry_gave() {
+    let recipes = editor_presets();
+    for (name, components) in REGISTRY {
+        let Some((_, parts)) = recipes.iter().find(|(found, _)| found == name) else {
+            panic!("the editor has no `{name}`");
+        };
+        let given: Vec<&str> = parts
+            .iter()
+            .map(|(component, _)| component.as_str())
+            .collect();
+        assert_eq!(given, *components, "`{name}`");
+    }
+    // The properties are the point: the two bodies differ only in one.
+    let kind = |name: &str| {
+        let (_, parts) = recipes.iter().find(|(found, _)| found == name).unwrap();
+        parts[0].1["kind"].as_str().unwrap().to_string()
+    };
+    assert_eq!(kind("rigid_body2d"), "dynamic");
+    assert_eq!(kind("static_body2d"), "static");
+}
+
+// A component that leaves its node a mesh the solver draws carries `render`,
+// or the tree's Rendering filter misses the one thing that draws a rope.
 #[test]
 fn a_component_that_draws_its_node_is_tagged_render() {
     let (_dir, mut app) = every_plugin();

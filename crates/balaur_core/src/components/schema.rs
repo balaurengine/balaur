@@ -79,8 +79,8 @@ pub fn inner_specs(spec: &toml::Value) -> Vec<&toml::Value> {
     }
 }
 
-/// The tags a component or preset carries, which the editor's picker
-/// filters by. One spelling for every crate that registers one.
+/// The tags a component carries, which the editor's picker filters by. One
+/// spelling for every crate that registers one.
 /// The units a property may be drawn in. Closed like [`PROPERTY_TYPES`]: an
 /// editor has to know how to convert one, so a name it has never seen would
 /// draw the number unconverted and say nothing.

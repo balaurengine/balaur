@@ -22,7 +22,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Module, NodeId, Value};
 
 use crate::PhysicsState3d;
-use crate::properties::{ChassisAxis, SweepIgnore};
+use crate::properties::{ChassisAxis, ExcludeKind};
 use crate::vocabulary::{component as c, keys as k};
 use balaur_core::fixed_dt;
 use balaur_core::layers::Layer;
@@ -52,9 +52,15 @@ pub struct Vehicle3d {
     /// The collision layers the wheels' rays hit; empty hits every layer
     #[property(flags, group = "filtering")]
     pub collision_mask: Vec<Layer>,
-    /// What the wheels' rays pass through: static takes colliders with no body too. The chassis's own body is never hit
-    #[property(flags, default = vec![SweepIgnore::Sensors], group = "filtering")]
-    pub ignore: Vec<SweepIgnore>,
+    /// Stop the wheels' rays at sensors; off, they pass through them
+    #[property(group = "filtering")]
+    pub hit_sensors: bool,
+    /// Stop the wheels' rays at colliders that are not sensors; off, they pass through them
+    #[property(default = true, group = "filtering")]
+    pub hit_solids: bool,
+    /// The body kinds the wheels' rays pass through: static takes colliders with no body too. The chassis's own body is never hit
+    #[property(flags, group = "filtering")]
+    pub exclude_kinds: Vec<ExcludeKind>,
 }
 
 /// One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.
@@ -207,11 +213,15 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
         body.wake_up(true);
     }
     let mask = Layer::bits(&chassis_settings.collision_mask, true);
-    let ignore = crate::vocabulary::named_bits(
-        chassis_settings.ignore.iter().map(SweepIgnore::option),
-        &crate::vocabulary::flags::query_ignores(),
+    let passes = crate::vocabulary::flags::filter_bits(
+        chassis_settings
+            .exclude_kinds
+            .iter()
+            .map(ExcludeKind::option),
+        chassis_settings.hit_sensors,
+        chassis_settings.hit_solids,
     );
-    let filter = QueryFilter::from(QueryFilterFlags::from_bits_truncate(ignore))
+    let filter = QueryFilter::from(QueryFilterFlags::from_bits_truncate(passes))
         .groups(InteractionGroups::new(
             Group::ALL,
             Group::from_bits_truncate(mask),
@@ -318,7 +328,7 @@ pub(crate) fn install_vehicle_api(m: &mut Module<Engine>) {
         (SET_BRAKE, &[c::WHEEL_3D], "", "How hard this wheel brakes, as an impulse; ignored while its engine force is not 0."),
         (SET_STEERING, &[c::WHEEL_3D], "", "Turn this wheel, in radians."),
         (WHEEL_STATE, &[c::WHEEL_3D], "(node: node) -> WheelState", "What the last step did with this wheel."),
-        (SET_WHEEL_ROTATION, &[c::WHEEL_3D], "(node: node, angle: float)", "Set how far the wheel has turned about its axle, in radians: the angle `wheel_state` reads as `rotation`."),
+        (SET_WHEEL_ROTATION, &[c::WHEEL_3D], "(node: node, angle: float)", "Set how far the wheel has turned about its axle, in radians: the angle `state` reads as `rotation`."),
         (VEHICLE_SPEED, &[c::VEHICLE_3D], "", "How fast the chassis is going along its forward axis, in units per second."),
     ]);
     m.function(

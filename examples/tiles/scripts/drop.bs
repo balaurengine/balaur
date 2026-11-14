@@ -7,6 +7,6 @@ pub class Drop {
 
 impl Drop {
     pub fn init() {
-        self.node.body2d.set_linear_velocity(2.0, 0.0);
+        self.node.body2d.set_linear_velocity(vec2(2.0, 0.0));
     }
 }

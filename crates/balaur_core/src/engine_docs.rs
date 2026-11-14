@@ -8,7 +8,7 @@ use crate::vocabulary::words;
 
 pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
-        "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.",
+        "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins`, `quit`, and `store` for state no node owns.",
     );
     m.records(&[
         (
@@ -50,7 +50,6 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
         ("function_costs", &[], "() -> [FunctionCost]", "What each function has cost since `set_script_profiling(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own statements without its callees'. A function of a module two files use counts once for the two."),
         ("delta", &[], "() -> float", "Seconds the frame in progress covers, the same number a system is handed."),
         (keys::TICK, &[], "() -> int", "Which frame this is, counted whole: what simulation code branches on instead of `time`."),
-        ("change_tick", &[], "() -> int", "The change tick now, stepped before every system runs and never put back. Keep it where a script last looked, and `scene.changed_since` answers what moved after it."),
         ("set_paused", &[], "(on: bool)", "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused_changed(bool)` follows, the ones the pause just stopped included."),
         (words::functions::PAUSED, &[], "() -> bool", "Whether the game is paused."),
         ("set_time_scale", &[], "(scale: float)", "Multiply wall-clock time before the simulation is owed it: 0.5 is slow motion, 2.0 fast forward, each still whole fixed steps. Zero stops time without stopping a single node. A replay and a networked session drive by tick and ignore it."),
@@ -111,14 +110,9 @@ pub(crate) fn document_encoding(m: &mut balaur_script::Module<Engine>) {
 
 pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
-        "The node tree: its root, lookup by path and instancing, plus the component and preset vocabulary an editor's palette lists.",
+        "The node tree: its root, lookup by path and instancing, plus the component vocabulary an editor's palette lists.",
     );
     m.records(&[
-        (
-            "Preset",
-            "{ description: string, tags: [string], components: [string], parts: map }",
-            "A preset: what it says of itself, the components it adds and each one's own properties by name.",
-        ),
         (
             "Warning",
             "{ component: string, property: string?, message: string }",
@@ -155,9 +149,6 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ("get_node", &[], "(path: string) -> node?", "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches."),
         ("node_by_id", &[], "(id: string, under: node?) -> node?", "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree."),
         ("with_component", &[], "(component: string) -> [node]", "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."),
-        ("added_since", &[], "(component: string, tick: int) -> [node]", "The nodes the component went onto after change tick `tick`, in node order. After a rollback restored the world, a tick from before it answers every holder."),
-        ("changed_since", &[], "(component: string, tick: int) -> [node]", "The nodes whose component was written, or put on, after change tick `tick`, in node order. After a rollback restored the world, a tick from before it answers every holder."),
-        ("removed_since", &[], "(component: string, tick: int) -> [node]", "The nodes the component came off after change tick `tick`, freed ones included, oldest first: what the frame it came off in and the next still hear."),
         ("tagged", &[], "(tag: string) -> [node]", "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed."),
         ("instantiate", &[], "(source: string, parent: node?, opts: InstantiateOptions?)", "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it."),
         (words::functions::TO_TOML, &[], "(root: node, opts: ToTomlOptions?) -> string", "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `root` writes every path under that project's root as it spells it."),
@@ -171,9 +162,6 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ("component_requires", &[], "(name: string) -> [string]?", "The components a component type brings: each a node lacks is put on at its defaults before the type's first write. Nil for a name nothing registered."),
         ("component_schema", &[], "(name: string) -> map?", "A component type's property schema as a table, its properties in the order it writes them; nil for a name nothing registered."),
         ("component_properties", &[], "(name: string, params: any) -> map?", "What a component's `apply` would receive for `params`: the schema's defaults with a partial table merged over them. This is how a tool compares two spellings of the same component."),
-        ("presets", &[], "() -> [string]", "The names of every registered preset."),
-        ("preset_info", &[], "(name: string) -> Preset?", "A preset's `description`, `tags`, the `components` it adds, and `parts`: each component's own properties by name. Nil for a name nothing registered."),
-        ("apply_preset", &[], "(node: node, name: string)", "Add every component a preset names to the node; a part that fails leaves the parts before it in place."),
         ("warnings", &[], "(node: node) -> [Warning]", "What is off about the node, as `{ component, property, message }`: a component missing one it expects, a write its component refused, and what a component says of itself. `property` is nil for the whole component; advisory only."),
         ("variable", &[], "(name: string) -> any", "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`."),
         ("set_variable", &[], "(name: string, value: any)", "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing."),
@@ -181,7 +169,7 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ("switch", &[], "(path: string, options: SwitchOptions?)", "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene left stays built and parked, and a scene already parked comes back as it was, with no node built and no `init` run; each of their scripts is told `on_parked_changed`. A parked scene does not update, draw, take input or hear a hook, an event or a call, and a task its script awaits holds until it returns. A script reaching it can still read and write its components; it takes no new node or script. A digest and a snapshot cover it, a save holds nothing of it, and the change log says nothing of a park or a return. A file edited since the scene was built is built again on the way back. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second. What stays parked is bounded by itself: past 20,000 parked nodes the scene left longest ago is freed, and a system memory warning frees them all; a scene freed is built again the next time it is asked for, its `init` running. Reset is a switch to the file already there, which frees it and builds it again; to come back to a scene new from elsewhere, `unload` it first."),
         ("parked", &[], "() -> [string]", "Every scene `switch` kept built, by the path it was asked for, oldest first."),
         (words::functions::UNLOAD, &[], "(path: string)", "Lets go of a scene: frees it if it is parked, its scripts' `on_free` running as for any node freed, and drops what its file and prefabs have cached, the parsed text and the pictures they name. The scene running stays where it is, and a picture something still draws is read again when it next asks."),
-        ("bindable_events", &[], "(node: node?) -> [string]", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it and its components announce."),
+        ("bindable_events", &[], "(node: node?) -> [string]", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it, its components and its script announce."),
         ("binding_actions", &[], "() -> [string]", "Every action a binding row may do, in the order an editor offers them."),
     ]);
 }

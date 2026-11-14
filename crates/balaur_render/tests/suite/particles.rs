@@ -135,7 +135,9 @@ fn a_one_shot_burst_says_finished_once_its_last_particle_is_due_to_die() {
     let mut heard = Vec::new();
     for frame in 0..60 {
         app.tick(1.0 / 60.0);
-        if !balaur_core::events::delivered_from(&app.engine, entity, "finished").is_empty() {
+        if !balaur_core::events::delivered_from(&app.engine, entity, "particles_finished")
+            .is_empty()
+        {
             heard.push(frame);
         }
     }
@@ -193,7 +195,8 @@ fn a_3d_one_shot_burst_says_finished_as_a_2d_one_does() {
     let heard: Vec<u32> = (0..60)
         .filter(|_| {
             app.tick(1.0 / 60.0);
-            !balaur_core::events::delivered_from(&app.engine, entity, "finished").is_empty()
+            !balaur_core::events::delivered_from(&app.engine, entity, "particles_finished")
+                .is_empty()
         })
         .collect();
     assert_eq!(heard.len(), 1, "finished once, not every frame: {heard:?}");

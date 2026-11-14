@@ -149,7 +149,7 @@ fn open(state: &mut editor::State, row: int, design_x: float, design_y: float) {
     let centre_y = design_y;
     let drawn_width = 0.0;
     // The 2D camera's zoom, which a frame with no window has not got.
-    if name == components::TEXT2D && found.has_component(components::TRANSFORM) && render::camera_2d().z > 0.0 {
+    if name == components::TEXT2D && found.has_component(components::TRANSFORM) && render::camera_2d().zoom > 0.0 {
         let world_per_pixel = viewport::world_per_pixel();
         let scale = found.transform.global_scale();
         let font = found.component_property(name, themewin::FONT_SIZE).as_float();

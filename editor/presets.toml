@@ -1,0 +1,297 @@
+# The nodes the picker offers beside the bare components: the line each row
+# reads, the tags it is filed by, and the components it sets, in order, with
+# the properties that make it that node. The editor reads this; no game does.
+
+# 2D drawing.
+
+[sprite2d]
+description = "A textured 2D quad"
+tags = ["2d", "render"]
+components = [
+    { component = "sprite" },
+]
+
+[rect2d]
+description = "An untextured 2D rectangle"
+tags = ["2d", "render"]
+components = [
+    { component = "shape2d", shape = { kind = "rectangle" } },
+]
+
+[text2d]
+description = "A block of text in the 2D pass"
+tags = ["2d", "render"]
+components = [
+    { component = "text2d", text = "Text" },
+]
+
+[tilemap2d]
+description = "A grid of tiles from one tileset"
+tags = ["2d", "render"]
+components = [
+    { component = "tilemap" },
+]
+
+[polygon2d]
+description = "A textured polygon that a rig can deform"
+tags = ["2d", "render", "animation"]
+components = [
+    { component = "polygon" },
+]
+
+# 2D physics.
+
+[rigid_body2d]
+description = "A 2D body physics simulates, with a rect collider"
+tags = ["2d", "physics"]
+components = [
+    { component = "body2d", kind = "dynamic" },
+    { component = "collider2d" },
+]
+
+[static_body2d]
+description = "An immovable 2D body with a rect collider: ground, walls"
+tags = ["2d", "physics"]
+components = [
+    { component = "body2d", kind = "static" },
+    { component = "collider2d" },
+]
+
+[soft_body2d]
+description = "A deformable 2D block that squashes and springs back"
+tags = ["2d", "physics"]
+components = [
+    { component = "softbody2d", kind = "grid", soft_material = { cell_model = "corotational", shape_matching = "on" } },
+]
+
+# The rope first, so the body is built once, with its shape.
+[rope2d]
+description = "A 2D rope of linked particles, pinned at one end"
+tags = ["2d", "physics"]
+components = [
+    { component = "soft_rope2d", particle_count = 24 },
+    { component = "softbody2d", kind = "rope", pinned_particles = [0] },
+]
+
+# 3D.
+
+[text3d]
+description = "A block of text facing the camera"
+tags = ["3d", "render"]
+components = [
+    { component = "text3d", text = "Text" },
+]
+
+[rigid_body3d]
+description = "A body physics simulates, with a box collider"
+tags = ["3d", "physics"]
+components = [
+    { component = "body3d", kind = "dynamic" },
+    { component = "collider3d" },
+]
+
+[static_body3d]
+description = "An immovable body with a box collider: ground, walls"
+tags = ["3d", "physics"]
+components = [
+    { component = "body3d", kind = "static" },
+    { component = "collider3d" },
+]
+
+[soft_body3d]
+description = "A deformable block that squashes and springs back"
+tags = ["3d", "physics"]
+components = [
+    { component = "softbody3d", kind = "box", soft_material = { cell_model = "corotational", shape_matching = "on" } },
+]
+
+# 13 particles along each side: 0 and 12 are the ends of the first row.
+# The grid first, so the body is built once, with its shape.
+[cloth3d]
+description = "A sheet of cloth hanging from two corners"
+tags = ["3d", "physics"]
+components = [
+    { component = "soft_grid3d", cells = [12.0, 12.0, 1.0], size = [2.0, 0.0, 2.0] },
+    { component = "softbody3d", kind = "cloth", pinned_particles = [0, 12], self_collision = true },
+]
+
+# The rope first, so the body is built once, with its shape.
+[rope3d]
+description = "A rope of linked particles, pinned at one end"
+tags = ["3d", "physics"]
+components = [
+    { component = "soft_rope3d", particle_count = 24 },
+    { component = "softbody3d", kind = "rope", pinned_particles = [0] },
+]
+
+# Widgets: a kind, and the components holding the rows that kind reads.
+
+[label]
+description = "A line of text"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "label" },
+    { component = "widget_text" },
+]
+
+[text_field]
+description = "A line the player types into"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "text_field" },
+    { component = "widget_field" },
+]
+
+[button]
+description = "Text that reports its clicks"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "button" },
+    { component = "widget_check" },
+    { component = "widget_button" },
+    { component = "widget_text" },
+]
+
+[panel]
+description = "A framed box that lays out what is inside it"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "panel" },
+    { component = "widget_layout" },
+]
+
+[row]
+description = "Children side by side, sharing the leftover by `grow`"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "row" },
+    { component = "widget_layout" },
+]
+
+[column]
+description = "Children stacked, sharing the leftover by `grow`"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "column" },
+    { component = "widget_layout" },
+]
+
+[scroll]
+description = "A box that holds its size and clips what runs past it"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "scroll" },
+    { component = "widget_scroll" },
+    { component = "widget_layout" },
+]
+
+[stack]
+description = "Children over one another, each placed in the box by its `anchor`"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "stack" },
+    { component = "widget_layout" },
+]
+
+[tabs]
+description = "One child showing, the rest named on a strip above it"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "tabs" },
+    { component = "widget_layout" },
+    { component = "widget_tabs" },
+]
+
+[image]
+description = "A picture from the project, sized by itself or by what it states"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "image" },
+    { component = "widget_image" },
+]
+
+[checkbox]
+description = "A box that ticks"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "checkbox" },
+    { component = "widget_check" },
+]
+
+[dropdown]
+description = "One of its `options`, picked from a list"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "dropdown" },
+    { component = "widget_dropdown" },
+    { component = "widget_text" },
+]
+
+[slider]
+description = "A number dragged between `min` and `max`"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "slider" },
+    { component = "widget_range" },
+]
+
+[progress_bar]
+description = "A bar filled to `value` between `min` and `max`"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "progress_bar" },
+    { component = "widget_range" },
+]
+
+[grid]
+description = "Children in the columns `grid_columns` names, two equal ones where it names none"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "grid" },
+    { component = "widget_layout" },
+    { component = "widget_grid" },
+]
+
+[flow]
+description = "Children left to right, wrapping when the row is full"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "flow" },
+    { component = "widget_layout" },
+]
+
+[fold]
+description = "A header that shows or hides what is under it"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "fold" },
+    { component = "widget_layout" },
+    { component = "widget_fold" },
+]
+
+[dialog]
+description = "A panel over everything, with the screen behind it dimmed and deaf"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "dialog" },
+    { component = "widget_window" },
+    { component = "widget_layout" },
+]
+
+[separator]
+description = "A line between siblings"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "separator" },
+    { component = "widget_separator" },
+]
+
+# A window is dragged by its title bar; no other root moves unasked.
+[window]
+description = "A panel with a title bar, moved by dragging it and shut by its cross"
+tags = ["ui"]
+components = [
+    { component = "widget", kind = "window", movable = true },
+    { component = "widget_window" },
+    { component = "widget_layout" },
+]

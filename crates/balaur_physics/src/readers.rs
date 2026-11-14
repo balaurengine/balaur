@@ -8,20 +8,17 @@ use balaur_script::{Module, NodeId};
 
 use crate::PhysicsState3d;
 use crate::collider::{first_collider, with_first_collider};
-use crate::scalar::{self, Real};
+use crate::scalar;
 use crate::vocabulary::words;
 use crate::vocabulary::{component as c, keys as k};
 
-/// A box as a script reads one: its two opposite corners, flattened.
-fn corners(aabb: &crate::rapier3d::prelude::Aabb) -> (Real, Real, Real, Real, Real, Real) {
-    (
-        aabb.mins.x,
-        aabb.mins.y,
-        aabb.mins.z,
-        aabb.maxs.x,
-        aabb.maxs.y,
-        aabb.maxs.z,
-    )
+/// A box as a script reads one, the `Aabb` record: its lowest and highest corners.
+pub(crate) fn aabb_value(aabb: &crate::rapier3d::prelude::Aabb) -> balaur_script::Value {
+    use balaur_script::Value;
+    crate::vocabulary::map([
+        (k::MIN, Value::Vec3(scalar::a3(aabb.mins))),
+        (k::MAX, Value::Vec3(scalar::a3(aabb.maxs))),
+    ])
 }
 
 /// The boxes a collider is tested with, and where it sits on its body.
@@ -29,8 +26,8 @@ fn corners(aabb: &crate::rapier3d::prelude::Aabb) -> (Real, Real, Real, Real, Re
 /// Split from `crate::collider::install_collider_reader_api` under `MAX_FN_LINES`.
 pub(crate) fn install_collider_placement_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (words::functions::COLLISION_AABB, &[c::COLLIDER_3D], "", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
-        (words::functions::BROAD_PHASE_AABB, &[c::COLLIDER_3D], "", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
+        (words::functions::COLLISION_AABB, &[c::COLLIDER_3D], "(node: node) -> Aabb", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
+        (words::functions::BROAD_PHASE_AABB, &[c::COLLIDER_3D], "(node: node) -> Aabb", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
         (words::functions::POSE_IN_BODY, &[c::COLLIDER_3D], "(node: node) -> Pose?", "Where the collider sits in its body's frame; nothing for a collider with no body."),
     ]);
     m.function(
@@ -41,7 +38,7 @@ pub(crate) fn install_collider_placement_api(m: &mut Module<Engine>) {
             let state = state.borrow();
             let collider = &state.world.colliders[first_collider(&state, entity)?];
             let prediction = state.world.integration_parameters.prediction_distance();
-            Ok(corners(&collider.compute_collision_aabb(prediction)))
+            Ok(aabb_value(&collider.compute_collision_aabb(prediction)))
         },
     );
     m.function(
@@ -52,7 +49,7 @@ pub(crate) fn install_collider_placement_api(m: &mut Module<Engine>) {
             let state = state.borrow();
             let collider = &state.world.colliders[first_collider(&state, entity)?];
             let params = &state.world.integration_parameters;
-            Ok(corners(
+            Ok(aabb_value(
                 &collider.compute_broad_phase_aabb(params, &state.world.bodies),
             ))
         },

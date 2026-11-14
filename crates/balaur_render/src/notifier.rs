@@ -16,16 +16,16 @@ const IS_ON_SCREEN: &str = "is_on_screen";
 
 pub(crate) const COMPONENT: &str = <ScreenNotifier2d as Component>::NAME;
 /// What a notifier announces as its box comes on screen, and as it leaves.
-pub(crate) const SCREEN_ENTER_EVENT: &str = "screen_enter";
-pub(crate) const SCREEN_EXIT_EVENT: &str = "screen_exit";
+pub(crate) const SCREEN_ENTERED_EVENT: &str = "screen_entered";
+pub(crate) const SCREEN_EXITED_EVENT: &str = "screen_exited";
 
-/// A box that announces `screen_enter` as it comes on screen and `screen_exit` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.
+/// A box that announces `screen_entered` as it comes on screen and `screen_exited` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.
 #[derive(Component)]
 #[component(
     name = "screen_notifier2d",
     on_add = added,
     on_remove = removed,
-    events = &[ (SCREEN_ENTER_EVENT, "nil, as any of the box comes on screen"), (SCREEN_EXIT_EVENT, "nil, as the last of it leaves"), ],
+    events = &[ (SCREEN_ENTERED_EVENT, "nil, as any of the box comes on screen"), (SCREEN_EXITED_EVENT, "nil, as the last of it leaves"), ],
     tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER],
 )]
 pub struct ScreenNotifier2d {
@@ -136,9 +136,9 @@ pub(crate) fn notify_screen_system(eng: &Engine, _dt: f32) {
     changed.sort_by_key(|(entity, _)| entity.to_bits());
     for (entity, on) in changed {
         let event = if on {
-            SCREEN_ENTER_EVENT
+            SCREEN_ENTERED_EVENT
         } else {
-            SCREEN_EXIT_EVENT
+            SCREEN_EXITED_EVENT
         };
         balaur_core::events::announce(eng, entity, event, Value::Nil);
     }

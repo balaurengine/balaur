@@ -50,7 +50,7 @@ floor_snap_length = 0.0
 impl Scenario {{
     fn fixed_update(dt: float) {{
         self.ticks += 1;
-        self.node.character3d.move_character(0.1, 0.0, 0.0);
+        self.node.character3d.move_by(vec3(0.1, 0.0, 0.0));
         if self.ticks == 110 {{
             let x = self.node.transform.position.x;
             {expect}
@@ -70,7 +70,7 @@ const STOPPED: &str =
 #[test]
 fn a_character_walks_through_a_sensor_unless_told_not_to() {
     walk("sensor = true", "", "", THROUGH);
-    walk("sensor = true", "", "ignore = []", STOPPED);
+    walk("sensor = true", "", "hit_sensors = true", STOPPED);
 }
 
 #[test]
@@ -84,13 +84,19 @@ fn a_character_passes_a_layer_its_mask_leaves_out() {
 }
 
 #[test]
-fn a_character_passes_the_nodes_it_ignores() {
-    walk("", "", "ignore_nodes = [\"/World/Wall\"]", THROUGH);
-    walk("", "", "ignore = [\"static\"]", THROUGH);
+fn a_character_passes_a_node_it_excludes_and_stops_at_it_otherwise() {
+    walk("", "", "", STOPPED);
+    walk("", "", "exclude = [\"/World/Wall\"]", THROUGH);
 }
 
-/// A second collider on the character's own body, out in front of it, used
-/// to stop every move it made.
+#[test]
+fn a_character_passes_the_body_kinds_and_solids_its_filter_leaves_out() {
+    walk("", "", "exclude_kinds = [\"static\"]", THROUGH);
+    walk("", "", "exclude_kinds = [\"dynamic\"]", STOPPED);
+    walk("", "", "hit_solids = false", THROUGH);
+}
+
+// A second collider on the character's own body, out in front of it, must not stop its moves.
 #[test]
 fn a_character_never_meets_its_own_body() {
     run_clean(
@@ -121,7 +127,7 @@ shape = { kind = "sphere", radius = 0.15 }
 impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
-        self.node.character3d.move_character(0.1, 0.0, 0.0);
+        self.node.character3d.move_by(vec3(0.1, 0.0, 0.0));
         if self.ticks == 60 {
             let x = self.node.transform.position.x;
             if x <= 3.0 { log::error("the character's own collider stopped it: x is {x}"); }
@@ -167,7 +173,7 @@ floor_snap_length = 0.0
 impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
-        self.node.character2d.move_character(0.1, 0.0);
+        self.node.character2d.move_by(vec2(0.1, 0.0));
         if self.ticks == 110 {
             let x = self.node.transform.position.x;
             if x <= 3.0 { log::error("the 2D character stopped at a sensor: x is {x}"); }
@@ -333,8 +339,8 @@ fn wheel_rays_pass_through_sensors_and_layers_off_the_mask() {
         "the wheel stood on a sensor"
     );
     assert!(
-        grounded("sensor = true", "ignore = []"),
-        "ignore = [] still passed the sensor"
+        grounded("sensor = true", "hit_sensors = true"),
+        "hit_sensors = true still passed the sensor"
     );
     assert!(
         !grounded("collision_layer = [\"2\"]", "collision_mask = [\"1\"]"),
@@ -464,7 +470,7 @@ floor_snap_length = 0.0
 
 const WALK: &str = "pub class Scenario { node: Node }
 impl Scenario {
-    fn fixed_update(dt: float) { self.node.character3d.move_character(0.05, 0.0, 0.0); }
+    fn fixed_update(dt: float) { self.node.character3d.move_by(vec3(0.05, 0.0, 0.0)); }
 }
 ";
 
@@ -546,7 +552,7 @@ fn a_collision_reports_where_the_sweep_met_the_obstacle() {
         r#"pub class Scenario { node: Node, done: bool }
 impl Scenario {
     fn fixed_update(dt: float) {
-        let moved = self.node.character3d.move_character(0.2, 0.0, 0.0);
+        let moved = self.node.character3d.move_by(vec3(0.2, 0.0, 0.0));
         if !self.done && moved.collisions.len() > 0 {
             let hit = moved.collisions[0];
             let point = hit.point.x;
@@ -714,20 +720,20 @@ fn speed_and_wheel_state_read_the_kept_controller() {
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
     fn init() {
-        self.node.body3d.set_linear_velocity(0.0, 0.0, 4.0);
+        self.node.body3d.set_linear_velocity(vec3(0.0, 0.0, 4.0));
     }
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
         let wheel = self.node.get_node("Wheel");
         if self.ticks == 3 {
-            wheel.wheel3d.set_wheel_rotation(1.5);
-            if math::abs(wheel.wheel3d.wheel_state().rotation - 1.5) >= 0.0001 { log::error("the rotation was not set"); }
+            wheel.wheel3d.set_rotation(1.5);
+            if math::abs(wheel.wheel3d.state().rotation - 1.5) >= 0.0001 { log::error("the rotation was not set"); }
         }
         if self.ticks == 10 {
-            let speed = self.node.vehicle3d.vehicle_speed();
+            let speed = self.node.vehicle3d.speed();
             if math::abs(speed + 4.0) >= 0.5 { log::error("a car rolling backwards read {speed}"); }
-            let state = wheel.wheel3d.wheel_state();
+            let state = wheel.wheel3d.state();
             if !state.in_contact { log::error("the wheel is off the ground"); }
             let ground = state.ground.unwrap();
             if ground != scene::get_node("World/Ground") { log::error("the ray hit {ground}"); }

@@ -27,7 +27,7 @@ fn a_menu_reports_the_item_that_was_picked() {
     pass(&app, &ctx, press(item, false));
     consume_input(&mut app);
     assert_eq!(
-        balaur_core::events::delivered_from(&app.engine, entity, balaur_ui::CHANGE_EVENT),
+        balaur_core::events::delivered_from(&app.engine, entity, balaur_ui::VALUE_CHANGED_EVENT),
         vec![balaur_script::Value::Str("Save".into())],
         "the pick is the menu's `change`"
     );

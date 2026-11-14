@@ -55,6 +55,20 @@ determinism. `AGENTS.md` states the rule.
   `rest` or `reply` answer carries its round trip as `ms`.
 - `gamend/cloud` and `gamend/cloud_token`: the Gamend dock declares
   `editor/gamend/cloud` and `editor/gamend/cloud_token` itself.
+- `script::store` and `stored`: `engine::store(key, value)` and
+  `engine::stored(key)`. `script` holds only what a tool asks about a file.
+- `debugger.*` and the `script.*` tool verbs in every runtime:
+  `balaur::ToolsPlugin` declares both, and `balaur_cli` registers it beside
+  `project`, on its `editor` feature. `balaur run`, `play` and a template
+  have neither. The Debug Adapter Protocol server is where it was.
+- `dependency::install`, `add_path`, `make_local` and `move_into`:
+  `balaur_cli`'s `project_api/dependency.rs`, beside `forge`. The engine keeps
+  `list` and `of`, which a game reads.
+- The preset registry, `Registry::register_preset`, a project's
+  `presets.toml` and `scene::presets`, `preset_info` and `apply_preset`: the
+  editor's `presets.toml`, which `presets.bs` reads and builds with
+  `set_component`. A game's `editor/presets.toml` and each addon's add their
+  own. A widget kind's components are spelled there too.
 
 ## Not planned here
 

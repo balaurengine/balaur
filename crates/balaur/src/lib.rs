@@ -34,7 +34,12 @@ pub use balaur_ui as ui;
 #[cfg(feature = "webtransport")]
 pub use balaur_webtransport as webtransport;
 
+#[cfg(feature = "bs-backend")]
+mod event_names;
 mod interact;
+mod tools;
+
+pub use tools::ToolsPlugin;
 
 use std::collections::BTreeMap;
 
@@ -43,6 +48,8 @@ use anyhow::Context;
 use anyhow::{Result, bail};
 
 const BALAUR: &str = "balaur";
+const ERROR: &str = "error";
+const WARNING: &str = "warning";
 const UI_ACCEPT: &str = "ui_accept";
 const UI_NEXT: &str = "ui_next";
 const UI_PREVIOUS: &str = "ui_previous";
@@ -119,14 +126,30 @@ pub fn build_pack_with(project_root: &std::path::Path, keep_sources: bool) -> Re
     build_pack_using(project_root, keep_sources, &mut [])
 }
 
-/// [`build_pack_with`], with the caller's own modules registered first.
+/// [`build_pack_with`], with the caller's own modules registered first. The
+/// editor's plugins, under `editor/` and each addon's, stay out of the pack, and
+/// a scene that attaches one fails it, as loading the scene would.
 pub fn build_pack_using(
     project_root: &std::path::Path,
     keep_sources: bool,
     extra: ExtraPlugins<'_>,
 ) -> Result<Pack> {
     with_host(project_root, extra, |engine, host| {
-        let pack = balaur_project::packing::build_with(project_root, host, keep_sources)?;
+        let refused: Vec<String> = balaur_core::attachments::scene_attachments(project_root)
+            .into_keys()
+            .filter_map(|script| balaur_core::project::plugin_attached(engine, &script))
+            .collect();
+        if !refused.is_empty() {
+            bail!(
+                "a scene attaches the editor's files:\n{}",
+                refused.join("\n")
+            );
+        }
+        let plugin = |rel: &str| {
+            let judged = file_api::editors_script(engine, std::path::Path::new(rel));
+            judged == Some(file_api::EditorsScript::Plugin)
+        };
+        let pack = balaur_project::packing::build_with(project_root, host, keep_sources, &plugin)?;
         #[cfg(feature = "compile")]
         let pack = with_shaders(engine, pack)?;
         #[cfg(not(feature = "compile"))]
@@ -168,7 +191,6 @@ pub fn builtins() -> Builtins {
             ApiPart::Ops(KERNEL_OPS[3]),
             KERNEL_MODULES[0],
             KERNEL_MODULES[1],
-            ApiPart::Module("debugger", balaur_debug::debugger_api::install_debugger_api),
             KERNEL_MODULES[2],
             KERNEL_MODULES[3],
             ApiPart::Module("rollback", balaur_net::rollback_api::install_rollback_api),
@@ -298,25 +320,29 @@ impl Finding {
             file: file.to_string(),
             line,
             column,
-            severity: "error",
+            severity: ERROR,
             message,
         }
     }
 
     fn warning(file: &str, line: usize, column: usize, message: String) -> Self {
         Finding {
-            severity: "warning",
+            severity: WARNING,
             ..Finding::error(file, line, column, message)
         }
     }
 }
 
-/// Every finding in a project: each script a scene attaches, compiled through
-/// a booted host, plus the files those scenes name.
+/// Every finding in a project: what each scene refuses as the loader builds
+/// it, each script a scene attaches, compiled through a booted host, every
+/// other script `[application] ignore` keeps, and each name that hears or
+/// sends an event nothing announces. No script runs.
 ///
 /// The unit a check compiles is the script a scene names: a file it `use`s
 /// is compiled with it, and its errors arrive through that script, as does
-/// one that `[application] ignore` leaves out of an export.
+/// one that `[application] ignore` leaves out of an export. A file no scene
+/// reaches, an addon's or an editor plugin among them, is compiled as the
+/// module it is, and answers for itself.
 ///
 /// # Errors
 /// If the project will not boot.
@@ -333,11 +359,11 @@ pub fn check_project_using(
     extra: ExtraPlugins<'_>,
 ) -> Result<Vec<Finding>> {
     use balaur_script::ScriptCompiler as _;
-    with_host(project_root, extra, |_, host| {
+    with_host(project_root, extra, |engine, host| {
         let ignored = text_of(&project_root.join("project.toml"))
             .map(|manifest| balaur_core::ignore::from_manifest(&manifest))
             .unwrap_or_default();
-        let mut found = Vec::new();
+        let mut found = scene_problems(engine, project_root);
         let mut linted = std::collections::HashSet::new();
         for rel in scene_scripts(project_root) {
             let Some(source) = text_of(&project_root.join(&rel)) else {
@@ -362,8 +388,108 @@ pub fn check_project_using(
                 }
             }
         }
+        // What no scene reached, each file once, and each file those use.
+        let mut waiting = project_scripts(host.extensions(), project_root, &ignored);
+        while let Some(rel) = waiting.pop() {
+            if linted.insert(rel.clone())
+                && let Some(source) = text_of(&project_root.join(&rel))
+            {
+                found.extend(check_module(host, &rel, &source));
+                found.extend(lint_script(host, &rel, &source));
+                waiting.extend(host.uses(&rel, &source).unwrap_or_default());
+            }
+        }
+        found.extend(name_findings(engine, host, project_root, &linted));
         Ok(found)
     })
+}
+
+/// A handler, a listener or a row naming an event nothing announces, and an
+/// `emit` its script does not declare, over the scripts `checked` and every
+/// scene: each a warning on the line that spells the name.
+#[cfg(feature = "bs-backend")]
+fn name_findings(
+    engine: &balaur_core::Engine,
+    host: &balaur_script_bs::BsHost,
+    project_root: &std::path::Path,
+    checked: &std::collections::HashSet<String>,
+) -> Vec<Finding> {
+    let checked = checked.iter().cloned().collect();
+    event_names::findings(engine, host, project_root, &checked)
+}
+
+#[cfg(not(feature = "bs-backend"))]
+fn name_findings(
+    _: &balaur_core::Engine,
+    host: &NoScripts,
+    _: &std::path::Path,
+    _: &std::collections::HashSet<String>,
+) -> Vec<Finding> {
+    match *host {}
+}
+
+/// What the loader refuses in each scene file of the project, as it would
+/// when a run built the scene, by file and line. A prefab's own are met once
+/// per scene that instances it and kept once.
+fn scene_problems(engine: &balaur_core::Engine, project_root: &std::path::Path) -> Vec<Finding> {
+    let mut found: Vec<Finding> = Vec::new();
+    for scene in balaur_core::attachments::scene_files(project_root) {
+        for one in balaur_core::project::problems(engine, &scene) {
+            // A parse error ends in a newline of its own.
+            let message = one.message.trim_end().to_string();
+            let finding = Finding {
+                severity: if one.warning { WARNING } else { ERROR },
+                ..Finding::error(&one.file, one.line, one.column, message)
+            };
+            if !found.contains(&finding) {
+                found.push(finding);
+            }
+        }
+    }
+    found.sort_by(|a, b| (&a.file, a.line, a.column).cmp(&(&b.file, b.line, b.column)));
+    found
+}
+
+/// Every script of the project that `ignore` keeps, by its path from the root,
+/// last first. A folder holding a manifest is another project's, and `deps/`
+/// holds dependencies, which answer for themselves.
+fn project_scripts(
+    extensions: &[&str],
+    project_root: &std::path::Path,
+    ignored: &[String],
+) -> Vec<String> {
+    let fs = balaur_core::files::default_backend();
+    let mut out = Vec::new();
+    let mut dirs = vec![String::new()];
+    while let Some(dir) = dirs.pop() {
+        for (name, is_dir) in fs.list(&project_root.join(&dir)) {
+            let rel = if dir.is_empty() {
+                name.clone()
+            } else {
+                format!("{dir}/{name}")
+            };
+            let skipped = name.starts_with('.')
+                || rel == balaur_core::dependencies::DIR
+                || balaur_core::ignore::ignored(ignored, &rel);
+            if skipped {
+                continue;
+            }
+            let path = project_root.join(&rel);
+            if is_dir {
+                if fs.read(&path.join(balaur_core::project::MANIFEST)).is_err() {
+                    dirs.push(rel);
+                }
+            } else if path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| extensions.contains(&e))
+            {
+                out.push(rel);
+            }
+        }
+    }
+    out.sort_by(|a, b| b.cmp(a));
+    out
 }
 
 /// Each file the script at `rel` links in that `[application] ignore` leaves
@@ -410,6 +536,20 @@ fn check_script(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec
 
 #[cfg(not(feature = "bs-backend"))]
 fn check_script(host: &NoScripts, _: &str, _: &str) -> Vec<Finding> {
+    match *host {}
+}
+
+/// The errors of a file no scene attaches, compiled as the module it is.
+#[cfg(feature = "bs-backend")]
+fn check_module(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec<Finding> {
+    host.check_alone(rel, source)
+        .into_iter()
+        .map(|e| Finding::error(rel, e.pos.line as usize, e.pos.col as usize, e.msg))
+        .collect()
+}
+
+#[cfg(not(feature = "bs-backend"))]
+fn check_module(host: &NoScripts, _: &str, _: &str) -> Vec<Finding> {
     match *host {}
 }
 

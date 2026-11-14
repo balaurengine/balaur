@@ -335,7 +335,7 @@ macro_rules! functions {
                         let state = state.borrow();
                         $tear_record(&state, tear)
                     };
-                    balaur_core::events::announce(eng, *a, hook::TEAR, record);
+                    balaur_core::events::announce(eng, *a, hook::TORN, record);
                 }
             }
         }

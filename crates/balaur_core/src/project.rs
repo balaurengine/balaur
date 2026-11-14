@@ -27,11 +27,13 @@ use crate::scene::{self, Appearance, Tags};
 
 pub use crate::project_files::{AssetSource, ProjectFiles, path_of};
 mod instances;
+mod problems;
 mod scene_walks;
 
 use crate::vocabulary::keys;
 use crate::vocabulary::words;
 use instances::{apply_overrides, apply_own_keys, instance};
+pub use problems::{Problem, RowNames, problems, row_names};
 pub use scene_walks::FileStamps;
 pub(crate) use scene_walks::{file_stamps, instantiate_main_scene, preload_scene, unload_scene};
 
@@ -846,6 +848,19 @@ fn attach_pending(eng: &Engine, build: &Build) -> Result<()> {
     attach_named(eng, &build.pending)
 }
 
+/// Why a scene may not attach `script`, which it names as a node's: the file
+/// is an editor plugin, under a game's or an addon's `editor/` folder
+/// ([`crate::file_api::editors_script`]). The editor loads those itself.
+#[must_use]
+pub fn plugin_attached(eng: &Engine, script: &str) -> Option<String> {
+    let judged = crate::file_api::editors_script(eng, std::path::Path::new(script));
+    (judged == Some(crate::file_api::EditorsScript::Plugin)).then(|| {
+        format!(
+            "`{script}` is the editor's: a game's runtime does not run the editor's files, so a scene may not attach it"
+        )
+    })
+}
+
 /// Run the scripts `pending` names, every `init` held until all of them are
 /// attached.
 fn attach_named(eng: &Engine, pending: &[PendingScript]) -> Result<()> {
@@ -857,6 +872,9 @@ fn attach_named(eng: &Engine, pending: &[PendingScript]) -> Result<()> {
         .ok_or_else(|| anyhow!("the scene attaches scripts but no script backend is running"))?;
     host.hold_inits();
     let attached = pending.iter().try_for_each(|(entity, script, props)| {
+        if let Some(why) = plugin_attached(eng, script) {
+            bail!(why);
+        }
         host.attach_with_props(crate::node_id_of(*entity), script, props)?;
         crate::interpolate::follow_script(eng, *entity, host.as_ref());
         Ok(())
@@ -894,7 +912,7 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
     let handlers = &registry.0;
     let root = base;
     let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
-    let ids = repair_ids(&doc.nodes);
+    let ids = repair_ids(&doc.nodes, !problems::checking(eng));
     // Taken once, by this document's root: a nested prefab asks afresh.
     let mut merge_into = build.merge_into.take();
     // The document's root, which a parent path may start from by name even
@@ -942,8 +960,8 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
         // The prefab lands first, so the node's own keys win over its root's.
         if let Some(source) = &node.instance {
             instance(eng, node, &ids[index], entity, build)?;
-            apply_own_keys(eng, node, entity, handlers, build)?;
-            let unmatched = apply_overrides(eng, node, entity, handlers, build);
+            apply_own_keys(eng, (index, node), entity, handlers, build)?;
+            let unmatched = apply_overrides(eng, (index, node), entity, handlers, build);
             eng.world_mut().insert_one(
                 entity,
                 crate::scene_toml::Instanced {
@@ -952,7 +970,7 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
                 },
             )?;
         } else {
-            apply_own_keys(eng, node, entity, handlers, build)?;
+            apply_own_keys(eng, (index, node), entity, handlers, build)?;
         }
     }
     Ok(())
@@ -1077,7 +1095,7 @@ fn resolve_parent(
 /// Missing ids are counted into one line rather than warned about node by
 /// node: a scene that parents by path names no ids at all, and a warning per
 /// node would bury everything else the load has to say.
-fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
+fn repair_ids(nodes: &[SceneNode], announce: bool) -> Vec<String> {
     let mut taken: std::collections::BTreeSet<String> = nodes
         .iter()
         .filter(|n| !n.id.is_empty())
@@ -1117,7 +1135,7 @@ fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
         }
         out.push(candidate);
     }
-    if !generated.is_empty() {
+    if announce && !generated.is_empty() {
         tracing::info!(
             nodes = %generated.join(", "),
             "generated {} scene node id(s); save the scene to keep them",

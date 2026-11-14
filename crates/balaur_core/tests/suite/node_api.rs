@@ -4,6 +4,7 @@
 //! every script at once — which makes it worth testing without a language in
 //! the way.
 
+use balaur_core::glamx::{EulerRot, Quat, Vec3};
 use balaur_core::node_api::NODE_OPS;
 use balaur_core::{App, AppConfig, Engine};
 use balaur_script::Value;
@@ -331,6 +332,96 @@ fn world_transforms_report_the_composed_result() {
     ));
 }
 
+/// The world axis a node's own `axis` lies along, as of the last sync.
+fn world_axis(eng: &Engine, node: &Value, axis: Vec3) -> Vec3 {
+    let Value::Vec3([x, y, z]) =
+        call(eng, "global_rotation_euler", std::slice::from_ref(node)).unwrap()
+    else {
+        panic!("global_rotation_euler should be a vector");
+    };
+    Quat::from_euler(EulerRot::ZYX, z, y, x) * axis
+}
+
+fn world_position(eng: &Engine, node: &Value) -> Vec3 {
+    let Value::Vec3(at) = call(eng, "global_position", std::slice::from_ref(node)).unwrap() else {
+        panic!("global_position should be a vector");
+    };
+    Vec3::from_array(at)
+}
+
+#[test]
+fn look_at_faces_a_point_from_where_the_node_was_just_put() {
+    let mut app = app();
+    let parent = spawn(&app, "Parent");
+    let child = call(
+        &app.engine,
+        "add_child",
+        &[parent.clone(), Value::Str("Kid".into())],
+    )
+    .unwrap();
+    set_transform(&app.engine, &parent, "position", [1.0, 0.0, 0.0]);
+    set_transform(&app.engine, &parent, "rotation_euler", [0.3, 1.1, 0.0]);
+    app.tick(0.0);
+    // Control: at rest under that parent the child does not face the point.
+    let point = Vec3::new(4.0, 2.0, -3.0);
+    let rest = (point - world_position(&app.engine, &child)).normalize();
+    assert!(world_axis(&app.engine, &child, Vec3::NEG_Z).dot(rest) < 0.99);
+
+    // Moved and aimed with no sync between, as a script does in one update.
+    set_transform(&app.engine, &child, "position", [0.0, 2.0, 5.0]);
+    call(
+        &app.engine,
+        "look_at",
+        &[child.clone(), Value::Vec3(point.to_array())],
+    )
+    .unwrap();
+    app.tick(0.0);
+
+    let want = (point - world_position(&app.engine, &child)).normalize();
+    let ahead = world_axis(&app.engine, &child, Vec3::NEG_Z);
+    assert_near(ahead.to_array(), want.to_array());
+    let right = world_axis(&app.engine, &child, Vec3::X);
+    assert!(
+        right.y.abs() < 1e-5,
+        "the view rolled: its right is {right:?}"
+    );
+    assert!(world_axis(&app.engine, &child, Vec3::Y).y > 0.0);
+}
+
+#[test]
+fn look_at_straight_down_still_faces_the_point() {
+    let mut app = app();
+    let node = spawn(&app, "Eye");
+    set_transform(&app.engine, &node, "position", [2.0, 9.0, -1.0]);
+    call(
+        &app.engine,
+        "look_at",
+        &[node.clone(), Value::Vec3([2.0, 0.0, -1.0])],
+    )
+    .unwrap();
+    app.tick(0.0);
+    let ahead = world_axis(&app.engine, &node, Vec3::NEG_Z);
+    assert_near(ahead.to_array(), [0.0, -1.0, 0.0]);
+}
+
+#[test]
+fn look_at_the_point_a_node_stands_on_leaves_it_as_it_was() {
+    let app = app();
+    let node = spawn(&app, "Eye");
+    set_transform(&app.engine, &node, "position", [1.0, 2.0, 3.0]);
+    set_transform(&app.engine, &node, "rotation_euler", [0.2, 0.4, 0.0]);
+    call(
+        &app.engine,
+        "look_at",
+        &[node.clone(), Value::Vec3([1.0, 2.0, 3.0])],
+    )
+    .unwrap();
+    assert_near(
+        transform_of(&app.engine, &node, "rotation_euler"),
+        [0.2, 0.4, 0.0],
+    );
+}
+
 #[test]
 fn a_node_without_a_script_reports_nil() {
     let app = app();
@@ -399,6 +490,41 @@ fn a_node_starts_visible_and_remembers_being_hidden() {
         call(&app.engine, "visible", &[node]).unwrap(),
         Value::Bool(false)
     );
+}
+
+#[test]
+fn a_tint_is_one_colour_that_a_childs_effective_tint_multiplies_in() {
+    let app = app();
+    let parent = spawn(&app, "Parent");
+    let Value::Node(parent_id) = parent else {
+        unreachable!()
+    };
+    let parent_entity = balaur_core::entity_of(balaur_script::NodeId(parent_id)).unwrap();
+    let child = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Child", parent_entity);
+    let child = Value::Node(balaur_core::node_id_of(child).0);
+    let half_red = Value::Color([0.5, 0.0, 0.0, 1.0]);
+    call(&app.engine, "set_tint", &[parent.clone(), half_red.clone()]).unwrap();
+    call(
+        &app.engine,
+        "set_tint",
+        &[child.clone(), Value::Color([0.5, 1.0, 1.0, 0.5])],
+    )
+    .unwrap();
+    assert_eq!(
+        call(&app.engine, "tint", std::slice::from_ref(&parent)).unwrap(),
+        half_red
+    );
+    assert_eq!(
+        call(&app.engine, "effective_tint", &[child]).unwrap(),
+        Value::Color([0.25, 0.0, 0.0, 0.5])
+    );
+    let loose = call(
+        &app.engine,
+        "set_tint",
+        &[parent, Value::Num(1.0), Value::Num(0.0), Value::Num(0.0)],
+    );
+    let why = format!("{:#}", loose.unwrap_err());
+    assert!(why.contains("Color"), "{why}");
 }
 
 #[test]

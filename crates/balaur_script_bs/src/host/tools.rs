@@ -15,6 +15,7 @@ fn kind_name(k: Kind) -> &'static str {
         Kind::Property => "property",
         Kind::Keyword => "keyword",
         Kind::Constant => "constant",
+        Kind::Event => "event",
     }
 }
 
@@ -23,9 +24,15 @@ fn at(n: usize) -> u32 {
 }
 
 impl BsHost {
-    // The buffer as the file at `path`, its `use`s found from there.
+    // The buffer as the file at `path`, its `use`s found from there: a file
+    // that is not the editor's is offered none of the editor's functions.
     fn analysis(&self, path: &str, source: &str) -> Analysis {
-        analyze_in(source, &self.api(), Some(self.modules()), &key_of(path))
+        let key = key_of(path);
+        let mut api = self.api();
+        if !self.editors(&key) {
+            api.functions.retain(|function| !function.editor);
+        }
+        analyze_in(source, &api, Some(self.modules()), &key)
     }
 }
 
@@ -54,6 +61,7 @@ impl LanguageTools for BsHost {
             .complete(at(line), at(column))
             .into_iter()
             .map(|c| Item {
+                doc: crate::api::doc_of(&self.inner.registry, &c.key).to_string(),
                 label: c.label,
                 kind: kind_name(c.kind),
                 detail: c.detail,

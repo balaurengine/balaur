@@ -19,7 +19,6 @@ const DEFINE: &str = "define";
 const GET: &str = "get";
 const KNOWN_TAGS: &str = "known_tags";
 const MERGE_TOML: &str = "merge_toml";
-const REVISION: &str = "revision";
 const SET: &str = "set";
 
 fn scope_of(name: &str) -> Scope {
@@ -54,7 +53,6 @@ pub fn install_settings_api(m: &mut Module<Engine>) {
         (KNOWN_TAGS, &[], "() -> [string]", "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`."),
         (keys::OVERRIDES, &[], "(path: string) -> [string]", "The tags this project holds an override for at `path`, in tag order."),
         (words::functions::CLEAR, &[], "(path: string) -> ()", "Forget one value, so the next write drops the key: how an override is removed."),
-        (REVISION, &[], "() -> int", "A count that moves whenever a setting is defined, set, cleared or loaded: a screen listing settings rebuilds its rows when it moves, not every frame."),
         (SET, &[], "(path: string, value: any) -> ()", "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`."),
         (DEFINE, &[], "(path: string, spec: table)", "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game."),
         (MERGE_TOML, &[], "(text: string) -> ()", "Read values out of a TOML text, folding them onto what is already loaded."),
@@ -163,10 +161,5 @@ fn install_override_api(m: &mut Module<Engine>) {
     m.function(words::functions::CLEAR, |eng: &Engine, path: String| {
         settings::clear(eng, &path);
         Ok(Value::Nil)
-    });
-    m.function(REVISION, |eng: &Engine, (): ()| {
-        Ok(Value::Int(
-            i64::try_from(settings::revision(eng)).unwrap_or(i64::MAX),
-        ))
     });
 }

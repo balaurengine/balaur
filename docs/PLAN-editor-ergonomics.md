@@ -27,10 +27,10 @@ Built, and not built for this:
 | Duplicate, reparent keeping the world pose, open the prefab | `model::duplicate_selected`, `node.reparent` |
 | Node `visible`, `z_index`, `tags` | `balaur_core` |
 | One search rule for every list, and the tree filtering by it | `search.bs`, `left.bs` |
-| Files dropped on the window | `input.dropped_files` |
+| Files dropped on the window | the `files_dropped` event |
 | A `.glb` brought in as models, a scene and clips | `balaur import` |
 | A colour editor, sliders, dropdowns and folds in the inspector | `ui`, `inspector.bs` |
-| Component presets and tags | `scene.presets`, `apply_preset` |
+| Component presets and tags | `editor/presets.toml`, `presets.bs`, `scene.component_tags` |
 | The Polygon tool, which already edits a mesh in the viewport | `polygon.bs` |
 | The Tiles tool: a palette dock, paint and erase, rectangle fill, layers as sibling maps | `tiles.bs`, `ui.image_button` |
 | The Export sheet, off the frame with progress | `export_api.rs`, `exporter.bs` |

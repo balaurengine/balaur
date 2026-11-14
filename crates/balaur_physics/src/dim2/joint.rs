@@ -705,7 +705,7 @@ pub(crate) fn install_joint2d_api(m: &mut Module<Engine>) {
         (w::functions::SET_JOINT_LIMITS, &[c::JOINT_2D], "(node: node, axis: string, min: float, max: float)", "Set how far one of the joint's free axes may travel; equal values lift the limit. Rewrites that axis's `axes` record."),
         (w::functions::JOINT_STATE, &[c::JOINT_2D], "(node: node) -> JointState", "What the joint is doing."),
         (w::functions::JOINT_FORCE, &[c::JOINT_2D], "(node: node) -> JointForce", "The force and the torque the joint held through the last step. An articulation has none to read, and says so."),
-        (w::functions::SOLVE_IK, &[c::JOINT_2D], "(node: node, x: float, y: float, opts: IkOptions?)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
+        (w::functions::SOLVE_IK, &[c::JOINT_2D], "(node: node, target: Vec2, opts: IkOptions?)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
     ]);
     m.function(w::functions::REMOVE_JOINT, |eng: &Engine, node: NodeId| {
         remove_joint(eng, entity_of(node)?);
@@ -749,13 +749,9 @@ pub(crate) fn install_joint2d_api(m: &mut Module<Engine>) {
     )]);
     m.function(
         w::functions::SOLVE_IK,
-        |eng: &Engine, (node, x, y, opts): (NodeId, f32, f32, Option<Value>)| {
-            solve_ik(
-                eng,
-                entity_of(node)?,
-                scalar::v2(x, y),
-                &v::Opts(opts.as_ref()),
-            )
+        |eng: &Engine, (node, target, opts): (NodeId, Value, Option<Value>)| {
+            let target = scalar::vec2_arg("an IK target", &target)?;
+            solve_ik(eng, entity_of(node)?, target, &v::Opts(opts.as_ref()))
         },
     );
 }

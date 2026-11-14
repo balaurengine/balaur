@@ -64,8 +64,15 @@ A scene inits children before parents.
 
 ## Methods the engine calls by name
 
-Any other method is yours. The engine also calls one by name when something names it: a widget's
-`on_click = "pressed"` in a scene, or `on_hit` for an [event](events.md).
+Any other method is yours. The engine also calls one by name when something names it: a binding row in a
+scene, or `on_hit` for an [event](events.md). A button with this row calls `pressed` on the nearest node from
+its own up whose script has it:
+
+```toml
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
+```
+
+The method is handed the event's value and then the node the row sits on, and may name neither.
 
 ```bs
 // scripts/menu.bs

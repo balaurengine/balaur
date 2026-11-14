@@ -526,7 +526,7 @@ impl Gamend {
             show(out, key, self.fetch(key, "/api/v1/kv/" + self.kv_key));
         }
         out.push(heading("Rows the game keeps"));
-        let rows = script::stored(ROWS_KEY);
+        let rows = engine::stored(ROWS_KEY);
         if rows.keys().len() == 0 {
             out.push(line("none: the rows a playing game subscribed to with `register_kv` show here", QUIET));
         } else {
@@ -791,7 +791,7 @@ impl Gamend {
     }
 
     pub fn flush_logs(_data: any, _value: any) {
-        script::store(FLUSH_KEY, "yes");
+        engine::store(FLUSH_KEY, "yes");
     }
 }
 
@@ -847,7 +847,7 @@ fn logs(to: Node) -> [any] {
         out.push(field("log file", "none: [log] file is off", {}));
     }
     out.push(heading("Shipping to Gamend"));
-    let report = script::stored(LOGS_KEY);
+    let report = engine::stored(LOGS_KEY);
     if report.kind() != types::KIND_MAP {
         out.push(line("not shipping: put addons/gamend/log_sink.bs on a node that lives as long as the game", QUIET));
         return out;

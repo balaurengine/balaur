@@ -6,6 +6,9 @@
 /// `events::listen(node, save::SAVED)`, heard as `on_saved(count)`.
 pub const SAVED: str = "saved";
 
+/// A slot was written or removed, said from no node; the payload is a running count.
+event saved;
+
 /// The setting that holds the version this build writes: `[save] version`.
 pub const VERSION_SETTING: str = "save/version";
 
@@ -33,7 +36,7 @@ pub fn version() -> int {
 /// data one version on, and runs once per step, 1 to 2 then 2 to 3. Call it
 /// before the first `read` of a file older than this build.
 pub fn migrate_with(step: fn(int, any) -> any) {
-    script::store(MIGRATE_KEY, step);
+    engine::store(MIGRATE_KEY, step);
 }
 
 /// Write `data` to `slot`, stamped with this build's version. `fs::write`
@@ -75,11 +78,11 @@ pub fn read(slot: str) -> any {
     if from == to {
         return data;
     }
-    if script::stored(MIGRATE_KEY) == nil {
+    if engine::stored(MIGRATE_KEY) == nil {
         log::error("{path} is at save version {from} and this build writes {to}: call save::migrate_with first");
         return nil;
     }
-    let step: fn(int, any) -> any = script::stored(MIGRATE_KEY);
+    let step: fn(int, any) -> any = engine::stored(MIGRATE_KEY);
     for at in from..to {
         data = step(at, data);
     }
@@ -125,8 +128,8 @@ fn path_of(slot: str) -> str {
 }
 
 fn moved() {
-    let held = script::stored(WRITES_KEY);
+    let held = engine::stored(WRITES_KEY);
     let count = if held.kind() == types::KIND_INT { held.as_int() + 1 } else { 1 };
-    script::store(WRITES_KEY, count);
+    engine::store(WRITES_KEY, count);
     events::emit(SAVED, count);
 }

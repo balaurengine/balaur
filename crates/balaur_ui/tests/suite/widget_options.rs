@@ -308,7 +308,7 @@ fn a_submit_key_takes_the_place_of_enter() {
             ],
         );
         consume_input(&mut app);
-        balaur_core::events::delivered_from(&app.engine, field, "submit").len()
+        balaur_core::events::delivered_from(&app.engine, field, "submitted").len()
     };
     assert_eq!(
         submitted_by(egui::Modifiers::NONE),

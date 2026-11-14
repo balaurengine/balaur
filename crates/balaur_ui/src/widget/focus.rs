@@ -24,7 +24,7 @@ pub(crate) fn takes_focus(widget: &Widget) -> bool {
             // A line being typed into is where focus lands as much as a
             // button is: Tab reaches it, and a script may put the caret there.
             w::BUTTON | w::CHECKBOX | w::FOLD | w::TEXT_FIELD | w::TEXT_AREA
-        ) || !widget.on_click.is_empty())
+        ) || widget.hears_click)
 }
 
 /// What the keyboard asked this frame, if the game has not asked already.
@@ -148,7 +148,7 @@ pub(super) fn around(
 ///
 /// Walked from the roots rather than read off the arena: a button under a
 /// hidden panel or on a surface the host turned off is never drawn, and an
-/// `accept` on it would fire an `on_click` nobody could have seen to ask for.
+/// `accept` on it would be a click nobody could have seen to ask for.
 pub(super) fn reachable(
     placed: &[Placed],
     roots: &[usize],

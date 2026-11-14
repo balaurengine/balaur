@@ -242,6 +242,15 @@ pub(crate) struct ExternDecl {
     pub pos: Pos,
 }
 
+/// `event scored;`: a name the file's node sends, described by the `///`
+/// lines above it.
+#[derive(Clone, Debug)]
+pub(crate) struct EventDecl {
+    pub name: String,
+    pub doc: String,
+    pub pos: Pos,
+}
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Program {
     pub structs: Vec<(String, Vec<Field>)>,
@@ -255,6 +264,8 @@ pub(crate) struct Program {
     pub decls: Vec<(String, Pos)>,
     /// `use name;`, in order.
     pub uses: Vec<(String, Pos)>,
+    /// The file's own `event`s, in order; a linked module's stay its own.
+    pub events: Vec<EventDecl>,
     /// Every item declared without `pub`, and whether it is `internal`.
     pub kept: Vec<(String, bool)>,
     /// Each linked module's file, by the name it is used as; the root's under "".

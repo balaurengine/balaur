@@ -23,10 +23,10 @@ headless = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket",
 parallel = ["balaur/parallel"]
 # A real window (kiss3d/wgpu).
 window = ["balaur/window", "dep:rfd"]
-# The 2D physics world: `physics2d.*`, its components and presets. A 3D game
+# The 2D physics world: `physics2d.*` and its components. A 3D game
 # can leave it off.
 physics2d = ["balaur/physics2d"]
-# The 3D physics world: `physics3d.*`, its components and presets. A 2D game
+# The 3D physics world: `physics3d.*` and its components. A 2D game
 # can leave it off.
 physics3d = ["balaur/physics3d"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.
@@ -47,9 +47,9 @@ extensions = ["balaur/extensions"]
 # `balaur import`, `import.*` for the editor and SVGs read in place. The web
 # game runtime leaves it off: a game reads what an import and export wrote.
 import = ["dep:balaur_import", "balaur/svg"]
-# The editor: `edit` and `export`, the `export.*` and `project.*` modules its
-# scripts call, a browser tab's editor entry points, and egui's bundled faces.
-# A game template leaves it off.
+# The editor: `edit` and `export`, the `export.*`, `project.*`, `debugger.*`
+# and `script.*` modules its scripts call, a browser tab's editor entry
+# points, and egui's bundled faces. A game template leaves it off.
 editor = ["dep:balaur_export", "compile", "physics2d", "physics3d", "balaur/fallback-fonts"]
 # The WESL shader linker and the `.bs` to C translator. Off, the build draws
 # with the shaders an export linked into the export pack.
@@ -90,6 +90,9 @@ balaur_text.workspace = true
 # browser tab reads a model through the same code a desktop does.
 balaur_import = { workspace = true, optional = true }
 anyhow.workspace = true
+# `balaur add` and `dependency.add_path` write `[dependencies]` into a
+# project.toml, comments kept.
+toml_edit = "0.25"
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -104,8 +107,6 @@ ureq.workspace = true
 sha2.workspace = true
 # `balaur fetch` checks each blob against its git id.
 sha1 = "0.11"
-# `balaur add` writes `[dependencies]` into a project.toml, comments kept.
-toml_edit = "0.25"
 dirs = "7"
 # A runtime download's tarball, and the editor archive `update` unpacks.
 flate2 = "1"

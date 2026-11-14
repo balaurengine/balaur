@@ -81,6 +81,43 @@ Where a `balaur run` puts its frames, chosen once at start. Source: `balaur_cli/
 | `Headless` | `--headless` | No renderer. With `--frames`, `App::tick` at the fixed step that many times, with no replay plan. Without, `App::run`. |
 | `Offscreen` | `--offscreen` | A GPU and no window. Every step is the fixed step, through `App::advance`. It wins when both flags are given, and a build with no renderer refuses it. |
 
+### Rest
+
+Whether a windowed loop under `[window] low_processor` may sleep before its next frame. Simulated time moves only on frames, so the loop asks before it sleeps. Source: `balaur_core/src/rest.rs`, `RestState.quiet_at` and `ProbeRegistry`; `balaur_render/src/kiss3d_backend.rs`, `sleep_until_owed`.
+
+| State | What is true |
+| --- | --- |
+| Pending (`quiet_at` `None`) | A probe answers that its subsystem has work only frames finish, or the last frame ran for a reason of its own. Frames keep coming. |
+| Settling (`quiet_at` `Some`, no fixed step since) | No probe answers. Frames keep coming until one runs a fixed step, which counts what the frame before it started. |
+| At rest (`quiet_at` `Some`, a fixed step since) | The loop waits in the window system for input, `wake::wake` or a repaint falling due. |
+
+| From | Trigger | To | What it does |
+| --- | --- | --- | --- |
+| any | `busy` finds a probe pending | Pending | |
+| any | `disturb`: the loop runs a frame for input, a wake or a repaint | Pending | |
+| Pending | `busy` finds no probe pending | Settling | Keeps the count of fixed steps run |
+| Settling | `busy` finds none pending and the count moved | At rest | The loop sleeps |
+
+Starts Pending. Never ends.
+
+Each probe reads a count or a flag its subsystem's own step keeps:
+
+| Probe | Pending while |
+| --- | --- |
+| `task` | A `task::seconds` or `task::frames` wait counts, an awaited call's result is owed, or a stepped job is parked |
+| `timer` | A `timer` component is running |
+| `replay` | The replay player has frames to feed |
+| `preload` | A pack's scene is still to warm |
+| `animation` | A clip plays, a tween runs, or a state machine has a travel, a jump or its start to take |
+| `physics` | A dynamic body is awake, a kinematic one moves, or a soft body is not asleep, in either world |
+| `particles` | An emitter emits, or the last particles it bore have lifetime left |
+| `audio` | A sound that does not loop is playing, or a stopped one is fading out |
+| `multiplayer` | The machine hosts, joins or plays a match |
+
+Refused or ignored: `busy` answers false under a debugger stop, a held replay and a time scale of zero, since no fixed step runs. A loop without `low_processor`, an offscreen run and a headless run never ask. A looping sound is not pending: the device plays it on its own thread.
+
+Held by a pause, a `process` mode or a parked scene: a held node's timer, clip, tween, machine, emitter and sound are not pending. A paused game holds every body and every `task` wait, and so does `physics::set_paused` for the bodies. A node under `debug_scope`, the scene an editor has open, is never pending: the editor asks for the frames it plays on.
+
 ### Exit codes
 
 | Code | When |
@@ -154,7 +191,7 @@ A node's sound holds with its node: `hold_sounds` asks `process::ticks` and `fro
 
 ### Debugger stop and replay hold
 
-The two holds on the whole simulation. Source: `balaur_core/src/engine.rs`, `frozen` and `replay_hold`. `Engine::frozen_root` answers both: the debug scope while either is on, or the root with no scope.
+The three holds on the whole simulation. Source: `balaur_core/src/engine.rs`, `frozen`, `replay_hold` and `opening_hold`. `Engine::frozen_root` answers all three: the debug scope while any is on, or the root with no scope.
 
 | State | What is true |
 | --- | --- |
@@ -162,6 +199,8 @@ The two holds on the whole simulation. Source: `balaur_core/src/engine.rs`, `fro
 | `frozen` true | A script is stopped at a line or a caught error, or a replay is feeding a frame recorded during a stop. |
 | `replay_hold` false | The player is stopped, or feeding frames. |
 | `replay_hold` true | A replay is paused or out of frames. |
+| `opening_hold` false | No recording started earlier in this frame. |
+| `opening_hold` true | A recording started earlier in this frame. The rest of it is not recorded, so nothing may step in it. |
 
 | From | Trigger | To | What it does |
 | --- | --- | --- | --- |
@@ -170,8 +209,10 @@ The two holds on the whole simulation. Source: `balaur_core/src/engine.rs`, `fro
 | `frozen` any | `App::replay_frames`, a frame recorded frozen | true for that tick | Put back after it |
 | `replay_hold` any | `replay::begin`, or `App::advance` planning `Hold` | true | `tick_held` keeps the tick count and clock |
 | `replay_hold` any | `replay::end`, or `App::advance` planning `Live` or `Frames` | false | |
+| `opening_hold` any | `replay::start_recording` | true | Holds what is left of the frame, as `replay_hold` holds the frame `begin` runs in |
+| `opening_hold` any | The next frame's stages start | false | |
 
-Both start false and never end. [LIFECYCLE-tools.md](LIFECYCLE-tools.md) has the player and the stop itself.
+All three start false and never end. [LIFECYCLE-tools.md](LIFECYCLE-tools.md) has the player and the stop itself.
 
 ### Process mode
 

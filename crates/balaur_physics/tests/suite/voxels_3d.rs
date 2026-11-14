@@ -73,7 +73,7 @@ impl Scenario {
     fn init() {
         self.node.get_node("A").collider3d.combine_voxels(self.node.get_node("B"));
         self.node.get_node("Cropped").collider3d.crop_voxels(0, 0, 0, 1, 0, 0);
-        self.node.get_node("Alone").collider3d.set_voxel_size(0.5, 0.5, 0.25);
+        self.node.get_node("Alone").collider3d.set_voxel_size(vec3(0.5, 0.5, 0.25));
     }
 
     pub fn probe() -> any {
@@ -107,5 +107,27 @@ impl Scenario {
     assert_eq!(
         boot::vector(&b.call(b.node("World"), "probe")),
         [0.5, 0.5, 0.25]
+    );
+}
+
+#[test]
+fn a_world_position_names_the_3d_cell_it_falls_in() {
+    let mut b = boot::project(
+        GRIDS,
+        r#"pub class Scenario { node: Node }
+impl Scenario {
+    pub fn probe() -> [int] {
+        self.node.get_node("B").collider3d.voxel_at(vec3(5.5, 0.5, -0.5))
+    }
+}
+"#,
+    );
+    b.tick(1);
+    let cell = b.call(b.node("World"), "probe");
+    let whole = balaur_script::Value::Int;
+    assert_eq!(
+        cell,
+        balaur_script::Value::List(vec![whole(2), whole(0), whole(-1)]),
+        "B stands at x 3, so x 5.5 is its third cell along and z -0.5 one behind"
     );
 }
