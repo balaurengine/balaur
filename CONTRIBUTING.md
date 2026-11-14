@@ -17,7 +17,8 @@ is what a pull request is held to.
   every line, with tests and docs.
 - One concern per pull request. Code, tests and docs land together, and
   `docs/ROADMAP.md` moves when the change moves something on it.
-- Names follow `docs/NAMING.md`; comments and prose follow `AGENTS.md`.
+- Names follow `docs/NAMING.md`, and a Rust item inside `crates/` the rules
+  below; comments and prose follow `AGENTS.md`.
 - A change that alters a recorded determinism digest says why.
 - Contributions are MIT licensed. No CLA.
 
@@ -97,3 +98,41 @@ carry that cost, and all four live on the machine rather than in the repo:
 While iterating on one crate, `cargo test -p <crate>` is the cheap loop:
 libtest runs a crate's tests in one process, where nextest starts one per test.
 `scripts/e2e.sh target/e2e <example>` does the same for the example pipeline.
+
+## Names inside `crates/`
+
+`docs/NAMING.md`'s principles hold for Rust items too, read by a Rust
+developer: Bevy's word for an ECS concept, the Rust API Guidelines for the
+rest. These rules apply them to what only a contributor meets, and
+`scripts/house_lints.py` enforces each it can.
+
+| # | Rule | Lint |
+| --- | --- | --- |
+| D3, N2 | A typemap type's suffix says who owns it and how long it lives, from the table below. A type that is two of them is split, not renamed. A `*Config`'s pending flag is `changed`, and a `*Snapshot` says in its doc comment what it holds headless. `Settings` is kept for user-authored config on disk and never ends a `Config` | report, denylist ERROR |
+| N3 | `Det` marks one thing: a collection with a fixed iteration order standing in for a std type the house lint forbids | ERROR |
+| N4 | In CamelCase the dimension is a lowercase `2d` or `3d` at the end, on both of a pair: `PhysicsState3d` beside `PhysicsState2d`. SCREAMING_SNAKE is exempt | ERROR |
+| N10, N11, N15 | The verb says what it acts on. `install_*` declares script functions, `register_*` components, `build_*` typemap entries and systems; `*_system` is only what `App::add_system` takes; a backend step is `apply_*` (Config in), `publish_*` (Snapshot out), `flush_*` (drain a Buffer), `pump_*` (OS in) or `sync_*` (ECS to the backend). A group's name is true of everything in it | ERROR |
+| N12 | `Fn` ends only the alias of a boxed or pointer callable, no `pub` item is `*Inner`, and a const is named for what it holds | ERROR |
+| N13 | One local name per concept: `eng` for `&Engine`, `m` for a binding module; `scripts` are script files or compiled bytes, `script_host` the running host, `script_backend` what builds one | ERROR |
+| N16 | A component key names what the scene's author changes, and its registration says in a doc comment what state it writes | report |
+
+D3's suffixes:
+
+| Suffix | Who owns it, and for how long |
+| --- | --- |
+| `*Config` | Written by callers (scripts, editor, CLI); a consumer applies it and does not own the truth |
+| `*Snapshot` | A backend writes it once per frame; everyone else reads |
+| `*Buffer` | Anyone appends during the frame; its consumer drains it; empty at frame start |
+| `*Request` | One caller inserts it; its handler consumes and removes it |
+| `*Registry` | Appended during plugin build only; read-only afterwards |
+| `*State` | Owned and changed by exactly one subsystem, across frames; every writer goes through that subsystem's API |
+| *(none)* | Immutable after insertion: `ProjectRoot`, `ScriptArgs`, `ProjectManifest` |
+
+Names that bend these, and why:
+
+| Name | Why |
+| --- | --- |
+| `DetHashMap`, `DetHashSet` | The prefix is the whole job: it says which one the house lint wants |
+| `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to agree with (N4) |
+| `Flat`, `Solid` | A pair that already says which dimension it is, in one file |
+| `PostPass::Material` beside `Material3d` | A screen-space pass is not a surface material and has no dimension; the 3D asset took the suffix, which is what tells them apart |

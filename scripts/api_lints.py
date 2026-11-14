@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SKIP_DIRS = {"target", ".git", "node_modules", "assets"}
 
 # N7. Each entry carries the reason, so the exemption stops being cited as
-# precedent for the next `get_`. Both are recorded in NAMING.md's exemptions.
+# precedent for the next `get_`. Both are recorded in NAMING.md's decisions.
 GETTER_ALLOW = {
     "node.get_node": "dropping the prefix gives `node:node(path)`",
     "scene.get_node": "dropping the prefix gives `scene:node(path)`",

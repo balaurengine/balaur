@@ -84,7 +84,7 @@ BORROW_BINDING = re.compile(
     r"^\s*let\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*.*\.borrow_mut\(\)\s*;"
 )
 
-# Type suffixes a typemap entry may never take (NAMING.md N2). A denylist, not
+# Type suffixes a typemap entry may never take (CONTRIBUTING.md N2). A denylist, not
 # an allowlist: "no suffix" is a legal category, so `ClearColor` and
 # `DebugLineBuffer` would both pass any permissive check.
 RESOURCE_DENY_SUFFIXES = ("Manager", "Info", "Data", "Settings", "Server", "Enabled", "Handler")

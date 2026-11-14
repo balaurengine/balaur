@@ -85,7 +85,7 @@ Four components claim one slot and none of them says so.
 `polygon.rs:95`, `shape.rs:398`, `boolean.rs:125`, and `mesh.rs:117`,
 `shape.rs:276`, `boolean.rs:92` in 3D.
 
-`docs/NAMING.md` N16 already records the shape of this ("three keys backed
+`CONTRIBUTING.md` N16 already records the shape of this ("three keys backed
 by the same two structs … Nothing says so anywhere") at REPORT. Conversion
 turns it from a curiosity into the common path. Measured headless on
 2026-09-06 — add `sprite`, then add `polygon` over it, then remove the

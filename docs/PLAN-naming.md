@@ -2,8 +2,9 @@
 
 One audited name per concept across everything a user reads: the script API,
 scene files, themes, settings, the CLI, files on disk, the editor's own words,
-and the crates. `docs/NAMING.md` is the law and lists the names picked per
-system; this plan is what still breaks it, in the order it is fixed.
+and the crates. `docs/NAMING.md` is the law: four principles and the rules
+that follow from them. This plan is what still breaks it, in the order it is
+fixed.
 
 Pre-1.0 a rename is cheap and after it is not. Each rename is a clean break
 with no alias and no migration, as `one way to do a thing` asks.
@@ -69,8 +70,8 @@ with no alias and no migration, as `one way to do a thing` asks.
   N22 over the hook list.
   The page a browser build runs in is the `browser` plugin, the WebSocket
   plugin is `WebSocketPlugin`, and an HTTP request takes `timeout_seconds`.
-- `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
-  system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
+- `NAMING.md` has the scopes, the four principles with rules N18 to N23 under
+  them, and the conventions per area, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
 - What follows is left: one defect, which waits on a push.
 

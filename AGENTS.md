@@ -12,7 +12,7 @@ edit this one.
 | [README.md](README.md) | what the engine is, the toolchain, the quickstart |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | what a pull request is held to, and what each check costs |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | how the engine fits together, and every decision |
-| [docs/NAMING.md](docs/NAMING.md) | the naming rules; wins over every other doc |
+| [docs/NAMING.md](docs/NAMING.md) | four naming principles and what follows from each; wins over every other doc |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | what each version holds; the site's roadmap page is built from it |
 | [docs/PLAN-*.md](docs/) | one plan per subsystem: what is left, in order |
 | [docs/QUALITY.md](docs/QUALITY.md) | every check CI runs, and what enforces it |
