@@ -40,7 +40,7 @@ ios | ios-sim)
   step "build ($target, windowed, min iOS $ios_min${variant:+, $variant})"
   rustup target add "$target"
   IPHONEOS_DEPLOYMENT_TARGET=$ios_min \
-    cargo build --release -p balaur_cli "${flags[@]}" --target "$target"
+    cargo build --release -p balaur_cli "${flags[@]}" --target "$target" --config "$(short_paths)"
 
   # The smallest bundle iOS will launch: the executable and a plist naming it.
   # Unsigned on purpose — signing certificates must never live in this repo's CI.
@@ -50,6 +50,7 @@ ios | ios-sim)
   mkdir -p "$app"
   cp "target/$target/release/balaur" "$app/Balaur"
   chmod +x "$app/Balaur"
+  code_by_crate native_crates.py "$app/Balaur" "balaur-runtime-$platform${variant:+-$variant}" "$dist"
   cat >"$app/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -107,7 +108,7 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
     # The template is a NativeActivity library, not an executable — Android
     # dlopens libmain.so and calls android_main. See crates/balaur_android.
     cargo build --release -p balaur_android --no-default-features \
-      --features "$features" --target "$target"
+      --features "$features" --target "$target" --config "$(short_paths)"
     lib="target/$target/release/libmain.so"
     [ -f "$lib" ] || { printf '::error::no library at %s\n' "$lib"; exit 1; }
 
@@ -128,6 +129,11 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
 
     mkdir -p "$skeleton/lib/$abi"
     cp "$lib" "$skeleton/lib/$abi/libmain.so"
+    if [ "$abi" = arm64-v8a ]; then
+      # The host's nm reads its own ELF alone; the NDK's reads every ABI.
+      ndk_nm=$(compgen -G "${ANDROID_NDK_ROOT:-}/toolchains/llvm/prebuilt/*/bin/llvm-nm" | head -1 || true)
+      NM=$ndk_nm code_by_crate native_crates.py "$lib" "$name-$abi" "$dist"
+    fi
   done
 
   step "stage (apk layout)"
@@ -185,6 +191,9 @@ web)
   if [ -n "$threads" ]; then
     features="$features,parallel"
   fi
+  # The symbols stay until the table below has charged the code to crates;
+  # the shipped module is stripped after it.
+  export CARGO_PROFILE_WEB_STRIP=false
   # wasm-bindgen's target: kiss3d declares its web dependencies under
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
   if [ -n "$threads" ]; then
@@ -205,13 +214,13 @@ web)
     for sym in __wasm_init_tls __tls_size __tls_align __tls_base; do
       flags="$flags -C link-arg=--export=$sym"
     done
-    RUSTFLAGS="${RUSTFLAGS:-} $flags" \
+    RUSTFLAGS="${RUSTFLAGS:-} $flags $(remap_flags)" \
       cargo "+$toolchain" build --profile web --target "$target" -p balaur_cli \
       --no-default-features --features "$features" \
       -Z build-std=std,panic_abort
   else
     cargo build --profile web --target "$target" -p balaur_cli \
-      --no-default-features --features "$features"
+      --no-default-features --features "$features" --config "$(short_paths)"
   fi
 
   wasm="target/$target/web/balaur.wasm"
@@ -226,16 +235,20 @@ web)
     printf '::error::wasm-bindgen CLI is %s, Cargo.lock wants %s\n' "${have:-missing}" "$want"
     exit 1
   fi
-  wasm-bindgen --target web --no-typescript --out-dir "$dist" --out-name balaur "$wasm"
+  wasm-bindgen --target web --no-typescript --keep-debug --out-dir "$dist" --out-name balaur "$wasm"
 
   # -Oz after bindgen, never before: bindgen rewrites the module. Every
   # --enable is a feature rustc emits for this target by default, and wasm-opt
   # rejects input using one it was not told about, so the list tracks rustc.
   step "wasm-opt"
-  wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int \
-    --enable-sign-ext --enable-mutable-globals --enable-reference-types \
-    ${threads:+--enable-threads} \
-    -o "$dist/balaur_bg.wasm" "$dist/balaur_bg.wasm"
+  enable=(--enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext
+    --enable-mutable-globals --enable-reference-types ${threads:+--enable-threads})
+  named="$dist/$name.named.wasm"
+  # std's DWARF goes in a run of its own: present while -Oz plans, it leaves
+  # the module 5% larger.
+  wasm-opt --strip-dwarf -g "${enable[@]}" -o "$named" "$dist/balaur_bg.wasm"
+  wasm-opt -Oz -g "${enable[@]}" -o "$named" "$named"
+  wasm-opt --strip-debug "${enable[@]}" -o "$dist/balaur_bg.wasm" "$named"
 
   # The number that decides whether a browser can be asked to load this.
   # Brotli is what a static host actually serves.
@@ -262,6 +275,17 @@ web)
       printf '| gzip | %.2f |\n' "$(echo "$gz/1048576" | bc -l)"
       [ "$br" -gt 0 ] && printf '| brotli | %.2f |\n' "$(echo "$br/1048576" | bc -l)"
     } >>"$GITHUB_STEP_SUMMARY"
+  fi
+  step "code by crate"
+  code_by_crate wasm_crates.py "$named" "$name" "$dist"
+  rm "$named"
+  # The bare template's ceiling: docs/PLAN-build-size.md's last measured
+  # size rounded up to a tenth. A push past it moves both, and says why.
+  budget_mb=12.9
+  if [ "$variant" = bare ] && [ "$(echo "$raw > $budget_mb * 1048576" | bc)" = 1 ]; then
+    printf '::error::the bare web template is %.2f MB, over its %s MB budget; the table above says where the bytes went\n' \
+      "$(echo "$raw/1048576" | bc -l)" "$budget_mb"
+    exit 1
   fi
 
   # The directory `balaur export --target web` copies: the glue and the wasm.

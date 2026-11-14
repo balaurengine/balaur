@@ -25,6 +25,7 @@ mod gamepad;
 mod input_verbs;
 mod interactivity;
 mod kernel_verbs;
+mod pack_tail;
 mod parked_scenes;
 mod played_paths;
 mod presets;

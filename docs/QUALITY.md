@@ -315,6 +315,10 @@ the same on every machine. A case is one entry in `cases_kinds.bs` or
   desktop, exports onto each an example that fits only it, and plays 60 frames
   (`VARIANT=... scripts/package.sh`); the mobile and web variants go through
   `scripts/export_check.sh`.
+- `scripts/package_runtime.sh web` fails a module under 5 MiB, which has lost
+  its entry point, and a `bare` one over its budget. Every template it and
+  `scripts/package.sh` build writes its code by crate to the job's summary,
+  from `scripts/wasm_crates.py` or `scripts/native_crates.py`.
 - `scripts/check_web_module.sh` holds both web stagings to what `balaur.js`
   names beside it, wasm-bindgen's `snippets/` included: a static import that
   404s stops the module evaluating while the build stays green.

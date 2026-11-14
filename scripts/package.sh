@@ -57,6 +57,7 @@ if [ -n "$variant" ]; then
 fi
 
 step "build (release${variant:+, $variant}: $features)"
+defaults+=(--config "$(short_paths)")
 if [ "$target" = macos-universal ]; then
   # One binary for both Apple Silicon and Intel. Shipping two macOS downloads
   # and asking the user which Mac they have is a worse answer than lipo.
@@ -82,6 +83,11 @@ fi
 if [ -n "$variant" ]; then
   out="$dist/balaur-runtime-$target-$variant$exe"
   cp "$bin" "$out"
+  # An MSVC binary keeps its symbols in a .pdb, which nm cannot read.
+  if [ -z "$exe" ]; then
+    step "code by crate"
+    code_by_crate native_crates.py "$bin" "balaur-runtime-$target-$variant" "$dist"
+  fi
   step "smoke: export a game onto the $variant template and run it"
   exporter=${BALAUR_EXPORTER:?set BALAUR_EXPORTER to an editor binary to export with}
   # One that uses the template's world and no other: `auto` then lands on it.

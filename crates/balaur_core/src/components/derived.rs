@@ -249,6 +249,53 @@ pub fn from_table<F: Fields>(table: &toml::Value) -> Result<F> {
     Ok(out)
 }
 
+/// A `#[property(...)]` value as the derive writes it: static, so a field's
+/// spec is data one function reads rather than code per key.
+pub enum Spec {
+    Text(&'static str),
+    Integer(i64),
+    Float(f64),
+    Flag(bool),
+    List(&'static [Spec]),
+}
+
+impl Spec {
+    fn value(&self) -> toml::Value {
+        match self {
+            Self::Text(text) => toml::Value::String((*text).to_owned()),
+            Self::Integer(number) => toml::Value::Integer(*number),
+            Self::Float(number) => toml::Value::Float(*number),
+            Self::Flag(flag) => toml::Value::Boolean(*flag),
+            Self::List(list) => toml::Value::Array(list.iter().map(Self::value).collect()),
+        }
+    }
+}
+
+/// One field's spec: its doc as the `description`, each `#[property]` key,
+/// what its type writes over those, and its `default`. Never inlined, so a
+/// struct's `specs` is a call a field rather than an insert a key.
+#[inline(never)]
+pub fn field_spec(
+    description: &str,
+    keys_given: &[(&str, Spec)],
+    describe: fn(&mut toml::map::Map<String, toml::Value>),
+    default: toml::Value,
+) -> toml::Value {
+    let mut spec = toml::map::Map::new();
+    if !description.is_empty() {
+        spec.insert(
+            keys::DESCRIPTION.into(),
+            toml::Value::String(description.into()),
+        );
+    }
+    for (key, value) in keys_given {
+        spec.insert((*key).into(), value.value());
+    }
+    describe(&mut spec);
+    spec.insert(keys::DEFAULT.into(), default);
+    toml::Value::Table(spec)
+}
+
 pub fn describe_record<F: Fields>(spec: &mut toml::map::Map<String, toml::Value>) {
     spec.entry(keys::TYPE)
         .or_insert_with(|| toml::Value::String(words::datatypes::RECORD.into()));

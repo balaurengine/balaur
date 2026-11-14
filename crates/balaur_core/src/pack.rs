@@ -49,6 +49,10 @@ pub struct Pack {
     /// runtime that loads the pack says which it lacks or types otherwise,
     /// before a script fails on one. Empty when the compiler keeps none.
     pub api: Vec<String>,
+    /// Every path the scripts' sources spell, from the export that built the
+    /// pack, whose compiled scripts hold no text to read. Not encoded: a
+    /// decoded pack has none.
+    pub script_paths: std::collections::BTreeSet<String>,
 }
 
 /// The documents a pack carries, by project-relative path: what lists them

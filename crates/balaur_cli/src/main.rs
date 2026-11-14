@@ -19,7 +19,7 @@ mod api_dump;
 #[cfg(not(target_arch = "wasm32"))]
 mod image_tools;
 // The editor's Export sheet, over the same library the command line drives.
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(not(target_family = "wasm"), feature = "compile"))]
 mod check;
 mod debugger;
 #[cfg(not(target_family = "wasm"))]
@@ -29,12 +29,14 @@ mod export_api;
 mod export_cmd;
 #[cfg(feature = "editor")]
 mod export_shared;
+#[cfg(feature = "compile")]
 mod fmt;
 mod import_api;
 // Asking a tab's reader for a file: only a page has a chooser.
 #[cfg(all(feature = "import", target_family = "wasm"))]
 mod import_web;
 mod jobs;
+#[cfg(feature = "compile")]
 mod lsp;
 mod new_project;
 // The editor's start screen. A tab compiles it too: the editor's scripts name
@@ -573,14 +575,21 @@ fn dispatch(command: Command) -> Result<()> {
             provisioning_profile,
             dry_run,
         }),
+        #[cfg(feature = "compile")]
         Command::Check { path, strict } => check::project(&path, strict),
         Command::Test {
             path,
             frames,
             filter,
         } => project_tests::test_project(&path, frames, filter.as_deref()),
+        #[cfg(feature = "compile")]
         Command::Lsp { path } => lsp::run(&path),
+        #[cfg(feature = "compile")]
         Command::Fmt { paths, check } => fmt::run(&paths, check),
+        #[cfg(not(feature = "compile"))]
+        Command::Check { .. } | Command::Lsp { .. } | Command::Fmt { .. } => {
+            anyhow::bail!("this build has no script compiler: build with the `compile` feature")
+        }
         Command::Update(opts) => update::run(&opts),
         Command::Play { pack, frames } => play_pack(&pack, frames),
     }
@@ -589,7 +598,14 @@ fn dispatch(command: Command) -> Result<()> {
 /// `balaur play`: an export pack, windowed, or headless for a frame budget.
 fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
     let bytes = std::fs::read(pack).with_context(|| format!("reading {}", pack.display()))?;
-    let mut config = AppConfig::packed(Pack::decode(&bytes)?);
+    let head = Pack::decode(&bytes)?;
+    // A pack in pieces has its tail beside it, on hand from the first frame.
+    if let Some(tail) = balaur::pack_tail::Tail::of(&head) {
+        let path = pack.with_file_name(&tail.file);
+        let bytes = std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
+        balaur::pack_tail::deliver(Pack::decode(&bytes)?);
+    }
+    let mut config = AppConfig::packed(head);
     // Beside the pack: this executable is the CLI, not the game.
     config.extensions = Some(pack.with_file_name(balaur::standalone::EXTENSIONS_DIR));
     let mut app = balaur::standard_app(config)?;

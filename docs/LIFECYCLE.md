@@ -456,6 +456,7 @@ What a `scene.switch` is doing. Source: `balaur_core/src/scene_switch.rs`, `Pend
 stateDiagram-v2
     [*] --> idle
     idle --> asked: scene.switch
+    asked --> asked: the scene waits for the pack's tail
     asked --> idle: no fade, switched at the end of this tick
     asked --> fading_out: a fade asked
     fading_out --> fading_in: half the fade gone, switched
@@ -468,7 +469,7 @@ stateDiagram-v2
 | State | What is true |
 | --- | --- |
 | `idle` | `scene` none, `crossing` none. |
-| `asked` | `scene` holds the path. The last request in a tick is the one that happens. |
+| `asked` | `scene` holds the path. The last request in a tick is the one that happens. A scene the head of a pack in pieces lists stays asked until its tail arrives (`balaur_core::pack_tail`). |
 | `fading_out` | `crossing.scene` holds the path. The roots' tint alpha falls to 0. |
 | `fading_in` | `crossing` holds no scene. The new roots' tint alpha rises to 1. |
 

@@ -266,6 +266,60 @@ fn a_pack_carries_every_shader_its_game_links() {
 }
 
 #[test]
+fn a_pack_carries_each_script_compiled_for_its_target_and_the_project_unit() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), SCRIPT);
+    let key = format!("scripts/{}", SCRIPT.0);
+    let native = balaur::build_pack(dir.path()).unwrap();
+    let browser = balaur::build_pack_for(dir.path(), false, &mut [], true).unwrap();
+    assert_ne!(native.scripts[&key], SCRIPT.1.as_bytes());
+    // A browser's unit counts its own fuel, which a native engine does for it.
+    assert_ne!(native.scripts[&key], browser.scripts[&key]);
+    assert!(native.assets.contains_key(balaur::script_bs::PROJECT_UNIT));
+    let kept = balaur::build_pack_with(dir.path(), true).unwrap();
+    assert_eq!(kept.scripts[&key], SCRIPT.1.as_bytes());
+}
+
+#[test]
+fn an_asset_only_a_compiled_script_names_survives_a_strip() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = (
+        "root.bs",
+        "pub class Root { node: Node }\nimpl Root { fn init() { let path = \"art/spare.png\"; } }\n",
+    );
+    project(dir.path(), script);
+    std::fs::create_dir_all(dir.path().join("art")).unwrap();
+    std::fs::write(dir.path().join("art/spare.png"), b"png").unwrap();
+    let pack = balaur::build_pack(dir.path()).unwrap();
+    assert!(pack.assets.contains_key("art/spare.png"));
+    assert!(balaur::packing::unreferenced(&pack, &[]).is_empty());
+}
+
+#[test]
+fn a_pack_carries_the_tony_lut_only_for_a_game_that_names_the_operator() {
+    let lut = balaur::render::tony_lut::TONY_LUT;
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), SCRIPT);
+    let plain = balaur::build_pack(dir.path()).unwrap();
+    assert!(!plain.assets.contains_key(lut));
+    let scene = std::fs::read_to_string(dir.path().join("main.toml")).unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        format!("{scene}\n[nodes.environment]\ntonemap = \"tony_mcmapface\"\n"),
+    )
+    .unwrap();
+    let named = balaur::build_pack(dir.path());
+    // Only a build with a renderer embeds the LUT to carry; one without says so.
+    if balaur::render::tony_lut::deflated().unwrap().is_some() {
+        let carried = &named.unwrap().assets[lut];
+        assert!(balaur::render::tony_lut::install(carried).is_ok());
+    } else {
+        let why = format!("{:#}", named.expect_err("a build with no LUT refuses"));
+        assert!(why.contains("export it from the editor"), "{why}");
+    }
+}
+
+#[test]
 fn a_packed_project_boots_without_its_sources() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path(), SCRIPT);

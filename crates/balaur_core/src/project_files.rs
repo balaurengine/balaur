@@ -93,6 +93,11 @@ impl ProjectFiles {
         self
     }
 
+    /// Serve the files a pack's tail brought, beside the head's.
+    pub fn arrive(&mut self, files: std::collections::BTreeMap<String, Vec<u8>>) {
+        self.packed.extend(files);
+    }
+
     /// Serve loose files from `fs` from now on: a dependency mounted after
     /// the files were made.
     pub fn use_backend(&mut self, fs: std::rc::Rc<dyn crate::files::FileBackend>) {

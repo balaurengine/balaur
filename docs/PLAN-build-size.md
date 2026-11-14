@@ -1,8 +1,8 @@
-> **Status:** planned 2026-11-13. Nothing is built into the packaging, the
-> exporter or CI. The table and the split were run by hand that day on the
-> full game template; §0 holds what they measured and §1 what they proved.
-> Decided the same day: physics stays a template per world, and only a
-> change that holds on every target is taken.
+> **Status:** planned 2026-11-13; steps 1, 2, 5 and 6 built on 2026-11-14,
+> and parts of 3 and 4. The table and the split were first run by hand on
+> the full game template; §0 holds what they measured and §1 what they
+> proved. Decided: physics stays a template per world, and only a change
+> that holds on every target is taken.
 
 # Plan: build size
 
@@ -24,9 +24,12 @@ Sizes are bytes over 1048576, as `scripts/package_runtime.sh` prints them.
 | The template's size, raw, gzip and brotli, printed on every push | `scripts/package_runtime.sh web` |
 | A game template without the editor, the script compiler, the shader linker, the importers or egui's faces | the `editor`, `compile`, `import` and `fallback-fonts` features |
 | Each physics world and each audio codec behind a feature | `physics2d`, `physics3d`, `flac`, `mp3`, `mp4`, `vorbis`, `wav` |
-| A `-2d` and a `-3d` template of every target | `VARIANT=` in `scripts/package_runtime.sh`, the `build-templates` job |
+| A `-2d`, a `-3d` and a `-bare` template of every target | `VARIANT=` in `scripts/package_runtime.sh`, the `build-templates` job |
 | The smallest template a project fits, picked at export, and a mismatch refused | `[export] runtime`, `balaur_export::fits` |
-| A module's code charged to its crates, from a build with its symbols kept | `scripts/wasm_crates.py` |
+| A template's code charged to its crates, on every push | `crates-<template>.txt` and the job's summary, from `scripts/wasm_crates.py` or `scripts/native_crates.py` |
+| No build machine's directory in a shipped binary | `remap_flags` in `scripts/features.sh` |
+| A budget the `bare` web template fails a push over | `scripts/package_runtime.sh web` |
+| A web export in two pieces, the scenes that wait named by the author | `[export] later`, `balaur_core::pack_tail` |
 | Every engine function a compiled script calls, listed in its unit | `balaur_bs::Meta::imports` |
 
 The game template with every feature on, measured on 2026-11-13:
@@ -80,14 +83,12 @@ Crates linked in two versions come to 89 KB, `hashbrown` most of it.
 
 Missing:
 
-- **The table on every push.** `wasm_crates.py` is run by hand.
 - **A feature left out without a template of its own.** Six features a game
-  may or may not use are 64 templates per target. Two are built.
-- **A use for the GL backend.** `egui-wgpu`'s default features turn on
-  `wgpu/webgl`, so `glow`, `wgpu-core` and naga are linked while the page
-  asks for WebGPU alone.
-- **A budget a push can fail.**
-- **Native numbers.** No template's size is recorded per feature off the web.
+  may or may not use are 64 templates per target. Four are built.
+- **A use for the GL backend.** `balaur_render` names kiss3d's `webgl`, so
+  `glow`, `wgpu-core` and naga are linked while the page asks for WebGPU
+  alone.
+- **A native budget.** The table is recorded; no number is held yet.
 
 ## 1. What the split proved
 
@@ -152,6 +153,33 @@ first with `[plugins] audio = false` ran in headless Chrome on each shape.
   `text` and `shaders` ran on it in headless Chrome. It still links
   0.30 MB of rapier and parry, because `PhysicsPlugin` makes both worlds
   in every build.
+- **The diet took `bare` to 13.46 MB raw and 3.78 MB brotli.** Measured on
+  2026-11-14 through `package_runtime.sh` itself: the LUT out, short paths,
+  and no world's state in a build without it. rapier, parry and
+  `balaur_physics` left the table's top 40. `interface`, `text`, `shaders`
+  and a copy of `shaders` set to `tony_mcmapface` ran in headless Chrome;
+  that copy's pack is 350 KB larger, and draws Tony's roll-off.
+- **`Module::function`'s untyped half out of line saved 14.6 KB.** The
+  `declare` functions are not made of registration calls, and the change
+  was not kept.
+- **They are made of component schemas.** `RenderPlugin::declare` made
+  1048 map inserts, each a key built from a string, because the derive
+  wrote each `#[property]` key as code. Each field's keys are now a static
+  table one function, `derived::field_spec`, reads: 0.10 MB off `bare`,
+  which is 13.36 MB raw and 3.77 MB brotli, and the four games ran again.
+- **A pack carries units, and a template no compiler: 0.49 MB.** `bare` is
+  12.87 MB raw and 3.64 MB brotli. A pack grows by its units: `interface`
+  11.8 KB brotli, `text` 7.9, `shaders` 6.8. `interface`, `text` and
+  `shaders` exported for the web ran on it in headless Chrome; a CLI with no
+  compiler played two packs of units, and refused one of sources.
+- **The physics snapshot is the world's decode, not its JSON.** With the
+  whole frame as bincode, `web-2d`'s `load_physics2d` and `save_physics2d`
+  came to 239,765 bytes, where the JSON frame and the world's decode had
+  been 233,748. The change was not kept. `web-2d` is 15.24 MB raw and
+  4.23 MB brotli, and links no 3D world.
+- **A pack in pieces ran.** A scratch game whose second scene names one
+  picture exported to a 59 KB head and a 17 KB tail; in headless Chrome it
+  started on the head, switched once the tail had come, and drew the picture.
 - **Not done:** one recording replayed on both shapes to the same digest.
   A frame compared is weaker.
 
@@ -172,11 +200,12 @@ the smallest a game fits, and `fits` refuses a mismatch.
 | Cut | MB | How |
 | --- | ---: | --- |
 | A sort per component struct | 0.60 | built: one table builder in `balaur_core::components::derived` |
-| The tonemapping table | 0.84 | an asset a 3D export pack carries, read by kiss3d when HDR is on |
-| The physics snapshot's JSON | 0.45 | the world written as bytes, never through `serde_json::Value` |
-| The three `declare` functions | 0.44 | a module's verbs as a table, not as a call apiece |
-| The script compiler's pieces | 0.39 | whatever a unit needs linked, done at export |
-| Panic paths | 0.19 | `--remap-path-prefix` in the packaging scripts |
+| The tonemapping table | 0.84 | built: kiss3d's `tony-lut` feature, which `compile` turns on; an export carries the LUT for a game that names `tony_mcmapface` |
+| A world a build leaves out | 0.30 | built: `PhysicsPlugin` makes a world's state only with its feature, and the shared code reads it through `state_3d` and `state_2d` |
+| Panic paths | 0.19 | built: `remap_flags` in `scripts/features.sh`, on every packaging build |
+| The `declare` functions | 0.10 of 0.44 | built: a field's `#[property]` keys as a static table `derived::field_spec` reads, §1 |
+| The physics snapshot's JSON | none | measured and not taken, §1: the frame as bincode came to 6 KB more |
+| The script compiler | 0.49 | built: a pack carries each script's unit, and `compile` puts the compiler, the checker and the language tools back |
 
 **Held, because only the web would take them.**
 
@@ -206,7 +235,8 @@ LTO, so a game with physics would ship more bytes than the one binary does.
 | --- | --- |
 | A template per physics world | Have `-2d`, `-3d` and `-bare` on every target |
 | A physics world as a part | Not planned: about 30 places in the code the worlds share, and 1 MB more than the template leaves, §1 |
-| kiss3d's `webgl` feature | Held. Written in the fork's checkout, on by default there, and not pinned: the engine takes kiss3d without defaults, so a pin that moves needs `webgl` named in `balaur_render` to keep the backend |
+| kiss3d's `webgl` feature | Kept on: `balaur_render` names it, since the engine takes kiss3d without defaults. Turning it off for the web is held, §2 |
+| kiss3d's `tony-lut` feature | Have: on with `compile`, off in a game template |
 | `-Zbuild-std`, `optimize_for_size` | Held: web only, and a slower sort on a large array |
 | `wasm-split --multi-split`, `-Zmerge-functions=disabled` | Held, proved by hand in §1 |
 | One file from core and parts, `wasm-merge` | Held with parts, proved in §1 |
@@ -220,26 +250,32 @@ LTO, so a game with physics would ship more bytes than the one binary does.
 
 ## 4. Steps
 
-1. **The table.** `wasm_crates.py` runs on the web template's build and its
-   table goes where the size line goes: the job's summary and `dist/`. Ends
-   with: the size and the table on every push.
-2. **Short paths.** `--remap-path-prefix` for the registry, the git
-   checkouts, std and the repository, in `package.sh` and
-   `package_runtime.sh`, joined to the flags `.cargo/config.toml` gives a
-   target. Ends with: no home directory in a shipped binary.
-3. **The diet in code.** The physics snapshot, the `declare` tables, the
-   compiler's pieces, and a sweep of `balaur_core` for what a shipped game
-   never calls: `dependencies::install` and `project::build_doc` are two.
-   The sweep is `docs/PLAN-engine-core.md`'s where the two meet.
-4. **Data.** The tonemapping table as an asset, and the default face if a
-   game that ships its own can leave it.
-5. **The budget.** `package_runtime.sh web` fails a push whose `bare`
-   template passes the number step 3 reaches.
-6. **Native.** The same table for each native template, and a budget only
-   after it.
-7. **The export pack in pieces.** The first scene's assets ahead of the
-   rest. `[export] strip` already finds the assets a scene names; nothing
-   else is designed.
+1. **The table.** Done: `package_runtime.sh web` keeps the module's names
+   through `-Oz`, writes `crates-<template>.txt` beside the build and the
+   job's summary from `wasm_crates.py`, then strips the names.
+2. **Short paths.** Done: `remap_flags` maps the registry, the git
+   checkouts, the toolchains and the repository, and `short_paths` joins
+   them to the flags `.cargo/config.toml` gives a target.
+3. **The diet in code.** A world a build leaves out, the schemas in the
+   `declare` functions and the script compiler, done; the physics snapshot
+   measured and left as it is. Left: a sweep of
+   `balaur_core` for what a shipped game never calls,
+   `dependencies::install` and `project::build_doc` among them. The sweep is
+   `docs/PLAN-engine-core.md`'s where the two meet.
+4. **Data.** The tonemapping table, done. Left: the default face, if a game
+   that ships its own can leave it.
+5. **The budget.** Done: `package_runtime.sh web` fails a push whose `bare`
+   template passes 12.9 MB, the 12.87 above rounded up to a tenth.
+6. **Native.** The table, done: `native_crates.py` reads a template's
+   symbols through `nm` for Linux, macOS, Android and iOS; an MSVC binary
+   keeps its symbols apart. A budget only after a release of numbers.
+7. **The export pack in pieces.** Done, for the web: `[export] later`
+   names scenes, and the assets only they name go to `game.bpak.tail`,
+   walked as `[export] strip` walks. The head lists the tail and those
+   scenes in `.balaur/tail.toml`; the page starts on the head, fetches the
+   tail, and a switch to one of them waits for it. A script that loads one
+   of those assets by name before then finds it missing, so the scenes are
+   the author's to name.
 
 ## 5. What CI can prove, and what it cannot
 
@@ -252,11 +288,10 @@ LTO, so a game with physics would ship more bytes than the one binary does.
 ## 6. Open questions
 
 1. **Whether 8 MB is reachable.** Not by this plan's cuts. A game with no
-   physics starts at the `bare` template's 14.75 MB, and the diet left
-   above is about 1.6 MB more for it, since its physics snapshot and
-   physics `declare` are already gone. The 2.4 MB held in §2, the 0.30 MB
-   of physics a bare build still makes, and whatever step 3's sweep finds
-   are the rest of the distance, and none is enough alone.
+   physics starts at the `bare` template's 12.87 MB. The rest of what the
+   render and UI `declare` functions hold, the 2.4 MB held in §2
+   and whatever step 3's sweep finds are the rest of the distance, and
+   none is enough alone.
 2. **Parts finer than a feature.** A compiled script lists every engine
    function it calls, so an export could leave out a script module no
    script uses: tiles, soft bodies, navigation. Each needs a switch like

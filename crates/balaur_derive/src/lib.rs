@@ -115,13 +115,13 @@ fn snake(name: &str) -> String {
 
 /// A spec key's value, written as the TOML value the spec holds.
 fn spec_value(value: &Expr) -> syn::Result<Tokens> {
-    let toml = quote!(::balaur_core::components::derived::toml);
+    let spec = quote!(::balaur_core::components::derived::Spec);
     Ok(match value {
         Expr::Lit(ExprLit { lit, .. }) => match lit {
-            Lit::Str(text) => quote!(#toml::Value::String(::std::string::String::from(#text))),
-            Lit::Int(number) => quote!(#toml::Value::Integer(#number)),
-            Lit::Float(number) => quote!(#toml::Value::Float(#number)),
-            Lit::Bool(flag) => quote!(#toml::Value::Boolean(#flag)),
+            Lit::Str(text) => quote!(#spec::Text(#text)),
+            Lit::Int(number) => quote!(#spec::Integer(#number)),
+            Lit::Float(number) => quote!(#spec::Float(#number)),
+            Lit::Bool(flag) => quote!(#spec::Flag(#flag)),
             other => {
                 return Err(syn::Error::new(
                     other.span(),
@@ -133,11 +133,11 @@ fn spec_value(value: &Expr) -> syn::Result<Tokens> {
             Expr::Lit(ExprLit {
                 lit: Lit::Int(number),
                 ..
-            }) => quote!(#toml::Value::Integer(-#number)),
+            }) => quote!(#spec::Integer(-#number)),
             Expr::Lit(ExprLit {
                 lit: Lit::Float(number),
                 ..
-            }) => quote!(#toml::Value::Float(-#number)),
+            }) => quote!(#spec::Float(-#number)),
             other => return Err(syn::Error::new(other.span(), "only a number takes a minus")),
         },
         Expr::Array(list) => {
@@ -146,7 +146,7 @@ fn spec_value(value: &Expr) -> syn::Result<Tokens> {
                 .iter()
                 .map(spec_value)
                 .collect::<syn::Result<Vec<_>>>()?;
-            quote!(#toml::Value::Array(::std::vec![#(#entries),*]))
+            quote!(#spec::List(&[#(#entries),*]))
         }
         other => {
             return Err(syn::Error::new(
@@ -357,7 +357,6 @@ struct FieldParts {
 
 fn field_parts(index: usize, field: &syn::Field) -> syn::Result<FieldParts> {
     let derived = quote!(::balaur_core::components::derived);
-    let toml = quote!(#derived::toml);
     let field_ident = field.ident.as_ref().expect("named fields have names");
     let field_type = &field.ty;
     let attrs = property_attrs(field)?;
@@ -375,26 +374,16 @@ fn field_parts(index: usize, field: &syn::Field) -> syn::Result<FieldParts> {
     };
     let description = doc_of(&field.attrs);
     let mut keys = Vec::new();
-    if !description.is_empty() {
-        keys.push(quote!(spec.insert(
-            ::std::string::String::from("description"),
-            #toml::Value::String(::std::string::String::from(#description)),
-        );));
-    }
     for (key, value) in &attrs.keys {
         let value = spec_value(value)?;
-        keys.push(quote!(spec.insert(::std::string::String::from(#key), #value);));
+        keys.push(quote!((#key, #value)));
     }
-    let spec = quote!({
-        let mut spec = #toml::map::Map::new();
-        #(#keys)*
-        <#field_type as #derived::Property>::describe(&mut spec);
-        spec.insert(
-            ::std::string::String::from("default"),
-            #derived::Property::to_value(&start.#field_ident),
-        );
-        #toml::Value::Table(spec)
-    });
+    let spec = quote!(#derived::field_spec(
+        #description,
+        &[#(#keys),*],
+        <#field_type as #derived::Property>::describe,
+        #derived::Property::to_value(&start.#field_ident),
+    ));
     let read = quote!(#index => ::core::option::Option::Some(#derived::Property::to_value(&self.#field_ident)),);
     let given = quote!(#index => #derived::Property::given(&self.#field_ident),);
     let write = quote!(#index => {

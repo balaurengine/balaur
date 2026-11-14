@@ -51,8 +51,9 @@ import = ["dep:balaur_import", "balaur/svg"]
 # and `script.*` modules its scripts call, a browser tab's editor entry
 # points, and egui's bundled faces. A game template leaves it off.
 editor = ["dep:balaur_export", "compile", "physics2d", "physics3d", "balaur/fallback-fonts"]
-# The WESL shader linker and the `.bs` to C translator. Off, the build draws
-# with the shaders an export linked into the export pack.
+# The WESL shader linker, the `.bs` compiler and its C translator, and
+# `check`, `lsp` and `fmt`. Off, the build draws with the shaders an export
+# linked and runs the script units it compiled into the export pack.
 compile = ["balaur/compile"]
 # Balaur Script (`.bs`), on wasmi; `bs-jit` runs it on wasmtime where a JIT
 # may run, `bs-web` on the browser's own engine.

@@ -34,7 +34,7 @@ pub use balaur_ui as ui;
 #[cfg(feature = "webtransport")]
 pub use balaur_webtransport as webtransport;
 
-#[cfg(feature = "bs-backend")]
+#[cfg(all(feature = "bs-backend", feature = "compile"))]
 mod event_names;
 mod interact;
 mod tools;
@@ -48,7 +48,9 @@ use anyhow::Context;
 use anyhow::{Result, bail};
 
 const BALAUR: &str = "balaur";
+#[cfg(feature = "compile")]
 const ERROR: &str = "error";
+#[cfg(feature = "compile")]
 const WARNING: &str = "warning";
 const UI_ACCEPT: &str = "ui_accept";
 const UI_NEXT: &str = "ui_next";
@@ -133,7 +135,22 @@ pub fn build_pack_using(
     keep_sources: bool,
     extra: ExtraPlugins<'_>,
 ) -> Result<Pack> {
+    build_pack_for(project_root, keep_sources, extra, false)
+}
+
+/// [`build_pack_using`], its script units built for a browser, which count
+/// their own fuel, when `browser`.
+pub fn build_pack_for(
+    project_root: &std::path::Path,
+    keep_sources: bool,
+    extra: ExtraPlugins<'_>,
+    browser: bool,
+) -> Result<Pack> {
     with_host(project_root, extra, |engine, host| {
+        #[cfg(feature = "bs-backend")]
+        host.compile_for_browser(browser);
+        #[cfg(not(feature = "bs-backend"))]
+        let _ = browser;
         let refused: Vec<String> = balaur_core::attachments::scene_attachments(project_root)
             .into_keys()
             .filter_map(|script| balaur_core::project::plugin_attached(engine, &script))
@@ -148,7 +165,16 @@ pub fn build_pack_using(
             let judged = file_api::editors_script(engine, std::path::Path::new(rel));
             judged == Some(file_api::EditorsScript::Plugin)
         };
-        let pack = balaur_project::packing::build_with(project_root, host, keep_sources, &plugin)?;
+        let mut pack =
+            balaur_project::packing::build_with(project_root, host, keep_sources, &plugin)?;
+        // The unit every instance starts from, built as the scripts' units were.
+        #[cfg(feature = "bs-backend")]
+        if !keep_sources {
+            pack.assets.insert(
+                balaur_script_bs::PROJECT_UNIT.into(),
+                host.project_unit()?.to_bytes(),
+            );
+        }
         #[cfg(feature = "compile")]
         let pack = with_shaders(engine, pack)?;
         #[cfg(not(feature = "compile"))]
@@ -253,6 +279,14 @@ fn with_shaders(engine: &balaur_core::Engine, mut pack: Pack) -> Result<Pack> {
     })?;
     pack.assets
         .insert(balaur_render::prelinked::PRELINKED.into(), shaders);
+    if balaur_render::tony_lut::named_in(&pack) {
+        let lut = balaur_render::tony_lut::deflated()?.context(
+            "this game uses the Tony McMapface tonemap, and a build with no renderer has no LUT \
+             to carry: export it from the editor",
+        )?;
+        pack.assets
+            .insert(balaur_render::tony_lut::TONY_LUT.into(), lut);
+    }
     Ok(pack)
 }
 
@@ -313,6 +347,7 @@ pub struct Finding {
     pub message: String,
 }
 
+#[cfg(feature = "compile")]
 impl Finding {
     fn error(file: &str, line: usize, column: usize, message: String) -> Self {
         Finding {
@@ -345,6 +380,7 @@ impl Finding {
 ///
 /// # Errors
 /// If the project will not boot.
+#[cfg(feature = "compile")]
 pub fn check_project(project_root: &std::path::Path) -> Result<Vec<Finding>> {
     check_project_using(project_root, &mut [])
 }
@@ -353,6 +389,7 @@ pub fn check_project(project_root: &std::path::Path) -> Result<Vec<Finding>> {
 ///
 /// # Errors
 /// If the project will not boot.
+#[cfg(feature = "compile")]
 pub fn check_project_using(
     project_root: &std::path::Path,
     extra: ExtraPlugins<'_>,
@@ -406,7 +443,7 @@ pub fn check_project_using(
 /// A handler, a listener or a row naming an event nothing announces, and an
 /// `emit` its script does not declare, over the scripts `checked` and every
 /// scene: each a warning on the line that spells the name.
-#[cfg(feature = "bs-backend")]
+#[cfg(all(feature = "bs-backend", feature = "compile"))]
 fn name_findings(
     engine: &balaur_core::Engine,
     host: &balaur_script_bs::BsHost,
@@ -417,7 +454,7 @@ fn name_findings(
     event_names::findings(engine, host, project_root, &checked)
 }
 
-#[cfg(not(feature = "bs-backend"))]
+#[cfg(all(not(feature = "bs-backend"), feature = "compile"))]
 fn name_findings(
     _: &balaur_core::Engine,
     host: &NoScripts,
@@ -430,6 +467,7 @@ fn name_findings(
 /// What the loader refuses in each scene file of the project, as it would
 /// when a run built the scene, by file and line. A prefab's own are met once
 /// per scene that instances it and kept once.
+#[cfg(feature = "compile")]
 fn scene_problems(engine: &balaur_core::Engine, project_root: &std::path::Path) -> Vec<Finding> {
     let mut found: Vec<Finding> = Vec::new();
     for scene in balaur_core::attachments::scene_files(project_root) {
@@ -452,6 +490,7 @@ fn scene_problems(engine: &balaur_core::Engine, project_root: &std::path::Path) 
 /// Every script of the project that `ignore` keeps, by its path from the root,
 /// last first. A folder holding a manifest is another project's, and `deps/`
 /// holds dependencies, which answer for themselves.
+#[cfg(feature = "compile")]
 fn project_scripts(
     extensions: &[&str],
     project_root: &std::path::Path,
@@ -494,6 +533,7 @@ fn project_scripts(
 /// Each file the script at `rel` links in that `[application] ignore` leaves
 /// out of an export: it compiles here, beside the module on disk, and the
 /// export refuses it ([`balaur_project::packing::build_with`]).
+#[cfg(feature = "compile")]
 fn ignored_uses(
     host: &dyn balaur_script::ScriptCompiler,
     ignored: &[String],
@@ -518,7 +558,7 @@ fn ignored_uses(
         .collect()
 }
 
-#[cfg(feature = "bs-backend")]
+#[cfg(all(feature = "bs-backend", feature = "compile"))]
 fn check_script(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec<Finding> {
     if !balaur_script_bs::BsHost::claims(rel) {
         let message = format!(
@@ -533,13 +573,13 @@ fn check_script(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec
         .collect()
 }
 
-#[cfg(not(feature = "bs-backend"))]
+#[cfg(all(not(feature = "bs-backend"), feature = "compile"))]
 fn check_script(host: &NoScripts, _: &str, _: &str) -> Vec<Finding> {
     match *host {}
 }
 
 /// The errors of a file no scene attaches, compiled as the module it is.
-#[cfg(feature = "bs-backend")]
+#[cfg(all(feature = "bs-backend", feature = "compile"))]
 fn check_module(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec<Finding> {
     host.check_alone(rel, source)
         .into_iter()
@@ -547,12 +587,12 @@ fn check_module(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec
         .collect()
 }
 
-#[cfg(not(feature = "bs-backend"))]
+#[cfg(all(not(feature = "bs-backend"), feature = "compile"))]
 fn check_module(host: &NoScripts, _: &str, _: &str) -> Vec<Finding> {
     match *host {}
 }
 
-#[cfg(feature = "bs-backend")]
+#[cfg(all(feature = "bs-backend", feature = "compile"))]
 fn lint_script(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec<Finding> {
     host.lints(rel, source)
         .into_iter()
@@ -560,7 +600,7 @@ fn lint_script(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec<
         .collect()
 }
 
-#[cfg(not(feature = "bs-backend"))]
+#[cfg(all(not(feature = "bs-backend"), feature = "compile"))]
 fn lint_script(host: &NoScripts, _: &str, _: &str) -> Vec<Finding> {
     match *host {}
 }
@@ -608,6 +648,14 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
         .and_then(|pack| pack.assets.get(balaur_render::prelinked::PRELINKED))
     {
         balaur_render::prelinked::install(table)?;
+    }
+    #[cfg(not(feature = "compile"))]
+    if let Some(lut) = config
+        .pack
+        .as_ref()
+        .and_then(|pack| pack.assets.get(balaur_render::tony_lut::TONY_LUT))
+    {
+        balaur_render::tony_lut::install(lut)?;
     }
     let mut app = App::new(AppConfig {
         builtins: builtins(),
@@ -920,7 +968,15 @@ pub fn boot_project(project_root: &str) -> Result<()> {
 /// runs is the windowed one, drawing on the `<canvas>` named by `canvas_id`.
 #[cfg(feature = "window")]
 pub async fn boot_pack_on_canvas(bytes: &[u8], canvas_id: &str) -> Result<()> {
-    let pack = Pack::decode(bytes)?;
+    Box::pin(boot_packed_on_canvas(Pack::decode(bytes)?, canvas_id)).await
+}
+
+/// [`boot_pack_on_canvas`], for a pack already decoded.
+///
+/// # Errors
+/// As [`boot_pack_on_canvas`].
+#[cfg(feature = "window")]
+pub async fn boot_packed_on_canvas(pack: Pack, canvas_id: &str) -> Result<()> {
     let mut app = standard_app(AppConfig::packed(pack))?;
     seed_device(&app);
     app.load_project()?;

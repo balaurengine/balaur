@@ -204,4 +204,6 @@ pub(crate) mod keys {
     pub(crate) const TYPE: &str = "type";
     pub(crate) const VALUE: &str = "value";
     pub(crate) const VARIANTS: &str = "variants";
+    pub(crate) const FILE: &str = "file";
+    pub(crate) const WAITS: &str = "waits";
 }

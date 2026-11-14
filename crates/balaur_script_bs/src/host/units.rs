@@ -13,7 +13,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Numbers this process's writes of kept units, so no two share a temporary.
+#[cfg(feature = "compile")]
 static UNIT_WRITES: AtomicU32 = AtomicU32::new(0);
+
+/// Why a build without the compiler cannot run a file the pack holds no unit for.
+#[cfg(not(feature = "compile"))]
+pub(super) const NO_COMPILER: &str =
+    "this build runs the units an export compiled, and has no compiler for a source";
 
 /// More scripts reloaded at once than this are counted in the log, not named.
 const NAMED_RELOADS: usize = 8;
@@ -47,6 +53,9 @@ impl Build {
 impl BsHost {
     /// How the file at `key` is built now.
     fn build_of(&self, key: &str) -> Build {
+        if !cfg!(feature = "compile") || self.inner.packed.contains_key(key) {
+            return Build::PLAIN;
+        }
         Build {
             debug: self.probed(key),
             profile: self.inner.profiling.get(),
@@ -120,24 +129,16 @@ impl BsHost {
     /// The file at `key` built as a unit as it is built now, once until an
     /// edit, and kept on disk between runs.
     pub(super) fn unit(&self, key: &str) -> Result<Arc<Compiled>> {
+        if let Some(u) = self.inner.packed.get(key) {
+            return Ok(u.clone());
+        }
         let build = self.build_of(key);
         let kept = self.inner.units.borrow();
         if let Some(u) = kept.get(key).and_then(|builds| builds.get(&build)) {
             return Ok(u.clone());
         }
         drop(kept);
-        let source = self
-            .kept_source(key)
-            .ok_or_else(|| anyhow!("{key}: no such file"))?;
-        let u = if let Some(u) = self.kept_unit(key, &source, build) {
-            u
-        } else {
-            let u = balaur_bs::compile(&source, &self.options_of(key, build))
-                .map_err(|e| anyhow!("{key}:{e}"))?;
-            self.keep_unit(key, &source, build, &u);
-            u
-        };
-        let u = Arc::new(u);
+        let u = Arc::new(self.built(key, build)?);
         self.inner
             .units
             .borrow_mut()
@@ -147,9 +148,34 @@ impl BsHost {
         Ok(u)
     }
 
+    // The file at `key` compiled as `build`, or the one kept on disk.
+    #[cfg(feature = "compile")]
+    fn built(&self, key: &str, build: Build) -> Result<Compiled> {
+        let source = self
+            .kept_source(key)
+            .ok_or_else(|| anyhow!("{key}: no such file"))?;
+        if let Some(u) = self.kept_unit(key, &source, build) {
+            return Ok(u);
+        }
+        let u = balaur_bs::compile(&source, &self.options_of(key, build))
+            .map_err(|e| anyhow!("{key}:{e}"))?;
+        self.keep_unit(key, &source, build, &u);
+        Ok(u)
+    }
+
+    #[cfg(not(feature = "compile"))]
+    #[allow(
+        clippy::unused_self,
+        reason = "the compiling build's twin reads the host"
+    )]
+    fn built(&self, key: &str, _build: Build) -> Result<Compiled> {
+        Err(anyhow!("{key}: {NO_COMPILER}"))
+    }
+
     // Where the unit built from `source`, the file at `key`, is kept: named
     // by them, its build and the engine's API. `None` for a pack or a page,
     // which keep nothing.
+    #[cfg(feature = "compile")]
     fn unit_path(&self, key: &str, source: &str, build: Build) -> Option<PathBuf> {
         if self.inner.pack.is_some() || cfg!(target_arch = "wasm32") {
             return None;
@@ -169,6 +195,7 @@ impl BsHost {
 
     // The unit kept for `source`, while every module it read declares what it
     // did then: each one's key and declarations' hash, then the build.
+    #[cfg(feature = "compile")]
     fn kept_unit(&self, key: &str, source: &str, build: Build) -> Option<Compiled> {
         let bytes = std::fs::read(self.unit_path(key, source, build)?).ok()?;
         let text = std::str::from_utf8(bytes.split(|b| *b == 0).next()?).ok()?;
@@ -183,6 +210,7 @@ impl BsHost {
         Compiled::from_bytes(bytes.get(text.len() + 1..)?)
     }
 
+    #[cfg(feature = "compile")]
     fn keep_unit(&self, key: &str, source: &str, build: Build, unit: &Compiled) {
         let Some(path) = self.unit_path(key, source, build) else {
             return;
@@ -213,24 +241,29 @@ impl BsHost {
 
     /// `source` as the unit of the file at `key` that ships: never with a
     /// debugger's probes or a profiler's counters.
+    #[cfg(feature = "compile")]
     pub(crate) fn unit_of(&self, key: &str, source: &str) -> Result<Compiled> {
         balaur_bs::compile(source, &self.options_of(key, Build::PLAIN))
             .map_err(|e| anyhow!("{key}:{e}"))
     }
 
     /// How the file at `key` compiles as it is built now.
+    #[cfg(feature = "compile")]
     pub(super) fn unit_options(&self, key: &str) -> Options {
         self.options_of(key, self.build_of(key))
     }
 
     /// How the file at `key` compiles as `build`. A browser's engine meters no
-    /// fuel and is wired straight to the script, whatever else it is built with.
+    /// fuel and is wired straight to the script, whatever else it is built with,
+    /// and so is a unit an export writes for one.
+    #[cfg(feature = "compile")]
     pub(super) fn options_of(&self, key: &str, build: Build) -> Options {
+        let browser = METER || self.inner.browser_units.get();
         Options {
             debug: build.debug,
             profile: build.profile,
-            meter: METER,
-            direct_imports: METER,
+            meter: browser,
+            direct_imports: browser,
             host: self.api(),
             modules: Some(self.modules()),
             path: key.to_string(),
@@ -488,6 +521,7 @@ impl BsHost {
             self.inner.parsed.forget(key);
             self.inner.units.borrow_mut().remove(key);
         }
+        #[cfg(feature = "compile")]
         let reshaped: HashSet<&str> = keys
             .iter()
             .zip(before)
@@ -499,6 +533,12 @@ impl BsHost {
             })
             .map(|(key, _)| key.as_str())
             .collect();
+        // Only a compiled file has declarations to change.
+        #[cfg(not(feature = "compile"))]
+        let reshaped: HashSet<&str> = {
+            let _ = before;
+            HashSet::new()
+        };
         if !reshaped.is_empty() {
             self.inner.units.borrow_mut().retain(|_, builds| {
                 builds.retain(|_, unit| {

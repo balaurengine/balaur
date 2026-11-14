@@ -40,9 +40,32 @@ pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
         .await?;
     fs.install();
     balaur::files::set_default(fs);
-    balaur::boot_pack_on_canvas(&bytes, &canvas_id)
+    let pack = balaur::Pack::decode(&bytes).map_err(err)?;
+    drop(bytes);
+    // The rest of a pack in pieces arrives while the game runs.
+    if let Some(tail) = balaur::pack_tail::Tail::of(&pack) {
+        let url = beside(&pack_url, &tail.file);
+        wasm_bindgen_futures::spawn_local(async move {
+            let fetched = fetch_bytes(&url).await.map_err(|e| format!("{e:?}"));
+            match fetched
+                .and_then(|bytes| balaur::Pack::decode(&bytes).map_err(|e| format!("{e:#}")))
+            {
+                Ok(tail) => balaur::pack_tail::deliver(tail),
+                Err(why) => tracing::error!("fetching the pack's tail {url}: {why}"),
+            }
+        });
+    }
+    Box::pin(balaur::boot_packed_on_canvas(pack, &canvas_id))
         .await
         .map_err(err)
+}
+
+/// `file` in the directory of the URL `of` names.
+fn beside(of: &str, file: &str) -> String {
+    match of.rsplit_once('/') {
+        Some((dir, _)) => format!("{dir}/{file}"),
+        None => file.to_string(),
+    }
 }
 
 /// Where a packed game's user directory lands on a platform with no data

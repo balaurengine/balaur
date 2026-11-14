@@ -97,6 +97,15 @@ fn a_script_that_is_bytecode_leaves_the_walk_alone() {
 }
 
 #[test]
+fn a_compiled_script_names_what_its_source_spelled() {
+    let mut pack = two_textures();
+    pack.scripts
+        .insert("player.bs".to_string(), vec![0xff, 0xfe, 0x00, 0x01]);
+    pack.script_paths.insert("art/spare.png".to_string());
+    assert!(balaur_project::packing::unreferenced(&pack, &[]).is_empty());
+}
+
+#[test]
 fn a_directory_a_scene_names_covers_the_files_under_it() {
     let mut pack = two_textures();
     pack.scenes.insert(
@@ -231,6 +240,41 @@ fn a_font_is_never_unreferenced_though_nothing_names_it() {
         vec!["art/unused.png".to_string()]
     );
 }
+
+/// [`two_textures`], with a second scene that names the spare texture.
+fn with_a_later_scene() -> Pack {
+    let mut pack = two_textures();
+    pack.scenes.insert(
+        "levels/two.toml".to_string(),
+        "[[nodes]]\nid = \"far\"\ntexture = \"art/spare.png\"\n".to_string(),
+    );
+    pack
+}
+
+#[test]
+fn a_split_moves_only_what_the_later_scenes_alone_name_into_the_tail() {
+    let mut pack = with_a_later_scene();
+    let later = ["levels/*".to_string()];
+    let tail = balaur_project::packing::split(&mut pack, &later, "game.bpak.tail")
+        .expect("the later scene names an asset nothing else does");
+    assert_eq!(tail.assets.keys().collect::<Vec<_>>(), ["art/spare.png"]);
+    assert!(pack.assets.contains_key("art/hero.png"));
+    let note = balaur_core::pack_tail::Tail::of(&pack).expect("the head names its tail");
+    assert_eq!(note.file, "game.bpak.tail");
+    assert!(note.waits.contains("levels/two.toml"));
+}
+
+#[test]
+fn an_asset_a_head_scene_also_names_stays_in_the_head() {
+    let mut pack = with_a_later_scene();
+    pack.scenes.insert(
+        "levels/two.toml".to_string(),
+        "[[nodes]]\nid = \"far\"\ntexture = \"art/hero.png\"\n".to_string(),
+    );
+    assert!(balaur_project::packing::split(&mut pack, &["levels/*".to_string()], "t").is_none());
+    assert!(!pack.assets.contains_key(balaur_core::pack_tail::TAIL));
+}
+
 #[test]
 fn print_a_real_report() {
     use balaur_core::pack::Pack;
