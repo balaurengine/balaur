@@ -25,6 +25,7 @@ mod engine_facing;
 mod holds;
 mod profile;
 mod tasks;
+#[cfg(feature = "compile")]
 mod tools;
 mod units;
 
@@ -40,6 +41,9 @@ const METER: bool = cfg!(all(target_arch = "wasm32", feature = "web"));
 /// The project instance's own unit, which has no code: every file a unit
 /// linked to it.
 const PROJECT_KEY: &str = "#project";
+/// Where an export writes [`PROJECT_KEY`]'s unit inside the pack, beside each
+/// script's unit under its own path.
+pub const PROJECT_UNIT: &str = ".balaur/bs-project.unit";
 
 /// Which instance a file is a unit of.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -221,6 +225,13 @@ struct Inner {
     /// units of the modules it uses, each built once for every script
     /// ([`BsHost::unit`]).
     units: RefCell<HashMap<String, HashMap<units::Build, Arc<Compiled>>>>,
+    /// The units an export compiled into the pack, by key: each runs as it
+    /// came, plain, whatever a debugger or a profiler asks.
+    packed: HashMap<String, Arc<Compiled>>,
+    /// The pack's [`PROJECT_UNIT`], when it carries units.
+    packed_project: Option<Compiled>,
+    /// An export for a browser: its units count their own fuel.
+    browser_units: Cell<bool>,
     /// The module files read for their declarations.
     parsed: balaur_bs::Parsed,
     /// Each file's source as last read, or `None` for no such file: a unit
@@ -302,6 +313,15 @@ impl BsHost {
         } else {
             (None, None)
         };
+        let packed: HashMap<String, Arc<Compiled>> = pack
+            .iter()
+            .flat_map(|pack| &pack.scripts)
+            .filter_map(|(key, bytes)| Some((key.clone(), Arc::new(Compiled::from_bytes(bytes)?))))
+            .collect();
+        let packed_project = pack
+            .as_ref()
+            .and_then(|pack| pack.assets.get(PROJECT_UNIT))
+            .and_then(|bytes| Compiled::from_bytes(bytes));
         BsHost {
             inner: Rc::new(Inner {
                 engine,
@@ -337,6 +357,9 @@ impl BsHost {
                 tally: RefCell::default(),
                 rebuild: RefCell::default(),
                 units: RefCell::default(),
+                packed,
+                packed_project,
+                browser_units: Cell::new(false),
                 parsed: balaur_bs::Parsed::default(),
                 sources: RefCell::default(),
                 read: RefCell::default(),
@@ -516,6 +539,7 @@ impl BsHost {
         }
     }
 
+    #[cfg(feature = "compile")]
     /// What is wrong with `source` as the script at `rel`, against the
     /// engine's API: the first error, where the compiler stopped.
     /// Every error in the file, one per function that does not compile;
@@ -537,6 +561,7 @@ impl BsHost {
         }
     }
 
+    #[cfg(feature = "compile")]
     pub fn check(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
         let key = key_of(rel);
         match self.unit_or_errors(&key, source) {
@@ -545,6 +570,7 @@ impl BsHost {
         }
     }
 
+    #[cfg(feature = "compile")]
     /// [`Self::check`] of the file alone, each file it uses left to answer
     /// for itself: for a caller that checks every one of those too.
     pub fn check_alone(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
@@ -553,6 +579,7 @@ impl BsHost {
             .unwrap_or_default()
     }
 
+    #[cfg(feature = "compile")]
     // The file's unit, or every error that keeps it from being one.
     fn unit_or_errors(&self, key: &str, source: &str) -> Result<Compiled, Vec<balaur_bs::Error>> {
         let found = balaur_bs::errors(source, &self.check_options(key));
@@ -567,11 +594,13 @@ impl BsHost {
         })
     }
 
+    #[cfg(feature = "compile")]
     /// What the file's own functions should say otherwise, though they compile.
     pub fn lints(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
         balaur_bs::lints(source, &self.check_options(&key_of(rel)))
     }
 
+    #[cfg(feature = "compile")]
     /// What the file declares, calls and spells by name, for a checker of
     /// the events a project hears; `None` when it does not parse or link.
     pub fn names(&self, rel: &str, source: &str) -> Option<crate::Names> {
@@ -588,6 +617,7 @@ impl BsHost {
             .collect()
     }
 
+    #[cfg(feature = "compile")]
     // A file's own functions: each module answers for its own.
     fn check_options(&self, key: &str) -> Options {
         Options {
@@ -609,6 +639,7 @@ impl BsHost {
         balaur_core::file_api::editors_script(&self.inner.engine, &path).is_some()
     }
 
+    #[cfg(feature = "compile")]
     /// [`Self::editors`], for the compiler to ask of a file and its `use`s.
     pub(crate) fn editor_files(&self) -> balaur_bs::EditorFiles {
         let host = Rc::downgrade(&self.inner);
@@ -618,6 +649,7 @@ impl BsHost {
         }))
     }
 
+    #[cfg(feature = "compile")]
     // Every error of every module `unit` uses, near or far, each named by its
     // file. Each module is built once a run.
     fn module_errors(&self, key: &str, unit: &Compiled) -> Vec<balaur_bs::Error> {
@@ -749,10 +781,23 @@ impl BsHost {
         Ok(home)
     }
 
-    /// The unit an instance starts from: an empty file.
-    pub(crate) fn project_unit(&self) -> Result<Compiled> {
-        balaur_bs::compile("", &self.options_of(PROJECT_KEY, units::Build::PLAIN))
-            .map_err(|e| anyhow!("{PROJECT_KEY}:{e}"))
+    /// The unit an instance starts from: an empty file, as the pack's units
+    /// were built beside it when it carries them.
+    pub fn project_unit(&self) -> Result<Compiled> {
+        if let Some(unit) = &self.inner.packed_project {
+            return Ok(unit.clone());
+        }
+        #[cfg(feature = "compile")]
+        return balaur_bs::compile("", &self.options_of(PROJECT_KEY, units::Build::PLAIN))
+            .map_err(|e| anyhow!("{PROJECT_KEY}:{e}"));
+        #[cfg(not(feature = "compile"))]
+        Err(anyhow!("{PROJECT_KEY}: {}", units::NO_COMPILER))
+    }
+
+    /// Build the units an export writes for a browser, which count their own
+    /// fuel, or for this build's own engine.
+    pub fn compile_for_browser(&self, browser: bool) {
+        self.inner.browser_units.set(browser);
     }
 
     // An instance with no file in it yet, on the engine what it holds asks for;

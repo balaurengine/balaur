@@ -97,6 +97,7 @@ mod tile_quad;
 mod tilemap;
 #[cfg(feature = "window")]
 mod tilemap_mesh;
+pub mod tony_lut;
 mod vocabulary;
 pub mod world_text;
 pub use boolean::{Boolean2d, Boolean3d, FillRule2d, Operation2d, Operation3d};

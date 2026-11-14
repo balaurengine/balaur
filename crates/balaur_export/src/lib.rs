@@ -365,12 +365,41 @@ fn flat_runtime(name: &str, opts: &Options<'_>) -> Result<PathBuf> {
     }
 }
 
+/// A bundle's pack, and the tail `[export] later` leaves a web one: a page
+/// fetches the tail while the game runs, a device has it all.
+fn pieces(kind: Bundle, pack: &mut balaur::Pack, later: &[String]) -> (Vec<u8>, Option<Vec<u8>>) {
+    let tail = (kind == Bundle::Web)
+        .then(|| balaur::packing::split(pack, later, balaur::standalone::BUNDLED_TAIL))
+        .flatten();
+    (pack.encode(), tail.map(|tail| tail.encode()))
+}
+
+/// `pack` shrunk as `[export]` asks, logging what it weighs and what that saved.
+fn prepare(pack: &mut balaur::Pack, config: &ExportConfig, manifest: &toml::Table) -> Result<()> {
+    let summary = size::prepare_for(pack, config, manifest)?;
+    tracing::info!("\n{}", balaur::packing::report_with(pack, &config.include));
+    if summary.total_saved() > 0 {
+        tracing::info!("{summary}");
+    }
+    Ok(())
+}
+
+/// The tail [`pieces`] cut, beside the pack in `dir`.
+fn write_tail(dir: &Path, tail: Option<Vec<u8>>) -> Result<()> {
+    let Some(tail) = tail else {
+        return Ok(());
+    };
+    let path = dir.join(balaur::standalone::BUNDLED_TAIL);
+    std::fs::write(&path, tail).with_context(|| format!("writing {}", path.display()))
+}
+
 /// Write a `.bpak`, or a standalone game when a runtime is in play.
 pub fn export(opts: &Options<'_>) -> Result<()> {
     let target = opts.target.as_deref();
     let bundle = target.and_then(|t| Some((Bundle::for_target(t)?, t)));
     let mut extra = opts.plugins.map(|make| make()).unwrap_or_default();
-    let mut pack = balaur::build_pack_using(&opts.path, opts.keep_sources, &mut extra)?;
+    let web = matches!(bundle, Some((Bundle::Web, _)));
+    let mut pack = balaur::build_pack_for(&opts.path, opts.keep_sources, &mut extra, web)?;
     // One read, resolved for the target: `[override.android.export]` is
     // folded onto `[export]` before any of these three is parsed.
     let manifest = config::manifest_for(&opts.path, target)?;
@@ -386,11 +415,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let (title, icons) = presented(opts, &manifest)?;
     fold_variants(&mut pack, &opts.path, target)?;
     bake_tags(&mut pack, &config.tags)?;
-    let summary = size::prepare_for(&mut pack, &config, &manifest)?;
-    tracing::info!("\n{}", balaur::packing::report_with(&pack, &config.include));
-    if summary.total_saved() > 0 {
-        tracing::info!("{summary}");
-    }
+    prepare(&mut pack, &config, &manifest)?;
     if opts.dry_run {
         return Ok(());
     }
@@ -405,10 +430,11 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         let shell = web_shell(&opts.path)?.replace("{{title}}", &title);
         let web_assets = bundle::web_files(&opts.path)?;
         let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
+        let (head, tail) = pieces(kind, &mut pack, &config.later);
         let written = export_bundle(
             kind,
             &runtime,
-            &pack.encode(),
+            &head,
             &name,
             output,
             &apple,
@@ -417,6 +443,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &web_assets,
             icons.as_ref(),
         )?;
+        write_tail(&written, tail)?;
         native_scripts(kind, &written, native.as_ref(), &apple)?;
         return finish_bundle(kind, &written, opts, &apple, &android, &name);
     }

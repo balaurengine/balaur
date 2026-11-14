@@ -25,6 +25,11 @@ pub fn native_source(
     // The instance a project's units share starts from a unit of its own.
     let mut modules = vec![host.project_unit()?.wasm];
     for (rel, bytes) in scripts.iter().filter(|(rel, _)| BsHost::claims(rel)) {
+        // A pack holds each file's unit, or its source with `--keep-sources`.
+        if let Some(unit) = balaur_bs::Compiled::from_bytes(bytes) {
+            modules.push(unit.wasm);
+            continue;
+        }
         let source = std::str::from_utf8(bytes).with_context(|| format!("{rel} is not text"))?;
         modules.push(host.unit_of(&key_of(rel), source)?.wasm);
     }

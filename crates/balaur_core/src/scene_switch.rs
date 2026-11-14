@@ -62,6 +62,14 @@ pub fn apply_system(eng: &Engine, dt: f32) {
     let asked = {
         let pending = eng.resource::<Pending>();
         let mut pending = pending.borrow_mut();
+        // A scene naming what the pack's tail holds waits for the tail.
+        if pending
+            .scene
+            .as_deref()
+            .is_some_and(|scene| crate::pack_tail::waits(eng, scene))
+        {
+            return;
+        }
         pending.scene.take().map(|scene| (scene, pending.fade))
     };
     if let Some((scene, fade)) = asked {

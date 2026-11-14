@@ -19,14 +19,17 @@ smallvec.workspace = true
 # Which engines run the scripts; a build takes at least one, and the fastest
 # it has wins.
 [features]
-default = ["wasmi"]
+default = ["wasmi", "compile"]
+# The compiler: a `.bs` source built where it runs, the checker, and the
+# editor's language tools. Off, a build runs the units an export compiled.
+compile = []
 wasmi = ["balaur_bs/wasmi"]
 wasmtime = ["balaur_bs/wasmtime"]
 web = ["balaur_bs/web"]
 # Runs a module from the native build an export put beside the app.
 native = ["balaur_bs/native"]
 # Translates scripts to C, for an export to a platform that runs no JIT.
-c = ["balaur_bs/c"]
+c = ["balaur_bs/c", "compile"]
 
 [lints]
 workspace = true

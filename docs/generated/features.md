@@ -25,7 +25,7 @@ atomics only that build has.
 | `bs-jit` | off | on |  | nothing |
 | `bs-wasmi` | off | off | The interpreter alone: what the web editor's module adds beside `bs-web` so a debugger can park a call. | nothing |
 | `bs-web` | off | on |  | nothing |
-| `compile` | off | off | The WESL shader linker and the `.bs` to C translator: a dev run, the editor and an export. A template leaves it off and draws with the shaders an export linked into the export pack. | nothing |
+| `compile` | off | off | The WESL shader linker, the `.bs` compiler and its C translator: a dev run, the editor and an export. A template leaves it off and draws with the shaders an export linked, and runs the script units it compiled, into the export pack. | nothing |
 | `editor` | off | off | The editor: `edit` and `export`, the `export.*`, `project.*`, `debugger.*` and `script.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | nothing |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `flac` | off | on | One feature per container `audio` decodes; a build without one plays none of that format. | nothing |

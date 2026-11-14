@@ -13,8 +13,8 @@ balaur_cfg.workspace = true
 default = ["compile"]
 # The WESL linker: a material's shader linked when it loads, and the editor's
 # shader preview. Off, every shader comes from the table an export wrote into
-# the export pack (`prelinked`).
-compile = ["dep:wesl"]
+# the export pack (`prelinked`). Tony McMapface's LUT rides the same way.
+compile = ["dep:wesl", "kiss3d?/tony-lut"]
 # The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,
 # and servers build without a graphics stack.
 window = ["dep:naga", "dep:kiss3d", "dep:pollster", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:objc2-ui-kit", "dep:mundy", "dep:bytemuck"]
@@ -40,7 +40,8 @@ flate2 = "1"
 libm.workspace = true
 # Balaur draws text with balaur_text, hands egui its fonts and decodes images
 # through balaur_core, so kiss3d's own text, faces and codecs stay out.
-kiss3d = { version = "0.47", optional = true, default-features = false, features = ["egui"] }
+# `webgl` keeps WebGL2 for a browser without WebGPU.
+kiss3d = { version = "0.47", optional = true, default-features = false, features = ["egui", "webgl"] }
 egui = { workspace = true, optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 pollster = { version = "1", optional = true }

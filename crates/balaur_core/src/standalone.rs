@@ -119,6 +119,9 @@ const SECURITY_DIRECTORY: usize = 4;
 
 /// Where a bundled game keeps its pack, next to the executable.
 pub const BUNDLED_PACK: &str = "game.bpak";
+/// The tail of a pack in pieces, beside the head: off the `*.bpak` a page or
+/// a script lists games by ([`crate::pack_tail`]).
+pub const BUNDLED_TAIL: &str = "game.bpak.tail";
 
 /// The pack carried by the running executable, if this is a shipped game.
 ///

@@ -3,6 +3,10 @@
 //! [`BsHost`] runs `.bs` scripts; [`factory`] makes the engine's script host
 //! of it. `docs/PLAN-balaur-script.md`.
 
+// A build without the compiler keeps the half that reads sources, for the
+// build with one, and calls none of it.
+#![cfg_attr(not(feature = "compile"), allow(dead_code, unused_imports))]
+
 mod api;
 mod convert;
 mod doc_types;
@@ -17,7 +21,7 @@ mod waits;
 pub use balaur_bs::analysis::{builtins, value_types};
 pub use balaur_bs::fmt;
 pub use balaur_bs::{HostApi, HostSignature, Literal, Names, Pos};
-pub use host::{BsHost, EXTENSION};
+pub use host::{BsHost, EXTENSION, PROJECT_UNIT};
 #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 pub use native::load_native;
 #[cfg(feature = "c")]

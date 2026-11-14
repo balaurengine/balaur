@@ -151,7 +151,13 @@ runs:
         # from: a hash mismatch in one fails the whole `apt-get update`.
         sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
         sudo apt-get update
-        sudo apt-get install -y binaryen brotli bc
+        sudo apt-get install -y brotli bc
+        # Binaryen 132, the `wasm-opt` the bare template's budget was measured
+        # with (docs/PLAN-build-size.md); the image's own is older and larger.
+        binaryen=version_132
+        curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/$binaryen/binaryen-$binaryen-x86_64-linux.tar.gz" \
+          | tar -xz -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/binaryen-$binaryen/bin" >>"$GITHUB_PATH"
         want=$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/[" ]/,""); sub(/version=/,""); print; exit}' Cargo.lock)
         cargo install wasm-bindgen-cli --version "$want" --locked
 

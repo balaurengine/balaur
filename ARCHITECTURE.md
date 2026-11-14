@@ -778,22 +778,35 @@ exported symbols.
 
 ### Export packs
 
-`balaur export` compiles every script with dev mode's own options less the
-debug info, so shipped bytecode is what was tested, and bundles scripts, scenes
-and manifest into a `.bpak`, for the web as for every other target. Only
-`--keep-sources` ships source, and only a build with the `compile` feature runs
-such an export pack: the editor's, never a game template.
+`balaur export` compiles every script to the unit dev mode builds, less the
+debug info, so shipped bytecode is what was tested, and bundles the units,
+scenes and manifest into a `.bpak`, for the web as for every other target. A
+unit for the web counts its own fuel; the project's own empty unit rides at
+`.balaur/bs-project.unit`. Only `--keep-sources` ships source, and only a build
+with the `compile` feature runs such an export pack: the editor's, never a
+game template, which has no compiler, checker or language tools.
 
 - The web game template and the editor's module are two builds of
   `balaur_cli`. The template leaves out `editor` (the exporter, the project
   store, a tab's editor entry points), `compile` and `fallback-fonts` (egui's
   bundled faces, 1.35 MiB); the editor's module adds `import,editor`.
-- `compile` off drops the `.bs` to C translator an iOS export uses, and the
-  WESL linker. Every shader link goes through
+- `compile` off drops the `.bs` compiler, the C translator an iOS export uses,
+  `balaur check`, `lsp` and `fmt`, and the WESL linker. A unit runs plain, so
+  a template's scripts take no debugger's probes or profiler's counters. Every shader link goes through
   `balaur_render::prelinked::cached`, keyed by what it links; an export runs
   each one the game can draw with (the engine's in every variant, each
   material morphed or not, in the transparency pass or not) and writes the
   results to `.balaur/shaders.toml` in the export pack, which a template reads.
+- A web export may come in two pieces. `[export] later` names scenes whose
+  own assets go to `game.bpak.tail`; the head names it in
+  `.balaur/tail.toml` with those scenes. The page starts on the head and
+  fetches the tail, `pack_tail::deliver` hands it over, and a switch to one of
+  those scenes waits for it at the end of the tick. `balaur play` reads a tail
+  beside its pack before the first frame.
+- kiss3d's Tony McMapface LUT, 864 KiB, is in a build with `compile` alone.
+  An export of a game whose scenes, assets or scripts name `tony_mcmapface`
+  writes it deflated to `.balaur/tony_mcmapface.lut.deflate`, and a template
+  hands it to kiss3d before the window opens.
 - kiss3d links its built-in shaders in `build.rs`. Its object shader keeps
   three `@if` flags that change what it declares (8 modules); the other
   fourteen are `override` constants each pipeline sets.
@@ -801,8 +814,8 @@ such an export pack: the editor's, never a game template.
   balaur_text links already: a patch on epaint 0.36 (`Ughuuu/egui`) in place
   of `vello_cpu` and its SIMD kernels, 1.4 MB of a web build.
 - A runtime variant is a name with a suffix: `-2d` and `-3d` on every target
-  keep one physics world, `-server` on a desktop has no window or sound. A
-  variant is a game template, with no editor and no compiler, takes its
+  keep one physics world, `-bare` keeps neither, `-server` on a desktop has
+  no window or sound. A variant is a game template, with no editor and no compiler, takes its
   platform's tags and is found as `balaur-runtime-<target>-<variant>`. A
   server is a target of its own; `[export] runtime` turns `web` into `web-2d`,
   by default whichever is the smallest the game's scenes and scripts fit,
@@ -811,8 +824,9 @@ such an export pack: the editor's, never a game template.
   exports and runs every one; `scripts/features.sh` holds the feature sets.
 - A physics world is a feature, `physics2d` or `physics3d`. Both compile in
   every build, since the 2D code calls helpers in the 3D files; a world left
-  off registers no system, component or verb, so its solver never links.
-  `physics.*` spans both and both resources always exist.
+  off registers no system, component or verb, and makes no state, so neither
+  its solver nor rapier's shape code links. `physics.*` spans the worlds a
+  build has, reading each through `state_3d` and `state_2d`.
 
 - `balaur::boot_pack(include_bytes!(...))` makes a self-contained binary. It is
   pure interpretation, so it ships where JIT is banned, iOS included. CI

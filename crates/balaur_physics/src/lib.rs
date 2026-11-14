@@ -252,14 +252,20 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
 "#.to_string()].join("\n"),
             ),
         );
-        // Both worlds exist in every build: `physics.*` spans them, and a
-        // build with one dimension registers nothing that fills the other.
-        reg.insert_resource(PhysicsState3d::new());
-        reg.insert_resource(PhysicsState2d::new());
+        // A world exists only in a build with its feature: a rapier world
+        // brings every shape's code with it. `physics.*` reads the ones there.
+        #[cfg(feature = "physics3d")]
+        {
+            reg.insert_resource(PhysicsState3d::new());
+            balaur_core::parked::on_change(reg.engine(), parked_changed);
+        }
+        #[cfg(feature = "physics2d")]
+        {
+            reg.insert_resource(PhysicsState2d::new());
+            balaur_core::parked::on_change(reg.engine(), dim2::parked_changed);
+            balaur_core::parked::on_change(reg.engine(), dim2::tiles::parked_changed);
+        }
         balaur_core::rest::add_probe(reg.engine(), w::general::PHYSICS, rest::pending);
-        balaur_core::parked::on_change(reg.engine(), parked_changed);
-        balaur_core::parked::on_change(reg.engine(), dim2::parked_changed);
-        balaur_core::parked::on_change(reg.engine(), dim2::tiles::parked_changed);
         // After both steps, so the bodies have moved and the bone transform
         // the blend reads is still the one the clip wrote this frame.
         reg.add_system(Stage::PostUpdate, ragdoll::blend_system);
@@ -614,17 +620,16 @@ fn install_world_controls(m: &mut Module<Engine>) {
     // Everything here spans BOTH worlds: editors and games treat
     // "physics" as one simulation. Per-dimension calls live in physics3d/2d.
     m.function(SET_PAUSED, |eng: &Engine, paused: bool| {
-        let state = eng.resource::<PhysicsState3d>();
-        state.borrow_mut().paused = paused;
+        if let Some(state) = state_3d(eng) {
+            state.borrow_mut().paused = paused;
+        }
         dim2::set_paused(eng, paused);
         Ok(())
     });
     // Spans BOTH worlds: `set_paused` pauses them together, so one answer
-    // is the truth for both.
+    // is the truth for both. A build with no world has nothing stopped.
     m.function(IS_PAUSED, |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState3d>();
-        let v = state.borrow().paused;
-        Ok(v)
+        Ok(read_either(eng, |s| s.paused, |s| s.paused).unwrap_or(false))
     });
     // Allow or forbid bodies falling asleep (editors expose this as the
     // "Sleep bodies" toggle). Spans BOTH worlds, and applies to bodies
@@ -637,9 +642,7 @@ fn install_world_controls(m: &mut Module<Engine>) {
     // Reads back what `set_sleeping_allowed` last wrote (true by default).
     // Spans BOTH worlds, because the setter writes both.
     m.function(SLEEPING_ALLOWED, |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState3d>();
-        let v = state.borrow().sleeping_allowed;
-        Ok(v)
+        Ok(read_either(eng, |s| s.sleeping_allowed, |s| s.sleeping_allowed).unwrap_or(true))
     });
     // Remove every body and collider (editors use this to reset a
     // play-in-editor session). Spans BOTH worlds.
@@ -650,11 +653,32 @@ fn install_world_controls(m: &mut Module<Engine>) {
     });
 }
 
+/// The 3D world, in a build that has it. Code both worlds share reads it
+/// through here, so a build without the world compiles that code away.
+#[inline]
+pub(crate) fn state_3d(eng: &Engine) -> Option<std::rc::Rc<std::cell::RefCell<PhysicsState3d>>> {
+    cfg!(feature = "physics3d").then(|| eng.resource::<PhysicsState3d>())
+}
+
+/// A field both worlds keep in step, read from whichever this build has.
+fn read_either<T>(
+    eng: &Engine,
+    dim3: impl FnOnce(&PhysicsState3d) -> T,
+    dim2: impl FnOnce(&PhysicsState2d) -> T,
+) -> Option<T> {
+    if let Some(state) = state_3d(eng) {
+        return Some(dim3(&state.borrow()));
+    }
+    dim2::state_2d(eng).map(|state| dim2(&state.borrow()))
+}
+
 /// Allow or forbid the 3D world's bodies falling asleep, now and for bodies
 /// added later. A body whose author wrote `can_sleep = false` stays awake
 /// either way, and every body keeps its `time_to_sleep`.
 pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
-    let state = eng.resource::<PhysicsState3d>();
+    let Some(state) = state_3d(eng) else {
+        return;
+    };
     let mut state = state.borrow_mut();
     let state = &mut *state;
     state.sleeping_allowed = allowed;
@@ -674,7 +698,9 @@ pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
 /// scene would otherwise not simulate the way a fresh process does. Gravity
 /// and the step are settings, and carry over.
 pub fn clear(eng: &Engine) {
-    let state = eng.resource::<PhysicsState3d>();
+    let Some(state) = state_3d(eng) else {
+        return;
+    };
     let mut state = state.borrow_mut();
     let gravity = state.world.gravity;
     let params = state.world.integration_parameters;

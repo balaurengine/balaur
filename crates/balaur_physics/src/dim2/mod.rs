@@ -259,8 +259,16 @@ fn step_system(eng: &Engine, _dt: f32) {
     crate::tuning::warn_about_quarantine_2d(eng);
 }
 
+/// The 2D world, in a build that has it: [`crate::state_3d`]'s twin.
+#[inline]
+pub(crate) fn state_2d(eng: &Engine) -> Option<std::rc::Rc<std::cell::RefCell<PhysicsState2d>>> {
+    cfg!(feature = "physics2d").then(|| eng.resource::<PhysicsState2d>())
+}
+
 pub fn clear(eng: &Engine) {
-    let state = eng.resource::<PhysicsState2d>();
+    let Some(state) = state_2d(eng) else {
+        return;
+    };
     let mut state = state.borrow_mut();
     // A fresh world, not a drained one: rapier reuses a freed handle's slot
     // with the generation bumped and the solver works in handle order, so a
@@ -289,12 +297,15 @@ pub fn clear(eng: &Engine) {
 }
 
 pub fn set_paused(eng: &Engine, paused: bool) {
-    let state = eng.resource::<PhysicsState2d>();
-    state.borrow_mut().paused = paused;
+    if let Some(state) = state_2d(eng) {
+        state.borrow_mut().paused = paused;
+    }
 }
 
 pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
-    let state = eng.resource::<PhysicsState2d>();
+    let Some(state) = state_2d(eng) else {
+        return;
+    };
     let mut state = state.borrow_mut();
     let state = &mut *state;
     state.sleeping_allowed = allowed;

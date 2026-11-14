@@ -14,15 +14,23 @@ impl ScriptCompiler for BsHost {
         &[EXTENSION]
     }
 
+    /// The file's unit, as it ships: a game template has no compiler.
+    #[cfg(feature = "compile")]
     fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>> {
         let compiled = self.unit_of(&key_of(rel), source)?;
         self.inner
             .called
             .borrow_mut()
             .extend(compiled.meta.host_calls.iter().map(api::line));
-        Ok(source.as_bytes().to_vec())
+        Ok(compiled.to_bytes())
     }
 
+    #[cfg(not(feature = "compile"))]
+    fn compile(&self, rel: &str, _source: &str) -> Result<Vec<u8>> {
+        Err(anyhow!("{rel}: {}", super::units::NO_COMPILER))
+    }
+
+    #[cfg(feature = "compile")]
     fn uses(&self, rel: &str, source: &str) -> Result<Vec<String>> {
         let key = key_of(rel);
         let options = Options {
@@ -31,6 +39,11 @@ impl ScriptCompiler for BsHost {
             ..Options::default()
         };
         balaur_bs::uses(source, &options).map_err(|e| anyhow!("{key}:{e}"))
+    }
+
+    #[cfg(not(feature = "compile"))]
+    fn uses(&self, rel: &str, _source: &str) -> Result<Vec<String>> {
+        Err(anyhow!("{rel}: {}", super::units::NO_COMPILER))
     }
 
     fn api(&self) -> Vec<String> {
@@ -107,6 +120,8 @@ impl ScriptHost<Engine> for BsHost {
             .collect())
     }
 
+    // Read from the source, so a build without the compiler answers none.
+    #[cfg(feature = "compile")]
     fn events(&self, path: &str) -> Vec<(String, String)> {
         let key = key_of(path);
         let Some(source) = self.kept_source(&key) else {
@@ -405,6 +420,7 @@ impl ScriptHost<Engine> for BsHost {
         self.debug_resume(mode);
     }
 
+    #[cfg(feature = "compile")]
     fn tools_for(&self, path: &str) -> Option<&dyn balaur_script::LanguageTools> {
         BsHost::claims(path).then_some(self as &dyn balaur_script::LanguageTools)
     }

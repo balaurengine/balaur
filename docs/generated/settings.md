@@ -107,6 +107,7 @@ question as an old one is a second way to say it.
 <tr><td><code>tags</code></td><td>list of string</td><td><code>[]</code></td><td></td><td>Names this build answers to besides its platform&#x27;s, such as demo or store. An override or an asset variant may be written for any of them; per target, set it under that target&#x27;s override.</td></tr>
 <tr><td><code>max_size</code></td><td>int</td><td><code>0</code></td><td></td><td>The longest side an image ships at, in pixels; 0 keeps every size. Set it per target to ship a phone a smaller art set. Pixel art and bitmap font pages are never capped, and a sprite keeps the size it was drawn at.</td></tr>
 <tr><td><code>native_scripts</code></td><td>enum</td><td><code>&quot;auto&quot;</code></td><td></td><td>Ship the scripts as native code, built from their C with Xcode for an Apple target or clang and lld for any. auto falls back to the target&#x27;s engine when no compiler is found, on fails the export instead, off never builds it. Per target through that target&#x27;s override.</td></tr>
+<tr><td><code>later</code></td><td>list of string</td><td><code>[]</code></td><td></td><td>Scenes, as globs, whose assets a web export ships in a second file the page fetches after the game starts. A switch to one waits until that file has arrived; no other scene may name what only these do.</td></tr>
 </tbody>
 </table>
 

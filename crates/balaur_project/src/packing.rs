@@ -111,6 +111,7 @@ pub fn build_with(
                 if !shipped.is_empty() {
                     literals.extend(script_references(&rel, &source));
                 }
+                pack.script_paths.extend(script_references(&rel, &source));
                 let checked = compiler
                     .compile(&rel, &source)
                     .and_then(|bytes| Ok((bytes, compiler.uses(&rel, &source)?)));
@@ -396,6 +397,74 @@ pub fn strip(pack: &mut Pack, keep: &[String]) -> Vec<String> {
     removed
 }
 
+/// Move the assets only the scenes `later` matches name into a tail, and
+/// note the tail in what is left, the head: its file name `file`, beside the
+/// head, and those scenes, which a switch to waits for
+/// ([`balaur_core::pack_tail`]). `later` holds globs. `None`, with `pack`
+/// untouched, when no asset is named by those scenes alone.
+pub fn split(pack: &mut Pack, later: &[String], file: &str) -> Option<Pack> {
+    let is_later = |key: &str| {
+        later
+            .iter()
+            .any(|pattern| balaur_core::ignore::glob_matches(pattern, key))
+    };
+    let (waits, now): (BTreeMap<_, _>, BTreeMap<_, _>) =
+        pack.scenes.iter().partition(|(key, _)| is_later(key));
+    // The walk reads an asset only for a bitmap font's pages.
+    let fonts = pack
+        .assets
+        .iter()
+        .filter(|(key, _)| extension_of(key) == words::FNT)
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    let mut head_view = Pack {
+        manifest: pack.manifest.clone(),
+        scenes: now
+            .into_iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
+        scripts: pack.scripts.clone(),
+        assets: fonts,
+        script_paths: pack.script_paths.clone(),
+        ..Pack::default()
+    };
+    let head = references(&head_view);
+    head_view.scenes = waits
+        .iter()
+        .map(|(k, v)| ((*k).clone(), (*v).clone()))
+        .collect();
+    head_view.scripts.clear();
+    head_view.script_paths.clear();
+    head_view.manifest.clear();
+    let tail_named = references(&head_view);
+    let moved: Vec<String> = pack
+        .assets
+        .keys()
+        .filter(|key| {
+            is_referenced(key, &tail_named)
+                && !is_referenced(key, &head)
+                && !LOADED_WHOLE.iter().any(|dir| key.starts_with(dir))
+        })
+        .cloned()
+        .collect();
+    if moved.is_empty() {
+        return None;
+    }
+    let mut tail = Pack::default();
+    for key in moved {
+        if let Some(bytes) = pack.assets.remove(&key) {
+            tail.assets.insert(key, bytes);
+        }
+    }
+    let note = balaur_core::pack_tail::Tail {
+        file: file.to_string(),
+        waits: waits.keys().map(|key| (*key).clone()).collect(),
+    };
+    pack.assets
+        .insert(balaur_core::pack_tail::TAIL.into(), note.written());
+    Some(tail)
+}
+
 /// Every path the pack's own files name, with any `#entry` cut off.
 fn references(pack: &Pack) -> BTreeSet<String> {
     references_with(pack, BTreeSet::new())
@@ -424,8 +493,9 @@ fn references_with(pack: &Pack, mut out: BTreeSet<String>) -> BTreeSet<String> {
             collect_toml_strings(&value, &mut out);
         }
     }
+    // A compiled script holds no text: what its source spelled was kept.
+    out.extend(pack.script_paths.iter().cloned());
     for (key, bytes) in &pack.scripts {
-        // A script may be bytecode; only text can hold a literal to read.
         if let Ok(text) = std::str::from_utf8(bytes) {
             out.extend(script_references(key, text));
         }

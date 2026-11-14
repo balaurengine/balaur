@@ -12,8 +12,9 @@ use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
 use balaur_script::{Module, Value};
 
+use crate::dim2::state_2d;
 use crate::vocabulary::{Opts, keys as k, map, words as w};
-use crate::{PhysicsState2d, PhysicsState3d};
+use crate::{PhysicsState2d, PhysicsState3d, state_3d};
 
 const COUNTERS: &str = "counters";
 const QUARANTINED: &str = "quarantined";
@@ -90,11 +91,10 @@ macro_rules! write_parameters {
 /// What one world's profiler counted in its last step. Turns the profiler on,
 /// so the numbers arrive from the step after the first call.
 macro_rules! counters_value {
-    ($state:expr_2021) => {{
-        let mut state = $state;
-        let pipeline = &mut state.world.physics_pipeline;
-        pipeline.counters.enable();
-        let c = &pipeline.counters;
+    ($counters:expr_2021) => {{
+        let c = $counters;
+        c.enable();
+        let c = &*c;
         let (stages, cd, solver, ccd) = (&c.stages, &c.cd, &c.solver, &c.ccd);
         let count = |n: usize| Value::Int(i64::try_from(n).unwrap_or(i64::MAX));
         map([
@@ -407,23 +407,17 @@ fn capture_world(eng: &Engine) -> serde_json::Value {
     if pending {
         write_tuning_from_settings(eng);
     }
-    let gravity_3d = eng
-        .resource::<PhysicsState3d>()
-        .borrow()
-        .world
-        .gravity
-        .to_array();
-    let gravity_2d = eng
-        .resource::<PhysicsState2d>()
-        .borrow()
-        .world
-        .gravity
-        .to_array();
-    serde_json::json!({
+    let mut captured = serde_json::json!({
         "tuning": balaur_core::engine_api::to_json(&tuning(eng)).unwrap_or_default(),
-        k::GRAVITY_3D: gravity_3d,
-        k::GRAVITY_2D: gravity_2d,
-    })
+    });
+    // A world this build lacks has no gravity to keep.
+    if let Some(state) = state_3d(eng) {
+        captured[k::GRAVITY_3D] = serde_json::json!(state.borrow().world.gravity.to_array());
+    }
+    if let Some(state) = state_2d(eng) {
+        captured[k::GRAVITY_2D] = serde_json::json!(state.borrow().world.gravity.to_array());
+    }
+    captured
 }
 
 fn restore_world(eng: &Engine, value: &serde_json::Value) {
@@ -445,14 +439,16 @@ fn restore_world(eng: &Engine, value: &serde_json::Value) {
     if let Some([x, y, z]) = vector(k::GRAVITY_3D)
         .as_deref()
         .and_then(|v| <[f32; 3]>::try_from(v).ok())
+        && let Some(state) = state_3d(eng)
     {
-        eng.resource::<PhysicsState3d>().borrow_mut().world.gravity = crate::scalar::v3(x, y, z);
+        state.borrow_mut().world.gravity = crate::scalar::v3(x, y, z);
     }
     if let Some([x, y]) = vector(k::GRAVITY_2D)
         .as_deref()
         .and_then(|v| <[f32; 2]>::try_from(v).ok())
+        && let Some(state) = state_2d(eng)
     {
-        eng.resource::<PhysicsState2d>().borrow_mut().world.gravity = crate::scalar::v2(x, y);
+        state.borrow_mut().world.gravity = crate::scalar::v2(x, y);
     }
 }
 
@@ -534,9 +530,8 @@ fn write_tuning_from_settings(eng: &Engine) {
         (f, boolean, word)
     };
     let recovery = |key: &str| format!("{}/{key}", k::SOFT_RECOVERY);
-    {
+    if let Some(state) = state_3d(eng) {
         let (f, boolean, word) = readers(k::WORLD_3D);
-        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let p = &mut state.world.integration_parameters;
         write_parameters!(&mut *p, &f, &boolean);
@@ -554,8 +549,10 @@ fn write_tuning_from_settings(eng: &Engine) {
             state.world.gravity = crate::rapier3d::math::Vector::new(*x, *y, *z);
         }
     }
+    let Some(state) = state_2d(eng) else {
+        return;
+    };
     let (f, boolean, word) = readers(k::WORLD_2D);
-    let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     let p = &mut state.world.integration_parameters;
     write_parameters!(&mut *p, &f, &boolean);
@@ -678,9 +675,8 @@ fn tuning_rows_2d(
 /// world's own table over them.
 fn set_tuning(eng: &Engine, opts: &Value) {
     let shared = Opts(Some(opts));
-    {
+    if let Some(state) = state_3d(eng) {
         let own = World::of(&shared, k::WORLD_3D);
-        let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let p = &mut state.world.integration_parameters;
         write_parameters!(
@@ -698,8 +694,10 @@ fn set_tuning(eng: &Engine, opts: &Value) {
         );
         write_friction_model(p, own.text(k::FRICTION_MODEL).as_deref());
     }
+    let Some(state) = state_2d(eng) else {
+        return;
+    };
     let own = World::of(&shared, k::WORLD_2D);
-    let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     let p = &mut state.world.integration_parameters;
     write_parameters!(
@@ -717,12 +715,16 @@ fn set_tuning(eng: &Engine, opts: &Value) {
     );
 }
 
-/// What `physics.tuning` reads back: every key, per world.
+/// What `physics.tuning` reads back: every key, per world, and rapier's
+/// defaults for a world this build lacks.
 fn tuning(eng: &Engine) -> Value {
     let dim3 = {
-        let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
-        let p = &state.world.integration_parameters;
+        let state = state_3d(eng);
+        let state = state.as_ref().map(|state| state.borrow());
+        let unbuilt = IntegrationParameters::default();
+        let p = state
+            .as_ref()
+            .map_or(&unbuilt, |state| &state.world.integration_parameters);
         let mut rows = tuning_rows(p);
         rows.push((
             k::FRICTION_MODEL,
@@ -731,9 +733,12 @@ fn tuning(eng: &Engine) -> Value {
         rows.extend(soft::soft_value!(rapier3d, p));
         rows
     };
-    let state = eng.resource::<PhysicsState2d>();
-    let state = state.borrow();
-    let p = &state.world.integration_parameters;
+    let state = state_2d(eng);
+    let state = state.as_ref().map(|state| state.borrow());
+    let unbuilt = crate::rapier2d::dynamics::IntegrationParameters::default();
+    let p = state
+        .as_ref()
+        .map_or(&unbuilt, |state| &state.world.integration_parameters);
     let mut dim2 = tuning_rows_2d(p);
     dim2.extend(soft::soft_value!(rapier2d, p));
     let table = |rows: Vec<(&str, Value)>| {
@@ -831,12 +836,11 @@ pub(crate) fn install_tuning_api(m: &mut Module<Engine>) {
     // than letting the whole world become NaN. Saying which node it was is the
     // difference between a bug report and a mystery.
     m.function(QUARANTINED, |eng: &Engine, ()| {
-        let (state3, state2) = (
-            eng.resource::<PhysicsState3d>(),
-            eng.resource::<PhysicsState2d>(),
-        );
-        let dim3 = quarantined_nodes!(&*state3.borrow());
-        let dim2 = quarantined_nodes!(&*state2.borrow());
+        // A world this build lacks has quarantined nothing.
+        let dim3 =
+            state_3d(eng).map_or_else(Default::default, |s| quarantined_nodes!(&*s.borrow()));
+        let dim2 =
+            state_2d(eng).map_or_else(Default::default, |s| quarantined_nodes!(&*s.borrow()));
         Ok(map([
             (k::PHYSICS_3D, quarantine_value(eng, dim3)?),
             (k::PHYSICS_2D, quarantine_value(eng, dim2)?),
@@ -848,12 +852,18 @@ pub(crate) fn install_tuning_api(m: &mut Module<Engine>) {
     // Rapier's profiler is off until something asks for it, so the first call
     // turns it on and the numbers arrive from the step after this one.
     m.function(COUNTERS, |eng: &Engine, ()| {
-        let (state3, state2) = (
-            eng.resource::<PhysicsState3d>(),
-            eng.resource::<PhysicsState2d>(),
-        );
-        let dim3 = counters_value!(state3.borrow_mut());
-        let dim2 = counters_value!(state2.borrow_mut());
+        let dim3 = if let Some(state) = state_3d(eng) {
+            let mut state = state.borrow_mut();
+            counters_value!(&mut state.world.physics_pipeline.counters)
+        } else {
+            counters_value!(&mut crate::rapier3d::counters::Counters::default())
+        };
+        let dim2 = if let Some(state) = state_2d(eng) {
+            let mut state = state.borrow_mut();
+            counters_value!(&mut state.world.physics_pipeline.counters)
+        } else {
+            counters_value!(&mut crate::rapier2d::counters::Counters::default())
+        };
         Ok(map([(k::PHYSICS_3D, dim3), (k::PHYSICS_2D, dim2)]))
     });
 }

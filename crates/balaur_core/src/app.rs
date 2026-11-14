@@ -294,6 +294,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
         crate::settings::answer_to_built_tags(eng);
     }
     crate::pack::Documents::note(eng, config.pack.as_ref());
+    crate::pack_tail::note(eng, config.pack.as_ref());
     // A packed game serves its textures, sounds and fonts from the pack;
     // a dev run serves them from the source tree.
     eng.insert_resource(
@@ -511,6 +512,7 @@ impl App {
             }
         });
         app.add_system(Stage::Last, crate::preload::warm_system);
+        app.add_system(Stage::First, crate::pack_tail::arrive_system);
         Ok(app)
     }
 

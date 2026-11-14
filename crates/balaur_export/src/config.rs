@@ -72,6 +72,9 @@ pub struct ExportConfig {
     pub runtime: Runtime,
     /// Whether the scripts ship as native code built from their C.
     pub native_scripts: NativeScripts,
+    /// Scenes, as globs, whose assets a web export ships in a tail the page
+    /// fetches after the game starts; a switch to one waits for it.
+    pub later: Vec<String>,
 }
 
 /// `[export] native_scripts`: whether an export builds the scripts as native
@@ -135,6 +138,7 @@ impl Default for ExportConfig {
             audio_quality: crate::recode::DEFAULT_AUDIO_QUALITY,
             runtime: Runtime::Auto,
             native_scripts: NativeScripts::Auto,
+            later: Vec::new(),
         }
     }
 }

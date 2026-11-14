@@ -22,6 +22,7 @@ mod facade;
 mod fixed_update;
 mod gamepad;
 mod interactivity;
+mod pack_tail;
 mod parked_scenes;
 mod presets;
 mod replay;

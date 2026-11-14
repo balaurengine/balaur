@@ -27,7 +27,7 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 - `cargo clippy --workspace --all-targets -- -D warnings`
 - Once for `extensions`, `apple`
 - The game templates `scripts/package.sh` builds: `2d` and `3d`, one physics
-  world each with a window, and `server` without one
+  world each with a window, `bare` with neither, and `server` without one
 - Twice for `wasm32-unknown-unknown`: the web runtime's features, and the defaults
 - The workspace for `aarch64-linux-android` and `aarch64-apple-ios`, then the
   iOS template's `apple`: the code no host build compiles.
@@ -348,6 +348,10 @@ one entry in `cases_kinds.bs` or `cases_scripts.bs`.
   exports an example that fits only it onto each with that
   run's editor and plays 60 frames (`VARIANT=... scripts/package.sh`); the
   mobile and web variants go through `scripts/export_check.sh`.
+- `scripts/package_runtime.sh web` fails a module under 5 MiB, which has lost
+  its entry point, and a `bare` one over its budget. Every template it and
+  `scripts/package.sh` build writes its code by crate to the job's summary,
+  from `scripts/wasm_crates.py` or `scripts/native_crates.py`.
 - `scripts/check_web_module.sh` holds both web stagings to what `balaur.js`
   names beside it, wasm-bindgen's `snippets/` included: a static import that
   404s stops the module evaluating, and the build that shipped it is green.

@@ -31658,6 +31658,21 @@
     },
     {
       "host": false,
+      "path": "export/later",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "Scenes, as globs, whose assets a web export ships in a second file the page fetches after the game starts. A switch to one waits until that file has arrived; no other scene may name what only these do.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 14,
+        "type": "list"
+      }
+    },
+    {
+      "host": false,
       "path": "export/native_scripts",
       "scope": "project",
       "spec": {

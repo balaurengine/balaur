@@ -156,4 +156,5 @@ def main():
         print(f"{mib(size):7.3f} {crate}")
 
 
-main()
+if __name__ == "__main__":
+    main()

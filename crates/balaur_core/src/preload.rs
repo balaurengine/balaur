@@ -107,6 +107,13 @@ pub(crate) fn warm_system(eng: &Engine, _dt: f32) {
         return;
     }
     let next = waiting.borrow_mut().0.pop_front();
+    // A scene the pack's tail holds the pictures of warms once they arrive.
+    if let Some(path) = next.as_deref()
+        && crate::pack_tail::waits(eng, path)
+    {
+        waiting.borrow_mut().0.extend(next);
+        return;
+    }
     if let Some(path) = next
         && let Err(why) = scene(eng, &path)
     {
