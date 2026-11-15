@@ -14,10 +14,17 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["window", "headless"]
+default = ["window", "headless", "webgl"]
 # Every default but the window: a tool that opens none, on a machine that may
 # have no display. Its runs are headless.
-headless = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "multiplayer", "browser", "parallel", "physics2d", "physics3d", "import", "compile", "editor", "bs", "bs-jit"]
+headless = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "multiplayer", "browser", "parallel", "physics2d", "physics3d", "import", "compile", "editor", "bs", "bs-jit", "env-filter"]
+# WebGL2 beside WebGPU in a browser, for a page without WebGPU. 1.0 MB of a web
+# module; the web game template leaves it off, and a native build has no use for it.
+webgl = ["balaur/webgl"]
+# `RUST_LOG` with tracing's full filter syntax, regex included. Off, plain
+# `target=level` rows; the web game template leaves it off, as a page has no
+# environment.
+env-filter = ["balaur/env-filter"]
 # rapier's solver on rayon. The plain web runtime leaves it off: rayon blocks
 # on `Atomics.wait`, which a browser refuses without shared memory.
 parallel = ["balaur/parallel"]

@@ -105,13 +105,13 @@ NOTABLE = ["kiss3d", "wgpu", "naga", "winit", "egui-wgpu", "glow", "image", "exr
 
 def web_runtime_features():
     """The feature set scripts/package_runtime.sh builds the web runtime with:
-    scripts/features.sh's game set with `bs` on the page's engine, and a
-    window."""
+    scripts/features.sh's game set less `env-filter`, with `bs` on the
+    page's engine, and a window."""
     text = (ROOT / "scripts" / "features.sh").read_text()
     m = re.search(r"^GAME_FEATURES=([a-z0-9_,-]+)$", text, re.M)
     if not m:
         raise SystemExit("scripts/features.sh no longer names GAME_FEATURES")
-    game = ["bs-web" if f == "bs" else f for f in m.group(1).split(",")]
+    game = ["bs-web" if f == "bs" else f for f in m.group(1).split(",") if f != "env-filter"]
     return game + ["window"]
 
 

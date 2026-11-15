@@ -10,6 +10,10 @@ authors.workspace = true
 balaur_cfg.workspace = true
 
 [features]
+# `RUST_LOG` read with tracing's full filter syntax, regex and span fields
+# included. Off, it reads plain `target=level` rows; a web game has no
+# environment to read, and the regex engine is 0.23 MB of its module.
+env-filter = ["tracing-subscriber/env-filter"]
 
 [dependencies]
 hecs.workspace = true

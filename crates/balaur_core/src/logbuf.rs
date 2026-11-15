@@ -16,7 +16,6 @@ use std::sync::Mutex;
 use tracing::field::{Field, Visit};
 use tracing::level_filters::LevelFilter;
 use tracing::{Event, Subscriber};
-use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::{Context, Layer, SubscriberExt as _};
 use tracing_subscriber::util::SubscriberInitExt as _;
 
@@ -155,15 +154,11 @@ const QUIET_APPKIT: &str = "winit::platform_impl::macos::event_handler=off";
 /// events in, held to errors. The module path is winit 0.30's.
 const QUIET_IOS_REDRAW: &str = "winit::platform_impl::ios::app_state=error";
 
-/// Start capturing: stderr output plus the ring buffer, and a bridge so `log`
-/// records from dependencies land in the same place.
-///
-/// Idempotent — a second call is a no-op, which keeps tests from fighting.
-#[allow(clippy::disallowed_methods, reason = "log timestamps, not simulation")]
-pub fn capture(max_level: LevelFilter) {
-    open_buffer();
-    let _ = tracing_log::LogTracer::init();
-    let filter = EnvFilter::builder()
+/// `max_level`, or what `RUST_LOG` says, with the three quiet directives over
+/// it, read with tracing's full syntax.
+#[cfg(feature = "env-filter")]
+fn filter(max_level: LevelFilter) -> tracing_subscriber::EnvFilter {
+    tracing_subscriber::EnvFilter::builder()
         .with_default_directive(max_level.into())
         .from_env_lossy()
         // gilrs times its rumble thread and warns whenever the machine is busy:
@@ -176,7 +171,35 @@ pub fn capture(max_level: LevelFilter) {
         // winit 0.30 on iOS starts a turn's redraws, then sends that turn's
         // AboutToWait anyway, and warns about its own order: a line a frame,
         // forty a second, into the run's log file.
-        .add_directive(QUIET_IOS_REDRAW.parse().expect("a fixed directive"));
+        .add_directive(QUIET_IOS_REDRAW.parse().expect("a fixed directive"))
+}
+
+/// The same filter without `env-filter`'s regex: `RUST_LOG` read as plain
+/// `target=level` rows and a bare level, and one that does not parse ignored.
+/// A blank one too: `Targets` reads it as an empty target, which is every one
+/// at `trace`.
+#[cfg(not(feature = "env-filter"))]
+fn filter(max_level: LevelFilter) -> tracing_subscriber::filter::Targets {
+    let asked = std::env::var("RUST_LOG")
+        .ok()
+        .filter(|rows| !rows.trim().is_empty())
+        .and_then(|rows| rows.parse::<tracing_subscriber::filter::Targets>().ok())
+        .unwrap_or_else(|| tracing_subscriber::filter::Targets::new().with_default(max_level));
+    [QUIET_RUMBLE, QUIET_APPKIT, QUIET_IOS_REDRAW]
+        .iter()
+        .filter_map(|row| row.parse::<tracing_subscriber::filter::Targets>().ok())
+        .fold(asked, tracing_subscriber::filter::Targets::with_targets)
+}
+
+/// Start capturing: stderr output plus the ring buffer, and a bridge so `log`
+/// records from dependencies land in the same place.
+///
+/// Idempotent — a second call is a no-op, which keeps tests from fighting.
+#[allow(clippy::disallowed_methods, reason = "log timestamps, not simulation")]
+pub fn capture(max_level: LevelFilter) {
+    open_buffer();
+    let _ = tracing_log::LogTracer::init();
+    let filter = filter(max_level);
     // Colour only for a person at a terminal. A pipe is a CI log or a build
     // service's viewer, where the escape codes arrive as `[2m…[0m` around
     // every timestamp.

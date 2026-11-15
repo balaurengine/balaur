@@ -33,6 +33,7 @@ fn on_load() {
     reason = "exported to the page by wasm-bindgen, not to another crate"
 )]
 pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
+    drawable()?;
     let bytes = fetch_bytes(&pack_url).await?;
     // The pack's URL names the game on this origin: the user directory an
     // earlier visit kept under it comes back before the first scene loads.
@@ -58,6 +59,26 @@ pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
     Box::pin(balaur::boot_packed_on_canvas(pack, &canvas_id))
         .await
         .map_err(err)
+}
+
+/// Where a page keeps its WebGPU entry point: `navigator.gpu`.
+const NAVIGATOR: &str = "navigator";
+const GPU: &str = "gpu";
+
+/// A page without WebGPU draws only through the WebGL2 fallback, which a
+/// build without `webgl` leaves out: say so, rather than fail on no adapter.
+fn drawable() -> Result<(), JsValue> {
+    if cfg!(feature = "webgl") {
+        return Ok(());
+    }
+    let window = web_sys::window().ok_or_else(|| JsValue::from_str("no window"))?;
+    let navigator = js_sys::Reflect::get(&window, &JsValue::from_str(NAVIGATOR))?;
+    if js_sys::Reflect::get(&navigator, &JsValue::from_str(GPU))?.is_undefined() {
+        return Err(JsValue::from_str(
+            "this browser has no WebGPU, and this game's runtime has no WebGL2 fallback",
+        ));
+    }
+    Ok(())
 }
 
 /// `file` in the directory of the URL `of` names.

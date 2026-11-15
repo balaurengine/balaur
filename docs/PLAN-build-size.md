@@ -180,14 +180,18 @@ first with `[plugins] audio = false` ran in headless Chrome on each shape.
 - **A pack in pieces ran.** A scratch game whose second scene names one
   picture exported to a 59 KB head and a 17 KB tail; in headless Chrome it
   started on the head, switched once the tail had come, and drew the picture.
+- **The web template's three switches took `bare` to 10.38 MB raw and
+  2.98 MB brotli**, from 12.87 and 3.64: std for size, `webgl` off and
+  `env-filter` off. naga, `wgpu-core` and regex left the table.
 - **Not done:** one recording replayed on both shapes to the same digest.
   A frame compared is weaker.
 
 ## 2. Design
 
-**Only what holds on every target.** A cut that changes the web alone makes
-the web a second engine to keep true, so each one below is the same code
-and the same behaviour on a phone, a desktop and a page.
+**What holds on every target first.** A cut that changes the web alone makes
+the web a second engine to keep true, so the diet below is the same code and
+the same behaviour on a phone, a desktop and a page. The three cuts the web
+alone takes are switches a build can turn back on.
 
 **Physics is a template per world.** Four templates of every target: both
 worlds, 2D, 3D, and `bare` with neither. A world left out as a feature
@@ -207,18 +211,18 @@ the smallest a game fits, and `fits` refuses a mismatch.
 | The physics snapshot's JSON | none | measured and not taken, §1: the frame as bincode came to 6 KB more |
 | The script compiler | 0.49 | built: a pack carries each script's unit, and `compile` puts the compiler, the checker and the language tools back |
 
-**Held, because only the web would take them.**
+**The web template's own cuts, each a switch.**
 
-| Cut | MB | Why it is the web's alone |
+| Cut | MB | How, and how to keep it |
 | --- | ---: | --- |
-| std built for size | 1.14 | needs `-Zbuild-std`, and sorts a large array slower |
-| The GL backend | 1.00 | `wgpu/webgl` is linked on no other target |
-| `env-filter` and regex | 0.23 | a desktop reads `RUST_LOG` through it |
+| std built for size | 1.14 | built: `-Zbuild-std` with `optimize_for_size` on the pinned stable; `WEB_STD=stock` keeps rustup's std. A sort on a large array is slower |
+| The WebGL2 fallback | 1.00 | built: the `webgl` feature, off in the web game template; a page without WebGPU then says so. The editor's module keeps it |
+| `env-filter` and regex | 0.23 | built: the `env-filter` feature, off in the web template only; without it `RUST_LOG` reads plain `target=level` rows |
 
-Each was built and measured in §1, so taking one up later starts from a
-number. Parts are held with them: with physics in the template, `audio` and
-the network plugins are 0.8 MB together and function merging off costs
-1.0%, so a 2D game with sound would gain nothing.
+The 1.14, 1.00 and 0.23 were measured in §1 before the diet. Parts stay
+held: with physics in the template, `audio` and the network plugins are
+0.8 MB together and function merging off costs 1.0%, so a 2D game with
+sound would gain nothing.
 
 **The parsers stay in the core.** Scenes could ship parsed and take TOML and
 JSON out of a game that never calls them. That is held: a game reads TOML or
@@ -235,9 +239,9 @@ LTO, so a game with physics would ship more bytes than the one binary does.
 | --- | --- |
 | A template per physics world | Have `-2d`, `-3d` and `-bare` on every target |
 | A physics world as a part | Not planned: about 30 places in the code the worlds share, and 1 MB more than the template leaves, §1 |
-| kiss3d's `webgl` feature | Kept on: `balaur_render` names it, since the engine takes kiss3d without defaults. Turning it off for the web is held, §2 |
+| kiss3d's `webgl` feature | Have: `balaur_render`, `balaur` and `balaur_cli` name it `webgl`, on by default and in the editor's web module, off in the web game template |
 | kiss3d's `tony-lut` feature | Have: on with `compile`, off in a game template |
-| `-Zbuild-std`, `optimize_for_size` | Held: web only, and a slower sort on a large array |
+| `-Zbuild-std`, `optimize_for_size` | Have, for the web template: `RUSTC_BOOTSTRAP=1` on the pinned stable, so it shares the editor's compiler; `WEB_STD=stock` turns it off |
 | `wasm-split --multi-split`, `-Zmerge-functions=disabled` | Held, proved by hand in §1 |
 | One file from core and parts, `wasm-merge` | Held with parts, proved in §1 |
 | A `.wasm` extension over the C ABI, `docs/PLAN-wasm-extensions.md` | For third-party code. It has its own memory and its own `std`, and tier 1 registers no components or systems |
@@ -264,7 +268,7 @@ LTO, so a game with physics would ship more bytes than the one binary does.
 4. **Data.** The tonemapping table, done. Left: the default face, if a game
    that ships its own can leave it.
 5. **The budget.** Done: `package_runtime.sh web` fails a push whose `bare`
-   template passes 12.9 MB, the 12.87 above rounded up to a tenth.
+   template passes 10.4 MB, the 10.38 above rounded up to a tenth.
 6. **Native.** The table, done: `native_crates.py` reads a template's
    symbols through `nm` for Linux, macOS, Android and iOS; an MSVC binary
    keeps its symbols apart. A budget only after a release of numbers.
@@ -287,10 +291,9 @@ LTO, so a game with physics would ship more bytes than the one binary does.
 ## 6. Open questions
 
 1. **Whether 8 MB is reachable.** Not by this plan's cuts. A game with no
-   physics starts at the `bare` template's 12.87 MB. The rest of what the
-   render and UI `declare` functions hold, the 2.4 MB held in §2
-   and whatever step 3's sweep finds are the rest of the distance, and
-   none is enough alone.
+   physics starts at the `bare` template's 10.38 MB raw, 2.98 MB brotli.
+   The rest of what the render and UI `declare` functions hold, step 3's
+   sweep of `balaur_core`, and parts are the rest of the distance.
 2. **Parts finer than a feature.** A compiled script lists every engine
    function it calls, so an export could leave out a script module no
    script uses: tiles, soft bodies, navigation. Each needs a switch like

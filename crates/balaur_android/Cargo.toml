@@ -18,7 +18,7 @@ path = "src/lib.rs"
 # scripts/package_runtime.sh builds the template from scripts/features.sh's
 # GAME_FEATURES; the default mirrors it, so a plain build is the template.
 [features]
-default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "multiplayer", "browser", "physics2d", "physics3d", "bs", "bs-jit"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "multiplayer", "browser", "physics2d", "physics3d", "bs", "bs-jit", "env-filter"]
 audio = ["balaur/audio"]
 flac = ["balaur/flac"]
 mp3 = ["balaur/mp3"]
@@ -37,6 +37,8 @@ physics3d = ["balaur/physics3d"]
 bs = ["balaur/bs"]
 # The same scripts on wasmtime, compiled to machine code.
 bs-jit = ["balaur/bs-jit"]
+# `RUST_LOG` with tracing's full filter syntax.
+env-filter = ["balaur/env-filter"]
 
 # Target-gated: as plain dependencies these would switch the window feature
 # on for every workspace build. Off Android this crate compiles to nothing.

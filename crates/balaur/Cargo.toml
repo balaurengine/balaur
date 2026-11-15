@@ -10,12 +10,18 @@ authors.workspace = true
 test = false
 
 [features]
-default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d", "bs", "bs-jit"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d", "bs", "bs-jit", "env-filter"]
 # rapier's solver on rayon. Native builds want it; a browser can only take it
 # with shared memory and atomics, which is the threaded web runtime alone.
 parallel = ["balaur_physics/parallel"]
 # Windowed rendering (kiss3d/wgpu).
 window = ["balaur_render/window"]
+# WebGL2 beside WebGPU in a browser, for a page without WebGPU. 1.0 MB of a web
+# module, and nothing on any other target.
+webgl = ["balaur_render/webgl"]
+# `RUST_LOG` with tracing's full filter syntax, regex included. Off, plain
+# `target=level` rows, and 0.23 MB less of a web module.
+env-filter = ["balaur_core/env-filter"]
 # Sound. Off, a build drops rodio, cpal and the platform audio stack.
 audio = ["dep:balaur_audio", "balaur_audio/dither"]
 # One feature per container `audio` decodes; a build without one plays none

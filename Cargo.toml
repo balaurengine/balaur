@@ -103,7 +103,7 @@ taffy = { version = "0.15", default-features = false, features = ["std", "taffy_
 rustc-hash = "2"
 libm = "0.2"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
 # Bridges `log` records from third-party crates (wgpu, winit, rapier)
 # into tracing so they land in the same buffer.
 tracing-log = "0.2"

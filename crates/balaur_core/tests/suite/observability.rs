@@ -160,3 +160,58 @@ fn the_log_file_goes_through_the_file_backend_and_keeps_a_panic() {
         "{text}"
     );
 }
+
+/// Set in the child run of a test that needs its own `RUST_LOG`: a process
+/// installs its subscriber once.
+const CHILD: &str = "BALAUR_TEST_LOG_CHILD";
+const PROBE: &str = "probe";
+
+/// Runs `test` again in a child process with `RUST_LOG` set to `rows`.
+fn in_a_child(test: &str, rows: &str) {
+    let out = std::process::Command::new(std::env::current_exe().expect("the test binary"))
+        .args(["--exact", test])
+        .env(CHILD, "1")
+        .env("RUST_LOG", rows)
+        .output()
+        .expect("the child runs");
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success() && said.contains("1 passed"), "{said}");
+}
+
+/// The child's half: whether a `trace` line and an `info` line reached the log.
+fn heard_under_capture() -> (bool, bool) {
+    logbuf::capture(tracing::level_filters::LevelFilter::INFO);
+    tracing::trace!(target: PROBE, "probe trace");
+    tracing::info!(target: PROBE, "probe info");
+    let heard = logbuf::recent(10);
+    let has = |message: &str| heard.iter().any(|e| e.message == message);
+    (has("probe trace"), has("probe info"))
+}
+
+#[test]
+fn a_blank_rust_log_keeps_the_default_level() {
+    if std::env::var_os(CHILD).is_none() {
+        return in_a_child(
+            "observability::a_blank_rust_log_keeps_the_default_level",
+            "",
+        );
+    }
+    let (trace, info) = heard_under_capture();
+    assert!(info, "the info line never reached the log");
+    assert!(!trace, "a blank RUST_LOG turned trace on");
+}
+
+#[test]
+fn a_rust_log_row_sets_its_target_level() {
+    if std::env::var_os(CHILD).is_none() {
+        return in_a_child(
+            "observability::a_rust_log_row_sets_its_target_level",
+            "probe=trace",
+        );
+    }
+    let (trace, info) = heard_under_capture();
+    assert!(
+        info && trace,
+        "probe=trace heard trace {trace}, info {info}"
+    );
+}

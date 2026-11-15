@@ -21,6 +21,9 @@ window = ["dep:naga", "dep:kiss3d", "dep:pollster", "dep:balaur_ui", "dep:egui",
 # `balaur import file.aseprite`: reads the editor's own format. A tool's
 # dependency, so a game build carries none of it.
 aseprite = ["dep:aseprite-loader"]
+# wgpu's GL backend in a browser, for a page without WebGPU; no other target
+# builds it.
+webgl = ["kiss3d?/webgl"]
 
 [dependencies]
 balaur_asset.workspace = true
@@ -40,8 +43,7 @@ flate2 = "1"
 libm.workspace = true
 # Balaur draws text with balaur_text, hands egui its fonts and decodes images
 # through balaur_core, so kiss3d's own text, faces and codecs stay out.
-# `webgl` keeps WebGL2 for a browser without WebGPU.
-kiss3d = { version = "0.47", optional = true, default-features = false, features = ["egui", "webgl"] }
+kiss3d = { version = "0.47", optional = true, default-features = false, features = ["egui"] }
 egui = { workspace = true, optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 pollster = { version = "1", optional = true }

@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 296 crates.
+`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 288 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
@@ -27,6 +27,7 @@ atomics only that build has.
 | `bs-web` | off | on |  | nothing |
 | `compile` | off | off | The WESL shader linker, the `.bs` compiler and its C translator: a dev run, the editor and an export. A template leaves it off and draws with the shaders an export linked, and runs the script units it compiled, into the export pack. | nothing |
 | `editor` | off | off | The editor: `edit` and `export`, the `export.*`, `project.*`, `debugger.*` and `script.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | nothing |
+| `env-filter` | off | off | `RUST_LOG` with tracing's full filter syntax, regex included. Off, plain `target=level` rows, and 0.23 MB less of a web module. | nothing |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `flac` | off | on | One feature per container `audio` decodes; a build without one plays none of that format. | nothing |
 | `headless` | on | off | Every default but the window: a tool that opens none, on a machine that may have no display. Its runs are headless. | nothing |
@@ -40,6 +41,7 @@ atomics only that build has.
 | `physics3d` | off | on | The 3D physics world: `physics3d.*` and its components. | nothing |
 | `vorbis` | off | on |  | nothing |
 | `wav` | off | on |  | nothing |
+| `webgl` | on | off | WebGL2 beside WebGPU in a browser, for a page without WebGPU. 1.0 MB of a web module, and nothing on any other target. | `glow`, `wgpu-core`, `wgpu-core-deps-wasm`, `wgpu-hal`, `wgpu-naga-bridge` |
 | `websocket` | off | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops tungstenite, rustls and the frame codec; the Gamend addon's realtime socket runs on them. | nothing |
 | `webtransport` | off | on | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | nothing |
 | `window` | on | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `glow`, `kiss3d`, `naga`, `wgpu`, `winit`, … (27 crates) |
@@ -53,7 +55,7 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 | Crate | Version | Features on |
 | --- | --- | --- |
 | `egui` | 0.37.0 | none |
-| `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgl`, `webgpu`, `wgpu-core`, `wgsl` |
+| `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgpu`, `wgsl` |
 | `image` | 0.25.10 | `bmp`, `exr`, `hdr`, `jpeg`, `png`, `tga`, `webp` |
 | `rodio` | 0.23.0 | `cpal`, `dither`, `experimental`, `flac`, `mp3`, `mp4`, `noise`, `playback`, `rand`, `rand_distr`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |
 | `rapier3d` | 0.36.1 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `fem`, `serde-serialize`, `std` |

@@ -904,6 +904,10 @@ game template, which has no compiler, checker or language tools.
   `balaur_cli`. The template leaves out `editor` (the exporter, the project
   store, a tab's editor entry points), `compile` and `fallback-fonts` (egui's
   bundled faces, 1.35 MiB); the editor's module adds `import,editor`.
+- The web template alone also leaves out `webgl`, the GL backend a page
+  without WebGPU would draw with, and `env-filter`, `RUST_LOG`'s regex, and
+  builds std with `optimize_for_size` (`WEB_STD=stock` keeps rustup's). Each
+  is a switch, so a template for an old browser builds with `webgl` back on.
 - `compile` off drops the `.bs` compiler, the C translator an iOS export uses,
   `balaur check`, `lsp` and `fmt`, and the WESL linker. A unit runs plain, so
   a template's scripts take no debugger's probes or profiler's counters.

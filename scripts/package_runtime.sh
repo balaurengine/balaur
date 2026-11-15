@@ -184,6 +184,8 @@ web)
   # what each feature costs, and gen_docs.py reads the default off features.sh.
   # `.bs` scripts on the page's own engine, not on wasmi compiled to wasm.
   features=$(game_features "$variant")
+  # A page has no environment for `RUST_LOG` to come from.
+  features=${features/,env-filter/}
   features=${WEB_FEATURES:-${features/,bs/,bs-web},window}
   # The solver threads only where the module can: `parallel` pulls rayon in,
   # and rayon blocks on `Atomics.wait`, which a browser refuses off a page that
@@ -194,6 +196,12 @@ web)
   # The symbols stay until the table below has charged the code to crates;
   # the shipped module is stripped after it.
   export CARGO_PROFILE_WEB_STRIP=false
+  # std rebuilt for size: smaller sorting, formatting and hashing, and a slower
+  # sort on a large array. WEB_STD=stock keeps the std rustup ships.
+  size_std=()
+  if [ "${WEB_STD:-size}" = size ]; then
+    size_std=(-Z build-std-features=optimize_for_size)
+  fi
   # wasm-bindgen's target: kiss3d declares its web dependencies under
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
   if [ -n "$threads" ]; then
@@ -217,7 +225,14 @@ web)
     RUSTFLAGS="${RUSTFLAGS:-} $flags $(remap_flags)" \
       cargo "+$toolchain" build --profile web --target "$target" -p balaur_cli \
       --no-default-features --features "$features" \
-      -Z build-std=std,panic_abort
+      -Z build-std=std,panic_abort ${size_std[@]+"${size_std[@]}"}
+  elif [ ${#size_std[@]} -gt 0 ]; then
+    # `-Z` on the pinned stable, so the template and the editor share one
+    # compiler; std's sources are a component of it.
+    rustup component add rust-src
+    RUSTC_BOOTSTRAP=1 cargo build --profile web --target "$target" -p balaur_cli \
+      --no-default-features --features "$features" --config "$(short_paths)" \
+      -Z build-std=std,panic_abort "${size_std[@]}"
   else
     cargo build --profile web --target "$target" -p balaur_cli \
       --no-default-features --features "$features" --config "$(short_paths)"
@@ -281,7 +296,7 @@ web)
   rm "$named"
   # The bare template's ceiling: docs/PLAN-build-size.md's last measured
   # size rounded up to a tenth. A push past it moves both, and says why.
-  budget_mb=12.9
+  budget_mb=10.4
   if [ "$variant" = bare ] && [ "$(echo "$raw > $budget_mb * 1048576" | bc)" = 1 ]; then
     printf '::error::the bare web template is %.2f MB, over its %s MB budget; the table above says where the bytes went\n' \
       "$(echo "$raw/1048576" | bc -l)" "$budget_mb"
