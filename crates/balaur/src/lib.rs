@@ -43,7 +43,7 @@ pub use tools::ToolsPlugin;
 
 use std::collections::BTreeMap;
 
-#[cfg(any(feature = "bs-backend", feature = "extensions"))]
+#[cfg(any(feature = "bs-backend", feature = "extensions", feature = "compile"))]
 use anyhow::Context;
 use anyhow::{Result, bail};
 
@@ -165,6 +165,13 @@ pub fn build_pack_for(
             let judged = file_api::editors_script(engine, std::path::Path::new(rel));
             judged == Some(file_api::EditorsScript::Plugin)
         };
+        #[cfg_attr(
+            not(feature = "bs-backend"),
+            allow(
+                unused_mut,
+                reason = "only a Balaur Script build adds the project's unit"
+            )
+        )]
         let mut pack =
             balaur_project::packing::build_with(project_root, host, keep_sources, &plugin)?;
         // The unit every instance starts from, built as the scripts' units were.
@@ -359,6 +366,10 @@ impl Finding {
         }
     }
 
+    #[cfg_attr(
+        not(feature = "bs-backend"),
+        allow(dead_code, reason = "only a Balaur Script build lints scripts")
+    )]
     fn warning(file: &str, line: usize, column: usize, message: String) -> Self {
         Finding {
             severity: WARNING,
@@ -627,6 +638,10 @@ pub fn seed_device(app: &App) {
     });
 }
 
+#[cfg_attr(
+    not(feature = "bs-backend"),
+    allow(unused_mut, reason = "only a Balaur Script build names its backend")
+)]
 pub fn standard_app(mut config: AppConfig) -> Result<App> {
     if config.script_backend.is_none() {
         #[cfg(feature = "bs-backend")]
