@@ -316,7 +316,7 @@ fn follow_nodes(state: &mut AudioState, eng: &Engine) {
     let current = listeners
         .iter()
         .rev()
-        .find(|(entity, node)| node.current && !balaur_core::parked::is_parked(eng, **entity))
+        .find(|(_, node)| node.current)
         .map(|(entity, _)| *entity);
     if let Some(entity) = current
         && let Ok(global) = world.get::<&GlobalTransform>(entity)
@@ -414,12 +414,4 @@ fn listener_written(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
         state.listener.hearing = hearing;
     }
     Ok(())
-}
-
-/// Forget the listeners of nodes that have been freed. Called from the same
-/// sweep that drops finished sounds.
-pub(crate) fn sweep_listeners(state: &mut AudioState, world: &balaur_core::hecs::World) {
-    state
-        .listeners
-        .retain(|&entity: &Entity, _| world.contains(entity));
 }

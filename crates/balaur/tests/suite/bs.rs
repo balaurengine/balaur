@@ -725,8 +725,8 @@ fn a_binding_that_takes_or_gives_a_value_is_typed_any() {
     let source = "pub class Fetcher { kept: any }
 impl Fetcher {
     fn init() {
-        engine::store(\"key\", 1);
-        self.kept = engine::stored(\"key\");
+        let text = json::encode(1);
+        self.kept = json::parse(text);
     }
 }
 ";

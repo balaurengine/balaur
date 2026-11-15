@@ -1,6 +1,6 @@
 ---
 title: Exported properties
-description: "A pub field with a default is a property the inspector shows and a scene sets: what may be exported, how overrides work, and nodes as properties."
+description: "A pub field with a default is a property the inspector shows and a scene sets: what may be exported, how overrides work, and nodes and scripts as properties."
 image: /img/social/scripting.png
 sidebar_position: 2
 ---
@@ -49,6 +49,47 @@ target = "../Enemy"
 A `pub` field of type `Node` takes a path, resolved from the scripted node once the whole scene exists. A path
 naming nothing gives no node, which `is_valid()` tells apart, and a warning naming the field and the path. A
 `[Node]` field takes a list of paths.
+
+## Scripts as properties
+
+A `pub` field typed as another script's class takes a path too. It holds the script running on that node, the
+object `node.script` answers, so a write through it reaches that node's own fields.
+
+```bs
+// scripts/scoreboard.bs
+pub class Scoreboard {
+    node: Node,
+    internal shown: int,
+}
+```
+
+```bs
+// scripts/goal.bs
+use scoreboard;
+
+pub class Goal {
+    node: Node,
+    pub board: scoreboard::Scoreboard?,
+}
+
+impl Goal {
+    pub fn scored() {
+        if self.board != nil {
+            let board = self.board.unwrap();
+            board.shown += 1;
+        }
+    }
+}
+```
+
+```toml
+[nodes.script.props]
+board = "../Scoreboard"
+```
+
+- The field is nil, with a warning naming it, when the path names no node or one running another script.
+- Freeing that node makes the field nil, and a reload of either file points it at the object running now.
+- A snapshot leaves the field alone: a restore keeps it on the object the node runs.
 
 ## At run time
 

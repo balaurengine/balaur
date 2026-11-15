@@ -248,6 +248,18 @@ In the order they get fixed.
     window's dock fold is 20 wide where `test:layout` wanted more,
     `test:gestures` fed fingers in points where touches are physical pixels,
     and `test:inspector_rows` clicked a row below the fold of a short window.
+33. **The editor's clock stood still while a recording was loaded.** Built:
+    `facts::read_clock_system` stops reading the machine while a replay is
+    loaded, so the editor's own deadlines, a lint sweep or a refill, waited
+    for unload. The machine's clock is read every tick into `MachineClock`,
+    never recorded, and `engine::unix_time` answers it to a script on a node
+    outside `debugger::set_scope`'s subtree, as tweens and rest probes tell a
+    tool from its game. The game still reads its recorded time.
+34. **A held game froze the editor's own animation.** Built:
+    `advance_system` returned for every clip, tween and machine under a
+    debugger stop or a paused replay. Only those inside `frozen_root` hold
+    now. Those outside step on `held_accumulator`, so the game's remainder
+    stays as defect 31 keeps it.
 
 ## 3. The API
 
@@ -272,7 +284,7 @@ the library, the examples and Polyglot Pirates changed in the same commit.
    `add_path`, `make_local` and `move_into` are `balaur_cli`'s, beside
    `project` and `forge`. `balaur::ToolsPlugin` holds `debugger` and the
    `script::` tool verbs, which the editor's binary registers and no game's
-   runtime does, and `script::store` is `engine::store`.
+   runtime does, and `script::store` is gone.
 3. **The demo plugin leaves the editor.** Built: the Counter dock's plugin
    is `scripts/plugins/counter.bs`, which `scripts/e2e.sh` copies into the
    project it runs `test:plugin_docks` on.
@@ -334,27 +346,40 @@ frame to see whether it moved.
    `low_processor` loop asks `balaur_core::rest`, where each subsystem
    registers one probe. Frames keep coming while a `task` wait or a `timer`
    counts, a clip or a tween plays, a body is awake, particles live or a
-   sound is due to end. Still to go: the editor's autosave, lint sweep,
-   inspector refill and import expiry compare a clock, and can wait on
-   `task::seconds` instead.
-2. **The editor's file cache.** `model.bs` keeps `fs::read` and `fs::list`
-   for half a second. `engine::watch` and `files_changed` forget an entry
-   when its file moves.
-3. **The recordings list.** `session.bs` lists a folder every half second
-   and reads `replay::state` every frame. The first is `files_changed`; the
-   second wants an event `replay` does not send yet.
-4. **Transforms and the scene mirror.** `propagate_transforms` walks the
-   whole tree and the mirror compares every renderable, every frame. Both
-   read `balaur_core::changes`.
-5. **Freed nodes.** Physics and audio find them with `retain(world.contains)`.
-   `scene::announce_leaving` already holds the list.
-6. **The device.** Dark mode, the safe area and the text scale are read and
-   compared each frame. winit's `ThemeChanged` and the browser's `matchMedia`
-   and `visualViewport` listeners say when they move.
-7. **Pads on Windows.** gilrs enumerates controllers every 8 ms for the life
-   of the process. The pad thread opens on the first pad read.
-8. **A browser tab at rest.** A `low_processor` page wakes every animation
-   frame to read a flag. A promise that input or `wake` resolves replaces it.
+   sound is due to end. The editor's autosave, lint sweep, Inspector refill
+   and import list each ask `util::wake_at` for one frame at their deadline.
+   After one edit an untouched editor draws 7 frames in 6 s, not 18 to 24,
+   and 2 frames in 2 s while an import list comes down, not 120. A
+   `task::seconds` wait holds the loop awake while it counts, so none uses one.
+2. **The editor's file cache.** Built: `model.bs` keeps a read and a listing
+   until `files_changed` names the file, and the editor's own writes forget
+   theirs, so nothing re-reads on a timer.
+3. **The recordings list.** Built: `session.bs` lists the folder again when
+   `files_changed` names a file in it, and follows playback through the
+   `replay_state_changed` event instead of reading `replay::state` each frame.
+   A replay paused or run out asks for no frame: one loaded and paused drew
+   19 frames in 12 s, all of them its opening, not 716.
+4. **Transforms and the scene mirror.** Built: `scene::sync_globals` places
+   only the subtrees under a stamped `transform`, an attach, a restyle or a
+   blend, and the mirror redraws only the renderables those and the change
+   ticks name.
+5. **Freed nodes.** Built: physics and audio drop a freed node's bodies,
+   colliders, joints and voices from the list `scene::on_freed` hands them as
+   the free runs.
+6. **The device.** Built: dark mode, the safe area, the keyboard and the
+   text scale are asked once, then again only after a resize, a focus or
+   visibility change, winit's `ThemeChanged` and scale events through
+   kiss3d, mundy's subscription on Linux and Windows, or a page's
+   `matchMedia`, `resize` and `visualViewport` listeners. Still to go: an
+   iPhone's dark mode, safe area and keyboard and Android's safe area and
+   keyboard reach no event, and stay asked every frame.
+7. **Pads on Windows.** Built: the pads open on the first read, a script's
+   `input.gamepad*` or an action bound to a pad, so a game that reads none
+   never starts gilrs. Once open, gilrs still reads every pad every 8 ms:
+   Windows.Gaming.Input has events only for a pad arriving or leaving.
+8. **A browser tab at rest.** Built: a `low_processor` tab awaits a promise
+   that a wake, input, the repaint due or a `wake::at` deadline settles, and
+   asks for no animation frame while it waits.
 9. **The `timed-wait` lint.** Built: it also fails `recv_timeout`,
    `wait_timeout`, `park_timeout` and `tokio::time::interval`.
 

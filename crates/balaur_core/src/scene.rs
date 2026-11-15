@@ -4,15 +4,19 @@
 //! below. Plugins attach their own components to the same entity, so the
 //! node abstraction costs nothing on the data plane.
 
-use std::cell::RefCell;
-
 use glamx::{Quat, Vec3, Vec4};
 use hecs::{Entity, World};
 use smol_str::SmolStr;
 
 use crate::engine::Engine;
 
+mod place;
 mod rank;
+use place::unplaced;
+pub use place::{
+    Placement, appearance_written, placed_since, propagate_transforms, propagate_transforms_at,
+    sync_globals,
+};
 pub use rank::{TreeRank, tree_rank};
 
 pub struct Name(pub String);
@@ -371,7 +375,8 @@ impl Default for GlobalAppearance {
     }
 }
 
-/// World-space transform, recomputed every frame after the update stages.
+/// World-space transform, brought up to date by the scene sync after the
+/// update stages ([`sync_globals`]).
 /// Composition ignores shear (scale is combined component-wise), matching the
 /// usual game engine convention.
 #[derive(Clone, Copy)]
@@ -521,7 +526,8 @@ pub(crate) fn spawn_root(world: &mut World) -> Entity {
         Transform::identity(),
         crate::components::Attached::with_transform(),
         crate::components::StableId(String::from(ROOT_ID)),
-        crate::ids::IdAllocator::default()
+        crate::ids::IdAllocator::default(),
+        Placement::default()
     ))
 }
 
@@ -590,20 +596,6 @@ pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: Str
     entity
 }
 
-/// What a parked scene's roots hang from: a node outside the tree, hidden and
-/// never ticking, which everything under it inherits.
-pub(crate) fn spawn_holder(world: &mut World, held: crate::parked::Held) -> Entity {
-    let holder = world.spawn(node_bundle!(
-        "Parked",
-        crate::process::ProcessMode::Disabled,
-        held
-    ));
-    if let Ok(mut look) = world.get::<&mut Appearance>(holder) {
-        look.visible = false;
-    }
-    holder
-}
-
 /// Spawn a node as `parent`'s child number `index`, clamped to the end.
 ///
 /// Where a snapshot puts a freed node back: the digest walks the tree in
@@ -669,6 +661,7 @@ pub fn rename(world: &World, entity: Entity, name: &str) {
 pub(crate) fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
     shape_changed();
     crate::relationships::link::<Parent>(world, child, parent, None);
+    unplaced(world, parent, child);
     if let Ok(mut index) = world.get::<&mut NameIndex>(parent) {
         if let Some(slot) = index.0.get_mut(name) {
             slot.count += 1;
@@ -818,73 +811,6 @@ pub fn node_path(world: &World, entity: Entity) -> String {
     }
     segments.reverse();
     segments.join("/")
-}
-
-thread_local! {
-    /// The frontier [`propagate_transforms`] walks, kept between frames: the
-    /// pass runs every frame over every node, and a fresh stack per node was
-    /// an allocation per node.
-    static PROPAGATE_STACK: RefCell<Vec<(Entity, GlobalTransform, GlobalAppearance)>> =
-        const { RefCell::new(Vec::new()) };
-}
-
-/// Recompute every `GlobalTransform` and `GlobalAppearance` from the root down.
-pub fn propagate_transforms(world: &mut World, root: Entity) {
-    propagate_transforms_at(world, root, 1.0);
-}
-
-/// [`propagate_transforms`], placing every node that draws between fixed
-/// steps `alpha` of the way along the pair of poses it kept.
-///
-/// `alpha` of 1.0 is the tick's own pose for every node, which is what a
-/// caller with no frame to place wants.
-pub fn propagate_transforms_at(world: &mut World, root: Entity, alpha: f32) {
-    let blending = alpha < 1.0;
-    // One lookup per node for all six, with no borrow flag to take: six
-    // `world.get` calls were most of the pass.
-    let mut view = world.view_mut::<(
-        Option<&crate::interpolate::Interpolation>,
-        Option<&Transform>,
-        Option<&mut GlobalTransform>,
-        Option<&Appearance>,
-        Option<&mut GlobalAppearance>,
-        Option<&Children>,
-    )>();
-    PROPAGATE_STACK.with_borrow_mut(|stack| {
-        stack.clear();
-        stack.push((
-            root,
-            GlobalTransform::identity(),
-            GlobalAppearance::identity(),
-        ));
-        while let Some((entity, parent_global, parent_appearance)) = stack.pop() {
-            let Some((kept, local, global_slot, look, look_slot, children)) = view.get_mut(entity)
-            else {
-                continue;
-            };
-            let drawn = kept.filter(|_| blending).map(|kept| kept.pose(alpha));
-            let global = match (drawn, local) {
-                (Some(local), _) => parent_global.mul(&local),
-                (None, Some(local)) => parent_global.mul(local),
-                (None, None) => parent_global,
-            };
-            if let Some(slot) = global_slot {
-                *slot = global;
-            }
-            let appearance = look.map_or(parent_appearance, |local| parent_appearance.mul(*local));
-            if let Some(slot) = look_slot {
-                if slot.visible != appearance.visible || slot.tint != appearance.tint {
-                    APPEARANCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                }
-                *slot = appearance;
-            }
-            if let Some(children) = children {
-                // Reversed, so popping visits siblings in the order they are
-                // listed. A subtree's answer does not depend on it; a log does.
-                stack.extend(children.0.iter().rev().map(|&c| (c, global, appearance)));
-            }
-        }
-    });
 }
 
 /// A node's world appearance composed from local ones, current this instant
@@ -1037,6 +963,7 @@ pub fn set_visible(eng: &Engine, entity: Entity, on: bool) -> bool {
         std::mem::replace(&mut appearance.visible, on)
     };
     if was != on {
+        appearance_written(eng, entity);
         crate::events::announce(
             eng,
             entity,
@@ -1064,7 +991,32 @@ pub fn free_node(eng: &Engine, entity: Entity) {
     for &e in &subtree {
         crate::components::remove_present(eng, e);
     }
+    tell_freed(eng, &subtree);
     free_subtree(&mut eng.world_mut(), entity);
+}
+
+/// What hears nodes being freed, in the order it asked.
+#[derive(Default)]
+struct FreedHearers(Vec<fn(&Engine, &[Entity])>);
+
+/// Have `hear` told of every node a free takes, the whole subtree in the
+/// order the free visits it, after each component's way off and before the
+/// node is despawned: what a subsystem keeping state by node drops it from.
+pub fn on_freed(eng: &Engine, hear: fn(&Engine, &[Entity])) {
+    if eng.try_resource::<FreedHearers>().is_none() {
+        eng.insert_resource(FreedHearers::default());
+    }
+    eng.resource::<FreedHearers>().borrow_mut().0.push(hear);
+}
+
+fn tell_freed(eng: &Engine, nodes: &[Entity]) {
+    let Some(hearers) = eng.try_resource::<FreedHearers>() else {
+        return;
+    };
+    let hearers = hearers.borrow().0.clone();
+    for hear in hearers {
+        hear(eng, nodes);
+    }
 }
 
 /// [`free_node`] for many nodes at once, which is what a frame's queued frees
@@ -1096,6 +1048,7 @@ pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
     for &e in &subtree {
         crate::components::remove_present(eng, e);
     }
+    tell_freed(eng, &subtree);
     let mut world = eng.world_mut();
     let doomed: crate::collections::DetHashSet<Entity> = entities.iter().copied().collect();
     let mut parents: Vec<Entity> = entities

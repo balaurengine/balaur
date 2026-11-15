@@ -1,12 +1,12 @@
-//! What each frame tidies: sounds a hold keeps quiet, voices of freed nodes,
-//! sinks that played out.
+//! What each frame tidies: sounds a hold keeps quiet and sinks that played
+//! out; and what a free takes: the voices and ears of the nodes it frees.
 
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
 
-use crate::{Access, AudioState, Sound, announce_finished, publish_playback_times, spatial};
+use crate::{Access, AudioState, Sound, announce_finished, publish_playback_times};
 
-/// Drop finished sinks, and stop the sounds of nodes that were freed.
+/// Drop finished sinks.
 pub(crate) fn sweep_sounds_system(eng: &Engine, _: f32) {
     // Every frame and not on the fixed step: a debugger stop has none.
     hold_sounds(eng);
@@ -22,31 +22,13 @@ pub(crate) fn sweep_sounds_system(eng: &Engine, _: f32) {
         }
         state.was_focused = focused;
     }
-    let world = eng.world();
-    spatial::sweep_listeners(&mut state, &world);
     let AudioState {
-        nodes,
         playing,
         routing,
         spatial,
         releasing,
         ..
     } = &mut *state;
-    // A voice lives here, not on the entity, so this is where a freed node's
-    // playback stops.
-    nodes.retain(|&entity, voice| {
-        if world.contains(entity) {
-            return true;
-        }
-        if let Some(handle) = voice.handle {
-            spatial.shift_remove(&handle);
-            routing.shift_remove(&handle);
-            if let Some(sink) = playing.shift_remove(&handle) {
-                sink.stop();
-            }
-        }
-        false
-    });
     // A sink that has played out is dropped. A sound whose length is known
     // ends on the fixed step's count instead, which a machine with no device
     // reaches on the same tick; only one of unknown length ends here.
@@ -66,7 +48,6 @@ pub(crate) fn sweep_sounds_system(eng: &Engine, _: f32) {
         false
     });
     releasing.retain(|_, release| release.sink.as_ref().is_none_or(|sink| !sink.finished()));
-    drop(world);
     drop(state);
     if !ended.is_empty() {
         announce_finished(eng, &ended);
@@ -74,8 +55,30 @@ pub(crate) fn sweep_sounds_system(eng: &Engine, _: f32) {
     }
 }
 
-/// A node's sound holds with its node: a game pause, a `process` mode, a parked
-/// scene, a debugger stop. Each voice goes back to what it asks for when the
+/// A voice and an ear live in `AudioState`, not on the entity, so this is
+/// where a freed node's playback stops and its ears are forgotten.
+pub(crate) fn freed_nodes(eng: &Engine, nodes: &[Entity]) {
+    let Some(state) = eng.try_resource::<AudioState>() else {
+        return;
+    };
+    let mut state = state.borrow_mut();
+    for node in nodes {
+        state.listeners.shift_remove(node);
+        let Some(voice) = state.nodes.shift_remove(node) else {
+            continue;
+        };
+        if let Some(handle) = voice.handle {
+            state.spatial.shift_remove(&handle);
+            state.routing.shift_remove(&handle);
+            if let Some(sink) = state.playing.shift_remove(&handle) {
+                sink.stop();
+            }
+        }
+    }
+}
+
+/// A node's sound holds with its node: a game pause, a `process` mode, a
+/// debugger stop. Each voice goes back to what it asks for when the
 /// hold ends. A pause menu's click plays from a node that runs while paused.
 fn hold_sounds(eng: &Engine) {
     let Some(state) = eng.try_resource::<AudioState>() else {

@@ -8,7 +8,7 @@ use crate::vocabulary::words;
 
 pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
-        "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins`, `quit`, and `store` for state no node owns.",
+        "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.",
     );
     m.records(&[
         (
@@ -69,7 +69,7 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
         ("plugin_version", &[], "(name: string) -> string?", "The version of one loaded plugin, or nil when it did not load: how a game shipped without `http` says so rather than call into a module that is not there."),
         (words::TARGET, &[], "() -> Target", "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did."),
         (words::functions::DEVICE_ID, &[], "() -> string", "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session."),
-        ("unix_time", &[], "() -> float", "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw."),
+        ("unix_time", &[], "() -> float", "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw. A tool's own script, on a node outside the subtree `debugger::set_scope` names, reads the machine's clock, which a replay does not feed."),
         ("focused", &[], "() -> bool", "Whether the window is in front of the player this tick; every script's `on_focused_changed(bool)` is called when it changes. True with no window."),
         ("dark_mode", &[], "() -> bool", "Whether the system is in dark mode this tick; every script's `on_dark_mode_changed(bool)` is called when it changes. False where nothing says."),
     ]);
@@ -110,8 +110,8 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ),
         (
             "SwitchOptions",
-            "{ fade: float? }",
-            "Seconds of crossover a `switch` fades through.",
+            "{ fade: float?, under: node? }",
+            "Seconds of crossover a `switch` fades through, and the node it switches the scene under: the tree's root when nil.",
         ),
         (
             "Change",
@@ -138,9 +138,10 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ("variable", &[], "(name: string) -> any", "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`."),
         ("set_variable", &[], "(name: string, value: any)", "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing."),
         ("variables", &[], "() -> [Variable]", "Every declared variable as `{ name, type, value }`, in name order."),
-        ("switch", &[], "(path: string, options: SwitchOptions?)", "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene left stays built and parked, and a scene already parked comes back as it was, with no node built and no `init` run; each of their scripts is told `on_parked_changed`. A parked scene does not update, draw, take input or hear a hook, an event or a call, and a task its script awaits holds until it returns. A script reaching it can still read and write its components; it takes no new node or script. A digest and a snapshot cover it, a save holds nothing of it, and the change log says nothing of a park or a return. A file edited since the scene was built is built again on the way back. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second. What stays parked is bounded by itself: past 20,000 parked nodes the scene left longest ago is freed, and a system memory warning frees them all; a scene freed is built again the next time it is asked for, its `init` running. Reset is a switch to the file already there, which frees it and builds it again; to come back to a scene new from elsewhere, `unload` it first."),
-        ("parked", &[], "() -> [string]", "Every scene `switch` kept built, by the path it was asked for, oldest first."),
-        (words::functions::UNLOAD, &[], "(path: string)", "Lets go of a scene: frees it if it is parked, its scripts' `on_free` running as for any node freed, and drops what its file and prefabs have cached, the parsed text and the pictures they name. The scene running stays where it is, and a picture something still draws is read again when it next asks."),
+        ("switch", &[], "(path: string, options: SwitchOptions?)", "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene the last switch built under `under` is freed, each of its scripts' `on_free` running, and `path` is built there new, every `init` running: a visit always starts fresh, and a switch to the file already there is a reset. `under` is the tree's root when nil, where the main scene stands; only that scene's own root goes, so a node a script made beside it under the same parent stays and keeps running. `fade` is seconds of crossover: the old scene's root fades out to the clear colour over the first half, the switch happens, and the new one fades in over the second. A scene `preload` warmed builds from its caches; one it did not is read on the frame."),
+        (words::CURRENT, &[], "(under: node?) -> node", "The root of the scene the last `switch`, or the run's start, built under a node, the tree's root when nil; no node while none stands there."),
+        (words::functions::PRELOAD, &[], "(path: string)", "Ready a scene before a switch to it: its file and every prefab under it read and parsed now, and the pictures they name decoding on a worker thread. No node is built and nothing in the world changes, so a replay that never preloaded builds the same world. An error when a file does not read or parse, said now rather than at the switch."),
+        (words::functions::UNLOAD, &[], "(path: string)", "Let go of what `preload`, or a pack warming its scenes, readied: the parsed text of the file and its prefabs, and the pictures they name. A scene standing stays where it is, and a picture something still draws is read again when it next asks."),
         ("bindable_events", &[], "(node: node?) -> [string]", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it, its components and its script announce."),
         ("binding_actions", &[], "() -> [string]", "Every action a binding row may do, in the order an editor offers them."),
     ]);

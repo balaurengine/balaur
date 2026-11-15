@@ -124,3 +124,107 @@ fn a_script_reads_the_composed_world_position_on_its_first_frame() {
         "the first frame read {first:?}, where the scene puts the child at {composed:?}"
     );
 }
+
+/// Sends itself one unit further along x each frame, its rider one unit above.
+const LEADER: &str = r"
+pub class Leader { node: Node, frames: int }
+impl Leader {
+    fn update(dt: float) {
+        self.frames += 1;
+        self.node.transform.set_global_position(vec3(self.frames as float, 0.0, 0.0));
+    }
+}
+";
+
+/// Reads where the leader and its rider stand, after the leader wrote.
+const WATCHER: &str = r#"
+pub class Watcher { node: Node, leader_at: Vec3, rider_at: Vec3 }
+impl Watcher {
+    fn update(dt: float) {
+        self.leader_at = self.node.get_node("../Leader").transform.global_position();
+        self.rider_at = self.node.get_node("../Leader/Rider").transform.global_position();
+    }
+}
+"#;
+
+const FOLLOWING: &str = r#"
+[[nodes]]
+id = "world"
+name = "World"
+
+[[nodes]]
+id = "leader"
+name = "Leader"
+parent = "world"
+script = { source = "scripts/leader.bs" }
+
+[nodes.transform]
+position = [0, 0, 0]
+
+[[nodes]]
+id = "rider"
+name = "Rider"
+parent = "leader"
+
+[nodes.transform]
+position = [0, 1, 0]
+
+[[nodes]]
+id = "watcher"
+name = "Watcher"
+parent = "world"
+script = { source = "scripts/watcher.bs" }
+"#;
+
+#[test]
+fn a_world_point_one_script_writes_is_read_by_another_from_the_next_frame() {
+    let dir = tempfile::tempdir().unwrap();
+    for (path, text) in [
+        (
+            "project.toml",
+            "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
+        ),
+        ("main.toml", FOLLOWING),
+        ("scripts/leader.bs", LEADER),
+        ("scripts/watcher.bs", WATCHER),
+    ] {
+        let at = dir.path().join(path);
+        std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+        std::fs::write(at, text).unwrap();
+    }
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    let read = |app: &App, name: &str| {
+        let world = app.engine.world();
+        let watcher = balaur_core::scene::find_node(&world, app.engine.root(), "World/Watcher")
+            .expect("the scene has World/Watcher");
+        match app
+            .engine
+            .script_host()
+            .unwrap()
+            .script_field(balaur::node_id_of(watcher), name)
+        {
+            Some(Value::Vec3(v)) => Vec3::from_array(v),
+            other => panic!("`{name}` is {other:?}"),
+        }
+    };
+    for frame in 1..=5 {
+        app.tick(1.0 / 60.0);
+        // Within a frame a world position is the one the last sync placed.
+        let synced = (frame - 1) as f32;
+        let leader = read(&app, "leader_at");
+        let rider = read(&app, "rider_at");
+        assert_eq!(
+            leader,
+            Vec3::new(synced, 0.0, 0.0),
+            "frame {frame}: the leader"
+        );
+        assert_eq!(
+            rider,
+            Vec3::new(synced, 1.0, 0.0),
+            "frame {frame}: the rider"
+        );
+    }
+}

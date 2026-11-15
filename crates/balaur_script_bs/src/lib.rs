@@ -13,7 +13,6 @@ mod doc_types;
 mod host;
 mod native;
 mod node_ops;
-mod store;
 mod tool_verbs;
 mod vocabulary;
 mod waits;
@@ -64,10 +63,6 @@ pub(crate) fn bind(
         Ok(v) => Ok(scalar(&v, ret).unwrap_or_else(|| convert::from_neutral(&v, ret, &*structs))),
         Err(e) => Err(format!("{e:#}")),
     };
-    if store::is_store(key) {
-        let key = key.to_string();
-        return Ok(Rc::new(move |args: &dyn CallArgs| store::call(&key, args)));
-    }
     if waits::is_wait(key) {
         let key = key.to_string();
         return Ok(Rc::new(move |args: &dyn CallArgs| {

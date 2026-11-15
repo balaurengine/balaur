@@ -123,7 +123,7 @@ pub(crate) fn dial(
     let opened = {
         let events = events.clone();
         Closure::wrap(Box::new(move || {
-            let _ = events.send(LinkEvent::Open);
+            balaur_core::replay::report(&events, LinkEvent::Open);
         }) as Box<dyn FnMut()>)
     };
     let on_reliable = payload_callback(events.clone(), Delivery::Reliable);
@@ -133,11 +133,10 @@ pub(crate) fn dial(
         let finished = Rc::clone(&finished);
         Closure::wrap(Box::new(move |reason: JsValue| {
             finished.set(true);
-            let _ = events.send(LinkEvent::Closed(
-                reason
-                    .as_string()
-                    .unwrap_or_else(|| String::from("the session closed")),
-            ));
+            let reason = reason
+                .as_string()
+                .unwrap_or_else(|| String::from("the session closed"));
+            balaur_core::replay::report(&events, LinkEvent::Closed(reason));
         }) as Box<dyn FnMut(JsValue)>)
     };
 
@@ -193,7 +192,7 @@ pub(crate) fn pump() {
 fn payload_callback(events: Sender<LinkEvent>, delivery: Delivery) -> Closure<dyn FnMut(JsValue)> {
     Closure::wrap(Box::new(move |chunk: JsValue| {
         let bytes = js_sys::Uint8Array::new(&chunk).to_vec();
-        let _ = events.send(LinkEvent::Payload(Received { delivery, bytes }));
+        balaur_core::replay::report(&events, LinkEvent::Payload(Received { delivery, bytes }));
     }) as Box<dyn FnMut(JsValue)>)
 }
 

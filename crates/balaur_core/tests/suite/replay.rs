@@ -459,6 +459,101 @@ fn seeking_runs_to_the_tick_and_stops() {
     assert_eq!(app.engine.tick(), target);
 }
 
+// Each move of playback is said once, at the pump after it, with the state it
+// moved to; a frame where nothing moved says nothing.
+#[test]
+fn each_move_of_playback_is_said_once_with_the_state_it_moved_to() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::start_recording(&app.engine, &path, ".", "", false).unwrap();
+    for _ in 0..12 {
+        app.advance(1.0 / 60.0);
+    }
+    replay::stop_recording(&app.engine, "stop").unwrap();
+    let session = Session::read(&path).unwrap();
+    let target = session.first_tick() + 4;
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    let ear = app.engine.root();
+    balaur_core::events::subscribe(
+        &app.engine,
+        ear,
+        balaur_core::events::REPLAY_STATE_CHANGED,
+        None,
+    );
+    // Every word each tick was told, as the names `replay::state` answers:
+    // a seek runs several ticks in one frame.
+    let told = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
+    let ticks = told.clone();
+    app.add_system(balaur_core::Stage::Last, move |eng: &Engine, _| {
+        let said = balaur_core::events::delivered(eng, balaur_core::events::REPLAY_STATE_CHANGED);
+        ticks
+            .borrow_mut()
+            .extend(said.iter().map(|said| match said {
+                balaur_script::Value::Str(name) => name.clone(),
+                other => format!("{other:?}"),
+            }));
+    });
+    let frame = |app: &mut App| -> Vec<String> {
+        app.advance(1.0 / 60.0);
+        std::mem::take(&mut *told.borrow_mut())
+    };
+    let name = |state: PlayState| vec![state.name().to_string()];
+    assert!(frame(&mut app).is_empty(), "live, nothing is said");
+
+    replay::begin(&app.engine, session);
+    assert_eq!(frame(&mut app), name(PlayState::Paused), "loading parks it");
+    assert!(frame(&mut app).is_empty(), "a held frame says nothing");
+
+    app.engine
+        .resource::<ReplayPlayer>()
+        .borrow_mut()
+        .seek(target);
+    let mut sought = Vec::new();
+    while replay::is_advancing(&app.engine) {
+        sought.extend(frame(&mut app));
+    }
+    sought.extend(frame(&mut app));
+    assert_eq!(
+        sought,
+        [PlayState::Seeking.name(), PlayState::Paused.name()],
+        "a seek, then its arrival"
+    );
+
+    replay::play(&app.engine);
+    assert_eq!(frame(&mut app), name(PlayState::Playing));
+    assert!(
+        frame(&mut app).is_empty(),
+        "a played frame says nothing new"
+    );
+    app.engine.resource::<ReplayPlayer>().borrow_mut().state = PlayState::Paused;
+    assert_eq!(frame(&mut app), name(PlayState::Paused));
+
+    replay::play(&app.engine);
+    let mut ran = Vec::new();
+    while replay::is_running(&app.engine) {
+        ran.extend(frame(&mut app));
+    }
+    ran.extend(frame(&mut app));
+    assert_eq!(
+        ran,
+        [PlayState::Playing.name(), PlayState::Paused.name()],
+        "played to its end, it parks"
+    );
+    assert!(frame(&mut app).is_empty(), "and stays parked unsaid");
+
+    replay::end(&app.engine);
+    assert_eq!(
+        frame(&mut app),
+        name(PlayState::Stopped),
+        "unloading is said"
+    );
+    assert!(frame(&mut app).is_empty(), "once");
+}
+
 // The events a tick produced ride along with it, and are cleared afterwards
 // so the next tick starts empty.
 #[test]

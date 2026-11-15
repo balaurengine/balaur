@@ -24,6 +24,8 @@ pub class LintState {
     internal found: [any],
     internal at: float,
     due: float,
+    /// The frame `util::wake_at` last asked for, the one the sweep runs in.
+    internal asked: float,
     roots: str,
     warned: any,
     /// The scene changed since its warnings were asked of the engine.
@@ -48,7 +50,7 @@ pub struct Counts {
 /// `at` is when the last sweep ran and `typed` when the buffer last changed,
 /// which is what `due` compares to hold a check off until typing stops.
 pub fn state() -> LintState {
-    LintState { found: [], at: -1.0, due: 0.0, roots: "", warned: {}, stale: true }
+    LintState { found: [], at: -1.0, due: 0.0, asked: 0.0, roots: "", warned: {}, stale: true }
 }
 
 const IDLE: float = 0.4;
@@ -238,7 +240,7 @@ pub fn run(state: &mut editor::State) {
 pub fn touched(state: &mut editor::State) {
     state.lint.due = engine::unix_time() + IDLE;
     // The frame the sweep runs in: under `low_processor` nothing else draws one.
-    ui::request_repaint(ui::RepaintOptions { after: IDLE + 0.02 });
+    state.lint.asked = util::wake_at(state.lint.asked, state.lint.due);
 }
 
 /// The document moved: when the scripts it attaches did, the sweep runs on
@@ -253,7 +255,12 @@ pub fn follow(state: &mut editor::State) {
 
 /// Run the sweep the last touch asked for, once its time has come.
 pub fn idle(state: &mut editor::State) {
-    if state.lint.due <= 0.0 || engine::unix_time() < state.lint.due {
+    if state.lint.due <= 0.0 {
+        return;
+    }
+    // Typing since the frame asked for moved the sweep on: ask for the new one.
+    if engine::unix_time() < state.lint.due {
+        state.lint.asked = util::wake_at(state.lint.asked, state.lint.due);
         return;
     }
     state.lint.due = 0.0;

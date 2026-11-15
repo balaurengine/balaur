@@ -153,9 +153,10 @@ impl Socket {
         self.dial();
     }
 
-    /// Trade the refresh token for a new session, then dial with it.
+    /// Trade the refresh token for a new session, then dial with it. A
+    /// renewal the HTTP calls already began is shared, not repeated.
     pub async fn renew() {
-        let why = await refreshed();
+        let why = await core::renew_session();
         if self.phase != RENEWING {
             return;
         }
@@ -492,16 +493,19 @@ impl Socket {
     }
 
     /// `phx_error` means the channel's process crashed: the topic is joined
-    /// again after a wait, the user channel too. `phx_close` means the server
-    /// closed it on purpose, a kicked player's lobby: the topic is forgotten,
-    /// so a reconnect does not ask for it either.
+    /// again after a wait, the user channel too. `phx_close` on another topic
+    /// means the server closed it on purpose, a kicked player's lobby: the
+    /// topic is forgotten, so a reconnect does not ask for it either. The
+    /// session's own channel is never one to forget: the server closes it
+    /// when the socket runs past its rate limit, and every hook call and row
+    /// rides on it, so it is joined again after a wait, as a crash is.
     fn ended_channel(event: str, topic: str) {
-        if event == PHX_CLOSE {
+        if event == PHX_CLOSE && topic != self.user_topic {
             self.topics.remove(topic);
             self.crashed.remove(topic);
             return;
         }
-        if event != PHX_ERROR {
+        if event != PHX_ERROR && event != PHX_CLOSE {
             return;
         }
         let payload: any = {};
@@ -599,19 +603,6 @@ impl Socket {
             self.handler.call(HANDLER, e);
         }
     }
-}
-
-/// The session renewed from its refresh token: empty when it worked,
-/// otherwise why not.
-async fn refreshed() -> str {
-    let body = core::renewal();
-    if body == nil {
-        return "no refresh token to renew with";
-    }
-    let asked = core::request(core::POST, core::REFRESH_PATH, body, false);
-    let sent = engine::unix_time();
-    let reply = await task::wait(http::request(asked[core::URL].as_str(), asked[core::OPTIONS]));
-    core::renewed(core::received(reply, sent))
 }
 
 /// Seconds before try `attempt`, counted from 1: 1, 2, 4, 8, 16, then 30.

@@ -264,6 +264,7 @@ fn set_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     crate::changes::node_keys(eng, e);
     with_appearance(eng, e, |a| a.tint = colour)?;
+    scene::appearance_written(eng, e);
     Ok(Value::Nil)
 }
 
@@ -297,6 +298,7 @@ fn set_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
         a.z_index = z;
         a.z_as_relative = relative;
     })?;
+    scene::appearance_written(eng, e);
     Ok(Value::Nil)
 }
 
@@ -509,7 +511,6 @@ fn get_node(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn add_child(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    crate::parked::refuse_if_parked(eng, e, "node.add_child")?;
     let mut world = eng.world_mut();
     let name = text(args, 1)?.to_string();
     let child = scene::spawn_node(&mut world, &name, e);
@@ -543,8 +544,6 @@ fn set_parent(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(Value::Node(id)) => crate::entity_of(balaur_script::NodeId(*id))?,
         other => return Err(anyhow!("argument 1 should be a node, got {other:?}")),
     };
-    crate::parked::refuse_if_parked(eng, e, "node.set_parent")?;
-    crate::parked::refuse_if_parked(eng, parent, "node.set_parent")?;
     let stood = crate::changes::Stood::of(&eng.world(), e);
     let placed = crate::components::has(eng, e, crate::transform::COMPONENT);
     scene::reparent(&mut eng.world_mut(), e, parent)?;

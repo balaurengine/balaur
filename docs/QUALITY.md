@@ -48,6 +48,7 @@ a limit. CI writes it to the house-rules job's summary, and gates on none of it.
 | `channel-outside-external-io` | an `mpsc` channel in a file naming neither `ExternalIo` nor `replay::suppressed` |
 | `world-write` | `.world_mut()` outside `balaur_core` and tests; `Engine`'s spawn, insert, remove, reparent and despawn are the door |
 | `borrow-across-reentry` | a `RefCell` borrow still held across a call that can re-enter the engine |
+| `placement-unstamped` | a `&mut Transform` or `&mut Appearance` in a file that never stamps it with `transform::written` or `scene::appearance_written`, nor walks or restores the whole tree, and a `&mut GlobalTransform` or `&mut GlobalAppearance` outside the scene sync; a site says on its line or the one above why no stamp is owed |
 | `epaint-outside-paint` | egui's painter, a `Shape` or `epaint` named in `balaur_ui` outside `widget/paint.rs` and the pass in `lib.rs` |
 | `allow-without-reason` | `#[allow(..)]` with no `reason = ".."` and no comment |
 | `unjustified-unwrap` | `unwrap`/`expect` outside tests with no justification and no descriptive message |

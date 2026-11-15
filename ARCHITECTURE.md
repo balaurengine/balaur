@@ -122,6 +122,14 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
   Physics is one world and is held whole either way.
 - A pause holds every `task` wait, an `always` subtree's too: a wait's
   token carries no node to ask.
+- `SceneSync` places only what changed since its last pass: the subtree under
+  a `transform` the change ticks name, a node attached or moved, an
+  appearance written (`scene::appearance_written`); a restore places all. A
+  write past the registry stamps with `transform::written`.
+- The backend's mirror redraws the renderables that pass placed and those a
+  component was written on, plus the few that move every frame (a rig,
+  copies, levels of detail). A freed node reaches it, and physics and audio,
+  through `scene::on_freed`.
 - `SceneSync` places a node that opted into interpolation between the two
   poses the last fixed steps left it in. Render-side only: `Transform` and
   `composed_global` answer the tick, so no script and no digest sees a blend.
@@ -330,39 +338,37 @@ the node's own, and the root's children become the node's.
 
 ### Scene switches
 
-`scene.switch(path)` parks the scene it leaves and returns a scene already
-parked, with no node built and no `init` run. `crates/balaur_core/src/parked.rs`
-holds it. On a phone-sized screen of 55 cards, in release, the first visit takes
-9.2 ms and a park with a return 0.23 ms.
+`scene.switch(path)` frees the scene the last switch built and builds `path` in
+its place, every `init` running. Readying a scene and starting it are two
+steps: `scene.preload(path)` readies it, and the switch starts it.
+`crates/balaur_core/src/scene_switch.rs` holds it.
 
-- **Parked means out of the tree.** The scene's roots hang from a holder outside
-  it, hidden and `process = disabled`. Whatever walks from the root passes it by:
-  transforms, the widget arena, input, cameras, lights. Whatever
-  asks the process mode stops, and whatever queries a component reads it as
-  hidden.
-- **Nothing reaches a parked script.** The host takes the instance out of every
-  pass and call, and a task it awaits holds with its wake kept in the runtime.
-  `on_parked_changed(false)` is where a script catches up on a theme, a locale or
-  a variable that moved meanwhile.
-- **State beside a node hears through `parked::on_change`.** Physics disables
-  bodies and colliders, and audio holds the sounds.
-- **A switch to the file already there is a reset:** freed and built again. A
-  file edited since a parked scene was built is built again on the way back, so
-  an edit still shows on a revisit.
-- **What stays is bounded by itself.** `parked::MAX_PARKED_NODES` nodes, 20,000,
-  the scene left longest ago freed first and a scene past it alone never parked.
-  A system memory warning frees them all. The budget is a node count rather than
-  a share of the machine's memory: a parked tree is in the digest, and two
-  machines must park alike. A scene freed is built again on the next visit.
+- **A switch replaces one scene, not a parent's children.** It remembers the
+  root it built under each node and frees that root alone. A node a script made
+  beside it under the tree's root stays and keeps running, which is where a
+  game's services sit. `under` switches the scene below any node, so an app
+  shell keeps its own nodes and swaps a content slot.
+- **Every visit is fresh.** A scene's instances, tasks and fields go with its
+  nodes, and a switch to the file already there is a reset. No scene is kept
+  built for a return: a kept scene needs a second way in beside `init`, and
+  every plugin holding state by node has to hold that scene too.
+- **A preload is warm caches, not nodes.** It reads and parses the file and its
+  prefabs and hands each component value to the plugin that asked, so the UI
+  decodes a picture on a worker thread. A replay that never preloaded builds
+  the same world. Godot's threaded load answers a status the game polls; a
+  status set by a thread's timing would part two runs of one recording, so
+  there is none here.
 - **A pack warms what it ships.** After the first frame, one scene a frame is read
   and parsed and its pictures decoded off the frame, one a pass, so a first visit
   is no slower than the next; a memory warning ends it.
-- **`scene.unload(path)` lets go.** It frees the parked scene and drops its parsed
-  files and pictures, for a scene a game wants new.
-- **A multiplayer session starts with none.** Each peer visited its own screens
-  on the way there, and a rollback would carry them every tick.
-
-`docs/DETERMINISM.md` has how a parked scene counts as world state.
+- **`scene.unload(path)` lets go** of what a preload or a pack warmed.
+- **A snapshot records what stands where:** each switch's node, file and root by
+  stable id, so a restore across a switch puts `scene.current` back on the
+  respawned root.
+- **No state outside a node.** A script keeps state in its fields, and a
+  module function that needs some finds a node beside the scene, as the Gamend
+  addon's `service.bs` does. A value no node owned outlived every reset and
+  stood outside every snapshot, so there is no such store.
 
 ### Debugger
 
@@ -1283,10 +1289,8 @@ addon decides the rest.
 
 - **Where it lives.** A slot name is letters, digits, `-` and `_`, so
   `../../id_rsa` is refused.
-- **What version wrote it.** `[save] version` is what this build writes, and
-  `save::migrate_with(step)` names the function that brings a file forward one
-  version per call, so a migration only knows adjacent shapes. A file from a
-  newer build is refused.
+- **No versions.** A slot holds what `write` put there and nothing else: no
+  stamp and no migration, as the engine keeps none before 1.0.
 - **Whose folder.** A game the editor plays keeps its slots in the folder it
   has when run alone: `project::use_data` points `engine::user_data_directory()`
   there, and the device id with it.
@@ -1562,7 +1566,8 @@ driver runs the ticks owed through `NetSession::advance`, waits a frame when
 a peer is behind, and skips Render on a re-run tick. A match starts from one
 world: the host loads the match scene and sends its snapshot, and each
 joiner loads the same scene and restores it. Nodes tagged `local` stay out
-of the digest, since a camera or HUD differs per machine on purpose.
+of the digest and of every snapshot, since a camera, a HUD or a sign-in
+differs per machine on purpose: a join leaves the joiner's own.
 
 | Primitive a replication layer needs | Where it already is |
 | --- | --- |

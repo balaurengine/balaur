@@ -2,13 +2,7 @@
 // game. The server comes from `[gamend]`, and its policy decides what goes.
 
 use logs;
-
-const YES: str = "yes";
-
-/// Where the sink reports to the Gamend dock, and where the dock asks it to
-/// flush now, in the script store.
-const REPORT_KEY: str = "gamend:logs";
-const FLUSH_KEY: str = "gamend:logs_flush";
+use service;
 
 pub class LogSink {
     node: Node,
@@ -24,15 +18,17 @@ impl LogSink {
 
     fn update(dt: float) {
         logs::pump(self.sink, self.node, dt);
-        if engine::stored(FLUSH_KEY).text() == YES {
-            engine::store(FLUSH_KEY, "");
+        // The dock reads the report, and asks for a flush, on the client's node.
+        let state = service::get();
+        if state.flush {
+            state.flush = false;
             logs::flush(self.sink, self.node);
         }
         // Twice a second is enough for a person reading the dock.
         self.report_in -= 1;
         if self.report_in <= 0 {
             self.report_in = 30;
-            engine::store(REPORT_KEY, logs::report(self.sink));
+            state.logs = logs::report(self.sink);
         }
     }
 

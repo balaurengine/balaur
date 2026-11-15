@@ -9,7 +9,6 @@
 //! the stick floating over the menu.
 
 use balaur_core::Engine;
-use balaur_core::hecs::Entity;
 use balaur_input::{TouchButton, TouchStick};
 use egui::{Color32, Order, pos2};
 
@@ -32,13 +31,10 @@ pub fn draw_touch_controls(eng: &Engine, ctx: &egui::Context) {
     // in, and egui paints in points. One divide is the whole difference.
     let per_point = balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON);
     let world = eng.world();
-    let mut buttons = world.query::<(Entity, &TouchButton)>();
-    let mut sticks = world.query::<(Entity, &TouchStick)>();
+    let mut buttons = world.query::<&TouchButton>();
+    let mut sticks = world.query::<&TouchStick>();
     let mut painter = None;
-    for (entity, button) in &mut buttons {
-        if balaur_core::parked::is_parked(eng, entity) {
-            continue;
-        }
+    for button in &mut buttons {
         let Some((center, half)) = button.placement(eng) else {
             continue;
         };
@@ -56,10 +52,7 @@ pub fn draw_touch_controls(eng: &Engine, ctx: &egui::Context) {
             painter.fill(egui::Rect::from_center_size(at, size), 8.0, fill);
         }
     }
-    for (entity, stick) in &mut sticks {
-        if balaur_core::parked::is_parked(eng, entity) {
-            continue;
-        }
+    for stick in &mut sticks {
         let Some((base, knob)) = stick.placement(eng) else {
             continue;
         };

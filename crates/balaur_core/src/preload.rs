@@ -12,9 +12,8 @@
 //! frame is out (`warm_system`). A dev run reads the sources as it goes.
 //!
 //! Nothing here touches the world: a preloaded scene is warm caches, not
-//! nodes, so a replay that never preloaded builds the same world. [`unload`]
-//! is its inverse, and also lets go of the built scene a switch parked
-//! ([`crate::parked`]), which is world state.
+//! nodes, so a replay that never preloaded builds the same world, and a
+//! switch to it builds every node new. [`unload`] is its inverse.
 
 use anyhow::Result;
 use smol_str::SmolStr;
@@ -61,10 +60,9 @@ pub fn scene(eng: &Engine, path: &str) -> Result<()> {
     crate::project::preload_scene(eng, path)
 }
 
-/// Let go of what [`scene`] warmed and a switch kept: the parked scene, if it
-/// is parked, and whatever its file and prefabs have cached.
+/// Let go of what [`scene`] warmed: whatever the file and its prefabs have
+/// cached.
 pub fn unload(eng: &Engine, path: &str) {
-    crate::parked::free(eng, path);
     crate::project::unload_scene(eng, path);
 }
 
@@ -92,9 +90,8 @@ pub(crate) fn warming(eng: &Engine) -> bool {
         .is_some_and(|waiting| !waiting.borrow().0.is_empty())
 }
 
-/// One scene a frame, each once the frame is drawn: a memory warning ends it,
-/// the way it frees what a switch parked. A scene that does not read is left
-/// for the switch to it to report.
+/// One scene a frame, each once the frame is drawn: a memory warning ends it.
+/// A scene that does not read is left for the switch to it to report.
 pub(crate) fn warm_system(eng: &Engine, _dt: f32) {
     let Some(waiting) = eng.try_resource::<ToWarm>() else {
         return;

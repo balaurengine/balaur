@@ -7,6 +7,7 @@ use addons::save::save;
 use auth;
 use client;
 use core;
+use service;
 
 const CALLS: str = "calls";
 const CLAIM: str = "claim";
@@ -69,14 +70,6 @@ const VIEWS: str = "views";
 /// The save slots the addon keeps on the device.
 const SESSION_SLOT: str = "gamend";
 const PREFS_SLOT: str = "gamend_prefs";
-
-/// Where `log_sink.bs` reports, and where the dock asks it to flush now, in
-/// the script store.
-const LOGS_KEY: str = "gamend:logs";
-const FLUSH_KEY: str = "gamend:logs_flush";
-
-/// Where `client.bs` keeps the key-value rows a game subscribed to.
-const ROWS_KEY: str = "gamend:rows";
 
 /// The person's Gamend Cloud account, which this dock declares as editor
 /// settings, kept in the editor's own file, and the editor API on it.
@@ -557,7 +550,7 @@ impl Gamend {
             show(out, key, self.fetch(key, "/api/v1/kv/" + self.kv_key));
         }
         out.push(heading("Rows the game keeps"));
-        let rows = engine::stored(ROWS_KEY);
+        let rows = service::get().rows;
         if rows.keys().len() == 0 {
             out.push(line("none: the rows a playing game subscribed to with `register_kv` show here", QUIET));
         } else {
@@ -813,7 +806,8 @@ impl Gamend {
     }
 
     pub fn flush_logs(_data: any, _value: any) {
-        engine::store(FLUSH_KEY, "yes");
+        let state = service::get();
+        state.flush = true;
     }
 }
 
@@ -869,7 +863,7 @@ fn logs(to: Node) -> [any] {
         out.push(field("log file", "none: [log] file is off", {}));
     }
     out.push(heading("Shipping to Gamend"));
-    let report = engine::stored(LOGS_KEY);
+    let report = service::get().logs;
     if report.kind() != types::KIND_MAP {
         out.push(line("not shipping: put addons/gamend/log_sink.bs on a node that lives as long as the game", QUIET));
         return out;

@@ -919,6 +919,7 @@ pub(crate) fn remove_softbody_2d(eng: &Engine, entity: Entity) {
             &mut world.multibody_joints,
         );
     }
+    crate::dim2::forget_dead_joints(state);
 }
 
 /// Hand this step's geometry to whatever draws the node, in the node's own

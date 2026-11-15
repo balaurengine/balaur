@@ -6,7 +6,10 @@
 use crate::collections::DetHashSet;
 use crate::engine::Engine;
 
-use super::{ASSETS_RELOADED, CHANGED, DEBUGGER_RESUMED, DEBUGGER_STOPPED, FILES_CHANGED, LOGGED};
+use super::{
+    ASSETS_RELOADED, CHANGED, DEBUGGER_RESUMED, DEBUGGER_STOPPED, FILES_CHANGED, LOGGED,
+    REPLAY_STATE_CHANGED,
+};
 
 /// An event said from no node: its name, what it carries, and when it is
 /// said. Only `events::listen` and `events::next` hear one.
@@ -39,6 +42,7 @@ pub const SAID: &[Said] = &[
     (FILES_CHANGED, "the paths, as a list; empty when the watcher lost count", "A burst of file writes under a directory `engine::watch` follows has ended."),
     (DEBUGGER_STOPPED, "where a script is stopped", "A script stopped, or stopped somewhere else."),
     (DEBUGGER_RESUMED, "nil", "The script the debugger last said was stopped went on."),
+    (REPLAY_STATE_CHANGED, "the state playback moved to, a `replay::STATE_*` constant", "A recording was loaded, played, paused, sought, ran out or was unloaded."),
     (CHANGED, "a list of `{ node, kind, .. }` maps", "A write changed the scene since the last frame; heard from a node, the entries under it alone."),
 ];
 

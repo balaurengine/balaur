@@ -357,6 +357,10 @@ fn forest(
             // beneath it leaves them to be anchored on their own. Read before
             // the widget moves, so the arena is built with one clone a node.
             next_owner = lays_out(&widget.kind).then_some(index);
+            // A dialog, and a widget drawn `on_top`, opens over the screen
+            // wherever the scene puts it: a screen authors its own confirm
+            // and its own toast, and neither takes a place in its layout.
+            let owner = if overlays(&widget) { None } else { owner };
             arena.push(Placed {
                 entity,
                 parent: owner,
@@ -382,6 +386,13 @@ fn forest(
         }
     }
     (arena, roots, index_of)
+}
+
+/// Whether a widget is a root wherever it sits: a `dialog`, or one drawn
+/// `on_top`. Anywhere else in the tree it would be laid out in its parent's
+/// box, where a dialog could neither dim the screen nor be shut.
+fn overlays(widget: &Widget) -> bool {
+    widget.kind == crate::vocabulary::words::DIALOG || widget.on_top
 }
 
 /// What a pass starts from, and whether the arena behind it is new.

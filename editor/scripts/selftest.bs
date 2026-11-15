@@ -127,6 +127,18 @@ pub class Demo {
     internal file: str,
     internal was: int,
     internal paused_at: int,
+    // Past the replay: a copy made behind the editor's back, what the list
+    // waits to hear about it, and the wall-clock second it gives up.
+    internal copy: str,
+    internal waiting: str,
+    internal until: float,
+}
+
+/// Where `test:cached_reads` has got to, and the wall-clock second its
+/// current wait gives up.
+pub class ReadsCheck {
+    internal stage: int,
+    internal until: float,
 }
 
 pub class PoolCheck {
@@ -305,6 +317,9 @@ fn step_one(state: &mut editor::State, name: str) -> bool {
         "session" => {
             project_checks::session_step(state);
         }
+        "reads" => {
+            project_checks::reads_step(state);
+        }
         "plugin" => {
             project_checks::plugin_step(state);
         }
@@ -359,6 +374,7 @@ fn under_way(state: editor::State, name: str) -> bool {
         "gesture" => state.gesture_demo >= 0,
         "layout" => state.layout_demo >= 0,
         "session" => state.session.demo != nil,
+        "reads" => state.reads_check != nil,
         "plugin" => state.plugin_demo >= 0,
         "profile" => state.profile_demo >= 0,
         "palette" => state.palette_demo >= 0,

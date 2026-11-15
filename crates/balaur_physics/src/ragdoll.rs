@@ -103,6 +103,7 @@ pub(crate) fn restore_system(eng: &Engine, _dt: f32) {
         {
             t.position = Vec3::from_array(pose.incoming.0);
             t.rotation = Quat::from_array(pose.incoming.1);
+            balaur_core::transform::written(eng, bone);
         }
     }
 }
@@ -143,7 +144,6 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
         .query::<(Entity, &Ragdoll)>()
         .iter()
         .filter(|(_, r)| r.blend() > 0.0 && !r.bodies.is_empty())
-        .filter(|(e, _)| !balaur_core::parked::is_parked(eng, *e))
         .map(|(e, r)| (e, r.clone()))
         .collect();
     for (rig, ragdoll) in rigs {
@@ -174,6 +174,7 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
                 t.position = t.position.lerp(local_position, ragdoll.blend());
                 t.rotation = t.rotation.slerp(local_rotation, ragdoll.blend());
                 let written = (t.position.to_array(), t.rotation.to_array());
+                balaur_core::transform::written(eng, bone);
                 memory.0.insert(bone, Blended { incoming, written });
             }
         }

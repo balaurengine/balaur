@@ -884,11 +884,22 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // root draw's, so here it is the panel.
         w::PANEL | w::DIALOG => panel(ui, at, index, &caption, &font, color),
         w::WINDOW => crate::widget::window::window(ui, at, index, &caption, &font, color),
-        w::CHECKBOX => crate::widget::kinds::check(ui, at, index, &caption, &font, color),
+        // egui draws these three from its own palette: the kind's table, in
+        // the state the widget is in, is told to it first, as a field's is.
+        w::CHECKBOX => {
+            crate::widget::theme::dress(ui, &look.style, color);
+            crate::widget::kinds::check(ui, at, index, &caption, &font, color);
+        }
         w::SWITCH => crate::widget::kinds::switch(ui, at, index),
         w::COLOR_PICKER => crate::widget::kinds::color(ui, at, index),
-        w::DROPDOWN => crate::widget::kinds::dropdown(ui, at, index, &font, color),
-        w::MENU => crate::widget::kinds::menu(ui, at, index, &caption, &font, color),
+        w::DROPDOWN => {
+            crate::widget::theme::dress(ui, &look.style, color);
+            crate::widget::kinds::dropdown(ui, at, index, &font, color);
+        }
+        w::MENU => {
+            crate::widget::theme::dress(ui, &look.style, color);
+            crate::widget::kinds::menu(ui, at, index, &caption, &font, color);
+        }
         w::LIST | w::TREE | w::TABLE => rows_down(ui, at, index, &font, color),
         // The file being edited, with the gutter and the colouring the script
         // call has always had.

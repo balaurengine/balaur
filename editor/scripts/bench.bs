@@ -3,35 +3,106 @@
 //! retires against one that edits nothing. The
 //! edits: `text` and `color` on a `text2d`, `position` on its transform, and
 //! `engine_text`, the engine's own write that the Inspector's rows follow.
+//!
+//! `--state idle:<seconds>` or `idle:<seconds>:<edit>`: the frames the editor
+//! draws while nothing touches it, after one such edit or none, logged as
+//! `idle: <n> frames in <seconds> s` before the run quits. The count and the
+//! edit start once as long again has passed, past the shell's own settling.
+//! Under `[window] low_processor` it is every wake the editor's scripts owe.
+//! The edit `replay` opens the newest recording and pauses it.
 
 use editor;
 use model;
 use sceneedit;
+use session;
+use util;
 use words::components;
 use words::datatypes;
 
 const ENGINE_TEXT: str = "engine_text";
 const ONE: str = "one";
 const TWO: str = "two";
+const REPLAY: str = "replay";
+
+/// A count of idle frames under way: the edit it starts with, the frame it
+/// began on, -1 before it has, when it begins and ends, and how long it runs.
+pub class Idle {
+    internal edit: str,
+    internal from: int,
+    internal start: float,
+    internal until: float,
+    internal span: float,
+}
 
 /// One edit, every frame while a bench runs.
 pub fn step(state: &mut editor::State) {
     if state.bench == "" {
         return;
     }
+    edit(state, state.bench);
+    ui::request_repaint();
+}
+
+// One edit of the kind a bench names to the selection, flipping each frame.
+fn edit(state: &mut editor::State, kind: str) {
     let found = model::selected_node(state);
     if !found.is_valid() {
         return;
     }
     let flip = state.frame % 2 == 0;
-    if state.bench == components::TEXT {
+    if kind == components::TEXT {
         sceneedit::set_component_property(state, components::TEXT2D, components::TEXT, if flip { ONE } else { TWO });
-    } else if state.bench == datatypes::COLOR {
+    } else if kind == datatypes::COLOR {
         sceneedit::set_component_property(state, components::TEXT2D, datatypes::COLOR, if flip { [1.0, 0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0, 1.0] });
-    } else if state.bench == components::POSITION {
+    } else if kind == components::POSITION {
         sceneedit::set_component_property(state, components::TRANSFORM, components::POSITION, [if flip { 0.0 } else { 0.5 }, 0.0, 0.0]);
-    } else if state.bench == ENGINE_TEXT {
+    } else if kind == ENGINE_TEXT {
         found.text2d.text = if flip { ONE } else { TWO };
     }
-    ui::request_repaint();
+}
+
+// The newest recording opened and paused, as a reader leaves one to look at.
+fn park_newest(state: &mut editor::State) {
+    let rows = session::listing(state);
+    if rows.len() == 0 {
+        log::warn("idle: no recording to replay");
+        return;
+    }
+    session::open(state, rows[0].name);
+    replay::pause();
+}
+
+/// Start counting: `<seconds>`, or `<seconds>:<edit>` to make one edit first.
+pub fn begin_idle(state: &mut editor::State, spec: str) {
+    let parts = spec.split(":");
+    let span = parts[0].parse_float();
+    let start = engine::unix_time() + span;
+    state.idle = Idle { edit: if parts.len() > 1 { parts[1] } else { "" }, from: -1, start: start, until: start + span, span: span };
+    // The frame the count starts on: nothing else need draw one.
+    util::wake_at(0.0, start);
+}
+
+/// On each frame that runs: the first past the start begins the count, and
+/// the first past the end logs it and quits.
+pub fn count_idle(state: &mut editor::State) {
+    if state.idle == nil {
+        return;
+    }
+    let idle = state.idle.unwrap();
+    let now = engine::unix_time();
+    if idle.from < 0 && now >= idle.start {
+        idle.from = state.frame;
+        if idle.edit == REPLAY {
+            park_newest(state);
+        } else {
+            edit(state, idle.edit);
+        }
+        util::wake_at(0.0, idle.until);
+    }
+    if now < idle.until {
+        return;
+    }
+    state.idle = nil;
+    log::info("idle: {state.frame - idle.from} frames in {idle.span} s");
+    engine::quit(0);
 }

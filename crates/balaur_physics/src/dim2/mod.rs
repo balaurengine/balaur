@@ -146,24 +146,22 @@ pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
 crate::shared::world::functions!(
     state = PhysicsState2d,
     component = c::JOINT_2D,
-    prune = prune_freed_nodes_except_tiles,
+    forget = forget_freed_nodes_except_tiles,
+    collider_handle = ColliderHandle2,
     body = body::Body2d,
     collider = collider::Collider2d,
     soft = softbody::Softbody2d,
     events = crate::rapier2d::prelude::ActiveEvents
 );
 
-pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState2d) {
-    prune_freed_nodes_except_tiles(eng, state);
-    let world = eng.world();
-    state.tile_params.retain(|e, _| world.contains(*e));
-    state.tile_built.retain(|e, _| world.contains(*e));
-    state.tile_colliders.retain(|e, _| world.contains(*e));
-    state.follows.retain(|e, _| world.contains(*e));
-    let colliders = &state.world.colliders;
-    state
-        .surfaces
-        .retain(|handle, _| colliders.contains(*handle));
+pub(crate) fn forget_freed_nodes(state: &mut PhysicsState2d, nodes: &[Entity]) {
+    forget_freed_nodes_except_tiles(state, nodes);
+    for node in nodes {
+        state.tile_params.shift_remove(node);
+        state.tile_built.shift_remove(node);
+        state.tile_colliders.shift_remove(node);
+        state.follows.shift_remove(node);
+    }
 }
 
 fn step_system(eng: &Engine, _dt: f32) {
@@ -176,11 +174,6 @@ fn step_system(eng: &Engine, _dt: f32) {
     // collide with them.
     tiles::sync_tile_colliders(eng);
     collider::reread_materials(eng);
-    {
-        let state = eng.resource::<PhysicsState2d>();
-        let mut state = state.borrow_mut();
-        prune_freed_nodes(eng, &mut state);
-    }
     resolve_pending_joints(eng);
     let events = {
         let state = eng.resource::<PhysicsState2d>();
@@ -229,11 +222,16 @@ fn step_system(eng: &Engine, _dt: f32) {
             if body.is_fixed() || body.is_kinematic() {
                 continue;
             }
-            if let Ok(mut t) = world.get::<&mut Transform>(entity) {
-                let pos = body.translation();
+            let pos = body.translation();
+            let rotation = Quat::from_rotation_z(body.rotation().angle());
+            if let Ok(mut t) = world.get::<&mut Transform>(entity)
+                && (t.position.truncate() != glamx::Vec2::new(pos.x, pos.y)
+                    || t.rotation != rotation)
+            {
                 t.position.x = pos.x;
                 t.position.y = pos.y;
-                t.rotation = Quat::from_rotation_z(body.rotation().angle());
+                t.rotation = rotation;
+                balaur_core::transform::written(eng, entity);
             }
         }
         (

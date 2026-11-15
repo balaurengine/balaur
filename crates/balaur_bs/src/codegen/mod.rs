@@ -914,6 +914,13 @@ fn emit_dyns(g: &Gen, out: &mut Emitted) -> R<Vec<(u32, Ty)>> {
     Ok(list)
 }
 
+/// A map's pairs in key order, so two builds of one file write the same bytes.
+fn sorted(map: &HashMap<String, String>) -> Vec<(String, String)> {
+    let mut pairs: Vec<(String, String)> = map.clone().into_iter().collect();
+    pairs.sort();
+    pairs
+}
+
 pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Error> {
     let debug = options.debug;
     let g = layout(prog, options)?;
@@ -1007,6 +1014,7 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
             breaks_at,
             rows_at,
         }),
+        class_files: sorted(&g.class_files),
     };
     Ok(Compiled {
         wasm: m.finish(),

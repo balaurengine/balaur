@@ -151,6 +151,12 @@ pub(crate) struct Group3d {
     node: kiss3d::scene::SceneNode3d,
     members: Vec<Entity>,
     pending: Vec<kiss3d::scene::InstanceData3d>,
+    /// Every member in the order its instance was written, and where each
+    /// visible one's sits in `pending`: what a member written alone rewrites.
+    written: Vec<Entity>,
+    at: std::collections::HashMap<Entity, usize>,
+    /// Whether `pending` moved since it was last handed to the node.
+    touched: bool,
 }
 
 /// Every group this frame. A group is addressed by the entity that sorts
@@ -162,6 +168,10 @@ pub(crate) struct Batches3d {
     /// Keys whose object could not be built as instances after all, so the
     /// next frame does not build and tear one down again.
     refused: Vec<BatchKey3d>,
+    /// Each 3D renderable's key at the last cut, `None` for one no group can
+    /// take, and the group each member is in.
+    keys: std::collections::HashMap<Entity, Option<BatchKey3d>>,
+    member_of: std::collections::HashMap<Entity, usize>,
 }
 
 #[cfg(feature = "window")]
@@ -171,6 +181,28 @@ impl Batches3d {
             group.node.remove();
         }
         self.groups.clear();
+    }
+
+    /// Whether any of `nodes` would be cut otherwise than it was: a group key
+    /// that moved, or a renderable that came or went.
+    pub(crate) fn keys_moved(
+        &self,
+        world: &balaur_core::hecs::World,
+        nodes: &std::collections::HashSet<Entity>,
+    ) -> bool {
+        nodes.iter().any(|&entity| {
+            let mut found = world.query_one::<(&Renderable3d, &GlobalTransform)>(entity);
+            let now = found
+                .get()
+                .ok()
+                .map(|(renderable, global)| group_key(world, entity, renderable, global));
+            now.as_ref() != self.keys.get(&entity)
+        })
+    }
+
+    /// The group `entity` is drawn through, if one is.
+    pub(crate) fn group_of(&self, entity: Entity) -> Option<usize> {
+        self.member_of.get(&entity).copied()
     }
 
     /// Forget what was refused, for a frame whose materials or meshes were
@@ -194,33 +226,15 @@ pub(crate) fn cut_groups(
 ) -> std::collections::HashMap<Entity, usize> {
     let world = app.engine.world();
     let mut cut: Vec<(BatchKey3d, Vec<Entity>)> = Vec::new();
+    batches.keys.clear();
     for (entity, renderable, global) in
         &mut world.query::<(Entity, &Renderable3d, &GlobalTransform)>()
     {
-        let debug = crate::debug_draw::DebugDraw::of(&world, entity);
-        if !batchable(renderable, &debug, global) {
+        let key = group_key(&world, entity, renderable, global);
+        batches.keys.insert(entity, key.clone());
+        let Some(key) = key else {
             continue;
-        }
-        // The fork sorts a surface into the transparency pass by its object's
-        // alpha, and a group's object is white: a see-through member keeps its own.
-        let tint = world
-            .get::<&balaur_core::GlobalAppearance>(entity)
-            .map_or(1.0, |a| a.tint.to_array()[3]);
-        if renderable.color[3] * tint < 1.0 {
-            continue;
-        }
-        // A multimesh draws its node many times already, and a morph or a
-        // solver deforms one node's vertices: all three are the object's, and
-        // an instance has none of them.
-        if world.get::<&crate::MultiMesh>(entity).is_ok()
-            || world.get::<&crate::MorphWeights>(entity).is_ok()
-            || world
-                .get::<&balaur_geometry::mesh::SolvedMesh>(entity)
-                .is_ok()
-        {
-            continue;
-        }
-        let key = key_of(renderable, debug, &material_of(&world, entity, renderable));
+        };
         if batches.refused.contains(&key) {
             continue;
         }
@@ -254,11 +268,53 @@ pub(crate) fn cut_groups(
     let mut member_of = std::collections::HashMap::new();
     for (index, group) in batches.groups.iter_mut().enumerate() {
         group.pending.clear();
+        group.written.clear();
+        group.at.clear();
         for &entity in &group.members {
             member_of.insert(entity, index);
         }
     }
+    batches.member_of.clone_from(&member_of);
     member_of
+}
+
+/// The group `entity` could be drawn through, or `None` where it must draw
+/// on its own.
+#[cfg(feature = "window")]
+fn group_key(
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+    renderable: &Renderable3d,
+    global: &GlobalTransform,
+) -> Option<BatchKey3d> {
+    let debug = crate::debug_draw::DebugDraw::of(world, entity);
+    if !batchable(renderable, &debug, global) {
+        return None;
+    }
+    // The fork sorts a surface into the transparency pass by its object's
+    // alpha, and a group's object is white: a see-through member keeps its own.
+    let tint = world
+        .get::<&balaur_core::GlobalAppearance>(entity)
+        .map_or(1.0, |a| a.tint.to_array()[3]);
+    if renderable.color[3] * tint < 1.0 {
+        return None;
+    }
+    // A multimesh draws its node many times already, and a morph or a
+    // solver deforms one node's vertices: all three are the object's, and
+    // an instance has none of them.
+    if world.get::<&crate::MultiMesh>(entity).is_ok()
+        || world.get::<&crate::MorphWeights>(entity).is_ok()
+        || world
+            .get::<&balaur_geometry::mesh::SolvedMesh>(entity)
+            .is_ok()
+    {
+        return None;
+    }
+    Some(key_of(
+        renderable,
+        debug,
+        &material_of(world, entity, renderable),
+    ))
 }
 
 /// The material a node effectively draws with: its own, or an ancestor's.
@@ -323,10 +379,14 @@ fn build_group(
         node,
         members,
         pending: Vec::new(),
+        written: Vec::new(),
+        at: std::collections::HashMap::new(),
+        touched: false,
     })
 }
 
-/// One member's pose and tint, as the instance its group draws it through.
+/// One member's pose and tint, as the instance its group draws it through,
+/// noted in the order written.
 #[cfg(feature = "window")]
 pub(crate) fn write_instance(
     world: &balaur_core::hecs::World,
@@ -334,27 +394,41 @@ pub(crate) fn write_instance(
     group: usize,
     batches: &mut Batches3d,
 ) {
+    let made = instance(world, entity);
+    let Some(group) = batches.groups.get_mut(group) else {
+        return;
+    };
+    group.written.push(entity);
+    if let Some(made) = made {
+        group.at.insert(entity, group.pending.len());
+        group.pending.push(made);
+    }
+}
+
+/// One member's pose and tint as an instance, `None` while it is hidden.
+#[cfg(feature = "window")]
+fn instance(
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+) -> Option<kiss3d::scene::InstanceData3d> {
     let (Ok(renderable), Ok(global)) = (
         world.get::<&Renderable3d>(entity),
         world.get::<&GlobalTransform>(entity),
     ) else {
-        return;
+        return None;
     };
     let appearance = world
         .get::<&balaur_core::GlobalAppearance>(entity)
         .map_or_else(|_| balaur_core::GlobalAppearance::identity(), |a| *a);
     if !appearance.visible {
-        return;
+        return None;
     }
     let color = crate::film::color(crate::sync_2d::modulate(
         renderable.color,
         appearance.tint.to_array(),
     ));
     let (position, deformation) = pose(&global);
-    let Some(group) = batches.groups.get_mut(group) else {
-        return;
-    };
-    group.pending.push(kiss3d::scene::InstanceData3d {
+    Some(kiss3d::scene::InstanceData3d {
         position,
         deformation,
         color,
@@ -362,13 +436,51 @@ pub(crate) fn write_instance(
         lines_width: None,
         points_color: None,
         points_size: None,
-    });
+    })
 }
 
-/// Hand each group the instances its members wrote.
+/// Write one member's instance again where it stands among its group's; one
+/// shown or hidden lays the group's out again in the order written. False
+/// for a node no group draws.
 #[cfg(feature = "window")]
-pub(crate) fn flush(batches: &mut Batches3d) {
+pub(crate) fn rewrite_instance(
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+    batches: &mut Batches3d,
+) -> bool {
+    let Some(index) = batches.group_of(entity) else {
+        return false;
+    };
+    let Some(group) = batches.groups.get_mut(index) else {
+        return true;
+    };
+    match (group.at.get(&entity).copied(), instance(world, entity)) {
+        (Some(at), Some(made)) => group.pending[at] = made,
+        (None, None) => return true,
+        _ => {
+            group.pending.clear();
+            group.at.clear();
+            for &member in &group.written {
+                if let Some(made) = instance(world, member) {
+                    group.at.insert(member, group.pending.len());
+                    group.pending.push(made);
+                }
+            }
+        }
+    }
+    group.touched = true;
+    true
+}
+
+/// Hand each group the instances its members wrote; with `all` false, only
+/// a group one of them was written again in.
+#[cfg(feature = "window")]
+pub(crate) fn flush(batches: &mut Batches3d, all: bool) {
     for group in &mut batches.groups {
+        if !all && !group.touched {
+            continue;
+        }
+        group.touched = false;
         let instances = std::mem::take(&mut group.pending);
         group.node.set_instances(&instances);
         group.pending = instances;

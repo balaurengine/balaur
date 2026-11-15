@@ -60,6 +60,10 @@ pub(crate) enum Effect {
     Deform { entity: Entity, offsets: Vec<f32> },
     /// Tell a node a `visible` track just flipped it.
     Shown { entity: Entity, visible: bool },
+    /// Stamp a transform a track wrote in place, as the registry's write would.
+    Moved { entity: Entity },
+    /// Say a node's own appearance was written in place.
+    Restyled { entity: Entity },
 }
 
 /// What a player's node emits when a clip ends, with the clip's name.
@@ -129,22 +133,37 @@ fn refresh_reloaded_clips(eng: &Engine) {
     state.asset_generation = generation;
 }
 
+/// Whether `entity` moves on this step: the pause and its process mode let
+/// it, and it is outside the subtree a hold has, `held`.
+pub(crate) fn moves(
+    world: &World,
+    entity: Entity,
+    paused: balaur_core::process::Pause,
+    held: Option<Entity>,
+) -> bool {
+    balaur_core::process::ticks(world, entity, paused)
+        && held.is_none_or(|root| !scene::is_within(world, entity, root))
+}
+
 /// Advance every playing node by whole fixed steps.
 pub(crate) fn advance_system(eng: &Engine, dt: f32) {
     // A held game does not animate, and keeps or drops its part of a step as
     // `App::run_fixed_steps` does, or a resumed replay steps on other frames.
-    if eng.frozen_root().is_some() {
-        if !eng.hold_keeps_remainder() {
-            eng.resource::<AnimationState>().borrow_mut().accumulator = 0.0;
-        }
-        return;
+    // What lies outside it, a tool's own shell, steps on its own remainder.
+    let held = eng.frozen_root();
+    if held.is_some() && !eng.hold_keeps_remainder() {
+        eng.resource::<AnimationState>().borrow_mut().accumulator = 0.0;
     }
     let mut effects = Vec::new();
     let mut ended: Vec<Entity> = Vec::new();
     let mut moved = Vec::new();
-    refresh_reloaded_clips(eng);
-    crate::machine::prepare(eng);
-    crate::machine::evaluate_checks(eng);
+    // What reaches into the held game waits for the hold to end: a clip
+    // resolved again, and a machine's checks, which call its scripts.
+    if held.is_none() {
+        refresh_reloaded_clips(eng);
+        crate::machine::prepare(eng);
+        crate::machine::evaluate_checks(eng);
+    }
     {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();
@@ -156,17 +175,28 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         state.players.retain(|&entity, _| world.contains(entity));
         state.machines.retain(|&entity, _| world.contains(entity));
         state.tweens.retain(|_, tween| world.contains(tween.node));
-        // What ended last step has been told, and a digest should not keep it.
-        for playback in state.players.values_mut() {
-            playback.finished.clear();
+        // What ended last step has been told, and a digest should not keep it;
+        // a held node's stays readable until the hold lets it go.
+        for (&entity, playback) in &mut state.players {
+            if held.is_none_or(|root| !scene::is_within(&world, entity, root)) {
+                playback.finished.clear();
+            }
         }
         let step = fixed_dt();
         let paused = balaur_core::process::pause(eng);
-        state.accumulator = (state.accumulator + dt).min(step * max_substeps() as f32);
-        while state.accumulator >= step {
+        // The game's remainder is the simulation's, so a tool stepping
+        // through a hold keeps one of its own.
+        let mut left = if held.is_some() {
+            state.held_accumulator
+        } else {
+            state.held_accumulator = 0.0;
+            state.accumulator
+        };
+        left = (left + dt).min(step * max_substeps() as f32);
+        while left >= step {
             let mut ended_now = Vec::new();
             for (&entity, playback) in &mut state.players {
-                if !balaur_core::process::ticks(&world, entity, paused) {
+                if !moves(&world, entity, paused, held) {
                     continue;
                 }
                 if advance_playback(&world, entity, playback, &mut effects) {
@@ -179,6 +209,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
                 &mut state.players,
                 &ended_now,
                 paused,
+                held,
                 &mut moved,
             );
             ended.extend(ended_now);
@@ -193,8 +224,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
                 .collect();
             let mut done: Vec<TweenId> = Vec::new();
             for (&id, tween) in &mut state.tweens {
-                if waiting.contains(&id) || !balaur_core::process::ticks(&world, tween.node, paused)
-                {
+                if waiting.contains(&id) || !moves(&world, tween.node, paused, held) {
                     continue;
                 }
                 if let Err(why) = tween::begin(eng, tween) {
@@ -213,7 +243,12 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
             for id in done {
                 state.tweens.shift_remove(&id);
             }
-            state.accumulator -= step;
+            left -= step;
+        }
+        if held.is_some() {
+            state.held_accumulator = left;
+        } else {
+            state.accumulator = left;
         }
         state.moving = still_moving(state, &world, paused, eng.debug_scope());
     }
@@ -221,7 +256,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
     // After the effects, so a tween's last call runs before it is let go.
     settle_ended(eng, &ended);
     crate::machine::announce(eng, &moved);
-    announce_began(eng);
+    announce_began(eng, held);
 }
 
 /// Whether anything still animates: a clip playing, a tween running, or a
@@ -246,14 +281,17 @@ fn still_moving(
 }
 
 /// Tell each player's node which clip it began since the last frame, and
-/// which it left for it, after the clip that ended is announced.
-fn announce_began(eng: &Engine) {
+/// which it left for it, after the clip that ended is announced. A node the
+/// hold has, under `held`, is told once it lets go.
+fn announce_began(eng: &Engine, held: Option<Entity>) {
     let began: Vec<(Entity, String, String)> = {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();
+        let world = eng.world();
         state
             .players
             .iter_mut()
+            .filter(|(entity, _)| held.is_none_or(|root| !scene::is_within(&world, **entity, root)))
             .filter_map(|(&entity, playback)| {
                 let (from, to) = playback.began.take()?;
                 Some((entity, from, to))
@@ -494,6 +532,7 @@ pub(crate) fn write_pose<'a>(
         // Rests are read once per track and only while retargeting: a clip
         // played on the rig it was authored for pays nothing for this.
         let rest = retarget.and(world.get::<&Bone>(target).ok());
+        let was = (transform.position, transform.rotation, transform.scale);
         match value {
             TrackValue::Position(position) => {
                 transform.position = match retarget {
@@ -514,7 +553,10 @@ pub(crate) fn write_pose<'a>(
             | TrackValue::Discrete(_)
             | TrackValue::Property { .. }
             | TrackValue::None
-            | TrackValue::Deform(_) => {}
+            | TrackValue::Deform(_) => continue,
+        }
+        if (transform.position, transform.rotation, transform.scale) != was {
+            effects.push(Effect::Moved { entity: target });
         }
     }
 }
@@ -532,9 +574,10 @@ fn write_appearance(world: &World, target: Entity, value: &TrackValue, effects: 
                 visible: on,
             });
         }
-        TrackValue::Tint(tint) => appearance.tint = tint,
-        _ => {}
+        TrackValue::Tint(tint) if appearance.tint != tint => appearance.tint = tint,
+        _ => return,
     }
+    effects.push(Effect::Restyled { entity: target });
 }
 
 /// Every method key this step passed over, in track order.
@@ -691,6 +734,8 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                     },
                 );
             }
+            Effect::Moved { entity } => balaur_core::transform::written(eng, *entity),
+            Effect::Restyled { entity } => balaur_core::scene::appearance_written(eng, *entity),
             Effect::Shown { entity, visible } => {
                 balaur_core::events::announce(
                     eng,

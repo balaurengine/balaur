@@ -35,6 +35,7 @@ mod material_check;
 mod material_compile;
 mod material_surface;
 pub mod mesh;
+mod mirror;
 /// The URL the app was launched with, taken once.
 ///
 /// It lives in the window layer because UIKit hands it to the application

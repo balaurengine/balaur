@@ -238,9 +238,7 @@ pub(crate) fn dark_mode(eng: &Engine, _: &[Value]) -> Result<Value> {
 }
 
 pub(crate) fn unix_time(eng: &Engine, _: &[Value]) -> Result<Value> {
-    Ok(Value::Num(
-        eng.resource::<crate::facts::WallClock>().borrow().unix_time,
-    ))
+    Ok(Value::Num(crate::facts::unix_time(eng)))
 }
 
 pub(crate) fn strings_system_locale(eng: &Engine, _: &[Value]) -> Result<Value> {

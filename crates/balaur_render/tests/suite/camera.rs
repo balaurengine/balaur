@@ -24,6 +24,7 @@ fn node_at(
         .get::<&mut Transform>(entity)
         .unwrap()
         .position = position;
+    balaur_core::transform::written(&app.engine, entity);
     entity
 }
 
@@ -71,6 +72,7 @@ fn a_current_camera_component_drives_the_camera_config() {
         .get::<&mut Transform>(cam)
         .unwrap()
         .rotation = Quat::from_rotation_y(FRAC_PI_2) * Quat::from_rotation_z(FRAC_PI_2);
+    balaur_core::transform::written(&app.engine, cam);
     add_camera_3d(&app, cam, "focus_distance = 2.0");
     {
         // Control: the boot default must differ from the node, and the boot

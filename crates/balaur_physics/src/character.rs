@@ -206,6 +206,7 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
             return;
         };
         transform.position += scalar::position_of(translation);
+        balaur_core::transform::written(eng, entity);
         scalar::pose_of(transform.position, transform.rotation)
     };
     let state = eng.resource::<PhysicsState3d>();

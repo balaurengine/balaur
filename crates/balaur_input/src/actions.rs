@@ -852,6 +852,28 @@ mod tests {
         input
     }
 
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn a_binding_to_a_pad_opens_the_pads_and_a_key_does_not() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static OPENED: AtomicU32 = AtomicU32::new(0);
+        fn open(_: &[String]) -> std::sync::Arc<crate::pad_thread::Hub> {
+            OPENED.fetch_add(1, Ordering::SeqCst);
+            std::sync::Arc::default()
+        }
+        let mut pads = GamepadState::opening_with(open);
+        let input = InputSnapshot::default();
+        let settings = crate::settings::PadSettings::default();
+        let _ = Binding::parse("Space").unwrap().value(&input, &pads, false);
+        pads.poll(1.0 / 60.0, &settings);
+        assert_eq!(OPENED.load(Ordering::SeqCst), 0, "a key asks for no pad");
+        let _ = Binding::parse("axis:left_x")
+            .unwrap()
+            .value(&input, &pads, false);
+        pads.poll(1.0 / 60.0, &settings);
+        assert_eq!(OPENED.load(Ordering::SeqCst), 1, "a stick binding asks");
+    }
+
     fn fires(binding: &str, input: &InputSnapshot) -> bool {
         Binding::parse(binding).unwrap().value(
             input,

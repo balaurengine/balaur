@@ -1,10 +1,88 @@
 //! What the window and the display say, published to the engine once per
 //! frame as recorded input: focus, dark mode, the safe area and the display's
 //! refresh rate. Each platform answers what it can; the rest keeps the default.
+//!
+//! Dark mode, the safe area, the keyboard and the text scale are asked of the
+//! platform only once it says they moved ([`moved`]): a resize, a scale or
+//! appearance change, the window coming back. What a platform never says is
+//! asked every frame ([`unheard`]).
 
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use balaur_core::App;
+
+/// Counts the platform's word that a device fact may have moved.
+static MOVED: AtomicU64 = AtomicU64::new(0);
+
+/// A device fact may have moved: the next frame asks the platform again.
+/// Callable from any thread, as a subscription's callback is.
+pub(crate) fn moved() {
+    MOVED.fetch_add(1, Ordering::Relaxed);
+}
+
+/// The window events that say a fact may have moved. A theme change carries
+/// its answer, which is kept as the one the platform last gave.
+pub(crate) fn hear(event: &kiss3d::event::WindowEvent) {
+    use kiss3d::event::WindowEvent;
+    match event {
+        WindowEvent::DarkMode(dark) => crate::appearance::hear(*dark),
+        WindowEvent::FramebufferSize(..)
+        | WindowEvent::ScaleFactor(_)
+        | WindowEvent::Focus(_)
+        | WindowEvent::Iconify(_) => moved(),
+        _ => {}
+    }
+}
+
+/// What the platform said when last asked.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct Reading {
+    pub(crate) dark_mode: bool,
+    pub(crate) safe_area: [f32; 4],
+    pub(crate) keyboard_height: f32,
+    pub(crate) text_scale: f32,
+}
+
+impl Reading {
+    fn of(window: &kiss3d::window::Window) -> Self {
+        #[cfg(target_family = "wasm")]
+        web::listen();
+        Self {
+            dark_mode: crate::appearance::is_dark(),
+            safe_area: safe_area(window),
+            keyboard_height: keyboard_height(window),
+            text_scale: window.text_scale().max(f32::EPSILON),
+        }
+    }
+}
+
+/// What this platform asks again every frame because nothing says when it
+/// moves: Android's content rect, which winit drops `ContentRectChanged` for;
+/// iOS's keyboard, whose notification kiss3d keeps to itself, and its safe
+/// area and dark mode, which only a view's own overrides hear.
+#[cfg_attr(
+    not(mobile),
+    allow(
+        clippy::missing_const_for_fn,
+        reason = "only a phone reads anything here"
+    )
+)]
+fn unheard(window: &kiss3d::window::Window, reading: &mut Reading) {
+    #[cfg(target_os = "android")]
+    {
+        reading.safe_area = safe_area(window);
+        reading.keyboard_height = keyboard_height(window);
+    }
+    #[cfg(target_os = "ios")]
+    {
+        reading.dark_mode = crate::appearance::is_dark();
+        reading.safe_area = safe_area(window);
+        reading.keyboard_height = keyboard_height(window);
+    }
+    #[cfg(not(mobile))]
+    let _ = (window, reading);
+}
 
 /// Frame intervals the refresh rate is measured over, where the system does
 /// not say it.
@@ -24,11 +102,40 @@ pub(crate) struct Probe {
     display_rate: Option<f32>,
     asked_at_scale: f64,
     frames_since_asked: usize,
+    /// The platform's last answer, and the [`MOVED`] count it was asked at.
+    heard: Option<(u64, Reading)>,
 }
 
 impl Probe {
+    /// This frame's answer: asked again only once the platform says a fact
+    /// moved, with what it never says asked every frame.
+    pub(crate) fn read(&mut self, window: &kiss3d::window::Window) -> Reading {
+        let mut reading = self.reading(MOVED.load(Ordering::Relaxed), || Reading::of(window));
+        unheard(window, &mut reading);
+        reading
+    }
+
+    /// The answer kept from `moved`, or a fresh one from `ask` when the
+    /// platform has said something moved since.
+    fn reading(&mut self, moved: u64, ask: impl FnOnce() -> Reading) -> Reading {
+        if let Some((at, reading)) = self.heard
+            && at == moved
+        {
+            return reading;
+        }
+        let reading = ask();
+        self.heard = Some((moved, reading));
+        reading
+    }
+
     /// Fold this frame in and publish every fact the platform can answer.
-    pub(crate) fn publish(&mut self, app: &App, window: &kiss3d::window::Window, dt: f32) {
+    pub(crate) fn publish(
+        &mut self,
+        app: &App,
+        window: &kiss3d::window::Window,
+        dt: f32,
+        reading: &Reading,
+    ) {
         if dt > 0.0 && dt <= LONGEST_REFRESH {
             if self.intervals.len() == SAMPLES {
                 self.intervals.pop_front();
@@ -44,10 +151,12 @@ impl Probe {
         }
         self.frames_since_asked += 1;
         let refresh_rate = self.display_rate.or_else(|| self.refresh_rate());
-        let dark_mode = crate::appearance::is_dark();
-        let safe_area = safe_area(window);
-        let keyboard = keyboard_height(window);
-        let text_scale = window.text_scale().max(f32::EPSILON);
+        let Reading {
+            dark_mode,
+            safe_area,
+            keyboard_height: keyboard,
+            text_scale,
+        } = *reading;
         let screen_size = [window.width() as f32, window.height() as f32];
         // Physical pixels per design pixel: the zoom times the display's own
         // scale, since the scale a script sets is only half of it.
@@ -94,6 +203,22 @@ fn game_area(app: &App, scale: f32) -> Option<[f32; 4]> {
     }
     // The layer measures in design pixels and this fact is physical.
     layer.rect.map(|rect| rect.map(|v| v * scale))
+}
+
+/// Hand the scale a script asked for to egui, as its zoom factor, before
+/// anything reads what a design pixel became. egui lays the whole pass out in
+/// it, its own widgets included, which is why nothing multiplies a size by
+/// hand any more.
+pub(crate) fn apply_ui_zoom(app: &App, window: &mut kiss3d::window::Window, text_scale: f32) {
+    let want = balaur_ui::scale(&app.engine);
+    // The reader's own text size multiplies it, so a game that never touches
+    // the scale still grows for someone who asked their phone for large type.
+    let asked = if balaur_ui::takes_system_text_size(&app.engine) {
+        text_scale
+    } else {
+        1.0
+    };
+    window.set_ui_zoom(want * asked);
 }
 
 /// The window came to the front or went behind.
@@ -161,6 +286,38 @@ fn safe_area(window: &kiss3d::window::Window) -> [f32; 4] {
 #[cfg(target_family = "wasm")]
 mod web {
     use wasm_bindgen::JsValue;
+
+    const RESIZE: &str = "resize";
+    const SCROLL: &str = "scroll";
+
+    /// Hear the page move what [`super::Reading`] holds, once for the page:
+    /// the window resizing turns it and moves the safe area, and the visual
+    /// viewport shrinking or scrolling is the keyboard coming up.
+    pub(super) fn listen() {
+        use wasm_bindgen::closure::Closure;
+        thread_local! {
+            static LISTENING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        }
+        if LISTENING.with(|listening| listening.replace(true)) {
+            return;
+        }
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let moved = Closure::<dyn FnMut()>::new(|| {
+            super::moved();
+            balaur_core::wake::wake();
+        });
+        let _ = window.add_event_listener_with_callback(RESIZE, moved.as_ref().unchecked_ref());
+        if let Some(viewport) = window.visual_viewport() {
+            for name in [RESIZE, SCROLL] {
+                let _ =
+                    viewport.add_event_listener_with_callback(name, moved.as_ref().unchecked_ref());
+            }
+        }
+        // Heard for the page's life, as kiss3d's own listeners are.
+        moved.forget();
+    }
 
     /// The shell's `--balaur-safe-*` variables carry `env(safe-area-inset-*)`
     /// where a script can read them; a page without them answers zero.
@@ -235,4 +392,58 @@ mod web {
     }
 
     use wasm_bindgen::JsCast;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Probe, Reading};
+
+    #[test]
+    fn the_platform_is_asked_again_only_once_it_says_a_fact_moved() {
+        let mut probe = Probe::default();
+        let asked = std::cell::Cell::new(0);
+        let ask = |dark_mode| {
+            asked.set(asked.get() + 1);
+            Reading {
+                dark_mode,
+                ..Reading::default()
+            }
+        };
+        for _ in 0..3 {
+            assert!(!probe.reading(4, || ask(false)).dark_mode);
+        }
+        assert_eq!(asked.get(), 1, "three frames with nothing moved asked once");
+        assert!(probe.reading(5, || ask(true)).dark_mode, "a move is asked");
+        assert!(probe.reading(5, || ask(false)).dark_mode, "and kept");
+        assert_eq!(asked.get(), 2);
+    }
+
+    #[test]
+    fn a_resize_says_the_facts_moved() {
+        use kiss3d::event::WindowEvent;
+        let before = super::MOVED.load(std::sync::atomic::Ordering::Relaxed);
+        super::hear(&WindowEvent::CursorPos(
+            1.0,
+            2.0,
+            kiss3d::event::Modifiers::empty(),
+        ));
+        super::hear(&WindowEvent::FramebufferSize(640, 480));
+        let after = super::MOVED.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(after > before);
+    }
+
+    #[test]
+    fn an_appearance_the_platform_announces_is_the_answer_until_the_next() {
+        use kiss3d::event::WindowEvent;
+        let before = super::MOVED.load(std::sync::atomic::Ordering::Relaxed);
+        super::hear(&WindowEvent::DarkMode(true));
+        assert!(crate::appearance::is_dark());
+        super::hear(&WindowEvent::DarkMode(false));
+        assert!(!crate::appearance::is_dark());
+        let after = super::MOVED.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            after >= before + 2,
+            "each announcement asks the facts again"
+        );
+    }
 }

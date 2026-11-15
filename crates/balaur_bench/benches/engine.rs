@@ -56,6 +56,103 @@ fn propagate(c: &mut Criterion) {
     group.finish();
 }
 
+/// The frame's scene sync over a 2,000-node level: forty groups under one
+/// root, their leaves spread across them, loaded as a scene file loads one.
+const SYNC_NODES: usize = 2000;
+const SYNC_GROUPS: usize = 40;
+/// One node in a hundred moves each frame.
+const SYNC_MOVED: usize = SYNC_NODES / 100;
+
+fn sync_level() -> String {
+    use std::fmt::Write as _;
+    let mut doc = String::new();
+    for i in 0..SYNC_NODES {
+        let parent = match i {
+            0 => String::new(),
+            1..=SYNC_GROUPS => "parent = \"n0\"\n".into(),
+            _ => format!(
+                "parent = \"n{}\"\n",
+                1 + (i - SYNC_GROUPS - 1) % SYNC_GROUPS
+            ),
+        };
+        let _ = write!(
+            doc,
+            "[[nodes]]\nid = \"n{i}\"\nname = \"N{i}\"\n{parent}\
+             transform = {{ position = [1.0, 2.0, 0.0] }}\n\n"
+        );
+    }
+    doc
+}
+
+/// What the frame's scene sync costs with nothing moving and with one node
+/// in a hundred moving, beside the walk of the whole tree it replaced. The
+/// moves are written through the registry, as a script or an animation
+/// writes them, off the clock.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "this is the measurement, not simulation"
+)]
+fn scene_sync(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scene_sync_2000");
+    let project = Project::new(Backend::Bs, EMPTY).unwrap();
+    let app = app(Backend::Bs, &project).unwrap();
+    let root = app.engine.root();
+    balaur_core::project::instantiate_scene(&app.engine, &sync_level(), root, false).unwrap();
+    // Leaves only, so a frame moves twenty nodes and no subtree under them.
+    let nodes: Vec<_> = {
+        let world = app.engine.world();
+        scene::collect_subtree(&world, root)
+            .into_iter()
+            .filter(|&e| scene::child_count(&world, e) == 0)
+            .collect()
+    };
+    scene::sync_globals(&app.engine, 1.0);
+    group.throughput(Throughput::Elements(SYNC_NODES as u64));
+    for (label, moved, whole) in [
+        ("still", 0, false),
+        ("one_percent", SYNC_MOVED, false),
+        ("whole_tree/still", 0, true),
+        ("whole_tree/one_percent", SYNC_MOVED, true),
+    ] {
+        let mut frame = 0usize;
+        let pass = || {
+            if whole {
+                scene::propagate_transforms(&mut app.engine.world_mut(), root);
+            } else {
+                scene::sync_globals(&app.engine, 1.0);
+            }
+        };
+        group.bench_function(label, |b| {
+            b.iter_custom(|iters| {
+                let mut total = Duration::ZERO;
+                for _ in 0..iters {
+                    frame += 1;
+                    for k in 0..moved {
+                        let node = nodes[(k * 100 + frame) % nodes.len()];
+                        let at = toml::Value::Array(vec![
+                            toml::Value::Float((frame % 7) as f64),
+                            toml::Value::Float(k as f64),
+                            toml::Value::Float(0.0),
+                        ]);
+                        let _ = balaur_core::components::set_property_at(
+                            &app.engine,
+                            node,
+                            balaur_core::transform::INDEX,
+                            "position",
+                            &at,
+                        );
+                    }
+                    let start = Instant::now();
+                    pass();
+                    total += start.elapsed();
+                }
+                total
+            });
+        });
+    }
+    group.finish();
+}
+
 /// Spawning nodes, which a game does whenever it instantiates anything.
 #[allow(
     clippy::disallowed_methods,
@@ -244,6 +341,7 @@ fn event_delivery(c: &mut Criterion) {
 criterion_group!(
     benches,
     propagate,
+    scene_sync,
     spawn,
     parse_scene,
     instantiate_scene,

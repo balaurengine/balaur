@@ -75,3 +75,68 @@ fn a_pause_holds_a_clip_and_an_always_node_keeps_playing() {
     app.tick(1.0 / 60.0);
     assert!(height(&app, game) > held_at, "and it plays again");
 }
+
+/// A tween that lifts its node ten units over half a second.
+const LIFT: &str = r#"
+[[steps]]
+property = "position"
+to = [0.0, 10.0, 0.0]
+duration = 0.5
+"#;
+
+// A debugger stop or a paused replay holds the game a tool hosts, and only
+// it: the tool's own clips and tweens, outside the held subtree, play on.
+#[test]
+fn a_hold_freezes_the_held_game_and_the_tool_around_it_plays_on() {
+    let mut app = app();
+    let game = rising(&app, "Game");
+    let shell = rising(&app, "Shell");
+    let held_tween = scene::spawn_node(&mut app.engine.world_mut(), "Held", game);
+    let free_tween = scene::spawn_node(&mut app.engine.world_mut(), "Free", shell);
+    app.engine.set_debug_scope(Some(game));
+    for _ in 0..10 {
+        app.tick(1.0 / 60.0);
+    }
+    let lift: toml::Value = toml::from_str(LIFT).unwrap();
+    let held = balaur_animation::tween::start(&app.engine, held_tween, &lift).unwrap();
+    let free = balaur_animation::tween::start(&app.engine, free_tween, &lift).unwrap();
+    let game_at = height(&app, game);
+    let shell_at = height(&app, shell);
+    assert!(game_at > 0.0, "the control: the game's clip was playing");
+
+    for hold in [true, false] {
+        // The debugger's hold, then a paused replay's.
+        if hold {
+            app.engine.set_frozen(true);
+        } else {
+            app.engine.set_replay_hold(true);
+        }
+        for _ in 0..40 {
+            app.tick(1.0 / 60.0);
+        }
+        app.engine.set_frozen(false);
+        app.engine.set_replay_hold(false);
+    }
+    assert!(
+        (height(&app, game) - game_at).abs() < f32::EPSILON,
+        "the held game's clip stood still"
+    );
+    assert!(
+        height(&app, held_tween).abs() < f32::EPSILON,
+        "and so did its tween"
+    );
+    assert!(
+        balaur_animation::tween::is_running(&app.engine, held),
+        "which is still to run"
+    );
+    assert!(height(&app, shell) > shell_at, "the tool's clip played on");
+    assert!(
+        (height(&app, free_tween) - 10.0).abs() < 1e-3,
+        "and its tween finished: {}",
+        height(&app, free_tween)
+    );
+    assert!(!balaur_animation::tween::is_running(&app.engine, free));
+
+    app.tick(1.0 / 60.0);
+    assert!(height(&app, game) > game_at, "let go, the game plays again");
+}

@@ -240,7 +240,6 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
     let structs = registry.structs();
     let known: BTreeSet<String> = structs.keys().cloned().collect();
     let mut functions = crate::waits::signatures();
-    functions.extend(crate::store::signatures());
     functions.extend(crate::node_ops::signatures());
     let typed_here: Vec<String> = functions.iter().map(|f| f.key.clone()).collect();
     let declared = registry.declared.borrow();
@@ -440,7 +439,6 @@ pub(crate) fn doc_of(registry: &Registry, key: &str) -> &'static str {
         // The host's own functions, which no plugin registers.
         .or_else(|| {
             crate::waits::docs()
-                .chain(crate::store::docs())
                 .find(|(own, _)| own == key)
                 .map(|(_, doc)| doc)
         })

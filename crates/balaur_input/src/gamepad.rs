@@ -434,6 +434,12 @@ pub struct GamepadState {
     pub(crate) rumble: crate::rumble::Rumbles,
     #[cfg(not(target_family = "wasm"))]
     source: Option<Source>,
+    /// Whether a script or a binding read a pad. The pads open on the poll
+    /// after the first read: gilrs polls Windows every 8 ms once open.
+    #[cfg(not(target_family = "wasm"))]
+    asked: std::cell::Cell<bool>,
+    #[cfg(not(target_family = "wasm"))]
+    opener: Opener,
     #[cfg(not(target_family = "wasm"))]
     sensors: crate::sensors::Sensors,
 }
@@ -446,13 +452,36 @@ struct Source {
     queue: std::sync::Arc<crate::pad_thread::Queue>,
 }
 
+#[cfg(not(target_family = "wasm"))]
+type OpenPads = fn(&[String]) -> std::sync::Arc<crate::pad_thread::Hub>;
+
+/// What opens the process's pads: gilrs's thread, or a stand-in in a test.
+#[cfg(not(target_family = "wasm"))]
+struct Opener(OpenPads);
+
+#[cfg(not(target_family = "wasm"))]
+impl Default for Opener {
+    fn default() -> Self {
+        Self(crate::pad_thread::gilrs)
+    }
+}
+
 impl GamepadState {
+    /// Every pad, which asks for them: the first read opens the pads.
     pub fn pads(&self) -> &[Pad] {
+        #[cfg(not(target_family = "wasm"))]
+        self.asked.set(true);
+        &self.pads
+    }
+
+    /// The pads without asking for them: what the engine's own per-tick
+    /// readers take, so a game that reads none never opens them.
+    pub(crate) fn listed(&self) -> &[Pad] {
         &self.pads
     }
 
     pub fn pad(&self, id: i64) -> Option<&Pad> {
-        self.pads.iter().find(|p| p.id == id)
+        self.pads().iter().find(|p| p.id == id)
     }
 
     /// A state reading from `hub` instead of the process's gilrs thread.
@@ -461,6 +490,15 @@ impl GamepadState {
         let queue = hub.subscribe();
         Self {
             source: Some(Source { hub, queue }),
+            ..Self::default()
+        }
+    }
+
+    /// A state that opens its pads through `open` instead of gilrs.
+    #[cfg(all(test, not(target_family = "wasm")))]
+    pub(crate) fn opening_with(open: OpenPads) -> Self {
+        Self {
+            opener: Opener(open),
             ..Self::default()
         }
     }
@@ -550,11 +588,11 @@ impl GamepadState {
         let mut events = Vec::new();
         #[cfg(not(target_family = "wasm"))]
         {
-            let source = self
-                .source
-                .get_or_insert_with(|| Source::open(&settings.mappings));
+            if self.asked.get() && self.source.is_none() {
+                self.source = Some(Source::open(self.opener.0, &settings.mappings));
+            }
             // Mid-push, the changes wait for the next frame rather than the tick.
-            if let Some(taken) = source.queue.try_take() {
+            if let Some(taken) = self.source.as_ref().and_then(|s| s.queue.try_take()) {
                 events = taken;
             }
         }
@@ -666,8 +704,8 @@ impl GamepadState {
 
 #[cfg(not(target_family = "wasm"))]
 impl Source {
-    fn open(mappings: &[String]) -> Self {
-        let hub = crate::pad_thread::gilrs(mappings);
+    fn open(open: OpenPads, mappings: &[String]) -> Self {
+        let hub = open(mappings);
         let queue = hub.subscribe();
         Self { hub, queue }
     }
@@ -953,5 +991,44 @@ mod tests {
         frame(&mut state, vec![PadEvent::Button(1, south(), 1.0)]);
         assert!(state.pad(1).is_none(), "writing did not invent a pad");
         assert_eq!(state.pad(0).unwrap().motion(), Motion::default());
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn the_pads_open_on_the_first_read_and_never_for_a_game_that_reads_none() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static OPENED: AtomicU32 = AtomicU32::new(0);
+        fn open(_: &[String]) -> std::sync::Arc<crate::pad_thread::Hub> {
+            OPENED.fetch_add(1, Ordering::SeqCst);
+            std::sync::Arc::default()
+        }
+        let mut state = GamepadState::opening_with(open);
+        for _ in 0..3 {
+            state.poll(DT, &PadSettings::default());
+            let _ = capture(&state);
+            let _ = state.listed();
+        }
+        assert_eq!(OPENED.load(Ordering::SeqCst), 0, "nothing asked for a pad");
+        assert!(state.pads().is_empty());
+        state.poll(DT, &PadSettings::default());
+        assert_eq!(OPENED.load(Ordering::SeqCst), 1, "the read opened them");
+        state.poll(DT, &PadSettings::default());
+        assert_eq!(OPENED.load(Ordering::SeqCst), 1, "once");
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn a_pad_fed_by_a_script_needs_no_pads_opened() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static OPENED: AtomicU32 = AtomicU32::new(0);
+        fn open(_: &[String]) -> std::sync::Arc<crate::pad_thread::Hub> {
+            OPENED.fetch_add(1, Ordering::SeqCst);
+            std::sync::Arc::default()
+        }
+        let mut state = GamepadState::opening_with(open);
+        state.feed([PadEvent::Connected(7, Box::default())]);
+        state.poll(DT, &PadSettings::default());
+        assert!(state.listed().iter().any(|pad| pad.id == 7));
+        assert_eq!(OPENED.load(Ordering::SeqCst), 0);
     }
 }

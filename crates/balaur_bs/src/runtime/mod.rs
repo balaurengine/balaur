@@ -450,6 +450,41 @@ impl Runtime {
         })
     }
 
+    /// Point `obj`'s `field`, a class or `T?` of one, at the object at
+    /// `pointer` in this instance, counted once more: nothing is copied, so a
+    /// call through the field reaches that object. The caller has checked
+    /// the object is of the field's class.
+    pub fn set_object(
+        &mut self,
+        obj: &mut Object,
+        field: &str,
+        pointer: i32,
+    ) -> Result<(), RunError> {
+        self.in_unit(obj.unit, |rt| {
+            let (off, ty) = rt.field_at(&obj.ty, field).ok_or(RunError {
+                msg: format!("no field `{field}`"),
+                line: None,
+            })?;
+            let mut new = vec![Raw::I32(pointer)];
+            match &ty {
+                Ty::Struct(class) if rt.meta.is_class(class) => {}
+                Ty::Optional(inner) if matches!(&**inner, Ty::Struct(c) if rt.meta.is_class(c)) => {
+                    new.push(Raw::I32(1));
+                }
+                _ => return fail(format!("`{field}` holds no class")),
+            }
+            let count = rd32(&Live(&*rt.wasm), pointer as u32 as usize);
+            rt.wasm
+                .write(pointer as u32 as usize, &(count + 1).to_le_bytes());
+            let old = rt.held(obj, off, &ty);
+            let base = obj.raw[0].i32() as u32 as usize + values::OBJ_HEADER + 8 * off;
+            let bytes: Vec<u8> = new.iter().flat_map(|raw| raw.bytes()).collect();
+            rt.wasm.write(base, &bytes);
+            rt.release(&ty, &old);
+            Ok(())
+        })
+    }
+
     /// Where `obj` lives in the module: what a script holding it holds.
     pub fn pointer(obj: &Object) -> i32 {
         obj.raw.first().map_or(0, |raw| raw.i32())

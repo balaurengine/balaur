@@ -27,6 +27,11 @@ holds two motor levels. `gamepad.rs`, `pad_thread.rs` and `rumble.rs` enforce
 it, and `crates/balaur/tests/suite/gamepad.rs` checks it through
 `input.set_gamepad`, never through gilrs.
 
+- The pads open on the first read: `input.gamepads()`, any `input.gamepad_*`
+  or rumble verb, or an action bound to `gamepad:` or `axis:`. Until then no
+  thread enumerates them, which on Windows is gilrs reading every pad every
+  8 ms. An `on_gamepad_connected` handler alone opens nothing, and a fed pad
+  needs nothing opened.
 - Ids are player slots. A pad takes the lowest free slot last held by its SDL
   GUID, else the lowest free slot, and keeps it while connected.
 - Values are shaped once. Sticks read -1 to 1 with up positive, triggers and

@@ -253,15 +253,13 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         #[cfg(feature = "physics3d")]
         {
             reg.insert_resource(PhysicsState3d::new());
-            balaur_core::parked::on_change(reg.engine(), parked_changed);
         }
         #[cfg(feature = "physics2d")]
         {
             reg.insert_resource(PhysicsState2d::new());
-            balaur_core::parked::on_change(reg.engine(), dim2::parked_changed);
-            balaur_core::parked::on_change(reg.engine(), dim2::tiles::parked_changed);
         }
         balaur_core::rest::add_probe(reg.engine(), w::general::PHYSICS, rest::pending);
+        balaur_core::scene::on_freed(reg.engine(), freed_nodes);
         // After both steps, so the bodies have moved and the bone transform
         // the blend reads is still the one the clip wrote this frame.
         reg.add_system(Stage::PostUpdate, ragdoll::blend_system);
@@ -478,23 +476,33 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
 crate::shared::world::functions!(
     state = PhysicsState3d,
     component = c::JOINT_3D,
-    prune = prune_freed_nodes_except_wheels,
+    forget = forget_freed_nodes_except_wheels,
+    collider_handle = ColliderHandle,
     body = body::Body3d,
     collider = collider::Collider3d,
     soft = softbody::Softbody3d,
     events = crate::rapier3d::prelude::ActiveEvents
 );
 
-pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState3d) {
-    prune_freed_nodes_except_wheels(eng, state);
-    let world = eng.world();
-    state.wheel_inputs.retain(|e, _| world.contains(*e));
-    state.vehicles.retain(|e, _| world.contains(*e));
-    state.follows.retain(|e, _| world.contains(*e));
-    let colliders = &state.world.colliders;
-    state
-        .surfaces
-        .retain(|handle, _| colliders.contains(*handle));
+pub(crate) fn forget_freed_nodes(state: &mut PhysicsState3d, nodes: &[Entity]) {
+    forget_freed_nodes_except_wheels(state, nodes);
+    for node in nodes {
+        state.wheel_inputs.shift_remove(node);
+        state.vehicles.shift_remove(node);
+        state.follows.shift_remove(node);
+    }
+}
+
+/// What a free hands both worlds: the nodes it takes, whole subtrees.
+fn freed_nodes(eng: &Engine, nodes: &[Entity]) {
+    #[cfg(feature = "physics3d")]
+    if let Some(state) = state_3d(eng) {
+        forget_freed_nodes(&mut state.borrow_mut(), nodes);
+    }
+    #[cfg(feature = "physics2d")]
+    if let Some(state) = eng.try_resource::<PhysicsState2d>() {
+        dim2::forget_freed_nodes(&mut state.borrow_mut(), nodes);
+    }
 }
 
 pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<scalar::Pose> {
@@ -517,11 +525,6 @@ fn step_system(eng: &Engine, _dt: f32) {
         return;
     }
     collider::reread_materials(eng);
-    {
-        let state = eng.resource::<PhysicsState3d>();
-        let mut state = state.borrow_mut();
-        prune_freed_nodes(eng, &mut state);
-    }
     resolve_pending_joints(eng);
     let events = {
         let state = eng.resource::<PhysicsState3d>();
@@ -567,9 +570,13 @@ fn step_system(eng: &Engine, _dt: f32) {
             if body.is_fixed() || body.is_kinematic() {
                 continue;
             }
-            if let Ok(mut t) = world.get::<&mut Transform>(entity) {
-                t.position = scalar::position_of(body.translation());
-                t.rotation = *body.rotation();
+            let (position, rotation) = (scalar::position_of(body.translation()), *body.rotation());
+            if let Ok(mut t) = world.get::<&mut Transform>(entity)
+                && (t.position != position || t.rotation != rotation)
+            {
+                t.position = position;
+                t.rotation = rotation;
+                balaur_core::transform::written(eng, entity);
             }
         }
         (

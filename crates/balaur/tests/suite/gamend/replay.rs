@@ -149,8 +149,8 @@ fn record(dir: &std::path::Path) -> (Recorded, String) {
     (frames, heard)
 }
 
-/// A fresh thread, so the script store the client keeps its session in is
-/// as empty as the recording's start found it.
+/// A fresh app, so the client's node and its session are as empty as the
+/// recording's start found them.
 fn replayed(dir: std::path::PathBuf, recorded: Recorded) -> String {
     std::thread::spawn(move || {
         let mut app = booted(&dir, true);

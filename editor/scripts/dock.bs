@@ -315,15 +315,6 @@ fn open_asset(state: &mut editor::State, relative_path: str) {
     log::info("{relative_path} is not attached to any node");
 }
 
-fn parent_directory(directory: str) -> str {
-    let parts = directory.split("/");
-    if parts.len() <= 1 {
-        return "";
-    }
-    parts.pop();
-    util::join(parts, "/")
-}
-
 /// The Assets dock's own state, hung on `state.assets`. `selected` is the card acted
 /// on by rename and delete; `renaming` swaps the breadcrumb for a field.
 pub fn assets_state() -> AssetsState {
@@ -463,7 +454,7 @@ fn make_local(state: &mut editor::State) {
     let rewritten = dependency::make_local(asset_path(state, relative_path), asset_path(state, target));
     model::forget(state);
     state.assets.selected = target;
-    state.assets.directory = parent_directory(target);
+    state.assets.directory = util::parent_directory(target);
     log::info("made res://{target} from {alias}; {rewritten.len()} file(s) now name it");
 }
 
@@ -597,7 +588,7 @@ pub fn assets_pick(state: &mut editor::State, row: str) {
 pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
     let chosen = state.assets.selected != "";
     if verb == "Up" {
-        state.assets.directory = parent_directory(state.assets.directory);
+        state.assets.directory = util::parent_directory(state.assets.directory);
     } else if verb == "Import" {
         // Asks and imports: a dialog on a desktop, the page's own chooser in
         // a tab, and the same reports either way.

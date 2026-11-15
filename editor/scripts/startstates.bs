@@ -4,6 +4,7 @@
 
 use about;
 use anim;
+use bench;
 use defs;
 use disk;
 use docks;
@@ -135,6 +136,7 @@ fn states() -> any {
         "test:lint": project_checks::linting,
         "test:tools": project_checks::tooling,
         "test:recordings": project_checks::sessions,
+        "test:cached_reads": project_checks::cached_reads,
         "test:theme_switch": shell_checks::theme_switch,
         "test:theme_editing": shell_checks::theme_editing,
         "test:sheet_close": shell_checks::sheet_closing,
@@ -193,6 +195,7 @@ fn prefixed_states() -> [Prefixed] {
         Prefixed { prefix: "select:", run: state_select },
         Prefixed { prefix: "add:", run: state_add },
         Prefixed { prefix: "bench:", run: state_bench },
+        Prefixed { prefix: "idle:", run: bench::begin_idle },
         Prefixed { prefix: "zoom:", run: state_zoom },
     ]
 }

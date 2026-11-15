@@ -1,5 +1,5 @@
 //! The walks over a scene file and its prefabs that build nothing: what a
-//! preload warms, what an unload lets go of, and what a parked scene is held to.
+//! preload warms and what an unload lets go of.
 
 #[allow(
     clippy::wildcard_imports,
@@ -74,55 +74,9 @@ fn unload_walk(eng: &Engine, path: &str, seen: &mut Vec<String>) {
     }
 }
 
-/// When a scene's file and every prefab under it last changed, which a parked
-/// scene is held to: an edit since it was built makes a return a fresh build.
-#[derive(Default)]
-pub struct FileStamps(Vec<(String, Option<f64>)>);
-
-impl FileStamps {
-    /// Whether nothing moved. Stamps nothing recorded (a scene a snapshot put
-    /// back) have nothing to say.
-    #[must_use]
-    pub fn matches(&self, now: &Self) -> bool {
-        self.0.is_empty() || self.0 == now.0
-    }
-
-    /// These stamps, leaving none.
-    #[must_use]
-    pub fn take(&mut self) -> Self {
-        Self(std::mem::take(&mut self.0))
-    }
-}
-
-/// [`FileStamps`] of the scene at `path`. A stat per file; a file that no
-/// longer reads ends the walk, and the build that follows reports it.
-pub(crate) fn file_stamps(eng: &Engine, path: &str) -> FileStamps {
-    let mut stamps = Vec::new();
-    stamp_walk(eng, path, &mut stamps);
-    FileStamps(stamps)
-}
-
-fn stamp_walk(eng: &Engine, path: &str, stamps: &mut Vec<(String, Option<f64>)>) {
-    if stamps.iter().any(|(done, _)| done == path) {
-        return;
-    }
-    let Ok((_, doc)) = scene_doc(eng, path) else {
-        return;
-    };
-    stamps.push((
-        path.to_string(),
-        path_of(eng, path).ok().and_then(|key| stamp_of(eng, &key)),
-    ));
-    for node in &doc.nodes {
-        if let Some(prefab) = &node.instance {
-            stamp_walk(eng, prefab, stamps);
-        }
-    }
-}
-
 /// The project's first scene: its text read by the caller, from a pack or a
 /// file, and kept under `path` as a read here would keep it, so a switch back
-/// and the stamps a park holds it to read it from the cache.
+/// reads it from the cache.
 pub(crate) fn instantiate_main_scene(
     eng: &Engine,
     path: &str,
@@ -146,7 +100,20 @@ pub(crate) fn instantiate_main_scene(
             },
         );
     }
+    let before = child_list(eng, base);
     instantiate_doc(eng, &doc, source, base, true)?;
-    crate::parked::set_current(eng, Some(path));
+    if let Some(made) = child_list(eng, base)
+        .into_iter()
+        .find(|child| !before.contains(child))
+    {
+        crate::scene_switch::note_built(eng, base, path, made);
+    }
     Ok(())
+}
+
+fn child_list(eng: &Engine, parent: Entity) -> Vec<Entity> {
+    eng.world()
+        .get::<&crate::scene::Children>(parent)
+        .map(|c| c.0.clone())
+        .unwrap_or_default()
 }

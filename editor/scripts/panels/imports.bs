@@ -3,11 +3,13 @@
 
 use editor;
 use signals;
+use util;
 
 pub class Imports {
     node: Node,
     editor: editor::Editor?,
     until: float,
+    asked: float,
 }
 
 impl Imports {
@@ -15,6 +17,7 @@ impl Imports {
         let source = scene::root().get_node("Editor");
         self.editor = source.script;
         self.until = 0.0;
+        self.asked = 0.0;
         events::listen(self.node, signals::ASSETS_CHANGED, source);
     }
 
@@ -38,7 +41,7 @@ impl Imports {
         bar.widget_range.value = view.value;
         self.until = view.until;
         if view.until > 0.0 {
-            ui::request_repaint(ui::RepaintOptions { after: view.until - engine::unix_time() + 0.05 });
+            self.asked = util::wake_at(self.asked, view.until);
         }
     }
 }

@@ -795,6 +795,14 @@ impl Frame {
             .is_some_and(|slot| slot.group_2d().is_some())
     }
 
+    /// Every node drawing a `text2d` block, in no order.
+    pub(crate) fn drawn_2d(&self) -> impl Iterator<Item = balaur_core::hecs::Entity> + '_ {
+        self.slots
+            .iter()
+            .filter(|(_, slot)| slot.group_2d().is_some())
+            .map(|(entity, _)| *entity)
+    }
+
     /// The node a `text2d` block's layers hang under, which the 2D order places.
     pub(crate) fn group_2d(
         &self,

@@ -58,8 +58,7 @@ fn colliders_in_world(app: &App) -> usize {
     state.borrow().world.colliders.len()
 }
 
-// `free_subtree` is the raw despawn every free path ends in, so a plugin
-// that only survives the component `remove` hooks fails here.
+// Gone on the frame it is freed, with no step in between to sweep it up.
 #[test]
 fn freeing_a_node_takes_its_standalone_collider_out_of_the_world() {
     let mut app = app();
@@ -68,8 +67,7 @@ fn freeing_a_node_takes_its_standalone_collider_out_of_the_world() {
     app.tick(1.0 / 60.0);
     assert_eq!(colliders_in_world(&app), 2);
 
-    scene::free_subtree(&mut app.engine.world_mut(), doomed);
-    app.tick(1.0 / 60.0);
+    scene::free_node(&app.engine, doomed);
 
     assert_eq!(
         colliders_in_world(&app),
@@ -83,7 +81,7 @@ fn freeing_a_node_takes_its_standalone_collider_out_of_the_world() {
     assert!(state.colliders.contains_key(&kept), "the wrong one went");
 }
 
-// Editors sit paused, so the prune cannot live behind the pause check.
+// Editors sit paused, and a freed node's body goes with it all the same.
 #[test]
 fn a_freed_node_is_pruned_while_the_simulation_is_paused() {
     let mut app = app();
@@ -94,8 +92,7 @@ fn a_freed_node_is_pruned_while_the_simulation_is_paused() {
         state.borrow_mut().paused = true;
     }
 
-    scene::free_subtree(&mut app.engine.world_mut(), doomed);
-    app.tick(1.0 / 60.0);
+    scene::free_node(&app.engine, doomed);
 
     let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
@@ -124,8 +121,7 @@ fn freeing_one_end_of_a_joint_drops_the_joint_too() {
         assert_eq!(state.borrow().joints.len(), 1, "the joint was never made");
     }
 
-    scene::free_subtree(&mut app.engine.world_mut(), anchor);
-    app.tick(1.0 / 60.0);
+    scene::free_node(&app.engine, anchor);
 
     let state = app.engine.resource::<PhysicsState3d>();
     let state = state.borrow();
@@ -139,6 +135,75 @@ fn freeing_one_end_of_a_joint_drops_the_joint_too() {
     );
 }
 
+// Queued mid-frame, freed in `Last`: the step after it never sees the body.
+#[test]
+fn a_node_queued_free_mid_frame_leaves_rapier_when_that_frame_ends() {
+    let mut app = app();
+    let doomed = spawn(&app, "Doomed", "n_doomed", 4.0, true);
+    app.tick(1.0 / 60.0);
+    app.add_system(balaur_core::Stage::Update, move |eng, _| {
+        if eng.world().contains(doomed) {
+            eng.defer_free(doomed);
+        }
+    });
+
+    app.tick(1.0 / 60.0);
+
+    let state = app.engine.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    assert!(
+        !app.engine.world().contains(doomed),
+        "control: the free ran"
+    );
+    assert_eq!(state.world.bodies.len(), 0, "the body outlived its frame");
+    assert_eq!(
+        state.world.colliders.len(),
+        0,
+        "the collider outlived its frame"
+    );
+    assert!(state.bodies.is_empty() && state.colliders.is_empty());
+}
+
+// Rapier drops the colliders hung on a body with it, so a child node's
+// handle names nothing from the moment the body comes off.
+#[test]
+fn taking_a_body_off_forgets_the_child_colliders_rapier_dropped_with_it() {
+    let mut app = app();
+    let parent = spawn(&app, "Parent", "n_parent", 2.0, true);
+    let child = scene::spawn_node(&mut app.engine.world_mut(), "Child", parent);
+    components::add(
+        &app.engine,
+        child,
+        "collider3d",
+        Some(&toml::from_str("shape = { kind = \"sphere\", radius = 0.25 }").unwrap()),
+    )
+    .unwrap();
+    app.tick(1.0 / 60.0);
+    {
+        let state = app.engine.resource::<PhysicsState3d>();
+        assert!(
+            state.borrow().colliders.contains_key(&child),
+            "control: the child's collider hangs on the parent's body"
+        );
+    }
+
+    components::remove(&app.engine, parent, "body3d").unwrap();
+
+    let state = app.engine.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let dangling: Vec<_> = state
+        .colliders
+        .values()
+        .flatten()
+        .filter(|handle| !state.world.colliders.contains(**handle))
+        .collect();
+    assert!(
+        dangling.is_empty(),
+        "handles rapier dropped are still held: {dangling:?}"
+    );
+    assert!(!state.colliders.contains_key(&child));
+}
+
 // Core respawns a freed node as a *new* entity, so a frame keyed by entity
 // bits restores a map pointing at a dead one.
 #[test]
@@ -150,7 +215,7 @@ fn a_body_whose_node_was_freed_and_restored_falls_again() {
     }
     let taken = snapshot::capture(&app.engine);
 
-    scene::free_subtree(&mut app.engine.world_mut(), doomed);
+    scene::free_node(&app.engine, doomed);
     app.tick(1.0 / 60.0);
     snapshot::restore(&app.engine, &taken);
 
@@ -382,7 +447,7 @@ fn a_restored_soft_body_names_the_respawned_node() {
     app.tick(1.0 / 60.0);
     let taken = snapshot::capture(&app.engine);
 
-    scene::free_subtree(&mut app.engine.world_mut(), doomed);
+    scene::free_node(&app.engine, doomed);
     app.tick(1.0 / 60.0);
     snapshot::restore(&app.engine, &taken);
 

@@ -17,7 +17,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 3 | 0 |
-| [`engine`](#engine) | 31 | 0 |
+| [`engine`](#engine) | 29 | 0 |
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
@@ -48,7 +48,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`render`](#render) | 38 | 41 |
 | [`replay`](#replay) | 16 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
-| [`scene`](#scene) | 23 | 0 |
+| [`scene`](#scene) | 24 | 0 |
 | [`script`](#script) | 13 | 0 |
 | [`settings`](#settings) | 10 | 0 |
 | [`skeleton`](#skeleton) | 1 | 0 |
@@ -273,7 +273,7 @@ Bytes to base64 text and back, and UTF-8 bytes back to text.
 
 ## `engine`
 
-The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins`, `quit`, and `store` for state no node owns.
+The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.
 
 | Function | Signature |
 | --- | --- |
@@ -296,8 +296,6 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | `set_paused` | `(bool)` |
 | `set_script_profiling` | `(bool)` |
 | `set_time_scale` | `(float)` |
-| `store` | `(str, any)` |
-| `stored` | `(str) -> any` |
 | `target` | `() -> engine::Target` |
 | `tick` | `() -> int` |
 | `tick_hz` | `() -> int` |
@@ -1082,10 +1080,11 @@ The node tree: its root, lookup by path and instancing, plus the component vocab
 | `component_schema` | `(str) -> any` |
 | `component_tags` | `(str) -> [str]?` |
 | `component_types` | `() -> [str]` |
+| `current` | `(Node?) -> Node` |
 | `instantiate` | `(str, Node?, scene::InstantiateOptions?)` |
 | `keep_changes` | `(Node?)` |
 | `node_by_id` | `(str, Node?) -> Node` |
-| `parked` | `() -> [str]` |
+| `preload` | `(str)` |
 | `root` | `() -> Node` |
 | `set_variable` | `(str, any)` |
 | `switch` | `(str, scene::SwitchOptions?)` |

@@ -1117,6 +1117,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
 
         reg.add_system(Stage::First, open_on_activation_system);
         reg.add_system(Stage::PostUpdate, sweep::sweep_sounds_system);
+        balaur_core::scene::on_freed(reg.engine(), sweep::freed_nodes);
         reg.add_system(Stage::FixedUpdate, count_down_system);
         reg.add_system(Stage::SceneSync, spatial::spatialize_system);
         component::register_sound_component(reg);

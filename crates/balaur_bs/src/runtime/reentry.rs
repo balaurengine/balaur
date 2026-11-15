@@ -98,6 +98,16 @@ impl Reentry {
         self.inside(|rt| rt.link(key, unit, uses))
     }
 
+    /// [`Runtime::set`] from inside the file's engine call.
+    pub fn set(&self, obj: &mut Object, field: &str, value: &Value) -> Result<(), RunError> {
+        self.inside(|rt| rt.set(obj, field, value))
+    }
+
+    /// [`Runtime::set_object`] from inside the file's engine call.
+    pub fn set_object(&self, obj: &mut Object, field: &str, pointer: i32) -> Result<(), RunError> {
+        self.inside(|rt| rt.set_object(obj, field, pointer))
+    }
+
     /// [`Runtime::share`] from inside the file's engine call.
     pub fn share(&self, obj: &Object) -> Option<Object> {
         self.inside(|rt| Ok(rt.share(obj))).ok().flatten()

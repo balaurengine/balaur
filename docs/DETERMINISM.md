@@ -90,27 +90,28 @@ in physics, a script instance's plain fields in the host). Restore puts the node
 source frees what was spawned and respawns what was freed, before any other
 source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 
-## Parked scenes
+## Local nodes
 
-`scene.switch` keeps the scene it leaves built, and that tree is world state.
+A subtree tagged `local` is this machine's alone: a camera, a HUD, a sign-in.
+The digest hashes none of it, no snapshot frame holds it, and a restore never
+frees, moves or writes it, so a multiplayer join keeps the joiner's own. A
+snapshot looks a node up by id among the shared nodes only, since a joiner's
+local node can carry an id the host minted for another. A plugin's own source
+(physics, animation) still saves a local node's state.
 
-- **Digest:** every parked node is hashed after the running tree, labelled
-  `<path>|<id>`, so a run that parts while a scene sits parked names it then and
-  not at its return.
-- **Snapshot:** parked nodes are in every frame under the same key, with the list
-  of what is parked and the file running. A restore that crosses a park or a
-  return frees a node where it stands and respawns it where the frame has it, as
-  it does any node freed or spawned since.
-- **Replay:** a switch happens on the tick a script asked for it, so a replay parks
-  and returns on the same ticks. A wake that came in while a scene was parked is
-  kept in the script runtime and read when it returns.
-- **Freeing:** the budget that frees old scenes counts nodes, so it decides alike
-  on every machine, and the memory warning that frees them all is recorded.
-- **Saves:** a save holds what a game writes, so nothing parked reaches one.
-- **Change log:** a park or a return is not an edit, so neither enters it, as a
-  switch does not. A script writing a parked node's component logs it as any write.
-- **Multiplayer:** a session frees every parked scene as it starts. The screens
-  each peer visited on the way there are not the world they share.
+## Scene switches
+
+`scene.switch` frees the scene it leaves and builds the next, so only the
+scenes standing are world state.
+
+- **Replay:** a switch happens on the tick a script asked for it, so a replay
+  frees and builds on the same ticks.
+- **Snapshot:** each frame names the scene standing under each node, by the
+  stable ids of the node and of the scene's root. A restore across a switch
+  frees what it built and respawns what it freed, as it does any node.
+- **Preload:** `scene.preload` fills caches and builds no node, so a run that
+  preloaded and one that did not build the same world. It answers no status a
+  script could branch on.
 
 ## What breaks determinism
 
@@ -127,12 +128,13 @@ source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 | `cmd` in an `[input.actions]` binding | Handled — whether it is ⌘ or Control is in the header, and a replay's bindings read that, not the replaying machine's |
 | A tick rate per platform | Handled — `[time] tick_hz` takes no override, and the header carries the rate |
 | `task::seconds` | Handled — counted in whole fixed steps, `ceil(seconds * tick_hz)`, not summed as a float |
+| `engine::unix_time()` | Handled — read once a tick and recorded, so a replay reads the time its recording did. A tool's own script, on a node outside `debugger::set_scope`'s subtree, reads the machine's clock, which is never recorded |
 | `engine::time()`, `engine::delta()` | **Yours** — both accumulate real frame time. Use `engine::tick()` or `fixed_update`'s `dt` |
 | A shader's `time()` | Handled — it reads `engine::time()`, so a run at `--fixed-tick` and a replay draw the same frames |
 | Iterating a map's keys | Handled — a map keeps the order its keys were added |
 | A recording started part-way through a frame | Handled — the game holds through the rest of that frame, as a replay holds the frame it loads in |
 | A tween's handle | Handled — the editor's own tweens count apart from the game's, and the header carries where the game's start |
-| A plugin's own fixed-step accumulator | Handled for the animation player's playhead and springs — each drops its remainder when `Engine::step_restarts` moves, and under a hold only when `Engine::hold_keeps_remainder` says to, as the app does |
+| A plugin's own fixed-step accumulator | Handled for the animation player's playhead and springs — each drops its remainder when `Engine::step_restarts` moves, and under a hold only when `Engine::hold_keeps_remainder` says to, as the app does. A tool's own clips and tweens, outside the held subtree, step through a hold on a remainder apart from the game's |
 | Hot reload mid-session | Handled in the editor, which ends the session on a reload. Under `--record` the recording spans the change, with only the header's script fingerprint to say so |
 
 Every `math` function is safe to call: `sqrt`, `abs`, `floor`, `ceil`, `round`,

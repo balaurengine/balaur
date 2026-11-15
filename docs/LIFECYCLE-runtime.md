@@ -6,11 +6,9 @@ This file defines the state the animation, audio, physics, input, UI and render 
 
 A game pause (`Engine::set_paused`) keeps `Stage::FixedUpdate` running, and each subsystem asks `process::ticks` about its own nodes. A debugger freeze or a held replay stops that stage and no other. `Engine::frozen_root` names what a hold covers: the `Engine::debug_scope` subtree, or the whole tree with no scope. A pause covers the same subtree.
 
-A parked scene hangs under a hidden holder with `ProcessMode::Disabled`, so `process::ticks` answers false for it. `events::announce` returns at once for a parked node.
-
 `BsHost::each` runs `update`, `fixed_update`, `call_all` and `call_all_with` on an instance unless `process::ticks` answers false, its node sits under `frozen_root`, or its file holds a debugger stop (`stopped_in`). `BsHost::run_tasks` leaves a task held the same way waiting, with its wake kept. A stop in the middle of a pass skips only what it holds, in `each_of`.
 
-Two calls reach a held script. `ScriptHost::announce`, which the pause and device hooks use, skips an instance under `frozen_root` or in a stopped file. `ScriptHost::call_on`, which every `on_<event>` hook uses, asks nothing. So a held script hears the events below, while a task on it that awaits one waits. `set_parked` sets a parked script's instance aside, and neither call finds it.
+Two calls reach a held script. `ScriptHost::announce`, which the pause and device hooks use, skips an instance under `frozen_root` or in a stopped file. `ScriptHost::call_on`, which every `on_<event>` hook uses, asks nothing. So a held script hears the events below, while a task on it that awaits one waits.
 
 ## Animation
 
@@ -66,7 +64,7 @@ Starts in Idle. Ends when the `Playback` is dropped.
 
 Refused or ignored: `pause` on a clip not playing and `resume` on one not paused are no-ops. `animation_written` never restarts an active clip. `play` errors with no `animation` component, or with no library and no clip of that name.
 
-Held by a pause, a `process` mode or a parked scene: `advance_system` skips the node for the step through `process::ticks`, and the accumulator is still spent, so held time is not owed. A freeze returns early and empties the accumulator. None of them writes `playing` or `paused`. A method key aimed at a held script still runs, through `call_on`.
+Held by a pause or a `process` mode: `advance_system` skips the node for the step through `process::ticks`, and the accumulator is still spent, so held time is not owed. A freeze returns early and empties the accumulator. None of them writes `playing` or `paused`. A method key aimed at a held script still runs, through `call_on`.
 
 ### Just-finished clip
 
@@ -86,7 +84,7 @@ Source: `crates/balaur_animation/src/player.rs`, `Playback.finished`.
 
 Starts in `""`. Never ends.
 
-Held by a pause, a `process` mode or a parked scene: a pause and a mode still clear it. A freeze returns before the clear, so the name stays readable.
+Held by a pause or a `process` mode: a pause and a mode still clear it. A freeze returns before the clear, so the name stays readable.
 
 ### Clip queue
 
@@ -125,7 +123,7 @@ Source: `crates/balaur_animation/src/player.rs`, `Playback.began`.
 
 Starts in `None`. Never ends.
 
-Held by a pause, a `process` mode or a parked scene: `announce_began` asks none of them, and `events::announce` drops the event for a parked node. A freeze returns before it.
+Held by a pause or a `process` mode: `announce_began` asks none of them. A freeze returns before it.
 
 ### Crossfade
 
@@ -173,7 +171,7 @@ stateDiagram-v2
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | none | `start`, script `animation.tween`, its spec's `then` naming a live tween | Waiting | Keeps the spec in `pending`. |
-| none | `start`, script `animation.tween`, or `start_to` | Running | Builds the clip and reads the start values. The handle counts up and is never reused. A node outside the debug scope and its parked scenes, a tool's own, takes one counting down from 2^53, so the game's handles match its recording's. |
+| none | `start`, script `animation.tween`, or `start_to` | Running | Builds the clip and reads the start values. The handle counts up and is never reused. A node outside the debug scope, a tool's own, takes one counting down from 2^53, so the game's handles match its recording's. |
 | Waiting | `advance_system` finds `after` names nothing, then `begin` | Running | Rebuilds the clip, so `by` and a captured `from` read the node as the awaited tween left it. |
 | Waiting | `begin` fails | Gone | Warns. No event. |
 | Running | `advance` passes a step's end | Running | Announces `tween_step` with `{ tween, step }`. |
@@ -186,7 +184,7 @@ Starts in Running or Waiting. Ends in Gone.
 
 Refused or ignored: `start` errors on no steps, an unknown property, a target that names no node, or a `speed_scale` not above 0. `stop_tween` on an unknown handle is a no-op.
 
-Held by a pause, a `process` mode or a parked scene: `advance_system` skips the tween through `process::ticks` on `tween.node`. A freeze returns early. A `call` step aimed at a held script still runs.
+Held by a pause or a `process` mode: `advance_system` skips the tween through `process::ticks` on `tween.node`. A freeze returns early. A `call` step aimed at a held script still runs.
 
 ### State machine run
 
@@ -232,7 +230,7 @@ Starts in Unresolved. Ends when the run is dropped.
 
 Refused or ignored: `travel` and `jump` error on an unknown state once the machine is loaded. Asked before it loads, an unknown `jump` or `pending` warns at the next `decide`. A `from = end` or a nested `to = end` is a parse error. A transition whose clip did not load moves `current` and leaves the player alone.
 
-Held by a pause, a `process` mode or a parked scene: `step` skips the run through `process::ticks` on the machine's own node, as it does while `enabled` is false. `evaluate_checks` still calls the `check` methods each frame under a pause, and a held script answers them. A freeze returns before it.
+Held by a pause or a `process` mode: `step` skips the run through `process::ticks` on the machine's own node, as it does while `enabled` is false. `evaluate_checks` still calls the `check` methods each frame under a pause, and a held script answers them. A freeze returns before it.
 
 ### Machine route
 
@@ -314,7 +312,7 @@ Source: `crates/balaur_animation/src/modifier.rs`, `Modifier2d.enabled`, `Modifi
 
 Starts as authored, on by default. Ends when the component is removed.
 
-Held by a pause, a `process` mode or a parked scene: `modify_system` skips the node through `process::ticks`, so it writes nothing, a jiggle chain's memory stays, and held time is not owed. A freeze returns early.
+Held by a pause or a `process` mode: `modify_system` skips the node through `process::ticks`, so it writes nothing, a jiggle chain's memory stays, and held time is not owed. A freeze returns early.
 
 ## Audio
 
@@ -347,7 +345,7 @@ Starts in `None`. Ends when the voice is dropped.
 
 Refused or ignored: `play_on` errors with no `sound` component, no `file`, or a file that does not exist. Autoplay warns instead.
 
-Held by a pause, a `process` mode or a parked scene: the voice does not change. Its playback holds, as the next block says.
+Held by a pause or a `process` mode: the voice does not change. Its playback holds, as the next block says.
 
 ### Sound playback
 
@@ -401,7 +399,7 @@ Starts in Sounding or Silent. Ends in Gone.
 
 Refused or ignored: setters on a Silent handle reach the bookkeeping only. A handle played before the device opened stays Silent, since only `play_with` starts a sink and `restart` needs one.
 
-Held by a pause, a `process` mode or a parked scene: `hold_sounds` holds a node's sound when `process::ticks` is false. So a pause holds a `pausable` node's sound and an `always` node's plays on. A debugger stop or a paused replay holds the sounds under `frozen_root`. When a hold ends, the sound goes back to what `Sound.paused` asks.
+Held by a pause or a `process` mode: `hold_sounds` holds a node's sound when `process::ticks` is false. So a pause holds a `pausable` node's sound and an `always` node's plays on. A debugger stop or a paused replay holds the sounds under `frozen_root`. When a hold ends, the sound goes back to what `Sound.paused` asks.
 
 ### Playback clock
 
@@ -438,7 +436,7 @@ stateDiagram-v2
 
 Starts in Delayed or In file. Ends in Past end.
 
-Held by a pause, a `process` mode or a parked scene: `count_down_system` skips a clock while `Routed.paused` is set, so a clock holds with its sound. A freeze stops the stage, so every clock stands.
+Held by a pause or a `process` mode: `count_down_system` skips a clock while `Routed.paused` is set, so a clock holds with its sound. A freeze stops the stage, so every clock stands.
 
 ### A played file
 
@@ -448,7 +446,7 @@ Source: `crates/balaur_bs/src/prelude/audio.bs`, `play_file`.
 
 Refused or ignored: an option `audio::PlayFileOptions` does not declare does not compile.
 
-Held by a pause, a `process` mode or a parked scene: its node is `always`, so a pause menu's click sounds. A parked scene or a freeze holds it as it holds any node's sound.
+Held by a pause or a `process` mode: its node is `always`, so a pause menu's click sounds. A freeze holds it as it holds any node's sound.
 
 ### Output device
 
@@ -499,7 +497,7 @@ Source: `crates/balaur_audio/src/spatial.rs`, `Listener.current` and `AudioState
 
 | State | What is true |
 |---|---|
-| `current=true` | The last such node in `listeners` that is not parked gives the ears their place. |
+| `current=true` | The last such node in `listeners` gives the ears their place. |
 | `current=false` | Ignored. |
 | no such node | The ears follow the view: the current camera's pose. |
 
@@ -510,7 +508,7 @@ Source: `crates/balaur_audio/src/spatial.rs`, `Listener.current` and `AudioState
 
 Starts as authored, true by default. Ends when the component is removed.
 
-Held by a pause, a `process` mode or a parked scene: `follow_nodes` skips a parked listener. A pause and a mode are not asked.
+Held by a pause or a `process` mode: a pause and a mode are not asked.
 
 ## Physics
 
@@ -547,7 +545,7 @@ stateDiagram-v2
 
 Starts in Stepping. Never ends.
 
-Held by a pause, a `process` mode or a parked scene: this block is the pause. A freeze stops `Stage::FixedUpdate`, so no step runs either.
+Held by a pause or a `process` mode: this block is the pause. A freeze stops `Stage::FixedUpdate`, so no step runs either.
 
 ### Body and soft body enabled
 
@@ -563,13 +561,11 @@ Source: `crates/balaur_physics/src/body.rs`, `crates/balaur_physics/src/dim2/bod
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | Component write, `write_body` or the soft body patch | as asked | Calls `set_enabled`. It also re-enables a quarantined body. |
-| any | `parked_changed`, scene parked | Disabled | A soft body's whole family goes with it. |
-| Disabled | `parked_changed`, scene back | as asked | Reads `enabled` off the component. |
 | Enabled | Rapier finds a non-finite position or velocity | Disabled | Rolls a body back to its last valid pose when known, zeroes it and lists it in `physics.quarantined` for that step. `warn_about_quarantine` logs it. |
 
 Starts as authored, enabled by default. Ends when the component is removed.
 
-Held by a pause, a `process` mode or a parked scene: a parked scene disables it, as above. A pause does not change the flag.
+Held by a pause or a `process` mode: a pause does not change the flag.
 
 ### Collider enabled
 
@@ -585,8 +581,6 @@ Source: `crates/balaur_physics/src/collider.rs`, `crates/balaur_physics/src/dim2
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | Component write, `apply_collider` | as asked | Builds it with `enabled`. |
-| any | `parked_changed`, scene parked | Off | Also in `dim2::tiles::parked_changed`. `queries_ready` goes false. |
-| Off | `parked_changed`, scene back | On | Writes `set_enabled(true)` without reading the component. |
 | On | Rapier finds its own geometry non-finite | Off | Lists it in `physics.quarantined` for that step. |
 
 Starts as authored, on by default. Ends when the component is removed.
@@ -633,7 +627,7 @@ Source: `crates/balaur_physics/src/shared/world.rs`, `sleep_changes`; `crates/ba
 
 Starts Awake, or Asleep with `start_asleep`. Ends when the body goes. `asleep` empties with the world.
 
-Held by a pause, a `process` mode or a parked scene: no step means no change and no announcement. A body disabled by parking is left out of the step.
+Held by a pause or a `process` mode: no step means no change and no announcement.
 
 ### Joint
 
@@ -683,7 +677,7 @@ Starts in `waiting`, `enabled` or `disabled`. Ends in Gone.
 
 Refused or ignored: an articulation never breaks, since `broken` only reads impulse joints. A broken joint has no params, so `pending` does not make it again.
 
-Held by a pause, a `process` mode or a parked scene: no step means no break. `parked_changed` does not touch joints, and the disabled bodies at their ends do the rest.
+Held by a pause or a `process` mode: no step means no break.
 
 ### Soft body tearing
 
@@ -717,7 +711,7 @@ Starts in Intact. Ends in Torn.
 
 Refused or ignored: who hears does not gate `torn`, because rapier calls the handler on every tear in a step. `set_edge_tear_resistance` and `set_cell_tear_resistance` move the threshold. A `tear_force` and a `tear_strain` of 0 never tear.
 
-Held by a pause, a `process` mode or a parked scene: step tears wait. `tear()` and `cut()` ask nothing and run through a pause.
+Held by a pause or a `process` mode: step tears wait. `tear()` and `cut()` ask nothing and run through a pause.
 
 ### Damaged particle
 
@@ -769,14 +763,14 @@ Source: `crates/balaur_physics/src/shared/events.rs`, `Event::Started` and `Even
 | Apart | `handle_collision_event`, started | Touching | Announces `collision_enter` with `{ other, sensor, removed, points, normals }` to each side's collider node, then its body. |
 | Touching | `handle_collision_event`, stopped | Apart | Announces `collision_exit` with `{ other, sensor, removed }` the same way. |
 | Touching | The collider removed, `remove_colliders` | Apart, on the next step | `gone` names its owner so the stop can still be told, with `removed` true. |
-| Touching | The collider disabled, or its body, rapier | Apart, on the next step | Rapier treats it as removed, so the stop carries `removed` true. A parked side hears nothing. |
+| Touching | The collider disabled, or its body, rapier | Apart, on the next step | Rapier treats it as removed, so the stop carries `removed` true. |
 | Touching | `handle_contact_force_event`, force over `contact_force_threshold` | Touching | Announces `contact_force` with `{ other, force, direction, total_force, max_force, started }`. `started` says the force just rose past the threshold. |
 
 Starts in Apart. Ends when either collider is gone.
 
 Refused or ignored: a collider reports only what its node or its body's node hears (`follow_hearers`). Events are sorted by `Event::key`, then delivered after the step.
 
-Held by a pause, a `process` mode or a parked scene: no step means no events.
+Held by a pause or a `process` mode: no step means no events.
 
 ### Query freshness
 
@@ -792,13 +786,13 @@ Source: `crates/balaur_physics/src/lib.rs` and `crates/balaur_physics/src/dim2/m
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `step_system`, `ensure_queries` | `true` | The step rebuilds the broad phase itself. |
-| `true` | A collider made or removed, `parked_changed`, a teleport, a move with no body, a voxel cell set | `false` | Written where each change lands. |
+| `true` | A collider made or removed, a teleport, a move with no body, a voxel cell set | `false` | Written where each change lands. |
 
 Starts false. Never ends.
 
 ## Input
 
-Everything here runs in `Stage::First`, which a pause and a freeze do not stop. Nothing in this crate asks about a pause or a `process` mode, except that touch controls skip a parked node.
+Everything here runs in `Stage::First`, which a pause and a freeze do not stop. Nothing in this crate asks about a pause or a `process` mode.
 
 ### Input frame begun
 
@@ -968,6 +962,25 @@ Starts in Up. Never ends.
 
 Refused or ignored: a key or chord binding reads 0 while `keyboard_taken` is set. A press and release in one frame reads as pressed. An action nothing declared reads 0 and warns once.
 
+### Gamepad source
+
+The pads open on the first read, so a game that reads none never starts the pad thread.
+
+Source: `crates/balaur_input/src/gamepad.rs`, `GamepadState.asked` and `GamepadState.source`.
+
+| State | What is true |
+|---|---|
+| Unasked | No pad thread for this engine. Only fed and replayed pads exist. |
+| Asked | `pads()` or `pad()` was read: a script's `input.gamepad*` or rumble verb, or a `gamepad:` or `axis:` binding. |
+| Open | `source` holds the pad thread's queue; each `poll` takes it. |
+
+| From | Trigger | To | What it does |
+|---|---|---|---|
+| Unasked | `pads()` or `pad()` | Asked | Sets `asked`. The engine's own per-tick readers use `listed()`, which does not. |
+| Asked | next `poll` | Open | Opens gilrs's thread with the project's mappings, once per process, and subscribes. |
+
+Starts Unasked. Ends with the engine.
+
 ### Gamepad connection
 
 `GamepadState` holds one `Live` per connected pad and rebuilds a `Pad` snapshot from it each frame.
@@ -1111,7 +1124,7 @@ Source: `crates/balaur_input/src/touch_controls.rs`, `TouchButton.finger` and `T
 
 Starts in `None`. Ends when the component is removed.
 
-Held by a pause, a `process` mode or a parked scene: `tick` skips a parked button, so it keeps its state and feeds nothing. A pause and a mode are not asked.
+Held by a pause or a `process` mode: a pause and a mode are not asked.
 
 ### Touch stick
 
@@ -1133,7 +1146,7 @@ Source: `crates/balaur_input/src/touch_controls.rs`, `TouchStick.finger`, `cente
 
 Starts in `None`. Ends when the component is removed.
 
-Held by a pause, a `process` mode or a parked scene: `tick` skips a parked stick. A pause and a mode are not asked.
+Held by a pause or a `process` mode: a pause and a mode are not asked.
 
 ### Finger gesture
 
@@ -1234,7 +1247,7 @@ Starts false. Never ends.
 
 ## UI
 
-The draw only reports what it saw, and `apply_system` writes it in the next tick, in `Stage::First`. No system here asks about a pause or a `process` mode, so a held script still hears a widget's `pointer_click` and `value_changed`, its own or through a row, by `call_on`. A parked node reads hidden and is not drawn.
+The draw only reports what it saw, and `apply_system` writes it in the next tick, in `Stage::First`. No system here asks about a pause or a `process` mode, so a held script still hears a widget's `pointer_click` and `value_changed`, its own or through a row, by `call_on`.
 
 ### Widget input buffer
 
@@ -1311,7 +1324,7 @@ Starts with `swept_at` at 0. Never ends.
 
 Refused or ignored: a `Field` with `owner=None`, as a `DragNumber` keeps, is never swept. `edit` and `code_editor` set `owner` on each pass.
 
-Held by a pause, a `process` mode or a parked scene: a parked node is alive, so its field, its caret and its fold stay and a return finds them.
+Held by a pause or a `process` mode: neither is asked, so a held node's field, its caret and its fold stay.
 
 ### Worn theme
 
@@ -1477,7 +1490,7 @@ Source: `crates/balaur_ui/src/widget/arena.rs`, `shown_by_tree`, `fits` and `Pla
 
 Starts as the first pass folds it. Ends when the component is removed.
 
-Held by a pause, a `process` mode or a parked scene: a parked node's global appearance reads hidden, so it hides. A pause and a mode are not asked.
+Held by a pause or a `process` mode: a pause and a mode are not asked.
 
 ### Focus
 
@@ -1816,7 +1829,7 @@ Source: `crates/balaur_ui/src/splash.rs` and `crates/balaur_ui/src/loading.rs`, 
 
 Starts in Off or Timed. Ends in Off or Over.
 
-Held by a pause, a `process` mode or a parked scene: engine time runs on through a pause, so the seconds do too.
+Held by a pause or a `process` mode: engine time runs on through a pause, so the seconds do too.
 
 ### UI pass pacing
 
@@ -1927,7 +1940,7 @@ stateDiagram-v2
 
 Starts in Opening. Ends in Over.
 
-Held by a pause, a `process` mode or a parked scene: the loop keeps drawing through a pause and a freeze.
+Held by a pause or a `process` mode: the loop keeps drawing through a pause and a freeze.
 
 ### Hidden tab
 
@@ -1937,12 +1950,12 @@ Source: `crates/balaur_render/src/hidden_tab.rs`, `is_hidden`.
 
 | State | What is true |
 |---|---|
-| Visible | Animation frames arrive. A tab with nothing owed waits in `next_frame_or_hidden`. |
+| Visible | Animation frames arrive. A tab with nothing owed asks for none and waits in `until_owed` for a wake, input, the repaint due or a `wake::at` deadline. |
 | Hidden: `document.hidden()` | No animation frame comes. The loop waits in `until_visible`. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| Visible | `visibilitychange`, tab hidden | Hidden | `next_frame_or_hidden` returns, and the loop turns to `until_visible`. |
+| Visible | `visibilitychange`, tab hidden | Hidden | `until_owed` returns, and the loop turns to `until_visible`. |
 | Hidden | `visibilitychange`, tab shown | Visible | `until_visible` looks again after each change. |
 
 Starts as the document says. Never ends.
@@ -1988,6 +2001,29 @@ Starts unsuspended and focused. Never ends.
 
 Refused or ignored: nothing in the render backend stops on `suspended`. Only the hook and the fact change.
 
+### Device reading
+
+Dark mode, the safe area, the keyboard and the text scale are asked of the platform once, then again only after it says one moved. The facts are still published every frame from the reading.
+
+Source: `crates/balaur_render/src/device.rs`, `Probe.heard` and `MOVED`; `crates/balaur_render/src/appearance.rs`, `HEARD`.
+
+| State | What is true |
+|---|---|
+| Unread | No reading yet: the first frame asks. |
+| Heard | `heard` was asked at the current `MOVED` count. Each frame reuses it. |
+| Moved | `MOVED` counts past `heard`'s: the next frame asks again. |
+
+| From | Trigger | To | What it does |
+|---|---|---|---|
+| Unread, Moved | `Probe::read` | Heard | Asks the platform. A page adds its `resize` and `visualViewport` listeners the first time. |
+| Heard | `device::hear`: `FramebufferSize`, `ScaleFactor`, `Focus`, `Iconify` | Moved | Counts `MOVED`. |
+| Heard | `appearance::hear`: `WindowEvent::DarkMode`, mundy's subscription, the page's `matchMedia` change | Moved | Keeps the announced appearance as `is_dark`'s answer from then on. |
+| Heard | a page's `resize`, or the visual viewport's `resize` or `scroll` | Moved | Counts `MOVED` and wakes the loop. |
+
+Starts Unread. Ends with the window.
+
+Refused or ignored: what a platform never announces is asked every frame by `unheard`: Android's safe area and keyboard, and an iPhone's keyboard, safe area and dark mode.
+
 ### Screenshot
 
 A `ScreenshotRequest` resource is present while a shot is owed.
@@ -2028,7 +2064,7 @@ Source: `crates/balaur_render/src/notifier.rs`, `OnScreen.on_screen`.
 
 Starts false. Ends when the component is removed.
 
-Held by a pause, a `process` mode or a parked scene: a pause and a mode are not asked. A parked node reads hidden, so it goes false, and `events::announce` drops the event.
+Held by a pause or a `process` mode: a pause and a mode are not asked.
 
 ### One-shot burst
 
@@ -2051,7 +2087,7 @@ Source: `crates/balaur_render/src/particles.rs`, `Bursts` and `burst_system`.
 
 Starts in No key. Never ends.
 
-Held by a pause, a `process` mode or a parked scene: `burst_system` keeps `elapsed` while `process::ticks` is false. A freeze stops the stage.
+Held by a pause or a `process` mode: `burst_system` keeps `elapsed` while `process::ticks` is false. A freeze stops the stage.
 
 ### Emitter births
 
@@ -2093,7 +2129,7 @@ stateDiagram-v2
 
 Starts as `emitting` and `one_shot` say. Ends when the slot goes.
 
-Held by a pause, a `process` mode or a parked scene: `step_of` answers 0 for a 2D or 3D emitter when `process::ticks` is false or its node sits under `frozen_root`. With no time `due` bears nothing, so `debt` and the spread stand and an Armed burst stays armed. It still answers `emitting` false. `quad.set_visible` follows the node's appearance.
+Held by a pause or a `process` mode: `step_of` answers 0 for a 2D or 3D emitter when `process::ticks` is false or its node sits under `frozen_root`. With no time `due` bears nothing, so `debt` and the spread stand and an Armed burst stays armed. It still answers `emitting` false. `quad.set_visible` follows the node's appearance.
 
 ### Live particle
 
@@ -2113,7 +2149,7 @@ Source: `crates/balaur_render/src/particles.rs`, `Particle.age` and `Particle.li
 
 Starts Alive. Ends Dead.
 
-Held by a pause, a `process` mode or a parked scene: a held emitter's particles stand with their `age`, and it draws what it has.
+Held by a pause or a `process` mode: a held emitter's particles stand with their `age`, and it draws what it has.
 
 ### Window mode
 

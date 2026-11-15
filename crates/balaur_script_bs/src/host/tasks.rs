@@ -29,15 +29,10 @@ pub(super) struct WaitingStart {
 
 impl BsHost {
     /// Starts what was asked of an instance that was busy, and answers one
-    /// that finished at its first await or cannot start. A parked instance's
-    /// waits for its scene to come back.
+    /// that finished at its first await or cannot start.
     pub(super) fn run_waiting_starts(&self) {
         let waiting = std::mem::take(&mut *self.inner.waiting_starts.borrow_mut());
         for start in waiting {
-            if self.parked_instance(NodeId(start.node)).is_some() {
-                self.inner.waiting_starts.borrow_mut().push(start);
-                continue;
-            }
             let out = match self.instance(NodeId(start.node)) {
                 Some((file, inst)) if file.method(&start.method).is_some() => {
                     self.run(&file, &inst, &start.method, &start.args, start.done)
@@ -154,7 +149,7 @@ impl BsHost {
         let Ok(mut rt) = file.home.rt.try_borrow_mut() else {
             return Ok(Polled::Waiting(p));
         };
-        let _turn = balaur_core::dependencies::calling(&self.inner.engine, &inst.path);
+        let _turn = balaur_core::dependencies::calling(&self.inner.engine, &inst.path, inst.node);
         self.poll_held(&mut rt, &inst, p)
     }
 
@@ -224,15 +219,10 @@ impl BsHost {
     }
 
     fn take_where(&self, pick: impl Fn(&Pending) -> bool) -> Vec<Pending> {
-        let mut all = Vec::new();
-        for list in [&self.inner.tasks, &self.inner.parked_tasks] {
-            let mut tasks = list.borrow_mut();
-            let (taken, kept): (Vec<_>, _) =
-                std::mem::take(&mut *tasks).into_iter().partition(&pick);
-            *tasks = kept;
-            all.extend(taken);
-        }
-        all
+        let mut tasks = self.inner.tasks.borrow_mut();
+        let (taken, kept): (Vec<_>, _) = std::mem::take(&mut *tasks).into_iter().partition(&pick);
+        *tasks = kept;
+        taken
     }
 }
 

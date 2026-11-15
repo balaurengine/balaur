@@ -308,7 +308,7 @@ impl<T> DerefMut for Mut<'_, T> {
         if !self.written {
             self.written = true;
             match &mut self.column {
-                Some(column) => column.changed = crate::components::ticks::now_here(),
+                Some(column) => column.changed = crate::components::ticks::column_written(),
                 None => {
                     crate::components::ticks::note_written(std::any::TypeId::of::<T>(), self.node);
                 }

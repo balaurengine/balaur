@@ -17,6 +17,7 @@ fn move_to(app: &App, entity: balaur_core::hecs::Entity, x: f32) {
         .get::<&mut Transform>(entity)
         .unwrap()
         .position = Vec3::new(x, 0.0, 0.0);
+    balaur_core::transform::written(&app.engine, entity);
 }
 
 /// The notifier events the node heard over two frames: one to notice, one

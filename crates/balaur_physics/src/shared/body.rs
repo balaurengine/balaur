@@ -213,6 +213,7 @@ macro_rules! functions {
             state.body_authored.swap_remove(&entity);
             if let Some(handle) = state.bodies.swap_remove(&entity) {
                 let state = &mut *state;
+                let mut dropped = Vec::new();
                 if let Some(body) = state.world.bodies.get(handle) {
                     for &collider in body.colliders() {
                         let owner = state.world.colliders.get(collider);
@@ -223,10 +224,28 @@ macro_rules! functions {
                             state
                                 .gone
                                 .insert(collider, crate::shared::events::Owner::of(owner, body));
+                            dropped.push((owner, collider));
                         }
                     }
                 }
+                let jointed = state
+                    .world
+                    .impulse_joints
+                    .attached_joints(handle)
+                    .next()
+                    .is_some()
+                    || state
+                        .world
+                        .multibody_joints
+                        .rigid_body_link(handle)
+                        .is_some();
                 state.world.remove_body(handle);
+                for (owner, collider) in dropped {
+                    super::forget_collider(state, owner, collider);
+                }
+                if jointed {
+                    super::forget_dead_joints(state);
+                }
             }
         }
     };

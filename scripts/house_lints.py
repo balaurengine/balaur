@@ -80,6 +80,27 @@ TIMED_WAIT = re.compile(
     r"|\.(?:recv|wait|park)_timeout\s*\(|\bthread::park_timeout\s*\("
 )
 
+# A node's pose or appearance written in place. No change tick hears that
+# write, so the scene sync never places the node again and it stands still on
+# screen (ARCHITECTURE.md, Frame schedule: `SceneSync` places only what changed).
+PLACEMENT_BORROW = re.compile(
+    r"&(?:'\w+\s+)?mut\s+(?:\w+::)*(Transform|GlobalTransform|Appearance|GlobalAppearance)\b"
+)
+# What answers each in a file: its stamp, or a call that places every node
+# anyway, a whole walk or a restore. A world pose is the sync's alone.
+PLACEMENT_ANSWERS = {
+    "Transform": ("transform::written(", "propagate_transforms", "ticks::restored("),
+    "Appearance": ("appearance_written(", "propagate_transforms", "ticks::restored("),
+    "GlobalTransform": (),
+    "GlobalAppearance": (),
+}
+PLACEMENT_STAMP = {
+    "Transform": "balaur_core::transform::written",
+    "Appearance": "balaur_core::scene::appearance_written",
+}
+# The scene sync itself, which writes every world pose.
+PLACEMENT_OWNER = "crates/balaur_core/src/scene/place.rs"
+
 # `let x = <something>.borrow_mut();` — the exclusive binding, not a temporary,
 # which is dropped at the end of its statement and cannot span a call.
 BORROW_BINDING = re.compile(
@@ -563,6 +584,12 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
         for one in lines
     )
 
+    text = "\n".join(lines)
+    placement_answered = {
+        kind: any(answer in text for answer in answers)
+        for kind, answers in PLACEMENT_ANSWERS.items()
+    }
+
     # The rule below only binds a crate that keeps one.
     has_vocabulary = (
         (ROOT / "crates" / crate / "src" / "vocabulary.rs").exists()
@@ -667,6 +694,24 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                             "on a timer; sleep on the event instead (AGENTS.md, Threads), "
                                             "or say on the line above why this is a frame cap or a "
                                             "deadline", "ERROR"))
+
+            if not in_test_mod and rel.as_posix() != PLACEMENT_OWNER:
+                m = PLACEMENT_BORROW.search(line)
+                # A site says why it owes no stamp on its line or the one above.
+                said = re.search(r"//.*\bstamp", raw, re.I) or (
+                    i > 1 and re.search(r"^\s*//.*\bstamp", lines[i - 2], re.I))
+                if m and not placement_answered[m.group(1)] and not said:
+                    kind = m.group(1)
+                    owed = (f"call `{PLACEMENT_STAMP[kind]}` after the write"
+                            if kind in PLACEMENT_STAMP else
+                            "write the local `Transform` or `Appearance` and stamp that")
+                    findings.append(Finding(
+                        rel, i, "placement-unstamped",
+                        f"`&mut {kind}` is written in place and nothing in this file stamps it, "
+                        "so the scene sync never places the node again and it stops moving on "
+                        f"screen; {owed}, or say on the line above why no stamp is owed "
+                        "(ARCHITECTURE.md, Frame schedule: `SceneSync` places only what changed)",
+                        "ERROR"))
 
             # One door for structural writes outside the kernel;
             # a test sets a world up as it likes.

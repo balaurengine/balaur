@@ -3,7 +3,7 @@
 //! pointed forwards.
 
 macro_rules! functions {
-    (state = $State:ty, component = $component:expr, prune = $prune:ident, body = $Body:ty, collider = $Collider:ty, soft = $Soft:ty, events = $Events:ty) => {
+    (state = $State:ty, component = $component:expr, forget = $forget:ident, collider_handle = $ColliderHandle:ty, body = $Body:ty, collider = $Collider:ty, soft = $Soft:ty, events = $Events:ty) => {
         /// Bring these nodes' colliders, every one where `everyone`, to report
         /// what is heard from them and from the body they hang on.
         pub(crate) fn follow_hearers(eng: &Engine, everyone: bool, nodes: &[Entity]) {
@@ -62,44 +62,6 @@ macro_rules! functions {
             }
         }
 
-        /// A parked scene's bodies, soft bodies and colliders leave the
-        /// simulation with their state, and come back to what they ask for.
-        pub(crate) fn parked_changed(eng: &Engine, nodes: &[Entity], parked: bool) {
-            use crate::shared::softbody::Family;
-            let state = eng.resource::<$State>();
-            let mut state = state.borrow_mut();
-            let state = &mut *state;
-            let world = eng.world();
-            for node in nodes {
-                let asked = world
-                    .get::<&$Collider>(*node)
-                    .map_or(true, |held| held.enabled);
-                for &handle in state.colliders.get(node).into_iter().flatten() {
-                    if let Some(collider) = state.world.colliders.get_mut(handle) {
-                        collider.set_enabled(!parked && asked);
-                    }
-                }
-                if let Some(body) = state
-                    .bodies
-                    .get(node)
-                    .and_then(|&handle| state.world.bodies.get_mut(handle))
-                {
-                    let asked = world.get::<&$Body>(*node).map_or(true, |body| body.enabled);
-                    body.set_enabled(!parked && asked);
-                }
-                if let Some(&handle) = state.soft_bodies.get(node) {
-                    let asked = world.get::<&$Soft>(*node).map_or(true, |soft| soft.enabled);
-                    for piece in state.world.soft_bodies.family(handle) {
-                        if let Some(soft) = state.world.soft_bodies.get_mut(piece) {
-                            soft.set_enabled(!parked && asked);
-                        }
-                    }
-                }
-            }
-            // The next query refreshes what a disabled collider is still in.
-            state.queries_ready = false;
-        }
-
         /// Point every restored collider and soft body at the entity its node
         /// has *now*.
         ///
@@ -137,42 +99,47 @@ macro_rules! functions {
             }
         }
 
-        /// Drop everything a freed node left behind, in every map the plugin owns.
-        ///
-        /// Before the pause check on purpose: an editor sits paused, and a handle
-        /// left behind by a free is one script call away from indexing rapier's arena.
-        pub(crate) fn $prune(eng: &Engine, state: &mut $State) {
-            let world = eng.world();
+        /// Drop what freed nodes left in the maps the plugin owns, in the order
+        /// the free visits them. Each component's way off took the rest.
+        pub(crate) fn $forget(state: &mut $State, nodes: &[Entity]) {
             let before = state.world.colliders.len();
-            state.bodies.retain(|&entity, handle| {
-                if world.contains(entity) {
-                    return true;
-                }
-                // Rapier drops the attached colliders with the body, and the
-                // body's node is gone with it.
-                if let Some(body) = state.world.bodies.get(*handle) {
-                    for &collider in body.colliders() {
-                        let owner = state.world.colliders.get(collider);
-                        let owner = owner.and_then(|c| Entity::from_bits(c.user_data as u64));
-                        if let Some(node) = owner {
-                            state
-                                .gone
-                                .insert(collider, crate::shared::events::Owner::of(node, None));
+            let mut lightened = Vec::new();
+            let mut jointed = false;
+            for &entity in nodes {
+                if let Some(handle) = state.bodies.shift_remove(&entity) {
+                    // Rapier drops the attached colliders with the body, and the
+                    // body's node is gone with it.
+                    let mut dropped = Vec::new();
+                    if let Some(body) = state.world.bodies.get(handle) {
+                        for &collider in body.colliders() {
+                            let owner = state.world.colliders.get(collider);
+                            let owner = owner.and_then(|c| Entity::from_bits(c.user_data as u64));
+                            if let Some(node) = owner {
+                                state
+                                    .gone
+                                    .insert(collider, crate::shared::events::Owner::of(node, None));
+                                dropped.push((node, collider));
+                            }
                         }
                     }
-                }
-                state.world.remove_body(*handle);
-                false
-            });
-            // Rapier drops a body's colliders with the body, so a handle here can be
-            // stale even when its node is alive.
-            let mut lightened = Vec::new();
-            state.colliders.retain(|&entity, handles| {
-                let alive = world.contains(entity);
-                handles.retain(|&handle| {
-                    if alive && state.world.colliders.contains(handle) {
-                        return true;
+                    jointed |= state
+                        .world
+                        .impulse_joints
+                        .attached_joints(handle)
+                        .next()
+                        .is_some()
+                        || state
+                            .world
+                            .multibody_joints
+                            .rigid_body_link(handle)
+                            .is_some();
+                    state.world.remove_body(handle);
+                    for (owner, collider) in dropped {
+                        forget_collider(state, owner, collider);
                     }
+                }
+                for handle in state.colliders.shift_remove(&entity).unwrap_or_default() {
+                    state.surfaces.swap_remove(&handle);
                     if let Some(removed) = state.world.remove_collider(handle) {
                         let body = removed.parent().and_then(|b| state.world.bodies.get(b));
                         let owner =
@@ -180,48 +147,69 @@ macro_rules! functions {
                         state.gone.insert(handle, owner);
                         lightened.extend(removed.parent());
                     }
-                    false
-                });
-                !handles.is_empty()
-            });
-            for handle in lightened {
-                body::refit_mass(state, handle);
+                }
+                if let Some(reference) = state.joints.shift_remove(&entity) {
+                    joint::drop_joint(&mut state.world, &reference);
+                }
+                // A soft body's proxy is a rigid body of rapier's own, so it goes
+                // through the set that made it rather than `remove_body`.
+                if let Some(handle) = state.soft_bodies.shift_remove(&entity) {
+                    use crate::shared::softbody::Family;
+                    let w = &mut state.world;
+                    for piece in w.soft_bodies.family(handle) {
+                        w.soft_bodies.remove(
+                            piece,
+                            &mut w.islands,
+                            &mut w.bodies,
+                            &mut w.colliders,
+                            &mut w.impulse_joints,
+                            &mut w.multibody_joints,
+                        );
+                    }
+                    jointed = true;
+                }
+                state.soft_params.shift_remove(&entity);
+                state.body_authored.shift_remove(&entity);
+                state.collider_params.shift_remove(&entity);
+                state.joint_params.shift_remove(&entity);
+                state.asleep.shift_remove(&entity);
             }
-            state.joints.retain(|&entity, reference| {
-                if !world.contains(entity) {
-                    joint::drop_joint(&mut state.world, reference);
-                    return false;
+            for handle in lightened {
+                if state.world.bodies.contains(handle) {
+                    body::refit_mass(state, handle);
                 }
-                joint::is_live(&state.world, reference)
-            });
-            // A soft body's proxy is a rigid body of rapier's own, so it goes
-            // through the set that made it rather than `remove_body`.
-            state.soft_bodies.retain(|&entity, handle| {
-                use crate::shared::softbody::Family;
-                if world.contains(entity) {
-                    return true;
-                }
-                let w = &mut state.world;
-                for piece in w.soft_bodies.family(*handle) {
-                    w.soft_bodies.remove(
-                        piece,
-                        &mut w.islands,
-                        &mut w.bodies,
-                        &mut w.colliders,
-                        &mut w.impulse_joints,
-                        &mut w.multibody_joints,
-                    );
-                }
-                false
-            });
-            state.soft_params.retain(|e, _| world.contains(*e));
-            state.body_authored.retain(|e, _| world.contains(*e));
-            state.collider_params.retain(|e, _| world.contains(*e));
-            state.joint_params.retain(|e, _| world.contains(*e));
-            state.asleep.retain(|e| world.contains(*e));
+            }
+            if jointed {
+                forget_dead_joints(state);
+            }
             if state.world.colliders.len() != before {
                 state.queries_ready = false;
             }
+        }
+
+        /// Forget `owner`'s handle to `collider`, which rapier dropped with the
+        /// body it hung on, and the surface it had.
+        pub(crate) fn forget_collider(
+            state: &mut $State,
+            owner: Entity,
+            collider: $ColliderHandle,
+        ) {
+            state.surfaces.swap_remove(&collider);
+            if let Some(handles) = state.colliders.get_mut(&owner) {
+                handles.retain(|held| *held != collider);
+                if handles.is_empty() {
+                    state.colliders.shift_remove(&owner);
+                }
+            }
+            state.queries_ready = false;
+        }
+
+        /// Forget the joints rapier dropped with a body or soft body it took out.
+        pub(crate) fn forget_dead_joints(state: &mut $State) {
+            let world = &state.world;
+            state
+                .joints
+                .retain(|_, reference| joint::is_live(world, reference));
         }
 
         /// Every body and soft body asleep now, in the order they were made.

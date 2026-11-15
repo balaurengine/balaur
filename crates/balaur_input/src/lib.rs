@@ -379,6 +379,7 @@ thread_local! {
 /// file picker, whose files have no path on the machine to drop.
 pub fn hand_files(paths: impl IntoIterator<Item = String>) {
     HANDED.with(|handed| handed.borrow_mut().extend(paths));
+    balaur_core::wake::wake();
 }
 
 /// The files handed since the last call, taken.
@@ -613,7 +614,7 @@ fn announce_pads_system(eng: &Engine, _: f32) {
     let now: Vec<i64> = eng
         .resource::<GamepadState>()
         .borrow()
-        .pads()
+        .listed()
         .iter()
         .map(|pad| pad.id)
         .collect();
@@ -687,8 +688,8 @@ impl balaur_plugin::Plugin for InputPlugin {
             if balaur_core::replay::suppressed(eng) {
                 return;
             }
-            // The settings shape the readings, and the first poll opens the
-            // pads with the project's mappings.
+            // The settings shape the readings, and the poll after the first
+            // read opens the pads with the project's mappings.
             settings::ensure_loaded(eng);
             let pads = eng.resource::<InputConfig>().borrow().pads.clone();
             eng.resource::<GamepadState>().borrow_mut().poll(dt, &pads);

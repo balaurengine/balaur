@@ -820,6 +820,7 @@ fn refresh_multimeshes_system(eng: &Engine, _dt: f32) {
         if let Err(why) = laid_out {
             tracing::warn!("multimesh '{source}': {why:#}");
         }
+        crate::mirror::look_again(eng, entity);
     }
 }
 

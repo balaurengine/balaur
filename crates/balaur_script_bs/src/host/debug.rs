@@ -348,15 +348,8 @@ impl BsHost {
                     self.answer(p.done, to_neutral(&v));
                 }
             }
-            // Its scene may have parked while the debugger held it.
             Ok(Step::Waiting) => {
-                let parked = self.inner.parked.borrow().iter().any(|i| i.node == node);
-                let tasks = if parked {
-                    &self.inner.parked_tasks
-                } else {
-                    &self.inner.tasks
-                };
-                tasks.borrow_mut().extend(task);
+                self.inner.tasks.borrow_mut().extend(task);
             }
             Err(e) => {
                 let e = anyhow!("[{path}] {e}");
@@ -373,11 +366,9 @@ impl BsHost {
 
     // The object goes back to its instance, or is freed if the node went.
     fn release_held(&self, file: &Rc<File>, node: u64, path: &str, obj: Object) {
-        let parked = self.inner.parked.borrow();
         let instances = self.inner.instances.borrow();
         let inst = instances
             .iter()
-            .chain(parked.iter())
             .find(|i| i.node == node && i.path == path)
             .cloned();
         match inst {

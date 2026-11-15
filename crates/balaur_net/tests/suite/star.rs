@@ -39,6 +39,7 @@ fn app(players: &'static [u32]) -> App {
         if let Ok(mut t) = world.get::<&mut Transform>(mover) {
             t.position.x += delta;
         }
+        balaur_core::transform::written(eng, mover);
     });
     app
 }

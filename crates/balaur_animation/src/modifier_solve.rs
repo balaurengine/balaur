@@ -144,6 +144,7 @@ pub(crate) fn aim_at_angle(world: &World, bone: Entity, wanted: f32) {
         .ok()
         .map_or(0.0, |p| angle_of(&pose_2d(world, p.0)));
     let local = wanted - aim_local_2d(world, bone) - parent_angle;
+    // The modifier that ran this solve stamps every bone it turned.
     if let Ok(mut t) = world.get::<&mut Transform>(bone) {
         t.rotation = quat_about_z(local);
     }
@@ -164,6 +165,7 @@ pub(crate) fn clamp_angle_2d(world: &World, bone: Entity, limit: f32) {
         return;
     }
     let rest = world.get::<&Bone>(bone).map_or(0.0, |b| b.rest_rotation.z);
+    // The modifier that ran this solve stamps every bone it turned.
     let Ok(mut t) = world.get::<&mut Transform>(bone) else {
         return;
     };
@@ -216,6 +218,7 @@ pub(crate) fn aim_at_dir_3d(world: &World, bone: Entity, wanted: Vec3) {
     // carried into the parent's before the arc between them is taken.
     let local_wanted = parent.inverse() * wanted.normalize();
     let rotation = Quat::from_rotation_arc(aim_local_3d(world, bone), local_wanted);
+    // The modifier that ran this solve stamps every bone it turned.
     if let Ok(mut t) = world.get::<&mut Transform>(bone) {
         t.rotation = rotation;
     }
@@ -240,6 +243,7 @@ pub(crate) fn clamp_angle_3d(world: &World, bone: Entity, limit: f32) {
     let rest = world
         .get::<&Bone>(bone)
         .map_or(Quat::IDENTITY, |b| quat_from_euler(b.rest_rotation));
+    // The modifier that ran this solve stamps every bone it turned.
     let Ok(mut t) = world.get::<&mut Transform>(bone) else {
         return;
     };

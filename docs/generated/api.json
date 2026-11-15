@@ -2017,14 +2017,6 @@
         "least": 1,
         "signature": "(float)"
       },
-      "engine::store": {
-        "least": 1,
-        "signature": "(str, any)"
-      },
-      "engine::stored": {
-        "least": 1,
-        "signature": "(str) -> any"
-      },
       "engine::target": {
         "least": 0,
         "signature": "() -> engine::Target"
@@ -4517,6 +4509,10 @@
         "least": 0,
         "signature": "() -> [str]"
       },
+      "scene::current": {
+        "least": 0,
+        "signature": "(Node?) -> Node"
+      },
       "scene::instantiate": {
         "least": 1,
         "signature": "(str, Node?, scene::InstantiateOptions?)"
@@ -4529,9 +4525,9 @@
         "least": 1,
         "signature": "(str, Node?) -> Node"
       },
-      "scene::parked": {
-        "least": 0,
-        "signature": "() -> [str]"
+      "scene::preload": {
+        "least": 1,
+        "signature": "(str)"
       },
       "scene::root": {
         "least": 0,
@@ -6142,7 +6138,8 @@
         "scripts": "bool?"
       },
       "scene::SwitchOptions": {
-        "fade": "float?"
+        "fade": "float?",
+        "under": "Node?"
       },
       "scene::ToTomlOptions": {
         "root": "str?"
@@ -19277,11 +19274,6 @@
       "The game paused or resumed, told to every script, a paused one too."
     ],
     [
-      "on_parked_changed",
-      "(parked)",
-      "A `scene.switch` parked the script's scene, or brought it back; nothing else reaches it between the two, and `init` does not run again, so coming back is where it catches up."
-    ],
-    [
       "on_focused_changed",
       "(focused)",
       "The window came to the front or left it, told to every script."
@@ -20303,7 +20295,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins`, `quit`, and `store` for state no node owns.",
+      "doc": "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.",
       "docs": {
         "args": "The command-line arguments the app was started with, empty when it was given none.",
         "dark_mode": "Whether the system is in dark mode this tick; every script's `on_dark_mode_changed(bool)` is called when it changes. False where nothing says.",
@@ -20324,15 +20316,13 @@
         "set_paused": "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused_changed(bool)` follows, the ones the pause just stopped included.",
         "set_script_profiling": "Start or stop counting what each script costs. Turning it on clears the tally; on from off, or off from on, rebuilds every Balaur Script file between frames, with counters or without, carrying its fields across.",
         "set_time_scale": "Multiply wall-clock time before the simulation is owed it: 0.5 is slow motion, 2.0 fast forward, each still whole fixed steps. Zero stops time without stopping a single node. A replay and a networked session drive by tick and ignore it.",
-        "store": "Keep any value under a key for as long as the app runs: state no node owns, like a class's static variable.",
-        "stored": "What `store` kept under a key; nil when nothing was.",
         "target": "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did.",
         "tick": "Which frame this is, counted whole: what simulation code branches on instead of `time`.",
         "tick_hz": "How many fixed steps a second this run takes, from `[time] tick_hz`. 60 unless the project says otherwise.",
         "time": "Seconds of engine time since the app started, accumulated as a float.",
         "time_scale": "What time is being multiplied by; 1.0 is real time.",
         "timings": "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it.",
-        "unix_time": "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw.",
+        "unix_time": "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw. A tool's own script, on a node outside the subtree `debugger::set_scope` names, reads the machine's clock, which a replay does not feed.",
         "user_data_directory": "A writable per-user directory for saves and settings, created on first call and named after the project. A game the editor plays answers with its own, the folder it has when run alone.",
         "user_data_directory_of": "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs.",
         "watch": "Follow a directory outside the project the way a run follows the project: a script loaded from it hot reloads when its file changes. A script hears each burst of changes once with `events::listen(this.node, \"files_changed\")`, as `on_files_changed(paths)`, each path spelled from `directory` and with one of `extensions`, or any file when that is empty. An empty list is more than the watcher could name, so what is held has to be checked again. Answers false where nothing can be followed: a pack, a browser, a run with watching off. The directory has to be one `fs` may reach."
@@ -20358,8 +20348,6 @@
         "set_paused",
         "set_script_profiling",
         "set_time_scale",
-        "store",
-        "stored",
         "target",
         "tick",
         "tick_hz",
@@ -20393,8 +20381,6 @@
         "set_paused": "(bool)",
         "set_script_profiling": "(bool)",
         "set_time_scale": "(float)",
-        "store": "(str, any)",
-        "stored": "(str) -> any",
         "target": "() -> engine::Target",
         "tick": "() -> int",
         "tick_hz": "() -> int",
@@ -26250,17 +26236,18 @@
         "component_schema": "A component type's property schema as a table, its properties in the order it writes them; nil for a name nothing registered.",
         "component_tags": "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered.",
         "component_types": "The names of every registered component type, not the components on any node.",
+        "current": "The root of the scene the last `switch`, or the run's start, built under a node, the tree's root when nil; no node while none stands there.",
         "instantiate": "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it.",
         "keep_changes": "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged.",
         "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
-        "parked": "Every scene `switch` kept built, by the path it was asked for, oldest first.",
+        "preload": "Ready a scene before a switch to it: its file and every prefab under it read and parsed now, and the pictures they name decoding on a worker thread. No node is built and nothing in the world changes, so a replay that never preloaded builds the same world. An error when a file does not read or parse, said now rather than at the switch.",
         "root": "The tree's root node.",
         "set_variable": "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing.",
-        "switch": "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene left stays built and parked, and a scene already parked comes back as it was, with no node built and no `init` run; each of their scripts is told `on_parked_changed`. A parked scene does not update, draw, take input or hear a hook, an event or a call, and a task its script awaits holds until it returns. A script reaching it can still read and write its components; it takes no new node or script. A digest and a snapshot cover it, a save holds nothing of it, and the change log says nothing of a park or a return. A file edited since the scene was built is built again on the way back. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second. What stays parked is bounded by itself: past 20,000 parked nodes the scene left longest ago is freed, and a system memory warning frees them all; a scene freed is built again the next time it is asked for, its `init` running. Reset is a switch to the file already there, which frees it and builds it again; to come back to a scene new from elsewhere, `unload` it first.",
+        "switch": "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene the last switch built under `under` is freed, each of its scripts' `on_free` running, and `path` is built there new, every `init` running: a visit always starts fresh, and a switch to the file already there is a reset. `under` is the tree's root when nil, where the main scene stands; only that scene's own root goes, so a node a script made beside it under the same parent stays and keeps running. `fade` is seconds of crossover: the old scene's root fades out to the clear colour over the first half, the switch happens, and the new one fades in over the second. A scene `preload` warmed builds from its caches; one it did not is read on the frame.",
         "tagged": "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed.",
         "take_changes": "The changes kept since the last take, oldest first, emptying the list: `{ node, kind, id }` with `kind` one of `component` (`component`, `properties`, `was`: the table asked before), `attached`, `removed` (`was`), `added` (`parent`), `freed` (`parent`, `place`, `was`: the subtree as scene text), `renamed` (`was`), `moved` (`parent`, `was`: `{ parent, place }`), `script` (`was`: `{ source, props }`, nil for none) and `keys` (`was`: every one of the node's own keys, `visible` to `tags`). Parents are stable ids, so a change outlives the nodes it names.",
         "to_toml": "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `root` writes every path under that project's root as it spells it.",
-        "unload": "Lets go of a scene: frees it if it is parked, its scripts' `on_free` running as for any node freed, and drops what its file and prefabs have cached, the parsed text and the pictures they name. The scene running stays where it is, and a picture something still draws is read again when it next asks.",
+        "unload": "Let go of what `preload`, or a pack warming its scenes, readied: the parsed text of the file and its prefabs, and the pictures they name. A scene standing stays where it is, and a picture something still draws is read again when it next asks.",
         "variable": "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`.",
         "variables": "Every declared variable as `{ name, type, value }`, in name order.",
         "warnings": "What is off about the node, as `{ component, property, message }`: a component missing one it expects, a write its component refused, and what a component says of itself. `property` is nil for the whole component; advisory only.",
@@ -26276,10 +26263,11 @@
         "component_schema",
         "component_tags",
         "component_types",
+        "current",
         "instantiate",
         "keep_changes",
         "node_by_id",
-        "parked",
+        "preload",
         "root",
         "set_variable",
         "switch",
@@ -26303,10 +26291,11 @@
         "component_schema": "(str) -> any",
         "component_tags": "(str) -> [str]?",
         "component_types": "() -> [str]",
+        "current": "(Node?) -> Node",
         "instantiate": "(str, Node?, scene::InstantiateOptions?)",
         "keep_changes": "(Node?)",
         "node_by_id": "(str, Node?) -> Node",
-        "parked": "() -> [str]",
+        "preload": "(str)",
         "root": "() -> Node",
         "set_variable": "(str, any)",
         "switch": "(str, scene::SwitchOptions?)",
@@ -27116,6 +27105,11 @@
       "debugger_resumed",
       "nil",
       "The script the debugger last said was stopped went on."
+    ],
+    [
+      "replay_state_changed",
+      "the state playback moved to, a `replay::STATE_*` constant",
+      "A recording was loaded, played, paused, sought, ran out or was unloaded."
     ],
     [
       "changed",

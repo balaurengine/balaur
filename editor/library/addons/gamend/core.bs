@@ -3,6 +3,7 @@
 // each call kept in the activity log. The socket is `socket.bs`.
 
 use activity;
+use service;
 
 const OK: str = "ok";
 const CONNECT: str = "connect";
@@ -39,15 +40,16 @@ internal const ERROR: str = "error";
 internal const MESSAGE: str = "message";
 internal const STATUS: str = "status";
 
-/// The server `configure` named, the session, this run's id, each socket by
-/// its id, and the count that names a refusal's answer, in the script store.
-const URL_KEY: str = "gamend:url";
-const SESSION_KEY: str = "gamend:session";
-const RUN_KEY: str = "gamend:run";
-const SOCKETS_KEY: str = "gamend:sockets";
-const REFUSALS_KEY: str = "gamend:refusals";
 /// What a refused call's answer arrives as, numbered.
 const REFUSAL_EVENT: str = "gamend_refused_";
+/// What a renewal's answer arrives as, numbered as refusals are, and the
+/// fields of the one under way: a second caller waits on it.
+const RENEWAL_EVENT: str = "gamend_renewed_";
+const RENEWAL_FIELD: str = "event";
+const BEGAN: str = "began";
+/// A renewal older than this died with the script that began it: the next
+/// caller begins its own. Longer than a request's own timeout.
+const RENEWAL_STALE: float = 30.0;
 /// The node a socket runs on, under the node `connect` names, its script,
 /// and its first answer: `open`, or why it never opened.
 const SOCKET_NODE: str = "gamend_socket";
@@ -102,9 +104,9 @@ internal fn refusal(message: str) -> any {
 /// An id that wakes with `answer` on a later frame: what a call that sends
 /// nothing hands back, so an await on it still resumes.
 internal fn answer_later(answer: any) -> int {
-    let n = stored_int(REFUSALS_KEY) + 1;
-    engine::store(REFUSALS_KEY, n);
-    let name = REFUSAL_EVENT + "{n}";
+    let state = service::get();
+    state.refusals += 1;
+    let name = REFUSAL_EVENT + "{state.refusals}";
     let id = events::next(name);
     events::emit(name, answer);
     id
@@ -119,7 +121,7 @@ pub async fn rest(method: str, path: str, body: any) -> any {
     let row = activity::started(REST, method + " " + path, body);
     let reply = await send(method, path, body, true);
     if reply[STATUS].as_int() == 401 && refresh_token() != "" {
-        let why = await renew();
+        let why = await renew_session();
         if why == "" {
             reply = await send(method, path, body, true);
         }
@@ -178,15 +180,32 @@ internal fn received(reply: any, sent: float) -> any {
     { KIND: REST, STATUS: reply[STATUS], BODY: decoded, MS: ms }
 }
 
-/// Trade the refresh token for a fresh session. Empty when it worked,
-/// otherwise why not.
-async fn renew() -> str {
+/// Trade the refresh token for a new session, once however many ask. A
+/// renewal under way is shared: calls that answered 401 together, and a
+/// socket dialling meanwhile, wait on the one in flight and take its answer,
+/// so they spend one refresh between them (the server counts refreshes per
+/// address, ten a minute). Answers "" when the session was renewed, else
+/// why not.
+pub async fn renew_session() -> str {
+    let state = service::get();
+    let running = state.renewing;
+    if running.kind() == types::KIND_MAP && running.has(RENEWAL_FIELD) && engine::unix_time() - running[BEGAN].as_float() < RENEWAL_STALE {
+        let shared = await task::wait(events::next(running[RENEWAL_FIELD].as_str()));
+        return shared.text();
+    }
     let body = renewal();
     if body == nil {
         return "no refresh token to renew with";
     }
+    state.renewals += 1;
+    let name = RENEWAL_EVENT + "{state.renewals}";
+    let under_way: any = { RENEWAL_FIELD: name, BEGAN: engine::unix_time() };
+    state.renewing = under_way;
     let reply = await send(POST, REFRESH_PATH, body, false);
-    renewed(reply)
+    let why = renewed(reply);
+    state.renewing = nil;
+    events::emit(name, why);
+    why
 }
 
 /// What a renewal posts, or nil with no refresh token in hand.
@@ -227,7 +246,8 @@ internal fn opened(reply: any, what: str) -> any {
         EXPIRES_IN: lifetime,
         EXPIRES_AT: (engine::unix_time() as int) + lifetime,
     };
-    engine::store(SESSION_KEY, session);
+    let state = service::get();
+    state.session = session;
     {
         KIND: LOGIN,
         USER_ID: session[USER_ID],
@@ -245,15 +265,16 @@ fn kept_text(data: any, before: any, key: str) -> str {
 
 /// The session a sign-in opened, as a map, or nil.
 internal fn held() -> any {
-    let session = engine::stored(SESSION_KEY);
+    let session = service::get().session;
     if session.kind() == types::KIND_MAP && session[ACCESS_TOKEN].as_str() != "" { session } else { nil }
 }
 
 /// Sign in from a kept session without asking the server, or out with nil.
 /// False for a map with no `access_token`.
 internal fn hold(session: any) -> bool {
+    let state = service::get();
     if session == nil {
-        engine::store(SESSION_KEY, {});
+        state.session = nil;
         return true;
     }
     if session[ACCESS_TOKEN].kind() != types::KIND_STRING || session[ACCESS_TOKEN].as_str() == "" {
@@ -270,7 +291,7 @@ internal fn hold(session: any) -> bool {
     if session[EXPIRES_AT].kind() == types::KIND_INT {
         kept[EXPIRES_AT] = session[EXPIRES_AT].as_int();
     }
-    engine::store(SESSION_KEY, kept);
+    state.session = kept;
     true
 }
 
@@ -293,18 +314,19 @@ internal fn stale(margin: float) -> bool {
 /// signs out here, since the session is the old server's.
 internal fn point(named: str) -> str {
     let was = url();
-    engine::store(URL_KEY, named);
+    let state = service::get();
+    state.url = named;
     let now = url();
     if now != was {
-        engine::store(SESSION_KEY, {});
+        state.session = nil;
     }
     now
 }
 
 /// The server every call goes to.
 internal fn url() -> str {
-    let named = engine::stored(URL_KEY);
-    let chosen = if named.kind() == types::KIND_STRING && named.as_str() != "" { named.as_str() } else { target().url };
+    let named = service::get().url;
+    let chosen = if named != "" { named } else { target().url };
     trimmed(chosen)
 }
 
@@ -351,16 +373,15 @@ async fn clocked() {
 /// together. Made once, from the clock a replay reads back; empty before
 /// the clock is read.
 internal fn run_id() -> str {
-    let kept = engine::stored(RUN_KEY);
-    if kept.kind() == types::KIND_STRING {
-        return kept.as_str();
+    let state = service::get();
+    if state.run != "" {
+        return state.run;
     }
     if engine::unix_time() <= 0.0 {
         return "";
     }
-    let made = "balaur-" + "{(engine::unix_time() * 1000000.0) as int}";
-    engine::store(RUN_KEY, made);
-    made
+    state.run = "balaur-" + "{(engine::unix_time() * 1000000.0) as int}";
+    state.run
 }
 
 // The socket's calls, each kept in the activity log: each answers an id to
@@ -385,14 +406,15 @@ internal fn connect(node: Node) -> int {
     held.attach_script(SOCKET_SCRIPT);
     let socket = events::next(OPENED, held);
     kept["{socket}"] = held;
-    engine::store(SOCKETS_KEY, kept);
+    let state = service::get();
+    state.sockets = kept;
     held.call("start", socket, node, row);
     socket
 }
 
 /// Every socket this run made, still on its node, by id.
 internal fn sockets() -> any {
-    let held = engine::stored(SOCKETS_KEY);
+    let held = service::get().sockets;
     let out: any = {};
     if held.kind() != types::KIND_MAP {
         return out;
@@ -535,9 +557,4 @@ pub fn unpack(reply: any) -> any {
     }
     let data = if payload.has(DATA) { payload[DATA] } else { payload };
     { OK: true, DATA: data, ERROR: "", STATUS: status }
-}
-
-fn stored_int(key: str) -> int {
-    let held = engine::stored(key);
-    if held.kind() == types::KIND_INT { held.as_int() } else { 0 }
 }

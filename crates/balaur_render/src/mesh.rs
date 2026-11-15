@@ -239,6 +239,7 @@ pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
     }
     for (entity, mesh, topology, color) in wanted {
         install(eng, entity, mesh, topology, color);
+        crate::mirror::look_again(eng, entity);
     }
     for entity in drawn {
         let _ = eng.insert_one(entity, SolverDrawn);
@@ -251,6 +252,7 @@ pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
         .iter()
         .collect();
     for entity in gone {
+        crate::mirror::look_again(eng, entity);
         let _ = eng.remove_one::<SolverDrawn>(entity);
         let ours = eng
             .world()

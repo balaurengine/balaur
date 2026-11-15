@@ -31,7 +31,6 @@ in [components.md](./components.md).
 <tr><td><code>on_variable_changed(name, value, source)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
 <tr><td><code>on_state_changed(was, now, source)</code></td><td>The node&#x27;s <code>states</code> moved to another state.</td></tr>
 <tr><td><code>on_paused_changed(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>
-<tr><td><code>on_parked_changed(parked)</code></td><td>A <code>scene.switch</code> parked the script&#x27;s scene, or brought it back; nothing else reaches it between the two, and <code>init</code> does not run again, so coming back is where it catches up.</td></tr>
 <tr><td><code>on_focused_changed(focused)</code></td><td>The window came to the front or left it, told to every script.</td></tr>
 <tr><td><code>on_dark_mode_changed(dark)</code></td><td>The system switched dark mode, told to every script.</td></tr>
 <tr><td><code>on_quit_requested()</code></td><td>The window was asked to close; every script hears it, then the app goes.</td></tr>
@@ -82,6 +81,7 @@ said only while someone listens.
 <tr><td><code>files_changed</code></td><td>the paths, as a list; empty when the watcher lost count</td><td>A burst of file writes under a directory <code>engine::watch</code> follows has ended.</td></tr>
 <tr><td><code>debugger_stopped</code></td><td>where a script is stopped</td><td>A script stopped, or stopped somewhere else.</td></tr>
 <tr><td><code>debugger_resumed</code></td><td>nil</td><td>The script the debugger last said was stopped went on.</td></tr>
+<tr><td><code>replay_state_changed</code></td><td>the state playback moved to, a <code>replay::STATE_*</code> constant</td><td>A recording was loaded, played, paused, sought, ran out or was unloaded.</td></tr>
 <tr><td><code>changed</code></td><td>a list of <code>{ node, kind, .. }</code> maps</td><td>A write changed the scene since the last frame; heard from a node, the entries under it alone.</td></tr>
 <tr><td><code>platform_event</code></td><td>who is playing now</td><td>The player signed out in the OS, or signed in as someone else.</td></tr>
 <tr><td><code>apple_event</code></td><td>what arrived, carrying request 0</td><td>Something nobody asked for arrived: a notification tapped, a URL opened, a push token, a transaction from another device.</td></tr>

@@ -29,11 +29,12 @@ const IN_VIEW: int = 10;
 // Rows built: past this the all-buttons are the answer, and the rest a count.
 const LISTED: int = 200;
 
-/// Follow the project's code. A run started with `--state` keeps to what it
-/// was told to do, so a suite's own writes do not come back to it.
+/// Follow the project's files: its code, and every file a read is cached
+/// from. A run started with `--state` keeps to what it was told to do, so a
+/// suite's own writes do not come back to it.
 pub fn follow(state: &mut editor::State) {
     if state.start_states == "" && state.game_root != "" {
-        engine::watch(state.game_root, ["bs", "wesl"]);
+        engine::watch(state.game_root, []);
     }
 }
 
@@ -63,15 +64,22 @@ pub fn moved(state: &mut editor::State, old: str, path: str, text: str) {
 }
 
 /// A burst of files changed under the project, by something else or by the
-/// editor's own write, which the text tells apart. Each path costs a lookup,
-/// and a read only where a buffer has to be compared. An empty list is more
-/// than the watcher could name: everything open is checked.
+/// editor's own write, which the text tells apart. Each script or shader
+/// costs a lookup, and a read only where a buffer has to be compared. An
+/// empty list is more than the watcher could name: everything open is checked.
 pub fn heard(state: &mut editor::State, paths: any) {
-    let named = util::list_or_empty(paths);
-    if named.len() == 0 {
+    let named: [any] = [];
+    for one in util::list_or_empty(paths) {
+        if is_code(one.as_str()) {
+            named.push(one);
+        }
+    }
+    if util::list_or_empty(paths).len() == 0 {
         model::forget(state);
         named = state.script_buffers.keys();
         named.push(center::open_path(state));
+    } else if named.len() == 0 {
+        return;
     }
     let taken: [str] = [];
     let script = false;
@@ -104,6 +112,11 @@ pub fn heard(state: &mut editor::State, paths: any) {
     take_files(state, taken);
     signals::bars(state);
     ask(state);
+}
+
+// What a code buffer can hold: the rest of a burst is the cached reads'.
+fn is_code(path: str) -> bool {
+    path.ends_with(SCRIPT) || path.ends_with(SHADER)
 }
 
 fn hold(state: &mut editor::State, path: str) {

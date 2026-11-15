@@ -195,6 +195,7 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector2) -> bool {
         };
         transform.position.x += translation.x;
         transform.position.y += translation.y;
+        balaur_core::transform::written(eng, entity);
         // The node's own rotation, not identity: a character authored at an
         // angle would otherwise snap upright the first time it moved.
         let (angle, _, _) = transform.rotation.to_euler(EulerRot::ZYX);

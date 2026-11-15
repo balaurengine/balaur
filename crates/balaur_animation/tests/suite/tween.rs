@@ -58,6 +58,7 @@ fn place(app: &App, entity: Entity, at: Vec3) {
         .get::<&mut Transform>(entity)
         .unwrap()
         .position = at;
+    balaur_core::transform::written(&app.engine, entity);
 }
 
 fn near(got: f32, want: f32, what: &str) {
@@ -728,6 +729,7 @@ fn a_tween_rotates_from_the_rotation_the_node_already_had() {
         .get::<&mut Transform>(entity)
         .unwrap()
         .rotation = balaur_animation::sampler::quat_from_euler(Vec3::new(0.0, 0.3, 0.0));
+    balaur_core::transform::written(&app.engine, entity);
     start(
         &app,
         entity,
@@ -756,6 +758,7 @@ fn a_by_step_on_a_quaternion_rotation_composes_the_turn() {
         .get::<&mut Transform>(entity)
         .unwrap()
         .rotation = balaur_animation::sampler::quat_from_euler(Vec3::new(0.0, 0.0, 0.5));
+    balaur_core::transform::written(&app.engine, entity);
     let quarter = balaur_animation::sampler::quat_from_euler(Vec3::new(0.0, 0.0, FRAC_PI_2));
     start(
         &app,

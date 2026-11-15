@@ -215,8 +215,12 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
         let _ = eng.insert_one(entity, SolverDrawn2d(topology));
     }
     for (entity, color) in tinted {
-        if let Ok(mut drawn) = eng.world().get::<&mut Renderable2d>(entity) {
+        if let Ok(mut drawn) = eng.world().get::<&mut Renderable2d>(entity)
+            && drawn.color.map(f32::to_bits) != color.map(f32::to_bits)
+        {
             drawn.color = color;
+            drop(drawn);
+            crate::mirror::look_again(eng, entity);
         }
     }
     let gone: Vec<Entity> = eng
@@ -229,6 +233,7 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
     for entity in gone {
         let _ = eng.remove_one::<SolverDrawn2d>(entity);
         let _ = eng.remove_one::<Renderable2d>(entity);
+        crate::mirror::look_again(eng, entity);
     }
 }
 

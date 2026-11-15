@@ -1,10 +1,36 @@
-//! Whether the system is in dark mode, asked of each platform its own way.
-//! Every answer is cheap enough to read each frame; Linux's and Windows' come
-//! from a `mundy` subscription, and the frame reads what it last heard.
+//! Whether the system is in dark mode, asked of each platform its own way,
+//! and kept once the platform announces it: winit's theme event on a desktop
+//! window, Linux's and Windows' `mundy` subscription, a page's `matchMedia`
+//! listener. An iPhone is asked every frame and an Android phone when its
+//! configuration changes, since neither announces the answer.
+
+use std::sync::atomic::{AtomicU8, Ordering};
+
+const UNHEARD: u8 = 0;
+const LIGHT: u8 = 1;
+const DARK: u8 = 2;
+
+/// What the platform last announced, or [`UNHEARD`] before it has.
+static HEARD: AtomicU8 = AtomicU8::new(UNHEARD);
+
+/// The platform announced its appearance: kept as the answer from now on,
+/// and the device facts read again. Any thread.
+pub(crate) fn hear(dark: bool) {
+    HEARD.store(if dark { DARK } else { LIGHT }, Ordering::Relaxed);
+    crate::device::moved();
+}
 
 /// True where the system says dark; false where it says light or nothing.
-#[cfg(target_os = "macos")]
 pub(crate) fn is_dark() -> bool {
+    match HEARD.load(Ordering::Relaxed) {
+        DARK => true,
+        LIGHT => false,
+        _ => asked(),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn asked() -> bool {
     // The system setting first: an offscreen run has no application to ask,
     // and one that has not opened a window yet answers with the default
     // light appearance whatever the desktop is set to.
@@ -23,15 +49,35 @@ pub(crate) fn is_dark() -> bool {
     name.to_string().contains("Dark")
 }
 
+/// The page's answer, with a listener on the query so every change after is
+/// heard rather than asked.
 #[cfg(target_family = "wasm")]
-pub(crate) fn is_dark() -> bool {
-    web_sys::window()
-        .and_then(|w| w.match_media("(prefers-color-scheme: dark)").ok().flatten())
-        .is_some_and(|list| list.matches())
+fn asked() -> bool {
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen::closure::Closure;
+    const DARK_QUERY: &str = "(prefers-color-scheme: dark)";
+    const CHANGE: &str = "change";
+    let Some(list) = web_sys::window().and_then(|w| w.match_media(DARK_QUERY).ok().flatten())
+    else {
+        return false;
+    };
+    let changed = {
+        let list = list.clone();
+        Closure::<dyn FnMut()>::new(move || {
+            hear(list.matches());
+            balaur_core::wake::wake();
+        })
+    };
+    let _ = list.add_event_listener_with_callback(CHANGE, changed.as_ref().unchecked_ref());
+    // Heard for the page's life: only the first ask gets here, the rest are heard.
+    changed.forget();
+    let dark = list.matches();
+    HEARD.store(if dark { DARK } else { LIGHT }, Ordering::Relaxed);
+    dark
 }
 
 #[cfg(target_os = "ios")]
-pub(crate) fn is_dark() -> bool {
+fn asked() -> bool {
     use objc2_foundation::MainThreadMarker;
     use objc2_ui_kit::{UIScreen, UITraitEnvironment, UIUserInterfaceStyle};
     let Some(mtm) = MainThreadMarker::new() else {
@@ -58,8 +104,10 @@ pub fn keep_android_app(app: &kiss3d::winit::platform::android::activity::Androi
     let _ = ANDROID_APP.set(app.clone());
 }
 
+/// The configuration android-activity keeps; a change to it arrives as
+/// winit's scale event, which asks again.
 #[cfg(target_os = "android")]
-pub(crate) fn is_dark() -> bool {
+fn asked() -> bool {
     use kiss3d::winit::platform::android::activity::ndk::configuration::UiModeNight;
     ANDROID_APP
         .get()
@@ -68,12 +116,10 @@ pub(crate) fn is_dark() -> bool {
 
 /// The desktop's own setting as `mundy` reads it: the XDG portal's
 /// `color-scheme` on Linux, the Settings app's choice on Windows. Subscribed
-/// once, so a change reaches the next frame without anything asking again.
+/// once, so every change after is heard rather than asked.
 #[cfg(any(target_os = "linux", windows))]
-pub(crate) fn is_dark() -> bool {
+fn asked() -> bool {
     use std::sync::OnceLock;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    static DARK: AtomicBool = AtomicBool::new(false);
     static WATCH: OnceLock<mundy::Subscription> = OnceLock::new();
     let dark = |prefs: &mundy::Preferences| prefs.color_scheme == mundy::ColorScheme::Dark;
     WATCH.get_or_init(|| {
@@ -83,14 +129,19 @@ pub(crate) fn is_dark() -> bool {
             mundy::Interest::ColorScheme,
             std::time::Duration::from_millis(250),
         );
-        DARK.store(first.as_ref().is_some_and(dark), Ordering::Relaxed);
+        let first = if first.as_ref().is_some_and(dark) {
+            DARK
+        } else {
+            LIGHT
+        };
+        let _ = HEARD.compare_exchange(UNHEARD, first, Ordering::Relaxed, Ordering::Relaxed);
         mundy::Preferences::subscribe(mundy::Interest::ColorScheme, move |prefs| {
-            DARK.store(dark(&prefs), Ordering::Relaxed);
+            hear(dark(&prefs));
             // A loop asleep between inputs draws the new look only once woken.
             balaur_core::wake::wake();
         })
     });
-    DARK.load(Ordering::Relaxed)
+    HEARD.load(Ordering::Relaxed) == DARK
 }
 
 #[cfg(not(any(
@@ -101,6 +152,6 @@ pub(crate) fn is_dark() -> bool {
     target_os = "android",
     target_os = "linux"
 )))]
-pub(crate) const fn is_dark() -> bool {
+const fn asked() -> bool {
     false
 }

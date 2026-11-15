@@ -97,6 +97,7 @@ fn turning_the_node_turns_its_instances() {
         transform.position = Vec3::new(0.0, 0.0, 5.0);
         transform.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
     }
+    balaur_core::transform::written(&app.engine, owner);
     app.tick(1.0 / 60.0);
     let at = placed(&app, owner);
     assert!(near(at[0], Vec3::new(0.0, 0.0, 3.0)), "{at:?}");

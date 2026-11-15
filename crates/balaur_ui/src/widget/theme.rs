@@ -922,8 +922,9 @@ pub(crate) const ASSET_TYPE: &str = "widget_theme";
 /// The measure pass calls this too, so a row is sized at the face it draws at.
 /// Dress the egui widgets a kind is drawn from in that kind's own style.
 ///
-/// A `number_field`, a `slider` and a `text_field` are egui's widgets, so they
-/// wear egui's palette unless the theme is told to them here: a screen whose
+/// A `number_field`, a `slider`, a `text_field`, a `checkbox`, a `dropdown`
+/// and a `menu` are egui's widgets, so they wear egui's palette unless the
+/// theme is told to them here: a screen whose
 /// theme names a `[number_field]` would otherwise show egui's grey beside the
 /// buttons it dressed itself. A theme that names nothing changes nothing.
 pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
@@ -964,7 +965,10 @@ pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
         if let Some(radius) = radius {
             state.corner_radius = radius;
         }
-        if let Some(color) = look.text_color {
+        // What egui strokes in the widget's foreground: a checkbox's tick, a
+        // dropdown's arrow. Its `icon_color`, the mark a theme names apart
+        // from the caption, else its text's.
+        if let Some(color) = look.icon_color.or(look.text_color) {
             state.fg_stroke.color = color;
         }
     }

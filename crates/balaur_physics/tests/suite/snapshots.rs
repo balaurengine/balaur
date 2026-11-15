@@ -184,7 +184,7 @@ pixels_per_unit = 16.0
         assert_eq!(tile_rows(&app, field), 1, "the live map has no {field} row");
     }
     let map = node(&app, "Map");
-    balaur_core::scene::free_subtree(&mut app.engine.world_mut(), map);
+    balaur_core::scene::free_node(&app.engine, map);
     app.tick(1.0 / 60.0);
     for field in fields {
         assert_eq!(

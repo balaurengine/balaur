@@ -1,0 +1,54 @@
+// The node the client keeps its state on, one per app, made beside the scene
+// on first use. Tagged `local`: no snapshot or multiplayer join writes it.
+
+const NAME: str = "GamendClient";
+const SCRIPT: str = "addons/gamend/service.bs";
+const LOCAL: str = "local";
+
+pub class Service {
+    node: Node,
+    /// The server and the hook plugin `configure` named; empty takes `[gamend]`'s.
+    internal url: str,
+    internal plugin: str,
+    /// The session a sign-in opened, a map; `{}` or nil when signed out.
+    internal session: any,
+    /// This run's id, empty until the clock is read.
+    internal run: str,
+    /// Every socket this run made, its node by id.
+    internal sockets: any,
+    /// How many refusals and renewals have been numbered.
+    internal refusals: int,
+    internal renewals: int,
+    /// The renewal under way, `{ event, began }`.
+    internal renewing: any,
+    /// The rows the server sent by row id, the rows subscribed, the topics
+    /// joined, and the writes in flight by key.
+    internal rows: any,
+    internal keys: any,
+    internal topics: any,
+    internal writes: any,
+    /// `open`, `reconnecting` or `failed`; empty until a socket says.
+    internal network: str,
+    /// Every user this client has seen, by id.
+    internal roster: any,
+    /// What `log_sink.bs` last reported, and whether the dock asked it to flush.
+    internal logs: any,
+    internal flush: bool,
+    /// The activity log's rows by their place in the ring, the first `clear`
+    /// left, and how many were ever kept.
+    internal activity: any,
+    internal activity_from: int,
+    internal activity_count: int,
+}
+
+/// The client's state.
+internal fn get() -> Service {
+    let at = scene::root().get_node(NAME);
+    if !at.is_valid() {
+        at = scene::root().add_child(NAME);
+        at.add_tag(LOCAL);
+        at.attach_script(SCRIPT);
+    }
+    let found: Service? = at.script;
+    found.unwrap()
+}

@@ -483,6 +483,45 @@ fn a_dialog_dims_the_screen_and_keeps_clicks_from_what_is_behind() {
     );
 }
 
+// A screen authors its own confirm: a dialog inside a column is still a
+// root, in the middle of the surface, and a shut one draws nothing.
+#[test]
+fn a_dialog_inside_a_screen_opens_over_it_and_shuts() {
+    let (_dir, app) = app();
+    let page = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 300.0 height = 400.0 }.into(),
+    );
+    let behind = toml::toml! { kind = "button" };
+    add_child_widget(&app, page, "Behind", &behind.into());
+    let asked = toml::toml! { kind = "dialog" text = "Sure?" width = 200.0 height = 100.0 };
+    let dialog = add_child_widget(&app, page, "Sure", &asked.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = root_rect(&ctx, dialog);
+    assert!(
+        (rect.center() - pos2(320.0, 240.0)).length() < 2.0,
+        "the dialog sits in the middle of the surface, not in its column: {rect:?}"
+    );
+    let says = |out: &egui::FullOutput| texts(out).iter().any(|(text, _)| text == "Sure?");
+    assert!(
+        says(&pass(&app, &ctx, vec![])),
+        "an open dialog draws its words"
+    );
+    balaur::components::add(
+        &app.engine,
+        dialog,
+        "widget_window",
+        Some(&toml::toml! { open = false }.into()),
+    )
+    .unwrap();
+    settle(&app, &ctx);
+    assert!(
+        !says(&pass(&app, &ctx, vec![])),
+        "and a shut one inside a screen draws nothing"
+    );
+}
+
 #[test]
 fn a_fill_root_takes_the_surface_less_its_inset() {
     let (_dir, app) = app();

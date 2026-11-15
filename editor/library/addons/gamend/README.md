@@ -28,6 +28,7 @@ Beside the generated modules and `events.bs`, written by hand:
 | `gamend::auth` | The session, sign-in through a provider, and the session kept for the next run |
 | `gamend::socket` | The realtime socket's node: Phoenix Channels over `websocket`, heartbeats, reconnects and rejoins |
 | `gamend::presence` | The user cache |
+| `gamend::service` | The client's node, made beside the scene and tagged `local`: the server, the session, the sockets and every cache |
 | `gamend::prefs` | The player's prefs on this device |
 | `gamend::logs` | This run's log, shipped in batches; put `log_sink.bs` on a node that lives as long as the game |
 | `gamend::commands` | Generated: one function per event a channel answers |

@@ -159,7 +159,7 @@ pub(crate) fn rumble_system(eng: &Engine, dt: f32) {
     let mut state = state.borrow_mut();
     // From the pads as the tick sees them, polled or restored, so a replay
     // drops a gone pad's rumble on the tick the recording did.
-    let connected: Vec<i64> = state.pads().iter().map(|pad| pad.id).collect();
+    let connected: Vec<i64> = state.listed().iter().map(|pad| pad.id).collect();
     state.rumble.forget_all_but(&connected);
     let step = state.rumble.step(dt);
     deliver(eng, &state, &step);

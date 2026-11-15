@@ -20,8 +20,8 @@ flowchart TD
     app --> root[Root node]
     frame -->|runs each stage| stages[Systems]
     root --> scene[Running scene]
-    parked[Parked scenes] -. switch back .-> scene
-    scene -. switch away .-> parked
+    root --> beside[Nodes beside it]
+    scene -. switch: freed, the next built .-> scene
     scene --> node[Nodes]
     node --> component[Components]
     node --> script[Script instance]
@@ -116,7 +116,7 @@ Each probe reads a count or a flag its subsystem's own step keeps:
 
 Refused or ignored: `busy` answers false under a debugger stop, a held replay and a time scale of zero, since no fixed step runs. A loop without `low_processor`, an offscreen run and a headless run never ask. A looping sound is not pending: the device plays it on its own thread.
 
-Held by a pause, a `process` mode or a parked scene: a held node's timer, clip, tween, machine, emitter and sound are not pending. A paused game holds every body and every `task` wait, and so does `physics::set_paused` for the bodies. A node under `debug_scope`, the scene an editor has open, is never pending: the editor asks for the frames it plays on.
+Held by a pause or a `process` mode: a held node's timer, clip, tween, machine, emitter and sound are not pending. A paused game holds every body and every `task` wait, and so does `physics::set_paused` for the bodies. A node under `debug_scope`, the scene an editor has open, is never pending: the editor asks for the frames it plays on.
 
 ### Exit codes
 
@@ -172,20 +172,19 @@ A frame owes the fixed stage its time through one accumulator. At most `MAX_SUBS
 
 ## What holds what
 
-Eight things can stop part of the game. Each row reads as that one thing acting alone.
+Seven things can stop part of the game. Each row reads as that one thing acting alone.
 
 | Hold | Set by | Fixed stage | `update`, `fixed_update` | `task` waits | Physics | Animation, `timer` | Draws | Hooks and calls |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Game pause | `engine.set_paused(true)` | Runs | Held on `pausable` nodes | All held, `always` nodes too | Both worlds held | Held on `pausable` nodes | Yes | Reach it |
 | `process = disabled` | Scene key, `node.set_process` | Runs | Held in the subtree | Count on, its tasks wait | Runs | Held in the subtree | Yes | Reach it, but `call_all` skips it |
-| Parked scene | `scene.switch` away | Runs | Held | Task held | Bodies and colliders disabled | Held | No | None reach it |
 | Debugger stop | A breakpoint, a step, a caught error | Skipped | `update` held in the debug scope, or everywhere with none, and in the stopped file. `fixed_update` goes with the stage | Held where `update` is | Held with the stage | Held | Yes | `announce` held there, `call_on` reaches it |
 | Paused replay | `replay.pause` | Skipped | Held in the debug scope, or everywhere with none | Held with the stage | Held with the stage | Held | Yes | `announce` held there, `call_on` reaches it |
 | `physics.set_paused(true)` | The editor, a script | Runs | Run | Run | Both worlds held | Run | Yes | Reach it |
 | Time scale 0 | `engine.set_time_scale(0)` | Owed nothing | `update` runs with 0, `fixed_update` does not | Held with the stage | Held with the stage | Held with the stage | Yes | Reach it |
 | Hidden | `node.set_visible(false)` | Runs | Run | Run | Runs | Run | No | Reach it |
 
-`call_all` passes by whatever `update` passes by. `announce` reaches every instance but a parked one or one a debugger stop or a paused replay holds. A run driving at a fixed step ignores the time scale. Physics is one world, so a game pause holds an `always` node's bodies too.
+`call_all` passes by whatever `update` passes by. `announce` reaches every instance but one a debugger stop or a paused replay holds. A run driving at a fixed step ignores the time scale. Physics is one world, so a game pause holds an `always` node's bodies too.
 
 A node's sound holds with its node: `hold_sounds` asks `process::ticks` and `frozen_root` every frame. So a game pause holds a `pausable` node's sound and an `always` node's plays on. `audio::play_file` plays on a node of its own under the scene's root, which holds like any other.
 
@@ -214,6 +213,8 @@ The three holds on the whole simulation. Source: `balaur_core/src/engine.rs`, `f
 
 All three start false and never end. [LIFECYCLE-tools.md](LIFECYCLE-tools.md) has the player and the stop itself.
 
+A hold covers `frozen_root` alone. A node outside it, a tool's own, animates on: its clips, tweens and machines step on a remainder of their own, `AnimationState.held_accumulator`, so the game's stays as the hold left it, and a held player's ended and begun clips are told once it lets go. A script on such a node reads the machine's clock from `engine::unix_time`, which no recording feeds.
+
 ### Process mode
 
 When a node and its subtree tick. Source: `balaur_core/src/process.rs`, `ProcessMode`.
@@ -236,7 +237,7 @@ What the system says about the app, each change told to every script through `an
 | `focused` | true, false | `on_focused_changed` |
 | `dark_mode` | true, false | `on_dark_mode_changed` |
 | `suspended` | true, false: a hidden tab, a covered window, an app sent back | `on_suspended_changed` |
-| `memory_warnings` | A count that only rises. It also frees every parked scene. | `on_low_memory` |
+| `memory_warnings` | A count that only rises. It also ends a pack's warming of its scenes. | `on_low_memory` |
 | `safe_area` | Four insets in pixels | `on_safe_area_changed` |
 | Orientation, derived from the screen size | `portrait`, `landscape` | `on_orientation_changed` |
 
@@ -252,10 +253,7 @@ stateDiagram-v2
     building --> live: scripts attached, every init run
     live --> queued: queue_free
     queued --> freed: Last stage of this frame
-    live --> freed: free, or a parent freed
-    live --> parked: switch away from its scene
-    parked --> live: switch back
-    parked --> freed: budget, memory warning, unload, edited file
+    live --> freed: free, a parent freed, or a switch away from its scene
     freed --> [*]
 ```
 
@@ -264,10 +262,7 @@ stateDiagram-v2
 | `building` | The entity exists with its components. Its script is named, and no `init` in this scene has run. |
 | `live` | Under the tree's root, reached by every pass. |
 | `queued` | On the frame's free list, and still live until `Last`. |
-| `parked` | Under a holder outside the tree, in a scene `scene.switch` left. It stays in the world, the digest and every snapshot. |
 | `freed` | Despawned. A kept handle is stale. |
-
-Refused while parked: `node.add_child`, `node.set_parent`, `node.attach_script` and `scene.instantiate` under it. Components can still be read and written through a kept handle.
 
 ### Two switches on a live node
 
@@ -364,11 +359,11 @@ Counts simulation time down. Source: `balaur_core/src/timer.rs`, `Timer`.
 | true | `left` reaches 0, `one_shot` | false | `timeout` announced |
 | true | `left` reaches 0, not `one_shot` | true | `timeout` announced, the next wait counted on from where this one ended |
 
-Starts false. Held by a pause, a `process` mode or a parked scene: the count stands.
+Starts false. Held by a pause or a `process` mode: the count stands.
 
 ## Script instances
 
-The object a node's script runs on, one per node. Source: `balaur_script_bs/src/host.rs`, `Instance`, and the host's `instances`, `parked` and `held` lists.
+The object a node's script runs on, one per node. Source: `balaur_script_bs/src/host.rs`, `Instance`, and the host's `instances` and `held` lists.
 
 ```mermaid
 stateDiagram-v2
@@ -377,12 +372,8 @@ stateDiagram-v2
     waiting_init --> running: release_inits runs init
     running --> held: pause, process mode, stop or paused replay
     held --> running: the hold ends
-    running --> parked: scene switched away
-    held --> parked: scene switched away
-    parked --> running: scene switched back
     running --> gone: node freed, script detached
     held --> gone: node freed, script detached
-    parked --> gone: scene unloaded
     gone --> [*]
 ```
 
@@ -391,8 +382,7 @@ stateDiagram-v2
 | `waiting_init` | In `instances`, its node in `held`. Exported properties are written, `init` has not run. |
 | `running` | In `instances`, and nothing holds it. Gets `update`, `fixed_update`, `call_all`, `announce` and `call_on`. |
 | `held` | In `instances`, and a pause, a `process` mode, a debugger stop or a paused replay holds it. A stop holds its debug scope and every instance of the file it stopped in, so an editor around the game runs on. `update`, `fixed_update` and `call_all` pass it by. `call_on` reaches it, and `announce` does under a pause or a mode. |
-| `parked` | In `parked`. No pass or call finds it. `save_state` and a hot reload still do. |
-| `gone` | Out of both lists, `gone` set, its object dropped. A pass begun before still holds it and calls nothing. |
+| `gone` | Out of `instances`, `gone` set, its object dropped. A pass begun before still holds it and calls nothing. |
 
 `held` and `running` are not stored: each pass asks. While a method runs, the object is out of the instance (`obj` is none) and a call back in runs on a second holder (`lent`). That is a moment within `running`, not a state of its own.
 
@@ -401,15 +391,13 @@ stateDiagram-v2
 | none | `attach_with_props`, with `hold_inits` in force | `waiting_init` | Properties written |
 | none | `attach_with_props`, no hold | `running` | `init` runs at once |
 | `waiting_init` | Outermost `release_inits` | `running` | `init` runs, in attach order |
-| `running`, `held` | `parked::park_current` | `parked` | `on_parked_changed(true)` first, then `set_parked` moves it and its tasks |
-| `parked` | `parked::unpark` | `running` | `set_parked`, then `on_parked_changed(false)`. No `init`. |
 | any | `detach` | `gone` | `on_free`, tasks cancelled |
-| any | A reload of its file | same | Fields carried across by name, tasks ended with a warning, `on_hot_reload` told. A parked instance is carried and not told. |
+| any | A reload of its file | same | Fields carried across by name, tasks ended with a warning, `on_hot_reload` told. |
 | any | A rebuild for the debugger, breakpoints set or cleared | same | Fields carried across by name, tasks ended with a warning. The code did not change, so `on_hot_reload` is not told. |
 
 ### Tasks
 
-An async method suspended on the engine. Source: `balaur_script_bs/src/host/tasks.rs`, `Pending`, and the host's `tasks` and `parked_tasks` lists. A task has no field for these. They are derived from the lists and the runtime.
+An async method suspended on the engine. Source: `balaur_script_bs/src/host/tasks.rs`, `Pending`, and the host's `tasks` list. A task has no field for these. They are derived from the list and the runtime.
 
 ```mermaid
 stateDiagram-v2
@@ -419,17 +407,11 @@ stateDiagram-v2
     waiting --> woken: token woken
     woken --> waiting: next await
     woken --> done: returned
-    waiting --> parked: its scene parked
-    woken --> parked: its scene parked
-    parked --> waiting: scene returned, not yet woken
-    parked --> woken: scene returned, wake kept
     waiting --> cancelled: node freed, file reloaded
-    parked --> cancelled: scene unloaded
     first_poll --> stopped: debugger stop
     woken --> stopped: debugger stop
     stopped --> waiting: debugger resume, next await
     stopped --> done: debugger resume, returned
-    stopped --> parked: debugger resume, next await, its scene parked
     done --> [*]
     cancelled --> [*]
 ```
@@ -439,18 +421,17 @@ stateDiagram-v2
 | `first_poll` | Inside `start`, running up to its first await. |
 | `waiting` | In `tasks`, the runtime awaiting its token. Polling finds nothing to do. |
 | `woken` | In `tasks`, its token's value kept in the runtime. The next `run_tasks` goes on, unless something holds its node or its file holds a debugger stop. |
-| `parked` | In `parked_tasks`. Wakes are kept and nothing polls it. |
-| `stopped` | Taken out of the lists and held by the debugger's stop with its object. |
+| `stopped` | Taken out of the list and held by the debugger's stop with its object. |
 | `done` | Returned. A caller awaiting it through `call_async` is woken on the next step. |
 | `cancelled` | Dropped: its node was freed, or its file reloaded, which logs a warning. |
 
-`run_tasks` runs from every `update` and from each wake. A wait from `task::frames` or `task::seconds` counts fixed steps, stops counting in a paused game, and its wake is kept for a task whose scene is parked.
+`run_tasks` runs from every `update` and from each wake. A wait from `task::frames` or `task::seconds` counts fixed steps, and stops counting in a paused game.
 
 ## Scene switches
 
 ### The switch
 
-What a `scene.switch` is doing. Source: `balaur_core/src/scene_switch.rs`, `Pending` and `Crossing`. Derived from `Pending.scene` and `Pending.crossing`.
+What a `scene.switch` is doing for one node: the tree's root, or the `under` it names. Source: `balaur_core/src/scene_switch.rs`, `Pending`, `Crossing` and `Scenes`. Derived from the request and the crossing for that node.
 
 ```mermaid
 stateDiagram-v2
@@ -468,58 +449,37 @@ stateDiagram-v2
 
 | State | What is true |
 | --- | --- |
-| `idle` | `scene` none, `crossing` none. |
-| `asked` | `scene` holds the path. The last request in a tick is the one that happens. A scene the head of a pack in pieces lists stays asked until its tail arrives (`balaur_core::pack_tail`). |
-| `fading_out` | `crossing.scene` holds the path. The roots' tint alpha falls to 0. |
-| `fading_in` | `crossing` holds no scene. The new roots' tint alpha rises to 1. |
+| `idle` | No request and no crossing for the node. |
+| `asked` | A request holds the path. The last request for a node in a tick is the one that happens. A scene the head of a pack in pieces lists stays asked until its tail arrives (`balaur_core::pack_tail`). |
+| `fading_out` | The crossing holds the path. The standing scene's root tint alpha falls to 0. |
+| `fading_in` | The crossing holds no scene. The new root's tint alpha rises to 1. |
 
-The switch runs in `Last`, so a script asking inside `update` is not moving the tree it runs in. A failed build logs an error, with the scene left already parked or freed.
+The switch runs in `Last`, so a script asking inside `update` is not moving the tree it runs in. It frees the root the last switch built under the node, each script's `on_free` running, then builds the file there with every `init`. Other children of the node are left alone. A failed build logs an error, with the scene left already freed.
 
 ### A scene
 
-What one scene file is to the engine. Derived from `SceneFiles` (`balaur_core/src/project.rs`) and `Parked` (`balaur_core/src/parked.rs`).
+What one scene file is to the engine. Derived from `SceneFiles` (`balaur_core/src/project.rs`) and `Scenes` (`balaur_core/src/scene_switch.rs`).
 
 ```mermaid
 stateDiagram-v2
     [*] --> cold
-    cold --> warm: a pack warming its scenes, or any read
-    warm --> running: switch builds it
-    cold --> running: switch builds it
-    running --> parked: switch elsewhere
-    parked --> running: switch back, no init
-    running --> running: switch to the same file, rebuilt
-    parked --> warm: budget, memory warning, session start
-    parked --> running: switch back after an edit, rebuilt
-    parked --> cold: scene.unload
+    cold --> warm: scene.preload, a pack warming its scenes, or any read
+    warm --> standing: switch builds it
+    cold --> standing: switch builds it
+    standing --> standing: switch to the same file, rebuilt
+    standing --> warm: switch elsewhere, freed
     warm --> cold: scene.unload
-    running --> warm: left, past the budget alone
 ```
 
 | State | What is true |
 | --- | --- |
 | `cold` | Nothing kept. A switch reads and parses the file and decodes its pictures on the frame. |
-| `warm` | The file and its prefabs are parsed in `SceneFiles`, and pictures are decoding or uploaded. No node exists. |
-| `running` | Its tree is under the root, and `Parked.current` names the file. |
-| `parked` | Its tree hangs from a holder, listed in `Parked.scenes`. `scene.parked()` names it. |
+| `warm` | The file and its prefabs are parsed in `SceneFiles`, and pictures are decoding or uploaded. No node exists. An edited file is parsed again on its next read, its modified time moved. |
+| `standing` | Its root hangs under the node a switch named, and `Scenes` lists the node, the file and the root. `scene.current(under)` answers the root. |
 
 | From | Trigger | To | What it does |
 | --- | --- | --- | --- |
-| `running` | Switch elsewhere | `parked` | `on_parked_changed(true)`, scripts and tasks moved, plugins told, roots handed to a new holder |
-| `parked` | Switch back, files unchanged | `running` | Roots handed back, transforms composed, plugins and scripts told |
-| `parked` | Switch back, a file changed | `running` | The kept tree freed and the file built, `init` running |
-| `parked` | Parked nodes past `MAX_PARKED_NODES`, oldest scene first | `warm` | Freed, `on_free` running |
-| `running` | Switch elsewhere, the tree alone past `MAX_PARKED_NODES` | `warm` | Freed instead of parked, `on_free` running. A tree built by hand, with no file to come back by, goes the same way. |
-| `parked` | A system memory warning | `warm` | Every parked scene freed |
-| `parked` | A multiplayer session starts | `warm` | Every parked scene freed |
-| `parked`, `warm` | `scene.unload` | `cold` | Scene freed, parsed files dropped, pictures let go |
-
-`MAX_PARKED_NODES` is 20,000. It counts nodes so that two machines park alike, since a parked tree is in the digest.
-
-What each plugin does when a tree parks or returns:
-
-| Plugin | Parks | Returns |
-| --- | --- | --- |
-| Physics | Colliders and bodies disabled, soft bodies too | Each back to what it asks for |
-| Audio | The node's sound paused, a `listener` passed over | Back to its own `paused` |
-| Touch controls, followers, vehicles, ragdolls, modifiers | Skipped each frame | Go on |
-| Widgets, cameras, lights | Not reached from the root | Reached |
+| `cold` | `scene.preload` | `warm` | Read and parsed, components handed to their preloaders. An error when a file does not read |
+| `standing` | Switch elsewhere under its node | `warm` | Freed, `on_free` running |
+| `standing` | Switch to its own file | `standing` | Freed and built again, `init` running |
+| `warm` | `scene.unload` | `cold` | Parsed files dropped, pictures let go |

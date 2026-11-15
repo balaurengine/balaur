@@ -1,5 +1,5 @@
 //! The library's save addon, as a game uses it: slots in the user data
-//! folder, stamped with `[save] version` and brought forward when older.
+//! folder.
 
 use balaur::{AppConfig, standard_app};
 use balaur_core::variables::Variables;
@@ -17,16 +17,14 @@ name = "Probe"
 script = { source = "scripts/probe.bs" }
 "#;
 
-/// A project carrying the addon at `version`, its user data kept in the
-/// test's folder, with `old` written as a slot before the script runs.
-fn app_with(script: &str, version: i64, old: &[(&str, &str)]) -> (tempfile::TempDir, balaur::App) {
+/// A project carrying the addon, its user data kept in the test's folder,
+/// with `old` written as a slot before the script runs.
+fn app_with(script: &str, old: &[(&str, &str)]) -> (tempfile::TempDir, balaur::App) {
     let dir = tempfile::tempdir().unwrap();
     for (path, text) in [
         (
             "project.toml",
-            format!(
-                "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n\n[save]\nversion = {version}\n"
-            ),
+            "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n".to_string(),
         ),
         ("main.toml", SCENE.to_string()),
         ("scripts/probe.bs", script.to_string()),
@@ -71,11 +69,6 @@ fn tell(what: str) {{
     scene::set_variable("said", scene::variable("said").as_str() + what + ";");
 }}
 
-fn step(version: int, data: any) -> any {{
-    data["steps"] = data["steps"].as_str() + "{{version}}";
-    data
-}}
-
 pub class Probe {{
     node: Node,
     ran: bool,
@@ -95,8 +88,8 @@ impl Probe {{
         tell("ran");
     }}
 
-    pub fn on_saved(count: any) {{
-        tell("saved {{count.as_int()}}");
+    pub fn on_saved(slot: any) {{
+        tell("saved {{slot.text()}}");
     }}
 }}
 "#
@@ -114,50 +107,33 @@ fn a_written_slot_reads_back_is_listed_and_leaves_no_part_file_beside_it() {
         tell("absent {save::read("never") == nil}");
 "#,
     );
-    let (dir, app) = app_with(&script, 1, &[]);
+    let (dir, app) = app_with(&script, &[]);
     let said = said(&app);
     assert!(said.contains("ran;"), "{said}");
     assert!(said.contains("wrote true;"), "{said}");
     assert!(said.contains("level 4 coins 120;"), "{said}");
     assert!(said.contains("slots 1 slot1;"), "{said}");
     assert!(said.contains("absent true;"), "{said}");
-    assert!(said.contains("saved 1;"), "{said}");
+    assert!(said.contains("saved slot1;"), "{said}");
     let saves = dir.path().join("data/saves");
     let text = std::fs::read_to_string(saves.join("slot1.toml")).unwrap();
     let doc: toml::Value = toml::from_str(&text).unwrap();
-    assert_eq!(doc["version"].as_integer(), Some(1), "{text}");
     assert_eq!(doc["data"]["coins"].as_integer(), Some(120), "{text}");
     assert!(!saves.join("slot1.toml.part").exists());
 }
 
 #[test]
-fn an_older_save_is_brought_forward_one_version_at_a_time() {
+fn a_file_that_does_not_parse_and_a_slot_named_like_a_path_are_refused() {
     let script = probe(
         r#"
-        save::migrate_with(step);
-        tell("steps {save::read("old")["steps"].as_str()}");
-"#,
-    );
-    let old = "version = 1\n[data]\nsteps = \"\"\n";
-    let (_dir, app) = app_with(&script, 3, &[("old", old)]);
-    let said = said(&app);
-    assert!(said.contains("ran;"), "{said}");
-    assert!(said.contains("steps 12;"), "{said}");
-}
-
-#[test]
-fn a_save_from_a_newer_build_and_a_slot_named_like_a_path_are_refused() {
-    let script = probe(
-        r#"
-        tell("newer {save::read("future") == nil}");
+        tell("broken {save::read("broken") == nil}");
         tell("path {save::write("../escape", { "n": 1 })}");
 "#,
     );
-    let future = "version = 9\n[data]\nn = 1\n";
-    let (dir, app) = app_with(&script, 2, &[("future", future)]);
+    let (dir, app) = app_with(&script, &[("broken", "data = [1, 2")]);
     let said = said(&app);
     assert!(said.contains("ran;"), "{said}");
-    assert!(said.contains("newer true;"), "{said}");
+    assert!(said.contains("broken true;"), "{said}");
     assert!(said.contains("path false;"), "{said}");
     assert!(!dir.path().join("data/escape.toml").exists());
 }

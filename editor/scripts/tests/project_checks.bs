@@ -423,6 +423,11 @@ const STEPPED_AT: int = 17;
 const CHECK_AT: int = 28;
 const PLAY_BUTTON: str = "Editor/Shell/Body/Centre/Bottom/Lanes/Head/Play";
 const STEP_BUTTON: str = "Editor/Shell/Body/Centre/Bottom/Lanes/Head/Step";
+// What the recordings list waits to hear past the replay, and for how long:
+// twice the longest burst the watcher gathers before it speaks.
+const COPIED: str = "copied";
+const REMOVED: str = "removed";
+const HEARD_WITHIN: float = 4.0;
 
 /// The start screen's own module: a project made from a template, the row it
 /// leaves in the list, and the row forgotten again. Writes under the editor's
@@ -561,7 +566,7 @@ fn row_with_id(items: any, id: str) -> any {
 }
 
 pub fn sessions(state: &mut editor::State) {
-    state.session.demo = selftest::Demo { frames: 0, file: "", was: 0, paused_at: 0 };
+    state.session.demo = selftest::Demo { frames: 0, file: "", was: 0, paused_at: 0, copy: "", waiting: "", until: 0.0 };
     selftest::stepping(state, "session");
     // With digests, so the replay is actually checked against the recording
     // rather than merely running.
@@ -577,21 +582,27 @@ pub fn session_step(state: &mut editor::State) {
     }
     let demo = state.session.demo.unwrap();
     demo.frames += 1;
-    if demo.frames == RECORD_UNTIL {
+    if demo.waiting != "" {
+        folder_heard(state, demo);
+    } else if demo.frames == RECORD_UNTIL {
         stop_and_check(state, demo);
     } else if demo.frames == OPEN_AT {
         open_and_check(state, demo);
     } else if demo.frames == PAUSE_AT {
         selftest::check(replay::state() == replay::STATE_PLAYING, "the replay is still playing");
+        selftest::check(state.session.playback == replay::STATE_PLAYING, "and the editor heard it start, rather than asking");
         selftest::check(ui::click(scene::root().get_node(PLAY_BUTTON)), "the dock's pause button takes a click");
     } else if demo.frames == STEP_AT {
         selftest::check(replay::state() == replay::STATE_PAUSED, "the dock's pause button pauses the replay");
+        selftest::check(state.session.playback == replay::STATE_PAUSED && !session::scrubbing(state), "the editor heard the pause and hands the pointer back");
+        selftest::check(session::parked(state), "a paused replay is parked, which asks for no frame");
         demo.paused_at = replay::position();
         selftest::check(ui::click(scene::root().get_node(STEP_BUTTON)), "its step button takes a click");
     } else if demo.frames == STEPPED_AT {
         let at = replay::position();
         selftest::check(at == demo.paused_at + 1, "and runs one tick ({demo.paused_at} to {at})");
-        selftest::check(replay::state() == replay::STATE_PAUSED, "then holds there");
+        selftest::check(replay::state() == replay::STATE_PAUSED && state.session.playback == replay::STATE_PAUSED, "then holds there, as the editor heard");
+        selftest::check(state.session.at == at, "and the playhead the editor follows landed on it");
         ui::click(scene::root().get_node(PLAY_BUTTON));
     } else if demo.frames == CHECK_AT {
         replayed_and_check(state, demo);
@@ -645,6 +656,7 @@ fn open_and_check(state: &mut editor::State, demo: selftest::Demo) {
 fn replayed_and_check(state: &mut editor::State, demo: selftest::Demo) {
     selftest::check(replay::position() > demo.was, "playing walks the recording forward");
     selftest::check(replay::state() == replay::STATE_PAUSED, "a spent recording parks");
+    selftest::check(state.session.playback == replay::STATE_PAUSED, "and the editor heard it run out");
     let split = replay::divergence_tick();
     let where_ = if split == nil { "" } else { " (tick {split.unwrap().tick})" };
     selftest::check(split == nil, "and reproduced what was recorded{where_}");
@@ -652,10 +664,114 @@ fn replayed_and_check(state: &mut editor::State, demo: selftest::Demo) {
     exported_and_check(state, demo);
     selftest::check(!session::loaded(state), "closing unloads the recording");
     selftest::check(!state.playing, "and puts the edited scene back");
-    // A self-test that leaves files behind fills the ring it is testing.
+    // A recording another run wrote: the list holds until the watcher says
+    // the folder moved, and then lists it.
+    session::listing(state);
+    demo.copy = "copied-" + demo.file;
+    fs::copy(session::directory(state) + "/" + demo.file, session::directory(state) + "/" + demo.copy);
+    selftest::check(state.session.listed, "a recording written behind the editor's back reads nothing on its own");
+    demo.waiting = COPIED;
+    demo.until = engine::unix_time() + HEARD_WITHIN;
+}
+
+// The recordings folder moved under the list: each step waits until the
+// watcher said so, which leaves the list to be read again.
+fn folder_heard(state: &mut editor::State, demo: selftest::Demo) {
+    if state.session.listed {
+        if engine::unix_time() > demo.until {
+            selftest::check(false, "the watcher said nothing of the recordings folder in {HEARD_WITHIN} s ({demo.waiting})");
+            finish_sessions(state, demo);
+        }
+        return;
+    }
+    let names: [str] = [];
+    for row in session::listing(state) {
+        names.push(row.name);
+    }
+    if demo.waiting == COPIED {
+        selftest::check(util::contains(names, demo.copy), "once it has, the list holds the new recording");
+        selftest::check(state.session.playback == replay::STATE_STOPPED, "and the editor heard the replay unloaded");
+        fs::remove(session::directory(state) + "/" + demo.copy);
+        demo.waiting = REMOVED;
+        demo.until = engine::unix_time() + HEARD_WITHIN;
+        return;
+    }
+    selftest::check(!util::contains(names, demo.copy), "one removed behind its back leaves the list too");
+    finish_sessions(state, demo);
+}
+
+// A self-test that leaves files behind fills the ring it is testing.
+fn finish_sessions(state: &mut editor::State, demo: selftest::Demo) {
+    fs::remove(session::directory(state) + "/" + demo.copy);
     fs::remove(session::directory(state) + "/" + demo.file);
     state.session.demo = nil;
     log::info("selftest recordings: done");
+}
+
+// A folder of the test's own, followed for it alone: a run started with
+// `--state` does not follow the project, so a suite's writes stay its own.
+const READS: str = "selftest_reads";
+const READ: str = "selftest_reads/read.txt";
+const KEPT: str = "selftest_reads/kept.txt";
+const ADDED: str = "added.txt";
+const ONE: str = "one";
+// Past the half second reads were once kept for.
+const HELD_FOR: float = 0.6;
+
+/// `--state test:cached_reads`: a project read is kept until its file moves,
+/// with no clock to run out, and the watcher's word for one file forgets
+/// that file's read and its folder's listing, and nothing else.
+pub fn cached_reads(state: &mut editor::State) {
+    fs::create_directory(state.game_root + "/" + READS);
+    fs::write(state.game_root + "/" + READ, ONE);
+    fs::write(state.game_root + "/" + KEPT, ONE);
+    selftest::check(model::source(state, READ).as_str() == ONE && model::source(state, KEPT).as_str() == ONE, "a project read is read from its file");
+    selftest::check(util::list_or_empty(model::list(state, READS)).len() == 2, "and its folder listed");
+    fs::write(state.game_root + "/" + READ, "two");
+    fs::write(state.game_root + "/" + KEPT, "two");
+    state.reads_check = selftest::ReadsCheck { stage: 0, until: engine::unix_time() + HELD_FOR };
+    selftest::stepping(state, "reads");
+}
+
+pub fn reads_step(state: &mut editor::State) {
+    if state.reads_check == nil {
+        return;
+    }
+    let check = state.reads_check.unwrap();
+    let now = engine::unix_time();
+    let folder = state.game_root + "/" + READS;
+    if check.stage == 0 {
+        if now < check.until {
+            return;
+        }
+        selftest::check(model::source(state, READ).as_str() == ONE, "written behind the editor's back, a read holds what it read {HELD_FOR} s on");
+        if !selftest::check(engine::watch(folder, []), "the test's folder can be followed") {
+            reads_done(state);
+            return;
+        }
+        fs::write(state.game_root + "/" + READ, "three");
+        fs::write(folder + "/" + ADDED, ONE);
+        check.stage = 1;
+        check.until = now + HEARD_WITHIN;
+        return;
+    }
+    if model::source(state, READ).as_str() == ONE {
+        if now > check.until {
+            selftest::check(false, "the watcher said nothing of {READ} in {HEARD_WITHIN} s");
+            reads_done(state);
+        }
+        return;
+    }
+    selftest::check(model::source(state, READ).as_str() == "three", "once the watcher names the file, its read is the file's again");
+    selftest::check(model::source(state, KEPT).as_str() == ONE, "and a file it did not name keeps its read");
+    selftest::check(util::list_or_empty(model::list(state, READS)).len() == 3, "the folder the file is in is listed again");
+    reads_done(state);
+}
+
+fn reads_done(state: &mut editor::State) {
+    fs::remove(state.game_root + "/" + READS);
+    state.reads_check = nil;
+    log::info("selftest cached reads: done");
 }
 
 // Export puts a copy where a bug report or `balaur replay` can reach it.

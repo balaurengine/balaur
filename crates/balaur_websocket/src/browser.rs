@@ -78,7 +78,7 @@ pub(crate) fn spawn_socket(
     let opened = {
         let events = events.clone();
         Closure::wrap(Box::new(move |_: JsValue| {
-            let _ = events.send(SocketEvent::Open { socket });
+            balaur_core::replay::report(&events, SocketEvent::Open { socket });
         }) as Box<dyn FnMut(JsValue)>)
     };
     ws.set_onopen(Some(opened.as_ref().unchecked_ref()));
@@ -87,21 +87,21 @@ pub(crate) fn spawn_socket(
         let events = events.clone();
         Closure::wrap(Box::new(move |event: MessageEvent| {
             let data = event.data();
-            let sent = if let Some(text) = data.as_string() {
-                events.send(SocketEvent::Message { socket, text })
+            let arrived = if let Some(text) = data.as_string() {
+                SocketEvent::Message { socket, text }
             } else if let Ok(buffer) = data.dyn_into::<js_sys::ArrayBuffer>() {
                 let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
-                events.send(SocketEvent::Binary { socket, bytes })
+                SocketEvent::Binary { socket, bytes }
             } else {
                 // A Blob, if the binary type did not take. Dropping it is
                 // wrong, so say so rather than going silent.
-                events.send(SocketEvent::Failed {
+                SocketEvent::Failed {
                     socket,
                     reason: String::from("a frame arrived in a form this backend cannot read"),
                     status: None,
-                })
+                }
             };
-            let _ = sent;
+            balaur_core::replay::report(&events, arrived);
         }) as Box<dyn FnMut(MessageEvent)>)
     };
     ws.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
@@ -117,11 +117,14 @@ pub(crate) fn spawn_socket(
                 .filter(|r| !r.is_empty())
                 .unwrap_or_else(|| String::from("closed"));
             finished.set(true);
-            let _ = events.send(SocketEvent::Closed {
-                socket,
-                code,
-                reason,
-            });
+            balaur_core::replay::report(
+                &events,
+                SocketEvent::Closed {
+                    socket,
+                    code,
+                    reason,
+                },
+            );
         }) as Box<dyn FnMut(JsValue)>)
     };
     ws.set_onclose(Some(closed.as_ref().unchecked_ref()));
@@ -138,11 +141,14 @@ pub(crate) fn spawn_socket(
                 .filter(|m| !m.is_empty())
                 .unwrap_or_else(|| String::from("the connection failed"));
             finished.set(true);
-            let _ = events.send(SocketEvent::Failed {
-                socket,
-                reason,
-                status: None,
-            });
+            balaur_core::replay::report(
+                &events,
+                SocketEvent::Failed {
+                    socket,
+                    reason,
+                    status: None,
+                },
+            );
         }) as Box<dyn FnMut(JsValue)>)
     };
     ws.set_onerror(Some(failed.as_ref().unchecked_ref()));

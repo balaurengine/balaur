@@ -28,6 +28,7 @@ use startstates;
 use tests::shell_checks;
 use textedit;
 use tiles;
+use util;
 use viewport;
 use words::layout_fields;
 
@@ -105,18 +106,21 @@ internal fn run(state: &mut editor::State, delta_time: float) {
     textedit::step(state);
     autosave::step(state);
     bench::step(state);
-    // What moves without input asks for the next frame; under `[window]
-    // low_processor` nothing else draws one. The splash and a queued import
-    // count frames, so they ask too.
-    let telling = state.jobs.len() > 0 || state.import_queue.len() > 0 || !state.formed;
-    if state.playing || state.showcase != nil || session::scrubbing(state) || state.capture != nil
+    bench::count_idle(state);
+    // What moves without input asks for the next frame under `[window]
+    // low_processor`: play, but not a replay parked. The splash and a queued
+    // import count frames; an import under way wakes the loop with its events.
+    let telling = state.import_queue.len() > 0 || !state.formed;
+    let running = state.playing && !session::parked(state);
+    if running || state.showcase != nil || session::scrubbing(state) || state.capture != nil
         || state.stepping.len() > 0 || telling || layout::animating(state) || state.gizmo.drag != nil
-        || state.debug.demo != nil || textedit::waiting(state) || autosave::waiting(state)
+        || state.debug.demo != nil || textedit::waiting(state)
     {
         ui::request_repaint();
     }
-    // Every live value the Inspector shows may have moved this frame.
-    if state.playing {
+    // Every live value the Inspector shows may have moved this frame; a parked
+    // replay's did not, and a refill would draw the frame after it.
+    if running {
         signals::playing_frame(state);
     }
     // A run of edits the Inspector's rows followed alone has stopped.
@@ -125,7 +129,7 @@ internal fn run(state: &mut editor::State, delta_time: float) {
             state.inspector_after = 0.0;
             signals::refill_inspector(state);
         } else {
-            ui::request_repaint();
+            state.inspector_asked = util::wake_at(state.inspector_asked, state.inspector_after);
         }
     }
     // After the frame's ticks, where a pass used to apply them: a state that

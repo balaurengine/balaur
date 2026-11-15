@@ -41,6 +41,7 @@ mod robustness;
 mod rollback;
 mod scene;
 mod scene_ids;
+mod scene_sync;
 mod scene_toml;
 mod schedules;
 mod settings;

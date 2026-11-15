@@ -193,9 +193,12 @@ fn start(eng: &Engine, target: &str) -> bool {
         let report = report.clone();
         RUNNING.with(|running| running.set(running.get() + 1));
         wasm_bindgen_futures::spawn_local(async move {
-            let _ = report.send(ExportEvent::Started {
-                target: target.clone(),
-            });
+            balaur_core::replay::report(
+                &report,
+                ExportEvent::Started {
+                    target: target.clone(),
+                },
+            );
             let event = match run(&project, &target, &runtimes).await {
                 Ok(name) => {
                     ExportEvent::Done {
@@ -210,7 +213,7 @@ fn start(eng: &Engine, target: &str) -> bool {
                     message: format!("{why:#}"),
                 },
             };
-            let _ = report.send(event);
+            balaur_core::replay::report(&report, event);
             RUNNING.with(|running| running.set(running.get().saturating_sub(1)));
         });
     })

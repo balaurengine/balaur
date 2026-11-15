@@ -223,7 +223,7 @@ stateDiagram-v2
 | `Playing`, client | `settle` reads `Control::Bye` | `Idle` | `end` with "the host left". |
 | `Playing`, client | `settle`, link silent or `Closed` | `Idle` | `end` with "lost the host". |
 
-`begin` frees every parked scene and switches to the match scene. A joiner restores the host's world. A host captures its world and sends `Control::Start` on every link. Both build the `NetSession`, and a host turns on relay and adds its bots as local players.
+`begin` switches to the match scene. A joiner restores the host's world. A host captures its world and sends `Control::Start` on every link. Both build the `NetSession`, and a host turns on relay and adds its bots as local players.
 
 A silent link times out at the `timeout` option once it has been heard. A link never heard from times out at three times that, counted from `began`.
 
@@ -233,7 +233,7 @@ Refused or ignored: `host` and `join` return an error unless `Idle`. A failed bi
 
 `App::advance` calls the driver only on `Step::Live`, so replay playback runs no `begin` and no match tick. `host` returns an error while a recording plays or a tick re-runs, because the listener refuses to bind. `poll_system` returns at once while `replay::suppressed`, so `poll_host` and `poll_join` do not run. A join made in a replay stays in `Joining`, with no timeout.
 
-Held by a pause, a `process` mode or a parked scene: `poll_system`, `deliver_system` and `drive` read none of them, so a paused game keeps ticking its match. `deliver_system` calls `announce`, which reaches a held script and no parked one.
+Held by a pause or a `process` mode: `poll_system`, `deliver_system` and `drive` read none of them, so a paused game keeps ticking its match. `deliver_system` calls `announce`, which reaches a held script.
 
 ### A peer arriving at a host
 
@@ -472,7 +472,7 @@ Starts in `CONNECTING`. Ends in `CLOSED`.
 
 Refused or ignored: `send_text`, `send_bytes` and `close` answer false once `sockets` has no row, which is every socket during a replay. `close` still marks that row `CLOSING`. `send` is not refused while connecting. The browser backend calls `ws.send_*` and ignores the result. A payload that is not a string or bytes returns an error. An event for a removed id finds no handler and still enters `WebsocketSnapshot`.
 
-Held by a pause, a `process` mode or a parked scene: `pump_websocket_system` reads none of them. A handler runs through `call_on`, so a paused node hears it and a parked node, having no instance there, misses it. A task awaiting the id stays suspended until its node can tick.
+Held by a pause or a `process` mode: `pump_websocket_system` reads none of them. A handler runs through `call_on`, so a paused node hears it. A task awaiting the id stays suspended until its node can tick.
 
 ### Native socket worker
 
@@ -771,7 +771,7 @@ Starts in `in_flight`. Ends in no table.
 
 Refused or ignored: `cancel` answers false once the id left `in_flight`. A timeout out of range or a bad option type returns an error at the call. An HTTP 4xx or 5xx is a `Response`. The browser backend ignores the flag and only drops the reply.
 
-Held by a pause, a `process` mode or a parked scene: `pump_http_system` reads none of them. A task awaiting the id stays suspended until its node can tick.
+Held by a pause or a `process` mode: `pump_http_system` reads none of them. A task awaiting the id stays suspended until its node can tick.
 
 ### Request job on a worker
 
@@ -888,7 +888,7 @@ Starts in `waiting`. Ends in `ended`.
 
 Refused or ignored: before the first open a call is queued; after it, in `waiting` and `renewing`, a join, push or hook answers "the socket is reconnecting", and a leave drops its topic and answers `ok`. An event from an earlier connection's `websocket` id is ignored. A frame goes whatever `send_text` answers: a dead link says so with its own `closed`, which a replay reproduces.
 
-Held by a pause or a `process` mode: never, the node runs `always`. A parked scene holds it: its `update` and its `websocket` events stop, and the heartbeat after the return finds the link dead.
+Held by a pause or a `process` mode: never, the node runs `always`. A switch away from the scene it hangs in frees it with the scene; a socket made under a node beside the scene outlives the switch.
 
 ### Reconnect tries
 
@@ -1089,7 +1089,7 @@ Starts in `pending` or issued. Ends answered or discarded.
 
 Refused or ignored: `issue` starts nothing during a replay or a re-simulated tick, because the recording answers there. The pump calls `PlatformBackend::discard` instead of `pump` on those ticks.
 
-Held by a pause, a `process` mode or a parked scene: `pump_platform_system` reads none of them. A task awaiting the id stays suspended until its node can tick.
+Held by a pause or a `process` mode: `pump_platform_system` reads none of them. A task awaiting the id stays suspended until its node can tick.
 
 ### Store backend
 

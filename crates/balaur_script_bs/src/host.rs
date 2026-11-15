@@ -23,6 +23,7 @@ mod burst;
 mod debug;
 mod engine_facing;
 mod holds;
+mod links;
 mod profile;
 mod tasks;
 #[cfg(feature = "compile")]
@@ -170,10 +171,8 @@ struct Inner {
     /// The instance beside it, made with the first file that needs it.
     aside: RefCell<Option<Rc<Home>>>,
     instances: RefCell<Vec<Rc<Instance>>>,
-    /// Instances of a parked scene, and what they await: no pass or call
-    /// finds them, and a wake waits in the runtime until they come back.
-    parked: RefCell<Vec<Rc<Instance>>>,
-    parked_tasks: RefCell<Vec<Pending>>,
+    /// The fields a scene set to a node's path that hold its script.
+    links: RefCell<Vec<links::Link>>,
     held: RefCell<Vec<u64>>,
     holds: Cell<u32>,
     /// What the file watcher heard, and the watcher itself; `None` in a
@@ -333,8 +332,7 @@ impl BsHost {
                 project: RefCell::default(),
                 aside: RefCell::default(),
                 instances: RefCell::default(),
-                parked: RefCell::default(),
-                parked_tasks: RefCell::default(),
+                links: RefCell::default(),
                 reload_owed: RefCell::default(),
                 held: RefCell::default(),
                 holds: Cell::new(0),
@@ -725,13 +723,11 @@ impl BsHost {
         into: &mut Runtime,
         unit_of: impl Fn(&str) -> Option<usize>,
     ) -> Result<()> {
-        let parked = self.inner.parked.borrow();
         let insts: Vec<(Rc<Instance>, usize)> = self
             .inner
             .instances
             .borrow()
             .iter()
-            .chain(parked.iter())
             .filter(|inst| inst.obj.borrow().is_some())
             .filter_map(|inst| unit_of(&inst.path).map(|unit| (inst.clone(), unit)))
             .collect();
@@ -838,19 +834,6 @@ impl BsHost {
         Some((file, inst))
     }
 
-    // A parked scene's: what freeing its node and a snapshot still reach.
-    fn parked_instance(&self, node: NodeId) -> Option<(Rc<File>, Rc<Instance>)> {
-        let inst = self
-            .inner
-            .parked
-            .borrow()
-            .iter()
-            .find(|i| i.node == node.0)
-            .cloned()?;
-        let file = self.inner.files.borrow().get(&inst.path).cloned()?;
-        Some((file, inst))
-    }
-
     // `method` on every instance nothing holds.
     fn each(&self, method: &str, args: &[Value], sync_only: bool) {
         let holds = self.holds();
@@ -870,9 +853,9 @@ impl BsHost {
     }
 
     // Every instance of a file just rebuilt, its fields carried across: the
-    // one place a script whose fields moved can bring them forward. A parked
-    // one catches up when it returns.
+    // one place a script whose fields moved can bring them forward.
     fn announce_reloads(&self) {
+        self.point_all_links();
         let owed: HashSet<String> = {
             let rebuilding = self.inner.rebuild.borrow();
             let mut owed = self.inner.reload_owed.borrow_mut();
@@ -976,6 +959,7 @@ impl BsHost {
     }
 
     fn init(&self, node: u64) {
+        self.point_links_of(node);
         if let Some((file, inst)) = self.instance(NodeId(node)) {
             let r = self.run(&file, &inst, "init", &[], None);
             report(r);
@@ -995,7 +979,7 @@ impl BsHost {
             return Ok(None);
         };
         // A path the script builds reads from its own project's folder.
-        let _turn = balaur_core::dependencies::calling(&self.inner.engine, &inst.path);
+        let _turn = balaur_core::dependencies::calling(&self.inner.engine, &inst.path, inst.node);
         let args: Vec<L> = info
             .params
             .iter()

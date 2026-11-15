@@ -322,6 +322,67 @@ fn a_switch_flips_and_wears_its_role_s_two_states() {
     );
 }
 
+// A checkbox and a dropdown are egui's widgets: the kind's table, and a
+// checkbox's `checked` table once it is ticked, reach the box egui paints.
+// Before, both wore egui's grey whatever the theme said.
+#[test]
+fn a_checkbox_and_a_dropdown_wear_their_kind_s_table() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/boxes.toml"),
+        "type = \"widget_theme\"\n\n[checkbox]\nfill = \"#101215\"\n[checkbox.checked]\nfill = \"#d5814e\"\n[dropdown]\nfill = \"#203040\"\n",
+    )
+    .unwrap();
+    let tick = add_widget(
+        &app,
+        &toml::toml! { kind = "checkbox" text = "Remember" theme = "themes/boxes.toml" x = 0.0 y = 0.0 }
+            .into(),
+    );
+    add_widget(
+        &app,
+        &toml::toml! {
+            kind = "dropdown" text = "English" theme = "themes/boxes.toml" x = 0.0 y = 60.0
+            widget_dropdown = { options = ["English", "Română"] }
+        }
+        .into(),
+    );
+    let fills = |out: &egui::FullOutput| {
+        fn walk(shape: &egui::Shape, into: &mut Vec<egui::Color32>) {
+            match shape {
+                egui::epaint::Shape::Rect(rect) => into.push(rect.fill),
+                egui::epaint::Shape::Vec(inner) => inner.iter().for_each(|one| walk(one, into)),
+                _ => {}
+            }
+        }
+        let mut painted = Vec::new();
+        for clipped in &out.shapes {
+            walk(&clipped.shape, &mut painted);
+        }
+        painted
+    };
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let off = fills(&pass(&app, &ctx, vec![]));
+    assert!(
+        off.contains(&egui::Color32::from_rgb(0x10, 0x12, 0x15)),
+        "the box wears the checkbox table's fill: {off:?}"
+    );
+    assert!(
+        off.contains(&egui::Color32::from_rgb(0x20, 0x30, 0x40)),
+        "the dropdown wears its table's fill: {off:?}"
+    );
+    let mut app = app;
+    assert!(balaur_ui::click(&app.engine, tick, false));
+    app.tick(1.0 / 60.0);
+    settle(&app, &ctx);
+    let on = fills(&pass(&app, &ctx, vec![]));
+    assert!(
+        on.contains(&egui::Color32::from_rgb(0xd5, 0x81, 0x4e)),
+        "and its `checked` table once ticked: {on:?}"
+    );
+}
+
 // A `grow` label is cut at the box the layout left it, not at its own
 // length. The inspector's Source row ran its path under the verb beside it:
 // only a stated width was a column, and a grown child never states one.

@@ -4,6 +4,7 @@
 
 use anim;
 use arrange;
+use bench;
 use bonemap;
 use center;
 use chrome;
@@ -56,6 +57,7 @@ use theme;
 use themewin;
 use tiles;
 use timeline;
+use util;
 use versions;
 use weights;
 use window;
@@ -164,6 +166,10 @@ pub class State {
     /// When the Inspector's whole form is filled again after a run of edits
     /// its rows followed alone; 0 for none pending.
     internal inspector_after: float = 0.0,
+    /// The frames `util::wake_at` last asked for, for the refill and for the
+    /// next autosave write.
+    internal inspector_asked: float = 0.0,
+    internal autosave_asked: float = 0.0,
     internal tree_cache: left::TreeCache,
     // The guard on each word `signals` tells, and the keys each word was
     // last told for.
@@ -180,6 +186,8 @@ pub class State {
     internal stepping: [str],
     // The edit `--state bench:` makes every frame, or "".
     internal bench: str = "",
+    // The frames `--state idle:` is counting, or nil.
+    internal idle: bench::Idle?,
     internal overlays_frame: int = -1,
     // The frame the viewport's tools last looked at the pointer: several
     // pointer words in one frame are one look.
@@ -299,6 +307,7 @@ pub class State {
     internal form_check: panel_checks::FormCheck?,
     internal reselect: selftest::Reselect?,
     internal empty_note: selftest::EmptyNote?,
+    internal reads_check: selftest::ReadsCheck?,
     internal start_check: selftest::StartCheck?,
     internal pen: pen::PenState,
     weights: weights::WeightsState,
@@ -490,6 +499,7 @@ impl Editor {
         self.state.start_states = if arguments.len() > 1 { arguments[1] } else { "" };
         settings::recall_window_size(self.state);
         disk::follow(self.state);
+        session::follow(self.state);
     }
 
     pub fn update(delta_time: float) {
@@ -909,11 +919,23 @@ impl Editor {
     /// Fill the status strip at the bottom dock's foot.
     pub fn status_fill() { chrome::fill_status(self.state); }
 
+    /// Files changed under a folder the editor follows: the project's cached
+    /// reads go, the Assets tab says what is there now, a script open in the
+    /// code sheet follows, and the recordings list is read again.
+    pub fn on_files_changed(paths: any) {
+        let named = util::list_or_empty(paths);
+        if model::heard(self.state, named) {
+            signals::changed(self.state, changes::ASSETS);
+        }
+        session::heard(self.state, named);
+        disk::heard(self.state, named);
+    }
+
+    /// The replay moved: loaded, played, paused, sought, ran out or unloaded.
+    pub fn on_replay_state_changed(playback: str) { session::moved(self.state, playback); }
+
     /// A project file was reloaded from disk: every read of one is stale, and
     /// the Assets tab says what is there now.
-    // Files changed under the project: a script open in the code sheet follows.
-    pub fn on_files_changed(paths: any) { disk::heard(self.state, paths); }
-
     pub fn on_assets_reloaded(_generation: any) {
         model::forget(self.state);
         signals::changed(self.state, changes::ASSETS);

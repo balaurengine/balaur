@@ -34,8 +34,7 @@ use crate::vocabulary::keys;
 use crate::vocabulary::words;
 use instances::{apply_overrides, apply_own_keys, instance};
 pub use problems::{Problem, RowNames, problems, row_names};
-pub use scene_walks::FileStamps;
-pub(crate) use scene_walks::{file_stamps, instantiate_main_scene, preload_scene, unload_scene};
+pub(crate) use scene_walks::{instantiate_main_scene, preload_scene, unload_scene};
 
 /// The file that makes a directory a project.
 pub const MANIFEST: &str = "project.toml";
@@ -1021,6 +1020,7 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     }
     drop(appearance);
     drop(world);
+    crate::scene::appearance_written(eng, entity);
     if let Some(mode) = table
         .get(crate::process::KEY)
         .and_then(toml::Value::as_str)

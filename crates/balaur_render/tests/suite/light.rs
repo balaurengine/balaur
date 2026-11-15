@@ -36,6 +36,7 @@ fn place(app: &App, entity: balaur_core::hecs::Entity, position: Vec3, rotation:
     let mut transform = world.get::<&mut Transform>(entity).unwrap();
     transform.position = position;
     transform.rotation = rotation;
+    balaur_core::transform::written(&app.engine, entity);
 }
 
 #[track_caller]
@@ -224,6 +225,7 @@ fn an_outline_comes_back_in_world_space_and_closed() {
     {
         let world = app.engine.world_mut();
         world.get::<&mut Transform>(crate_node).unwrap().scale = Vec3::new(2.0, 1.0, 1.0);
+        balaur_core::transform::written(&app.engine, crate_node);
     }
     add(
         &app,

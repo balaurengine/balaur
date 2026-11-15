@@ -644,10 +644,11 @@ pub(crate) fn step(
     players: &mut DetHashMap<Entity, Playback>,
     ended: &[Entity],
     paused: balaur_core::process::Pause,
+    held: Option<Entity>,
     moved: &mut Vec<Moved>,
 ) {
     for (&entity, run) in machines.iter_mut() {
-        if !run.enabled || !balaur_core::process::ticks(world, entity, paused) {
+        if !run.enabled || !crate::system::moves(world, entity, paused, held) {
             continue;
         }
         let Some(machine) = run.machine.clone() else {

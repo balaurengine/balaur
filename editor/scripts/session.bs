@@ -4,7 +4,6 @@
 
 use docks;
 use editor;
-use lint;
 use model;
 use selftest;
 use settings;
@@ -26,6 +25,9 @@ const FIRST: str = "first";
 const LAST: str = "last";
 const VALUES: str = "values";
 const SCRIPTS: str = "scripts";
+// What a recording's file ends in, which is what the folder is followed for.
+const RECORDING: str = "blr";
+const DOT_RECORDING: str = ".blr";
 
 pub class SessionState {
     internal recording: str,
@@ -36,7 +38,8 @@ pub class SessionState {
     internal lanes: [Lane],
     internal at: int,
     list: [Row],
-    listed_at: float,
+    internal listed: bool,
+    internal playback: str,
     internal verify: bool,
     internal demo: selftest::Demo?,
 }
@@ -81,9 +84,12 @@ pub fn state() -> SessionState {
         lanes: [],
         // The tick the detail list describes.
         at: 0,
-        // Cached listing of the sessions directory, and when it was read.
+        // The sessions directory as last listed, and whether that still
+        // holds: a file moving in it, or the editor's own verbs, says not.
         list: [],
-        listed_at: -1.0,
+        listed: false,
+        // What the replay last said it is doing, a `replay::STATE_*`.
+        playback: replay::STATE_STOPPED,
         // Whether a recording hashes the world every tick, so a replay can
         // say where it parted. Off by default: it walks every node per frame.
         verify: false,
@@ -118,14 +124,14 @@ pub fn fingerprint(state: editor::State) -> str {
 // game's scripts attach: an `init` that opens a socket has to be inside the
 // recording, and one that takes an await token has to take the recorded id.
 pub fn start(state: &mut editor::State) {
-    let path = directory(state) + "/" + replay::recording_name() + ".blr";
+    let path = directory(state) + "/" + replay::recording_name() + DOT_RECORDING;
     let options = replay::RecordOptions { scripts: fingerprint(state), digest: state.session.verify };
     if replay::record(path, options) == nil {
         state.session.recording = "";
         return;
     }
     state.session.recording = path;
-    state.session.listed_at = -1.0;
+    state.session.listed = false;
     signals::changed(state, changes::RECORDINGS);
 }
 
@@ -156,7 +162,7 @@ pub fn finish(state: &mut editor::State, reason: str?) {
         return;
     }
     state.session.recording = "";
-    state.session.listed_at = -1.0;
+    state.session.listed = false;
     signals::changed(state, changes::RECORDINGS);
     replay::stop(reason);
     prune(state);
@@ -167,7 +173,7 @@ fn prune(state: editor::State) {
     let names: [str] = [];
     for entry in util::list_or_empty(fs::list(directory(state))) {
         let name = util::map_or_empty(entry)[fields::NAME].as_str();
-        if name.ends_with(".blr") && !name.starts_with("kept-") {
+        if name.ends_with(DOT_RECORDING) && !name.starts_with("kept-") {
             names.push(name);
         }
     }
@@ -184,18 +190,17 @@ fn prune(state: editor::State) {
 }
 
 // The sessions on disk, newest first, each with what the dock shows about it.
-// Re-read at most twice a second: the dock draws every frame, and this reads
-// the header of every file it lists.
+// Read again only once the folder moved: this reads the header of every file
+// it lists.
 pub fn listing(state: &mut editor::State) -> [Row] {
-    let now = engine::unix_time();
-    if state.session.listed_at >= 0.0 && now - state.session.listed_at < 0.5 {
+    if state.session.listed {
         return state.session.list;
     }
-    state.session.listed_at = now;
+    state.session.listed = true;
     let names: [str] = [];
     for entry in util::list_or_empty(fs::list(directory(state))) {
         let name = util::map_or_empty(entry)[fields::NAME].as_str();
-        if name.ends_with(".blr") {
+        if name.ends_with(DOT_RECORDING) {
             names.push(name);
         }
     }
@@ -278,16 +283,7 @@ pub fn open(state: &mut editor::State, name: str) {
     state.session.last = span[LAST].as_int();
     state.session.at = state.session.first;
     state.session.lanes = build_lanes();
-    // Loading puts the clock back to where the session started, so every
-    // cache that ages against `engine::unix_time()` now thinks it is fresh until
-    // the clock catches up.
-    state.sources = {};
-    state.listings = {};
-    state.session.listed_at = -1.0;
     signals::changed(state, changes::RECORDINGS);
-    state.lint.at = -1.0;
-    lint::touched(state);
-    signals::changed(state, changes::PROBLEMS);
     warn_if_stale(state, name);
     // Everything play does, because a replay that starts from a different
     // world replays the same input into a different game. The scene is built
@@ -415,14 +411,14 @@ pub fn close(state: &mut editor::State) {
 // Rename a session out of the ring that prunes the oldest.
 pub fn keep(state: &mut editor::State, name: str) {
     fs::rename(directory(state) + "/" + name, directory(state) + "/kept-" + name);
-    state.session.listed_at = -1.0;
+    state.session.listed = false;
     signals::changed(state, changes::RECORDINGS);
     log::info("keeping " + name);
 }
 
 pub fn remove(state: &mut editor::State, name: str) {
     fs::remove(directory(state) + "/" + name);
-    state.session.listed_at = -1.0;
+    state.session.listed = false;
     signals::changed(state, changes::RECORDINGS);
     log::info("deleted " + name);
 }
@@ -435,7 +431,13 @@ pub fn loaded(state: editor::State) -> bool {
 // read. True while playing or seeking; a paused session hands the pointer
 // back, because nothing is fed and the engine is held.
 pub fn scrubbing(state: editor::State) -> bool {
-    loaded(state) && replay::state() != replay::STATE_PAUSED
+    loaded(state) && state.session.playback != replay::STATE_PAUSED
+}
+
+/// A replay loaded and paused or run out: nothing is fed and nothing moves,
+/// so the editor asks for no frame until `replay_state_changed` says it moved.
+pub fn parked(state: editor::State) -> bool {
+    loaded(state) && state.session.playback == replay::STATE_PAUSED
 }
 
 pub fn toggle_pause(state: editor::State) {
@@ -465,12 +467,49 @@ pub fn seek(state: &mut editor::State, tick: int) {
 }
 
 // Follow the playhead while a session runs, so the detail list describes the
-// tick on screen.
+// tick on screen. A paused one reads nothing: it moves only on a word.
 pub fn update(state: &mut editor::State) {
-    if state.session.loaded == "" {
+    if scrubbing(state) {
+        state.session.at = replay::position();
+    }
+}
+
+/// The replay said what it is doing now: loaded, playing, paused, seeking,
+/// run out or unloaded. The playhead lands where it stopped, and the
+/// transport and the lanes show it.
+pub fn moved(state: &mut editor::State, playback: str) {
+    state.session.playback = playback;
+    if loaded(state) {
+        state.session.at = replay::position();
+    }
+    signals::changed(state, changes::RECORDINGS);
+    signals::bars(state);
+}
+
+/// Follow this game's recordings folder, so the list is read again when a
+/// recording lands, goes or is renamed, and never on a timer. Made first: a
+/// folder that is not there cannot be followed.
+pub fn follow(state: editor::State) {
+    if state.game_root == "" {
         return;
     }
-    if replay::state() != replay::STATE_PAUSED {
-        state.session.at = replay::position();
+    let folder = directory(state);
+    if !fs::exists(folder) {
+        fs::create_directory(folder);
+    }
+    engine::watch(folder, [RECORDING]);
+}
+
+/// Files moved under a folder the editor follows: one in the recordings
+/// folder, or more than the watcher could name, lists it again.
+pub fn heard(state: &mut editor::State, paths: [any]) {
+    let folder = directory(state) + "/";
+    let changed = paths.len() == 0;
+    for one in paths {
+        changed = changed || one.as_str().starts_with(folder);
+    }
+    if changed {
+        state.session.listed = false;
+        signals::changed(state, changes::RECORDINGS);
     }
 }

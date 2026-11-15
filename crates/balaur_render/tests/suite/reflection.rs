@@ -29,6 +29,7 @@ fn add(app: &App, entity: balaur_core::hecs::Entity, key: &str, params: &str) {
 fn place(app: &App, entity: balaur_core::hecs::Entity, position: Vec3) {
     let world = app.engine.world_mut();
     world.get::<&mut Transform>(entity).unwrap().position = position;
+    balaur_core::transform::written(&app.engine, entity);
 }
 
 /// Advance one tick so transform propagation has run: a probe is placed by
@@ -85,6 +86,7 @@ fn a_hidden_probe_comes_back_switched_off_rather_than_missing() {
             .unwrap()
             .visible = false;
     }
+    balaur_core::scene::appearance_written(&app.engine, entity);
     settle(&mut app);
 
     let world = app.engine.world();
@@ -296,6 +298,7 @@ fn a_probe_turns_with_its_node_and_captures_its_own_layers_and_planes() {
         .get::<&mut Transform>(entity)
         .unwrap()
         .rotation = turn;
+    balaur_core::transform::written(&app.engine, entity);
     settle(&mut app);
     let found = {
         let world = app.engine.world();

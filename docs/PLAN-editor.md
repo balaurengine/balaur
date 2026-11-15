@@ -12,11 +12,6 @@ like the built-ins, and each lands with a `--state` self-test.
    take its path. Done when both drops go through history and a self-test
    makes each.
 2. **Curve editor and onion skin.** See below.
-3. **Project reads that follow the disk.** `model::source` in
-   `editor/scripts/model.bs` re-reads a file once its 0.5 s `TTL` runs out.
-   Drop the cache entry on `files_changed` instead. Done when an edit made
-   outside the editor shows on its next frame and an unchanged file is read
-   once.
 
 ### Curve editor and onion skin
 

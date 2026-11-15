@@ -56,10 +56,9 @@ pub struct Stats {
     internal scripts: int,
 }
 
-// Project reads, cached on `state`: four panels read the disk while drawing, so
-// uncached that is a read per node per frame. `fs` has no mtime, hence
-// interval + drop.
-const TTL: float = 0.5;
+// Project reads are cached on `state` until their file moves: four panels read
+// the disk while drawing, so uncached that is a read per node per frame.
+// `heard` forgets one on `files_changed`, and `forget` on the editor's writes.
 
 // A hand-edited file can name a parent that names it back. Every walk is
 // bounded so a cycle costs a wrong answer, not a hung editor.
@@ -68,15 +67,12 @@ const MAX_DEPTH: int = 256;
 // The text of a project-relative file, or `None` when there is no such file —
 // the caller that wants to say "missing" needs to tell that from "empty".
 pub fn source(state: &mut editor::State, rel: str) -> any {
-    let now = engine::unix_time();
     let entry = state.sources[rel];
     if entry != nil {
-        if now - entry[layout_fields::AT].as_float() < TTL {
-            return entry[fields::TEXT];
-        }
+        return entry[fields::TEXT];
     }
     let text: any = fs::read(state.game_root + "/" + rel);
-    state.sources[rel] = { fields::TEXT: text, layout_fields::AT: now };
+    state.sources[rel] = { fields::TEXT: text };
     text
 }
 
@@ -121,20 +117,17 @@ pub fn list(state: &mut editor::State, rel: str) -> any {
     if state.game_root == "" {
         return [];
     }
-    let now = engine::unix_time();
     let entry = state.listings[rel];
     if entry != nil {
-        if now - entry[layout_fields::AT].as_float() < TTL {
-            return entry[project_fields::FILES];
-        }
+        return entry[project_fields::FILES];
     }
     let files = util::list_or_empty(fs::list(state.game_root + "/" + rel));
-    state.listings[rel] = { project_fields::FILES: files, layout_fields::AT: now };
+    state.listings[rel] = { project_fields::FILES: files };
     files
 }
 
 // Drop a cached read (`None` drops everything): what the editor just wrote
-// must be visible on the next frame, not on the next interval.
+// must be visible on the next frame, not once the watcher has heard it.
 pub fn forget(state: &mut editor::State, rel: str?) {
     if rel != nil {
         state.sources.remove(rel.unwrap());
@@ -142,6 +135,37 @@ pub fn forget(state: &mut editor::State, rel: str?) {
         state.sources = {};
         state.listings = {};
     }
+}
+
+/// Files moved under the project, as `files_changed` names them: each one's
+/// read goes, and the listing of the folder it is in, of it, and under it. An
+/// empty list is more than the watcher could name, so every read goes.
+/// Answers whether a listing went, which is what the Assets panel shows.
+pub fn heard(state: &mut editor::State, paths: [any]) -> bool {
+    if state.game_root == "" {
+        return false;
+    }
+    if paths.len() == 0 {
+        forget(state);
+        return true;
+    }
+    let base = state.game_root + "/";
+    let listed = false;
+    for one in paths {
+        let path = one.as_str();
+        if path.starts_with(base) {
+            let rel = path.slice(base.len(), path.len());
+            state.sources.remove(rel);
+            let folder = util::parent_directory(rel);
+            for key in state.listings.keys() {
+                if key == folder || key == rel || key.starts_with(rel + "/") {
+                    state.listings.remove(key);
+                    listed = true;
+                }
+            }
+        }
+    }
+    listed
 }
 
 // The script a node names, as the game spells it, or nil.

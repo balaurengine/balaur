@@ -550,9 +550,10 @@ pub fn refuse_write(eng: &Engine, path: &Path) -> Result<()> {
 }
 
 /// The scripts calling into the engine right now, innermost last: each the
-/// `deps/<alias>` its file lies in, or `None` for the game's own.
+/// `deps/<alias>` its file lies in, or `None` for the game's own, and the
+/// node it runs on, `None` for the game's turn inside a script's.
 #[derive(Default)]
-struct Calling(Vec<Option<String>>);
+struct Calling(Vec<(Option<String>, Option<u64>)>);
 
 /// Held while a script runs; dropping it ends that script's turn.
 pub struct Turn {
@@ -567,15 +568,23 @@ impl Drop for Turn {
     }
 }
 
-/// Mark the script at `script` (a project-relative key) as the one calling
-/// into the engine until the answer is dropped. A path that script builds
-/// reads from its own project ([`scoped`]).
+/// Mark the script at `script` (a project-relative key), running on `node`,
+/// as the one calling into the engine until the answer is dropped. A path
+/// that script builds reads from its own project ([`scoped`]).
 #[must_use]
-pub fn calling(eng: &Engine, script: &str) -> Turn {
+pub fn calling(eng: &Engine, script: &str, node: u64) -> Turn {
     let owner = split(script)
         .map(|(alias, _)| folder(alias))
         .or_else(|| played_root(eng, script));
-    enter(eng, owner)
+    enter(eng, owner, Some(node))
+}
+
+/// The node whose script is calling into the engine right now, if one is.
+#[must_use]
+pub fn calling_node(eng: &Engine) -> Option<crate::hecs::Entity> {
+    let calling = eng.try_resource::<Calling>()?;
+    let node = calling.borrow().0.last()?.1?;
+    crate::entity_of(balaur_script::NodeId(node)).ok()
 }
 
 /// The project a played game's script lies in, or its dependency's folder:
@@ -605,14 +614,14 @@ fn played_root(eng: &Engine, script: &str) -> Option<String> {
 /// since a document's paths are already the game's spelling.
 #[must_use]
 pub fn as_game(eng: &Engine) -> Turn {
-    enter(eng, None)
+    enter(eng, None, None)
 }
 
-fn enter(eng: &Engine, owner: Option<String>) -> Turn {
+fn enter(eng: &Engine, owner: Option<String>, node: Option<u64>) -> Turn {
     if eng.try_resource::<Calling>().is_none() {
         eng.insert_resource(Calling::default());
     }
-    eng.resource::<Calling>().borrow_mut().0.push(owner);
+    eng.resource::<Calling>().borrow_mut().0.push((owner, node));
     Turn { eng: eng.clone() }
 }
 
@@ -626,7 +635,11 @@ pub fn scoped<'a>(eng: &Engine, path: &'a str) -> Cow<'a, str> {
     let Some(calling) = eng.try_resource::<Calling>() else {
         return Cow::Borrowed(path);
     };
-    let owner = calling.borrow().0.last().cloned().flatten();
+    let owner = calling
+        .borrow()
+        .0
+        .last()
+        .and_then(|(owner, _)| owner.clone());
     match owner {
         Some(prefix)
             if !path.is_empty()

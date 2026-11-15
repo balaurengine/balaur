@@ -620,6 +620,7 @@ fn run_one(eng: &Engine, entity: Entity, m: &Params, dim3: bool, steps: u32) {
             jiggle_step(&world, &chain, m, dim3, &mut points);
         }
         state.borrow_mut().jiggle.insert(entity, points);
+        moved(eng, &chain);
         return;
     }
     let Some(target) = scene::find_node(&world, entity, &m.target) else {
@@ -656,5 +657,21 @@ fn run_one(eng: &Engine, entity: Entity, m: &Params, dim3: bool, steps: u32) {
             ccdik(&world, &chain, point, m, dim3);
         }
         (Kind::Jiggle, _) => unreachable!("handled above"),
+    }
+    // A look-at turns its bone alone; the rest turn the bones of a chain,
+    // two below the root for a two-bone solve.
+    let turned = match m.kind {
+        Kind::LookAt => vec![bone],
+        Kind::TwoBoneIk => chain_of(&world, bone, 3),
+        _ => chain_of(&world, bone, m.chain_count),
+    };
+    moved(eng, &turned);
+}
+
+/// The solvers write each bone's transform in place: stamp them, as the
+/// registry's write would.
+fn moved(eng: &Engine, bones: &[Entity]) {
+    for &bone in bones {
+        balaur_core::transform::written(eng, bone);
     }
 }

@@ -14,7 +14,11 @@ use kiss3d::color::Color;
 use kiss3d::scene::SceneNode2d;
 
 use crate::kiss3d_backend::{Slot2d, build_2d_node, build_polyline_node, polygon_palette};
-use crate::{Renderable2d, Shape2d, SpriteTexture};
+
+mod look;
+use crate::{Renderable2d, Shape2d};
+use look::{draw_multimesh, draws, frame_sprite, lean_and_shift, set_nine_mesh};
+pub(crate) use look::{modulate, nine_of, sprite_uv_rect, tint_pieces};
 
 /// Mirror `Renderable2d` + `GlobalTransform` into the kiss3d 2D scene graph
 /// (x/y translation, z rotation, x/y scale).
@@ -145,6 +149,8 @@ pub(crate) struct Placeable<'a> {
     pub(crate) layers: &'a crate::draw_2d::Layers2d,
     /// The light map's composite, while the scene has a light.
     pub(crate) composite: Option<SceneNode2d>,
+    /// What the mirror was told changed this frame.
+    pub(crate) dirty: &'a HashSet<Entity>,
 }
 
 /// Sprites, polygons, tilemaps, text, particles, the layers scripts draw at
@@ -165,6 +171,16 @@ pub(crate) fn order_layer_2d(
 ) {
     let maps = placeable.maps;
     let layers = placeable.layers;
+    let around = Around::of(placeable);
+    // A tilemap, text or particles node that moved may have moved in the order.
+    let moved = around
+        .drawn
+        .iter()
+        .any(|entity| placeable.dirty.contains(entity));
+    if !std::mem::take(&mut batches.order_again) && around == batches.around && !moved {
+        return;
+    }
+    batches.around = around;
     // A run draws where its first member would have: every other member is
     // inside it, so only the head stands in the order.
     let nodes = ordered_nodes(&app.engine.world(), app.engine.root(), |entity| {
@@ -237,8 +253,45 @@ pub(crate) struct LiveRun {
     key: crate::batch_2d::BatchKey,
     node: SceneNode2d,
     members: Vec<Entity>,
-    /// This frame's instances, one per member that is visible.
+    /// The instances, one per member that is visible.
     pending: Vec<kiss3d::scene::InstanceData2d>,
+    /// Every member in the order its instance was written, and where each
+    /// visible one's sits in `pending`: what a member written alone rewrites.
+    written: Vec<Entity>,
+    at: HashMap<Entity, usize>,
+    /// Whether `pending` moved since it was last handed to the node.
+    touched: bool,
+}
+
+/// What a node's place in the 2D order is read from: its `z_index`, its z,
+/// and whether it lights itself, which puts it before the light map.
+type Placing = (i32, u32, bool);
+
+/// The 2D order's other inputs: the nodes the tilemaps, text and particles
+/// draw through, the layers scripts draw at, and the light map's composite.
+#[derive(Default, PartialEq)]
+pub(crate) struct Around {
+    drawn: Vec<Entity>,
+    layers: Vec<i32>,
+    composite: bool,
+}
+
+impl Around {
+    fn of(placeable: &Placeable<'_>) -> Self {
+        let mut drawn: Vec<Entity> = placeable
+            .maps
+            .keys()
+            .chain(placeable.emitters.keys())
+            .copied()
+            .chain(placeable.text.drawn_2d())
+            .collect();
+        drawn.sort_unstable();
+        Self {
+            drawn,
+            layers: placeable.layers.indices().collect(),
+            composite: placeable.composite.is_some(),
+        }
+    }
 }
 
 /// Every run this frame, in draw order. A run is addressed by the entity at
@@ -250,6 +303,20 @@ pub(crate) struct Batches {
     /// Whether the objects were built again since the order was last laid
     /// out, which is what makes the cached order stale.
     recut: bool,
+    /// The tree's shape the order was last worked out at, and each drawing
+    /// node's place in it.
+    shape: u64,
+    placing: HashMap<Entity, Placing>,
+    /// Each drawing node's run key at the last cut, and the run it is in.
+    keys: HashMap<Entity, Option<crate::batch_2d::BatchKey>>,
+    member_of: HashMap<Entity, usize>,
+    /// The nodes drawn again every frame: a rig, a deform, copies, or a build
+    /// that failed and is tried again.
+    live: std::collections::HashSet<Entity>,
+    /// Whether the scene's 2D order has to be laid out again, and what was
+    /// around it when it last was.
+    order_again: bool,
+    around: Around,
 }
 
 impl Batches {
@@ -374,30 +441,11 @@ fn cut_runs(
     order: &[Entity],
     batches: &mut Batches,
 ) -> HashMap<Entity, usize> {
+    batches.keys.clear();
     let cut = crate::batch_2d::runs(order, |entity| {
-        let renderable = world.get::<&Renderable2d>(entity).ok()?;
-        let mut mesh = crate::batch_2d::batchable(&renderable)?;
-        if renderable.sprite.as_ref().is_some_and(|s| s.nine.is_some()) {
-            mesh = crate::batch_2d::Mesh::NineSlice(nine_of(
-                app,
-                &renderable,
-                &SceneNode2d::empty(),
-                true,
-            )?);
-        }
-        let material = world
-            .get::<&GlobalAppearance>(entity)
-            .map_or_else(|_| GlobalAppearance::identity().material, |a| a.material);
-        let reference = if renderable.material.is_empty() {
-            material.reference().to_string()
-        } else {
-            renderable.material.clone()
-        };
-        if crate::lit_2d::of(&app.engine, &reference).is_some() {
-            return None;
-        }
-        let debug = crate::debug_draw::DebugDraw::of(world, entity);
-        Some(crate::batch_2d::key_of(&renderable, mesh, debug, material))
+        let key = run_key(app, world, entity);
+        batches.keys.insert(entity, key.clone());
+        key
     });
     let same = cut.len() == batches.runs.len()
         && cut
@@ -438,6 +486,9 @@ fn cut_runs(
                 node,
                 members: run.members,
                 pending: Vec::new(),
+                written: Vec::new(),
+                at: HashMap::new(),
+                touched: false,
             });
         }
     }
@@ -445,6 +496,8 @@ fn cut_runs(
     batches.heads.clear();
     for (index, run) in batches.runs.iter_mut().enumerate() {
         run.pending.clear();
+        run.written.clear();
+        run.at.clear();
         if let Some(head) = run.members.first() {
             batches.heads.insert(*head, index);
         }
@@ -452,7 +505,48 @@ fn cut_runs(
             member_of.insert(entity, index);
         }
     }
+    batches.member_of.clone_from(&member_of);
     member_of
+}
+
+/// The run `entity` could be drawn through, or `None` where it draws alone.
+fn run_key(
+    app: &App,
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+) -> Option<crate::batch_2d::BatchKey> {
+    let renderable = world.get::<&Renderable2d>(entity).ok()?;
+    let mut mesh = crate::batch_2d::batchable(&renderable)?;
+    if renderable.sprite.as_ref().is_some_and(|s| s.nine.is_some()) {
+        mesh = crate::batch_2d::Mesh::NineSlice(nine_of(
+            app,
+            &renderable,
+            &SceneNode2d::empty(),
+            true,
+        )?);
+    }
+    let material = world
+        .get::<&GlobalAppearance>(entity)
+        .map_or_else(|_| GlobalAppearance::identity().material, |a| a.material);
+    let reference = if renderable.material.is_empty() {
+        material.reference().to_string()
+    } else {
+        renderable.material.clone()
+    };
+    if crate::lit_2d::of(&app.engine, &reference).is_some() {
+        return None;
+    }
+    let debug = crate::debug_draw::DebugDraw::of(world, entity);
+    Some(crate::batch_2d::key_of(&renderable, mesh, debug, material))
+}
+
+/// Where `entity` stands in the 2D order, or `None` for a node with nothing
+/// 2D to draw.
+fn placing_of(app: &App, world: &balaur_core::hecs::World, entity: Entity) -> Option<Placing> {
+    world.get::<&Renderable2d>(entity).ok()?;
+    let (layer, z, _) = layer_of(world, entity);
+    let lit = crate::lit_2d::lights_itself(&app.engine, world, entity);
+    Some((layer, z.to_bits(), lit))
 }
 
 /// One member's pose, tint and frame, as the instance its run draws it through.
@@ -463,23 +557,38 @@ fn write_instance(
     run: usize,
     batches: &mut Batches,
 ) {
+    let Some(run) = batches.runs.get_mut(run) else {
+        return;
+    };
+    let made = instance(app, world, entity, &run.node);
+    run.written.push(entity);
+    if let Some(made) = made {
+        run.at.insert(entity, run.pending.len());
+        run.pending.push(made);
+    }
+}
+
+/// One member's instance, `None` while it is hidden.
+fn instance(
+    app: &App,
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+    node: &SceneNode2d,
+) -> Option<kiss3d::scene::InstanceData2d> {
     let (Ok(renderable), Ok(global)) = (
         world.get::<&Renderable2d>(entity),
         world.get::<&GlobalTransform>(entity),
     ) else {
-        return;
+        return None;
     };
     let appearance = world
         .get::<&GlobalAppearance>(entity)
         .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
     if !appearance.visible {
-        return;
+        return None;
     }
     let (at, deformation) = crate::batch_2d::pose(&renderable, &global);
     let color = crate::film::rgba(modulate(renderable.color, appearance.tint.to_array()));
-    let Some(run) = batches.runs.get_mut(run) else {
-        return;
-    };
     // A frame, a region or a flip is this instance's corner of the image the
     // whole run shares, so one sheet is still one call.
     let uv = match &renderable.sprite {
@@ -487,41 +596,136 @@ fn write_instance(
             let drawn = sprite
                 .region
                 .and_then(|_| crate::texture::size_of(&app.engine, &sprite.path).ok());
-            let texture = run.node.data().object().map(|o| o.data().texture().size);
+            let texture = node.data().object().map(|o| o.data().texture().size);
             let (min, max) = sprite_uv_rect(sprite, drawn, texture);
             [min.x, min.y, max.x, max.y]
         }
         None => kiss3d::scene::UV_WHOLE_2D,
     };
-    run.pending.push(kiss3d::scene::InstanceData2d {
+    Some(kiss3d::scene::InstanceData2d {
         position: at,
         deformation,
         color,
         uv,
         ..Default::default()
-    });
+    })
 }
 
+/// Write one member's instance again where it stands among its run's; one
+/// shown or hidden lays the run's out again in the order written. False for
+/// a node no run draws.
+fn rewrite_instance(
+    app: &App,
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+    batches: &mut Batches,
+) -> bool {
+    let Some(&index) = batches.member_of.get(&entity) else {
+        return false;
+    };
+    let Some(run) = batches.runs.get_mut(index) else {
+        return true;
+    };
+    match (
+        run.at.get(&entity).copied(),
+        instance(app, world, entity, &run.node),
+    ) {
+        (Some(at), Some(made)) => run.pending[at] = made,
+        (None, None) => return true,
+        _ => {
+            run.pending.clear();
+            run.at.clear();
+            for &member in &run.written {
+                if let Some(made) = instance(app, world, member, &run.node) {
+                    run.at.insert(member, run.pending.len());
+                    run.pending.push(made);
+                }
+            }
+        }
+    }
+    run.touched = true;
+    true
+}
+
+/// Mirror every 2D renderable when `dirty` says everything, or the tree's
+/// shape, a node's place in the order or its run moved; otherwise only the
+/// ones it names and the ones drawn again every frame.
 pub(crate) fn sync_2d(
     app: &App,
     scene: &mut SceneNode2d,
     slots: &mut HashMap<Entity, Slot2d>,
     batches: &mut Batches,
     materials: &mut crate::shader_material::MaterialCache,
-    reloaded: bool,
+    (reloaded, dirty): (bool, &crate::mirror::Dirty),
 ) {
     let world = app.engine.world();
-    let order = draw_order_2d(&world, app.engine.root());
-
     // A relink rebuilds the nodes holding the old pipeline; a channel view
     // rebuilds every node, whether or not it names a material.
     let channel = crate::debug_view::channel_view(&app.engine);
     let relinked = materials.refresh(app);
     let channel_changed = materials.channel_changed(&channel);
     materials.answer_probe(app);
-
+    let frame = Frame2d {
+        app,
+        channel: &channel,
+        rebuild: (channel_changed, relinked, reloaded),
+    };
+    let shape = balaur_core::scene::shape_revision();
+    let everything = dirty.all
+        || relinked
+        || channel_changed
+        || reloaded
+        || shape != batches.shape
+        || dirty.nodes.iter().any(|&entity| {
+            placing_of(app, &world, entity).as_ref() != batches.placing.get(&entity)
+                || batches
+                    .keys
+                    .get(&entity)
+                    .is_some_and(|key| *key != run_key(app, &world, entity))
+        });
+    if !everything {
+        let mut visit: Vec<Entity> = dirty
+            .nodes
+            .iter()
+            .chain(batches.live.iter())
+            .copied()
+            .collect();
+        visit.sort_unstable();
+        visit.dedup();
+        for entity in visit {
+            if rewrite_instance(app, &world, entity, batches) {
+                continue;
+            }
+            let (Ok(renderable), Ok(global)) = (
+                world.get::<&Renderable2d>(entity),
+                world.get::<&GlobalTransform>(entity),
+            ) else {
+                continue;
+            };
+            let place = (entity, &*renderable, &*global);
+            let built = sync_one_2d(
+                &frame,
+                scene,
+                slots,
+                materials,
+                &world,
+                place,
+                &mut batches.live,
+            );
+            batches.order_again |= built;
+        }
+        flush(batches, slots, None);
+        return;
+    }
+    let order = draw_order_2d(&world, app.engine.root());
+    batches.shape = shape;
+    batches.placing = order
+        .iter()
+        .filter_map(|&entity| placing_of(app, &world, entity).map(|placing| (entity, placing)))
+        .collect();
+    batches.order_again = true;
     let member_of = cut_runs(app, scene, materials, &channel, &world, &order, batches);
-
+    batches.live.clear();
     let mut seen: HashSet<Entity> = HashSet::new();
     for &entity in &order {
         if let Some(run) = member_of.get(&entity) {
@@ -540,388 +744,158 @@ pub(crate) fn sync_2d(
             continue;
         };
         seen.insert(entity);
-        // Read once: the ancestors' tint, visibility and material come off
-        // the same propagated component.
-        let appearance = world
-            .get::<&GlobalAppearance>(entity)
-            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
-        let owns_material = !renderable.material.is_empty();
-        // A sprite's image and a polyline's mesh are both files; a reload
-        // re-reads them, as it does in three dimensions.
-        let from_file = renderable.sprite.is_some()
-            || renderable.polyline.is_some()
-            || !renderable.texture.is_empty();
-        let rebuild = match slots.get(&entity) {
-            Some(slot) => {
-                slot.version != renderable.version
-                    || channel_changed
-                    || (relinked && (owns_material || !appearance.material.is_none()))
-                    || (reloaded && from_file)
-                    || (!owns_material && slot.inherited != appearance.material)
-            }
-            None => true,
-        };
-        if rebuild {
-            if let Some(mut old) = slots.remove(&entity) {
-                old.node.detach();
-            }
-            let Some(slot) = build_slot_2d(
-                app,
-                scene,
-                materials,
-                &channel,
-                &renderable,
-                appearance.material,
-            ) else {
-                continue;
-            };
-            slots.insert(entity, slot);
-        }
-        // The block above inserts the slot when it is missing.
-        let slot = slots.get_mut(&entity).unwrap();
-        let inherited = appearance.tint.to_array();
-        let color = crate::film::color(modulate(renderable.color, inherited));
-        let size = frame_sprite(app, slot, &renderable);
-        // Every frame: the rig moved even when nothing about the polygon did.
-        if let (Some(handle), Some(polygon)) = (&slot.skin, renderable.polygon.as_deref()) {
-            handle.set(polygon_palette(&world, entity, polygon));
-        }
-        if let (Some(handle), Some(polygon)) = (&slot.deform, renderable.polygon.as_deref()) {
-            slot.deformed =
-                crate::skinned_2d::write_deform(&world, entity, polygon, handle, slot.deformed);
-        }
-        tint_pieces(slot, &renderable, inherited);
-        let debug = crate::debug_draw::DebugDraw::of(&world, entity);
-        let reference = if renderable.material.is_empty() {
-            appearance.material.reference().to_string()
-        } else {
-            renderable.material.clone()
-        };
-        let surface = crate::material::flat_surface_of(&app.engine, &reference);
-        if slot.overlay != Some((surface, debug)) {
-            crate::overlay::apply_2d(&mut slot.node, &surface, &debug);
-            let mesh = overlay_mesh(app, &slot.node, &renderable, appearance.material);
-            crate::overlay::companion_2d(&mut slot.node, &mut slot.companion, &debug, mesh);
-            slot.overlay = Some((surface, debug));
-        }
-        let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
-        let shift = lean_and_shift(slot, &renderable, &global);
-        let visible = appearance.visible
-            && draws(&renderable, appearance.material)
-            && draw_multimesh(app, &world, entity, slot, &renderable, &global);
-        slot.node
-            .set_position(Vec2::new(global.position.x, global.position.y) + shift)
-            .set_rotation(angle)
-            .set_local_scale(size.x * global.scale.x, size.y * global.scale.y)
-            .set_color(color)
-            .set_visible(visible);
+        let place = (entity, &*renderable, &*global);
+        sync_one_2d(
+            &frame,
+            scene,
+            slots,
+            materials,
+            &world,
+            place,
+            &mut batches.live,
+        );
     }
-    flush(batches, slots, &seen);
+    flush(batches, slots, Some(&seen));
 }
 
-/// A `multimesh2d`'s copies onto the node and its overlay companion; answers
-/// whether any is drawn, and `true` for a node that carries none.
-fn draw_multimesh(
-    app: &App,
+/// What one frame's 2D sync reads the same for every node.
+struct Frame2d<'a> {
+    app: &'a App,
+    channel: &'a str,
+    /// The channel view changed, a material relinked, an asset reloaded.
+    rebuild: (bool, bool, bool),
+}
+
+/// One renderable onto its slot, built when it has none or must be built
+/// again; answers whether it was. Noted `live` when what it draws moves
+/// without a write: a rig, a deform, copies, or a build that failed and is
+/// tried again.
+fn sync_one_2d(
+    frame: &Frame2d<'_>,
+    scene: &mut SceneNode2d,
+    slots: &mut HashMap<Entity, Slot2d>,
+    materials: &mut crate::shader_material::MaterialCache,
     world: &balaur_core::hecs::World,
-    entity: Entity,
-    slot: &mut Slot2d,
-    renderable: &Renderable2d,
-    global: &GlobalTransform,
+    (entity, renderable, global): (Entity, &Renderable2d, &GlobalTransform),
+    live: &mut HashSet<Entity>,
 ) -> bool {
-    let Ok(multimesh) = world.get::<&crate::MultiMesh>(entity) else {
-        return true;
+    let (channel_changed, relinked, reloaded) = frame.rebuild;
+    let app = frame.app;
+    // Read once: the ancestors' tint, visibility and material come off
+    // the same propagated component.
+    let appearance = world
+        .get::<&GlobalAppearance>(entity)
+        .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
+    let owns_material = !renderable.material.is_empty();
+    // A sprite's image and a polyline's mesh are both files; a reload
+    // re-reads them, as it does in three dimensions.
+    let from_file = renderable.sprite.is_some()
+        || renderable.polyline.is_some()
+        || !renderable.texture.is_empty();
+    let rebuild = match slots.get(&entity) {
+        Some(slot) => {
+            slot.version != renderable.version
+                || channel_changed
+                || (relinked && (owns_material || !appearance.material.is_none()))
+                || (reloaded && from_file)
+                || (!owns_material && slot.inherited != appearance.material)
+        }
+        None => true,
     };
-    let drawn = renderable
-        .polygon
-        .as_ref()
-        .and_then(|polygon| crate::texture::size_of(&app.engine, &polygon.texture).ok());
-    let any = {
-        let mut data = slot.node.data_mut();
-        let Some(object) = data.object_mut() else {
+    if rebuild {
+        if let Some(mut old) = slots.remove(&entity) {
+            old.node.detach();
+        }
+        let Some(slot) = build_slot_2d(
+            app,
+            scene,
+            materials,
+            frame.channel,
+            renderable,
+            appearance.material,
+        ) else {
+            live.insert(entity);
             return true;
         };
-        crate::instancing::draw_multimesh_2d(object, &multimesh, global, drawn)
+        slots.insert(entity, slot);
+    }
+    // The block above inserts the slot when it is missing.
+    let slot = slots.get_mut(&entity).unwrap();
+    let inherited = appearance.tint.to_array();
+    let color = crate::film::color(modulate(renderable.color, inherited));
+    let size = frame_sprite(app, slot, renderable);
+    // Every frame: the rig moved even when nothing about the polygon did.
+    if let (Some(handle), Some(polygon)) = (&slot.skin, renderable.polygon.as_deref()) {
+        handle.set(polygon_palette(world, entity, polygon));
+    }
+    if let (Some(handle), Some(polygon)) = (&slot.deform, renderable.polygon.as_deref()) {
+        slot.deformed =
+            crate::skinned_2d::write_deform(world, entity, polygon, handle, slot.deformed);
+    }
+    tint_pieces(slot, renderable, inherited);
+    let debug = crate::debug_draw::DebugDraw::of(world, entity);
+    let reference = if renderable.material.is_empty() {
+        appearance.material.reference().to_string()
+    } else {
+        renderable.material.clone()
     };
-    // The shear cached with the old instance is gone with it.
-    slot.shear = f32::NAN;
-    // The companion sits at the node's origin, so the same copies in its own
-    // space land where the node's do.
-    if let Some(companion) = slot.companion.as_mut()
-        && let Some(object) = companion.data_mut().object_mut()
-    {
-        crate::instancing::draw_multimesh_2d(object, &multimesh, global, drawn);
+    let surface = crate::material::flat_surface_of(&app.engine, &reference);
+    if slot.overlay != Some((surface, debug)) {
+        crate::overlay::apply_2d(&mut slot.node, &surface, &debug);
+        let mesh = overlay_mesh(app, &slot.node, renderable, appearance.material);
+        crate::overlay::companion_2d(&mut slot.node, &mut slot.companion, &debug, mesh);
+        slot.overlay = Some((surface, debug));
     }
-    any
-}
-
-/// A sprite's size and frame onto its node: the nine-slice mesh it bakes,
-/// or the unit quad's UVs. Answers the scale the node takes for its size.
-fn frame_sprite(app: &App, slot: &mut Slot2d, renderable: &Renderable2d) -> Vec2 {
-    // A sprite is the one 2D shape still built at unit size: its extents
-    // come from the image and change without rebuilding the node. A
-    // nine-slice one bakes its size, since its corners must not stretch.
-    let nine = nine_of(app, renderable, &slot.node, false);
-    if slot.nine != nine {
-        set_nine_mesh(&mut slot.node, nine.as_ref());
-        slot.nine = nine;
+    let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
+    let shift = lean_and_shift(slot, renderable, global);
+    let visible = appearance.visible
+        && draws(renderable, appearance.material)
+        && draw_multimesh(app, world, entity, slot, renderable, global);
+    slot.node
+        .set_position(Vec2::new(global.position.x, global.position.y) + shift)
+        .set_rotation(angle)
+        .set_local_scale(size.x * global.scale.x, size.y * global.scale.y)
+        .set_color(color)
+        .set_visible(visible);
+    let moving = slot.skin.is_some()
+        || slot.deform.is_some()
+        || world.get::<&crate::MultiMesh>(entity).is_ok();
+    if moving {
+        live.insert(entity);
+    } else {
+        live.remove(&entity);
     }
-    let size = match renderable.shape {
-        Shape2d::Sprite { .. } if nine.is_some() => Vec2::ONE,
-        Shape2d::Sprite { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
-        _ => Vec2::ONE,
-    };
-    // Every sync, not just on rebuild: frames and flips are UV changes, so
-    // an animation that flips frames must not rebuild the node.
-    if let Some(sprite) = renderable.sprite.as_ref().filter(|_| nine.is_none()) {
-        let flip = (sprite.flip_x, sprite.flip_y);
-        if sprite.sheet.is_some() || sprite.region.is_some() || flip != slot.flip {
-            // The rectangle is in the pixels the image was drawn at, which
-            // a shrunk copy no longer has: `size_of` answers those.
-            let drawn = sprite
-                .region
-                .and_then(|_| crate::texture::size_of(&app.engine, &sprite.path).ok());
-            sync_sprite_uvs(&mut slot.node, sprite, drawn);
-        }
-        slot.flip = flip;
-    }
-    size
+    rebuild
 }
 
 /// Hand each run the instances its members wrote, and drop the slots of the
-/// nodes that no longer draw.
-fn flush(batches: &mut Batches, slots: &mut HashMap<Entity, Slot2d>, seen: &HashSet<Entity>) {
+/// nodes that no longer draw; with nothing `seen`, only the runs a member was
+/// written again in, and no slot is dropped.
+fn flush(
+    batches: &mut Batches,
+    slots: &mut HashMap<Entity, Slot2d>,
+    seen: Option<&HashSet<Entity>>,
+) {
     for run in &mut batches.runs {
+        if seen.is_none() && !run.touched {
+            continue;
+        }
+        run.touched = false;
         // Taken and put back: `set_instances` borrows the node, and the
         // buffer is kept so a frame of the same size allocates nothing.
         let instances = std::mem::take(&mut run.pending);
         run.node.set_instances(&instances);
         run.pending = instances;
     }
+    let Some(seen) = seen else {
+        return;
+    };
     slots.retain(|entity, slot| {
         if seen.contains(entity) {
             true
         } else {
             slot.node.detach();
             false
-        }
-    });
-}
-
-/// Whether a renderable puts anything on screen. A sprite with no image and
-/// no material draws nothing, as Godot's does: a script clears the texture to
-/// hide what it showed. It keeps its placeholder size for picking.
-fn draws(renderable: &Renderable2d, inherited: balaur_core::scene::MaterialId) -> bool {
-    renderable.sprite.as_ref().is_none_or(|sprite| {
-        !sprite.path.is_empty() || !renderable.material.is_empty() || !inherited.is_none()
-    })
-}
-
-/// Lean a node by its shear and answer how far its sprite's quad sits off
-/// it: the shift turns and scales with the node, so it is taken through both.
-fn lean_and_shift(slot: &mut Slot2d, renderable: &Renderable2d, global: &GlobalTransform) -> Vec2 {
-    // The shear is the node's one instance, applied between rotation and
-    // scale as Godot does; a polyline's group node has no object to lean.
-    if slot.shear.to_bits() != global.skew.to_bits() && slot.node.data().object().is_some() {
-        let (sin, cos) = (
-            balaur_core::libm::sinf(global.skew),
-            balaur_core::libm::cosf(global.skew),
-        );
-        slot.node.set_instances(&[kiss3d::scene::InstanceData2d {
-            deformation: glamx::Mat2::from_cols(Vec2::new(1.0, 0.0), Vec2::new(-sin, cos)),
-            ..Default::default()
-        }]);
-        slot.shear = global.skew;
-    }
-    match (&renderable.sprite, renderable.shape) {
-        (Some(sprite), Shape2d::Sprite { hx, hy }) => {
-            let [x, y] = sprite.centre(hx, hy);
-            (global.affine_2d() * glamx::Vec3::new(x, y, 0.0)).truncate()
-        }
-        _ => Vec2::ZERO,
-    }
-}
-
-/// A node's own colour with the tint every ancestor contributed multiplied
-/// in, channel by channel, alpha included.
-pub(crate) fn modulate(color: [f32; 4], tint: [f32; 4]) -> [f32; 4] {
-    [
-        color[0] * tint[0],
-        color[1] * tint[1],
-        color[2] * tint[2],
-        color[3] * tint[3],
-    ]
-}
-
-/// A polyline's pieces carry their own colour: the tint blended toward the
-/// gradient by where each sits, since a group's colour stops at the group.
-pub(crate) fn tint_pieces(slot: &mut Slot2d, renderable: &Renderable2d, inherited: [f32; 4]) {
-    let [r, g, b, a] = modulate(renderable.color, inherited);
-    let end = renderable
-        .line
-        .as_ref()
-        .and_then(|style| style.gradient)
-        .map_or([r, g, b, a], |gradient| modulate(gradient, inherited));
-    for (piece, along) in &mut slot.pieces {
-        let t = *along;
-        // Mixed as written and decoded after, so the midpoint is the one a
-        // picker shows between the two ends.
-        piece.set_color(crate::film::color([
-            r + (end[0] - r) * t,
-            g + (end[1] - g) * t,
-            b + (end[2] - b) * t,
-            a + (end[3] - a) * t,
-        ]));
-    }
-}
-
-/// Remap the node's UVs to the sprite's sheet frame, with the U or V extents
-/// swapped for flips.
-pub(crate) fn sync_sprite_uvs(
-    node: &mut SceneNode2d,
-    sprite: &SpriteTexture,
-    drawn: Option<(u32, u32)>,
-) {
-    let texture = node.data().object().map(|o| o.data().texture().size);
-    let (min, max) = sprite_uv_rect(sprite, drawn, texture);
-    node.set_uv_rect(min, max);
-}
-
-/// The corner of the image a sprite draws, in the mesh's own UVs.
-///
-/// `drawn` is the size a region is measured against and `texture` the size of
-/// the image as it was uploaded, which is what the sheet's sliver is in.
-pub(crate) fn sprite_uv_rect(
-    sprite: &SpriteTexture,
-    drawn: Option<(u32, u32)>,
-    texture: Option<(u32, u32)>,
-) -> (Vec2, Vec2) {
-    let sheet = sprite
-        .sheet
-        .map(|s| kiss3d::scene::SpriteSheet::new(s.columns, s.rows));
-    let (mut min, mut max) = sheet.map_or((Vec2::ZERO, Vec2::ONE), |s| s.frame_uv(sprite.frame));
-    // A region is a rectangle of the image in pixels; it wins over a sheet.
-    if let Some([x, y, w, h]) = sprite.region {
-        let size = drawn.or(texture);
-        if let Some((tw, th)) = size.filter(|(tw, th)| *tw > 0 && *th > 0) {
-            let (tw, th) = (tw as f32, th as f32);
-            min = Vec2::new(x as f32 / tw, y as f32 / th);
-            max = Vec2::new((x + w) as f32 / tw, (y + h) as f32 / th);
-        }
-    }
-    if sheet.is_some() && sprite.region.is_none() {
-        // The sliver keeps a nearest-sampled edge fragment from rounding into
-        // the neighbouring frame, matching kiss3d's own `set_sprite_frame`.
-        if let Some((w, h)) = texture
-            && w > 1
-            && h > 1
-        {
-            let inset = Vec2::new(0.05 / w as f32, 0.05 / h as f32);
-            min += inset;
-            max -= inset;
-        }
-    }
-    if sprite.flip_x {
-        std::mem::swap(&mut min.x, &mut max.x);
-    }
-    if sprite.flip_y {
-        std::mem::swap(&mut min.y, &mut max.y);
-    }
-    (min, max)
-}
-
-/// The nine-slice mesh a sprite draws, or `None` for one drawn as a plain
-/// quad. `whole` builds it over the whole image, for a run whose members
-/// each pick their own rectangle in their instance.
-pub(crate) fn nine_of(
-    app: &App,
-    renderable: &Renderable2d,
-    node: &SceneNode2d,
-    whole: bool,
-) -> Option<crate::sprite::NineKey> {
-    let sprite = renderable.sprite.as_ref()?;
-    let margins = sprite.nine?;
-    let Shape2d::Sprite { hx, hy } = renderable.shape else {
-        return None;
-    };
-    let drawn = crate::texture::size_of(&app.engine, &sprite.path).ok();
-    let cell = match (sprite.region, sprite.sheet, drawn) {
-        (Some([_, _, w, h]), _, _) | (None, None, Some((w, h))) => (w as f32, h as f32),
-        (None, Some(sheet), Some((w, h))) => (
-            w as f32 / sheet.columns.max(1) as f32,
-            h as f32 / sheet.rows.max(1) as f32,
-        ),
-        _ => (1.0, 1.0),
-    };
-    let rect = if whole {
-        let mut rect = kiss3d::scene::UV_WHOLE_2D;
-        if sprite.flip_x {
-            rect.swap(0, 2);
-        }
-        if sprite.flip_y {
-            rect.swap(1, 3);
-        }
-        rect
-    } else {
-        let uploaded = node.data().object().map(|o| o.data().texture().size);
-        let (min, max) = sprite_uv_rect(sprite, sprite.region.and(drawn), uploaded);
-        [min.x, min.y, max.x, max.y]
-    };
-    Some(crate::sprite::nine_key(
-        margins,
-        (hx, hy),
-        renderable.pixels_per_unit,
-        cell,
-        rect,
-    ))
-}
-
-/// The mesh a nine-slice key describes: kiss3d's own nine-slice, its UVs
-/// carried into the rectangle the sprite draws.
-pub(crate) fn nine_mesh(key: &crate::sprite::NineKey) -> kiss3d::resource::GpuMesh2d {
-    use kiss3d::scene::Border;
-    let border = |[left, right, top, bottom]: [f32; 4]| Border {
-        left,
-        right,
-        top,
-        bottom,
-    };
-    let mesh = kiss3d::scene::nine_slice_mesh(
-        Vec2::from_array(key.size),
-        border(key.world),
-        border(key.uv),
-    );
-    let [x0, y0, x1, y1] = key.rect;
-    if let Some(uvs) = mesh
-        .uvs()
-        .write()
-        .ok()
-        .as_mut()
-        .and_then(|u| u.data_mut().as_mut())
-    {
-        for uv in uvs.iter_mut() {
-            *uv = Vec2::new(x0 + uv.x * (x1 - x0), y0 + uv.y * (y1 - y0));
-        }
-    }
-    mesh
-}
-
-/// Give a sprite's node the nine-slice mesh it now draws, or a plain unit
-/// quad back. The quad kiss3d hands sprites is shared, so it is copied first.
-fn set_nine_mesh(node: &mut SceneNode2d, key: Option<&crate::sprite::NineKey>) {
-    let mesh = match key {
-        Some(key) => nine_mesh(key),
-        None => kiss3d::scene::nine_slice_mesh(
-            Vec2::ONE,
-            kiss3d::scene::Border::uniform(0.0),
-            kiss3d::scene::Border::uniform(0.0),
-        ),
-    };
-    let mut mesh = Some(mesh);
-    node.apply_to_object_mut(&mut |object| {
-        object.make_mesh_unique();
-        if let Some(mesh) = mesh.take() {
-            *object.mesh().borrow_mut() = mesh;
         }
     });
 }

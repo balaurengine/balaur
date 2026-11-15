@@ -26,6 +26,11 @@ pub struct Stamp {
 #[derive(Default)]
 pub struct Ticks {
     stamps: crate::collections::DetHashMap<(Entity, usize), Stamp>,
+    /// Every stamp as it was made, oldest first, so a reader that runs every
+    /// frame finds what changed without walking every stamp.
+    recent: Vec<(Entity, usize, u64)>,
+    /// `recent` holds every stamp made after this tick.
+    recent_from: u64,
     /// What came off, with the tick it came off at; kept for the frame it
     /// came off in and the next, so a reader that runs every frame hears it.
     removed: Vec<(Entity, usize, u64)>,
@@ -35,6 +40,9 @@ pub struct Ticks {
     /// The ticks the last two frames started at, which bound what `removed`
     /// keeps.
     frames: [u64; 2],
+    /// The last tick a system wrote a tick column at, which `recent` never
+    /// hears: a reader of every change scans the columns only after one.
+    columns_at: u64,
 }
 
 fn with(eng: &Engine, write: impl FnOnce(&mut Ticks)) {
@@ -54,6 +62,7 @@ pub(crate) fn added(eng: &Engine, node: Entity, index: usize) {
                 changed: now,
             },
         );
+        ticks.note(now, node, index);
     });
 }
 
@@ -61,9 +70,15 @@ impl Ticks {
     /// Component `index` of `node` changed at tick `now`.
     pub(crate) fn changed(&mut self, now: u64, node: Entity, index: usize) {
         if let Some(stamp) = self.stamps.get_mut(&(node, index)) {
-            stamp.changed = now;
+            // Noted once a tick: a component written again and again within
+            // one system costs `recent` nothing, and a write no allocation.
+            if stamp.changed != now {
+                stamp.changed = now;
+                self.note(now, node, index);
+            }
             return;
         }
+        self.note(now, node, index);
         self.stamps.insert(
             (node, index),
             Stamp {
@@ -72,7 +87,27 @@ impl Ticks {
             },
         );
     }
+
+    /// Keep a stamp in `recent`. A loop that starts no frame never prunes it,
+    /// so past a bound the older half goes, and a reader from before that
+    /// walks every stamp instead.
+    fn note(&mut self, now: u64, node: Entity, index: usize) {
+        if self.recent.len() >= RECENT_BOUND.max(2 * self.stamps.len()) {
+            let half = self.recent.len() / 2;
+            self.recent_from = self.recent[half - 1].2;
+            self.recent.drain(..half);
+        }
+        self.recent.push((node, index, now));
+    }
+
+    /// Whether `recent` answers for every stamp made after `since`.
+    fn recent_covers(&self, since: u64) -> bool {
+        since >= self.recent_from && since >= self.restored_at
+    }
 }
+
+/// How many stamps `recent` keeps before it drops the older half.
+const RECENT_BOUND: usize = 1 << 16;
 
 /// Component `index` of `node` changed now.
 pub(crate) fn changed(eng: &Engine, node: Entity, index: usize) {
@@ -118,6 +153,10 @@ pub(crate) fn frame_started(eng: &Engine) {
         ticks.frames = [ticks.frames[1], now];
         let keep_from = ticks.frames[0];
         ticks.removed.retain(|(_, _, at)| *at >= keep_from);
+        let gone = ticks.recent.partition_point(|(_, _, at)| *at < keep_from);
+        ticks.recent.drain(..gone);
+        // `removed` keeps no more than this either.
+        ticks.recent_from = ticks.recent_from.max(keep_from.saturating_sub(1));
     });
 }
 
@@ -127,9 +166,19 @@ pub(crate) fn restored(eng: &Engine) {
     let now = eng.change_tick();
     with(eng, |ticks| {
         ticks.stamps.clear();
+        ticks.recent.clear();
+        ticks.recent_from = now;
         ticks.removed.clear();
         ticks.restored_at = now;
     });
+}
+
+/// Whether a frame was restored after tick `since`: a reader that last ran
+/// then hears every component as changed.
+#[must_use]
+pub fn restored_after(eng: &Engine, since: u64) -> bool {
+    eng.try_resource::<Ticks>()
+        .is_some_and(|ticks| since < ticks.borrow().restored_at)
 }
 
 /// Component `index`'s stamp on `node`, if it holds one.
@@ -177,6 +226,47 @@ pub fn removed_since(eng: &Engine, index: usize, since: u64) -> Vec<Entity> {
         .collect()
 }
 
+/// Every node a registered component went onto, changed on or came off
+/// after tick `since`, sorted, freed nodes among them; `None` where that is
+/// no longer known, after a restore or for a tick before the frame before
+/// last, which a reader takes as every node.
+#[must_use]
+pub fn written_since(eng: &Engine, since: u64) -> Option<Vec<Entity>> {
+    let ticks = eng.try_resource::<Ticks>()?;
+    let (mut found, columns) = {
+        let ticks = ticks.borrow();
+        if !ticks.recent_covers(since) {
+            return None;
+        }
+        let mut found: Vec<Entity> = ticks
+            .recent
+            .iter()
+            .rev()
+            .take_while(|(_, _, at)| *at > since)
+            .map(|(node, _, _)| *node)
+            .collect();
+        found.extend(
+            ticks
+                .removed
+                .iter()
+                .filter(|(_, _, at)| *at > since)
+                .map(|(node, _, _)| *node),
+        );
+        (found, ticks.columns_at > since)
+    };
+    if columns && let Some(registry) = eng.try_resource::<super::ComponentRegistry>() {
+        let world = eng.world();
+        for (_, def) in registry.borrow().iter() {
+            if let Some(column) = def.ticks {
+                found.extend((column.changed_since)(&world, since));
+            }
+        }
+    }
+    found.sort_unstable_by_key(|node| node.to_bits());
+    found.dedup();
+    Some(found)
+}
+
 /// The nodes whose stamp of component `index`, as `of` reads it, is after
 /// `since`, in node order; every holder when `since` is before a restore.
 fn matching(eng: &Engine, index: usize, since: u64, of: impl Fn(&Stamp) -> u64) -> Vec<Entity> {
@@ -194,6 +284,26 @@ fn matching(eng: &Engine, index: usize, since: u64, of: impl Fn(&Stamp) -> u64) 
             .filter(|(_, attached)| attached.has(index))
             .map(|(entity, _)| entity)
             .collect()
+    } else if ticks.recent_covers(since) {
+        // Newest last, so the walk back stops at the first stamp it covers.
+        let mut found: Vec<Entity> = ticks
+            .recent
+            .iter()
+            .rev()
+            .take_while(|(_, _, at)| *at > since)
+            .filter(|(_, at_index, _)| *at_index == index)
+            .map(|(node, _, _)| *node)
+            .collect();
+        found.sort_unstable_by_key(|node| node.to_bits());
+        found.dedup();
+        // A stamp since dropped, by a removal or a free, no longer counts.
+        found.retain(|node| {
+            ticks
+                .stamps
+                .get(&(*node, index))
+                .is_some_and(|stamp| of(stamp) > since)
+        });
+        found
     } else {
         ticks
             .stamps
@@ -209,20 +319,43 @@ fn matching(eng: &Engine, index: usize, since: u64, of: impl Fn(&Stamp) -> u64) 
 thread_local! {
     /// The change tick of the system running on this thread: what a tracked
     /// write stores. Set as the engine steps it, and on a pool thread for the
-    /// batch it runs.
-    static NOW: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    /// batch it runs. Beside it, whether a tick column was written since the
+    /// drain last asked.
+    static NOW: std::cell::Cell<(u64, bool)> = const { std::cell::Cell::new((0, false)) };
 }
 
 /// Say the change tick now on this thread.
 pub(crate) fn set_now(tick: u64) {
-    NOW.with(|now| now.set(tick));
+    NOW.with(|now| now.set((tick, now.get().1)));
 }
 
 /// The change tick of the system running on this thread.
 #[must_use]
 pub fn now_here() -> u64 {
-    NOW.with(std::cell::Cell::get)
+    NOW.with(|now| now.get().0)
 }
+
+/// The change tick a tracked write stores in a tick column, the write noted
+/// for [`written_since`], which reads no column it was not told of.
+pub(crate) fn column_written() -> u64 {
+    NOW.with(|now| {
+        let (tick, _) = now.get();
+        now.set((tick, true));
+        tick
+    })
+}
+
+/// Whether this thread wrote a tick column since it was last asked.
+fn take_column_written() -> bool {
+    NOW.with(|now| {
+        let (tick, written) = now.get();
+        now.set((tick, false));
+        written
+    })
+}
+
+/// Whether a pool thread wrote a tick column, for the drain on the engine's.
+static COLUMNS_HANDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// A derived component's change tick, in a column beside it: what a write
 /// through a tracked query stores, as bevy keeps a tick beside each
@@ -297,6 +430,9 @@ pub(crate) fn note_written(type_id: std::any::TypeId, node: Entity) {
 /// Hand this thread's notes to the engine's thread: what a batch run on the
 /// pool does when it ends, once rather than a lock a write.
 pub(crate) fn hand_over() {
+    if take_column_written() {
+        COLUMNS_HANDED.store(true, std::sync::atomic::Ordering::Release);
+    }
     let mine = WRITTEN.with(|written| std::mem::take(&mut *written.borrow_mut()));
     if !mine.is_empty() {
         HANDED
@@ -311,6 +447,13 @@ pub(crate) fn hand_over() {
 /// component the registry does not know left alone: what a system's tracked
 /// writes become, at the end of its run.
 pub(crate) fn drain_written(eng: &Engine) {
+    if take_column_written()
+        || (COLUMNS_HANDED.load(std::sync::atomic::Ordering::Relaxed)
+            && COLUMNS_HANDED.swap(false, std::sync::atomic::Ordering::Acquire))
+    {
+        let now = eng.change_tick();
+        with(eng, |ticks| ticks.columns_at = now);
+    }
     // Read, not taken: the common case is nothing at all.
     if !HANDED_ANY.load(std::sync::atomic::Ordering::Relaxed)
         && WRITTEN.with(|written| written.borrow().is_empty())
@@ -348,14 +491,7 @@ pub(crate) fn drain_written(eng: &Engine) {
             index
         };
         if let Some(index) = index {
-            ticks
-                .stamps
-                .entry((node, index))
-                .and_modify(|stamp| stamp.changed = now)
-                .or_insert(Stamp {
-                    added: now,
-                    changed: now,
-                });
+            ticks.changed(now, node, index);
         }
     }
 }

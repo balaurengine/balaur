@@ -36,8 +36,8 @@ pub fn wake() {
 }
 
 /// Wake the sleeping loop at `when`, for work due then that nothing else
-/// would wake it for: a heartbeat, a reconnect back-off. A browser tab keeps
-/// its frames coming, so there it does nothing.
+/// would wake it for: a heartbeat, a reconnect back-off. A tab has no thread
+/// to wait on it, so its loop folds the soonest into its own wait.
 pub fn at(when: crate::time::Instant) {
     #[cfg(not(target_family = "wasm"))]
     {
@@ -45,7 +45,34 @@ pub fn at(when: crate::time::Instant) {
         TIMER.get_or_init(|| Timer::start(wake)).schedule(when);
     }
     #[cfg(target_family = "wasm")]
-    let _ = when;
+    DUE.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(when);
+}
+
+/// The deadlines [`at`] holds in a tab, for its loop.
+#[cfg(target_family = "wasm")]
+static DUE: Mutex<std::collections::BTreeSet<crate::time::Instant>> =
+    Mutex::new(std::collections::BTreeSet::new());
+
+/// The soonest deadline [`at`] holds, for a tab's loop to wait until. One
+/// already passed is taken as a [`wake`], which the loop's [`take`] reads.
+#[cfg(target_family = "wasm")]
+#[must_use]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a deadline to wake the loop at; never a simulation input"
+)]
+pub fn soonest() -> Option<crate::time::Instant> {
+    let now = crate::time::Instant::now();
+    let mut held = DUE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if held.first().is_some_and(|first| *first <= now) {
+        held.retain(|deadline| *deadline > now);
+        WOKEN.store(true, Ordering::Release);
+    }
+    held.first().copied()
 }
 
 /// A thread asleep until the earliest deadline it holds, which then calls

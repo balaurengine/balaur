@@ -37,7 +37,7 @@ pub(crate) fn spawn_request(
             Ok(event) => event,
             Err(message) => HttpEvent::Error { request, message },
         };
-        let _ = events.send(event);
+        balaur_core::replay::report(&events, event);
     });
 }
 
@@ -86,11 +86,14 @@ async fn send(call: HttpCall, events: &Sender<HttpEvent>) -> Result<HttpEvent, S
         balaur_core::files::default_backend()
             .write(path, &bytes)
             .map_err(|err| err.to_string())?;
-        let _ = events.send(HttpEvent::Progress {
-            request: call.id,
-            received: bytes.len() as u64,
-            total: Some(bytes.len() as u64),
-        });
+        balaur_core::replay::report(
+            events,
+            HttpEvent::Progress {
+                request: call.id,
+                received: bytes.len() as u64,
+                total: Some(bytes.len() as u64),
+            },
+        );
         return Ok(HttpEvent::Response {
             request: call.id,
             status,

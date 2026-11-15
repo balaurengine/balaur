@@ -122,15 +122,11 @@ pub struct Pause {
     /// Whether any node carries a mode at all. False is the common case, and
     /// it turns the walk to the root into one compare.
     modes: bool,
-    /// Whether any scene is parked. A parked node reads hidden, so only a
-    /// hidden node is walked for it.
-    parked: bool,
 }
 
 impl Pause {
     /// Whether a pause or a mode holds anything, so a pass over many nodes
-    /// has any node to ask about. A parked node is held all the same, for a
-    /// pass that can meet one: [`ticks`] answers for it.
+    /// has any node to ask about.
     #[must_use]
     pub const fn holds(self) -> bool {
         self.on || self.modes
@@ -151,15 +147,7 @@ pub fn pause(eng: &Engine) -> Pause {
     Pause {
         on: eng.paused(),
         scope: eng.debug_scope(),
-        // A holder's mode is the parked trees', which `parked` asks about.
-        modes: eng
-            .world()
-            .query::<&ProcessMode>()
-            .without::<&crate::parked::Held>()
-            .iter()
-            .next()
-            .is_some(),
-        parked: !crate::parked::holders(eng).is_empty(),
+        modes: eng.world().query::<&ProcessMode>().iter().next().is_some(),
     }
 }
 
@@ -169,12 +157,7 @@ pub fn ticks(world: &World, entity: Entity, pause: Pause) -> bool {
     // With no mode anywhere the answer is the pause alone, and `covers`
     // answers that without touching the node.
     if !pause.modes {
-        let parked = pause.parked
-            && world
-                .get::<&crate::scene::GlobalAppearance>(entity)
-                .is_ok_and(|shown| !shown.visible)
-            && crate::parked::path_of(world, entity).is_some();
-        return !parked && !pause.covers(world, entity);
+        return !pause.covers(world, entity);
     }
     resolved(world, entity).runs(pause.covers(world, entity))
 }

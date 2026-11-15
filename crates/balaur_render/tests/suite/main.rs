@@ -22,6 +22,8 @@ mod film;
 mod light;
 mod material;
 mod mesh;
+#[cfg(feature = "window")]
+mod mirror;
 mod morph_weights;
 mod multimesh;
 #[cfg(feature = "window")]

@@ -53,6 +53,7 @@ pub(super) fn apply_own_keys(
             appearance.z_as_relative = on;
         }
     }
+    crate::scene::appearance_written(eng, entity);
     apply_process(eng, entity, node.process.as_deref(), &node.name)?;
     if !node.tags.is_empty() {
         let mut tags = eng

@@ -145,6 +145,28 @@ pub struct WallClock {
     pub unix_time: f64,
 }
 
+/// The machine's clock as of the top of this tick, read while a recording
+/// feeds [`WallClock`] too, and never recorded: what a tool driving a replay
+/// reads, which is outside the game it plays ([`unix_time`]).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MachineClock(pub f64);
+
+/// What `engine::unix_time` answers the script calling now: the game's
+/// recorded clock, or the machine's to a script on a node outside the
+/// subtree `debugger::set_scope` names, which is a tool's own.
+#[must_use]
+pub fn unix_time(eng: &Engine) -> f64 {
+    let tool = eng.debug_scope().is_some_and(|game| {
+        crate::dependencies::calling_node(eng)
+            .is_some_and(|node| !crate::scene::is_within(&eng.world(), node, game))
+    });
+    if tool && let Some(machine) = eng.try_resource::<MachineClock>() {
+        return machine.borrow().0;
+    }
+    eng.try_resource::<WallClock>()
+        .map_or(0.0, |clock| clock.borrow().unix_time)
+}
+
 /// One id per install, made once and kept in the user directory; what a
 /// device login sends. Random from the clock and the process, never from
 /// the engine's own stream, which must stay the game's.
@@ -195,12 +217,15 @@ fn device_salt() -> u64 {
     reason = "the one place the wall clock enters, read once per tick and recorded"
 )]
 pub(crate) fn read_clock_system(eng: &Engine, _: f32) {
-    if crate::replay::is_playing(eng) {
-        return;
-    }
     let now = crate::time::SystemTime::now()
         .duration_since(crate::time::UNIX_EPOCH)
         .map_or(0.0, |d| d.as_secs_f64());
+    if let Some(machine) = eng.try_resource::<MachineClock>() {
+        machine.borrow_mut().0 = now;
+    }
+    if crate::replay::is_playing(eng) {
+        return;
+    }
     if let Some(clock) = eng.try_resource::<WallClock>() {
         clock.borrow_mut().unix_time = now;
     }
@@ -457,14 +482,6 @@ pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
     let Some(device) = eng.try_resource::<Device>() else {
         return;
     };
-    let warned = {
-        let device = device.borrow();
-        device.now.memory_warnings > device.was.memory_warnings
-    };
-    // A warning is recorded, so a replay frees them on the same frame.
-    if warned {
-        crate::parked::free_all(eng);
-    }
     let said = {
         let mut device = device.borrow_mut();
         let Device { now, was, notices } = &mut *device;

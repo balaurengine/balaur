@@ -348,6 +348,8 @@ pub fn register_facts(app: &mut App) {
     app.engine.insert_resource(crate::facts::Facts::default());
     app.engine
         .insert_resource(crate::facts::WallClock::default());
+    app.engine
+        .insert_resource(crate::facts::MachineClock::default());
     app.engine.insert_resource(crate::timers::Timers::default());
     app.engine.insert_resource(crate::facts::Device::default());
     app.add_replay_source(
@@ -408,7 +410,8 @@ pub fn register_scene_content(app: &mut App) {
         .insert_resource(crate::bindings::Runners::default());
     app.engine
         .insert_resource(crate::scene_switch::Pending::default());
-    app.engine.insert_resource(crate::parked::Parked::default());
+    app.engine
+        .insert_resource(crate::scene_switch::Scenes::default());
 }
 
 impl App {
@@ -488,14 +491,13 @@ impl App {
         });
         app.add_system(Stage::SceneSync, |eng, _| {
             crate::timings::measure(eng, "scene/transforms", || {
-                let root = eng.root();
                 // 1.0 is the tick's own pose for every node.
                 let alpha = if crate::interpolate::on(eng) {
                     eng.frame_alpha()
                 } else {
                     1.0
                 };
-                scene::propagate_transforms_at(&mut eng.world_mut(), root, alpha);
+                scene::sync_globals(eng, alpha);
             });
         });
         app.add_system(Stage::Last, |eng, _| {

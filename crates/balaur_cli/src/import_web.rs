@@ -90,10 +90,13 @@ async fn read_then_import(
         };
         let name = file.name();
         let Some(bytes) = bytes_of(&file).await else {
-            let _ = report.send(ImportEvent::Failed {
-                source: name.clone(),
-                message: format!("{name} could not be read from the page"),
-            });
+            balaur_core::replay::report(
+                &report,
+                ImportEvent::Failed {
+                    source: name.clone(),
+                    message: format!("{name} could not be read from the page"),
+                },
+            );
             return;
         };
         // The first file an importer claims is the one being imported; the
@@ -108,10 +111,13 @@ async fn read_then_import(
         // Nothing an importer reads: say so against the first name picked,
         // since there is no path to name instead.
         let named = files.get(0).map(|file| file.name()).unwrap_or_default();
-        let _ = report.send(ImportEvent::Failed {
-            source: named.clone(),
-            message: format!("nothing an importer reads was picked ({named})"),
-        });
+        balaur_core::replay::report(
+            &report,
+            ImportEvent::Failed {
+                source: named.clone(),
+                message: format!("nothing an importer reads was picked ({named})"),
+            },
+        );
         return;
     };
     running.fetch_add(1, Ordering::Relaxed);

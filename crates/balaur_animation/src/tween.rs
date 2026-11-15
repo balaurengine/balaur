@@ -82,11 +82,7 @@ fn in_game(eng: &Engine, node: Entity) -> bool {
     let Some(game) = eng.debug_scope() else {
         return true;
     };
-    let world = eng.world();
-    scene::is_within(&world, node, game)
-        || balaur_core::parked::holders(eng)
-            .into_iter()
-            .any(|(_, holder)| scene::is_within(&world, node, holder))
+    scene::is_within(&eng.world(), node, game)
 }
 
 /// Where a call at the very head of a tween is placed.
@@ -674,6 +670,7 @@ fn current_value(
     if eng.world().get::<&Transform>(entity).is_err() {
         eng.insert_one(entity, Transform::identity())
             .map_err(|_| anyhow!("node is dead"))?;
+        balaur_core::transform::written(eng, entity);
     }
     let world = eng.world();
     let transform = world

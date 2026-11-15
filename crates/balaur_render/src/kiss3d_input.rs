@@ -13,6 +13,10 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
     // A screen reader's request is input too: a lazy UI owes it a pass.
     let heard = crate::access::hear_reader(&app.engine, window);
     let Some(input) = app.engine.try_resource::<InputSnapshot>() else {
+        // The display's own word still counts with no input to feed.
+        for event in window.events().iter() {
+            crate::device::hear(&event.value);
+        }
         return true;
     };
     #[cfg(target_family = "wasm")]
@@ -27,6 +31,7 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
     let mut closing = false;
     for event in window.events().iter() {
         seen = true;
+        crate::device::hear(&event.value);
         if matches!(
             event.value,
             WindowEvent::Key(_, Action::Press, _)

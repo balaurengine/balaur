@@ -1,8 +1,9 @@
 // Who else is here: the users this client has seen, kept so a name or an
 // avatar is drawn without asking the server again. One roster for the run,
-// in the script store, so every script reads the same one.
+// on the client's node, so every script reads the same one.
 
-const ROSTER_KEY: str = "gamend:users";
+use service;
+
 const ID: str = "id";
 
 /// Remember a user payload, as a `user_updated` or a member event carries it.
@@ -12,7 +13,8 @@ pub fn cache(user: any) {
     }
     let roster = all();
     roster[user[ID].text()] = user;
-    engine::store(ROSTER_KEY, roster);
+    let state = service::get();
+    state.roster = roster;
 }
 
 /// The user this client last saw under that id, or nil.
@@ -22,11 +24,12 @@ pub fn user(id: str) -> any {
 
 /// Everyone cached, by id.
 pub fn all() -> any {
-    let kept = engine::stored(ROSTER_KEY);
+    let kept = service::get().roster;
     if kept.kind() == types::KIND_MAP { kept } else { {} }
 }
 
 /// Forget everyone: the roster after a sign-out.
 pub fn forget() {
-    engine::store(ROSTER_KEY, {});
+    let state = service::get();
+    state.roster = nil;
 }

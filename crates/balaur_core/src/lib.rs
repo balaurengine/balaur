@@ -47,7 +47,6 @@ pub mod node_api;
 pub mod node_meta;
 pub mod pack;
 pub mod pack_tail;
-pub mod parked;
 pub mod plugins;
 pub mod preload;
 pub mod process;

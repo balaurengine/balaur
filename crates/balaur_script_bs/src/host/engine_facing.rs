@@ -95,6 +95,9 @@ impl ScriptHost<Engine> for BsHost {
         let mut init: Vec<(String, L)> = vec![];
         for (name, v) in props {
             match file.field_ty(name) {
+                Some(t) if links::class_of(&file, &t).is_some() && links::path_of(v).is_some() => {
+                    self.note_link(node.0, name, links::path_of(v).unwrap_or_default());
+                }
                 Some(t) => {
                     let v = self.nodes_named(node, (path, name), v, &t);
                     init.push((name.clone(), from_neutral(&v, &t, &file.compiled.meta)));
@@ -127,6 +130,8 @@ impl ScriptHost<Engine> for BsHost {
             self.inner.held.borrow_mut().push(node.0);
         } else {
             self.init(node.0);
+            // A field elsewhere may name this node, attached after its holder.
+            self.point_all_links();
         }
         Ok(())
     }
@@ -143,6 +148,8 @@ impl ScriptHost<Engine> for BsHost {
             for node in held {
                 self.init(node);
             }
+            // A restore respawns a target under a holder it left standing.
+            self.point_all_links();
         }
     }
 
@@ -174,9 +181,10 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn detach(&self, node: NodeId) {
-        let Some((file, inst)) = self.instance(node).or_else(|| self.parked_instance(node)) else {
+        let Some((file, inst)) = self.instance(node) else {
             return;
         };
+        self.unlink(node.0);
         if file.method(ON_FREE).is_some() {
             let r = self.run(&file, &inst, ON_FREE, &[], None);
             report(r);
@@ -186,44 +194,10 @@ impl ScriptHost<Engine> for BsHost {
             .instances
             .borrow_mut()
             .retain(|i| i.node != node.0);
-        self.inner.parked.borrow_mut().retain(|i| i.node != node.0);
         inst.gone.set(true);
         if let Some(obj) = inst.obj.borrow_mut().take() {
             file.drop_object(obj);
         }
-    }
-
-    fn set_parked(&self, nodes: &[NodeId], parked: bool) {
-        let named: balaur_core::collections::DetHashSet<u64> =
-            nodes.iter().map(|node| node.0).collect();
-        let inner = &self.inner;
-        let (from, to, tasks_from, tasks_to) = if parked {
-            (
-                &inner.instances,
-                &inner.parked,
-                &inner.tasks,
-                &inner.parked_tasks,
-            )
-        } else {
-            (
-                &inner.parked,
-                &inner.instances,
-                &inner.parked_tasks,
-                &inner.tasks,
-            )
-        };
-        let (moved, stayed): (Vec<_>, Vec<_>) = from
-            .take()
-            .into_iter()
-            .partition(|inst| named.contains(&inst.node));
-        *from.borrow_mut() = stayed;
-        to.borrow_mut().extend(moved);
-        let (moved, stayed): (Vec<_>, Vec<_>) = tasks_from
-            .take()
-            .into_iter()
-            .partition(|task| named.contains(&task.node));
-        *tasks_from.borrow_mut() = stayed;
-        tasks_to.borrow_mut().extend(moved);
     }
 
     fn update(&self, dt: f32) {
@@ -240,8 +214,7 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn save_state(&self) -> Vec<(NodeId, Value)> {
-        let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
-        all.extend(self.inner.parked.borrow().iter().cloned());
+        let all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
         let mut out = vec![];
         for inst in all {
             let Some(file) = self.inner.files.borrow().get(&inst.path).cloned() else {
@@ -252,7 +225,10 @@ impl ScriptHost<Engine> for BsHost {
                 .borrow()
                 .as_ref()
                 .map(|o| file.home.rt.borrow_mut().fields(o))
-                .unwrap_or_default();
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(name, _)| !self.is_link(inst.node, name))
+                .collect::<Vec<_>>();
             out.push((
                 NodeId(inst.node),
                 Value::Map(
@@ -268,13 +244,16 @@ impl ScriptHost<Engine> for BsHost {
 
     fn load_state(&self, states: &[(NodeId, Value)]) {
         for (node, state) in states {
-            let found = self.instance(*node).or_else(|| self.parked_instance(*node));
+            let found = self.instance(*node);
             let (Some((file, inst)), Value::Map(fields)) = (found, state) else {
                 continue;
             };
             let mut guard = inst.obj.borrow_mut();
             let Some(obj) = guard.as_mut() else { continue };
             for (name, v) in fields {
+                if self.is_link(node.0, name) {
+                    continue;
+                }
                 if let Some(t) = file.field_ty(name)
                     && let Err(e) = file.home.rt.borrow_mut().set(
                         obj,

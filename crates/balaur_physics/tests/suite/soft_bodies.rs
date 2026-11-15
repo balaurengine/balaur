@@ -410,7 +410,7 @@ fn clearing_the_world_forgets_the_soft_bodies_it_held() {
     // ones had, so a handle left over from before would name one of them.
     let second = spawn(&app, "Second");
     assert_eq!(bodies(&app), 1, "the rebuilt node has no soft body");
-    balaur_core::scene::free_subtree(&mut app.engine.world_mut(), first);
+    balaur_core::scene::free_node(&app.engine, first);
     app.tick(1.0 / 60.0);
 
     assert_eq!(
@@ -453,7 +453,7 @@ fn freeing_a_node_frees_its_soft_body() {
     )
     .unwrap();
     assert_eq!(bodies(&app), 1, "the soft body was not made");
-    balaur_core::scene::free_subtree(&mut app.engine.world_mut(), node);
+    balaur_core::scene::free_node(&app.engine, node);
     app.tick(1.0 / 60.0);
     assert_eq!(bodies(&app), 0, "the freed node left its soft body behind");
 }
@@ -848,7 +848,7 @@ impl Scenario {
             solved.positions.len()
         );
     }
-    balaur_core::scene::free_subtree(&mut app.engine.world_mut(), node);
+    balaur_core::scene::free_node(&app.engine, node);
     app.tick(1.0 / 60.0);
     let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
     assert_eq!(

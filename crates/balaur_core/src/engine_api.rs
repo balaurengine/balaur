@@ -227,8 +227,13 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: words::modules::SCENE,
-            name: "parked",
-            call: crate::scene_api::scene_parked,
+            name: words::CURRENT,
+            call: crate::scene_api::scene_current,
+        },
+        EngineOp {
+            module: words::modules::SCENE,
+            name: words::functions::PRELOAD,
+            call: crate::scene_api::scene_preload,
         },
         EngineOp {
             module: words::modules::SCENE,
@@ -845,7 +850,6 @@ fn with_component(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
     let base = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
-    crate::parked::refuse_if_parked(eng, base, "scene.instantiate")?;
     let scripts = option(args, 2, words::replay_api::SCRIPTS);
     let attach = !matches!(scripts, Some(Value::Bool(false)));
     let before = scene::child_count(&eng.world(), base);

@@ -568,6 +568,7 @@ fn resolve_3d(eng: &Engine) {
             let _ = eng.insert_one(entity, Renderable3d { built, ..fresh });
         }
         hide(eng, &operands);
+        crate::mirror::look_again(eng, entity);
     }
 }
 
@@ -606,6 +607,7 @@ fn resolve_2d(eng: &Engine) {
             let _ = dress_2d(eng, entity);
         }
         hide(eng, &operands);
+        crate::mirror::look_again(eng, entity);
     }
 }
 
@@ -657,6 +659,7 @@ fn hide(eng: &Engine, operands: &[Entity]) {
         if let Ok(mut appearance) = world.get::<&mut Appearance>(*entity) {
             appearance.visible = false;
         }
+        balaur_core::scene::appearance_written(eng, *entity);
     }
 }
 

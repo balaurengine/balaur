@@ -1,5 +1,5 @@
 // The session, the socket and the server's hooks. Rows, topics and keys live
-// in the script store, so every script sees one cache.
+// on the client's node (`service.bs`), so every script sees one cache.
 
 use activity;
 use auth;
@@ -9,6 +9,7 @@ use events::user;
 use kv;
 use users;
 use lobbies;
+use service;
 
 const CLOSED: str = "closed";
 const ERROR: str = "error";
@@ -28,6 +29,14 @@ const SOCKET: str = "socket";
 const TOPIC: str = "topic";
 const EVENT: str = "event";
 const USERNAME: str = "username";
+const USER_ID: str = "user_id";
+const LOBBY_ID: str = "lobby_id";
+const VALUE: str = "value";
+/// Between a key and its scope in a row's id, which no key holds: the unit
+/// separator. A global row's id is its key alone.
+const SCOPE_MARK: str = "\u{1f}";
+const USER_MARK: str = "user";
+const LOBBY_MARK: str = "lobby";
 
 /// A hook's reply: what the call answered, or why it did not.
 pub struct HookReply {
@@ -41,6 +50,17 @@ pub struct HookReply {
 pub struct Write {
     pub skipped: bool,
     pub reply: HookReply,
+}
+
+/// Whose row a key names. A key-value row is global, a user's, or a
+/// lobby's, and the server keeps one row per key for each: the same key can
+/// be every player's own (`round_view:match:fr`) and only its owner may
+/// read it. Empty fields name nobody, so `RowScope { user_id: "", lobby_id:
+/// "" }` is the global row. `own_row()`, `user_row(id)`, `lobby_row(id)` and
+/// `global_row()` make one.
+pub struct RowScope {
+    pub user_id: str,
+    pub lobby_id: str,
 }
 
 /// A realtime socket, whether it is open and the topics it joined.
@@ -59,25 +79,14 @@ pub struct Connection {
     pub sockets: [SocketRow],
 }
 
-/// Where the hook calls go. Godot's SDK called this `plugin`.
-const PLUGIN_KEY: str = "gamend:plugin";
-/// The rows the server sent, by key.
-const ROWS_KEY: str = "gamend:rows";
-/// The keys this session subscribed, and the topics it joined.
-const KEYS_KEY: str = "gamend:keys";
-const TOPICS_KEY: str = "gamend:topics";
-/// Writes in flight, by key, so an identical one is not sent twice.
-const WRITES_KEY: str = "gamend:writes";
-/// What this client thinks of its connection.
-const NETWORK_KEY: str = "gamend:network";
-
 /// Point every call at another server, and name the server plugin `call`
 /// reaches; empty for either takes `[gamend]`'s, which is what a game that
 /// never calls this talks to. A different server signs out here. Answers the
 /// server's url.
 pub fn configure(url: str, plugin: str) -> str {
     if plugin != "" {
-        engine::store(PLUGIN_KEY, plugin);
+        let state = service::get();
+        state.plugin = plugin;
     }
     core::point(url)
 }
@@ -109,9 +118,9 @@ pub fn connection() -> Connection {
 
 /// The server plugin this game's hooks live in.
 pub fn plugin() -> str {
-    let named = engine::stored(PLUGIN_KEY);
-    if named.kind() == types::KIND_STRING && named.as_str() != "" {
-        return named.as_str();
+    let named = service::get().plugin;
+    if named != "" {
+        return named;
     }
     core::target().plugin
 }
@@ -224,8 +233,9 @@ pub fn route(node: Node, e: any) -> bool {
 
 /// Shut the socket down; false when it was already gone.
 pub fn close(socket: int) -> bool {
-    engine::store(TOPICS_KEY, {});
-    engine::store(KEYS_KEY, {});
+    let state = service::get();
+    state.topics = nil;
+    state.keys = nil;
     let held = core::socket_node(socket);
     held.is_valid() && held.call("close").as_bool()
 }
@@ -238,20 +248,22 @@ pub fn join(socket: int, topic: str) -> int {
     let held = joined();
     if !contains(held, topic) {
         held.push(topic);
-        engine::store(TOPICS_KEY, held);
+        let state = service::get();
+        state.topics = held;
     }
     core::join(socket, topic)
 }
 
 /// Leave a topic and drop it from the record.
 pub fn leave(socket: int, topic: str) -> int {
-    engine::store(TOPICS_KEY, without(joined(), topic));
+    let state = service::get();
+    state.topics = without(joined(), topic);
     core::leave(socket, topic)
 }
 
 /// Every topic this session joined, in the order it joined them.
 pub fn joined() -> [str] {
-    stored_list(TOPICS_KEY)
+    names_in(service::get().topics)
 }
 
 /// Call a server hook and await the reply. The caller decides what to say
@@ -293,41 +305,107 @@ pub fn unpack_hook(name: str, reply: any) -> HookReply {
     HookReply { ok: true, data: response[core::DATA], error: "" }
 }
 
-/// Subscribe to a key-value row and keep it. The server pushes `kv_updated`
-/// when it changes, which `absorb` files into the cache. A dropped connection
-/// subscribes it again when `route` sees the socket reopen.
+/// A global row: nobody's.
+pub fn global_row() -> RowScope {
+    RowScope { user_id: "", lobby_id: "" }
+}
+
+/// The signed-in player's own row of a key.
+pub fn own_row() -> RowScope {
+    RowScope { user_id: auth::user_id(), lobby_id: "" }
+}
+
+/// Another user's row of a key, where the server lets this one read it.
+pub fn user_row(user_id: str) -> RowScope {
+    RowScope { user_id: user_id, lobby_id: "" }
+}
+
+/// A lobby's row of a key, readable by its members.
+pub fn lobby_row(lobby_id: str) -> RowScope {
+    RowScope { user_id: "", lobby_id: lobby_id }
+}
+
+/// What the cache and the subscription list file a row under: its key for a
+/// global row, else its key and whose it is.
+pub fn row_id(key: str, scope: RowScope) -> str {
+    if scope.user_id != "" {
+        return key + SCOPE_MARK + USER_MARK + SCOPE_MARK + scope.user_id;
+    }
+    if scope.lobby_id != "" {
+        return key + SCOPE_MARK + LOBBY_MARK + SCOPE_MARK + scope.lobby_id;
+    }
+    key
+}
+
+/// The key a row id names.
+pub fn row_key(id: str) -> str {
+    id.split(SCOPE_MARK)[0]
+}
+
+/// Whose row a row id names.
+pub fn row_scope(id: str) -> RowScope {
+    let parts = id.split(SCOPE_MARK);
+    if parts.len() == 3 && parts[1] == USER_MARK {
+        return user_row(parts[2]);
+    }
+    if parts.len() == 3 && parts[1] == LOBBY_MARK {
+        return lobby_row(parts[2]);
+    }
+    global_row()
+}
+
+/// Subscribe to a global key-value row and keep it: `register_row` with
+/// `global_row()`.
 pub fn register_kv(socket: int, key: str) -> bool {
-    if socket <= 0 {
-        return false;
-    }
-    let held = registered();
-    if !contains(held, key) {
-        held.push(key);
-        engine::store(KEYS_KEY, held);
-    }
-    core::push(socket, user_topic(), "kv:subscribe", { KEY: key }) > 0
+    register_row(socket, key, global_row())
 }
 
 pub fn unregister_kv(socket: int, key: str) -> bool {
+    unregister_row(socket, key, global_row())
+}
+
+/// Subscribe to one row of a key and keep it: the global row, the player's
+/// own, another user's or a lobby's. The server pushes `kv_updated` when it
+/// changes, which `absorb` files under the same row; a dropped connection
+/// subscribes it again when `route` sees the socket reopen. A row the server
+/// will not let this player read is refused, and stays unfilled.
+pub fn register_row(socket: int, key: str, scope: RowScope) -> bool {
     if socket <= 0 {
         return false;
     }
-    engine::store(KEYS_KEY, without(registered(), key));
-    core::push(socket, user_topic(), "kv:unsubscribe", { KEY: key }) > 0
+    let id = row_id(key, scope);
+    let held = registered();
+    if !contains(held, id) {
+        held.push(id);
+        let state = service::get();
+        state.keys = held;
+    }
+    core::push(socket, user_topic(), "kv:subscribe", subscription(key, scope)) > 0
 }
 
-/// Every key this session subscribed, in the order it asked for them.
+pub fn unregister_row(socket: int, key: str, scope: RowScope) -> bool {
+    if socket <= 0 {
+        return false;
+    }
+    let state = service::get();
+    state.keys = without(registered(), row_id(key, scope));
+    core::push(socket, user_topic(), "kv:unsubscribe", subscription(key, scope)) > 0
+}
+
+/// Every row this session subscribed, by row id, in the order it asked for
+/// them. A global row's id is its key.
 pub fn registered() -> [str] {
-    stored_list(KEYS_KEY)
+    names_in(service::get().keys)
 }
 
-/// Subscribe to exactly `keys`: what is new is subscribed, what is gone is
-/// dropped. A key that depends on the player, such as a locale pair or a
-/// lobby, changes by calling this again with the new list.
+/// Subscribe to exactly `keys` among the global rows: what is new is
+/// subscribed, what is gone is dropped. A key that depends on the player,
+/// such as a locale pair or a lobby, changes by calling this again with the
+/// new list. Rows of a user or a lobby are left as they are.
 pub fn refresh_keys(socket: int, keys: [str]) -> [str] {
-    for key in registered() {
-        if !contains(keys, key) {
-            unregister_kv(socket, key);
+    for id in registered() {
+        if row_key(id) == id && !contains(keys, id) {
+            unregister_kv(socket, id);
         }
     }
     for key in keys {
@@ -346,43 +424,61 @@ pub fn absorb(event: any) -> bool {
         return false;
     }
     let payload = event[PAYLOAD];
+    let scope = RowScope { user_id: given_text(payload, USER_ID), lobby_id: given_text(payload, LOBBY_ID) };
     let key = payload[KEY].text();
     if kind == user::KV_DELETED {
-        clear_row(key);
+        clear_row_in(key, scope);
     } else {
-        keep_row(key, payload["value"]);
+        keep_row_in(key, scope, payload[VALUE]);
     }
     true
 }
 
-/// The row this client last saw for a key, or nil.
+/// The global row this client last saw for a key, or nil.
 pub fn row(key: str) -> any {
-    rows()[key]
+    row_in(key, global_row())
 }
 
 pub fn has_row(key: str) -> bool {
-    rows().has(key)
+    has_row_in(key, global_row())
 }
 
-/// The cached row, or the server's, fetched once and kept. `force` asks the
-/// server even when a row is cached. A key the server has no row for caches
-/// an empty map, so `has_row` answers without asking again; anything else
-/// that went wrong caches nothing and the next call retries.
+/// The row of a key this client last saw for that scope, or nil.
+pub fn row_in(key: str, scope: RowScope) -> any {
+    rows()[row_id(key, scope)]
+}
+
+pub fn has_row_in(key: str, scope: RowScope) -> bool {
+    rows().has(row_id(key, scope))
+}
+
+/// The cached global row, or the server's: `fetch_row_in` with
+/// `global_row()`.
 pub async fn fetch_row(key: str, force: bool) -> any {
-    if !force && has_row(key) {
-        return row(key);
+    let value = await fetch_row_in(key, global_row(), force);
+    value
+}
+
+/// The cached row of a key for that scope, or the server's, fetched once and
+/// kept. `force` asks the server even when a row is cached. A row the server
+/// does not have caches an empty map, so `has_row_in` answers without asking
+/// again; anything else that went wrong caches nothing and the next call
+/// retries.
+pub async fn fetch_row_in(key: str, scope: RowScope, force: bool) -> any {
+    if !force && has_row_in(key, scope) {
+        return row_in(key, scope);
     }
-    let reply = await kv::get_kv(key);
+    let reply = await kv::get_kv(key, scope_query(scope));
     if !core::ok(reply) {
         if reply[core::STATUS].as_int() == 404 {
-            keep_row(key, {});
+            keep_row_in(key, scope, {});
             return {};
         }
         log::warn(core::error_of(reply));
         return nil;
     }
     let value = core::body(reply);
-    keep_row(key, value);
+    keep_row_in(key, scope, value);
     value
 }
 
@@ -407,10 +503,11 @@ pub async fn write_deduped(socket: int, key: str, value: any, hook: str, args: a
     }
     let held = writes();
     held[key] = sent;
-    engine::store(WRITES_KEY, held);
+    let state = service::get();
+    state.writes = held;
     let reply = await call(socket, hook, args);
     if writes()[key].text() == sent {
-        engine::store(WRITES_KEY, dropped(writes(), key));
+        state.writes = dropped(writes(), key);
     }
     Write { skipped: false, reply: reply }
 }
@@ -430,35 +527,48 @@ pub fn sync_lobby_channel(socket: int, lobby_id: str) -> str {
     topic
 }
 
-/// File a value under a key as if the server had sent it: what a caller with
-/// its own fetch, a hook rather than `kv`, keeps its answer with.
+/// File a value under a global key as if the server had sent it: what a
+/// caller with its own fetch, a hook rather than `kv`, keeps its answer with.
 pub fn keep_row(key: str, value: any) {
+    keep_row_in(key, global_row(), value);
+}
+
+/// File a value under a key and a scope, as `keep_row` does a global one.
+pub fn keep_row_in(key: str, scope: RowScope, value: any) {
     let held = rows();
-    held[key] = value;
-    engine::store(ROWS_KEY, held);
+    held[row_id(key, scope)] = value;
+    let state = service::get();
+    state.rows = held;
 }
 
 /// Forget one row, or all of them: what a sign-out does.
 pub fn clear_row(key: str) {
-    engine::store(ROWS_KEY, dropped(rows(), key));
+    clear_row_in(key, global_row());
+}
+
+pub fn clear_row_in(key: str, scope: RowScope) {
+    let state = service::get();
+    state.rows = dropped(rows(), row_id(key, scope));
 }
 
 pub fn clear_rows() {
-    engine::store(ROWS_KEY, {});
+    let state = service::get();
+    state.rows = nil;
 }
 
 /// `"open"`, `"reconnecting"` or `"failed"`. The socket's own events move the
 /// first two as `route` sees them; `fail_network` is what moves it to the
 /// third.
 pub fn network_state() -> str {
-    let held = engine::stored(NETWORK_KEY);
-    if held.kind() == types::KIND_STRING { held.as_str() } else { OPEN }
+    let held = service::get().network;
+    if held != "" { held } else { OPEN }
 }
 
 /// Say the connection is gone: what a game calls when a request it needed
 /// failed and it wants its offline screen. `retry_network` is the way back.
 pub fn fail_network() {
-    engine::store(NETWORK_KEY, FAILED);
+    let state = service::get();
+    state.network = FAILED;
 }
 
 /// Cut the socket as a network failure would, so it opens again and joins
@@ -467,7 +577,8 @@ pub fn fail_network() {
 /// when the socket was already gone, which is when a caller opens a new one
 /// with `connect`.
 pub fn retry_network(socket: int) -> bool {
-    engine::store(NETWORK_KEY, RECONNECTING);
+    let state = service::get();
+    state.network = RECONNECTING;
     let held = core::socket_node(socket);
     held.is_valid() && held.call("interrupt").as_bool()
 }
@@ -478,11 +589,42 @@ fn user_topic() -> str {
 }
 
 /// A channel the server brought back holds none of the last one's
-/// subscriptions, so every key is asked for again.
+/// subscriptions, so every row is asked for again, with whose it is.
 fn subscribe_again(socket: int) {
-    for key in registered() {
-        core::push(socket, user_topic(), "kv:subscribe", { KEY: key });
+    for id in registered() {
+        core::push(socket, user_topic(), "kv:subscribe", subscription(row_key(id), row_scope(id)));
     }
+}
+
+/// What `kv:subscribe` and `kv:unsubscribe` send for a row: its key, and
+/// whose it is when it is someone's.
+fn subscription(key: str, scope: RowScope) -> any {
+    let out: any = { KEY: key };
+    if scope.user_id != "" {
+        out[USER_ID] = scope.user_id;
+    }
+    if scope.lobby_id != "" {
+        out[LOBBY_ID] = scope.lobby_id;
+    }
+    out
+}
+
+/// The query a scoped row is read with over HTTP.
+fn scope_query(scope: RowScope) -> any {
+    let out: any = {};
+    if scope.user_id != "" {
+        out[USER_ID] = scope.user_id;
+    }
+    if scope.lobby_id != "" {
+        out[LOBBY_ID] = scope.lobby_id;
+    }
+    out
+}
+
+/// A field of a server payload as text, empty where it is missing or null.
+fn given_text(payload: any, field: str) -> str {
+    let value = payload[field];
+    if value.kind() == types::KIND_STRING { value.as_str() } else { "" }
 }
 
 /// What the socket said on its own, for the activity log: a message, a drop
@@ -502,28 +644,28 @@ fn keep_socket_event(kind: str, e: any) {
 }
 
 fn note_socket(kind: str) {
+    let state = service::get();
     if kind == RECONNECTING {
-        engine::store(NETWORK_KEY, RECONNECTING);
+        state.network = RECONNECTING;
     } else if kind == OPEN || kind == REOPENED {
-        engine::store(NETWORK_KEY, OPEN);
+        state.network = OPEN;
     } else if kind == CLOSED {
-        engine::store(NETWORK_KEY, FAILED);
+        state.network = FAILED;
     }
 }
 
 fn rows() -> any {
-    let held = engine::stored(ROWS_KEY);
+    let held = service::get().rows;
     if held.kind() == types::KIND_MAP { held } else { {} }
 }
 
 fn writes() -> any {
-    let held = engine::stored(WRITES_KEY);
+    let held = service::get().writes;
     if held.kind() == types::KIND_MAP { held } else { {} }
 }
 
-/// A list of names the store holds, as names.
-fn stored_list(key: str) -> [str] {
-    let held = engine::stored(key);
+/// A list of names a field of the client's node holds, as names.
+fn names_in(held: any) -> [str] {
     let out: [str] = [];
     for i in 0..held.len() {
         out.push(held[i].text());

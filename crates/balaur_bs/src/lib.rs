@@ -337,6 +337,9 @@ pub struct Meta {
     pub defaults: Vec<(String, FieldDefaults)>,
     /// A unit's: what the runtime lays out and fills to link it.
     pub unit: Option<Unit>,
+    /// Each class the module names and the file that declares it: what a host
+    /// checks an object against before a field of the class holds it.
+    pub class_files: Vec<(String, String)>,
 }
 
 /// What a unit needs from the runtime that runs it.
@@ -390,6 +393,13 @@ impl Meta {
     pub fn method(&self, ty: &str, name: &str) -> Option<&FnInfo> {
         let i = self.by_owner.get(ty)?.get(name)?;
         Some(&self.fns[*i])
+    }
+    /// The file that declares class `ty`.
+    pub fn class_file(&self, ty: &str) -> Option<&str> {
+        self.class_files
+            .iter()
+            .find(|(class, _)| class == ty)
+            .map(|(_, file)| file.as_str())
     }
     pub fn defaults(&self, ty: &str) -> &[(String, bool, Literal)] {
         self.defaults

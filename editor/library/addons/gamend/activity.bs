@@ -1,6 +1,7 @@
 // What `core`'s calls, the socket and `client::route` saw lately, for the
-// Gamend dock. One script-store key per row: a call copies a row, never the
-// whole log.
+// Gamend dock: a ring of rows on the client's node.
+
+use service;
 
 /// How many rows are kept, oldest dropped first, and how many of the newest
 /// keep their arguments and reply.
@@ -38,12 +39,6 @@ const SEQ: str = "seq";
 const STATUS: str = "status";
 const WHAT: str = "what";
 
-/// How many rows were ever kept, the first a `clear` left, and each row by
-/// its place in the ring.
-const COUNT_KEY: str = "gamend:activity";
-const FROM_KEY: str = "gamend:activity:from";
-const ROW_KEY: str = "gamend:activity:row:";
-
 /// Keep a call that just went out, waiting for its reply. Answers the row's
 /// `seq`, which `finished` takes when the reply comes.
 pub fn started(kind: str, what: str, args: any) -> int {
@@ -59,8 +54,8 @@ pub fn noted(kind: str, what: str, payload: any) {
 /// login, or why it failed; and its round trip where the call measured one.
 /// A row already dropped from the ring is left alone.
 pub fn finished(seq: int, reply: any) {
-    let key = ROW_KEY + "{seq % KEPT}";
-    let row = engine::stored(key);
+    let key = "{seq % KEPT}";
+    let row = ring()[key];
     if row.kind() != types::KIND_MAP || row[SEQ].as_int() != seq {
         return;
     }
@@ -78,17 +73,17 @@ pub fn finished(seq: int, reply: any) {
     if seq > count() - DETAILED {
         row[REPLY] = kept(if kind == REST { reply["body"] } else { reply });
     }
-    engine::store(key, row);
+    keep(key, row);
 }
 
 /// Every row, newest first.
 pub fn rows() -> [Entry] {
     let out: [Entry] = [];
     let last = count();
-    let first = max(stored_int(FROM_KEY), last - KEPT);
+    let first = max(service::get().activity_from, last - KEPT);
     let seq = last;
     while seq > first {
-        let row = engine::stored(ROW_KEY + "{seq % KEPT}");
+        let row = ring()["{seq % KEPT}"];
         if row.kind() == types::KIND_MAP && row[SEQ].as_int() == seq {
             out.push(entry(row));
         }
@@ -99,20 +94,22 @@ pub fn rows() -> [Entry] {
 
 /// Forget the rows kept so far; a reply to one of them is dropped.
 pub fn clear() {
-    engine::store(FROM_KEY, count());
+    let state = service::get();
+    state.activity_from = count();
 }
 
 fn push(row: any) -> int {
     let seq = count() + 1;
     row[SEQ] = seq;
-    engine::store(ROW_KEY + "{seq % KEPT}", row);
-    engine::store(COUNT_KEY, seq);
+    keep("{seq % KEPT}", row);
+    let state = service::get();
+    state.activity_count = seq;
     let plain = seq - DETAILED;
-    let older = engine::stored(ROW_KEY + "{plain % KEPT}");
+    let older = ring()["{plain % KEPT}"];
     if plain > 0 && older.kind() == types::KIND_MAP && older[SEQ].as_int() == plain {
         older[ARGS] = nil;
         older[REPLY] = nil;
-        engine::store(ROW_KEY + "{plain % KEPT}", older);
+        keep("{plain % KEPT}", older);
     }
     seq
 }
@@ -143,12 +140,20 @@ fn kept(payload: any) -> any {
 }
 
 fn count() -> int {
-    stored_int(COUNT_KEY)
+    service::get().activity_count
 }
 
-fn stored_int(key: str) -> int {
-    let held = engine::stored(key);
-    if held.kind() == types::KIND_INT { held.as_int() } else { 0 }
+/// Every row kept, by its place in the ring.
+fn ring() -> any {
+    let held = service::get().activity;
+    if held.kind() == types::KIND_MAP { held } else { {} }
+}
+
+fn keep(place: str, row: any) {
+    let held = ring();
+    held[place] = row;
+    let state = service::get();
+    state.activity = held;
 }
 
 fn max(a: int, b: int) -> int {

@@ -54,6 +54,7 @@ fn move_to(app: &App, entity: Entity, position: Vec3) {
     let world = app.engine.world();
     let mut transform = world.get::<&mut Transform>(entity).unwrap();
     transform.position = position;
+    balaur_core::transform::written(&app.engine, entity);
 }
 
 const POSITIONAL: &str = r#"
@@ -310,7 +311,7 @@ fn freeing_a_listener_node_leaves_the_ears_where_they_were() {
     components::add(&app.engine, ears, "listener", None).unwrap();
     app.tick(1.0 / 60.0);
 
-    scene::free_subtree(&mut app.engine.world_mut(), ears);
+    scene::free_node(&app.engine, ears);
     app.tick(1.0 / 60.0);
 
     let state = app.engine.resource::<AudioState>();

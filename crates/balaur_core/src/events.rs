@@ -97,6 +97,8 @@ pub struct EventState {
     /// Whether the last word about a stop was [`DEBUGGER_STOPPED`], so the
     /// script going on is said once, as [`DEBUGGER_RESUMED`].
     stop_told: bool,
+    /// The replay player's state at the last pump, for [`REPLAY_STATE_CHANGED`].
+    replay_seen: crate::replay::PlayState,
     /// Whose hearers changed, one for each [`watch_hearers`], for a plugin
     /// paying for an event only where it is heard.
     hearers: Vec<Hearers>,
@@ -257,6 +259,12 @@ pub const DEBUGGER_STOPPED: &str = "debugger_stopped";
 /// said was stopped went on.
 pub const DEBUGGER_RESUMED: &str = "debugger_resumed";
 
+/// What the replay player says from no node when its state moved since the
+/// last pump, with the state it is in: a recording loaded, played, paused,
+/// sought, run out or unloaded. What a session view listens for instead of
+/// reading `replay::state` each frame. Only a replaying run says it.
+pub const REPLAY_STATE_CHANGED: &str = "replay_state_changed";
+
 /// What the scene says from no node when a write changed it since the last
 /// pump: a list of `{node, kind, ..}` maps, one for each node and component
 /// however often it was written (`crate::changes`). `kind` is `component`
@@ -370,9 +378,6 @@ fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
 /// then the hook, as they do for a pointer event, so each sees the world the
 /// one before left.
 pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
-    if crate::parked::is_parked(eng, entity) {
-        return;
-    }
     observers::run(eng, entity, name, &payload);
     // Most nodes carry no rows, and spelling the row's event costs an allocation.
     if eng
@@ -479,8 +484,8 @@ fn count(n: u64) -> Value {
 }
 
 /// What moved that nobody emitted: lines logged, a file reloaded, a script
-/// stopped or let go, the scene written. Each is said once, at the pump
-/// after it moved.
+/// stopped or let go, playback moved, the scene written. Each is said once,
+/// at the pump after it moved.
 fn notice(eng: &Engine, state: &mut EventState, stop: Option<balaur_script::Pause>) {
     let logs = crate::logbuf::total();
     if logs != state.logs_seen {
@@ -502,6 +507,15 @@ fn notice(eng: &Engine, state: &mut EventState, stop: Option<balaur_script::Paus
     if state.stop_seen.is_none() && state.stop_told {
         say_if_heard(state, DEBUGGER_RESUMED, || Value::Nil);
         state.stop_told = false;
+    }
+    let playback = eng
+        .try_resource::<crate::replay::ReplayPlayer>()
+        .map_or_else(Default::default, |player| player.borrow().state);
+    if playback != state.replay_seen {
+        state.replay_seen = playback;
+        say_if_heard(state, REPLAY_STATE_CHANGED, || {
+            Value::Str(playback.name().into())
+        });
     }
     // Once for each scope it is heard from: all of it, or a root's.
     let scopes: Vec<Option<Entity>> = state

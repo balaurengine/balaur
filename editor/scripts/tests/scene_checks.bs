@@ -43,6 +43,11 @@ pub fn autosaving(state: &mut editor::State) {
     let now = engine::unix_time();
     selftest::check(history::dirty(state), "a rename leaves the scene to write");
     selftest::check(!autosave::write_settled(state, now), "and nothing is written while the edits may go on");
+    // The write is one frame asked for at its moment, not a frame a frame.
+    let due = autosave::next_due(state);
+    selftest::check(math::abs(due - (state.history.at + autosave::SETTLE)) < 0.001, "the next write is due once the edits settle");
+    let asked = util::wake_at(0.0, due);
+    selftest::check(asked == due && util::wake_at(asked, due + autosave::SETTLE) == asked, "one frame is asked for then, and a later edit waits for it");
     selftest::check(autosave::write_settled(state, now + autosave::SETTLE + 0.1), "once they settle the scene is written");
     selftest::check(!history::dirty(state), "leaving nothing to save");
     selftest::check(fs::read(state.scene_path).or("").contains("Autosaved"), "and the file holds the edit");

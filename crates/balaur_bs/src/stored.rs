@@ -88,6 +88,10 @@ impl Compiled {
             w.u32(u.breaks_at);
             w.u32(u.rows_at);
         }
+        w.list(&m.class_files, |w, (class, file)| {
+            w.str(class);
+            w.str(file);
+        });
         w.0
     }
 
@@ -169,6 +173,7 @@ impl Compiled {
         } else {
             None
         };
+        let class_files = r.list(|r| Some((r.str()?, r.str()?)))?;
         let (by_key, by_owner) = crate::codegen::lookups(&fns);
         let meta = Meta {
             structs,
@@ -188,6 +193,7 @@ impl Compiled {
             host_calls,
             defaults,
             unit,
+            class_files,
         };
         r.0.is_empty().then_some(Compiled {
             wasm,

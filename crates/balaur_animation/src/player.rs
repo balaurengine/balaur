@@ -241,6 +241,9 @@ pub struct AnimationState {
     /// replays, and the game's handles must not move with them.
     pub(crate) tool_tweens: TweenId,
     pub(crate) accumulator: f32,
+    /// The residual of what steps outside a hold while the game is held: a
+    /// tool's own shell. Never the game's, so a hold leaves its steps alone.
+    pub(crate) held_accumulator: f32,
     /// Every jiggle chain's dynamic points, keyed by the node carrying the
     /// modifier. Ordered like `players`, and for the same reason.
     pub(crate) jiggle: DetHashMap<Entity, crate::modifier::Jiggle>,

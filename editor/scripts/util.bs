@@ -15,6 +15,23 @@ pub fn editor_data() -> str {
     engine::user_data_directory_of(EDITOR_NAME)
 }
 
+// Past a deadline by a frame's worth of clock, so the frame it asks for finds
+// the deadline come: the wake is timed on one clock and compared on another.
+const WAKE_SLACK: float = 0.02;
+
+/// Ask for one frame at `at`, a wall-clock second, unless the frame asked for
+/// last, `asked`, is still to come and no later: under `[window]
+/// low_processor` a deadline wakes the editor once, not every frame until it
+/// comes. Answers what is asked for now, for the caller to hand back.
+pub fn wake_at(asked: float, at: float) -> float {
+    let now = engine::unix_time();
+    if asked > now && asked <= at {
+        return asked;
+    }
+    ui::request_repaint(ui::RepaintOptions { after: math::max(0.0, at - now) + WAKE_SLACK });
+    at
+}
+
 /// A vector's direction and length.
 pub struct Norm {
     internal direction: [float],
@@ -83,6 +100,16 @@ pub fn join(parts: [str], separator: str) -> str {
         out += parts[index];
     }
     out
+}
+
+/// The folder a `/`-separated path is in, "" for one at the top.
+pub fn parent_directory(path: str) -> str {
+    let parts = path.split("/");
+    if parts.len() <= 1 {
+        return "";
+    }
+    parts.pop();
+    join(parts, "/")
 }
 
 pub fn last_segment(path: str) -> str {

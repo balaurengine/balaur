@@ -138,6 +138,7 @@ RAN='selftest ok|script: .*skip|script: showcase '
 EXAMPLE_STATES=(
   test:undo test:rename test:autosave       # the history, renaming, writing
   test:disk_changed                         # a file changed under a code buffer
+  test:cached_reads                         # a read kept until the watcher names its file
   test:focus                                # the shell folds round the code
   test:rig test:populate                    # a bone grown and keyed; a multimesh
   test:state_machine                        # a state and a transition, undone

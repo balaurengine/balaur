@@ -80,42 +80,58 @@ pub(crate) fn binding_actions(_eng: &Engine, _args: &[Value]) -> Result<Value> {
     ))
 }
 
-/// `scene.switch(path, options)` — replace the scene at the end of the tick.
+/// `scene.switch(path, options)` — at the end of the tick, free the scene the
+/// last switch built under `under`, the tree's root when nil, and build
+/// `path` there.
 ///
 /// Spelled `switch`, not `load`: `load` is reserved for producing a live
 /// object from a path, which this is not.
 pub(crate) fn scene_switch(eng: &Engine, args: &[Value]) -> Result<Value> {
     let path = text(args, 0)?;
-    let fade = args
-        .get(1)
-        .and_then(|options| match options {
-            Value::Map(pairs) => {
-                pairs
-                    .iter()
-                    .find(|(key, _)| key == words::FADE)
-                    .and_then(|(_, v)| match v {
-                        Value::Num(n) => Some(*n as f32),
-                        _ => None,
-                    })
-            }
-            _ => None,
-        })
-        .unwrap_or(0.0);
-    crate::scene_switch::request_with_fade(eng, path, fade);
+    let pairs: &[(String, Value)] = match args.get(1) {
+        Some(Value::Map(pairs)) => pairs,
+        _ => &[],
+    };
+    let field = |name: &str| pairs.iter().find(|(key, _)| key == name).map(|(_, v)| v);
+    let fade = match field(words::FADE) {
+        Some(Value::Num(n)) => *n as f32,
+        _ => 0.0,
+    };
+    let under = match field(words::UNDER) {
+        Some(Value::Node(id)) => Some(crate::entity_of(balaur_script::NodeId(*id))?),
+        _ => None,
+    };
+    crate::scene_switch::ask(
+        eng,
+        crate::scene_switch::Request {
+            scene: path.to_string(),
+            under,
+            fade,
+        },
+    );
     Ok(Value::Nil)
 }
 
-/// `scene.parked()` — every scene kept built by `switch`, oldest first.
-pub(crate) fn scene_parked(eng: &Engine, _args: &[Value]) -> Result<Value> {
-    Ok(Value::List(
-        crate::parked::scenes(eng)
-            .into_iter()
-            .map(Value::Str)
-            .collect(),
-    ))
+/// `scene.current(under)` — the root of the scene the last switch built under
+/// a node, the tree's root when nil; no node while none stands there.
+pub(crate) fn scene_current(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let under = crate::engine_api::optional_node(args, 0)?;
+    Ok(
+        crate::scene_switch::current(eng, under).map_or(Value::Nil, |built| {
+            Value::Node(crate::node_id_of(built.root).0)
+        }),
+    )
 }
 
-/// `scene.unload(path)` — what a pack warmed and `switch` kept, let go.
+/// `scene.preload(path)` — the scene and its prefabs read and parsed now, and
+/// what they name decoding off the frame, so a switch to it builds from warm
+/// caches. No node is built.
+pub(crate) fn scene_preload(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::preload::scene(eng, text(args, 0)?)?;
+    Ok(Value::Nil)
+}
+
+/// `scene.unload(path)` — what `preload` or a pack warmed, let go.
 pub(crate) fn scene_unload(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::preload::unload(eng, text(args, 0)?);
     Ok(Value::Nil)

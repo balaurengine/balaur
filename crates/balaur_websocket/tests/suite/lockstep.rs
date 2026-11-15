@@ -57,6 +57,7 @@ fn app(bias: f32) -> App {
             return;
         };
         t.position.x += delta + bias;
+        balaur_core::transform::written(eng, mover);
     });
     app
 }

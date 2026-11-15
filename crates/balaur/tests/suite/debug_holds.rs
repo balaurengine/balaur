@@ -36,6 +36,10 @@ script = { source = \"scripts/game.bs\" }
 ";
 
 fn booted() -> (tempfile::TempDir, App) {
+    booted_with(SHELL, GAME)
+}
+
+fn booted_with(shell: &str, game: &str) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
@@ -44,8 +48,8 @@ fn booted() -> (tempfile::TempDir, App) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), SCENE).unwrap();
-    std::fs::write(dir.path().join("scripts/shell.bs"), SHELL).unwrap();
-    std::fs::write(dir.path().join("scripts/game.bs"), GAME).unwrap();
+    std::fs::write(dir.path().join("scripts/shell.bs"), shell).unwrap();
+    std::fs::write(dir.path().join("scripts/game.bs"), game).unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     (dir, app)
@@ -216,5 +220,67 @@ fn a_stop_and_the_resume_after_it_are_two_events() {
     assert!(
         heard(&app, balaur_core::events::DEBUGGER_RESUMED).is_empty(),
         "said once"
+    );
+}
+
+const CLOCKED: &str = "pub class Clocked { node: Node, pub now: float }
+impl Clocked {
+    fn update(dt: float) {
+        self.now = engine::unix_time();
+    }
+}
+";
+
+/// When a recording here says the clock read: long before the run replaying it.
+const RECORDED_AT: f64 = 1000.0;
+
+fn now_of(app: &App, id: &str) -> f64 {
+    let host = app.engine.script_host().unwrap();
+    match host.script_field(balaur::node_id_of(node(app, id)), "now") {
+        Some(Value::Num(n)) => n,
+        other => panic!("{id}.now is {other:?}"),
+    }
+}
+
+// A replay feeds the game the time its recording read. The tool driving it,
+// outside the subtree the debugger was told to, reads the machine's.
+#[test]
+fn a_replayed_game_reads_its_recorded_clock_and_the_tool_around_it_the_machines() {
+    let (dir, mut app) = booted_with(
+        &CLOCKED.replace("Clocked", "Shell"),
+        &CLOCKED.replace("Clocked", "Game"),
+    );
+    app.engine.set_debug_scope(Some(node(&app, "game")));
+    let path = dir.path().join("clock.blr");
+    balaur::replay::start_recording(&app.engine, &path, ".", "", false).unwrap();
+    for _ in 0..4 {
+        app.tick(DEFAULT_FIXED_DT);
+    }
+    balaur::replay::stop_recording(&app.engine, "stop").unwrap();
+    let mut session = balaur::replay::Session::read(&path).unwrap();
+    for frame in &mut session.frames {
+        frame.sources.insert(
+            "wall_clock".into(),
+            serde_json::json!({ "unix_time": RECORDED_AT }),
+        );
+    }
+
+    balaur::replay::begin(&app.engine, session);
+    balaur::replay::play(&app.engine);
+    // A recorded frame, fed as a window's loop feeds one.
+    app.advance(DEFAULT_FIXED_DT);
+    let machine = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f64();
+    assert!(
+        (now_of(&app, "game") - RECORDED_AT).abs() < 1e-9,
+        "the game reads the recorded clock: {}",
+        now_of(&app, "game")
+    );
+    assert!(
+        (now_of(&app, "shell") - machine).abs() < 60.0,
+        "the tool reads the machine's: {}",
+        now_of(&app, "shell")
     );
 }

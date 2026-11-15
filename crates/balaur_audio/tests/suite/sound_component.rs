@@ -171,24 +171,22 @@ fn play_on_restarts_the_nodes_sound_with_a_fresh_handle() {
 }
 
 #[test]
-fn freeing_a_node_drops_its_sound_on_the_next_sweep() {
+fn freeing_a_node_stops_its_sound_on_that_frame() {
     let dir = tempfile::tempdir().unwrap();
     write_wav(dir.path(), "chime.wav");
-    let mut app = app_in(dir.path());
+    let app = app_in(dir.path());
     let entity = sound_node(&app, CHIME);
-    assert!(
-        handle_of(&app, entity).is_some(),
-        "control: the sound was started before the node was freed"
-    );
+    let handle = handle_of(&app, entity).expect("control: the sound started before the free");
 
-    scene::free_subtree(&mut app.engine.world_mut(), entity);
-    app.tick(1.0 / 60.0);
+    scene::free_node(&app.engine, entity);
 
     let state = app.engine.resource::<AudioState>();
+    let state = state.borrow();
     assert!(
-        state.borrow().nodes.get(&entity).is_none(),
-        "the sweep forgets a freed node's sound"
+        state.nodes.get(&entity).is_none(),
+        "the freed node's voice is still kept"
     );
+    assert!(!state.is_playing(handle), "the freed node's sound plays on");
 }
 
 #[test]

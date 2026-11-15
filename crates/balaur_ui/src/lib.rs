@@ -365,8 +365,7 @@ pub fn pass_without_window(app: &mut balaur_core::App, width: f32, height: f32) 
     });
 }
 
-/// Let go of what the widget layer keeps by node, once its node is freed. A
-/// parked scene's nodes are alive, so a return finds its caret and its folds.
+/// Let go of what the widget layer keeps by node, once its node is freed.
 fn sweep_freed(eng: &Engine, state: &std::rc::Rc<std::cell::RefCell<UiState>>) {
     let revision = balaur_core::scene::shape_revision();
     let mut state = state.borrow_mut();

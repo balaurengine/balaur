@@ -108,6 +108,7 @@ fn app() -> App {
             return;
         };
         t.position.x += delta;
+        balaur_core::transform::written(eng, mover);
     });
     app
 }

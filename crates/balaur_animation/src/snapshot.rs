@@ -228,7 +228,7 @@ fn capture(eng: &Engine) -> Value {
     };
     let state = state.borrow();
     let world = eng.world();
-    let id_of = |entity: Entity| ids::key_of(&world, entity).unwrap_or_default();
+    let id_of = |entity: Entity| ids::of(&world, entity).unwrap_or_default();
     let frame = AnimationFrame {
         accumulator: state.accumulator,
         next_tween: state.next_tween,
@@ -503,7 +503,7 @@ fn entity_of(
     entity: u64,
 ) -> Option<Entity> {
     if !id.is_empty() {
-        return ids::find_key(world, root, id);
+        return ids::find(world, root, id);
     }
     let entity = Entity::from_bits(entity)?;
     world.contains(entity).then_some(entity)

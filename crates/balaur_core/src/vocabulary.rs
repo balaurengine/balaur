@@ -15,6 +15,7 @@ pub(crate) mod words {
     pub(crate) const TARGET: &str = "target";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TRUE: &str = "true";
+    pub(crate) const UNDER: &str = "under";
     pub(crate) const VISIBLE: &str = "visible";
     pub(crate) const KIND: &str = "kind";
 
@@ -144,6 +145,7 @@ pub(crate) mod words {
         pub(crate) const LOCALE: &str = "locale";
         pub(crate) const PARSE: &str = "parse";
         pub(crate) const PAUSED: &str = "paused";
+        pub(crate) const PRELOAD: &str = "preload";
         pub(crate) const QUIT: &str = "quit";
         pub(crate) const READ: &str = "read";
         pub(crate) const REMOVE: &str = "remove";

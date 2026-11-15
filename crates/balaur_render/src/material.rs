@@ -487,6 +487,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                     .get::<&mut Appearance>(entity)
                     .map_err(|_| anyhow!("node is dead"))?
                     .material = MaterialId::intern(reference);
+                balaur_core::scene::appearance_written(eng, entity);
                 eng
                     .insert_one(entity, NodeMaterial)
                     .map_err(|_| anyhow!("node is dead"))
@@ -496,6 +497,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                 if let Ok(mut appearance) = eng.world().get::<&mut Appearance>(entity) {
                     appearance.material = MaterialId::NONE;
                 }
+                balaur_core::scene::appearance_written(eng, entity);
                 Ok(())
             }),
                 // Present when put on, or when a script named a material for the

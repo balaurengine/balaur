@@ -42,7 +42,7 @@ pub(crate) fn listen(report: Sender<WebEvent>) {
             let Some(payload) = json_of(&event.data()) else {
                 return;
             };
-            let _ = report.send(WebEvent::Message { payload });
+            balaur_core::replay::report(&report, WebEvent::Message { payload });
         }) as Box<dyn FnMut(MessageEvent)>)
     };
     let _ = window.add_event_listener_with_callback("message", on_message.as_ref().unchecked_ref());
@@ -53,7 +53,7 @@ pub(crate) fn listen(report: Sender<WebEvent>) {
             let visible = web_sys::window()
                 .and_then(|w| w.document())
                 .is_none_or(|d| !d.hidden());
-            let _ = report.send(WebEvent::Visibility { visible });
+            balaur_core::replay::report(&report, WebEvent::Visibility { visible });
         }) as Box<dyn FnMut(JsValue)>);
         let _ = document.add_event_listener_with_callback(
             "visibilitychange",

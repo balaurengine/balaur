@@ -7,16 +7,16 @@ pub(crate) mod geometry;
 mod instances;
 mod present;
 mod screenshot;
+mod sync_3d;
 
 pub use present::{NO_PRESENT_VAR, NoPresent};
 
 use balaur_core::time::Instant;
 use std::collections::{HashMap, HashSet};
 
+use balaur_core::App;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, GlobalAppearance, GlobalTransform};
 use balaur_geometry::skeleton;
-use glamx::Pose3;
 use kiss3d::prelude::*;
 
 use crate::boot_cost;
@@ -140,6 +140,10 @@ struct Frontend {
     asset_generation: u64,
     /// The `camera.post` materials, each side of the tonemap.
     post: crate::post_material::PostChain,
+    /// Where the mirror read up to, and the 3D renderables it draws again
+    /// every frame however still the tree is.
+    since: crate::mirror::Since,
+    live_3d: HashSet<Entity>,
     present: present::Present,
 }
 
@@ -168,6 +172,8 @@ impl Frontend {
             materials: crate::shader_material::MaterialCache::default(),
             materials_3d: crate::shader_material_3d::MaterialCache3d::default(),
             post: crate::post_material::PostChain::default(),
+            since: crate::mirror::Since::default(),
+            live_3d: HashSet::new(),
             light_map: crate::light_map::LightMap::new(),
             lights,
             probes: crate::reflection::ProbeSlots::default(),
@@ -195,14 +201,20 @@ impl Frontend {
 
     /// The 2D world: the sprites and polygons, the tilemaps, particles and
     /// text, the light map, and the one draw order over all of them.
-    fn sync_flat(&mut self, app: &App, window: &Window, reloaded: bool) {
+    fn sync_flat(
+        &mut self,
+        app: &App,
+        window: &Window,
+        reloaded: bool,
+        dirty: &crate::mirror::Dirty,
+    ) {
         crate::sync_2d::sync_2d(
             app,
             &mut self.scene_2d,
             &mut self.slots_2d,
             &mut self.batches_2d,
             &mut self.materials,
-            reloaded,
+            (reloaded, dirty),
         );
         crate::tilemap::sync_tilemaps(
             app,
@@ -244,6 +256,7 @@ impl Frontend {
                 emitters: &self.emitter_slots,
                 layers: &self.layers_2d,
                 composite,
+                dirty: &dirty.nodes,
             },
             &mut self.order_2d,
         );
@@ -269,8 +282,10 @@ impl Frontend {
         // After the input: the picking ray goes through this frame's pointer.
         publish_camera(app, &self.camera, window);
         publish_camera_2d(app, &self.camera_2d, window);
-        apply_ui_zoom(app, window);
-        self.device.publish(app, window, dt);
+        // After the input, which is what says a fact moved.
+        let device = self.device.read(window);
+        crate::device::apply_ui_zoom(app, window, device.text_scale);
+        self.device.publish(app, window, dt, &device);
         // Before the tick, which publishes the frame: the period the window
         // last measured holds the previous tick's stages, and nothing later.
         report_render_cost(app, window);
@@ -288,18 +303,19 @@ impl Frontend {
         // what it placed last frame.
         crate::draw_2d::clear(&mut self.transients);
         self.text.clear_transients();
-        sync(
+        let dirty = self.since.read(&app.engine);
+        sync_3d::sync(
             app,
             &mut self.scene,
             &mut self.slots,
             &mut self.batches_3d,
             &mut self.materials_3d,
-            reloaded,
+            (reloaded, &dirty, &mut self.live_3d),
         );
         self.lights.sync(app, &mut self.scene);
         crate::light3d::sync_environment(app, window, &mut self.environment);
         self.probes.sync(app, window);
-        self.sync_flat(app, window, reloaded);
+        self.sync_flat(app, window, reloaded, &dirty);
         // Immediate shapes and text with no `z_index` go over the composite, unlit.
         crate::draw_2d::flush(
             app,
@@ -350,22 +366,6 @@ impl Frontend {
     fn shoot(&mut self, app: &App, window: &mut Window) {
         screenshot::take_if_due(app, window, self.frame, (&mut self.scene, &mut self.camera));
     }
-}
-
-/// Hand the scale a script asked for to egui, as its zoom factor, before
-/// anything reads what a design pixel became. egui lays the whole pass out in
-/// it, its own widgets included, which is why nothing multiplies a size by
-/// hand any more.
-fn apply_ui_zoom(app: &App, window: &mut Window) {
-    let want = balaur_ui::scale(&app.engine);
-    // The reader's own text size multiplies it, so a game that never touches
-    // the scale still grows for someone who asked their phone for large type.
-    let asked = if balaur_ui::takes_system_text_size(&app.engine) {
-        window.text_scale().max(f32::EPSILON)
-    } else {
-        1.0
-    };
-    window.set_ui_zoom(want * asked);
 }
 
 /// File what the window reported for the frame it last drew: the true frame
@@ -438,8 +438,9 @@ pub async fn run_windowed_async(
     // says nothing. Read before the window exists, so it cannot come from a
     // resource the first frame inserts.
     let window_settings = balaur_core::project::WindowSettings::of(&app.engine);
+    let canvas_id = canvas_id.unwrap_or("canvas");
     let setup = CanvasSetup {
-        canvas_id: canvas_id.unwrap_or("canvas").to_string(),
+        canvas_id: canvas_id.to_string(),
         vsync: window_settings.vsync,
         samples: present::samples_of(&window_settings),
         accessible: true,
@@ -472,6 +473,10 @@ pub async fn run_windowed_async(
     let low_processor = window_settings.low_processor && cfg!(not(target_os = "ios"));
     if low_processor && let Some(waker) = window.waker() {
         balaur_core::wake::set_hook(Some(Box::new(move || waker.wake())));
+    }
+    #[cfg(target_family = "wasm")]
+    if low_processor {
+        crate::hidden_tab::wake_on_input(canvas_id);
     }
     let mut last = Instant::now();
     // Whether the page has been told the first frame is drawn.
@@ -534,8 +539,8 @@ pub async fn run_windowed_async(
 /// Wait out the frames nothing is owed under `[window] low_processor`: no
 /// input, no `balaur_core::wake`, no repaint due, and the simulation at rest
 /// (`balaur_core::rest`). A desktop blocks in the window system; a browser
-/// owns its loop, so a tab waits for its next animation frame, or for
-/// turning hidden, which is the loop's own case.
+/// owns its loop, so a tab awaits a promise a wake, input or the repaint due
+/// settles, or turning hidden, which is the loop's own case.
 #[cfg_attr(
     not(target_family = "wasm"),
     allow(clippy::unused_async, reason = "only a tab's wait is awaited")
@@ -556,12 +561,8 @@ async fn sleep_until_owed(app: &App, window: &mut Window) {
             return;
         }
         #[cfg(target_family = "wasm")]
-        {
-            let _ = wait;
-            if window.wait_events(None) || crate::hidden_tab::is_hidden() {
-                return owed();
-            }
-            crate::hidden_tab::next_frame_or_hidden().await;
+        if crate::hidden_tab::rest(window, wait).await {
+            return owed();
         }
         #[cfg(not(target_family = "wasm"))]
         if window.wait_events(wait) {
@@ -728,127 +729,6 @@ fn lit_and_layered(node: &mut SceneNode3d, renderable: &Renderable3d) {
     node.set_casts_shadows(renderable.shadows)
         .set_light_layers(renderable.layers)
         .set_render_layers(renderable.render_layers);
-}
-
-/// Mirror `Renderable3d` + `GlobalTransform` into the kiss3d scene graph.
-fn sync(
-    app: &App,
-    scene: &mut SceneNode3d,
-    slots: &mut HashMap<Entity, Slot>,
-    batches: &mut crate::batch_3d::Batches3d,
-    materials: &mut crate::shader_material_3d::MaterialCache3d,
-    reloaded: bool,
-) {
-    let world = app.engine.world();
-    // A relink rebuilds the nodes holding the old pipeline; a channel view
-    // rebuilds every node, whether or not it names a material.
-    let channel = crate::debug_view::channel_view(&app.engine);
-    let relinked = materials.refresh(app);
-    let channel_changed = materials.channel_changed(&channel);
-    materials.answer_probe(app);
-
-    let eye = crate::lods::eye(&app.engine);
-    if relinked || channel_changed || reloaded {
-        batches.reconsider();
-    }
-    let member_of = crate::batch_3d::cut_groups(app, scene, materials, &channel, batches);
-    let mut seen: HashSet<Entity> = HashSet::new();
-    for (entity, renderable, global) in
-        &mut world.query::<(Entity, &Renderable3d, &GlobalTransform)>()
-    {
-        if let Some(group) = member_of.get(&entity) {
-            take_over(slots, entity, *group, batches, &world);
-            continue;
-        }
-        seen.insert(entity);
-        // Read once: the ancestors' tint, visibility and material come off
-        // the same propagated component.
-        let appearance = world
-            .get::<&GlobalAppearance>(entity)
-            .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
-        let owns_material = !renderable.material.is_empty();
-        // A reload rebuilds what was built from a file: the mesh is read
-        // again and the texture uploaded under the new generation's name.
-        let from_file = renderable.mesh.is_some() || !renderable.texture.is_empty();
-        let rebuild = slots.get(&entity).is_none_or(|slot| {
-            slot.version != renderable.version
-                || channel_changed
-                || (relinked && (owns_material || !appearance.material.is_none()))
-                || (reloaded && from_file)
-                || (!owns_material && slot.inherited != appearance.material)
-        });
-        // The material a node effectively draws with: its own, or the one
-        // an ancestor handed down.
-        let inherited = appearance.material.reference();
-        let reference = if owns_material {
-            renderable.material.as_str()
-        } else {
-            &inherited
-        };
-        if rebuild {
-            if let Some(mut old) = slots.remove(&entity) {
-                old.node.remove();
-            }
-            // Nothing to draw yet, and whatever failed said why.
-            let Some((mut node, skin, geometry, lods)) =
-                geometry::build_node(app, scene, renderable, entity)
-            else {
-                continue;
-            };
-            // After the texture: a material reads it, and kiss3d's own
-            // material stays on a node whose shader would not link.
-            let custom = materials.for_node(app, reference, &channel);
-            let mut palette = None;
-            if let Some(material) = custom {
-                node.set_material(material);
-            } else if let Some(mesh) = geometry {
-                palette = Some(crate::skinned_3d::attach(&mut node, &mesh));
-            }
-            slots.insert(
-                entity,
-                Slot {
-                    node,
-                    version: renderable.version,
-                    inherited: appearance.material,
-                    skin,
-                    palette,
-                    surface: None,
-                    overlay: None,
-                    builtin: None,
-                    lods,
-                    solved: None,
-                    companion: None,
-                    particles: None,
-                },
-            );
-        }
-        // The block above inserts the slot when it is missing.
-        let slot = slots.get_mut(&entity).unwrap();
-        deform_node(&world, entity, slot);
-        let color = crate::film::color(crate::sync_2d::modulate(
-            renderable.color,
-            appearance.tint.to_array(),
-        ));
-        // Every shape is real geometry at its authored size now, so the node
-        // carries the scene's scale and nothing of the shape's.
-        let scale = global.scale;
-        let visible = appearance.visible && !crate::multimesh::draws_nothing(&world, entity);
-        if let Some(lods) = &mut slot.lods {
-            lods.show(&mut slot.node, global.position.distance(eye));
-        }
-        slot.node
-            .set_pose(Pose3::from_parts(global.position, global.rotation))
-            .set_local_scale(scale.x, scale.y, scale.z)
-            .set_color(color)
-            .set_visible(visible);
-        lit_and_layered(&mut slot.node, renderable);
-        let debug = crate::debug_draw::DebugDraw::of(&world, entity);
-        dress(app, slot, renderable, &debug, reference);
-        crate::overlay::follow_3d(slot.companion.as_mut(), color, scale);
-        instances::draw(app, &world, entity, slot, (global, eye, visible));
-    }
-    crate::batch_3d::flush(batches);
-    drop_unseen(slots, &seen);
 }
 
 /// What a node draws with beyond its geometry: the material's `[surface]`,

@@ -113,12 +113,9 @@ pub struct DigestRegistry(pub Vec<(String, DigestFn)>);
 pub fn scope_of(eng: &Engine) -> Option<std::collections::HashSet<Entity>> {
     let scope = eng.debug_scope();
     let world = eng.world();
-    let (mut nodes, skipped) = covered(&world, scope.unwrap_or_else(|| eng.root()));
+    let (nodes, skipped) = covered(&world, scope.unwrap_or_else(|| eng.root()));
     if scope.is_none() && !skipped {
         return None;
-    }
-    for (_, holder) in crate::parked::holders(eng) {
-        nodes.extend(covered(&world, holder).0);
     }
     Some(nodes.into_iter().collect())
 }
@@ -126,6 +123,13 @@ pub fn scope_of(eng: &Engine) -> Option<std::collections::HashSet<Entity>> {
 /// The tag that keeps a node, and everything under it, out of the digest: a
 /// camera or a HUD that differs from machine to machine on purpose.
 pub const TAG_LOCAL: &str = "local";
+
+/// Every node under `top` but a subtree tagged [`TAG_LOCAL`]: what a digest
+/// hashes and a snapshot keeps. A local node is this machine's alone.
+#[must_use]
+pub fn shared_nodes(world: &hecs::World, top: Entity) -> Vec<Entity> {
+    covered(world, top).0
+}
 
 /// `top` and every node under it but a subtree tagged [`TAG_LOCAL`], in
 /// `crate::scene::collect_subtree`'s order; and whether anything was left out.
@@ -165,7 +169,7 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
             let appearance = world.get::<&Appearance>(e).ok().map(|a| *a);
             (e, label, transform, appearance)
         };
-        let mut rows: Vec<_> = covered(&world, scope.unwrap_or_else(|| eng.root()))
+        covered(&world, scope.unwrap_or_else(|| eng.root()))
             .0
             .into_iter()
             // Not the container itself: an editor makes a fresh one for every
@@ -173,20 +177,7 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
             // same game.
             .filter(|e| Some(*e) != scope)
             .map(|e| row(e, node_label(&world, e)))
-            .collect();
-        // A parked scene is world state: two runs that part while it sits
-        // there part here, not at the tick it comes back.
-        for (path, holder) in crate::parked::holders(eng) {
-            for e in covered(&world, holder).0 {
-                if e != holder {
-                    rows.push(row(
-                        e,
-                        crate::ids::parked_key(&path, &node_label(&world, e)),
-                    ));
-                }
-            }
-        }
-        rows
+            .collect()
     };
 
     for (entity, label, transform, appearance) in &nodes {

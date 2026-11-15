@@ -10,6 +10,7 @@ use history;
 use manager;
 use model;
 use shell;
+use util;
 
 // Seconds without a new edit before the scene is written: past a drag's last
 // frame and a typed number's last key, short of anyone reaching for a save.
@@ -24,10 +25,7 @@ pub const TYPING_SETTLE: float = 1.5;
 /// whose scene is the run's rather than the file's, nor while isolate hides
 /// part of it, nor mid-drag, nor for a dependency's scene, which is read-only.
 pub fn write_settled(state: &mut editor::State, now: float) -> bool {
-    if !history::dirty(state) || state.playing || state.isolated || state.gizmo.drag != nil || manager::showing(state) || model::read_only(state) {
-        return false;
-    }
-    if now - state.history.at < SETTLE {
+    if !scene_writable(state) || now - state.history.at < SETTLE {
         return false;
     }
     anim::save(state);
@@ -35,9 +33,13 @@ pub fn write_settled(state: &mut editor::State, now: float) -> bool {
     true
 }
 
-/// Once a frame. A run started with `--state` is a script's, a self-test's
-/// or a showcase's, and keeps its edits off the project's files: a suite's
-/// states each open the project as the last one left it on disk.
+fn scene_writable(state: editor::State) -> bool {
+    history::dirty(state) && !state.playing && !state.isolated && state.gizmo.drag == nil && !manager::showing(state) && !model::read_only(state)
+}
+
+/// On each frame that runs. A run started with `--state` is a script's, a
+/// self-test's or a showcase's, and keeps its edits off the project's files:
+/// a suite's states each open the project as the last one left it on disk.
 pub fn step(state: &mut editor::State) {
     if scripted(state) {
         return;
@@ -46,6 +48,27 @@ pub fn step(state: &mut editor::State) {
     write_settled(state, now);
     write_typed(state, now);
     disk::ask(state);
+    // One frame when the next write is due. A due one already past was
+    // refused this frame, and the next input tries it again.
+    let due = next_due(state);
+    if due > now {
+        state.autosave_asked = util::wake_at(state.autosave_asked, due);
+    }
+}
+
+/// The wall-clock second the next write is due, 0 for none: the scene once
+/// its edits settle, a buffer once its typing rests.
+pub fn next_due(state: editor::State) -> float {
+    let due = if scene_writable(state) { state.history.at + SETTLE } else { 0.0 };
+    for path in state.script_dirty.keys() {
+        if !state.script_held.has(path) {
+            let rested = state.script_dirty[path].as_float() + TYPING_SETTLE;
+            if due == 0.0 || rested < due {
+                due = rested;
+            }
+        }
+    }
+    due
 }
 
 /// Write each code buffer whose typing has rested by `now`, but for one whose
@@ -72,10 +95,4 @@ pub fn write_typed(state: &mut editor::State, now: float) -> int {
 
 internal fn scripted(state: editor::State) -> bool {
     state.start_states != "" || state.suite != nil
-}
-
-/// Whether an edit waits to be written, which asks for the frame that writes it.
-pub fn waiting(state: editor::State) -> bool {
-    let scene = history::dirty(state) && !state.playing && !state.isolated && !manager::showing(state) && !model::read_only(state);
-    !scripted(state) && (scene || state.script_dirty.len() > state.script_held.len())
 }

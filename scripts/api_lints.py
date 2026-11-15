@@ -439,8 +439,6 @@ ANY_ALLOWED = {
     "assets::save": ("(str, any)", BY_NAME),
     "assets::schema": ("(str) -> any", SPEC),
     "browser::post_message": ("(any) -> bool", FROM_OUTSIDE),
-    "engine::store": ("(str, any)", CALLERS_OWN),
-    "engine::stored": ("(str) -> any", CALLERS_OWN),
     "events::emit": ("(str, any)", CALLERS_OWN),
     "json::encode": ("(any) -> str", FROM_OUTSIDE),
     "json::parse": ("(str) -> any", FROM_OUTSIDE),

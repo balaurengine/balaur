@@ -33,6 +33,7 @@ fn node_at(app: &App, name: &str, parent: Entity, x: f32, y: f32) -> Entity {
         .get::<&mut Transform>(entity)
         .unwrap()
         .position = Vec3::new(x, y, 0.0);
+    balaur_core::transform::written(&app.engine, entity);
     entity
 }
 
@@ -236,6 +237,7 @@ fn a_target_that_is_not_a_finite_point_leaves_the_pose_alone() {
         .get::<&mut Transform>(target)
         .unwrap()
         .position = Vec3::new(f32::NAN, 0.0, 0.0);
+    balaur_core::transform::written(&app.engine, target);
 
     app.tick(1.0 / 60.0);
 
@@ -378,6 +380,7 @@ fn a_jiggle_bone_lags_the_pose_and_then_settles_on_it() {
         .get::<&mut Transform>(rig)
         .unwrap()
         .position = Vec3::new(3.0, 0.0, 0.0);
+    balaur_core::transform::written(&app.engine, rig);
     app.tick(1.0 / 60.0);
     let swung = angle_about_z(app.engine.world().get::<&Transform>(hip).unwrap().rotation);
     assert!(
@@ -443,6 +446,7 @@ fn a_3d_modifier_aims_a_bone_at_its_target() {
         .get::<&mut Transform>(target)
         .unwrap()
         .position = Vec3::new(0.0, 0.0, 4.0);
+    balaur_core::transform::written(&app.engine, target);
     let m: toml::Value =
         toml::from_str("kind = \"look_at\"\nbone = \"Arm\"\ntarget = \"Target\"").unwrap();
     components::add(&app.engine, rig, "modifier3d", Some(&m)).unwrap();
@@ -489,6 +493,7 @@ fn a_3d_fabrik_chain_reaches_its_target() {
         .get::<&mut Transform>(target)
         .unwrap()
         .position = Vec3::new(1.0, 0.0, 2.0);
+    balaur_core::transform::written(&app.engine, target);
     let m: toml::Value =
         toml::from_str("kind = \"fabrik\"\nbone = \"B0\"\ntarget = \"Target\"\niterations = 24")
             .unwrap();

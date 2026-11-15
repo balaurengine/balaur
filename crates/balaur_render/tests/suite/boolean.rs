@@ -28,6 +28,7 @@ fn place(app: &App, entity: Entity, at: Vec3) {
     if let Ok(mut transform) = world.get::<&mut Transform>(entity) {
         transform.position = at;
     }
+    balaur_core::transform::written(&app.engine, entity);
 }
 
 /// The volume the built triangles enclose.

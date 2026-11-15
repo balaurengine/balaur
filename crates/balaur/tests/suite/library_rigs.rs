@@ -80,12 +80,12 @@ fn global(app: &App, path: &str) -> Vec3 {
         .position
 }
 
+/// Move a node in place, as a physics step moves a body, stamping the write.
 fn put(app: &App, path: &str, at: Vec3) {
     let world = app.engine.world();
-    world
-        .get::<&mut Transform>(node(&world, app, path))
-        .unwrap()
-        .position = at;
+    let moved = node(&world, app, path);
+    world.get::<&mut Transform>(moved).unwrap().position = at;
+    balaur_core::transform::written(&app.engine, moved);
 }
 
 fn ticks(app: &mut App, n: usize) {

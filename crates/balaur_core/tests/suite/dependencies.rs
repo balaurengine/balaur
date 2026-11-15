@@ -134,7 +134,7 @@ fn a_dependency_script_builds_paths_from_its_own_root() {
     let app = app_in(&dir.path().join("game"));
     let eng = &app.engine;
     {
-        let _turn = balaur_core::dependencies::calling(eng, "deps/kit/scripts/button.bs");
+        let _turn = balaur_core::dependencies::calling(eng, "deps/kit/scripts/button.bs", 0);
         assert_eq!(
             balaur_core::project::path_of(eng, "art/hit.png").unwrap(),
             "deps/kit/art/hit.png"
@@ -149,7 +149,7 @@ fn a_dependency_script_builds_paths_from_its_own_root() {
             "art/hit.png"
         );
     }
-    let _turn = balaur_core::dependencies::calling(eng, "scripts/player.bs");
+    let _turn = balaur_core::dependencies::calling(eng, "scripts/player.bs", 0);
     assert_eq!(
         balaur_core::project::path_of(eng, "art/hit.png").unwrap(),
         "art/hit.png"
