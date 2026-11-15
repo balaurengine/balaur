@@ -424,7 +424,7 @@ source = "#posts"
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
     }
-    let lines = balaur_core::logbuf::recent(500);
+    let lines = balaur_core::logbuf::heard();
     let errors = lines
         .iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))

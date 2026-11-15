@@ -314,7 +314,7 @@ fn run_checked(scene: &str, script: &str, ticks: u32, done: &str) {
     for _ in 0..ticks {
         app.tick(1.0 / 60.0);
     }
-    let errors: Vec<String> = balaur_core::logbuf::recent(500)
+    let errors: Vec<String> = balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)

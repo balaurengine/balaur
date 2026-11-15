@@ -18,7 +18,7 @@ fn run_for(script: &str, ticks: u32) -> Vec<String> {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (_dir, _app) = boot(script, ticks);
-    balaur_core::logbuf::recent(500)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -949,7 +949,7 @@ fn built_with(script: &str) -> (bool, bool) {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (_dir, app) = boot(script, 1);
-    let errors: Vec<String> = balaur_core::logbuf::recent(500)
+    let errors: Vec<String> = balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)

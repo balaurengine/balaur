@@ -37,7 +37,7 @@ fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
     }
-    let lines = balaur_core::logbuf::recent(500);
+    let lines = balaur_core::logbuf::heard();
     let errors = lines
         .iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
@@ -489,7 +489,7 @@ log::info("size {size.x} {size.y}");"#,
     let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let lines: Vec<String> = balaur_core::logbuf::recent(500)
+    let lines: Vec<String> = balaur_core::logbuf::heard()
         .into_iter()
         .map(|e| e.message)
         .collect();
@@ -597,7 +597,7 @@ impl Scenario {
     let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let errors: Vec<String> = balaur_core::logbuf::recent(500)
+    let errors: Vec<String> = balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -677,7 +677,7 @@ impl Scenario {
     let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let errors: Vec<String> = balaur_core::logbuf::recent(500)
+    let errors: Vec<String> = balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)
@@ -734,7 +734,7 @@ log::info("insets {inset.top} {inset.bottom} at {window::refresh_rate()}");"#,
         facts.refresh_rate = 120.0;
     });
     app.tick(1.0 / 60.0);
-    let lines: Vec<String> = balaur_core::logbuf::recent(500)
+    let lines: Vec<String> = balaur_core::logbuf::heard()
         .into_iter()
         .map(|e| e.message)
         .collect();
@@ -780,7 +780,7 @@ log::info("terrain {painted} {bare} {past} tiled {self.node.tilemap.cell(1, 1) >
     let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let lines = balaur_core::logbuf::recent(500);
+    let lines = balaur_core::logbuf::heard();
     let errors: Vec<&String> = lines
         .iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))

@@ -237,9 +237,9 @@ In the order they get fixed.
     rarely whole steps and an offscreen run's always are, which is why only
     windowed runs parted. The app, the playhead and the jiggle springs all ask
     `Engine::hold_keeps_remainder` now.
-32. **Four editor states failed only in a window.** Built, with the kiss3d
-    half waiting on the pin. A frame whose surface handed out no texture, as
-    a sleeping display's does, returned before egui's pass ended. Every later
+32. **Four editor states failed only in a window.** Built. A frame whose
+    surface handed out no texture, as a sleeping display's does, returned
+    before egui's pass ended. Every later
     frame ran its widgets inside that one pass: laid out by it, deaf to input
     since, its fonts never bound, which failed `test:viewport_clicks`. kiss3d
     now runs such a frame through all but the GPU's work and the present, and

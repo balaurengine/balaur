@@ -8,7 +8,7 @@ mod instances;
 mod present;
 mod screenshot;
 
-pub use present::{NO_PRESENT_VAR, NoPresent, no_present_ignored};
+pub use present::{NO_PRESENT_VAR, NoPresent};
 
 use balaur_core::time::Instant;
 use std::collections::{HashMap, HashSet};

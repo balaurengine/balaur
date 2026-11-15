@@ -166,7 +166,7 @@ autoplay = "idle"
 "#;
     let root = app.engine.root();
     project::instantiate_scene(&app.engine, source, root, false).unwrap();
-    let unhandled: Vec<String> = balaur_core::logbuf::recent(200)
+    let unhandled: Vec<String> = balaur_core::logbuf::heard()
         .into_iter()
         .map(|entry| entry.message)
         .filter(|message| message.contains("no registered handler"))

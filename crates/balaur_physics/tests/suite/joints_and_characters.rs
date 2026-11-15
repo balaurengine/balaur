@@ -28,7 +28,7 @@ pub(crate) fn run(scene: &str, script: &str) -> Vec<String> {
     for _ in 0..120 {
         app.tick(1.0 / 60.0);
     }
-    balaur_core::logbuf::recent(500)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)

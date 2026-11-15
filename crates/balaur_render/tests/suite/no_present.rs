@@ -158,10 +158,6 @@ fn a_window_that_cannot_present_keeps_its_layout_and_hears_a_dialog_shut() {
         return;
     }
     let (before, after) = run();
-    if balaur_render::kiss3d_backend::no_present_ignored() {
-        eprintln!("skipped: the kiss3d this was built against cannot refuse its surface");
-        return;
-    }
     let before = before.expect("the run reached the frame the surface refused on");
     let after = after.expect("the run reached its last frame");
     let add = before.boxes[3].expect("the dock's tool drew while presenting");

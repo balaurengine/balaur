@@ -103,7 +103,7 @@ pub(crate) fn run(script: &Script<'_>) -> (tempfile::TempDir, App, egui::Context
         let mut out = ctx.end_pass();
         out.textures_delta.clear();
     }
-    let errors = balaur_core::logbuf::recent(500)
+    let errors = balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)

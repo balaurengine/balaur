@@ -26,7 +26,7 @@ fn boot(scene: &str) -> (App, tempfile::TempDir, std::sync::MutexGuard<'static, 
 }
 
 fn errors() -> Vec<String> {
-    balaur_core::logbuf::recent(500)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| format!("{} {:?}", e.message, e.fields))

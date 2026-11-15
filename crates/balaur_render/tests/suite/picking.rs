@@ -66,7 +66,7 @@ fn run() -> (App, Vec<String>) {
     let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    let errors = balaur_core::logbuf::recent(500)
+    let errors = balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)

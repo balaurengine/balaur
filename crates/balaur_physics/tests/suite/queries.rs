@@ -62,7 +62,7 @@ shape = { kind = "sphere", radius = 0.5 }
     let mut app = standard_app(crate::dev_config(dir.path())).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
-    balaur_core::logbuf::recent(500)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| e.message)

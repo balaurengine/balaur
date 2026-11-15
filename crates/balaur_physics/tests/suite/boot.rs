@@ -51,7 +51,7 @@ pub(crate) fn project_with(scene: &str, script: &str, files: &[(&str, &str)]) ->
 
 /// Every error logged since the project booted, with its fields.
 pub(crate) fn errors() -> Vec<String> {
-    balaur_core::logbuf::recent(500)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| format!("{} {:?}", e.message, e.fields))

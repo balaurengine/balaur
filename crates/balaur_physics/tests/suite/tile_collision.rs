@@ -73,7 +73,7 @@ fn boot_scene(scene: &str, script: &str, frames: u32) -> (App, Vec<String>) {
 
 /// Every error logged since the buffer was last cleared, with its fields.
 fn logged_errors() -> Vec<String> {
-    balaur_core::logbuf::recent(500)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
         .map(|e| format!("{} {:?}", e.message, e.fields))
