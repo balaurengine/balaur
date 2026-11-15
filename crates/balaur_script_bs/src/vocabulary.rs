@@ -31,8 +31,8 @@ pub(crate) mod words {
     /// The engine's value types a script names as structs.
     pub(crate) mod records {
         pub(crate) const COLOR: &str = "Color";
-        pub(crate) const TRANSFORM2D: &str = "Transform2d";
-        pub(crate) const TRANSFORM3D: &str = "Transform3d";
+        pub(crate) const TRANSFORM_2D: &str = "Transform2d";
+        pub(crate) const TRANSFORM_3D: &str = "Transform3d";
         pub(crate) const VEC2: &str = "Vec2";
         pub(crate) const VEC3: &str = "Vec3";
     }

@@ -87,7 +87,7 @@ fn struct_spec(meta: &Meta, name: &str, depth: usize) -> Option<Value> {
         records::VEC2 => return Some(typed(kinds::VEC2)),
         records::VEC3 => return Some(typed(kinds::VEC3)),
         records::COLOR => return Some(typed(kinds::COLOR)),
-        records::TRANSFORM2D | records::TRANSFORM3D => return None,
+        records::TRANSFORM_2D | records::TRANSFORM_3D => return None,
         _ => {}
     }
     if let Some((key, value)) = meta.map_types(name) {
