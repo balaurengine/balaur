@@ -575,6 +575,7 @@ impl App {
 
     pub fn set_fixed_dt(&mut self, dt: Option<f32>) -> &mut Self {
         self.fixed_dt = dt;
+        self.engine.set_steps_fixed(dt.is_some());
         self
     }
 

@@ -104,6 +104,10 @@ impl WidgetState {
 pub struct Style {
     pub fill: Option<Color32>,
     pub stroke: Option<Color32>,
+    /// The ring a focused control draws 2 px outside its edge, as CSS's
+    /// `outline`, which leaves `stroke`, the edge, as it is. Unset rings in
+    /// the edge's colour.
+    pub outline: Option<Color32>,
     /// Corner radius in design pixels; `None` keeps the kind's own rule,
     /// which for a button is "as round as its text is tall".
     pub radius: Option<f32>,
@@ -164,8 +168,8 @@ pub struct Style {
     /// touch height beside the height it states for a cursor.
     pub classes: Option<Rc<Vec<(SmolStr, Style)>>>,
     pub active: Option<Rc<Style>>,
-    /// What replaces this style while the widget is disabled, and while
-    /// keyboard focus is on it and the pointer is not.
+    /// What sits over this style while the widget is disabled, and while
+    /// keyboard focus is on it, under whichever pointer table applies.
     pub disabled: Option<Rc<Style>>,
     pub focus: Option<Rc<Style>>,
     /// What the widget wears while it is on, under whichever pointer table
@@ -181,9 +185,11 @@ pub struct Style {
     pub gradient: Option<Rc<Gradient>>,
     /// A blurred copy of the box, under it.
     pub shadow: Option<Shadow>,
-    /// Seconds a change of the pointer's state eases over, as CSS's
-    /// `transition`: colours, the shadow and `offset` run between the
-    /// tables, everything else steps at halfway. Unset steps at once.
+    /// Seconds a change of state eases over, as CSS's `transition`: the
+    /// pointer's two, focus, `checked` and `disabled`, each from where it is.
+    /// Colours, the shadow and `offset` run between the tables, everything
+    /// else steps at halfway. Unset steps at once. Read on a kind or a role,
+    /// never inside one of its state tables.
     pub transition: Option<f32>,
     /// How far the widget and what it holds are drawn from where the layout
     /// put them, `[x, y]` in design pixels, as CSS's `translate`: a card
@@ -251,6 +257,7 @@ impl Style {
         Self {
             fill: self.fill.or(base.fill),
             stroke: self.stroke.or(base.stroke),
+            outline: self.outline.or(base.outline),
             radius: self.radius.or(base.radius),
             padding: self.padding.or(base.padding),
             padding_sides: self.padding_sides.or(base.padding_sides),
@@ -296,38 +303,6 @@ impl Style {
             && self.disabled.is_none()
             && self.focus.is_none()
             && self.checked.is_none()
-    }
-
-    /// The style with the tables for the widget's state over it: `checked`
-    /// under everything, then disabled, held, hovered, and focused with the
-    /// pointer elsewhere.
-    #[must_use]
-    pub fn in_states(&self, state: WidgetState) -> Self {
-        if state.checked && self.checked.is_none() && !state.disabled {
-            // A theme with no `checked` table dresses a checked widget as held.
-            let held = WidgetState {
-                pointer: Pointer::Held,
-                checked: false,
-                ..state
-            };
-            return self.in_states(held);
-        }
-        let on = match (&self.checked, state.checked) {
-            (Some(checked), true) => checked.over(self),
-            _ => self.clone(),
-        };
-        let patch = if state.disabled {
-            on.disabled.as_ref()
-        } else if state.pointer == Pointer::Held {
-            on.active.as_ref().or(on.hover.as_ref())
-        } else if state.pointer == Pointer::Over {
-            on.hover.as_ref()
-        } else if state.focused {
-            on.focus.as_ref()
-        } else {
-            None
-        };
-        patch.map_or_else(|| on.clone(), |patch| patch.over(&on))
     }
 }
 
@@ -604,15 +579,25 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .or_else(|| tokens.sizes.get(value.as_str()?).copied())
     };
     let nested = |key: &str| {
-        body.get(key)
-            .and_then(toml::Value::as_table)
-            .map(|table| Rc::new(style_of(table, tokens, what).paint_only()))
+        body.get(key).and_then(toml::Value::as_table).map(|table| {
+            if table.contains_key(k::TRANSITION) {
+                tracing::warn!(
+                    "widget theme: {what}'s `{key}` table states a `transition`; it goes on {what} itself, which eases every state"
+                );
+            }
+            let style = style_of(table, tokens, what).paint_only();
+            Rc::new(Style {
+                transition: None,
+                ..style
+            })
+        })
     };
     let colour = |key: &str| body.get(key).and_then(|v| color(v, what, &tokens.colors));
     let pill = body.get(k::CORNER_RADIUS).and_then(toml::Value::as_str) == Some(w::FULL);
     Style {
         fill: colour(k::FILL),
         stroke: colour(k::STROKE),
+        outline: colour(k::OUTLINE),
         radius: if pill { None } else { number(k::CORNER_RADIUS) },
         padding: number(k::PADDING),
         padding_sides: body
@@ -748,10 +733,16 @@ fn shadow_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Option<Shadow> 
 
 /// A `checked` table: paint over the entry, with its own pointer tables.
 fn checked_style(table: &toml::Table, tokens: &Tokens, what: &str) -> Style {
+    if table.contains_key(k::TRANSITION) {
+        tracing::warn!(
+            "widget theme: {what}'s `checked` table states a `transition`; it goes on {what} itself, which eases every state"
+        );
+    }
     let full = style_of(table, tokens, what);
     Style {
         hover: full.hover.clone(),
         active: full.active.clone(),
+        transition: None,
         ..full.paint_only()
     }
 }
@@ -898,7 +889,7 @@ font = "heading"                 # a name [fonts] gives a font, or a font itself
 font_weight = 700
 text_align = "center"            # start, center or end
 cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
-transition = 0.2                 # seconds the pointer's states ease over, as CSS's transition
+transition = 0.2                 # seconds every state eases over, as CSS's transition; here, never in a state table
 
 [button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
                                  # keyboard focus, [button.disabled] while off, [button.checked] while on
@@ -906,6 +897,9 @@ fill = "primary_fill_hover"
 
 [button.active]
 offset = [0, 0.5]                # drawn this far from its place, as CSS's translate; the layout stays
+
+[button.focus]                   # with the pointer's table over it when both apply, as on the web
+outline = "primary"              # the ring 2 px outside the edge, as CSS's outline; the edge stays
 
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels

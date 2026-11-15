@@ -62,6 +62,9 @@ pub(crate) struct EngineInner {
     /// How far the frame being drawn sits between the last fixed step and
     /// the next, 0 to 1. Render-side alone; see [`crate::interpolate`].
     pub(crate) frame_alpha: Cell<f32>,
+    /// Whether every frame runs at one set step (`--fixed-tick`, a scripted
+    /// run), set by `App::set_fixed_dt`. See [`Engine::steps_fixed`].
+    pub(crate) steps_fixed: Cell<bool>,
 }
 
 impl Engine {
@@ -92,6 +95,7 @@ impl Engine {
                 pause_change: Cell::new(None),
                 time_scale: Cell::new(1.0),
                 frame_alpha: Cell::new(0.0),
+                steps_fixed: Cell::new(false),
             }),
         }
     }
@@ -264,6 +268,20 @@ impl Engine {
 
     pub fn delta(&self) -> f32 {
         self.inner.delta.get()
+    }
+
+    /// Whether every frame runs at one set step rather than at the time it
+    /// took. A run that must draw the same frames every time, a picture test
+    /// or a scripted check, reads [`Engine::time`] for what it animates
+    /// outside the simulation then, a UI's easing among them; otherwise that
+    /// follows the wall clock, unscaled, as a menu over a paused game does.
+    #[must_use]
+    pub fn steps_fixed(&self) -> bool {
+        self.inner.steps_fixed.get()
+    }
+
+    pub(crate) fn set_steps_fixed(&self, fixed: bool) {
+        self.inner.steps_fixed.set(fixed);
     }
 
     /// How many frames have run. `App::tick` runs one; this reports which.

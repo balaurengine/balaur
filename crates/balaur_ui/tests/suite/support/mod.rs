@@ -332,6 +332,25 @@ pub fn rects(out: &egui::FullOutput) -> Vec<(egui::Rect, egui::Color32)> {
     painted
 }
 
+/// The edge colour of every rectangle a pass painted, nested shapes
+/// included, with its rectangle: outlines and focus rings.
+pub fn strokes(out: &egui::FullOutput) -> Vec<(egui::Rect, egui::Color32)> {
+    fn walk(shape: &egui::Shape, into: &mut Vec<(egui::Rect, egui::Color32)>) {
+        match shape {
+            egui::epaint::Shape::Rect(rect) if rect.stroke.width > 0.0 => {
+                into.push((rect.rect, rect.stroke.color));
+            }
+            egui::epaint::Shape::Vec(inner) => inner.iter().for_each(|one| walk(one, into)),
+            _ => {}
+        }
+    }
+    let mut painted = Vec::new();
+    for clipped in &out.shapes {
+        walk(&clipped.shape, &mut painted);
+    }
+    painted
+}
+
 pub fn root_rect(ctx: &egui::Context, entity: Entity) -> egui::Rect {
     ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
         .expect("the root drew")

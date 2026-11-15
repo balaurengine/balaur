@@ -461,6 +461,128 @@ fn a_transition_eases_into_hover_and_an_offset_moves_what_is_drawn() {
     );
 }
 
+// Every state eases, as CSS's `transition` runs every property: a toggle
+// button turning on, not only the pointer arriving.
+#[test]
+fn a_transition_eases_a_checked_change_too() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/eased.toml"),
+        "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\ntransition = 0.2\n[button.checked]\nfill = \"#ffffff\"\n",
+    )
+    .unwrap();
+    let button = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Snap" theme = "themes/eased.toml" x = 20.0 y = 20.0 width = 100.0 height = 40.0 }
+            .into(),
+    );
+    balaur::components::add(&app.engine, button, "widget_check", None).unwrap();
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let plate = |out: &egui::FullOutput| {
+        fills(out)
+            .into_iter()
+            .find(|fill| fill.r() == fill.g() && fill.a() == 255)
+            .expect("the button paints its plate")
+    };
+    assert_eq!(plate(&pass(&app, &ctx, vec![])), egui::Color32::BLACK);
+    let on = toml::toml! { checked = true };
+    balaur::components::patch(&app.engine, button, "widget_check", &on.into()).unwrap();
+    let first = plate(&pass(&app, &ctx, vec![]));
+    assert!(
+        first.r() > 0 && first.r() < 255,
+        "a frame after it turned on, the fill is on its way: {first:?}"
+    );
+    let mut last = pass(&app, &ctx, vec![]);
+    for _ in 0..30 {
+        last = pass(&app, &ctx, vec![]);
+    }
+    assert_eq!(plate(&last), egui::Color32::WHITE, "and arrives");
+}
+
+// Under a fixed step an easing runs on the engine's clock, so a picture taken
+// mid-change is the same every run: on the wall clock the same frame of a
+// `--fixed-tick` run came out three different greys.
+#[test]
+fn under_a_fixed_step_an_easing_runs_on_the_engine_clock() {
+    let (dir, mut app) = app();
+    app.set_fixed_dt(Some(1.0 / 60.0));
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/eased.toml"),
+        "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\ntransition = 0.2\n[button.hover]\nfill = \"#ffffff\"\n",
+    )
+    .unwrap();
+    let button = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Go" theme = "themes/eased.toml" x = 20.0 y = 20.0 width = 100.0 height = 40.0 }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let plate = |out: &egui::FullOutput| {
+        fills(out)
+            .into_iter()
+            .find(|fill| fill.r() == fill.g() && fill.a() == 255)
+            .expect("the button paints its plate")
+    };
+    let over = vec![egui::Event::PointerMoved(root_rect(&ctx, button).center())];
+    assert_eq!(
+        plate(&pass(&app, &ctx, over)),
+        egui::Color32::BLACK,
+        "the engine has not stepped, so neither has the easing"
+    );
+    for _ in 0..5 {
+        assert_eq!(plate(&pass(&app, &ctx, vec![])), egui::Color32::BLACK);
+    }
+    app.tick(0.1);
+    let half = plate(&pass(&app, &ctx, vec![]));
+    // Half of 0.2 s, eased out: 1 - 0.5^3 of the way, 223 of 255.
+    assert!(half.r().abs_diff(223) <= 1, "half way in time: {half:?}");
+    app.tick(0.1);
+    assert_eq!(plate(&pass(&app, &ctx, vec![])), egui::Color32::WHITE);
+}
+
+// A theme's `outline` rings any focused kind outside its edge, as CSS's
+// `outline`, and leaves the edge as it is: a field kept its border and gained
+// a ring on the site, and took its focus colour as its border here.
+#[test]
+fn an_outline_rings_a_focused_field_and_keeps_its_edge() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/ringed.toml"),
+        "type = \"widget_theme\"\n\n[text_field]\nstroke = \"#808080\"\nstroke_width = 1\n[text_field.focus]\noutline = \"#ff8800\"\n",
+    )
+    .unwrap();
+    let field = add_widget(
+        &app,
+        &toml::toml! { kind = "text_field" text = "ana" theme = "themes/ringed.toml" state = "focus" x = 20.0 y = 20.0 width = 160.0 height = 32.0 }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let edges = strokes(&out);
+    let orange = egui::Color32::from_rgb(0xff, 0x88, 0x00);
+    let ring = edges
+        .iter()
+        .find(|(_, colour)| *colour == orange)
+        .map_or_else(|| panic!("no ring among {edges:?}"), |(rect, _)| *rect);
+    let boxed = root_rect(&ctx, field);
+    assert!(
+        ring.min.x < boxed.min.x && ring.max.x > boxed.max.x,
+        "the ring sits outside the field: {ring:?} round {boxed:?}"
+    );
+    assert!(
+        edges
+            .iter()
+            .any(|(_, colour)| *colour == egui::Color32::from_gray(0x80)),
+        "and the field keeps its own edge: {edges:?}"
+    );
+}
+
 // A `grow` label is cut at the box the layout left it, not at its own
 // length. The inspector's Source row ran its path under the verb beside it:
 // only a stated width was a column, and a grown child never states one.

@@ -838,9 +838,13 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     crate::widget::kinds::context_sensor(ui, at, index);
     click_sensor(ui, at, index);
     draw_kind(ui, at, index);
+    let look = at.look(index);
+    if state.focused {
+        crate::widget::ease::focus_ring(ui, &look.style);
+    }
     // Moved once drawn, children and all, so the layout and what the pointer
     // reaches stay where they were: CSS's `translate`.
-    if let Some([x, y]) = at.look(index).style.offset {
+    if let Some([x, y]) = look.style.offset {
         brush.shift_since(mark, vec2(x, y));
     }
     crate::widget::kinds::context_menu(ui, at, index);

@@ -416,9 +416,11 @@ pub(crate) fn button(
     if response.clicked() {
         at.clicked.push(entity);
     }
-    if focused == Some(entity) || widget.state == crate::vocabulary::states::FOCUS {
-        // Drawn rather than egui's own focus ring: the ring follows
-        // egui's keyboard focus, and this follows the scene's.
+    let held_focus = widget.state == crate::vocabulary::states::FOCUS;
+    if (focused == Some(entity) || held_focus) && style.outline.is_none() {
+        // Drawn rather than egui's own focus ring: the ring follows egui's
+        // keyboard focus, and this follows the scene's. A theme's `outline`
+        // is drawn round every kind instead, by the layer.
         Brush::of(ui).outline(
             response.rect.expand(2.0),
             radius,

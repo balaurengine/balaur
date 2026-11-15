@@ -98,7 +98,60 @@ fn a_disabled_or_focused_widget_takes_the_state_table_over_its_kind() {
                 ..WidgetState::default()
             })
             .fill,
-        parse_color("#ffffff"),
-        "the pointer over it and no hover table: the kind's own look"
+        parse_color("#2020ff"),
+        "the pointer over it and no hover table: still focused"
     );
+}
+
+#[test]
+fn a_transition_is_read_on_the_kind_and_not_inside_a_state_table() {
+    let text = "type = \"widget_theme\"\n\n[button]\ntransition = 0.2\n\n[button.hover]\ntransition = 0.05\nfill = \"#eeeeee\"\n\n[button.checked]\ntransition = 0.05\n";
+    let theme = parse(&toml::from_str::<toml::Value>(text).unwrap());
+    let button = theme.resolved("button", "");
+    assert_eq!(button.transition, Some(0.2));
+    let hovered = button.in_states(WidgetState {
+        pointer: Pointer::Over,
+        checked: true,
+        ..WidgetState::default()
+    });
+    assert_eq!(
+        hovered.transition,
+        Some(0.2),
+        "a state table's own is dropped, with a warning naming where it goes"
+    );
+}
+
+#[test]
+fn focus_and_the_pointer_apply_together_as_on_the_web() {
+    let text = "type = \"widget_theme\"\n\n[button]\nfill = \"#ffffff\"\nstroke = \"#000000\"\n\n[button.hover]\nfill = \"#eeeeee\"\n\n[button.focus]\nfill = \"#2020ff\"\noutline = \"#ff8800\"\n\n[button.disabled]\nfill = \"#101010\"\n";
+    let theme = parse(&toml::from_str::<toml::Value>(text).unwrap());
+    let button = theme.resolved("button", "");
+    let both = button.in_states(WidgetState {
+        pointer: Pointer::Over,
+        focused: true,
+        ..WidgetState::default()
+    });
+    assert_eq!(
+        both.fill,
+        parse_color("#eeeeee"),
+        "the pointer's table wins what both state"
+    );
+    assert_eq!(
+        both.outline,
+        parse_color("#ff8800"),
+        "and the focus ring stays"
+    );
+    assert_eq!(
+        both.stroke,
+        parse_color("#000000"),
+        "an outline leaves the edge as it is"
+    );
+    let off = button.in_states(WidgetState {
+        pointer: Pointer::Over,
+        focused: true,
+        disabled: true,
+        ..WidgetState::default()
+    });
+    assert_eq!(off.fill, parse_color("#101010"), "disabled is over neither");
+    assert_eq!(off.outline, None);
 }

@@ -15,10 +15,12 @@ missing, in the order the roadmap ships them.
    what its kind draws, with a test per key.
 2. **Text colours.** Caret, selection, placeholder and text-shadow colours as
    theme keys. Done: a theme sets each and a `text_field` draws it.
-3. **A focus ring of its own.** A focused `button` draws its ring in the
-   `focus` table's stroke, so its edge takes that colour too. The web keeps
-   the edge and draws an outline 2 px outside it. Done: a `focus` table's
-   `ring` colour and gap draw the ring, and its stroke stays the edge's.
+3. **egui's own clock under a fixed step.** A theme's `transition` runs on
+   the engine's time when every frame is one step, but egui's own animations
+   (a switch's knob, a fold opening, a tooltip's delay) read the time kiss3d
+   feeds each pass, the wall clock. A picture taken mid-way through one of
+   them differs run to run. Done: kiss3d takes the pass's time from the
+   host, and balaur hands it the engine's under a fixed step.
 
 ## Containers
 
