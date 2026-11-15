@@ -361,8 +361,11 @@ impl Engine {
         self.inner.replay_hold.set(held);
     }
 
-    pub(crate) fn replay_held(&self) -> bool {
-        self.inner.replay_hold.get()
+    /// Whether a hold keeps the part of a step earlier frames carried: only a
+    /// paused replay's does, since its recording carried that part on through
+    /// a pause it never had.
+    pub fn hold_keeps_remainder(&self) -> bool {
+        !self.inner.frozen.get() && self.inner.replay_hold.get()
     }
 
     /// Hold the game for the rest of this frame, or release it as a frame

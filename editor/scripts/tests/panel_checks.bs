@@ -605,6 +605,16 @@ pub fn form_check_step(state: &mut editor::State) {
     }
 }
 
+// The row for the line named `key`, scrolled to first: a short window holds
+// the form's later lines below the fold, where no row is made for them.
+fn row_on_screen(state: &mut editor::State, key: str) -> Node {
+    let line = inspector::line_named(state, key);
+    if line != nil {
+        inspector::scroll_to(state, line.unwrap().top);
+    }
+    inspector::row_of_line(state, key)
+}
+
 // The panel's search, which reaches into the folds and stays through a fill.
 fn form_search(text: str) {
     ui::edit(scene::root().get_node("Editor/Shell/Body/Right/RightSheet/Inspector/Search"), text);
@@ -638,11 +648,11 @@ fn form_check_rows(state: &mut editor::State, run: FormCheck, node: Node, stage:
         form_search("exclude");
     } else if stage == 12 {
         selftest::check(inspector::line_named(state, "character2d.exclude").unwrap().count == 1, "an empty list is its head alone");
-        ui::click(inspector::row_of_line(state, "character2d.exclude").get_node("C1/C1"));
+        ui::click(row_on_screen(state, "character2d.exclude").get_node("C1/C1"));
     } else if stage == 13 {
         selftest::check(node.character2d.exclude.len() == 1, "a list's chip adds an entry");
         selftest::check(inspector::line_named(state, "character2d.exclude").unwrap().count == 2, "and the entry is a row");
-        ui::click(inspector::row_of_line(state, "character2d.exclude/0").get_node("C1/C2"));
+        ui::click(row_on_screen(state, "character2d.exclude/0").get_node("C1/C2"));
     } else if stage == 14 {
         selftest::check(node.character2d.exclude.len() == 0, "the entry's chip takes it out");
         selftest::check(inspector::line_named(state, "character2d.exclude").unwrap().count == 1, "and its row goes");

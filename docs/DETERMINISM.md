@@ -132,6 +132,7 @@ source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 | Iterating a map's keys | Handled — a map keeps the order its keys were added |
 | A recording started part-way through a frame | Handled — the game holds through the rest of that frame, as a replay holds the frame it loads in |
 | A tween's handle | Handled — the editor's own tweens count apart from the game's, and the header carries where the game's start |
+| A plugin's own fixed-step accumulator | Handled for the animation player's playhead and springs — each drops its remainder when `Engine::step_restarts` moves, and under a hold only when `Engine::hold_keeps_remainder` says to, as the app does |
 | Hot reload mid-session | Handled in the editor, which ends the session on a reload. Under `--record` the recording spans the change, with only the header's script fingerprint to say so |
 
 Every `math` function is safe to call: `sqrt`, `abs`, `floor`, `ceil`, `round`,

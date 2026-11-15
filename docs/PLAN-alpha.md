@@ -229,12 +229,25 @@ In the order they get fixed.
     nothing warns with the field and the path. A snapshot restore runs the
     respawned nodes' scripts once every node is back, so a path to a node
     respawned after its own resolves and warns of nothing.
-31. **A windowed replay may part from its recording after a resume.** Not
-    confirmed: in 2 of 5 windowed `scripts/e2e.sh` runs on hello,
-    `test:recordings` failed "and reproduced what was recorded" on the tick
-    after its pause and step resumed. Each frame there logged "could not
-    acquire a surface texture within 2s", and offscreen runs pass. It needs
-    the differing digest entries from a failing run.
+31. **A windowed replay parted from its recording after a resume.** Built:
+    the animation player keeps a fixed-step remainder of its own and dropped
+    it under any hold, where since defect 29 the app keeps its own through a
+    paused replay's. So on the tick after a resume a clip, as hello's platform
+    is, stepped on another frame than its recording's. A window's frames are
+    rarely whole steps and an offscreen run's always are, which is why only
+    windowed runs parted. The app, the playhead and the jiggle springs all ask
+    `Engine::hold_keeps_remainder` now.
+32. **Four editor states failed only in a window.** Built, with the kiss3d
+    half waiting on the pin. A frame whose surface handed out no texture, as
+    a sleeping display's does, returned before egui's pass ended. Every later
+    frame ran its widgets inside that one pass: laid out by it, deaf to input
+    since, its fonts never bound, which failed `test:viewport_clicks`. kiss3d
+    now runs such a frame through all but the GPU's work and the present, and
+    spends the two-second wait for a first surface once. `BALAUR_NO_PRESENT=1`
+    runs a window that way. The other three were their tests: a compact
+    window's dock fold is 20 wide where `test:layout` wanted more,
+    `test:gestures` fed fingers in points where touches are physical pixels,
+    and `test:inspector_rows` clicked a row below the fold of a short window.
 
 ## 3. The API
 

@@ -17,6 +17,48 @@ pub(super) fn samples_of(settings: &WindowSettings) -> NumSamples {
     })
 }
 
+/// Set to anything, it starts a run whose window cannot present.
+pub const NO_PRESENT_VAR: &str = "BALAUR_NO_PRESENT";
+
+/// While this is in the engine, the window's surface hands out no frame, as a
+/// display that is asleep does: a test's way to run the frames a window cannot
+/// present. [`NO_PRESENT_VAR`] inserts it as a run opens its window.
+pub struct NoPresent;
+
+/// Insert [`NoPresent`] when the environment asks for it.
+pub(super) fn hear_no_present(app: &App) {
+    if std::env::var_os(NO_PRESENT_VAR).is_some() {
+        app.engine.insert_resource(NoPresent);
+    }
+}
+
+/// Tell the window whether this frame may present.
+pub(super) fn apply_no_present(app: &App, window: &mut Window) {
+    window.set_surface_refused(app.engine.try_resource::<NoPresent>().is_some());
+}
+
+/// Whether [`NoPresent`] was asked of a kiss3d that cannot refuse its surface.
+#[must_use]
+pub fn no_present_ignored() -> bool {
+    UNREFUSED.with(std::cell::Cell::get)
+}
+
+thread_local! {
+    static UNREFUSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Stands in for `Window::set_surface_refused` while the kiss3d pin predates it:
+/// an inherent method wins over a trait's, so the fork's is called once it has one.
+trait RefuseSurface {
+    fn set_surface_refused(&mut self, refused: bool);
+}
+
+impl RefuseSurface for Window {
+    fn set_surface_refused(&mut self, refused: bool) {
+        UNREFUSED.with(|ignored| ignored.set(ignored.get() || refused));
+    }
+}
+
 /// What the window was last told, so a frame whose settings did not move
 /// reads none of them.
 pub(super) struct Present {

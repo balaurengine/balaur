@@ -362,6 +362,56 @@ fn a_session_starts_the_playhead_step_from_a_frame_boundary() {
     balaur_core::replay::stop_recording(&app.engine, "stop").unwrap();
 }
 
+// A window's frames are not whole steps, so the playhead carries part of a step from one frame to
+// the next, through a pause its recording never had.
+#[test]
+fn a_replay_paused_stepped_and_resumed_moves_the_playhead_as_its_recording_did() {
+    use balaur_core::replay::{self, PlayState, ReplayPlayer, Session};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+    let measured = [0.012, 0.021, 0.1, 0.009];
+    let mut live = app();
+    let hero = playing(&live, "hero", &rise("linear"));
+    replay::start_recording(&live.engine, &path, ".", "hash", true).unwrap();
+    for frame in 0..24 {
+        live.advance(measured[frame % measured.len()]);
+    }
+    let recorded = height(&live, hero);
+    replay::stop_recording(&live.engine, "stop").unwrap();
+
+    let mut app = app();
+    let hero = playing(&app, "hero", &rise("linear"));
+    replay::begin(&app.engine, Session::read(&path).unwrap());
+    replay::play(&app.engine);
+    let player = app.engine.resource::<ReplayPlayer>();
+    for _ in 0..3 {
+        app.advance(2.0);
+    }
+    player.borrow_mut().state = PlayState::Paused;
+    for _ in 0..4 {
+        app.advance(2.0);
+    }
+    let paused_at = player.borrow().position();
+    player.borrow_mut().seek(paused_at + 1);
+    while replay::is_advancing(&app.engine) {
+        app.advance(2.0);
+    }
+    for _ in 0..3 {
+        app.advance(0.1);
+    }
+    replay::play(&app.engine);
+    while replay::is_running(&app.engine) {
+        app.advance(2.0);
+    }
+    let diverged = player.borrow().diverged;
+    assert!(diverged.is_none(), "the replay parted at {diverged:?}");
+    assert!(
+        recorded.abs() > f32::EPSILON,
+        "a clip that never moved proves nothing"
+    );
+    assert_eq!(height(&app, hero).to_bits(), recorded.to_bits());
+}
+
 // A script holds the number its tween was given, and an editor's docks tween while a session
 // records and while it replays: the game's handles cannot move with them.
 #[test]

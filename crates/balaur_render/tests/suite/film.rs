@@ -28,7 +28,7 @@ const SIDE: u32 = 64;
 
 /// Whether a hardware adapter answers. A software rasterizer counts as none:
 /// it is not what a player's picture is drawn with.
-fn gpu_present() -> bool {
+pub(crate) fn gpu_present() -> bool {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
         ..wgpu::InstanceDescriptor::new_without_display_handle()

@@ -525,8 +525,14 @@ fn apply_points(world: &World, chain: &[Entity], points: &[Vec3], dim3: bool) {
 
 /// Every modifier, in a fixed order, from the transforms as they are now.
 pub(crate) fn modify_system(eng: &Engine, dt: f32) {
-    // Nothing has moved under a held game, so there is nothing to re-pose.
+    // Nothing has moved under a held game, so there is nothing to re-pose. The
+    // springs' part of a step is kept or dropped as the playhead's is.
     if eng.frozen_root().is_some() {
+        if !eng.hold_keeps_remainder()
+            && let Some(state) = eng.try_resource::<AnimationState>()
+        {
+            state.borrow_mut().jiggle_accumulator = 0.0;
+        }
         return;
     }
     let paused = balaur_core::process::pause(eng);

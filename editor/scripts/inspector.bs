@@ -71,7 +71,7 @@ pub class Line {
     /// is read off the node when it is drawn.
     internal value: any,
     internal height: float = 0.0,
-    top: float = 0.0,
+    internal top: float = 0.0,
     internal labelled: bool = true,
     /// A mark on the row's label (`MARK_WARNING`, `MARK_OVERRIDE`), and why.
     internal mark: str = "",

@@ -252,6 +252,8 @@ does not hide the ones after it. A game checked out beside the engine is
 checked and run too: `../polyglot-pirates-app`, or the folders
 `BALAUR_E2E_PROJECTS` names. Every run keeps its saves, logs and editor
 preferences under the output folder, through `BALAUR_DATA_DIR`.
+`BALAUR_NO_PRESENT=1` runs every window as one whose display is asleep: its
+surface hands out no frame, and every state still has to pass.
 
 Three more runs look where a log does not, and none runs on a push:
 

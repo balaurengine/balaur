@@ -131,10 +131,12 @@ fn refresh_reloaded_clips(eng: &Engine) {
 
 /// Advance every playing node by whole fixed steps.
 pub(crate) fn advance_system(eng: &Engine, dt: f32) {
-    // A held game does not animate, and time spent held is dropped rather
-    // than owed — what `App::run_fixed_steps` does with the simulation's own.
+    // A held game does not animate, and keeps or drops its part of a step as
+    // `App::run_fixed_steps` does, or a resumed replay steps on other frames.
     if eng.frozen_root().is_some() {
-        eng.resource::<AnimationState>().borrow_mut().accumulator = 0.0;
+        if !eng.hold_keeps_remainder() {
+            eng.resource::<AnimationState>().borrow_mut().accumulator = 0.0;
+        }
         return;
     }
     let mut effects = Vec::new();

@@ -1085,7 +1085,7 @@ impl App {
         // A debugger pause holds the simulation: the time is dropped, not owed.
         // A paused replay keeps the part of a step its recording carried on.
         if self.engine.frozen_root().is_some() {
-            if self.engine.is_frozen() || !self.engine.replay_held() {
+            if !self.engine.hold_keeps_remainder() {
                 self.accumulator = 0.0;
             }
             // A held frame draws the tick's own pose, so what the inspector

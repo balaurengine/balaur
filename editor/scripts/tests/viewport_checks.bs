@@ -730,10 +730,11 @@ pub fn gesture_step(state: &mut editor::State) {
     // A fed finger is read by the next tick and acted on later in that frame,
     // so every act takes a frame and every reading the frame after.
     let mid = middle(state.layout["stage"]);
-    let logical = viewport::logical_per_design();
-    let centre_x = mid[0] * logical;
-    let centre_y = mid[1] * logical;
-    let step = 40.0 * logical;
+    // A fed finger is in the window's physical pixels, as `mouse_position` is.
+    let physical = ui::pixels_per_design();
+    let centre_x = mid[0] * physical;
+    let centre_y = mid[1] * physical;
+    let step = 40.0 * physical;
     if frame == 0 {
         state.gesture_from = gesture_reading(state);
         input::set_touch(1, vec2(centre_x - step, centre_y), "start");

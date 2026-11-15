@@ -361,6 +361,70 @@ fn a_replay_paused_part_way_takes_the_steps_its_recording_took() {
     assert_eq!(app.engine.resource::<Total>().borrow().0, recorded);
 }
 
+fn digest_total(app: &mut App) {
+    app.add_digest_source("total", |eng: &Engine, out| {
+        let mut h = balaur_core::digest::Hasher::new();
+        h.write_u64(eng.resource::<Total>().borrow().0 as u64);
+        out.push(balaur_core::digest::Entry {
+            label: String::from("value"),
+            digest: h.finish(),
+        });
+    });
+}
+
+// A window whose display sleeps waited two seconds a frame for a surface, and
+// the loop clamps such a frame to a tenth of a second.
+#[test]
+fn a_replay_paused_and_stepped_on_long_frames_matches_every_recorded_tick() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+    let measured = [2.0, 0.1, 0.012, 0.1, 0.021];
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    digest_total(&mut app);
+    replay::start_recording(&app.engine, &path, ".", "", true).unwrap();
+    for frame in 0..20 {
+        app.advance(measured[frame % measured.len()]);
+    }
+    let recorded = app.engine.resource::<Total>().borrow().0;
+    replay::stop_recording(&app.engine, "stop").unwrap();
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    digest_total(&mut app);
+    replay::begin(&app.engine, Session::read(&path).unwrap());
+    replay::play(&app.engine);
+    let player = app.engine.resource::<ReplayPlayer>();
+    for _ in 0..3 {
+        app.advance(2.0);
+    }
+    player.borrow_mut().state = PlayState::Paused;
+    for _ in 0..4 {
+        app.advance(2.0);
+    }
+    let paused_at = player.borrow().position();
+    player.borrow_mut().seek(paused_at + 1);
+    while replay::is_advancing(&app.engine) {
+        app.advance(2.0);
+    }
+    assert_eq!(
+        player.borrow().position(),
+        paused_at + 1,
+        "a step runs one tick"
+    );
+    for _ in 0..3 {
+        app.advance(0.1);
+    }
+    replay::play(&app.engine);
+    while replay::is_running(&app.engine) {
+        app.advance(2.0);
+    }
+    let diverged = player.borrow().diverged;
+    assert!(diverged.is_none(), "the replay parted at {diverged:?}");
+    assert_eq!(app.engine.resource::<Total>().borrow().0, recorded);
+}
+
 #[test]
 fn seeking_runs_to_the_tick_and_stops() {
     let dir = tempfile::tempdir().unwrap();

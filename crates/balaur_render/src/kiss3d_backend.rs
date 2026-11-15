@@ -8,6 +8,8 @@ mod instances;
 mod present;
 mod screenshot;
 
+pub use present::{NO_PRESENT_VAR, NoPresent, no_present_ignored};
+
 use balaur_core::time::Instant;
 use std::collections::{HashMap, HashSet};
 
@@ -256,6 +258,7 @@ impl Frontend {
         crate::app_icon::apply_app_icon(app, window, self.on_screen, self.frame);
         apply_window_config(app, window);
         self.present.apply(app, window);
+        present::apply_no_present(app, window);
         apply_clear_color(app, window);
         crate::post_material::apply_post(app, window);
         // After `apply_post`, which is what reads the camera's list.
@@ -429,6 +432,7 @@ pub async fn run_windowed_async(
     // Claim the debug-line buffers: `flush_debug_lines`/`_2d` below drain
     // them as they draw, so the plugin's headless fallback stands down.
     app.engine.insert_resource(WindowedBackend);
+    present::hear_no_present(&app);
     balaur_ui::honour_lazy(&app.engine);
     // `[window]` as this platform resolves it, or its defaults when a project
     // says nothing. Read before the window exists, so it cannot come from a
@@ -605,6 +609,7 @@ fn cap_frame_rate(budget: Option<std::time::Duration>, started: Instant) {
 /// window that is missing, not the GPU.
 pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyhow::Result<()> {
     app.engine.insert_resource(WindowedBackend);
+    present::hear_no_present(&app);
     // A surface-less target has no title bar to put this in, so it goes to the
     // log instead — which is where whoever is reading a CI run will look.
     tracing::info!("rendering '{title}' offscreen at {width}x{height}");
