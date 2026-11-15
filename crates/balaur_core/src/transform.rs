@@ -13,7 +13,7 @@ use crate::scene::Transform;
 pub const COMPONENT: &str = <Transform as crate::components::derived::Component>::NAME;
 
 /// Where the registry keeps it: the first component core registers, so the
-/// bit [`crate::components::attached::TRANSFORM_BIT`] names.
+/// bit [`crate::components::TRANSFORM_BIT`] names.
 pub const INDEX: usize = 0;
 
 pub fn register_transform_component(app: &mut App) {

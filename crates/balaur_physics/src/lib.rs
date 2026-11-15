@@ -494,6 +494,13 @@ pub(crate) fn forget_freed_nodes(state: &mut PhysicsState3d, nodes: &[Entity]) {
 }
 
 /// What a free hands both worlds: the nodes it takes, whole subtrees.
+#[cfg_attr(
+    not(any(feature = "physics2d", feature = "physics3d")),
+    allow(
+        unused_variables,
+        reason = "a build with no world has nothing to forget"
+    )
+)]
 fn freed_nodes(eng: &Engine, nodes: &[Entity]) {
     #[cfg(feature = "physics3d")]
     if let Some(state) = state_3d(eng) {

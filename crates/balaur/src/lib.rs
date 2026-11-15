@@ -999,7 +999,12 @@ pub async fn boot_packed_on_canvas(pack: Pack, canvas_id: &str) -> Result<()> {
     let title = app
         .manifest()
         .map_or_else(|| BALAUR.to_string(), |m| m.name.clone());
-    let ran = balaur_render::kiss3d_backend::run_windowed_async(app, &title, Some(canvas_id)).await;
+    let ran = Box::pin(balaur_render::kiss3d_backend::run_windowed_async(
+        app,
+        &title,
+        Some(canvas_id),
+    ))
+    .await;
     balaur_core::logbuf::flush_file();
     ran
 }
@@ -1045,7 +1050,12 @@ pub async fn boot_editor_on_canvas(
     }
     seed_device(&app);
     app.load_project()?;
-    balaur_render::kiss3d_backend::run_windowed_async(app, "balaur editor", Some(canvas_id)).await
+    Box::pin(balaur_render::kiss3d_backend::run_windowed_async(
+        app,
+        "balaur editor",
+        Some(canvas_id),
+    ))
+    .await
 }
 
 /// Shipping mode: run a precompiled pack (e.g. embedded via `include_bytes!`).

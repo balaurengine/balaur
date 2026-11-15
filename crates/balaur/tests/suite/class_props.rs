@@ -104,7 +104,12 @@ fn field(app: &App, path: &str, name: &str) -> Option<Value> {
 fn warnings() -> Vec<String> {
     balaur_core::logbuf::heard()
         .into_iter()
-        .filter(|e| e.level == "warn" && e.message.contains("level.bs"))
+        // A build with native code says which units it lacks; that is no field's.
+        .filter(|e| {
+            e.level == "warn"
+                && e.message.contains("level.bs")
+                && !e.message.contains("native build")
+        })
         .map(|e| e.message)
         .collect()
 }

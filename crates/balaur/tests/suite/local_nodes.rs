@@ -118,3 +118,82 @@ fn a_restore_leaves_a_local_nodes_fields_as_they_are_now() {
         "the local script kept what it did since"
     );
 }
+
+const ARENA: &str = "pub class Arena {
+    node: Node,
+    view: Node,
+}
+impl Arena {
+    fn init() {
+        self.view = self.node.get_node(\"View\");
+    }
+    fn fixed_update(dt: float) {
+        let marker = self.node.get_node(\"P0\");
+        self.view.transform.position = marker.transform.position;
+    }
+    pub fn reaches() -> bool {
+        self.view.is_valid() && self.node.get_node(\"P0\").is_valid()
+    }
+}
+";
+
+/// The scripted node, a sibling it looks up each step, and its local view.
+fn arena() -> (tempfile::TempDir, App) {
+    let dir = tempfile::tempdir().unwrap();
+    let scene = "[[nodes]]\nid = \"n_arena\"\nname = \"Arena\"\nscript = { source = \"scripts/arena.bs\" }\n\n\
+                 [[nodes]]\nid = \"n_p0\"\nname = \"P0\"\nparent = \"n_arena\"\n\n\
+                 [[nodes]]\nid = \"n_view\"\nname = \"View\"\nparent = \"n_arena\"\ntags = [\"local\"]\n";
+    for (path, text) in [
+        (
+            "project.toml",
+            "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
+        ),
+        ("main.toml", scene),
+        ("scripts/arena.bs", ARENA),
+    ] {
+        let at = dir.path().join(path);
+        std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+        std::fs::write(at, text).unwrap();
+    }
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    (dir, app)
+}
+
+#[test]
+fn a_restore_leaves_a_shared_script_holding_its_local_view() {
+    balaur_core::logbuf::capture_for_test();
+    let (_dir, mut app) = arena();
+    let arena_node = scene::find_node(&app.engine.world(), app.engine.root(), "Arena").unwrap();
+    let view = scene::find_node(&app.engine.world(), app.engine.root(), "Arena/View").unwrap();
+    app.tick(DEFAULT_FIXED_DT);
+    let taken = snapshot::capture(&app.engine);
+    for _ in 0..3 {
+        app.tick(DEFAULT_FIXED_DT);
+    }
+    snapshot::restore(&app.engine, &taken);
+    for _ in 0..3 {
+        app.tick(DEFAULT_FIXED_DT);
+    }
+
+    assert_eq!(
+        field(&app, arena_node, "view"),
+        Some(Value::Node(balaur::node_id_of(view).0)),
+        "the field still names the local view"
+    );
+    assert_eq!(
+        app.engine
+            .script_host()
+            .unwrap()
+            .call_on(balaur::node_id_of(arena_node), "reaches", &[]),
+        Some(Value::Bool(true))
+    );
+    let errors: Vec<_> = balaur_core::logbuf::heard()
+        .into_iter()
+        .filter(|e| e.level.eq_ignore_ascii_case("error"))
+        .map(|e| e.message)
+        .collect();
+    assert!(errors.is_empty(), "{errors:#?}");
+}

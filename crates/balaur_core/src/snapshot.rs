@@ -290,11 +290,15 @@ fn resolved(index: &crate::DetHashMap<String, Entity>, value: Value) -> Value {
     }
 }
 
-/// Every node by its key; the first in tree order wins a duplicate, as
-/// `crate::ids::find` would.
+/// Every node by its key, local ones too: a shared script may hold this
+/// machine's own view. Shared nodes win a duplicate, then tree order does.
 fn id_index(eng: &Engine, world: &hecs::World) -> crate::DetHashMap<String, Entity> {
     let mut index = crate::DetHashMap::default();
-    for entity in crate::digest::shared_nodes(world, eng.root()) {
+    let shared = crate::digest::shared_nodes(world, eng.root());
+    for entity in shared
+        .into_iter()
+        .chain(crate::scene::collect_subtree(world, eng.root()))
+    {
         if let Some(id) = crate::ids::of(world, entity) {
             index.entry(id).or_insert(entity);
         }

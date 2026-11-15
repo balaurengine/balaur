@@ -269,6 +269,10 @@ fn a_replayed_game_reads_its_recorded_clock_and_the_tool_around_it_the_machines(
     balaur::replay::play(&app.engine);
     // A recorded frame, fed as a window's loop feeds one.
     app.advance(DEFAULT_FIXED_DT);
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the machine's clock is what the tool is meant to read"
+    )]
     let machine = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
