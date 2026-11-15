@@ -101,7 +101,7 @@ fn cell(state: &mut editor::State, id: str) -> ui::Control {
     let row: ui::Control = ui::Control {
         kind: ui::WIDGET_BUTTON,
         role: if open { roles::ITEM_MENU } else { "item_menu_quiet" },
-        icon: if open { icons::ui(icons::CHECK) } else { " " },
+        icon: if open { icons::ui(icons::CHECK) } else { "" },
         text: docks::name(state, id),
         width: CELL_WIDTH,
         keep_open: true,

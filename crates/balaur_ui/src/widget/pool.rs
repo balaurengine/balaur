@@ -779,8 +779,8 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         ),
         (
             "Mark",
-            "{ name: string, glyph: string }",
-            "A mark at the right of a row: the glyph it draws from the icon face, and the name its `marked` event reports.",
+            "{ name: string, icon: string }",
+            "A mark at the right of a row: the name of the glyph it draws in the theme's icon font, and the name its `marked` event reports.",
         ),
     ]);
     let Some(ops) = Ops::resolve() else {

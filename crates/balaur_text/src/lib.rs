@@ -34,7 +34,7 @@ mod shape;
 
 use atlas::GlyphAtlas;
 pub use font::{Font, FontSettings};
-pub use fonts::{FontProject, LoadedFont, ProjectFonts};
+pub use fonts::{FontProject, GlyphNames, LoadedFont, ProjectFonts};
 pub use markup::Align;
 pub use options::{
     Case, Decoration, Feature, Hinting, LineBreak, Options, PLAIN, Shaping, Slant, Stretch,
@@ -389,6 +389,17 @@ impl TextState {
         }
         self.layouts.clear();
         self.fonts_generation += 1;
+    }
+
+    /// The glyphs of the face `font` names in `project`'s faces, by their
+    /// names in it: what a widget's `icon` asks for.
+    pub fn glyph_names(
+        &mut self,
+        eng: &Engine,
+        project: FontProject,
+        font: &str,
+    ) -> Rc<GlyphNames> {
+        fonts_of(&mut self.host, &mut self.content, project).glyph_names(eng, font)
     }
 
     /// Put face `face` of the host's under `reference` with `settings`.
@@ -964,6 +975,11 @@ pub fn paint_spans(
 /// on the next look at the files: a text about to be measured asks first.
 pub fn load_font(eng: &Engine, project: FontProject, reference: &str) {
     shaper(eng).borrow_mut().load_font(eng, project, reference);
+}
+
+/// The glyphs of the face `font` names, by their names in it.
+pub fn glyph_names(eng: &Engine, project: FontProject, font: &str) -> Rc<GlyphNames> {
+    shaper(eng).borrow_mut().glyph_names(eng, project, font)
 }
 
 /// The shaper for this engine, if anything has asked for it yet.

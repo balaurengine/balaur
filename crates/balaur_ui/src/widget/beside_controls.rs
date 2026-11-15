@@ -17,7 +17,7 @@ use crate::widget::text_look::{TextLook, color_of};
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_button")]
 pub(crate) struct WidgetButton {
-    /// A glyph from the theme's icon family, drawn before `text`
+    /// The name of a glyph in the theme's icon font, `plus`, drawn before `text`; a name the font lacks warns and draws none
     pub(crate) icon: SmolStr,
     /// What that glyph is tinted with, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's own
     pub(crate) icon_color: SmolStr,

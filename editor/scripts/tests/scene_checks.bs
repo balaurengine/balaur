@@ -956,9 +956,9 @@ pub fn tree_marks(state: &mut editor::State) {
     log::info("selftest marks: done");
 }
 
-fn shows_mark(marks: [ui::Mark], glyph: str) -> bool {
+fn shows_mark(marks: [ui::Mark], icon: str) -> bool {
     for mark in marks {
-        if mark.glyph == glyph {
+        if mark.icon == icon {
             return true;
         }
     }

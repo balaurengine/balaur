@@ -21,6 +21,7 @@ const FOCUS_PREVIOUS: &str = "focus_previous";
 const FOCUS_RIGHT: &str = "focus_right";
 const FOCUS_UP: &str = "focus_up";
 const FOCUSED_WIDGET: &str = "focused_widget";
+const GLYPH: &str = "glyph";
 const HEIGHT_CLASS: &str = "height_class";
 const PASTED_TEXT: &str = "pasted_text";
 const SAVE_PASTED_IMAGE: &str = "save_pasted_image";
@@ -181,6 +182,12 @@ fn install_theme(m: &mut Module<Engine>) {
             "(theme: table) -> map",
             "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         ),
+        (
+            GLYPH,
+            &[],
+            "(name: str) -> str",
+            "The character the icon font of the theme in force draws the glyph called `name` with, in the running project's own faces (the editor's, in the editor): for text that carries an icon among its words. Empty when the font has no glyph by that name. A widget's `icon`, a row's and a mark's take the name itself.",
+        ),
     ]);
     // No reader by design (N8): the caller holds the document it passed.
     m.function(SET_THEME, |eng: &Engine, asked: Value| {
@@ -206,6 +213,16 @@ fn install_theme(m: &mut Module<Engine>) {
                 under: balaur_core::project::content_root(eng),
             });
         Ok(())
+    });
+    m.function(GLYPH, |eng: &Engine, name: String| {
+        let theme = crate::widget::theme::theme_of(
+            eng,
+            &theme::for_widgets(eng),
+            &std::rc::Rc::new(crate::widget::theme::WidgetTheme::default()),
+        );
+        let font = crate::widget::theme::icon_font(&theme);
+        let names = balaur_text::glyph_names(eng, balaur_text::FontProject::Host, font);
+        Ok(names.get(&name).map(String::from).unwrap_or_default())
     });
     m.function(COMPLETE_THEME, |_: &Engine, doc: Value| {
         let doc = balaur_core::node_api::to_toml(&doc)?;

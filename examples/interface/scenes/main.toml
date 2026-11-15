@@ -70,8 +70,8 @@ kind = "button"
 text = "Shuffle"
 tooltip = "Re-order the cards"
 [nodes.widget_button]
-# A glyph from the theme's icon family, drawn before the caption.
-icon = "\ue3ee"
+# The name of a glyph in the theme's icon font, drawn before the caption.
+icon = "record"
 
 [[nodes]]
 id = "apply"
@@ -254,7 +254,7 @@ parent = "b_row"
 kind = "button"
 text = "icon"
 [nodes.widget_button]
-icon = "\ue24a"
+icon = "folder"
 
 [[nodes]]
 id = "b_off"

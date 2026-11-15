@@ -37,23 +37,29 @@ pub struct Ring {
     age: int,
 }
 
+// The icons the entries wear, by their kind.
+const MESH_ICON: str = "tree-structure";
+const MATERIAL_ICON: str = "palette";
+const CLIP_ICON: str = "film-strip";
+const PREFAB_ICON: str = "house-simple";
+
 // What a card, an outline row and a table row are made of. One table, three
-// shapes, so the same data reaches all three views. The marks are glyphs from
-// the Phosphor face the theme names as its icon family.
+// shapes, so the same data reaches all three views. The marks are icons by
+// their names in the Phosphor face the theme names as its icon font.
 pub fn entries() -> [Entry] {
     [
-        Entry { icon: "\u{e67c}", name: "Cuboid", kind: MESH, size: "1.4 kB", tint: "#6fa4d8" },
-        Entry { icon: "\u{e67c}", name: "Sphere", kind: MESH, size: "2.1 kB", tint: "#6fa4d8" },
-        Entry { icon: "\u{e67c}", name: "Torus", kind: MESH, size: "3.8 kB", tint: "#6fa4d8" },
-        Entry { icon: "\u{e6c8}", name: "Brass", kind: MATERIAL, size: "0.4 kB", tint: "#d5814e" },
-        Entry { icon: "\u{e6c8}", name: "Glass", kind: MATERIAL, size: "0.4 kB", tint: "#d5814e" },
-        Entry { icon: "\u{e468}", name: "Dusk", kind: "sky", size: "812 kB", tint: "#8fb8b0" },
-        Entry { icon: "\u{e792}", name: "Walk", kind: CLIP, size: "6.0 kB", tint: "#a98fd0" },
-        Entry { icon: "\u{e792}", name: "Idle", kind: CLIP, size: "2.2 kB", tint: "#a98fd0" },
-        Entry { icon: "\u{e2c6}", name: "Hero", kind: PREFAB, size: "9.7 kB", tint: "#e6e9ee" },
-        Entry { icon: "\u{e2c6}", name: "Crate", kind: PREFAB, size: "1.1 kB", tint: "#e6e9ee" },
-        Entry { icon: "\u{e464}", name: "Blocks", kind: "tileset", size: "24 kB", tint: "#c9a86a" },
-        Entry { icon: "\u{e2e2}", name: "Restart", kind: "action", size: "0.1 kB", tint: "#98a3ae" },
+        Entry { icon: MESH_ICON, name: "Cuboid", kind: MESH, size: "1.4 kB", tint: "#6fa4d8" },
+        Entry { icon: MESH_ICON, name: "Sphere", kind: MESH, size: "2.1 kB", tint: "#6fa4d8" },
+        Entry { icon: MESH_ICON, name: "Torus", kind: MESH, size: "3.8 kB", tint: "#6fa4d8" },
+        Entry { icon: MATERIAL_ICON, name: "Brass", kind: MATERIAL, size: "0.4 kB", tint: "#d5814e" },
+        Entry { icon: MATERIAL_ICON, name: "Glass", kind: MATERIAL, size: "0.4 kB", tint: "#d5814e" },
+        Entry { icon: "stack-simple", name: "Dusk", kind: "sky", size: "812 kB", tint: "#8fb8b0" },
+        Entry { icon: CLIP_ICON, name: "Walk", kind: CLIP, size: "6.0 kB", tint: "#a98fd0" },
+        Entry { icon: CLIP_ICON, name: "Idle", kind: CLIP, size: "2.2 kB", tint: "#a98fd0" },
+        Entry { icon: PREFAB_ICON, name: "Hero", kind: PREFAB, size: "9.7 kB", tint: "#e6e9ee" },
+        Entry { icon: PREFAB_ICON, name: "Crate", kind: PREFAB, size: "1.1 kB", tint: "#e6e9ee" },
+        Entry { icon: "squares-four", name: "Blocks", kind: "tileset", size: "24 kB", tint: "#c9a86a" },
+        Entry { icon: "link", name: "Restart", kind: "action", size: "0.1 kB", tint: "#98a3ae" },
     ]
 }
 

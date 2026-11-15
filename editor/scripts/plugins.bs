@@ -18,6 +18,7 @@ use words::changes;
 use words::dock_fields;
 use words::fields;
 use words::form_fields;
+use words::glyphs;
 use words::inspector_fields;
 use words::layout_fields;
 use words::panel_keys;
@@ -160,7 +161,7 @@ fn add_all(state: &mut editor::State, owner: Node, declared: any) {
         let icon = entry[fields::ICON];
         state.registry.commands.push({
             fields::TITLE: entry[fields::TITLE],
-            fields::ICON: if icon == nil { "·" } else { icon.as_str() },
+            fields::ICON: if icon == nil { glyphs::DOT } else { icon.as_str() },
             form_fields::SHORTCUT: entry[form_fields::SHORTCUT].as_str(),
             project_fields::RUN: entry[project_fields::RUN],
             OWNER: owner,

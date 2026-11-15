@@ -681,6 +681,7 @@ impl Painting<'_> {
             font,
             ink,
             icon: look.icon.clone(),
+            icon_font: look.icon_font.clone(),
             project: placed.project,
             under: look.under.clone(),
         })

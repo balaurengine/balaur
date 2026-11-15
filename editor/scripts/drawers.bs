@@ -143,7 +143,7 @@ fn label_of(line: inspector::Line) -> str {
     if line.mark == inspector::MARK_WARNING {
         "⚠ " + line.at.label
     } else if line.mark == inspector::MARK_OVERRIDE {
-        icons::ui(icons::INSTANCE) + " " + line.at.label
+        ui::glyph(icons::ui(icons::INSTANCE)) + " " + line.at.label
     } else {
         line.at.label
     }
@@ -192,7 +192,7 @@ fn add_tail(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
     if line.holder != nil {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            text: icons::ui(icons::CLOSE),
+            text: ui::glyph(icons::ui(icons::CLOSE)),
             role: roles::CHIP,
             width: 22,
             height: inspector::control_height(state),
@@ -238,7 +238,7 @@ fn fold_controls(line: inspector::Line, role: str, text: str, icon: str, icon_co
         ui::Control {
             kind: ui::WIDGET_LABEL,
             role: "text_caret_" + role,
-            text: if line.spec[project_fields::OPEN].as_bool() { icons::ui("caret-open") } else { icons::ui("caret-shut") },
+            text: ui::glyph(if line.spec[project_fields::OPEN].as_bool() { icons::ui("caret-open") } else { icons::ui("caret-shut") }),
         },
         ui::Control {
             kind: ui::WIDGET_BUTTON,
@@ -279,7 +279,7 @@ fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> f
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
             role: "icon_action_form",
-            text: icons::ui(icons::CLOSE),
+            text: ui::glyph(icons::ui(icons::CLOSE)),
             tooltip: "Remove component",
             on_click: "inspector_edit",
             data: edit_of(line, on_component_removed),
@@ -564,7 +564,7 @@ fn holder_row(state: &mut editor::State, line: inspector::Line, note: str, adds:
     if adds {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            text: icons::ui(icons::ADD),
+            text: ui::glyph(icons::ui(icons::ADD)),
             role: roles::CHIP,
             width: 22,
             height: inspector::control_height(state),
@@ -833,7 +833,7 @@ fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> 
         ui::Control {
             kind: ui::WIDGET_BUTTON,
             role: "icon_action_form_secondary",
-            text: icons::ui(icons::OPEN),
+            text: ui::glyph(icons::ui(icons::OPEN)),
             tooltip: "Edit " + current,
             on_click: "inspector_edit",
             data: edit_of(line, on_shader_opened),

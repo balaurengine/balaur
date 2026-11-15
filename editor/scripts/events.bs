@@ -263,7 +263,7 @@ fn row_spec(state: editor::State, at: int, row: any) -> form::Row {
     controls.push(ui::Control {
         kind: ui::WIDGET_BUTTON,
         role: roles::CHIP_QUIET,
-        text: icons::ui(icons::CLOSE),
+        text: ui::glyph(icons::ui(icons::CLOSE)),
         tooltip: "Remove this binding",
         on_click: "handle",
         data: { fields::FN: on_remove_clicked, layout_fields::AT: at },
@@ -571,7 +571,7 @@ pub fn fill(state: &mut editor::State) {
         ui::Control {
             kind: ui::WIDGET_BUTTON,
             role: roles::ACTION_FORM_PRIMARY,
-            text: icons::ui(icons::ADD) + "  Add row",
+            text: ui::glyph(icons::ui(icons::ADD)) + "  Add row",
             on_click: "handle",
             data: { fields::FN: on_add_row_clicked },
         },

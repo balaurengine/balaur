@@ -55,7 +55,7 @@ fn a_list_row_draws_its_icon_label_and_note() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
-        widget_rows = { items = [{ icon = "*", label = "Named", note = "12 KB", tint = "#ff0000" }, { label = "Plain" }] }
+        widget_rows = { items = [{ icon = "asterisk", label = "Named", note = "12 KB", tint = "#ff0000" }, { label = "Plain" }] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -64,6 +64,7 @@ fn a_list_row_draws_its_icon_label_and_note() {
         .into_iter()
         .map(|(t, _)| t)
         .collect();
+    // The default face's own glyph names: its `asterisk` is `*`.
     for want in ["*", "Named", "12 KB", "Plain"] {
         assert!(drawn.iter().any(|t| t == want), "{want} drawn: {drawn:?}");
     }
@@ -986,7 +987,7 @@ impl Owner {
         &toml::toml! {
             kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
             bindings = { rows = [{ event = "emitted:marked", action = "call", value = "on_marked" }] }
-            widget_rows = { row_height = 20.0, items = [{ label = "One", key = "one", marks = [{ name = "eye", glyph = "E" }, { name = "lock", glyph = "L" }] }, { label = "Two", key = "two", marks = [{ name = "eye", glyph = "E" }] }] }
+            widget_rows = { row_height = 20.0, items = [{ label = "One", key = "one", marks = [{ name = "eye", icon = "E" }, { name = "lock", icon = "L" }] }, { label = "Two", key = "two", marks = [{ name = "eye", icon = "E" }] }] }
         }
         .into(),
     );

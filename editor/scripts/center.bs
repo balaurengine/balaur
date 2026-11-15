@@ -497,7 +497,7 @@ fn view_chip(state: editor::State) -> ui::Control {
         kind: ui::WIDGET_MENU,
         role: roles::CHIP,
         checked: current != "",
-        text: icons::ui("viewmode") + "  " + label,
+        text: ui::glyph(icons::ui("viewmode")) + "  " + label,
         controls: rows,
     }
 }

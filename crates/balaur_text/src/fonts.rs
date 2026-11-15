@@ -22,6 +22,41 @@ use crate::vocabulary::words;
 /// a face it already holds by pointer. An operating system's face is mapped.
 pub type FaceBytes = Arc<dyn AsRef<[u8]> + Send + Sync>;
 
+/// A face's glyphs by the names the face gives them, each the character it
+/// is drawn with: `plus` in Phosphor, `puzzle_piece` in the app's Heroicons.
+#[derive(Clone, Debug, Default)]
+pub struct GlyphNames(rustc_hash::FxHashMap<String, char>);
+
+impl GlyphNames {
+    /// The names `data`, a face file, gives the glyphs its characters map to;
+    /// none for a face that names none.
+    #[must_use]
+    pub fn of(data: &[u8]) -> Self {
+        use skrifa::MetadataProvider as _;
+        let Ok(face) = skrifa::FontRef::new(data) else {
+            return Self::default();
+        };
+        let names = face.glyph_names();
+        if names.source() == skrifa::GlyphNameSource::Synthesized {
+            return Self::default();
+        }
+        Self(
+            face.charmap()
+                .mappings()
+                .filter_map(|(code, glyph)| {
+                    Some((names.get(glyph)?.as_str().to_owned(), char::from_u32(code)?))
+                })
+                .collect(),
+        )
+    }
+
+    /// The character the glyph called `name` is drawn with.
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<char> {
+        self.0.get(name).copied()
+    }
+}
+
 /// One face file a project draws in.
 #[derive(Clone)]
 pub struct FontFace {
@@ -392,6 +427,9 @@ pub struct ProjectFonts {
     compared_at: u64,
     /// Bumped whenever a font is read, so egui takes the families again.
     pub(crate) fonts_read: u64,
+    /// Each face's glyphs by their names in it, read the first time an icon
+    /// asks: the font reference, then the name.
+    glyph_names: rustc_hash::FxHashMap<String, Rc<GlyphNames>>,
 }
 
 impl ProjectFonts {
@@ -413,6 +451,7 @@ impl ProjectFonts {
             read: FacesRead::default(),
             compared_at: 0,
             fonts_read: 0,
+            glyph_names: rustc_hash::FxHashMap::default(),
         };
         if let Some(first) = faces.iter().position(|face| !face.system)
             && let Some(default) = fonts.outline(first, FontSettings::default())
@@ -552,6 +591,32 @@ impl ProjectFonts {
 
     /// Read the font `reference` names into the table. A reference that does
     /// not read is said once and drawn in the default from then on.
+    /// The glyphs of the face `reference` names, by their names in it: what
+    /// a widget's `icon` asks for; empty is the default font. A face whose
+    /// glyphs carry no names, a `post` table of format 3, has none.
+    pub(crate) fn glyph_names(&mut self, eng: &Engine, reference: &str) -> Rc<GlyphNames> {
+        if let Some(found) = self.glyph_names.get(reference) {
+            return Rc::clone(found);
+        }
+        self.load(eng, reference);
+        let source = balaur_core::assets::load_typed::<Font>(eng, reference)
+            .map(|font| font.source.clone())
+            .unwrap_or_default();
+        // No source is the default font, the project's first own face.
+        let face = if source.is_empty() {
+            self.faces.iter().find(|face| !face.system)
+        } else {
+            self.faces.iter().find(|face| face.path == source)
+        };
+        let names = Rc::new(
+            face.map(|face| GlyphNames::of((*face.bytes).as_ref()))
+                .unwrap_or_default(),
+        );
+        self.glyph_names
+            .insert(reference.to_string(), Rc::clone(&names));
+        names
+    }
+
     pub(crate) fn load(&mut self, eng: &Engine, reference: &str) -> Rc<LoadedFont> {
         if let Some(found) = self.table.loaded.get(reference) {
             return Rc::clone(found);

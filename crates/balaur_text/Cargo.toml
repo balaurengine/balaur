@@ -31,6 +31,8 @@ unicode-segmentation = "1"
 # The version is cosmic-text's, so `Font::as_swash` hands back this crate's
 # `FontRef` and not a second copy of it.
 swash = "0.2.10"
+# A face's glyph names, which an icon is asked for by; the copy cosmic-text links.
+skrifa = "0.44"
 
 # The operating system's faces, asked for once a text needs one: CoreText,
 # DirectWrite, Android's list, and fontconfig opened at run time, so a machine

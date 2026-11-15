@@ -90,22 +90,23 @@ fn a_role_aligns_a_label_s_caption() {
 // which no role can hold, and it drew itself for want of this.
 #[test]
 fn a_node_s_icon_color_tints_its_glyph_over_the_role_s() {
-    let (dir, app) = app();
+    let (dir, app) = app_with_editor_fonts();
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/tint.toml"),
-        "type = \"widget_theme\"\n\n[colors]\nmark = \"#ff0000\"\n\n[roles.marked]\nicon_color = \"mark\"\n",
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor-Fill.ttf\"\n\n[colors]\nmark = \"#ff0000\"\n\n[roles.marked]\nicon_color = \"mark\"\n",
     )
     .unwrap();
+    // Phosphor's `cursor`, asked for by name and drawn as its character.
     let icon = "\u{e1dc}";
     let _from_role = add_widget(
         &app,
-        &toml::toml! { kind = "button" role = "marked" theme = "themes/tint.toml" x = 0.0 y = 0.0 widget_button = { icon = (icon) } }
+        &toml::toml! { kind = "button" role = "marked" theme = "themes/tint.toml" x = 0.0 y = 0.0 widget_button = { icon = "cursor" } }
             .into(),
     );
     let _stated = add_widget(
         &app,
-        &toml::toml! { kind = "button" role = "marked" theme = "themes/tint.toml" x = 0.0 y = 100.0 widget_button = { icon = (icon), icon_color = "#00ff00" } }
+        &toml::toml! { kind = "button" role = "marked" theme = "themes/tint.toml" x = 0.0 y = 100.0 widget_button = { icon = "cursor", icon_color = "#00ff00" } }
             .into(),
     );
     let ctx = egui::Context::default();

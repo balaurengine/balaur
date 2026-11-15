@@ -1323,6 +1323,7 @@ dependencies = [
  "libm",
  "memmap2",
  "rustc-hash 2.1.3",
+ "skrifa",
  "swash",
  "toml",
  "tracing",

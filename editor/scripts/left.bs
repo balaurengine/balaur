@@ -18,6 +18,7 @@ use window;
 use words::components;
 use words::fields;
 use words::form_fields;
+use words::glyphs;
 use words::hooks;
 use words::layout_fields;
 use words::project_fields;
@@ -154,7 +155,7 @@ fn secondary_scripts(state: &mut editor::State) -> Secondary {
         let name = file[fields::NAME].as_str();
         if !file[project_fields::IS_DIR].as_bool() && name.ends_with(".bs") {
             let rel = "scripts/" + name;
-            rows.push(item("‹›", name, "{model::line_count(state, rel)} L", rel, tabs::SCRIPT, -1, rel));
+            rows.push(item(glyphs::CODE, name, "{model::line_count(state, rel)} L", rel, tabs::SCRIPT, -1, rel));
         }
     }
     Secondary { title: "Scripts", rows: rows }
@@ -174,11 +175,11 @@ fn secondary_collision(state: &mut editor::State) -> Secondary {
         if kind != nil || collider {
             let dimension = if found.has_component(components::BODY2D) || found.has_component(components::COLLIDER2D) { "2D" } else { "3D" };
             let what = if kind == nil { components::COLLIDER3D } else { kind.as_str() };
-            rows.push(item("▣", found.name(), "{what} · {dimension}", found.stable_id(), CHOOSE, index, ""));
+            rows.push(item(glyphs::BOUNDING_BOX, found.name(), "{what} · {dimension}", found.stable_id(), CHOOSE, index, ""));
         }
     }
     if rows.len() == 0 {
-        rows.push(said("▣", "no bodies or colliders"));
+        rows.push(said(glyphs::BOUNDING_BOX, "no bodies or colliders"));
     }
     Secondary { title: "Collision", rows: rows }
 }
@@ -191,11 +192,11 @@ fn secondary_clips(state: &mut editor::State) -> Secondary {
             let name = anim::clip_name(state, found);
             let library = anim::library_path(state, found);
             let shown = if name == "" { found.name() } else { name };
-            rows.push(item("◷", shown, if library == nil { INLINE } else { library.unwrap() }, found.stable_id(), CHOOSE, index, ""));
+            rows.push(item(glyphs::CLOCK, shown, if library == nil { INLINE } else { library.unwrap() }, found.stable_id(), CHOOSE, index, ""));
         }
     }
     if rows.len() == 0 {
-        rows.push(said("◷", "no clips — {icons::ui("add")} Key in Timeline"));
+        rows.push(said(glyphs::CLOCK, "no clips — {ui::glyph(icons::ui("add"))} Key in Timeline"));
     }
     Secondary { title: "Clips", rows: rows }
 }
@@ -207,11 +208,11 @@ fn secondary_widgets(state: &mut editor::State) -> Secondary {
         if found.has_component(components::WIDGET) {
             let widget = found.authored(components::WIDGET);
             let kind = if widget[fields::KIND] == nil { components::WIDGET } else { widget[fields::KIND].as_str() };
-            rows.push(item("▤", found.name(), kind, found.stable_id(), CHOOSE, index, ""));
+            rows.push(item(glyphs::LAYOUT, found.name(), kind, found.stable_id(), CHOOSE, index, ""));
         }
     }
     if rows.len() == 0 {
-        rows.push(said("▤", "no widgets"));
+        rows.push(said(glyphs::LAYOUT, "no widgets"));
     }
     Secondary { title: "Widgets", rows: rows }
 }
@@ -222,7 +223,7 @@ fn secondary_scenes(state: &mut editor::State) -> Secondary {
         if !file[project_fields::IS_DIR].as_bool() {
             let name = file[fields::NAME].as_str();
             let rel = "scenes/" + name;
-            rows.push(item("◇", name, if state.scene_rel == rel { OPEN } else { "" }, rel, tabs::SCENE, -1, rel));
+            rows.push(item(glyphs::CUBE, name, if state.scene_rel == rel { OPEN } else { "" }, rel, tabs::SCENE, -1, rel));
         }
     }
     Secondary { title: "Scenes", rows: rows }
@@ -334,9 +335,9 @@ fn tree_items(state: editor::State, tokens: any, rows: [any]) -> [ui::Item] {
 /// rightmost: the tree draws them and reports a click as `tree_mark`.
 pub fn row_marks(state: editor::State, index: int) -> [ui::Mark] {
     let eye = if arrange::is_hidden(state, index) { "eye-closed" } else { components::VISIBLE };
-    let marks = [ui::Mark { name: MARK_EYE, glyph: icons::ui(eye) }];
+    let marks = [ui::Mark { name: MARK_EYE, icon: icons::ui(eye) }];
     if selection::is_locked(state, index) {
-        marks.push(ui::Mark { name: MARK_LOCK, glyph: icons::ui("lock") });
+        marks.push(ui::Mark { name: MARK_LOCK, icon: icons::ui("lock") });
     }
     marks
 }

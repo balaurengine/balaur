@@ -1,5 +1,5 @@
-//! Marks at the right of a `list` or `tree` row: glyphs from the icon face,
-//! each reported by name when clicked, and never a pick of the row.
+//! Marks at the right of a `list` or `tree` row: icons from the theme's icon
+//! font, each reported by name when clicked, and never a pick of the row.
 
 use egui::{Color32, Rect, Sense, pos2};
 
@@ -7,7 +7,8 @@ use crate::widget::paint::Brush;
 use crate::widget::properties;
 use crate::widget::rows::Ink;
 
-/// One mark as a pass saw it: its name, its glyph, and what the pointer did.
+/// One mark as a pass saw it: its name, its icon's name, and what the
+/// pointer did.
 pub(super) type Mark<'a> = (&'a str, &'a str, egui::Response);
 
 /// A row's marks with the hit box each answers in, from the right edge in:
@@ -25,7 +26,7 @@ pub(super) fn sense<'a>(
         .rev()
         .enumerate()
         .map(|(n, mark)| {
-            let (name, glyph) = (mark.name.as_str(), mark.glyph.as_str());
+            let (name, glyph) = (mark.name.as_str(), mark.icon.as_str());
             let right = rect.max.x - step * n as f32;
             let box_ = Rect::from_min_max(pos2(right - step, rect.min.y), pos2(right, rect.max.y));
             let sensed = ui.interact(
@@ -43,7 +44,7 @@ pub(super) fn sense<'a>(
 pub(super) fn draw(
     ui: &egui::Ui,
     marks: &[Mark<'_>],
-    (size, icon): (f32, &egui::FontFamily),
+    (size, icon, icons): (f32, &egui::FontFamily, &crate::widget::icons::Icons),
     (ink, wash): (Color32, &Ink),
 ) -> Option<String> {
     let glyph_font = egui::FontId::new(size, icon.clone());
@@ -57,13 +58,15 @@ pub(super) fn draw(
                 wash.wash(sensed.is_pointer_button_down_on()),
             );
         }
-        Brush::of(ui).text(
-            sensed.rect.center(),
-            egui::Align2::CENTER_CENTER,
-            *glyph,
-            glyph_font.clone(),
-            ink,
-        );
+        if let Some(glyph) = icons.glyph(glyph) {
+            Brush::of(ui).text(
+                sensed.rect.center(),
+                egui::Align2::CENTER_CENTER,
+                glyph.as_str(),
+                glyph_font.clone(),
+                ink,
+            );
+        }
         if sensed.clicked() {
             clicked = Some((*name).to_owned());
         }

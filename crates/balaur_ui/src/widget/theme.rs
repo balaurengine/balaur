@@ -1087,13 +1087,18 @@ pub(crate) fn icon_family(
     theme: &WidgetTheme,
     project: balaur_text::FontProject,
 ) -> egui::FontFamily {
+    crate::theme::weighted(project, icon_font(theme), 400.0, false)
+}
+
+/// The font a theme's icons are drawn in and named by: its `icon` font, or
+/// its default.
+pub(crate) fn icon_font(theme: &WidgetTheme) -> &str {
     let icon = theme.font(t::FONT_ICON);
-    let font = if icon.is_empty() {
+    if icon.is_empty() {
         theme.font(t::FONT_DEFAULT)
     } else {
         icon
-    };
-    crate::theme::weighted(project, font, 400.0, false)
+    }
 }
 
 /// A caption as egui draws it, in `font` and slanted where [`slanted`] says.

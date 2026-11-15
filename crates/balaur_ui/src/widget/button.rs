@@ -67,13 +67,17 @@ fn face_of(
     };
     let trailing =
         shown.map(|text| Brush::of(ui).line_of(text, font.clone(), Color32::PLACEHOLDER));
-    let icon = (!widget.icon.is_empty()).then(|| {
-        let mark = egui::FontId::new(
-            crate::widget::text::icon_px(widget, font.size),
-            at.look(index).icon.clone(),
-        );
-        Brush::of(ui).line_of(widget.icon.to_string(), mark, Color32::PLACEHOLDER)
-    });
+    let look = at.look(index);
+    let icon = (!widget.icon.is_empty())
+        .then(|| crate::widget::icons::Icons::of(at.eng, &look).glyph(&widget.icon))
+        .flatten()
+        .map(|glyph| {
+            let mark = egui::FontId::new(
+                crate::widget::text::icon_px(widget, font.size),
+                look.icon.clone(),
+            );
+            Brush::of(ui).line_of(glyph, mark, Color32::PLACEHOLDER)
+        });
     let mark = icon.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
     let pic = picture.map_or(egui::Vec2::ZERO, |(_, s)| {
         s + egui::Vec2::splat(plate * 2.0)

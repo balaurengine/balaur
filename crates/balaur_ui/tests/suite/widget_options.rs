@@ -728,7 +728,7 @@ fn a_button_that_only_senses_hover_takes_no_click() {
 fn a_button_s_gap_spaces_its_icon_from_its_caption() {
     let wide = |gap: f64| {
         let (_dir, _app, button, _, _) = drawn(
-            &toml::toml! { kind = "button" text = "go" x = 0.0 y = 0.0 widget_button = { face_gap = gap, icon = "+" } }
+            &toml::toml! { kind = "button" text = "go" x = 0.0 y = 0.0 widget_button = { face_gap = gap, icon = "plus" } }
                 .into(),
         );
         balaur_ui::widget_rect(button).unwrap().width()

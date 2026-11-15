@@ -251,7 +251,8 @@ pub struct Widget {
     pub on_top: bool,
     /// Read out by a screen reader as it arrives and as it changes.
     pub announce: bool,
-    /// A glyph from the theme's icon family, drawn before `text`.
+    /// The name of a glyph in the theme's icon font (`plus`), drawn before
+    /// `text`.
     pub icon: SmolStr,
     /// The ink that glyph is tinted with, as `#rrggbb` or a name from the
     /// theme's `[colors]`; empty takes the role's own.

@@ -849,3 +849,21 @@ fn a_request_s_case_shapes_its_letters_and_keeps_its_tags() {
             < 0.01
     );
 }
+
+// A face's glyph names are read from its `post` table: the editor's Phosphor
+// is named as Phosphor names its icons, and bytes that are no face name none.
+#[test]
+fn a_face_s_glyphs_are_found_by_their_names() {
+    let phosphor = crate::GlyphNames::of(include_bytes!("../../../editor/fonts/Phosphor-Fill.ttf"));
+    let code = |name: &str| phosphor.get(name).map(u32::from);
+    // Phosphor's private-use code points, in decimal.
+    assert_eq!(code("plus"), Some(58_324));
+    assert_eq!(code("arrows-out-cardinal"), Some(57_508));
+    assert_eq!(
+        code("x"),
+        Some(58_614),
+        "the icon keeps the name, the letter is uni0078"
+    );
+    assert_eq!(code("no-such-icon"), None);
+    assert_eq!(crate::GlyphNames::of(b"not a face").get("plus"), None);
+}

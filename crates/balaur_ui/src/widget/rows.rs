@@ -172,6 +172,7 @@ fn rows(
     indent: bool,
 ) {
     let icon = at.look(index).icon.clone();
+    let icons = crate::widget::icons::Icons::of(at.eng, &at.look(index));
     let nodes = at.arena;
     let placed = &nodes[index];
     let widget = &placed.widget;
@@ -221,6 +222,7 @@ fn rows(
                     chosen: picked_rows.contains(item.key()),
                     font,
                     icon: &icon,
+                    icons: &icons,
                     color,
                     ink: &ink,
                     drag: widget.reorderable.then_some(held_row.row.as_str()),
@@ -436,6 +438,8 @@ struct Row<'a> {
     font: &'a egui::FontId,
     /// What its icon and marks draw in: the theme's icon font.
     icon: &'a egui::FontFamily,
+    /// That font's glyph names, which its icon and marks name.
+    icons: &'a crate::widget::icons::Icons,
     color: Color32,
     ink: &'a Ink,
     /// The row a drag has hold of, where this view reorders at all: `Some("")`
@@ -586,14 +590,14 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
     } else {
         r.item.ink().unwrap_or(r.color)
     };
-    if !r.item.icon.is_empty() {
-        // The icon field is a glyph from the project's icon face, not a
-        // character in the UI one.
+    if let Some(glyph) = r.icons.glyph(&r.item.icon) {
+        // The icon names a glyph in the project's icon font, not a character
+        // in the UI one.
         let mark = egui::FontId::new(r.font.size, r.icon.clone());
         let drawn = Brush::of(ui).text(
             pos2(at, rect.center().y),
             egui::Align2::LEFT_CENTER,
-            r.item.icon.as_str(),
+            glyph.as_str(),
             mark,
             ink,
         );
@@ -642,7 +646,7 @@ fn draw_right(
     // The widget's own ink rather than the row's tint: a mark is a control,
     // the same on every row, where the tint says what the row is.
     let mark_ink = if r.chosen { r.ink.on_color } else { r.color };
-    crate::widget::marks::draw(ui, marks, (r.font.size, r.icon), (mark_ink, r.ink))
+    crate::widget::marks::draw(ui, marks, (r.font.size, r.icon, r.icons), (mark_ink, r.ink))
 }
 
 /// What a drag over this row means: the row it picked up, and where the row
@@ -820,6 +824,8 @@ struct Card<'a> {
     font: &'a egui::FontId,
     /// What a card's icon draws in: the theme's icon font.
     icon: &'a egui::FontFamily,
+    /// That font's glyph names, which a card's icon names.
+    icons: &'a crate::widget::icons::Icons,
     color: Color32,
     ink: &'a Ink,
     on: bool,
@@ -872,11 +878,11 @@ fn card(ui: &mut egui::Ui, item: &Item, c: &Card<'_>) -> CardHit {
         );
         Brush::of(ui).picture(sheet.id(), face, uv, Color32::WHITE);
         head += edge + 4.0;
-    } else if !icon.is_empty() {
+    } else if let Some(glyph) = c.icons.glyph(icon) {
         // The project's icon face, at the card's own size rather than the
         // label's: an icon mode that drew the glyph at line height is a list.
         let mark = egui::FontId::new((size.y * 0.44).min(size.x * 0.42), c.icon.clone());
-        let galley = Brush::of(ui).line_of(icon.to_owned(), mark, color);
+        let galley = Brush::of(ui).line_of(glyph, mark, color);
         Brush::of(ui).galley(
             pos2(rect.center().x - galley.size().x / 2.0, head),
             galley.clone(),
@@ -1024,6 +1030,7 @@ fn cards(
     let placed = &nodes[index];
     let (entity, widget) = (placed.entity, &placed.widget);
     let icon = at.look(index).icon.clone();
+    let icons = crate::widget::icons::Icons::of(at.eng, &at.look(index));
     let want = solved_of(widget, &at.style(index), at.assigned);
     let columns = crate::widget::grid::track_count(&widget.layout.grid_columns).max(1);
     let items = widget.items.as_slice();
@@ -1061,6 +1068,7 @@ fn cards(
                         size: cell,
                         font,
                         icon: &icon,
+                        icons: &icons,
                         color,
                         ink: &ink,
                         on,

@@ -655,7 +655,7 @@ fn face_theme(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("themes")).unwrap();
     std::fs::write(
         dir.join("themes/face.toml"),
-        "type = \"widget_theme\"\n\n[roles.row]\ntext_align = \"start\"\n\n[roles.mark]\nicon_fill = \"#ffffff\"\n",
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor-Fill.ttf\"\n\n[roles.row]\ntext_align = \"start\"\n\n[roles.mark]\nicon_fill = \"#ffffff\"\n",
     )
     .unwrap();
 }
@@ -664,11 +664,11 @@ fn face_theme(dir: &std::path::Path) {
 // theme, or the themeless look is cached and drawn.
 #[test]
 fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
-    let (dir, app) = app();
+    let (dir, app) = app_with_editor_fonts();
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/ink.toml"),
-        "type = \"widget_theme\"\n\n[colors]\nmark = \"#5b6670\"\n\n[roles.transport]\nwidth = 26\nheight = 26\ntext_color = \"mark\"\n",
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor-Fill.ttf\"\n\n[colors]\nmark = \"#5b6670\"\n\n[roles.transport]\nwidth = 26\nheight = 26\ntext_color = \"mark\"\n",
     )
     .unwrap();
     let icon = "\u{e1dc}";
@@ -695,7 +695,7 @@ fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
     kid(
         strip,
         "Mark",
-        toml::toml! { kind = "button" text = "" role = "transport" widget_button = { icon = (icon) } }.into(),
+        toml::toml! { kind = "button" text = "" role = "transport" widget_button = { icon = "cursor" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -719,17 +719,17 @@ fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
 
 #[test]
 fn a_role_puts_a_button_s_face_at_its_left_edge() {
-    let (dir, app) = app();
+    let (dir, app) = app_with_editor_fonts();
     face_theme(dir.path());
     let icon = "\u{e1dc}";
     let left = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" width = 200.0 role = "row" theme = "themes/face.toml" x = 0.0 y = 0.0 widget_button = { icon = (icon) } }
+        &toml::toml! { kind = "button" text = "go" width = 200.0 role = "row" theme = "themes/face.toml" x = 0.0 y = 0.0 widget_button = { icon = "cursor" } }
             .into(),
     );
     let _middle = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" width = 200.0 theme = "themes/face.toml" x = 0.0 y = 100.0 widget_button = { icon = (icon) } }
+        &toml::toml! { kind = "button" text = "go" width = 200.0 theme = "themes/face.toml" x = 0.0 y = 100.0 widget_button = { icon = "cursor" } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -1068,16 +1068,18 @@ fn an_on_top_notice_the_pointer_passes_through_leaves_the_press_below() {
 // glyph takes the caption's size.
 #[test]
 fn a_button_s_icon_size_sizes_its_glyph() {
-    let (_dir, app) = app();
+    let (dir, app) = app_with_editor_fonts();
+    face_theme(dir.path());
+    // Phosphor's `cursor`, asked for by name and drawn as its character.
     let icon = "\u{e1dc}";
     add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" x = 0.0 y = 0.0 widget_button = { icon = (icon), icon_size = 24.0 } }
+        &toml::toml! { kind = "button" text = "go" theme = "themes/face.toml" x = 0.0 y = 0.0 widget_button = { icon = "cursor", icon_size = 24.0 } }
             .into(),
     );
     add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" x = 0.0 y = 100.0 widget_button = { icon = (icon) } }.into(),
+        &toml::toml! { kind = "button" text = "go" theme = "themes/face.toml" x = 0.0 y = 100.0 widget_button = { icon = "cursor" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);

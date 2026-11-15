@@ -23,8 +23,8 @@ use crate::vocabulary::words as w;
 pub(crate) struct Mark {
     /// What the `marked` event names when it is clicked
     pub(crate) name: SmolStr,
-    /// What it draws, from the icon face
-    pub(crate) glyph: SmolStr,
+    /// What it draws: the name of a glyph in the theme's icon font
+    pub(crate) icon: SmolStr,
 }
 
 /// One row of a `list`, `tree` or `table`.
@@ -32,7 +32,7 @@ pub(crate) struct Mark {
 pub(crate) struct Item {
     /// What the row says, and on a card its caption
     pub(crate) label: SmolStr,
-    /// A glyph from the icon face before the label. On a card in a `list` that names a `source`, `x,y,w,h` in that picture's pixels
+    /// The name of a glyph in the theme's icon font, drawn before the label. On a card in a `list` that names a `source`, `x,y,w,h` in that picture's pixels
     pub(crate) icon: SmolStr,
     /// What the row trails at the right, and on a card its tooltip
     pub(crate) note: SmolStr,

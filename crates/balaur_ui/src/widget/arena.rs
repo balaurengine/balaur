@@ -13,7 +13,7 @@ use egui::Color32;
 use smol_str::SmolStr;
 
 use crate::widget::node::{Widget, lays_out};
-use crate::widget::theme::{Style, WidgetTheme, face, icon_family, styled, theme_of};
+use crate::widget::theme::{Style, WidgetTheme, face, icon_family, icon_font, styled, theme_of};
 
 /// One widget and the widgets laid out inside it, as an arena so the draw can
 /// recurse without holding a borrow of the world.
@@ -53,6 +53,8 @@ pub(crate) struct Look {
     pub(crate) ink: Color32,
     /// What its icons draw in: the theme's icon font.
     pub(crate) icon: egui::FontFamily,
+    /// That font as the theme names it, whose glyph names its icons are.
+    pub(crate) icon_font: SmolStr,
     /// Whose faces it draws in.
     pub(crate) project: balaur_text::FontProject,
     /// What it was worked out under.
@@ -143,6 +145,7 @@ pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &Rc<WidgetTheme>) -
         font,
         ink,
         icon: icon_family(theme, placed.project),
+        icon_font: icon_font(theme).into(),
         project: placed.project,
         under: Under::now(theme),
     });

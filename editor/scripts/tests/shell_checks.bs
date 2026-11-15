@@ -276,18 +276,18 @@ pub fn font_sheet(state: editor::State) {
     controls.push(heading("ICONS"));
     let tools: [ui::Control] = [];
     for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
-        tools.push(big("text_body", icons::tool(id)));
+        tools.push(big("text_body", ui::glyph(icons::tool(id))));
     }
     for workspace in defs::workspaces() {
-        tools.push(big("text_caption_primary", icons::workspace(workspace.id)));
+        tools.push(big("text_caption_primary", ui::glyph(icons::workspace(workspace.id))));
     }
     controls.push(ui::Control { kind: "row", height: 24, controls: tools, gap: vec2(8, 0) });
     let panels: [ui::Control] = [];
     for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
-        panels.push(big("text_body", icons::panel(id)));
+        panels.push(big("text_body", ui::glyph(icons::panel(id))));
     }
     for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
-        panels.push(big("text_caption", icons::ui(id)));
+        panels.push(big("text_caption", ui::glyph(icons::ui(id))));
     }
     controls.push(ui::Control { kind: "row", height: 24, controls: panels, gap: vec2(8, 0) });
     let filled = scene::root().get_node(FONT_SHEET);

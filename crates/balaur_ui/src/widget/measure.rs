@@ -541,17 +541,18 @@ impl<'a> Measure<'a> {
         let look = crate::widget::arena::look_of(self.arena, index, theme);
         let (style, font) = (&look.style, look.font.clone());
         let mut text = self.text(index, widget, theme);
-        let mark = if widget.icon.is_empty() {
-            egui::Vec2::ZERO
-        } else {
-            let face = egui::FontId::new(
-                crate::widget::text::icon_px(widget, font.size),
-                look.icon.clone(),
-            );
-            self.painter
-                .line_of(widget.icon.to_string(), face, egui::Color32::WHITE)
-                .size()
-        };
+        let mark = (!widget.icon.is_empty())
+            .then(|| crate::widget::icons::Icons::of(self.eng, &look).glyph(&widget.icon))
+            .flatten()
+            .map_or(egui::Vec2::ZERO, |glyph| {
+                let face = egui::FontId::new(
+                    crate::widget::text::icon_px(widget, font.size),
+                    look.icon.clone(),
+                );
+                self.painter
+                    .line_of(glyph, face, egui::Color32::WHITE)
+                    .size()
+            });
         let pic = self.picture(widget, style, font.size);
         let tail = if widget.trailing.is_empty() {
             egui::Vec2::ZERO

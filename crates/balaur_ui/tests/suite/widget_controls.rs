@@ -120,3 +120,46 @@ fn a_switch_draws_its_caption_after_its_track() {
         .expect("the caption is drawn");
     assert!(at.x > balaur_ui::widget_rect(bare).expect("it drew").right() - 1.0);
 }
+
+// An icon is named in the theme's icon font: a button's, a row's and a
+// mark's draw the glyph the font calls that, and a name the font has no
+// glyph for draws nothing.
+#[test]
+fn icons_are_named_in_the_theme_s_icon_font() {
+    let (dir, app) = app_with_editor_fonts();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/icons.toml"),
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor-Fill.ttf\"\n",
+    )
+    .unwrap();
+    add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Add" theme = "themes/icons.toml" x = 20.0 y = 20.0 widget_button = { icon = "plus" } }
+            .into(),
+    );
+    add_widget(
+        &app,
+        &toml::toml! {
+            kind = "list" theme = "themes/icons.toml" x = 20.0 y = 80.0 width = 200.0 height = 60.0
+            widget_rows = { row_height = 20.0, items = [{ label = "Assets", key = "a", icon = "folder", marks = [{ name = "lock", icon = "lock" }] }] }
+        }
+        .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let drawn: Vec<String> = texts(&pass(&app, &ctx, vec![]))
+        .into_iter()
+        .map(|(text, _)| text)
+        .collect();
+    for (name, glyph) in [
+        ("plus", "\u{E3D4}"),
+        ("folder", "\u{E24A}"),
+        ("lock", "\u{E2FA}"),
+    ] {
+        assert!(
+            drawn.iter().any(|text| text == glyph),
+            "{name} did not draw: {drawn:?}"
+        );
+    }
+}

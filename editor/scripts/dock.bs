@@ -21,6 +21,7 @@ use words::changes;
 use words::dock_fields;
 use words::fields;
 use words::general;
+use words::glyphs;
 use words::layout_fields;
 use words::log_fields;
 use words::project_fields;
@@ -293,7 +294,7 @@ fn asset_look(name: str, is_directory: bool) -> AssetLook {
     if importer::kind_of(name) == asset_kinds::TEXTURE {
         return AssetLook { icon: icons::workspace(defs::WORKSPACE_UI), ink: theme_tokens::PRIMARY_TEXT };
     }
-    return AssetLook { icon: icons::ui("dot"), ink: theme_tokens::TEXT_SUBTLE };
+    return AssetLook { icon: glyphs::DOT, ink: theme_tokens::TEXT_SUBTLE };
 }
 
 // Opening a file means the thing the editor can actually do with it: jump to
@@ -542,13 +543,13 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
         name: util::last_segment(state.assets.selected),
         count: "{files.len()} items",
         importing: importing,
-        import_text: icons::panel(icons::IMPORT) + (if importing { " cancel" } else { " import" }),
+        import_text: ui::glyph(icons::panel(icons::IMPORT)) + (if importing { " cancel" } else { " import" }),
         import_tip: if importing {
             "Stop the import after the file it is writing"
         } else {
             "Bring in a model, a sprite or a level"
         },
-        folder_text: icons::ui(icons::ADD) + " folder",
+        folder_text: ui::glyph(icons::ui(icons::ADD)) + " folder",
         chosen: state.assets.selected != "",
         items: items,
         picked: picked,
@@ -694,9 +695,9 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
         can_pause: false,
         steps: [
             "▶ Continue",
-            icons::ui("step-over") + " Over",
-            icons::ui("step-into") + " Into",
-            icons::ui("step-out") + " Out",
+            ui::glyph(icons::ui("step-over")) + " Over",
+            ui::glyph(icons::ui("step-into")) + " Into",
+            ui::glyph(icons::ui("step-out")) + " Out",
         ],
         where: "{paused["reason"].as_str()} · {state.debug.paused_rel}:{paused[layout_fields::LINE]}",
         threw: paused["message"].as_str(),

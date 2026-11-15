@@ -272,7 +272,7 @@ pub fn fill(state: &mut editor::State) {
     if node.is_valid() {
         node.widget_button.image = mark.logo;
         node.widget.text = mark.name;
-        node.widget_button.trailing = icons::ui("caret-down");
+        node.widget_button.trailing = ui::glyph(icons::ui(icons::CARET_DOWN));
         node.widget.height = row_height(state) - 4.0;
         node.widget_menu.showing = state.menu_open;
     }
@@ -538,7 +538,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
         ui::Control {
             kind: ui::WIDGET_BUTTON,
             text: "",
-            icon: icons::ui("play"),
+            icon: icons::ui(verbs::PLAY),
             height: row_height(state),
             width: icon_width(state),
             padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
