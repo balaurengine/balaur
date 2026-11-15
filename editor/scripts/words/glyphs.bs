@@ -85,3 +85,4 @@ internal const TREE_STRUCTURE: str = "tree-structure";
 internal const VIDEO_CAMERA: str = "video-camera";
 internal const WARNING: str = "warning";
 internal const X: str = "x";
+internal const X_CIRCLE: str = "x-circle";

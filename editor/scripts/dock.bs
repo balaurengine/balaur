@@ -261,13 +261,13 @@ fn log_lines(rows: [any], tokens: any) -> [ui::Item] {
         let level = entry[log_fields::LEVEL].as_str();
         let tag = entry[fields::TAG].as_str();
         let tint = tokens[theme_tokens::TEXT_MUTED].as_str();
-        let marker = " ";
+        let marker = glyphs::DOT;
         if level == statuses::ERROR {
             tint = tokens[theme_tokens::DANGER_TEXT].as_str();
-            marker = "×";
+            marker = glyphs::X_CIRCLE;
         } else if level == WARN {
             tint = tokens[theme_tokens::WARNING_TEXT].as_str();
-            marker = "!";
+            marker = glyphs::WARNING;
         } else if tag == ENV {
             tint = tokens[theme_tokens::SECONDARY_TEXT].as_str();
         }

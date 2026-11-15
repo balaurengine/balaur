@@ -243,17 +243,17 @@ impl<'a> Measure<'a> {
                     );
                     crate::widget::sizing::control_galley(&ctx, &style, label).size()
                 });
+                let metrics = crate::widget::sizing::Metrics::boxed(&look.style, &style.spacing);
                 if widget.kind == w::SWITCH {
-                    crate::widget::sizing::switch_size(
-                        &look.style,
-                        style.spacing.icon_spacing,
-                        text,
-                    )
+                    crate::widget::sizing::switch_size(&look.style, metrics.gap, text)
                 } else {
-                    crate::widget::sizing::tick_box_size(&style.spacing, text)
+                    crate::widget::sizing::tick_box_size(&metrics, text)
                 }
             }
-            w::DROPDOWN => crate::widget::sizing::dropdown_size(&ctx, &style, widget, face),
+            w::DROPDOWN => {
+                let metrics = crate::widget::sizing::Metrics::of(&look.style, &style.spacing);
+                crate::widget::sizing::dropdown_size(&ctx, &style, widget, face, &metrics)
+            }
             w::MENU => crate::widget::sizing::menu_size(&ctx, &style, widget, &caption, face),
             _ if !widget.egui.inline => style.spacing.interact_size,
             _ => {

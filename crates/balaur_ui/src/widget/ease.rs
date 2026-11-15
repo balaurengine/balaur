@@ -14,8 +14,8 @@ use crate::widget::theme::{Pointer, Shadow, Style, WidgetState};
 pub(crate) const BY_BOX: u8 = 0;
 const BY_RESPONSE: u8 = 1;
 
-/// The ring a focused widget whose theme states an `outline` draws 2 px
-/// outside what it drew, as CSS's `outline` with an `outline-offset` of 2.
+/// The ring a focused widget whose theme states an `outline` draws outside
+/// what it drew, as CSS's `outline`, `outline-width` and `outline-offset`.
 pub(crate) fn focus_ring(ui: &egui::Ui, style: &Style) {
     let Some(colour) = style.outline else {
         return;
@@ -37,10 +37,11 @@ pub(crate) fn focus_ring(ui: &egui::Ui, style: &Style) {
         reason = "a corner in whole points, capped"
     )]
     let corner = egui::CornerRadius::same(radius.clamp(0.0, 120.0) as u8);
+    let (gap, width) = style.ring();
     crate::widget::paint::Brush::of(ui).outline(
-        rect.expand(2.0),
+        rect.expand(gap),
         corner,
-        egui::Stroke::new(2.0, colour),
+        egui::Stroke::new(width, colour),
         egui::StrokeKind::Outside,
     );
 }
@@ -211,6 +212,16 @@ fn blend(base: &Style, state: WidgetState, turns: &[(Turn, f32)]) -> Style {
 }
 
 impl Style {
+    /// The focus ring's gap from the edge and its width: the style's
+    /// `outline_offset` and `outline_width`, 2 and 2 unset.
+    #[must_use]
+    pub fn ring(&self) -> (f32, f32) {
+        (
+            self.outline_offset.unwrap_or(2.0),
+            self.outline_width.unwrap_or(2.0),
+        )
+    }
+
     /// The style with the tables for the widget's state over it: `checked`
     /// under everything, then disabled alone, or focus with the pointer's
     /// table over it.

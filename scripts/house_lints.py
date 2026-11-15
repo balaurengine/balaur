@@ -884,9 +884,11 @@ FAMILY_SUFFIXES = ("", "_fill", "_fill_hover", "_text", "_bg")
 THEME_SECTIONS = {"colors", "sizes", "fonts", "hues", "mixes"}
 THEME_STATES = {"hover", "active", "focus", "disabled", "checked", "touch", "pointer",
                 "narrow", "medium", "wide", "short", "tall"}
-# Theme keys with no widget property of the same name: each styles a part
-# of a widget that has no property of its own.
-THEME_ONLY = {"icon_fill", "padding_x", "padding_y", "stroke_width", "arrow"}
+# Theme keys with no widget property of the same name: a part of a widget,
+# or how it moves between states, that no property of its own styles.
+THEME_ONLY = {"icon_fill", "padding_x", "padding_y", "stroke_width", "arrow",
+              "transition", "offset", "outline", "outline_width", "outline_offset",
+              "shadows", "duration", "letter_spacing", "text_transform"}
 
 
 def theme_files() -> list[Path]:

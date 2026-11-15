@@ -302,8 +302,10 @@ fn paint_face(
             pos2(at_x, middle - face.spinner / 2.0),
             vec2(face.spinner, face.spinner),
         );
+        // The theme's `[spinner]` turns it, so one table sets both.
+        let spinner = at.theme.resolved(w::SPINNER, "");
         let tint = style.icon_color.unwrap_or(ink);
-        crate::widget::numbers::spin(ui, &painter, rect, tint, at.ui_now());
+        crate::widget::numbers::spin(ui, &painter, (rect, tint), &spinner, at.ui_now());
         at_x += face.spinner + face.gap;
     }
     if let Some(icon) = &face.icon {
@@ -444,10 +446,11 @@ pub(crate) fn button(
         // Drawn rather than egui's own focus ring: the ring follows egui's
         // keyboard focus, and this follows the scene's. A theme's `outline`
         // is drawn round every kind instead, by the layer.
+        let (gap, width) = style.ring();
         Brush::of(ui).outline(
-            response.rect.expand(2.0),
+            response.rect.expand(gap),
             radius,
-            Stroke::new(2.0, style.stroke.unwrap_or(ink)),
+            Stroke::new(width, style.stroke.unwrap_or(ink)),
             egui::StrokeKind::Outside,
         );
     }

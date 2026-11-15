@@ -22,21 +22,23 @@ pub(crate) fn check(
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let label = rich(caption, font, color, slant, &widget.text_look);
+    let metrics = crate::widget::sizing::Metrics::boxed(&at.look(index).style, ui.spacing());
     let response = tick_box(
         ui,
         label,
         (widget.checked, widget.egui.indeterminate),
         caption,
-        !widget.radio_group.is_empty(),
+        (!widget.radio_group.is_empty(), &metrics),
     );
     if response.clicked() {
         at.clicked.push(placed.entity);
     }
     if at.focused == Some(placed.entity) {
+        let (gap, width) = at.look(index).style.ring();
         Brush::of(ui).outline(
-            response.rect.expand(2.0),
+            response.rect.expand(gap),
             4.0,
-            Stroke::new(2.0, color),
+            Stroke::new(width, color),
             egui::StrokeKind::Outside,
         );
     }
@@ -52,14 +54,13 @@ fn tick_box(
     label: egui::RichText,
     (on, either): (bool, bool),
     caption: &str,
-    round: bool,
+    (round, metrics): (bool, &crate::widget::sizing::Metrics),
 ) -> egui::Response {
     let spacing = ui.spacing().clone();
-    let side = spacing.icon_width;
+    let side = metrics.mark;
     let text = (!caption.is_empty())
         .then(|| crate::widget::sizing::control_galley(ui.ctx(), ui.style(), label));
-    let want =
-        crate::widget::sizing::tick_box_size(&spacing, text.as_ref().map(|text| text.size()));
+    let want = crate::widget::sizing::tick_box_size(metrics, text.as_ref().map(|text| text.size()));
     let (id, rect) = ui.allocate_space(want);
     let response = ui.interact(rect, id, Sense::click());
     let enabled = ui.is_enabled();
@@ -83,8 +84,9 @@ fn tick_box(
         pos2(rect.left() + side / 2.0, rect.center().y),
         egui::Vec2::splat(side),
     );
-    let mark =
-        egui::Rect::from_center_size(frame.center(), egui::Vec2::splat(spacing.icon_width_inner));
+    // The tick keeps egui's share of the box, whatever the box's size.
+    let inner = side * spacing.icon_width_inner / spacing.icon_width.max(1.0);
+    let mark = egui::Rect::from_center_size(frame.center(), egui::Vec2::splat(inner));
     let painter = Brush::of(ui);
     #[allow(
         clippy::cast_possible_truncation,
@@ -123,7 +125,7 @@ fn tick_box(
     }
     if let Some(text) = text {
         let at = pos2(
-            frame.right() + spacing.icon_spacing,
+            frame.right() + metrics.gap,
             rect.center().y - text.size().y / 2.0,
         );
         painter.galley(at, text, look.text_color());
@@ -160,7 +162,7 @@ pub(crate) fn switch(
         );
         crate::widget::sizing::control_galley(ui.ctx(), ui.style(), label)
     });
-    let gap = ui.spacing().icon_spacing;
+    let gap = crate::widget::sizing::Metrics::boxed(&look.style, ui.spacing()).gap;
     let track_size = crate::widget::sizing::switch_track(&look.style);
     let size =
         crate::widget::sizing::switch_size(&look.style, gap, text.as_ref().map(|text| text.size()));

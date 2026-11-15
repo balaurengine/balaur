@@ -554,7 +554,7 @@ fn an_outline_rings_a_focused_field_and_keeps_its_edge() {
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/ringed.toml"),
-        "type = \"widget_theme\"\n\n[text_field]\nstroke = \"#808080\"\nstroke_width = 1\n[text_field.focus]\noutline = \"#ff8800\"\n",
+        "type = \"widget_theme\"\n\n[text_field]\nstroke = \"#808080\"\nstroke_width = 1\n[text_field.focus]\noutline = \"#ff8800\"\noutline_offset = 6\n",
     )
     .unwrap();
     let field = add_widget(
@@ -573,8 +573,9 @@ fn an_outline_rings_a_focused_field_and_keeps_its_edge() {
         .map_or_else(|| panic!("no ring among {edges:?}"), |(rect, _)| *rect);
     let boxed = root_rect(&ctx, field);
     assert!(
-        ring.min.x < boxed.min.x && ring.max.x > boxed.max.x,
-        "the ring sits outside the field: {ring:?} round {boxed:?}"
+        (boxed.min.x - ring.min.x - 6.0).abs() < 1.0
+            && (ring.max.x - boxed.max.x - 6.0).abs() < 1.0,
+        "the ring sits its `outline_offset` outside the field: {ring:?} round {boxed:?}"
     );
     assert!(
         edges

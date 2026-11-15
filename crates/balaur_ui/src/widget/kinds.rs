@@ -44,12 +44,18 @@ pub(crate) fn dropdown(
     let open = egui::Popup::is_id_open(ui.ctx(), popup);
     // As wide as its widest option at least, so picking one does not move
     // what is beside it.
-    let natural =
-        crate::widget::sizing::dropdown_size(ui.ctx(), ui.style(), widget, (font, color, slant));
+    let metrics = crate::widget::sizing::Metrics::of(&at.look(index).style, ui.spacing());
+    let natural = crate::widget::sizing::dropdown_size(
+        ui.ctx(),
+        ui.style(),
+        widget,
+        (font, color, slant),
+        &metrics,
+    );
     let width = Some(if want.x > 0.0 { want.x } else { natural.x });
     let button = ui
         .horizontal(|ui| {
-            let response = picker(ui, id, open, picked, (fold, width));
+            let response = picker(ui, id, open, picked, (fold, width), &metrics);
             let enabled = ui.is_enabled();
             response.widget_info(|| {
                 let mut info = egui::WidgetInfo::new(egui::Role::ComboBox);
@@ -105,19 +111,20 @@ fn picker(
     open: bool,
     picked: egui::RichText,
     (fold, width): (egui::TextWrapMode, Option<f32>),
+    metrics: &crate::widget::sizing::Metrics,
 ) -> egui::Response {
     let plate = Brush::of(ui).slot();
     let spacing = ui.spacing().clone();
-    let margin = spacing.button_padding;
+    let margin = metrics.padding;
     let mut outer = ui.available_rect_before_wrap();
-    outer.set_height(outer.height().max(spacing.interact_size.y));
+    outer.set_height(outer.height().max(metrics.height));
     let mut inner_ui = ui.new_child(egui::UiBuilder::new().max_rect(outer.shrink2(margin)));
-    let mark = egui::Vec2::splat(spacing.icon_width);
+    let mark = egui::Vec2::splat(metrics.mark);
     let least = width.unwrap_or(spacing.combo_width) - 2.0 * margin.x;
     let room = if fold == egui::TextWrapMode::Extend {
         f32::INFINITY
     } else {
-        inner_ui.available_width() - spacing.icon_spacing - mark.x
+        inner_ui.available_width() - metrics.gap - mark.x
     };
     let galley = egui::WidgetText::from(picked).into_galley(
         &inner_ui,
@@ -125,11 +132,11 @@ fn picker(
         room,
         egui::TextStyle::Button,
     );
-    let wide = (galley.size().x + spacing.icon_spacing + mark.x).max(least);
+    let wide = (galley.size().x + metrics.gap + mark.x).max(least);
     let tall = galley.size().y.max(mark.y);
     let (_, slot) = inner_ui.allocate_space(vec2(wide, tall));
     let mut rect = inner_ui.min_rect().expand2(margin);
-    rect.set_height(rect.height().max(spacing.interact_size.y));
+    rect.set_height(rect.height().max(metrics.height));
     let response = ui.interact(rect, id, Sense::click());
     if ui.is_rect_visible(rect) {
         let look = if open {
@@ -625,10 +632,11 @@ fn fold_header(
         across = rect.max.x + gap;
     }
     if state.focused && style.focus.is_none() {
+        let (gap, width) = style.ring();
         Brush::of(ui).outline(
-            strip.expand(2.0),
+            strip.expand(gap),
             4.0,
-            Stroke::new(2.0, ink),
+            Stroke::new(width, ink),
             egui::StrokeKind::Outside,
         );
     }

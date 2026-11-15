@@ -25,24 +25,66 @@ pub(crate) fn control_galley(
 
 /// A checkbox's box: the tick's square, the caption after it, never shorter
 /// than a control.
-pub(crate) fn tick_box_size(
-    spacing: &egui::style::Spacing,
-    text: Option<egui::Vec2>,
-) -> egui::Vec2 {
-    let side = spacing.icon_width;
-    let tall = side.max(spacing.interact_size.y);
-    let wide = text.map_or(side, |text| side + spacing.icon_spacing + text.x);
+pub(crate) fn tick_box_size(metrics: &Metrics, text: Option<egui::Vec2>) -> egui::Vec2 {
+    let side = metrics.mark;
+    let tall = side.max(metrics.height);
+    let wide = text.map_or(side, |text| side + metrics.gap + text.x);
     vec2(
-        wide.max(spacing.interact_size.y),
+        wide.max(metrics.height),
         text.map_or(tall, |text| tall.max(text.y)),
     )
 }
 
-/// A switch's track: as tall as its role asks, and most of twice that
-/// across.
+/// A control's box as its theme states it, egui's spacing where it states
+/// none: what a checkbox, a radio, a dropdown and a slider are drawn and
+/// measured with, so the two never disagree.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Metrics {
+    /// The least height: the role's `height`, else a control's.
+    pub(crate) height: f32,
+    /// Inside the edge, across and down: `padding_x` and `padding_y`.
+    pub(crate) padding: egui::Vec2,
+    /// Between the mark and the words: `gap`.
+    pub(crate) gap: f32,
+    /// The mark: a checkbox's box, a dropdown's chevron. A checkbox's box is
+    /// as tall as its role's `height`.
+    pub(crate) mark: f32,
+}
+
+impl Metrics {
+    pub(crate) fn of(style: &Style, spacing: &egui::style::Spacing) -> Self {
+        let padding = vec2(
+            style
+                .padding_x
+                .or(style.padding)
+                .unwrap_or(spacing.button_padding.x),
+            style
+                .padding_y
+                .or(style.padding)
+                .unwrap_or(spacing.button_padding.y),
+        );
+        Self {
+            height: style.height.unwrap_or(spacing.interact_size.y),
+            padding,
+            gap: style.gap.unwrap_or(spacing.icon_spacing),
+            mark: spacing.icon_width,
+        }
+    }
+
+    /// The same box with its mark the role's `height`: a checkbox's.
+    pub(crate) fn boxed(style: &Style, spacing: &egui::style::Spacing) -> Self {
+        Self {
+            mark: style.height.unwrap_or(spacing.icon_width),
+            ..Self::of(style, spacing)
+        }
+    }
+}
+
+/// A switch's track: as tall and as wide as its role asks, 18 high and most
+/// of twice that across unset.
 pub(crate) fn switch_track(style: &Style) -> egui::Vec2 {
     let height = style.height.unwrap_or(18.0);
-    vec2(height * 1.75, height)
+    vec2(style.width.unwrap_or(height * 1.75), height)
 }
 
 /// A switch with its caption after the track, `gap` apart, as a checkbox's.
@@ -71,9 +113,10 @@ pub(crate) fn dropdown_size(
     style: &egui::Style,
     widget: &Widget,
     (font, color, slant): (&egui::FontId, Color32, bool),
+    metrics: &Metrics,
 ) -> egui::Vec2 {
     let spacing = &style.spacing;
-    let margin = spacing.button_padding;
+    let margin = metrics.padding;
     let widest = std::iter::once(widget.text.as_str())
         .chain(widget.options.iter().map(smol_str::SmolStr::as_str))
         .map(|text| {
@@ -81,12 +124,12 @@ pub(crate) fn dropdown_size(
             control_galley(ctx, style, text).size()
         })
         .fold(egui::Vec2::ZERO, egui::Vec2::max);
-    let mark = spacing.icon_width;
-    let wide = (widest.x + spacing.icon_spacing + mark).max(spacing.combo_width - 2.0 * margin.x);
+    let mark = metrics.mark;
+    let wide = (widest.x + metrics.gap + mark).max(spacing.combo_width - 2.0 * margin.x);
     let tall = widest.y.max(mark);
     vec2(
         wide + 2.0 * margin.x,
-        (tall + 2.0 * margin.y).max(spacing.interact_size.y),
+        (tall + 2.0 * margin.y).max(metrics.height),
     )
 }
 

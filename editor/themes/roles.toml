@@ -41,6 +41,53 @@ heading = "fonts/SourceSans3-Semibold.ttf"
 mono = "fonts/JetBrainsMono-Regular.ttf"
 icon = "fonts/Phosphor-Fill.ttf"
 
+# Every button eases between its states and rings itself for the keyboard
+# 2 px outside its edge; a role says only its colours and size.
+[button]
+transition = 0.12
+
+[button.focus]
+outline = "primary_text"
+
+# A field is a well below the panel, a control is raised above it; both
+# ease, show their edge under the pointer and ring themselves for the
+# keyboard as a button does.
+[text_field]
+transition = 0.12
+
+[text_field.focus]
+outline = "primary_text"
+
+[text_area]
+transition = 0.12
+
+[text_area.focus]
+outline = "primary_text"
+
+[number_field]
+transition = 0.12
+
+[number_field.focus]
+outline = "primary_text"
+
+[dropdown]
+transition = 0.12
+
+[dropdown.focus]
+outline = "primary_text"
+
+[checkbox]
+transition = 0.12
+
+[checkbox.focus]
+outline = "primary_text"
+
+[slider]
+transition = 0.12
+
+[slider.focus]
+outline = "primary_text"
+
 [panel]
 fill = "bg_panel"
 corner_radius = "radius_large"
@@ -53,16 +100,16 @@ corner_radius = "radius_large"
 corner_radius = "radius_large"
 
 # Text. A call site names one of these and says nothing else about type.
+# The mono face is for what is data, code, a path, a typed value, a log line;
+# the shell's own words are in the UI face.
 [roles.text_body]
 text_color = "text_default"
 
 [roles.text_caption]
-font = "mono"
 font_size = "font_size_small"
 text_color = "text_subtle"
 
 [roles.text_caption_primary]
-font = "mono"
 font_size = "font_size_small"
 text_color = "primary_text"
 
@@ -126,17 +173,14 @@ font_size = 18
 text_color = "primary_text"
 
 [roles.text_mark_primary]
-font = "mono"
 font_size = "font_size_large"
 text_color = "primary_text"
 
 [roles.text_mark_secondary]
-font = "mono"
 font_size = "font_size_large"
 text_color = "secondary_text"
 
 [roles.text_note]
-font = "mono"
 font_size = "font_size_small"
 text_color = "text_muted"
 padding_x = 7
@@ -148,15 +192,17 @@ font_weight = 700
 text_color = "text_default"
 
 [roles.text_title_dialog]
-font = "mono"
+font = "heading"
 font_size = "font_size_large"
 text_color = "text_default"
 
 # Actions: a button with a verb on it, by where it sits and what it does.
 [roles.action]
-font_weight = 700
-text_color = "primary_text"
+font_weight = 600
+text_color = "text_default"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = 28
 
@@ -166,14 +212,17 @@ fill = "bg_control_hover"
 
 [roles.action.active]
 fill = "primary_bg"
+offset = [0, 1]
 
 [roles.action_brand]
 font = "heading"
 font_size = "font_size_title"
-font_weight = 700
+font_weight = 600
 text_color = "text_default"
 icon_fill = "brand_plate"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius"
 height = 26
 padding_x = 3
@@ -181,20 +230,28 @@ padding_x = 3
 [roles.action_brand.hover]
 fill = "bg_control_hover"
 
+[roles.action_brand.active]
+offset = [0, 1]
+
 [roles.action_brand.touch]
 height = "control_height_touch"
 
 [roles.action_dock]
 font_size = "font_size_small"
-font_weight = 700
+font_weight = 600
 text_color = "text_muted"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height_small"
 
 [roles.action_dock.hover]
 text_color = "text_default"
 fill = "bg_control_hover"
+
+[roles.action_dock.active]
+offset = [0, 1]
 
 [roles.action_dock.checked]
 text_color = "primary_text"
@@ -206,47 +263,67 @@ height = 29
 
 [roles.action_dock_danger]
 font_size = "font_size_small"
-font_weight = 700
+font_weight = 600
 text_color = "danger_text"
-fill = "bg_control"
 corner_radius = "radius_small"
 height = "control_height_small"
+
+[roles.action_dock_danger.hover]
+fill = "danger_bg"
+text_color = "danger_text"
+
+[roles.action_dock_danger.active]
+offset = [0, 1]
 
 [roles.action_dock_danger.touch]
 height = 29
 
 [roles.action_dock_quiet]
 font_size = "font_size_small"
-font_weight = 700
-text_color = "text_subtle"
-fill = "bg_control"
+font_weight = 600
+text_color = "text_muted"
 corner_radius = "radius_small"
 height = "control_height_small"
+
+[roles.action_dock_quiet.hover]
+fill = "bg_control"
+text_color = "text_default"
+
+[roles.action_dock_quiet.active]
+offset = [0, 1]
 
 [roles.action_dock_quiet.touch]
 height = 29
 
 [roles.action_dock_secondary]
 font_size = "font_size_small"
-font_weight = 700
+font_weight = 600
 text_color = "secondary_text"
 fill = "secondary_bg"
 corner_radius = "radius_small"
 height = "control_height_small"
 
+[roles.action_dock_secondary.active]
+offset = [0, 1]
+
 [roles.action_dock_secondary.touch]
 height = 29
 
 [roles.action_form]
-font_weight = 700
+font_weight = 600
 text_color = "text_muted"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height_small"
 
 [roles.action_form.hover]
 text_color = "text_default"
 fill = "bg_control_hover"
+
+[roles.action_form.active]
+offset = [0, 1]
 
 [roles.action_form.checked]
 text_color = "primary_text"
@@ -256,29 +333,37 @@ fill = "primary_bg"
 text_color = "text_default"
 
 [roles.action_form_danger]
-font_weight = 700
+font_weight = 600
 text_color = "danger_text"
-fill = "bg_control"
 corner_radius = "radius_small"
 height = "control_height_small"
 
 [roles.action_form_danger.hover]
-text_color = "text_default"
-fill = "bg_control_hover"
+text_color = "danger_text"
+fill = "danger_bg"
+
+[roles.action_form_danger.active]
+offset = [0, 1]
 
 [roles.action_form_primary]
-font_weight = 700
-text_color = "primary_text"
-fill = "primary_bg"
+font_weight = 600
+text_color = "text_on_primary"
+fill = "primary_fill"
+stroke_width = 1
+stroke = "primary_fill"
 corner_radius = "radius_small"
 height = "control_height_small"
 
 [roles.action_form_primary.hover]
-text_color = "text_default"
-fill = "bg_control_hover"
+text_color = "text_on_primary"
+fill = "primary_fill_hover"
+stroke = "primary_fill_hover"
+
+[roles.action_form_primary.active]
+offset = [0, 1]
 
 [roles.action_form_secondary]
-font_weight = 700
+font_weight = 600
 text_color = "secondary_text"
 fill = "secondary_bg"
 corner_radius = "radius_small"
@@ -288,10 +373,15 @@ height = "control_height_small"
 text_color = "text_default"
 fill = "bg_control_hover"
 
+[roles.action_form_secondary.active]
+offset = [0, 1]
+
 [roles.action_manager]
 font_size = "font_size_small"
 text_color = "text_muted"
 fill = "bg_panel"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_large"
 height = 28
 padding_x = 12
@@ -300,43 +390,62 @@ padding_x = 12
 text_color = "text_default"
 fill = "bg_control_hover"
 
+[roles.action_manager.active]
+offset = [0, 1]
+
 [roles.action_note]
 font_size = "font_size_small"
 text_color = "text_default"
 text_align = "start"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height"
+
+[roles.action_note.active]
+offset = [0, 1]
 
 [roles.action_note.touch]
 height = "control_height_touch"
 
 [roles.action_prefab]
 font_size = "font_size_small"
-font_weight = 700
+font_weight = 600
 text_color = "text_muted"
 fill = "bg_panel"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height_small"
+
+[roles.action_prefab.active]
+offset = [0, 1]
 
 [roles.action_prefab.touch]
 height = 29
 
 [roles.action_primary]
-font_weight = 700
-text_color = "primary_text"
-fill = "primary_bg"
+font_weight = 600
+text_color = "text_on_primary"
+fill = "primary_fill"
+stroke_width = 1
+stroke = "primary_fill"
 corner_radius = "radius_small"
 height = "control_height_large"
 
 [roles.action_primary.hover]
 text_color = "text_on_primary"
-fill = "primary_text"
+fill = "primary_fill_hover"
+stroke = "primary_fill_hover"
+
+[roles.action_primary.active]
+offset = [0, 1]
 
 [roles.action_section]
 font = "heading"
 font_size = "font_size_small"
-font_weight = 700
+font_weight = 600
 text_color = "text_muted"
 text_align = "start"
 corner_radius = "radius_small"
@@ -346,13 +455,17 @@ height = "control_height_small"
 height = 29
 
 [roles.action_subsection]
-font = "mono"
 font_size = "font_size_small"
 text_color = "text_muted"
 text_align = "start"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height_small"
+
+[roles.action_subsection.active]
+offset = [0, 1]
 
 [roles.action_subsection.touch]
 height = 29
@@ -388,6 +501,8 @@ height = "control_height_touch"
 [roles.icon_action_dialog]
 text_color = "text_muted"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_large"
 height = "control_height"
 
@@ -395,14 +510,19 @@ height = "control_height"
 text_color = "text_default"
 fill = "bg_control_hover"
 
+[roles.icon_action_dialog.active]
+offset = [0, 1]
+
 [roles.icon_action_dialog.touch]
 height = "control_height_touch"
 
 [roles.icon_action_form]
 font_size = "font_size_small"
-font_weight = 700
+font_weight = 600
 text_color = "text_muted"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 width = 22
 height = "control_height_small"
@@ -410,6 +530,9 @@ height = "control_height_small"
 [roles.icon_action_form.hover]
 text_color = "text_default"
 fill = "bg_control_hover"
+
+[roles.icon_action_form.active]
+offset = [0, 1]
 
 [roles.icon_action_form.touch]
 height = 29
@@ -425,6 +548,9 @@ height = "control_height"
 text_color = "text_default"
 fill = "bg_control_hover"
 
+[roles.icon_action_form_secondary.active]
+offset = [0, 1]
+
 [roles.icon_action_form_secondary.touch]
 width = 30
 height = "control_height_touch"
@@ -433,6 +559,8 @@ height = "control_height_touch"
 font_size = "font_size_large"
 text_color = "text_muted"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius"
 width = 26
 height = 26
@@ -440,6 +568,9 @@ height = 26
 [roles.icon_action_primary.hover]
 text_color = "text_default"
 fill = "bg_control_hover"
+
+[roles.icon_action_primary.active]
+offset = [0, 1]
 
 [roles.icon_action_primary.checked]
 text_color = "text_on_primary"
@@ -469,9 +600,11 @@ height = "control_height_touch"
 # Chips and tabs: a small toggle, on while `checked`.
 [roles.chip]
 font_size = "font_size_small"
-font_weight = 700
+font_weight = 600
 text_color = "text_muted"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius"
 height = 22
 padding_x = 8
@@ -479,6 +612,9 @@ padding_x = 8
 [roles.chip.hover]
 text_color = "text_default"
 fill = "bg_control_hover"
+
+[roles.chip.active]
+offset = [0, 1]
 
 [roles.chip.checked]
 text_color = "primary_text"
@@ -491,8 +627,13 @@ text_color = "text_default"
 font_size = "font_size_small"
 text_color = "text_muted"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height_small"
+
+[roles.chip_flag.active]
+offset = [0, 1]
 
 [roles.chip_flag.checked]
 text_color = "text_on_primary"
@@ -503,7 +644,7 @@ height = 29
 
 [roles.chip_quiet]
 font_size = "font_size_small"
-font_weight = 700
+font_weight = 600
 text_color = "text_subtle"
 corner_radius = "radius"
 height = 22
@@ -518,7 +659,7 @@ text_color = "text_muted"
 text_color = "text_default"
 
 [roles.tab]
-font_weight = 700
+font_weight = 600
 text_color = "text_subtle"
 corner_radius = "radius_small"
 height = 22
@@ -696,8 +837,13 @@ height = "control_height_touch"
 font_size = "font_size_small"
 text_color = "text_default"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height_small"
+
+[roles.choice.hover]
+fill = "bg_control_hover"
 
 [roles.choice.touch]
 height = 29
@@ -705,8 +851,13 @@ height = 29
 [roles.choice_form]
 text_color = "text_default"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height"
+
+[roles.choice_form.hover]
+fill = "bg_control_hover"
 
 [roles.choice_form.touch]
 height = "control_height_touch"
@@ -714,21 +865,27 @@ height = "control_height_touch"
 [roles.input]
 font = "mono"
 text_color = "text_default"
-fill = "bg_control"
+fill = "bg_app"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
 height = 22
 
 [roles.input.hover]
-stroke = "border_default"
+stroke = "text_subtle"
 
 [roles.input_dock]
 font = "mono"
 font_size = "font_size_small"
 text_color = "text_default"
-fill = "bg_control"
+fill = "bg_app"
+stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius_small"
 height = 22
+
+[roles.input_dock.hover]
+stroke = "text_subtle"
 
 [roles.input_dock.touch]
 height = 31
@@ -736,20 +893,28 @@ height = 31
 [roles.input_form]
 font = "mono"
 text_color = "text_default"
-fill = "bg_control"
+fill = "bg_app"
+stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height"
+
+[roles.input_form.hover]
+stroke = "text_subtle"
 
 [roles.input_form.touch]
 height = "control_height_touch"
 
 [roles.input_number]
 text_color = "text_default"
-fill = "bg_control"
+fill = "bg_app"
+stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height"
+
+[roles.input_number.hover]
+stroke = "text_subtle"
 
 [roles.input_number.touch]
 height = "control_height_touch"
@@ -757,10 +922,14 @@ height = "control_height_touch"
 [roles.input_path]
 font = "mono"
 text_color = "secondary_text"
-fill = "bg_control"
+fill = "bg_app"
+stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius_small"
 height = "control_height"
+
+[roles.input_path.hover]
+stroke = "text_subtle"
 
 [roles.input_path.touch]
 height = "control_height_touch"
@@ -769,8 +938,13 @@ height = "control_height_touch"
 font_size = 15
 text_color = "text_default"
 fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius"
 height = "control_height_large"
+
+[roles.input_picker.hover]
+fill = "bg_control_hover"
 
 [roles.switch_form]
 text_color = "text_muted"

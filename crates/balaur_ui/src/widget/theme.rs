@@ -107,6 +107,12 @@ pub struct Style {
     /// `outline`, which leaves `stroke`, the edge, as it is. Unset rings in
     /// the edge's colour.
     pub outline: Option<Color32>,
+    /// That ring's width and its gap from the edge, in design pixels, as
+    /// CSS's `outline-width` and `outline-offset`; 2 and 2 unset.
+    pub outline_width: Option<f32>,
+    pub outline_offset: Option<f32>,
+    /// Seconds a `spinner` takes to turn once; 0.75 unset, daisyUI's.
+    pub duration: Option<f32>,
     /// Corner radius in design pixels; `None` keeps the kind's own rule,
     /// which for a button is "as round as its text is tall".
     pub radius: Option<f32>,
@@ -269,6 +275,9 @@ impl Style {
             fill: self.fill.or(base.fill),
             stroke: self.stroke.or(base.stroke),
             outline: self.outline.or(base.outline),
+            outline_width: self.outline_width.or(base.outline_width),
+            outline_offset: self.outline_offset.or(base.outline_offset),
+            duration: self.duration.or(base.duration),
             radius: self.radius.or(base.radius),
             padding: self.padding.or(base.padding),
             padding_sides: self.padding_sides.or(base.padding_sides),
@@ -611,6 +620,9 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         fill: colour(k::FILL),
         stroke: colour(k::STROKE),
         outline: colour(k::OUTLINE),
+        outline_width: number(k::OUTLINE_WIDTH),
+        outline_offset: number(k::OUTLINE_OFFSET),
+        duration: number(k::DURATION).filter(|seconds| *seconds > 0.0),
         radius: if pill { None } else { number(k::CORNER_RADIUS) },
         padding: number(k::PADDING),
         padding_sides: body
@@ -861,10 +873,16 @@ fill = "primary_fill_hover"
 offset = [0, 0.5]                # drawn this far from its place, as CSS's translate; the layout stays
 
 [button.focus]                   # with the pointer's table over it when both apply, as on the web
-outline = "primary"              # the ring 2 px outside the edge, as CSS's outline; the edge stays
+outline = "primary"              # the ring outside the edge, as CSS's outline; the edge stays
+outline_width = 2                # its width, and outline_offset its gap from the edge, 2 and 2 unset
 
 [spinner]                        # three quarters of a ring, turning, in the text's colour
 height = 24                      # its side; a widget's own height wins
+duration = 0.75                  # seconds a turn takes; stroke_width is the ring's, an eighth of the side unset
+                                 # a `loading` button's spinner is this table's too
+
+[switch]
+height = 18                      # the track; width is 1.75 of it unset
 
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels

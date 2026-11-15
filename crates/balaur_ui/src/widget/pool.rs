@@ -731,12 +731,12 @@ fn four_sides(value: Value) -> Value {
 const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?, on_change: string?, on_submit: string?, data: any, \
     role: string?, text: string?, tooltip: string?, icon: string?, icon_color: string?, image: string?, \
     font: string?, prefix: string?, trailing: string?, placeholder: string?, fill: string?, stroke: string?, \
-    align_items: string?, justify: string?, text_align: string?, anchor: string?, fit: string?, \
+    align_items: string?, justify: string?, text_align: string?, anchor: string?, fit: string?, state: string?, \
     grow: float?, width: float?, height: float?, min_width: float?, x: float?, y: float?, \
     font_size: float?, icon_size: float?, corner_radius: float?, row_height: float?, \
     min: float?, max: float?, step: float?, drag_speed: float?, font_weight: int?, decimals: int?, \
     visible: bool?, enabled: bool?, interactive: bool?, focusable: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
-    absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, \
+    absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, loading: bool?, \
     options: [string]?, items: [Item]?, value: any, text_color: string?, picked_color: Color?, padding: Sides?, inset: Sides?, margin: Sides?, gap: Vec2? }";
 
 /// `ui.fill_strip` and `ui.fill_slot`.

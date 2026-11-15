@@ -35,6 +35,17 @@ pub(crate) struct Scale {
     pub(crate) largest_finite: f64,
 }
 
+/// What a theme says of a slider, as daisyUI's range: the rail's colour
+/// (`fill`) and thickness (`stroke_width`), and the colour of what it has
+/// filled and of its thumb (`icon_color`, the control's mark). `None` takes
+/// egui's.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct SlidePaint {
+    pub(crate) rail: Option<egui::Color32>,
+    pub(crate) mark: Option<egui::Color32>,
+    pub(crate) thickness: Option<f32>,
+}
+
 /// What a slider is told.
 #[allow(
     clippy::struct_excessive_bools,
@@ -58,6 +69,8 @@ pub(crate) struct Slide<'a> {
     pub(crate) trailing_fill: Option<bool>,
     /// A rectangle this wide for each unit tall, rather than a disc.
     pub(crate) handle: Option<f32>,
+    /// The theme's colours and rail, over egui's.
+    pub(crate) paint: SlidePaint,
     pub(crate) update_while_editing: bool,
     pub(crate) eng: &'a balaur_core::Engine,
     /// What the number beside the rail is shaped from while it is typed.
@@ -187,7 +200,12 @@ impl Slide<'_> {
         let value = self.get();
         let look = ui.style().interact(response);
         let widgets = &ui.visuals().widgets;
-        let half = (ui.spacing().slider_rail_height / 2.0).max(0.0);
+        let half = (self
+            .paint
+            .thickness
+            .unwrap_or(ui.spacing().slider_rail_height)
+            / 2.0)
+            .max(0.0);
         let bar = if self.upright {
             Rect::from_min_max(
                 pos2(rect.center().x - half, rect.top()),
@@ -199,9 +217,19 @@ impl Slide<'_> {
                 pos2(rect.right(), rect.center().y + half),
             )
         };
-        let corner = widgets.inactive.corner_radius;
+        // As round as the rail is thick, as a range's track is.
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "half a rail, capped"
+        )]
+        let corner = egui::CornerRadius::same(half.round().clamp(0.0, 255.0) as u8);
         let painter = Brush::of(ui);
-        painter.fill(bar, corner, widgets.inactive.bg_fill);
+        painter.fill(
+            bar,
+            corner,
+            self.paint.rail.unwrap_or(widgets.inactive.bg_fill),
+        );
         let at = self.position_of(value, along);
         let centre: Pos2 = if self.upright {
             pos2(bar.center().x, at)
@@ -218,7 +246,11 @@ impl Slide<'_> {
             } else {
                 trail.max.x = centre.x + f32::from(corner.nw);
             }
-            painter.fill(trail, corner, ui.visuals().selection.bg_fill);
+            painter.fill(
+                trail,
+                corner,
+                self.paint.mark.unwrap_or(ui.visuals().selection.bg_fill),
+            );
         }
         let radius = self.handle_radius(&rect);
         match self.handle {
@@ -226,7 +258,7 @@ impl Slide<'_> {
                 painter.add(paint::circle(
                     centre,
                     radius + look.expansion,
-                    look.bg_fill,
+                    self.paint.mark.unwrap_or(look.bg_fill),
                     look.fg_stroke,
                 ));
             }
@@ -239,7 +271,7 @@ impl Slide<'_> {
                 painter.plate(
                     Rect::from_center_size(centre, 2.0 * half),
                     look.corner_radius,
-                    look.bg_fill,
+                    self.paint.mark.unwrap_or(look.bg_fill),
                     look.fg_stroke,
                     egui::StrokeKind::Inside,
                 );

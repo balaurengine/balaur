@@ -529,6 +529,12 @@ pub(crate) mod keys {
     /// The colour of the ring a focused control draws outside its edge, as
     /// CSS's `outline`.
     pub(crate) const OUTLINE: &str = "outline";
+    /// The focus ring's width, and its gap from the edge, as CSS's
+    /// `outline-width` and `outline-offset`.
+    pub(crate) const OUTLINE_WIDTH: &str = "outline_width";
+    pub(crate) const OUTLINE_OFFSET: &str = "outline_offset";
+    /// Seconds a spinner takes to turn once.
+    pub(crate) const DURATION: &str = "duration";
     pub(crate) const ICON_FILL: &str = "icon_fill";
     pub(crate) const VALUE: &str = "value";
     pub(crate) const SCROLL_OFFSET: &str = "scroll_offset";

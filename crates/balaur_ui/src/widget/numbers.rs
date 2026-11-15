@@ -101,15 +101,13 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         max_decimals: decimals,
         spelling: Spelling::of(&o.number_format),
         trailing_fill: Some(o.trailing_fill),
-        handle: if o.handle == w::RECT {
-            Some(o.handle_aspect)
-        } else {
-            match ui.style().visuals.handle_shape {
-                egui::style::HandleShape::Rect { aspect_ratio } => Some(aspect_ratio),
-                egui::style::HandleShape::Circle => None,
-            }
-        },
+        handle: handle_of(o, ui),
         update_while_editing: o.update_while_editing,
+        paint: crate::widget::slide::SlidePaint {
+            rail: look.style.fill,
+            mark: look.style.icon_color,
+            thickness: look.style.stroke_width,
+        },
         eng: at.eng,
         setter: crate::widget::typing::Typesetter::Plain(face.request(None)),
     }
@@ -121,6 +119,18 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // A drag lets go, or a key moved it with no drag at all.
     if response.drag_stopped() || (response.changed() && !response.dragged()) {
         at.edits.push((placed.entity, Edit::Committed(value)));
+    }
+}
+
+/// A slider's thumb: a rectangle this wide for each unit tall where the
+/// widget or egui's visuals ask for one, else a disc.
+fn handle_of(o: &crate::widget::node::EguiOptions, ui: &egui::Ui) -> Option<f32> {
+    if o.handle == w::RECT {
+        return Some(o.handle_aspect);
+    }
+    match ui.style().visuals.handle_shape {
+        egui::style::HandleShape::Rect { aspect_ratio } => Some(aspect_ratio),
+        egui::style::HandleShape::Circle => None,
     }
 }
 
@@ -514,30 +524,40 @@ pub(crate) fn progress(
     Brush::clipped(ui, outer).galley(place, galley, ink);
 }
 
-/// Seconds a spinner takes to turn once.
-const SPIN_SECONDS: f64 = 0.75;
+/// Seconds a spinner takes to turn once where its theme states no `duration`:
+/// daisyUI's.
+const SPIN_SECONDS: f32 = 0.75;
 /// Points along a spinner's arc.
 const ARC_STEPS: usize = 24;
 
 /// A spinner, as daisyUI's `loading-spinner`: three quarters of a ring with
-/// round ends, turning once every 0.75 s, in the text's colour, as big as
-/// [`crate::widget::sizing::spinner_side`]. It turns on the engine's clock
-/// under a fixed step, so a picture of it is the same every run.
+/// round ends, turning once every `duration` (0.75 s), in the text's colour,
+/// as big as [`crate::widget::sizing::spinner_side`]. It turns on the
+/// engine's clock under a fixed step, so a picture of it is the same every run.
 pub(crate) fn spinner(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, color: Color32) {
     let side =
         crate::widget::sizing::spinner_side(&at.resting(index).style, &at.arena[index].widget);
     let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(side), Sense::hover());
-    spin(ui, &Brush::of(ui), rect, color, at.ui_now());
+    let style = at.resting(index).style.clone();
+    spin(ui, &Brush::of(ui), (rect, color), &style, at.ui_now());
 }
 
-/// The spinner's ring in `rect`, turned to where `now` puts it: a `spinner`
-/// widget's, and a `loading` button's before its caption.
-pub(crate) fn spin(ui: &egui::Ui, brush: &Brush, rect: egui::Rect, color: Color32, now: f64) {
+/// The spinner's ring in `rect`, in `color`, turned to where `now` puts it:
+/// a `spinner` widget's, and a `loading` button's before its caption. The
+/// `[spinner]` style says how long a turn takes and how thick the ring is.
+pub(crate) fn spin(
+    ui: &egui::Ui,
+    brush: &Brush,
+    (rect, color): (egui::Rect, Color32),
+    style: &crate::widget::theme::Style,
+    now: f64,
+) {
     use std::f32::consts::TAU;
     let side = rect.width().min(rect.height());
+    let turn = f64::from(style.duration.unwrap_or(SPIN_SECONDS));
     #[allow(clippy::cast_possible_truncation, reason = "a fraction of a turn")]
-    let start = (now.rem_euclid(SPIN_SECONDS) / SPIN_SECONDS) as f32 * TAU;
-    let width = (side / 8.0).max(1.5);
+    let start = (now.rem_euclid(turn) / turn) as f32 * TAU;
+    let width = style.stroke_width.unwrap_or((side / 8.0).max(1.5));
     let radius = side / 2.0 - width / 2.0;
     #[allow(clippy::cast_precision_loss, reason = "a handful of steps")]
     let points: Vec<egui::Pos2> = (0..=ARC_STEPS)

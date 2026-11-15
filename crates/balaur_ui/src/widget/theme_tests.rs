@@ -247,3 +247,20 @@ fn a_role_spaces_and_cases_its_letters_and_a_state_table_cannot() {
     );
     assert_eq!(theme.resolved("label", "shout").text_transform, None);
 }
+
+#[test]
+fn a_focus_ring_s_width_and_gap_and_a_spinner_s_turn_are_the_theme_s() {
+    let text = "type = \"widget_theme\"\n\n[button.focus]\noutline_width = 3\noutline_offset = 4\n\n[spinner]\nduration = 1.5\n";
+    let theme = parse(&toml::from_str::<toml::Value>(text).unwrap());
+    let focused = theme.resolved("button", "").in_states(WidgetState {
+        focused: true,
+        ..WidgetState::default()
+    });
+    assert_eq!(focused.ring(), (4.0, 3.0));
+    assert_eq!(
+        theme.resolved("label", "").ring(),
+        (2.0, 2.0),
+        "2 and 2 unset"
+    );
+    assert_eq!(theme.resolved("spinner", "").duration, Some(1.5));
+}

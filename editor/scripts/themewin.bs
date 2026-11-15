@@ -36,6 +36,13 @@ const ACTIVE: str = "active";
 const BOXES: str = "boxes";
 const CENTER: str = "center";
 const CONTROLS: str = "controls";
+// The states a control role is shown in, each held by the sample's `state`.
+const HOVER: str = "hover";
+const FOCUS: str = "focus";
+const HELD_NONE: str = "none";
+const REST: str = "rest";
+const OFF: str = "off";
+const SAMPLE_WIDTH: float = 72.0;
 const DEFAULT: str = "default";
 const EDIT: str = "edit";
 const FILL: str = "fill";
@@ -91,7 +98,7 @@ fn PAGES() -> [str] {
 
 // The tables under a role that replace it in a state, and the class one.
 fn STATES() -> [str] {
-    ["hover", ACTIVE, "focus", "disabled", "checked", "touch"]
+    [HOVER, ACTIVE, FOCUS, "disabled", "checked", "touch"]
 }
 
 // Every key a role or a kind may state, in the order its rows list them.
@@ -663,8 +670,9 @@ fn summary(table: any) -> str {
     if out == "" { "nothing stated" } else { out }
 }
 
-/// The entry drawn as itself: a text role as a label in it, a control or a
-/// box as a button wearing it, and layout as the numbers it states.
+/// The entry drawn as itself: a text role as a label in it, a control in
+/// every state a theme dresses, a box as a button wearing it, and layout as
+/// the numbers it states.
 fn sample(state: editor::State, name: str, path: [str], table: any) -> ui::Control {
     let page = if path.len() == 2 { page_of(name) } else { KINDS };
     if page == LAYOUT || page == KINDS {
@@ -673,7 +681,29 @@ fn sample(state: editor::State, name: str, path: [str], table: any) -> ui::Contr
     if page == components::TEXT {
         return ui::Control { kind: ui::WIDGET_LABEL, role: name, grow: 1, text: name };
     }
+    if page == CONTROLS {
+        return ui::Control { kind: ui::WIDGET_ROW, controls: in_states(name, path) };
+    }
     ui::Control { kind: ui::WIDGET_BUTTON, role: name, width: 200, text: name, on_click: "handle", data: { fields::FN: on_sample_clicked, project_fields::PATH: path } }
+}
+
+/// A control role at rest, under the pointer, held, focused and off, each
+/// held there by its `state`, so a theme's every table shows at once.
+fn in_states(name: str, path: [str]) -> [ui::Control] {
+    let out: [ui::Control] = [];
+    for held in [HELD_NONE, HOVER, ACTIVE, FOCUS] {
+        out.push(ui::Control {
+            kind: ui::WIDGET_BUTTON,
+            role: name,
+            width: SAMPLE_WIDTH,
+            text: if held == HELD_NONE { REST } else { held },
+            state: held,
+            on_click: "handle",
+            data: { fields::FN: on_sample_clicked, project_fields::PATH: path },
+        });
+    }
+    out.push(ui::Control { kind: ui::WIDGET_BUTTON, role: name, width: SAMPLE_WIDTH, text: OFF, enabled: false });
+    out
 }
 
 fn on_sample_clicked(state: &mut editor::State, data: any, _value: any) {
