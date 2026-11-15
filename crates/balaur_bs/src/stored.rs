@@ -92,6 +92,17 @@ impl Compiled {
             w.str(class);
             w.str(file);
         });
+        w.list(&m.public_fields, |w, (ty, fields)| {
+            w.str(ty);
+            w.list(fields, |w, (name, doc)| {
+                w.str(name);
+                w.str(doc);
+            });
+        });
+        w.list(&m.variants, |w, (ty, names)| {
+            w.str(ty);
+            w.list(names, |w, name| w.str(name));
+        });
         w.0
     }
 
@@ -155,25 +166,8 @@ impl Compiled {
                 r.list(|r| Some((r.str()?, r.bool()?, r.literal()?)))?,
             ))
         })?;
-        let unit = if r.bool()? {
-            Some(Unit {
-                data_len: r.u32()?,
-                fns: r.list(Reader::str)?,
-                links: r.list(|r| {
-                    Some(Link {
-                        file: r.str()?,
-                        export: r.str()?,
-                        params: r.slots()?,
-                        results: r.slots()?,
-                    })
-                })?,
-                breaks_at: r.u32()?,
-                rows_at: r.u32()?,
-            })
-        } else {
-            None
-        };
-        let class_files = r.list(|r| Some((r.str()?, r.str()?)))?;
+        let unit = if r.bool()? { Some(r.unit()?) } else { None };
+        let (class_files, public_fields, variants) = r.shapes()?;
         let (by_key, by_owner) = crate::codegen::lookups(&fns);
         let meta = Meta {
             structs,
@@ -194,6 +188,8 @@ impl Compiled {
             defaults,
             unit,
             class_files,
+            public_fields,
+            variants,
         };
         r.0.is_empty().then_some(Compiled {
             wasm,
@@ -297,6 +293,43 @@ impl Writer {
 struct Reader<'a>(&'a [u8]);
 
 impl Reader<'_> {
+    /// A unit's link data.
+    fn unit(&mut self) -> Option<Unit> {
+        Some(Unit {
+            data_len: self.u32()?,
+            fns: self.list(Reader::str)?,
+            links: self.list(|r| {
+                Some(Link {
+                    file: r.str()?,
+                    export: r.str()?,
+                    params: r.slots()?,
+                    results: r.slots()?,
+                })
+            })?,
+            breaks_at: self.u32()?,
+            rows_at: self.u32()?,
+        })
+    }
+
+    /// Each class's file, each struct's `pub` fields, and each enum's variants.
+    #[allow(
+        clippy::type_complexity,
+        reason = "three of Meta's own fields, read in order"
+    )]
+    fn shapes(
+        &mut self,
+    ) -> Option<(
+        Vec<(String, String)>,
+        Vec<(String, Vec<(String, String)>)>,
+        Vec<(String, Vec<String>)>,
+    )> {
+        let class_files = self.list(|r| Some((r.str()?, r.str()?)))?;
+        let public_fields =
+            self.list(|r| Some((r.str()?, r.list(|r| Some((r.str()?, r.str()?)))?)))?;
+        let variants = self.list(|r| Some((r.str()?, r.list(Reader::str)?)))?;
+        Some((class_files, public_fields, variants))
+    }
+
     fn probe(&mut self) -> Option<Probe> {
         Some(Probe {
             func: self.u32()?,

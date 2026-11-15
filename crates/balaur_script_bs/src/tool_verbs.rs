@@ -63,7 +63,7 @@ const VERBS: &[FnDoc] = &[
     ("find", &[], "(path: string, source: string, needle: string) -> [Place]", "Every place that text appears in the file, matched as text rather than as a name."),
     ("replace", &[], "(path: string, source: string, from: string, to: string) -> [Edit]", "The file with that text replaced; nothing is written, so a caller can show it first."),
     ("format", &[], "(path: string, source: string) -> string", "The source laid out as `balaur fmt` lays it out; unchanged when it will not parse."),
-    (words::EXPORTS, &[], "(path: string) -> list", "The `pub` fields of the script's struct, which a scene tunes, with their types and defaults."),
+    (words::EXPORTS, &[], "(path: string) -> list", "Every `pub` field of the script's class, which a scene tunes, in the order the file declares them: its `name` and its spec, `type` and `default`, with `of`, `fields`, `options`, `variants` or `description` where they apply."),
     (words::API, &[], "() -> [ApiModule]", "Every module a script can reach: its functions, their signatures and what each does, and its constants."),
 ];
 
@@ -163,20 +163,20 @@ fn list_at<'a>(map: &'a Value, key: &str) -> &'a [Value] {
     }
 }
 
-/// What the script at `key` declares tunable, one row a property in name
-/// order: its `name`, then its spec's `type`, `default` and the rest.
+/// What the script at `key` declares tunable, one row a property in the order
+/// its file declares them: its `name`, then its spec's `type`, `default` and
+/// the rest.
 fn exports(eng: &Engine, key: &str) -> Value {
     let Some(scripts) = eng.script_host() else {
         return Value::List(vec![]);
     };
-    let mut declared = match scripts.exports(key) {
+    let declared = match scripts.exports(key) {
         Ok(declared) => declared,
         Err(err) => {
             tracing::error!("script::exports({key}): {err:#}");
             return Value::List(vec![]);
         }
     };
-    declared.sort_by(|a, b| a.0.cmp(&b.0));
     let rows = declared
         .into_iter()
         .map(|(name, spec)| {

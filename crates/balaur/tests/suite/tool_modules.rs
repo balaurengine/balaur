@@ -115,7 +115,7 @@ fn a_script_reads_what_another_declares_tunable() {
     let app = booted(dir.path());
     assert_eq!(
         field(&app, "Tuned", "seen"),
-        Some(Str("2 label=go speed:float".into()))
+        Some(Str("2 speed=2.5 label:string".into()))
     );
 }
 

@@ -104,8 +104,8 @@ pub fn broken() -> int { core::seed() }
 ```
 
 `pub` says more than the others on two things. A `pub` free function is one the engine may call, and a `pub`
-field with a default is a [property](engine/properties.md) a scene tunes. A field other files read and no scene
-should set is `internal`.
+field is a [property](engine/properties.md) a scene tunes. A field other files read and no scene should set is
+`internal`.
 
 The engine and `node.call` reach a method by its name as the script runs, so its hooks need no mark.
 

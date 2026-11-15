@@ -123,8 +123,8 @@ The traps a newcomer meets first. `docs/language/` is the whole language.
 - An unmarked item is its file's own, `internal` its package's (the
   `addons/<name>` or `deps/<alias>` it sits in, else the project), `pub`
   everyone's. A `pub` free function is also an entry point for the engine, and
-  a `pub` field with a default is what a scene tunes, so a field other files
-  only read is `internal`.
+  a `pub` field is what a scene tunes, so a field other files only read is
+  `internal`.
 - A host function's error **ends the whole script call**, and nothing catches
   it. A typo should: a component or property nothing has, a node that is gone.
   Where a failure is expected the host answers nil or `false` instead

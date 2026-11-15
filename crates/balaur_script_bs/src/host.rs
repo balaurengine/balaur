@@ -5,10 +5,9 @@
 
 use crate::api::{self, Registry};
 use crate::convert::{from_neutral, to_neutral};
-use crate::vocabulary::words;
 use anyhow::{Context, Result, anyhow};
 use balaur_bs::runtime::{HostFns, Limits, Object, Reentry, Runtime, Value as L};
-use balaur_bs::{Compiled, HostApi, Literal, Options, Ty};
+use balaur_bs::{Compiled, HostApi, Options, Ty};
 use balaur_core::{Engine, Pack};
 use balaur_script::{Module, NodeId, Pause, ScriptCompiler, ScriptHost, StepMode, Value};
 use debug::Held;
@@ -22,6 +21,7 @@ use tasks::{Pending, WaitingStart};
 mod burst;
 mod debug;
 mod engine_facing;
+mod exports;
 mod holds;
 mod links;
 mod profile;
@@ -1116,24 +1116,6 @@ fn report(r: Result<Option<Value>>) -> Option<Value> {
         tracing::error!("{e:#}");
         None
     })
-}
-
-fn spec(lit: &Literal, ty: &Ty) -> Value {
-    let (kind, default) = match lit {
-        Literal::Int(v) => (words::doc_types::INT, Value::Int(*v)),
-        Literal::Float(v) => (words::doc_types::FLOAT, Value::Num(*v)),
-        Literal::Bool(v) => (words::doc_types::BOOL, Value::Bool(*v)),
-        Literal::Str(v) => (words::doc_types::STRING, Value::Str(v.clone())),
-    };
-    let kind = if *ty == Ty::Float {
-        words::doc_types::FLOAT
-    } else {
-        kind
-    };
-    Value::Map(vec![
-        ("type".into(), Value::text(kind)),
-        ("default".into(), default),
-    ])
 }
 
 // An export compiles every `.bs` as a check and packs the source it checked.

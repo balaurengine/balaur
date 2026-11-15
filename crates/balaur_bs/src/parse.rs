@@ -252,10 +252,13 @@ pub(crate) fn parse(src: &str) -> Result<Program, Error> {
     while p.peek() != &Tok::Eof {
         p.item(&mut prog)?;
     }
-    if !prog.events.is_empty() {
-        let lines: Vec<&str> = src.lines().collect();
-        for event in &mut prog.events {
-            event.doc = doc_above(&lines, event.pos.line);
+    let lines: Vec<&str> = src.lines().collect();
+    for event in &mut prog.events {
+        event.doc = doc_above(&lines, event.pos.line);
+    }
+    for (_, fields) in &mut prog.structs {
+        for field in fields.iter_mut().filter(|field| field.public) {
+            field.doc = doc_above(&lines, field.pos.line);
         }
     }
     Ok(prog)
@@ -476,6 +479,7 @@ impl Parser {
                 internal,
                 default,
                 pos,
+                doc: String::new(),
             });
             if !self.eat(",") {
                 self.want("}")?;

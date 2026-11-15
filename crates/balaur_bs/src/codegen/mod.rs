@@ -1015,6 +1015,8 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
             rows_at,
         }),
         class_files: sorted(&g.class_files),
+        public_fields: public_fields(prog),
+        variants: variants(prog),
     };
     Ok(Compiled {
         wasm: m.finish(),
@@ -1042,6 +1044,24 @@ fn direct_imports(
 }
 
 // Each struct's fields, by name and type.
+fn variants(prog: &Program) -> Vec<(String, Vec<String>)> {
+    prog.enums
+        .iter()
+        .map(|e| (e.name.clone(), e.variants.iter().map(|v| v.name.clone()).collect()))
+        .collect()
+}
+
+fn public_fields(prog: &Program) -> Vec<(String, Vec<(String, String)>)> {
+    prog.structs
+        .iter()
+        .map(|(name, fields)| {
+            let shown = fields.iter().filter(|f| f.public);
+            (name.clone(), shown.map(|f| (f.name.clone(), f.doc.clone())).collect())
+        })
+        .filter(|(_, fields): &(String, Vec<(String, String)>)| !fields.is_empty())
+        .collect()
+}
+
 fn struct_fields(prog: &Program) -> Vec<(String, Vec<(String, Ty)>)> {
     prog.structs
         .iter()

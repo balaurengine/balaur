@@ -11,9 +11,9 @@ use crate::ast::{
 };
 use crate::vocabulary::words;
 
-const TAG: &str = "#tag";
+pub(crate) const TAG: &str = "#tag";
 
-fn slot(variant: &str, field: &str) -> String {
+pub(crate) fn slot(variant: &str, field: &str) -> String {
     format!("{variant}#{field}")
 }
 
@@ -31,6 +31,7 @@ pub(crate) fn holder(decl: &EnumDecl) -> Vec<Field> {
         internal: false,
         default: None,
         pos: decl.pos,
+        doc: String::new(),
     }];
     for v in &decl.variants {
         for (f, t) in &v.fields {
@@ -46,6 +47,7 @@ pub(crate) fn holder(decl: &EnumDecl) -> Vec<Field> {
                 internal: false,
                 default: None,
                 pos: v.pos,
+                doc: String::new(),
             });
         }
     }

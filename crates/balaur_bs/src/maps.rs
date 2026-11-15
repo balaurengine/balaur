@@ -14,6 +14,11 @@ const CLASS: &str = "Table";
 /// What the template's key and value types are called in it.
 const KEY: &str = "K";
 const VALUE: &str = "V";
+/// The table's fields that hold its keys and its values, in the order set.
+pub(crate) const KEYS: &str = "keys_in_order";
+pub(crate) const VALUES: &str = "values_in_order";
+/// The template's function that makes a map from its keys and its values.
+pub(crate) const MAKER: &str = "of";
 
 thread_local! {
     static PARSED: std::cell::OnceCell<Program> = const { std::cell::OnceCell::new() };

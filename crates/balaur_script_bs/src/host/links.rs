@@ -16,14 +16,16 @@ pub(super) struct Link {
     target: Option<u64>,
 }
 
-/// The class a field holds, when its type is a class or `T?` of one.
+/// The script's class a field holds, when its type is one or `T?` of one.
 pub(super) fn class_of(file: &File, ty: &Ty) -> Option<String> {
     let class = match ty {
         Ty::Optional(inner) => &**inner,
         other => other,
     };
     match class {
-        Ty::Struct(name) if file.compiled.meta.is_class(name) => Some(name.clone()),
+        Ty::Struct(name) if super::exports::is_script_class(&file.compiled.meta, name) => {
+            Some(name.clone())
+        }
         _ => None,
     }
 }

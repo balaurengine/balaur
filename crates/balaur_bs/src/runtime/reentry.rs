@@ -98,6 +98,11 @@ impl Reentry {
         self.inside(|rt| rt.link(key, unit, uses))
     }
 
+    /// [`Runtime::call`] in unit `unit`, from inside the file's engine call.
+    pub fn call(&self, unit: usize, key: &str, args: &[Value]) -> Result<Value, RunError> {
+        self.inside(|rt| rt.in_unit(unit, |rt| rt.call(key, args)))
+    }
+
     /// [`Runtime::set`] from inside the file's engine call.
     pub fn set(&self, obj: &mut Object, field: &str, value: &Value) -> Result<(), RunError> {
         self.inside(|rt| rt.set(obj, field, value))

@@ -65,16 +65,11 @@ pub trait ScriptHost<C: ?Sized> {
     /// End a hold; the outermost runs the held `init`s in attach order.
     fn release_inits(&self) {}
 
-    /// What `path`'s `exports` declares tunable, one spec per property.
-    ///
-    /// Each `Value` is a map in the component schema's own vocabulary:
-    /// `type` and `default`, plus whatever of `min`, `max`, `step`,
-    /// `options`, `asset`, `help` and `order` was written. A script that
-    /// wrote a bare default gets one built for it, so every reader sees one
-    /// shape and an inspector reaches for the editor it already has.
-    ///
-    /// Empty for a script without one, which is also every script that
-    /// predates the convention. The file is compiled if it is not loaded.
+    /// What `path` declares tunable: each `pub` field of its class, in the
+    /// order it declares them, with a spec in the component schema's own
+    /// vocabulary (`type`, `default`, and `of`, `fields`, `options`,
+    /// `variants` or `description` where they apply). A field whose type has
+    /// no shape to draw is left out. The file is compiled if it is not loaded.
     fn exports(&self, path: &str) -> Result<Vec<(String, Value)>> {
         let _ = path;
         Ok(Vec::new())

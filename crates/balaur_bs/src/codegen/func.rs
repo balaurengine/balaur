@@ -803,7 +803,7 @@ impl<'a> FnGen<'a> {
             };
             let made = Expr {
                 kind: ExprKind::Call(
-                    crate::maps::function(class, "of"),
+                    crate::maps::function(class, crate::maps::MAKER),
                     vec![list(keys), list(values)],
                 ),
                 pos: e.pos,

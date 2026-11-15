@@ -1,22 +1,29 @@
 ---
-title: Exported properties
-description: "A pub field with a default is a property the inspector shows and a scene sets: what may be exported, how overrides work, and nodes and scripts as properties."
+title: Properties
+description: "Every pub field of a script is a property the inspector shows and a scene sets, whatever its type: how each kind is written, defaults, descriptions, and nodes and scripts as properties."
 image: /img/social/scripting.png
 sidebar_position: 2
 ---
 
-# Exported properties
+# Properties
 
-A `pub` field with a literal default is a property. The inspector shows it, and a scene sets it per node.
+Every `pub` field of a script's class is a property. The inspector shows it, and a scene sets it per node. An
+`internal` field or one with no mark stays the script's own.
 
 ```bs
 // scripts/turret.bs
+pub enum Mode { Idle, Firing }
+
 pub class Turret {
+    /// How far it reaches, in metres.
     pub range: float = 12.0,
     pub burst: int = 3,
-    pub armed: bool = true,
     pub label: str = "turret",
     pub target: Node,
+    pub mode: Mode,
+    pub aim: Vec3,
+    pub waves: [int],
+    pub costs: {str: int},
     node: Node,
 }
 
@@ -37,11 +44,24 @@ source = "scripts/turret.bs"
 [nodes.script.props]
 range = 20.0
 target = "../Enemy"
+mode = "Firing"
+aim = [0.0, 1.0, 0.0]
+waves = [3, 5, 8]
+costs = { gold = 10, wood = 4 }
 ```
 
-- A default is an `int`, a `float`, a `bool` or a `str` literal, and its type is what the inspector draws.
-- The object is made with its defaults, the scene's `props` go over them, and then `init` runs, so `init` reads tuned values.
-- A scene stores only what differs from the default, so changing a default reaches every node that never overrode it.
+- The type is what the inspector draws: a number, a toggle, text, a node picker, a list, a table of named
+  values, a struct's fields, or a choice of an enum's variants.
+- A default may be an `int`, a `float`, a `bool` or a `str` literal. A field with none starts empty: `0`, `""`,
+  an empty list or map, the enum's first variant.
+- The `///` lines above a field are what the inspector says of it.
+- An enum whose variants carry fields is written as a table naming the variant:
+  `shape = { kind = "Rect", "0" = 2.0, "1" = 3.0 }`.
+- An `any` or a `fn` field has no shape to draw, so it is no property; a `{str: V}` map is.
+- The object is made with its defaults, the scene's `props` go over them, and then `init` runs, so `init` reads
+  tuned values.
+- A scene stores only what differs from the default, so changing a default reaches every node that never
+  overrode it.
 - A prop naming no field is dropped, with a warning in the log.
 
 ## Nodes as properties

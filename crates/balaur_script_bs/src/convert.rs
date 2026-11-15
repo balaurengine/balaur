@@ -1,6 +1,7 @@
 // Between the seam's neutral values and the script's typed ones.
 
 use crate::api::Structs;
+use crate::vocabulary::keys;
 use balaur_bs::runtime::{CallArgs, Value as L};
 use balaur_bs::{Meta, Ty};
 use balaur_script::Value as N;
@@ -12,11 +13,18 @@ const ORIGIN: &str = "origin";
 /// module knows, or the engine's own.
 pub(crate) trait Records {
     fn fields_of(&self, name: &str) -> Option<&[(String, Ty)]>;
+    /// An enum's variant names in tag order; `None` for any other record.
+    fn variants_of(&self, _name: &str) -> Option<&[String]> {
+        None
+    }
 }
 
 impl Records for Meta {
     fn fields_of(&self, name: &str) -> Option<&[(String, Ty)]> {
         self.fields(name)
+    }
+    fn variants_of(&self, name: &str) -> Option<&[String]> {
+        self.variants(name)
     }
 }
 
@@ -217,6 +225,11 @@ pub(crate) fn from_neutral<R: Records>(v: &N, ty: &Ty, records: &R) -> L {
                 return L::Struct(SmolStr::new(name), values);
             }
             if let Some(fields) = records.fields_of(name) {
+                if let Some(variants) = records.variants_of(name)
+                    && let Some(tagged) = tagged(variants, v)
+                {
+                    return record(name, fields, &tagged, records);
+                }
                 return record(name, fields, v, records);
             }
             match v {
@@ -226,6 +239,26 @@ pub(crate) fn from_neutral<R: Records>(v: &N, ty: &Ty, records: &R) -> L {
         }
         _ => L::Void,
     }
+}
+
+// An enum as a scene writes it, its variant's name or `{ kind, ..fields }`,
+// spelled as its holder's fields. `None` for a value already in that shape.
+fn tagged(variants: &[String], v: &N) -> Option<N> {
+    let (kind, fields): (&str, &[(String, N)]) = match v {
+        N::Str(kind) => (kind, &[]),
+        N::Map(entries) => match entries.iter().find(|(k, _)| k == keys::KIND) {
+            Some((_, N::Str(kind))) => (kind, entries),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let at = variants.iter().position(|name| name == kind)?;
+    let tag = i64::try_from(at).ok()?;
+    let mut held = vec![(balaur_bs::ENUM_TAG.to_string(), N::Int(tag))];
+    for (field, value) in fields.iter().filter(|(k, _)| k != keys::KIND) {
+        held.push((balaur_bs::enum_slot(kind, field), value.clone()));
+    }
+    Some(N::Map(held))
 }
 
 // A table as the record it is declared to be, field by field; one it does

@@ -6,6 +6,7 @@
     reason = "a part of the module above, split for length"
 )]
 use super::*;
+use super::exports;
 
 const ON_FREE: &str = "on_free";
 
@@ -98,6 +99,12 @@ impl ScriptHost<Engine> for BsHost {
                 Some(t) if links::class_of(&file, &t).is_some() && links::path_of(v).is_some() => {
                     self.note_link(node.0, name, links::path_of(v).unwrap_or_default());
                 }
+                Some(t) if matches!(v, Value::Map(_)) && exports::map_class(&file, &t).is_some() => {
+                    let class = exports::map_class(&file, &t).unwrap_or_default();
+                    if let Some(made) = exports::made_map(&file, &class, v, path) {
+                        init.push((name.clone(), made));
+                    }
+                }
                 Some(t) => {
                     let v = self.nodes_named(node, (path, name), v, &t);
                     init.push((name.clone(), from_neutral(&v, &t, &file.compiled.meta)));
@@ -155,13 +162,7 @@ impl ScriptHost<Engine> for BsHost {
 
     fn exports(&self, path: &str) -> Result<Vec<(String, Value)>> {
         let file = self.file(path)?;
-        let meta = &file.compiled.meta;
-        Ok(meta
-            .defaults(&file.ty)
-            .iter()
-            .filter(|(_, public, _)| *public)
-            .map(|(n, _, lit)| (n.clone(), spec(lit, &file.field_ty(n).unwrap_or(Ty::Void))))
-            .collect())
+        Ok(super::exports::exports(&file, path))
     }
 
     // Read from the source, so a build without the compiler answers none.

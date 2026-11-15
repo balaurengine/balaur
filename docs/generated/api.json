@@ -26319,7 +26319,7 @@
         "check": "Every compiler error in the source, read as the file at the path: one for each function that does not compile.",
         "complete": "Every completion valid at that caret; an editor passes the buffer it is showing.",
         "definition": "Where the name at that caret is declared in the file; nil when it is not.",
-        "exports": "The `pub` fields of the script's struct, which a scene tunes, with their types and defaults.",
+        "exports": "Every `pub` field of the script's class, which a scene tunes, in the order the file declares them: its `name` and its spec, `type` and `default`, with `of`, `fields`, `options`, `variants` or `description` where they apply.",
         "find": "Every place that text appears in the file, matched as text rather than as a name.",
         "format": "The source laid out as `balaur fmt` lays it out; unchanged when it will not parse.",
         "hover": "What the name at that caret is: its type, or its signature; nil when it is nothing.",

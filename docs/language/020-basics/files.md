@@ -37,8 +37,8 @@ const NAME = "ball";
 
 An item, a field or a method without a mark belongs to its file, and naming it from elsewhere
 does not compile. `pub` opens it to every file, and `internal` to the files of its package.
-[Modules](../modules.md) has the rule. A `pub` field with a default is also an
-[exported property](../engine/properties.md).
+[Modules](../modules.md) has the rule. A `pub` field is also a
+[property](../engine/properties.md).
 
 ## Comments
 

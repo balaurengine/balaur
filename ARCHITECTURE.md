@@ -268,11 +268,27 @@ neither the code generator, the C translator nor any engine knows them.
 - An enum is a value, so one cannot hold itself; a recursive shape goes
   through a class or an array.
 
-### Exported properties
+### Properties
 
-A `pub` field with a literal default (`pub speed: float = 2.0`) is what a
-scene may tune; `script.props` overrides only what it names.
+Every `pub` field of a script's class is what a scene may tune, whatever its
+type; `script.props` overrides only what it names. Visibility is the whole
+rule, as Godot's `@export` is: an `internal` or unmarked field stays the
+script's own, so there is no second marker to keep in step with it.
 
+- `exports()` answers each `pub` field in declaration order with a spec in the
+  component schema's words, held by the same check
+  (`node_api::checked_property_spec`), so the inspector draws a script's rows
+  with a component's drawers. A number, `bool` or `str` is itself; a `Node`,
+  or another script's class, a `node`; `[T]` a `list`; `{str: V}` a `map`; a
+  struct a `record` of its `pub` fields; a unit-only enum an `enum` of its
+  names; one with fields a `variant`; `Vec2`, `Vec3` and `Color` the vectors.
+  An `any`, a `fn` and a transform have no shape to draw and are left out.
+- The `///` text above a field is its `description`; the compiler keeps it in
+  `Meta.public_fields`, beside each enum's variant names in `Meta.variants`.
+- A field with no literal default starts at the schema's zero for its spec.
+- A typed map is made by the map's own `of`, so its slots are filled as a
+  literal's are. An enum is written by its variant's name, or as `{ kind,
+  ..fields }` for one with fields.
 - At attach: the struct is made with its defaults, `props` written over them,
   then `init`, so `init` reads tuned values.
 - A prop naming no field is dropped, and warns.

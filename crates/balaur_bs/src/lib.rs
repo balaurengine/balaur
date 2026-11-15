@@ -39,6 +39,15 @@ pub fn module_hash(wasm: &[u8]) -> String {
     format!("{:032x}", twox_hash::XxHash3_128::oneshot(wasm))
 }
 
+/// The field of an enum's holder that carries its variant's index.
+pub const ENUM_TAG: &str = enums::TAG;
+
+/// The field of an enum's holder that carries `variant`'s `field`.
+#[must_use]
+pub fn enum_slot(variant: &str, field: &str) -> String {
+    enums::slot(variant, field)
+}
+
 /// The class a script file declares, named after the file:
 /// `scripts/rail_drag.bs` declares `RailDrag`. A node running the file is an
 /// object of it; a file without it is a module others `use`.
@@ -340,6 +349,11 @@ pub struct Meta {
     /// Each class the module names and the file that declares it: what a host
     /// checks an object against before a field of the class holds it.
     pub class_files: Vec<(String, String)>,
+    /// Each struct's `pub` fields in declaration order, with the `///` text
+    /// above each: what a scene may set and an inspector lists.
+    pub public_fields: Vec<(String, Vec<(String, String)>)>,
+    /// Each enum's variant names, in tag order.
+    pub variants: Vec<(String, Vec<String>)>,
 }
 
 /// What a unit needs from the runtime that runs it.
@@ -393,6 +407,37 @@ impl Meta {
     pub fn method(&self, ty: &str, name: &str) -> Option<&FnInfo> {
         let i = self.by_owner.get(ty)?.get(name)?;
         Some(&self.fns[*i])
+    }
+    /// `ty`'s `pub` fields in declaration order, each with its doc.
+    pub fn public_fields(&self, ty: &str) -> &[(String, String)] {
+        self.public_fields
+            .iter()
+            .find(|(n, _)| n == ty)
+            .map_or(&[], |(_, f)| f.as_slice())
+    }
+    /// Enum `ty`'s variant names, in tag order; `None` for any other type.
+    pub fn variants(&self, ty: &str) -> Option<&[String]> {
+        self.variants
+            .iter()
+            .find(|(n, _)| n == ty)
+            .map(|(_, v)| v.as_slice())
+    }
+    /// The function that makes a typed map class `ty` from its keys and its
+    /// values, as `{ str: int }::of`; `None` for any other type.
+    pub fn map_maker(&self, ty: &str) -> Option<String> {
+        maps::is_map(ty).then(|| maps::function(ty, maps::MAKER))
+    }
+    /// A typed map class's key and value types, read off the table it is.
+    pub fn map_types(&self, ty: &str) -> Option<(Ty, Ty)> {
+        if !maps::is_map(ty) {
+            return None;
+        }
+        let fields = self.fields(ty)?;
+        let element = |name: &str| match fields.iter().find(|(n, _)| n == name)?.1.clone() {
+            Ty::Array(inner) => Some(*inner),
+            _ => None,
+        };
+        Some((element(maps::KEYS)?, element(maps::VALUES)?))
     }
     /// The file that declares class `ty`.
     pub fn class_file(&self, ty: &str) -> Option<&str> {
@@ -462,6 +507,7 @@ fn host_structs(host: &HostApi, prog: &ast::Program) -> Vec<(String, Vec<ast::Fi
                     internal: false,
                     default: None,
                     pos: Pos::default(),
+                    doc: String::new(),
                 })
                 .collect();
             (n.clone(), fields)

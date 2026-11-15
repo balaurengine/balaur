@@ -218,7 +218,7 @@ pub(crate) struct Param {
     pub pos: Pos,
 }
 
-/// A struct field; `pub` with a default is what a scene may tune.
+/// A struct field; a `pub` one is what a scene may tune.
 #[derive(Clone, Debug)]
 pub(crate) struct Field {
     pub name: String,
@@ -228,6 +228,8 @@ pub(crate) struct Field {
     pub internal: bool,
     pub default: Option<Expr>,
     pub pos: Pos,
+    /// The `///` lines above it, as one line.
+    pub doc: String,
 }
 
 #[derive(Clone, Debug)]

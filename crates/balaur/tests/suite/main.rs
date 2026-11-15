@@ -39,6 +39,7 @@ mod save_addon;
 mod scene_switch;
 mod screenshot_events;
 mod script_check;
+mod script_exports;
 mod script_library;
 mod script_pause;
 mod script_reload;

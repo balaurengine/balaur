@@ -216,7 +216,7 @@ fn map_body(class: &str, into: bool, fields: &[(String, Ty)]) -> Block {
         }),
     ];
     let made = call(
-        &crate::maps::function(class, "of"),
+        &crate::maps::function(class, crate::maps::MAKER),
         vec![var(KEYS), var(VALUES)],
     );
     stmts.push(bind(MADE, Ty::Struct(class.to_string()), made));

@@ -379,7 +379,7 @@ stateDiagram-v2
 
 | State | What is true |
 | --- | --- |
-| `waiting_init` | In `instances`, its node in `held`. Exported properties are written, `init` has not run. |
+| `waiting_init` | In `instances`, its node in `held`. Properties are written, `init` has not run. |
 | `running` | In `instances`, and nothing holds it. Gets `update`, `fixed_update`, `call_all`, `announce` and `call_on`. |
 | `held` | In `instances`, and a pause, a `process` mode, a debugger stop or a paused replay holds it. A stop holds its debug scope and every instance of the file it stopped in, so an editor around the game runs on. `update`, `fixed_update` and `call_all` pass it by. `call_on` reaches it, and `announce` does under a pause or a mode. |
 | `gone` | Out of `instances`, `gone` set, its object dropped. A pass begun before still holds it and calls nothing. |
