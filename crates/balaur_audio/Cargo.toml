@@ -40,7 +40,7 @@ rodio = { version = "0.23", default-features = false, features = ["playback", "e
 [dev-dependencies]
 tempfile = "3"
 # A script that branches on `audio.device_ready`, for the replay tests.
-balaur_script_bs = { workspace = true, features = ["wasmi"] }
+balaur_script_bs = { workspace = true, features = ["wasmi", "compile"] }
 
 # The WebAudio host: cpal reaches the browser's AudioContext through
 # wasm-bindgen, so the same rodio backend plays on every target.
