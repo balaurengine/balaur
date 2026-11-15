@@ -774,8 +774,8 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         ),
         (
             "Item",
-            "{ label: string?, icon: string?, note: string?, tint: string?, key: string?, depth: int?, marks: [Mark]?, cells: [string]? }",
-            "One row of a `list`, `tree` or `table`: what it says and shows, its `key`, which `text`, `selection` and every row event know it by and which is its label or first cell where it names none, how deep in a tree it sits, its marks, and a table's `cells`.",
+            "{ label: string?, icon: string?, region: [float]?, note: string?, tint: string?, key: string?, depth: int?, marks: [Mark]?, cells: [string]? }",
+            "One row of a `list`, `tree` or `table`: what it says, the name of its icon in the theme's icon font, on a card the `region` of the list's sheet it shows instead, its `key`, which `text`, `selection` and every row event know it by and which is its label or first cell where it names none, how deep in a tree it sits, its marks, and a table's `cells`.",
         ),
         (
             "Mark",

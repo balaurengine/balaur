@@ -163,3 +163,77 @@ fn icons_are_named_in_the_theme_s_icon_font() {
         );
     }
 }
+
+// A `loading` button draws a spinner before its caption, in place of its
+// icon and at the icon's size, as daisyUI's loading button.
+#[test]
+fn a_loading_button_spins_before_its_caption() {
+    let (_dir, app) = app();
+    let idle = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Save" x = 20.0 y = 20.0 }.into(),
+    );
+    let busy = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Save" x = 20.0 y = 80.0 widget_button = { loading = true } }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let rect = |node| balaur_ui::widget_rect(node).expect("it drew");
+    let (idle, busy) = (rect(idle), rect(busy));
+    let ends: Vec<(egui::Pos2, f32)> = discs(&out)
+        .into_iter()
+        .filter(|(centre, _)| busy.contains(*centre))
+        .collect();
+    assert_eq!(ends.len(), 2, "the ring's two round ends: {ends:?}");
+    assert!(
+        ends.iter().all(|(centre, _)| centre.x < busy.center().x),
+        "before the caption"
+    );
+    assert!(
+        discs(&out)
+            .iter()
+            .all(|(centre, _)| !idle.contains(*centre))
+    );
+    assert!(busy.width() > idle.width(), "the spinner takes its room");
+}
+
+// A card in a list that names a `sheet` shows its `region` of it, in the
+// picture's own pixels, as an atlas picker shows its tiles.
+#[test]
+fn a_card_shows_its_region_of_the_list_s_sheet() {
+    let (dir, app) = app();
+    let mut sheet = image::RgbaImage::new(32, 16);
+    for (x, _, pixel) in sheet.enumerate_pixels_mut() {
+        *pixel = if x < 16 {
+            image::Rgba([255, 0, 0, 255])
+        } else {
+            image::Rgba([0, 0, 255, 255])
+        };
+    }
+    sheet.save(dir.path().join("sheet.png")).unwrap();
+    add_widget(
+        &app,
+        &toml::toml! {
+            kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
+            widget_list = { sheet = "sheet.png", grid_columns = "repeat(2, 1fr)" }
+            widget_rows = { items = [{ label = "left", region = [0.0, 0.0, 16.0, 16.0] }, { label = "right", region = [16.0, 0.0, 16.0, 16.0] }] }
+        }
+        .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    // A picture's quad spans its region's whole height; a glyph's is a sliver
+    // of the atlas.
+    let mut faces: Vec<egui::Rect> = glyphs(&pass(&app, &ctx, vec![]))
+        .into_iter()
+        .filter(|(_, uv)| uv.height() > 0.9)
+        .map(|(_, uv)| uv)
+        .collect();
+    faces.sort_by(|a, b| a.min.x.total_cmp(&b.min.x));
+    assert_eq!(faces.len(), 2, "{faces:?}");
+    assert!(faces[0].min.x.abs() < 0.01 && (faces[0].max.x - 0.5).abs() < 0.01);
+    assert!((faces[1].min.x - 0.5).abs() < 0.01 && (faces[1].max.x - 1.0).abs() < 0.01);
+}

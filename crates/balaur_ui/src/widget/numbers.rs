@@ -524,12 +524,19 @@ const ARC_STEPS: usize = 24;
 /// [`crate::widget::sizing::spinner_side`]. It turns on the engine's clock
 /// under a fixed step, so a picture of it is the same every run.
 pub(crate) fn spinner(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, color: Color32) {
-    use std::f32::consts::TAU;
     let side =
         crate::widget::sizing::spinner_side(&at.resting(index).style, &at.arena[index].widget);
     let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(side), Sense::hover());
+    spin(ui, &Brush::of(ui), rect, color, at.ui_now());
+}
+
+/// The spinner's ring in `rect`, turned to where `now` puts it: a `spinner`
+/// widget's, and a `loading` button's before its caption.
+pub(crate) fn spin(ui: &egui::Ui, brush: &Brush, rect: egui::Rect, color: Color32, now: f64) {
+    use std::f32::consts::TAU;
+    let side = rect.width().min(rect.height());
     #[allow(clippy::cast_possible_truncation, reason = "a fraction of a turn")]
-    let start = (at.ui_now().rem_euclid(SPIN_SECONDS) / SPIN_SECONDS) as f32 * TAU;
+    let start = (now.rem_euclid(SPIN_SECONDS) / SPIN_SECONDS) as f32 * TAU;
     let width = (side / 8.0).max(1.5);
     let radius = side / 2.0 - width / 2.0;
     #[allow(clippy::cast_precision_loss, reason = "a handful of steps")]
@@ -539,7 +546,6 @@ pub(crate) fn spinner(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, co
             rect.center() + vec2(libm::cosf(angle), libm::sinf(angle)) * radius
         })
         .collect();
-    let brush = Brush::of(ui);
     if let (Some(&first), Some(&last)) = (points.first(), points.last()) {
         brush.disc(first, width / 2.0, color);
         brush.disc(last, width / 2.0, color);

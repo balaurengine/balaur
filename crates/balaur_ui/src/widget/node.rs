@@ -259,6 +259,8 @@ pub struct Widget {
     pub icon_color: SmolStr,
     /// That glyph's size in design pixels; below zero takes the caption's.
     pub icon_size: f32,
+    /// A spinner before `text` in place of the icon, at the icon's size.
+    pub loading: bool,
     /// Greyed out, and deaf to clicks.
     pub disabled: bool,
     /// A fill and an outline this one widget states, as `#rrggbb` or a name

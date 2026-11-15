@@ -867,9 +867,12 @@ fn card(ui: &mut egui::Ui, item: &Item, c: &Card<'_>) -> CardHit {
     let sheet = c.sheet;
     Brush::of(ui).fill(rect, egui::CornerRadius::same(5), fill);
     let mut head = rect.top() + 6.0;
-    // A list that names a `sheet` reads the icon field as `x,y,w,h` in that
-    // picture's own pixels, which is how an atlas picker shows its tiles.
-    let region = sheet.and_then(|(_, native)| region_uv(native, icon));
+    // A list that names a `sheet` shows a card's `region` of it, which is
+    // how an atlas picker shows its tiles.
+    let [.., width, height] = item.region;
+    let region = sheet
+        .filter(|_| width > 0.0 && height > 0.0)
+        .map(|(_, native)| crate::images::region_uv(native, item.region).0);
     if let (Some((sheet, _)), Some(uv)) = (sheet, region) {
         let edge = (size.y * 0.6).min(size.x * 0.6).max(1.0);
         let face = egui::Rect::from_center_size(
@@ -958,34 +961,6 @@ fn ghost(ui: &egui::Ui, item: &Item, pointer: egui::Pos2, drag: &Carry<'_>, ink:
     over.fill(rect, egui::CornerRadius::same(5), ink.on);
     over.galley(rect.min + egui::vec2(5.0, 5.0), text, color);
     ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-}
-
-/// A row's `x,y,w,h` in the sheet's own pixels, as egui's unit coordinates.
-/// `None` for anything that is not four numbers, which is a glyph instead.
-fn region_uv(native: egui::Vec2, field: &str) -> Option<Rect> {
-    if native.x <= 0.0 || native.y <= 0.0 {
-        return None;
-    }
-    let mut parts = field.split(',').map(|n| n.trim().parse::<f32>());
-    let (x, y, w, h) = (
-        parts.next()?.ok()?,
-        parts.next()?.ok()?,
-        parts.next()?.ok()?,
-        parts.next()?.ok()?,
-    );
-    if w <= 0.0 || h <= 0.0 || parts.next().is_some() {
-        return None;
-    }
-    Some(Rect::from_min_max(
-        pos2(
-            (x / native.x).clamp(0.0, 1.0),
-            (y / native.y).clamp(0.0, 1.0),
-        ),
-        pos2(
-            ((x + w) / native.x).clamp(0.0, 1.0),
-            ((y + h) / native.y).clamp(0.0, 1.0),
-        ),
-    ))
 }
 
 /// One card's box: an equal share of the room across the columns, and as tall

@@ -32,8 +32,11 @@ pub(crate) struct Mark {
 pub(crate) struct Item {
     /// What the row says, and on a card its caption
     pub(crate) label: SmolStr,
-    /// The name of a glyph in the theme's icon font, drawn before the label. On a card in a `list` that names a `source`, `x,y,w,h` in that picture's pixels
+    /// The name of a glyph in the theme's icon font, drawn before the label, and on a card over it
     pub(crate) icon: SmolStr,
+    /// On a card in a `list` that names a `sheet`, the part of that picture the card shows in place of its icon, as left, top, width and height in the picture's own pixels, as an `image`'s `region`; a zero width or height shows the icon
+    #[property(default = [0.0, 0.0, 0.0, 0.0])]
+    pub(crate) region: [f32; 4],
     /// What the row trails at the right, and on a card its tooltip
     pub(crate) note: SmolStr,
     /// The row's own `#rrggbb`; empty takes the widget's ink

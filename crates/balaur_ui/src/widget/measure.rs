@@ -541,10 +541,13 @@ impl<'a> Measure<'a> {
         let look = crate::widget::arena::look_of(self.arena, index, theme);
         let (style, font) = (&look.style, look.font.clone());
         let mut text = self.text(index, widget, theme);
-        let mark = (!widget.icon.is_empty())
+        let spinner = widget
+            .loading
+            .then(|| egui::Vec2::splat(crate::widget::text::icon_px(widget, font.size)));
+        let mark = (!widget.loading && !widget.icon.is_empty())
             .then(|| crate::widget::icons::Icons::of(self.eng, &look).glyph(&widget.icon))
             .flatten()
-            .map_or(egui::Vec2::ZERO, |glyph| {
+            .map_or(spinner.unwrap_or(egui::Vec2::ZERO), |glyph| {
                 let face = egui::FontId::new(
                     crate::widget::text::icon_px(widget, font.size),
                     look.icon.clone(),

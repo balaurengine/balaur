@@ -18,6 +18,8 @@ struct Face {
     picture: Option<(egui::TextureId, egui::Vec2)>,
     /// Around the picture when the role puts it on a disc.
     plate: f32,
+    /// A `loading` button's spinner, this wide; 0 for none.
+    spinner: f32,
     icon: Option<std::sync::Arc<egui::Galley>>,
     shaped: Option<(std::rc::Rc<balaur_text::Shaped>, Option<egui::TextureId>)>,
     plain: Option<std::sync::Arc<egui::Galley>>,
@@ -68,7 +70,12 @@ fn face_of(
     let trailing =
         shown.map(|text| Brush::of(ui).line_of(text, font.clone(), Color32::PLACEHOLDER));
     let look = at.look(index);
-    let icon = (!widget.icon.is_empty())
+    let spinner = if widget.loading {
+        crate::widget::text::icon_px(widget, font.size)
+    } else {
+        0.0
+    };
+    let icon = (!widget.loading && !widget.icon.is_empty())
         .then(|| crate::widget::icons::Icons::of(at.eng, &look).glyph(&widget.icon))
         .flatten()
         .map(|glyph| {
@@ -78,7 +85,9 @@ fn face_of(
             );
             Brush::of(ui).line_of(glyph, mark, Color32::PLACEHOLDER)
         });
-    let mark = icon.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
+    let mark = icon
+        .as_ref()
+        .map_or(egui::Vec2::splat(spinner), |g| g.size());
     let pic = picture.map_or(egui::Vec2::ZERO, |(_, s)| {
         s + egui::Vec2::splat(plate * 2.0)
     });
@@ -112,6 +121,7 @@ fn face_of(
     Face {
         picture,
         plate,
+        spinner,
         icon,
         shaped,
         plain,
@@ -286,6 +296,15 @@ fn paint_face(
             style.icon_color.unwrap_or(Color32::WHITE),
         ));
         at_x = disc.max.x + face.gap;
+    }
+    if face.spinner > 0.0 {
+        let rect = egui::Rect::from_min_size(
+            pos2(at_x, middle - face.spinner / 2.0),
+            vec2(face.spinner, face.spinner),
+        );
+        let tint = style.icon_color.unwrap_or(ink);
+        crate::widget::numbers::spin(ui, &painter, rect, tint, at.ui_now());
+        at_x += face.spinner + face.gap;
     }
     if let Some(icon) = &face.icon {
         let y = middle - icon.size().y / 2.0;
