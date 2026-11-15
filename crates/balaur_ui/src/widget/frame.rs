@@ -36,11 +36,13 @@ pub(crate) fn frame_shape(
     fill: Color32,
     style: &Style,
 ) -> crate::widget::paint::Shape {
-    if style.gradient.is_none() && style.shadow.is_none() {
+    let shadows = style.shadows.as_deref().unwrap_or(&[]);
+    if style.gradient.is_none() && shadows.is_empty() {
         return outlined(rect, radius, fill, style);
     }
     let mut layers = Vec::new();
-    if let Some(s) = style.shadow {
+    // CSS draws the first shadow on top, so the list is laid from its end.
+    for s in shadows.iter().rev().filter(|s| !s.inset) {
         layers.push(paint::shadow(
             rect,
             radius,
@@ -50,14 +52,44 @@ pub(crate) fn frame_shape(
             s.color,
         ));
     }
+    let insets = shadows.iter().rev().filter(|s| s.inset);
     match &style.gradient {
-        Some(g) => {
-            layers.push(paint::gradient(rect, radius, g));
-            layers.push(outlined(rect, radius, Color32::TRANSPARENT, style));
+        Some(g) => layers.push(paint::gradient(rect, radius, g)),
+        None if !shadows.iter().any(|s| s.inset) => {
+            layers.push(outlined(rect, radius, fill, style));
+            return paint::stack(layers);
         }
-        None => layers.push(outlined(rect, radius, fill, style)),
+        None => layers.push(paint::filled(rect, radius, fill)),
     }
+    // Inside the edge, as CSS's inset shadow sits inside the border.
+    let [left, top, right, bottom] = edge_sides(style);
+    let inside = egui::Rect::from_min_max(
+        rect.min + egui::vec2(left, top),
+        rect.max - egui::vec2(right, bottom),
+    );
+    let inner = paint::grow_corners(radius, -left.max(top).max(right).max(bottom));
+    for s in insets {
+        layers.push(paint::inset_shadow(
+            inside,
+            inner,
+            egui::vec2(s.x, s.y),
+            s.blur,
+            s.spread,
+            s.color,
+        ));
+    }
+    layers.push(outlined(rect, radius, Color32::TRANSPARENT, style));
     paint::stack(layers)
+}
+
+/// How wide the edge is on each side, left, top, right and bottom: the
+/// widget's `border` band, else the stroke all round, else none.
+fn edge_sides(style: &Style) -> [f32; 4] {
+    match (style.stroke, style.border) {
+        (None, _) => [0.0; 4],
+        (Some(_), Some(sides)) => sides,
+        (Some(_), None) => [style.stroke_px(); 4],
+    }
 }
 
 /// The fill and outline half of [`frame_shape`].
@@ -70,10 +102,7 @@ fn outlined(
     let Some(color) = style.stroke else {
         return paint::filled(rect, radius, fill);
     };
-    let [left, top, right, bottom] = match style.border {
-        Some(sides) => sides,
-        None => [style.stroke_px(); 4],
-    };
+    let [left, top, right, bottom] = edge_sides(style);
     #[allow(clippy::float_cmp, reason = "four sides stated alike, not measured")]
     if left == top && top == right && right == bottom && style.dashed == Some(true) {
         return dashed_frame(rect, radius, fill, egui::Stroke::new(left, color));

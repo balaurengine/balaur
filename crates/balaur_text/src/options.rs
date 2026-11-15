@@ -16,6 +16,61 @@ pub enum Slant {
     Oblique,
 }
 
+/// How a block's letters are cased before it is shaped, as CSS's
+/// `text-transform`. The text a widget holds, and a reader announces, stays
+/// as written.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Case {
+    #[default]
+    AsWritten,
+    Upper,
+    Lower,
+    /// The first letter of each word.
+    Capitalize,
+}
+
+impl Case {
+    /// The case a word names, or `None` for a word that names none.
+    #[must_use]
+    pub fn of(word: &str) -> Option<Self> {
+        match word {
+            w::NONE => Some(Self::AsWritten),
+            w::UPPERCASE => Some(Self::Upper),
+            w::LOWERCASE => Some(Self::Lower),
+            w::CAPITALIZE => Some(Self::Capitalize),
+            _ => None,
+        }
+    }
+
+    /// `text` in this case.
+    #[must_use]
+    pub fn apply(self, text: &str) -> std::borrow::Cow<'_, str> {
+        match self {
+            Self::AsWritten => text.into(),
+            Self::Upper => text.to_uppercase().into(),
+            Self::Lower => text.to_lowercase().into(),
+            Self::Capitalize => {
+                let mut out = String::with_capacity(text.len());
+                let mut word_start = true;
+                for c in text.chars() {
+                    if word_start && c.is_alphanumeric() {
+                        out.extend(c.to_uppercase());
+                        word_start = false;
+                    } else {
+                        out.push(c);
+                        if c.is_whitespace() {
+                            word_start = true;
+                        } else if c.is_alphanumeric() {
+                            word_start = false;
+                        }
+                    }
+                }
+                out.into()
+            }
+        }
+    }
+}
+
 impl Slant {
     /// The slant a word names; anything else is upright.
     #[must_use]

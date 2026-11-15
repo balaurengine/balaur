@@ -62,6 +62,9 @@ impl Face<'_> {
             markup: false,
             truncate: false,
             align: balaur_text::Align::Start,
+            // What is typed is shown as typed, or the caret would stand
+            // among letters of another length.
+            case: balaur_text::Case::AsWritten,
             ..crate::widget::text::text_request(
                 (self.widget, self.project),
                 "",

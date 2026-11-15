@@ -75,6 +75,7 @@ impl CodeLook<'_> {
             project: self.project,
             line_height: 0.0,
             letter_spacing: 0.0,
+            case: balaur_text::Case::AsWritten,
             options: &balaur_text::PLAIN,
         }
     }

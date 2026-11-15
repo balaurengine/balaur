@@ -656,6 +656,9 @@ offset = [0, 0.5]                # drawn this far from its place, as CSS's trans
 [button.focus]                   # with the pointer's table over it when both apply, as on the web
 outline = "primary"              # the ring 2 px outside the edge, as CSS's outline; the edge stays
 
+[spinner]                        # three quarters of a ring, turning, in the text's colour
+height = 24                      # its side; a widget's own height wins
+
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels
 slice = [8, 8, 8, 8]             # left, top, right, bottom
@@ -676,7 +679,14 @@ padding = 8.0
 [roles.card]                     # any table may carry a gradient and a shadow
 gradient = { kind = "linear", stops = ["primary_fill", "bg_panel"], angle = 90 }  # in place of fill; 0 runs left to right
 # kind = "radial" with center = [0.5, 0.5] and radius = 0.5 runs out from the middle; at = [0, 0.3, 1] places three stops
-shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }     # a blurred box under it; x too
+shadows = [                      # blurred boxes under it, the first on top; [] for none
+  { y = 2, blur = 8, spread = 0, color = "#00000040" },              # x too; a negative spread is smaller
+  { inset = true, y = 0.5, spread = 0.5, color = "#ffffff0f" },      # inset: inside the edge, over the fill
+]
+
+[roles.eyebrow]                  # a small heading over a section
+letter_spacing = 2.4             # extra space between glyphs, design pixels, as CSS's letter-spacing
+text_transform = "uppercase"     # uppercase, lowercase, capitalize or none, as CSS's text-transform
 
 [roles.danger]                   # what a widget with role = "danger" takes
 fill = "danger_fill"

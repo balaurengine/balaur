@@ -40,9 +40,27 @@ pub(crate) fn tick_box_size(
 
 /// A switch's track: as tall as its role asks, and most of twice that
 /// across.
-pub(crate) fn switch_size(style: &Style) -> egui::Vec2 {
+pub(crate) fn switch_track(style: &Style) -> egui::Vec2 {
     let height = style.height.unwrap_or(18.0);
     vec2(height * 1.75, height)
+}
+
+/// A switch with its caption after the track, `gap` apart, as a checkbox's.
+pub(crate) fn switch_size(style: &Style, gap: f32, text: Option<egui::Vec2>) -> egui::Vec2 {
+    let track = switch_track(style);
+    text.map_or(track, |text| {
+        vec2(track.x + gap + text.x, track.y.max(text.y))
+    })
+}
+
+/// A spinner's side: the widget's own height, its role's, or daisyUI's
+/// `loading-md`, 24.
+pub(crate) fn spinner_side(style: &Style, widget: &Widget) -> f32 {
+    if widget.height > 0.0 {
+        widget.height
+    } else {
+        style.height.unwrap_or(24.0)
+    }
 }
 
 /// A dropdown's box as `kinds::picker` draws it with nothing sizing it: the widest

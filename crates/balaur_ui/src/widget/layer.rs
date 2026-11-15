@@ -948,9 +948,10 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // the state the widget is in, is told to it first, as a field's is.
         w::CHECKBOX => {
             crate::widget::theme::dress(ui, &look.style, color);
-            crate::widget::kinds::check(ui, at, index, &caption, &font, color);
+            crate::widget::toggles::check(ui, at, index, &caption, &font, color);
         }
-        w::SWITCH => crate::widget::kinds::switch(ui, at, index),
+        w::SWITCH => crate::widget::toggles::switch(ui, at, index, &caption, &font, color),
+        w::SPINNER => crate::widget::numbers::spinner(ui, at, index, color),
         w::COLOR_PICKER => crate::widget::kinds::color(ui, at, index),
         w::DROPDOWN => {
             crate::widget::theme::dress(ui, &look.style, color);

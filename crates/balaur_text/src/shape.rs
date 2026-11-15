@@ -396,14 +396,22 @@ fn rescaled(
     Some(pieces)
 }
 
-/// The runs a request breaks into: its marks, or the whole text as one.
+/// The runs a request breaks into, in its case: its marks, or the whole
+/// text as one.
 pub(crate) fn spans_of(request: &RequestRef<'_>) -> markup::Markup {
     if request.markup {
-        return markup::parse(request.text);
+        // Cased after the marks are read, so a tag keeps its own spelling.
+        let mut parsed = markup::parse(request.text);
+        if request.case != crate::Case::AsWritten {
+            for span in &mut parsed.spans {
+                span.text = request.case.apply(&span.text).into_owned();
+            }
+        }
+        return parsed;
     }
     markup::Markup {
         spans: vec![markup::Span {
-            text: request.text.to_string(),
+            text: request.case.apply(request.text).into_owned(),
             bold: false,
             italic: false,
             lines: crate::markup::Lines::default(),

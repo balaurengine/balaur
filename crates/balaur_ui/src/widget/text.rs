@@ -63,7 +63,13 @@ pub(crate) fn text_request<'a>(
         font: crate::widget::theme::font_of(style, widget),
         project,
         line_height: widget.text_look.line_height,
-        letter_spacing: widget.text_look.letter_spacing,
+        // A `text_style` that states a spacing wins over the role's.
+        letter_spacing: if widget.text_look.letter_spacing == 0.0 {
+            style.letter_spacing.unwrap_or(0.0)
+        } else {
+            widget.text_look.letter_spacing
+        },
+        case: style.text_transform.unwrap_or_default(),
         options: &widget.text_look.options,
     }
 }

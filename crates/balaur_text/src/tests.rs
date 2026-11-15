@@ -813,3 +813,39 @@ fn a_font_at_the_regular_weight_draws_in_its_own_face() {
     assert!(semibold > regular, "the two faces measure alike");
     assert!((width(SEMIBOLD, 400) - semibold).abs() < 0.5);
 }
+
+#[test]
+fn a_case_names_its_words_and_cases_letters_as_css_does() {
+    use crate::Case;
+    assert_eq!(Case::of("uppercase"), Some(Case::Upper));
+    assert_eq!(Case::of("none"), Some(Case::AsWritten));
+    assert_eq!(Case::of("loud"), None);
+    assert_eq!(Case::Upper.apply("straße"), "STRASSE");
+    assert_eq!(Case::Lower.apply("ÉCOLE"), "école");
+    assert_eq!(Case::Capitalize.apply("the (big) ship"), "The (Big) Ship");
+    assert_eq!(Case::AsWritten.apply("as is"), "as is");
+}
+
+// A case is shaped, not stored: `abc` uppercased measures as `ABC` does,
+// and a markup tag keeps its own spelling.
+#[test]
+fn a_request_s_case_shapes_its_letters_and_keeps_its_tags() {
+    let width = |text: &str, case: crate::Case, markup: bool| {
+        shaped_in(text, 0, FontSettings::default(), |r| {
+            r.case = case;
+            r.markup = markup;
+        })
+        .1
+        .size
+        .x
+    };
+    let upper = width("ABC", crate::Case::AsWritten, false);
+    assert!((width("abc", crate::Case::Upper, false) - upper).abs() < 0.01);
+    assert!(upper > width("abc", crate::Case::AsWritten, false));
+    assert!(
+        (width("[b]abc[/b]", crate::Case::Upper, true)
+            - width("[b]ABC[/b]", crate::Case::AsWritten, true))
+        .abs()
+            < 0.01
+    );
+}

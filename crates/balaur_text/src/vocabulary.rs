@@ -67,6 +67,12 @@ pub mod words {
 
     pub const ITALIC: &str = "italic";
     pub const OBLIQUE: &str = "oblique";
+
+    /// How a block's letters are cased, as CSS's `text-transform`, with
+    /// `none` for as written.
+    pub const UPPERCASE: &str = "uppercase";
+    pub const LOWERCASE: &str = "lowercase";
+    pub const CAPITALIZE: &str = "capitalize";
     /// Upright, an italic face, or the upright face slanted.
     pub const FONT_STYLES: &[&str] = &[NORMAL, ITALIC, OBLIQUE];
 

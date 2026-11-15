@@ -124,6 +124,7 @@ impl GlyphMesher {
             // Baseline to baseline at one em, as a mesh's lines have always sat.
             line_height: 1.0,
             letter_spacing: 0.0,
+            case: crate::Case::AsWritten,
             options: &options,
         };
         // Shaping first, outlines after: the layout borrows the font set,

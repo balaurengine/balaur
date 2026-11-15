@@ -1,6 +1,6 @@
 use super::{Pointer, WidgetState, parse, parse_color};
 
-const CARDS: &str = "type = \"widget_theme\"\n\n[colors]\nprimary = \"#994f7d\"\n\n[roles.card]\nfill = \"#ffffff\"\ngradient = { stops = [\"#000000\", \"#ffffff\"], angle = 0 }\nshadow = { y = 2, blur = 8, color = \"#00000040\" }\n\n[roles.card.hover]\ngradient = { stops = [\"#ff0000\", \"#0000ff\"], angle = 90 }\n\n[roles.half]\ngradient = { stops = [\"#ffffff\"] }\n\n[roles.glow]\ngradient = { kind = \"radial\", stops = [\"primary\", \"#00ff00\", \"#000000\"], at = [0, 0.25, 1], center = [0.5, 0.25], radius = 0.75 }\n";
+const CARDS: &str = "type = \"widget_theme\"\n\n[colors]\nprimary = \"#994f7d\"\n\n[roles.card]\nfill = \"#ffffff\"\ngradient = { stops = [\"#000000\", \"#ffffff\"], angle = 0 }\nshadows = [{ y = 2, blur = 8, color = \"#00000040\" }]\n\n[roles.card.hover]\ngradient = { stops = [\"#ff0000\", \"#0000ff\"], angle = 90 }\n\n[roles.half]\ngradient = { stops = [\"#ffffff\"] }\n\n[roles.glow]\ngradient = { kind = \"radial\", stops = [\"primary\", \"#00ff00\", \"#000000\"], at = [0, 0.25, 1], center = [0.5, 0.25], radius = 0.75 }\n";
 
 #[test]
 fn a_role_reads_its_gradient_and_shadow_and_a_state_its_own() {
@@ -16,7 +16,7 @@ fn a_role_reads_its_gradient_and_shadow_and_a_state_its_own() {
             (1.0, parse_color("#ffffff").unwrap())
         ]
     );
-    let s = card.shadow.expect("the role's shadow");
+    let s = card.shadows.clone().expect("the role's shadows")[0];
     assert_eq!((s.x, s.y, s.blur, s.spread), (0.0, 2.0, 8.0, 0.0));
     let hovered = card.in_states(WidgetState {
         pointer: Pointer::Over,
@@ -26,7 +26,10 @@ fn a_role_reads_its_gradient_and_shadow_and_a_state_its_own() {
         hovered.gradient.clone().expect("the hover table's").shape,
         GradientShape::Linear { angle: 90.0 }
     );
-    assert!(hovered.shadow.is_some(), "a state keeps what it leaves out");
+    assert!(
+        hovered.shadows.is_some(),
+        "a state keeps what it leaves out"
+    );
     assert!(
         theme.resolved("panel", "half").gradient.is_none(),
         "a gradient with one colour is none"
@@ -154,4 +157,93 @@ fn focus_and_the_pointer_apply_together_as_on_the_web() {
     });
     assert_eq!(off.fill, parse_color("#101010"), "disabled is over neither");
     assert_eq!(off.outline, None);
+}
+
+#[test]
+fn shadows_are_a_list_inset_ones_included_and_an_empty_one_takes_them_away() {
+    let text = "type = \"widget_theme\"\n\n[button]\nshadows = [{ y = 3, blur = 2, spread = -2, color = \"#994f7d4d\" }, { inset = true, y = 0.5, spread = 0.5, color = \"#ffffff0f\" }]\n\n[button.active]\nshadows = []\n";
+    let theme = parse(&toml::from_str::<toml::Value>(text).unwrap());
+    let button = theme.resolved("button", "");
+    let list = button.shadows.clone().expect("the kind's shadows");
+    assert_eq!(list.len(), 2);
+    assert_eq!(
+        (list[0].y, list[0].spread, list[0].inset),
+        (3.0, -2.0, false)
+    );
+    assert_eq!((list[1].y, list[1].spread, list[1].inset), (0.5, 0.5, true));
+    let held = button.in_states(WidgetState {
+        pointer: Pointer::Held,
+        ..WidgetState::default()
+    });
+    assert!(
+        held.shadows.as_deref().is_some_and(<[_]>::is_empty),
+        "an empty list states none, rather than leaving the kind's"
+    );
+    assert!(!held.paints());
+}
+
+#[test]
+fn shadows_written_as_one_table_are_not_read() {
+    let text = "type = \"widget_theme\"\n\n[button]\nshadows = { y = 2, color = \"#000000\" }\n";
+    let theme = parse(&toml::from_str::<toml::Value>(text).unwrap());
+    assert!(theme.resolved("button", "").shadows.is_none());
+}
+
+#[test]
+fn shadow_lists_ease_shadow_by_shadow() {
+    use super::{Shadow, Style};
+    let lift = |y: f32, inset: bool| Shadow {
+        x: 0.0,
+        y,
+        blur: 0.0,
+        spread: 0.0,
+        color: egui::Color32::BLACK,
+        inset,
+    };
+    let rest = Style {
+        shadows: Some(vec![lift(4.0, false), lift(1.0, true)].into()),
+        ..Style::default()
+    };
+    let pressed = Style {
+        shadows: Some(Vec::new().into()),
+        ..Style::default()
+    };
+    let half = rest.toward(&pressed, 0.5).shadows.expect("on its way");
+    assert_eq!(half.len(), 2, "each runs to clear");
+    assert!((half[0].y - 4.0).abs() < f32::EPSILON);
+    assert!(half[0].color.a() > 0 && half[0].color.a() < 255);
+    assert!(half[1].inset, "and stays inside");
+    let swapped = Style {
+        shadows: Some(vec![lift(1.0, true)].into()),
+        ..Style::default()
+    };
+    let early = rest.toward(&swapped, 0.25).shadows.expect("a list");
+    assert_eq!(
+        early.len(),
+        2,
+        "inset at different places steps, at halfway"
+    );
+    assert_eq!(
+        rest.toward(&swapped, 0.75).shadows.expect("a list").len(),
+        1
+    );
+}
+
+#[test]
+fn a_role_spaces_and_cases_its_letters_and_a_state_table_cannot() {
+    let text = "type = \"widget_theme\"\n\n[roles.eyebrow]\nletter_spacing = 2.4\ntext_transform = \"uppercase\"\n\n[roles.eyebrow.hover]\nletter_spacing = 9\ntext_transform = \"lowercase\"\n\n[roles.shout]\ntext_transform = \"loud\"\n";
+    let theme = parse(&toml::from_str::<toml::Value>(text).unwrap());
+    let eyebrow = theme.resolved("label", "eyebrow");
+    assert_eq!(eyebrow.letter_spacing, Some(2.4));
+    assert_eq!(eyebrow.text_transform, Some(balaur_text::Case::Upper));
+    let hovered = eyebrow.in_states(WidgetState {
+        pointer: Pointer::Over,
+        ..WidgetState::default()
+    });
+    assert_eq!(
+        (hovered.letter_spacing, hovered.text_transform),
+        (Some(2.4), Some(balaur_text::Case::Upper)),
+        "a state table never resizes what sits beside the widget"
+    );
+    assert_eq!(theme.resolved("label", "shout").text_transform, None);
 }

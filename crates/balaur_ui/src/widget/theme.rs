@@ -43,7 +43,6 @@ use smol_str::SmolStr;
 pub(crate) use super::theme_files::theme_of;
 
 use crate::vocabulary::keys as k;
-use crate::vocabulary::looks as lk;
 use crate::vocabulary::states as st;
 use crate::vocabulary::tokens as t;
 use crate::vocabulary::weights;
@@ -141,6 +140,12 @@ pub struct Style {
     pub font: Option<SmolStr>,
     /// Weight on the CSS scale; a role's `strong = true` is 700.
     pub weight: Option<f32>,
+    /// Extra space between glyphs, in design pixels, as CSS's
+    /// `letter-spacing`. A widget's `text_style` that states one wins.
+    pub letter_spacing: Option<f32>,
+    /// How the text's letters are cased, as CSS's `text-transform`; what
+    /// a field types is shown as typed.
+    pub text_transform: Option<balaur_text::Case>,
     /// The box a role asks for, in design pixels, for a role that carries its
     /// own control size the way the editor's `tab` and `chip` do. A node that
     /// states one of its own wins; this is not a floor.
@@ -183,8 +188,10 @@ pub struct Style {
     pub border: Option<[f32; 4]>,
     /// A fill that runs through its colours, drawn in place of `fill`.
     pub gradient: Option<Rc<Gradient>>,
-    /// A blurred copy of the box, under it.
-    pub shadow: Option<Shadow>,
+    /// The shadows round the box, CSS's `box-shadow` list: the first drawn
+    /// on top, an `inset` one inside the box, over its fill and under its
+    /// edge. Empty takes away the shadow a style under it states.
+    pub shadows: Option<Rc<[Shadow]>>,
     /// Seconds a change of state eases over, as CSS's `transition`: the
     /// pointer's two, focus, `checked` and `disabled`, each from where it is.
     /// Colours, the shadow and `offset` run between the tables, everything
@@ -198,8 +205,8 @@ pub struct Style {
     pub offset: Option<[f32; 2]>,
 }
 
-/// `shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }`, in
-/// design pixels.
+/// One of `shadows = [{ y = 2, blur = 8, spread = 0, color = "#00000040" }]`,
+/// in design pixels. A negative spread draws it smaller than the box.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Shadow {
     pub x: f32,
@@ -207,6 +214,8 @@ pub struct Shadow {
     pub blur: f32,
     pub spread: f32,
     pub color: Color32,
+    /// Inside the box rather than under it.
+    pub inset: bool,
 }
 
 impl Style {
@@ -222,7 +231,7 @@ impl Style {
         self.fill.is_some()
             || self.stroke.is_some()
             || self.gradient.is_some()
-            || self.shadow.is_some()
+            || self.shadows.as_deref().is_some_and(|list| !list.is_empty())
     }
 
     /// The paint half of a style, for a `hover` or `active` table. A state
@@ -240,6 +249,8 @@ impl Style {
             font_size: None,
             font: None,
             weight: None,
+            letter_spacing: None,
+            text_transform: None,
             ..self.clone()
         }
     }
@@ -289,7 +300,9 @@ impl Style {
             body: self.body.clone().or_else(|| base.body.clone()),
             border: self.border.or(base.border),
             gradient: self.gradient.clone().or_else(|| base.gradient.clone()),
-            shadow: self.shadow.or(base.shadow),
+            shadows: self.shadows.clone().or_else(|| base.shadows.clone()),
+            letter_spacing: self.letter_spacing.or(base.letter_spacing),
+            text_transform: self.text_transform.or(base.text_transform),
             transition: self.transition.or(base.transition),
             offset: self.offset.or(base.offset),
         }
@@ -657,7 +670,9 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .map(|table| Rc::new(style_of(table, tokens, what))),
         border: None,
         gradient: gradient_of(body, tokens, what),
-        shadow: shadow_of(body, tokens, what),
+        shadows: shadows_of(body, tokens, what),
+        letter_spacing: number(k::LETTER_SPACING),
+        text_transform: case_of(body, what),
         transition: number(k::TRANSITION).filter(|seconds| *seconds > 0.0),
         offset: body.get(k::OFFSET).map(|value| {
             let [x, y, ..] = four_of(Some(value));
@@ -666,69 +681,16 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
     }
 }
 
-/// A table's `gradient`: its stops, two at least, and which way it runs.
-fn gradient_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Option<Rc<Gradient>> {
-    let table = body.get(lk::GRADIENT)?.as_table()?;
-    let number = |value: &toml::Value| balaur_core::components::as_f64(value).map(|v| v as f32);
-    let colours: Vec<Color32> = table
-        .get(lk::STOPS)?
-        .as_array()?
-        .iter()
-        .filter_map(|v| color(v, what, &tokens.colors))
-        .collect();
-    if colours.len() < 2 {
-        return None;
+/// A table's `text_transform`, as CSS's; a word it is not warns.
+fn case_of(body: &toml::Table, what: &str) -> Option<balaur_text::Case> {
+    let word = body.get(k::TEXT_TRANSFORM)?.as_str()?;
+    let case = balaur_text::Case::of(word);
+    if case.is_none() {
+        tracing::warn!(
+            "widget theme: {what}'s `text_transform` is uppercase, lowercase, capitalize or none, not '{word}'"
+        );
     }
-    let last = (colours.len() - 1) as f32;
-    let places: Vec<f32> = table
-        .get(lk::AT)
-        .and_then(toml::Value::as_array)
-        .filter(|at| at.len() == colours.len())
-        .map(|at| at.iter().filter_map(number).collect())
-        .filter(|at: &Vec<f32>| at.len() == colours.len())
-        .unwrap_or_else(|| (0..colours.len()).map(|i| i as f32 / last).collect());
-    let pair = |key: &str, default: [f32; 2]| {
-        table
-            .get(key)
-            .and_then(toml::Value::as_array)
-            .and_then(|xy| Some([number(xy.first()?)?, number(xy.get(1)?)?]))
-            .unwrap_or(default)
-    };
-    let shape = if table.get(lk::KIND).and_then(toml::Value::as_str) == Some(lk::RADIAL) {
-        GradientShape::Radial {
-            center: pair(lk::CENTER, [0.5, 0.5]),
-            radius: table.get(lk::RADIUS).and_then(number).unwrap_or(0.5),
-        }
-    } else {
-        GradientShape::Linear {
-            angle: table.get(lk::ANGLE).and_then(number).unwrap_or(0.0),
-        }
-    };
-    Some(Rc::new(Gradient {
-        shape,
-        stops: places.into_iter().zip(colours).collect(),
-    }))
-}
-
-/// A table's `shadow`: its colour, and offsets, blur and spread, 0 when
-/// left out.
-fn shadow_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Option<Shadow> {
-    let table = body.get(lk::SHADOW)?.as_table()?;
-    let number = |key: &str| {
-        table
-            .get(key)
-            .and_then(balaur_core::components::as_f64)
-            .map_or(0.0, |v| v as f32)
-    };
-    Some(Shadow {
-        x: number(lk::X),
-        y: number(lk::Y),
-        blur: number(lk::BLUR),
-        spread: number(lk::SPREAD),
-        color: table
-            .get(lk::COLOR)
-            .and_then(|v| color(v, what, &tokens.colors))?,
-    })
+    case
 }
 
 /// A `checked` table: paint over the entry, with its own pointer tables.
@@ -901,6 +863,9 @@ offset = [0, 0.5]                # drawn this far from its place, as CSS's trans
 [button.focus]                   # with the pointer's table over it when both apply, as on the web
 outline = "primary"              # the ring 2 px outside the edge, as CSS's outline; the edge stays
 
+[spinner]                        # three quarters of a ring, turning, in the text's colour
+height = 24                      # its side; a widget's own height wins
+
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels
 slice = [8, 8, 8, 8]             # left, top, right, bottom
@@ -921,7 +886,14 @@ padding = 8.0
 [roles.card]                     # any table may carry a gradient and a shadow
 gradient = { kind = "linear", stops = ["primary_fill", "bg_panel"], angle = 90 }  # in place of fill; 0 runs left to right
 # kind = "radial" with center = [0.5, 0.5] and radius = 0.5 runs out from the middle; at = [0, 0.3, 1] places three stops
-shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }     # a blurred box under it; x too
+shadows = [                      # blurred boxes under it, the first on top; [] for none
+  { y = 2, blur = 8, spread = 0, color = "#00000040" },              # x too; a negative spread is smaller
+  { inset = true, y = 0.5, spread = 0.5, color = "#ffffff0f" },      # inset: inside the edge, over the fill
+]
+
+[roles.eyebrow]                  # a small heading over a section
+letter_spacing = 2.4             # extra space between glyphs, design pixels, as CSS's letter-spacing
+text_transform = "uppercase"     # uppercase, lowercase, capitalize or none, as CSS's text-transform
 
 [roles.danger]                   # what a widget with role = "danger" takes
 fill = "danger_fill"
@@ -1164,6 +1136,10 @@ pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
     }
     style.weight.unwrap_or(weights::REGULAR)
 }
+
+#[path = "theme_layers.rs"]
+mod layers;
+use layers::{gradient_of, shadows_of};
 
 #[cfg(test)]
 #[path = "theme_tests.rs"]

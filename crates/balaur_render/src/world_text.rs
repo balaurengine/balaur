@@ -717,6 +717,7 @@ pub(crate) fn request_of(eng: &Engine, text: &str, style: &TextStyle) -> balaur_
         project: project_of(style),
         line_height: look.line_height,
         letter_spacing: look.letter_spacing,
+        case: balaur_text::Case::AsWritten,
         options: balaur_text::Options {
             decoration: look.decoration,
             ..options_of(&style.shaping)

@@ -83,6 +83,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_SLIDER", w::SLIDER),
     ("WIDGET_NUMBER_FIELD", w::NUMBER_FIELD),
     ("WIDGET_PROGRESS_BAR", w::PROGRESS_BAR),
+    ("WIDGET_SPINNER", w::SPINNER),
     ("WIDGET_GRID", w::GRID),
     ("WIDGET_FOLD", w::FOLD),
     ("WIDGET_DIALOG", w::DIALOG),

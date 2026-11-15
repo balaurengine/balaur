@@ -583,6 +583,43 @@ fn an_outline_rings_a_focused_field_and_keeps_its_edge() {
     );
 }
 
+// A role's capitals and letter spacing reach the shaper, so the label
+// measures what it draws: the site's eyebrow, set apart and in capitals.
+#[test]
+fn a_role_s_capitals_and_letter_spacing_size_the_label() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/eyebrow.toml"),
+        "type = \"widget_theme\"\n\n[roles.eyebrow]\ntext_transform = \"uppercase\"\nletter_spacing = 3\n",
+    )
+    .unwrap();
+    let plain = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "ships" theme = "themes/eyebrow.toml" x = 20.0 y = 20.0 }
+            .into(),
+    );
+    let set_apart = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "ships" role = "eyebrow" theme = "themes/eyebrow.toml" x = 20.0 y = 80.0 }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let width = |node| balaur_ui::widget_rect(node).expect("it drew").width();
+    assert!(
+        width(set_apart) > width(plain) + 4.0 * 3.0,
+        "five capitals three apart: {} beside {}",
+        width(set_apart),
+        width(plain)
+    );
+    assert_eq!(
+        property(&app, set_apart, "text").as_str(),
+        Some("ships"),
+        "the text stays as written"
+    );
+}
+
 // A `grow` label is cut at the box the layout left it, not at its own
 // length. The inspector's Source row ran its path under the verb beside it:
 // only a stated width was a column, and a grown child never states one.

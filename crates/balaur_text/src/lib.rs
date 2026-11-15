@@ -37,8 +37,8 @@ pub use font::{Font, FontSettings};
 pub use fonts::{FontProject, LoadedFont, ProjectFonts};
 pub use markup::Align;
 pub use options::{
-    Decoration, Feature, Hinting, LineBreak, Options, PLAIN, Shaping, Slant, Stretch, TruncateAt,
-    Underline,
+    Case, Decoration, Feature, Hinting, LineBreak, Options, PLAIN, Shaping, Slant, Stretch,
+    TruncateAt, Underline,
 };
 use shape::{runs, shape_into, spans_of};
 
@@ -84,6 +84,8 @@ pub struct Request {
     pub line_height: f32,
     /// Extra space between glyphs, in the same pixels as `size`.
     pub letter_spacing: f32,
+    /// How its letters are cased before shaping.
+    pub case: Case,
     pub options: Options,
 }
 
@@ -105,6 +107,7 @@ pub struct RequestRef<'a> {
     pub project: FontProject,
     pub line_height: f32,
     pub letter_spacing: f32,
+    pub case: Case,
     pub options: &'a Options,
 }
 
@@ -132,6 +135,7 @@ impl RequestRef<'_> {
             project: self.project,
             line_height: self.line_height,
             letter_spacing: self.letter_spacing,
+            case: self.case,
             options: self.options.clone(),
         }
     }
@@ -155,6 +159,7 @@ impl Request {
             project: FontProject::Host,
             line_height: 0.0,
             letter_spacing: 0.0,
+            case: Case::AsWritten,
             options: Options::default(),
         }
     }
@@ -175,6 +180,7 @@ impl Request {
             project: self.project,
             line_height: self.line_height,
             letter_spacing: self.letter_spacing,
+            case: self.case,
             options: &self.options,
         }
     }
@@ -203,6 +209,7 @@ fn key_of(request: &RequestRef<'_>, generation: u64, scale: f32) -> Key {
     request.project.hash(&mut hasher);
     request.line_height.to_bits().hash(&mut hasher);
     request.letter_spacing.to_bits().hash(&mut hasher);
+    request.case.hash(&mut hasher);
     request.options.hash_into(&mut hasher);
     generation.hash(&mut hasher);
     scale.to_bits().hash(&mut hasher);
@@ -475,7 +482,12 @@ impl TextState {
         {
             return page
                 .font
-                .layout(request.text, request.size, page.region, page.page_size)
+                .layout(
+                    &request.case.apply(request.text),
+                    request.size,
+                    page.region,
+                    page.page_size,
+                )
                 .size;
         }
         let (system, tweaks, table) = fonts.measuring();
@@ -536,11 +548,14 @@ impl TextState {
         if let Some(path) = &fonts.table.of(request.font).bitmap
             && let Some(page) = self.pages.get(path)
         {
-            return page
-                .font
-                .layout(request.text, request.size, page.region, page.page_size);
+            return page.font.layout(
+                &request.case.apply(request.text),
+                request.size,
+                page.region,
+                page.page_size,
+            );
         }
-        if fonts.cover(request.text) {
+        if fonts.cover(&request.case.apply(request.text)) {
             self.fonts_generation += 1;
         }
         let parsed = spans_of(request);
@@ -558,7 +573,7 @@ impl TextState {
             shape::LINE_HEIGHT
         };
         let fonts = fonts_of(&mut self.host, &mut self.content, request.project);
-        if fonts.cover(request.text) {
+        if fonts.cover(&request.case.apply(request.text)) {
             self.fonts_generation += 1;
         }
         let plain = RequestRef {

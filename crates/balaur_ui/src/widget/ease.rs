@@ -2,6 +2,8 @@
 //! a theme's `transition` eases, and the blend between two styles. The site's
 //! buttons ease their colours over 0.2 s, its cards rise over 0.12 s.
 
+use std::rc::Rc;
+
 use egui::Color32;
 
 use crate::widget::layer::Painting;
@@ -156,7 +158,7 @@ impl Painting<'_> {
     /// The clock an easing runs on: the engine's when every frame is one set
     /// step, so a picture taken mid-change is the same every run, else the
     /// pass's own, which a scaled or paused game leaves running.
-    fn ui_now(&self) -> f64 {
+    pub(crate) fn ui_now(&self) -> f64 {
         if self.eng.steps_fixed() {
             self.eng.time()
         } else {
@@ -267,12 +269,11 @@ impl Style {
             _ if t < 0.5 => from,
             _ => into,
         };
-        let shadow = match (self.shadow, to.shadow) {
-            (None, None) => None,
-            (Some(from), None) => Some(from.toward(from.cleared(), t)),
-            (None, Some(into)) => Some(into.cleared().toward(into, t)),
-            (Some(from), Some(into)) => Some(from.toward(into, t)),
-        };
+        let shadows = shadows_toward(
+            self.shadows.as_deref().unwrap_or_default(),
+            to.shadows.as_deref().unwrap_or_default(),
+            t,
+        );
         let offset = match (self.offset, to.offset) {
             (None, None) => None,
             (from, into) => {
@@ -286,11 +287,28 @@ impl Style {
             outline: paint(self.outline, to.outline),
             text_color: ink(self.text_color, to.text_color),
             icon_color: ink(self.icon_color, to.icon_color),
-            shadow,
+            shadows,
             offset,
             ..if t < 0.5 { self.clone() } else { to.clone() }
         }
     }
+}
+
+/// Two shadow lists `t` of the way, shadow by shadow, as CSS runs them: one
+/// only one list has runs from or to clear, and lists inset at different
+/// places step at halfway.
+fn shadows_toward(from: &[Shadow], into: &[Shadow], t: f32) -> Option<Rc<[Shadow]>> {
+    let paired = (0..from.len().max(into.len()))
+        .map(|i| match (from.get(i), into.get(i)) {
+            (Some(a), Some(b)) if a.inset != b.inset => None,
+            (Some(&a), Some(&b)) => Some(a.toward(b, t)),
+            (Some(&a), None) => Some(a.toward(a.cleared(), t)),
+            (None, Some(&b)) => Some(b.cleared().toward(b, t)),
+            (None, None) => None,
+        })
+        .collect::<Option<Vec<Shadow>>>();
+    let list: Vec<Shadow> = paired.unwrap_or_else(|| if t < 0.5 { from } else { into }.to_vec());
+    (!list.is_empty()).then(|| list.into())
 }
 
 impl Shadow {
@@ -313,6 +331,7 @@ impl Shadow {
             blur: mix(self.blur, to.blur),
             spread: mix(self.spread, to.spread),
             color: self.color.lerp_to_gamma(to.color, t),
+            inset: self.inset,
         }
     }
 }

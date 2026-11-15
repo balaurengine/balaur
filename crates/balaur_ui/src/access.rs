@@ -229,7 +229,7 @@ fn role_of(widget: &Widget) -> Role {
         w::CODE => Role::Code,
         w::SLIDER => Role::Slider,
         w::NUMBER_FIELD => Role::SpinButton,
-        w::PROGRESS_BAR => Role::ProgressIndicator,
+        w::PROGRESS_BAR | w::SPINNER => Role::ProgressIndicator,
         w::DROPDOWN => Role::ComboBox,
         w::MENU => Role::Menu,
         w::LIST => Role::ListBox,

@@ -16,7 +16,8 @@ pub(crate) fn stack(shapes: Vec<Shape>) -> Shape {
 }
 
 /// A blurred box under `rect`, moved by `offset` and grown by `spread`, as
-/// egui blurs a window's shadow.
+/// CSS's `box-shadow`: a negative spread shrinks it, and an offset or blur
+/// of half a pixel stays half a pixel.
 pub(crate) fn shadow(
     rect: Rect,
     radius: CornerRadius,
@@ -25,16 +26,145 @@ pub(crate) fn shadow(
     spread: f32,
     color: Color32,
 ) -> Shape {
-    let byte = |v: f32| v.round().clamp(0.0, 255.0) as u8;
-    let signed = |v: f32| v.round().clamp(-128.0, 127.0) as i8;
-    egui::epaint::Shadow {
-        offset: [signed(offset.x), signed(offset.y)],
-        blur: byte(blur),
-        spread: byte(spread),
-        color,
+    let grown = rect.translate(offset).expand(spread);
+    if !grown.is_positive() {
+        return egui::Shape::Noop;
     }
-    .as_shape(rect, radius)
-    .into()
+    egui::epaint::RectShape::filled(grown, grow_corners(radius, spread), color)
+        .with_blur_width(blur.max(0.0))
+        .into()
+}
+
+/// `radius` with every rounded corner grown by `by`, or shrunk by a negative
+/// one; a square corner stays square, as CSS's spread keeps it.
+pub(crate) fn grow_corners(radius: CornerRadius, by: f32) -> CornerRadius {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "clamped to a byte"
+    )]
+    let one = |r: u8| {
+        if r == 0 {
+            0
+        } else {
+            (f32::from(r) + by).round().clamp(0.0, 255.0) as u8
+        }
+    };
+    CornerRadius {
+        nw: one(radius.nw),
+        ne: one(radius.ne),
+        sw: one(radius.sw),
+        se: one(radius.se),
+    }
+}
+
+/// Points per rounded corner of a ring an inset shadow is cut from.
+const CORNER_STEPS: usize = 8;
+
+/// A shadow inside `rect`, over its fill, as CSS's `inset` box-shadow: the
+/// band between the box and the box shrunk by `spread` and moved by
+/// `offset`, its inner edge softened over `blur`. A daisyUI button's light
+/// top line is one, half a pixel down and half a pixel in.
+pub(crate) fn inset_shadow(
+    rect: Rect,
+    radius: CornerRadius,
+    offset: egui::Vec2,
+    blur: f32,
+    spread: f32,
+    color: Color32,
+) -> Shape {
+    if !rect.is_positive() || color.a() == 0 {
+        return egui::Shape::Noop;
+    }
+    let half = blur.max(0.0) / 2.0;
+    let hole = rect.shrink(spread).translate(offset);
+    let outer = ring(rect, radius, 0.0);
+    // Every ring has the same points at the same angles, so a band is one
+    // strip; an inner point past the box takes the box's own, and the band
+    // is none there.
+    let inside = |grown: Rect, by: f32| -> Vec<Pos2> {
+        ring(grown, radius, by)
+            .into_iter()
+            .zip(&outer)
+            .map(|((point, _), &(edge, normal))| {
+                if (edge - point).dot(normal) > 0.0 {
+                    point
+                } else {
+                    edge
+                }
+            })
+            .collect()
+    };
+    let edge = inside(hole.expand(half), half - spread);
+    let mut mesh = egui::epaint::Mesh::default();
+    let rim: Vec<Pos2> = outer.iter().map(|&(point, _)| point).collect();
+    band(&mut mesh, (&rim, color), (&edge, color));
+    if half > 0.0 {
+        let room = (hole.width().min(hole.height()) / 2.0).max(0.0);
+        let core = inside(hole.shrink(half.min(room)), -spread - half);
+        band(&mut mesh, (&edge, color), (&core, Color32::TRANSPARENT));
+    }
+    egui::Shape::mesh(mesh)
+}
+
+/// `rect`'s rounded outline, clockwise from the top left corner, each point
+/// with the way out from its corner, the corners grown by `by`.
+fn ring(rect: Rect, radius: CornerRadius, by: f32) -> Vec<(Pos2, egui::Vec2)> {
+    use std::f32::consts::FRAC_PI_2;
+    let most = (rect.width().min(rect.height()) / 2.0).max(0.0);
+    let corner = |r: u8| {
+        if r == 0 {
+            0.0
+        } else {
+            (f32::from(r) + by).clamp(0.0, most)
+        }
+    };
+    // Each corner's centre and the angle its arc starts at, y down.
+    let (nw, ne, se, sw) = (
+        corner(radius.nw),
+        corner(radius.ne),
+        corner(radius.se),
+        corner(radius.sw),
+    );
+    let corners = [
+        (rect.left_top() + egui::vec2(nw, nw), nw, 2.0),
+        (rect.right_top() + egui::vec2(-ne, ne), ne, 3.0),
+        (rect.right_bottom() + egui::vec2(-se, -se), se, 0.0),
+        (rect.left_bottom() + egui::vec2(sw, -sw), sw, 1.0),
+    ];
+    let mut points = Vec::with_capacity(4 * CORNER_STEPS);
+    for (centre, r, start) in corners {
+        for step in 0..CORNER_STEPS {
+            #[allow(clippy::cast_precision_loss, reason = "a handful of steps")]
+            let angle = (start + step as f32 / (CORNER_STEPS - 1) as f32) * FRAC_PI_2;
+            let out = egui::vec2(libm::cosf(angle), libm::sinf(angle));
+            points.push((centre + out * r, out));
+        }
+    }
+    points
+}
+
+/// The strip between two rings of as many points, each ring in its colour.
+fn band(mesh: &mut egui::epaint::Mesh, from: (&[Pos2], Color32), to: (&[Pos2], Color32)) {
+    #[allow(clippy::cast_possible_truncation, reason = "a ring of 32 points")]
+    let base = mesh.vertices.len() as u32;
+    let count = from.0.len().min(to.0.len());
+    for i in 0..count {
+        mesh.colored_vertex(from.0[i], from.1);
+        mesh.colored_vertex(to.0[i], to.1);
+    }
+    #[allow(clippy::cast_possible_truncation, reason = "a ring of 32 points")]
+    for i in 0..count as u32 {
+        let j = (i + 1) % count as u32;
+        let (a0, b0, a1, b1) = (
+            base + 2 * i,
+            base + 2 * i + 1,
+            base + 2 * j,
+            base + 2 * j + 1,
+        );
+        mesh.add_triangle(a0, b0, a1);
+        mesh.add_triangle(a1, b0, b1);
+    }
 }
 
 /// `rect` with its corners rounded, filled with `gradient`: the rounded
@@ -415,13 +545,14 @@ mod tests {
                 shape: GradientShape::Linear { angle: 0.0 },
                 stops: vec![(0.0, Color32::BLACK), (1.0, Color32::WHITE)],
             })),
-            shadow: Some(Shadow {
+            shadows: Some(std::rc::Rc::from([Shadow {
                 x: 0.0,
                 y: 2.0,
                 blur: 8.0,
                 spread: 0.0,
                 color: Color32::from_black_alpha(64),
-            }),
+                inset: false,
+            }])),
             ..Style::default()
         };
         let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(100.0, 40.0));
@@ -449,6 +580,68 @@ mod tests {
             mesh.vertices
                 .iter()
                 .all(|v| rect.expand(0.01).contains(v.pos))
+        );
+    }
+
+    // An inset shadow sits inside the edge, over the fill and under the
+    // outline, and is a band only where the box shrunk and moved leaves one:
+    // half a pixel down shows along the top and nowhere along the bottom.
+    #[test]
+    fn an_inset_shadow_is_a_band_inside_the_edge_over_the_fill() {
+        let white = Color32::from_white_alpha(40);
+        let button = Style {
+            stroke: Some(Color32::RED),
+            stroke_width: Some(1.0),
+            shadows: Some(std::rc::Rc::from([Shadow {
+                x: 0.0,
+                y: 2.0,
+                blur: 0.0,
+                spread: 2.0,
+                color: white,
+                inset: true,
+            }])),
+            ..Style::default()
+        };
+        let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(100.0, 40.0));
+        let shape = frame_shape(rect, egui::CornerRadius::same(6), Color32::BLUE, &button);
+        let egui::Shape::Vec(layers) = shape else {
+            panic!("a fill, a shadow and an edge are layers");
+        };
+        assert_eq!(layers.len(), 3, "{layers:?}");
+        let egui::Shape::Mesh(band) = &layers[1] else {
+            panic!("the inset is a mesh between the fill and the edge");
+        };
+        let inside = rect.shrink(1.0);
+        assert!(
+            band.vertices
+                .iter()
+                .all(|v| inside.expand(0.01).contains(v.pos))
+        );
+        let area = |y: std::ops::Range<f32>| {
+            band.indices
+                .chunks(3)
+                .map(|t| {
+                    let [a, b, c] = [0, 1, 2].map(|k| band.vertices[t[k] as usize].pos);
+                    let mid = (a.y + b.y + c.y) / 3.0;
+                    if y.contains(&mid) {
+                        ((b - a).x * (c - a).y - (b - a).y * (c - a).x).abs() / 2.0
+                    } else {
+                        0.0
+                    }
+                })
+                .sum::<f32>()
+        };
+        // The box inside the edge is 98 by 38; shrunk by 2 and moved 2 down,
+        // the band is 4 deep along the top, 2 at the sides, none below.
+        assert!(
+            area(1.0..6.0) > 98.0 * 3.0,
+            "the top band: {}",
+            area(1.0..6.0)
+        );
+        assert!(
+            area(36.0..39.0) < 4.0 * 3.0,
+            "almost none below: {}",
+            area(36.0..39.0)
         );
     }
 

@@ -1,7 +1,7 @@
 //! The kinds that hold a number between two ends: the slider, the number
 //! field and the progress bar.
 
-use egui::{Color32, pos2, vec2};
+use egui::{Color32, Sense, Stroke, pos2, vec2};
 
 use crate::vocabulary::words as w;
 use crate::widget::arrange::solved_of;
@@ -512,4 +512,38 @@ pub(crate) fn progress(
         .override_text_color
         .unwrap_or(visuals.selection.stroke.color);
     Brush::clipped(ui, outer).galley(place, galley, ink);
+}
+
+/// Seconds a spinner takes to turn once.
+const SPIN_SECONDS: f64 = 0.75;
+/// Points along a spinner's arc.
+const ARC_STEPS: usize = 24;
+
+/// A spinner, as daisyUI's `loading-spinner`: three quarters of a ring with
+/// round ends, turning once every 0.75 s, in the text's colour, as big as
+/// [`crate::widget::sizing::spinner_side`]. It turns on the engine's clock
+/// under a fixed step, so a picture of it is the same every run.
+pub(crate) fn spinner(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, color: Color32) {
+    use std::f32::consts::TAU;
+    let side =
+        crate::widget::sizing::spinner_side(&at.resting(index).style, &at.arena[index].widget);
+    let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(side), Sense::hover());
+    #[allow(clippy::cast_possible_truncation, reason = "a fraction of a turn")]
+    let start = (at.ui_now().rem_euclid(SPIN_SECONDS) / SPIN_SECONDS) as f32 * TAU;
+    let width = (side / 8.0).max(1.5);
+    let radius = side / 2.0 - width / 2.0;
+    #[allow(clippy::cast_precision_loss, reason = "a handful of steps")]
+    let points: Vec<egui::Pos2> = (0..=ARC_STEPS)
+        .map(|step| {
+            let angle = start + step as f32 / ARC_STEPS as f32 * TAU * 0.75;
+            rect.center() + vec2(libm::cosf(angle), libm::sinf(angle)) * radius
+        })
+        .collect();
+    let brush = Brush::of(ui);
+    if let (Some(&first), Some(&last)) = (points.first(), points.last()) {
+        brush.disc(first, width / 2.0, color);
+        brush.disc(last, width / 2.0, color);
+    }
+    brush.line(points, Stroke::new(width, color));
+    ui.ctx().request_repaint();
 }

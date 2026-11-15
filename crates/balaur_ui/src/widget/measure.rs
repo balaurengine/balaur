@@ -189,6 +189,10 @@ impl<'a> Measure<'a> {
                 let caption = self.text(index, widget, theme).x + self.padding.x;
                 vec2(caption.max(160.0), line + self.padding.y)
             }
+            w::SPINNER => {
+                let look = crate::widget::arena::look_of(self.arena, index, theme);
+                egui::Vec2::splat(crate::widget::sizing::spinner_side(&look.style, widget))
+            }
             w::SEPARATOR => {
                 let spacing = widget.egui.spacing;
                 egui::Vec2::splat(if spacing >= 0.0 { spacing } else { 6.0 })
@@ -228,7 +232,7 @@ impl<'a> Measure<'a> {
         let face = (&look.font, look.ink, slant);
         let caption = caption(self.eng, widget);
         match widget.kind.as_str() {
-            w::CHECKBOX => {
+            w::CHECKBOX | w::SWITCH => {
                 let text = (!caption.is_empty()).then(|| {
                     let label = crate::widget::theme::rich(
                         &caption,
@@ -239,9 +243,16 @@ impl<'a> Measure<'a> {
                     );
                     crate::widget::sizing::control_galley(&ctx, &style, label).size()
                 });
-                crate::widget::sizing::tick_box_size(&style.spacing, text)
+                if widget.kind == w::SWITCH {
+                    crate::widget::sizing::switch_size(
+                        &look.style,
+                        style.spacing.icon_spacing,
+                        text,
+                    )
+                } else {
+                    crate::widget::sizing::tick_box_size(&style.spacing, text)
+                }
             }
-            w::SWITCH => crate::widget::sizing::switch_size(&look.style),
             w::DROPDOWN => crate::widget::sizing::dropdown_size(&ctx, &style, widget, face),
             w::MENU => crate::widget::sizing::menu_size(&ctx, &style, widget, &caption, face),
             _ if !widget.egui.inline => style.spacing.interact_size,

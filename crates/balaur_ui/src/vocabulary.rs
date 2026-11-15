@@ -26,6 +26,7 @@ pub(crate) mod words {
     pub(crate) const NUMBER_FIELD: &str = "number_field";
     pub(crate) const SLIDER: &str = "slider";
     pub(crate) const PROGRESS_BAR: &str = "progress_bar";
+    pub(crate) const SPINNER: &str = "spinner";
     pub(crate) const GRID: &str = "grid";
     pub(crate) const FOLD: &str = "fold";
     pub(crate) const DIALOG: &str = "dialog";
@@ -56,6 +57,7 @@ pub(crate) mod words {
         SLIDER,
         NUMBER_FIELD,
         PROGRESS_BAR,
+        SPINNER,
         GRID,
         FOLD,
         DIALOG,
@@ -510,6 +512,10 @@ pub(crate) mod keys {
     pub(crate) const STROKE_WIDTH: &str = "stroke_width";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TEXT_ALIGN: &str = "text_align";
+    /// Extra space between a text's glyphs, as CSS's `letter-spacing`.
+    pub(crate) const LETTER_SPACING: &str = "letter_spacing";
+    /// How a text's letters are cased, as CSS's `text-transform`.
+    pub(crate) const TEXT_TRANSFORM: &str = "text_transform";
     pub(crate) const TEXT_COLOR: &str = "text_color";
     pub(crate) const TEXT_KEY: &str = "text_key";
     pub(crate) const THEME: &str = "theme";
@@ -685,7 +691,7 @@ pub(crate) mod weights {
 /// A theme table's gradient and shadow, and the keys of each.
 pub(crate) mod looks {
     pub(crate) const GRADIENT: &str = "gradient";
-    pub(crate) const SHADOW: &str = "shadow";
+    pub(crate) const SHADOWS: &str = "shadows";
     /// `linear`, the default, or `radial`.
     pub(crate) const KIND: &str = "kind";
     pub(crate) const RADIAL: &str = "radial";
@@ -704,4 +710,6 @@ pub(crate) mod looks {
     pub(crate) const BLUR: &str = "blur";
     pub(crate) const SPREAD: &str = "spread";
     pub(crate) const COLOR: &str = "color";
+    /// A shadow drawn inside the box, over its fill, as CSS's `inset`.
+    pub(crate) const INSET: &str = "inset";
 }
