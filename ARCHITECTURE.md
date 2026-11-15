@@ -750,7 +750,7 @@ carrying a bone, in tree order, the order a skin numbers them.
 - **Modifiers have the last word.** `modifier2d` and `modifier3d` are Godot's
   skeleton modifiers as one component each: `look_at`, `two_bone_ik` (the
   analytic solve, `flip` choosing the elbow, an out-of-reach target
-  straightening the chain), `fabrik`, `ccdik`, `jiggle` and `follow`. It runs after animation, from local transforms as
+  straightening the chain), `fabrik`, `ccdik` and `jiggle`. It runs after animation, from local transforms as
   they are now, in entity order, on `libm`.
 - There are no Spine slots or skins: a node with a `sprite` and `visible` does
   that. 3D weights come from the file.
@@ -817,7 +817,10 @@ Kept as product decisions rather than for reach: scene `bindings` and
 `states`, the animation `state_machine`, the `code` widget's language tables,
 the `window` widget kind, gestures, the built-in UI focus controller, and
 gamepad repeat. `apply_force` stays beside `apply_impulse`, being Godot's and
-Unity's word for a push held over time.
+Unity's word for a push held over time. `panel` stays beside `column`: it is
+Godot's `PanelContainer`, a plate its children sit on as in a `stack`. Tweens
+stay native, since `then`, `on_tween_finished(handle)` and the step events need
+an owner that a generated clip on a child node is not.
 
 ### Modules and extensions
 
@@ -1671,9 +1674,10 @@ docks that fold and move, the command palette, dark and light token sets.
   moves to wasmi (`bs-wasmi`), which can park a call.
 - A file dropped, pasted or picked on the page is written under
   `/handed/<n>/` and said as dropped, so `dropin.bs` places it as on desktop.
-- A rig is a library scene (`kind = "rig"` in `editor/library/catalog.toml`):
-  a `follow` modifier, plus a script from `editor/library/scripts/` where it
-  needs one.
+- A rig is a library scene (`kind = "rig"` in `editor/library/catalog.toml`)
+  whose nodes run scripts from `editor/library/scripts/`. `follow.bs` trails a
+  target through `node.transform.set_global_position`, so a follower under a
+  moving parent lands where it should.
 - The gizmo follows steadyum's: an orange bounding-box frame, a face drag
   translating in that face's plane, a rectangle at each face centre scaling
   along its normal, corner brackets scaling uniformly, and a rotation ball whose

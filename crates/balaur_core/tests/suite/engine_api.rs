@@ -330,7 +330,7 @@ fn a_script_can_write_to_the_log_it_reads_back() {
         .unwrap();
     }
 
-    let recent = balaur_core::logbuf::recent(10);
+    let recent = balaur_core::logbuf::heard();
     for level in ["info", "warn", "error"] {
         let entry = recent
             .iter()

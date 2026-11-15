@@ -415,7 +415,14 @@ internal fn first_instanced_float(state: &mut editor::State) -> selftest::Instan
 // the `--frames 90` an e2e run allows.
 const RECORD_UNTIL: int = 9;
 const OPEN_AT: int = 10;
+// The dock's own buttons, clicked while the replay runs: a click lands on the
+// tick after it, and a step is a seek that lands on the tick after that.
+const PAUSE_AT: int = 12;
+const STEP_AT: int = 14;
+const STEPPED_AT: int = 17;
 const CHECK_AT: int = 28;
+const PLAY_BUTTON: str = "Editor/Shell/Body/Centre/Bottom/Lanes/Head/Play";
+const STEP_BUTTON: str = "Editor/Shell/Body/Centre/Bottom/Lanes/Head/Step";
 
 /// The start screen's own module: a project made from a template, the row it
 /// leaves in the list, and the row forgotten again. Writes under the editor's
@@ -554,7 +561,7 @@ fn row_with_id(items: any, id: str) -> any {
 }
 
 pub fn sessions(state: &mut editor::State) {
-    state.session.demo = selftest::Demo { frames: 0, file: "", was: 0 };
+    state.session.demo = selftest::Demo { frames: 0, file: "", was: 0, paused_at: 0 };
     selftest::stepping(state, "session");
     // With digests, so the replay is actually checked against the recording
     // rather than merely running.
@@ -574,6 +581,18 @@ pub fn session_step(state: &mut editor::State) {
         stop_and_check(state, demo);
     } else if demo.frames == OPEN_AT {
         open_and_check(state, demo);
+    } else if demo.frames == PAUSE_AT {
+        selftest::check(replay::state() == replay::STATE_PLAYING, "the replay is still playing");
+        selftest::check(ui::click(scene::root().get_node(PLAY_BUTTON)), "the dock's pause button takes a click");
+    } else if demo.frames == STEP_AT {
+        selftest::check(replay::state() == replay::STATE_PAUSED, "the dock's pause button pauses the replay");
+        demo.paused_at = replay::position();
+        selftest::check(ui::click(scene::root().get_node(STEP_BUTTON)), "its step button takes a click");
+    } else if demo.frames == STEPPED_AT {
+        let at = replay::position();
+        selftest::check(at == demo.paused_at + 1, "and runs one tick ({demo.paused_at} to {at})");
+        selftest::check(replay::state() == replay::STATE_PAUSED, "then holds there");
+        ui::click(scene::root().get_node(PLAY_BUTTON));
     } else if demo.frames == CHECK_AT {
         replayed_and_check(state, demo);
     }

@@ -317,7 +317,7 @@ pub fn paint_terrain(state: &mut editor::State, column: int, row: int, value: in
         return false;
     }
     history::record(state, if value < 0 { "erase terrain" } else { "paint terrain" }, TERRAIN);
-    found.tilemap.set_terrain(column, row, value);
+    found.tilemap.set_cell_terrain(column, row, value);
     let table = found.get_component(components::TILEMAP);
     if table.kind() != types::KIND_MAP {
         return false;

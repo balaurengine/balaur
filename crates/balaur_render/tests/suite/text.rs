@@ -170,9 +170,8 @@ fn a_text_style_written_inline_is_filed_with_its_rows() {
     assert_eq!(word(&style, "underline").as_deref(), Some("single"));
 }
 
-// The shaper is the window build's; with no window open it still measures,
-// against the bundled faces.
-#[cfg(feature = "window")]
+// With no window open, and in a build with none, the shaper measures against
+// the bundled faces.
 #[test]
 fn text_measures_wider_with_more_letters_and_taller_with_a_bigger_font() {
     let script = r#"pub class Scenario { node: Node, measured: str }

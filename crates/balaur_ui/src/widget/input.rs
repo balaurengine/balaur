@@ -26,7 +26,7 @@ type WidgetKey = (String, u64);
 ///
 /// Registered as a replay resource under `ui`, so a verified session feeds the
 /// same clicks back rather than asking a window that is not there.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct WidgetInputSnapshot {
     clicked: Vec<WidgetKey>,
     /// The widget focus arrived at, recorded only on the frame it changed.
@@ -441,23 +441,81 @@ pub(crate) fn hear_paste(eng: &Engine, ctx: &egui::Context) {
     }
 }
 
+/// Whether a recording replays this widget: it is in the subtree
+/// `debugger.set_scope` names, or no subtree is named. One that is gone is the
+/// recording's, which named it.
+fn replayed(eng: &Engine, key: &WidgetKey) -> bool {
+    let Some(game) = eng.debug_scope() else {
+        return true;
+    };
+    resolve(eng, key).is_none_or(|entity| balaur_core::scene::is_within(&eng.world(), entity, game))
+}
+
+/// A replayed tick's input: the recording's for the widgets it replays, the
+/// draw's for every other one, which is a tool hosting the game.
+fn replayed_frame(
+    eng: &Engine,
+    recorded: WidgetInputSnapshot,
+    drawn: WidgetInputSnapshot,
+) -> WidgetInputSnapshot {
+    let mut frame = WidgetInputSnapshot {
+        clicked: recorded
+            .clicked
+            .into_iter()
+            .filter(|key| replayed(eng, key))
+            .collect(),
+        focused: recorded.focused.filter(|key| replayed(eng, key)),
+        edits: recorded
+            .edits
+            .into_iter()
+            .filter(|(key, _)| replayed(eng, key))
+            .collect(),
+    };
+    frame
+        .clicked
+        .extend(drawn.clicked.into_iter().filter(|key| !replayed(eng, key)));
+    if let Some(focused) = drawn.focused.filter(|key| !replayed(eng, key)) {
+        frame.focused = Some(focused);
+    }
+    frame.edits.extend(
+        drawn
+            .edits
+            .into_iter()
+            .filter(|(key, _)| !replayed(eng, key)),
+    );
+    frame
+}
+
+/// The widget input this tick applies. A re-simulated tick applies what its
+/// first run had and leaves the draw's report to the live tick after it. A
+/// replayed tick keeps nothing, so a paused replay does not apply it again.
+fn this_frame(eng: &Engine) -> WidgetInputSnapshot {
+    let kept = eng.resource::<WidgetInputSnapshot>();
+    if balaur_core::rollback::is_resimulating(eng) {
+        return kept.borrow().clone();
+    }
+    let drawn = eng
+        .resource::<WidgetInputBuffer>()
+        .borrow_mut()
+        .0
+        .take()
+        .unwrap_or_default();
+    if replay::is_playing(eng) {
+        let recorded = std::mem::take(&mut *kept.borrow_mut());
+        return replayed_frame(eng, recorded, drawn);
+    }
+    // Kept for the recording, which writes this frame's at its end.
+    *kept.borrow_mut() = drawn.clone();
+    drawn
+}
+
 fn apply_system(eng: &Engine, _dt: f32) {
     follow_hearers(eng);
-    // A replay keeps what `restore` just put back, and a re-simulated tick
-    // keeps what its first run had; only a live tick takes the draw's report.
-    if !replay::suppressed(eng) {
-        let taken = eng.resource::<WidgetInputBuffer>().borrow_mut().0.take();
-        *eng.resource::<WidgetInputSnapshot>().borrow_mut() = taken.unwrap_or_default();
-    }
-    let (clicked, focused, edits) = {
-        let frame = eng.resource::<WidgetInputSnapshot>();
-        let frame = frame.borrow();
-        (
-            frame.clicked.clone(),
-            frame.focused.clone(),
-            frame.edits.clone(),
-        )
-    };
+    let WidgetInputSnapshot {
+        clicked,
+        focused,
+        edits,
+    } = this_frame(eng);
     // In the order they happened: a press and its release, the click they
     // made, then the check that click flipped.
     let mut said = Vec::new();

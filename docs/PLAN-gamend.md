@@ -59,6 +59,3 @@ ping in script.
 4. **Protobuf on the socket.** The server serves it on request, and the addon
    speaks JSON. The generator could emit a decoder from the same proto when
    the bytes matter.
-5. **OAuth sign-ins.** `authentication::oauth_google_id_token` and
-   `oauth_api_callback` answer a session that no `client` function adopts. A
-   game-side one would be a `client::login_*` beside `login_device`.

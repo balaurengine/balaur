@@ -1111,7 +1111,7 @@ pub(crate) fn context_sensor(ui: &egui::Ui, at: &Painting<'_>, index: usize) {
     }
     ui.interact(
         rect,
-        egui::Id::unique(("balaur-context-under", placed.entity)),
+        crate::widget::layer::sensor_id(ui, "balaur-context-under", placed.entity),
         egui::Sense::CLICK,
     );
 }

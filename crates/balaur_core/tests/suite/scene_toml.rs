@@ -105,9 +105,9 @@ fn load(dir: &std::path::Path, scene: &str) -> App {
     app
 }
 
-// The lines about one node: other tests in this process log at the same time.
+// The lines this thread logged about one node.
 fn logged_at(level: &str, node: &str) -> Vec<String> {
-    balaur_core::logbuf::recent(200)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|entry| entry.level == level && entry.message.contains(node))
         .map(|entry| entry.message)

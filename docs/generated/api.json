@@ -1066,7 +1066,6 @@
       "animation::LOOP_PINGPONG": "pingpong",
       "animation::MODIFIER_CCDIK": "ccdik",
       "animation::MODIFIER_FABRIK": "fabrik",
-      "animation::MODIFIER_FOLLOW": "follow",
       "animation::MODIFIER_JIGGLE": "jiggle",
       "animation::MODIFIER_LOOK_AT": "look_at",
       "animation::MODIFIER_TWO_BONE_IK": "two_bone_ik",
@@ -3878,17 +3877,17 @@
         "least": 3,
         "signature": "(Node, int, int) -> int"
       },
+      "node.tilemap.cell_terrain": {
+        "least": 3,
+        "signature": "(Node, int, int) -> int"
+      },
       "node.tilemap.set_cell": {
         "least": 4,
         "signature": "(Node, int, int, int)"
       },
-      "node.tilemap.set_terrain": {
+      "node.tilemap.set_cell_terrain": {
         "least": 4,
         "signature": "(Node, int, int, int)"
-      },
-      "node.tilemap.terrain": {
-        "least": 3,
-        "signature": "(Node, int, int) -> int"
       },
       "node.tint": {
         "least": 1,
@@ -3907,6 +3906,10 @@
         "signature": "(Node) -> Vec3"
       },
       "node.transform.look_at": {
+        "least": 2,
+        "signature": "(Node, Vec3)"
+      },
+      "node.transform.set_global_position": {
         "least": 2,
         "signature": "(Node, Vec3)"
       },
@@ -6391,8 +6394,8 @@
     "mesh_collider2d": "How the node's `collider2d` turns its `mesh` into a shape: the shape a fit takes, the edges a polyline keeps, how a convex_polygon and a voxelized outline are read, and what a triangle_mesh tidies first.",
     "mesh_collider3d": "How the node's `collider3d` turns its `mesh` into a shape: how a voxelized mesh or a decomposition's grid is filled, and what a triangle_mesh tidies first.",
     "meta": "Named values filed on the node, like Godot's `set_meta`. It has no fixed properties; every key is the author's.",
-    "modifier2d": "Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
-    "modifier3d": "Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
+    "modifier2d": "Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik` or `jiggle`.",
+    "modifier3d": "Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik` or `jiggle`.",
     "multimesh2d": "Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
     "multimesh3d": "Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
     "occluder2d": "The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.",
@@ -7211,9 +7214,7 @@
       "damping",
       "mass",
       "use_gravity",
-      "gravity",
-      "offset",
-      "lag"
+      "gravity"
     ],
     "modifier3d": [
       "kind",
@@ -7229,9 +7230,7 @@
       "damping",
       "mass",
       "use_gravity",
-      "gravity",
-      "offset",
-      "lag"
+      "gravity"
     ],
     "multimesh2d": [
       "source",
@@ -12888,37 +12887,21 @@
       },
       "kind": {
         "default": "look_at",
-        "description": "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow)",
+        "description": "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle)",
         "options": [
           "look_at",
           "two_bone_ik",
           "fabrik",
           "ccdik",
-          "jiggle",
-          "follow"
+          "jiggle"
         ],
         "type": "enum"
-      },
-      "lag": {
-        "default": 0.0,
-        "description": "Seconds a follow node takes to close most of the gap to its target; 0 pins it there",
-        "group": "follow",
-        "type": "float"
       },
       "mass": {
         "default": 0.75,
         "description": "What gravity weighs against stiffness on a jiggle bone",
         "group": "jiggle",
         "type": "float"
-      },
-      "offset": {
-        "default": [
-          0.0,
-          0.0
-        ],
-        "description": "Where a follow node sits relative to its target, in world units",
-        "group": "follow",
-        "type": "vec2"
       },
       "stiffness": {
         "default": 3.0,
@@ -12997,38 +12980,21 @@
       },
       "kind": {
         "default": "look_at",
-        "description": "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow)",
+        "description": "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle)",
         "options": [
           "look_at",
           "two_bone_ik",
           "fabrik",
           "ccdik",
-          "jiggle",
-          "follow"
+          "jiggle"
         ],
         "type": "enum"
-      },
-      "lag": {
-        "default": 0.0,
-        "description": "Seconds a follow node takes to close most of the gap to its target; 0 pins it there",
-        "group": "follow",
-        "type": "float"
       },
       "mass": {
         "default": 0.75,
         "description": "What gravity weighs against stiffness on a jiggle bone",
         "group": "jiggle",
         "type": "float"
-      },
-      "offset": {
-        "default": [
-          0.0,
-          0.0,
-          0.0
-        ],
-        "description": "Where a follow node sits relative to its target, in world units",
-        "group": "follow",
-        "type": "vec3"
       },
       "stiffness": {
         "default": 3.0,
@@ -19688,10 +19654,6 @@
           "value": "\"fabrik\""
         },
         {
-          "name": "MODIFIER_FOLLOW",
-          "value": "\"follow\""
-        },
-        {
           "name": "MODIFIER_JIGGLE",
           "value": "\"jiggle\""
         },
@@ -22261,6 +22223,9 @@
         "look_at": [
           "transform"
         ],
+        "set_global_position": [
+          "transform"
+        ],
         "set_state": [
           "states"
         ]
@@ -22312,6 +22277,7 @@
         "script_path": "The path of the script the node names, nil when it names none; named whether or not it runs.",
         "script_props": "What the node sets over its script's exported defaults, as a table; empty when it sets nothing.",
         "set_component": "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest. A script hears every write to the scene, this one and a node added, freed, renamed or moved, with `events::listen(this.node, \"changed\")`, as `on_changed(entries)` at the top of the next frame.",
+        "set_global_position": "Put the node at a world point, Godot's `global_position = point`: it writes the `position` that lands there under its parent's pose as of the last transform sync, so `global_position` reads the point once the next sync has run. An axis a zero scale above flattens, or a point that is not finite, keeps the node's own coordinate.",
         "set_name": "Rename the node, doing nothing when it carries no name.",
         "set_parent": "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent.",
         "set_process": "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says.",
@@ -22371,6 +22337,7 @@
         "script_path",
         "script_props",
         "set_component",
+        "set_global_position",
         "set_name",
         "set_parent",
         "set_process",
@@ -22400,6 +22367,9 @@
         },
         "look_at": {
           "transform": "look_at"
+        },
+        "set_global_position": {
+          "transform": "set_global_position"
         },
         "set_state": {
           "states": "set_state"
@@ -22447,6 +22417,7 @@
         "script_path": "(Node) -> str",
         "script_props": "(Node) -> any",
         "set_component": "(Node, str, any)",
+        "set_global_position": "(Node, Vec3)",
         "set_name": "(Node, str)",
         "set_parent": "(Node, Node)",
         "set_process": "(Node, str)",
@@ -25808,6 +25779,9 @@
         "cell": [
           "tilemap"
         ],
+        "cell_terrain": [
+          "tilemap"
+        ],
         "is_on_screen": [
           "screen_notifier2d"
         ],
@@ -25817,10 +25791,7 @@
         "set_cell": [
           "tilemap"
         ],
-        "set_terrain": [
-          "tilemap"
-        ],
-        "terrain": [
+        "set_cell_terrain": [
           "tilemap"
         ]
       },
@@ -26005,6 +25976,7 @@
         "camera_matrix": "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window.",
         "camera_pose": "The camera the renderer actually used, which is where a backend put it and not what a `camera3d` asked: its `eye` and `target`, the vertical `fov` in radians and the HiDPI `scale_factor`. Zeros and a scale of one with no window.",
         "cell": "The tile at a column and row, or -1 for an empty cell or one past the edge.",
+        "cell_terrain": "The terrain value painted at a column and row, or -1 where nothing was painted.",
         "check_material": "Every diagnostic about the material at that path, as `[{ file, line, column, severity, message }]`; empty when it links.",
         "clear_retained": "Stop drawing what `key` kept. A script hears the camera a frame was drawn with move, to draw a group sized in pixels again, with `events::listen(this.node, \"camera_moved\")`.",
         "debug_view": "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is.",
@@ -26032,13 +26004,12 @@
         "screenshot": "Save the next rendered frame as a PNG at a project-relative path. `screenshot_saved` goes to every listener with the path once it is on disk, and `screenshot_failed` with `{ path, error }` when it cannot be, a run with no renderer included.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn: the colour a `#rrggbb` writes, each channel from 0 to 1. Its alpha is not read.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
+        "set_cell_terrain": "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it.",
         "set_debug_view": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
         "set_shader_preview": "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back.",
-        "set_terrain": "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it.",
         "snap_aov": "Render the 3D scene once more as `render.AOV_DEPTH` (nearest brightest), `AOV_NORMALS` (world space), `AOV_CAMERA_NORMALS` or `AOV_SEGMENTATION` (a colour per object) and save it as a PNG, announcing it as `screenshot` does. A read-back of the GPU, as `screenshot` is.",
         "stats": "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
-        "terrain": "The terrain value painted at a column and row, or -1 where nothing was painted.",
-        "text_size": "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face, so a run with no window open answers as a windowed one does. A build without the `window` feature has no shaper, and the call fails there. A width is presentation: writing one into state puts presentation in the digest.",
+        "text_size": "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face, so a run with no window open answers as a windowed one does. A width is presentation: writing one into state puts presentation in the digest.",
         "texture_pixels_per_unit": "How many of an image's pixels make a world unit when a sprite says 0: its own `pixels_per_unit` import setting, else 100.",
         "texture_size": "An image's width and height in pixels, read from the file's own header.",
         "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: each other island counter-clockwise and each hole clockwise; default false keeps the largest alone). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn.",
@@ -26053,6 +26024,7 @@
         "camera_matrix",
         "camera_pose",
         "cell",
+        "cell_terrain",
         "check_material",
         "clear_retained",
         "debug_view",
@@ -26080,12 +26052,11 @@
         "screenshot",
         "set_background",
         "set_cell",
+        "set_cell_terrain",
         "set_debug_view",
         "set_shader_preview",
-        "set_terrain",
         "snap_aov",
         "stats",
-        "terrain",
         "text_size",
         "texture_pixels_per_unit",
         "texture_size",
@@ -26099,6 +26070,9 @@
         "cell": {
           "tilemap": "cell"
         },
+        "cell_terrain": {
+          "tilemap": "cell_terrain"
+        },
         "is_on_screen": {
           "screen_notifier2d": "is_on_screen"
         },
@@ -26108,11 +26082,8 @@
         "set_cell": {
           "tilemap": "set_cell"
         },
-        "set_terrain": {
-          "tilemap": "set_terrain"
-        },
-        "terrain": {
-          "tilemap": "terrain"
+        "set_cell_terrain": {
+          "tilemap": "set_cell_terrain"
         }
       },
       "name": "render",
@@ -26124,6 +26095,7 @@
         "camera_matrix": "() -> [float]",
         "camera_pose": "() -> render::CameraPose",
         "cell": "(Node, int, int) -> int",
+        "cell_terrain": "(Node, int, int) -> int",
         "check_material": "(str) -> [script::Diagnostic]",
         "clear_retained": "(str)",
         "debug_view": "() -> str",
@@ -26151,12 +26123,11 @@
         "screenshot": "(str)",
         "set_background": "(Color)",
         "set_cell": "(Node, int, int, int)",
+        "set_cell_terrain": "(Node, int, int, int)",
         "set_debug_view": "(str)",
         "set_shader_preview": "(str, int)",
-        "set_terrain": "(Node, int, int, int)",
         "snap_aov": "(str, str)",
         "stats": "() -> render::Stats",
-        "terrain": "(Node, int, int) -> int",
         "text_size": "(str, render::TextOptions?) -> Vec2",
         "texture_pixels_per_unit": "(str) -> float",
         "texture_size": "(str) -> Vec2",

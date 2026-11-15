@@ -310,7 +310,7 @@ fn app_with_tone(project_root: &std::path::Path) -> App {
 }
 
 fn logged_at(level: &str) -> Vec<String> {
-    balaur_core::logbuf::recent(200)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|entry| entry.level == level)
         .map(|entry| entry.message)
@@ -473,7 +473,7 @@ fn an_unknown_scene_asset_id_is_named_in_a_warning_and_the_scene_still_loads() {
     )
     .unwrap();
     assert!(scene::find_node(&app.engine.world(), root, "N").is_some());
-    let complained = balaur_core::logbuf::recent(200)
+    let complained = balaur_core::logbuf::heard()
         .into_iter()
         .any(|entry| entry.message.contains("#nope"));
     assert!(complained, "nothing said which reference was missing");

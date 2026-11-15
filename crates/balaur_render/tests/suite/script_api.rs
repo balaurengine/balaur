@@ -758,10 +758,10 @@ fn a_painted_terrain_value_reads_back_at_its_cell_and_nowhere_else() {
     "cells": { "kind": "inline", "rows": [[-1, -1, -1], [-1, -1, -1], [-1, -1, -1]] },
     "tileset": { "texture": "art/tiles.png", "tile_size": 50, "columns": 4, "terrains": [{ "name": "grass", "value": 1, "kind": "quarters", "first_tile": 0 }] },
 });
-self.node.tilemap.set_terrain(1, 1, 1);
-let painted = self.node.tilemap.terrain(1, 1);
-let bare = self.node.tilemap.terrain(0, 0);
-let past = self.node.tilemap.terrain(9, 9);
+self.node.tilemap.set_cell_terrain(1, 1, 1);
+let painted = self.node.tilemap.cell_terrain(1, 1);
+let bare = self.node.tilemap.cell_terrain(0, 0);
+let past = self.node.tilemap.cell_terrain(9, 9);
 log::info("terrain {painted} {bare} {past} tiled {self.node.tilemap.cell(1, 1) >= 0}");"#,
     );
     std::fs::create_dir_all(dir.path().join("art")).unwrap();

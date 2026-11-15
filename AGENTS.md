@@ -66,7 +66,7 @@ Core features only. A behaviour the editor's or a game's scripts can build
 from what the engine exposes goes in those scripts: remembering a window's
 size, an inspector, a list of recent projects. The engine adds a primitive
 where a script cannot reach, and keeps it the smallest general piece.
-`docs/PLAN-engine-core.md` holds what is still to move.
+`ARCHITECTURE.md` "What stays native" says what stays in Rust and why.
 
 ## Vocabulary
 

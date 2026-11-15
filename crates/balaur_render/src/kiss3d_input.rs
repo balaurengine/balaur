@@ -15,14 +15,14 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
     let Some(input) = app.engine.try_resource::<InputSnapshot>() else {
         return true;
     };
+    #[cfg(target_family = "wasm")]
+    balaur_input::set_command_is_meta(&app.engine, apple_browser());
     let mut input = input.borrow_mut();
     input.begin_frame();
     // As the last pass left it: a field focused there keeps this frame's keys
     // from firing actions.
     input.set_keyboard_taken(window.is_egui_capturing_keyboard());
     input.hold_mouse(window.is_cursor_held());
-    #[cfg(target_family = "wasm")]
-    input.set_command_is_meta(apple_browser());
     let mut seen = heard;
     let mut closing = false;
     for event in window.events().iter() {

@@ -9,6 +9,40 @@ use super::*;
 
 const ON_FREE: &str = "on_free";
 
+impl BsHost {
+    /// A `Node` field's path, or each of a `[Node]` field's, as the node it
+    /// names from `node`, read as `node.get_node` reads one. A path naming
+    /// nothing is no node, and a warning naming the field and the path.
+    fn nodes_named(
+        &self,
+        node: NodeId,
+        (script, field): (&str, &str),
+        v: &Value,
+        ty: &Ty,
+    ) -> Value {
+        match (ty, v) {
+            (Ty::Optional(inner), _) => self.nodes_named(node, (script, field), v, inner),
+            (Ty::Node, Value::Str(at)) => {
+                let found = balaur_core::entity_of(node).ok().and_then(|from| {
+                    balaur_core::scene::find_node(&self.inner.engine.world(), from, at)
+                });
+                if let Some(found) = found {
+                    return Value::Node(balaur_core::node_id_of(found).0);
+                }
+                tracing::warn!("[{script}] property '{field}' names no node at '{at}'");
+                Value::Nil
+            }
+            (Ty::Array(inner), Value::List(items)) => Value::List(
+                items
+                    .iter()
+                    .map(|item| self.nodes_named(node, (script, field), item, inner))
+                    .collect(),
+            ),
+            _ => v.clone(),
+        }
+    }
+}
+
 impl ScriptCompiler for BsHost {
     fn extensions(&self) -> &[&str] {
         &[EXTENSION]
@@ -61,7 +95,10 @@ impl ScriptHost<Engine> for BsHost {
         let mut init: Vec<(String, L)> = vec![];
         for (name, v) in props {
             match file.field_ty(name) {
-                Some(t) => init.push((name.clone(), from_neutral(v, &t, &file.compiled.meta))),
+                Some(t) => {
+                    let v = self.nodes_named(node, (path, name), v, &t);
+                    init.push((name.clone(), from_neutral(&v, &t, &file.compiled.meta)));
+                }
                 None => {
                     tracing::warn!("[{path}] property '{name}' is set on a node but not exported");
                 }

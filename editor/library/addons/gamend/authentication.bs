@@ -92,39 +92,6 @@ pub async fn logout() -> any {
     reply
 }
 
-/// Sign in with a provider code
-/// `POST /api/v1/auth/{provider}/callback`
-pub async fn oauth_api_callback(provider: str, params: any) -> any {
-    if provider == "" {
-        return core::missing("gamend::authentication::oauth_api_callback", "provider");
-    }
-    if !core::given(params, "code") {
-        return core::missing("gamend::authentication::oauth_api_callback", "code");
-    }
-    let reply = await core::rest("POST", "/api/v1/auth/{provider}/callback", params);
-    reply
-}
-
-/// Sign in with Apple (native iOS)
-/// `POST /api/v1/auth/apple/ios/callback`
-pub async fn oauth_callback_api_apple_ios(params: any) -> any {
-    if !core::given(params, "code") {
-        return core::missing("gamend::authentication::oauth_callback_api_apple_ios", "code");
-    }
-    let reply = await core::rest("POST", "/api/v1/auth/apple/ios/callback", params);
-    reply
-}
-
-/// Sign in with a Google ID token
-/// `POST /api/v1/auth/google/id_token`
-pub async fn oauth_google_id_token(params: any) -> any {
-    if !core::given(params, "id_token") {
-        return core::missing("gamend::authentication::oauth_google_id_token", "id_token");
-    }
-    let reply = await core::rest("POST", "/api/v1/auth/google/id_token", params);
-    reply
-}
-
 /// Start a provider sign-in
 /// `GET /api/v1/auth/{provider}`
 pub async fn oauth_request(provider: str) -> any {

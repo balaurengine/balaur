@@ -172,6 +172,7 @@ pub(crate) mod words {
 pub(crate) mod keys {
     pub(crate) const IGNORE: &str = "ignore";
     pub(crate) const ROWS: &str = "rows";
+    pub(crate) const POSITION: &str = "position";
     pub(crate) const ROTATION_EULER: &str = "rotation_euler";
     pub(crate) const SCRIPT: &str = "script";
     pub(crate) const SOURCE: &str = "source";

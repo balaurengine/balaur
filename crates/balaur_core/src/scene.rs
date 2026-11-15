@@ -413,7 +413,6 @@ impl GlobalTransform {
     }
 
     pub(crate) fn mul(&self, local: &Transform) -> Self {
-        let flat = |q: Quat| q.x == 0.0 && q.y == 0.0;
         if (self.skew == 0.0 && local.skew == 0.0) || !flat(self.rotation) || !flat(local.rotation)
         {
             return Self {
@@ -452,14 +451,19 @@ impl GlobalTransform {
     }
 }
 
+/// Whether a rotation turns about z alone, as a 2D node's does.
+pub(crate) fn flat(rotation: Quat) -> bool {
+    rotation.x == 0.0 && rotation.y == 0.0
+}
+
 /// The angle a rotation about z turns by. Only asked of one that is.
-fn z_angle(rotation: Quat) -> f32 {
+pub(crate) fn z_angle(rotation: Quat) -> f32 {
     2.0 * libm::atan2f(rotation.z, rotation.w)
 }
 
 /// Rotation, then a shear turning the y axis `skew` further, then scale.
 /// Every 2D linear map is exactly one of these.
-fn linear_2d(angle: f32, skew: f32, sx: f32, sy: f32) -> glamx::Mat2 {
+pub(crate) fn linear_2d(angle: f32, skew: f32, sx: f32, sy: f32) -> glamx::Mat2 {
     let (x_sin, x_cos) = (libm::sinf(angle), libm::cosf(angle));
     let (y_sin, y_cos) = (libm::sinf(angle + skew), libm::cosf(angle + skew));
     glamx::Mat2::from_cols(

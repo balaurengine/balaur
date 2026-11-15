@@ -124,6 +124,7 @@ source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 | Network replies | Handled — recorded and replayed, outbound suppressed |
 | `audio::device_ready`, `audio::devices` | Handled — the machine is asked once a tick and the answer recorded; a replay answers from the recording |
 | `engine::dark_mode()`, `focused()` and the rest of the device's facts | Handled — recorded each tick, and in the header as they stood when `init` read them |
+| `cmd` in an `[input.actions]` binding | Handled — whether it is ⌘ or Control is in the header, and a replay's bindings read that, not the replaying machine's |
 | A tick rate per platform | Handled — `[time] tick_hz` takes no override, and the header carries the rate |
 | `task::seconds` | Handled — counted in whole fixed steps, `ceil(seconds * tick_hz)`, not summed as a float |
 | `engine::time()`, `engine::delta()` | **Yours** — both accumulate real frame time. Use `engine::tick()` or `fixed_update`'s `dt` |
@@ -156,8 +157,8 @@ approximations bought under 1% of a tick wherever they were measured.
 ## Extending it, for plugin authors
 
 ```rust
-// Passive state the OS fills in, from the plugin's `declare`.
-reg.add_replay_resource::<InputSnapshot>("input");
+// Passive state a frame fills in and nothing sends back, from the plugin's `declare`.
+reg.add_replay_resource::<WidgetInputSnapshot>("ui");
 
 // State a component does not report — `body3d` reports its kind, not velocity.
 reg.add_digest_source("physics", |eng, out| { /* push labelled entries */ });

@@ -272,3 +272,85 @@ fn a_recordings_bindings_survive_a_rebinding() {
         vec![String::from("Space"), String::from("gamepad:south")]
     );
 }
+
+const UNDO: &str = r#"
+[application]
+name = "actions test"
+main_scene = "main.toml"
+
+[input.actions]
+undo = ["cmd+KeyZ"]
+"#;
+
+/// The command key of the other kind of machine from this one: a Mac's ⌘
+/// where this one has Control, a PC's Control where this one has ⌘.
+const ELSEWHERE_META: bool = !cfg!(target_vendor = "apple");
+
+/// What a backend says each frame about which key `cmd` is.
+fn machine(app: &App, command_is_meta: bool) {
+    balaur_input::set_command_is_meta(&app.engine, command_is_meta);
+}
+
+// A Mac's session replayed on a PC, or the other way round: `cmd` is the
+// command key of the machine that recorded, whatever this one's backend says.
+#[test]
+fn a_replay_reads_cmd_as_the_machine_that_recorded_it_did() {
+    let command = if ELSEWHERE_META {
+        "MetaLeft"
+    } else {
+        "ControlLeft"
+    };
+    let presses = [
+        vec![(command, true)],
+        vec![("KeyZ", true)],
+        vec![],
+        vec![("KeyZ", false)],
+        vec![(command, false)],
+    ];
+    let (dir, mut elsewhere) = app(UNDO);
+    machine(&elsewhere, ELSEWHERE_META);
+    frame(&mut elsewhere, &[]);
+    let session = dir.path().join("session.blr");
+    balaur_core::replay::start_recording(&elsewhere.engine, &session, "t", "", false).unwrap();
+    let mut recorded = Vec::new();
+    for keys in &presses {
+        machine(&elsewhere, ELSEWHERE_META);
+        frame(&mut elsewhere, keys);
+        recorded.push(pressed(&elsewhere, "undo"));
+    }
+    balaur_core::replay::stop_recording(&elsewhere.engine, "test");
+    assert_eq!(recorded, [false, true, true, false, false]);
+
+    let (_dir2, mut here) = app(UNDO);
+    frame(&mut here, &[]);
+    let loaded = balaur_core::replay::Session::read(&session).unwrap();
+    balaur_core::replay::begin(&here.engine, loaded);
+    balaur_core::replay::play(&here.engine);
+    let mut replayed = Vec::new();
+    while balaur_core::replay::is_running(&here.engine) {
+        machine(&here, !ELSEWHERE_META);
+        here.advance(1.0 / 60.0);
+        replayed.push(pressed(&here, "undo"));
+    }
+    assert_eq!(
+        replayed, recorded,
+        "a replayed tick answered undo otherwise"
+    );
+}
+
+// A browser's backend says as each frame begins, so a recording can open
+// before the machine has said.
+#[test]
+fn a_recording_takes_the_command_key_said_in_the_frame_it_opened_in() {
+    let (dir, mut app) = app(UNDO);
+    let session = dir.path().join("session.blr");
+    balaur_core::replay::start_recording(&app.engine, &session, "t", "", false).unwrap();
+    machine(&app, ELSEWHERE_META);
+    frame(&mut app, &[]);
+    balaur_core::replay::stop_recording(&app.engine, "test");
+    let header = balaur_core::replay::Session::read(&session).unwrap().header;
+    assert_eq!(
+        header.setup.get("command_is_meta"),
+        Some(&serde_json::Value::Bool(ELSEWHERE_META))
+    );
+}

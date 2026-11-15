@@ -21,6 +21,7 @@ const FAILED: str = "failed";
 const KEY: str = "key";
 const LOGIN: str = "login";
 const PASSWORD: str = "password";
+const CODE: str = "code";
 const KIND: str = "kind";
 const PAYLOAD: str = "payload";
 const SOCKET: str = "socket";
@@ -129,6 +130,31 @@ pub async fn login_email(email: str, password: str) -> any {
     reply
 }
 
+/// Open a session from the Google ID token Android's Credential Manager or
+/// One Tap hands a game, answered as `login_device`. The server takes a token
+/// issued to one of its Google client ids; one that is not refuses with
+/// `invalid_token`.
+pub async fn login_google(id_token: str) -> any {
+    let reply = await signed("/api/v1/auth/google/id_token", { "id_token": id_token }, "google");
+    reply
+}
+
+/// Open a session from the authorization code a native Sign in with Apple
+/// hands an iOS game, issued to the server's iOS client id, answered as
+/// `login_device`.
+pub async fn login_apple(code: str) -> any {
+    let reply = await signed("/api/v1/auth/apple/ios/callback", { CODE: code }, "apple");
+    reply
+}
+
+/// Open a session from a Steam session ticket, the bytes
+/// `ISteamUser::GetAuthTicketForWebApi` gives written as hex, answered as
+/// `login_device`. A Steam id is not a ticket, and the server refuses one.
+pub async fn login_steam(ticket: str) -> any {
+    let reply = await signed("/api/v1/auth/steam/callback", { CODE: ticket }, "steam");
+    reply
+}
+
 /// Open a session at a sign-in path: the reply's tokens become the session
 /// every later call carries. `who` is what the activity row shows.
 async fn signed(path: str, body: any, who: str) -> any {
@@ -151,7 +177,7 @@ async fn signed(path: str, body: any, who: str) -> any {
 /// void, so `authentication::resend_confirmation` sends a new one), or
 /// `validation_failed` (the password).
 pub async fn confirm_registration(email: str, code: str, password: str) -> any {
-    let body: any = { core::EMAIL: email, "code": code, PASSWORD: password };
+    let body: any = { core::EMAIL: email, CODE: code, PASSWORD: password };
     let reply = await signed("/api/v1/register/confirm", body, email);
     reply
 }

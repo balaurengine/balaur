@@ -1,5 +1,5 @@
 # Left, right and jump over the 2D character controller, and a camera that
-# trails the player without a script of its own.
+# trails the player one unit above it. The offset's z is the camera's depth.
 
 [[nodes]]
 id = "rig_platformer"
@@ -35,8 +35,10 @@ position = [0, 0, 10]
 current = true
 pixels_per_unit = 48
 
-[nodes.modifier2d]
-kind = "follow"
+[nodes.script]
+source = "scripts/follow.bs"
+
+[nodes.script.props]
 target = "../Player"
 lag = 0.18
-offset = [0, 1]
+offset = [0, 1, 10]

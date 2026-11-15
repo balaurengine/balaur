@@ -133,14 +133,15 @@ id = "rig_third_person"
 kind = "rig"
 name = "Third person camera"
 file = "rigs/third_person.toml"
-note = "A pivot that trails a node, with the camera behind it. No script."
+needs = ["scripts/follow.bs"]
+note = "A pivot that trails a node, with the camera behind it."
 
 [[entries]]
 id = "rig_orbit_camera"
 kind = "rig"
 name = "Orbit camera"
 file = "rigs/orbit_camera.toml"
-needs = ["scripts/orbit_camera.bs"]
+needs = ["scripts/orbit_camera.bs", "scripts/follow.bs"]
 note = "Drag to turn, wheel to pull back, around whatever the pivot follows."
 
 [[entries]]
@@ -164,7 +165,7 @@ id = "rig_platformer"
 kind = "rig"
 name = "Platformer"
 file = "rigs/platformer.toml"
-needs = ["scripts/platformer_rig.bs"]
+needs = ["scripts/platformer_rig.bs", "scripts/follow.bs"]
 note = "Left, right and jump in 2D, with a camera that trails the player."
 
 [[entries]]

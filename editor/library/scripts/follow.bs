@@ -1,0 +1,34 @@
+// Trail a node at an offset. Each frame closes the share of the gap that
+// `lag` seconds of easing close over the frame's time, so one long frame
+// lands where several short ones would and the path keeps to any frame rate.
+
+pub class Follow {
+    node: Node,
+    /// The path to the node to trail, looked up each frame so a respawned
+    /// target is found again.
+    pub target: str = "",
+    /// Seconds to close most of the gap; 0 pins the node to its target.
+    pub lag: float = 0.0,
+    /// Where the node sits from its target, in world units. A 2D camera keeps
+    /// its depth here.
+    pub offset: Vec3,
+}
+
+impl Follow {
+    fn update(dt: float) {
+        if self.target == "" {
+            return;
+        }
+        let target = self.node.get_node(self.target);
+        if !target.is_valid() {
+            return;
+        }
+        let share = if self.lag <= 0.0 { 1.0 } else { 1.0 - math::exp(-dt / self.lag) };
+        let here = self.node.transform.global_position();
+        let goal = target.transform.global_position();
+        self.node.transform.set_global_position(vec3(
+            here.x + (goal.x + self.offset.x - here.x) * share,
+            here.y + (goal.y + self.offset.y - here.y) * share,
+            here.z + (goal.z + self.offset.z - here.z) * share));
+    }
+}

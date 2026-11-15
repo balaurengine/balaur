@@ -636,7 +636,7 @@ fn an_undeclared_key_is_refused_by_add_patch_and_a_scene() {
         components::get(&app.engine, main, "marker").is_none(),
         "the scene applied a typo"
     );
-    let logged = format!("{:?}", balaur_core::logbuf::recent(20));
+    let logged = format!("{:?}", balaur_core::logbuf::heard());
     assert!(
         logged.contains("`marker` has no property `lable`"),
         "{logged}"

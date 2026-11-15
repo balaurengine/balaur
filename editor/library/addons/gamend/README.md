@@ -18,13 +18,13 @@ let reply = await lobbies::quick_join({ "title": "duel", "max_users": 2 });
 if e["kind"].as_str() == lobby::MEMBER_JOINED { }
 ```
 
-281 operations in 44 modules, and 100 realtime events, 15 socket commands.
+278 operations in 44 modules, and 100 realtime events, 15 socket commands.
 
 Beside the generated modules and `events.bs`, written by hand:
 
 | Module | For |
 | --- | --- |
-| `gamend::client` | `configure`, signing in by device or email and confirming an email account, the socket, hooks and the key-value cache |
+| `gamend::client` | `configure`, signing in by device, email, Google ID token, Apple code or Steam ticket and confirming an email account, the socket, hooks and the key-value cache |
 | `gamend::auth` | The session, sign-in through a provider, and the session kept for the next run |
 | `gamend::socket` | The realtime socket's node: Phoenix Channels over `websocket`, heartbeats, reconnects and rejoins |
 | `gamend::presence` | The user cache |
@@ -286,9 +286,6 @@ Authentication.
 | `link_session_status(session_id)` | `GET /api/v1/me/providers/sessions/{session_id}` | Poll a provider link |
 | `list_auth_providers()` | `GET /api/v1/auth/providers` | List sign-in providers |
 | `logout()` | `DELETE /api/v1/logout` | Logout |
-| `oauth_api_callback(provider, params)` | `POST /api/v1/auth/{provider}/callback` | Sign in with a provider code |
-| `oauth_callback_api_apple_ios(params)` | `POST /api/v1/auth/apple/ios/callback` | Sign in with Apple (native iOS) |
-| `oauth_google_id_token(params)` | `POST /api/v1/auth/google/id_token` | Sign in with a Google ID token |
 | `oauth_request(provider)` | `GET /api/v1/auth/{provider}` | Start a provider sign-in |
 | `oauth_session_status(session_id)` | `GET /api/v1/auth/session/{session_id}` | Poll a provider sign-in |
 | `register(params)` | `POST /api/v1/register` | Register |

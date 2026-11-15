@@ -144,9 +144,9 @@ impl Chord {
 
     /// Whether the key is down with exactly these modifiers, so `cmd+KeyZ`
     /// stays quiet while `cmd+shift+KeyZ` is held.
-    fn held(&self, keys: &InputSnapshot) -> bool {
+    fn held(&self, keys: &InputSnapshot, command_is_meta: bool) -> bool {
         let (meta, control) = (keys.key_down("Meta"), keys.key_down("Control"));
-        let commands = if keys.command_is_meta() {
+        let commands = if command_is_meta {
             meta == self.cmd && control == self.ctrl
         } else {
             control == (self.cmd || self.ctrl) && !meta
@@ -247,12 +247,12 @@ impl Binding {
     /// This binding's contribution this frame, in -1..1. A press counts for
     /// its frame even when the release landed in it too, so a tap between two
     /// frames is an action's one-frame press rather than nothing.
-    fn value(&self, keys: &InputSnapshot, pads: &GamepadState) -> f32 {
+    fn value(&self, keys: &InputSnapshot, pads: &GamepadState, command_is_meta: bool) -> f32 {
         let typing = keys.keyboard_taken();
         let key = |key: &str| !typing && (keys.key_down(key) || keys.key_just_pressed(key));
         match self {
             Self::Key(name) => f32::from(u8::from(key(name))),
-            Self::Chord(chord) => f32::from(u8::from(!typing && chord.held(keys))),
+            Self::Chord(chord) => f32::from(u8::from(!typing && chord.held(keys, command_is_meta))),
             Self::Mouse(button) => f32::from(u8::from(
                 keys.mouse_down(*button) || keys.mouse_just_pressed(*button),
             )),
@@ -337,6 +337,9 @@ pub struct InputActions {
     /// The table a host declared for the project it runs, which a reset goes
     /// back to rather than the host's own manifest.
     declared: Option<BTreeMap<String, Vec<Binding>>>,
+    /// Whether `cmd` was ⌘ on the machine that made the loaded recording,
+    /// read in place of this machine's only while it plays.
+    replayed_command_is_meta: Option<bool>,
     loaded: bool,
 }
 
@@ -447,6 +450,7 @@ impl InputActions {
 pub(crate) fn tick(eng: &Engine) {
     let actions = eng.resource::<InputActions>();
     ensure_loaded(eng);
+    let command_is_meta = command_is_meta(eng);
     let keys = eng.resource::<InputSnapshot>();
     let pads = eng.resource::<GamepadState>();
     let keys = keys.borrow();
@@ -466,7 +470,7 @@ pub(crate) fn tick(eng: &Engine) {
         let bound_value = bound.get(name).map_or(0.0, |bindings| {
             bindings
                 .iter()
-                .map(|b| b.value(&keys, &pads))
+                .map(|b| b.value(&keys, &pads, command_is_meta))
                 .fold(
                     0.0_f32,
                     |best, v| if v.abs() > best.abs() { v } else { best },
@@ -550,9 +554,40 @@ fn restore_bindings(eng: &Engine, value: &serde_json::Value) {
     actions.overrides.clear();
 }
 
+/// Whether `cmd` is ⌘: as the machine that made a playing recording had it,
+/// else as this one has it.
+fn command_is_meta(eng: &Engine) -> bool {
+    let replayed = eng
+        .resource::<InputActions>()
+        .borrow()
+        .replayed_command_is_meta;
+    replayed
+        .filter(|_| balaur_core::replay::is_playing(eng))
+        .unwrap_or_else(|| eng.resource::<InputSnapshot>().borrow().command_is_meta())
+}
+
+fn capture_command_key(eng: &Engine) -> serde_json::Value {
+    command_is_meta(eng).into()
+}
+
+fn restore_command_key(eng: &Engine, value: &serde_json::Value) {
+    let Some(meta) = value.as_bool() else {
+        tracing::warn!("the recording's command key is not a bool; using this machine's");
+        return;
+    };
+    eng.resource::<InputActions>()
+        .borrow_mut()
+        .replayed_command_is_meta = Some(meta);
+}
+
 /// Register the header seam. Called from the plugin's `build`.
 pub(crate) fn add_replay_setup(reg: &mut balaur_plugin::Registry<'_>) {
     reg.add_replay_setup("input_bindings", capture_bindings, restore_bindings);
+    reg.add_replay_setup(
+        words::replay::COMMAND_IS_META,
+        capture_command_key,
+        restore_command_key,
+    );
 }
 
 /// The `[input.actions]` table of the project's manifest.
@@ -818,10 +853,11 @@ mod tests {
     }
 
     fn fires(binding: &str, input: &InputSnapshot) -> bool {
-        Binding::parse(binding)
-            .unwrap()
-            .value(input, &GamepadState::default())
-            > 0.5
+        Binding::parse(binding).unwrap().value(
+            input,
+            &GamepadState::default(),
+            input.command_is_meta(),
+        ) > 0.5
     }
 
     #[test]

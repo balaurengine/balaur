@@ -18,8 +18,8 @@ use crate::vocabulary::keys;
 
 const CELL: &str = "cell";
 const SET_CELL: &str = "set_cell";
-const SET_TERRAIN: &str = "set_terrain";
-const TERRAIN: &str = "terrain";
+const SET_CELL_TERRAIN: &str = "set_cell_terrain";
+const CELL_TERRAIN: &str = "cell_terrain";
 
 /// What a definition table holds, for the generated reference.
 const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `kind`.
@@ -219,7 +219,7 @@ fn cells_value(grid: &[Vec<Option<u32>>]) -> Cells {
 ///
 /// A map that carries a terrain grid has its cells derived from it, so an
 /// editor paints values and the engine picks the tiles — one resolver, and
-/// the same one a script reaches through `set_terrain`.
+/// the same one a script reaches through `set_cell_terrain`.
 /// A painted terrain grid read in the rules' own coordinates: cell `origin`
 /// is the grid's first, and the two questions a rule asks are answered here.
 struct Painted<'a> {
@@ -620,11 +620,11 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
 /// Split from `install_tilemap_api` under `MAX_FN_LINES`.
 pub(crate) fn install_tilemap_terrain_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (SET_TERRAIN, &[keys::TILEMAP], "(x: int, y: int, terrain: int)", "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it."),
-        (TERRAIN, &[keys::TILEMAP], "(x: int, y: int) -> int", "The terrain value painted at a column and row, or -1 where nothing was painted."),
+        (SET_CELL_TERRAIN, &[keys::TILEMAP], "(x: int, y: int, terrain: int)", "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it."),
+        (CELL_TERRAIN, &[keys::TILEMAP], "(x: int, y: int) -> int", "The terrain value painted at a column and row, or -1 where nothing was painted."),
     ]);
     m.function(
-        TERRAIN,
+        CELL_TERRAIN,
         |eng: &Engine, (node, x, y): (balaur_script::NodeId, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
             let world = eng.world();
@@ -680,7 +680,7 @@ pub(crate) fn install_tilemap_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        SET_TERRAIN,
+        SET_CELL_TERRAIN,
         |eng: &Engine, (node, x, y, terrain): (balaur_script::NodeId, i64, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
             let (x, y) = (

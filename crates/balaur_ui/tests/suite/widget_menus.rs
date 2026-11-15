@@ -267,6 +267,42 @@ fn a_secondary_click_opens_the_named_menu_at_the_pointer() {
     );
 }
 
+// Two widgets naming one menu: the click on the second draws the rows in both
+// popups in one pass, the first's closing and the second's opening, and a
+// debug egui panics on an id it sees on two layers in one pass.
+#[test]
+fn a_menu_two_contexts_name_opens_at_each_in_turn() {
+    let (_dir, app) = app();
+    let targets: Vec<Entity> = [10.0, 200.0]
+        .into_iter()
+        .map(|y| {
+            let target = toml::toml! {
+                kind = "label" text = "Target" x = 10.0 y = y width = 120.0 height = 40.0 context = "cm"
+            };
+            add_widget(&app, &target.into())
+        })
+        .collect();
+    let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };
+    let menu = add_child_widget(&app, app.engine.root(), "cm", &menu.into());
+    let row =
+        toml::toml! { kind = "button" text = "Cut" width = 173.0 height = 22.0 tooltip = "Cut it" };
+    add_child_widget(&app, menu, "R0", &row.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    for target in targets {
+        let at = root_rect(&ctx, target).center();
+        let secondary = |down| press_with(at, egui::PointerButton::Secondary, down);
+        pass(&app, &ctx, secondary(true));
+        pass(&app, &ctx, secondary(false));
+        let rows = rows_drawn(&pass(&app, &ctx, vec![]), 173.0).expect("no menu opened");
+        assert!(
+            rows.min.distance(at) < 24.0,
+            "the menu opened at {:?}, not at the pointer {at:?}",
+            rows.min
+        );
+    }
+}
+
 // A finger held on a widget past egui's click length is the same press as a
 // secondary click, on a label as much as on a button: the sensor under the
 // kind is what egui holds the touch on.

@@ -138,22 +138,25 @@ In the order they get fixed.
     against the period of the frame before, and a slow frame failed the
     check. The period is noted first now, and `TimingLog` pairs it with the
     frame it measured.
-18. **A debug build can panic in a window that cannot present.** Not fixed:
+18. **A debug build can panic in a window that cannot present.** Built:
     with the display asleep, the replay half of `test:recordings` hit egui's
-    check that an id keeps its layer, for the tooltip id `balaur-tip` in
-    `balaur_ui::widget::layer::tip`, which hashes the node and not the layer.
-    It needs a run that reproduces it before a fix; a release build has no
-    such check.
+    check that an id keeps its layer, for the tooltip id `balaur-tip`, which
+    hashed the node and not the layer. A `menu`'s rows draw in each popup
+    that shows them, so a secondary click on a second widget naming the same
+    `context` hit it too. The sensors every node gets are keyed by layer now.
+    Left: `balaur-field`, `balaur-selection`, `balaur-hint` and `balaur-seam`
+    still hash the node alone, and would trip the same check in a menu row;
+    the field's id is also its focus and memory key, so it waits for a case.
 19. **A replay asked the machine for its audio device.** Built: a script
     that branched on `audio::device_ready` took the other branch when
     replayed on a machine with other speakers or none. The answers of
     `device_ready` and `devices` are recorded now, `init`'s in the header,
     and a replay answers from them.
-20. **A replay reads `cmd` in a binding as its own machine does.** Not
-    fixed: `InputSnapshot::command_is_meta` is not recorded, so a Mac
-    recording replayed on Linux answers `input::action_*` for `cmd+KeyZ` as
-    Ctrl. It belongs in the header, with the web backend kept from
-    overwriting it each frame.
+20. **A replay reads `cmd` in a binding as its own machine does.** Built:
+    a Mac recording replayed on Linux answered `input::action_*` for
+    `cmd+KeyZ` as Ctrl. The header's setup carries whether `cmd` is ⌘,
+    amended in the frame a recording opens, and a playing replay's bindings
+    read that whatever the browser backend reports.
 21. **A replay's `init` read another dark mode.** Built: `balaur run` seeds
     `DeviceFacts::dark_mode` before `init`, while `balaur replay` begins
     playing first, so `update_device` was ignored and `init` read the
@@ -199,6 +202,39 @@ In the order they get fixed.
     engine held each other. An `App` now takes its host out of the engine as
     it drops. The tests write once and wait for the event itself, capped at a
     minute of ticks, where they wrote again on a timer.
+28. **A replayed tick lost the snapshot's one-frame fields.** Built: the
+    per-tick restore replaced the whole `InputSnapshot` and reset `begun`, so
+    the tick began the frame again. That cleared `just_pressed`,
+    `just_released`, mouse delta, scroll, typed text, dropped files and touch
+    starts and ends, and `input::key_just_pressed` answered false on every
+    replayed tick. The restore counts the frame as begun now, and keeps the
+    machine's own fields: the command key, pointer emulation and whether a
+    script read a focus key.
+29. **Clicks drawn during a replay landed after it.** Built: nothing took
+    the draw's widget report while a recording played, so every click it saw
+    then reached the first live tick after `replay::unload`. A replayed tick
+    drops that report now; a re-simulated one still leaves it to the live
+    tick after it. The editor's own widgets were replayed too, so its Session
+    dock's pause and step did nothing while a session played. Only the
+    subtree `debugger.set_scope` names takes the recording's widget input
+    now, every other widget takes the draw's, and `test:recordings` clicks
+    both buttons. A pause then dropped the part of a step the recording had
+    carried, so a windowed replay parted from it on the tick after it
+    resumed; a replay's own pause keeps that part now.
+30. **A `Node` field took no path from a scene.** Built: `target =
+    "../Enemy"` in `[nodes.script.props]` left a `pub target: Node` field
+    with no node and said nothing, though the manual says it takes a path.
+    A path in a `Node` or `[Node]` field is read from the scripted node as
+    `node.get_node` reads one when the props are applied, and a path naming
+    nothing warns with the field and the path.
+31. **A windowed replay may part from its recording after a resume.** Not
+    confirmed: in 2 of 5 windowed `scripts/e2e.sh` runs on hello,
+    `test:recordings` failed "and reproduced what was recorded" on the tick
+    after its pause and step resumed. Each frame there logged "could not
+    acquire a surface texture within 2s", and offscreen runs pass. It needs
+    the differing digest entries from a failing run.
+
+## 3. The API
 
 Decided 2026-11-13. Each item breaks scripts, so each lands with the editor,
 the library, the examples and Polyglot Pirates changed in the same commit.
@@ -347,6 +383,10 @@ Polyglot Pirates is seven scenes of a design mock in
 
 ## 7. Not planned here
 
+- **⌘Q on macOS asking first.** It leaves through AppKit's `terminate:`,
+  which closes the windows without a close request, so `on_quit_requested`
+  does not run. Routing it needs AppKit bindings beside winit's own; winit
+  offers only turning its menu off, which takes Hide and Quit with it.
 - **A CI job with a GPU.** `PLAN-hardening.md` step 1 holds it; the
   pictures in §5 run on a developer's machine first.
 - **Scene `bindings` and `states`,** the `state_machine` and the built-in

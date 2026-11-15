@@ -160,7 +160,8 @@ pub struct InputSnapshot {
     keyboard_taken: bool,
     /// Whether ⌘ rather than Ctrl is the command key; `None` for what the
     /// build's platform says. A browser can only tell from its user agent,
-    /// so its backend says. A property of the machine, not of a frame.
+    /// so its backend says. A property of the machine, not of a frame: a
+    /// recording's header carries it, and a replay's bindings read that.
     #[serde(skip)]
     command_is_meta: Option<bool>,
     /// Pointer and finger conversion. Skipped rather than defaulted: it is a
@@ -247,6 +248,16 @@ impl InputSnapshot {
             self.begin_frame();
             self.begun = false;
         }
+    }
+
+    /// A recorded frame in place of this one, keeping the machine's own fields.
+    /// Begun, so the tick keeps the recorded edges rather than clearing them.
+    fn replay_frame(&mut self, recorded: Self) {
+        let live = std::mem::replace(self, recorded);
+        self.command_is_meta = live.command_is_meta;
+        self.emulate = live.emulate;
+        self.focus_key_read = live.focus_key_read;
+        self.begun = true;
     }
 
     /// Hold a script-fed event for the next frame.
@@ -376,6 +387,20 @@ pub fn take_handed() -> Vec<String> {
     HANDED.with(|handed| std::mem::take(&mut *handed.borrow_mut()))
 }
 
+/// Say which key `cmd` is, where the build's platform cannot know it: a
+/// browser's backend, from its user agent. Ignored while a recording plays,
+/// whose header says what the machine that recorded it said.
+pub fn set_command_is_meta(eng: &Engine, meta: bool) {
+    if balaur_core::replay::is_playing(eng) {
+        return;
+    }
+    eng.resource::<InputSnapshot>()
+        .borrow_mut()
+        .set_command_is_meta(meta);
+    // The frame a recording opens in is not recorded, and `init` reads there.
+    balaur_core::replay::amend_setup(eng, words::replay::COMMAND_IS_META, meta.into());
+}
+
 impl InputSnapshot {
     /// One character the window backend received. Control characters are the
     /// backend's to filter: what reaches here is what was typed.
@@ -436,13 +461,12 @@ impl InputSnapshot {
         self.focus_key_read = true;
     }
 
-    /// Say which key `cmd` is, where the build's platform cannot know it.
-    pub fn set_command_is_meta(&mut self, meta: bool) {
+    pub(crate) const fn set_command_is_meta(&mut self, meta: bool) {
         self.command_is_meta = Some(meta);
     }
 
-    /// Whether `cmd` in a binding is ⌘ (Apple platforms) rather than Ctrl.
-    pub fn command_is_meta(&self) -> bool {
+    /// Whether `cmd` is ⌘ (Apple platforms) rather than Ctrl on this machine.
+    pub(crate) fn command_is_meta(&self) -> bool {
         self.command_is_meta
             .unwrap_or(cfg!(target_vendor = "apple"))
     }
@@ -605,6 +629,21 @@ fn announce_pads_system(eng: &Engine, _: f32) {
     }
 }
 
+fn capture_snapshot(eng: &Engine) -> serde_json::Value {
+    serde_json::to_value(&*eng.resource::<InputSnapshot>().borrow())
+        .unwrap_or(serde_json::Value::Null)
+}
+
+fn restore_snapshot(eng: &Engine, value: &serde_json::Value) {
+    match <InputSnapshot as serde::Deserialize>::deserialize(value) {
+        Ok(recorded) => eng
+            .resource::<InputSnapshot>()
+            .borrow_mut()
+            .replay_frame(recorded),
+        Err(e) => tracing::error!(error = %e, "replaying the input snapshot"),
+    }
+}
+
 #[derive(Default)]
 pub struct InputPlugin;
 
@@ -627,7 +666,7 @@ impl balaur_plugin::Plugin for InputPlugin {
             |eng| gamepad::capture(&eng.resource::<GamepadState>().borrow()),
             |eng, value| gamepad::restore(&mut eng.resource::<GamepadState>().borrow_mut(), value),
         );
-        reg.add_replay_resource::<InputSnapshot>(words::general::INPUT);
+        reg.add_replay_source(words::general::INPUT, capture_snapshot, restore_snapshot);
         // Bindings are loaded, not simulated: the recording carries them so a
         // player who rebinds a key does not change what a replay reproduces.
         actions::add_replay_setup(reg);

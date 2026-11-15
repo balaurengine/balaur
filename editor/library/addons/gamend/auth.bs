@@ -1,6 +1,6 @@
-// The session every call carries, a sign-in through an OAuth provider, and a
-// session kept in a `save::` slot for the next run. A device id or an email
-// signs in through `client::login_device` and `client::login_email`.
+// The session every call carries, a sign-in through a provider's page, and a
+// session kept in a `save::` slot for the next run. Every other sign-in is a
+// `client::login_*`: a device id, an email, or a provider's native token.
 
 use addons::save::save;
 use core;

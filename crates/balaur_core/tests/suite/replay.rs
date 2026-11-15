@@ -325,6 +325,42 @@ fn a_paused_replay_holds_the_world_still() {
     assert!(app.engine.frozen_root().is_some());
 }
 
+// A window's frames are not whole steps, so a recording carries part of a step
+// from one frame to the next; a replay paused part-way has to carry it too.
+#[test]
+fn a_replay_paused_part_way_takes_the_steps_its_recording_took() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+    let measured = [0.012, 0.021];
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::start_recording(&app.engine, &path, ".", "", false).unwrap();
+    for frame in 0..12 {
+        app.advance(measured[frame % 2]);
+    }
+    let recorded = app.engine.resource::<Total>().borrow().0;
+    replay::stop_recording(&app.engine, "stop").unwrap();
+    assert!(recorded > 0, "the recording stepped");
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::begin(&app.engine, Session::read(&path).unwrap());
+    replay::play(&app.engine);
+    for _ in 0..3 {
+        app.advance(1.0 / 60.0);
+    }
+    app.engine.resource::<ReplayPlayer>().borrow_mut().state = PlayState::Paused;
+    for _ in 0..4 {
+        app.advance(1.0 / 60.0);
+    }
+    replay::play(&app.engine);
+    while replay::is_running(&app.engine) {
+        app.advance(1.0 / 60.0);
+    }
+    assert_eq!(app.engine.resource::<Total>().borrow().0, recorded);
+}
+
 #[test]
 fn seeking_runs_to_the_tick_and_stops() {
     let dir = tempfile::tempdir().unwrap();
@@ -347,7 +383,11 @@ fn seeking_runs_to_the_tick_and_stops() {
         .resource::<ReplayPlayer>()
         .borrow_mut()
         .seek(target);
-    app.advance(1.0 / 60.0);
+    // A call stops at a frame's worth of wall time, so a loaded machine takes
+    // more than one to get there.
+    while replay::is_advancing(&app.engine) {
+        app.advance(1.0 / 60.0);
+    }
 
     let player = app.engine.resource::<ReplayPlayer>();
     assert_eq!(player.borrow().position(), target);

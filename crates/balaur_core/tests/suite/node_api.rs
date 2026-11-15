@@ -420,6 +420,77 @@ fn look_at_the_point_a_node_stands_on_leaves_it_as_it_was() {
     );
 }
 
+/// A child under a fresh `Parent` that is moved, turned about z as a 2D node
+/// turns, and scaled and sheared as asked, with the parent's pose synced.
+fn under_a_2d_parent(app: &mut App, scale: [f32; 3], skew: f32) -> Value {
+    let parent = spawn(app, "Parent");
+    let child = call(
+        &app.engine,
+        "add_child",
+        &[parent.clone(), Value::Str("Kid".into())],
+    )
+    .unwrap();
+    set_transform(&app.engine, &parent, "position", [1.0, 2.0, -0.5]);
+    set_transform(&app.engine, &parent, "rotation_euler", [0.0, 0.0, 0.5]);
+    set_transform(&app.engine, &parent, "scale", scale);
+    call(
+        &app.engine,
+        "patch_component",
+        &[
+            parent,
+            Value::Str("transform".into()),
+            Value::Map(vec![("skew".into(), Value::Num(f64::from(skew)))]),
+        ],
+    )
+    .unwrap();
+    set_transform(&app.engine, &child, "position", [0.0, 7.0, 0.0]);
+    app.tick(0.0);
+    child
+}
+
+#[test]
+fn set_global_position_lands_on_the_point_under_a_sheared_parent() {
+    let mut app = app();
+    let child = under_a_2d_parent(&mut app, [2.0, 0.5, 1.5], 0.3);
+    let point = Vec3::new(4.0, -1.0, 0.25);
+    assert!((world_position(&app.engine, &child) - point).length() > 1.0);
+    call(
+        &app.engine,
+        "set_global_position",
+        &[child.clone(), Value::Vec3(point.to_array())],
+    )
+    .unwrap();
+    app.tick(0.0);
+    assert_near(
+        world_position(&app.engine, &child).to_array(),
+        point.to_array(),
+    );
+}
+
+#[test]
+fn set_global_position_keeps_the_axis_a_zero_scale_flattens() {
+    let mut app = app();
+    let child = under_a_2d_parent(&mut app, [2.0, 0.0, 1.0], 0.0);
+    call(
+        &app.engine,
+        "set_global_position",
+        &[child.clone(), Value::Vec3([5.0, 3.0, 2.0])],
+    )
+    .unwrap();
+    let local = transform_of(&app.engine, &child, "position");
+    assert!(
+        local.iter().all(|a| a.is_finite()),
+        "a zero scale wrote {local:?}"
+    );
+    assert!(
+        (local[1] - 7.0).abs() < 1e-5,
+        "the flattened axis moved, to {local:?}"
+    );
+    app.tick(0.0);
+    let at = world_position(&app.engine, &child);
+    assert!((at.z - 2.0).abs() < 1e-5, "depth is solvable, got {at:?}");
+}
+
 #[test]
 fn a_node_without_a_script_reports_nil() {
     let app = app();

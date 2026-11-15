@@ -41,8 +41,8 @@ const METER: bool = cfg!(all(target_arch = "wasm32", feature = "web"));
 /// The project instance's own unit, which has no code: every file a unit
 /// linked to it.
 const PROJECT_KEY: &str = "#project";
-/// Where an export writes [`PROJECT_KEY`]'s unit inside the pack, beside each
-/// script's unit under its own path.
+/// Where an export writes the project instance's unit inside the pack, beside
+/// each script's unit under its own path.
 pub const PROJECT_UNIT: &str = ".balaur/bs-project.unit";
 
 /// Which instance a file is a unit of.

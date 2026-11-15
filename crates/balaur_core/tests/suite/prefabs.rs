@@ -254,7 +254,7 @@ position = [0.0, 2.0, 0.0]
 }
 
 fn logged_at(level: &str) -> Vec<String> {
-    balaur_core::logbuf::recent(200)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|entry| entry.level == level)
         .map(|entry| entry.message)

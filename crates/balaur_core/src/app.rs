@@ -879,6 +879,9 @@ impl App {
             .insert_resource(project::ManifestSource(manifest_src.clone()));
         let root = self.engine.root();
         project::instantiate_main_scene(&self.engine, &main_scene, &scene_src, root)?;
+        // A script's first frame reads world poses as of the last sync, and a
+        // scene just loaded has had none: compose them now, as a switch does.
+        scene::propagate_transforms(&mut self.engine.world_mut(), root);
         crate::preload::queue_pack(&self.engine, self.pack.as_ref(), &main_scene);
         Ok(self)
     }
@@ -1080,8 +1083,11 @@ impl App {
     /// keeps ticking. A debugger's freeze stops the whole stage.
     fn run_fixed_steps(&mut self, dt: f32) -> u32 {
         // A debugger pause holds the simulation: the time is dropped, not owed.
+        // A paused replay keeps the part of a step its recording carried on.
         if self.engine.frozen_root().is_some() {
-            self.accumulator = 0.0;
+            if self.engine.is_frozen() || !self.engine.replay_held() {
+                self.accumulator = 0.0;
+            }
             // A held frame draws the tick's own pose, so what the inspector
             // reports and what the viewport shows are the same place.
             self.engine.set_frame_alpha(1.0);

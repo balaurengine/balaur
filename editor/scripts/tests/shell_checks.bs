@@ -589,7 +589,8 @@ fn settings_round_trip(state: &mut editor::State) {
 fn the_game_s_manifest_stays_apart(state: &mut editor::State) {
     let manifest = state.game_root + "/project.toml";
     let kept = fs::read(manifest).or("");
-    fs::write(manifest, kept + "\n[window]\nwidth = 640\n");
+    // Patched, since a game's manifest may hold a `[window]` table already.
+    fs::write(manifest, toml::patch(kept, { "window": { "width": 640 } }));
     let running = settings::get("window/width");
     settings::load_files(state);
     selftest::check(settings::stated(state, "window/width").as_int() == 640, "the game's window width is what the screen shows ({settings::stated(state, "window/width")})");

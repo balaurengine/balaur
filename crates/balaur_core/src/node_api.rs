@@ -66,6 +66,7 @@ pub const NODE_OPS: &[NodeOp] = &[
     op("global_position", &["transform"], "() -> vec3", "The node's position in world space, as of the last transform sync.", global_position),
     op("global_rotation_euler", &["transform"], "() -> vec3", "The node's world rotation as euler angles in radians, as of the last transform sync.", global_rotation_euler),
     op("global_scale", &["transform"], "() -> vec3", "The node's scale in world space, as of the last transform sync.", global_scale),
+    op("set_global_position", &["transform"], "(point: vec3)", "Put the node at a world point, Godot's `global_position = point`: it writes the `position` that lands there under its parent's pose as of the last transform sync, so `global_position` reads the point once the next sync has run. An axis a zero scale above flattens, or a point that is not finite, keeps the node's own coordinate.", set_global_position),
     op("look_at", &["transform"], "(point: vec3)", "Turn the node so its -z, the way a camera and a light face, points at a world point, with +y up. It faces from where its `position` puts it now, under its parent's pose as of the last transform sync.", look_at),
     op("get_node", &[], "(path: string) -> node", "The node at an `A/B/C` path relative to this one, `..` climbing to the parent and a leading `/` starting from the root; nil when nothing matches.", get_node),
     op("add_child", &[], "(name: string) -> node", "Create a named child node under this one and return it.", add_child),
@@ -422,34 +423,79 @@ pub fn facing(ahead: Vec3) -> Option<Quat> {
     Some(Quat::from_mat3(&glamx::Mat3::from_cols(right, up, -ahead)).normalize())
 }
 
+/// The pose of the node's parent as of the last sync, and the node's own
+/// local transform: what a world-space write is solved against.
+fn placed_under(eng: &Engine, e: Entity) -> (GlobalTransform, Transform) {
+    let world = eng.world();
+    let above = world
+        .get::<&Parent>(e)
+        .ok()
+        .and_then(|parent| world.get::<&GlobalTransform>(parent.0).ok().map(|g| *g))
+        .unwrap_or(GlobalTransform::identity());
+    let own = world.get::<&Transform>(e).map(|t| *t).unwrap_or_default();
+    (above, own)
+}
+
+fn floats(v: Vec3) -> toml::Value {
+    toml::Value::Array(
+        v.to_array()
+            .map(|a| toml::Value::Float(f64::from(a)))
+            .to_vec(),
+    )
+}
+
+/// The `position` a child turned by `rotation` takes to sit at `point` under
+/// `above`: the inverse of where `GlobalTransform::mul` places one. An axis a
+/// zero scale flattens has no answer and comes back non-finite.
+fn local_position(above: &GlobalTransform, point: Vec3, rotation: Quat) -> Vec3 {
+    let from = point - above.position;
+    if above.skew == 0.0 || !scene::flat(above.rotation) || !scene::flat(rotation) {
+        return (above.rotation.inverse() * from) / above.scale;
+    }
+    let angle = scene::z_angle(above.rotation);
+    let basis = scene::linear_2d(angle, above.skew, above.scale.x, above.scale.y);
+    let at = basis.inverse() * from.truncate();
+    Vec3::new(at.x, at.y, from.z / above.scale.z)
+}
+
+fn set_global_position(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let point = match args.get(1) {
+        Some(Value::Vec3(v)) => Vec3::from_array(*v),
+        other => bail!("set_global_position takes the point as a Vec3, got {other:?}"),
+    };
+    let (above, own) = placed_under(eng, e);
+    let solved = local_position(&above, point, own.rotation);
+    let local = Vec3::select(solved.is_finite_mask(), solved, own.position);
+    crate::components::set_property(
+        eng,
+        e,
+        crate::transform::COMPONENT,
+        k::POSITION,
+        &floats(local),
+    )?;
+    Ok(Value::Nil)
+}
+
 fn look_at(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let point = match args.get(1) {
         Some(Value::Vec3(v)) => Vec3::from_array(*v),
         other => bail!("look_at takes the point as a Vec3, got {other:?}"),
     };
-    let (eye, above) = {
-        let world = eng.world();
-        let above = world
-            .get::<&Parent>(e)
-            .ok()
-            .and_then(|parent| world.get::<&GlobalTransform>(parent.0).ok().map(|g| *g))
-            .unwrap_or(GlobalTransform::identity());
-        let own = world.get::<&Transform>(e).map(|t| *t).unwrap_or_default();
-        (above.mul(&own).position, above.rotation)
-    };
+    let (above, own) = placed_under(eng, e);
+    let eye = above.mul(&own).position;
     // A point the node stands on has no direction to face: it keeps its own.
     let Some(turned) = facing(point - eye) else {
         return Ok(Value::Nil);
     };
-    let (z, y, x) = (above.inverse() * turned).to_euler(EulerRot::ZYX);
-    let euler = toml::Value::Array([x, y, z].map(|a| toml::Value::Float(f64::from(a))).to_vec());
+    let (z, y, x) = (above.rotation.inverse() * turned).to_euler(EulerRot::ZYX);
     crate::components::set_property(
         eng,
         e,
         crate::transform::COMPONENT,
         k::ROTATION_EULER,
-        &euler,
+        &floats(Vec3::new(x, y, z)),
     )?;
     Ok(Value::Nil)
 }

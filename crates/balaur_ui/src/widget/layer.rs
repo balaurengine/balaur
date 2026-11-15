@@ -835,7 +835,7 @@ fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
     if !passive || !widget.hears_click || widget.disabled {
         return;
     }
-    let id = egui::Id::unique(("balaur-click", placed.entity));
+    let id = sensor_id(ui, "balaur-click", placed.entity);
     if ui
         .interact(ui.max_rect(), id, egui::Sense::click())
         .clicked()
@@ -1004,13 +1004,22 @@ fn tip(ui: &egui::Ui, entity: Entity, tooltip: &str) {
     if rect.width() <= 0.0 || rect.height() <= 0.0 {
         return;
     }
-    let id = egui::Id::unique(("balaur-tip", entity));
-    let response = ui.interact(rect, id, egui::Sense::hover());
+    let response = ui.interact(
+        rect,
+        sensor_id(ui, "balaur-tip", entity),
+        egui::Sense::hover(),
+    );
     if ui.is_enabled() {
         crate::widget::theme::tip(&response, tooltip);
     } else {
         response.on_disabled_hover_text(tooltip);
     }
+}
+
+/// The id of a sensor every node gets, one per layer: a menu's rows draw in
+/// each popup that shows them, and egui refuses an id on two layers in a pass.
+pub(crate) fn sensor_id(ui: &egui::Ui, word: &'static str, entity: Entity) -> egui::Id {
+    egui::Id::unique((word, entity, ui.layer_id()))
 }
 
 /// Where text sits in the width the widget was given.

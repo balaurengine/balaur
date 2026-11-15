@@ -260,8 +260,7 @@ LTO, so a game with physics would ship more bytes than the one binary does.
    `declare` functions and the script compiler, done; the physics snapshot
    measured and left as it is. Left: a sweep of
    `balaur_core` for what a shipped game never calls,
-   `dependencies::install` and `project::build_doc` among them. The sweep is
-   `docs/PLAN-engine-core.md`'s where the two meet.
+   `dependencies::install` and `project::build_doc` among them.
 4. **Data.** The tonemapping table, done. Left: the default face, if a game
    that ships its own can leave it.
 5. **The budget.** Done: `package_runtime.sh web` fails a push whose `bare`

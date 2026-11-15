@@ -981,7 +981,8 @@ The script store holds who is signed in, and `auth::session()` answers it. Sourc
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `client::login_device`, `login_email` or `confirm_registration` succeeds | fresh | `expires_at` is now plus `expires_in`. |
+| any | `client::login_device`, `login_email`, `login_google`, `login_apple`, `login_steam` or `confirm_registration` succeeds | fresh | `expires_at` is now plus `expires_in`. |
+| any | `auth::sign_in(provider)` completes at the provider's page | fresh | Through `restore`, and kept in the `gamend` save slot. |
 | a session | `core::rest` gets a 401, `renew` succeeds | fresh | The call is made once more. |
 | a session | a socket's `renew` succeeds | fresh | The socket dials. |
 | any | `auth::restore(map)` with an `access_token` | fresh or stale, by its `expires_at` | Answers true. |

@@ -361,6 +361,10 @@ impl Engine {
         self.inner.replay_hold.set(held);
     }
 
+    pub(crate) fn replay_held(&self) -> bool {
+        self.inner.replay_hold.get()
+    }
+
     /// Hold the game for the rest of this frame, or release it as a frame
     /// starts: what a recording does with the frame it starts in.
     pub(crate) fn set_opening_hold(&self, held: bool) {

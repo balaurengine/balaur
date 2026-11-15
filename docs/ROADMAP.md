@@ -113,7 +113,7 @@ being built, marked `done`, never back in the shipped one.
 | **Rapier in 2D and 3D** — bodies, joints, character controllers, the query pipeline, collision events, ray-cast vehicles, and every collider shape including editable voxels. | 0.1 done | no plan |
 | **Follow controllers** — `follow3d` and `follow2d` pull a body to a node's pose with rapier's PD or PID controller, and a ragdoll can chase its clip. | 0.2 done | no plan |
 | **Concave 2D colliders** — a concave polygon cut into overlapping convex pieces, so nothing wedges into a seam. | 0.2 done | no plan |
-| **Rigs and animation** — 2D and 3D skeletons with six modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls, tweens, crossfades and state machines. | 0.1 done | no plan |
+| **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls, tweens, crossfades and state machines. | 0.1 done | no plan |
 | **Soft bodies** — `softbody2d` and `softbody3d`: particles and elastic cells from a mesh, a traced sprite or a generator, with plasticity, drawn from the solver. | 0.7 done | no plan |
 | **Cloth and rope** — `cloth`, `cloth_tube` and `rope` layouts of a soft body, held in place by the particle indices `pinned_particles` names. | 0.7 done | no plan |
 | **Tearing** — `tear_strain` and `tear_force` on a soft body: past either, its elements break mid-step, and the node's `on_torn` runs. | 0.9 done | no plan |

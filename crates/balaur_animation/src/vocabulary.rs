@@ -101,7 +101,6 @@ pub mod words {
     pub const FABRIK: &str = "fabrik";
     pub const CCDIK: &str = "ccdik";
     pub const JIGGLE: &str = "jiggle";
-    pub const FOLLOW: &str = "follow";
 }
 
 use words as w;
@@ -155,7 +154,6 @@ pub const MODIFIER_KINDS: &[(&str, &str)] = &[
     ("MODIFIER_FABRIK", w::FABRIK),
     ("MODIFIER_CCDIK", w::CCDIK),
     ("MODIFIER_JIGGLE", w::JIGGLE),
-    ("MODIFIER_FOLLOW", w::FOLLOW),
 ];
 
 /// The events a player and a machine emit from their node.

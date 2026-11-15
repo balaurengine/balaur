@@ -27,6 +27,7 @@ mod widget_options;
 mod widget_pointer;
 mod widget_pool;
 mod widget_reader;
+mod widget_replay;
 mod widget_roles;
 mod widget_routing;
 mod widget_rows;

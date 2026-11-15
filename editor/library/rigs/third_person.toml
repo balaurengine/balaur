@@ -6,8 +6,10 @@
 id = "rig_third_person"
 name = "Third person rig"
 
-[nodes.modifier3d]
-kind = "follow"
+[nodes.script]
+source = "scripts/follow.bs"
+
+[nodes.script.props]
 target = "../Player"
 lag = 0.2
 

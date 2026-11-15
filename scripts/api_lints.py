@@ -78,10 +78,7 @@ H_ABBREVIATIONS = {
 
 # N26. A handle method that spells a property of its component, keyed
 # `component.method` with why it stays.
-HANDLE_PROPERTY_ALLOW = {
-    "tilemap.terrain": "predates the rule: the property is every painted row and the method "
-                       "one cell of it. Remove this when either is renamed",
-}
+HANDLE_PROPERTY_ALLOW: dict[str, str] = {}
 
 # N6: the discriminant of a tagged union is `kind`, never one of these.
 DISCRIMINANT_SYNONYMS = ("shape", "type", "mode", "variant")

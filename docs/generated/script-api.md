@@ -9,7 +9,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 
 | Module | Functions | Constants |
 | --- | ---: | ---: |
-| [`animation`](#animation) | 5 | 80 |
+| [`animation`](#animation) | 5 | 79 |
 | [`apple`](#apple) | 18 | 25 |
 | [`assets`](#assets) | 9 | 0 |
 | [`audio`](#audio) | 15 | 1 |
@@ -74,7 +74,7 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 
 Called on a node's component: `animation`, `state_machine`. See [components](components.md).
 
-**Constants** (80):
+**Constants** (79):
 
 | Name | Value |
 | --- | --- |
@@ -103,7 +103,7 @@ Called on a node's component: `animation`, `state_machine`. See [components](com
 | `EASE_IN_QUINT` | `"in_quint"` |
 | `EASE_IN_SINE` | `"in_sine"` |
 
-…and 56 more.
+…and 55 more.
 
 ## `apple`
 

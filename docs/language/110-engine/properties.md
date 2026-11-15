@@ -47,7 +47,8 @@ target = "../Enemy"
 ## Nodes as properties
 
 A `pub` field of type `Node` takes a path, resolved from the scripted node once the whole scene exists. A path
-naming nothing gives no node, which `is_valid()` tells apart. A `[Node]` field takes a list of paths.
+naming nothing gives no node, which `is_valid()` tells apart, and a warning naming the field and the path. A
+`[Node]` field takes a list of paths.
 
 ## At run time
 

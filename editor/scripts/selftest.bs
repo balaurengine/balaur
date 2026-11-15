@@ -126,6 +126,7 @@ pub class Demo {
     internal frames: int,
     internal file: str,
     internal was: int,
+    internal paused_at: int,
 }
 
 pub class PoolCheck {

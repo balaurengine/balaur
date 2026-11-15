@@ -6,4 +6,5 @@
 
 mod actions;
 mod input_snapshot;
+mod replay;
 mod touch;

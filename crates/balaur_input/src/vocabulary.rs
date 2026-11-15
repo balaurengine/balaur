@@ -54,6 +54,11 @@ pub(crate) mod words {
     pub(crate) mod general {
         pub(crate) const INPUT: &str = "input";
     }
+
+    /// A recording header's setup entries.
+    pub(crate) mod replay {
+        pub(crate) const COMMAND_IS_META: &str = "command_is_meta";
+    }
 }
 
 /// Every key the pad verbs read and answer with.

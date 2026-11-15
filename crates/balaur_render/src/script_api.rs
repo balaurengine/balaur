@@ -528,7 +528,7 @@ pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
         (DRAW_CAPSULE_3D, &[], "(center: Vec3, radius: float, height: float, color: Color?)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
         (DRAW_TEXT_2D, &[], "(position: Vec2, text: string, opts: TextOptions?)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font`, `text_style`, …), `pixels_per_unit` and `z_index`; `font` and `text_style` name an asset."),
         (DRAW_TEXT_3D, &[], "(position: Vec3, text: string, opts: TextOptions?)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
-        (TEXT_SIZE, &[], "(text: string, opts: TextOptions?) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face, so a run with no window open answers as a windowed one does. A build without the `window` feature has no shaper, and the call fails there. A width is presentation: writing one into state puts presentation in the digest."),
+        (TEXT_SIZE, &[], "(text: string, opts: TextOptions?) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face, so a run with no window open answers as a windowed one does. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
     m.records(&[(
         "Line3d",

@@ -524,14 +524,14 @@ How the node's `collider2d` turns its `mesh` into a shape: the shape a fit takes
 
 ### `modifier2d`
 
-`2d` · `animation` · 16 properties
+`2d` · `animation` · 14 properties
 
-Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.
+Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik` or `jiggle`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>, <code>follow</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the modifier runs; off leaves the clip&#x27;s pose alone</td></tr>
 <tr><td><code>bone</code></td><td>node</td><td>—</td><td>The driven bone; empty means this node. For a chain solver, its root</td></tr>
 <tr><td><code>target</code></td><td>node</td><td>—</td><td>The point to aim at. Unused by jiggle</td></tr>
@@ -545,8 +545,6 @@ Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bo
 <tr><td><code>mass</code></td><td>float</td><td><code>0.75</code></td><td>What gravity weighs against stiffness on a jiggle bone</td></tr>
 <tr><td><code>use_gravity</code></td><td>bool</td><td><code>false</code></td><td>Whether a jiggle chain is pulled by `gravity`</td></tr>
 <tr><td><code>gravity</code></td><td>vec2</td><td><code>[0.0, -6.0]</code></td><td>Pull on a jiggle bone while `use_gravity` is on</td></tr>
-<tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where a follow node sits relative to its target, in world units</td></tr>
-<tr><td><code>lag</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a follow node takes to close most of the gap to its target; 0 pins it there</td></tr>
 </tbody>
 </table>
 
@@ -1123,9 +1121,9 @@ On a node carrying `tilemap`, as `node.tilemap.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>cell(int, int)</code></td><td><code>int</code></td><td>The tile at a column and row, or -1 for an empty cell or one past the edge.</td><td><code>render</code></td></tr>
+<tr><td><code>cell_terrain(int, int)</code></td><td><code>int</code></td><td>The terrain value painted at a column and row, or -1 where nothing was painted.</td><td><code>render</code></td></tr>
 <tr><td><code>set_cell(int, int, int)</code></td><td>—</td><td>Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.</td><td><code>render</code></td></tr>
-<tr><td><code>set_terrain(int, int, int)</code></td><td>—</td><td>Paint a terrain value at a column and row and let the tileset&#x27;s rules pick the tiles, for that cell and the ring around it; below zero clears it.</td><td><code>render</code></td></tr>
-<tr><td><code>terrain(int, int)</code></td><td><code>int</code></td><td>The terrain value painted at a column and row, or -1 where nothing was painted.</td><td><code>render</code></td></tr>
+<tr><td><code>set_cell_terrain(int, int, int)</code></td><td>—</td><td>Paint a terrain value at a column and row and let the tileset&#x27;s rules pick the tiles, for that cell and the ring around it; below zero clears it.</td><td><code>render</code></td></tr>
 </tbody>
 </table>
 
@@ -1177,7 +1175,7 @@ An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thum
 
 ### `transform`
 
-`2d` · `3d` · 4 properties · 4 methods
+`2d` · `3d` · 4 properties · 5 methods
 
 The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.
 
@@ -1200,6 +1198,7 @@ On a node carrying `transform`, as `node.transform.<method>`:
 <tr><td><code>global_rotation_euler()</code></td><td><code>Vec3</code></td><td>The node&#x27;s world rotation as euler angles in radians, as of the last transform sync.</td><td><code>node</code></td></tr>
 <tr><td><code>global_scale()</code></td><td><code>Vec3</code></td><td>The node&#x27;s scale in world space, as of the last transform sync.</td><td><code>node</code></td></tr>
 <tr><td><code>look_at(Vec3)</code></td><td>—</td><td>Turn the node so its -z, the way a camera and a light face, points at a world point, with +y up. It faces from where its `position` puts it now, under its parent&#x27;s pose as of the last transform sync.</td><td><code>node</code></td></tr>
+<tr><td><code>set_global_position(Vec3)</code></td><td>—</td><td>Put the node at a world point, Godot&#x27;s `global_position = point`: it writes the `position` that lands there under its parent&#x27;s pose as of the last transform sync, so `global_position` reads the point once the next sync has run. An axis a zero scale above flattens, or a point that is not finite, keeps the node&#x27;s own coordinate.</td><td><code>node</code></td></tr>
 </tbody>
 </table>
 
@@ -1706,14 +1705,14 @@ How the node's `collider3d` turns its `mesh` into a shape: how a voxelized mesh 
 
 ### `modifier3d`
 
-`3d` · `animation` · 16 properties
+`3d` · `animation` · 14 properties
 
-Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.
+Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik` or `jiggle`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>, <code>follow</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), or let a chain lag behind the pose (jiggle) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the modifier runs; off leaves the clip&#x27;s pose alone</td></tr>
 <tr><td><code>bone</code></td><td>node</td><td>—</td><td>The driven bone; empty means this node. For a chain solver, its root</td></tr>
 <tr><td><code>target</code></td><td>node</td><td>—</td><td>The point to aim at. Unused by jiggle</td></tr>
@@ -1727,8 +1726,6 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 <tr><td><code>mass</code></td><td>float</td><td><code>0.75</code></td><td>What gravity weighs against stiffness on a jiggle bone</td></tr>
 <tr><td><code>use_gravity</code></td><td>bool</td><td><code>false</code></td><td>Whether a jiggle chain is pulled by `gravity`</td></tr>
 <tr><td><code>gravity</code></td><td>vec3</td><td><code>[0.0, -6.0, 0.0]</code></td><td>Pull on a jiggle bone while `use_gravity` is on</td></tr>
-<tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where a follow node sits relative to its target, in world units</td></tr>
-<tr><td><code>lag</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a follow node takes to close most of the gap to its target; 0 pins it there</td></tr>
 </tbody>
 </table>
 

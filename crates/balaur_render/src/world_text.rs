@@ -315,8 +315,8 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
 
 #[cfg(feature = "window")]
 pub(crate) use backend::{
-    atlas_texture, bucket_ratio, laid_box, layers, mask_2d, mask_3d, mesh_2d, mesh_3d, request_of,
-    shape, shape_at, shaped_together,
+    atlas_texture, bucket_ratio, laid_box, layers, mask_2d, mask_3d, mesh_2d, mesh_3d, shape,
+    shape_at, shaped_together,
 };
 
 #[cfg(feature = "window")]
@@ -325,11 +325,13 @@ mod backend {
     use std::rc::Rc;
 
     use balaur_core::Engine;
-    use balaur_text::{Align as ShaperAlign, Request, Shaped};
+    use balaur_text::Shaped;
     use glamx::Vec2;
     use kiss3d::context::Context;
     use kiss3d::resource::{GpuMesh2d, GpuMesh3d, Texture, TextureManager};
     use kiss3d::wgpu;
+
+    use super::{project_of, request_of};
 
     /// The field of `shaders/text_mask.wesl`'s `Params` the cutoff fills.
     const CUTOFF_PARAM: &str = "cutoff";
@@ -494,58 +496,6 @@ mod backend {
             shaped
         } else {
             shape(after)
-        }
-    }
-
-    /// The shaper's request for a style, dressed by its `text_style`.
-    ///
-    /// The size is the bucket above what was asked for, so a camera zooming
-    /// through it re-shapes a few times rather than every frame; the caller
-    /// scales the block back down.
-    pub(crate) fn request_of(eng: &Engine, text: &str, style: &super::TextStyle) -> Request {
-        let look = balaur_text::text_style::of(eng, &style.text_style);
-        Request {
-            text: text.to_string(),
-            size: balaur_text::bucket(style.size),
-            weight: style.weight,
-            slant: balaur_text::Slant::of(&style.shaping.font_style),
-            width: style.max_width,
-            truncate: style.shaping.truncate,
-            align: match style.align {
-                super::Align::Start => ShaperAlign::Start,
-                super::Align::Center => ShaperAlign::Center,
-                super::Align::End => ShaperAlign::End,
-                super::Align::Left => ShaperAlign::Left,
-                super::Align::Right => ShaperAlign::Right,
-                super::Align::Justify => ShaperAlign::Justify,
-            },
-            markup: style.markup,
-            font: style.font.clone(),
-            project: project_of(style),
-            line_height: look.line_height,
-            letter_spacing: look.letter_spacing,
-            options: balaur_text::Options {
-                decoration: look.decoration,
-                ..options_of(&style.shaping)
-            },
-        }
-    }
-
-    /// Whose faces a style's font is looked up in.
-    fn project_of(style: &super::TextStyle) -> balaur_text::FontProject {
-        balaur_text::FontProject::content_if(style.in_content)
-    }
-
-    /// A block's shaping settings as the shaper takes them.
-    fn options_of(shaping: &super::Shaping) -> balaur_text::Options {
-        let positive = |v: f32| (v > 0.0).then_some(v);
-        balaur_text::Options {
-            decoration: balaur_text::Decoration::default(),
-            line_break: balaur_text::LineBreak::of(&shaping.line_break),
-            truncate_at: balaur_text::TruncateAt::of(&shaping.truncate_at),
-            max_lines: shaping.max_lines,
-            max_height: positive(shaping.max_height),
-            tab_size: shaping.tab_size,
         }
     }
 
@@ -740,27 +690,68 @@ mod backend {
     }
 }
 
+/// The shaper's request for a style, dressed by its `text_style`.
+///
+/// The size is the bucket above what was asked for, so a camera zooming
+/// through it re-shapes a few times rather than every frame; the caller
+/// scales the block back down.
+pub(crate) fn request_of(eng: &Engine, text: &str, style: &TextStyle) -> balaur_text::Request {
+    let look = balaur_text::text_style::of(eng, &style.text_style);
+    balaur_text::Request {
+        text: text.to_string(),
+        size: balaur_text::bucket(style.size),
+        weight: style.weight,
+        slant: balaur_text::Slant::of(&style.shaping.font_style),
+        width: style.max_width,
+        truncate: style.shaping.truncate,
+        align: match style.align {
+            Align::Start => balaur_text::Align::Start,
+            Align::Center => balaur_text::Align::Center,
+            Align::End => balaur_text::Align::End,
+            Align::Left => balaur_text::Align::Left,
+            Align::Right => balaur_text::Align::Right,
+            Align::Justify => balaur_text::Align::Justify,
+        },
+        markup: style.markup,
+        font: style.font.clone(),
+        project: project_of(style),
+        line_height: look.line_height,
+        letter_spacing: look.letter_spacing,
+        options: balaur_text::Options {
+            decoration: look.decoration,
+            ..options_of(&style.shaping)
+        },
+    }
+}
+
+/// Whose faces a style's font is looked up in.
+fn project_of(style: &TextStyle) -> balaur_text::FontProject {
+    balaur_text::FontProject::content_if(style.in_content)
+}
+
+/// A block's shaping settings as the shaper takes them.
+fn options_of(shaping: &Shaping) -> balaur_text::Options {
+    let positive = |v: f32| (v > 0.0).then_some(v);
+    balaur_text::Options {
+        decoration: balaur_text::Decoration::default(),
+        line_break: balaur_text::LineBreak::of(&shaping.line_break),
+        truncate_at: balaur_text::TruncateAt::of(&shaping.truncate_at),
+        max_lines: shaping.max_lines,
+        max_height: positive(shaping.max_height),
+        tab_size: shaping.tab_size,
+    }
+}
+
 /// The size `text` shapes to, in the same pixels as `style.size`.
 ///
 /// Deterministic: measured against the project's fonts and the bundled ones
 /// only, never the machine's, so every platform answers the same. A bitmap
 /// face is measured from its own descriptor, which is as fixed.
 pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f32; 2]> {
-    #[cfg(feature = "window")]
-    {
-        let project = balaur_text::FontProject::content_if(style.in_content);
-        balaur_text::load_font(eng, project, &style.font);
-        let request = request_of(eng, text, style);
-        let size = balaur_text::shaper(eng).borrow_mut().measure(&request);
-        Ok([size.x, size.y])
-    }
-    #[cfg(not(feature = "window"))]
-    {
-        let _ = (eng, text, style);
-        Err(anyhow::anyhow!(
-            "no text shaper: this build was made without the `window` feature, so nothing can measure text"
-        ))
-    }
+    balaur_text::load_font(eng, project_of(style), &style.font);
+    let request = request_of(eng, text, style);
+    let size = balaur_text::shaper(eng).borrow_mut().measure(&request);
+    Ok([size.x, size.y])
 }
 
 /// How far in front of the layer behind it each layer sits. Small enough to
