@@ -1,0 +1,5 @@
+pub class Hooks {
+    pub by_name: { str: fn(int) -> int },
+}
+
+// error: 2:9: `by_name` is `pub`, so a scene may set it, but a scene cannot write a `fn`; make it `internal`

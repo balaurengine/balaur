@@ -281,17 +281,21 @@ script's own, so there is no second marker to keep in step with it.
   with a component's drawers. A number, `bool` or `str` is itself; a `Node`,
   or another script's class, a `node`; `[T]` a `list`; `{str: V}` a `map`; a
   struct a `record` of its `pub` fields; a unit-only enum an `enum` of its
-  names; one with fields a `variant`; `Vec2`, `Vec3` and `Color` the vectors.
-  An `any`, a `fn` and a transform have no shape to draw and are left out.
+  names; one with fields a `variant`; `Vec2`, `Vec3` and `Color` the vectors;
+  a transform a `record` of its axes and origin, as Godot draws one.
+- No `pub` field of a script's class holds an `any` or a `fn`, in a list, a
+  map or a struct's `pub` fields either: the compiler refuses one
+  (`checks::unwritable`), so every property has a row. A struct that is only
+  ever a value, a hook's reply, keeps `pub` fields of any type.
 - The `///` text above a field is its `description`; the compiler keeps it in
   `Meta.public_fields`, beside each enum's variant names in `Meta.variants`.
 - A field with no literal default starts at the schema's zero for its spec.
-- A typed map is made by the map's own `of`, so its slots are filled as a
-  literal's are. An enum is written by its variant's name, or as `{ kind,
-  ..fields }` for one with fields.
+- A typed map is built in `convert`, wherever it sits, as its keys and values
+  with no table of slots; its first lookup indexes it. An enum is written by
+  its variant's name, or as `{ kind, ..fields }` for one with fields.
 - At attach: the struct is made with its defaults, `props` written over them,
   then `init`, so `init` reads tuned values.
-- A prop naming no field is dropped, and warns.
+- A prop naming a field that is not `pub`, or no field, is dropped, and warns.
 - `props` is sparse: the inspector writes an override only where it differs, so
   changing a default reaches every node that never overrode it. The default's
   type is what the inspector draws, and what keeps `2` from becoming `2.0`.

@@ -1,0 +1,8 @@
+pub class Holder {
+    internal loose: any,
+    pub count: int,
+}
+
+pub fn counted() -> int { Holder { loose: 3, count: 2 }.count }
+
+// expect: counted() == 2

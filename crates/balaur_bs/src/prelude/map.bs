@@ -1,7 +1,7 @@
 //! A map from `K` to `V`, made for each pair a program names (`crate::maps`):
 //! its entries in the order each key was first set, and a table of where each
-//! key's entry sits, probed from the key's hash. A table made with its fields'
-//! defaults is empty, and takes a table of slots with its first entry.
+//! key's entry sits, probed from the key's hash. A table holding entries but no
+//! slots, as the host makes one from a scene, is indexed at its first lookup.
 
 pub class Table { keys_in_order: [K], values_in_order: [V], slots: [int], mask: int }
 
@@ -73,7 +73,10 @@ impl Table {
     // Where `key`'s entry sits, or -1.
     fn find(key: K) -> int {
         if self.slots.len() == 0 {
-            return -1;
+            if self.keys_in_order.len() == 0 {
+                return -1;
+            }
+            self.index();
         }
         let at = __hash(key) % (self.mask + 1);
         while self.slots[at] != 0 {
@@ -95,10 +98,13 @@ impl Table {
         self.slots[at] = entry + 1;
     }
 
-    // The table made again, for every entry.
+    // The table made again, for every entry, at least twice their number.
     fn index() {
         if self.mask < 7 {
             self.mask = 7;
+        }
+        while self.keys_in_order.len() * 2 > self.mask {
+            self.mask = self.mask * 2 + 1;
         }
         self.slots = [0; self.mask + 1];
         let entry = 0;

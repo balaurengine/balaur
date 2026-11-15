@@ -1046,7 +1046,12 @@ fn direct_imports(
 fn variants(prog: &Program) -> Vec<(String, Vec<String>)> {
     prog.enums
         .iter()
-        .map(|e| (e.name.clone(), e.variants.iter().map(|v| v.name.clone()).collect()))
+        .map(|e| {
+            (
+                e.name.clone(),
+                e.variants.iter().map(|v| v.name.clone()).collect(),
+            )
+        })
         .collect()
 }
 
@@ -1055,7 +1060,10 @@ fn public_fields(prog: &Program) -> Vec<(String, Vec<(String, String)>)> {
         .iter()
         .map(|(name, fields)| {
             let shown = fields.iter().filter(|f| f.public);
-            (name.clone(), shown.map(|f| (f.name.clone(), f.doc.clone())).collect())
+            (
+                name.clone(),
+                shown.map(|f| (f.name.clone(), f.doc.clone())).collect(),
+            )
         })
         .filter(|(_, fields): &(String, Vec<(String, String)>)| !fields.is_empty())
         .collect()

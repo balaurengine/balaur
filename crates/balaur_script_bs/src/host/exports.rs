@@ -2,10 +2,8 @@
 // the component schema's words, so an inspector draws it with the same rows.
 
 use super::File;
-use crate::convert::from_neutral;
 use crate::vocabulary::keys;
 use crate::vocabulary::words::{doc_types as kinds, records};
-use balaur_bs::runtime::Value as L;
 use balaur_bs::{Literal, Meta, Ty};
 use balaur_script::Value;
 
@@ -87,7 +85,16 @@ fn struct_spec(meta: &Meta, name: &str, depth: usize) -> Option<Value> {
         records::VEC2 => return Some(typed(kinds::VEC2)),
         records::VEC3 => return Some(typed(kinds::VEC3)),
         records::COLOR => return Some(typed(kinds::COLOR)),
-        records::TRANSFORM_2D | records::TRANSFORM_3D => return None,
+        // The engine's records keep their fields unmarked; a transform is
+        // drawn as Godot's is, by its axes and its origin.
+        records::TRANSFORM_2D | records::TRANSFORM_3D => {
+            let fields = meta
+                .fields(name)?
+                .iter()
+                .map(|(field, ty)| Some((field.clone(), spec_of(meta, ty, depth + 1)?)))
+                .collect::<Option<_>>()?;
+            return Some(record(fields));
+        }
         _ => {}
     }
     if let Some((key, value)) = meta.map_types(name) {
@@ -183,49 +190,4 @@ fn written(literal: &Literal, ty: &Ty) -> Value {
 fn zero(spec: &Value) -> Option<Value> {
     let table = balaur_core::node_api::to_toml(spec).ok()?;
     balaur_core::node_api::from_toml(&balaur_core::components::zero_of(&table)).ok()
-}
-
-/// The typed map class a field holds, a `{ K: V }` or a `T?` of one.
-pub(super) fn map_class(file: &File, ty: &Ty) -> Option<String> {
-    let inner = match ty {
-        Ty::Optional(inner) => &**inner,
-        other => other,
-    };
-    match inner {
-        Ty::Struct(name) if file.compiled.meta.map_types(name).is_some() => Some(name.clone()),
-        _ => None,
-    }
-}
-
-/// A scene's table as the typed map `class`, made by the map's own `of` so
-/// its slots are filled as a literal's are. `None`, logged, for a table whose
-/// keys the map cannot take.
-pub(super) fn made_map(file: &File, class: &str, table: &Value, path: &str) -> Option<L> {
-    let meta = &file.compiled.meta;
-    let (key_ty, value_ty) = meta.map_types(class)?;
-    let maker = meta.map_maker(class)?;
-    let Value::Map(entries) = table else {
-        return None;
-    };
-    let mut keys = Vec::with_capacity(entries.len());
-    let mut values = Vec::with_capacity(entries.len());
-    for (key, value) in entries {
-        keys.push(match key_ty {
-            Ty::Int => L::Int(key.parse().ok()?),
-            _ => L::Str(key.clone()),
-        });
-        values.push(from_neutral(value, &value_ty, meta));
-    }
-    let args = [L::Array(keys), L::Array(values)];
-    let made = file.either(
-        |rt| rt.in_unit(file.unit, |rt| rt.call(&maker, &args)),
-        |re| re.call(file.unit, &maker, &args),
-    );
-    match made {
-        Ok(made) => Some(made),
-        Err(e) => {
-            tracing::warn!("[{path}] a map property: {e}");
-            None
-        }
-    }
 }

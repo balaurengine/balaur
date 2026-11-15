@@ -6,7 +6,6 @@
     reason = "a part of the module above, split for length"
 )]
 use super::*;
-use super::exports;
 
 const ON_FREE: &str = "on_free";
 
@@ -95,22 +94,16 @@ impl ScriptHost<Engine> for BsHost {
         let file = self.file(path)?;
         let mut init: Vec<(String, L)> = vec![];
         for (name, v) in props {
-            match file.field_ty(name) {
+            match file.property_ty(name) {
                 Some(t) if links::class_of(&file, &t).is_some() && links::path_of(v).is_some() => {
                     self.note_link(node.0, name, links::path_of(v).unwrap_or_default());
-                }
-                Some(t) if matches!(v, Value::Map(_)) && exports::map_class(&file, &t).is_some() => {
-                    let class = exports::map_class(&file, &t).unwrap_or_default();
-                    if let Some(made) = exports::made_map(&file, &class, v, path) {
-                        init.push((name.clone(), made));
-                    }
                 }
                 Some(t) => {
                     let v = self.nodes_named(node, (path, name), v, &t);
                     init.push((name.clone(), from_neutral(&v, &t, &file.compiled.meta)));
                 }
                 None => {
-                    tracing::warn!("[{path}] property '{name}' is set on a node but not exported");
+                    tracing::warn!("[{path}] a scene sets '{name}', which is no `pub` field");
                 }
             }
         }

@@ -11,6 +11,7 @@ pub enum Shape { Circle(float), Rect(float, float), Empty }
 pub struct Spot {
     pub x: int,
     pub label: str,
+    pub tally: {str: int},
 }
 
 pub class Tuned {
@@ -30,7 +31,8 @@ pub class Tuned {
     pub mode: Mode,
     pub shape: Shape,
     pub maybe: float?,
-    pub loose: any,
+    pub moves: Transform2d,
+    pub rows: [{int: str}],
     internal hidden: int,
     kept: int,
 }
@@ -48,6 +50,24 @@ impl Tuned {
         };
         let maybe = if self.maybe == nil { -1 } else { self.maybe.unwrap() as int };
         return "{self.count} {self.name} {self.on} {self.target.name()} {self.marks.len()} {self.at.y as int} {(self.tint.g * 10.0) as int} {self.steps[2]} {self.scores["bo"]} {self.scores.len()} {self.spot.x} {self.spot.label} {mode} {shape} {maybe}";
+    }
+
+    pub fn nested() -> str {
+        let tally = self.spot.tally;
+        let row = self.rows[1];
+        return "{tally.len()} {tally["k"]} {tally.has("a")} {tally.has("z")} {row[2]} {row.len()} {self.moves.origin.x as int} {self.moves.y.y as int} {self.kept}";
+    }
+
+    pub fn unmarked() -> int {
+        return self.kept + self.hidden;
+    }
+
+    // A table a scene made takes a key as a literal's does.
+    pub fn grown() -> str {
+        let tally = self.spot.tally;
+        tally["z"] = 26;
+        tally["a"] = 100;
+        return "{tally.len()} {tally["z"]} {tally["a"]} {tally.keys()[0]}";
     }
 }
 "#;
@@ -112,9 +132,9 @@ fn every_pub_field_is_listed_with_the_spec_its_type_draws() {
         names,
         [
             "speed", "count", "name", "on", "target", "marks", "at", "tint", "steps", "scores",
-            "spot", "mode", "shape", "maybe"
+            "spot", "mode", "shape", "maybe", "moves", "rows"
         ],
-        "every pub field in its order, an `any` and the hidden ones left out"
+        "every pub field in its order, the hidden ones left out"
     );
     let spec = |name: &str| &exports.iter().find(|(n, _)| n == name).unwrap().1;
     let kind = |name: &str| text(at(spec(name), "type")).to_string();
@@ -133,6 +153,8 @@ fn every_pub_field_is_listed_with_the_spec_its_type_draws() {
         ("mode", "enum"),
         ("shape", "variant"),
         ("maybe", "float"),
+        ("moves", "record"),
+        ("rows", "list"),
     ] {
         assert_eq!(kind(name), wanted, "{name}");
     }
@@ -151,6 +173,17 @@ fn every_pub_field_is_listed_with_the_spec_its_type_draws() {
     );
     let rect = at(at(spec("shape"), "variants"), "Rect");
     assert_eq!(text(at(at(at(rect, "fields"), "1"), "type")), "float");
+    let moves = at(spec("moves"), "fields");
+    for axis in ["x", "y", "origin"] {
+        assert_eq!(text(at(at(moves, axis), "type")), "vec2", "{axis}");
+    }
+    let row = at(spec("rows"), "of");
+    assert_eq!(text(at(row, "type")), "map");
+    assert_eq!(text(at(row, "key")), "int");
+    assert_eq!(
+        text(at(at(at(spec("spot"), "fields"), "tally"), "type")),
+        "map"
+    );
 }
 
 #[test]
@@ -184,10 +217,63 @@ maybe = 1.5"#;
             "3 ana true Enemy 2 2 5 3 5 2 4 here angry rect 2x3 1".into()
         ))
     );
-    let errors: Vec<_> = balaur_core::logbuf::heard()
+    assert!(warned().is_empty(), "{:#?}", warned());
+}
+
+fn warned() -> Vec<String> {
+    balaur_core::logbuf::heard()
         .into_iter()
-        .filter(|e| (e.level == "warn" || e.level == "error") && e.message.contains("property"))
+        .filter(|e| e.level == "warn" || e.level == "error")
+        .filter(|e| e.message.contains("property") || e.message.contains("pub"))
         .map(|e| e.message)
-        .collect();
-    assert!(errors.is_empty(), "{errors:#?}");
+        .collect()
+}
+
+fn called(app: &App, method: &str) -> Option<Value> {
+    let world = app.engine.world();
+    let tuned = balaur_core::scene::find_node(&world, app.engine.root(), "World/Tuned").unwrap();
+    drop(world);
+    app.engine
+        .script_host()
+        .unwrap()
+        .call_on(balaur::node_id_of(tuned), method, &[])
+}
+
+#[test]
+fn a_map_inside_a_record_or_a_list_and_a_transform_come_from_a_scene() {
+    balaur_core::logbuf::capture_for_test();
+    let props = r#"spot = { x = 1, label = "s", tally = { a = 1, b = 2, c = 3, d = 4, e = 5, f = 6, g = 7, h = 8, i = 9, j = 10, k = 11 } }
+rows = [{ 1 = "one" }, { 1 = "uno", 2 = "dos", 3 = "tres" }]
+moves = { x = [1.0, 0.0], y = [0.0, 2.0], origin = [5.0, 6.0] }"#;
+    let (_dir, app) = booted(props);
+    assert_eq!(
+        called(&app, "nested"),
+        Some(Value::Str("11 11 true false dos 3 5 2 0".into()))
+    );
+    assert_eq!(
+        called(&app, "grown"),
+        Some(Value::Str("12 26 100 a".into()))
+    );
+    assert!(warned().is_empty(), "{:#?}", warned());
+}
+
+#[test]
+fn a_scene_cannot_set_a_field_that_is_not_pub() {
+    balaur_core::logbuf::capture_for_test();
+    let (_dir, app) = booted("kept = 9\nhidden = 4");
+    assert_eq!(
+        called(&app, "unmarked"),
+        Some(Value::Int(0)),
+        "the script ran, both fields left at their zero"
+    );
+    let warned = warned();
+    assert_eq!(warned.len(), 2, "{warned:#?}");
+    for field in ["kept", "hidden"] {
+        assert!(
+            warned
+                .iter()
+                .any(|line| line.contains(&format!("'{field}', which is no `pub` field"))),
+            "{warned:#?}"
+        );
+    }
 }

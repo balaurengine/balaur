@@ -1,0 +1,5 @@
+pub class Holder {
+    pub loose: any,
+}
+
+// error: 2:9: `loose` is `pub`, so a scene may set it, but a scene cannot write an `any`; make it `internal`

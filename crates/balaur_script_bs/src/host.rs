@@ -139,6 +139,15 @@ impl File {
             .find(|(n, _)| n == name)
             .map(|(_, t)| t.clone())
     }
+
+    /// A `pub` field's type: a property, the only field a scene sets.
+    fn property_ty(&self, name: &str) -> Option<Ty> {
+        let public = self.compiled.meta.public_fields(&self.ty);
+        public
+            .iter()
+            .any(|(n, _)| n == name)
+            .then(|| self.field_ty(name))?
+    }
 }
 
 struct Instance {

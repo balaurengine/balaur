@@ -1,0 +1,9 @@
+pub struct Reply {
+    pub data: any,
+}
+
+pub class Holder {
+    pub reply: Reply,
+}
+
+// error: 6:9: `reply` is `pub`, so a scene may set it, but a scene cannot write an `any`; make it `internal`

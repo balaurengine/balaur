@@ -1,0 +1,8 @@
+pub struct Reply {
+    pub data: any,
+    pub count: int,
+}
+
+pub fn counted() -> int { Reply { data: 3, count: 2 }.count }
+
+// expect: counted() == 2

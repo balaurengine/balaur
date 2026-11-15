@@ -98,12 +98,54 @@ fn holds(
     }
 }
 
+// What in `t` a scene cannot write, through lists, `T?`, a map's entries, an
+// enum's payloads and a record's `pub` fields. Another class is a node a
+// scene names by its path, so nothing of it is written here.
+fn unwritable(t: &Ty, prog: &Program, seen: &mut Vec<String>) -> Option<&'static str> {
+    match t {
+        Ty::Any => Some("an `any`"),
+        Ty::Fn(..) => Some("a `fn`"),
+        Ty::Array(inner) | Ty::Optional(inner) | Ty::Map(_, inner) => unwritable(inner, prog, seen),
+        Ty::Struct(s) if seen.contains(s) => None,
+        Ty::Struct(s) => {
+            let fields = &prog.structs.iter().find(|(n, _)| n == s)?.1;
+            // A typed map and an enum are held as classes too: every slot of
+            // them is written, where another class is a node named by path.
+            let whole =
+                crate::maps::is_map(s) || fields.iter().any(|f| f.name == crate::enums::TAG);
+            if !whole && prog.classes.contains(s) {
+                return None;
+            }
+            seen.push(s.clone());
+            fields
+                .iter()
+                .filter(|f| whole || f.public)
+                .find_map(|f| unwritable(&f.ty, prog, seen))
+        }
+        _ => None,
+    }
+}
+
 pub(crate) fn check_structs(prog: &Program) -> R<()> {
     let names: Vec<&String> = prog.structs.iter().map(|(n, _)| n).collect();
     let at = crate::ast::Pos { line: 1, col: 1 };
     for (n, fields) in &prog.structs {
         let class = prog.classes.contains(n);
         for f in fields {
+            // A class's `pub` fields are what a scene writes; a struct that
+            // is only ever a value, a hook's reply, keeps any `pub` field.
+            if class
+                && f.public
+                && let Some(what) = unwritable(&f.ty, prog, &mut vec![])
+            {
+                return err(
+                    f.pos,
+                    format!(
+                        "`{}` is `pub`, so a scene may set it, but a scene cannot write {what}; make it `internal`",
+                        f.name
+                    ),
+                );
+            }
             if let Some(u) = unknown_type(&f.ty, &names) {
                 return err(
                     at,

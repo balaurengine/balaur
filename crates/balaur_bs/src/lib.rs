@@ -48,6 +48,37 @@ pub fn enum_slot(variant: &str, field: &str) -> String {
     enums::slot(variant, field)
 }
 
+/// A typed map class's key and value types, read off `fields`, the table it
+/// is; `None` for any other type.
+#[must_use]
+pub fn map_types(ty: &str, fields: &[(String, Ty)]) -> Option<(Ty, Ty)> {
+    if !maps::is_map(ty) {
+        return None;
+    }
+    let element = |name: &str| match fields.iter().find(|(n, _)| n == name)?.1.clone() {
+        Ty::Array(inner) => Some(*inner),
+        _ => None,
+    };
+    Some((element(maps::KEYS)?, element(maps::VALUES)?))
+}
+
+/// Typed map class `ty` holding `keys` and `values`, entry by entry, as the
+/// runtime takes a value: its table of slots is made at its first lookup.
+#[must_use]
+pub fn map_value(
+    ty: &str,
+    keys: Vec<runtime::Value>,
+    values: Vec<runtime::Value>,
+) -> runtime::Value {
+    runtime::Value::Struct(
+        ty.into(),
+        vec![
+            (maps::KEYS.into(), runtime::Value::Array(keys)),
+            (maps::VALUES.into(), runtime::Value::Array(values)),
+        ],
+    )
+}
+
 /// The class a script file declares, named after the file:
 /// `scripts/rail_drag.bs` declares `RailDrag`. A node running the file is an
 /// object of it; a file without it is a module others `use`.
@@ -422,22 +453,9 @@ impl Meta {
             .find(|(n, _)| n == ty)
             .map(|(_, v)| v.as_slice())
     }
-    /// The function that makes a typed map class `ty` from its keys and its
-    /// values, as `{ str: int }::of`; `None` for any other type.
-    pub fn map_maker(&self, ty: &str) -> Option<String> {
-        maps::is_map(ty).then(|| maps::function(ty, maps::MAKER))
-    }
     /// A typed map class's key and value types, read off the table it is.
     pub fn map_types(&self, ty: &str) -> Option<(Ty, Ty)> {
-        if !maps::is_map(ty) {
-            return None;
-        }
-        let fields = self.fields(ty)?;
-        let element = |name: &str| match fields.iter().find(|(n, _)| n == name)?.1.clone() {
-            Ty::Array(inner) => Some(*inner),
-            _ => None,
-        };
-        Some((element(maps::KEYS)?, element(maps::VALUES)?))
+        map_types(ty, self.fields(ty)?)
     }
     /// The file that declares class `ty`.
     pub fn class_file(&self, ty: &str) -> Option<&str> {

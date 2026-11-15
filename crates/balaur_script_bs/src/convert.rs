@@ -225,6 +225,9 @@ pub(crate) fn from_neutral<R: Records>(v: &N, ty: &Ty, records: &R) -> L {
                 return L::Struct(SmolStr::new(name), values);
             }
             if let Some(fields) = records.fields_of(name) {
+                if let Some((key, value)) = balaur_bs::map_types(name, fields) {
+                    return map(name, &key, &value, v, records);
+                }
                 if let Some(variants) = records.variants_of(name)
                     && let Some(tagged) = tagged(variants, v)
                 {
@@ -259,6 +262,37 @@ fn tagged(variants: &[String], v: &N) -> Option<N> {
         held.push((balaur_bs::enum_slot(kind, field), value.clone()));
     }
     Some(N::Map(held))
+}
+
+// A table as typed map `name`, each key read as the map's key type. A key
+// given twice, as `1` and `01` are, keeps the last value, as a literal does.
+fn map<R: Records>(name: &str, key: &Ty, value: &Ty, v: &N, records: &R) -> L {
+    let entries: &[(String, N)] = match v {
+        N::Map(entries) => entries,
+        _ => &[],
+    };
+    let mut keys: Vec<L> = Vec::with_capacity(entries.len());
+    let mut values = Vec::with_capacity(entries.len());
+    for (written, item) in entries {
+        let k = match key {
+            Ty::Int => {
+                let Ok(n) = written.parse() else {
+                    tracing::warn!("a `{name}` takes int keys, so `{written}` is left out");
+                    continue;
+                };
+                L::Int(n)
+            }
+            _ => L::Str(written.clone()),
+        };
+        let item = from_neutral(item, value, records);
+        if let Some(at) = keys.iter().position(|held| *held == k) {
+            values[at] = item;
+        } else {
+            keys.push(k);
+            values.push(item);
+        }
+    }
+    balaur_bs::map_value(name, keys, values)
 }
 
 // A table as the record it is declared to be, field by field; one it does
