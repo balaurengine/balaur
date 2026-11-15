@@ -115,17 +115,14 @@ pub fn run_until_within(
     // pool chatter, the script engine's traces) floods any fixed window, and
     // an error logged at load would scroll out before the first look.
     let mut seen: Vec<Option<String>> = markers.iter().map(|_| None).collect();
-    let mut cursor = 0;
     let mut heard_at = 0;
     let deadline = Instant::now() + deadline;
     while Instant::now() < deadline {
         app.tick(1.0 / 60.0);
-        let (mut fresh, next, _) = balaur_core::logbuf::since(cursor);
-        cursor = next;
-        // The script logs on this thread, which keeps every line: an error
-        // logged at boot can leave the 500-line ring before the first look.
+        // This thread's lines only: the shared ring holds other tests' errors,
+        // some logged on purpose, and drops lines a boot floods it with.
         let heard = balaur_core::logbuf::heard();
-        fresh.extend(heard.iter().skip(heard_at).cloned());
+        let fresh: Vec<_> = heard.iter().skip(heard_at).cloned().collect();
         heard_at = heard.len();
         let errors: Vec<_> = fresh
             .iter()
@@ -143,7 +140,7 @@ pub fn run_until_within(
             return seen.into_iter().flatten().collect();
         }
     }
-    let told: Vec<String> = balaur_core::logbuf::recent(500)
+    let told: Vec<String> = balaur_core::logbuf::heard()
         .into_iter()
         .filter(|e| matches!(e.level.as_str(), "info" | "warn" | "error"))
         .map(|e| format!("{} {}", e.level, e.message))
