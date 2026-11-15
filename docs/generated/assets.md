@@ -644,10 +644,14 @@ font = "heading"                 # a name [fonts] gives a font, or a font itself
 font_weight = 700
 text_align = "center"            # start, center or end
 cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
+transition = 0.2                 # seconds the pointer's states ease over, as CSS's transition
 
 [button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
                                  # keyboard focus, [button.disabled] while off, [button.checked] while on
 fill = "primary_fill_hover"
+
+[button.active]
+offset = [0, 0.5]                # drawn this far from its place, as CSS's translate; the layout stays
 
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels

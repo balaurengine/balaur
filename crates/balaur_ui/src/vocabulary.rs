@@ -515,6 +515,11 @@ pub(crate) mod keys {
     pub(crate) const THEME: &str = "theme";
     pub(crate) const TOOLTIP: &str = "tooltip";
     pub(crate) const CURSOR: &str = "cursor";
+    pub(crate) const STATE: &str = "state";
+    /// Seconds a theme table eases a change of state over.
+    pub(crate) const TRANSITION: &str = "transition";
+    /// How far a theme table draws a widget from its place, `[x, y]`.
+    pub(crate) const OFFSET: &str = "offset";
     pub(crate) const ICON_FILL: &str = "icon_fill";
     pub(crate) const VALUE: &str = "value";
     pub(crate) const SCROLL_OFFSET: &str = "scroll_offset";
@@ -576,6 +581,10 @@ pub(crate) mod states {
     pub(crate) const HOVER: &str = "hover";
     pub(crate) const ACTIVE: &str = "active";
     pub(crate) const FOCUS: &str = "focus";
+    /// A widget's `state` that leaves its look to the pointer and the keyboard.
+    pub(crate) const NONE: &str = "none";
+    /// What a widget's `state` may hold it in: the pointer's two, and focus.
+    pub(crate) const HELD: &[&str] = &[NONE, HOVER, ACTIVE, FOCUS];
 }
 
 /// The theme's tokens by name: the sources a theme states, and what Rust

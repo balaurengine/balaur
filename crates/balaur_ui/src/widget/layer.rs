@@ -170,6 +170,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let (focused, taking, arriving) = focus_before(eng);
     let mut painting = Painting {
         eng,
+        ctx: ctx.clone(),
         arena: &placed,
         focused,
         taking,
@@ -519,6 +520,8 @@ pub(crate) fn theme_root(eng: &Engine) -> Rc<WidgetTheme> {
 /// and every one of them was growing a parameter per feature.
 pub(crate) struct Painting<'a> {
     pub(crate) eng: &'a Engine,
+    /// The pass's context, which eases a widget's change of state.
+    pub(crate) ctx: egui::Context,
     pub(crate) arena: &'a [Placed],
     pub(crate) focused: Option<Entity>,
     /// Whether focus was put on `focused` this pass rather than resting there.
@@ -616,6 +619,12 @@ impl Painting<'_> {
         self.fresh || self.touched.slots.contains(&root)
     }
 
+    /// Where the pointer is for the widget at `index`, which answers with the
+    /// response it drew: where its `state` holds it, else where `response` says.
+    pub(crate) fn pointer(&self, index: usize, response: &egui::Response) -> Pointer {
+        held_pointer(&self.arena[index].widget.state).unwrap_or_else(|| Pointer::of(response))
+    }
+
     /// The style the widget at `index` is drawn with, in the state it is in here.
     pub(crate) fn style(&self, index: usize) -> Rc<Style> {
         Rc::clone(&self.look(index).style)
@@ -631,7 +640,16 @@ impl Painting<'_> {
     /// The look of the widget at `index`, in the state it is in here.
     pub(crate) fn look(&self, index: usize) -> Rc<Look> {
         let look = look_of(self.arena, index, &self.theme);
-        if !self.state.any() || look.style.states_nothing() {
+        if look.style.states_nothing() {
+            return look;
+        }
+        // Partway through a change it is made for this pass and kept nowhere.
+        if let Some(style) =
+            self.easing(index, &look.style, self.state, crate::widget::ease::BY_BOX)
+        {
+            return self.wearing(index, &look, style);
+        }
+        if !self.state.any() {
             return look;
         }
         let placed = &self.arena[index];
@@ -644,22 +662,28 @@ impl Painting<'_> {
         {
             return Rc::clone(held);
         }
-        let style = Rc::new(look.style.in_states(self.state));
-        let (ink, font) = face(&self.theme, &style, (&placed.widget, placed.project));
-        let made = Rc::new(Look {
-            style,
-            font,
-            ink,
-            icon: look.icon.clone(),
-            project: placed.project,
-            under: look.under.clone(),
-        });
+        let made = self.wearing(index, &look, look.style.in_states(self.state));
         placed
             .look
             .borrow_mut()
             .in_state
             .push((self.state, Rc::clone(&made)));
         made
+    }
+
+    /// `look` with `style` in place of its own, and the face that follows.
+    fn wearing(&self, index: usize, look: &Look, style: Style) -> Rc<Look> {
+        let placed = &self.arena[index];
+        let style = Rc::new(style);
+        let (ink, font) = face(&self.theme, &style, (&placed.widget, placed.project));
+        Rc::new(Look {
+            style,
+            font,
+            ink,
+            icon: look.icon.clone(),
+            project: placed.project,
+            under: look.under.clone(),
+        })
     }
 
     /// The look with no state on it, for a kind that answers the pointer with
@@ -799,18 +823,50 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     } else {
         Pointer::Away
     };
-    let state = WidgetState {
-        pointer,
-        disabled,
-        focused,
-        checked: at.arena[index].widget.checked,
-    };
+    let state = held_in(
+        &at.arena[index].widget.state,
+        WidgetState {
+            pointer,
+            disabled,
+            focused,
+            checked: at.arena[index].widget.checked,
+        },
+    );
     let outer = std::mem::replace(&mut at.state, state);
+    let brush = Brush::of(ui);
+    let mark = brush.mark();
     crate::widget::kinds::context_sensor(ui, at, index);
     click_sensor(ui, at, index);
     draw_kind(ui, at, index);
+    // Moved once drawn, children and all, so the layout and what the pointer
+    // reaches stay where they were: CSS's `translate`.
+    if let Some([x, y]) = at.look(index).style.offset {
+        brush.shift_since(mark, vec2(x, y));
+    }
     crate::widget::kinds::context_menu(ui, at, index);
     at.state = outer;
+}
+
+/// Where a widget's `state` holds the pointer, whatever it does: only the
+/// look changes, never what a click does. `None` leaves it to the pointer.
+pub(crate) fn held_pointer(word: &str) -> Option<Pointer> {
+    use crate::vocabulary::states as st;
+    match word {
+        st::HOVER => Some(Pointer::Over),
+        st::ACTIVE => Some(Pointer::Held),
+        st::FOCUS => Some(Pointer::Away),
+        _ => None,
+    }
+}
+
+/// The state a widget's `state` holds it in, over the one the pointer and
+/// the keyboard put it in.
+fn held_in(word: &str, live: WidgetState) -> WidgetState {
+    held_pointer(word).map_or(live, |pointer| WidgetState {
+        pointer,
+        focused: word == crate::vocabulary::states::FOCUS,
+        ..live
+    })
 }
 
 /// Accept on a fold turns it, as a click on its header does.

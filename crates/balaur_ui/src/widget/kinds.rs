@@ -15,7 +15,7 @@ use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
 use crate::widget::paint::{self, Brush};
-use crate::widget::theme::{Pointer, Style, WidgetState, rich};
+use crate::widget::theme::{Style, WidgetState, rich};
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
 /// reported like a button's and the next tick flips `checked`.
@@ -131,10 +131,11 @@ pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     if response.clicked() {
         at.clicked.push(entity);
     }
-    let dressed = look.style.in_states(WidgetState {
-        pointer: Pointer::of(&response),
+    let state = WidgetState {
+        pointer: at.pointer(index, &response),
         ..at.state
-    });
+    };
+    let dressed = at.dressed(index, &look.style, state);
     let track = dressed.fill.unwrap_or(Color32::TRANSPARENT);
     let knob = dressed
         .text_color
@@ -731,12 +732,12 @@ fn fold_header(
         at.edits.push((entity, Edit::Open(!open)));
     }
     let state = WidgetState {
-        pointer: Pointer::of(&header),
+        pointer: at.pointer(index, &header),
         disabled: false,
         focused: at.focused == Some(entity),
         checked: open,
     };
-    let look = style.in_states(state);
+    let look = at.dressed(index, style, state);
     plate(ui, at.eng, frame, &look, strip);
     let ink = look.text_color.unwrap_or(color);
     let middle = strip.center().y;

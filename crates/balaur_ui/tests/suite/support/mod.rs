@@ -310,6 +310,28 @@ pub fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Pos2)> {
         .collect()
 }
 
+/// The fill of every rectangle a pass painted, nested shapes included: what
+/// a theme's tables dressed the widgets in.
+pub fn fills(out: &egui::FullOutput) -> Vec<egui::Color32> {
+    rects(out).into_iter().map(|(_, fill)| fill).collect()
+}
+
+/// Every rectangle a pass painted, nested shapes included, with its fill.
+pub fn rects(out: &egui::FullOutput) -> Vec<(egui::Rect, egui::Color32)> {
+    fn walk(shape: &egui::Shape, into: &mut Vec<(egui::Rect, egui::Color32)>) {
+        match shape {
+            egui::epaint::Shape::Rect(rect) => into.push((rect.rect, rect.fill)),
+            egui::epaint::Shape::Vec(inner) => inner.iter().for_each(|one| walk(one, into)),
+            _ => {}
+        }
+    }
+    let mut painted = Vec::new();
+    for clipped in &out.shapes {
+        walk(&clipped.shape, &mut painted);
+    }
+    painted
+}
+
 pub fn root_rect(ctx: &egui::Context, entity: Entity) -> egui::Rect {
     ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
         .expect("the root drew")

@@ -371,12 +371,16 @@ pub(crate) fn button(
         egui::Role::Button,
         caption,
     );
-    let pointer = Pointer::of(&response);
+    let pointer = at.pointer(index, &response);
     let down = pointer == Pointer::Held || widget.checked;
-    let style = base.in_states(WidgetState {
-        pointer,
-        ..at.state
-    });
+    let style = at.dressed(
+        index,
+        &base,
+        WidgetState {
+            pointer,
+            ..at.state
+        },
+    );
     let radius = corner(&style, widget, response.rect.height());
     match style.image.as_ref() {
         Some(path) => crate::widget::kinds::nine_patch_plate(
@@ -412,7 +416,7 @@ pub(crate) fn button(
     if response.clicked() {
         at.clicked.push(entity);
     }
-    if focused == Some(entity) {
+    if focused == Some(entity) || widget.state == crate::vocabulary::states::FOCUS {
         // Drawn rather than egui's own focus ring: the ring follows
         // egui's keyboard focus, and this follows the scene's.
         Brush::of(ui).outline(

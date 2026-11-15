@@ -2480,7 +2480,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 57 properties
+`ui` · 58 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A click on one is its node's `pointer_click`, which a `bindings` row or its script's `on_pointer_click` answers; a `label`, a `panel` or an `image` senses a click only where one is heard.
 
@@ -2528,6 +2528,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>corner_radius</code></td><td>float</td><td><code>-1.0</code></td><td>Corner radius in design pixels, a `progress_bar`&#x27;s and an `image`&#x27;s included; below zero takes the theme&#x27;s own, which for a button is as round as its text is tall</td></tr>
 <tr><td><code>dashed</code></td><td>bool</td><td><code>false</code></td><td>Draw the outline in dashes, as a guide over a picture is drawn, rather than whole; square at the corners</td></tr>
 <tr><td><code>fade_in</code></td><td>bool</td><td><code>false</code></td><td>Fade a root in as it appears, over egui&#x27;s fade time</td></tr>
+<tr><td><code>state</code></td><td>enum</td><td><code>none</code></td><td>Drawn in its theme&#x27;s `hover`, `active` or `focus` table whatever the pointer and the keyboard do, as the web&#x27;s `btn-active` class: a UI page showing each state, a picture of one. `none` follows them. `enabled = false` still wins One of <code>none</code>, <code>hover</code>, <code>active</code>, <code>focus</code>.</td></tr>
 <tr><td><code>font</code></td><td>asset · <code>font</code></td><td>—</td><td>The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme&#x27;s default font</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>0.0</code></td><td>Text size in design pixels; 0 takes the size the role or the kind carries At least 0.0.</td></tr>
 <tr><td><code>font_weight</code></td><td>int</td><td><code>400</code></td><td>Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold Range 100–900.</td></tr>

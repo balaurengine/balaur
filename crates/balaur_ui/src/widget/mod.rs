@@ -12,6 +12,7 @@ mod beside_tests;
 pub(crate) mod button;
 pub(crate) mod code;
 pub(crate) mod drag;
+pub(crate) mod ease;
 pub(crate) mod field;
 pub(crate) mod focus;
 pub(crate) mod frame;

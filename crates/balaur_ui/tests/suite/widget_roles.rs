@@ -347,20 +347,6 @@ fn a_checkbox_and_a_dropdown_wear_their_kind_s_table() {
         }
         .into(),
     );
-    let fills = |out: &egui::FullOutput| {
-        fn walk(shape: &egui::Shape, into: &mut Vec<egui::Color32>) {
-            match shape {
-                egui::epaint::Shape::Rect(rect) => into.push(rect.fill),
-                egui::epaint::Shape::Vec(inner) => inner.iter().for_each(|one| walk(one, into)),
-                _ => {}
-            }
-        }
-        let mut painted = Vec::new();
-        for clipped in &out.shapes {
-            walk(&clipped.shape, &mut painted);
-        }
-        painted
-    };
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let off = fills(&pass(&app, &ctx, vec![]));
@@ -380,6 +366,98 @@ fn a_checkbox_and_a_dropdown_wear_their_kind_s_table() {
     assert!(
         on.contains(&egui::Color32::from_rgb(0xd5, 0x81, 0x4e)),
         "and its `checked` table once ticked: {on:?}"
+    );
+}
+
+// A UI page shows each state side by side, and its pictures must not hang on
+// where the pointer is: `state` draws a widget in its theme's `hover`,
+// `active` or `focus` table with no pointer near it, and clicks it as ever.
+#[test]
+fn a_held_state_dresses_a_widget_as_the_pointer_would() {
+    let (dir, mut app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/states.toml"),
+        "type = \"widget_theme\"\n\n[button]\nfill = \"#101010\"\n[button.hover]\nfill = \"#202020\"\n[button.active]\nfill = \"#303030\"\n[checkbox]\nfill = \"#404040\"\n[checkbox.hover]\nfill = \"#505050\"\n",
+    )
+    .unwrap();
+    let held = |state: &str, kind: &str, y: f64| {
+        let mut asked = toml::toml! { theme = "themes/states.toml" x = 0.0 text = "Go" };
+        asked.insert("kind".into(), kind.into());
+        asked.insert("state".into(), state.into());
+        asked.insert("y".into(), y.into());
+        add_widget(&app, &asked.into())
+    };
+    held("none", "button", 0.0);
+    let hovered = held("hover", "button", 50.0);
+    held("active", "button", 100.0);
+    held("hover", "checkbox", 150.0);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let painted = fills(&pass(&app, &ctx, vec![]));
+    for (hex, shows) in [
+        (0x10, "a button left to the pointer rests"),
+        (0x20, "`hover` wears the hover table"),
+        (0x30, "`active` wears the active table"),
+        (0x50, "and egui's own checkbox wears its hover table"),
+    ] {
+        let color = egui::Color32::from_rgb(hex, hex, hex);
+        assert!(painted.contains(&color), "{shows}: {painted:?}");
+    }
+    assert!(balaur_ui::click(&app.engine, hovered, false));
+    app.tick(1.0 / 60.0);
+    assert!(clicked(&app, hovered), "a held state still clicks");
+}
+
+// The site's card rises 2 px under the pointer over 120 ms, and its colours
+// run there rather than jump: `transition` eases a state's colours, its
+// shadow and its `offset`, which moves what is drawn and leaves the layout.
+#[test]
+fn a_transition_eases_into_hover_and_an_offset_moves_what_is_drawn() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/eased.toml"),
+        "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\ntransition = 0.2\n[button.hover]\nfill = \"#ffffff\"\noffset = [0, -2]\n",
+    )
+    .unwrap();
+    let button = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Go" theme = "themes/eased.toml" x = 20.0 y = 20.0 width = 100.0 height = 40.0 }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rest = root_rect(&ctx, button);
+    let plate = |out: &egui::FullOutput| {
+        fills(out)
+            .into_iter()
+            .find(|fill| fill.r() == fill.g() && fill.a() == 255)
+            .expect("the button paints its plate")
+    };
+    let over = vec![egui::Event::PointerMoved(rest.center())];
+    let first = plate(&pass(&app, &ctx, over));
+    assert!(
+        first.r() > 0 && first.r() < 255,
+        "a frame after the pointer came, the fill is on its way: {first:?}"
+    );
+    let mut last = pass(&app, &ctx, vec![]);
+    for _ in 0..30 {
+        last = pass(&app, &ctx, vec![]);
+    }
+    assert_eq!(plate(&last), egui::Color32::WHITE, "and arrives");
+    let moved = rects(&last)
+        .into_iter()
+        .find(|(_, fill)| *fill == egui::Color32::WHITE)
+        .map(|(rect, _)| rect)
+        .expect("the hover plate");
+    assert!(
+        (moved.min.y - (rest.min.y - 2.0)).abs() < 0.5,
+        "drawn 2 px up: {moved:?} from {rest:?}"
+    );
+    assert!(
+        (root_rect(&ctx, button).min.y - rest.min.y).abs() < 0.5,
+        "while the layout keeps it where it was"
     );
 }
 

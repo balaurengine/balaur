@@ -241,6 +241,9 @@ pub struct Widget {
     /// The pointer's shape while it is over the widget; `arrow` is the
     /// platform's own.
     pub cursor: SmolStr,
+    /// The state table it is drawn in whatever the pointer does: `hover`,
+    /// `active` or `focus`; `none` leaves it to the pointer and the keyboard.
+    pub state: SmolStr,
     /// Whether the pointer passes through this widget to the scene: it is
     /// drawn, and `ui.wants_pointer()` stays false over it.
     pub pointer_through: bool,

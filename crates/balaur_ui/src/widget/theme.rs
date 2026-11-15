@@ -181,6 +181,15 @@ pub struct Style {
     pub gradient: Option<Rc<Gradient>>,
     /// A blurred copy of the box, under it.
     pub shadow: Option<Shadow>,
+    /// Seconds a change of the pointer's state eases over, as CSS's
+    /// `transition`: colours, the shadow and `offset` run between the
+    /// tables, everything else steps at halfway. Unset steps at once.
+    pub transition: Option<f32>,
+    /// How far the widget and what it holds are drawn from where the layout
+    /// put them, `[x, y]` in design pixels, as CSS's `translate`: a card
+    /// lifted under the pointer. What sits beside it never moves, and the
+    /// move is rounded to whole pixels of the screen, so text stays sharp.
+    pub offset: Option<[f32; 2]>,
 }
 
 /// `shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }`, in
@@ -274,6 +283,8 @@ impl Style {
             border: self.border.or(base.border),
             gradient: self.gradient.clone().or_else(|| base.gradient.clone()),
             shadow: self.shadow.or(base.shadow),
+            transition: self.transition.or(base.transition),
+            offset: self.offset.or(base.offset),
         }
     }
 
@@ -662,6 +673,11 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         border: None,
         gradient: gradient_of(body, tokens, what),
         shadow: shadow_of(body, tokens, what),
+        transition: number(k::TRANSITION).filter(|seconds| *seconds > 0.0),
+        offset: body.get(k::OFFSET).map(|value| {
+            let [x, y, ..] = four_of(Some(value));
+            [x, y]
+        }),
     }
 }
 
@@ -882,10 +898,14 @@ font = "heading"                 # a name [fonts] gives a font, or a font itself
 font_weight = 700
 text_align = "center"            # start, center or end
 cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
+transition = 0.2                 # seconds the pointer's states ease over, as CSS's transition
 
 [button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
                                  # keyboard focus, [button.disabled] while off, [button.checked] while on
 fill = "primary_fill_hover"
+
+[button.active]
+offset = [0, 0.5]                # drawn this far from its place, as CSS's translate; the layout stays
 
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels

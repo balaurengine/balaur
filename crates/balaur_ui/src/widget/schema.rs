@@ -402,6 +402,7 @@ cache_fields! {
         k::CORNER_RADIUS => widget.radius = asked.corner_radius;
         k::DASHED => widget.dashed = asked.dashed;
         k::FADE_IN => egui(widget).fade_in = asked.fade_in;
+        k::STATE => widget.state = asked.state.0.clone();
         k::FONT => widget.font = asked.font.clone();
         k::FONT_SIZE => widget.font_size = asked.font_size;
         k::FONT_WEIGHT => widget.font_weight = asked.font_weight as f32;

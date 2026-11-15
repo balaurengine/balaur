@@ -223,6 +223,31 @@ impl Brush {
         balaur_text::paint_spans(&self.0, texture, shaped, origin, tint, spans);
     }
 
+    /// Where the next shape on this brush's layer goes, so what is painted
+    /// after it can be moved together: see [`Brush::shift_since`].
+    pub(crate) fn mark(&self) -> Slot {
+        let layer = self.0.layer_id();
+        Slot(self.0.ctx().graphics_mut(|g| g.entry(layer).next_idx()))
+    }
+
+    /// Move every shape painted on this brush's layer since `mark` by `by`,
+    /// their clips with them. Rounded to whole pixels of the screen: a box
+    /// snaps to them anyway, and text moved half a pixel blurs.
+    pub(crate) fn shift_since(&self, mark: Slot, by: egui::Vec2) {
+        let layer = self.0.layer_id();
+        let pixels = self.0.ctx().pixels_per_point();
+        let by = (by * pixels).round() / pixels;
+        if by == egui::Vec2::ZERO {
+            return;
+        }
+        let by = egui::emath::TSTransform::from_translation(by);
+        self.0.ctx().graphics_mut(|g| {
+            let list = g.entry(layer);
+            let end = list.next_idx();
+            list.transform_range(mark.0, end, by);
+        });
+    }
+
     pub(crate) fn slot(&self) -> Slot {
         Slot(self.0.add(egui::Shape::Noop))
     }

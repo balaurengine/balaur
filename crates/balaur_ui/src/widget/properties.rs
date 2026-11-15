@@ -165,6 +165,8 @@ words! {
     Sense = w::SENSES;
     /// The pointer's shape.
     Cursor = w::cursor::ALL;
+    /// The state a widget is drawn in whatever the pointer does.
+    Held = crate::vocabulary::states::HELD;
     /// What shuts a menu's popup.
     CloseOn = w::CLOSE_ONS;
     /// Whether a slider holds its number inside its range.
@@ -380,6 +382,9 @@ pub(crate) struct WidgetProperties {
     /// Fade a root in as it appears, over egui's fade time
     #[property(group = "paint")]
     pub(crate) fade_in: bool,
+    /// Drawn in its theme's `hover`, `active` or `focus` table whatever the pointer and the keyboard do, as the web's `btn-active` class: a UI page showing each state, a picture of one. `none` follows them. `enabled = false` still wins
+    #[property(default = Held::new(crate::vocabulary::states::NONE), group = "paint")]
+    pub(crate) state: Held,
     /// The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme's default font
     #[property(asset = "font", group = "font")]
     pub(crate) font: SmolStr,
