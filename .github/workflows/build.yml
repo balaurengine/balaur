@@ -214,7 +214,7 @@ jobs:
             ca-certificates curl git build-essential pkg-config \
             libasound2-dev libudev-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev
+            libxkbcommon-dev libwayland-dev python3
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
             sh -s -- -y --default-toolchain none --profile minimal
           echo "$HOME/.cargo/bin" >>"$GITHUB_PATH"
