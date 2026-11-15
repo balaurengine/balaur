@@ -208,3 +208,55 @@ fn a_click_puts_the_caret_where_it_lands() {
     consume_input(&mut app);
     assert_eq!(text_of(&app, field), "abc-def");
 }
+
+// A root is a layer of its own, and egui keys focus by an id on one layer:
+// a field moved under another root is drawn under a new id.
+#[test]
+fn a_focused_field_keeps_its_caret_when_it_moves_under_another_root() {
+    let (_dir, mut app) = app();
+    let roots: Vec<balaur_core::hecs::Entity> = [0.0, 100.0]
+        .into_iter()
+        .map(|y| {
+            let root = toml::toml! { kind = "column" x = 0.0 y = y width = 320.0 height = 60.0 };
+            add_widget(&app, &root.into())
+        })
+        .collect();
+    let field = toml::toml! { kind = "text_field" text = "abcdef" width = 300.0 };
+    let field = add_child_widget(&app, roots[0], "field", &field.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    {
+        let focus = app.engine.resource::<balaur_ui::UiFocus>();
+        let mut focus = focus.borrow_mut();
+        focus.focused = Some(field);
+        focus.taking = true;
+    }
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, chord(egui::Key::Home, egui::Modifiers::NONE));
+    for _ in 0..3 {
+        pass(
+            &app,
+            &ctx,
+            chord(egui::Key::ArrowRight, egui::Modifiers::NONE),
+        );
+    }
+    app.engine.reparent(field, roots[1]).unwrap();
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![egui::Event::Text("-".into())]);
+    consume_input(&mut app);
+    let moved = balaur_ui::widget_rect(field).expect("the field drew");
+    assert!(
+        moved.min.y >= 100.0,
+        "control: the field did not move: {moved:?}"
+    );
+    assert_eq!(
+        text_of(&app, field),
+        "abc-def",
+        "the caret did not survive the move"
+    );
+    assert_eq!(
+        focused(&app),
+        Some(field),
+        "the move took focus off the field"
+    );
+}

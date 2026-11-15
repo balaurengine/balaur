@@ -25,6 +25,9 @@ const AREA_ROWS: f32 = 4.0;
 /// otherwise: a dozen wide letters.
 const ROOM: &str = "MMMMMMMMMMMM";
 
+/// A field's ids: its sensor's, one per layer, and its kept state's.
+const FIELD: &str = "balaur-field";
+
 /// The space between a field's edge and its text: its padding and border,
 /// and egui's margin round the text where it states no padding.
 pub(crate) fn margin_of(widget: &Widget, style: &Style) -> Pad {
@@ -168,7 +171,7 @@ pub(crate) fn edit(
         |(modifiers, key)| egui::KeyboardShortcut::new(modifiers, key),
     );
     let typing = Typing {
-        id: egui::Id::unique(("balaur-field", entity)),
+        id: crate::widget::layer::sensor_id(ui, FIELD, entity),
         multiline,
         secret: widget.secret,
         editable: widget.egui.editable,
@@ -192,13 +195,16 @@ pub(crate) fn edit(
     };
     let wrap = multiline.then(|| typing.inner(rect).width().max(1.0));
     let setter = Typesetter::Plain(face.request(wrap));
+    // The node's, whatever layer draws it: a moved field keeps its caret.
+    let key = egui::Id::unique((FIELD, entity));
     let state = at.eng.resource::<crate::UiState>();
     let mut field = state
         .borrow_mut()
         .fields
-        .remove(&typing.id)
+        .remove(&key)
         .unwrap_or_else(|| Field::new(&widget.text, multiline, widget.egui.caret_at_end));
     field.refill(&widget.text);
+    field.carry_focus(ui, typing.id);
     // Only on the pass focus was put here: asking every frame would take the
     // caret back from whatever the reader clicked next. Focus given rather
     // than clicked into selects what the field holds, so typing replaces it.
@@ -222,7 +228,7 @@ pub(crate) fn edit(
         left(ui, at, entity, field.editing.text(), submit);
     }
     field.owner = Some(entity);
-    state.borrow_mut().fields.insert(typing.id, field);
+    state.borrow_mut().fields.insert(key, field);
 }
 
 /// A field focus left: the submit chord and a click away both submit, and

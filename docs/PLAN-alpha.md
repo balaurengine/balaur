@@ -144,9 +144,9 @@ In the order they get fixed.
     hashed the node and not the layer. A `menu`'s rows draw in each popup
     that shows them, so a secondary click on a second widget naming the same
     `context` hit it too. The sensors every node gets are keyed by layer now.
-    Left: `balaur-field`, `balaur-selection`, `balaur-hint` and `balaur-seam`
-    still hash the node alone, and would trip the same check in a menu row;
-    the field's id is also its focus and memory key, so it waits for a case.
+    Fields, `code` nodes, seams and hints are keyed by layer too, and a field
+    moved to another root keeps its focus and caret; a selection, held in
+    memory and no widget, stays the node's.
 19. **A replay asked the machine for its audio device.** Built: a script
     that branched on `audio::device_ready` took the other branch when
     replayed on a machine with other speakers or none. The answers of
@@ -226,7 +226,9 @@ In the order they get fixed.
     with no node and said nothing, though the manual says it takes a path.
     A path in a `Node` or `[Node]` field is read from the scripted node as
     `node.get_node` reads one when the props are applied, and a path naming
-    nothing warns with the field and the path.
+    nothing warns with the field and the path. A snapshot restore runs the
+    respawned nodes' scripts once every node is back, so a path to a node
+    respawned after its own resolves and warns of nothing.
 31. **A windowed replay may part from its recording after a resume.** Not
     confirmed: in 2 of 5 windowed `scripts/e2e.sh` runs on hello,
     `test:recordings` failed "and reproduced what was recorded" on the tick

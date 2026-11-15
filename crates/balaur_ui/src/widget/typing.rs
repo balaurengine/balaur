@@ -203,6 +203,8 @@ pub(crate) struct Field {
     /// When the caret last moved, which the blink counts from.
     moved_at: f64,
     pub(crate) kept: Kept,
+    /// The id it was last drawn under, which egui keeps its focus by.
+    drawn: Option<egui::Id>,
 }
 
 impl Field {
@@ -225,6 +227,16 @@ impl Field {
         if self.seed.as_deref() != Some(text) {
             self.editing.set_text(text);
             self.seed = Some(text.to_string());
+        }
+    }
+
+    /// Drawn under `id`, a layer's own: moved to another layer since the last
+    /// draw, a root's or a popup's, it takes the focus its old id had.
+    pub(crate) fn carry_focus(&mut self, ui: &egui::Ui, id: egui::Id) {
+        if let Some(was) = self.drawn.replace(id).filter(|was| *was != id)
+            && ui.memory(|mem| mem.has_focus(was))
+        {
+            ui.memory_mut(|mem| mem.request_focus(id));
         }
     }
 }

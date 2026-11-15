@@ -213,7 +213,8 @@ pub struct UiState {
     /// The asset generation the widgets' text styles were last read under.
     text_styles_read_at: u64,
     /// Each `text_field`, `text_area`, `code` node and number being typed:
-    /// its text, caret, undo and layout, by its egui id.
+    /// its text, caret, undo and layout, by an egui id: a node's own for the
+    /// first three, whatever layer draws it.
     pub(crate) fields: HashMap<egui::Id, widget::typing::Field>,
     /// Text `ui::set_clipboard` asked for, handed to the platform by the next
     /// pass: a script runs between passes, and only a pass holds the context.

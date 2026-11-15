@@ -1016,10 +1016,14 @@ fn tip(ui: &egui::Ui, entity: Entity, tooltip: &str) {
     }
 }
 
-/// The id of a sensor every node gets, one per layer: a menu's rows draw in
-/// each popup that shows them, and egui refuses an id on two layers in a pass.
-pub(crate) fn sensor_id(ui: &egui::Ui, word: &'static str, entity: Entity) -> egui::Id {
-    egui::Id::unique((word, entity, ui.layer_id()))
+/// The id of a sensor a node draws, one per layer: a menu's rows draw in each
+/// popup that shows them, and egui refuses an id on two layers in a pass.
+pub(crate) fn sensor_id(
+    ui: &egui::Ui,
+    word: &'static str,
+    node: impl std::hash::Hash + std::fmt::Debug,
+) -> egui::Id {
+    egui::Id::unique((word, node, ui.layer_id()))
 }
 
 /// Where text sits in the width the widget was given.

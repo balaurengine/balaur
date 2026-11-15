@@ -499,8 +499,12 @@ pub(crate) fn forget_freed(world: &balaur_core::hecs::World) {
     });
 }
 
+/// A `code` node's ids: its sensor's, one per layer, and its kept state's.
+const CODE: &str = "balaur-code";
+
+/// The node's kept state, whatever layer draws it.
 fn code_id(entity: Entity) -> egui::Id {
-    egui::Id::unique(("balaur-code", entity))
+    egui::Id::unique((CODE, entity))
 }
 
 /// The box a `code` node asks for: its gutter, the gap after it, and its
@@ -541,8 +545,10 @@ pub(crate) fn code_editor(
     let colors = SyntaxColors::of(look);
     let marks = Marks::of(look);
     let id = code_id(entity);
+    let sensor = crate::widget::layer::sensor_id(ui, CODE, entity);
     let state = eng.resource::<UiState>();
     let mut field = field_of(eng, id, widget);
+    field.carry_focus(ui, sensor);
     let setter = Typesetter::Lines(look.request());
     let shown = field.editing.shown(false);
     let typeset = setter.set(eng, ui.ctx(), &shown.text, &mut field.kept);
@@ -568,7 +574,7 @@ pub(crate) fn code_editor(
     let paint_line = |line: &str| spans(line, syntax, &colors);
     let underline = |line: usize| marks.color(line);
     let typed = Typing {
-        id,
+        id: sensor,
         multiline: true,
         secret: false,
         editable: widget.egui.editable,

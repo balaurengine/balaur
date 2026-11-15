@@ -474,7 +474,7 @@ fn spans(
         return;
     };
     if let Some(hint) = quad.hint.and_then(|i| shaped.hints.get(i as usize)) {
-        let id = egui::Id::unique(("balaur-hint", entity, quad.hint));
+        let id = crate::widget::layer::sensor_id(ui, "balaur-hint", (entity, quad.hint));
         let over = ui.interact(
             quad.rect.translate(origin.to_vec2()),
             id,

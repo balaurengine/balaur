@@ -12,20 +12,35 @@ impl Aimer {
 }
 ";
 
+/// Where the scene lists the turret among the world's children.
+#[derive(Clone, Copy)]
+enum Turret {
+    Last,
+    First,
+}
+
 /// The scene, with `props` as the turret's `[nodes.script.props]` lines.
-fn scene(props: &str) -> String {
-    format!(
-        "[[nodes]]\nid = \"world\"\nname = \"World\"\n\n\
-         [[nodes]]\nid = \"enemy\"\nname = \"Enemy\"\nparent = \"world\"\n\n\
-         [[nodes]]\nid = \"flag\"\nname = \"Flag\"\nparent = \"world\"\n\n\
-         [[nodes]]\nid = \"turret\"\nname = \"Turret\"\nparent = \"world\"\n\n\
+fn scene(props: &str, turret: Turret) -> String {
+    let world = "[[nodes]]\nid = \"world\"\nname = \"World\"\n";
+    let targets = "[[nodes]]\nid = \"enemy\"\nname = \"Enemy\"\nparent = \"world\"\n\n\
+                   [[nodes]]\nid = \"flag\"\nname = \"Flag\"\nparent = \"world\"\n";
+    let aimer = format!(
+        "[[nodes]]\nid = \"turret\"\nname = \"Turret\"\nparent = \"world\"\n\n\
          [nodes.script]\nsource = \"scripts/aimer.bs\"\n\n\
          [nodes.script.props]\n{props}\n"
-    )
+    );
+    match turret {
+        Turret::Last => format!("{world}\n{targets}\n{aimer}"),
+        Turret::First => format!("{world}\n{aimer}\n{targets}"),
+    }
 }
 
 fn booted(dir: &std::path::Path, props: &str) -> App {
-    let scene = scene(props);
+    booted_with(dir, props, Turret::Last)
+}
+
+fn booted_with(dir: &std::path::Path, props: &str, turret: Turret) -> App {
+    let scene = scene(props, turret);
     for (path, text) in [
         (
             "project.toml",
@@ -114,4 +129,45 @@ fn a_node_field_whose_path_names_nothing_holds_no_node_and_warns() {
             .any(|line| line.contains("target") && line.contains("../Enmy")),
         "the warning names the field and the path: {said:#?}"
     );
+}
+
+#[test]
+fn a_node_field_set_by_path_holds_a_node_the_scene_lists_after_it() {
+    balaur_core::logbuf::capture_for_test();
+    let dir = tempfile::tempdir().unwrap();
+    let app = booted_with(dir.path(), "target = \"../Enemy\"", Turret::First);
+    assert_eq!(aimed(&app), Value::Bool(true), "the script ran and aims");
+    assert_eq!(
+        app.engine
+            .script_host()
+            .unwrap()
+            .script_field(turret(&app), "target"),
+        Some(node(&app, "World/Enemy"))
+    );
+    assert!(warnings().is_empty(), "{:#?}", warnings());
+}
+
+#[test]
+fn a_restore_that_respawns_a_node_field_before_its_target_warns_of_nothing() {
+    balaur_core::logbuf::capture_for_test();
+    let dir = tempfile::tempdir().unwrap();
+    let app = booted_with(dir.path(), "target = \"../Enemy\"", Turret::First);
+    let saved = balaur_core::snapshot::capture(&app.engine);
+    let world =
+        balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "World").unwrap();
+    balaur_core::scene::free_node(&app.engine, world);
+    balaur_core::snapshot::restore(&app.engine, &saved);
+    assert_eq!(
+        aimed(&app),
+        Value::Bool(true),
+        "the respawned script ran and aims"
+    );
+    assert_eq!(
+        app.engine
+            .script_host()
+            .unwrap()
+            .script_field(turret(&app), "target"),
+        Some(node(&app, "World/Enemy"))
+    );
+    assert!(warnings().is_empty(), "{:#?}", warnings());
 }

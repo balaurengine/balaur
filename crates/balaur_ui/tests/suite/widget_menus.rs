@@ -272,6 +272,48 @@ fn a_secondary_click_opens_the_named_menu_at_the_pointer() {
 // debug egui panics on an id it sees on two layers in one pass.
 #[test]
 fn a_menu_two_contexts_name_opens_at_each_in_turn() {
+    opens_at_each_in_turn(|app, menu| {
+        let row = toml::toml! {
+            kind = "button" text = "Copy" width = 150.0 height = 22.0 tooltip = "Copy it"
+        };
+        add_child_widget(app, menu, "R1", &row.into());
+    });
+}
+
+#[test]
+fn a_menu_row_holding_a_field_opens_at_each_context_in_turn() {
+    opens_at_each_in_turn(|app, menu| {
+        let row = toml::toml! { kind = "text_field" text = "Find" width = 150.0 };
+        add_child_widget(app, menu, "R1", &row.into());
+    });
+}
+
+#[test]
+fn a_menu_row_split_by_a_seam_opens_at_each_context_in_turn() {
+    opens_at_each_in_turn(|app, menu| {
+        let row = toml::toml! {
+            kind = "row" width = 150.0 height = 22.0 widget_layout = { splitter_width = 8.0 }
+        };
+        let row = add_child_widget(app, menu, "R1", &row.into());
+        // The first states its width, so the seam between them is a grab.
+        let fixed = toml::toml! { kind = "panel" text = "" width = 60.0 };
+        add_child_widget(app, row, "fixed", &fixed.into());
+        let rest = toml::toml! { kind = "panel" text = "" grow = 1.0 };
+        add_child_widget(app, row, "rest", &rest.into());
+    });
+}
+
+#[test]
+fn a_menu_row_holding_code_opens_at_each_context_in_turn() {
+    opens_at_each_in_turn(|app, menu| {
+        let row = toml::toml! { kind = "code" text = "let a = 1;" width = 150.0 height = 22.0 };
+        add_child_widget(app, menu, "R1", &row.into());
+    });
+}
+
+/// Two labels naming one menu, opened at each in turn: its rows are a `Cut`
+/// button 173 wide and what `rows` puts under the menu after it.
+fn opens_at_each_in_turn(rows: impl FnOnce(&balaur_core::App, Entity)) {
     let (_dir, app) = app();
     let targets: Vec<Entity> = [10.0, 200.0]
         .into_iter()
@@ -284,9 +326,9 @@ fn a_menu_two_contexts_name_opens_at_each_in_turn() {
         .collect();
     let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };
     let menu = add_child_widget(&app, app.engine.root(), "cm", &menu.into());
-    let row =
-        toml::toml! { kind = "button" text = "Cut" width = 173.0 height = 22.0 tooltip = "Cut it" };
-    add_child_widget(&app, menu, "R0", &row.into());
+    let cut = toml::toml! { kind = "button" text = "Cut" width = 173.0 height = 22.0 };
+    add_child_widget(&app, menu, "R0", &cut.into());
+    rows(&app, menu);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     for target in targets {

@@ -650,9 +650,11 @@ fn load_nodes(eng: &Engine, value: &serde_json::Value) {
     let parked_before = crate::parked::scenes(eng);
     crate::parked::hold_restored(eng, &frame.parked);
     free_spawned_since(eng, root, &wanted);
-    for node in respawn_order(&frame.nodes) {
-        respawn(eng, root, node);
-    }
+    let respawned: Vec<(Entity, &NodeFrame)> = respawn_order(&frame.nodes)
+        .into_iter()
+        .filter_map(|node| Some((respawn(eng, root, node)?, node)))
+        .collect();
+    reattach(eng, &respawned);
     crate::ids::set_next(eng, frame.next_id);
     crate::parked::settle_restored(eng, &parked_before, frame.scene.as_deref(), &frame.parked);
 }
@@ -727,8 +729,9 @@ fn restore_placement(eng: &Engine, entity: Entity, parent: Entity, node: &NodeFr
     crate::scene::move_child_to(&world, parent, entity, node.index);
 }
 
-/// Put one node back, if it is not already there.
-fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
+/// Put one node back, if it is not already there: the node made again, its
+/// script named but not yet run.
+fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) -> Option<Entity> {
     let (existing, parent) = {
         let world = eng.world();
         let existing = crate::ids::find_key(&world, root, &node.id);
@@ -737,7 +740,7 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
             Some(parent) => {
                 let Some(entity) = crate::ids::find_key(&world, root, parent) else {
                     tracing::error!(node = %node.id, parent = %parent, "respawning under a parent that is gone");
-                    return;
+                    return None;
                 };
                 entity
             }
@@ -746,7 +749,7 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
     };
     if let Some(entity) = existing {
         restore_placement(eng, entity, parent, node);
-        return;
+        return None;
     }
     let entity = {
         let mut world = eng.world_mut();
@@ -763,12 +766,29 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
         }
     }
     if let Some(path) = &node.script
-        && let Some(host) = eng.script_host()
+        && eng.script_host().is_some()
     {
         crate::scene::name_script(eng, entity, Some((path, &node.props)));
-        if let Err(e) = host.attach_with_props(crate::node_id_of(entity), path, &node.props) {
+    }
+    Some(entity)
+}
+
+/// Run the scripts of the nodes a restore put back once every one of them is
+/// back, each `init` held as a scene holds them: a `Node` path names a node
+/// respawned after its own.
+fn reattach(eng: &Engine, respawned: &[(Entity, &NodeFrame)]) {
+    let Some(host) = eng.script_host() else {
+        return;
+    };
+    host.hold_inits();
+    for (entity, node) in respawned {
+        let Some(path) = &node.script else {
+            continue;
+        };
+        if let Err(e) = host.attach_with_props(crate::node_id_of(*entity), path, &node.props) {
             tracing::error!(error = %e, node = %node.id, "reattaching a script");
         }
-        crate::interpolate::follow_script(eng, entity, host.as_ref());
+        crate::interpolate::follow_script(eng, *entity, host.as_ref());
     }
+    host.release_inits();
 }

@@ -709,7 +709,7 @@ fn drag_seam(
     at.take_pointer(ui.clip_rect().intersect(seam));
     let handle = ui.interact(
         seam,
-        egui::Id::unique(("balaur-seam", at.arena[target].entity, slot)),
+        crate::widget::layer::sensor_id(ui, "balaur-seam", (at.arena[target].entity, slot)),
         egui::Sense::drag(),
     );
     if handle.hovered() || handle.dragged() {
