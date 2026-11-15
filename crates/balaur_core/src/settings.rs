@@ -867,7 +867,7 @@ fn build_time_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<
         &parse(
             "settings.time",
             r#"
-tick_hz = { type = "int", default = 60, min = 1, max = 480, order = 1, applies = "restart", overridable = false, help = "How many fixed steps a second the simulation takes, the same on every platform: a recording replays and a match steps at one rate. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used." }
+tick_hz = { type = "int", default = 60, min = 1, max = 480, order = 1, applies = "restart", overridable = false, help = "How many fixed steps a second the simulation takes, the same on every platform: a recording replays and a match steps at one rate. Sixty is the rate the cross-platform digest job runs." }
 "#,
         ),
     );

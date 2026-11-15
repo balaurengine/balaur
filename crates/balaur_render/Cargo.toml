@@ -83,7 +83,7 @@ objc2-foundation = { version = "0.3", optional = true }
 # Dark mode, asked of each system its own way: `appearance.rs`.
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2-foundation = { version = "0.3", optional = true }
-objc2-ui-kit = { version = "0.3", features = ["UIInterface", "UIResponder", "UIScreen", "UITraitCollection", "UIView"], optional = true }
+objc2-ui-kit = { version = "0.3", features = ["UIApplication", "UIInterface", "UIResponder", "UIScene", "UITraitCollection", "UIWindowScene"], optional = true }
 
 # The desktop's dark mode on Linux and Windows, heard as it changes.
 [target.'cfg(any(target_os = "linux", windows))'.dependencies]

@@ -8,46 +8,9 @@ pub(crate) mod words {
         pub(crate) const VEC3: &str = "vec3";
     }
 
-    pub(crate) mod droppable {
-        pub(crate) const APPLE: &str = "apple";
-        pub(crate) const BROWSER: &str = "browser";
-        pub(crate) const CLOUD_READ: &str = "cloud_read";
-        pub(crate) const CLOUD_WRITE: &str = "cloud_write";
-        pub(crate) const CREDENTIAL_STATE: &str = "credential_state";
-        pub(crate) const ENTITLEMENTS: &str = "entitlements";
-        pub(crate) const EXPORT: &str = "export";
-        pub(crate) const FINISH_PURCHASE: &str = "finish_purchase";
-        pub(crate) const FORGE: &str = "forge";
-        pub(crate) const HTTP: &str = "http";
-        pub(crate) const IDENTITY: &str = "identity";
-        pub(crate) const IMPORT: &str = "import";
-        pub(crate) const LISTEN: &str = "listen";
-        pub(crate) const NOTIFY: &str = "notify";
-        pub(crate) const PICTURE: &str = "picture";
-        pub(crate) const PLATFORM: &str = "platform";
-        pub(crate) const PRODUCTS: &str = "products";
-        pub(crate) const PROGRESS: &str = "progress";
-        pub(crate) const PURCHASE: &str = "purchase";
-        pub(crate) const RELEASE: &str = "release";
-        pub(crate) const REQUEST: &str = "request";
-        pub(crate) const REQUEST_NOTIFICATIONS: &str = "request_notifications";
-        pub(crate) const RESTORE_PURCHASES: &str = "restore_purchases";
-        pub(crate) const SCORES: &str = "scores";
-        pub(crate) const SET_CAMERA: &str = "set_camera";
-        pub(crate) const SET_CAMERA_2D: &str = "set_camera_2d";
-        pub(crate) const SET_PRESENCE: &str = "set_presence";
-        pub(crate) const SHOW_DASHBOARD: &str = "show_dashboard";
-        pub(crate) const SIGN_IN: &str = "sign_in";
-        pub(crate) const STOP_LISTENING: &str = "stop_listening";
-        pub(crate) const SUBMIT_SCORE: &str = "submit_score";
-        pub(crate) const UNLOCK: &str = "unlock";
-    }
-
     pub(crate) mod host_calls {
         pub(crate) const COMPONENT_PROPERTY: &str = "component_property";
         pub(crate) const PATCH_COMPONENT: &str = "patch_component";
-        pub(crate) const VISIBLE: &str = "visible";
-        pub(crate) const WIDGET: &str = "widget";
     }
 
     /// The modules the prelude writes, which a script calls by name.
@@ -100,25 +63,16 @@ pub(crate) mod words {
         pub(crate) const AS_INT: &str = "as_int";
         pub(crate) const AS_NODE: &str = "as_node";
         pub(crate) const AS_STR: &str = "as_str";
-        pub(crate) const AT: &str = "at";
-        pub(crate) const EQUALS: &str = "equals";
         pub(crate) const GET: &str = "get";
         pub(crate) const INSERT: &str = "insert";
-        pub(crate) const IS_NIL: &str = "is_nil";
-        pub(crate) const IS_NONE: &str = "is_none";
-        pub(crate) const IS_SOME: &str = "is_some";
         pub(crate) const LEN: &str = "len";
-        pub(crate) const MAP: &str = "map";
         pub(crate) const OR: &str = "or";
         pub(crate) const POP: &str = "pop";
         pub(crate) const PUSH: &str = "push";
-        pub(crate) const PUT: &str = "put";
         pub(crate) const REMOVE: &str = "remove";
         pub(crate) const SET: &str = "set";
         pub(crate) const UNWRAP: &str = "unwrap";
-        pub(crate) const UNWRAP_OR: &str = "unwrap_or";
         pub(crate) const VALUES_IN_ORDER: &str = "values_in_order";
-        pub(crate) const WITH: &str = "with";
     }
 
     pub(crate) mod packages {

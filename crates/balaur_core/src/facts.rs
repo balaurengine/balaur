@@ -20,12 +20,10 @@ pub struct PlatformFacts {
     pub mobile: bool,
     /// Whether a finger can reach the screen: every phone, and a page whose
     /// browser reports touch points. What `visibility = "touchscreen"` asks.
-    #[serde(default)]
     pub touchscreen: bool,
     pub editor: bool,
     /// Running from the project's sources rather than an exported pack:
     /// Godot's debug build.
-    #[serde(default)]
     pub dev: bool,
     pub system_locale: Option<String>,
     pub device_id: String,
@@ -247,17 +245,14 @@ pub struct DeviceFacts {
     /// The drawing surface in physical pixels, the space `safe_area` and the
     /// touches are measured in. Zero where nothing draws, which is what a
     /// headless run reads.
-    #[serde(default)]
     pub screen_size: [f32; 2],
     /// Physical pixels per design pixel: what a layout authored in design
     /// pixels multiplies by to reach the screen. Recorded, because anything
     /// placed against the screen replays through it.
-    #[serde(default = "one")]
     pub ui_scale: f32,
     /// How much larger than standard the reader asked their text to be: iOS
     /// Dynamic Type, and 1 where the platform has not been asked. Multiplied
     /// into the UI scale unless `[ui] system_text_size` is off.
-    #[serde(default = "one")]
     pub text_scale: f32,
     /// How much of the screen the on-screen keyboard covers, in physical
     /// pixels from the bottom: what a form moves up by. Zero with no keyboard
@@ -266,21 +261,17 @@ pub struct DeviceFacts {
     /// Here rather than in the input snapshot, where it started, because it
     /// is a fact about the display rather than a thing a player did, and
     /// because a layout reading the safe area has to read this beside it.
-    #[serde(default)]
     pub keyboard_height: f32,
     /// Where a game's screen-space controls go, as x, y, width and height in
     /// physical pixels. `None` is the whole window, which is a game with
     /// nothing confining it; the editor sets its viewport, and a zero size
     /// while nothing is playing.
-    #[serde(default)]
     pub game_area: Option<[f32; 4]>,
     /// Whether the game is in the background: a hidden browser tab, a window
     /// out of sight, an app sent back. False where the platform does not say.
-    #[serde(default)]
     pub suspended: bool,
     /// How many times the system has warned it is short of memory, so a
     /// replay hears each warning on the frame the run did.
-    #[serde(default)]
     pub memory_warnings: u32,
 }
 
@@ -351,12 +342,6 @@ pub fn height_class(design_height: f32, lines: ClassLines) -> &'static str {
     } else {
         TALL
     }
-}
-
-/// A missing scale is 1, not 0: a recording made before the field existed had
-/// no zoom, and a zero would collapse every layout that reads it.
-const fn one() -> f32 {
-    1.0
 }
 
 impl Default for DeviceFacts {

@@ -31,7 +31,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BASELINE = Path(__file__).resolve().parent / "house_lints_baseline.txt"
 
 SKIP_DIRS = {"target", ".git", "node_modules", "assets"}
 
@@ -1084,9 +1083,6 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
     ap.add_argument("--reports", action="store_true", help="also print REPORT findings")
-    ap.add_argument("--update-baseline", action="store_true",
-                    help="record current violations as the accepted debt")
-    ap.add_argument("--debt", action="store_true", help="print the outstanding debt and exit")
     ap.add_argument("--stats", metavar="FILE",
                     help="append a markdown table of function and file sizes to FILE")
     args = ap.parse_args()
@@ -1110,55 +1106,14 @@ def main() -> int:
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]
 
-    # Ratchet: the baseline records violations that predate the lint. New ones
-    # fail. Counts, not line numbers, so the baseline survives edits above them.
-    counts: dict[str, int] = {}
     for f in errors:
-        counts[f"{f.path}\t{f.rule}"] = counts.get(f"{f.path}\t{f.rule}", 0) + 1
-
-    if args.update_baseline:
-        BASELINE.write_text(
-            "# Violations that predate the lint. Never add to this file by hand;\n"
-            "# regenerate with: python3 scripts/house_lints.py --update-baseline\n"
-            "# Every line here is debt. Deleting one is progress.\n"
-            + "".join(f"{k}\t{v}\n" for k, v in sorted(counts.items())))
-        print(f"baseline written: {sum(counts.values())} violations across {len(counts)} entries")
-        return 0
-
-    base: dict[str, int] = {}
-    if BASELINE.exists():
-        for line in BASELINE.read_text().splitlines():
-            if line.startswith("#") or not line.strip():
-                continue
-            path, rule, n = line.split("\t")
-            base[f"{path}\t{rule}"] = int(n)
-
-    if args.debt:
-        total = sum(base.values())
-        print(f"outstanding debt: {total} violations across {len(base)} file/rule pairs")
-        for k, v in sorted(base.items(), key=lambda kv: -kv[1]):
-            p, r = k.split("\t")
-            print(f"  {v:3d}  {r:28s} {p}")
-        return 0
-
-    new: list[Finding] = []
-    seen: dict[str, int] = {}
-    for f in errors:
-        k = f"{f.path}\t{f.rule}"
-        seen[k] = seen.get(k, 0) + 1
-        if seen[k] > base.get(k, 0):
-            new.append(f)
-
-    for f in new:
         print(f"ERROR  {f.path}:{f.line}  [{f.rule}] {f.message}")
     if args.reports:
         for f in reports:
             print(f"report {f.path}:{f.line}  [{f.rule}] {f.message}")
 
-    accepted = sum(base.values())
-    print(f"\n{len(files)} files · {len(new)} new errors · {accepted} accepted "
-          f"(debt: --debt) · {len(reports)} reports (--reports)")
-    return 1 if (new and args.fail_on_error) else 0
+    print(f"\n{len(files)} files · {len(errors)} errors · {len(reports)} reports (--reports)")
+    return 1 if (errors and args.fail_on_error) else 0
 
 
 if __name__ == "__main__":

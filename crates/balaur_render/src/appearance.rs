@@ -79,17 +79,20 @@ fn asked() -> bool {
 #[cfg(target_os = "ios")]
 fn asked() -> bool {
     use objc2_foundation::MainThreadMarker;
-    use objc2_ui_kit::{UIScreen, UITraitEnvironment, UIUserInterfaceStyle};
+    use objc2_ui_kit::{UIApplication, UIUserInterfaceStyle, UIWindowScene};
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
     };
-    #[allow(
-        deprecated,
-        reason = "the window scene's screen needs a scene this code does not hold"
-    )]
-    let screen = UIScreen::mainScreen(mtm);
+    // None before the first scene connects; asked again next frame.
+    let Some(scene) = UIApplication::sharedApplication(mtm)
+        .connectedScenes()
+        .iter()
+        .find_map(|scene| scene.downcast::<UIWindowScene>().ok())
+    else {
+        return false;
+    };
     // SAFETY: read on the main thread, which `mtm` proves this is.
-    let style = unsafe { screen.traitCollection().userInterfaceStyle() };
+    let style = unsafe { scene.traitCollection().userInterfaceStyle() };
     style == UIUserInterfaceStyle::Dark
 }
 

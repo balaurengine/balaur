@@ -15,7 +15,7 @@ impl Table {
     }
 
     // `map[key]`.
-    pub fn get(key: K) -> V? {
+    fn get(key: K) -> V? {
         let at = self.find(key);
         if at < 0 {
             return nil;
@@ -24,7 +24,7 @@ impl Table {
     }
 
     // `map[key] = value`: replaced where it was, else added last.
-    pub fn set(key: K, value: V) {
+    fn set(key: K, value: V) {
         let at = self.find(key);
         if at >= 0 {
             self.values_in_order[at] = value;

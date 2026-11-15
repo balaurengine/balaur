@@ -429,14 +429,9 @@ mod imp {
         std::fs::remove_dir_all(&staging).ok();
         std::fs::create_dir_all(&staging)?;
         let archive = staging.join(&name);
-        crate::runtimes::download_reporting(
-            &url,
-            &archive,
-            expected.as_deref(),
-            &mut |done, total| {
-                progress(Step::Downloading(done, total));
-            },
-        )?;
+        crate::runtimes::download_reporting(&url, &archive, &expected, &mut |done, total| {
+            progress(Step::Downloading(done, total));
+        })?;
         progress(Step::Unpacking);
         unpack(&archive, &staging)?;
         std::fs::remove_file(&archive).ok();

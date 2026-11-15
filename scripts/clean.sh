@@ -32,10 +32,6 @@ case $mode in
   --prune)
     printf 'deps entries before: %s\n' "$(ls -f target/debug/deps 2>/dev/null | wc -l | tr -d ' ')"
     rm -rf target/debug/incremental target/shape/*/debug/incremental
-    # Nothing writes a loose object any more: `.cargo/config.toml` builds this
-    # host with `split-debuginfo=packed`, so every `.o` here predates that and
-    # holds the debug info of a binary that will be rebuilt before it is read.
-    find target -type f -path '*/deps/*' -name '*.o' -delete
     if command -v cargo-sweep >/dev/null 2>&1; then
       cargo sweep --time "$STALE_DAYS" --recursive target
     fi

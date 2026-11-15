@@ -32,6 +32,7 @@ fn header() -> Header {
         format: replay::FORMAT,
         project: String::from("."),
         seed: 7,
+        tick_hz: balaur_core::tick_hz(),
         ..Header::default()
     }
 }
@@ -51,8 +52,8 @@ fn a_registered_source_is_captured_and_fed_back() {
     assert_eq!(app.engine.resource::<Dial>().borrow().0, 42);
 }
 
-// An older recording is still playable: what it does not mention is left
-// as it is rather than reset.
+// The recording build may have had no such source: what the file does not
+// mention is left as it is rather than reset.
 #[test]
 fn a_source_missing_from_the_recording_is_left_alone() {
     let app = app_with_dial();

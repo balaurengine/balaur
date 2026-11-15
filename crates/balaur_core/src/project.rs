@@ -1042,8 +1042,8 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
 /// A node's `parent`: the id of an earlier node, or a `/`-separated path of
 /// names down from the scene's own root.
 ///
-/// Ids are tried first, so a scene written before paths existed keeps its
-/// meaning even where a node's name happens to match some id.
+/// Ids are tried first: a parent that is both an id and a path of names means
+/// the id.
 fn resolve_parent(
     eng: &Engine,
     node: &SceneNode,

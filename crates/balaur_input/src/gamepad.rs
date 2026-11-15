@@ -144,7 +144,6 @@ impl Default for Power {
 
 /// Who a pad is, in the standards' terms rather than a backend's.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(default)]
 pub struct PadInfo {
     /// The mapping's name for the pad when one matched, else the OS's.
     pub name: String,
@@ -215,21 +214,12 @@ struct PadFrame {
     just_pressed: Vec<String>,
     just_released: Vec<String>,
     axes: Vec<(String, f32)>,
-    /// Defaulted for the same reason `InputSnapshot::typed` is: without it an
-    /// older recording fails to parse and the tick is fed nothing at all.
-    #[serde(default)]
     motion: Motion,
-    #[serde(default)]
     touches: Vec<PadTouch>,
-    #[serde(default)]
     rumble: bool,
-    #[serde(default)]
     repeated: Vec<String>,
-    #[serde(default)]
     pressure: Vec<(String, f32)>,
-    #[serde(default)]
     power: Power,
-    #[serde(default)]
     info: PadInfo,
 }
 
@@ -953,29 +943,6 @@ mod tests {
         assert_eq!(pad.power(), power);
         assert_eq!(pad.motion(), motion);
         assert_eq!(pad.touches(), [touch]);
-    }
-
-    // The fields are `#[serde(default)]` for this: without it the whole
-    // snapshot fails to parse and the tick replays with no pads at all.
-    #[test]
-    fn a_recording_made_before_motion_existed_still_replays() {
-        let older = serde_json::json!([{
-            "id": 3,
-            "name": "Older Pad",
-            "down": ["south"],
-            "just_pressed": [],
-            "just_released": [],
-            "axes": [["left_x", 0.5]],
-        }]);
-        let mut state = GamepadState::default();
-        restore(&mut state, &older);
-
-        let pad = state.pad(3).expect("the pad still restored");
-        assert!(pad.is_down("south") && pad.name() == "Older Pad");
-        assert!(close(pad.axis("left_x"), 0.5));
-        assert_eq!(pad.motion(), Motion::default());
-        assert_eq!(pad.power(), Power::default());
-        assert!(!pad.can_rumble());
     }
 
     // The neutral-answer rule: a pad that is not there reads zero rather

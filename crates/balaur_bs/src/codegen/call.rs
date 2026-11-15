@@ -8,21 +8,6 @@ use crate::vocabulary::words as vocab;
 use crate::vocabulary::words::{builtins, math, methods};
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
-const NIL_TESTS: [&str; 4] = [
-    methods::IS_NIL,
-    methods::IS_NONE,
-    methods::IS_SOME,
-    methods::UNWRAP_OR,
-];
-const READS: [&str; 5] = [
-    methods::AS_INT,
-    methods::AS_FLOAT,
-    methods::AS_BOOL,
-    methods::AS_STR,
-    methods::AS_NODE,
-];
-const ACCESSORS: [&str; 4] = [methods::GET, methods::AT, methods::SET, methods::PUT];
-
 /// The name the host registers a math function under: `log` is its `ln`.
 fn host_math_name(function: &str) -> &str {
     if function == math::LOG {
@@ -128,12 +113,6 @@ impl FnGen<'_> {
             self.e(i);
             return Ok(Ty::Float);
         }
-        if name == methods::MAP {
-            return err(
-                pos,
-                "there is no `map()`: an `any` map is a literal where an `any` goes, `let m: any = {};`",
-            );
-        }
         if let Some(fields) = match name {
             builtins::VEC2 => Some(2),
             builtins::VEC3 => Some(3),
@@ -151,7 +130,6 @@ impl FnGen<'_> {
         })?;
         if matches!(sig.kind, Kind::Extern | Kind::Host) {
             self.editors_only(name, pos)?;
-            self.no_node_for_a_reply(name, args, pos)?;
         }
         match sig.kind {
             Kind::ExternAsync | Kind::HostAsync | Kind::Async => {
@@ -196,8 +174,8 @@ impl FnGen<'_> {
     // Why `name` calls nothing.
     fn no_function(&self, name: &str) -> String {
         match name.split_once("::") {
-            Some((_, f)) => super::dropped::function(name)
-                .or_else(|| self.on_a_component(name, f))
+            Some((_, f)) => self
+                .on_a_component(name, f)
                 .unwrap_or_else(|| format!("the engine has no `{name}`")),
             None => format!("unknown function `{name}`"),
         }
@@ -238,94 +216,6 @@ impl FnGen<'_> {
             "`{name}` is called on its component: {}",
             on.join(" or ")
         ))
-    }
-
-    /// A call whose one reply is what `task::wait` answers names no node to tell.
-    fn no_node_for_a_reply(&mut self, name: &str, args: &[Expr], pos: Pos) -> R<()> {
-        let Some(first) = args
-            .first()
-            .filter(|_| super::dropped::answers_by_await(name))
-        else {
-            return Ok(());
-        };
-        // A map literal has no type until it lands, and that is no node either.
-        if matches!(&first.kind, ExprKind::Nil) || self.type_of(first).ok() == Some(Ty::Node) {
-            return err(
-                pos,
-                format!(
-                    "`{name}` takes no node: await what it answers, `await task::wait({name}(..))`"
-                ),
-            );
-        }
-        Ok(())
-    }
-
-    /// A spelling a value has no more, refused by name with the one it keeps.
-    /// A prelude function may call what its own code needs by any name.
-    pub(crate) fn dropped_form(&mut self, base: &Expr, name: &str, pos: Pos) -> R<()> {
-        let nil_test = NIL_TESTS.contains(&name);
-        let read = READS.contains(&name);
-        if self.prelude || !(nil_test || read || ACCESSORS.contains(&name)) {
-            return Ok(());
-        }
-        let msg = match (&self.type_of(base)?, name) {
-            (Ty::Any | Ty::Optional(_), methods::IS_NIL | methods::IS_NONE) => {
-                format!("write `x == nil`, not `x.{name}()`")
-            }
-            (Ty::Any | Ty::Optional(_), methods::IS_SOME) => {
-                "write `x != nil`, not `x.is_some()`".to_string()
-            }
-            (Ty::Any | Ty::Optional(_), methods::UNWRAP_OR) => {
-                "write `x.or(v)`, not `x.unwrap_or(v)`".to_string()
-            }
-            (Ty::Any, methods::GET) => {
-                "an `any` reads a key as `a[\"k\"]`, not `a.get(\"k\")`".to_string()
-            }
-            (Ty::Any, methods::AT) => {
-                "an `any` list reads an element as `a[i]`, not `a.at(i)`".to_string()
-            }
-            (Ty::Any, methods::SET) => {
-                "an `any` writes a key as `a[\"k\"] = v`, not `a.set(\"k\", v)`".to_string()
-            }
-            (Ty::Any, methods::PUT) => {
-                "an `any` list writes an element as `a[i] = v`, not `a.put(i, v)`".to_string()
-            }
-            (Ty::Array(_), methods::AT) => {
-                "a list reads an element as `xs[i]`, not `xs.at(i)`".to_string()
-            }
-            (Ty::Struct(s), methods::AT | methods::GET)
-                if matches!(s.as_str(), "Vec2" | "Vec3" | "Color") =>
-            {
-                format!(
-                    "a {s} reads a field by its name, as `v.{}`",
-                    if s == "Color" { "r" } else { "x" }
-                )
-            }
-            (Ty::Struct(s), vocab::methods::GET) if crate::maps::is_map(s) => {
-                "a map reads a key as `m[k]`, not `m.get(k)`".to_string()
-            }
-            (Ty::Struct(s), vocab::methods::SET) if crate::maps::is_map(s) => {
-                "a map writes a key as `m[k] = v`, not `m.set(k, v)`".to_string()
-            }
-            (Ty::Int, methods::AS_FLOAT) => {
-                "an int becomes a float as `x as float`, not `x.as_float()`".to_string()
-            }
-            (Ty::Float, methods::AS_INT) => {
-                "a float becomes an int as `x as int`, not `x.as_int()`".to_string()
-            }
-            (Ty::Int | Ty::Float | Ty::Bool | Ty::Node, methods::AS_STR) => {
-                "a value becomes text as `\"{x}\"`, not `x.as_str()`".to_string()
-            }
-            (from @ (Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node), _) if read => {
-                let article = if *from == Ty::Int { "an" } else { "a" };
-                format!(
-                    "`{name}` reads an `any`, and this is {article} {}",
-                    show(from)
-                )
-            }
-            _ => return Ok(()),
-        };
-        err(pos, msg)
     }
 
     pub(crate) fn method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
@@ -374,9 +264,38 @@ impl FnGen<'_> {
             Ty::Any => self.any_method(base, name, args, pos),
             Ty::Optional(inner) => self.optional_method(base, inner, name, args, pos),
             Ty::Node => self.node_method(base, name, args, pos),
+            Ty::Struct(s)
+                if crate::maps::is_map(s) && !self.prelude && !crate::maps::is_public(name) =>
+            {
+                err(
+                    pos,
+                    format!("no method `{name}` on {}", crate::maps::shown(s)),
+                )
+            }
             Ty::Struct(s) => self.script_method(base, place, s, name, args, pos),
             _ => err(pos, format!("{} has no methods", show(&bty))),
         }
+    }
+
+    /// `map[key]` and `map[key] = value`: the map's own `get` and `set`, which
+    /// a script does not call by name.
+    pub(crate) fn map_access(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
+        let place = self.place(base)?;
+        let bty = match &place {
+            Some(lv) => lv.ty.clone(),
+            None => self.type_of(base)?,
+        };
+        let Ty::Struct(s) = bty else {
+            return err(pos, format!("{} is no map", show(&bty)));
+        };
+        self.script_method(base, place, &s, name, args, pos)
+    }
+
+    /// Whether this code may call prelude function `key` by name: the prelude
+    /// reaches all of its own, a script only those it marks `pub`.
+    fn reaches_prelude(&self, key: &str) -> bool {
+        self.g.sigs.contains_key(key)
+            && (self.prelude || self.g.lazy.get(key).is_some_and(|f| f.public))
     }
 
     // `v.m(..)` on a class: its pointer, which the call lends and never moves.
@@ -575,16 +494,7 @@ impl FnGen<'_> {
     }
 
     pub(crate) fn any_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
-        if name == methods::WITH {
-            return err(
-                pos,
-                "an `any` has no `with`: write the map as a literal, `{ \"k\": v }`, or write the key, `a[\"k\"] = v`",
-            );
-        }
-        if name == methods::EQUALS && !self.prelude {
-            return err(pos, "an `any` compares as `a == b`, not `a.equals(b)`");
-        }
-        if !self.g.sigs.contains_key(&format!("any::{name}")) {
+        if !self.reaches_prelude(&format!("any::{name}")) {
             return self.held_method(base, name, args, pos);
         }
         self.prelude_method(vocab::keywords::ANY, base, name, args, pos)

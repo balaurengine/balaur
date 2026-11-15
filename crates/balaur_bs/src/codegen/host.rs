@@ -274,10 +274,6 @@ impl FnGen<'_> {
     /// Why `node.comp.prop` names nothing: no such component, or no such
     /// property on it, with the names it does have.
     fn no_property(&self, comp: &str, prop: &str) -> String {
-        if comp == words::host_calls::WIDGET && prop == words::host_calls::VISIBLE {
-            return "`widget.visible` is gone: `node.set_visible(on)` and `node.visible()` are the one flag"
-                .to_string();
-        }
         match self.g.host.components.iter().find(|(name, _)| name == comp) {
             Some((_, props)) => format!(
                 "`{comp}` has no property `{prop}`; it has {}",

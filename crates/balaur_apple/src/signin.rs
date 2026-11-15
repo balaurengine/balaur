@@ -245,7 +245,34 @@ pub(crate) fn key_window() -> *mut AnyObject {
         if app.is_null() {
             return std::ptr::null_mut();
         }
-        msg_send![app, keyWindow]
+        if cfg!(target_os = "macos") {
+            return msg_send![app, keyWindow];
+        }
+        scene_key_window(app)
+    }
+}
+
+/// The first connected window scene's key window: UIKit keeps one per scene.
+unsafe fn scene_key_window(app: *mut AnyObject) -> *mut AnyObject {
+    let Some(window_scene) = objc2::runtime::AnyClass::get(c"UIWindowScene") else {
+        return std::ptr::null_mut();
+    };
+    unsafe {
+        let scenes: *mut AnyObject = msg_send![app, connectedScenes];
+        let scenes: *mut AnyObject = msg_send![scenes, allObjects];
+        let count: usize = msg_send![scenes, count];
+        for index in 0..count {
+            let scene: *mut AnyObject = msg_send![scenes, objectAtIndex: index];
+            let is_window_scene: bool = msg_send![scene, isKindOfClass: window_scene];
+            if !is_window_scene {
+                continue;
+            }
+            let window: *mut AnyObject = msg_send![scene, keyWindow];
+            if !window.is_null() {
+                return window;
+            }
+        }
+        std::ptr::null_mut()
     }
 }
 

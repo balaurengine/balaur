@@ -1,3 +1,0 @@
-pub fn f() -> any { map() }
-
-// error: 1:21: there is no `map()`: an `any` map is a literal where an `any` goes, `let m: any = {};`

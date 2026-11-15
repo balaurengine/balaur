@@ -556,15 +556,9 @@ impl Parser {
         Ok(())
     }
 
-    fn nil(&mut self) -> Result<ExprKind, Error> {
-        if matches!(self.peek_at(1), Tok::P("(")) {
-            return Err(Error {
-                pos: self.pos(),
-                msg: "`nil` is a value, not a call: write `nil`".into(),
-            });
-        }
+    fn nil(&mut self) -> ExprKind {
         self.i += 1;
-        Ok(ExprKind::Nil)
+        ExprKind::Nil
     }
 
     fn func(
@@ -984,7 +978,7 @@ impl Parser {
                 self.i += 1;
                 ExprKind::SelfRef
             }
-            Tok::Ident(s) if s == words::keywords::NIL => self.nil()?,
+            Tok::Ident(s) if s == words::keywords::NIL => self.nil(),
             Tok::Ident(s) if s == words::keywords::MATCH => {
                 self.i += 1;
                 self.match_expr()?

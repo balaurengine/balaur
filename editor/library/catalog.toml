@@ -173,7 +173,7 @@ id = "save"
 kind = "addon"
 name = "Save games"
 file = "addons/save"
-note = "A table per slot in the player's folder, versioned, and brought forward when older."
+note = "A table per slot in the player's folder."
 
 [[entries]]
 id = "gamend"

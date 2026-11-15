@@ -160,17 +160,7 @@ pub fn kinds() -> str {
 ## What is refused
 
 `T??` is refused, since one nil is enough. So is `any?`, because an [any](any.md) can hold nil
-already. `is_some`, `is_none`, `is_nil` and `unwrap_or` do not exist, and each error says what to write:
-
-```bs
-pub fn a(x: int?) -> bool { x.is_some() }
-pub fn b(x: int?) -> bool { x.is_none() }
-pub fn c(x: int?) -> int { x.unwrap_or(1) }
-
-// error: 1:30: write `x != nil`, not `x.is_some()`
-// error: 2:30: write `x == nil`, not `x.is_none()`
-// error: 3:29: write `x.or(v)`, not `x.unwrap_or(v)`
-```
+already.
 
 `Node` is the one type that takes `nil` without a `?`: a `Node` set to `nil` is no
 node, and `node.is_valid()` asks. See [Nodes and components](../engine/nodes.md).

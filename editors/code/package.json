@@ -22,7 +22,6 @@
     "vscode": "^1.91.0"
   },
   "activationEvents": [
-    "onLanguage:balaur-script",
     "workspaceContains:project.toml"
   ],
   "main": "./extension.js",

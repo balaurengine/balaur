@@ -169,7 +169,6 @@ pub(crate) enum SocketEvent {
     Failed {
         socket: u64,
         reason: String,
-        #[serde(default)]
         status: Option<u16>,
     },
 }

@@ -49,8 +49,8 @@ pub fn e(n: int) -> str { n.as_str() }
 // error: 1:25: cannot cast str as int
 // error: 2:23: cannot cast int as str
 // error: 3:24: cannot cast int as bool
-// error: 4:30: a float becomes an int as `x as int`, not `x.as_int()`
-// error: 5:28: a value becomes text as `"{x}"`, not `x.as_str()`
+// error: 4:30: float has no methods
+// error: 5:28: int has no methods
 ```
 
 `.as_int()` and its siblings belong to [any](any.md), which is the one type whose kind

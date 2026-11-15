@@ -303,30 +303,6 @@ fn an_engine_record_is_a_struct_a_script_reads_and_builds() {
 }
 
 #[test]
-fn a_call_that_answers_by_await_refuses_a_node_by_name() {
-    let request = HostSignature {
-        key: "http::request".into(),
-        params: vec![Ty::Str],
-        ret: Ty::Int,
-        is_async: false,
-        editor: false,
-    };
-    let options = Options {
-        host: HostApi {
-            functions: vec![request],
-            ..HostApi::default()
-        },
-        ..Options::default()
-    };
-    let source = "pub fn ask(node: Node) -> int { http::request(node) }";
-    let error = compile(source, &options)
-        .map(|_| ())
-        .unwrap_err()
-        .to_string();
-    assert!(error.contains("`http::request` takes no node"), "{error}");
-}
-
-#[test]
 fn a_function_that_drives_a_component_is_refused_by_its_module_and_names_it() {
     let on = |key: &str| HostSignature {
         key: key.into(),

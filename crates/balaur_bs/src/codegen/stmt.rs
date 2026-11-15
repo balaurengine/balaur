@@ -98,10 +98,6 @@ impl FnGen<'_> {
                 );
             }
             ExprKind::Index(b, k) => (b, (**k).clone()),
-            ExprKind::Method(b, m, _) => {
-                self.dropped_form(b, m, target.pos)?;
-                return Ok(None);
-            }
             _ => return Ok(None),
         };
         if self.type_of(base)? != Ty::Any {
@@ -177,7 +173,7 @@ impl FnGen<'_> {
                 }
                 None => value.clone(),
             };
-            self.method(base, words::methods::SET, &[(**key).clone(), value], pos)?;
+            self.map_access(base, words::methods::SET, &[(**key).clone(), value], pos)?;
             return Ok(());
         }
         // `a[k] = v` on an `any`: set in place.

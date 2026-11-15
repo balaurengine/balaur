@@ -423,7 +423,7 @@ question as an old one is a second way to say it.
 <table>
 <thead><tr><th>key</th><th>type</th><th>default</th><th>notes</th><th>what it does</th></tr></thead>
 <tbody>
-<tr><td><code>tick_hz</code></td><td>int</td><td><code>60</code></td><td>on restart</td><td>How many fixed steps a second the simulation takes, the same on every platform: a recording replays and a match steps at one rate. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used.</td></tr>
+<tr><td><code>tick_hz</code></td><td>int</td><td><code>60</code></td><td>on restart</td><td>How many fixed steps a second the simulation takes, the same on every platform: a recording replays and a match steps at one rate. Sixty is the rate the cross-platform digest job runs.</td></tr>
 </tbody>
 </table>
 

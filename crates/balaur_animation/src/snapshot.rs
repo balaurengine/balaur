@@ -96,13 +96,8 @@ struct PlayerFrame {
     defined: Vec<(String, String)>,
     finished: String,
     /// The bone map reference, re-resolved on restore the way the clip is.
-    #[serde(default)]
     retarget: String,
-    /// The clip a crossfade is leaving, from before fades stacked.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    fade: Option<FadeFrame>,
     /// The clips crossfades are leaving, oldest first.
-    #[serde(default)]
     fades: Vec<FadeFrame>,
 }
 
@@ -114,11 +109,8 @@ struct FadeFrame {
     speed: f32,
     elapsed: f32,
     duration: f32,
-    #[serde(default)]
     ease: String,
-    #[serde(default)]
     curve: Vec<[f32; 2]>,
-    #[serde(default)]
     break_loop_at_end: bool,
 }
 
@@ -163,7 +155,6 @@ struct KeyFrame {
     time: f32,
     value: [f32; 4],
     call: Option<String>,
-    #[serde(default)]
     ease: Option<String>,
 }
 
@@ -176,11 +167,7 @@ struct JiggleFrame {
     entity: u64,
     points: Vec<[f32; 3]>,
     velocities: Vec<[f32; 3]>,
-    /// Defaulted so a snapshot taken before the spring learned not to chase
-    /// itself still restores, one tick of settling behind.
-    #[serde(default)]
     incoming: Vec<[f32; 4]>,
-    #[serde(default)]
     written: Vec<[f32; 4]>,
 }
 
@@ -197,13 +184,9 @@ struct MachineFrame {
     travel: Vec<String>,
     jump: Option<String>,
     conditions: Vec<(String, bool)>,
-    #[serde(default)]
     times: Vec<(String, f32)>,
-    #[serde(default)]
     pending: Option<String>,
-    #[serde(default)]
     ended: bool,
-    #[serde(default)]
     check_node: String,
 }
 
@@ -213,12 +196,8 @@ struct AnimationFrame {
     next_tween: TweenId,
     players: Vec<PlayerFrame>,
     tweens: Vec<TweenFrame>,
-    /// Defaulted so a snapshot taken before springs existed still restores.
-    #[serde(default)]
     jiggle: Vec<JiggleFrame>,
-    #[serde(default)]
     jiggle_accumulator: f32,
-    #[serde(default)]
     machines: Vec<MachineFrame>,
 }
 
@@ -254,7 +233,6 @@ fn capture(eng: &Engine) -> Value {
                     .collect(),
                 finished: playback.finished.clone(),
                 retarget: playback.retarget_reference.clone(),
-                fade: None,
                 fades: playback.fades.iter().map(fade_frame).collect(),
             })
             .collect(),
@@ -535,9 +513,8 @@ fn clip_for(eng: &Engine, player: &PlayerFrame) -> Option<std::rc::Rc<Clip>> {
 /// that no longer loads drops out, which cuts rather than fades.
 fn fades_for(eng: &Engine, player: &PlayerFrame) -> Vec<crate::player::Fade> {
     player
-        .fade
+        .fades
         .iter()
-        .chain(&player.fades)
         .filter_map(|fade| {
             let reference = match player
                 .defined

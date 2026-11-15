@@ -71,7 +71,6 @@ impl FnGen<'_> {
             ExprKind::Unary(op, a) => self.unary(*op, a, e.pos)?,
             ExprKind::Call(name, args) => self.call(name, args, e.pos)?,
             ExprKind::Method(base, name, args) => {
-                self.dropped_form(base, name, e.pos)?;
                 self.dropped_property_call(base, name, args, e.pos)?;
                 self.method(base, name, args, e.pos)?
             }
@@ -109,7 +108,7 @@ impl FnGen<'_> {
         if let ExprKind::Index(base, key) = &e.kind
             && self.map_class(base).is_some()
         {
-            return self.method(
+            return self.map_access(
                 base,
                 words::methods::GET,
                 std::slice::from_ref(&**key),

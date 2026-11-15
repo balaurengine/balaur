@@ -1482,8 +1482,9 @@ has the commands.
   pump also runs in `First`. A driver sets the `ReplayFeed` resource before the
   tick rather than adding a system.
 - **Sources are registered, not hardcoded** (`add_replay_source`): core knows
-  nothing about input, and a source missing from an older file is left alone, so
-  recordings outlive the subsystems they predate.
+  nothing about input, and a source the recording build did not have is left
+  alone. A change to a source's shape bumps `replay::FORMAT`, and a file of
+  another format is refused.
 
 ### What determinism is still missing
 
@@ -1758,8 +1759,7 @@ fire = ["mouse:left"]
   about an action is recorded or rolled back.
 - The binding table *is* recorded, in the header beside the RNG seed, since a player
   who rebinds after recording would otherwise replay with a different action
-  firing. `App::add_replay_setup` is that seam, and a recording made before a
-  plugin declared its setup still plays.
+  firing. `App::add_replay_setup` is that seam.
 - `input.bind` saves every rebinding to `bindings.toml` in the user data directory;
   `reset_bindings` goes back to the project's. An undeclared action reads 0 and
   warns once.

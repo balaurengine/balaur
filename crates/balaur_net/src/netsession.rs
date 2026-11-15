@@ -85,7 +85,6 @@ enum Message {
         from: u64,
         values: Vec<Input>,
         /// How far the sender ran ahead of the inputs it had, for pacing.
-        #[serde(default)]
         lead: i64,
     },
     Digest {

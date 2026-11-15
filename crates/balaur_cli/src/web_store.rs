@@ -39,8 +39,7 @@ const DB_NAME: &str = "balaur-projects";
 const DB_VERSION: u32 = 1;
 
 /// One record per file, keyed `<id>\0<root-relative path>`, holding
-/// `{ b: bytes, m: mtime }`. A bare byte array is an older record and reads
-/// back stamped with the moment it was loaded.
+/// `{ b: bytes, m: mtime }`.
 const FILES: &str = "files";
 
 /// One record per id: `{ name, modified }`.
@@ -569,12 +568,8 @@ fn record(bytes: &[u8], mtime: f64) -> Result<JsValue, JsValue> {
     Ok(out.into())
 }
 
-/// A record's bytes and stamp, whichever shape it was written in.
+/// A record's bytes and stamp.
 fn unrecord(value: &JsValue) -> (Vec<u8>, f64) {
-    if value.is_instance_of::<js_sys::Uint8Array>() {
-        let bytes = js_sys::Uint8Array::new(value).to_vec();
-        return (bytes, js_sys::Date::now() / 1000.0);
-    }
     let bytes = js_sys::Reflect::get(value, &"b".into())
         .map(|b| js_sys::Uint8Array::new(&b).to_vec())
         .unwrap_or_default();

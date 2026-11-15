@@ -234,8 +234,8 @@ timeout = 5.0                # seconds a join may take, or a link stay silent
 ```
 
 **Wire format.** Messages stay serde types and move from JSON to bincode 2
-(already a workspace dependency) behind one version byte, so a recording
-from before the change still decodes. The reliable side gains a stream id:
+(already a workspace dependency) behind one version byte; a recording of
+another version is refused. The reliable side gains a stream id:
 snapshots travel on their own stream, so a late joiner's world never queues
 in front of a digest. `Transport` grows `send_reliable_on(stream, bytes)`
 with `0` as today's channel; the websocket implementation multiplexes with a

@@ -637,18 +637,8 @@ fn birth(rng: &mut balaur_core::rng::Pcg32, emitter: &Particles, origin: [f32; 2
     let jitter = (rng.next_f64() as f32) * 2.0 - 1.0;
     let direction = (emitter.angle + jitter * emitter.spread).to_radians();
     let (sin, cos) = libm::sincosf(direction);
-    // Drawn only when asked for, so an emitter that neither turns nor spins
-    // scatters exactly as it did before either existed.
-    let turn = if emitter.rotation > 0.0 {
-        ((rng.next_f64() as f32) * 2.0 - 1.0) * emitter.rotation
-    } else {
-        0.0
-    };
-    let angular = if emitter.angular_speed == 0.0 {
-        0.0
-    } else {
-        (rng.next_f64() as f32) * emitter.angular_speed
-    };
+    let turn = ((rng.next_f64() as f32) * 2.0 - 1.0) * emitter.rotation;
+    let angular = (rng.next_f64() as f32) * emitter.angular_speed;
     Particle {
         position: origin,
         velocity: [cos * emitter.speed, sin * emitter.speed],
@@ -695,22 +685,6 @@ mod tests {
                 (particle.velocity, particle.turn, particle.spin)
             })
             .collect()
-    }
-
-    #[test]
-    fn an_emitter_that_neither_turns_nor_spins_scatters_as_before() {
-        let plain = born(&emitter(0.0, 0.0));
-        let mut rng = balaur_core::rng::Pcg32::new(7);
-        for (velocity, turn, spin) in plain {
-            let jitter = (rng.next_f64() as f32) * 2.0 - 1.0;
-            let (sin, cos) = libm::sincosf((90.0 + jitter * 30.0_f32).to_radians());
-            assert_eq!(
-                velocity.map(f32::to_bits),
-                [cos, sin].map(f32::to_bits),
-                "one draw per birth, as before turning existed"
-            );
-            assert_eq!((turn, spin), (0.0, 0.0));
-        }
     }
 
     #[test]

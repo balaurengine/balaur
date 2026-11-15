@@ -1,3 +1,0 @@
-fn f() -> any { nil() }
-
-// error: 1:17: `nil` is a value, not a call: write `nil`

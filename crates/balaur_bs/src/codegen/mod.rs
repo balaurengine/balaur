@@ -3,7 +3,6 @@ mod batch;
 mod call;
 mod convert;
 mod direct;
-mod dropped;
 mod expr;
 mod func;
 mod hoist;

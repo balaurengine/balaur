@@ -92,11 +92,8 @@ mod fetch {
         refuse_a_stale_nightly(&tag)?;
         std::fs::create_dir_all(&dir)?;
         let expected = expected_sha256(&format!("{RELEASE_BASE}/{tag}/SHA256SUMS"), &name)?;
-        if expected.is_none() {
-            tracing::warn!("release {tag} publishes no SHA256SUMS; skipping verification");
-        }
         let path = dir.join(&name);
-        download(&url, &path, expected.as_deref())?;
+        download(&url, &path, &expected)?;
         tracing::info!("downloaded {name} -> {}", path.display());
         if !is_bundle(target) {
             return Ok(path);
@@ -141,14 +138,17 @@ mod fetch {
         let Some(own) = crate::version::build_id().filter(is_nightly) else {
             return Ok(());
         };
-        match fetch_text(&format!("{RELEASE_BASE}/{tag}/VERSION"))? {
-            Some(published) if published.trim() != own => bail!(
+        let Some(published) = fetch_text(&format!("{RELEASE_BASE}/{tag}/VERSION"))? else {
+            bail!("the published {tag} release carries no VERSION to check this build against");
+        };
+        if published.trim() != own {
+            bail!(
                 "this build is {own} but the published {tag} release is {}; \
                  run `balaur update` first",
                 published.trim()
-            ),
-            _ => Ok(()),
+            );
         }
+        Ok(())
     }
 
     /// A small text asset from the release, or None when the release does
@@ -173,23 +173,24 @@ mod fetch {
             .into()
     }
 
-    /// The hash for `name` out of the release's SHA256SUMS, or None when the
-    /// release predates checksums.
-    pub(crate) fn expected_sha256(sums_url: &str, name: &str) -> Result<Option<String>> {
+    /// The hash for `name` out of the release's SHA256SUMS.
+    pub(crate) fn expected_sha256(sums_url: &str, name: &str) -> Result<String> {
         let Some(sums) = fetch_text(sums_url)? else {
-            return Ok(None);
+            bail!("{sums_url} does not exist, so {name} cannot be verified");
         };
-        Ok(sums.lines().find_map(|line| {
-            let mut parts = line.split_whitespace();
-            let hash = parts.next()?;
-            (parts.next()? == name).then(|| hash.to_ascii_lowercase())
-        }))
+        sums.lines()
+            .find_map(|line| {
+                let mut parts = line.split_whitespace();
+                let hash = parts.next()?;
+                (parts.next()? == name).then(|| hash.to_ascii_lowercase())
+            })
+            .with_context(|| format!("{sums_url} lists no {name}"))
     }
 
-    /// Stream `url` to `path`, verified against `expected` when given. The
+    /// Stream `url` to `path`, verified against `expected`. The
     /// bytes land in a sibling `.partial` first, so an interrupted or
     /// rejected download never looks installed.
-    pub(crate) fn download(url: &str, path: &Path, expected: Option<&str>) -> Result<()> {
+    pub(crate) fn download(url: &str, path: &Path, expected: &str) -> Result<()> {
         download_reporting(url, path, expected, &mut |_, _| {})
     }
 
@@ -198,7 +199,7 @@ mod fetch {
     pub(crate) fn download_reporting(
         url: &str,
         path: &Path,
-        expected: Option<&str>,
+        expected: &str,
         progress: &mut dyn FnMut(u64, u64),
     ) -> Result<()> {
         let mut response = agent().get(url).call()?;
@@ -238,9 +239,7 @@ mod fetch {
             let _ = write!(out, "{b:02x}");
             out
         });
-        if let Some(expected) = expected
-            && got != expected
-        {
+        if got != expected {
             std::fs::remove_file(&partial).ok();
             bail!("checksum mismatch for {url}: expected {expected}, got {got}");
         }
@@ -311,7 +310,7 @@ mod fetch {
         fn a_verified_download_lands_at_the_final_path() {
             let dir = tempfile::tempdir().expect("a temp directory is creatable");
             let path = dir.path().join("balaur-runtime-test");
-            super::download(&serve_once(b"hello"), &path, Some(HELLO_SHA256))
+            super::download(&serve_once(b"hello"), &path, HELLO_SHA256)
                 .expect("a matching checksum accepts the download");
             let body = std::fs::read(&path).expect("the downloaded file is readable");
             assert_eq!(body, b"hello");
@@ -322,9 +321,14 @@ mod fetch {
             let dir = tempfile::tempdir().expect("a temp directory is creatable");
             let path = dir.path().join("balaur-runtime-test");
             let mut last = (0, 0);
-            super::download_reporting(&serve_once(b"hello"), &path, None, &mut |done, total| {
-                last = (done, total);
-            })
+            super::download_reporting(
+                &serve_once(b"hello"),
+                &path,
+                HELLO_SHA256,
+                &mut |done, total| {
+                    last = (done, total);
+                },
+            )
             .expect("the download lands");
             assert_eq!(last, (5, 5));
         }
@@ -333,8 +337,7 @@ mod fetch {
         fn a_checksum_mismatch_rejects_the_download_and_leaves_no_file() {
             let dir = tempfile::tempdir().expect("a temp directory is creatable");
             let path = dir.path().join("balaur-runtime-test");
-            let Err(err) = super::download(&serve_once(b"tampered"), &path, Some(HELLO_SHA256))
-            else {
+            let Err(err) = super::download(&serve_once(b"tampered"), &path, HELLO_SHA256) else {
                 panic!("a wrong checksum must be rejected")
             };
             assert!(err.to_string().contains("checksum mismatch"), "{err}");

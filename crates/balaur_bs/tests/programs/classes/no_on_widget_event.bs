@@ -1,6 +1,0 @@
-pub class Panel { n: int }
-impl Panel {
-    pub fn on_widget_event(event: str, value: any) {}
-}
-
-// error: 3:9: `on_widget_event` is gone: a widget's event is heard as `on_<name>(payload, source)`, or a binding row calls a method by name

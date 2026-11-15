@@ -435,13 +435,6 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let showing = pages
         .iter()
         .position(|(_, name, _)| *name == widget.active)
-        // A page's text is the older spelling of `active`, kept so a scene
-        // written before the schema said "by node name" still shows it.
-        .or_else(|| {
-            pages
-                .iter()
-                .position(|(_, _, label)| *label == widget.active)
-        })
         .unwrap_or(0);
 
     // The rect the layout pass gave this tab, which is the whole of it: the

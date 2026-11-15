@@ -55,12 +55,6 @@ pub(crate) fn check_types(prog: &Program) -> R<()> {
                 ),
             );
         }
-        if f.owner.is_some() && f.name.rsplit("::").next() == Some("on_widget_event") {
-            return err(
-                f.pos,
-                "`on_widget_event` is gone: a widget's event is heard as `on_<name>(payload, source)`, or a binding row calls a method by name",
-            );
-        }
         for p in &f.params {
             unknown(&p.ty, p.pos)?;
             if p.by_ref && f.is_async {

@@ -1,3 +1,0 @@
-fn f(a: any) -> bool { a.is_nil() }
-
-// error: 1:25: write `x == nil`, not `x.is_nil()`

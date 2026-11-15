@@ -58,11 +58,9 @@ fn from_list() -> Vec3 {
     v
 }
 fn from_literal() -> Vec2 { Vec2 { x: 1.0, y: 2.0 } }
-fn by_index(v: Vec3) -> float { v.at(0) }
 
 // error: 2:19: a Vec3 is written `vec3(..)`, not as a list
 // error: 5:29: a Vec2 is written `vec2(..)`, not `Vec2 { .. }`
-// error: 6:34: a Vec3 reads a field by its name, as `v.x`
 ```
 
 ## Transforms

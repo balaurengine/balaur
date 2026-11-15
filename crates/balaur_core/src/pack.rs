@@ -12,7 +12,7 @@ use std::fmt::Write;
 use anyhow::{Result, anyhow};
 
 /// What every pack opens with: `BPAK` and the format's version.
-pub const MAGIC: &[u8; 5] = b"BPAK\x02";
+pub const MAGIC: &[u8; 5] = b"BPAK\x03";
 
 /// A content hash, so a decoded pack can prove an entry arrived intact and a
 /// materialised file can be cached under a name that changes with its bytes.
@@ -153,12 +153,9 @@ impl Pack {
             }
             pack.assets.insert(k, v);
         }
-        // A pack from before the section ends here.
-        if !cursor.is_empty() {
-            for _ in 0..read_u32(&mut cursor)? {
-                let line = String::from_utf8(read_bytes(&mut cursor)?.to_vec())?;
-                pack.api.push(line);
-            }
+        for _ in 0..read_u32(&mut cursor)? {
+            let line = String::from_utf8(read_bytes(&mut cursor)?.to_vec())?;
+            pack.api.push(line);
         }
         Ok(pack)
     }

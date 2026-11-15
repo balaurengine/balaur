@@ -74,6 +74,15 @@ pub(crate) fn lower(prog: &mut Program) -> Result<(), Error> {
     Ok(())
 }
 
+/// Whether a script may call a map's method `name`: the template marks it `pub`.
+pub(crate) fn is_public(name: &str) -> bool {
+    template().is_ok_and(|map| {
+        map.fns
+            .iter()
+            .any(|f| f.public && f.owner.as_deref() == Some(CLASS) && f.name == name)
+    })
+}
+
 fn template() -> Result<Program, Error> {
     PARSED.with(|parsed| {
         if let Some(map) = parsed.get() {

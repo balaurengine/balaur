@@ -264,11 +264,7 @@ pub(crate) fn name_icon(xml: &str) -> String {
 }
 
 /// One attribute on the element `opening` names, added when the template does
-/// not carry it.
-///
-/// `set_attr` alone would refuse a template written before the attribute
-/// existed, and a game that names an orientation would stop exporting against
-/// the runtime it already has.
+/// not carry it: the runtime's manifest names no orientation and no icon.
 fn set_or_add_attr(xml: &str, opening: &str, name: &str, value: &str) -> String {
     if attr(xml, name).is_ok() {
         return set_attr(xml, name, value).unwrap_or_else(|_| xml.to_string());
@@ -883,8 +879,6 @@ mod tests {
         }
     }
 
-    // A template written before the attribute existed still takes one: the
-    // activity gets it added rather than the export failing.
     #[test]
     fn an_orientation_reaches_the_activity() {
         let config = AndroidConfig {

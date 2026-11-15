@@ -74,8 +74,8 @@ pub fn capture(eng: &Engine) -> Checkpoint {
 
 /// Put every registered source back the way it was.
 ///
-/// A source missing from the snapshot is left alone, so a snapshot taken
-/// before a plugin was added still restores what it does cover. The change
+/// A source missing from the snapshot is left alone: the build that took it
+/// had no such source. The change
 /// ticks are not in a snapshot: a reader that last ran before the restore
 /// hears every component as changed. Nor are typed messages: every one kept
 /// is dropped.
@@ -313,8 +313,6 @@ struct TransformFrame {
     id: Option<String>,
     entity: u64,
     trs: [f32; 10],
-    /// Defaulted, so a recording made before skew existed still loads.
-    #[serde(default)]
     skew: f32,
 }
 
@@ -431,18 +429,12 @@ struct AppearanceFrame {
     id: Option<String>,
     entity: u64,
     visible: bool,
-    /// Defaulted, so a recording made before the tint existed still loads.
-    #[serde(default = "untinted")]
     tint: [f32; 4],
     z_index: i32,
     z_as_relative: bool,
     /// The reference, since ids are per process. Empty is none, and left out.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     material: String,
-}
-
-const fn untinted() -> [f32; 4] {
-    [1.0, 1.0, 1.0, 1.0]
 }
 
 fn save_appearance(eng: &Engine) -> serde_json::Value {
@@ -563,7 +555,6 @@ struct NodeFrame {
     parent: Option<String>,
     /// Where among the parent's children it sat. The digest walks the tree in
     /// order, so a node put back at the end is a divergence of its own.
-    #[serde(default)]
     index: usize,
     script: Option<String>,
     /// What the node's `script` key set over the script's exports, so a

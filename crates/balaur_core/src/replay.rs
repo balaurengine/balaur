@@ -30,7 +30,7 @@ use crate::engine::Engine;
 use crate::vocabulary::words;
 
 /// Bumped when a change makes an older file unplayable.
-pub const FORMAT: u32 = 3;
+pub const FORMAT: u32 = 4;
 
 /// How many log entries a frame scans for lines to record. The buffer holds
 /// 500 and a frame that produced more than this has other problems.
@@ -191,9 +191,6 @@ pub struct Origin {
     pub tick: u64,
     pub time: f64,
     pub tokens: u64,
-    /// Zero in a file recorded before ids were kept, which is where a fresh
-    /// process starts them anyway.
-    #[serde(default)]
     pub ids: u64,
 }
 
@@ -277,19 +274,14 @@ pub struct Header {
     pub project: String,
     /// The RNG stream's starting position.
     pub seed: u64,
-    #[serde(default)]
     pub origin: Origin,
     /// A fingerprint of the game's scripts when the session started, from
     /// whoever started it. A replay whose sources no longer match still
     /// plays; it just cannot promise to reproduce what was seen.
-    #[serde(default)]
     pub scripts: String,
     /// When the session started, for naming and listing it.
-    #[serde(default)]
     pub started: String,
-    /// The rate the session ticked at. Zero in a file written before the
-    /// rate was a setting, which is the same thing as the default.
-    #[serde(default)]
+    /// The rate the session ticked at.
     pub tick_hz: u32,
     /// Loaded state a plugin declared through `App::add_replay_setup`, keyed
     /// by its name. Restored before the first tick, so what a recording
@@ -370,9 +362,7 @@ fn capture_setup(eng: &Engine) -> serde_json::Map<String, serde_json::Value> {
 }
 
 /// Put a recording's setup back before its first tick. A name the file does
-/// not carry is left alone, so a recording made before a plugin declared its
-/// setup still plays — with that plugin reading whatever this machine has,
-/// which is what it did before this existed.
+/// not carry is left alone: the build that recorded it had no such plugin.
 fn restore_setup(eng: &Engine, setup: &serde_json::Map<String, serde_json::Value>) {
     let Some(registry) = eng.try_resource::<ReplaySetupRegistry>() else {
         return;
@@ -426,7 +416,7 @@ pub(crate) fn opened_this_tick(eng: &Engine) -> bool {
 }
 
 /// Feed a recorded tick back in. A source missing from the file keeps
-/// whatever it already had, so an older recording still plays.
+/// whatever it already had: the build that recorded it had no such source.
 pub fn restore(eng: &Engine, sources: &serde_json::Map<String, serde_json::Value>) {
     if let Some(registry) = eng.try_resource::<ReplayRegistry>() {
         for (name, _, restore) in &registry.borrow().0 {
@@ -969,11 +959,7 @@ impl ReplayPlayer {
 /// the game's scripts attach: an `init` that opens a socket must be
 /// suppressed, and one that takes a token must take the recorded one.
 pub fn begin(eng: &Engine, session: Session) {
-    // The step every recorded frame was taken at. A file from before the rate
-    // was a setting says zero, which is the default it was made at.
-    if session.header.tick_hz > 0 {
-        crate::set_tick_hz(session.header.tick_hz);
-    }
+    crate::set_tick_hz(session.header.tick_hz);
     session.header.origin.restore(eng);
     restore_setup(eng, &session.header.setup);
     let seed = session.header.seed;

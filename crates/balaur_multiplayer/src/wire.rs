@@ -14,7 +14,6 @@ pub struct Member {
     pub slot: PlayerId,
     pub name: String,
     /// Played by the host's script rather than by a machine of its own.
-    #[serde(default)]
     pub bot: bool,
 }
 
@@ -25,7 +24,6 @@ pub(crate) enum Control {
     Hello {
         protocol: u32,
         name: String,
-        #[serde(default)]
         token: String,
     },
     /// The host letting a joiner in, as `slot`.

@@ -537,9 +537,8 @@ async fn catalog(r: Run, me: str) {
     check(r, "push_listed", has(tokens, "id", token["id"]));
     let deleted = await push_tokens::delete_push_token(token["id"].text());
     note(r, "push_delete", deleted);
-    // No ticket: a 404 from a current server, an empty 200 from an older one.
     let ticket = await matchmaking::my_ticket();
-    check(r, "no_ticket", same(ticket["status"], 404) || data(ticket) == nil);
+    check(r, "no_ticket", same(ticket["status"], 404));
     let cancelled = await matchmaking::cancel();
     note(r, "cancel", cancelled);
     let queues = await matchmaking::stats();

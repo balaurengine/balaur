@@ -236,24 +236,6 @@ fn a_recording_carries_the_rate_it_was_made_at_and_a_replay_takes_it_back() {
 }
 
 #[test]
-fn a_recording_from_before_the_rate_was_a_setting_replays_at_the_default() {
-    let app = app();
-    let session = balaur_core::replay::Session {
-        header: balaur_core::replay::Header::default(),
-        frames: Vec::new(),
-        trailer: None,
-    };
-    set_tick_hz(120);
-    balaur_core::replay::begin(&app.engine, session);
-    assert_eq!(
-        balaur_core::tick_hz(),
-        120,
-        "a zero in the header says nothing, so it does not move the rate"
-    );
-    set_tick_hz(60);
-}
-
-#[test]
 fn max_fps_is_what_the_loop_gives_a_frame() {
     let app = app();
     assert_eq!(app.frame_budget(), None, "uncapped by default");

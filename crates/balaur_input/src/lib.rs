@@ -144,19 +144,12 @@ pub struct InputSnapshot {
     /// Characters typed this frame, in order. Keys say which key went down;
     /// this says what it produced, which is what a text field needs and what
     /// a keyboard layout decides.
-    ///
-    /// Defaulted, so a session recorded before this field existed still
-    /// restores: without it the whole snapshot fails to parse and the tick is
-    /// fed nothing at all, which is a divergence with no message.
-    #[serde(default)]
     typed: String,
     /// Uncommitted input-method text, kept until the editor commits or lets go.
-    #[serde(default)]
     composing: String,
     /// Whether a text field held the keyboard this frame, which keeps key
     /// bindings from firing on what is typed. Recorded, so a replay derives
     /// the same actions.
-    #[serde(default)]
     keyboard_taken: bool,
     /// Whether ⌘ rather than Ctrl is the command key; `None` for what the
     /// build's platform says. A browser can only tell from its user agent,
@@ -183,9 +176,7 @@ pub struct InputSnapshot {
     /// again and clear the events the backend fed.
     #[serde(skip)]
     begun: bool,
-    /// Where the mouse is as far as the window knows. Defaulted, so a session
-    /// recorded before this field existed still restores.
-    #[serde(default)]
+    /// Where the mouse is as far as the window knows.
     mouse_place: MousePlace,
 }
 

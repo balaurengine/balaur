@@ -148,7 +148,6 @@ pub(crate) enum HttpEvent {
         headers: Vec<(String, String)>,
         body: String,
         /// Where the body went when the call asked for a file.
-        #[serde(default)]
         saved: Option<String>,
     },
     /// Part of a body written to its file; `total` when the server said.

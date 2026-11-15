@@ -53,8 +53,7 @@ pub fn reads() -> str {
 // reads() == "fire true true true 2"
 ```
 
-There is one spelling of each. `a.get("k")`, `a.name` and `a.at(0)` are refused, and the error names
-`a["k"]` or `a[0]`.
+There is one spelling of each: an `any` has no `get` or `at` method, and `a.name` is refused.
 
 ## Getting a typed value out
 
