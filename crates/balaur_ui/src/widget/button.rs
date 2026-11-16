@@ -384,10 +384,24 @@ pub(crate) fn button(
         0.0
     };
     let face = face_of(ui, at, index, caption, font, &base, inside);
-    let min = (face.size + pad.taken())
+    // One glyph takes no side padding, which is a caption's air: its box is
+    // the square the measure gave it, as `measure::button_in` says.
+    let one_glyph = caption.is_empty()
+        && !widget.icon.is_empty()
+        && widget.source.is_empty()
+        && widget.trailing.is_empty();
+    let air = if one_glyph {
+        vec2(0.0, pad.taken().y)
+    } else {
+        pad.taken()
+    };
+    let mut min = (face.size + air)
         .max(vec2(widget.width, widget.height))
         .max(floor)
         .max(given);
+    if one_glyph && base.width.is_none() {
+        min.x = min.x.max(min.y);
+    }
     let plate = Brush::of(ui).slot();
     let response = sensor(
         ui,

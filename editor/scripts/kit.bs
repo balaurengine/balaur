@@ -6,7 +6,9 @@
 // with `on_click: "relay"`, `data: { to, method }` gets `method(data, value)`.
 
 use editor;
+use fold;
 use form;
+use icons;
 use inspector;
 use pool;
 use settings;
@@ -172,7 +174,7 @@ pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str 
     let controls: [ui::Control] = [];
     for group in util::list_or_empty(groups) {
         if group[fields::TITLE].as_str() != "" {
-            controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: group[fields::TITLE] });
+            controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: group[fields::TITLE] });
         }
         for name in util::list_or_empty(group[fields::NAMES]) {
             controls.push(pick_button(state, id, name.as_str(), roles::ITEM_SIDEBAR, name.as_str() == current));
@@ -186,26 +188,12 @@ pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str 
 
 /// A heading between groups of rows.
 pub fn heading(title: str) -> form::Row {
-    form::Row {
-        height: 24,
-        controls: [ui::Control { kind: ui::WIDGET_LABEL, role: "action_section", text: title }],
-    }
+    form::heading(title)
 }
 
 /// What a panel says when it has nothing.
 pub fn empty(text: str) -> form::Row {
-    form::Row {
-        height: 0,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: roles::TEXT_CAPTION,
-                grow: 1,
-                wrap: true,
-                text: text,
-            },
-        ],
-    }
+    form::note(text)
 }
 
 /// Write the editor's own settings file, after a plugin set an editor-scope
@@ -247,7 +235,7 @@ pub fn field(state: &mut editor::State, label: str, value: any, options: any) ->
         let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: "copy" };
         controls.push(pool::on(button, field_copied, { layout_fields::WHOLE: whole }));
     }
-    form::Row { label: label, height: 22, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
+    form::Row { label: label, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 fn field_toggled(state: &mut editor::State, data: any, _value: any) {
@@ -332,19 +320,9 @@ fn container(state: &mut editor::State, out: any, path: str, keys: [any], label:
     let count = if value.kind() == types::KIND_MAP { "{value.len()} keys" } else { "{value.len()} items" };
     let titled = label != "" || depth > 0;
     if titled {
-        let button: ui::Control = ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::CHIP,
-            text: indent(depth) + (if open { "▾ " } else { "▸ " }) + label,
-        };
-        out[SPECS].push(form::Row {
-            height: 22,
-            slot_role: roles::LAYOUT_ACTIONS,
-            controls: [
-                pool::on(button, folded, { fields::KEY: key, project_fields::OPEN: open }),
-                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: count },
-            ],
-        });
+        let action = pool::on(ui::Control { kind: ui::WIDGET_BUTTON }, folded, { fields::KEY: key, project_fields::OPEN: open });
+        let head = fold::head(open, "{label} · {count}", icons::ui(icons::ENTRY_LIST), "", depth, "", action);
+        out[SPECS].push(form::Row { slot_role: roles::LAYOUT_FOLD, controls: [head] });
     }
     if !open {
         return;
@@ -394,7 +372,7 @@ fn leaf(out: any, keys: [any], label: str, value: any, edit: bool, depth: int) {
     } else {
         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, truncate: true, text: text }
     };
-    out[SPECS].push(form::Row { height: 22, controls: [control], label: indent(depth) + label });
+    out[SPECS].push(form::Row { controls: [control], label: indent(depth) + label });
 }
 
 fn typed(state: &mut editor::State, data: any, now: any) {
@@ -460,7 +438,6 @@ pub fn files(state: &mut editor::State, id: str, options: any) -> [form::Row] {
     let reveal_root: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: "reveal" };
     let out: [form::Row] = [
         form::Row {
-            height: 24,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, truncate: true, text: short_path(root) },
@@ -504,15 +481,15 @@ fn folder(state: &mut editor::State, id: str, directory: str, rel: str, only: [s
 fn file_rows(state: &mut editor::State, id: str, path: str, rel: str, edit: bool, out: [form::Row]) {
     let key = "file:" + id;
     let open = memory(state)[key].as_bool();
-    let toggle: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: (if open { "▾ " } else { "▸ " }) + rel };
-    let controls = [pool::on(toggle, folded, { fields::KEY: key, project_fields::OPEN: open })];
+    let action = pool::on(ui::Control { kind: ui::WIDGET_BUTTON }, folded, { fields::KEY: key, project_fields::OPEN: open });
+    let controls = [fold::head(open, rel, icons::ui(icons::SCRIPTFILE), "", 0, path, action)];
     let when = fs::modified_time(path);
     if when != nil {
         controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: ago(engine::unix_time() - when.unwrap()) });
     }
     let reveal: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: "reveal" };
     controls.push(pool::on(reveal, revealed, { project_fields::PATH: path }));
-    out.push(form::Row { height: 24, controls: controls, slot_role: roles::LAYOUT_ACTIONS });
+    out.push(form::Row { controls: controls, slot_role: roles::LAYOUT_ACTIONS });
     if open {
         document(state, id, path, edit, out);
     }
@@ -532,12 +509,7 @@ fn document(state: &mut editor::State, id: str, path: str, edit: bool, out: [for
     }
     let value = if as_toml { toml::parse(text.unwrap()) } else { json::parse(text.unwrap()) };
     if value == nil {
-        out.push(form::Row {
-            height: 22,
-            controls: [
-                ui::Control { kind: ui::WIDGET_LABEL, role: roles::NOTE_WARNING, grow: 1, wrap: true, text: "does not parse" },
-            ],
-        });
+        out.push(form::warning("does not parse"));
         return;
     }
     let keep: any = { project_fields::FILE: path, TOML: as_toml };

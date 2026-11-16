@@ -10,8 +10,6 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 [[nodes]]
 id = "tools"
@@ -19,10 +17,9 @@ name = "Tools"
 parent = "panel"
 [nodes.widget]
 kind = "row"
-height = 26
+role = "toolbar_dock"
 [nodes.widget_layout]
 align_items = "center"
-gap = [6, 0]
 
 [[nodes]]
 id = "clear"
@@ -77,7 +74,7 @@ bindings = { rows = [{ event = "emitted:value_changed", action = "call", value =
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
-width = 130
+grow = 1
 [nodes.widget_field]
 placeholder = "Search"
 
@@ -87,13 +84,8 @@ name = "Log"
 parent = "panel"
 [nodes.widget]
 kind = "list"
+role = "list_log"
 grow = 1
-font = "fonts/JetBrainsMono-Regular.ttf"
-
-[nodes.widget.touch]
-row_height = 33
-[nodes.widget_rows]
-row_height = 18
 
 [[nodes]]
 id = "nothing"

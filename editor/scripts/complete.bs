@@ -7,10 +7,12 @@ use disk;
 use editor;
 use lint;
 use signals;
+use style;
 use util;
 use words::changes;
 use words::general;
-use words::theme_tokens;
+use words::glyphs;
+use words::roles;
 
 const CONSTANT: str = "constant";
 const FIELD: str = "field";
@@ -57,8 +59,8 @@ pub struct View {
     internal doc: str,
 }
 
-// The list's rows, in design pixels.
-const ROW: float = 22.0;
+// The pitch a list role states its rows at.
+const ROW_HEIGHT: str = "row_height";
 
 const MAX_ROWS: int = 8;
 
@@ -203,24 +205,24 @@ fn accept(state: &mut editor::State) {
     reset(state);
 }
 
-// A row's leading glyph, by what the completion is.
+// A row's leading icon, by what the completion is.
 fn glyph(kind: str) -> str {
     if kind == MODULE {
-        "◆"
+        glyphs::PACKAGE
     } else if kind == general::FUNCTION {
-        "ƒ"
+        glyphs::FUNCTION
     } else if kind == METHOD {
-        "→"
+        glyphs::ARROW_RIGHT
     } else if kind == CONSTANT {
-        "●"
+        glyphs::CIRCLE
     } else if kind == FIELD {
-        "▪"
+        glyphs::SQUARE
     } else if kind == PROPERTY {
-        "▫"
+        glyphs::SQUARE_HALF
     } else if kind == KEYWORD {
-        "k"
+        glyphs::TEXT_AA
     } else {
-        "·"
+        glyphs::DOT
     }
 }
 
@@ -228,12 +230,11 @@ fn glyph(kind: str) -> str {
 /// sheet, not two: a second overlay beside this one runs off the pane.
 // A row each completion, its mark, its label and its detail.
 fn rows(state: editor::State) -> [ui::Item] {
-    let tint = state.theme[theme_tokens::TEXT_MUTED].as_str();
     let out: [ui::Item] = [];
     let shown = state.complete.items;
     for index in 0..shown.len() {
         let one = shown[index];
-        out.push(ui::Item { icon: glyph(one.kind), label: one.label, note: one.detail, tint: tint, key: "{index}" });
+        out.push(ui::Item { icon: glyph(one.kind), label: one.label, note: one.detail, key: "{index}" });
     }
     out
 }
@@ -253,12 +254,12 @@ pub fn view(state: editor::State) -> View {
         y: state.complete.y + 4.0,
         items: items,
         picked: "{pick}",
-        list_h: (util::int_min(items.len(), MAX_ROWS) as float) * ROW,
+        list_h: (util::int_min(items.len(), MAX_ROWS) as float) * style::role_size_in_pixels(state, roles::LIST_LOG, ROW_HEIGHT, 20.0),
         doc: clip(doc, 78),
     }
 }
 
-// The doc line is one sentence in a 320 px sheet; the rest is in the Docs
+// The doc line is one sentence in a narrow sheet; the rest is in the Docs
 // dock, which has room for it.
 fn clip(text: str, limit: int) -> str {
     let chars = text.chars();

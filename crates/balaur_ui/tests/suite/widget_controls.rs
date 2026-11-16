@@ -130,7 +130,7 @@ fn icons_are_named_in_the_theme_s_icon_font() {
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/icons.toml"),
-        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor-Fill.ttf\"\n",
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n",
     )
     .unwrap();
     add_widget(
@@ -236,4 +236,64 @@ fn a_card_shows_its_region_of_the_list_s_sheet() {
     assert_eq!(faces.len(), 2, "{faces:?}");
     assert!(faces[0].min.x.abs() < 0.01 && (faces[0].max.x - 0.5).abs() < 0.01);
     assert!((faces[1].min.x - 0.5).abs() < 0.01 && (faces[1].max.x - 1.0).abs() < 0.01);
+}
+
+// A button that is one glyph is square: its role's height both ways,
+// whatever side padding a captioned button of the role takes.
+#[test]
+fn a_button_that_is_one_glyph_is_square() {
+    let (dir, app) = app_with_editor_fonts();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/square.toml"),
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n\n[button]\nheight = 30\npadding_x = 14\n",
+    )
+    .unwrap();
+    let mark = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "" theme = "themes/square.toml" x = 20.0 y = 20.0 widget_button = { icon = "x-bold" } }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let rect = balaur_ui::widget_rect(mark).expect("it drew");
+    assert!(
+        (rect.width() - 30.0).abs() < 0.6 && (rect.height() - 30.0).abs() < 0.6,
+        "{rect:?}"
+    );
+}
+
+// A list's rows are as far apart as its theme says where the list states no
+// `row_height` of its own.
+#[test]
+fn a_list_takes_its_row_pitch_from_its_theme() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/rows.toml"),
+        "type = \"widget_theme\"\n\n[list]\nrow_height = 31\n",
+    )
+    .unwrap();
+    add_widget(
+        &app,
+        &toml::toml! {
+            kind = "list" theme = "themes/rows.toml" x = 20.0 y = 20.0 width = 200.0 height = 200.0
+            widget_rows = { items = [{ label = "One", key = "a" }, { label = "Two", key = "b" }] }
+        }
+        .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let drawn = texts(&pass(&app, &ctx, vec![]));
+    let at = |label: &str| {
+        drawn
+            .iter()
+            .find(|(text, _)| text == label)
+            .expect(label)
+            .1
+            .y
+    };
+    let pitch = at("Two") - at("One");
+    assert!((pitch - 31.0).abs() < 0.6, "the rows are {pitch} apart");
 }

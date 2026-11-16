@@ -14,7 +14,7 @@ use words::fields;
 use words::inspector_fields;
 use words::layout_fields;
 use words::panel_keys;
-use words::project_fields;
+use words::roles;
 use words::sides;
 
 const BODY: str = "body";
@@ -36,11 +36,9 @@ const UPPERROW: str = "upperrow";
 const WORK: str = "work";
 const BOTTOM: str = "bottom";
 const DOCK_HEIGHT: str = "dock_height";
-const GAP: str = "gap";
 const HEAD: str = "head";
 const HEIGHT: str = "height";
 const INSPECTOR_WIDTH: str = "inspector_width";
-const LAYOUT_SHELL: str = "layout_shell";
 const LEFT: str = "left";
 const PADDING: str = "padding";
 const RIGHT: str = "right";
@@ -104,12 +102,6 @@ pub struct Room {
 // resting height, which the scene states.
 const TALL_EXTRA: float = 62.0;
 
-// What a small window takes off the shell's own gutter and the seams between
-// its sheets. The scene states the resting pair; this is the tighter one.
-const TIGHT_GUTTER: float = 8.0;
-
-const TIGHT_GAP: float = 6.0;
-
 // The floor a seam stops a dock at, and what the scene keeps whatever the
 // seams either side of it are dragged to.
 const LEFT_MIN: float = 180.0;
@@ -127,6 +119,9 @@ const MEDIUM_PEEK: float = 220.0;
 const SHELL: str = "Editor/Shell";
 
 const EASE_SECONDS: float = 0.16;
+
+// A named workspace pill, about as wide as its word, before it has drawn.
+const NAMED_WORKSPACE_WIDTH: float = 76.0;
 
 fn rect(origin_x: float, origin_y: float, width: float, height: float) -> any {
     { "x": origin_x, "y": origin_y, layout_fields::WIDTH: width, layout_fields::HEIGHT: height }
@@ -152,8 +147,7 @@ pub fn state() -> any {
         QUIET: 0,
         ASKED: false,
         GUTTER: 0.0,
-        GAP: 0.0,
-        layout_fields::PADDING: 0.0,
+        layout_fields::GAP: 0.0,
         TREE_WIDTH: 0.0,
         INSPECTOR_WIDTH: 0.0,
         DOCK_HEIGHT: 0.0,
@@ -220,15 +214,15 @@ fn widget_of(state: editor::State, id: str) -> any {
     util::map_or_empty(found.as_node().get_component(components::WIDGET))
 }
 
-/// The shell's own gutter: the scene's number, a step tighter in a small
-/// window. Read by whoever needs the body's edge, so no two callers disagree.
+/// The shell's own gutter, as the theme states it. Read by whoever needs the
+/// body's edge, so no two callers disagree.
 pub fn gutter(state: editor::State) -> any {
-    if state.compact { TIGHT_GUTTER } else { state.layout[GUTTER] }
+    state.layout[GUTTER]
 }
 
-/// The seam between two sheets, the gutter's own step.
+/// The seam between two sheets.
 pub fn seam(state: editor::State) -> any {
-    if state.compact { TIGHT_GAP } else { state.layout[GAP] }
+    state.layout[layout_fields::GAP]
 }
 
 /// What the shell spends on itself before a sheet gets anything: the gutter
@@ -247,22 +241,6 @@ fn stated(state: editor::State, id: str, key: str) -> float {
     if value.kind() == types::KIND_LIST { value[0].as_float() } else { value.as_float() }
 }
 
-/// One number off a theme role, or `fallback` where the role says nothing.
-fn role_number(state: editor::State, role: str, key: str, fallback: float) -> float {
-    let roles = state.theme[project_fields::ROLES];
-    let found = roles[role];
-    if found != nil {
-        let entry = found;
-        let value = entry[key];
-        if value != nil {
-            let number = value;
-            let pixels = style::size_in_pixels(state, number);
-            return pixels;
-        }
-    }
-    fallback
-}
-
 /// The scene's own numbers, read back once before anything writes over them.
 /// Nothing outside `scenes/main.toml` may spell a resting shell size.
 fn adopt(state: editor::State) {
@@ -276,14 +254,13 @@ fn adopt(state: editor::State) {
     }
     // The shell's gutter and seam are the theme's, so one file holds them and
     // a role a node takes cannot drift from the number this arithmetic uses.
-    layout_state[GUTTER] = role_number(state, LAYOUT_SHELL, PADDING, 14.0);
-    layout_state[GAP] = role_number(state, LAYOUT_SHELL, GAP, 12.0);
-    layout_state[layout_fields::PADDING] = stated(state, LEFTSHEET, PADDING);
+    layout_state[GUTTER] = style::role_size_in_pixels(state, roles::LAYOUT_SHELL, PADDING, 14.0);
+    layout_state[layout_fields::GAP] = style::role_size_in_pixels(state, roles::LAYOUT_SPLIT, layout_fields::GAP, 12.0);
     layout_state[TREE_WIDTH] = stated(state, sides::LEFT, WIDTH);
     layout_state[INSPECTOR_WIDTH] = stated(state, sides::RIGHT, WIDTH);
-    layout_state[STATUS_HEIGHT] = stated(state, STATUS, HEIGHT);
+    layout_state[STATUS_HEIGHT] = style::role_size_in_pixels(state, roles::BAR_STATUS, HEIGHT, 20.0);
     layout_state[DOCK_HEIGHT] = stated(state, sides::BOTTOM, HEIGHT) - layout_state[STATUS_HEIGHT].as_float();
-    layout_state[HOOKS_WIDTH] = stated(state, HOOKS, WIDTH);
+    layout_state[HOOKS_WIDTH] = style::role_size_in_pixels(state, roles::SHEET_HOOKS, WIDTH, 172.0);
     layout_state[ASKED] = true;
 }
 
@@ -414,25 +391,6 @@ fn size(state: editor::State, id: str, key: str, value: any) {
     found.as_node().set_component(components::WIDGET, parameters);
 }
 
-/// The space between a box's children, memoised like `size`: a container's,
-/// on `widget_layout`.
-fn spaced(state: editor::State, id: str, gap: float) {
-    let layout_state: any = state.layout;
-    let mark = id + ":gap";
-    let value = [gap, gap];
-    if layout_state[SENT][mark] == value {
-        return;
-    }
-    let found = node(state, id);
-    if util::is_nil(found) {
-        return;
-    }
-    layout_state[SENT][mark] = value;
-    layout_state[QUIET] = 0;
-    let held = found.as_node();
-    held.widget_layout.gap = vec2(gap, gap);
-}
-
 /// Draw a box, or stop drawing it. Memoised like `size`, because a component
 /// written every frame is a widget tree rebuilt every frame.
 fn show(state: editor::State, id: str, on: bool) {
@@ -525,14 +483,6 @@ pub fn compute(state: &mut editor::State) {
     let grid = center::rail_grid(state, layout_state[dock_fields::RAIL_ROOM].as_float());
     let rail_width = if state.rail_visible { center::rail_span(grid, grid.columns) } else { 0.0 };
     let hooks_width = if state.hooks_open { layout_state[HOOKS_WIDTH].as_float() } else { 0.0 };
-    // The gutter round the shell and the seams between its sheets: a step
-    // tighter in a small window, where they are most of what is on screen.
-    let tight = state.compact;
-    size(state, SHELL_WORD, PADDING, gutter(state));
-    let gap = if tight { TIGHT_GAP } else { layout_state[GAP].as_float() };
-    for id in [BODY, CENTRE, UPPERROW, STACK, UPPER, SHELL_WORD] {
-        spaced(state, id, gap);
-    }
     size(state, sides::LEFT, WIDTH, tree_width);
     size(state, sides::RIGHT, WIDTH, inspector_width);
     // Folded, a side dock's whole column goes. Not the sheet inside it: a
@@ -615,7 +565,7 @@ fn publish_stage(state: &mut editor::State, boxes: ShellBoxes) {
     if state.doc_open && state.viewport_live {
         let code_width = math::clamp(layout_state[SPLIT_WIDTH].as_float(), 260.0, math::max(260.0, box.width - 260.0));
         layout_state[fields::DOC] = rect(box.x + box.width - code_width, box.y, code_width, box.height);
-        layout_state[STAGE] = rect(box.x, box.y, box.width - code_width - layout_state[GAP].as_float(), box.height);
+        layout_state[STAGE] = rect(box.x, box.y, box.width - code_width - layout_state[layout_fields::GAP].as_float(), box.height);
     } else if state.doc_open {
         layout_state[fields::DOC] = box;
         layout_state[STAGE] = box;
@@ -646,7 +596,7 @@ pub fn floors(state: editor::State) -> Floors {
     // to `BOTTOM_MIN` before the stage is asked to give anything up, so a
     // laptop window keeps all three docks rather than folding to one.
     let spent = chrome(state);
-    Floors { width: math::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN + spent.width, height: BAR_HEIGHT_GUESS + BOTTOM_MIN + center::stage_floor().height + spent.height }
+    Floors { width: math::max(LEFT_MIN, RIGHT_MIN) + STAGE_MIN + spent.width, height: bar_height_guess(state) + BOTTOM_MIN + center::stage_floor().height + spent.height }
 }
 
 /// The box the engine gave the shell, in design px, or zeros before it has
@@ -667,8 +617,11 @@ pub fn three_fit(state: editor::State) -> bool {
 }
 
 // The bar's height before its node has been measured, for the floor above:
-// the head sheet as the scene states it.
-const BAR_HEIGHT_GUESS: float = 43.0;
+// its row, as the theme states it, inside the head sheet's inset.
+fn bar_height_guess(state: editor::State) -> float {
+    let row = style::role_size_in_pixels(state, roles::HEADER_TOOLBAR, HEIGHT, 30.0);
+    row + 2.0 * style::role_size_in_pixels(state, roles::HEADER_SHELL, PADDING, 5.0)
+}
 
 /// The room the docks leave the stage, as `{ width, height }` in design pixels,
 /// from the same widths the layout is about to use. Asked before the layout
@@ -719,9 +672,10 @@ fn both_sides_open(state: editor::State) -> bool {
     !docks::folded(state, sides::LEFT) && !docks::folded(state, sides::RIGHT)
 }
 
-/// What one workspace pill is estimated at, for the showcase's pointer.
+/// What one workspace pill is estimated at, for the showcase's pointer: an
+/// icon alone is a square of the tab's height.
 pub fn workspace_width(state: editor::State) -> float {
-    if state.compact { 40.0 } else { 76.0 }
+    if state.compact { style::role_size_in_pixels(state, roles::TAB_WORKSPACE, HEIGHT, 30.0) } else { NAMED_WORKSPACE_WIDTH }
 }
 
 /// Whether `point_x`, `point_y` in design px is over a sheet. Under Stage the scene is the

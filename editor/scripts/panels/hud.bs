@@ -40,29 +40,20 @@ impl Hud {
     fn refresh() {
         let view = self.editor.unwrap().hud_view();
         self.node.set_visible(view.shown);
-        self.node.widget.height = view.height;
         self.node.patch_component(components::WIDGET, { dock_fields::INSET: view.inset });
         if !view.shown {
             return;
         }
-        let axes = self.node.get_node("Axes/Row");
+        // Each axis in its own hue, which no role carries.
+        let axes = self.node.get_node("Axes");
         axes.get_node("X").patch_component(components::WIDGET, { themewin::TEXT_COLOR: view.x_ink });
         axes.get_node("Y").patch_component(components::WIDGET, { themewin::TEXT_COLOR: view.y_ink });
-        let zoom = self.node.get_node("Zoom/Row");
-        for name in ["Out", "In"] {
-            let patched = zoom.get_node(name);
-            patched.widget.width = view.step;
-            patched.widget.height = view.step;
-            patched.patch_component(components::WIDGET, { themewin::TEXT_COLOR: view.quiet_ink });
-        }
+        let zoom = self.node.get_node("Zoom");
+        zoom.get_node("Out").widget_button.icon = view.remove_icon;
         zoom.get_node("In").widget_button.icon = view.add_icon;
         zoom.get_node("Reading").widget.text = view.zoom;
         let bottom = self.node.get_node("Bottom");
         bottom.set_visible(view.bottom);
-        let patched = bottom.get_node("Open");
-        patched.widget_button.icon = view.bottom_icon;
-        patched.widget.width = view.step + 6.0;
-        patched.widget.height = view.step + 6.0;
-        patched.patch_component(components::WIDGET, { themewin::TEXT_COLOR: view.quiet_ink });
+        bottom.get_node("Open").widget_button.icon = view.bottom_icon;
     }
 }

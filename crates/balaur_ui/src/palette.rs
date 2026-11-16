@@ -72,10 +72,13 @@ const STEP_DARK: f64 = 0.05;
 const STEP_LIGHT: f64 = 0.03;
 /// Surfaces, in steps above the background.
 const PANEL_STEPS: f64 = 1.0;
-const CONTROL_STEPS: f64 = -0.8;
-const CONTROL_HOVER_STEPS: f64 = 2.25;
+/// A control, in steps from the panel towards the text: raised on a dark
+/// panel and greyed on a light one, as a web page's buttons are; its hover
+/// that far again.
+const CONTROL_STEPS: f64 = 1.0;
+const CONTROL_HOVER_STEPS: f64 = 0.8;
 /// How far a derived colour is mixed towards another.
-const BORDER_MIX: f64 = 0.13;
+const BORDER_MIX: f64 = 0.16;
 const MUTED_MIX: f64 = 0.30;
 const SUBTLE_MIX: f64 = 0.38;
 const FILL_HOVER_MIX: f64 = 0.15;
@@ -332,17 +335,21 @@ fn derive_colors(stated: &Table, stated_dark: Option<bool>, extra: &Extra<'_>) -
     let bg = work.at(t::BACKGROUND);
     work.put(t::BG_APP, bg);
     work.put(t::BG_PANEL, work.lift(bg, PANEL_STEPS));
-    work.put(t::BG_CONTROL, work.lift(bg, CONTROL_STEPS));
+    let panel = work.at(t::BG_PANEL);
+    let toward_text = if work.dark { 1.0 } else { -1.0 };
+    work.put(t::BG_CONTROL, work.lift(panel, toward_text * CONTROL_STEPS));
     // From the control as stated, so a theme naming its own control keeps
-    // the hover a step above it, and never so far that the text stops reading.
+    // the hover a step past it, and never so far that the text stops reading.
     let control = work.at(t::BG_CONTROL);
     let fg = work.at(t::FOREGROUND);
-    let mut steps = CONTROL_HOVER_STEPS - CONTROL_STEPS;
-    while steps > 0.0 && contrast(fg, work.lift(control, steps)) < AA {
+    let mut steps = CONTROL_HOVER_STEPS;
+    while steps > 0.0 && contrast(fg, work.lift(control, toward_text * steps)) < AA {
         steps -= 0.25;
     }
-    work.put(t::BG_CONTROL_HOVER, work.lift(control, steps.max(0.0)));
-    let panel = work.at(t::BG_PANEL);
+    work.put(
+        t::BG_CONTROL_HOVER,
+        work.lift(control, toward_text * steps.max(0.0)),
+    );
     work.put(t::BORDER_DEFAULT, mix(panel, fg, BORDER_MIX));
     work.put(t::TEXT_DEFAULT, fg);
     work.put(t::TEXT_MUTED, work.legible(mix(fg, panel, MUTED_MIX)));
@@ -565,6 +572,28 @@ mod tests {
         for ink in ["text_default", "primary_text"] {
             let r = reads(&done, ink, "primary_bg");
             assert!(r >= AA, "{ink} on primary_bg is {r:.2}");
+        }
+    }
+
+    // A control stands off the panel towards the text, as a web page's
+    // buttons do: raised on a dark panel, greyed on a light one.
+    #[test]
+    fn a_control_is_a_step_from_the_panel_towards_the_text() {
+        for (background, dark) in [("#151f2a", true), ("#ebe9e3", false)] {
+            let done = colors(&format!("[colors]\nbackground = \"{background}\"\n"));
+            let l = |token: &str| parse(done[token].as_str().unwrap()).unwrap().l;
+            let (panel, control, hover) = (l("bg_panel"), l("bg_control"), l("bg_control_hover"));
+            if dark {
+                assert!(
+                    control > panel && hover > control,
+                    "{panel} {control} {hover}"
+                );
+            } else {
+                assert!(
+                    control < panel && hover < control,
+                    "{panel} {control} {hover}"
+                );
+            }
         }
     }
 

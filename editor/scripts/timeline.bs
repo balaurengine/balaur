@@ -3,9 +3,9 @@
 
 use anim;
 use editor;
-use form;
 use history;
 use icons;
+use lanes;
 use signals;
 use util;
 use words::changes;
@@ -22,8 +22,6 @@ const INLINE: str = "inline";
 
 const TIMELINE: str = "Editor/Shell/Body/Centre/Bottom/Timeline";
 
-const NAME_WIDTH: float = 150.0;
-
 /// Fill the Timeline tab: what the player is missing, or the clip's ruler,
 /// rules, lanes and keys placed by time against the tab's width, the playhead
 /// and the scrubber. What its script asks for when any of them moved.
@@ -38,12 +36,12 @@ pub fn fill(state: &mut editor::State) {
     util::set_visible(TIMELINE + "/Missing", false);
     util::set_visible(TIMELINE + "/Body", true);
     let length = math::max(anim::length(definition), 1e-4);
-    let lane_x = NAME_WIDTH + 14.0;
-    let lane_width = math::max(120.0, util::drawn_width(TIMELINE) - lane_x - 24.0);
+    let lane_x = lanes::marks_x(state, true);
+    let lane_width = lanes::marks_width(state, TIMELINE, true);
     fill_head(state, node, definition);
     fill_ruler(state, length, lane_x, lane_width);
-    form::fill(TIMELINE + "/Body/Lanes/Scroll/Tracks", track_rows(state, definition, length, lane_width));
-    util::fill(TIMELINE + "/Body/ScrubRow", { layout_fields::PADDING: [8.0 + lane_x, 0.0, 0.0, 0.0] });
+    ui::fill_strip(TIMELINE + "/Body/Lanes/Scroll/Tracks", track_rows(state, definition, length, lane_width));
+    util::fill(TIMELINE + "/Body/ScrubRow", { layout_fields::PADDING: [lane_x, 0.0, 0.0, 0.0] });
     let filled = scene::root().get_node(TIMELINE + "/Body/ScrubRow/Scrub");
     if filled.is_valid() {
         filled.widget.width = lane_width;
@@ -102,8 +100,7 @@ fn fill_ruler(state: &mut editor::State, length: float, lane_x: float, lane_widt
         let tick_x = lane_at(lane_x, length, lane_width, seconds);
         ticks.push(ui::Control {
             kind: ui::WIDGET_LABEL,
-            role: roles::TEXT_CODE_QUIET,
-            font_size: 11,
+            role: roles::TEXT_CODE_CAPTION,
             absolute: true,
             inset: ui::Sides { left: tick_x, top: 2.0, right: -1.0, bottom: -1.0 },
             text: util::fixed(seconds, 2),
@@ -125,69 +122,29 @@ fn fill_ruler(state: &mut editor::State, length: float, lane_x: float, lane_widt
     });
 }
 
-// A row per track: its name, then its keys placed by time.
-fn track_rows(state: &mut editor::State, definition: any, length: float, lane_width: float) -> [form::Row] {
+// A lane per track: its lamp and name, then its keys placed by time.
+fn track_rows(state: &mut editor::State, definition: any, length: float, lane_width: float) -> [ui::Control] {
     let tokens = state.theme;
     let tracks = anim::tracks(definition);
-    let rows: [form::Row] = [];
+    let rows: [ui::Control] = [];
     for index in 0..tracks.len() {
         let track = tracks[index];
         let color = (if index % 2 == 0 { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] }).as_str();
         let keys: [ui::Control] = [];
         for key in util::list_or_empty(track[fields::KEYS]) {
             let when = key[log_fields::TIME].as_float();
-            let before = when <= state.anim.time + 1e-4;
-            // A key is its mark: filled once the playhead has passed it.
-            keys.push(ui::Control {
-                kind: ui::WIDGET_BUTTON,
-                role: roles::CHIP_QUIET,
-                text: if before { "●" } else { "○" },
-                font_size: 13,
-                padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
-                text_color: color,
-                absolute: true,
-                inset: ui::Sides { left: (when / length) * lane_width - 6.0, top: 2.0, right: -1.0, bottom: -1.0 },
-                tooltip: "{util::fixed(when, 2)} s",
-                on_click: "handle",
-                data: { fields::FN: on_key_pressed, fields::WHEN: when },
-            });
+            // A key is its mark: held down once the playhead has passed it.
+            let passed = when <= state.anim.time + 1e-4;
+            keys.push(lanes::mark(state, (when / length) * lane_width, passed, "{util::fixed(when, 2)} s", { fields::FN: on_key_pressed, fields::WHEN: when }));
         }
-        rows.push(form::Row {
-            height: LANE_HEIGHT,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_ROW,
-                    width: NAME_WIDTH,
-                    gap: vec2(6, 6),
-                    align_items: ui::ALIGN_CENTER,
-                    padding: ui::Sides { left: 8.0, top: 0.0, right: 0.0, bottom: 0.0 },
-                    controls: [
-                        ui::Control { kind: ui::WIDGET_ROW, width: 6, height: 6, corner_radius: 3, fill: color },
-                        ui::Control {
-                            kind: ui::WIDGET_LABEL,
-                            corner_radius: 0,
-                            role: roles::TEXT_CODE,
-                            font_size: 11,
-                            text: anim::track_label(track),
-                        },
-                    ],
-                },
-                ui::Control {
-                    kind: ui::WIDGET_ROW,
-                    width: lane_width,
-                    controls: keys,
-                    height: LANE_HEIGHT,
-                    margin: ui::Sides { left: 14.0, top: 0.0, right: 0.0, bottom: 0.0 },
-                },
-            ],
-        });
+        rows.push(lanes::lane(state, color, anim::track_label(track), keys, lane_width));
     }
     rows
 }
 
 // Where time `seconds` lands across a lane `lane_width` wide that starts at `lane_x`.
 fn lane_at(lane_x: float, length: float, lane_width: float, seconds: float) -> float {
-    8.0 + lane_x + (seconds / length) * lane_width
+    lane_x + (seconds / length) * lane_width
 }
 
 fn on_key_pressed(state: &mut editor::State, data: any, _value: any) {
@@ -221,8 +178,6 @@ pub fn clip(state: &mut editor::State, setting: str, value: any) {
     }
     anim::touch(state);
 }
-
-const LANE_HEIGHT: float = 26.0;
 
 // A tick every 0.25/0.5/1/2/5 s, whichever gives four to eight labels.
 fn tick_step(length: float) -> float {

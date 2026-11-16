@@ -535,6 +535,7 @@ pub(crate) mod keys {
     pub(crate) const OUTLINE_OFFSET: &str = "outline_offset";
     /// Seconds a spinner takes to turn once.
     pub(crate) const DURATION: &str = "duration";
+    pub(crate) const ROW_HEIGHT: &str = "row_height";
     pub(crate) const ICON_FILL: &str = "icon_fill";
     pub(crate) const VALUE: &str = "value";
     pub(crate) const SCROLL_OFFSET: &str = "scroll_offset";

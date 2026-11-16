@@ -12,10 +12,11 @@ use lint;
 use plugins;
 use session;
 use signals;
+use style;
+use tab;
 use util;
 use words::dock_fields;
 use words::fields;
-use words::general;
 use words::geometry_fields;
 use words::inspector_fields;
 use words::layout_fields;
@@ -24,7 +25,6 @@ use words::project_fields;
 use words::roles;
 use words::sides;
 use words::tabs;
-use words::theme_tokens;
 
 const TREE: str = "tree";
 const BOTTOM_WORD: str = "bottom";
@@ -45,6 +45,7 @@ const RECORDINGS: str = "recordings";
 const SIDE: str = "side";
 const STATEMACHINE: str = "statemachine";
 const TIMELINE: str = "timeline";
+const FONT_SIZE: str = "font_size";
 
 pub struct Table {
     name: str,
@@ -76,11 +77,13 @@ pub struct Handles {
     internal bottom: Handle,
 }
 
-// The "+N" list that stands for the tabs a narrow dock has no room for.
-const MORE_WIDTH: float = 48.0;
+// The room the "+N" menu of the tabs that do not fit takes, gap and all.
+const MORE_WIDTH: float = 52.0;
 
-// What the fold and the head's padding leave the tabs of a dock's width.
-const HEAD_END: float = 44.0;
+// The sheet's padding either side and the head's gap, beside the fold.
+const HEAD_EDGE: float = 19.0;
+
+const PADDING_X: str = "padding_x";
 
 /// A side dock's handle is the tool rail's tile: an icon button on a sheet,
 /// with the rail's own inset, so the two sit in one column at one size.
@@ -435,7 +438,7 @@ fn show_panel(name: str) {
 pub fn toolbar(state: editor::State, path: str, rows: [[ui::Control]]) {
     let groups: [ui::Control] = [];
     for row in rows {
-        groups.push(ui::Control { kind: ui::WIDGET_ROW, role: "toolbar_dock", gap: vec2(6, 6), align_items: ui::ALIGN_CENTER, controls: row });
+        groups.push(ui::Control { kind: ui::WIDGET_ROW, role: roles::TOOLBAR_DOCK, align_items: ui::ALIGN_CENTER, controls: row });
     }
     ui::fill_strip(path, groups);
 }
@@ -496,20 +499,6 @@ fn hide_unused(state: editor::State, side: str, dock: any) {
         if dock[dock_fields::SHUT].as_bool() || !wanted {
             hide_node(state, entry[HIDE].as_str());
         }
-    }
-}
-
-// A tab, which a small window gets a step less of: the row is chrome, and
-// chrome is what a short window has least room for.
-fn tab_height(state: editor::State) -> float {
-    // A tab is a control a finger picks, so it takes the same height as the
-    // rest of them where a finger is what reaches it.
-    if state.touchscreen {
-        33.0
-    } else if state.compact {
-        20.0
-    } else {
-        22.0
     }
 }
 
@@ -640,12 +629,9 @@ fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
 fn tail_controls(state: editor::State, side: str) -> [ui::Control] {
     let fold: ui::Control = ui::Control {
         kind: ui::WIDGET_BUTTON,
-        height: tab_height(state),
-        width: tab_height(state),
-        padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
         text: "",
         icon: icons::ui(shut_icon(side)),
-        role: roles::ICON_ACTION,
+        role: roles::ICON_ACTION_TAB,
         tooltip: "Minimize",
         on_click: "handle",
         data: { fields::FN: on_fold_pressed, SIDE: side },
@@ -664,7 +650,6 @@ fn on_fold_pressed(state: &mut editor::State, data: any, _value: any) {
 // One control a tab, the mark that closes it, and the fold at the end. The
 // panel's own tools are the hatch beside this strip.
 fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) -> [ui::Control] {
-    let height = tab_height(state);
     let out: [ui::Control] = [];
     let shown: [any] = shown_tabs(state, side);
     for id in shown {
@@ -672,63 +657,31 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
         let info = panel(state, held.as_str());
         let active = dock[dock_fields::ACTIVE] == held;
         let label = tab_label(state, held.as_str());
-        // One tile: the row carries the fill and the corners, and the two
-        // halves inside it paint nothing, so the pair reads as one control.
-        let inner: [ui::Control] = [];
-        inner.push(ui::Control {
+        let pick = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "handle", data: { fields::FN: on_tab_picked, SIDE: side, inspector_fields::HELD: held } };
+        let close = ui::Control {
             kind: ui::WIDGET_BUTTON,
-            height: height,
-            text: label,
-            padding: ui::Sides { left: 6.0, top: -1.0, right: 6.0, bottom: -1.0 },
-            corner_radius: 4,
-            fill: general::NONE,
-            role: "tab",
-            checked: active,
-            on_click: "handle",
-            data: { fields::FN: on_tab_picked, SIDE: side, inspector_fields::HELD: held },
-        });
-        // Its own role, so the half of the tile under the pointer is the half
-        // that lights up: a mark that looked the same either way was aimed at
-        // and missed, and the click landed on the name beside it.
-        inner.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            height: height,
-            width: 22,
-            text: "",
-            corner_radius: 4,
-            role: "icon_action_tab",
-            icon: icons::ui(icons::CLOSE),
             tooltip: "Close {info["name"]}",
             on_click: "handle",
             data: { fields::FN: on_tab_close_pressed, inspector_fields::HELD: held },
-        });
-        inner.push(ui::Control { kind: ui::WIDGET_ROW, width: 3 });
-        out.push(ui::Control {
-            height: height,
-            corner_radius: 4,
-            controls: inner,
-            align_items: ui::ALIGN_CENTER,
-            fill: if active { theme_tokens::PRIMARY_BG } else { general::NONE },
-        });
+        };
+        out.push(tab::tile(label.as_str(), "", active, false, pick, close));
     }
-    let hidden: [str] = [];
+    let hidden: [ui::Control] = [];
     for id in dock[dock_fields::TABS] {
         if !has(shown, id.as_str()) {
-            hidden.push(panel(state, id.as_str())[fields::NAME].as_str());
+            // Bound afresh: a closure made in a loop captures the binding.
+            let held = id;
+            hidden.push(ui::Control {
+                kind: ui::WIDGET_BUTTON,
+                role: roles::ITEM_MENU,
+                text: panel(state, held.as_str())[fields::NAME].as_str(),
+                on_click: "handle",
+                data: { fields::FN: on_tab_picked, SIDE: side, inspector_fields::HELD: held },
+            });
         }
     }
     if hidden.len() > 0 {
-        out.push(ui::Control {
-            kind: ui::WIDGET_DROPDOWN,
-            role: roles::CHOICE,
-            height: height,
-            width: MORE_WIDTH,
-            text: "+{hidden.len()}",
-            options: hidden,
-            tooltip: "More tabs",
-            on_change: "handle",
-            data: { fields::FN: on_more_tab_picked, SIDE: side },
-        });
+        out.push(ui::Control { kind: ui::WIDGET_MENU, role: roles::CHOICE, text: "+{hidden.len()}", tooltip: "More tabs", controls: hidden });
     }
     out
 }
@@ -745,28 +698,24 @@ fn on_tab_close_pressed(state: &mut editor::State, data: any, _value: any) {
     close(state, held);
 }
 
-fn on_more_tab_picked(state: &mut editor::State, data: any, picked: any) {
-    let side: str = data[SIDE].as_str();
-    show_named(state, side, picked);
-}
-
 /// The tabs a dock's row has room for, the active one always among them: the
 /// leading run that fits, slid along until it reaches the active tab.
 pub fn shown_tabs(state: &mut editor::State, side: str) -> [any] {
     let dock = state.docks[side];
-    let room = state.layout[side][layout_fields::WIDTH].as_float() - HEAD_END;
-    if tabs_width(state, side) <= room {
+    let fold = style::role_size_in_pixels(state, roles::ICON_ACTION_TAB, layout_fields::HEIGHT, 20.0);
+    let room = state.layout[side][layout_fields::WIDTH].as_float() - fold - HEAD_EDGE;
+    let frame = tab_frame(state);
+    if tabs_width(state, side, frame) <= room {
         return dock[dock_fields::TABS];
     }
-    // The list's box and the gap before it.
-    let room = room - MORE_WIDTH - 4.0;
+    let room = room - MORE_WIDTH;
     let widths: [float] = [];
     let end = 0;
     let used = 0.0;
     let fits = true;
     for index in 0..dock[dock_fields::TABS].len() {
         let id = dock[dock_fields::TABS][index];
-        let width = tab_width(state, id.as_str());
+        let width = tab_width(state, id.as_str(), frame);
         widths.push(width);
         used += width;
         if used <= room && fits {
@@ -800,16 +749,6 @@ fn has(list: [any], id: str) -> bool {
     false
 }
 
-// A pick from the "+N" list, which lists names: the panel it names comes forward.
-fn show_named(state: &mut editor::State, side: str, name: any) {
-    for id in state.docks[side][dock_fields::TABS] {
-        if panel(state, id.as_str())[fields::NAME] == name {
-            state.docks[side][dock_fields::ACTIVE] = id;
-            signals::docks(state);
-        }
-    }
-}
-
 // What a tab reads: its name, and the count Problems carries.
 fn tab_label(state: &mut editor::State, id: str) -> any {
     let label = panel(state, id)[fields::NAME];
@@ -831,18 +770,26 @@ fn hide_tabs(state: &mut editor::State, side: str) {
 
 // How wide the tab row's own tiles are, from the names: a flat width per tab
 // ran the hint over the row as soon as `Bone map` joined.
-fn tabs_width(state: &mut editor::State, side: str) -> float {
+fn tabs_width(state: &mut editor::State, side: str, frame: float) -> float {
     let total = 0.0;
     for tab in state.docks[side][dock_fields::TABS] {
-        total += tab_width(state, tab.as_str());
+        total += tab_width(state, tab.as_str(), frame);
     }
     total
 }
 
-fn tab_width(state: &mut editor::State, id: str) -> float {
-    // 11 px, semibold: under 6 px a character, plus the pill's padding, the
-    // close mark and the gap to the next one, measured at 52 px.
-    52.0 + 6.0 * tab_label(state, id).len() as float
+// What a tile adds to its name, from the theme: the tile's and the label's
+// padding, the close mark, and the gap to the next tile.
+fn tab_frame(state: editor::State) -> float {
+    let tile = style::role_size_in_pixels(state, roles::TILE_TAB, PADDING_X, 2.0);
+    let label = style::role_size_in_pixels(state, roles::TAB_LABEL, PADDING_X, 6.0);
+    let close = style::role_size_in_pixels(state, roles::ICON_ACTION_TAB, layout_fields::HEIGHT, 20.0);
+    2.0 * (tile + label) + close + style::role_size_in_pixels(state, roles::LAYOUT_DOCK, layout_fields::GAP, 3.0)
+}
+
+// A semibold character is about half the type size wide.
+fn tab_width(state: &mut editor::State, id: str, frame: float) -> float {
+    frame + 0.5 * style::size_in_pixels(state, FONT_SIZE) * tab_label(state, id).len() as float
 }
 
 // The caret on a dock's minimise button points at the edge it folds to, and

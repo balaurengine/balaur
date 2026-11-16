@@ -9,9 +9,9 @@ script = { source = "scripts/panels/hud.bs" }
 visible = false
 [nodes.widget]
 kind = "row"
+role = "header_stage"
 absolute = true
 inset = [0.0, -1.0, 0.0, 0.0]
-height = 28
 [nodes.widget_layout]
 align_items = "center"
 
@@ -20,51 +20,37 @@ id = "axes"
 name = "Axes"
 parent = "hud"
 [nodes.widget]
-kind = "panel"
-fill = "bg_panel"
-corner_radius = 8
-padding = [10, 3, 10, 3]
-interactive = false
-
-[[nodes]]
-id = "axes_row"
-name = "Row"
-parent = "axes"
-[nodes.widget]
 kind = "row"
+role = "sheet_hud"
 interactive = false
 [nodes.widget_layout]
-gap = [6, 6]
 align_items = "center"
 
 [[nodes]]
 id = "x"
 name = "X"
-parent = "axes_row"
+parent = "axes"
 [nodes.widget]
 kind = "label"
-role = "text_code"
-font_size = 11
+role = "text_code_caption"
 text = "x →"
 
 [[nodes]]
 id = "y"
 name = "Y"
-parent = "axes_row"
+parent = "axes"
 [nodes.widget]
 kind = "label"
-role = "text_code"
-font_size = 11
+role = "text_code_caption"
 text = "y ↑"
 
 [[nodes]]
 id = "z"
 name = "Z"
-parent = "axes_row"
+parent = "axes"
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
-font_size = 11
+role = "text_code_caption"
 text = "z ↓"
 
 [[nodes]]
@@ -76,68 +62,54 @@ kind = "row"
 grow = 1
 interactive = false
 
-# The folded bottom dock's way back, just after the zoom reading.
 [[nodes]]
 id = "zoom"
 name = "Zoom"
 parent = "hud"
 [nodes.widget]
-kind = "panel"
-fill = "bg_panel"
-corner_radius = 8
-padding = [6, 3, 6, 3]
-
-[[nodes]]
-id = "zoom_row"
-name = "Row"
-parent = "zoom"
-[nodes.widget]
 kind = "row"
+role = "sheet_hud"
 [nodes.widget_layout]
-gap = [2, 2]
 align_items = "center"
 
 [[nodes]]
 id = "out"
 name = "Out"
-parent = "zoom_row"
+parent = "zoom"
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "zoom_out" }] }
 [nodes.widget]
 kind = "button"
-text = "−"
-fill = "none"
-padding = 0
+role = "icon_action_form"
 
 [[nodes]]
 id = "reading"
 name = "Reading"
-parent = "zoom_row"
+parent = "zoom"
 [nodes.widget]
 kind = "label"
 role = "text_code"
-font_size = 11
 text = "100 %"
 
 [[nodes]]
 id = "in"
 name = "In"
-parent = "zoom_row"
+parent = "zoom"
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "zoom_in" }] }
 [nodes.widget]
 kind = "button"
-fill = "none"
-padding = 0
+role = "icon_action_form"
 
+# The folded bottom dock's way back, just after the zoom reading.
 [[nodes]]
 id = "bottom"
 name = "Bottom"
 parent = "hud"
 visible = false
 [nodes.widget]
-kind = "panel"
-fill = "bg_panel"
-corner_radius = 8
-padding = 0
+kind = "row"
+role = "sheet_hud"
+[nodes.widget_layout]
+align_items = "center"
 
 [[nodes]]
 id = "bottom_open"
@@ -146,6 +118,5 @@ parent = "bottom"
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "open_bottom" }] }
 [nodes.widget]
 kind = "button"
-fill = "none"
-padding = 0
+role = "icon_action_form"
 tooltip = "Open the dock"

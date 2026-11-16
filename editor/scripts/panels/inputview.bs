@@ -24,6 +24,7 @@ pub class Inputview {
     next_ring: int,
     at: At,
     factor: float,
+    press: float,
 }
 
 pub struct At {
@@ -54,9 +55,6 @@ const RIPPLE_TO: float = 140.0;
 
 const RINGS: int = 4;
 
-// The drawn pointer; the image's tip is its top-left corner.
-const PRESS: float = 22.0;
-
 impl Inputview {
     pub fn init() {
         let source = scene::root().get_node("Editor");
@@ -68,6 +66,7 @@ impl Inputview {
         self.next_ring = 0;
         self.at = At { x: 0.0, y: 0.0 };
         self.factor = 1.0;
+        self.press = 0.0;
         for word in ["pointer_moved", "pointer_pressed", "pointer_released"] {
             events::listen(self.node, word);
         }
@@ -113,7 +112,7 @@ impl Inputview {
         patched.set_visible(true);
         patched.patch_component(components::WIDGET, { dock_fields::INSET: [design_x, design_y, -1.0, -1.0] });
         self.node.get_node("Press").patch_component(components::WIDGET, {
-            dock_fields::INSET: [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0],
+            dock_fields::INSET: [design_x - self.press / 2.0, design_y - self.press / 2.0, -1.0, -1.0],
         });
     }
 
@@ -129,7 +128,7 @@ impl Inputview {
         if event[BUTTON].as_str() == sides::LEFT {
             let patched = self.node.get_node("Press");
             patched.set_visible(true);
-            patched.patch_component(components::WIDGET, { dock_fields::INSET: [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0] });
+            patched.patch_component(components::WIDGET, { dock_fields::INSET: [design_x - self.press / 2.0, design_y - self.press / 2.0, -1.0, -1.0] });
         }
     }
 
@@ -177,6 +176,7 @@ impl Inputview {
         let view = self.editor.unwrap().inputview_view();
         self.shown = view.shown;
         self.factor = view.factor;
+        self.press = view.press;
         self.node.set_visible(view.shown);
         self.node.get_node("Chips").patch_component(components::WIDGET, { dock_fields::INSET: [view.chips_x, view.chips_y, -1.0, -1.0] });
     }
@@ -239,7 +239,6 @@ impl Inputview {
             node.set_visible(true);
             node.widget.width = RIPPLE_FROM;
             node.widget.height = RIPPLE_FROM;
-            node.widget.corner_radius = RIPPLE_FROM / 2.0;
             node.patch_component(components::WIDGET, { dock_fields::INSET: [click_x.as_float() - RIPPLE_FROM / 2.0, click_y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0] });
             // Centred on the click as it grows, so the box's corner moves too.
             let from = [click_x.as_float() - RIPPLE_FROM / 2.0, click_y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0];
@@ -248,14 +247,6 @@ impl Inputview {
                 steps: [
                     animation::Step { property: "widget/width", from: RIPPLE_FROM, to: RIPPLE_TO, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC, parallel: false },
                     animation::Step { property: "widget/height", from: RIPPLE_FROM, to: RIPPLE_TO, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC, parallel: true },
-                    animation::Step {
-                        property: "widget/corner_radius",
-                        from: RIPPLE_FROM / 2.0,
-                        to: RIPPLE_TO / 2.0,
-                        duration: RIPPLE,
-                        ease: animation::EASE_OUT_CUBIC,
-                        parallel: true,
-                    },
                     animation::Step { property: "widget/inset", from: from, to: to, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC, parallel: true },
                 ],
             });

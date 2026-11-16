@@ -7,10 +7,19 @@ its web package's stylesheet, `.ph-fill.ph-plus:before { content: "\\e3d4" }`;
 this writes those names into the face as Phosphor spells them
 (`arrows-out-cardinal`). A codepoint the sheet names
 twice keeps its first name, and a plain glyph an icon's name falls on is named
-for its codepoint. Rerun after a Phosphor upgrade:
+for its codepoint.
 
-    curl -sSfLO https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css
-    python3 scripts/phosphor_names.py style.css editor/fonts/Phosphor-Fill.ttf
+Given a second weight's sheet and face, it also copies that weight's icons in
+under the names Phosphor's own files give them (`x-bold`), past the Basic
+Plane, where no weight's codepoints fall. The editor's face is the Fill
+weight with the Bold one beside it. Rerun after a Phosphor upgrade:
+
+    base=https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src
+    curl -sSfL -o fill.css $base/fill/style.css
+    curl -sSfL -o editor/fonts/Phosphor.ttf $base/fill/Phosphor-Fill.ttf
+    curl -sSfL -o bold.css $base/bold/style.css
+    curl -sSfL -o Phosphor-Bold.ttf $base/bold/Phosphor-Bold.ttf
+    python3 scripts/phosphor_names.py fill.css editor/fonts/Phosphor.ttf bold.css Phosphor-Bold.ttf
 """
 
 import re
@@ -55,5 +64,59 @@ def main(sheet_path: str, face_path: str) -> None:
     print(f"{face_path}: {sum(1 for a, b in zip(order, renamed) if a != b)} glyphs named")
 
 
+# Where a second weight's icons go: the first Supplementary Private Use
+# plane, at the same offset each has in the Basic Plane's private block.
+PLANE = 0xF0000
+BASIC_PRIVATE = 0xE000
+
+
+def add_weight(face_path: str, sheet_path: str, other_path: str, weight: str) -> None:
+    names = names_of(open(sheet_path, encoding="utf-8").read())
+    face = TTFont(face_path)
+    other = TTFont(other_path)
+    if face["head"].unitsPerEm != other["head"].unitsPerEm:
+        sys.exit("the two weights are drawn on different grids")
+    order = face.getGlyphOrder()
+    taken = set(order)
+    cmap = other.getBestCmap()
+    added: list[tuple[int, str, str]] = []
+    for code, glyph in sorted(cmap.items()):
+        if code not in names or code < BASIC_PRIVATE:
+            continue
+        name = f"{names[code]}-{weight}"
+        if name in taken:
+            sys.exit(f"`{name}` is already a glyph of {face_path}")
+        taken.add(name)
+        added.append((PLANE + code - BASIC_PRIVATE, name, glyph))
+    glyf, hmtx = face["glyf"], face["hmtx"]
+    grown = order + [name for _, name, _ in added]
+    face.setGlyphOrder(grown)
+    glyf.glyphOrder = grown
+    for _, name, glyph in added:
+        drawn = other["glyf"][glyph]
+        drawn.expand(other["glyf"])
+        glyf.glyphs[name] = drawn
+        hmtx[name] = other["hmtx"][glyph]
+    # One subtable that reaches past the Basic Plane, holding every mapping.
+    mapped = dict(face.getBestCmap())
+    mapped.update({code: name for code, name, _ in added})
+    from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
+    wide = CmapSubtable.newSubtable(12)
+    wide.platformID, wide.platEncID, wide.language = 3, 10, 0
+    wide.cmap = mapped
+    narrow = CmapSubtable.newSubtable(4)
+    narrow.platformID, narrow.platEncID, narrow.language = 3, 1, 0
+    narrow.cmap = {code: name for code, name in mapped.items() if code <= 0xFFFF}
+    face["cmap"].tables = [narrow, wide]
+    face["maxp"].numGlyphs = len(face.getGlyphOrder())
+    face["post"].formatType = 2.0
+    face["post"].extraNames = []
+    face["post"].mapping = {}
+    face.save(face_path)
+    print(f"{face_path}: {len(added)} {weight} glyphs added")
+
+
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
+    if len(sys.argv) == 5:
+        add_weight(sys.argv[2], sys.argv[3], sys.argv[4], "bold")

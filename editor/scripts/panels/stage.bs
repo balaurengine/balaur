@@ -6,7 +6,6 @@ use center;
 use editor;
 use words::components;
 use words::dock_fields;
-use words::layout_fields;
 
 pub class Stage {
     node: Node,
@@ -41,13 +40,9 @@ impl Stage {
             let handle = if side == "Left" { view.left } else { view.right };
             let sheet = self.node.get_node(side);
             sheet.set_visible(handle.shown);
-            sheet.patch_component(components::WIDGET, { layout_fields::PADDING: view.pad });
             let patched = sheet.get_node("Open");
             patched.widget_button.icon = handle.icon;
             patched.widget.tooltip = handle.tooltip;
-            patched.widget.width = view.diameter;
-            patched.widget.height = view.diameter;
-            patched.widget.corner_radius = view.diameter / 2.0;
         }
     }
 }

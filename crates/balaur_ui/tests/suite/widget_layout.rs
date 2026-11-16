@@ -724,3 +724,34 @@ fn a_listened_widget_says_when_its_box_moved() {
     };
     assert_eq!(width, Some(balaur_script::Value::Num(160.0)), "{moved:?}");
 }
+
+// A sideways scroll's contents are at least as wide as the scroll, as CSS's
+// `min-width: 100%`: a spring in a short strip pushes what follows it to the
+// far end, as the editor's bar does with its transport.
+#[test]
+fn a_spring_in_a_sideways_scroll_reaches_its_far_end() {
+    let (_dir, app) = app();
+    let scroll = add_widget(
+        &app,
+        &toml::toml! { kind = "scroll" x = 0.0 y = 0.0 width = 300.0 height = 40.0 widget_scroll = { axis = "horizontal" } }
+            .into(),
+    );
+    let strip = add_child_widget(
+        &app,
+        scroll,
+        "strip",
+        &toml::toml! { kind = "row" widget_layout = { gap = [0.0, 0.0] } }.into(),
+    );
+    add_child_widget(&app, strip, "first", &block(40.0, 20.0));
+    add_child_widget(
+        &app,
+        strip,
+        "spring",
+        &toml::toml! { kind = "row" grow = 1.0 }.into(),
+    );
+    let last = add_child_widget(&app, strip, "last", &block(40.0, 20.0));
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let end = balaur_ui::widget_rect(last).expect("it drew").right();
+    assert!(end > 250.0, "the last child ends at {end}");
+}

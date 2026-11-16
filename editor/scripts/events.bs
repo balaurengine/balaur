@@ -18,6 +18,7 @@ use words::layout_fields;
 use words::project_fields;
 use words::roles;
 use words::tabs;
+use words::theme_tokens;
 use words::verbs;
 
 const ADD_VARIABLE: str = "add_variable";
@@ -175,8 +176,6 @@ fn variable_names(state: editor::State) -> [str] {
     out
 }
 
-const ROW_HEIGHT: float = 26.0;
-
 fn as_text(value: any) -> str {
     if value == nil {
         ""
@@ -193,11 +192,11 @@ fn targets_a_variable(action: str) -> bool {
 }
 
 // A dropdown over one of a row's fields.
-fn pick(state: editor::State, at: int, key: str, current: str, choices: [str], width: float) -> ui::Control {
+fn pick(state: editor::State, at: int, key: str, current: str, choices: [str]) -> ui::Control {
     ui::Control {
         kind: ui::WIDGET_DROPDOWN,
         role: roles::CHOICE_FORM,
-        width: width,
+        grow: 1,
         text: current,
         options: choices,
         on_change: "handle",
@@ -210,11 +209,11 @@ fn on_field_picked(state: &mut editor::State, data: any, picked: any) {
 }
 
 // A field over one of a row's fields, written on Enter rather than per key.
-fn typed(state: editor::State, at: int, key: str, current: str, placeholder: str, width: float) -> ui::Control {
+fn typed(state: editor::State, at: int, key: str, current: str, placeholder: str) -> ui::Control {
     ui::Control {
         kind: ui::WIDGET_TEXT_FIELD,
         role: roles::INPUT_FORM,
-        width: width,
+        grow: 1,
         text: current,
         placeholder: placeholder,
         on_submit: "handle_submit",
@@ -239,36 +238,38 @@ fn row_spec(state: editor::State, at: int, row: any) -> form::Row {
     let event = event_of(row);
     let action = action_of(row);
     let target = row[inspector_fields::TARGET].as_str();
+    // The fields share the row alike, so a column lines up down the rows.
     let controls: [ui::Control] = [
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, width: 18, text: "{at + 1}" },
-        pick(state, at, EVENT, event, offered(state), 150.0),
-        typed(state, at, WHEN, row[fields::WHEN].as_str(), "always", 130.0),
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "{at + 1}" },
+        pick(state, at, EVENT, event, offered(state)),
+        typed(state, at, WHEN, row[fields::WHEN].as_str(), "always"),
         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "→" },
-        pick(state, at, ACTION, action, scene::binding_actions(), 130.0),
+        pick(state, at, ACTION, action, scene::binding_actions()),
     ];
     if targets_a_variable(action) {
-        controls.push(pick(state, at, TARGET, if target == "" { "—" } else { target }, variable_names(state), 120.0));
+        controls.push(pick(state, at, TARGET, if target == "" { "—" } else { target }, variable_names(state)));
     } else {
         controls.push(ui::Control {
             kind: ui::WIDGET_DROPDOWN,
             role: roles::CHOICE_FORM,
-            width: 140,
+            grow: 1,
             text: if target == "" { "(this node)" } else { target },
             options: target_paths(state),
             on_change: "handle",
             data: { fields::FN: on_target_picked, layout_fields::AT: at },
         });
     }
-    controls.push(typed(state, at, VALUE, as_text(row[fields::VALUE]), VALUE, 110.0));
+    controls.push(typed(state, at, VALUE, as_text(row[fields::VALUE]), VALUE));
     controls.push(ui::Control {
         kind: ui::WIDGET_BUTTON,
-        role: roles::CHIP_QUIET,
-        text: ui::glyph(icons::ui(icons::CLOSE)),
+        role: roles::ICON_ACTION_FORM,
+        text: "",
+        icon: icons::ui(icons::CLOSE),
         tooltip: "Remove this binding",
         on_click: "handle",
         data: { fields::FN: on_remove_clicked, layout_fields::AT: at },
     });
-    form::Row { height: ROW_HEIGHT, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
+    form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 fn on_target_picked(state: &mut editor::State, data: any, picked: any) {
@@ -560,18 +561,21 @@ pub fn fill(state: &mut editor::State) {
     }
     let node = model::selected_node(state);
     ui::fill_strip(PANEL + "/DocHead", [
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, grow: 1, text: "EVENT BINDINGS · {node.name()}" },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: "event bindings" },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, grow: 1, text: node.name() },
         ui::Control {
             kind: ui::WIDGET_BUTTON,
             role: roles::ACTION_FORM_SECONDARY,
-            text: "‹›  Convert to script",
+            text: "Convert to script",
+            icon: icons::ui(icons::SCRIPTFILE),
             on_click: "handle",
             data: { fields::FN: on_convert_clicked },
         },
         ui::Control {
             kind: ui::WIDGET_BUTTON,
             role: roles::ACTION_FORM_PRIMARY,
-            text: ui::glyph(icons::ui(icons::ADD)) + "  Add row",
+            text: "Add row",
+            icon: icons::ui(icons::ADD),
             on_click: "handle",
             data: { fields::FN: on_add_row_clicked },
         },
@@ -579,7 +583,7 @@ pub fn fill(state: &mut editor::State) {
     let specs: [form::Row] = [];
     let held = rows(state);
     if held.len() == 0 {
-        specs.push(note("no bindings on this node yet"));
+        specs.push(form::note("no bindings on this node yet"));
     }
     for at in 0..held.len() {
         specs.push(row_spec(state, at, util::map_or_empty(held[at])));
@@ -597,53 +601,23 @@ fn on_add_row_clicked(state: &mut editor::State, data: any, _value: any) {
     add_row(state);
 }
 
-fn note(text: str) -> form::Row {
-    form::Row {
-        height: 0,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: roles::TEXT_CAPTION,
-                grow: 1,
-                wrap: true,
-                text: text,
-            },
-        ],
-    }
-}
-
-fn head(text: str) -> form::Row {
-    form::Row {
-        height: 26,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: roles::TEXT_HEADING,
-                grow: 1,
-                text: text.to_upper(),
-            },
-        ],
-    }
-}
-
 /// What the scene declares, so a `when` has something to name. Read-only: a
 /// variable is declared in the scene file's `[variables]`.
 fn variable_specs(state: editor::State, out: [form::Row]) {
-    out.push(head("scene variables"));
+    out.push(form::heading("scene variables"));
     let declared = scene::variables();
     if declared.len() == 0 {
-        out.push(note("none; declare them under [variables] in the scene file"));
+        out.push(form::note("none; declare them under [variables] in the scene file"));
         return;
     }
     for entry in declared {
         out.push(form::Row {
-            height: 24,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: entry.name },
                 ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: entry.type },
                 ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
-                ui::Control { kind: ui::WIDGET_LABEL, role: "text_code_success", text: "{entry.value}" },
+                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_SUCCESS, text: "{entry.value}" },
             ],
         });
     }
@@ -658,25 +632,21 @@ fn hook_specs(state: &mut editor::State, out: [form::Row]) {
         return;
     }
     let script = script_or.as_str();
-    out.push(head("script hooks"));
+    out.push(form::heading("script hooks"));
     for hook in model::hooks(state, script) {
         let name = hook[fields::NAME].as_str();
         let lifecycle = name == hooks::INIT || name == hooks::UPDATE;
         out.push(form::Row {
-            height: 28,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_ROW,
-                    role: "sheet_hook",
+                    role: roles::SHEET_HOOK,
+                    align_items: ui::ALIGN_CENTER,
                     controls: [
-                        ui::Control {
-                            kind: ui::WIDGET_LABEL,
-                            text: "•",
-                            role: if lifecycle { "text_mark_primary" } else { "text_mark_secondary" },
-                        },
+                        ui::Control { kind: ui::WIDGET_ROW, role: roles::MARK_LAMP, fill: if lifecycle { theme_tokens::PRIMARY_TEXT } else { theme_tokens::SECONDARY_TEXT } },
                         ui::Control { kind: ui::WIDGET_LABEL, text: "{node.name()}.{name}()", role: roles::TEXT_CODE },
                         ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
-                        ui::Control { kind: ui::WIDGET_LABEL, text: "{script}:{hook["line"]}", role: "text_caption" },
+                        ui::Control { kind: ui::WIDGET_LABEL, text: "{script}:{hook["line"]}", role: roles::TEXT_CAPTION },
                     ],
                 },
             ],

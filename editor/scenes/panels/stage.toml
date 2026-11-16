@@ -50,9 +50,9 @@ script = { source = "scripts/panels/chips.bs" }
 visible = false
 [nodes.widget]
 kind = "scroll"
+role = "header_stage"
 absolute = true
 inset = [0.0, 0.0, 0.0, -1.0]
-height = 28
 [nodes.widget_scroll]
 axis = "horizontal"
 
@@ -62,9 +62,8 @@ name = "Row"
 parent = "chips"
 [nodes.widget]
 kind = "row"
-padding = [6, 0, 6, 0]
+role = "header_stage"
 [nodes.widget_layout]
-gap = [6, 6]
 align_items = "center"
 
 # A folded side dock's way back, at the edge it folded towards.
@@ -75,7 +74,7 @@ parent = "chrome"
 visible = false
 [nodes.widget]
 kind = "panel"
-role = "sheet"
+role = "sheet_rail"
 absolute = true
 inset = [0.0, 0.0, -1.0, -1.0]
 
@@ -87,7 +86,6 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "open" 
 [nodes.widget]
 kind = "button"
 role = "icon_action"
-padding = 0
 
 [[nodes]]
 id = "right"
@@ -96,7 +94,7 @@ parent = "chrome"
 visible = false
 [nodes.widget]
 kind = "panel"
-role = "sheet"
+role = "sheet_rail"
 absolute = true
 inset = [-1.0, 0.0, 0.0, -1.0]
 
@@ -108,4 +106,3 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "open" 
 [nodes.widget]
 kind = "button"
 role = "icon_action"
-padding = 0

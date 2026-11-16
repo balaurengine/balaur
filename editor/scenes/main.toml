@@ -29,8 +29,7 @@ anchor = "fill"
 role = "layout_shell"
 
 # The one bar across the top: brand, workspaces, the open documents, and the
-# transport. It floats over this row, which holds the height and pushes the
-# body down.
+# transport. As tall as its row, which the theme states, and its inset.
 [[nodes]]
 id = "head"
 name = "Head"
@@ -38,16 +37,7 @@ parent = "shell"
 script = { source = "scripts/panels/topbar.bs" }
 [nodes.widget]
 kind = "panel"
-# The bar's own row is 30, and this sheet keeps 5 inside each edge: the one
-# strip that is chrome from edge to edge takes less than a panel would.
-height = 40
-padding = 5
-# Its contents are 33 where a finger reaches them, and a sheet that kept 40
-# would leave them 30 and show the difference as one-sided padding.
-[nodes.widget.touch]
-height = 43
-[nodes.widget_layout]
-gap = [0, 0]
+role = "header_shell"
 
 # A panel stacks what is in it, so the bar's own direction is this row.
 [[nodes]]
@@ -56,9 +46,9 @@ name = "HeadRow"
 parent = "head"
 [nodes.widget]
 kind = "row"
+role = "layout_bar"
 grow = 1
 [nodes.widget_layout]
-gap = [8, 8]
 align_items = "center"
 
 # The brand, the shell's one menu, then a strip: how many workspaces and
@@ -97,8 +87,8 @@ name = "HeadStrip"
 parent = "head_scroll"
 [nodes.widget]
 kind = "row"
+role = "toolbar_shell"
 [nodes.widget_layout]
-gap = [4, 4]
 align_items = "center"
 
 [[nodes]]
@@ -107,10 +97,10 @@ name = "Body"
 parent = "shell"
 [nodes.widget]
 kind = "row"
+role = "layout_split"
 interactive = false
 grow = 1
 [nodes.widget_layout]
-gap = [12, 12]
 splitter_width = 12
 
 # The column a side dock owns, and the sheet inside it. Two boxes rather than
@@ -132,9 +122,6 @@ script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
 grow = 1
-# What a sheet keeps inside its edge. Stated rather than left to the widget
-# theme because a folded dock writes a smaller one and needs this back.
-padding = 8
 
 # The dock's tab row: one control a tab, and the mark that closes it.
 [[nodes]]
@@ -209,10 +196,10 @@ name = "Centre"
 parent = "body"
 [nodes.widget]
 kind = "column"
+role = "layout_split"
 interactive = false
 grow = 1
 [nodes.widget_layout]
-gap = [12, 12]
 splitter_width = 12
 
 # The rail and the scene share this row; the dock below is the centre's own
@@ -223,10 +210,9 @@ name = "UpperRow"
 parent = "centre"
 [nodes.widget]
 kind = "row"
+role = "layout_split"
 interactive = false
 grow = 1
-[nodes.widget_layout]
-gap = [12, 12]
 
 [[nodes]]
 id = "right"
@@ -244,7 +230,6 @@ script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
 grow = 1
-padding = 8
 
 # The right sheet in three: the header and the search the panel draws, the
 # rows the pool makes, and the footer that must stay under a long form.
@@ -322,7 +307,6 @@ parent = "upper_row"
 script = { source = "scripts/panels/rail.bs" }
 [nodes.widget]
 kind = "column"
-width = 44
 [nodes.widget_layout]
 # The handle's row states its own air; an empty one would still hold the
 # rail a gap below the stage's top.
@@ -336,7 +320,6 @@ name = "RailTop"
 parent = "railslot"
 [nodes.widget]
 kind = "row"
-height = 0
 
 # The folded left dock's way back, on the rail's own sheet.
 [[nodes]]
@@ -346,7 +329,7 @@ parent = "railtop"
 visible = false
 [nodes.widget]
 kind = "panel"
-role = "sheet"
+role = "sheet_rail"
 
 [[nodes]]
 id = "rail_handle_open"
@@ -356,7 +339,6 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "open_l
 [nodes.widget]
 kind = "button"
 role = "icon_action"
-padding = 0
 
 # The rail is only as tall as its tools, so it takes the top of the slot
 # rather than the whole of it; `layout.bs` states the height.
@@ -366,8 +348,7 @@ name = "Rail"
 parent = "railslot"
 [nodes.widget]
 kind = "panel"
-role = "sheet"
-height = 42
+role = "sheet_rail"
 
 # The scene and the dock, stacked beside the rail.
 [[nodes]]
@@ -378,8 +359,6 @@ parent = "upper_row"
 kind = "column"
 interactive = false
 grow = 1
-[nodes.widget_layout]
-gap = [12, 12]
 
 # The axis and zoom pills along the foot of the rail and the scene, over both:
 # see scenes/panels/hud.toml.
@@ -397,8 +376,6 @@ parent = "stack"
 kind = "row"
 interactive = false
 grow = 1
-[nodes.widget_layout]
-gap = [12, 12]
 
 [[nodes]]
 id = "bottom"
@@ -575,10 +552,9 @@ script = { source = "scripts/panels/status.bs" }
 # dress it and the layout can keep its boxes between passes.
 [nodes.widget]
 kind = "row"
-height = 24
+role = "bar_status"
 [nodes.widget_layout]
 align_items = "center"
-gap = [8, 8]
 
 [[nodes]]
 id = "work"
@@ -588,8 +564,6 @@ parent = "upper"
 kind = "column"
 interactive = false
 grow = 1
-[nodes.widget_layout]
-gap = [6, 6]
 
 [[nodes]]
 id = "canvas"
@@ -597,10 +571,9 @@ name = "Canvas"
 parent = "work"
 [nodes.widget]
 kind = "row"
+role = "layout_split"
 interactive = false
 grow = 1
-[nodes.widget_layout]
-gap = [12, 12]
 
 # What is left of the canvas once the hooks list has taken its width. The
 # code pane and the scene share it; `layout.bs` decides how.
@@ -673,7 +646,7 @@ role = "list_doc"
 grow = 1
 
 # The file's engine-facing surface, beside the code. `layout.bs` writes 0 here
-# when it is closed; this is what it opens back to.
+# when it is closed, and its role's width when it opens.
 [[nodes]]
 id = "hooks"
 name = "Hooks"
@@ -681,11 +654,7 @@ parent = "canvas"
 script = { source = "scripts/panels/hooks.bs" }
 [nodes.widget]
 kind = "panel"
-role = "sheet"
-width = 172
-padding = [12, 0, 12, 0]
-[nodes.widget_layout]
-gap = [0, 6]
+role = "sheet_hooks"
 
 [[nodes]]
 id = "hooks_title"
@@ -694,8 +663,7 @@ parent = "hooks"
 [nodes.widget]
 kind = "label"
 role = "text_heading"
-text = "HOOKS IN FILE"
-padding = [2, 11, 2, 5]
+text = "Hooks in file"
 
 [[nodes]]
 id = "hooks_pills"
@@ -703,8 +671,7 @@ name = "Pills"
 parent = "hooks"
 [nodes.widget]
 kind = "column"
-[nodes.widget_layout]
-gap = [0, 6]
+role = "list_hooks"
 
 [[nodes]]
 id = "hooks_unsaved"
@@ -758,9 +725,6 @@ parent = "manager"
 kind = "column"
 role = "layout_manager"
 grow = 1
-max_width = 900
-[nodes.widget_layout]
-gap = [0, 10]
 
 [[nodes]]
 id = "manager_note"
@@ -769,8 +733,7 @@ parent = "manager_body"
 visible = false
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
-font_size = 11
+role = "text_code_caption"
 [nodes.widget_text]
 wrap = true
 
@@ -781,8 +744,8 @@ parent = "manager_body"
 visible = false
 [nodes.widget]
 kind = "row"
+role = "layout_actions"
 [nodes.widget_layout]
-gap = [10, 10]
 align_items = "center"
 
 # Wraps under a phone's width: a filter and three buttons do not share 280
@@ -794,8 +757,8 @@ parent = "manager_body"
 visible = false
 [nodes.widget]
 kind = "row"
+role = "layout_actions"
 [nodes.widget_layout]
-gap = [6, 8]
 align_items = "center"
 wrap_children = "wrap"
 
@@ -848,8 +811,7 @@ name = "Page"
 parent = "manager_scroll"
 [nodes.widget]
 kind = "column"
-[nodes.widget_layout]
-gap = [0, 4]
+role = "list_doc"
 
 # A query and what it matches, over everything: the command palette and the
 # node picker take turns on it. A `dialog`, so Escape and a click on the dim
@@ -989,10 +951,9 @@ script = { source = "scripts/panels/dialogs.bs" }
 visible = false
 [nodes.widget]
 kind = "column"
+role = "layout_split"
 anchor = "top_left"
 whole_window = true
-[nodes.widget_layout]
-gap = [12, 12]
 
 # `--state fontdemo`'s sheet of every script, face and icon, over the stage.
 [[nodes]]
@@ -1002,12 +963,9 @@ parent = "n_editor"
 visible = false
 [nodes.widget]
 kind = "panel"
-role = "sheet"
+role = "sheet_picker"
 anchor = "top_left"
 whole_window = true
-padding = [16, 12, 16, 12]
-[nodes.widget_layout]
-gap = [6, 6]
 
 # The box select's outline, placed while the drag lasts.
 [[nodes]]

@@ -24,7 +24,6 @@ use words::layout_fields;
 use words::project_fields;
 use words::roles;
 use words::tabs;
-use words::theme_tokens;
 
 const CHOOSE: str = "choose";
 const INLINE: str = "inline";
@@ -84,9 +83,12 @@ const TREE_NODE: str = "Editor/Shell/Body/Left/LeftSheet/SceneTree/Tree";
 
 const OUTLINE: str = "Editor/Shell/Body/Left/LeftSheet/Outline";
 
-// The pitch the `tree` node draws at. Stated rather than measured: the node
-// takes it as `row_height`, so `row_spot` and the rows cannot drift apart.
-const TREE_ROW: float = 23.0;
+// The theme's `[tree]` table and the keys its pitch is read by.
+const TREE: str = "tree";
+
+const TOUCH: str = "touch";
+
+const ROW_HEIGHT: str = "row_height";
 
 // The names the tree reports a row's marks by.
 const MARK_EYE: str = "eye";
@@ -325,7 +327,7 @@ fn tree_items(state: editor::State, tokens: any, rows: [any]) -> [ui::Item] {
         // cannot say: 2D, 3D, UI and physics each read at a glance. The id is
         // the row's key: two nodes may share a name, never a row.
         let note = if lint::warned(state, id).len() > 0 { "⚠" } else { "" };
-        let tint = if tokens[icon.role] == nil { tokens[theme_tokens::TEXT_DEFAULT].as_str() } else { tokens[icon.role].as_str() };
+        let tint = if tokens[icon.role] == nil { "" } else { tokens[icon.role].as_str() };
         items.push(ui::Item { icon: icon.glyph, label: node.name(), note: note, tint: tint, key: id, depth: row[DEPTH].as_int(), marks: row_marks(state, index) });
     }
     items
@@ -371,7 +373,19 @@ pub fn row_spot(state: &mut editor::State, index: int) -> RowSpot? {
     }
     let box = rect.unwrap();
     let position = selected_row(open_rows(state), index) as float;
-    RowSpot { x: box.x + box.width * 0.4, y: box.y + (position + 0.5) * TREE_ROW }
+    RowSpot { x: box.x + box.width * 0.4, y: box.y + (position + 0.5) * tree_pitch(state) }
+}
+
+// The tree's row pitch as the theme states it, so `row_spot` and the rows
+// cannot drift apart.
+fn tree_pitch(state: editor::State) -> float {
+    let table = state.theme[fields::DOC][TREE];
+    if table == nil || table[ROW_HEIGHT] == nil {
+        return style::row_height(state);
+    }
+    let touch = table[TOUCH];
+    let pitch = if state.touchscreen && touch != nil && touch[ROW_HEIGHT] != nil { touch[ROW_HEIGHT] } else { table[ROW_HEIGHT] };
+    style::size_in_pixels(state, pitch)
 }
 
 // Which drawn row is the selection, so the node can mark it.
@@ -466,20 +480,18 @@ pub fn rename_close(state: &mut editor::State) {
 /// the rename happens over it.
 /// Fill the picker: what its script asks for while a rename is up.
 pub fn rename_fill(state: &mut editor::State) {
-    let row_height = math::max(style::row_height(state), 28.0);
+    let button = style::role_size_in_pixels(state, roles::ACTION_FORM_PRIMARY, layout_fields::HEIGHT, 20.0);
     let host = window::picker(state, {
-        layout_fields::WIDTH: 420.0,
         fields::MARK: node_mark(state),
         form_fields::PLACEHOLDER: "Name",
         form_fields::QUERY: state.rename_text,
-        form_fields::ROWS_H: row_height + 6.0,
+        form_fields::ROWS_H: button + 6.0,
         form_fields::ON_CHANGE: hooks::HANDLE,
         form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
         fields::DATA: { fields::FN: on_rename_typed, project_fields::SUBMIT: on_rename_submitted },
     });
     form::fill(host, [
         form::Row {
-            height: row_height,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_BUTTON,

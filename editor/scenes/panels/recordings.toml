@@ -11,8 +11,6 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 [[nodes]]
 id = "tools"
@@ -23,7 +21,6 @@ kind = "row"
 role = "toolbar_dock"
 [nodes.widget_layout]
 align_items = "center"
-gap = [6, 6]
 
 [[nodes]]
 id = "says"

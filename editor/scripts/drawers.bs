@@ -2,6 +2,7 @@
 // its control heard. A control's `data` names its line, which holds the rest.
 
 use editor;
+use fold;
 use fonts;
 use form;
 use icons;
@@ -151,9 +152,9 @@ fn label_of(line: inspector::Line) -> str {
 
 fn label_role_of(line: inspector::Line) -> str {
     if line.mark == inspector::MARK_WARNING {
-        "text_label_warning"
+        roles::TEXT_LABEL_WARNING
     } else if line.mark == inspector::MARK_OVERRIDE {
-        "text_label_override"
+        roles::TEXT_LABEL_OVERRIDE
     } else {
         roles::TEXT_LABEL
     }
@@ -192,10 +193,9 @@ fn add_tail(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
     if line.holder != nil {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            text: ui::glyph(icons::ui(icons::CLOSE)),
-            role: roles::CHIP,
-            width: 22,
-            height: inspector::control_height(state),
+            text: "",
+            icon: icons::ui(icons::CLOSE),
+            role: roles::ICON_ACTION_FORM,
             tooltip: "Take this one out",
             on_click: "inspector_edit",
             data: edit_of(line, on_entry_removed),
@@ -205,10 +205,8 @@ fn add_tail(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
         if model::script_props(state.inspect.node).has(line.at.property) {
             controls.push(ui::Control {
                 kind: ui::WIDGET_BUTTON,
-                height: inspector::control_height(state),
                 text: "reset",
-                role: roles::CHIP,
-                width: 52,
+                role: roles::ACTION_FORM,
                 tooltip: "Back to the script's default",
                 on_click: "inspector_edit",
                 data: edit_of(line, on_script_property_reset),
@@ -230,30 +228,6 @@ fn ink(tokens: any, token: str) -> str {
     if tokens[token] == nil { tokens[theme_tokens::TEXT_MUTED].as_str() } else { tokens[token].as_str() }
 }
 
-// A fold's two nodes, the caret and the title that toggles it. `role` names
-// the three theme entries the row takes, so a section and a subsection differ
-// by their theme and nothing else.
-fn fold_controls(line: inspector::Line, role: str, text: str, icon: str, icon_color: str) -> [ui::Control] {
-    [
-        ui::Control {
-            kind: ui::WIDGET_LABEL,
-            role: "text_caret_" + role,
-            text: ui::glyph(if line.spec[project_fields::OPEN].as_bool() { icons::ui("caret-open") } else { icons::ui("caret-shut") }),
-        },
-        ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: "action_" + role,
-            grow: 1,
-            text: text,
-            icon: icon,
-            icon_color: icon_color,
-            tooltip: line.why,
-            on_click: "inspector_edit",
-            data: edit_of(line, on_folded),
-        },
-    ]
-}
-
 fn on_folded(state: &mut editor::State, line: inspector::Line, _data: any, _value: any) {
     inspector::fold(state, line);
 }
@@ -263,8 +237,9 @@ fn on_folded(state: &mut editor::State, line: inspector::Line, _data: any, _valu
 fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> form::Row {
     let name = line.at.component;
     let mark = icons::component(name);
-    let title = if line.mark == inspector::MARK_WARNING { name.to_upper() + "  ⚠" } else { name.to_upper() };
-    let controls = fold_controls(line, "section", title, mark.glyph, ink(state.theme, mark.token));
+    let title = if line.mark == inspector::MARK_WARNING { name + "  ⚠" } else { name };
+    let open = line.spec[project_fields::OPEN].as_bool();
+    let controls = [fold::head(open, title, mark.glyph, ink(state.theme, mark.token), 0, line.why, ui::Control { kind: ui::WIDGET_BUTTON, on_click: "inspector_edit", data: edit_of(line, on_folded) })];
     if line.spec["enabled"].as_bool() {
         controls.push(ui::Control {
             kind: ui::WIDGET_SWITCH,
@@ -278,14 +253,15 @@ fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> f
     if line.spec["removable"].as_bool() {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: "icon_action_form",
-            text: ui::glyph(icons::ui(icons::CLOSE)),
+            role: roles::ICON_ACTION_FORM,
+            text: "",
+            icon: icons::ui(icons::CLOSE),
             tooltip: "Remove component",
             on_click: "inspector_edit",
             data: edit_of(line, on_component_removed),
         });
     }
-    form::Row { height: line.height, slot_role: "layout_section", controls: controls }
+    form::Row { height: line.height, slot_role: roles::LAYOUT_FOLD, controls: controls }
 }
 
 fn on_enabled_toggled(state: &mut editor::State, line: inspector::Line, _data: any, on: any) {
@@ -298,7 +274,9 @@ fn on_component_removed(state: &mut editor::State, line: inspector::Line, _data:
 
 fn fold_row(state: &mut editor::State, line: inspector::Line) -> form::Row {
     let text = "{util::property_label(line.at.property)} · {line.spec["count"].as_int()}";
-    form::Row { height: line.height, slot_role: "layout_subsection", controls: fold_controls(line, "subsection", text, "", "") }
+    let open = line.spec[project_fields::OPEN].as_bool();
+    let head = fold::head(open, text, icons::ui(icons::ENTRY_LIST), "", 1, line.why, ui::Control { kind: ui::WIDGET_BUTTON, on_click: "inspector_edit", data: edit_of(line, on_folded) });
+    form::Row { height: line.height, slot_role: roles::LAYOUT_FOLD, controls: [head] }
 }
 
 /// A property's value as its row draws it. `unit` is display only: the
@@ -440,8 +418,8 @@ fn enum_row(state: &mut editor::State, line: inspector::Line, spec: any, value: 
 fn color_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     let held = util::list_or_empty(value);
     labelled(state, line, [
-        ui::Control { kind: ui::WIDGET_COLOR_PICKER, width: 34, picked_color: held, on_change: "inspector_edit", data: edit_of(line, on_value_taken) },
-        ui::Control { kind: ui::WIDGET_LABEL, grow: 1, text: color_text(held), role: roles::TEXT_CAPTION },
+        ui::Control { kind: ui::WIDGET_COLOR_PICKER, picked_color: held, on_change: "inspector_edit", data: edit_of(line, on_value_taken) },
+        ui::Control { kind: ui::WIDGET_LABEL, grow: 1, text: color_text(held), role: roles::TEXT_BODY },
     ])
 }
 
@@ -480,7 +458,7 @@ fn flags_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
             text: name,
-            role: "chip_flag",
+            role: roles::CHIP_FLAG,
             checked: on,
             on_click: "inspector_edit",
             data: { layout_fields::LINE: line.key, fields::FN: on_flag_toggled, fields::NAME: name },
@@ -564,10 +542,9 @@ fn holder_row(state: &mut editor::State, line: inspector::Line, note: str, adds:
     if adds {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            text: ui::glyph(icons::ui(icons::ADD)),
-            role: roles::CHIP,
-            width: 22,
-            height: inspector::control_height(state),
+            text: "",
+            icon: icons::ui(icons::ADD),
+            role: roles::ICON_ACTION_FORM,
             tooltip: "Add one",
             on_click: "inspector_edit",
             data: edit_of(line, on_entry_added),
@@ -603,22 +580,31 @@ fn script_path_row(state: &mut editor::State, line: inspector::Line, value: any)
     apart(state, line, [
         ui::Control {
             kind: ui::WIDGET_TEXT_FIELD,
-            role: "input_path",
+            role: roles::INPUT_PATH,
             grow: 1,
             text: inspector::as_text(value),
             placeholder: "scripts/name.bs",
             on_submit: "inspector_edit",
             data: edit_of(line, on_value_taken),
         },
-        ui::Control {
-            kind: ui::WIDGET_DROPDOWN,
-            role: roles::CHOICE,
-            text: "pick",
-            options: shell::script_files(state),
-            on_change: "inspector_edit",
-            data: edit_of(line, on_value_taken),
-        },
+        ui::Control { kind: ui::WIDGET_MENU, role: roles::CHOICE, text: "pick", tooltip: "Name a script that exists", controls: script_picks(state, line) },
     ])
+}
+
+// A menu row a script: a menu is as wide as its caption, where a dropdown
+// takes its longest file name's room from the field beside it.
+fn script_picks(state: &mut editor::State, line: inspector::Line) -> [ui::Control] {
+    let out: [ui::Control] = [];
+    for file in shell::script_files(state) {
+        let data = edit_of(line, on_script_picked);
+        data[fields::VALUE] = file;
+        out.push(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ITEM_MENU, text: file, on_click: "inspector_edit", data: data });
+    }
+    out
+}
+
+fn on_script_picked(state: &mut editor::State, line: inspector::Line, data: any, _value: any) {
+    inspector::write_at(state, line.at, data[fields::VALUE]);
 }
 
 // A reference, or an inline definition the engine reports as a `#!` digest. A
@@ -656,7 +642,7 @@ fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
     if directory != "" {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: "action_dock_secondary",
+            role: roles::ACTION_DOCK_SECONDARY,
             text: if inline { "save to file" } else { "embed" },
             tooltip: if inline {
                 "Write this {asset_type} to {directory}/ and reference it"
@@ -763,7 +749,7 @@ fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, val
             channels = [value["r"].as_float(), value["g"].as_float(), value["b"].as_float(), value["a"].as_float()];
         }
         return labelled(state, line, [
-            ui::Control { kind: ui::WIDGET_COLOR_PICKER, width: 34, picked_color: channels, on_change: "inspector_edit", data: edit_of(line, on_parameter_taken) },
+            ui::Control { kind: ui::WIDGET_COLOR_PICKER, picked_color: channels, on_change: "inspector_edit", data: edit_of(line, on_parameter_taken) },
         ]);
     }
     if datatype == datatypes::FLOAT {
@@ -832,8 +818,9 @@ fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> 
     let row = labelled(state, line, [
         ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: "icon_action_form_secondary",
-            text: ui::glyph(icons::ui(icons::OPEN)),
+            role: roles::ICON_ACTION_FORM_SECONDARY,
+            text: "",
+            icon: icons::ui(icons::OPEN),
             tooltip: "Edit " + current,
             on_click: "inspector_edit",
             data: edit_of(line, on_shader_opened),
@@ -847,7 +834,7 @@ fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> 
             data: { layout_fields::LINE: line.key, fields::FN: on_shader_picked, inspector_fields::CURRENT: current },
         },
     ]);
-    row.slot_role = "layout_shader";
+    row.slot_role = roles::LAYOUT_SHADER;
     row
 }
 
@@ -965,7 +952,7 @@ fn readonly_row(line: inspector::Line, spec: any, value: any) -> form::Row {
                 truncate: true,
                 text: readonly_text(spec, value),
             },
-            ui::Control { kind: ui::WIDGET_LABEL, role: "text_hint", truncate: false, text: "read-only" },
+            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HINT, truncate: false, text: "read-only" },
         ],
     }
 }

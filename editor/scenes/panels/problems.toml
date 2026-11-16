@@ -18,13 +18,8 @@ parent = "panel"
 bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "list_picked" }] }
 [nodes.widget]
 kind = "list"
+role = "list_log"
 grow = 1
-font = "fonts/JetBrainsMono-Regular.ttf"
-
-[nodes.widget.touch]
-row_height = 33
-[nodes.widget_rows]
-row_height = 18
 
 [[nodes]]
 id = "nothing"

@@ -250,7 +250,11 @@ fn style_key(
     is_root.hash(&mut hasher);
     folded.hash(&mut hasher);
     for side in fills {
-        side.map(f32::to_bits).hash(&mut hasher);
+        match side {
+            Side::Hug => 0_u8.hash(&mut hasher),
+            Side::Whole(length) => (1_u8, length.to_bits()).hash(&mut hasher),
+            Side::AtLeast(length) => (2_u8, length.to_bits()).hash(&mut hasher),
+        }
     }
     hasher.finish()
 }
@@ -266,11 +270,16 @@ fn styled(
     // The subtree's own node takes the box it was handed, where it was handed
     // one: a container's child fills its rect, and only a root on a corner
     // sizes itself from what is inside it.
-    if let Some(width) = fills[0] {
-        want.size.width = length(width);
+    let [width, height] = fills;
+    match width {
+        Side::Hug => {}
+        Side::Whole(width) => want.size.width = length(width),
+        Side::AtLeast(width) => want.min_size.width = length(width.max(widget.min_width)),
     }
-    if let Some(height) = fills[1] {
-        want.size.height = length(height);
+    match height {
+        Side::Hug => {}
+        Side::Whole(height) => want.size.height = length(height),
+        Side::AtLeast(height) => want.min_size.height = length(height.max(widget.min_height)),
     }
     want
 }
@@ -482,9 +491,20 @@ pub(crate) struct Room {
     fill: Fill,
 }
 
-/// A stated width and height the subtree's root takes, each where it is
-/// `Some`.
-pub(crate) type Fill = [Option<f32>; 2];
+/// How the subtree's root takes the box it was handed, per axis.
+pub(crate) type Fill = [Side; 2];
+
+/// How the subtree's root takes one axis of the box it was handed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Side {
+    /// What is inside it measures: a root on a corner.
+    Hug,
+    /// The whole box: a container's child.
+    Whole(f32),
+    /// The box, or longer where what is inside it is: a sideways scroll's
+    /// width, so a spring in a short strip still reaches its far end.
+    AtLeast(f32),
+}
 
 /// Which ways a scroll moves, from its `axis` word: both where it says
 /// nothing.
@@ -501,7 +521,7 @@ impl Room {
                 width: AvailableSpace::Definite(rect.width()),
                 height: AvailableSpace::Definite(rect.height()),
             },
-            fill: [Some(rect.width()), Some(rect.height())],
+            fill: [Side::Whole(rect.width()), Side::Whole(rect.height())],
         }
     }
 
@@ -513,7 +533,7 @@ impl Room {
                 width: AvailableSpace::Definite(rect.width()),
                 height: AvailableSpace::Definite(rect.height()),
             },
-            fill: [None, None],
+            fill: [Side::Hug, Side::Hug],
         }
     }
 
@@ -536,9 +556,19 @@ impl Room {
                     AvailableSpace::Definite(rect.height())
                 },
             },
+            // One that moves only sideways is at least as wide as itself, as a
+            // web page's row is: a spring in a short strip reaches its end.
             fill: [
-                (!sideways).then_some(rect.width()),
-                (!downwards).then_some(rect.height()),
+                match (sideways, downwards) {
+                    (false, _) => Side::Whole(rect.width()),
+                    (true, false) => Side::AtLeast(rect.width()),
+                    (true, true) => Side::Hug,
+                },
+                if downwards {
+                    Side::Hug
+                } else {
+                    Side::Whole(rect.height())
+                },
             ],
         }
     }
@@ -593,7 +623,7 @@ pub(crate) fn solve(
                 index,
                 &at,
                 &mut measure,
-                [None, None],
+                [Side::Hug, Side::Hug],
                 false,
                 true,
             );
@@ -758,7 +788,7 @@ fn sync(
                     *child,
                     &theme,
                     measure,
-                    [None, None],
+                    [Side::Hug, Side::Hug],
                     false,
                     true,
                 )

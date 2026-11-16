@@ -28,7 +28,6 @@ use selection;
 use settings;
 use shell;
 use signals;
-use style;
 use theme;
 use themewin;
 use util;
@@ -39,7 +38,6 @@ use words::fields;
 use words::form_fields;
 use words::hooks;
 use words::inspector_fields;
-use words::layout_fields;
 use words::project_fields;
 use words::roles;
 use words::tabs;
@@ -173,31 +171,31 @@ fn built_in_commands(state: &mut editor::State) -> [Command] {
     let undo = history::undo_label(state);
     let redo = history::redo_label(state);
     [
-        command(if undo != nil { "Undo " + undo.unwrap() } else { "Undo" }, "⟲", "⌘Z", verbs::UNDO),
-        command(if redo != nil { "Redo " + redo.unwrap() } else { "Redo" }, "⟳", "⇧⌘Z", verbs::REDO),
+        command(if undo != nil { "Undo " + undo.unwrap() } else { "Undo" }, icons::ui(verbs::UNDO), "⌘Z", verbs::UNDO),
+        command(if redo != nil { "Redo " + redo.unwrap() } else { "Redo" }, icons::ui(verbs::REDO), "⇧⌘Z", verbs::REDO),
         command("Add child node…", icons::ui(icons::ADD), "⇧A", verbs::ADD_CHILD),
         command("Change type of selection…", icons::ui(icons::RESET), "", CHANGE_TYPE),
         command("Make selection a soft body", icons::ui(icons::RESET), "", SOFT_BODY),
-        command("Attach script to selection", "‹›", "⌥S", verbs::ATTACH_SCRIPT),
-        command("Run scene", "▶", "F5", verbs::PLAY),
+        command("Attach script to selection", icons::ui(icons::SCRIPTFILE), "⌥S", verbs::ATTACH_SCRIPT),
+        command("Run scene", icons::ui(verbs::PLAY), "F5", verbs::PLAY),
         // One save behind one label: ⌘S writes whichever of the scene, the
         // open script and the open shader the centre is showing.
-        command("Save", "◇", "⌘S", verbs::SAVE),
-        command("Reload scripts", "⟳", "⇧R", RELOAD_SCRIPTS),
-        command("Export game…", "⇧", "⌘E", verbs::EXPORT),
-        command("Write a picture of the scene", "▣", "", PICTURE),
-        command("Settings…", "⚙", "⌘,", verbs::SETTINGS),
+        command("Save", icons::ui(verbs::SAVE), "⌘S", verbs::SAVE),
+        command("Reload scripts", icons::ui(icons::RELOAD), "⇧R", RELOAD_SCRIPTS),
+        command("Export game…", icons::ui(verbs::EXPORT), "⌘E", verbs::EXPORT),
+        command("Write a picture of the scene", icons::ui(icons::PICTURE), "", PICTURE),
+        command("Settings…", icons::ui(verbs::SETTINGS), "⌘,", verbs::SETTINGS),
         command("Toggle dark chrome", icons::ui(icons::DARK), "⌥L", theme_modes::DARK),
         command("Edit theme…", icons::ui(icons::DARK), "", verbs::THEME),
-        command(if state.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", INPUT_OVERLAY),
+        command(if state.show_input { "Hide input overlay" } else { "Show input overlay" }, icons::ui(icons::KEYBOARD), "", INPUT_OVERLAY),
         // No chord: ⌥3 is the Animation workspace's, and one chord names one verb.
-        command("Open animation timeline", "◷", "", verbs::TIMELINE),
-        command("Open state machine", "◷", "", verbs::STATEMACHINE),
+        command("Open animation timeline", icons::panel(verbs::TIMELINE), "", verbs::TIMELINE),
+        command("Open state machine", icons::panel(verbs::STATEMACHINE), "", verbs::STATEMACHINE),
         command("Open the Cost panel", icons::panel(icons::COST), "", verbs::COST),
         command("Open the library", icons::ui(icons::LIBRARY), "", verbs::LIBRARY),
         command("Show bindings", icons::ui(icons::EVENTS), "", verbs::BINDINGS),
         command("Add a binding", icons::ui(icons::EVENTS), "", ADD_BINDING),
-        command("Convert bindings to a script", "‹›", "", BINDINGS_TO_SCRIPT),
+        command("Convert bindings to a script", icons::ui(icons::SCRIPTFILE), "", BINDINGS_TO_SCRIPT),
         command("Split code and scene", icons::ui(icons::SPLIT), "⌘\\", verbs::SPLIT),
         command(if state.focus { "Put the docks back" } else { "Focus the code" }, icons::ui(if state.focus { "unfocus" } else { verbs::FOCUS }), "⇧⌘\\", verbs::FOCUS),
         command("Select all nodes", icons::ui("select-all"), "⌘A", verbs::SELECT_ALL),
@@ -225,12 +223,12 @@ fn built_in_commands(state: &mut editor::State) -> [Command] {
         command("Duplicate selected node", icons::ui(icons::INSTANCE), "", DUPLICATE),
         command("Copy selected node", icons::ui(icons::INSTANCE), "⌘C", verbs::COPY),
         command("Delete selected node", icons::ui(icons::CLOSE), "", DELETE),
-        command("Create animation clip", "◷", "", CLIP),
-        command("Insert keyframe at playhead", "◆", "K", tools::KEY),
-        command("Save clip to file", "◷", "", PROMOTE_CLIP),
-        command("Embed clip", "◷", "", EMBED_CLIP),
+        command("Create animation clip", icons::ui(icons::CLIP), "", CLIP),
+        command("Insert keyframe at playhead", icons::tool(tools::KEY), "K", tools::KEY),
+        command("Save clip to file", icons::ui(icons::CLIP), "", PROMOTE_CLIP),
+        command("Embed clip", icons::ui(icons::CLIP), "", EMBED_CLIP),
         command("UI scale +", icons::ui(icons::ADD), "⌘=", SCALE_UP),
-        command("UI scale −", "−", "⌘-", SCALE_DOWN),
+        command("UI scale −", icons::ui(icons::MINIMIZE), "⌘-", SCALE_DOWN),
     ]
 }
 
@@ -239,9 +237,9 @@ fn built_in_commands(state: &mut editor::State) -> [Command] {
 fn catalogue_commands(state: &mut editor::State, list: [Command]) {
     let known = catalogue(state);
     // Channel views: draw normals, UVs or depth instead of the picture.
-    list.push(command_with("View: color", "◐", run_view, ""));
+    list.push(command_with("View: color", icons::ui(icons::CHANNEL), run_view, ""));
     for channel in known.channels {
-        list.push(command_with("View: " + channel, "◐", run_view, channel));
+        list.push(command_with("View: " + channel, icons::ui(icons::CHANNEL), run_view, channel));
     }
     for entry in state.registry.commands {
         let plugin_command = command_with(entry[fields::TITLE].as_str(), entry[fields::ICON].as_str(), run_plugin, entry);
@@ -249,7 +247,7 @@ fn catalogue_commands(state: &mut editor::State, list: [Command]) {
         list.push(plugin_command);
     }
     for entry in state.registry.dialogs {
-        list.push(command_with("Open {entry["title"]}", "▭", run_dialog, entry["id"]));
+        list.push(command_with("Open {entry["title"]}", icons::ui(icons::DIALOG), run_dialog, entry["id"]));
     }
     // Presets first: they are the shortcut most edits actually want, and
     // each is just the components it names.
@@ -288,7 +286,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
     }
     // Attaching one is a verb of its own, offered whatever is selected.
     if model::script_rel(found) != nil {
-        list.push(command("Open the selection's script", "‹›", "", OPEN_SCRIPT));
+        list.push(command("Open the selection's script", icons::ui(icons::SCRIPTFILE), "", OPEN_SCRIPT));
         list.push(command("Detach the selection's script", icons::ui(icons::CLOSE), "", DETACH_SCRIPT));
     }
     if rig::bone_count(state, state.selected) > 0 {
@@ -305,7 +303,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
         list.push(command("Mirror the picked vertices over x", icons::tool(icons::POLYGON), "", "mirror_vertices:x"));
         list.push(command("Mirror the picked vertices over y", icons::tool(icons::POLYGON), "", "mirror_vertices:y"));
         list.push(command("Back to the outline's own triangles", icons::tool(icons::POLYGON), "", CLEAR_POLYGONS));
-        list.push(command("Key the polygon's deform", "◆", "", KEY_DEFORM));
+        list.push(command("Key the polygon's deform", icons::tool(tools::KEY), "", KEY_DEFORM));
         list.push(command("Reset the polygon's deform", icons::ui(icons::RESET), "", CLEAR_DEFORM));
     }
     let two_d = model::is_2d(state);
@@ -464,19 +462,17 @@ fn run_add_component(state: &mut editor::State, data: any) {
 /// Fill the picker: what its script asks for while the palette is up.
 pub fn fill(state: &mut editor::State) {
     let matched = matches(state);
-    let row_height = math::max(style::row_height(state), 30.0);
     let field: any = {
-        layout_fields::WIDTH: 560.0,
         fields::MARK: icons::ui(icons::SEARCH),
         form_fields::PLACEHOLDER: "Nodes, commands, workspaces…",
         form_fields::QUERY: state.palette_query,
-        form_fields::ROWS_H: (matched.len() as float) * (row_height + 2.0) + 4.0,
+        form_fields::ROWS_H: window::picker_rows_height(state, matched.len()),
         form_fields::ON_CHANGE: hooks::HANDLE,
         form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
         fields::DATA: { fields::FN: typed, project_fields::SUBMIT: submitted },
     };
     let host = window::picker(state, field);
-    form::fill(host, row_specs(state, matched, row_height));
+    form::fill(host, row_specs(state, matched));
 }
 
 fn typed(state: &mut editor::State, data: any, text: any) {
@@ -502,11 +498,10 @@ fn matches(state: &mut editor::State) -> [Command] {
     out
 }
 
-fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -> [form::Row] {
+fn row_specs(state: &mut editor::State, matched: [Command]) -> [form::Row] {
     let out: [form::Row] = [];
     if matched.len() == 0 {
-        let none: ui::Control = ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, wrap: true, text: "no matches" };
-        out.push(form::Row { controls: [none] });
+        out.push(form::note("no matches"));
         state.palette_submit = false;
         return out;
     }
@@ -526,18 +521,11 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -
             grow: 1,
             text: command_entry.label,
             icon: command_entry.icon,
+            trailing: command_entry.key,
             role: roles::ITEM_PICKER,
             checked: at == 0,
-            tooltip: command_entry.key,
         };
-        out.push(form::Row {
-            height: row_height,
-            slot_role: roles::LAYOUT_ACTIONS,
-            controls: [
-                pool::on(button, picked, { project_fields::RUN: command_entry.run, ARG: command_entry.data }),
-                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: command_entry.key },
-            ],
-        });
+        out.push(form::Row { controls: [pool::on(button, picked, { project_fields::RUN: command_entry.run, ARG: command_entry.data })] });
     }
     out
 }

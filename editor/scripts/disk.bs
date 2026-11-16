@@ -20,10 +20,6 @@ internal const SHEET: str = "disk_changed";
 const SCRIPT: str = ".bs";
 const SHADER: str = ".wesl";
 const LABEL_WIDTH: float = 0.0;
-const WIDTH: float = 520.0;
-// The sheet's title bar and padding, and a row in it.
-const HEAD_HEIGHT: float = 62.0;
-const ROW_HEIGHT: float = 36.0;
 // Rows on show before the list scrolls.
 const IN_VIEW: int = 10;
 // Rows built: past this the all-buttons are the answer, and the rest a count.
@@ -207,7 +203,7 @@ pub fn fill(state: &mut editor::State) {
     }
     let specs = rows(state);
     let seen = if specs.len() > IN_VIEW { IN_VIEW } else { specs.len() };
-    window::fit(WIDTH, HEAD_HEIGHT + (seen as float) * ROW_HEIGHT);
+    window::fit(state, seen, roles::CHIP);
     form::fill(hosts.unwrap().form, specs, LABEL_WIDTH, false);
 }
 
@@ -234,7 +230,7 @@ fn file_row(state: editor::State, path: str) -> form::Row {
 }
 
 fn row(controls: [ui::Control]) -> form::Row {
-    form::Row { height: 28, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
+    form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 fn chip(text: str, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {

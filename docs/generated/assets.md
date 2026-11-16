@@ -654,10 +654,19 @@ fill = "primary_fill_hover"
 offset = [0, 0.5]                # drawn this far from its place, as CSS's translate; the layout stays
 
 [button.focus]                   # with the pointer's table over it when both apply, as on the web
-outline = "primary"              # the ring 2 px outside the edge, as CSS's outline; the edge stays
+outline = "primary"              # the ring outside the edge, as CSS's outline; the edge stays
+outline_width = 2                # its width, and outline_offset its gap from the edge, 2 and 2 unset
 
 [spinner]                        # three quarters of a ring, turning, in the text's colour
 height = 24                      # its side; a widget's own height wins
+duration = 0.75                  # seconds a turn takes; stroke_width is the ring's, an eighth of the side unset
+                                 # a `loading` button's spinner is this table's too
+
+[switch]
+height = 18                      # the track; width is 1.75 of it unset
+
+[list]
+row_height = "control_height"    # a row's pitch, a tree's and a table's too; a widget's own wins
 
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels

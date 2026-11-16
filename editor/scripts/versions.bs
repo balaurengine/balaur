@@ -5,7 +5,6 @@ use editor;
 use form;
 use icons;
 use manager;
-use style;
 use util;
 use words::fields;
 use words::inspector_fields;
@@ -13,7 +12,6 @@ use words::layout_fields;
 use words::log_fields;
 use words::roles;
 use words::statuses;
-use words::theme_tokens;
 
 const DOWNLOADING: str = "downloading";
 const INSTALL: str = "install";
@@ -25,12 +23,11 @@ const DOWNLOAD: str = "download";
 // What this build is, which line it follows, and every release the project
 // has published. The same code `balaur update` runs, so the screen and the
 // command cannot disagree.
-internal fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> [form::Row] {
+internal fn engine_specs(state: &mut editor::State, column_width: float) -> [form::Row] {
     if !state.manager.asked {
         check(state);
     }
     let mine = util::map_or_empty(release::installed());
-    let row_height = math::max(style::row_height(state), 30.0);
     let newest = newest_on(state, state.manager.follow);
     let head: [ui::Control] = [
         ui::Control {
@@ -38,7 +35,7 @@ internal fn engine_specs(state: &mut editor::State, tokens: any, column_width: f
             grow: 1,
             controls: [
                 ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, text: "Balaur " + mine[fields::VERSION].as_str() },
-                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, text: build_line(mine), font_size: 11 },
+                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: build_line(mine) },
             ],
         },
     ];
@@ -46,10 +43,8 @@ internal fn engine_specs(state: &mut editor::State, tokens: any, column_width: f
         let fresh = newest[fields::ORDER].as_str() == statuses::NEWER;
         head.push(ui::Control {
             kind: ui::WIDGET_LABEL,
-            role: roles::TEXT_CODE_QUIET,
-            font_size: 11,
+            role: if fresh { roles::TEXT_CODE_SUCCESS } else { roles::TEXT_CODE_CAPTION },
             text: standing(state, state.manager.follow),
-            text_color: (if fresh { tokens[theme_tokens::SUCCESS_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str(),
         });
     }
     head.push(ui::Control {
@@ -60,11 +55,11 @@ internal fn engine_specs(state: &mut editor::State, tokens: any, column_width: f
         on_click: "handle",
         data: { fields::FN: on_check_pressed },
     });
-    let out: [form::Row] = [form::Row { height: 44, slot_role: roles::LAYOUT_ACTIONS, controls: head }];
+    let out: [form::Row] = [form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: head }];
     if mine[inspector_fields::HELD].as_str() != "" {
-        out.push(manager::say(mine[inspector_fields::HELD].as_str(), tokens[theme_tokens::TEXT_SUBTLE].as_str()));
+        out.push(manager::say(mine[inspector_fields::HELD].as_str()));
     }
-    let lines: [ui::Control] = [ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "Follow", width: 60 }];
+    let lines: [ui::Control] = [ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "Follow" }];
     for name in util::list_or_empty(release::channels()) {
         // Bound afresh: a closure made in a loop captures the binding.
         let line = name;
@@ -77,8 +72,8 @@ internal fn engine_specs(state: &mut editor::State, tokens: any, column_width: f
             data: { fields::FN: on_line_pressed, layout_fields::LINE: line },
         });
     }
-    out.push(form::Row { height: row_height + 6.0, slot_role: roles::LAYOUT_ACTIONS, controls: lines });
-    release_specs(state, tokens, row_height, mine, out);
+    out.push(form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: lines });
+    release_specs(state, mine, out);
     out
 }
 
@@ -92,7 +87,7 @@ fn on_line_pressed(state: &mut editor::State, data: any, _value: any) {
     manager::told(state);
 }
 
-fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any, out: [form::Row]) {
+fn release_specs(state: editor::State, mine: any, out: [form::Row]) {
     let rows: [any] = [];
     for entry in state.manager.releases {
         let row = util::map_or_empty(entry);
@@ -102,23 +97,17 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
     }
     if rows.len() == 0 {
         let empty = if state.manager.reading { "Reading the release feed." } else { "Nothing published on this line yet." };
-        out.push(manager::say(empty, tokens[theme_tokens::TEXT_SUBTLE].as_str()));
+        out.push(manager::say(empty));
     }
+    // The one installed says so at its end, where another has its press.
     for row in rows {
-        let current = row[inspector_fields::CURRENT].as_bool() == true;
         let controls: [ui::Control] = [
             ui::Control {
                 kind: ui::WIDGET_COLUMN,
                 grow: 1,
                 controls: [
-                    ui::Control {
-                        kind: ui::WIDGET_LABEL,
-                        role: roles::TEXT_TITLE,
-                        font_size: 13,
-                        text: row[fields::ID].as_str(),
-                        text_color: (if current { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_DEFAULT] }).as_str(),
-                    },
-                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: util::said_ago_since(row[fields::PUBLISHED]) },
+                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE_DIALOG, text: row[fields::ID].as_str() },
+                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: util::said_ago_since(row[fields::PUBLISHED]) },
                 ],
             },
         ];
@@ -126,7 +115,7 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
         if press != nil {
             controls.push(press.unwrap());
         }
-        out.push(form::Row { height: row_height + 14.0, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
+        out.push(form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls });
         out.push(manager::rule());
     }
     // An install that cannot replace itself has nothing to name a release for.
@@ -134,7 +123,6 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
         return;
     }
     out.push(form::Row {
-        height: row_height,
         controls: [
             ui::Control {
                 kind: ui::WIDGET_TEXT_FIELD,
@@ -149,7 +137,6 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
                 kind: ui::WIDGET_BUTTON,
                 role: roles::ACTION_FORM,
                 text: "Install",
-                min_width: 88,
                 on_click: "handle",
                 data: { fields::FN: on_install_typed_pressed },
             },
@@ -272,7 +259,7 @@ pub fn standing(state: editor::State, channel: str) -> str {
 /// Nil where there is none: an install already running, or a held build.
 pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
     if row[inspector_fields::CURRENT].as_bool() == true {
-        return ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: INSTALLED };
+        return ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: INSTALLED };
     }
     if installing(state) {
         return nil;
@@ -283,7 +270,6 @@ pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
             kind: ui::WIDGET_BUTTON,
             role: roles::ACTION_FORM,
             text: "Download",
-            min_width: 88,
             on_click: "handle",
             data: { fields::FN: on_download_pressed, DOWNLOAD: download },
         };
@@ -295,7 +281,6 @@ pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
     ui::Control {
         kind: ui::WIDGET_BUTTON,
         role: roles::ACTION_FORM,
-        min_width: 88,
         text: if row[fields::ORDER].as_str() == OLDER { "Downgrade" } else { "Install" },
         on_click: "handle",
         data: { fields::FN: on_install_row_pressed, fields::TAG: tag },
@@ -331,8 +316,8 @@ pub fn progress_controls(state: editor::State) -> [ui::Control] {
         0.0
     };
     [
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: said, value: 0.0 },
-        ui::Control { kind: ui::WIDGET_PROGRESS_BAR, width: 200, height: 4, value: part },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: said, value: 0.0 },
+        ui::Control { kind: ui::WIDGET_PROGRESS_BAR, role: roles::BAR_PROGRESS, value: part },
     ]
 }
 

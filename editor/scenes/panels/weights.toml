@@ -11,8 +11,6 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 # What a polygon needs before it has weights to show.
 [[nodes]]
@@ -22,9 +20,8 @@ parent = "panel"
 visible = false
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
+role = "text_note"
 text = "select a polygon with bones — the inspector's Sync Bones to Polygon lists them"
-padding = [12, 8, 12, 0]
 
 [[nodes]]
 id = "body"
@@ -32,9 +29,8 @@ name = "Body"
 parent = "panel"
 [nodes.widget]
 kind = "column"
+role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 [[nodes]]
 id = "verbs"
@@ -42,10 +38,8 @@ name = "Verbs"
 parent = "body"
 [nodes.widget]
 kind = "row"
-height = 24
-padding = [8, 0, 8, 0]
+role = "toolbar_dock"
 [nodes.widget_layout]
-gap = [4, 4]
 align_items = "center"
 
 [[nodes]]
@@ -54,8 +48,7 @@ name = "Scope"
 parent = "verbs"
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
-font_size = 11
+role = "text_code_caption"
 
 [[nodes]]
 id = "bind"
@@ -125,17 +118,14 @@ text = "all"
 tooltip = "List every vertex again"
 
 # The bone columns' heads, pooled: which bones there are is the polygon's.
+# A form row as the rows under it are, so the columns line up.
 [[nodes]]
 id = "header"
 name = "Header"
 parent = "body"
 [nodes.widget]
-kind = "row"
-height = 20
-padding = [8, 0, 8, 0]
-[nodes.widget_layout]
-gap = [0, 0]
-align_items = "center"
+kind = "column"
+role = "list_dock"
 
 [[nodes]]
 id = "scroll"
@@ -153,6 +143,4 @@ name = "Rows"
 parent = "scroll"
 [nodes.widget]
 kind = "column"
-padding = [8, 0, 8, 0]
-[nodes.widget_layout]
-gap = [0, 1]
+role = "list_dock"

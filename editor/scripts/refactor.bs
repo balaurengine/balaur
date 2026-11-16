@@ -141,7 +141,7 @@ pub fn view(state: editor::State) -> View {
     }
     View {
         open: true,
-        title: if renaming { "RENAME" } else { "REPLACE" },
+        title: if renaming { "Rename" } else { "Replace" },
         from: state.refactor.from,
         to: state.refactor.to,
         from_hint: if renaming { NAME } else { "text to find" },

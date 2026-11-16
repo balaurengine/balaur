@@ -11,8 +11,6 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 # The search, and the "+" that adds a child to the selection beside it.
 [[nodes]]
@@ -21,9 +19,9 @@ name = "Find"
 parent = "panel"
 [nodes.widget]
 kind = "row"
+role = "toolbar_dock"
 [nodes.widget_layout]
 align_items = "center"
-gap = [4, 0]
 
 [[nodes]]
 id = "search"
@@ -44,9 +42,8 @@ parent = "find"
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "add" }] }
 [nodes.widget]
 kind = "button"
-role = "icon_action_primary"
+role = "action_dock"
 tooltip = "Add child node"
-width = 24
 
 # Each option but the first is a component tag the engine already carries,
 # so a plugin's component is found by the tags it declared.
@@ -88,11 +85,6 @@ context = "tree_menu"
 [nodes.widget_rows]
 # The row a click landed on, which the script reads once and clears.
 multi_select = true
-row_height = 23
-
-# The eye and the lock a row draws at its right; the Editor answers them.
-[nodes.widget.touch]
-row_height = 33
 
 # The node actions, on a menu that draws no button of its own. Each row calls
 # a method on the Editor node's script, which acts on the selection the click

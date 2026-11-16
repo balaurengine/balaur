@@ -45,6 +45,8 @@ const STAGE: str = "stage";
 const WEB: str = "web";
 const LOCALS: str = "locals";
 const RECORDING: str = "recording";
+const STEP_INTO: str = "step-into";
+const PAUSE: str = "pause";
 
 /// The log as the Output panel last filtered it, and the lines made of it:
 /// kept so a frame that logged nothing redoes none of it.
@@ -89,7 +91,9 @@ pub struct AssetsView {
     internal importing: bool,
     internal import_text: str,
     internal import_tip: str,
-    internal folder_text: str,
+    internal import_icon: str,
+    internal folder_icon: str,
+    internal up_icon: str,
     internal chosen: bool,
     internal items: [ui::Item],
     internal picked: str,
@@ -106,7 +110,9 @@ pub struct AssetsView {
 pub struct DebuggerView {
     internal stopped: bool,
     internal can_pause: bool,
-    internal steps: [str],
+    /// Continue's, Over's, Into's and Out's, in that order.
+    internal step_icons: [str],
+    internal pause_icon: str,
     internal where: str,
     internal threw: str,
     internal break_on_error: bool,
@@ -543,13 +549,15 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
         name: util::last_segment(state.assets.selected),
         count: "{files.len()} items",
         importing: importing,
-        import_text: ui::glyph(icons::panel(icons::IMPORT)) + (if importing { " cancel" } else { " import" }),
+        import_text: if importing { "cancel" } else { "import" },
         import_tip: if importing {
             "Stop the import after the file it is writing"
         } else {
             "Bring in a model, a sprite or a level"
         },
-        folder_text: ui::glyph(icons::ui(icons::ADD)) + " folder",
+        import_icon: icons::panel(icons::IMPORT),
+        folder_icon: icons::ui(icons::ADD),
+        up_icon: icons::ui("caret-up"),
         chosen: state.assets.selected != "",
         items: items,
         picked: picked,
@@ -669,7 +677,8 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
         return DebuggerView {
             stopped: false,
             can_pause: state.playing,
-            steps: [],
+            step_icons: step_icons(),
+            pause_icon: icons::ui(PAUSE),
             where: where,
             threw: "",
             break_on_error: on,
@@ -685,7 +694,7 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
         let frame = frames[index];
         let site = "{shell::script_rel(state, frame["path"].as_str())}:{frame[layout_fields::LINE]}";
         // A recursion stacks frames that read alike; the depth keeps them apart.
-        items.push(ui::Item { icon: icons::ui("step-into"), label: frame["function"].as_str(), note: site, tint: tokens[theme_tokens::TEXT_DEFAULT].as_str(), key: "{index}" });
+        items.push(ui::Item { icon: icons::ui(STEP_INTO), label: frame["function"].as_str(), note: site, key: "{index}" });
         for name in util::keys_sorted(frame[LOCALS]) {
             items.push(ui::Item { label: name, note: value_text(frame[LOCALS][name]), tint: tokens[theme_tokens::TEXT_MUTED].as_str(), key: "{index}/{name}", depth: 1 });
         }
@@ -693,18 +702,18 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
     DebuggerView {
         stopped: true,
         can_pause: false,
-        steps: [
-            "▶ Continue",
-            ui::glyph(icons::ui("step-over")) + " Over",
-            ui::glyph(icons::ui("step-into")) + " Into",
-            ui::glyph(icons::ui("step-out")) + " Out",
-        ],
+        step_icons: step_icons(),
+        pause_icon: icons::ui(PAUSE),
         where: "{paused["reason"].as_str()} · {state.debug.paused_rel}:{paused[layout_fields::LINE]}",
         threw: paused["message"].as_str(),
         break_on_error: on,
         frames: items,
         picked: "{state.debug.frame}",
     }
+}
+
+fn step_icons() -> [str] {
+    [icons::ui(verbs::PLAY), icons::ui("step-over"), icons::ui(STEP_INTO), icons::ui("step-out")]
 }
 
 /// A step pressed, by the name of its button.
@@ -754,7 +763,7 @@ fn problem_label(finding: any) -> str {
 fn problem_line(finding: any, tokens: any) -> ui::Item {
     let bad = finding["severity"].as_str() == statuses::ERROR;
     let tint = if bad { tokens[theme_tokens::DANGER_TEXT] } else { tokens[theme_tokens::WARNING_TEXT] };
-    ui::Item { icon: if bad { "×" } else { "!" }, label: problem_label(finding), tint: tint.as_str() }
+    ui::Item { icon: if bad { glyphs::X_CIRCLE } else { glyphs::WARNING }, label: problem_label(finding), tint: tint.as_str() }
 }
 
 /// What the Problems panel shows: a line a finding, and what to say when
@@ -809,7 +818,7 @@ pub fn recordings_fill(state: &mut editor::State) -> RecordingsFill {
     let rows = session::listing(state);
     let specs: [form::Row] = [];
     for recording in rows {
-        specs.push(form::Row { height: 24, slot_role: roles::LAYOUT_ACTIONS, controls: session_row(state, recording) });
+        specs.push(form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: session_row(state, recording) });
     }
     form::fill(RECORDINGS, specs);
     RecordingsFill { verify: state.session.verify, count: rows.len() }
@@ -828,7 +837,8 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
         ui::Control {
             kind: ui::WIDGET_BUTTON,
             role: roles::ACTION_FORM_PRIMARY,
-            text: "▶",
+            text: "",
+            icon: icons::ui(verbs::PLAY),
             tooltip: "Replay this recording",
             on_click: "handle",
             data: { fields::FN: on_replay_pressed, RECORDING: recording },

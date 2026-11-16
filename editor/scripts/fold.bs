@@ -1,0 +1,45 @@
+//! A fold's head: the one look anything that opens and shuts wears. The caret
+//! that says which it is, the thing's icon and its title, a step further in
+//! for each level it sits under. An inspector's section, a list inside one and
+//! a plugin's group are this head and nothing else; the theme's `*_fold` roles
+//! say how it looks, and a level is the only thing that tells two apart.
+
+use icons;
+use words::roles;
+
+/// The head as one row: `depth` steps in, the caret, then the icon and the
+/// title on a flat button that opens or shuts it. `icon_color` is the kind's
+/// own colour where the icon carries one, as a component's does, and empty
+/// for the role's; `action` is a button carrying the caller's `on_click` and
+/// `data`, which the title takes.
+pub fn head(open: bool, title: str, icon: str, icon_color: str, depth: int, tooltip: str, action: ui::Control) -> ui::Control {
+    let controls: [ui::Control] = [];
+    let left = depth;
+    while left > 0 {
+        controls.push(ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_FOLD_INDENT });
+        left -= 1;
+    }
+    controls.push(ui::Control {
+        kind: ui::WIDGET_LABEL,
+        role: roles::TEXT_FOLD_CARET,
+        text: ui::glyph(icons::ui(if open { icons::CARET_OPEN } else { icons::CARET_SHUT })),
+    });
+    controls.push(ui::Control {
+        kind: ui::WIDGET_BUTTON,
+        role: if depth == 0 { roles::ACTION_FOLD } else { roles::ACTION_FOLD_NESTED },
+        grow: 1,
+        text: title,
+        icon: icon,
+        icon_color: icon_color,
+        tooltip: tooltip,
+        on_click: action.on_click.or(""),
+        data: action.data,
+    });
+    ui::Control {
+        kind: ui::WIDGET_ROW,
+        role: roles::LAYOUT_FOLD,
+        grow: 1,
+        align_items: ui::ALIGN_CENTER,
+        controls: controls,
+    }
+}

@@ -3,6 +3,7 @@
 internal const AT: str = "at";
 internal const END_X: str = "end_x";
 internal const END_Y: str = "end_y";
+internal const GAP: str = "gap";
 internal const HALF: str = "half";
 internal const HEIGHT: str = "height";
 internal const LINE: str = "line";

@@ -18,12 +18,6 @@ use words::verbs;
 
 const VERB: str = "verb";
 
-// A row, and the two columns the panel list runs in: seventeen panels down
-// one column is taller than the window the editor is asked to fit.
-const ROW_WIDTH: float = 216.0;
-
-const CELL_WIDTH: float = 108.0;
-
 /// The menu's rows, as the nodes the pool keeps under the mark. Filled once a
 /// pass; the menu node draws them in its popup when it is opened.
 pub fn rows(state: &mut editor::State) -> [ui::Control] {
@@ -34,7 +28,7 @@ pub fn rows(state: &mut editor::State) -> [ui::Control] {
         action(icons::ui(icons::EXPORT), "Export", "⌘E", verbs::EXPORT),
         action(icons::ui("about"), "About Balaur", "", verbs::ABOUT),
         rule(),
-        ui::Control { kind: ui::WIDGET_LABEL, role: "text_heading_menu", text: "PANELS", width: ROW_WIDTH },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: "Panels" },
     ];
     for pair in panel_pairs(state) {
         out.push(pair);
@@ -67,29 +61,27 @@ fn action(icon: str, label: str, key: str, verb: str) -> ui::Control {
         kind: ui::WIDGET_BUTTON,
         role: roles::ITEM_MENU,
         text: label,
-        width: ROW_WIDTH,
         icon: icon,
         trailing: key,
     };
     pool::on(row, act, { VERB: verb })
 }
 
-// A rule the width of the menu: a bare one takes the width it is offered.
+// A rule across the menu, which is as wide as its widest row.
 fn rule() -> ui::Control {
-    ui::Control { kind: ui::WIDGET_SEPARATOR, width: ROW_WIDTH }
+    ui::Control { kind: ui::WIDGET_SEPARATOR }
 }
 
-// Every panel, ticked where it is open, two to a line. Clicking one closes it
-// or puts it back in the dock it belongs to, and the menu stays up.
+// Every panel, ticked where it is open, two to a line: seventeen down one
+// column outgrow the window. A click shuts one or puts it back; the menu stays up.
 fn panel_pairs(state: &mut editor::State) -> [ui::Control] {
     let ids = docks::known(state);
     let out: [ui::Control] = [];
     let index = 0;
     while index < ids.len() {
         let pair: [ui::Control] = [cell(state, ids[index])];
-        if index + 1 < ids.len() {
-            pair.push(cell(state, ids[index + 1]));
-        }
+        // A last one alone keeps to its half.
+        pair.push(if index + 1 < ids.len() { cell(state, ids[index + 1]) } else { ui::Control { kind: ui::WIDGET_ROW, grow: 1 } });
         out.push(ui::Control { kind: ui::WIDGET_ROW, controls: pair });
         index += 2;
     }
@@ -100,10 +92,10 @@ fn cell(state: &mut editor::State, id: str) -> ui::Control {
     let open = docks::side_of(state, id) != nil;
     let row: ui::Control = ui::Control {
         kind: ui::WIDGET_BUTTON,
-        role: if open { roles::ITEM_MENU } else { "item_menu_quiet" },
+        role: if open { roles::ITEM_MENU } else { roles::ITEM_MENU_QUIET },
         icon: if open { icons::ui(icons::CHECK) } else { "" },
         text: docks::name(state, id),
-        width: CELL_WIDTH,
+        grow: 1,
         keep_open: true,
     };
     pool::on(row, toggled, { fields::ID: id })

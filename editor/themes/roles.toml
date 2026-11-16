@@ -39,7 +39,7 @@ input_ripple = "#ffffff"
 default = "fonts/SourceSans3-Regular.ttf"
 heading = "fonts/SourceSans3-Semibold.ttf"
 mono = "fonts/JetBrainsMono-Regular.ttf"
-icon = "fonts/Phosphor-Fill.ttf"
+icon = "fonts/Phosphor.ttf"
 
 # Every button eases between its states and rings itself for the keyboard
 # 2 px outside its edge; a role says only its colours and size.
@@ -88,6 +88,24 @@ transition = 0.12
 [slider.focus]
 outline = "primary_text"
 
+# A colour's swatch is square, the height of a form's field.
+[color_picker]
+width = "control_height"
+
+# A list's, a tree's and a table's row: a control's height, a finger's on a
+# touch screen.
+[list]
+row_height = "control_height"
+
+[list.touch]
+row_height = "control_height_touch"
+
+[tree]
+row_height = "control_height"
+
+[tree.touch]
+row_height = "control_height_touch"
+
 [panel]
 fill = "bg_panel"
 corner_radius = "radius_large"
@@ -113,18 +131,6 @@ text_color = "text_subtle"
 font_size = "font_size_small"
 text_color = "primary_text"
 
-[roles.text_caret_section]
-font_size = "font_size_small"
-text_color = "text_subtle"
-text_align = "end"
-width = 16
-
-[roles.text_caret_subsection]
-font_size = "font_size_small"
-text_color = "text_subtle"
-text_align = "end"
-width = 28
-
 [roles.text_code]
 font = "mono"
 text_color = "text_default"
@@ -142,16 +148,28 @@ padding_x = 7
 font = "mono"
 text_color = "success_text"
 
+[roles.text_caption_success]
+font_size = "font_size_small"
+text_color = "success_text"
+
+# A data line under something, as a path or a version is: the mono face,
+# small and quiet.
+[roles.text_code_caption]
+font = "mono"
+font_size = "font_size_small"
+text_color = "text_subtle"
+
 [roles.text_heading]
 font = "heading"
 font_size = "font_size_small"
 font_weight = 700
 text_color = "text_muted"
+text_transform = "uppercase"
 
 [roles.text_heading_menu]
 font_size = "font_size_small"
 text_color = "text_subtle"
-height = 18
+height = "control_height_small"
 
 [roles.text_hint]
 font_size = "font_size_small"
@@ -168,8 +186,16 @@ text_color = "warning_text"
 [roles.text_label_override]
 text_color = "primary_text"
 
+# A lane's name, a Timeline track's or a recording's kind: one width, so
+# every lane's marks start at one x against the ruler.
+[roles.text_lane]
+font = "mono"
+font_size = "font_size_small"
+text_color = "text_default"
+width = 150
+
 [roles.text_mark_picker]
-font_size = 18
+font_size = "font_size_title"
 text_color = "primary_text"
 
 [roles.text_mark_primary]
@@ -184,6 +210,11 @@ text_color = "secondary_text"
 font_size = "font_size_small"
 text_color = "text_muted"
 padding_x = 7
+
+# The status strip's state, a step above the counts beside it.
+[roles.text_status]
+font_size = "font_size_small"
+text_color = "text_muted"
 
 [roles.text_title]
 font = "heading"
@@ -204,7 +235,7 @@ fill = "bg_control"
 stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius_small"
-height = 28
+height = "control_height_large"
 
 [roles.action.hover]
 text_color = "text_default"
@@ -224,7 +255,7 @@ fill = "bg_control"
 stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius"
-height = 26
+height = "control_height_large"
 padding_x = 3
 
 [roles.action_brand.hover]
@@ -259,7 +290,7 @@ text_color = "primary_text"
 [roles.action_dock.checked.hover]
 
 [roles.action_dock.touch]
-height = 29
+height = "control_height_touch"
 
 [roles.action_dock_danger]
 font_size = "font_size_small"
@@ -276,7 +307,7 @@ text_color = "danger_text"
 offset = [0, 1]
 
 [roles.action_dock_danger.touch]
-height = 29
+height = "control_height_touch"
 
 [roles.action_dock_quiet]
 font_size = "font_size_small"
@@ -293,7 +324,7 @@ text_color = "text_default"
 offset = [0, 1]
 
 [roles.action_dock_quiet.touch]
-height = 29
+height = "control_height_touch"
 
 [roles.action_dock_secondary]
 font_size = "font_size_small"
@@ -307,7 +338,7 @@ height = "control_height_small"
 offset = [0, 1]
 
 [roles.action_dock_secondary.touch]
-height = 29
+height = "control_height_touch"
 
 [roles.action_form]
 font_weight = 600
@@ -383,7 +414,7 @@ fill = "bg_panel"
 stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius_large"
-height = 28
+height = "control_height_large"
 padding_x = 12
 
 [roles.action_manager.hover]
@@ -423,7 +454,7 @@ height = "control_height_small"
 offset = [0, 1]
 
 [roles.action_prefab.touch]
-height = 29
+height = "control_height_touch"
 
 [roles.action_primary]
 font_weight = 600
@@ -442,46 +473,65 @@ stroke = "primary_fill_hover"
 [roles.action_primary.active]
 offset = [0, 1]
 
-[roles.action_section]
-font = "heading"
-font_size = "font_size_small"
-font_weight = 600
-text_color = "text_muted"
-text_align = "start"
-corner_radius = "radius_small"
-height = "control_height_small"
-
-[roles.action_section.touch]
-height = 29
-
-[roles.action_subsection]
-font_size = "font_size_small"
-text_color = "text_muted"
-text_align = "start"
-fill = "bg_control"
-stroke_width = 1
-stroke = "border_default"
-corner_radius = "radius_small"
-height = "control_height_small"
-
-[roles.action_subsection.active]
-offset = [0, 1]
-
-[roles.action_subsection.touch]
-height = 29
-
 [roles.action_tree]
 width = 170
 height = "control_height"
 
-# Actions that are one glyph.
+# A fold's head, which `fold.bs` draws for anything that opens and shuts:
+# the caret, the icon and the title, a caret's width further in a level.
+[roles.layout_fold]
+gap = 4
+
+[roles.layout_fold_indent]
+width = 16
+
+[roles.text_fold_caret]
+font_size = "font_size_small"
+text_color = "text_subtle"
+text_align = "center"
+width = 16
+
+[roles.action_fold]
+font = "heading"
+font_size = "font_size_small"
+font_weight = 600
+text_transform = "uppercase"
+text_color = "text_muted"
+text_align = "start"
+corner_radius = "radius_small"
+height = "control_height_small"
+padding_x = 4
+
+[roles.action_fold.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.action_fold.touch]
+height = "control_height_touch"
+
+[roles.action_fold_nested]
+font_size = "font_size_small"
+text_color = "text_muted"
+text_align = "start"
+corner_radius = "radius_small"
+height = "control_height_small"
+padding_x = 4
+
+[roles.action_fold_nested.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.action_fold_nested.touch]
+height = "control_height_touch"
+
+# Actions that are one glyph: as wide as they are tall, unless a role says
+# otherwise; a small one inside a form or a tab paints nothing until the
+# pointer is on it.
 [roles.icon_action]
 font_size = "font_size_large"
 text_color = "text_muted"
 corner_radius = "radius"
-width = 26
-height = 26
-padding_x = 0
+height = "control_height_large"
 
 [roles.icon_action.hover]
 text_color = "text_default"
@@ -495,7 +545,6 @@ fill = "primary_bg"
 text_color = "text_default"
 
 [roles.icon_action.touch]
-width = "control_height_touch"
 height = "control_height_touch"
 
 [roles.icon_action_dialog]
@@ -520,11 +569,7 @@ height = "control_height_touch"
 font_size = "font_size_small"
 font_weight = 600
 text_color = "text_muted"
-fill = "bg_control"
-stroke_width = 1
-stroke = "border_default"
 corner_radius = "radius_small"
-width = 22
 height = "control_height_small"
 
 [roles.icon_action_form.hover]
@@ -535,13 +580,12 @@ fill = "bg_control_hover"
 offset = [0, 1]
 
 [roles.icon_action_form.touch]
-height = 29
+height = "control_height_touch"
 
 [roles.icon_action_form_secondary]
 text_color = "secondary_text"
 fill = "secondary_bg"
 corner_radius = "radius_small"
-width = 22
 height = "control_height"
 
 [roles.icon_action_form_secondary.hover]
@@ -552,7 +596,6 @@ fill = "bg_control_hover"
 offset = [0, 1]
 
 [roles.icon_action_form_secondary.touch]
-width = 30
 height = "control_height_touch"
 
 [roles.icon_action_primary]
@@ -562,8 +605,7 @@ fill = "bg_control"
 stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius"
-width = 26
-height = 26
+height = "control_height_large"
 
 [roles.icon_action_primary.hover]
 text_color = "text_default"
@@ -580,15 +622,13 @@ fill = "primary_fill"
 fill = "primary_text"
 
 [roles.icon_action_primary.touch]
-width = "control_height_touch"
 height = "control_height_touch"
 
 [roles.icon_action_tab]
-font_size = "font_size_title"
+font_size = "font_size"
 text_color = "text_subtle"
 corner_radius = "radius_small"
-height = 22
-padding_x = 0
+height = "control_height_small"
 
 [roles.icon_action_tab.hover]
 text_color = "text_default"
@@ -606,7 +646,7 @@ fill = "bg_control"
 stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius"
-height = 22
+height = "control_height_small"
 padding_x = 8
 
 [roles.chip.hover]
@@ -622,6 +662,9 @@ fill = "primary_bg"
 
 [roles.chip.checked.hover]
 text_color = "text_default"
+
+[roles.chip.touch]
+height = "control_height_touch"
 
 [roles.chip_flag]
 font_size = "font_size_small"
@@ -640,14 +683,35 @@ text_color = "text_on_primary"
 fill = "primary_fill"
 
 [roles.chip_flag.touch]
-height = 29
+height = "control_height_touch"
+
+# A key as a keyboard draws it, in the input view and a shortcut's hint.
+[roles.chip_key]
+font_weight = 700
+text_color = "text_default"
+fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
+corner_radius = "radius_small"
+height = "control_height_large"
+padding_x = 8
+
+[roles.chip_key_primary]
+font_weight = 700
+text_color = "primary_text"
+fill = "bg_control"
+stroke_width = 1
+stroke = "primary_text"
+corner_radius = "radius_small"
+height = "control_height_large"
+padding_x = 8
 
 [roles.chip_quiet]
 font_size = "font_size_small"
 font_weight = 600
 text_color = "text_subtle"
 corner_radius = "radius"
-height = 22
+height = "control_height_small"
 
 [roles.chip_quiet.hover]
 text_color = "text_muted"
@@ -662,7 +726,7 @@ text_color = "text_default"
 font_weight = 600
 text_color = "text_subtle"
 corner_radius = "radius_small"
-height = 22
+height = "control_height"
 padding_x = 7
 
 [roles.tab.hover]
@@ -697,7 +761,7 @@ height = "control_height_touch"
 [roles.tab_workspace]
 text_color = "text_subtle"
 corner_radius = "radius_small"
-height = 26
+height = "control_height_large"
 padding_x = 8
 
 [roles.tab_workspace.hover]
@@ -712,12 +776,60 @@ fill = "primary_bg"
 text_color = "text_default"
 
 # Rows a list, a menu or a picker is made of.
+# A tab that closes is one tile: the row's role carries the fill and the
+# corners, and the name and the close mark inside it paint only their ink.
+[roles.tile_tab]
+corner_radius = "radius_small"
+padding_x = 2
+gap = 0
+
+[roles.tile_tab_primary]
+fill = "primary_bg"
+corner_radius = "radius_small"
+padding_x = 2
+gap = 0
+
+[roles.tab_label]
+font_weight = 600
+text_color = "text_subtle"
+height = "control_height"
+padding_x = 6
+
+[roles.tab_label.hover]
+text_color = "text_muted"
+
+[roles.tab_label.checked]
+text_color = "primary_text"
+
+[roles.tab_label.checked.hover]
+text_color = "text_default"
+
+[roles.tab_label.touch]
+height = "control_height_touch"
+
+[roles.tab_label_bar]
+text_color = "text_subtle"
+height = "control_height_large"
+padding_x = 8
+
+[roles.tab_label_bar.hover]
+text_color = "text_muted"
+
+[roles.tab_label_bar.checked]
+text_color = "primary_text"
+
+[roles.tab_label_bar.checked.hover]
+text_color = "text_default"
+
+[roles.tab_label_bar.touch]
+height = "control_height_touch"
+
 [roles.item]
 font = "mono"
 text_color = "text_default"
 text_align = "start"
 corner_radius = "radius_small"
-height = 23
+height = "control_height"
 
 [roles.item.hover]
 fill = "bg_control_hover"
@@ -735,6 +847,7 @@ font_size = "font_size_small"
 text_color = "text_muted"
 fill = "bg_control"
 corner_radius = "radius_large"
+height = "control_height_large"
 
 [roles.item_bar.hover]
 text_color = "text_default"
@@ -766,7 +879,7 @@ text_color = "text_default"
 text_align = "start"
 fill = "bg_control"
 corner_radius = "radius_small"
-height = 25
+height = "control_height"
 
 [roles.item_list.hover]
 fill = "bg_control_hover"
@@ -781,16 +894,19 @@ fill = "primary_bg"
 text_color = "text_default"
 text_align = "start"
 corner_radius = "radius_small"
-height = 22
+height = "control_height"
 
 [roles.item_menu.hover]
 fill = "bg_control_hover"
+
+[roles.item_menu.checked]
+text_color = "primary_text"
 
 [roles.item_menu_quiet]
 text_color = "text_subtle"
 text_align = "start"
 corner_radius = "radius_small"
-height = 22
+height = "control_height"
 
 [roles.item_menu_quiet.hover]
 text_color = "text_muted"
@@ -811,6 +927,9 @@ fill = "bg_control"
 fill = "bg_control"
 
 [roles.item_picker.checked.hover]
+
+[roles.item_picker.touch]
+height = "control_height_touch"
 
 [roles.item_sidebar]
 text_color = "text_muted"
@@ -846,7 +965,7 @@ height = "control_height_small"
 fill = "bg_control_hover"
 
 [roles.choice.touch]
-height = 29
+height = "control_height_touch"
 
 [roles.choice_form]
 text_color = "text_default"
@@ -869,10 +988,15 @@ fill = "bg_app"
 stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius_small"
-height = 22
+height = "control_height"
 
 [roles.input.hover]
 stroke = "text_subtle"
+
+# The code editor's text.
+[roles.input_code]
+font = "mono"
+font_size = 13
 
 [roles.input_dock]
 font = "mono"
@@ -882,13 +1006,13 @@ fill = "bg_app"
 stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius_small"
-height = 22
+height = "control_height_small"
 
 [roles.input_dock.hover]
 stroke = "text_subtle"
 
 [roles.input_dock.touch]
-height = 31
+height = "control_height_touch"
 
 [roles.input_form]
 font = "mono"
@@ -935,7 +1059,7 @@ stroke = "text_subtle"
 height = "control_height_touch"
 
 [roles.input_picker]
-font_size = 15
+font_size = "font_size_large"
 text_color = "text_default"
 fill = "bg_control"
 stroke_width = 1
@@ -949,7 +1073,7 @@ fill = "bg_control_hover"
 [roles.switch_form]
 text_color = "text_muted"
 fill = "bg_control"
-height = 18
+height = "control_height_small"
 
 [roles.switch_form.checked]
 text_color = "text_on_primary"
@@ -985,6 +1109,15 @@ text_color = "warning_text"
 fill = "bg_panel"
 corner_radius = "radius_large"
 
+# A card on the start screen: an example or a template to begin from.
+[roles.sheet_card]
+fill = "bg_panel"
+stroke = "border_default"
+stroke_width = 1
+corner_radius = "radius_large"
+padding = 12
+gap = 4
+
 [roles.sheet_dialog]
 fill = "bg_panel"
 stroke = "border_default"
@@ -1003,9 +1136,35 @@ gap = 6
 [roles.sheet_hook]
 fill = "bg_control"
 corner_radius = "full"
-height = 28
+height = "control_height_large"
 padding_x = 11
 gap = 6
+
+# The hooks beside the code: their sheet and the list of pills on it.
+[roles.sheet_hooks]
+fill = "bg_panel"
+corner_radius = "radius_large"
+width = 172
+padding = 12
+gap = 6
+
+# A pill along the scene's foot: the axes, the zoom, a folded dock's handle.
+[roles.sheet_hud]
+fill = "bg_panel"
+corner_radius = "radius_large"
+height = "control_height"
+padding_x = 6
+gap = 4
+
+[roles.sheet_hud.touch]
+height = "control_height_touch"
+
+[roles.sheet_code]
+fill = "bg_control"
+stroke = "border_default"
+corner_radius = "radius_large"
+padding_x = 0
+padding_y = 12
 
 [roles.sheet_logo]
 fill = "brand_plate"
@@ -1027,11 +1186,49 @@ padding = 4
 height = "control_height_touch"
 
 [roles.sheet_picker]
+width = 520
 fill = "bg_panel"
 stroke = "border_default"
 corner_radius = "radius_large"
 padding = 12
 gap = 8
+
+# A plugin's dialog, the code completion, the rename sheet, the imports in
+# flight and the text edited in place: each a sheet over the stage.
+[roles.sheet_plugin]
+fill = "bg_panel"
+corner_radius = "radius_large"
+width = 260
+padding_x = 12
+padding_y = 8
+gap = 6
+
+[roles.sheet_complete]
+fill = "bg_panel"
+corner_radius = "radius_large"
+width = 320
+padding = 6
+
+[roles.sheet_refactor]
+fill = "bg_panel"
+corner_radius = "radius_large"
+width = 420
+padding_x = 14
+padding_y = 12
+gap = 6
+
+[roles.sheet_imports]
+fill = "bg_panel"
+corner_radius = "radius_large"
+padding_x = 12
+padding_y = 8
+gap = 2
+
+[roles.sheet_textedit]
+fill = "bg_panel"
+corner_radius = "radius_large"
+padding_x = 8
+padding_y = 4
 
 [roles.sheet_prefab]
 fill = "secondary_bg"
@@ -1044,6 +1241,18 @@ padding = 4
 height = "control_height_touch"
 
 # Headers and toolbars: the strips along the top of a box.
+# The tool rail: a column of tool tiles on its own sheet.
+[roles.sheet_rail]
+fill = "bg_panel"
+corner_radius = "radius_large"
+padding = 6
+gap = 4
+
+# A thin bar that fills as an import or a download goes.
+[roles.bar_progress]
+width = 200
+height = 4
+
 [roles.header_dialog]
 height = "control_height_large"
 gap = 8
@@ -1060,7 +1269,7 @@ height = "control_height_touch"
 
 [roles.header_manager]
 width = 620
-height = 34
+height = "control_height_large"
 gap = 10
 
 [roles.header_picker]
@@ -1070,14 +1279,47 @@ gap = 6
 [roles.header_plugin]
 gap = 6
 
+# The strip along the top of the scene: its chips and its pills.
+[roles.header_stage]
+gap = 6
+height = "control_height_large"
+
+[roles.header_stage.touch]
+height = 40
+
+# The shell's head: the bar's sheet, its row and the strip of controls.
+[roles.header_shell]
+padding = 5
+
+[roles.layout_bar]
+gap = 8
+
+[roles.toolbar_shell]
+gap = 4
+
 [roles.header_toolbar]
-height = 26
+height = "control_height_large"
 
 [roles.header_toolbar.touch]
 height = "control_height_touch"
 
+# The strip under the dock: the state, the counts, the tool.
+[roles.bar_status]
+height = "control_height_small"
+padding_x = 6
+gap = 8
+
+[roles.bar_status.touch]
+height = "control_height"
+
+# The dot at the status strip's start, in the state's colour.
+[roles.mark_lamp]
+corner_radius = "full"
+width = 6
+height = 6
+
 [roles.toolbar_dock]
-height = 26
+height = "control_height"
 gap = 6
 
 [roles.toolbar_dock.touch]
@@ -1107,19 +1349,44 @@ gap = 20
 [roles.layout_dock]
 gap = 3
 
+# A form's row: the label and the controls beside it.
+[roles.layout_form]
+gap = 6
+
 [roles.layout_manager]
+gap = 10
 width = 620
 
+# One lane of a timeline or a state's lanes: its lamp, its name, its marks.
+# The input view's marks: a touch's wash and ring, a press's dot.
+[roles.mark_wash]
+fill = "primary_bg"
+corner_radius = "full"
+
+[roles.mark_ring]
+stroke = "input_ripple"
+stroke_width = 1
+corner_radius = "full"
+
+[roles.mark_press]
+fill = "primary_bg"
+stroke = "primary_text"
+corner_radius = "full"
+width = 22
+height = 22
+
+[roles.layout_lane]
+height = "control_height_small"
+padding_x = 8
+gap = 6
+
 [roles.layout_mark]
-width = 26
-height = 26
+width = "control_height_large"
+height = "control_height_large"
 
 [roles.layout_plugin]
 padding_x = 10
 padding_y = 6
-gap = 4
-
-[roles.layout_section]
 gap = 4
 
 [roles.layout_shader]
@@ -1135,13 +1402,31 @@ width = 190
 [roles.layout_split]
 gap = 12
 
-[roles.layout_subsection]
-gap = 4
-
 [roles.layout_toolbar]
 padding_x = 12
 padding_y = 2
 gap = 2
+
+# A log: the output's lines, a profile's, a debugger's, in the mono face
+# and a small row.
+[roles.list_hooks]
+gap = 6
+
+# The names a rename touches, a short list of its own.
+[roles.list_refactor]
+font = "mono"
+row_height = "control_height_small"
+height = 120
+
+[roles.list_refactor.touch]
+row_height = "control_height_touch"
+
+[roles.list_log]
+font = "mono"
+row_height = "control_height_small"
+
+[roles.list_log.touch]
+row_height = "control_height_touch"
 
 [roles.list_doc]
 gap = 3

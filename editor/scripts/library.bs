@@ -18,7 +18,6 @@ use words::log_fields;
 use words::project_fields;
 use words::statuses;
 use words::tabs;
-use words::theme_tokens;
 use words::verbs;
 
 const ADDON: str = "addon";
@@ -256,7 +255,6 @@ fn kind_icon(kind: str) -> str {
 /// templates as table rows, and what to say when there are none. The entries
 /// are kept, so a pick names the one it placed.
 pub fn view(state: &mut editor::State) -> View {
-    let tokens = state.theme;
     let known = catalogue(state);
     let items: [ui::Item] = [];
     let held: any = {};
@@ -286,7 +284,7 @@ pub fn view(state: &mut editor::State) -> View {
         if entry[fields::KIND].as_str() == state.library.kind {
             // The kind's mark, the entry's name, and its note as the hover.
             let key = entry[fields::ID].as_str();
-            items.push(ui::Item { icon: kind_icon(state.library.kind), label: entry[fields::NAME].as_str(), note: entry[log_fields::NOTE].as_str(), tint: tokens[theme_tokens::TEXT_DEFAULT].as_str(), key: key });
+            items.push(ui::Item { icon: kind_icon(state.library.kind), label: entry[fields::NAME].as_str(), note: entry[log_fields::NOTE].as_str(), key: key });
             held[key] = entry;
         }
     }
@@ -301,7 +299,6 @@ const DEPENDENCY_ROWS: int = 400;
 /// Each of the game's dependencies, file by file, with the names and notes
 /// its own `catalog.toml` gives where it has one.
 fn dependency_view(state: &mut editor::State) -> View {
-    let tokens = state.theme;
     let items: [ui::Item] = [];
     let held: any = {};
     for dependency_entry in dependency::list() {
@@ -319,7 +316,7 @@ fn dependency_view(state: &mut editor::State) -> View {
             let title = if entry == nil { rel } else { entry[fields::NAME].as_str() };
             let note = if entry == nil { folder + "/" + rel } else { entry[log_fields::NOTE].as_str() };
             let file = folder + "/" + rel;
-            items.push(ui::Item { icon: file_icon(rel), label: alias + " · " + title, note: note, tint: tokens[theme_tokens::TEXT_DEFAULT].as_str(), key: file });
+            items.push(ui::Item { icon: file_icon(rel), label: alias + " · " + title, note: note, key: file });
             held[file] = { fields::KIND: DEPENDENCY, project_fields::FILE: file };
         }
     }
@@ -380,7 +377,6 @@ fn file_icon(rel: str) -> str {
 
 /// Projects on Forge, from the last search; the first look starts one.
 fn forge_view(state: &mut editor::State) -> View {
-    let tokens = state.theme;
     if state.library.forge.len() == 0 && state.library.forge_says == "" {
         if forge::search("", "") {
             state.library.forge_says = "asking " + forge::url();
@@ -395,7 +391,7 @@ fn forge_view(state: &mut editor::State) -> View {
         }
         let note = if tags == "" { row[fields::DESCRIPTION].as_str() } else { row[fields::DESCRIPTION].as_str() + " · " + tags };
         let project = row[project_fields::PROJECT].as_str();
-        items.push(ui::Item { icon: icons::panel(icons::ASSETS), label: project, note: note, tint: tokens[theme_tokens::TEXT_DEFAULT].as_str() });
+        items.push(ui::Item { icon: icons::panel(icons::ASSETS), label: project, note: note });
         held[project] = { fields::KIND: tabs::FORGE, project_fields::FILE: project };
     }
     state.library.shown = Shown { held: held };

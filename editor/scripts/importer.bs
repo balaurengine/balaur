@@ -293,14 +293,13 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
         ui::Control {
             kind: ui::WIDGET_BUTTON,
             text: "reset",
-            role: roles::CHIP,
-            width: 52,
+            role: roles::ACTION_FORM,
             tooltip: "Drop this key and follow the project again",
             on_click: "handle",
             data: { fields::FN: on_reset_clicked, REL: rel, fields::KEY: key },
         }
     } else {
-        ui::Control { kind: ui::WIDGET_LABEL, text: source, role: roles::TEXT_CAPTION, width: 52 }
+        ui::Control { kind: ui::WIDGET_LABEL, text: source, role: roles::TEXT_CAPTION }
     };
     state.form.push(form::Row { label: key, controls: [control, note] });
 }

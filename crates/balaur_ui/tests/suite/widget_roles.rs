@@ -94,7 +94,7 @@ fn a_node_s_icon_color_tints_its_glyph_over_the_role_s() {
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/tint.toml"),
-        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor-Fill.ttf\"\n\n[colors]\nmark = \"#ff0000\"\n\n[roles.marked]\nicon_color = \"mark\"\n",
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n\n[colors]\nmark = \"#ff0000\"\n\n[roles.marked]\nicon_color = \"mark\"\n",
     )
     .unwrap();
     // Phosphor's `cursor`, asked for by name and drawn as its character.

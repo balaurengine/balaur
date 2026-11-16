@@ -11,8 +11,6 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 [[nodes]]
 id = "tools"
@@ -21,10 +19,8 @@ parent = "panel"
 [nodes.widget]
 kind = "row"
 role = "toolbar_dock"
-height = 30
 [nodes.widget_layout]
 align_items = "center"
-gap = [6, 6]
 
 # Nothing stops on the click: the next line a script runs is where.
 [[nodes]]
@@ -35,8 +31,8 @@ visible = false
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "pause" }] }
 [nodes.widget]
 kind = "button"
-role = "action_primary"
-text = "⏸ Pause"
+role = "action_form_primary"
+text = "Pause"
 tooltip = "F6"
 
 # The steps, each named for the step mode it resumes in.
@@ -48,8 +44,8 @@ visible = false
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
 [nodes.widget]
 kind = "button"
-role = "action_primary"
-text = "▶ Continue"
+role = "action_form_primary"
+text = "Continue"
 tooltip = "F5"
 
 [[nodes]]
@@ -60,7 +56,7 @@ visible = false
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
 [nodes.widget]
 kind = "button"
-role = "action_primary"
+role = "action_form_primary"
 text = "Over"
 tooltip = "F10"
 
@@ -72,7 +68,7 @@ visible = false
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
 [nodes.widget]
 kind = "button"
-role = "action_primary"
+role = "action_form_primary"
 text = "Into"
 tooltip = "F11"
 
@@ -84,7 +80,7 @@ visible = false
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
 [nodes.widget]
 kind = "button"
-role = "action_primary"
+role = "action_form_primary"
 text = "Out"
 tooltip = "⇧F11"
 
@@ -134,8 +130,5 @@ visible = false
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "frame_clicked" }] }
 [nodes.widget]
 kind = "tree"
+role = "list_log"
 grow = 1
-font = "fonts/JetBrainsMono-Regular.ttf"
-
-[nodes.widget.touch]
-row_height = 33

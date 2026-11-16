@@ -72,8 +72,6 @@ pub struct StageView {
     internal left: SheetHandle,
     internal right: SheetHandle,
     internal rail_handle: bool,
-    internal pad: float,
-    internal diameter: float,
 }
 
 /// The round button that opens a side sheet over the stage.
@@ -86,13 +84,11 @@ pub struct SheetHandle {
 pub struct HudView {
     internal shown: bool,
     internal inset: [any],
-    internal height: float,
-    internal step: float,
     internal x_ink: str,
     internal y_ink: str,
-    internal quiet_ink: str,
     internal zoom: str,
     internal add_icon: str,
+    internal remove_icon: str,
     internal bottom: bool,
     internal bottom_icon: str,
 }
@@ -129,8 +125,6 @@ pub struct Parsed {
     detail: str,
 }
 
-pub const HUD_HEIGHT: float = 28.0;
-
 // The least stage worth labelling or pointing at beside a rail: below this
 // what is left is the way back to the viewport, not the viewport.
 const STAGE_MIN_WIDTH: float = 160.0;
@@ -146,12 +140,12 @@ pub fn stage_floor() -> StageFloor {
 /// The strip's height: tall enough for the controls in it, which are bigger
 /// where a finger reaches them.
 pub fn hud_height(state: editor::State) -> float {
-    if state.touchscreen { 40.0 } else { HUD_HEIGHT }
+    style::role_size_in_pixels(state, roles::HEADER_STAGE, HEIGHT, 30.0)
 }
 
 /// The pill either side of the zoom reading, and the axis row's own height.
 pub fn hud_step(state: editor::State) -> float {
-    if state.touchscreen { 28.0 } else { 20.0 }
+    style::role_size_in_pixels(state, roles::CHIP, HEIGHT, 20.0)
 }
 
 // The centre: the tool rail, then the viewport's chrome, the code pane or
@@ -204,12 +198,12 @@ pub fn modes(state: &mut editor::State) {
 /// the two disagreed by 18 px, which showed as padding only at the foot.
 pub fn rail_metrics(state: editor::State) -> RailMetrics {
     // The theme's tool tile, so a folded dock's handle is the same control on
-    // the same sheet; the pad a pixel wider than the gap, clear of the corner.
-    let diameter = style::role_size_in_pixels(state, roles::ICON_ACTION, HEIGHT, 26.0);
-    if state.compact {
-        return RailMetrics { diameter: diameter, gap: 3.0, padding: 6.0 };
+    // the same sheet, and the sheet's own air.
+    RailMetrics {
+        diameter: style::role_size_in_pixels(state, roles::ICON_ACTION, HEIGHT, 30.0),
+        gap: style::role_size_in_pixels(state, roles::SHEET_RAIL, layout_fields::GAP, 4.0),
+        padding: style::role_size_in_pixels(state, roles::SHEET_RAIL, layout_fields::PADDING, 6.0),
     }
-    RailMetrics { diameter: diameter, gap: 4.0, padding: 8.0 }
 }
 
 /// The marks the rail carries: the workspace's tools, then the one that folds
@@ -257,8 +251,9 @@ pub fn fill_rail(state: editor::State) {
     let grid = rail_grid(state, state.layout[dock_fields::RAIL_ROOM].as_float());
     let columns: [ui::Control] = [];
     let column: [ui::Control] = [];
+    // A column keeps the sheet's own gap, read off its role: `rail_span` counts it.
     for mark in rail_marks(state) {
-        column.push(rail_mark(state, mark, grid.diameter));
+        column.push(rail_mark(state, mark));
         if column.len() as float >= grid.rows {
             columns.push(ui::Control { kind: ui::WIDGET_COLUMN, gap: vec2(grid.gap, grid.gap), controls: column });
             column = [];
@@ -267,17 +262,12 @@ pub fn fill_rail(state: editor::State) {
     if column.len() > 0 {
         columns.push(ui::Control { kind: ui::WIDGET_COLUMN, gap: vec2(grid.gap, grid.gap), controls: column });
     }
-    let filled = scene::root().get_node(RAIL);
-    if filled.is_valid() {
-        filled.widget_layout.gap = vec2(grid.gap, grid.gap);
-        filled.patch_component(components::WIDGET, { layout_fields::PADDING: grid.padding });
-    }
     ui::fill_strip(RAIL, columns);
 }
 
 // One mark: a tool, or the one that folds the rail away or brings it back.
-fn rail_mark(state: editor::State, mark: str, diameter: float) -> ui::Control {
-    let round: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION, text: "", width: diameter, height: diameter, padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 }, corner_radius: diameter / 2.0 };
+fn rail_mark(state: editor::State, mark: str) -> ui::Control {
+    let round: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION, text: "" };
     if mark == window_marks::RESTORE {
         round.icon = icons::ui(icons::RESTORE);
         round.tooltip = "Show the tools";
@@ -340,7 +330,6 @@ pub fn stage_key(state: editor::State) -> [any] {
 
 /// What the stage chrome shows: the Interface guides and the handles.
 pub fn stage_view(state: editor::State) -> StageView {
-    let metrics = rail_metrics(state);
     let handles = docks::handles(state);
     let chrome = state.viewport_live && state.stage_chrome;
     let ui_frames = chrome && state.workspace == defs::WORKSPACE_UI;
@@ -362,8 +351,6 @@ pub fn stage_view(state: editor::State) -> StageView {
             tooltip: handles.right.tooltip,
         },
         rail_handle: handles.left.shown && over_rail,
-        pad: metrics.padding,
-        diameter: metrics.diameter,
     }
 }
 
@@ -395,7 +382,6 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
     // The Polygon tool's modes sit with the chips: Godot's UV editor tabs, in
     // the viewport rather than a window.
     if state.tool == tools::POLYGON {
-        out.push(ui::Control { kind: ui::WIDGET_ROW, width: 2 });
         for spec in polygonchips::mode_specs(state) {
             out.push(spec);
         }
@@ -404,26 +390,19 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
         }
     }
     if state.workspace == defs::WORKSPACE_SCENE {
-        out.push(ui::Control { kind: ui::WIDGET_ROW, width: 2 });
         out.push(view_chip(state));
         // The camera slots are the first thing a small window drops: four
         // numbered pills for what ⌥1-4 already does.
         if !state.compact {
-            out.push(ui::Control { kind: ui::WIDGET_ROW, width: 0 });
             for spec in bookmark_chips(state) {
                 out.push(spec);
             }
         }
     }
     ui::fill_strip(CHIPS, out);
-    let filled = scene::root().get_node(CHIPS);
-    if filled.is_valid() {
-        filled.widget.height = hud_height(state);
-    }
     // Clear of the folded left dock's handle, which shares this row.
     let filled = scene::root().get_node(CHIPS_BOX);
     if filled.is_valid() {
-        filled.widget.height = hud_height(state);
         filled.patch_component(components::WIDGET, { dock_fields::INSET: [docks::fold_inset(state), 0.0, 0.0, -1.0] });
     }
     true
@@ -474,7 +453,6 @@ fn view_modes() -> [[str]] {
 /// The view-mode chip: shaded, or one channel drawn instead. Never a game
 /// feature; `render.set_debug_view` is the same call the palette makes.
 fn view_chip(state: editor::State) -> ui::Control {
-    let tokens = state.theme;
     let current = render::debug_view();
     let label = "Shaded";
     let rows: [ui::Control] = [];
@@ -488,7 +466,7 @@ fn view_chip(state: editor::State) -> ui::Control {
             kind: ui::WIDGET_BUTTON,
             role: roles::ITEM_MENU,
             text: mode[1],
-            text_color: if name == current { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_DEFAULT] },
+            checked: name == current,
             on_click: "handle",
             data: { fields::FN: on_view_mode_picked, fields::NAME: name },
         });
@@ -511,7 +489,6 @@ fn on_view_mode_picked(state: &mut editor::State, data: any, _value: any) {
 /// Four camera slots on the chip row: click to go, hold ⇧ to store where the
 /// camera is now. Editor state, kept nowhere: a view is not the scene.
 fn bookmark_chips(state: editor::State) -> [ui::Control] {
-    let tokens = state.theme;
     let out: [ui::Control] = [];
     for slot in 1..5 {
         let key = "{slot}";
@@ -519,12 +496,8 @@ fn bookmark_chips(state: editor::State) -> [ui::Control] {
         out.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
             text: key,
-            height: 20,
-            font_size: style::SMALL,
-            min_width: 20,
-            corner_radius: 4,
-            fill: if held { tokens[theme_tokens::PRIMARY_BG] } else { tokens[theme_tokens::BG_CONTROL] },
-            text_color: if held { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] },
+            role: roles::CHIP,
+            checked: held,
             tooltip: if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
             on_click: "handle",
             data: { fields::FN: on_bookmark_pressed, fields::KEY: key },
@@ -573,13 +546,11 @@ pub fn hud_view(state: editor::State) -> HudView {
     HudView {
         shown: state.viewport_live && state.stage_chrome && !state.chrome_off,
         inset: [0.0, -1.0, hud_inset(state), 0.0],
-        height: hud_height(state),
-        step: hud_step(state),
         x_ink: tokens["axis_x"].as_str(),
         y_ink: tokens["axis_y"].as_str(),
-        quiet_ink: tokens[theme_tokens::TEXT_MUTED].as_str(),
         zoom: "{state.zoom as int} %",
         add_icon: icons::ui(icons::ADD),
+        remove_icon: icons::ui("minimize"),
         bottom: handles.bottom.shown,
         bottom_icon: handles.bottom.icon,
     }
@@ -787,7 +758,7 @@ const HOOKS: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Ho
 pub fn fill_hooks(state: &mut editor::State) {
     let tokens = state.theme;
     let file = open_file(state);
-    util::set_text(HOOKS + "/Title", if file.shading { "SHADER" } else { "HOOKS IN FILE" });
+    util::set_text(HOOKS + "/Title", if file.shading { "Shader" } else { "Hooks in file" });
     let pills: [ui::Control] = [];
     if !file.shading && file.relative_path != "" {
         // The file as it is open, buffer or disk: what the list was read off
@@ -799,20 +770,12 @@ pub fn fill_hooks(state: &mut editor::State) {
         for hook in state.hooks_live {
             let lifecycle = hook.name == hooks::INIT || hook.name == hooks::UPDATE;
             pills.push(ui::Control {
-                kind: ui::WIDGET_PANEL,
-                fill: tokens[theme_tokens::BG_CONTROL],
-                corner_radius: 15,
-                padding: ui::Sides { left: 11.0, top: 6.0, right: 11.0, bottom: 6.0 },
+                kind: ui::WIDGET_ROW,
+                role: roles::SHEET_HOOK,
+                align_items: ui::ALIGN_CENTER,
                 controls: [
-                    ui::Control {
-                        kind: ui::WIDGET_ROW,
-                        gap: vec2(4, 4),
-                        align_items: ui::ALIGN_CENTER,
-                        controls: [
-                            ui::Control { kind: ui::WIDGET_ROW, width: 6, height: 6, corner_radius: 3, fill: if lifecycle { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] } },
-                            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: hook.name },
-                        ],
-                    },
+                    ui::Control { kind: ui::WIDGET_ROW, role: roles::MARK_LAMP, fill: if lifecycle { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] } },
+                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: hook.name },
                 ],
             });
         }

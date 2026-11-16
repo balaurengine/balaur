@@ -4,9 +4,9 @@
 use editor;
 use signals;
 use words::components;
+use words::roles;
 
 const RENAME_TO: str = "rename_to";
-const ACTION_DOCK_QUIET: str = "action_dock_quiet";
 
 pub class Assets {
     node: Node,
@@ -87,7 +87,9 @@ impl Assets {
         }
         let view = self.editor.unwrap().assets_view(self.query);
         let tools = self.node.get_node("Tools");
-        tools.get_node("Up").set_visible(view.dir != "");
+        let patched = tools.get_node("Up");
+        patched.set_visible(view.dir != "");
+        patched.widget_button.icon = view.up_icon;
         let patched = tools.get_node("Where");
         patched.set_visible(!view.renaming);
         patched.widget.text = view.where;
@@ -103,9 +105,10 @@ impl Assets {
         tools.get_node("Count").widget.text = view.count;
         let patched = tools.get_node("Import");
         patched.widget.text = view.import_text;
+        patched.widget_button.icon = view.import_icon;
         patched.widget.tooltip = view.import_tip;
         patched.widget_check.checked = view.importing;
-        tools.get_node("Folder").widget.text = view.folder_text;
+        tools.get_node("Folder").widget_button.icon = view.folder_icon;
         tools.get_node("Local").set_visible(view.local);
         let patched = tools.get_node("Move");
         patched.set_visible(view.move_to != "");
@@ -115,10 +118,10 @@ impl Assets {
         patched.set_visible(view.source_tip != "");
         patched.widget.tooltip = view.source_tip;
         let patched = tools.get_node("Rename");
-        patched.widget.role = if view.chosen { "action_dock" } else { ACTION_DOCK_QUIET };
+        patched.widget.role = if view.chosen { roles::ACTION_DOCK } else { roles::ACTION_DOCK_QUIET };
         patched.widget.tooltip = if view.chosen { "Rename the selected item" } else { "Select an item first" };
         let patched = tools.get_node("Delete");
-        patched.widget.role = if view.chosen { "action_dock_danger" } else { ACTION_DOCK_QUIET };
+        patched.widget.role = if view.chosen { roles::ACTION_DOCK_DANGER } else { roles::ACTION_DOCK_QUIET };
         patched.widget.tooltip = if view.chosen { "Delete the selected item" } else { "Select an item first" };
         let patched = self.node.get_node("Cards");
         patched.widget_rows.items = view.items;

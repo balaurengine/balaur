@@ -9,19 +9,17 @@ use shipped;
 use signals;
 use style;
 use settings;
-use themewin;
 use util;
 use versions;
 use window;
-use words::components;
 use words::fields;
+use words::layout_fields;
 use words::log_fields;
 use words::panel_keys;
 use words::project_fields;
 use words::roles;
 use words::statuses;
 use words::tabs;
-use words::theme_tokens;
 use words::verbs;
 
 const COPIED: str = "copied";
@@ -124,8 +122,6 @@ const COLUMN: float = 900.0;
 // What a cover is: the shape `scripts/showcase.sh` writes them in, so a card
 // reserves the room the picture will actually take.
 const COVER_ASPECT: float = 1.7647;
-
-const SEAM: float = 14.0;
 
 // The sheet a new project is named in, which the shell already has a shape for.
 const NEW_SHEET: str = "manager-new";
@@ -327,16 +323,16 @@ pub fn fill(state: &mut editor::State) {
     ui::fill_strip(HEAD_NODE(), head_controls(state, tokens));
     ui::fill_strip(TABS_NODE(), tab_controls(state));
     let column_width = page_width();
-    head_note(state, tokens);
+    head_note(state);
     tools(state);
     let specs = if state.manager.tab == ENGINE {
-        versions::engine_specs(state, tokens, column_width)
+        versions::engine_specs(state, column_width)
     } else if state.manager.tab == EXAMPLES {
-        examples_specs(state, tokens, column_width)
+        examples_specs(state, column_width)
     } else if state.manager.tab == tabs::FORGE {
-        forge_specs(state, tokens, column_width)
+        forge_specs(state)
     } else {
-        projects_specs(state, tokens, column_width)
+        projects_specs(state, column_width)
     };
     form::fill(PAGE(), specs);
 }
@@ -373,13 +369,13 @@ pub fn verb(state: &mut editor::State, name: str) {
 }
 
 // What the head says under itself: a note or a failure, and a job's bar.
-fn head_note(state: editor::State, tokens: any) {
+fn head_note(state: editor::State) {
     let said = if state.manager.failed != "" { state.manager.failed } else { state.manager.note };
     let filled = scene::root().get_node(NOTE());
     if filled.is_valid() {
         filled.set_visible(said != "");
         filled.widget.text = said;
-        filled.patch_component(components::WIDGET, { themewin::TEXT_COLOR: (if state.manager.failed != "" { tokens[theme_tokens::WARNING_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str() });
+        filled.widget.role = if state.manager.failed != "" { roles::NOTE_WARNING } else { roles::TEXT_CODE_CAPTION };
     }
     let controls = if versions::installing(state) {
         versions::progress_controls(state)
@@ -410,31 +406,29 @@ fn tools(state: editor::State) {
     }
 }
 
-internal fn say(text: str, ink: str) -> form::Row {
-    form::Row {
-        height: 0,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: roles::TEXT_CODE_QUIET,
-                font_size: 11,
-                grow: 1,
-                wrap: true,
-                text: text,
-                text_color: ink,
-            },
-        ],
-    }
+/// A line the start screen and the About sheet say under what they show: the
+/// mono face, small and quiet.
+internal fn say(text: str) -> form::Row {
+    form::Row { controls: [ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, grow: 1, wrap: true, text: text }] }
 }
 
+/// What the screen was told last: a failure in the warning's ink.
+internal fn said(state: editor::State) -> form::Row? {
+    if state.manager.failed != "" {
+        return form::warning(state.manager.failed);
+    }
+    if state.manager.note != "" {
+        return say(state.manager.note);
+    }
+    nil
+}
+
+// A line across the page: a separator lies across a column, and stands up in a row.
 internal fn rule() -> form::Row {
-    form::Row {
-        height: 1,
-        controls: [ui::Control { kind: ui::WIDGET_SEPARATOR, grow: 1 }],
-    }
+    form::Row { controls: [ui::Control { kind: ui::WIDGET_COLUMN, grow: 1, controls: [ui::Control { kind: ui::WIDGET_SEPARATOR }] }] }
 }
 
-fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [form::Row] {
+fn projects_specs(state: editor::State, column_width: float) -> [form::Row] {
     let rows: [any] = shown(state);
     if rows.len() == 0 {
         let empty = if in_tab() {
@@ -443,12 +437,12 @@ fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [fo
             "Nothing opened on this machine yet. Start from an example, or make one."
         };
         let why = if state.manager.recent.len() == 0 { empty } else { "No project matches that filter." };
-        let none = [say(why, tokens[theme_tokens::TEXT_SUBTLE].as_str())];
+        let none = [say(why)];
         return none;
     }
     let out: [form::Row] = [];
     for row in rows {
-        out.push(project_spec(state, tokens, column_width, util::map_or_empty(row)));
+        out.push(project_spec(column_width, util::map_or_empty(row)));
         out.push(rule());
     }
     out
@@ -457,72 +451,55 @@ fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [fo
 // Two lines: the name a click opens, and the folder under it. What a row says
 // about itself, when and with which engine, sits at the right edge, and a
 // phone shows when it was opened and nothing else.
-fn project_spec(state: editor::State, tokens: any, column_width: float, row: any) -> form::Row {
+fn project_spec(column_width: float, row: any) -> form::Row {
     let here = row[project_fields::PATH];
     let exists = row["exists"];
     let gone = if exists == nil { true } else { exists.as_bool() } != true;
     let built = row[fields::VERSION].as_str();
-    let line = math::max(style::row_height(state), 28.0);
     let controls: [ui::Control] = [
         // The engine's mark: a project keeps its own icon, and none of them
         // is open, so the row wears the editor's.
         ui::Control {
             kind: ui::WIDGET_PANEL,
             role: roles::SHEET_LOGO,
-            padding: ui::Sides { left: 2.0, top: 2.0, right: 2.0, bottom: 2.0 },
-            controls: [ui::Control { kind: ui::WIDGET_IMAGE, image: LOGO, width: 20 }],
+            controls: [ui::Control { kind: ui::WIDGET_IMAGE, role: roles::LAYOUT_MARK, image: LOGO }],
         },
         ui::Control {
             kind: ui::WIDGET_COLUMN,
-            padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_BUTTON,
-                    role: "item_list",
+                    role: roles::ITEM_LIST,
                     text: row[fields::NAME],
-                    height: line,
-                    text_align: ui::ALIGN_START,
                     icon: if gone { icons::panel(icons::PROBLEMS) } else { "" },
                     tooltip: here,
-                    text_color: if gone { tokens[theme_tokens::TEXT_SUBTLE] } else { tokens[theme_tokens::TEXT_DEFAULT] },
                     on_click: "handle",
                     data: { fields::FN: on_project_pressed, GONE: gone, HERE: here },
                 },
                 ui::Control {
                     kind: ui::WIDGET_LABEL,
-                    role: roles::TEXT_CODE_QUIET,
-                    font_size: 11,
+                    role: roles::TEXT_CODE_CAPTION,
                     truncate: true,
                     text: if gone { here.as_str() + "  ·  disk not mounted" } else { here },
                 },
             ],
             grow: 1,
         },
-        ui::Control {
-            kind: ui::WIDGET_LABEL,
-            role: roles::TEXT_CODE_QUIET,
-            padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
-            font_size: 11,
-            text: util::said_ago_since(row[fields::OPENED]),
-        },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: util::said_ago_since(row[fields::OPENED]) },
     ];
     if built != "" && !narrow(column_width) {
-        controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: built });
+        controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: built });
     }
     controls.push(ui::Control {
         kind: ui::WIDGET_BUTTON,
-        role: roles::ICON_ACTION,
+        role: roles::ICON_ACTION_FORM,
         text: "",
         icon: icons::ui(icons::CLOSE),
         tooltip: "Forget this project",
         on_click: "handle",
         data: { fields::FN: on_forget_pressed, HERE: here },
     });
-    form::Row {
-        height: math::max(line + 22.0, 56.0),
-        slot_role: roles::LAYOUT_ACTIONS,
-        controls: controls,
-    }
+    form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 fn on_project_pressed(state: &mut editor::State, data: any, _value: any) {
@@ -540,96 +517,83 @@ fn on_forget_pressed(state: &mut editor::State, data: any, _value: any) {
     told(state);
 }
 
-fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [form::Row] {
+fn examples_specs(state: editor::State, column_width: float) -> [form::Row] {
     let rows = util::list_or_empty(shipped::examples());
     if rows.len() == 0 {
-        let none = [say("No examples ship beside this build.", tokens[theme_tokens::TEXT_SUBTLE].as_str())];
+        let none = [say("No examples ship beside this build.")];
         return none;
     }
     let across = if narrow(column_width) { 1 } else if column_width < 760.0 { 2 } else { 3 };
     // Floored: three cards and two seams have to add up to the column, and a
     // third of a pixel each puts the last one past its edge.
-    let card_width = math::floor((column_width - (across - 1) as float * SEAM) / across as float);
-    let cover_height = math::floor(card_width / COVER_ASPECT);
+    let seam = style::role_size_in_pixels(state, roles::LAYOUT_SPLIT, layout_fields::GAP, 12.0);
+    let card_width = math::floor((column_width - (across - 1) as float * seam) / across as float);
+    let inner = card_width - 2.0 * style::role_size_in_pixels(state, roles::SHEET_CARD, layout_fields::PADDING, 12.0);
+    let cover = Cover { card: card_width, width: inner, height: math::floor(inner / COVER_ASPECT) };
     let out: [form::Row] = [];
     let start = 0;
     while start < rows.len() {
         let cards: [ui::Control] = [];
         let column = 0;
         while column < across && start + column < rows.len() {
-            cards.push(example_card(state, tokens, card_width, cover_height, util::map_or_empty(rows[start + column])));
+            cards.push(example_card(state, cover, util::map_or_empty(rows[start + column])));
             column += 1;
         }
         out.push(form::Row {
-            height: cover_height + 54.0,
             controls: [
-                ui::Control { kind: ui::WIDGET_ROW, gap: vec2(SEAM, SEAM), controls: cards },
+                ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_SPLIT, controls: cards },
             ],
         });
         start += across;
     }
-    out.push(say("Opens a copy in your projects folder, so the example stays as it shipped.", tokens[theme_tokens::TEXT_SUBTLE].as_str()));
+    out.push(say("Opens a copy in your projects folder, so the example stays as it shipped."));
     out
 }
 
-// The picture, the name and the line under it, on a panel the whole of which
-// a click opens a copy of: a button with nothing in it laid over the card.
-fn example_card(state: editor::State, tokens: any, width: float, cover_height: float, row: any) -> ui::Control {
+// A card's width, and the picture's size inside its padding.
+struct Cover {
+    card: float,
+    width: float,
+    height: float,
+}
+
+// The picture, the name and the line under it, on a card a click on any of
+// which opens a copy.
+fn example_card(state: editor::State, cover: Cover, row: any) -> ui::Control {
     let id = row[fields::ID];
-    let cover = row[COVER].as_str();
-    let picture: ui::Control = if cover != "" {
-        ui::Control {
-            kind: ui::WIDGET_IMAGE,
-            image: cover,
-            width: width,
-            height: cover_height,
-            fit: COVER,
-            corner_radius: 12,
-            truncate: false,
-        }
+    let image = row[COVER].as_str();
+    let picture: ui::Control = if image != "" {
+        ui::Control { kind: ui::WIDGET_IMAGE, image: image, width: cover.width, height: cover.height, fit: COVER }
     } else {
         // No picture shipped: the engine's own mark, so the card still reads
         // as a project rather than a blank.
         ui::Control {
             kind: ui::WIDGET_ROW,
-            width: width,
-            height: cover_height,
-            corner_radius: 0,
+            width: cover.width,
+            height: cover.height,
             justify: ui::ALIGN_CENTER,
             align_items: ui::ALIGN_CENTER,
             controls: [
-                ui::Control { kind: ui::WIDGET_PANEL, role: roles::SHEET_LOGO, controls: [ui::Control { kind: ui::WIDGET_IMAGE, image: LOGO, width: 36 }] },
+                ui::Control { kind: ui::WIDGET_PANEL, role: roles::SHEET_LOGO, controls: [ui::Control { kind: ui::WIDGET_IMAGE, role: roles::LAYOUT_MARK, image: LOGO }] },
             ],
-            truncate: false,
         }
     };
+    let card = card_of([
+        picture,
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE_DIALOG, text: row[fields::NAME].as_str() },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: row[log_fields::NOTE].as_str(), truncate: true },
+    ], state, { fields::FN: on_example_pressed, fields::ID: id });
+    card.width = cover.card;
+    card
+}
+
+// A card a click on any of which presses: a button with nothing in it laid
+// over it from a bare box, since a padded one shifts what is laid over it.
+fn card_of(controls: [ui::Control], state: editor::State, data: any) -> ui::Control {
     ui::Control {
-        kind: ui::WIDGET_PANEL,
-        fill: tokens[themewin::GROUND],
-        corner_radius: 12,
-        padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
-        width: width,
-        gap: vec2(0, 2),
+        kind: ui::WIDGET_COLUMN,
         controls: [
-            picture,
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                corner_radius: 0,
-                role: roles::TEXT_TITLE,
-                font_size: 13,
-                text: row[fields::NAME].as_str(),
-                padding: ui::Sides { left: 12.0, top: 4.0, right: 12.0, bottom: 0.0 },
-                truncate: false,
-            },
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                corner_radius: 0,
-                role: roles::TEXT_CODE_QUIET,
-                font_size: 11,
-                text: row[log_fields::NOTE].as_str(),
-                padding: ui::Sides { left: 12.0, top: 0.0, right: 12.0, bottom: 8.0 },
-                truncate: true,
-            },
+            ui::Control { kind: ui::WIDGET_PANEL, role: roles::SHEET_CARD, controls: controls },
             ui::Control {
                 kind: ui::WIDGET_BUTTON,
                 role: roles::CHIP_QUIET,
@@ -638,7 +602,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
                 inset: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
                 tooltip: "Copy into " + state.manager.parent,
                 on_click: "handle",
-                data: { fields::FN: on_example_pressed, fields::ID: id },
+                data: data,
             },
         ],
     }
@@ -651,16 +615,16 @@ fn on_example_pressed(state: &mut editor::State, data: any, _value: any) {
 
 // Public projects on Forge, one row each, a click opening a copy in the
 // projects folder as an example does. The first look asks Forge.
-fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [form::Row] {
+fn forge_specs(state: &mut editor::State) -> [form::Row] {
     if !state.manager.forge_asked {
         state.manager.forge_asked = forge::search("", "");
     }
     let out: [form::Row] = [];
     if state.manager.copying != "" {
-        out.push(say("Copying {state.manager.copying} into {state.manager.parent}", tokens[theme_tokens::TEXT_SUBTLE].as_str()));
+        out.push(say("Copying {state.manager.copying} into {state.manager.parent}"));
     }
     if state.manager.forge.len() == 0 {
-        out.push(say(if state.manager.forge_asked { "Asking " + forge::url() } else { "No public projects yet." }, tokens[theme_tokens::TEXT_SUBTLE].as_str()));
+        out.push(say(if state.manager.forge_asked { "Asking " + forge::url() } else { "No public projects yet." }));
         return out;
     }
     for row in state.manager.forge {
@@ -670,41 +634,14 @@ fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [
             tags = if tags == "" { tag.as_str() } else { tags + ", " + tag.as_str() };
         }
         let note = row[fields::DESCRIPTION].as_str();
-        out.push(form::Row {
-            height: 52.0,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_PANEL,
-                    fill: tokens[themewin::GROUND],
-                    corner_radius: 10,
-                    padding: ui::Sides { left: 12.0, top: 6.0, right: 12.0, bottom: 6.0 },
-                    width: column_width,
-                    gap: vec2(0, 2),
-                    controls: [
-                        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, font_size: 13, text: project },
-                        ui::Control {
-                            kind: ui::WIDGET_LABEL,
-                            role: roles::TEXT_CODE_QUIET,
-                            font_size: 11,
-                            truncate: true,
-                            text: if tags == "" { note } else { note + " · " + tags },
-                        },
-                        ui::Control {
-                            kind: ui::WIDGET_BUTTON,
-                            role: roles::CHIP_QUIET,
-                            text: "",
-                            absolute: true,
-                            inset: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
-                            tooltip: "Copy into " + state.manager.parent,
-                            on_click: "handle",
-                            data: { fields::FN: copy_forge_project, project_fields::PROJECT: project },
-                        },
-                    ],
-                },
-            ],
-        });
+        let card = card_of([
+            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE_DIALOG, text: project },
+            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, truncate: true, text: if tags == "" { note } else { note + " · " + tags } },
+        ], state, { fields::FN: copy_forge_project, project_fields::PROJECT: project });
+        card.grow = 1;
+        out.push(form::Row { controls: [card] });
     }
-    out.push(say("Opens a copy in your projects folder; the project on Forge stays as it is.", tokens[theme_tokens::TEXT_SUBTLE].as_str()));
+    out.push(say("Opens a copy in your projects folder; the project on Forge stays as it is."));
     out
 }
 
@@ -760,7 +697,7 @@ pub fn cover(state: &mut editor::State, up: bool) {
 fn head_controls(state: editor::State, tokens: any) -> [ui::Control] {
     let ink = if tokens[panel_keys::DARK].as_bool() { LOGO_DARK } else { LOGO };
     let out: [ui::Control] = [
-        ui::Control { kind: ui::WIDGET_IMAGE, role: "layout_mark", image: ink },
+        ui::Control { kind: ui::WIDGET_IMAGE, role: roles::LAYOUT_MARK, image: ink },
         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, text: "Balaur" },
         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: project::version() },
         ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
@@ -768,7 +705,7 @@ fn head_controls(state: editor::State, tokens: any) -> [ui::Control] {
     if state.manager.back {
         out.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: "action_manager",
+            role: roles::ACTION_MANAGER,
             tooltip: "Esc",
             text: "Back to " + state.game_name,
             on_click: "handle",
@@ -791,7 +728,7 @@ fn tab_controls(state: editor::State) -> [ui::Control] {
         out.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
             text: row[1],
-            role: "tab_manager",
+            role: roles::TAB_MANAGER,
             checked: state.manager.tab == id,
             on_click: "handle",
             data: { fields::FN: on_page_picked, fields::ID: id },
@@ -847,10 +784,8 @@ pub fn new_fill(state: &mut editor::State) {
     if ids.len() == 0 {
         ids.push(EMPTY);
     }
-    let row_height = math::max(style::row_height(state), 30.0);
     let specs: [form::Row] = [
         form::Row {
-            height: row_height,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_TEXT_FIELD,
@@ -865,7 +800,6 @@ pub fn new_fill(state: &mut editor::State) {
             label: "name",
         },
         form::Row {
-            height: row_height,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_DROPDOWN,
@@ -880,36 +814,14 @@ pub fn new_fill(state: &mut editor::State) {
             label: "from",
         },
         form::Row {
-            height: row_height,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    role: roles::TEXT_CODE_QUIET,
-                    font_size: 11,
-                    grow: 1,
-                    truncate: true,
-                    text: state.manager.parent,
-                },
-            ],
+            controls: [ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, grow: 1, truncate: true, text: state.manager.parent }],
             label: "in",
         },
     ];
     if state.manager.failed != "" {
-        specs.push(form::Row {
-            height: 0,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    role: roles::NOTE_WARNING,
-                    grow: 1,
-                    wrap: true,
-                    text: state.manager.failed,
-                },
-            ],
-        });
+        specs.push(form::warning(state.manager.failed));
     }
     specs.push(form::Row {
-        height: row_height,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
             ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
@@ -917,7 +829,6 @@ pub fn new_fill(state: &mut editor::State) {
                 kind: ui::WIDGET_BUTTON,
                 role: roles::ACTION_FORM_PRIMARY,
                 text: "Create",
-                min_width: 140,
                 on_click: "handle",
                 data: { fields::FN: on_create_pressed },
             },

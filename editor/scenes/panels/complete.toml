@@ -9,10 +9,8 @@ script = { source = "scripts/panels/complete.bs" }
 visible = false
 [nodes.widget]
 kind = "panel"
-role = "sheet"
+role = "sheet_complete"
 anchor = "top_left"
-width = 320
-padding = [6, 6, 6, 6]
 whole_window = true
 
 [[nodes]]
@@ -22,9 +20,7 @@ parent = "complete"
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "list_clicked" }] }
 [nodes.widget]
 kind = "list"
-font_size = 11
-[nodes.widget_rows]
-row_height = 22
+role = "list_log"
 
 [[nodes]]
 id = "doc"
@@ -33,8 +29,7 @@ parent = "complete"
 visible = false
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
-font_size = 11
+role = "text_code_caption"
 [nodes.widget_text]
 truncate = true
 

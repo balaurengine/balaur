@@ -8,9 +8,8 @@ script = { source = "scripts/panels/import.bs" }
 visible = false
 [nodes.widget]
 kind = "column"
+role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 [[nodes]]
 id = "name"
@@ -19,8 +18,6 @@ parent = "panel"
 [nodes.widget]
 kind = "label"
 role = "text_title"
-font_size = 13
-padding = [10, 6, 10, 0]
 
 [[nodes]]
 id = "from"
@@ -28,9 +25,7 @@ name = "From"
 parent = "panel"
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
-font_size = 11
-padding = [10, 0, 10, 4]
+role = "text_code_caption"
 
 [[nodes]]
 id = "nothing"
@@ -58,5 +53,4 @@ name = "Form"
 parent = "scroll"
 [nodes.widget]
 kind = "column"
-[nodes.widget_layout]
-gap = [2, 2]
+role = "layout_dock"

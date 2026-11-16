@@ -10,8 +10,6 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 # A chip a kind, named for the kind it filters by.
 [[nodes]]
@@ -23,7 +21,6 @@ kind = "row"
 role = "toolbar_dock"
 [nodes.widget_layout]
 align_items = "center"
-gap = [6, 6]
 
 [[nodes]]
 id = "material"
@@ -135,9 +132,6 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "card_c
 [nodes.widget]
 kind = "list"
 grow = 1
-
-[nodes.widget.touch]
-row_height = 33
 [nodes.widget_list]
 grid_columns = "repeat(5, 1fr)"
 
@@ -150,14 +144,9 @@ visible = false
 bindings = { rows = [{ event = "pointer_click", action = "call", value = "card_clicked" }] }
 [nodes.widget]
 kind = "table"
+role = "list_log"
 grow = 1
-font = "fonts/JetBrainsMono-Regular.ttf"
-[nodes.widget_rows]
-row_height = 18
 [nodes.widget_table]
 sortable = true
 titles = ["template", "what it makes", "the command it is made with"]
 widths = ["1", "1.6", "2"]
-
-[nodes.widget.touch]
-row_height = 33

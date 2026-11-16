@@ -16,6 +16,7 @@ use selection;
 use session;
 use settings;
 use signals;
+use style;
 use theme;
 use util;
 use window;
@@ -295,21 +296,25 @@ fn asked_ui_scale() -> float {
     math::clamp(settings::get(settings::UI_SCALE).as_float(), UI_SCALE_LEAST, UI_SCALE_MOST)
 }
 
-// What a finger needs, and the box the theme's `touch` tables state for a
+// What a finger needs, and the size the theme's `touch` tables state for a
 // control. The scale is what makes the one the other, rounded up to 0.05.
 pub const TOUCH_TARGET: float = 44.0;
 
-pub const TOUCH_CONTROL: float = 33.0;
+const CONTROL_HEIGHT_TOUCH: str = "control_height_touch";
 
-fn touch_scale() -> float {
-    math::ceil(TOUCH_TARGET / TOUCH_CONTROL * 20.0) / 20.0
+fn touch_scale(state: editor::State) -> float {
+    let control = style::size_in_pixels(state, CONTROL_HEIGHT_TOUCH);
+    if control <= 0.0 {
+        return 1.0;
+    }
+    math::ceil(TOUCH_TARGET / control * 20.0) / 20.0
 }
 
 /// The scale this screen wants: what the reader set, and at least enough on a
 /// touch screen that the smallest control clears a finger.
 pub fn scale_for_screen(state: editor::State) -> float {
     let asked = asked_ui_scale();
-    let wanted = touch_scale();
+    let wanted = touch_scale(state);
     if state.touchscreen && asked < wanted {
         return wanted;
     }

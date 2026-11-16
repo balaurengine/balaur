@@ -11,8 +11,6 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 2]
 
 # What the player is missing, and the verb that gives it a clip.
 [[nodes]]
@@ -22,10 +20,8 @@ parent = "panel"
 visible = false
 [nodes.widget]
 kind = "row"
-height = 30
-padding = [12, 0, 12, 0]
+role = "layout_actions"
 [nodes.widget_layout]
-gap = [12, 12]
 align_items = "center"
 
 [[nodes]]
@@ -34,7 +30,7 @@ name = "Says"
 parent = "missing"
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
+role = "text_note"
 
 [[nodes]]
 id = "create"
@@ -52,9 +48,8 @@ name = "Body"
 parent = "panel"
 [nodes.widget]
 kind = "column"
+role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 2]
 
 [[nodes]]
 id = "head"
@@ -62,10 +57,8 @@ name = "Head"
 parent = "body"
 [nodes.widget]
 kind = "row"
-height = 24
-padding = [8, 0, 8, 0]
+role = "toolbar_dock"
 [nodes.widget_layout]
-gap = [4, 4]
 align_items = "center"
 
 [[nodes]]
@@ -78,8 +71,6 @@ kind = "button"
 role = "chip"
 text = "Key"
 tooltip = "Insert keyframe at playhead (or press K)"
-[nodes.widget_check]
-checked = true
 
 [[nodes]]
 id = "delete"
@@ -89,8 +80,10 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" 
 [nodes.widget]
 kind = "button"
 role = "chip"
-text = "− Key"
+text = "Key"
 tooltip = "Delete keyframe at playhead"
+[nodes.widget_button]
+icon = "minus"
 
 # The clip's own settings: how long it runs and what it does at its end.
 [[nodes]]
@@ -100,7 +93,7 @@ parent = "head"
 bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "clip_changed" }] }
 [nodes.widget]
 kind = "number_field"
-width = 72
+role = "input_number"
 tooltip = "How long the clip runs"
 [nodes.widget_range]
 drag_speed = 0.01
@@ -113,7 +106,7 @@ parent = "head"
 bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "clip_changed" }] }
 [nodes.widget]
 kind = "dropdown"
-width = 92
+role = "choice"
 tooltip = "What the clip does at its end"
 
 [[nodes]]
@@ -131,8 +124,7 @@ name = "Clip"
 parent = "head"
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
-font_size = 11
+role = "text_code_caption"
 
 [[nodes]]
 id = "time"
@@ -140,17 +132,16 @@ name = "Time"
 parent = "head"
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
-font_size = 11
+role = "text_code_caption"
 
-# The ticks along the top, placed by time.
+# The ticks along the top, placed by time, a lane high.
 [[nodes]]
 id = "ruler"
 name = "Ruler"
 parent = "body"
 [nodes.widget]
 kind = "row"
-height = 20
+role = "layout_lane"
 interactive = false
 
 # The lanes, with a rule per tick and the playhead straight down through them.
@@ -199,6 +190,7 @@ name = "Tracks"
 parent = "tracks_scroll"
 [nodes.widget]
 kind = "column"
+role = "layout_dock"
 
 # The scrubber, spanning exactly the lane column.
 [[nodes]]
@@ -207,7 +199,7 @@ name = "ScrubRow"
 parent = "body"
 [nodes.widget]
 kind = "row"
-height = 20
+role = "layout_lane"
 
 [[nodes]]
 id = "scrub"

@@ -4,32 +4,24 @@
 use editor;
 use polygon;
 use signals;
-use style;
-use themewin;
 use util;
 use words::fields;
 use words::project_fields;
+use words::roles;
 use words::tabs;
-use words::theme_tokens;
 
 const PICKED: str = "picked";
 const PX: str = "px";
 
 pub fn mode_specs(state: editor::State) -> [ui::Control] {
-    let tokens = state.theme;
     let mode = state.polygon.mode;
     let out: [ui::Control] = [];
     for id in polygon::modes(state) {
-        let on = mode == id;
         out.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
             text: polygon::mode_name(id),
-            height: 24,
-            font_size: style::SMALL,
-            font_weight: 700,
-            fill: if on { tokens[theme_tokens::PRIMARY_BG] } else { tokens[themewin::GROUND] },
-            stroke: tokens[theme_tokens::BORDER_DEFAULT],
-            text_color: if on { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_MUTED] },
+            role: roles::CHIP,
+            checked: mode == id,
             on_click: "handle",
             data: { fields::FN: on_mode_picked, PICKED: id },
         });
@@ -56,8 +48,7 @@ pub fn option_specs(state: editor::State) -> [ui::Control] {
             let active = if state.polygon.bone != nil { state.polygon.bone.unwrap() } else { 0 };
             out.push(ui::Control {
                 kind: ui::WIDGET_DROPDOWN,
-                width: 140,
-                height: 24,
+                role: roles::CHOICE,
                 text: names[util::int_min(active, names.len() - 1)],
                 options: names,
                 tooltip: "The bone the brush paints",
@@ -76,8 +67,7 @@ pub fn option_specs(state: editor::State) -> [ui::Control] {
 fn option_field(value: float, step: float, low: float, high: float, prefix: str, tooltip: str, then: fn(&mut editor::State, any, any)) -> ui::Control {
     ui::Control {
         kind: ui::WIDGET_NUMBER_FIELD,
-        width: 76,
-        height: 24,
+        role: roles::INPUT_NUMBER,
         value: value,
         drag_speed: step,
         min: low,

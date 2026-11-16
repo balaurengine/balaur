@@ -100,10 +100,10 @@ fn specs(state: editor::State) -> [form::Row] {
     let name = component(node).or(MULTIMESH3D);
     let out: [form::Row] = [];
     out.push(form::Row {
-        height: 24,
         controls: [
             ui::Control {
                 kind: ui::WIDGET_DROPDOWN,
+                role: roles::CHOICE_FORM,
                 grow: 1,
                 text: fields.kind,
                 options: [scatter::SURFACE, scatter::ROW, scatter::RING, scatter::GRID],
@@ -121,10 +121,10 @@ fn specs(state: editor::State) -> [form::Row] {
             }
         }
         out.push(form::Row {
-            height: 24,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_DROPDOWN,
+                    role: roles::CHOICE_FORM,
                     grow: 1,
                     text: if fields.surface == "" { NONE } else { fields.surface },
                     options: paths,
@@ -155,7 +155,6 @@ fn specs(state: editor::State) -> [form::Row] {
     out.push(fraction(state, "Random scale", fields.random_scale, write_random_scale));
     out.push(whole(state, "Seed", fields.seed, write_seed));
     out.push(form::Row {
-        height: 24,
         controls: [
             ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, text: target_text(state, node, name) },
         ],
@@ -164,14 +163,12 @@ fn specs(state: editor::State) -> [form::Row] {
     if fields.said != "" {
         out.push(form::Row {
             label: " ",
-            height: 24,
             controls: [
                 ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, text: fields.said },
             ],
         });
     }
     out.push(form::Row {
-        height: 30,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
             ui::Control {
@@ -242,10 +239,10 @@ fn on_populate_pressed(state: &mut editor::State, data: any, _value: any) {
 
 fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> form::Row {
     form::Row {
-        height: 24,
         controls: [
             ui::Control {
                 kind: ui::WIDGET_NUMBER_FIELD,
+                role: roles::INPUT_NUMBER,
                 grow: 1,
                 value: value as float,
                 drag_speed: 1.0,
@@ -264,10 +261,10 @@ fn on_whole_changed(state: &mut editor::State, data: any, value: any) {
 
 fn number(state: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> form::Row {
     form::Row {
-        height: 24,
         controls: [
             ui::Control {
                 kind: ui::WIDGET_NUMBER_FIELD,
+                role: roles::INPUT_NUMBER,
                 grow: 1,
                 value: value,
                 drag_speed: step,
@@ -288,10 +285,10 @@ fn on_number_changed(state: &mut editor::State, data: any, value: any) {
 // `scale` for its variation.
 fn fraction(state: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> form::Row {
     form::Row {
-        height: 24,
         controls: [
             ui::Control {
                 kind: ui::WIDGET_NUMBER_FIELD,
+                role: roles::INPUT_NUMBER,
                 grow: 1,
                 value: value,
                 drag_speed: 0.05,

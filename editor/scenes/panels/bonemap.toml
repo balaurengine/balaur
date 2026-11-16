@@ -11,8 +11,6 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 # What the map needs before there is anything to map.
 [[nodes]]
@@ -22,9 +20,8 @@ parent = "panel"
 visible = false
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
+role = "text_note"
 text = "select a rig — a node with bones under it — to map its bones"
-padding = [12, 8, 12, 0]
 
 [[nodes]]
 id = "body"
@@ -32,9 +29,8 @@ name = "Body"
 parent = "panel"
 [nodes.widget]
 kind = "column"
+role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 [[nodes]]
 id = "verbs"
@@ -42,10 +38,8 @@ name = "Verbs"
 parent = "body"
 [nodes.widget]
 kind = "row"
-height = 24
-padding = [8, 0, 8, 0]
+role = "toolbar_dock"
 [nodes.widget_layout]
-gap = [4, 4]
 align_items = "center"
 
 [[nodes]]
@@ -54,8 +48,7 @@ name = "Count"
 parent = "verbs"
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
-font_size = 11
+role = "text_code_caption"
 
 [[nodes]]
 id = "guess"
@@ -106,6 +99,4 @@ name = "Rows"
 parent = "scroll"
 [nodes.widget]
 kind = "column"
-padding = [8, 0, 8, 0]
-[nodes.widget_layout]
-gap = [0, 1]
+role = "list_dock"

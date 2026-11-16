@@ -3,15 +3,16 @@
 // "find in the tree" and "find in settings" feel like the same gesture.
 
 use editor;
+use words::roles;
 
 /// A search control a pooled strip holds, rather than one drawn: the same
 /// state under the same `id`, so `query` answers for either. Its edit comes
-/// back to the Editor's `search_typed` with the `id` it carries.
-pub fn control(state: editor::State, id: str, placeholder: str, width: float) -> ui::Control {
+/// back to the Editor's `search_typed` with the `id` it carries. A column
+/// stretches it across; a row it sits in sets its `grow`.
+pub fn control(state: editor::State, id: str, placeholder: str) -> ui::Control {
     ui::Control {
         kind: ui::WIDGET_TEXT_FIELD,
-        role: "input_dock",
-        width: width,
+        role: roles::INPUT_DOCK,
         text: query(state, id),
         placeholder: placeholder,
         on_change: "search_typed",

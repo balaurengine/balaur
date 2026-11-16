@@ -4,7 +4,6 @@
 
 use editor;
 use signals;
-use words::components;
 
 const OUT: str = "out";
 const OVER: str = "over";
@@ -12,10 +11,6 @@ const OVER: str = "over";
 pub class Debugger {
     node: Node,
     editor: editor::Editor?,
-}
-
-pub struct Shown {
-    text: any,
 }
 
 fn STEPS() -> [str] {
@@ -82,16 +77,14 @@ impl Debugger {
         }
         let view = self.editor.unwrap().debugger_view();
         let tools = self.node.get_node("Tools");
-        tools.get_node("Pause").set_visible(view.can_pause);
+        let patched = tools.get_node("Pause");
+        patched.set_visible(view.can_pause);
+        patched.widget_button.icon = view.pause_icon;
         let steps = STEPS();
         for index in 0..steps.len() {
-            let step = steps[index];
-            let shown = Shown { text: nil };
-            if view.stopped {
-                shown.text = view.steps[index];
-            }
-            tools.get_node(step).set_visible(view.stopped);
-            tools.get_node(step).patch_component(components::WIDGET, shown);
+            let patched = tools.get_node(steps[index]);
+            patched.set_visible(view.stopped);
+            patched.widget_button.icon = view.step_icons[index];
         }
         tools.get_node("Where").widget.text = view.where;
         let patched = tools.get_node("Threw");

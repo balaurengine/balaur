@@ -1,6 +1,5 @@
-// Every icon the shell draws, by what it means, as Phosphor Fill names it.
-// A widget's `icon`, a row's and a mark's take the name; text that carries an
-// icon among its words asks `ui::glyph` for its character.
+// Every icon the shell draws, by what it means, as Phosphor names it: the
+// Fill weight as `x`, the Bold one as `x-bold`.
 
 use words::asset_kinds;
 use words::components;
@@ -35,9 +34,9 @@ const BOOKMARK: str = "bookmark";
 const CAMERA: str = "camera";
 internal const CARET_DOWN: str = "caret-down";
 const CARET_LEFT: str = "caret-left";
-const CARET_OPEN: str = "caret-open";
+internal const CARET_OPEN: str = "caret-open";
 const CARET_RIGHT: str = "caret-right";
-const CARET_SHUT: str = "caret-shut";
+internal const CARET_SHUT: str = "caret-shut";
 const CARET_UP: str = "caret-up";
 internal const CHECK: str = "check";
 internal const CLOSE: str = "close";
@@ -45,13 +44,20 @@ internal const DEBUGGER: str = "debugger";
 internal const DISTRIBUTE_H: str = "distribute-h";
 const DISTRIBUTE_V: str = "distribute-v";
 internal const DOCS: str = "docs";
+internal const RELOAD: str = "reload";
+internal const PICTURE: str = "picture";
+internal const KEYBOARD: str = "keyboard";
+internal const CHANNEL: str = "channel";
+internal const DIALOG: str = "dialog";
+internal const CLIP: str = "clip";
+internal const ENTRY_LIST: str = "entry-list";
 const ENVIRONMENT: str = "environment";
 const EYE_CLOSED: str = "eye-closed";
 const FILTER: str = "filter";
 const HIDDEN: str = "hidden";
 internal const INSTANCE: str = "instance";
 const MESH: str = "mesh";
-const MINIMIZE: str = "minimize";
+internal const MINIMIZE: str = "minimize";
 const MULTIMESH2D: str = "multimesh2d";
 const MULTIMESH3D: str = "multimesh3d";
 internal const OPEN: str = "open";
@@ -213,10 +219,19 @@ pub fn panel(id: str) -> str {
 /// The shell's own controls.
 pub fn ui(name: str) -> str {
     match name {
-        ADD => glyphs::PLUS,
-        CLOSE => glyphs::X,
-        CHECK => glyphs::CHECK,
-        MINIMIZE => glyphs::MINUS,
+        ADD => glyphs::PLUS_BOLD,
+        verbs::UNDO => glyphs::ARROW_COUNTER_CLOCKWISE,
+        verbs::REDO => glyphs::ARROW_CLOCKWISE,
+        verbs::SAVE => glyphs::FLOPPY_DISK,
+        RELOAD => glyphs::ARROWS_CLOCKWISE,
+        PICTURE => glyphs::IMAGE,
+        KEYBOARD => glyphs::KEYBOARD,
+        CHANNEL => glyphs::CIRCLE_HALF,
+        DIALOG => glyphs::APP_WINDOW,
+        CLIP => glyphs::FILM_STRIP,
+        CLOSE => glyphs::X_BOLD,
+        CHECK => glyphs::CHECK_BOLD,
+        MINIMIZE => glyphs::MINUS_BOLD,
         window_marks::RESTORE => glyphs::CARET_UP,
         window_marks::COLLAPSE => glyphs::CARET_DOWN,
         verbs::SPLIT => glyphs::COLUMNS,
@@ -236,6 +251,7 @@ pub fn ui(name: str) -> str {
         verbs::COPY => glyphs::COPY_SIMPLE,
         OPEN => glyphs::CARET_UP,
         SHUT => glyphs::CARET_DOWN,
+        ENTRY_LIST => glyphs::LIST_BULLETS,
         CARET_OPEN => glyphs::CARET_DOWN,
         CARET_SHUT => glyphs::CARET_RIGHT,
         CARET_LEFT => glyphs::CARET_LEFT,

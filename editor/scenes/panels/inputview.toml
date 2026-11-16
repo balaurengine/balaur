@@ -21,11 +21,9 @@ name = "Chips"
 parent = "view"
 [nodes.widget]
 kind = "row"
+role = "layout_dock"
 absolute = true
-height = 30
 interactive = false
-[nodes.widget_layout]
-gap = [4, 4]
 
 [[nodes]]
 id = "wash0"
@@ -33,10 +31,9 @@ name = "Wash0"
 parent = "view"
 visible = false
 [nodes.widget]
-kind = "panel"
+kind = "row"
+role = "mark_wash"
 absolute = true
-fill = "primary_bg"
-corner_radius = 9
 interactive = false
 
 [[nodes]]
@@ -45,11 +42,9 @@ name = "Ring0"
 parent = "view"
 visible = false
 [nodes.widget]
-kind = "panel"
+kind = "row"
+role = "mark_ring"
 absolute = true
-fill = "none"
-stroke = "input_ripple"
-corner_radius = 9
 interactive = false
 
 [[nodes]]
@@ -58,10 +53,9 @@ name = "Wash1"
 parent = "view"
 visible = false
 [nodes.widget]
-kind = "panel"
+kind = "row"
+role = "mark_wash"
 absolute = true
-fill = "primary_bg"
-corner_radius = 9
 interactive = false
 
 [[nodes]]
@@ -70,11 +64,9 @@ name = "Ring1"
 parent = "view"
 visible = false
 [nodes.widget]
-kind = "panel"
+kind = "row"
+role = "mark_ring"
 absolute = true
-fill = "none"
-stroke = "input_ripple"
-corner_radius = 9
 interactive = false
 
 [[nodes]]
@@ -83,10 +75,9 @@ name = "Wash2"
 parent = "view"
 visible = false
 [nodes.widget]
-kind = "panel"
+kind = "row"
+role = "mark_wash"
 absolute = true
-fill = "primary_bg"
-corner_radius = 9
 interactive = false
 
 [[nodes]]
@@ -95,11 +86,9 @@ name = "Ring2"
 parent = "view"
 visible = false
 [nodes.widget]
-kind = "panel"
+kind = "row"
+role = "mark_ring"
 absolute = true
-fill = "none"
-stroke = "input_ripple"
-corner_radius = 9
 interactive = false
 
 [[nodes]]
@@ -108,10 +97,9 @@ name = "Wash3"
 parent = "view"
 visible = false
 [nodes.widget]
-kind = "panel"
+kind = "row"
+role = "mark_wash"
 absolute = true
-fill = "primary_bg"
-corner_radius = 9
 interactive = false
 
 [[nodes]]
@@ -120,11 +108,9 @@ name = "Ring3"
 parent = "view"
 visible = false
 [nodes.widget]
-kind = "panel"
+kind = "row"
+role = "mark_ring"
 absolute = true
-fill = "none"
-stroke = "input_ripple"
-corner_radius = 9
 interactive = false
 
 # The left button held, under the pointer.
@@ -134,13 +120,9 @@ name = "Press"
 parent = "view"
 visible = false
 [nodes.widget]
-kind = "panel"
+kind = "row"
+role = "mark_press"
 absolute = true
-width = 22
-height = 22
-corner_radius = 11
-fill = "primary_bg"
-stroke = "primary_text"
 interactive = false
 
 [[nodes]]

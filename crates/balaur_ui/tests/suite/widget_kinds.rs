@@ -655,7 +655,7 @@ fn face_theme(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("themes")).unwrap();
     std::fs::write(
         dir.join("themes/face.toml"),
-        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor-Fill.ttf\"\n\n[roles.row]\ntext_align = \"start\"\n\n[roles.mark]\nicon_fill = \"#ffffff\"\n",
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n\n[roles.row]\ntext_align = \"start\"\n\n[roles.mark]\nicon_fill = \"#ffffff\"\n",
     )
     .unwrap();
 }
@@ -668,7 +668,7 @@ fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/ink.toml"),
-        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor-Fill.ttf\"\n\n[colors]\nmark = \"#5b6670\"\n\n[roles.transport]\nwidth = 26\nheight = 26\ntext_color = \"mark\"\n",
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n\n[colors]\nmark = \"#5b6670\"\n\n[roles.transport]\nwidth = 26\nheight = 26\ntext_color = \"mark\"\n",
     )
     .unwrap();
     let icon = "\u{e1dc}";

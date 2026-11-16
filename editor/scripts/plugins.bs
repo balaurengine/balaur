@@ -8,12 +8,12 @@
 
 use docks;
 use editor;
-use icons;
 use inspector;
 use kit;
 use pool;
 use signals;
 use util;
+use window;
 use words::changes;
 use words::dock_fields;
 use words::fields;
@@ -250,7 +250,6 @@ pub fn draw_overlays(state: editor::State) {
 
 // Where the open dialogs go: a column down the left of the stage.
 const DIALOGS: str = "Editor/Dialogs";
-const DIALOG_WIDTH: float = 260.0;
 
 /// Fill the open plugin dialogs, a sheet each with its title and close over
 /// the rows the plugin hands back, and place them against the stage.
@@ -261,33 +260,15 @@ pub fn fill_dialogs(state: &mut editor::State) {
         if !state.registry.open[entry[fields::ID].as_str()].as_bool() {
             continue;
         }
-        let close = pool::on(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::ICON_ACTION,
-            text: "",
-            icon: icons::ui(icons::CLOSE),
-            tooltip: "Close",
-        }, close_dialog, { fields::ID: entry[fields::ID] });
-        let head: [ui::Control] = [
-            ui::Control { kind: ui::WIDGET_LABEL, role: "text_title_dialog", text: entry[fields::TITLE] },
-            ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
-            close,
-        ];
+        let close = pool::on(ui::Control { kind: ui::WIDGET_BUTTON }, close_dialog, { fields::ID: entry[fields::ID] });
+        let head = window::head(entry[fields::TITLE].as_str(), [], close);
         let body: [ui::Control] = [
-            ui::Control { kind: ui::WIDGET_ROW, align_items: ui::ALIGN_CENTER, controls: head },
-            ui::Control { kind: ui::WIDGET_SEPARATOR },
+            ui::Control { kind: ui::WIDGET_ROW, role: roles::HEADER_DIALOG, align_items: ui::ALIGN_CENTER, controls: head },
         ];
         for row in util::list_or_empty(ask(entry, ROWS, { project_fields::THEME: tokens })) {
             body.push(row_controls(util::map_or_empty(row)));
         }
-        out.push(ui::Control {
-            kind: ui::WIDGET_PANEL,
-            role: roles::SHEET,
-            width: DIALOG_WIDTH,
-            padding: ui::Sides { left: 12.0, top: 6.0, right: 12.0, bottom: 8.0 },
-            gap: vec2(6, 6),
-            controls: body,
-        });
+        out.push(ui::Control { kind: ui::WIDGET_PANEL, role: roles::SHEET_PLUGIN, controls: body });
     }
     let viewport_rect = state.layout[panel_keys::STAGE];
     let filled = scene::root().get_node(DIALOGS);
@@ -315,7 +296,7 @@ fn row_controls(row: any) -> ui::Control {
     for one in util::list_or_empty(row[CONTROLS]) {
         controls.push(one);
     }
-    ui::Control { kind: ui::WIDGET_ROW, gap: vec2(6, 6), align_items: ui::ALIGN_CENTER, controls: controls }
+    ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_ACTIONS, align_items: ui::ALIGN_CENTER, controls: controls }
 }
 
 /// What a plugin's docks and dialogs show moved.

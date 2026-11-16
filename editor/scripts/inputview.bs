@@ -6,7 +6,8 @@ use editor;
 use manager;
 use style;
 use util;
-use words::theme_tokens;
+use words::layout_fields;
+use words::roles;
 
 /// What marks an action's name among the keys held: the panel's `ACTION`.
 pub const ACTION: str = "action:";
@@ -16,6 +17,7 @@ pub struct View {
     internal factor: float,
     internal chips_x: float,
     internal chips_y: float,
+    internal press: float,
 }
 
 // The keys worth a chip; the rest of the key list is media and numpad keys.
@@ -156,7 +158,13 @@ pub fn view(state: editor::State) -> View {
     let viewport_x = if staged { viewport_rect.x } else { 0.0 };
     let viewport_y = if staged { viewport_rect.y } else { 0.0 };
     let viewport_height = if staged { viewport_rect.height } else { window_height };
-    View { shown: state.show_input, factor: ui::pixels_per_design(), chips_x: viewport_x + 130.0, chips_y: viewport_y + viewport_height - 46.0 }
+    View {
+        shown: state.show_input,
+        factor: ui::pixels_per_design(),
+        chips_x: viewport_x + 130.0,
+        chips_y: viewport_y + viewport_height - 46.0,
+        press: style::role_size_in_pixels(state, roles::MARK_PRESS, layout_fields::WIDTH, 22.0),
+    }
 }
 
 /// A key's chip, or "" for a key worth none: the rest of the key list is
@@ -176,21 +184,15 @@ fn is_known_key(key: str, items: [str]) -> bool {
 
 /// Put a chip a name on the overlay's row: a key or a button held, an action
 /// pressed, each in the look it had.
-pub fn fill_chips(state: editor::State, names: [any]) {
-    let tokens = state.theme;
+pub fn fill_chips(_state: editor::State, names: [any]) {
     let out: [ui::Control] = [];
     for name in names {
         let action = name.as_str().starts_with(ACTION);
         out.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
             text: if action { name.as_str().slice(ACTION.len(), name.len()) } else { name },
-            height: 30,
-            font_size: style::MEDIUM,
-            font_weight: 700,
+            role: if action { roles::CHIP_KEY_PRIMARY } else { roles::CHIP_KEY },
             interactive: false,
-            fill: (if action { tokens[theme_tokens::BG_CONTROL] } else { tokens["primary_fill"] }).as_str(),
-            stroke: (if action { tokens[theme_tokens::PRIMARY_TEXT].as_str() } else { "" }),
-            text_color: (if action { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens["text_on_primary"] }).as_str(),
         });
     }
     ui::fill_strip("Editor/InputView/Chips", out);

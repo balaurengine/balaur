@@ -4,7 +4,7 @@
 
 use editor;
 use form;
-use style;
+use icons;
 use theme;
 use themeedit;
 use util;
@@ -42,11 +42,11 @@ const FOCUS: str = "focus";
 const HELD_NONE: str = "none";
 const REST: str = "rest";
 const OFF: str = "off";
+// A state's column, so each role's states line up down the page.
 const SAMPLE_WIDTH: float = 72.0;
 const DEFAULT: str = "default";
 const EDIT: str = "edit";
 const FILL: str = "fill";
-const GAP: str = "gap";
 const HEIGHT: str = "height";
 const ICON_COLOR: str = "icon_color";
 const ICON_FILL: str = "icon_fill";
@@ -119,7 +119,7 @@ fn KEYS() -> [str] {
         PADDING,
         PADDING_X,
         PADDING_Y,
-        GAP,
+        layout_fields::GAP,
         STROKE_WIDTH,
     ]
 }
@@ -138,7 +138,7 @@ fn SIZE_KEYS() -> [str] {
         PADDING,
         PADDING_X,
         PADDING_Y,
-        GAP,
+        layout_fields::GAP,
         STROKE_WIDTH,
     ]
 }
@@ -192,7 +192,6 @@ pub fn editable(state: editor::State) -> bool {
 
 /// Fill the sheet: what its script asks for when Theme is up.
 pub fn fill(state: &mut editor::State) {
-    let tokens = state.theme;
     let stacked = ui::window_size().x < STACK_BELOW;
     let hosts = window::sheet_form(state, ID, "Theme", save_button(state));
     if hosts == nil {
@@ -273,7 +272,6 @@ fn on_page_button_clicked(state: &mut editor::State, data: any, _value: any) {
 
 fn page_picker(state: editor::State) -> form::Row {
     form::Row {
-        height: style::row_height(state),
         controls: [
             ui::Control {
                 kind: ui::WIDGET_DROPDOWN,
@@ -382,7 +380,6 @@ fn form_specs(state: editor::State) -> [form::Row] {
 }
 
 fn head_specs(state: editor::State) -> [form::Row] {
-    let row_height = style::row_height(state);
     let name = state.theme[fields::NAME].as_str();
     let own: any = state.themewin.own;
     let mine = editable(state);
@@ -390,7 +387,6 @@ fn head_specs(state: editor::State) -> [form::Row] {
         ui::Control {
             kind: ui::WIDGET_DROPDOWN,
             role: roles::CHOICE_FORM,
-            width: 180,
             text: name,
             options: theme::names(),
             tooltip: "The theme the editor uses",
@@ -402,7 +398,6 @@ fn head_specs(state: editor::State) -> [form::Row] {
         controls.push(ui::Control {
             kind: ui::WIDGET_DROPDOWN,
             role: roles::CHOICE_FORM,
-            width: 150,
             text: "based on " + theme::base_of(own),
             options: theme::BUNDLED(),
             tooltip: "The bundled theme every key this one leaves out comes from",
@@ -432,17 +427,16 @@ fn head_specs(state: editor::State) -> [form::Row] {
     if mine {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: "action_form_danger",
+            role: roles::ACTION_FORM_DANGER,
             text: "Delete",
             tooltip: "Remove this theme's folder and go back to its base",
             on_click: "handle",
             data: { fields::FN: on_delete_clicked },
         });
     }
-    let out: [form::Row] = [form::Row { height: row_height, slot_role: roles::LAYOUT_ACTIONS, controls: controls }];
+    let out: [form::Row] = [form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls }];
     if mine {
         out.push(form::Row {
-            height: row_height,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_TEXT_FIELD,
@@ -495,10 +489,9 @@ fn on_name_submitted(state: &mut editor::State, data: any, text: any) {
 
 fn note_spec(text: str) -> form::Row {
     form::Row {
-        height: 0,
         controls: [
             ui::Control {
-                kind: "label",
+                kind: ui::WIDGET_LABEL,
                 role: roles::TEXT_CAPTION,
                 grow: 1,
                 wrap: true,
@@ -509,7 +502,6 @@ fn note_spec(text: str) -> form::Row {
 }
 
 fn color_specs(state: editor::State, doc: any, out: [form::Row]) {
-    let row_height = style::row_height(state);
     let mine = editable(state);
     let stated = util::map_or_empty(doc[COLORS]);
     let colors = state.theme[COLORS];
@@ -525,12 +517,10 @@ fn color_specs(state: editor::State, doc: any, out: [form::Row]) {
         // A stated token reads as the theme's own; a derived one is quieter.
         let own = stated.has(name);
         out.push(form::Row {
-            height: row_height,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_COLOR_PICKER,
-                    width: 34,
                     picked_color: rgba_of(hex),
                     enabled: mine,
                     on_change: "handle",
@@ -539,7 +529,6 @@ fn color_specs(state: editor::State, doc: any, out: [form::Row]) {
                 ui::Control {
                     kind: ui::WIDGET_TEXT_FIELD,
                     role: roles::INPUT_FORM,
-                    width: 96,
                     text: hex,
                     enabled: mine,
                     on_submit: "handle_submit",
@@ -577,18 +566,16 @@ fn on_hex_submitted(state: &mut editor::State, data: any, text: any) {
 }
 
 fn size_specs(state: editor::State, doc: any, out: [form::Row]) {
-    let row_height = style::row_height(state);
     let mine = editable(state);
     let stated = util::map_or_empty(doc[SIZES]);
     for name in sorted_keys(state.theme[SIZES]) {
         out.push(form::Row {
-            height: row_height,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_NUMBER_FIELD,
                     role: roles::INPUT_NUMBER,
-                    width: 96,
+                    grow: 1,
                     value: state.theme[SIZES][name].as_float(),
                     min: 0.0,
                     max: 200.0,
@@ -652,12 +639,6 @@ fn pick(state: &mut editor::State, path: [str]) {
     state.themewin.table = "";
 }
 
-fn height_of(state: editor::State, table: any) -> float {
-    let row_height = style::row_height(state);
-    let own = style::size_in_pixels(state, table[layout_fields::HEIGHT].as_float());
-    math::max(row_height, own + 4.0)
-}
-
 /// What a table states in a line: a layout role's air, or a kind's frame.
 fn summary(table: any) -> str {
     let out = "";
@@ -684,7 +665,7 @@ fn sample(state: editor::State, name: str, path: [str], table: any) -> ui::Contr
     if page == CONTROLS {
         return ui::Control { kind: ui::WIDGET_ROW, controls: in_states(name, path) };
     }
-    ui::Control { kind: ui::WIDGET_BUTTON, role: name, width: 200, text: name, on_click: "handle", data: { fields::FN: on_sample_clicked, project_fields::PATH: path } }
+    ui::Control { kind: ui::WIDGET_BUTTON, role: name, grow: 1, text: name, on_click: "handle", data: { fields::FN: on_sample_clicked, project_fields::PATH: path } }
 }
 
 /// A control role at rest, under the pointer, held, focused and off, each
@@ -716,7 +697,6 @@ fn entry_specs(state: editor::State, doc: any, path: [str], out: [form::Row]) {
     let table = themeedit::table_at(doc, path);
     let picked = same_path(state.themewin.path, path);
     out.push(form::Row {
-        height: height_of(state, table),
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
             sample(state, name, path, table),
@@ -780,11 +760,9 @@ fn on_state_chip_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn inspector_specs(state: editor::State, doc: any, path: [str], out: [form::Row]) {
-    let row_height = style::row_height(state);
     let mine = editable(state);
     let role_table = themeedit::table_at(doc, path);
     out.push(form::Row {
-        height: row_height,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: state_chips(state, role_table),
         label: "  table",
@@ -805,12 +783,11 @@ fn inspector_specs(state: editor::State, doc: any, path: [str], out: [form::Row]
     }
     if mine && missing.len() > 0 {
         out.push(form::Row {
-            height: row_height,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_DROPDOWN,
                     role: roles::CHOICE_FORM,
-                    width: 200,
+                    grow: 1,
                     text: "add a key…",
                     options: missing,
                     on_change: "handle",
@@ -849,8 +826,9 @@ fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, sta
     if mine && stated {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::CHIP_QUIET,
-            text: "×",
+            role: roles::ICON_ACTION_FORM,
+            text: "",
+            icon: icons::ui(icons::CLOSE),
             tooltip: "Back to the base theme's value",
             on_click: "handle",
             data: { fields::FN: on_key_cleared, layout_fields::AT: at, fields::KEY: key },
@@ -859,7 +837,6 @@ fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, sta
     // A key this theme states reads as its own; one it leaves to its base is
     // quieter, so what the file says stands out from what it inherits.
     form::Row {
-        height: control_height(state),
         slot_role: roles::LAYOUT_ACTIONS,
         controls: controls,
         label: "  " + key,
@@ -871,10 +848,6 @@ fn on_key_cleared(state: &mut editor::State, data: any, _value: any) {
     let at: [str] = data[layout_fields::AT];
     let key: str = data[fields::KEY].as_str();
     themeedit::clear(state, at, key);
-}
-
-fn control_height(state: editor::State) -> float {
-    style::row_height(state)
 }
 
 fn words_of(state: editor::State, key: str, value: any) -> [str] {
@@ -910,7 +883,6 @@ fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, 
         return [
             ui::Control {
                 kind: ui::WIDGET_COLOR_PICKER,
-                width: 34,
                 picked_color: rgba_of((if is_hex(hex.as_str()) { hex.as_str() } else { "#000000" })),
                 enabled: mine,
                 on_change: "handle",
@@ -1044,10 +1016,8 @@ fn problem_specs(state: editor::State, out: [form::Row]) {
         out.push(note_spec("Every role's text reads at WCAG AA on its fill: 4.5:1, or 3:1 from 18 px or 14 px bold. Primary, success, warning and danger stand apart for every colour vision."));
         return;
     }
-    let row_height = style::row_height(state);
     for pair in same {
         out.push(form::Row {
-            height: row_height,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control {
@@ -1059,7 +1029,7 @@ fn problem_specs(state: editor::State, out: [form::Row]) {
                 ui::Control {
                     kind: ui::WIDGET_BUTTON,
                     role: roles::CHIP,
-                    text: "edit",
+                    text: EDIT,
                     on_click: "handle",
                     data: { fields::FN: on_alike_edit_clicked },
                 },
@@ -1072,7 +1042,6 @@ fn problem_specs(state: editor::State, out: [form::Row]) {
         let name = parts[0];
         let table = if parts.len() > 1 { parts[1] } else { "" };
         out.push(form::Row {
-            height: row_height,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control {
@@ -1082,9 +1051,9 @@ fn problem_specs(state: editor::State, out: [form::Row]) {
                     text: "{pair["ink"].as_str()} on {pair[FILL].as_str()}: {util::fixed(pair[RATIO].as_float(), 2)}:1, needs {pair[NEED]}",
                 },
                 ui::Control {
-                    kind: "button",
+                    kind: ui::WIDGET_BUTTON,
                     role: roles::CHIP,
-                    text: "edit",
+                    text: EDIT,
                     on_click: "handle",
                     data: { fields::FN: on_problem_edit_clicked, fields::NAME: name, TABLE: table },
                 },

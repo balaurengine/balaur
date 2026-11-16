@@ -6,7 +6,7 @@
 use words::roles;
 
 /// One row: its `label` and `controls`, with no label across both columns;
-/// `height`, 24 when unset and 0 to hug what is in it; `tooltip`; the roles
+/// `height`, which hugs what is in it unless stated; `tooltip`; the roles
 /// that dress the label and the control column; and `y`, the height it sits
 /// at in a host laid out by hand.
 pub class Row {
@@ -19,14 +19,11 @@ pub class Row {
     internal y: float?,
 }
 
-const DEFAULT_HEIGHT: float = 24.0;
+const DEFAULT_HEIGHT: float = 0.0;
 
 // A stacked label's line: the label role's text and its air.
 const LABEL_LINE: float = 16.0;
-const BESIDE_GAP: float = 6.0;
 const STACKED_GAP: float = 2.0;
-// Below zero on an axis, a gap is the theme's: the cell role's own.
-const THEME_GAP: float = -1.0;
 
 /// The control column's place in a row, as `ui::patch_control` takes it.
 pub const CELLS: int = 1;
@@ -41,10 +38,11 @@ pub fn control(row: Row, label_width: float, stacked: bool) -> ui::Control {
     let tall = if height <= 0.0 { 0.0 } else if stack { height + LABEL_LINE + STACKED_GAP } else { height };
     let label_role = row.label_role.or("");
     let slot_role = row.slot_role.or("");
-    let gap = if stack { STACKED_GAP } else { BESIDE_GAP };
+    // Beside, the label sits on the controls' middle line and the theme says
+    // the air between; stacked, the label's line is counted above.
     let out = ui::Control {
         kind: if stack { ui::WIDGET_COLUMN } else { ui::WIDGET_ROW },
-        gap: vec2(gap, gap),
+        role: roles::LAYOUT_FORM,
         height: tall,
         controls: [
             ui::Control {
@@ -59,17 +57,38 @@ pub fn control(row: Row, label_width: float, stacked: bool) -> ui::Control {
             ui::Control {
                 kind: ui::WIDGET_ROW,
                 grow: 1.0,
-                gap: vec2(THEME_GAP, THEME_GAP),
                 role: if slot_role == "" { roles::LAYOUT_CELLS } else { slot_role },
+                align_items: ui::ALIGN_CENTER,
                 controls: row.controls,
             },
         ],
     };
+    if stack {
+        out.gap = vec2(STACKED_GAP, STACKED_GAP);
+    } else {
+        out.align_items = ui::ALIGN_CENTER;
+    }
     if row.y != nil {
         out.absolute = true;
         out.inset = ui::Sides { left: 0.0, top: row.y.unwrap(), right: 0.0, bottom: -1.0 };
     }
     out
+}
+
+/// A heading between groups of rows, in the heading role's capitals.
+pub fn heading(title: str) -> Row {
+    Row { controls: [ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: title }] }
+}
+
+/// A line that says something, across the row and wrapping: what a panel
+/// with nothing in it says, or a hint under a group.
+pub fn note(text: str) -> Row {
+    Row { controls: [ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, wrap: true, text: text }] }
+}
+
+/// The same line for something wrong.
+pub fn warning(text: str) -> Row {
+    Row { controls: [ui::Control { kind: ui::WIDGET_LABEL, role: roles::NOTE_WARNING, grow: 1, wrap: true, text: text }] }
 }
 
 /// Every row of a form as the controls `ui::fill_strip` takes.

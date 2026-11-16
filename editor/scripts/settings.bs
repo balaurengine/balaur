@@ -4,6 +4,7 @@
 use autosave;
 use editor;
 use form;
+use icons;
 use pool;
 use search;
 use shell;
@@ -514,29 +515,27 @@ pub fn commit_preferences(state: editor::State) {
 }
 
 // Under this the list of categories goes above the rows rather than beside
-// them: two columns of 190 and a row's own controls do not fit a phone.
+// them: two columns and a row's own controls do not fit a phone.
 const STACK_BELOW: float = 520.0;
 
-// The sidebar's own column, and the air between it and the rows. A row that
-// measured the whole sheet wrapped its help under the sidebar and ran past
-// the sheet's edge.
-const SIDEBAR_WIDTH: float = 190.0;
+// The heading over what this editor keeps, in the sidebar and in the rows.
+const THIS_EDITOR: str = "This editor";
 
-const SIDEBAR_GAP: float = 20.0;
-
-/// What a settings row has across it: the sheet, less the sidebar where one
-/// is beside it.
+/// What a settings row has across it: the sheet, less the sidebar and the air
+/// beside it, as their roles state them. A row that measured the whole sheet
+/// wrapped its help under the sidebar and ran past the sheet's edge.
 fn row_width(state: editor::State) -> float {
     let inner = window::inner_width(state);
     if ui::window_size().x < STACK_BELOW {
         return inner;
     }
-    math::max(inner - SIDEBAR_WIDTH - SIDEBAR_GAP, 160.0)
+    let sidebar = style::role_size_in_pixels(state, roles::LAYOUT_SIDEBAR, layout_fields::WIDTH, 190.0);
+    let gap = style::role_size_in_pixels(state, roles::LAYOUT_DIALOG, layout_fields::GAP, 20.0);
+    math::max(inner - sidebar - gap, 160.0)
 }
 
 /// Fill the sheet: what its script asks for when Settings is up.
 pub fn fill(state: &mut editor::State) {
-    let tokens = state.theme;
     let stacked = ui::window_size().x < STACK_BELOW;
     let found = window::sheet_form(state, verbs::SETTINGS, "Settings", save_button(state));
     if found == nil {
@@ -545,10 +544,10 @@ pub fn fill(state: &mut editor::State) {
     let hosts = found.unwrap();
     // Narrow, the categories go above the rows rather than beside them: a
     // sidebar and a column of settings leave neither enough room.
-    ui::fill_strip(hosts.side_rows, if stacked { [] } else { side_controls(state, tokens) });
+    ui::fill_strip(hosts.side_rows, if stacked { [] } else { side_controls(state) });
     util::set_visible(hosts.side, !stacked);
     let label_width = label_column_width(state);
-    let specs = form_specs(state, tokens);
+    let specs = form_specs(state);
     if stacked {
         specs.insert(0, picker_spec(state));
     }
@@ -569,7 +568,7 @@ fn picker_spec(state: editor::State) -> form::Row {
         text: current(state),
         options: categories(),
     };
-    form::Row { height: style::row_height(state), controls: [pool::on(picker, on_category_picked, {})] }
+    form::Row { controls: [pool::on(picker, on_category_picked, {})] }
 }
 
 fn on_category_picked(state: &mut editor::State, data: any, picked: any) {
@@ -600,8 +599,8 @@ fn on_save_clicked(state: &mut editor::State, data: any, _value: any) {
 
 /// The column down the left: the search box, and a row per category under
 /// the scope it belongs to.
-fn side_controls(state: editor::State, tokens: any) -> [ui::Control] {
-    let out = [search::control(state, FIELD, "Search", SIDEBAR_WIDTH)];
+fn side_controls(state: editor::State) -> [ui::Control] {
+    let out = [search::control(state, FIELD, "Search")];
     let scope = "";
     let at = current(state);
     let scopes = scopes();
@@ -612,11 +611,7 @@ fn side_controls(state: editor::State, tokens: any) -> [ui::Control] {
         let here = if held == nil { PROJECT } else { held.as_str() };
         if here != scope {
             scope = here;
-            out.push(ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: roles::TEXT_CAPTION,
-                text: if scope == PROJECT { "PROJECT" } else { "THIS EDITOR" },
-            });
+            out.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: if scope == PROJECT { "Project" } else { THIS_EDITOR } });
         }
         let on = query(state) == "" && category == at;
         out.push(ui::Control {
@@ -639,15 +634,13 @@ fn on_category_clicked(state: &mut editor::State, data: any, _value: any) {
 
 /// Every row the form shows: a note at its head, a heading per group, and a
 /// row per setting with its help under it.
-fn form_specs(state: editor::State, tokens: any) -> [form::Row] {
+fn form_specs(state: editor::State) -> [form::Row] {
     let rows = showing(state);
     let out: [form::Row] = [];
-    let row_height = style::row_height(state);
     if query(state) != "" {
-        out.push(note_spec("{rows.len()} matching \"{query(state)}\""));
+        out.push(form::note("{rows.len()} matching \"{query(state)}\""));
     } else if scope_of(current(state)) == PROJECT {
         out.push(form::Row {
-            height: 34,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_LABEL,
@@ -660,10 +653,10 @@ fn form_specs(state: editor::State, tokens: any) -> [form::Row] {
             slot_role: roles::LAYOUT_ACTIONS,
         });
     } else {
-        out.push(note_spec("Kept in this editor only, and never written to the project."));
+        out.push(form::note("Kept in this editor only, and never written to the project."));
     }
     if rows.len() == 0 {
-        out.push(note_spec(search::nothing_says(query(state))));
+        out.push(form::note(search::nothing_says(query(state))));
         return out;
     }
     // Grouped by the middle of the path, in the order the first setting of
@@ -676,13 +669,13 @@ fn form_specs(state: editor::State, tokens: any) -> [form::Row] {
         if !searching && setting.scope != scope {
             scope = setting.scope;
             group = "";
-            out.push(head_spec("THIS EDITOR"));
+            out.push(form::heading(THIS_EDITOR));
         }
         let here = group_of(setting);
         if !searching && here != group {
             group = here;
             if group != "" {
-                out.push(head_spec(group.to_upper()));
+                out.push(form::heading(group));
             }
         }
         let path = setting.path;
@@ -698,7 +691,6 @@ fn form_specs(state: editor::State, tokens: any) -> [form::Row] {
             });
         }
         out.push(form::Row {
-            height: row_height,
             controls: controls,
             slot_role: roles::LAYOUT_ACTIONS,
             label: if searching { path } else { key_of(setting) },
@@ -706,18 +698,18 @@ fn form_specs(state: editor::State, tokens: any) -> [form::Row] {
         let help = setting.spec[fields::HELP].as_str();
         if help != "" {
             let tail = if setting.applies_now { "" } else { "  ·  takes effect on the next run" };
-            out.push(note_spec(help + tail));
+            out.push(form::note(help + tail));
         }
         for on in stated_overrides(state, path) {
             let at = override_path(on, path);
             out.push(form::Row {
-                height: row_height,
                 controls: [
                     editor_control(state, setting, at),
                     ui::Control {
                         kind: ui::WIDGET_BUTTON,
-                        role: roles::CHIP_QUIET,
-                        text: "×",
+                        role: roles::ICON_ACTION_FORM,
+                        text: "",
+                        icon: icons::ui(icons::CLOSE),
                         tooltip: "Reset this override",
                         on_click: "handle",
                         data: { fields::FN: on_override_reset_clicked, layout_fields::AT: at },
@@ -740,36 +732,6 @@ fn on_override_reset_clicked(state: &mut editor::State, data: any, _value: any) 
     state.settings.dirty = true;
 }
 
-/// A line of prose across both columns, and a group's heading.
-fn note_spec(text: str) -> form::Row {
-    form::Row {
-        height: 0,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: roles::TEXT_CAPTION,
-                grow: 1,
-                wrap: true,
-                text: text,
-            },
-        ],
-    }
-}
-
-fn head_spec(text: str) -> form::Row {
-    form::Row {
-        height: 24,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: roles::TEXT_CAPTION,
-                grow: 1,
-                text: text,
-            },
-        ],
-    }
-}
-
 // The page's one override choice. The dropdown draws what it is handed, so the
 // prompt is its own text until a tag is picked.
 /// Which override a project setting is written to, or none.
@@ -781,7 +743,6 @@ fn target_control(state: editor::State) -> ui::Control {
     ui::Control {
         kind: ui::WIDGET_DROPDOWN,
         role: roles::CHOICE_FORM,
-        width: 170,
         text: if state.settings.target == "" { "override for…" } else { "override for " + state.settings.target },
         options: options,
         on_change: "handle",

@@ -20,6 +20,3 @@ bindings = { rows = [{ event = "emitted:value_changed", action = "call", value =
 [nodes.widget]
 kind = "list"
 grow = 1
-
-[nodes.widget.touch]
-row_height = 33

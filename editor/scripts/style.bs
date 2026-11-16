@@ -1,24 +1,10 @@
-// The type scale and the sizes a theme states, as the scripts that size a
-// node read them.
+// The sizes a theme states, as the scripts that do layout arithmetic read
+// them; a node's own look is its role's.
 
 use editor;
-use shell;
+use words::layout_fields;
 use words::project_fields;
-
-/// The type scale, in design pixels. Four steps and no others: a call site
-/// that wants a size names one of these, and everything else takes the size
-/// its `role` carries.
-///
-/// `SMALL` is a caption or a dense secondary line, `MEDIUM` is body text and
-/// every control's label, `LARGE` is a glyph standing on its own, and
-/// `EXTRA_LARGE` is the one title a panel gets.
-pub const SMALL: float = 11.0;
-
-pub const MEDIUM: float = 12.0;
-
-pub const LARGE: float = 14.0;
-
-pub const EXTRA_LARGE: float = 17.0;
+use words::roles;
 
 /// A role's stated size as the theme file gives it: the touch table's where
 /// a finger drives the screen and the role has one, else the role's own.
@@ -45,8 +31,8 @@ pub fn size_in_pixels(state: editor::State, value: any) -> float {
     }
 }
 
-/// A form row, and the field or search box in one: the theme's touch box
-/// where a finger picks it, a cursor's line otherwise.
+/// A form row, and the field or search box in one: the form field's height
+/// as the theme states it, its touch table's where a finger picks it.
 pub fn row_height(state: editor::State) -> float {
-    if state.touchscreen { shell::TOUCH_CONTROL } else { 24.0 }
+    role_size_in_pixels(state, roles::INPUT_FORM, layout_fields::HEIGHT, 24.0)
 }

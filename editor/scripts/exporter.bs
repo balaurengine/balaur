@@ -92,15 +92,14 @@ pub fn fill(state: &mut editor::State) {
 /// builds from, and a target with its verb.
 fn specs(state: editor::State) -> [form::Row] {
     if state.exporter.rows.len() == 0 {
-        let none = [note("no targets — this build has no exporter", roles::TEXT_CAPTION)];
+        let none = [form::note("no targets — this build has no exporter")];
         return none;
     }
     let out: [form::Row] = [
-        note("Builds the project this editor is editing.", roles::TEXT_CAPTION),
+        form::note("Builds the project this editor is editing."),
         // The sheet builds; what it builds from is a settings page, so the
         // sentence that used to name the table is the link to it.
         form::Row {
-            height: 24,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control {
@@ -140,14 +139,12 @@ fn runtime_spec(state: editor::State) -> form::Row? {
     }
     let now = settings::stated(state, RUNTIME_SETTING);
     form::Row {
-        height: 24,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
             ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "Runtime" },
             ui::Control {
                 kind: ui::WIDGET_DROPDOWN,
                 role: roles::CHOICE_FORM,
-                width: 120,
                 text: if now.kind() == types::KIND_STRING { now } else { options[0] },
                 options: options,
                 on_change: "handle",
@@ -166,21 +163,6 @@ pub fn pick_runtime(state: &mut editor::State, picked: str) {
     // An export reads project.toml, so the choice is saved as it is made.
     settings::commit_project(state);
     refresh(state);
-}
-
-fn note(text: str, role: str) -> form::Row {
-    form::Row {
-        height: 0,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: role,
-                grow: 1,
-                wrap: true,
-                text: text,
-            },
-        ],
-    }
 }
 
 // Reveal, beside the close, once an export has landed somewhere.
@@ -245,10 +227,10 @@ fn target_specs(state: editor::State, row: any, out: [form::Row]) {
     } else if status == statuses::DONE {
         controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "done" });
     }
-    out.push(form::Row { height: 24, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
+    out.push(form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls });
     // The path it wrote, or the reason it did not, under the row that says so.
     if said != "" {
-        out.push(note(said, if status == statuses::FAILED { roles::NOTE_DANGER } else { roles::TEXT_CAPTION }));
+        out.push(if status == statuses::FAILED { form::warning(said) } else { form::note(said) });
     }
 }
 

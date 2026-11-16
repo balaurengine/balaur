@@ -2594,19 +2594,20 @@ The rarer words about a box, which any kind may carry: what its size measures, w
 
 ### `widget_button`
 
-`ui` · 7 properties
+`ui` · 8 properties
 
 The rows a `button` or `menu` reads: what its face holds beside its caption, and what the pointer may do to it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>icon</code></td><td>string</td><td>—</td><td>A glyph from the theme&#x27;s icon family, drawn before `text`</td></tr>
+<tr><td><code>icon</code></td><td>string</td><td>—</td><td>The name of a glyph in the theme&#x27;s icon font, `plus`, drawn before `text`; a name the font lacks warns and draws none</td></tr>
 <tr><td><code>icon_color</code></td><td>string</td><td>—</td><td>What that glyph is tinted with, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the role&#x27;s own</td></tr>
 <tr><td><code>icon_size</code></td><td>float</td><td><code>-1.0</code></td><td>That glyph&#x27;s size in design pixels; below zero takes the caption&#x27;s</td></tr>
 <tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative picture drawn before the caption at the caption&#x27;s height</td></tr>
 <tr><td><code>face_gap</code></td><td>float</td><td><code>-1.0</code></td><td>The space between its picture, icon and caption, in design pixels; below zero takes the theme&#x27;s own, else half the font size</td></tr>
 <tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text drawn against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
+<tr><td><code>loading</code></td><td>bool</td><td><code>false</code></td><td>A spinner before `text` in place of its icon, as daisyUI&#x27;s `loading` button: what a button shows while what it started is under way. It still clicks; `enabled = false` beside it keeps a second press out</td></tr>
 <tr><td><code>sense</code></td><td>enum</td><td><code>click</code></td><td>What the pointer may do to it: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui&#x27;s drag distance is a drag and no click; `drag` and `hover` never click One of <code>click</code>, <code>click_and_drag</code>, <code>drag</code>, <code>hover</code>.</td></tr>
 </tbody>
 </table>
@@ -2869,7 +2870,7 @@ The rows a `list`, `tree` or `table` reads: what it holds and what is picked.
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>items</code></td><td>list of record · <code>cells, depth, icon, key, label, marks, note, tint</code></td><td><code>[]</code></td><td>The rows a `list`, `tree` or `table` holds. `text` is the key of the one picked, and every row event reports a row by its key</td></tr>
+<tr><td><code>items</code></td><td>list of record · <code>cells, depth, icon, key, label, marks, note, region, tint</code></td><td><code>[]</code></td><td>The rows a `list`, `tree` or `table` holds. `text` is the key of the one picked, and every row event reports a row by its key</td></tr>
 <tr><td><code>selection</code></td><td>list of string</td><td><code>[]</code></td><td>The keys of the rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the key of the last row clicked, which is where a shift range measures from; `value_changed` carries the whole list where the widget holds many, and the key where it holds one</td></tr>
 <tr><td><code>multi_select</code></td><td>bool</td><td><code>false</code></td><td>Let a `list`, `tree` or `table` hold more than one row: the platform&#x27;s command key toggles a row and shift takes the run from the last one clicked</td></tr>
 <tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list`, `tree` or `table` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>

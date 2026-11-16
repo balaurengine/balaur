@@ -4,8 +4,10 @@
 use anim;
 use docks;
 use editor;
+use fold;
 use form;
 use history;
+use icons;
 use inspector;
 use model;
 use sceneedit;
@@ -66,11 +68,8 @@ const COMPONENT: str = "state_machine";
 
 const MACHINE_TYPE: str = "state_machine";
 
-const ROW_HEIGHT: float = 24.0;
-
+// The form's label column: the states' names and a transition's fields.
 const NAME_WIDTH: float = 96.0;
-
-const FIELD_WIDTH: float = 120.0;
 
 /// The dock's own state, hung on `state.machine`.
 pub fn state() -> StatemachineState {
@@ -356,7 +355,6 @@ fn header_controls(state: editor::State, found: Source) -> [ui::Control] {
         ui::Control {
             kind: ui::WIDGET_DROPDOWN,
             role: roles::CHOICE_FORM,
-            width: FIELD_WIDTH,
             text: doc[START].as_str(),
             options: state_names(doc),
             on_change: "handle",
@@ -365,8 +363,7 @@ fn header_controls(state: editor::State, found: Source) -> [ui::Control] {
     ];
     let now = live_state(state);
     if now != "" {
-        // A chip held down that nothing clicks: the state the machine is in.
-        out.push(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, checked: true, interactive: false, focusable: false, text: "now {now}" });
+        out.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION_PRIMARY, text: "now {now}" });
     }
     out
 }
@@ -392,7 +389,7 @@ fn live_state(state: editor::State) -> str {
 /// Every row the dock shows: the states, the new-state row, the transitions,
 /// and the fields of whichever transition is open.
 fn row_specs(state: &mut editor::State, doc: any) -> [form::Row] {
-    let out = [head_spec("STATES", [])];
+    let out = [form::heading(STATES)];
     let clips = anim::clip_names(state);
     let machine_states = states(doc);
     for name in machine_states.keys() {
@@ -403,7 +400,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [form::Row] {
             ui::Control {
                 kind: ui::WIDGET_DROPDOWN,
                 role: roles::CHOICE_FORM,
-                width: FIELD_WIDTH,
+                grow: 1,
                 text: if clip.as_str() == "" { state_name } else { clip.as_str() },
                 options: clips,
                 on_change: "handle",
@@ -413,30 +410,18 @@ fn row_specs(state: &mut editor::State, doc: any) -> [form::Row] {
             caption("nested machine")
         };
         out.push(form::Row {
-            height: ROW_HEIGHT,
             slot_role: roles::LAYOUT_ACTIONS,
-            controls: [
-                control,
-                ui::Control {
-                    kind: ui::WIDGET_BUTTON,
-                    role: roles::CHIP_QUIET,
-                    text: "×",
-                    tooltip: "Remove the state and its transitions",
-                    on_click: "handle",
-                    data: { fields::FN: on_state_remove_pressed, STATE: state_name },
-                },
-            ],
+            controls: [control, remove("Remove the state and its transitions", { fields::FN: on_state_remove_pressed, STATE: state_name })],
             label: state_name,
         });
     }
     out.push(form::Row {
-        height: ROW_HEIGHT,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
             ui::Control {
                 kind: ui::WIDGET_TEXT_FIELD,
                 role: roles::INPUT_FORM,
-                width: NAME_WIDTH + FIELD_WIDTH,
+                grow: 1,
                 text: state.machine.naming,
                 placeholder: "new state",
                 on_change: "handle",
@@ -489,16 +474,20 @@ fn named(state: &mut editor::State, text: str) {
 }
 
 fn transition_specs(state: editor::State, doc: any, out: [form::Row]) {
-    out.push(head_spec("TRANSITIONS", [
-        ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_FORM_SECONDARY,
-            text: "add transition",
-            tooltip: "A transition between two states, opened for editing",
-            on_click: "handle",
-            data: { fields::FN: on_add_transition_pressed },
-        },
-    ]));
+    out.push(form::Row {
+        slot_role: roles::LAYOUT_ACTIONS,
+        controls: [
+            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, grow: 1, text: TRANSITIONS },
+            ui::Control {
+                kind: ui::WIDGET_BUTTON,
+                role: roles::ACTION_FORM_SECONDARY,
+                text: "add transition",
+                tooltip: "A transition between two states, opened for editing",
+                on_click: "handle",
+                data: { fields::FN: on_add_transition_pressed },
+            },
+        ],
+    });
     let names = state_names(doc);
     // `end` is somewhere a transition goes, never somewhere one leaves.
     let targets = state_names(doc);
@@ -512,28 +501,16 @@ fn transition_specs(state: editor::State, doc: any, out: [form::Row]) {
         let from = if transition[FROM] == nil { "?" } else { transition[FROM].as_str() };
         let to = if transition[layout_fields::TO] == nil { "?" } else { transition[layout_fields::TO].as_str() };
         let mode = if transition[ADVANCE_MODE] == nil { animation::ADVANCE_MODE_ENABLED } else { transition[ADVANCE_MODE].as_str() };
+        let action = ui::Control {
+            kind: ui::WIDGET_BUTTON,
+            on_click: "handle",
+            data: { fields::FN: on_transition_picked, project_fields::OPEN: open, fields::INDEX: index },
+        };
         out.push(form::Row {
-            height: ROW_HEIGHT,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
-                ui::Control {
-                    kind: ui::WIDGET_BUTTON,
-                    min_width: NAME_WIDTH + FIELD_WIDTH,
-                    role: "item_list",
-                    checked: open,
-                    text: "{from} → {to}  {mode}",
-                    tooltip: "Open the transition's fields",
-                    on_click: "handle",
-                    data: { fields::FN: on_transition_picked, project_fields::OPEN: open, fields::INDEX: index },
-                },
-                ui::Control {
-                    kind: ui::WIDGET_BUTTON,
-                    role: roles::CHIP_QUIET,
-                    text: "×",
-                    tooltip: "Remove the transition",
-                    on_click: "handle",
-                    data: { fields::FN: on_transition_remove_pressed, fields::INDEX: index },
-                },
+                fold::head(open, "{from} → {to}  {mode}", "", "", 1, "Open the transition's fields", action),
+                remove("Remove the transition", { fields::FN: on_transition_remove_pressed, fields::INDEX: index }),
             ],
         });
         if open {
@@ -557,26 +534,22 @@ fn on_transition_remove_pressed(state: &mut editor::State, data: any, _value: an
     remove_transition(state, index);
 }
 
-/// A heading across the rows, with whatever verbs belong beside it.
-fn head_spec(text: str, verbs: [ui::Control]) -> form::Row {
-    let controls = [caption(text)];
-    for verb in verbs {
-        controls.push(verb);
-    }
-    form::Row { height: ROW_HEIGHT, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
+// A row's close mark, which takes the row out, by `data`.
+fn remove(tooltip: str, data: any) -> ui::Control {
+    ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION_FORM, text: "", icon: icons::ui(icons::CLOSE), tooltip: tooltip, on_click: "handle", data: data }
 }
 
 // The label a transition's own field wears: indented, so the fields read as
 // belonging to the row above them.
 fn field_spec(label: str, control: ui::Control) -> form::Row {
-    form::Row { height: ROW_HEIGHT, controls: [control], label: "    " + label }
+    form::Row { controls: [control], label: "    " + label }
 }
 
 fn choice(state: editor::State, at: int, key: str, current: str, choices: [str]) -> ui::Control {
     ui::Control {
         kind: ui::WIDGET_DROPDOWN,
         role: roles::CHOICE_FORM,
-        width: FIELD_WIDTH,
+        grow: 1,
         text: current,
         options: choices,
         on_change: "handle",
@@ -594,7 +567,7 @@ fn text_of(state: editor::State, at: int, key: str, current: str, placeholder: s
     ui::Control {
         kind: ui::WIDGET_TEXT_FIELD,
         role: roles::INPUT_FORM,
-        width: FIELD_WIDTH,
+        grow: 1,
         text: current,
         placeholder: placeholder,
         on_submit: "handle_submit",
@@ -617,7 +590,7 @@ fn number(state: editor::State, at: int, key: str, current: float, whole: bool) 
     ui::Control {
         kind: ui::WIDGET_NUMBER_FIELD,
         role: roles::INPUT_NUMBER,
-        width: FIELD_WIDTH,
+        grow: 1,
         value: current,
         min: 0.0,
         max: if whole { 1000.0 } else { 100.0 },

@@ -480,10 +480,12 @@ impl Pool<'_> {
         }
     }
 
-    /// A box with no air in it holding its own controls: how a tab and the
-    /// mark that closes it read as one tile.
+    /// A box holding its own controls: the air its role states, and none
+    /// where it has no role, which is how a tab and its close mark read as
+    /// one tile.
     fn group(&self, key: &str, node: &Value, want: Spec, inner: &Value) -> Result<()> {
-        let mut set = table(&[(k::KIND, Value::text(w::ROW)), (k::GAP, both(0))]);
+        let air = if want.contains_key(k::ROLE) { -1 } else { 0 };
+        let mut set = table(&[(k::KIND, Value::text(w::ROW)), (k::GAP, both(air))]);
         set.extend(want);
         self.listen(key, node, &mut set);
         set.entry(p::VISIBLE.into()).or_insert(Value::Bool(true));

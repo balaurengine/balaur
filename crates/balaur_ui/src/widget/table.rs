@@ -47,9 +47,9 @@ pub(crate) fn table(
     // The order the rows are drawn in, which is the order given unless a
     // column was named to sort by, or the whole of it was turned round.
     let walk = ordered(widget, items, &heads, first);
-    let row_h = row_pitch(ui, widget, font);
-    let id = egui::Id::unique(("balaur-table", entity));
     let style = at.style(index);
+    let row_h = row_pitch(ui, widget, &style, font);
+    let id = egui::Id::unique(("balaur-table", entity));
     let look = Look {
         row_h,
         font,
@@ -142,13 +142,14 @@ pub(crate) fn table(
 
 /// The pitch of a row: what the table asked for, never less than the line of
 /// text it has to hold.
-fn row_pitch(ui: &mut egui::Ui, widget: &Widget, font: &egui::FontId) -> f32 {
+fn row_pitch(
+    ui: &mut egui::Ui,
+    widget: &Widget,
+    style: &crate::widget::theme::Style,
+    font: &egui::FontId,
+) -> f32 {
     let text_h = ui.fonts_mut(|f| f.row_height(font));
-    if widget.row_height > 0.0 {
-        widget.row_height.max(text_h)
-    } else {
-        text_h
-    }
+    crate::widget::rows::stated_pitch(widget, style).map_or(text_h, |pitch| pitch.max(text_h))
 }
 
 /// The header strip as `head_row` wants it: the names, the face they are

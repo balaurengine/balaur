@@ -5,8 +5,6 @@
 use center;
 use editor;
 use signals;
-use words::components;
-use words::layout_fields;
 
 pub class Rail {
     node: Node,
@@ -41,12 +39,8 @@ impl Rail {
         let view = self.editor.unwrap().stage_view();
         let sheet = self.node.get_node("RailTop/Handle");
         sheet.set_visible(view.rail_handle);
-        sheet.patch_component(components::WIDGET, { layout_fields::PADDING: view.pad });
         let patched = sheet.get_node("Open");
         patched.widget_button.icon = view.left.icon;
         patched.widget.tooltip = view.left.tooltip;
-        patched.widget.width = view.diameter;
-        patched.widget.height = view.diameter;
-        patched.widget.corner_radius = view.diameter / 2.0;
     }
 }

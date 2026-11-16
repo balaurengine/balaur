@@ -1,34 +1,95 @@
 //! The Recordings tab while one is open: the replay's transport and lanes.
 
 use editor;
-use form;
 use session;
 use signals;
+use style;
 use util;
 use words::changes;
 use words::components;
 use words::fields;
+use words::glyphs;
+use words::layout_fields;
 use words::log_fields;
 use words::roles;
 use words::schema_fields;
-use words::theme_tokens;
 
 const LANES: str = "Editor/Shell/Body/Centre/Bottom/Lanes";
 
-const LANE_NAME_WIDTH: float = 120.0;
+const PADDING_X: str = "padding_x";
+
+// A scroll bar's width, which the marks stay clear of.
+const SCROLL_BAR: float = 16.0;
+
+/// One lane of the Timeline or a recording: its lamp in `lamp`, a colour or
+/// "" for none, its name, then `marks` across `marks_width`.
+pub fn lane(state: editor::State, lamp: str, name: str, marks: [ui::Control], marks_width: float) -> ui::Control {
+    let controls: [ui::Control] = [];
+    if lamp != "" {
+        controls.push(ui::Control { kind: ui::WIDGET_ROW, role: roles::MARK_LAMP, fill: lamp });
+    }
+    controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_LANE, truncate: true, tooltip: name, text: name });
+    controls.push(ui::Control {
+        kind: ui::WIDGET_ROW,
+        width: marks_width,
+        height: style::role_size_in_pixels(state, roles::LAYOUT_LANE, layout_fields::HEIGHT, 20.0),
+        controls: marks,
+    });
+    line(controls)
+}
+
+/// A row in a lane's look that is not a lane: what happened at a tick.
+pub fn line(controls: [ui::Control]) -> ui::Control {
+    // A group of controls has no air of its own; this one's is the role's.
+    ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_LANE, align_items: ui::ALIGN_CENTER, controls: controls }
+}
+
+/// A lane's mark centred on `x`, held down once the playhead has passed it;
+/// a press calls `data`'s handler.
+pub fn mark(state: editor::State, x: float, passed: bool, tooltip: str, data: any) -> ui::Control {
+    let half = style::role_size_in_pixels(state, roles::CHIP_QUIET, layout_fields::HEIGHT, 20.0) / 2.0;
+    ui::Control {
+        kind: ui::WIDGET_BUTTON,
+        role: roles::CHIP_QUIET,
+        text: "",
+        icon: glyphs::DOT,
+        checked: passed,
+        absolute: true,
+        inset: ui::Sides { left: x - half, top: 0.0, right: -1.0, bottom: -1.0 },
+        tooltip: tooltip,
+        on_click: "handle",
+        data: data,
+    }
+}
+
+/// Where a lane's marks start across it, with its lamp or without.
+pub fn marks_x(state: editor::State, lamp: bool) -> float {
+    let gap = style::role_size_in_pixels(state, roles::LAYOUT_LANE, layout_fields::GAP, 6.0);
+    let lit = if lamp { style::role_size_in_pixels(state, roles::MARK_LAMP, layout_fields::WIDTH, 6.0) + gap } else { 0.0 };
+    style::role_size_in_pixels(state, roles::LAYOUT_LANE, PADDING_X, 8.0) + lit + style::role_size_in_pixels(state, roles::TEXT_LANE, layout_fields::WIDTH, 150.0) + gap
+}
+
+/// How wide a lane's marks run in the panel at `host`.
+pub fn marks_width(state: editor::State, host: str, lamp: bool) -> float {
+    let far = style::role_size_in_pixels(state, roles::LAYOUT_LANE, PADDING_X, 8.0) + SCROLL_BAR;
+    math::max(120.0, util::drawn_width(host) - marks_x(state, lamp) - far)
+}
 
 /// Fill the recording lanes: the transport and scrubber, where the replay
 /// parted from the recording, a lane a kind of event with its marks placed by
 /// tick against the tab's width, and everything recorded at the playhead.
 pub fn fill(state: editor::State) {
-    let tokens = state.theme;
     let split = replay::divergence_tick();
     let first = state.session.first;
     let last = state.session.last;
     let span = math::max(1.0, (last - first) as float);
-    let lane_width = math::max(120.0, util::drawn_width(LANES) - LANE_NAME_WIDTH - 60.0);
+    let lane_width = marks_width(state, LANES, false);
     let playing = replay::state() == replay::STATE_PLAYING;
-    util::set_text(LANES + "/Head/Play", if playing { "⏸ Pause" } else { "▶ Play" });
+    util::set_text(LANES + "/Head/Play", if playing { "Pause" } else { "Play" });
+    let play = scene::root().get_node(LANES + "/Head/Play");
+    if play.is_valid() {
+        play.widget_button.icon = if playing { glyphs::PAUSE } else { glyphs::PLAY };
+    }
     // Before the first frame is fed the position is one tick short of the
     // session's start, which is off the near end of the ruler.
     let at = math::max(0.0, (replay::position() - first) as float);
@@ -42,75 +103,27 @@ pub fn fill(state: editor::State) {
         filled.set_visible(parted != "");
         filled.widget.text = parted;
     }
-    let rows: [form::Row] = [];
-    for lane in state.session.lanes {
+    let rows: [ui::Control] = [];
+    for recorded in state.session.lanes {
         let marks: [ui::Control] = [];
-        for mark in lane.marks {
-            let tick = mark.tick;
-            let mark_x = math::clamp(((tick.as_int() - first) as float) / span, 0.0, 1.0) * (lane_width - 6.0);
-            marks.push(ui::Control {
-                kind: ui::WIDGET_BUTTON,
-                role: roles::CHIP_QUIET,
-                text: "▮",
-                font_size: 9,
-                padding: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
-                absolute: true,
-                inset: ui::Sides { left: mark_x, top: -1.0, right: -1.0, bottom: -1.0 },
-                text_color: if tick.as_int() <= replay::position() { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::BORDER_DEFAULT] },
-                tooltip: "{tick}: {mark.label}",
-                on_click: "handle",
-                data: { fields::FN: on_mark_pressed, log_fields::TICK: tick },
-            });
+        for recorded_mark in recorded.marks {
+            let tick = recorded_mark.tick;
+            let mark_x = math::clamp(((tick.as_int() - first) as float) / span, 0.0, 1.0) * lane_width;
+            let passed = tick.as_int() <= replay::position();
+            marks.push(mark(state, mark_x, passed, "{tick}: {recorded_mark.label}", { fields::FN: on_mark_pressed, log_fields::TICK: tick }));
         }
-        rows.push(form::Row {
-            height: 20,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    width: LANE_NAME_WIDTH - 12.0,
-                    padding: ui::Sides { left: 8.0, top: 0.0, right: 0.0, bottom: 0.0 },
-                    role: roles::TEXT_CODE_QUIET,
-                    font_size: 11,
-                    text: lane.name,
-                },
-                ui::Control {
-                    kind: ui::WIDGET_ROW,
-                    width: lane_width,
-                    controls: marks,
-                    height: 20,
-                },
-            ],
-        });
+        rows.push(lane(state, "", recorded.name, marks, lane_width));
     }
     // Everything recorded at the tick the playhead is on, in the order it
     // happened.
     for event in replay::events(state.session.at, state.session.at) {
-        rows.push(form::Row {
-            height: 20,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    padding: ui::Sides { left: 8.0, top: 0.0, right: 0.0, bottom: 0.0 },
-                    role: roles::TEXT_CODE_QUIET,
-                    font_size: 11,
-                    text: "{event.tick}",
-                },
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    role: roles::TEXT_CODE_QUIET,
-                    font_size: 11,
-                    text: event.kind,
-                },
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    role: roles::TEXT_CODE,
-                    font_size: 11,
-                    text: event.label,
-                },
-            ],
-        });
+        rows.push(line([
+            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: "{event.tick}" },
+            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: event.kind },
+            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: event.label },
+        ]));
     }
-    form::fill(LANES + "/Scroll/Rows", rows);
+    ui::fill_strip(LANES + "/Scroll/Rows", rows);
 }
 
 fn on_mark_pressed(state: &mut editor::State, data: any, _value: any) {

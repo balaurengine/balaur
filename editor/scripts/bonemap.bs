@@ -3,7 +3,9 @@
 // `animation.play(node, clip, { retarget = ... })` to read.
 
 use editor;
+use fold;
 use form;
+use icons;
 use model;
 use rig;
 use signals;
@@ -25,9 +27,8 @@ pub class BonemapState {
     picking: str?,
 }
 
+// The form's label column, the canonical names.
 const NAME_WIDTH: float = 128.0;
-
-const PICK_WIDTH: float = 190.0;
 
 // The canonical humanoid, in the spelling `balaur_animation::retarget::HUMANOID`
 // uses. One list, because a map written against another one would not load.
@@ -220,7 +221,7 @@ pub fn fill(state: editor::State) {
             rows.push(spec);
         }
     }
-    form::fill(PANEL + "/Body/Scroll/Rows", rows);
+    form::fill(PANEL + "/Body/Scroll/Rows", rows, NAME_WIDTH);
 }
 
 /// A verb by the name of its button.
@@ -240,38 +241,27 @@ pub fn verb(state: &mut editor::State, name: str) {
 fn row(state: editor::State, paths: [str], name: str) -> [form::Row] {
     let picked = state.bonemap.bones[name].as_str();
     let open = state.bonemap.picking == name;
+    let action = ui::Control {
+        kind: ui::WIDGET_BUTTON,
+        on_click: "handle",
+        data: { fields::FN: toggle_picker, project_fields::OPEN: open, fields::NAME: name },
+    };
     let controls: [ui::Control] = [
-        ui::Control {
-            kind: ui::WIDGET_LABEL,
-            role: if picked == "" { roles::TEXT_CODE_QUIET } else { roles::TEXT_CODE },
-            font_size: 12,
-            width: NAME_WIDTH,
-            text: name,
-        },
-        ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::CHIP,
-            width: PICK_WIDTH,
-            height: 22,
-            text: if picked == "" { "—" } else { picked },
-            text_align: ui::ALIGN_START,
-            checked: open,
-            tooltip: "Pick the bone this canonical name means on this rig",
-            on_click: "handle",
-            data: { fields::FN: toggle_picker, project_fields::OPEN: open, fields::NAME: name },
-        },
+        fold::head(open, if picked == "" { "—" } else { picked }, "", "", 1, "Pick the bone this canonical name means on this rig", action),
     ];
     if picked != "" {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::CHIP_QUIET,
-            text: "×",
+            role: roles::ICON_ACTION_FORM,
+            text: "",
+            icon: icons::ui(icons::CLOSE),
             tooltip: "Leave this row empty",
             on_click: "handle",
             data: { fields::FN: leave_row_empty, fields::NAME: name },
         });
     }
-    let out: [form::Row] = [form::Row { height: 24, controls: controls }];
+    let label_role = if picked == "" { roles::TEXT_CODE_QUIET } else { roles::TEXT_CODE };
+    let out: [form::Row] = [form::Row { label: name, label_role: label_role, controls: controls }];
     if !open {
         return out;
     }
@@ -279,14 +269,12 @@ fn row(state: editor::State, paths: [str], name: str) -> [form::Row] {
         // Bound afresh: a closure made in a loop captures the binding.
         let path = bone_path;
         out.push(form::Row {
-            height: 20,
             controls: [
-                ui::Control { kind: ui::WIDGET_LABEL, width: NAME_WIDTH, text: "" },
+                ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_FOLD_INDENT },
                 ui::Control {
                     kind: ui::WIDGET_BUTTON,
                     role: roles::CHIP,
-                    width: PICK_WIDTH,
-                    height: 20,
+                    grow: 1,
                     text: path,
                     text_align: ui::ALIGN_START,
                     checked: path == picked,

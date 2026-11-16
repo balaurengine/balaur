@@ -6,6 +6,7 @@ use disk;
 use editor;
 use exporter;
 use fonts;
+use icons;
 use left;
 use manager;
 use newnode;
@@ -14,6 +15,7 @@ use populate;
 use settings;
 use shell;
 use signals;
+use style;
 use themewin;
 use util;
 use words::fields;
@@ -59,8 +61,6 @@ const MIN_HEIGHT: float = 420.0;
 // over the shell rather than a second shell.
 const MARGIN: float = 16.0;
 
-const PAD_X: float = 18.0;
-
 /// A sheet's own box. The floor is what a form needs and the screen is what
 /// there is: on a phone the second wins, less the margin around it.
 pub fn size(state: editor::State) -> Size {
@@ -76,7 +76,12 @@ pub fn size(state: editor::State) -> Size {
 /// What a sheet leaves inside itself: what a body measures its columns
 /// against, since a row with no stated width reads the whole layer instead.
 pub fn inner_width(state: editor::State) -> float {
-    math::max(size(state).width - 2.0 * PAD_X, 120.0)
+    math::max(size(state).width - 2.0 * padding(state), 120.0)
+}
+
+// The air a sheet keeps inside its edge, as its role states it.
+fn padding(state: editor::State) -> float {
+    style::role_size_in_pixels(state, roles::SHEET_DIALOG, layout_fields::PADDING, 18.0)
 }
 
 /// Every open window, so one place decides what is on top and `esc` has
@@ -137,24 +142,26 @@ pub fn closed(state: &mut editor::State) {
     }
 }
 
-/// The bar across a sheet: its name, the verbs it carries, and the close.
-fn bar_controls(state: editor::State, title: str, actions: [ui::Control]) -> [ui::Control] {
+/// A dialog's head, which `header_dialog` lays out: its name, the verbs it
+/// carries, and `close`, a button carrying the caller's handler.
+pub fn head(title: str, actions: [ui::Control], close: ui::Control) -> [ui::Control] {
     let out: [ui::Control] = [
-        ui::Control { kind: ui::WIDGET_LABEL, role: "text_title_dialog", text: title },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE_DIALOG, text: title },
         ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
     ];
     for one in actions {
         out.push(one);
     }
-    out.push(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: "icon_action_dialog",
-        text: "Close",
-        on_click: "handle",
-        data: { fields::FN: on_close_clicked },
-    });
+    close.kind = ui::WIDGET_BUTTON;
+    close.role = roles::ICON_ACTION;
+    close.text = "";
+    close.icon = icons::ui(icons::CLOSE);
+    close.tooltip = CLOSE;
+    out.push(close);
     out
 }
+
+const CLOSE: str = "Close";
 
 fn on_close_clicked(state: &mut editor::State, data: any, _value: any) {
     hide(state);
@@ -174,20 +181,23 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::
         filled.widget.width = box.width;
         filled.widget.height = box.height;
     }
-    ui::fill_strip(SHEET + "/SheetBar", bar_controls(state, title, actions));
+    ui::fill_strip(SHEET + "/SheetBar", head(title, actions, ui::Control { on_click: "handle", data: { fields::FN: on_close_clicked } }));
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SIDE);
     Hosts { side: SIDE, side_rows: SIDE_ROWS, form: FORM }
 }
 
-/// Hold the sheet up to `width` by `height`, for a question with no form to
-/// make room for. Called after `sheet_form`, which sizes it for a form.
-pub fn fit(width: float, height: float) {
+/// Hold the sheet to its head and `rows` rows of `role`, for a question with
+/// no form to make room for. Called after `sheet_form`, which sizes it for a form.
+pub fn fit(state: editor::State, rows: int, role: str) {
+    let head = style::role_size_in_pixels(state, roles::HEADER_DIALOG, layout_fields::HEIGHT, 30.0);
+    // The sheet's air, under its head and taken again between the rows.
+    let gap = style::role_size_in_pixels(state, roles::SHEET_DIALOG, layout_fields::GAP, 10.0);
+    let row = style::role_size_in_pixels(state, role, layout_fields::HEIGHT, 24.0);
     let filled = scene::root().get_node(SHEET);
     if filled.is_valid() {
-        filled.widget.width = width;
-        filled.widget.height = height;
+        filled.widget.height = 2.0 * padding(state) + head + (rows as float + 1.0) * gap + (rows as float) * row;
     }
 }
 
@@ -215,12 +225,14 @@ pub fn picker_shut(state: &mut editor::State) {
 ///
 /// `options` names the glyph before the query, the `placeholder` behind it, the
 /// `query` itself and what to do with an edit (`on_change`) and an Enter
-/// (`on_submit`), the `width` it would like, and how tall its rows are.
+/// (`on_submit`), and how tall its rows are; a `width` over its role's.
 pub fn picker(state: &mut editor::State, options: any) -> str {
     let screen = ui::window_size();
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
-    let width = math::min(options[layout_fields::WIDTH].as_float(), math::max(screen.x - 32.0, 240.0));
+    let asked = options[layout_fields::WIDTH];
+    let wanted = if asked == nil { style::role_size_in_pixels(state, roles::SHEET_PICKER, layout_fields::WIDTH, 520.0) } else { asked.as_float() };
+    let width = math::min(wanted, math::max(screen.x - 32.0, 240.0));
     let filled = scene::root().get_node(PICKER);
     if filled.is_valid() {
         filled.widget_window.open = true;
@@ -228,7 +240,7 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
     }
     let field: ui::Control = ui::Control {
         kind: ui::WIDGET_TEXT_FIELD,
-        role: "input_picker",
+        role: roles::INPUT_PICKER,
         text: options[form_fields::QUERY].as_str(),
         grow: 1,
         placeholder: options[form_fields::PLACEHOLDER],
@@ -237,9 +249,9 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
         data: options[fields::DATA],
     };
     ui::fill_strip(PICKER + "/PickerHead", [
-        ui::Control { kind: ui::WIDGET_LABEL, role: "text_mark_picker", text: options[fields::MARK].as_str() },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_MARK_PICKER, text: ui::glyph(options[fields::MARK].as_str()) },
         field,
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::CHIP, text: "esc" },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::CHIP_KEY, text: "esc" },
     ]);
     let filled = scene::root().get_node(PICKER + "/PickerScroll");
     if filled.is_valid() {
@@ -256,6 +268,14 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
         }
     }
     PICKER + "/PickerScroll/PickerRows"
+}
+
+/// How tall `count` of the picker's rows stand with the air between them: the
+/// most its scroll is given.
+pub fn picker_rows_height(state: editor::State, count: int) -> float {
+    let row = style::role_size_in_pixels(state, roles::ITEM_PICKER, layout_fields::HEIGHT, 30.0);
+    let gap = style::role_size_in_pixels(state, roles::LIST_PICKER, layout_fields::GAP, 2.0);
+    (count as float) * (row + gap)
 }
 
 /// What the picker shows moved: the word its script fills on.

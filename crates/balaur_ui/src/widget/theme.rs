@@ -113,6 +113,10 @@ pub struct Style {
     pub outline_offset: Option<f32>,
     /// Seconds a `spinner` takes to turn once; 0.75 unset, daisyUI's.
     pub duration: Option<f32>,
+    /// The pitch of a list's, a tree's or a table's rows, in design pixels;
+    /// a widget's own `row_height` wins, and the font's line decides it where
+    /// neither says.
+    pub row_height: Option<f32>,
     /// Corner radius in design pixels; `None` keeps the kind's own rule,
     /// which for a button is "as round as its text is tall".
     pub radius: Option<f32>,
@@ -278,6 +282,7 @@ impl Style {
             outline_width: self.outline_width.or(base.outline_width),
             outline_offset: self.outline_offset.or(base.outline_offset),
             duration: self.duration.or(base.duration),
+            row_height: self.row_height.or(base.row_height),
             radius: self.radius.or(base.radius),
             padding: self.padding.or(base.padding),
             padding_sides: self.padding_sides.or(base.padding_sides),
@@ -623,6 +628,7 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         outline_width: number(k::OUTLINE_WIDTH),
         outline_offset: number(k::OUTLINE_OFFSET),
         duration: number(k::DURATION).filter(|seconds| *seconds > 0.0),
+        row_height: number(k::ROW_HEIGHT).filter(|pitch| *pitch > 0.0),
         radius: if pill { None } else { number(k::CORNER_RADIUS) },
         padding: number(k::PADDING),
         padding_sides: body
@@ -883,6 +889,9 @@ duration = 0.75                  # seconds a turn takes; stroke_width is the rin
 
 [switch]
 height = 18                      # the track; width is 1.75 of it unset
+
+[list]
+row_height = "control_height"    # a row's pitch, a tree's and a table's too; a widget's own wins
 
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels

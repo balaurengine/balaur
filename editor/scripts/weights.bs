@@ -9,7 +9,6 @@ use model;
 use polygon;
 use rig;
 use signals;
-use themewin;
 use util;
 use words::fields;
 use words::geometry_fields;
@@ -17,7 +16,6 @@ use words::layout_fields;
 use words::panel_keys;
 use words::project_fields;
 use words::roles;
-use words::theme_tokens;
 
 const ALL: str = "all";
 const AUTO: str = "auto";
@@ -37,12 +35,6 @@ struct Table {
     bones: any,
     at: [int],
 }
-
-const NAME_WIDTH: float = 92.0;
-
-const CELL_WIDTH: float = 58.0;
-
-const ROW_HEIGHT: float = 22.0;
 
 // A weight under this is noise from a brush pass and is dropped rather than
 // written; four decimals is already more than a rig needs.
@@ -316,7 +308,7 @@ pub fn fill(state: editor::State) {
     let picked = polygon::has_pick(state);
     util::set_text(PANEL + "/Body/Verbs/Scope", if picked { "{listing.at.len()} picked" } else { "all {listing.at.len()}" });
     util::set_visible(PANEL + "/Body/Verbs/all", picked);
-    ui::fill_strip(PANEL + "/Body/Header", header(state, listing));
+    form::fill(PANEL + "/Body/Header", [form::Row { controls: header(state, listing) }]);
     let rows: [form::Row] = [];
     for at in listing.at {
         rows.push(vertex_row(state, listing, at));
@@ -341,30 +333,36 @@ pub fn verb(state: &mut editor::State, name: str) {
     }
 }
 
-fn label(text: str, width: float, role: str) -> ui::Control {
-    ui::Control { kind: ui::WIDGET_LABEL, role: role, font_size: 11, width: width, text: text }
+fn label(text: str, role: str) -> ui::Control {
+    cell(ui::Control { kind: ui::WIDGET_LABEL, role: role, grow: 1, text: text })
+}
+
+// A column's cell: an equal share of the row, head and rows alike, whatever
+// the control inside draws round itself, so the columns line up.
+fn cell(control: ui::Control) -> ui::Control {
+    ui::Control { kind: ui::WIDGET_ROW, grow: 1, align_items: ui::ALIGN_CENTER, controls: [control] }
 }
 
 fn header(state: editor::State, listing: Table) -> [ui::Control] {
-    let out = [label("vertex", NAME_WIDTH, roles::TEXT_CODE_QUIET)];
+    let out = [label("vertex", roles::TEXT_CODE_CAPTION)];
     let active = if state.polygon.bone != nil { state.polygon.bone.unwrap() } else { -1 };
     for bone_index in 0..listing.bones.len() {
         let path = listing.bones[bone_index][project_fields::PATH].as_str();
         // The bone's own last segment: a full path is wider than the column
         // and the tooltip carries the rest.
-        out.push(ui::Control {
+        out.push(cell(ui::Control {
             kind: ui::WIDGET_BUTTON,
             role: roles::CHIP,
-            width: CELL_WIDTH,
-            height: 20,
+            grow: 1,
+            truncate: true,
             text: util::leaf(path),
             tooltip: path,
             checked: active == bone_index,
             on_click: "handle",
             data: { fields::FN: pick_bone, layout_fields::AT: bone_index },
-        });
+        }));
     }
-    out.push(label("sum", CELL_WIDTH, roles::TEXT_CODE_QUIET));
+    out.push(label("sum", roles::TEXT_CODE_CAPTION));
     out
 }
 
@@ -376,40 +374,39 @@ fn pick_bone(state: &mut editor::State, data: any, _value: any) {
 fn vertex_row(state: editor::State, listing: Table, at: int) -> form::Row {
     let hover = state.polygon.hover != nil && state.polygon.hover.unwrap() == at;
     let controls: [ui::Control] = [
-        ui::Control {
+        cell(ui::Control {
             kind: ui::WIDGET_BUTTON,
             role: roles::CHIP,
-            width: NAME_WIDTH - 6.0,
-            height: 20,
+            grow: 1,
             text: "{at}",
             tooltip: "Show this vertex alone in the viewport",
             checked: hover,
             on_click: "handle",
             data: { fields::FN: show_vertex_alone, layout_fields::AT: at },
-        },
+        }),
     ];
     let total = 0.0;
     for bone_at in 0..listing.bones.len() {
         let was = weight_of(listing.bones[bone_at], at);
         total += was;
-        controls.push(ui::Control {
+        controls.push(cell(ui::Control {
             kind: ui::WIDGET_NUMBER_FIELD,
-            width: CELL_WIDTH - 6.0,
+            role: roles::INPUT_NUMBER,
+            grow: 1,
             value: was,
             drag_speed: 0.01,
             decimals: 2,
             min: 0.0,
             max: 1.0,
-            fill: if was > 0.0 { theme_tokens::BG_CONTROL } else { themewin::GROUND },
             on_change: "handle",
             data: { fields::FN: type_weight, panel_keys::BONE: bone_at, layout_fields::AT: at },
-        });
+        }));
     }
     // A sum that is not one is what a Normalise is for, so it is said rather
     // than silently corrected.
     let off = math::abs(total - 1.0) > 0.01 && total > 0.0;
-    controls.push(label(util::fixed(total, 2), CELL_WIDTH, if off { "text_caption_primary" } else { roles::TEXT_CODE_QUIET }));
-    form::Row { height: ROW_HEIGHT, controls: controls }
+    controls.push(label(util::fixed(total, 2), if off { roles::TEXT_CAPTION_PRIMARY } else { roles::TEXT_CODE_CAPTION }));
+    form::Row { controls: controls }
 }
 
 fn show_vertex_alone(state: &mut editor::State, data: any, _value: any) {

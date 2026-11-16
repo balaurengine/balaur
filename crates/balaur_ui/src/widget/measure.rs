@@ -589,7 +589,15 @@ impl<'a> Measure<'a> {
             pic.x + mark.x + text.x + between + tail_gap + tail.x,
             pic.y.max(mark.y).max(text.y).max(tail.y),
         );
-        (face + pad).max(floor)
+        let sized = (face + pad).max(floor);
+        // One glyph and nothing else is square, as a toolbar's buttons are:
+        // the side padding is a caption's air, so the box is as wide as it is
+        // tall, unless the role states a width or the glyph is wider still.
+        let one_glyph = mark.x > 0.0 && text.x <= 0.0 && pic.x <= 0.0 && tail.x <= 0.0;
+        if one_glyph && style.width.is_none() {
+            return egui::Vec2::splat(sized.y.max(mark.x));
+        }
+        sized
     }
 
     /// A button's picture at its caption's height, with the disc a role may

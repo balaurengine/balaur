@@ -9,12 +9,9 @@ script = { source = "scripts/panels/code.bs" }
 visible = false
 [nodes.widget]
 kind = "panel"
+role = "sheet_code"
 absolute = true
 inset = [0.0, 0.0, 0.0, 0.0]
-fill = "bg_control"
-stroke = "border_default"
-corner_radius = 11
-padding = [0, 12, 0, 12]
 
 [[nodes]]
 id = "note"
@@ -46,7 +43,7 @@ bindings = { rows = [
 ] }
 [nodes.widget]
 kind = "code"
-font_size = 13
+role = "input_code"
 [nodes.widget_code]
 gutter_width = 34
 

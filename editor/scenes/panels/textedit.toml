@@ -8,9 +8,8 @@ script = { source = "scripts/panels/textedit.bs" }
 visible = false
 [nodes.widget]
 kind = "panel"
-role = "sheet"
+role = "sheet_textedit"
 anchor = "top_left"
-padding = [8, 4, 8, 4]
 whole_window = true
 
 [[nodes]]

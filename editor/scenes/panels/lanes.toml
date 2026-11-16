@@ -11,8 +11,6 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
-[nodes.widget_layout]
-gap = [0, 4]
 
 [[nodes]]
 id = "head"
@@ -20,10 +18,8 @@ name = "Head"
 parent = "panel"
 [nodes.widget]
 kind = "row"
-height = 24
-padding = [8, 0, 8, 0]
+role = "toolbar_dock"
 [nodes.widget_layout]
-gap = [4, 4]
 align_items = "center"
 
 [[nodes]]
@@ -34,7 +30,9 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" 
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
-text = "▶ Play"
+text = "Play"
+[nodes.widget_button]
+icon = "play"
 
 [[nodes]]
 id = "step"
@@ -44,8 +42,10 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" 
 [nodes.widget]
 kind = "button"
 role = "action_form"
-text = "⇥"
+text = ""
 tooltip = "One recorded tick forward"
+[nodes.widget_button]
+icon = "arrow-line-right"
 
 [[nodes]]
 id = "stop"
@@ -55,8 +55,10 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" 
 [nodes.widget]
 kind = "button"
 role = "action_form"
-text = "■"
+text = ""
 tooltip = "Back to the edited scene"
+[nodes.widget_button]
+icon = "stop"
 
 [[nodes]]
 id = "scrub"
@@ -77,8 +79,7 @@ name = "At"
 parent = "head"
 [nodes.widget]
 kind = "label"
-role = "text_code_quiet"
-font_size = 11
+role = "text_code_caption"
 
 [[nodes]]
 id = "parted"
@@ -88,7 +89,6 @@ visible = false
 [nodes.widget]
 kind = "label"
 role = "text_caption_primary"
-padding = [8, 0, 8, 0]
 
 [[nodes]]
 id = "scroll"
@@ -106,5 +106,4 @@ name = "Rows"
 parent = "scroll"
 [nodes.widget]
 kind = "column"
-[nodes.widget_layout]
-gap = [0, 2]
+role = "layout_dock"

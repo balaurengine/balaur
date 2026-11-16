@@ -18,7 +18,6 @@ use palette;
 use selftest;
 use settings;
 use shell;
-use style;
 use tests::project_checks;
 use theme;
 use themeedit;
@@ -250,23 +249,20 @@ pub fn font_sheet(state: editor::State) {
             align_items: "center",
             controls: [
                 ui::Control { kind: "label", role: "text_caption", text: name, width: 92 },
-                big("text_body", sample),
+                big("text_title", sample),
             ],
         });
     }
     controls.push(heading("FACES"));
     controls.push(ui::Control {
         kind: "label",
-        role: "text_body",
+        role: "text_title",
         text: "heading  Source Sans 3 Semibold",
-        font_size: style::EXTRA_LARGE,
-        font: "fonts/SourceSans3-Semibold.ttf",
     });
     controls.push(ui::Control {
         kind: "label",
         role: "text_body",
         text: "ui  Source Sans 3 Regular",
-        font_size: style::LARGE,
     });
     controls.push(ui::Control {
         kind: "label",
@@ -276,18 +272,18 @@ pub fn font_sheet(state: editor::State) {
     controls.push(heading("ICONS"));
     let tools: [ui::Control] = [];
     for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
-        tools.push(big("text_body", ui::glyph(icons::tool(id))));
+        tools.push(big("text_title", ui::glyph(icons::tool(id))));
     }
     for workspace in defs::workspaces() {
-        tools.push(big("text_caption_primary", ui::glyph(icons::workspace(workspace.id))));
+        tools.push(big("text_mark_picker", ui::glyph(icons::workspace(workspace.id))));
     }
     controls.push(ui::Control { kind: "row", height: 24, controls: tools, gap: vec2(8, 0) });
     let panels: [ui::Control] = [];
     for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
-        panels.push(big("text_body", ui::glyph(icons::panel(id))));
+        panels.push(big("text_title", ui::glyph(icons::panel(id))));
     }
     for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
-        panels.push(big("text_caption", ui::glyph(icons::ui(id))));
+        panels.push(big("text_title", ui::glyph(icons::ui(id))));
     }
     controls.push(ui::Control { kind: "row", height: 24, controls: panels, gap: vec2(8, 0) });
     let filled = scene::root().get_node(FONT_SHEET);
@@ -310,7 +306,7 @@ fn heading(text: str) -> ui::Control {
 }
 
 fn big(role: str, text: str) -> ui::Control {
-    ui::Control { kind: "label", role: role, font_size: style::EXTRA_LARGE, text: text }
+    ui::Control { kind: "label", role: role, text: text }
 }
 
 const FONT_SHEET: str = "Editor/FontSheet";

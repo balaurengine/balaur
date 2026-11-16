@@ -297,10 +297,10 @@ fn a_face_scale_draws_and_measures_its_glyphs_larger() {
 #[test]
 fn a_fallback_face_scales_only_its_own_glyphs() {
     let icon = |scale: f32| crate::fonts::FontFace {
-        name: "Phosphor-Fill".into(),
-        path: "fonts/Phosphor-Fill.ttf".into(),
+        name: "Phosphor".into(),
+        path: "fonts/Phosphor.ttf".into(),
         system: false,
-        bytes: Arc::new(include_bytes!("../../../editor/fonts/Phosphor-Fill.ttf").to_vec()),
+        bytes: Arc::new(include_bytes!("../../../editor/fonts/Phosphor.ttf").to_vec()),
         tweak: crate::fonts::FaceTweak {
             scale,
             ..Default::default()
@@ -854,7 +854,7 @@ fn a_request_s_case_shapes_its_letters_and_keeps_its_tags() {
 // is named as Phosphor names its icons, and bytes that are no face name none.
 #[test]
 fn a_face_s_glyphs_are_found_by_their_names() {
-    let phosphor = crate::GlyphNames::of(include_bytes!("../../../editor/fonts/Phosphor-Fill.ttf"));
+    let phosphor = crate::GlyphNames::of(include_bytes!("../../../editor/fonts/Phosphor.ttf"));
     let code = |name: &str| phosphor.get(name).map(u32::from);
     // Phosphor's private-use code points, in decimal.
     assert_eq!(code("plus"), Some(58_324));
@@ -864,6 +864,8 @@ fn a_face_s_glyphs_are_found_by_their_names() {
         Some(58_614),
         "the icon keeps the name, the letter is uni0078"
     );
+    // The Bold weight beside the Fill one, past the Basic Plane.
+    assert_eq!(code("x-bold"), Some(984_310));
     assert_eq!(code("no-such-icon"), None);
     assert_eq!(crate::GlyphNames::of(b"not a face").get("plus"), None);
 }

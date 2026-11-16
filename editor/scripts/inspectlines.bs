@@ -14,6 +14,7 @@ use sceneedit;
 use search;
 use selection;
 use shell;
+use style;
 use util;
 use words::asset_kinds;
 use words::datatypes;
@@ -70,6 +71,11 @@ fn fixed_line(state: &mut editor::State, key: str, row: form::Row) {
     push_line(state, inspector::Line { kind: inspector::FIXED, at: blank(), key: key, row: row, height: row.height.or(inspector::row_height(state)), labelled: labelled });
 }
 
+// A line as tall as the role it holds says, and never under a form row.
+fn role_height(state: editor::State, role: str) -> float {
+    math::max(inspector::row_height(state), style::role_size_in_pixels(state, role, layout_fields::HEIGHT, 0.0))
+}
+
 /// A line of text spanning both columns.
 fn note_line(state: &mut editor::State, height: float, role: str, text: str) {
     fixed_line(state, "", form::Row {
@@ -106,11 +112,11 @@ fn multi_note(state: &mut editor::State) {
         return;
     }
     fixed_line(state, "", form::Row {
-        height: inspector::row_height(state) + 4.0,
+        height: role_height(state, roles::NOTE_PRIMARY),
         controls: [
             ui::Control {
                 kind: ui::WIDGET_PANEL,
-                role: "note_primary",
+                role: roles::NOTE_PRIMARY,
                 grow: 1,
                 icon: icons::ui("select-all"),
                 text: if state.compact {
@@ -132,17 +138,17 @@ fn instance_note(state: &mut editor::State, node: Node) {
     }
     let key = "@prefab";
     fixed_line(state, key, form::Row {
-        height: inspector::row_height(state),
+        height: role_height(state, roles::SHEET_PREFAB),
         label: "Prefab",
         controls: [
             ui::Control {
-                role: "sheet_prefab",
+                role: roles::SHEET_PREFAB,
                 grow: 1,
                 controls: [
-                    ui::Control { kind: ui::WIDGET_LABEL, role: "text_code_secondary", grow: 1, truncate: true, text: if built { sceneedit::prefab_of(node) } else { node.instance().or("") } },
+                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_SECONDARY, grow: 1, truncate: true, text: if built { sceneedit::prefab_of(node) } else { node.instance().or("") } },
                     ui::Control {
                         kind: ui::WIDGET_BUTTON,
-                        role: "action_prefab",
+                        role: roles::ACTION_PREFAB,
                         text: "open",
                         tooltip: "Open the prefab; an edit there reaches every copy of it",
                         on_click: "inspector_edit",
@@ -241,7 +247,7 @@ fn component_sections(state: &mut editor::State) {
     }
     if drew == 0 {
         let text = if all.len() == 0 { "this node has no components" } else { "no component matches the search" };
-        note_line(state, inspector::row_height(state) + 2.0, "text_note", text);
+        note_line(state, inspector::row_height(state), roles::TEXT_NOTE, text);
     }
 }
 
@@ -250,11 +256,11 @@ fn bindings_section(state: &mut editor::State) {
     head_line(state, verbs::BINDINGS, false);
     let key = "@bindings";
     fixed_line(state, key, form::Row {
-        height: inspector::row_height(state) + 2.0,
+        height: role_height(state, roles::ACTION_NOTE),
         controls: [
             ui::Control {
                 kind: ui::WIDGET_BUTTON,
-                role: "action_note",
+                role: roles::ACTION_NOTE,
                 grow: 1,
                 text: "{events::rows(state).len()} row(s) · open the Bindings view",
                 icon: icons::ui(icons::EVENTS),

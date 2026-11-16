@@ -14,7 +14,6 @@ use words::inspector_fields;
 use words::log_fields;
 use words::roles;
 use words::statuses;
-use words::theme_tokens;
 
 const SHEET: str = "about";
 const URL: str = "url";
@@ -50,19 +49,16 @@ fn specs(state: editor::State) -> [form::Row] {
     let mine = util::map_or_empty(release::installed());
     let out: [form::Row] = [
         form::Row {
-            height: 56,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control {
                     kind: ui::WIDGET_PANEL,
                     role: roles::SHEET_LOGO,
-                    controls: [
-                        ui::Control { kind: ui::WIDGET_IMAGE, image: manager::LOGO, width: 44 },
-                    ],
+                    controls: [ui::Control { kind: ui::WIDGET_IMAGE, role: roles::LAYOUT_MARK, image: manager::LOGO }],
                 },
                 ui::Control {
                     kind: ui::WIDGET_COLUMN,
-                    role: "layout_about",
+                    role: roles::LAYOUT_ABOUT,
                     controls: [
                         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, text: "Balaur " + mine[fields::VERSION].as_str() },
                         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: versions::build_line(mine) },
@@ -81,7 +77,6 @@ fn specs(state: editor::State) -> [form::Row] {
         update_rows(state, mine, out);
     }
     out.push(form::Row {
-        height: 30,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
             link("balaurengine.org", SITE),
@@ -94,15 +89,7 @@ fn specs(state: editor::State) -> [form::Row] {
 // One label and its value, the value in the monospace a build id reads in.
 fn fact(out: [form::Row], name: str, value: str) {
     out.push(form::Row {
-        height: 22,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: roles::TEXT_CODE,
-                grow: 1,
-                text: value,
-            },
-        ],
+        controls: [ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, grow: 1, text: value }],
         label: name,
     });
 }
@@ -127,7 +114,6 @@ fn on_link_clicked(state: any, data: any, _value: any) {
 // release on it when there is one to move to; then what the check said and
 // how far an install has got.
 fn update_rows(state: editor::State, mine: any, out: [form::Row]) {
-    let tokens = state.theme;
     // A source build follows no line; the nightly is what it is nearest to.
     let line = if mine[log_fields::CHANNEL].as_str() == "" { "nightly" } else { mine[log_fields::CHANNEL].as_str() };
     let newest = versions::newest_on(state, line);
@@ -135,11 +121,9 @@ fn update_rows(state: editor::State, mine: any, out: [form::Row]) {
     let controls: [ui::Control] = [
         ui::Control {
             kind: ui::WIDGET_LABEL,
-            role: roles::TEXT_CODE,
-            font_size: 11,
+            role: if fresh { roles::TEXT_CODE_SUCCESS } else { roles::TEXT_CODE_CAPTION },
             grow: 1,
             text: line + ": " + versions::standing(state, line),
-            text_color: (if fresh { tokens[theme_tokens::SUCCESS_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str(),
         },
     ];
     // Up to date already says it; only a release to move to gets a press.
@@ -156,40 +140,19 @@ fn update_rows(state: editor::State, mine: any, out: [form::Row]) {
         on_click: "handle",
         data: { fields::FN: on_check_clicked },
     });
-    out.push(form::Row { height: 30, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
+    out.push(form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls });
     if mine[inspector_fields::HELD].as_str() != "" {
-        out.push(say(mine[inspector_fields::HELD].as_str(), tokens[theme_tokens::TEXT_SUBTLE].as_str()));
+        out.push(manager::say(mine[inspector_fields::HELD].as_str()));
     }
-    let said = if state.manager.failed != "" { state.manager.failed } else { state.manager.note };
-    if said != "" {
-        out.push(say(said, (if state.manager.failed != "" { tokens[theme_tokens::WARNING_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str()));
+    let said = manager::said(state);
+    if said != nil {
+        out.push(said.unwrap());
     }
     if versions::installing(state) {
-        out.push(form::Row {
-            height: 22,
-            slot_role: roles::LAYOUT_ACTIONS,
-            controls: versions::progress_controls(state),
-        });
+        out.push(form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: versions::progress_controls(state) });
     }
 }
 
 fn on_check_clicked(state: &mut editor::State, data: any, _value: any) {
     versions::check(state);
-}
-
-fn say(text: str, ink: str) -> form::Row {
-    form::Row {
-        height: 0,
-        controls: [
-            ui::Control {
-                kind: ui::WIDGET_LABEL,
-                role: roles::TEXT_CODE_QUIET,
-                font_size: 11,
-                grow: 1,
-                wrap: true,
-                text: text,
-                text_color: ink,
-            },
-        ],
-    }
 }

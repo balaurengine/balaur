@@ -184,10 +184,8 @@ pub const MARK_OVERRIDE: str = "override";
 
 const LABEL_WIDTH: float = 82.0;
 const LINE_GAP: float = 2.0;
-// The pool's label line over a stacked row, and its air.
+// The pool's label line over a stacked row, and its air: `form`'s own.
 const STACKED_LABEL: float = 18.0;
-// No line is shorter than this, which is what the window's slots are sized by.
-const SHORTEST_LINE: float = 22.0;
 // Lines kept built past each edge of the view, so a small scroll writes none.
 const OVERSCAN: int = 6;
 // What a slot holds that is no line: nothing, or what another run left on it.
@@ -271,10 +269,6 @@ pub fn scroll_to(state: &mut editor::State, offset: float) {
 /// A form row and the control inside it, taller where a finger picks them.
 pub fn row_height(state: editor::State) -> float {
     style::row_height(state)
-}
-
-pub fn control_height(state: editor::State) -> float {
-    if state.touchscreen { 29.0 } else { 20.0 }
 }
 
 // The label column, derived from the form: at a width neither column fits,
@@ -545,7 +539,8 @@ fn place(state: &mut editor::State, whole: bool) {
     if host.widget.height != form.total {
         host.widget.height = form.total;
     }
-    let needed = (form.view / SHORTEST_LINE) as int + 2 * OVERSCAN + 2;
+    // No line is shorter than a form row, which is what the slots are counted by.
+    let needed = (form.view / row_height(state)) as int + 2 * OVERSCAN + 2;
     // A fresh editor over rows the last one made: they show what it showed.
     let made = if form.capacity == 0 { host.children().len() } else { 0 };
     if util::int_max(needed, made) > form.capacity {

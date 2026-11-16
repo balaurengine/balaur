@@ -178,7 +178,7 @@ fn rows(
     let widget = &placed.widget;
     let entity = placed.entity;
     let want = solved_of(widget, &at.style(index), at.assigned);
-    let row_h = pitch(ui, widget, font);
+    let row_h = pitch(ui, widget, &at.style(index), font);
     let ink = Ink::of(ui, &at.theme);
     backdrop(ui, at, &at.style(index), ui.max_rect());
     // The pitch is the row, with nothing between: `show_rows` places by the
@@ -295,15 +295,25 @@ fn settle_pick(
 /// The pitch a row is placed at, which has to hold its own text: the two
 /// drifting apart is a list that scrolls off its own bar.
 ///
-/// `row_height` states it and the font's own line decides it otherwise.
-/// `height` is the box, as it is on every other kind.
-fn pitch(ui: &mut egui::Ui, widget: &Widget, font: &egui::FontId) -> f32 {
-    let stated = if widget.row_height > 0.0 {
-        widget.row_height
-    } else {
-        ui.text_style_height(&egui::TextStyle::Body).max(1.0)
-    };
+/// `row_height` states it, the widget's or else its theme's, and the font's
+/// own line decides it otherwise. `height` is the box, as it is on every
+/// other kind.
+fn pitch(
+    ui: &mut egui::Ui,
+    widget: &Widget,
+    style: &crate::widget::theme::Style,
+    font: &egui::FontId,
+) -> f32 {
+    let stated = stated_pitch(widget, style)
+        .unwrap_or_else(|| ui.text_style_height(&egui::TextStyle::Body).max(1.0));
     stated.max(ui.fonts_mut(|f| f.row_height(font)))
+}
+
+/// A row's pitch as the widget states it, or else its theme.
+pub(crate) fn stated_pitch(widget: &Widget, style: &crate::widget::theme::Style) -> Option<f32> {
+    (widget.row_height > 0.0)
+        .then_some(widget.row_height)
+        .or(style.row_height)
 }
 
 /// The rows a fold left on screen, as indices into `items`: everything under
