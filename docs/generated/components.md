@@ -2480,7 +2480,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 59 properties
+`ui` · 60 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A click on one is its node's `pointer_click`, which a `bindings` row or its script's `on_pointer_click` answers; a `label`, a `panel` or an `image` senses a click only where one is heard.
 
@@ -2510,6 +2510,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>align_self</code></td><td>enum</td><td><code>auto</code></td><td>Where this child sits across its container&#x27;s direction; `auto` takes the container&#x27;s `align_items` One of <code>auto</code>, <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
 <tr><td><code>absolute</code></td><td>bool</td><td><code>false</code></td><td>Take this child out of its container&#x27;s run and place it by `inset` against the container&#x27;s box inside its border, drawn in its turn among its siblings; a root ignores it</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, and how far an `absolute` child sits in from each edge of its container inside its border, where a side below zero is left free; in design pixels</td></tr>
+<tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How far the widget and what it holds are drawn from where the layout put them, `[x, y]` in design pixels, as CSS&#x27;s `translate`: what sits beside it never moves. Over its role&#x27;s own; a tween moves it, as a bar sliding away</td></tr>
 <tr><td><code>whole_window</code></td><td>bool</td><td><code>false</code></td><td>Whether this root draws over the whole window, whatever `ui.set_widget_layer` says: what an editor&#x27;s own chrome does. Ignored on a child.</td></tr>
 <tr><td><code>safe_area</code></td><td>flags</td><td><code>[&quot;left&quot;, &quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;]</code></td><td>The edges this root keeps clear of what a notch, a status bar or a home bar covers. A `fill` root&#x27;s own colour still reaches the edge, and one with no children is a backdrop and reaches it whole One of <code>left</code>, <code>top</code>, <code>right</code>, <code>bottom</code>.</td></tr>
 <tr><td><code>movable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag move this root and write its `x` and `y`: a `window` by its title bar, any other root by its whole box where no child takes the press</td></tr>

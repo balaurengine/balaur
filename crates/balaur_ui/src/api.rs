@@ -37,6 +37,7 @@ const TAKES_POINTER_AT: &str = "takes_pointer_at";
 const WANTS_KEYBOARD: &str = "wants_keyboard";
 const WANTS_POINTER: &str = "wants_pointer";
 const WIDGET_RECT: &str = "widget_rect";
+const NATURAL_SIZE: &str = "natural_size";
 const WIDTH_CLASS: &str = "width_class";
 const WINDOW_SIZE: &str = "window_size";
 
@@ -566,6 +567,12 @@ fn install_rects(m: &mut Module<Engine>) {
             "Where a `widget` node was last drawn, as `{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         ),
         (
+            NATURAL_SIZE,
+            &[],
+            "-> Vec2",
+            "The width and height a `widget` node asks for before its container grows or shrinks it, as CSS's max-content, in design pixels: what a row of words weighs against its room. Zero until it has been laid out once.",
+        ),
+        (
             TAB_RECT,
             &[],
             "-> Rect?",
@@ -582,6 +589,14 @@ fn install_rects(m: &mut Module<Engine>) {
             balaur_core::entity_of(node)?,
         )))
     });
+    m.function(
+        NATURAL_SIZE,
+        |_eng: &Engine, node: balaur_script::NodeId| {
+            let size = crate::widget::arrange::natural_of(balaur_core::entity_of(node)?)
+                .unwrap_or(egui::Vec2::ZERO);
+            Ok((size.x, size.y))
+        },
+    );
     m.function(TAB_RECT, |_eng: &Engine, node: balaur_script::NodeId| {
         Ok(rect_value(crate::widget::arrange::tab_head_at(
             balaur_core::entity_of(node)?,

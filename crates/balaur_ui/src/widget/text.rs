@@ -524,3 +524,12 @@ pub(crate) fn text_area(
 ) {
     crate::widget::field::edit(ui, at, index, (font, color), true);
 }
+
+/// What shows after the pointer rests on a widget: its `tooltip_key` read in
+/// the locale in force, else its `tooltip`.
+pub(crate) fn tooltip_of(eng: &balaur_core::Engine, widget: &Widget) -> smol_str::SmolStr {
+    if widget.tooltip_key.is_empty() {
+        return widget.tooltip.clone();
+    }
+    balaur_core::strings::plain(eng, &widget.tooltip_key)
+}

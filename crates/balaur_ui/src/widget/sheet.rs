@@ -44,7 +44,7 @@ pub(crate) fn sheet(
         .theme
         .resolved(w::DIALOG, "")
         .backdrop
-        .unwrap_or(crate::widget::layer::DIM);
+        .unwrap_or(crate::widget::window::DIM);
     let screen = ctx.content_rect();
     let tallest = screen.height() - 5.0 * at.theme.size(crate::vocabulary::tokens::FONT_SIZE);
     let rows_most = (tallest - pad.top - pad.bottom).max(0.0);

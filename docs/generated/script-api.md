@@ -56,7 +56,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 38 | 64 |
+| [`ui`](#ui) | 39 | 64 |
 | [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -1218,6 +1218,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `focused_widget` | `() -> Node` |
 | `glyph` | `(str) -> str` |
 | `height_class` | `() -> str` |
+| `natural_size` | `(Node) -> Vec2` |
 | `pasted_text` | `() -> str` |
 | `patch_control` | `(Node, [int], ui::Control) -> bool` |
 | `pixels_per_design` | `() -> float` |

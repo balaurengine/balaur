@@ -4790,6 +4790,10 @@
         "least": 0,
         "signature": "() -> str"
       },
+      "ui::natural_size": {
+        "least": 1,
+        "signature": "(Node) -> Vec2"
+      },
       "ui::pasted_text": {
         "least": 0,
         "signature": "() -> str"
@@ -7736,6 +7740,7 @@
       "align_self",
       "absolute",
       "inset",
+      "offset",
       "whole_window",
       "safe_area",
       "movable",
@@ -17825,6 +17830,15 @@
         "group": "events",
         "type": "string"
       },
+      "offset": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "How far the widget and what it holds are drawn from where the layout put them, `[x, y]` in design pixels, as CSS's `translate`: what sits beside it never moves. Over its role's own; a tween moves it, as a bar sliding away",
+        "group": "placement",
+        "type": "vec2"
+      },
       "on_top": {
         "default": false,
         "description": "A root drawn above every root that is not, as a message read over whatever is on screen",
@@ -26921,6 +26935,7 @@
         "focused_widget": "The widget node focus is on, or nil.",
         "glyph": "The character the icon font of the theme in force draws the glyph called `name` with, in the running project's own faces (the editor's, in the editor): for text that carries an icon among its words. Empty when the font has no glyph by that name. A widget's `icon`, a row's and a mark's take the name itself.",
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
+        "natural_size": "The width and height a `widget` node asks for before its container grows or shrinks it, as CSS's max-content, in design pixels: what a row of words weighs against its room. Zero until it has been laid out once.",
         "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
         "patch_control": "What `patch` names written to the pooled control at `at`, child indices down from `host`, and remembered, so the next fill compares against it. For a value that follows the node: what the patch leaves out is not asked about, and a handler's name is a fill's to give. False where no control is there or nothing moved.",
         "pixels_per_design": "How many of the window's own pixels a design pixel covers this frame: the UI scale, the display's scale and the reader's text size together. Divide `input::mouse_position()` by it for design pixels.",
@@ -26962,6 +26977,7 @@
         "focused_widget",
         "glyph",
         "height_class",
+        "natural_size",
         "pasted_text",
         "patch_control",
         "pixels_per_design",
@@ -27004,6 +27020,7 @@
         "focused_widget": "() -> Node",
         "glyph": "(str) -> str",
         "height_class": "() -> str",
+        "natural_size": "(Node) -> Vec2",
         "pasted_text": "() -> str",
         "patch_control": "(Node, [int], ui::Control) -> bool",
         "pixels_per_design": "() -> float",

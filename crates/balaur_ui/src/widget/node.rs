@@ -232,6 +232,8 @@ pub struct Widget {
     /// Left, top, right and bottom margins a `fill` root keeps from its
     /// surface, in design pixels.
     pub inset: [f32; 4],
+    /// Drawn this far from its place, `[x, y]`, over its role's `offset`.
+    pub offset: [f32; 2],
     /// The nine-patch borders of an `image`, in the picture's own pixels.
     pub slice: [f32; 4],
     /// How far a finger drags a `scroll` before it scrolls, in design pixels.

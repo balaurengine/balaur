@@ -932,12 +932,14 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     // styles repeated.
     let border = widget.layout.border.map(crate::widget::node::Bits::get);
     let bordered = border.iter().any(|side| *side > 0.0);
+    let moved = widget.offset != [0.0, 0.0];
     if widget.fill.is_empty()
         && widget.stroke.is_empty()
         && !widget.dashed
         && widget.icon_color.is_empty()
         && widget.radius < 0.0
         && !bordered
+        && !moved
     {
         return settled;
     }
@@ -959,6 +961,9 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     }
     if bordered {
         style.border = Some(border);
+    }
+    if moved {
+        style.offset = Some(widget.offset);
     }
     Rc::new(style)
 }

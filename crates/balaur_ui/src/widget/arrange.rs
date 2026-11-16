@@ -27,6 +27,9 @@ thread_local! {
     /// page: the strip is painted inline and has no node to ask.
     static TAB_HEADS: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+    /// The size each widget asked for when it was last laid out, before its
+    /// container grew or shrank it.
+    static NATURAL: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     /// The box each listened-to widget was last said to have, for `resized`.
     static REPORTED: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
 }
@@ -73,6 +76,19 @@ pub(crate) fn rect_value(r: egui::Rect) -> balaur_script::Value {
         (k::WIDTH.into(), Value::Num(f64::from(r.width()))),
         (k::HEIGHT.into(), Value::Num(f64::from(r.height()))),
     ])
+}
+
+/// What a widget asked for when it was last laid out, padding included.
+pub(crate) fn record_natural(entity: Entity, size: egui::Vec2) {
+    NATURAL.with(|m| {
+        m.borrow_mut().insert(entity.to_bits().get(), size);
+    });
+}
+
+/// The size a widget asked for before its container grew or shrank it, or
+/// `None` before it has been laid out.
+pub(crate) fn natural_of(entity: Entity) -> Option<egui::Vec2> {
+    NATURAL.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
 }
 
 /// The rect a widget was last drawn at, or `None` before it has drawn.

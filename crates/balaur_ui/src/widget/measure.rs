@@ -67,7 +67,9 @@ impl<'a> Measure<'a> {
         // look it resolves, and a solve that starts below the node carrying
         // the theme would cache one dressed by no theme at all.
         let theme = crate::widget::arena::theme_at(self.eng, self.arena, index, theme);
-        let size = (self.natural(index, &theme) - self.inset(index, &theme)).max(egui::Vec2::ZERO);
+        let whole = self.natural(index, &theme);
+        crate::widget::arrange::record_natural(self.arena[index].entity, whole);
+        let size = (whole - self.inset(index, &theme)).max(egui::Vec2::ZERO);
         self.leaves.insert(index, size);
         size
     }

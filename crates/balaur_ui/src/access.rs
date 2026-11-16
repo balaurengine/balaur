@@ -282,7 +282,7 @@ fn node_of(eng: &Engine, widget: &Widget, scale: f64, entity: Entity) -> Node {
         _ if !caption.is_empty() => node.set_label(caption.as_str()),
         _ => {}
     }
-    let tooltip = crate::widget::layer::tooltip_of(eng, widget);
+    let tooltip = crate::widget::text::tooltip_of(eng, widget);
     if !tooltip.is_empty() {
         node.set_description(tooltip.as_str());
     }

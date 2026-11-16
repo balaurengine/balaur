@@ -788,3 +788,61 @@ fn a_stack_holds_a_child_at_its_role_s_size() {
         "the stack is its child's role height, not its words': {held:?}"
     );
 }
+
+// A child that grows is wider than it asks to be; what it asked for is still
+// there to read, as CSS's max-content is: what a row of words weighs against
+// its room.
+#[test]
+fn a_grown_child_still_says_what_it_asked_for() {
+    let (_dir, app) = app();
+    let row = add_widget(
+        &app,
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 }.into(),
+    );
+    let word = add_child_widget(
+        &app,
+        row,
+        "Word",
+        &toml::toml! { kind = "button" text = "Quests" grow = 1.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let drawn = balaur_ui::widget_rect(word).expect("it drew");
+    let asked = balaur_ui::natural_size(word).expect("it was laid out");
+    assert!(drawn.width() > 300.0, "it grew: {drawn:?}");
+    assert!(
+        asked.x > 20.0 && asked.x < 150.0,
+        "it asked for its words: {asked:?}"
+    );
+}
+
+// A node's `offset` draws it and what it holds that far from its place, as
+// CSS's `translate`; its box, and what sits beside it, stay.
+#[test]
+fn an_offset_moves_what_is_drawn_not_the_box() {
+    let (_dir, app) = app();
+    let moved = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Bar" x = 0.0 y = 0.0 width = 100.0 height = 40.0 fill = "#ff0000" offset = [0.0, 30.0] }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let boxed = balaur_ui::widget_rect(moved).expect("it drew");
+    let red = egui::Color32::from_rgb(255, 0, 0);
+    let painted = out
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::epaint::Shape::Rect(r) if r.fill == red => Some(r.rect),
+            _ => None,
+        })
+        .expect("the fill is painted");
+    assert!((boxed.min.y - 0.0).abs() < 1.0, "the box stays: {boxed:?}");
+    assert!(
+        (painted.min.y - 30.0).abs() < 1.0,
+        "the fill is drawn 30 down: {painted:?}"
+    );
+}

@@ -57,6 +57,13 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget::arrange::drawn_at(entity)
 }
 
+/// What a widget asked for when it was last laid out, before its container
+/// grew or shrank it, in design pixels; `None` before it was laid out.
+#[must_use]
+pub fn natural_size(entity: balaur_core::hecs::Entity) -> Option<egui::Vec2> {
+    widget::arrange::natural_of(entity)
+}
+
 /// What a widget took when the layer last drew it, in design pixels: the
 /// box it was given, unless it drew past it. `None` for one it did not draw.
 #[must_use]

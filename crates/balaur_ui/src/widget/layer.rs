@@ -319,14 +319,7 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
                 (pos, align),
                 takes_pointer(&placed[root]),
             ));
-    // The dialog's own theme, which a root states for itself: its look,
-    // and the dim it asks for, are that theme's.
-    let dim = if modal {
-        let theme = crate::widget::arena::theme_at(eng, placed, root, &painting.theme);
-        dim_of(widget, &look_of(placed, root, &theme).style)
-    } else {
-        DIM
-    };
+    let dim = crate::widget::window::dim(eng, painting, root);
     let shown = if modal {
         // egui's own modal: it dims the screen, holds the layer above every
         // other, keeps the pointer out of what is behind, and says when
@@ -355,18 +348,6 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
         .unwrap_or(shown.rect);
     record_rect(entity, drawn);
 }
-
-/// What a dialog dims the screen with: its own `backdrop_color`, else its
-/// theme's `backdrop`, else black at 55 %.
-pub(crate) fn dim_of(widget: &Widget, style: &Style) -> Color32 {
-    if widget.egui.backdrop_color[3] > 0.0 {
-        return crate::widget::node::rgba_color(widget.egui.backdrop_color);
-    }
-    style.backdrop.unwrap_or(DIM)
-}
-
-/// The dim no theme names.
-pub(crate) const DIM: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 140);
 
 /// Whether egui hands a root's layer the pointer: not when the root lets it
 /// through and holds nothing that could take it, as a notice drawn on top.
@@ -826,15 +807,6 @@ pub(crate) fn caption(eng: &Engine, widget: &Widget) -> SmolStr {
     balaur_core::strings::plain(eng, &widget.text_key)
 }
 
-/// What shows after the pointer rests on a widget: its `tooltip_key` read in
-/// the locale in force, else its `tooltip`.
-pub(crate) fn tooltip_of(eng: &Engine, widget: &Widget) -> SmolStr {
-    if widget.tooltip_key.is_empty() {
-        return widget.tooltip.clone();
-    }
-    balaur_core::strings::plain(eng, &widget.tooltip_key)
-}
-
 /// Everything a widget kind draws, with the theme already resolved.
 fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let disabled = at.arena[index].widget.disabled;
@@ -950,7 +922,10 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let caption = caption(at.eng, widget);
     let look = at.look(index);
     let (color, font) = (look.ink, look.font.clone());
-    let (tooltip, entity) = (tooltip_of(at.eng, widget), placed.entity);
+    let (tooltip, entity) = (
+        crate::widget::text::tooltip_of(at.eng, widget),
+        placed.entity,
+    );
     // The pointer over it: the node's own word, else the theme's, none off.
     let themed = look.style.cursor.as_deref();
     let cursor = match (widget.cursor.is_empty(), widget.disabled) {
