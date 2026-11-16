@@ -37,6 +37,14 @@ fn posting_off_the_web_reports_that_nothing_was_sent() {
     assert!(!balaur_browser::post_message(&app.engine, &Value::Map(Vec::new())).unwrap());
 }
 
+// An app keeps its page in the address; off the web there is no address, so
+// nothing is written and the script hears so.
+#[test]
+fn replacing_the_address_off_the_web_reports_that_nothing_was_written() {
+    let app = app();
+    assert!(!balaur_browser::replace_location(&app.engine, "/games/fr"));
+}
+
 #[test]
 fn a_recorded_tick_delivers_the_pages_reports_as_the_browser_did() {
     let mut app = app();

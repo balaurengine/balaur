@@ -146,6 +146,19 @@ pub fn post_message(eng: &Engine, payload: &Value) -> Result<bool> {
     Ok(state.io.start(eng, |_| backend::post_message(&json)))
 }
 
+/// Put `path` in the page's address without loading it, as the web's
+/// `history.replaceState`: a refresh opens it again. False off the web, and
+/// false while a recording plays.
+pub fn replace_location(eng: &Engine, path: &str) -> bool {
+    if !backend::SUPPORTED {
+        return false;
+    }
+    let state = eng.resource::<BrowserState>();
+    let state = state.borrow();
+    let path = path.to_owned();
+    state.io.start(eng, |_| backend::replace_location(&path))
+}
+
 fn install_web_api(m: &mut Module<Engine>) {
     m.module_doc(
         "The page a browser build runs in; off the web every query answers nil. A parent-frame message is the `browser_event` event: `events::listen(node, \"browser_event\")`, heard as `on_browser_event(payload)`.",
@@ -154,11 +167,15 @@ fn install_web_api(m: &mut Module<Engine>) {
         (POST_MESSAGE, &[], "(payload: any) -> bool", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
         (VISIBLE, &[], "() -> bool", "Whether the tab is in front of the player; true off the web."),
         (USER_AGENT, &[], "() -> string?", "The browser's user agent string, or nil off the web."),
-        (LOCATION, &[], "() -> string?", "The page's URL, or nil off the web."),
+        (LOCATION, &[], "() -> string?", "The page's URL as it loaded, or nil off the web."),
+        (REPLACE_LOCATION, &[], "(path: string) -> bool", "Put `path` in the page's address without loading it, as the web's `history.replaceState`, so a refresh opens it again: what an app keeps its page in. False off the web, and false while a recording plays."),
         (HARDWARE_CONCURRENCY, &[], "() -> int?", "How many threads the browser reports, or nil off the web."),
     ]);
     m.function(POST_MESSAGE, |eng: &Engine, payload: Value| {
         post_message(eng, &payload)
+    });
+    m.function(REPLACE_LOCATION, |eng: &Engine, path: String| {
+        Ok(replace_location(eng, &path))
     });
     m.function(VISIBLE, |eng: &Engine, ()| {
         Ok(eng.resource::<BrowserState>().borrow().visible)
@@ -223,6 +240,7 @@ const BROWSER: &str = "browser";
 const HARDWARE_CONCURRENCY: &str = "hardware_concurrency";
 const LOCATION: &str = "location";
 const POST_MESSAGE: &str = "post_message";
+const REPLACE_LOCATION: &str = "replace_location";
 const USER_AGENT: &str = "user_agent";
 const VISIBLE: &str = "visible";
 
@@ -246,4 +264,6 @@ mod backend {
     pub(crate) fn listen(_: Sender<WebEvent>) {}
 
     pub(crate) fn post_message(_: &serde_json::Value) {}
+
+    pub(crate) fn replace_location(_: &str) {}
 }

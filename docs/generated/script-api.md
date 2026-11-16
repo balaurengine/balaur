@@ -13,7 +13,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`apple`](#apple) | 18 | 25 |
 | [`assets`](#assets) | 9 | 0 |
 | [`audio`](#audio) | 15 | 1 |
-| [`browser`](#browser) | 5 | 0 |
+| [`browser`](#browser) | 6 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 3 | 0 |
@@ -216,6 +216,7 @@ The page a browser build runs in; off the web every query answers nil. A parent-
 | `hardware_concurrency` | `() -> int?` |
 | `location` | `() -> str?` |
 | `post_message` | `(any) -> bool` |
+| `replace_location` | `(str) -> bool` |
 | `user_agent` | `() -> str?` |
 | `visible` | `() -> bool` |
 

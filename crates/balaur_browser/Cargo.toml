@@ -28,6 +28,7 @@ web-sys = { version = "0.3.106", features = [
     "Document",
     "Event",
     "EventTarget",
+    "History",
     "Location",
     "MessageEvent",
     "Navigator",

@@ -75,6 +75,14 @@ pub(crate) fn post_message(payload: &serde_json::Value) {
     let _ = parent.post_message(&value, "*");
 }
 
+/// The page's address, without loading it: `history.replaceState`.
+pub(crate) fn replace_location(path: &str) {
+    let Some(history) = web_sys::window().and_then(|w| w.history().ok()) else {
+        return;
+    };
+    let _ = history.replace_state_with_url(&JsValue::NULL, "", Some(path));
+}
+
 /// A JS value as JSON, through the page's own serializer; a value it cannot
 /// serialize is dropped rather than half-read.
 fn json_of(value: &JsValue) -> Option<serde_json::Value> {
