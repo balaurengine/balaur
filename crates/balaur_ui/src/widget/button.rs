@@ -24,6 +24,9 @@ struct Face {
     shaped: Option<(std::rc::Rc<balaur_text::Shaped>, Option<egui::TextureId>)>,
     plain: Option<std::sync::Arc<egui::Galley>>,
     trailing: Option<std::sync::Arc<egui::Galley>>,
+    /// The trailing part is a glyph (`trailing_icon`), drawn in the icon's
+    /// ink a gap after the caption, not dimmed text against the far edge.
+    tail_mark: bool,
     size: egui::Vec2,
     gap: f32,
     effects: balaur_text::Effects,
@@ -67,9 +70,12 @@ fn face_of(
     } else {
         Some(widget.trailing.to_string())
     };
-    let trailing =
-        shown.map(|text| Brush::of(ui).line_of(text, font.clone(), Color32::PLACEHOLDER));
     let look = at.look(index);
+    let mark_after = tail_glyph(ui, at, &look, widget, font);
+    let tail_mark = mark_after.is_some();
+    let trailing = mark_after.or_else(|| {
+        shown.map(|text| Brush::of(ui).line_of(text, font.clone(), Color32::PLACEHOLDER))
+    });
     let spinner = if widget.loading {
         crate::widget::text::icon_px(widget, &look.style, font.size)
     } else {
@@ -93,10 +99,10 @@ fn face_of(
     });
     let tail = trailing.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
     let gap = gap_of(widget, style, font.size);
+    let tail_gap = tail_gap_of(tail.x, tail_mark, gap, font.size);
     let mut shaped = crate::widget::text::shaped_caption(ui, at, index, caption, font, None);
     if let Some((natural, _)) = &shaped {
         let before = [pic.x, mark.x].iter().filter(|w| **w > 0.0).count() as f32;
-        let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
         // Stacked, the caption has the whole width under the icon.
         let taken = if style.stacked() {
             0.0
@@ -118,7 +124,6 @@ fn face_of(
     // before the trailing text, which belongs to the far edge.
     let parts = [pic.x, mark.x, text.x].iter().filter(|w| **w > 0.0).count();
     let between = gap * parts.saturating_sub(1) as f32;
-    let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
     let size = if style.stacked() {
         stacked_size(&[pic, mark, text], gap)
     } else {
@@ -135,9 +140,43 @@ fn face_of(
         shaped,
         plain,
         trailing,
+        tail_mark,
         size,
         gap,
         effects: widget.text_look.effects,
+    }
+}
+
+/// A button's `trailing_icon` shaped in the icon font at its icon's size,
+/// or `None` where it names none the font has.
+fn tail_glyph(
+    ui: &egui::Ui,
+    at: &Painting<'_>,
+    look: &crate::widget::arena::Look,
+    widget: &Widget,
+    font: &egui::FontId,
+) -> Option<std::sync::Arc<egui::Galley>> {
+    if widget.trailing_icon.is_empty() {
+        return None;
+    }
+    let glyph = crate::widget::icons::Icons::of(at.eng, look).glyph(&widget.trailing_icon)?;
+    let mark = egui::FontId::new(
+        crate::widget::text::icon_px(widget, &look.style, font.size),
+        look.icon.clone(),
+    );
+    Some(Brush::of(ui).line_of(glyph, mark, Color32::PLACEHOLDER))
+}
+
+/// The space before a button's trailing part: its gap before a glyph, which
+/// sits by the caption, and a font's size before text, which belongs to the
+/// far edge; none where there is no trailing part.
+pub(crate) fn tail_gap_of(tail: f32, mark: bool, gap: f32, font_size: f32) -> f32 {
+    if tail <= 0.0 {
+        0.0
+    } else if mark {
+        gap
+    } else {
+        font_size
     }
 }
 
@@ -338,11 +377,12 @@ fn paint_face(
             at_x + face.size.x - trailing.size().x
         };
         let y = middle - trailing.size().y / 2.0;
-        painter.galley(
-            pos2(x, y),
-            std::sync::Arc::clone(trailing),
-            ink.gamma_multiply(0.55),
-        );
+        let tint = if face.tail_mark {
+            style.icon_color.unwrap_or(ink)
+        } else {
+            ink.gamma_multiply(0.55)
+        };
+        painter.galley(pos2(x, y), std::sync::Arc::clone(trailing), tint);
     }
     if let Some((texture, size)) = face.picture {
         let disc = egui::Rect::from_min_size(

@@ -131,6 +131,8 @@ pub struct Widget {
     pub keep_open: bool,
     /// Text against a button's far edge: a shortcut, or a menu's caret.
     pub trailing: SmolStr,
+    /// A glyph after a button's caption, in its icon's ink: a picker's chevron.
+    pub trailing_icon: SmolStr,
     /// A chord that clicks this widget from anywhere, as `cmd+shift+KeyS`.
     pub shortcut: SmolStr,
     /// Whether that chord fires while a text field holds the keyboard.

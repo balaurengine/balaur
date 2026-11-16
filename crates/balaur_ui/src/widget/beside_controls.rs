@@ -31,6 +31,8 @@ pub(crate) struct WidgetButton {
     pub(crate) face_gap: f32,
     /// Text drawn against its far edge, dimmer than its caption: a shortcut, or a menu's caret
     pub(crate) trailing: SmolStr,
+    /// The name of a glyph in the theme's icon font drawn after `text`, at the icon's size and in its ink, `gap` from it: a picker's `chevron-down`. It takes `trailing`'s place
+    pub(crate) trailing_icon: SmolStr,
     /// A spinner before `text` in place of its icon, as daisyUI's `loading` button: what a button shows while what it started is under way. It still clicks; `enabled = false` beside it keeps a second press out
     pub(crate) loading: bool,
     /// What the pointer may do to it: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui's drag distance is a drag and no click; `drag` and `hover` never click
@@ -50,6 +52,7 @@ impl Beside for WidgetButton {
         image => widget.source = held.image.clone();
         face_gap => widget.face_gap = held.face_gap;
         trailing => widget.trailing = held.trailing.clone();
+        trailing_icon => widget.trailing_icon = held.trailing_icon.clone();
         loading => widget.loading = held.loading;
         sense => egui(widget).sense = held.sense.0.clone();
     }

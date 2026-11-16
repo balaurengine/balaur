@@ -374,3 +374,49 @@ fn a_column_button_draws_its_caption_under_its_icon() {
     );
     assert!(tab.width() < side.width(), "{tab:?} narrower than {side:?}");
 }
+
+// A picker's button: its words, then a chevron a gap after them, as wide as
+// both. The glyph is the icon font's, drawn right of the caption.
+#[test]
+fn a_trailing_icon_is_drawn_after_the_caption() {
+    let (dir, app) = app_with_editor_fonts();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/pick.toml"),
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n",
+    )
+    .unwrap();
+    let place = |trailing: &str, y: f64| {
+        add_widget(
+            &app,
+            &toml::toml! { kind = "button" text = "French" theme = "themes/pick.toml" x = 20.0 y = y widget_button = { trailing_icon = trailing } }
+                .into(),
+        )
+    };
+    let plain = place("", 20.0);
+    let chevron = place("stop", 120.0);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let rect = |node| balaur_ui::widget_rect(node).expect("it drew");
+    let (plain, chevron) = (rect(plain), rect(chevron));
+    assert!(
+        chevron.width() > plain.width() + 6.0,
+        "{chevron:?} holds the glyph beside the words of {plain:?}"
+    );
+    let glyph = out
+        .shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::epaint::Shape::Text(t) if chevron.contains(t.pos) => {
+                Some(t.galley.rect.translate(t.pos.to_vec2()))
+            }
+            _ => None,
+        })
+        .max_by(|a, b| a.min.x.total_cmp(&b.min.x))
+        .expect("the glyph is drawn");
+    assert!(
+        glyph.min.x > chevron.center().x,
+        "the glyph {glyph:?} sits after the words in {chevron:?}"
+    );
+}

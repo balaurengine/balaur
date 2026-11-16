@@ -557,7 +557,20 @@ impl<'a> Measure<'a> {
                     .size()
             });
         let pic = self.picture(widget, style, font.size);
-        let tail = if widget.trailing.is_empty() {
+        // A trailing glyph in the icon font, else trailing text.
+        let tail_glyph = (!widget.trailing_icon.is_empty())
+            .then(|| crate::widget::icons::Icons::of(self.eng, &look).glyph(&widget.trailing_icon))
+            .flatten();
+        let tail_mark = tail_glyph.is_some();
+        let tail = if let Some(glyph) = tail_glyph {
+            let face = egui::FontId::new(
+                crate::widget::text::icon_px(widget, style, font.size),
+                look.icon.clone(),
+            );
+            self.painter
+                .line_of(glyph, face, egui::Color32::WHITE)
+                .size()
+        } else if widget.trailing.is_empty() {
             egui::Vec2::ZERO
         } else {
             self.painter
@@ -569,10 +582,10 @@ impl<'a> Measure<'a> {
                 .size()
         };
         // The draw's arithmetic: a gap between each pair of parts that are
-        // there, and a wider one before the trailing text.
-        let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
+        // there, and before the trailing part its own.
         let pad = padding_of(widget, style).taken();
         let gap = crate::widget::button::gap_of(widget, style, font.size);
+        let tail_gap = crate::widget::button::tail_gap_of(tail.x, tail_mark, gap, font.size);
         if text.x > 0.0 {
             let before = [pic.x, mark.x].iter().filter(|w| **w > 0.0).count() as f32;
             // Stacked, the caption has the whole width under the icon.
