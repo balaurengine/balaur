@@ -91,6 +91,9 @@ arrow = "art/folded.png"         # the header's arrow picture; the ▸ and ▾ g
 fill = "bg_panel"
 padding = 8.0
 
+[dialog]
+backdrop = "#0000004c"           # what it dims the screen with, a sheet's too, as the web's ::backdrop
+
 [menu.body]                      # the frame round what a menu opens, its shadows too; egui's popup where none
 fill = "bg_panel"
 padding = 8.0

@@ -755,3 +755,36 @@ fn a_spring_in_a_sideways_scroll_reaches_its_far_end() {
     let end = balaur_ui::widget_rect(last).expect("it drew").right();
     assert!(end > 250.0, "the last child ends at {end}");
 }
+
+// A stack is as big as what it holds at the sizes the layout gives them: a
+// button whose role states its height is that tall in a stack as in a row,
+// so a count laid over a tab does not make it taller than its neighbours.
+#[test]
+fn a_stack_holds_a_child_at_its_role_s_size() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/short.toml"),
+        "type = \"widget_theme\"\n\n[roles.short]\nheight = 30\nfont_size = 40\n\n[roles.bare]\npadding = 0\n",
+    )
+    .unwrap();
+    let stack = add_widget(
+        &app,
+        &toml::toml! { kind = "stack" role = "bare" theme = "themes/short.toml" x = 0.0 y = 0.0 }
+            .into(),
+    );
+    add_child_widget(
+        &app,
+        stack,
+        "B",
+        &toml::toml! { kind = "button" role = "short" text = "Tall words" anchor = "fill" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let held = balaur_ui::widget_rect(stack).expect("the stack drew");
+    assert!(
+        (held.height() - 30.0).abs() < 1.0,
+        "the stack is its child's role height, not its words': {held:?}"
+    );
+}

@@ -409,6 +409,9 @@ pub(crate) struct WidgetProperties {
     /// Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why
     #[property(group = "text")]
     pub(crate) tooltip: SmolStr,
+    /// A localization key shown in place of `tooltip`, re-read every frame as `text_key` is, so a locale switch shows at once
+    #[property(group = "text")]
+    pub(crate) tooltip_key: SmolStr,
     /// A screen reader reads its text out as it arrives and as it changes, as a status line
     #[property(group = "text")]
     pub(crate) announce: bool,

@@ -282,8 +282,9 @@ fn node_of(eng: &Engine, widget: &Widget, scale: f64, entity: Entity) -> Node {
         _ if !caption.is_empty() => node.set_label(caption.as_str()),
         _ => {}
     }
-    if !widget.tooltip.is_empty() {
-        node.set_description(widget.tooltip.as_str());
+    let tooltip = crate::widget::layer::tooltip_of(eng, widget);
+    if !tooltip.is_empty() {
+        node.set_description(tooltip.as_str());
     }
     if matches!(kind, w::SLIDER | w::NUMBER_FIELD | w::PROGRESS_BAR) {
         node.set_numeric_value(f64::from(widget.value));

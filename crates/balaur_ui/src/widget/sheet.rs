@@ -10,17 +10,14 @@ use crate::widget::layer::Painting;
 use crate::widget::paint::Brush;
 use crate::widget::theme::Style;
 
-/// What a sheet dims the screen with: a dialog's dim, `backdrop_color`'s
-/// default.
-const DIM: [f32; 4] = [0.0, 0.0, 0.0, 0.549];
-
 /// A menu's rows as a sheet along the foot of the screen, over a dim: what a
 /// phone shows for a list too long to hang off a button (daisyUI's `modal
 /// modal-bottom`). Its button opens and shuts it, and so do the dim, Escape
 /// and a row that does not keep it open; `showing` holds it up. As wide as
 /// the screen, its foot square, and no taller than the screen less 5em, as
 /// daisyUI's modal box: past that its rows scroll. Its frame is the menu's
-/// `body` table, else the dialog's look. Answers whether it is up.
+/// `body` table, else the dialog's look; its dim the dialog's. Answers
+/// whether it is up.
 pub(crate) fn sheet(
     ui: &egui::Ui,
     at: &mut Painting<'_>,
@@ -42,6 +39,12 @@ pub(crate) fn sheet(
         None => at.theme.resolved(w::DIALOG, ""),
     };
     let pad = style_padding(&look, egui::Vec2::ZERO);
+    // The dialog's dim, as daisyUI's modal backdrop is one.
+    let dim = at
+        .theme
+        .resolved(w::DIALOG, "")
+        .backdrop
+        .unwrap_or(crate::widget::layer::DIM);
     let screen = ctx.content_rect();
     let tallest = screen.height() - 5.0 * at.theme.size(crate::vocabulary::tokens::FONT_SIZE);
     let rows_most = (tallest - pad.top - pad.bottom).max(0.0);
@@ -50,7 +53,7 @@ pub(crate) fn sheet(
     let shown = egui::Modal::new(id.with(w::SHEET))
         .area(area)
         .frame(egui::Frame::NONE)
-        .backdrop_color(crate::widget::node::rgba_color(DIM))
+        .backdrop_color(dim)
         .show(&ctx, |ui| {
             // Its own room, the screen's width and its tallest: an area held
             // by its foot is offered only what it measured last frame, so

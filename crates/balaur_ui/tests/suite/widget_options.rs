@@ -865,3 +865,73 @@ fn a_slider_s_shown_number_stays_inside_its_box() {
         .fold(0.0f32, f32::max);
     assert!(right > 0.0 && right <= 200.5, "the number ends at {right}");
 }
+
+// A dialog that names no dim of its own takes its theme's `backdrop`, as the
+// web's `::backdrop` is styled once for every dialog.
+#[test]
+fn a_dialog_dims_with_its_theme_s_backdrop() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/dim.toml"),
+        "type = \"widget_theme\"\n\n[dialog]\nbackdrop = \"#ff000080\"\n",
+    )
+    .unwrap();
+    add_widget(
+        &app,
+        &toml::toml! { kind = "dialog" text = "Sure?" theme = "themes/dim.toml" width = 200.0 height = 100.0 }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let dim = egui::Color32::from_rgba_unmultiplied(255, 0, 0, 128);
+    assert!(
+        out.shapes.iter().any(
+            |shape| matches!(&shape.shape, egui::epaint::Shape::Rect(rect) if rect.fill == dim)
+        ),
+        "the backdrop is the theme's"
+    );
+}
+
+// A dialog holds a line that wraps, at a width it states or at the
+// screen's: what follows sits under its last line, not over it.
+#[test]
+fn a_dialog_makes_room_for_a_line_that_wraps() {
+    for width in [220.0, 0.0] {
+        let (_dir, app) = app();
+        let dialog = add_widget(
+        &app,
+        &toml::toml! { kind = "dialog" text = "" width = width widget_layout = { gap = [0.0, 8.0] } }.into(),
+    );
+        let words = add_child_widget(
+        &app,
+        dialog,
+        "Words",
+        &toml::toml! {
+            kind = "label"
+            text = "Your account and everything in it goes, every word, every voyage and every coin, all of it, gone for good, and nothing brings it back."
+            widget_text = { wrap = true }
+        }
+        .into(),
+    );
+        let after = add_child_widget(
+            &app,
+            dialog,
+            "After",
+            &toml::toml! { kind = "button" text = "Cancel" }.into(),
+        );
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        pass(&app, &ctx, vec![]);
+        let (line, button) = (
+            balaur_ui::widget_rect(words).expect("the words drew"),
+            balaur_ui::widget_rect(after).expect("the button drew"),
+        );
+        assert!(line.height() > 30.0, "{width}: the words wrapped: {line:?}");
+        assert!(
+            button.min.y >= line.max.y,
+            "{width}: the button {button:?} sits under the words {line:?}"
+        );
+    }
+}

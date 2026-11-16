@@ -276,7 +276,7 @@ pub(crate) fn shaped_label(
         }
     }
     spans(ui, at, &response, &shaped, (origin, entity));
-    if elided && widget.tooltip.is_empty() {
+    if elided && widget.tooltip.is_empty() && widget.tooltip_key.is_empty() {
         crate::widget::theme::tip(&response, caption);
     }
     ui.set_clip_rect(held);

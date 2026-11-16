@@ -409,6 +409,7 @@ cache_fields! {
         k::FONT_STYLE => widget.font_style = asked.font_style.0.clone();
         k::TEXT_KEY => widget.text_key = asked.text_key.clone();
         k::TOOLTIP => widget.tooltip = asked.tooltip.clone();
+        k::TOOLTIP_KEY => widget.tooltip_key = asked.tooltip_key.clone();
         k::INTERACTIVE => widget.pointer_through = !asked.interactive;
         k::ON_TOP => widget.on_top = asked.on_top;
         k::ANNOUNCE => widget.announce = asked.announce;

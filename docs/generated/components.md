@@ -2480,7 +2480,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 58 properties
+`ui` · 59 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A click on one is its node's `pointer_click`, which a `bindings` row or its script's `on_pointer_click` answers; a `label`, a `panel` or an `image` senses a click only where one is heard.
 
@@ -2536,6 +2536,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>text_style</code></td><td>asset · <code>text_style</code></td><td>—</td><td>How it is dressed past its font: line height and spacing, the lines drawn with the glyphs, an outline and a shadow. Empty draws it plain</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why</td></tr>
+<tr><td><code>tooltip_key</code></td><td>string</td><td>—</td><td>A localization key shown in place of `tooltip`, re-read every frame as `text_key` is, so a locale switch shows at once</td></tr>
 <tr><td><code>announce</code></td><td>bool</td><td><code>false</code></td><td>A screen reader reads its text out as it arrives and as it changes, as a status line</td></tr>
 <tr><td><code>interactive</code></td><td>bool</td><td><code>true</code></td><td>Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
@@ -3008,7 +3009,7 @@ The rows a `window` or a `dialog` reads: whether it is up, its chrome, and what 
 <tr><td><code>hide_on_close</code></td><td>bool</td><td><code>true</code></td><td>Whether a `window`&#x27;s close button shuts it; off, the button only emits `close_requested` and the script decides</td></tr>
 <tr><td><code>resizable</code></td><td>bool</td><td><code>false</code></td><td>Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`</td></tr>
 <tr><td><code>dismissable</code></td><td>bool</td><td><code>true</code></td><td>Let Escape or a click on the dim shut a `dialog`; off, only the scene does</td></tr>
-<tr><td><code>backdrop_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.549]</code></td><td>What a `dialog` dims the screen behind it with</td></tr>
+<tr><td><code>backdrop_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>What a `dialog` dims the screen behind it with; fully transparent takes its theme&#x27;s `backdrop`, else black at 55 %</td></tr>
 </tbody>
 </table>
 

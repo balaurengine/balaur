@@ -109,7 +109,10 @@ impl<'a> Measure<'a> {
             egui::Vec2::ZERO
         };
         let floor = vec2(widget.min_width, widget.min_height);
-        let stated = vec2(widget.width, widget.height);
+        // What the node states, else its role: the size taffy gives it, so a
+        // kind that measures its children (a stack) agrees with the layout.
+        let look = crate::widget::arena::look_of(self.arena, index, &theme);
+        let stated = crate::widget::arrange::size_of(widget, &look.style);
         let size = vec2(
             if stated.x > 0.0 { stated.x } else { size.x }.max(floor.x),
             if stated.y > 0.0 { stated.y } else { size.y }.max(floor.y),

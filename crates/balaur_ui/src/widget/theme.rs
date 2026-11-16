@@ -107,6 +107,9 @@ pub struct Style {
     /// `outline`, which leaves `stroke`, the edge, as it is. Unset rings in
     /// the edge's colour.
     pub outline: Option<Color32>,
+    /// What a `dialog` or a sheet dims the screen behind it with, as the
+    /// web's `::backdrop`; a dialog's own `backdrop_color` wins.
+    pub backdrop: Option<Color32>,
     /// That ring's width and its gap from the edge, in design pixels, as
     /// CSS's `outline-width` and `outline-offset`; 2 and 2 unset.
     pub outline_width: Option<f32>,
@@ -303,6 +306,7 @@ impl Style {
             slice,
             text_color: self.text_color.or(base.text_color),
             plate: self.plate.or(base.plate),
+            backdrop: self.backdrop.or(base.backdrop),
             align: self.align.clone().or_else(|| base.align.clone()),
             direction: self.direction.clone().or_else(|| base.direction.clone()),
             icon_size: self.icon_size.or(base.icon_size),
@@ -638,6 +642,7 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         fill: colour(k::FILL),
         stroke: colour(k::STROKE),
         outline: colour(k::OUTLINE),
+        backdrop: colour(k::BACKDROP),
         outline_width: number(k::OUTLINE_WIDTH),
         outline_offset: number(k::OUTLINE_OFFSET),
         duration: number(k::DURATION).filter(|seconds| *seconds > 0.0),

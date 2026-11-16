@@ -527,6 +527,7 @@ pub(crate) mod keys {
     pub(crate) const TEXT_TRANSFORM: &str = "text_transform";
     pub(crate) const TEXT_COLOR: &str = "text_color";
     pub(crate) const TEXT_KEY: &str = "text_key";
+    pub(crate) const TOOLTIP_KEY: &str = "tooltip_key";
     pub(crate) const THEME: &str = "theme";
     pub(crate) const TOOLTIP: &str = "tooltip";
     pub(crate) const CURSOR: &str = "cursor";
@@ -538,6 +539,7 @@ pub(crate) mod keys {
     /// The colour of the ring a focused control draws outside its edge, as
     /// CSS's `outline`.
     pub(crate) const OUTLINE: &str = "outline";
+    pub(crate) const BACKDROP: &str = "backdrop";
     /// The focus ring's width, and its gap from the edge, as CSS's
     /// `outline-width` and `outline-offset`.
     pub(crate) const OUTLINE_WIDTH: &str = "outline_width";

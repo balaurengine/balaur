@@ -240,6 +240,8 @@ pub struct Widget {
     pub role: SmolStr,
     /// Text shown after the pointer rests on the widget.
     pub tooltip: SmolStr,
+    /// A localization key shown in place of `tooltip`.
+    pub tooltip_key: SmolStr,
     /// The pointer's shape while it is over the widget; `arrow` is the
     /// platform's own.
     pub cursor: SmolStr,

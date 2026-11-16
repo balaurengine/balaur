@@ -257,3 +257,44 @@ fn a_reader_presses_a_button_and_sets_a_slider() {
     pass(&app, &ctx, vec![]);
     assert_eq!(focused(&app), Some(widgets[4]));
 }
+
+// A tooltip by its key is read in the locale in force, as a caption by its
+// `text_key` is: a reader hears it in the player's language.
+#[test]
+fn a_tooltip_key_is_read_in_the_locale() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("main.toml"), "").unwrap();
+    std::fs::create_dir_all(dir.path().join("strings")).unwrap();
+    std::fs::write(dir.path().join("strings/en.toml"), "back = \"Back\"\n").unwrap();
+    std::fs::write(dir.path().join("strings/ro.toml"), "back = \"Înapoi\"\n").unwrap();
+    let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let app = balaur::standard_app(config).unwrap();
+    let arrow = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "<" x = 0.0 y = 0.0 tooltip_key = "back" }.into(),
+    );
+    balaur_ui::enable_access(&app.engine);
+    let ctx = egui::Context::default();
+    let heard = |ctx: &egui::Context| {
+        settle(&app, ctx);
+        let update = balaur_ui::take_access_update(&app.engine).expect("an update");
+        update
+            .nodes
+            .iter()
+            .find(|(at, _)| *at == id(arrow))
+            .and_then(|(_, node)| node.description().map(str::to_string))
+    };
+    assert_eq!(heard(&ctx).as_deref(), Some("Back"));
+    balaur_core::strings::set_locale(&app.engine, "ro");
+    assert_eq!(
+        heard(&ctx).as_deref(),
+        Some("Înapoi"),
+        "the key follows the locale"
+    );
+}
