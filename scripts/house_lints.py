@@ -888,7 +888,7 @@ THEME_STATES = {"hover", "active", "focus", "disabled", "checked", "touch", "poi
 # or how it moves between states, that no property of its own styles.
 THEME_ONLY = {"icon_fill", "padding_x", "padding_y", "stroke_width", "arrow",
               "transition", "offset", "outline", "outline_width", "outline_offset",
-              "shadows", "duration", "letter_spacing", "text_transform"}
+              "shadows", "duration", "letter_spacing", "text_transform", "flex_direction"}
 
 
 def theme_files() -> list[Path]:

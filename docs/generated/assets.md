@@ -665,6 +665,14 @@ duration = 0.75                  # seconds a turn takes; stroke_width is the rin
 [switch]
 height = 18                      # the track; width is 1.75 of it unset
 
+[roles.tab]
+flex_direction = "column"        # the caption under the icon, as a tab bar's; `row` unset
+icon_size = 24                   # the icon apart from the caption's size; a widget's own wins
+
+[roles.bar]
+stroke = "border_default"
+border = [0, 1, 0, 0]            # the sides the edge is drawn on, left, top, right, bottom: here the top alone
+
 [list]
 row_height = "control_height"    # a row's pitch, a tree's and a table's too; a widget's own wins
 

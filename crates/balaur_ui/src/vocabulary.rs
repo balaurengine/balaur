@@ -512,6 +512,11 @@ pub(crate) mod keys {
     pub(crate) const STROKE_WIDTH: &str = "stroke_width";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TEXT_ALIGN: &str = "text_align";
+    /// How a control lays its picture, icon and caption out: a `row`, or a
+    /// `column` with the caption under the icon, as CSS's `flex-direction`.
+    pub(crate) const FLEX_DIRECTION: &str = "flex_direction";
+    /// A control's icon's size, apart from its caption's.
+    pub(crate) const ICON_SIZE: &str = "icon_size";
     /// Extra space between a text's glyphs, as CSS's `letter-spacing`.
     pub(crate) const LETTER_SPACING: &str = "letter_spacing";
     /// How a text's letters are cased, as CSS's `text-transform`.

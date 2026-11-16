@@ -71,7 +71,7 @@ fn face_of(
         shown.map(|text| Brush::of(ui).line_of(text, font.clone(), Color32::PLACEHOLDER));
     let look = at.look(index);
     let spinner = if widget.loading {
-        crate::widget::text::icon_px(widget, font.size)
+        crate::widget::text::icon_px(widget, &look.style, font.size)
     } else {
         0.0
     };
@@ -80,7 +80,7 @@ fn face_of(
         .flatten()
         .map(|glyph| {
             let mark = egui::FontId::new(
-                crate::widget::text::icon_px(widget, font.size),
+                crate::widget::text::icon_px(widget, &look.style, font.size),
                 look.icon.clone(),
             );
             Brush::of(ui).line_of(glyph, mark, Color32::PLACEHOLDER)
@@ -97,7 +97,12 @@ fn face_of(
     if let Some((natural, _)) = &shaped {
         let before = [pic.x, mark.x].iter().filter(|w| **w > 0.0).count() as f32;
         let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
-        let taken = pic.x + mark.x + gap * before + tail_gap + tail.x;
+        // Stacked, the caption has the whole width under the icon.
+        let taken = if style.stacked() {
+            0.0
+        } else {
+            pic.x + mark.x + gap * before + tail_gap + tail.x
+        };
         let room = crate::widget::text::caption_room(widget, natural.size.x, width, taken);
         if room.is_some() {
             shaped = crate::widget::text::shaped_caption(ui, at, index, caption, font, room);
@@ -114,10 +119,14 @@ fn face_of(
     let parts = [pic.x, mark.x, text.x].iter().filter(|w| **w > 0.0).count();
     let between = gap * parts.saturating_sub(1) as f32;
     let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
-    let size = vec2(
-        pic.x + mark.x + text.x + between + tail_gap + tail.x,
-        pic.y.max(mark.y).max(text.y).max(tail.y),
-    );
+    let size = if style.stacked() {
+        stacked_size(&[pic, mark, text], gap)
+    } else {
+        vec2(
+            pic.x + mark.x + text.x + between + tail_gap + tail.x,
+            pic.y.max(mark.y).max(text.y).max(tail.y),
+        )
+    };
     Face {
         picture,
         plate,
@@ -238,6 +247,58 @@ fn sense_of(word: &str) -> egui::Sense {
     }
 }
 
+/// Parts stacked one over the next, the gap between each two that are there:
+/// as wide as the widest, as tall as all of them.
+pub(crate) fn stacked_size(parts: &[egui::Vec2], gap: f32) -> egui::Vec2 {
+    let there: Vec<&egui::Vec2> = parts.iter().filter(|part| part.x > 0.0).collect();
+    let down: f32 = there.iter().map(|part| part.y).sum();
+    vec2(
+        there.iter().map(|part| part.x).fold(0.0, f32::max),
+        down + gap * there.len().saturating_sub(1) as f32,
+    )
+}
+
+/// A stacked face: the icon centred over the caption, the pair in the middle
+/// of the box.
+fn paint_stacked(
+    painter: &Brush,
+    at: &Painting<'_>,
+    face: &Face,
+    inner: egui::Rect,
+    ink: Color32,
+    style: &Style,
+) {
+    let mut y = inner.center().y - face.size.y / 2.0;
+    let middle = inner.center().x;
+    if let Some(icon) = &face.icon {
+        let tint = style.icon_color.unwrap_or(ink);
+        painter.galley(
+            pos2(middle - icon.size().x / 2.0, y),
+            std::sync::Arc::clone(icon),
+            tint,
+        );
+        y += icon.size().y + face.gap;
+    }
+    if let Some((shaped, texture)) = &face.shaped {
+        let origin = pos2(middle - shaped.size.x / 2.0, y);
+        painter.glyphs(
+            *texture,
+            shaped,
+            origin,
+            ink,
+            None,
+            &face.effects,
+            at.eng.time(),
+        );
+    } else if let Some(plain) = &face.plain {
+        painter.galley(
+            pos2(middle - plain.size().x / 2.0, y),
+            std::sync::Arc::clone(plain),
+            ink,
+        );
+    }
+}
+
 /// The face in the rect the button took, inside its padding: centred, or
 /// against the edge a `text_align` of `start` or `end` names, with the
 /// trailing text on the far edge.
@@ -258,6 +319,10 @@ fn paint_face(
         Brush::of(ui)
     };
     let inner = pad.inside(rect);
+    if style.stacked() {
+        paint_stacked(&painter, at, face, inner, ink, style);
+        return;
+    }
     let align = style.align.as_deref();
     let left = align == Some(w::START);
     let mut at_x = match align {

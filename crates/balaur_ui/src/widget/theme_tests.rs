@@ -264,3 +264,24 @@ fn a_focus_ring_s_width_and_gap_and_a_spinner_s_turn_are_the_theme_s() {
     );
     assert_eq!(theme.resolved("spinner", "").duration, Some(1.5));
 }
+
+// A tab's look is the theme's alone: its parts stacked, its icon sized apart
+// from its caption, and its edge on the sides the role names.
+#[test]
+fn a_role_stacks_its_face_sizes_its_icon_and_names_its_edge_s_sides() {
+    let theme = parse(
+        &toml::from_str::<toml::Value>(
+            "[roles.tab]\nflex_direction = \"column\"\nicon_size = 24\n\n[roles.bar]\nstroke = \"#000000\"\nborder = [0, 1, 0, 0]\n",
+        )
+        .unwrap(),
+    );
+    let tab = theme.resolved("button", "tab");
+    assert!(tab.stacked());
+    assert_eq!(tab.icon_size, Some(24.0));
+    assert!(!theme.resolved("button", "").stacked(), "a row unset");
+    assert_eq!(
+        theme.resolved("row", "bar").border,
+        Some([0.0, 1.0, 0.0, 0.0])
+    );
+    assert_eq!(theme.resolved("row", "").border, None);
+}

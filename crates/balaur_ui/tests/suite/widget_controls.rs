@@ -331,3 +331,46 @@ fn a_lone_glyph_is_drawn_in_the_middle_of_its_button() {
         "ink {ink:?} in {rect:?}"
     );
 }
+
+// A role's `flex_direction = "column"` stacks a button's caption under its
+// icon, as a tab bar's tab: the icon in the upper half, and the box as wide
+// as the wider part rather than both side by side.
+#[test]
+fn a_column_button_draws_its_caption_under_its_icon() {
+    let (dir, app) = app_with_editor_fonts();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/tab.toml"),
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n\n[roles.tab]\nflex_direction = \"column\"\nheight = 60\n\n[roles.side]\nheight = 60\n",
+    )
+    .unwrap();
+    let place = |role: &str, y: f64| {
+        add_widget(
+            &app,
+            &toml::toml! { kind = "button" role = role text = "Games" theme = "themes/tab.toml" x = 20.0 y = y widget_button = { icon = "stop" } }
+                .into(),
+        )
+    };
+    let tab = place("tab", 20.0);
+    let side = place("side", 120.0);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let rect = |node| balaur_ui::widget_rect(node).expect("it drew");
+    let (tab, side) = (rect(tab), rect(side));
+    let icon = out
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::epaint::Shape::Text(t) if tab.contains(t.pos) => {
+                Some(t.galley.rect.translate(t.pos.to_vec2()))
+            }
+            _ => None,
+        })
+        .expect("the icon is drawn");
+    assert!(
+        icon.center().y < tab.center().y - 2.0,
+        "icon {icon:?} over the caption in {tab:?}"
+    );
+    assert!(tab.width() < side.width(), "{tab:?} narrower than {side:?}");
+}

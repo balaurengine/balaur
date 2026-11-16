@@ -543,13 +543,13 @@ impl<'a> Measure<'a> {
         let mut text = self.text(index, widget, theme);
         let spinner = widget
             .loading
-            .then(|| egui::Vec2::splat(crate::widget::text::icon_px(widget, font.size)));
+            .then(|| egui::Vec2::splat(crate::widget::text::icon_px(widget, style, font.size)));
         let mark = (!widget.loading && !widget.icon.is_empty())
             .then(|| crate::widget::icons::Icons::of(self.eng, &look).glyph(&widget.icon))
             .flatten()
             .map_or(spinner.unwrap_or(egui::Vec2::ZERO), |glyph| {
                 let face = egui::FontId::new(
-                    crate::widget::text::icon_px(widget, font.size),
+                    crate::widget::text::icon_px(widget, style, font.size),
                     look.icon.clone(),
                 );
                 self.painter
@@ -575,7 +575,12 @@ impl<'a> Measure<'a> {
         let gap = crate::widget::button::gap_of(widget, style, font.size);
         if text.x > 0.0 {
             let before = [pic.x, mark.x].iter().filter(|w| **w > 0.0).count() as f32;
-            let taken = pic.x + mark.x + gap * before + tail_gap + tail.x;
+            // Stacked, the caption has the whole width under the icon.
+            let taken = if style.stacked() {
+                0.0
+            } else {
+                pic.x + mark.x + gap * before + tail_gap + tail.x
+            };
             let inside = if width > 0.0 { width - pad.x } else { 0.0 };
             if let Some(room) = crate::widget::text::caption_room(widget, text.x, inside, taken) {
                 let caption = caption(self.eng, widget);
@@ -585,10 +590,14 @@ impl<'a> Measure<'a> {
         let parts = [pic.x, mark.x, text.x].iter().filter(|w| **w > 0.0).count();
         let between = gap * parts.saturating_sub(1) as f32;
         let floor = vec2(style.width.unwrap_or(0.0), style.height.unwrap_or(0.0));
-        let face = vec2(
-            pic.x + mark.x + text.x + between + tail_gap + tail.x,
-            pic.y.max(mark.y).max(text.y).max(tail.y),
-        );
+        let face = if style.stacked() {
+            crate::widget::button::stacked_size(&[pic, mark, text], gap)
+        } else {
+            vec2(
+                pic.x + mark.x + text.x + between + tail_gap + tail.x,
+                pic.y.max(mark.y).max(text.y).max(tail.y),
+            )
+        };
         let sized = (face + pad).max(floor);
         // One glyph and nothing else is square, as a toolbar's buttons are:
         // the side padding is a caption's air, so the box is as wide as it is

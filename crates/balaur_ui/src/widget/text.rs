@@ -74,12 +74,17 @@ pub(crate) fn text_request<'a>(
     }
 }
 
-/// The size a widget's icon glyph draws at: its own, or the caption's.
-pub(crate) fn icon_px(widget: &crate::widget::node::Widget, caption: f32) -> f32 {
+/// The size a widget's icon glyph draws at: its own, its role's, or the
+/// caption's.
+pub(crate) fn icon_px(
+    widget: &crate::widget::node::Widget,
+    style: &crate::widget::theme::Style,
+    caption: f32,
+) -> f32 {
     if widget.icon_size >= 0.0 {
         widget.icon_size
     } else {
-        caption
+        style.icon_size.unwrap_or(caption)
     }
 }
 

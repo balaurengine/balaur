@@ -140,6 +140,12 @@ pub struct Style {
     pub plate: Option<Color32>,
     /// Where a control's content sits across it: `left` for a row, else centred.
     pub align: Option<SmolStr>,
+    /// A control's picture, icon and caption side by side (`row`, unset) or
+    /// stacked with the caption under them (`column`), as a tab bar's tabs.
+    pub direction: Option<SmolStr>,
+    /// A control's icon's size in design pixels, apart from its caption's: a
+    /// tab's 24 over its 10 words. A widget's own `icon_size` wins.
+    pub icon_size: Option<f32>,
     /// The pointer over the widget while it is live, a `cursor` word: a
     /// hand on every control, the way the web shows one. A node's own
     /// `cursor` wins, a disabled widget keeps the arrow, unset keeps it.
@@ -229,6 +235,11 @@ pub struct Shadow {
 }
 
 impl Style {
+    /// Whether a control stacks its parts, the caption under the icon.
+    pub(crate) fn stacked(&self) -> bool {
+        self.direction.as_deref() == Some(crate::vocabulary::words::COLUMN)
+    }
+
     /// The outline width to draw, once a style has said whether it wants one.
     pub fn stroke_px(&self) -> f32 {
         self.stroke_width.unwrap_or(1.0)
@@ -293,6 +304,8 @@ impl Style {
             text_color: self.text_color.or(base.text_color),
             plate: self.plate.or(base.plate),
             align: self.align.clone().or_else(|| base.align.clone()),
+            direction: self.direction.clone().or_else(|| base.direction.clone()),
+            icon_size: self.icon_size.or(base.icon_size),
             cursor: self.cursor.clone().or_else(|| base.cursor.clone()),
             font_size: self.font_size.or(base.font_size),
             font: self.font.clone().or_else(|| base.font.clone()),
@@ -645,15 +658,10 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         slice: four_of(body.get(k::SLICE)),
         text_color: colour(k::TEXT_COLOR),
         plate: colour(k::ICON_FILL),
-        align: body
-            .get(k::TEXT_ALIGN)
-            .and_then(toml::Value::as_str)
-            .map(SmolStr::new),
-        cursor: body
-            .get(k::CURSOR)
-            .and_then(toml::Value::as_str)
-            .filter(|word| !word.is_empty())
-            .map(SmolStr::new),
+        align: word(body, k::TEXT_ALIGN),
+        direction: word(body, k::FLEX_DIRECTION),
+        icon_size: number(k::ICON_SIZE).filter(|size| *size > 0.0),
+        cursor: word(body, k::CURSOR),
         font_size: number(k::FONT_SIZE),
         // A font is written as one, or as the name of one `[fonts]` states.
         font: body
@@ -686,7 +694,12 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .get(k::BODY)
             .and_then(toml::Value::as_table)
             .map(|table| Rc::new(style_of(table, tokens, what))),
-        border: None,
+        // The sides a role's edge is drawn on, as the node's own `border`
+        // states them: a bar's hairline on its top alone.
+        border: body
+            .get(k::BORDER)
+            .filter(|sides| sides.is_array())
+            .map(|sides| four_of(Some(sides))),
         gradient: gradient_of(body, tokens, what),
         shadows: shadows_of(body, tokens, what),
         letter_spacing: number(k::LETTER_SPACING),
@@ -700,6 +713,15 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
 }
 
 /// A table's `text_transform`, as CSS's; a word it is not warns.
+/// A key whose value is one word, as `text_align` and `cursor` are; none
+/// for an empty one.
+fn word(body: &toml::Table, key: &str) -> Option<SmolStr> {
+    body.get(key)
+        .and_then(toml::Value::as_str)
+        .filter(|word| !word.is_empty())
+        .map(SmolStr::new)
+}
+
 fn case_of(body: &toml::Table, what: &str) -> Option<balaur_text::Case> {
     let word = body.get(k::TEXT_TRANSFORM)?.as_str()?;
     let case = balaur_text::Case::of(word);
@@ -827,105 +849,6 @@ pub(crate) fn four_of(value: Option<&toml::Value>) -> [f32; 4] {
     }
     out
 }
-
-/// The doc string `balaur api` and the editor's asset picker show.
-pub(crate) const ASSET_DOC: &str = r##"How each widget kind is drawn, one table per kind. `[colors]`, `[sizes]` and `[fonts]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.
-
-```toml
-type = "widget_theme"            # a widget takes the theme of the nearest ancestor naming one
-
-[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them
-background = "#151f2a"           # dark or light follows from it; `dark = true` overrides
-foreground = "#e6e9ee"
-primary = "#4287cc"              # also secondary, success, warning, danger
-contrast = 0.05                  # how far apart the surfaces step
-row_selected = "#2f6fb0"         # a picked row of a `list`, `tree` or `table`
-row_selected_text = "#ffffff"    # and the ink on it
-row_hover = "#ffffff12"          # what a row takes under the pointer; `row_active` while held
-row_stripe = "#ffffff08"         # a table's every other row; "#00000000" hides it
-table_header = "#ffffff08"       # a table's header plate
-table_rule = "#00000000"         # the lines down its columns, hidden here
-tree_guide = "#8a8a8a8c"         # the lines down a tree's indent
-
-[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive
-font_size = 16                   # font_size_small, font_size_large and font_size_title follow
-radius = 6                       # radius_small and radius_large follow
-
-[fonts]                          # fonts by name; `default` is every text naming none, `icon` the glyphs
-default = "fonts/Inter-Regular.ttf"  # a widget draws beside its caption, `heading` and `mono` egui's own
-heading = "fonts/Inter-Semibold.ttf"
-
-[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
-fill = "primary_fill"
-stroke = "border_default"
-stroke_width = 1.0
-corner_radius = "radius_large"   # a number, a size's name, or "full" for a pill
-padding = 8.0                    # or per side, [left, top, right, bottom]
-gap = 4.0
-font_size = "font_size_large"
-text_color = "text_on_primary"
-icon_color = "text_on_primary"
-font = "heading"                 # a name [fonts] gives a font, or a font itself
-font_weight = 700
-text_align = "center"            # start, center or end
-cursor = "hand"                  # the pointer over it, a cursor word; a node's own wins
-transition = 0.2                 # seconds every state eases over, as CSS's transition; here, never in a state table
-
-[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
-                                 # keyboard focus, [button.disabled] while off, [button.checked] while on
-fill = "primary_fill_hover"
-
-[button.active]
-offset = [0, 0.5]                # drawn this far from its place, as CSS's translate; the layout stays
-
-[button.focus]                   # with the pointer's table over it when both apply, as on the web
-outline = "primary"              # the ring outside the edge, as CSS's outline; the edge stays
-outline_width = 2                # its width, and outline_offset its gap from the edge, 2 and 2 unset
-
-[spinner]                        # three quarters of a ring, turning, in the text's colour
-height = 24                      # its side; a widget's own height wins
-duration = 0.75                  # seconds a turn takes; stroke_width is the ring's, an eighth of the side unset
-                                 # a `loading` button's spinner is this table's too
-
-[switch]
-height = 18                      # the track; width is 1.75 of it unset
-
-[list]
-row_height = "control_height"    # a row's pitch, a tree's and a table's too; a widget's own wins
-
-[panel]
-image = "art/panel.png"          # a nine-patch, sliced in its own pixels
-slice = [8, 8, 8, 8]             # left, top, right, bottom
-
-[table]                          # a row view is dressed like any other kind
-fill = "bg_control"
-stroke = "border_default"
-corner_radius = 6.0
-padding_x = 10.0                 # the air either side of a cell's text
-
-[fold]                           # the header; [fold.checked] while open
-arrow = "art/folded.png"         # the header's arrow picture; the ▸ and ▾ glyphs where none
-
-[fold.body]                      # the frame around what an open fold shows
-fill = "bg_panel"
-padding = 8.0
-
-[roles.card]                     # any table may carry a gradient and a shadow
-gradient = { kind = "linear", stops = ["primary_fill", "bg_panel"], angle = 90 }  # in place of fill; 0 runs left to right
-# kind = "radial" with center = [0.5, 0.5] and radius = 0.5 runs out from the middle; at = [0, 0.3, 1] places three stops
-shadows = [                      # blurred boxes under it, the first on top; [] for none
-  { y = 2, blur = 8, spread = 0, color = "#00000040" },              # x too; a negative spread is smaller
-  { inset = true, y = 0.5, spread = 0.5, color = "#ffffff0f" },      # inset: inside the edge, over the fill
-]
-
-[roles.eyebrow]                  # a small heading over a section
-letter_spacing = 2.4             # extra space between glyphs, design pixels, as CSS's letter-spacing
-text_transform = "uppercase"     # uppercase, lowercase, capitalize or none, as CSS's text-transform
-
-[roles.danger]                   # what a widget with role = "danger" takes
-fill = "danger_fill"
-text_color = "text_on_danger"
-```"##;
 
 pub(crate) const ASSET_TYPE: &str = "widget_theme";
 
@@ -1168,6 +1091,10 @@ pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
     }
     style.weight.unwrap_or(weights::REGULAR)
 }
+
+#[path = "theme_doc.rs"]
+mod doc;
+pub(crate) use doc::ASSET_DOC;
 
 #[path = "theme_layers.rs"]
 mod layers;
