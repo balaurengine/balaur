@@ -239,9 +239,24 @@ struct Answer {
 
 impl Answer {
     fn of(eng: &Engine, path: &str) -> Self {
+        let def = def(eng, path);
+        // A whole number where a float is asked for is that number, as TOML
+        // writes `640` for 640.0: a reader asking for a float took it for
+        // nothing stated and fell back to the default.
+        let float = def.as_ref().is_some_and(|d| {
+            d.spec.get(keys::TYPE).and_then(toml::Value::as_str) == Some(words::datatypes::FLOAT)
+        });
+        let stated = read_stated(eng, path).map(|value| match value {
+            #[allow(
+                clippy::cast_precision_loss,
+                reason = "a setting's whole number, far under 2^52"
+            )]
+            toml::Value::Integer(whole) if float => toml::Value::Float(whole as f64),
+            other => other,
+        });
         Self {
-            stated: read_stated(eng, path),
-            default: def(eng, path).and_then(|d| d.spec.get(keys::DEFAULT).cloned()),
+            stated,
+            default: def.and_then(|d| d.spec.get(keys::DEFAULT).cloned()),
         }
     }
 }

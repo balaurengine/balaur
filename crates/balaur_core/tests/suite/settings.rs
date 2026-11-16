@@ -480,3 +480,15 @@ fn an_override_of_the_tick_rate_is_refused_by_name() {
     assert!(said.contains("override/demo/time/tick_hz"), "{said}");
     assert_eq!(balaur_core::tick_hz(), balaur_core::DEFAULT_TICK_HZ);
 }
+
+// A float setting written as a whole number, as TOML writes `640`, reads as
+// that number, not as nothing stated.
+#[test]
+fn a_whole_number_answers_a_float_setting() {
+    let app = app();
+    settings::load(&app.engine, "[ui]\nnarrow_below_pixels = 640\n").unwrap();
+    assert_eq!(
+        settings::get(&app.engine, "ui/narrow_below_pixels").and_then(|v| v.as_float()),
+        Some(640.0)
+    );
+}

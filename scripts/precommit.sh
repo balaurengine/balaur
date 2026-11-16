@@ -276,7 +276,9 @@ for i in "${!pids[@]}"; do
   wait "${pids[$i]}" || failed+=("${names[$i]}")
 done
 
-for name in "${failed[@]}"; do
+# `${a[@]+...}`: an empty array under `set -u` is unbound to bash 3.2, the
+# Mac's own, so a run where every stream passed would end on that error.
+for name in ${failed[@]+"${failed[@]}"}; do
   printf '\n\033[1;31m== %s ==\033[0m\n' "$name"
   tail -30 "$logs/$name.log"
 done
