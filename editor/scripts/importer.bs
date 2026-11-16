@@ -4,6 +4,7 @@
 
 use editor;
 use form;
+use icons;
 use inspector;
 use recipes;
 use util;
@@ -292,8 +293,9 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
     let note: ui::Control = if has_own {
         ui::Control {
             kind: ui::WIDGET_BUTTON,
-            text: "reset",
-            role: roles::ACTION_FORM,
+            text: "",
+            icon: icons::ui(verbs::RESET),
+            role: roles::ICON_ACTION_FORM,
             tooltip: "Drop this key and follow the project again",
             on_click: "handle",
             data: { fields::FN: on_reset_clicked, REL: rel, fields::KEY: key },

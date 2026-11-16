@@ -45,6 +45,11 @@ internal const DISTRIBUTE_H: str = "distribute-h";
 const DISTRIBUTE_V: str = "distribute-v";
 internal const DOCS: str = "docs";
 internal const RELOAD: str = "reload";
+internal const EMBED: str = "embed";
+internal const PICK_FILE: str = "pick-file";
+internal const PICK_FONT: str = "pick-font";
+internal const PICK_NODE: str = "pick-node";
+internal const OPEN_PREFAB: str = "open-prefab";
 internal const PICTURE: str = "picture";
 internal const KEYBOARD: str = "keyboard";
 internal const CHANNEL: str = "channel";
@@ -224,6 +229,11 @@ pub fn ui(name: str) -> str {
         verbs::REDO => glyphs::ARROW_CLOCKWISE,
         verbs::SAVE => glyphs::FLOPPY_DISK,
         RELOAD => glyphs::ARROWS_CLOCKWISE,
+        EMBED => glyphs::ARROW_SQUARE_IN,
+        PICK_FILE => glyphs::FOLDER_OPEN,
+        PICK_FONT => glyphs::TEXT_AA,
+        PICK_NODE => glyphs::CROSSHAIR,
+        OPEN_PREFAB => glyphs::ARROW_SQUARE_OUT,
         PICTURE => glyphs::IMAGE,
         KEYBOARD => glyphs::KEYBOARD,
         CHANNEL => glyphs::CIRCLE_HALF,
@@ -302,5 +312,19 @@ pub fn node(role: str) -> str {
         glyphs::CIRCLE
     } else {
         glyphs::CIRCLE
+    }
+}
+
+/// An asset's mark by its kind, as a reference's field leads with it.
+pub fn asset(kind: str) -> str {
+    match kind {
+        asset_kinds::TEXTURE => glyphs::IMAGE,
+        asset_kinds::IMAGE => glyphs::IMAGE,
+        asset_kinds::MATERIAL => glyphs::PALETTE,
+        asset_kinds::MODEL => glyphs::CUBE,
+        asset_kinds::AUDIO => glyphs::SPEAKER_HIGH,
+        asset_kinds::SKY => glyphs::CLOUD_SUN,
+        components::FONT => glyphs::TEXT_AA,
+        _ => glyphs::FILE,
     }
 }

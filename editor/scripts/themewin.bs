@@ -826,7 +826,7 @@ fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, sta
     if mine && stated {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::ICON_ACTION_FORM,
+            role: roles::ICON_ACTION_FORM_QUIET,
             text: "",
             icon: icons::ui(icons::CLOSE),
             tooltip: "Back to the base theme's value",

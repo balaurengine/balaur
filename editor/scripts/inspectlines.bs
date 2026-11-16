@@ -148,8 +148,9 @@ fn instance_note(state: &mut editor::State, node: Node) {
                     ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_SECONDARY, grow: 1, truncate: true, text: if built { sceneedit::prefab_of(node) } else { node.instance().or("") } },
                     ui::Control {
                         kind: ui::WIDGET_BUTTON,
-                        role: roles::ACTION_PREFAB,
-                        text: "open",
+                        role: roles::ICON_ACTION_FORM,
+                        text: "",
+                        icon: icons::ui(icons::OPEN_PREFAB),
                         tooltip: "Open the prefab; an edit there reaches every copy of it",
                         on_click: "inspector_edit",
                         data: { layout_fields::LINE: key, fields::FN: on_prefab_open },

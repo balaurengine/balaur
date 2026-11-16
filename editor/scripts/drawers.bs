@@ -26,9 +26,12 @@ use words::schema_fields;
 use words::tabs;
 use words::theme_tokens;
 use words::tools;
+use words::verbs;
 
 const DEGREES: str = "degrees";
 const INLINE: str = "inline";
+// The handler a picked row hands its choice to.
+const TAKEN: str = "taken";
 const DECIMALS: str = "decimals";
 const PARAMS: str = "params";
 const SLOT: str = "slot";
@@ -195,7 +198,7 @@ fn add_tail(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
             kind: ui::WIDGET_BUTTON,
             text: "",
             icon: icons::ui(icons::CLOSE),
-            role: roles::ICON_ACTION_FORM,
+            role: roles::ICON_ACTION_FORM_QUIET,
             tooltip: "Take this one out",
             on_click: "inspector_edit",
             data: edit_of(line, on_entry_removed),
@@ -205,9 +208,10 @@ fn add_tail(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
         if model::script_props(state.inspect.node).has(line.at.property) {
             controls.push(ui::Control {
                 kind: ui::WIDGET_BUTTON,
-                text: "reset",
-                role: roles::ACTION_FORM,
-                tooltip: "Back to the script's default",
+                text: "",
+                icon: icons::ui(verbs::RESET),
+                role: roles::ICON_ACTION_FORM,
+                tooltip: "Reset to the script's default",
                 on_click: "inspector_edit",
                 data: edit_of(line, on_script_property_reset),
             });
@@ -492,7 +496,7 @@ fn on_flag_toggled(state: &mut editor::State, line: inspector::Line, data: any, 
 // dropdown lists every node in the document as an absolute path, which is
 // what a leading `/` means to the engine's resolver.
 fn node_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
-    let paths = ["— none —"];
+    let paths = [general::NONE];
     for node in state.nodes {
         paths.push("/" + model::path_in_scene(state, node));
     }
@@ -501,23 +505,16 @@ fn node_row(state: &mut editor::State, line: inspector::Line, value: any) -> for
             kind: ui::WIDGET_TEXT_FIELD,
             grow: 1,
             text: inspector::as_text(value),
-            placeholder: "— none —",
+            placeholder: general::NONE,
             on_submit: "inspector_edit",
             data: edit_of(line, on_value_taken),
         },
-        ui::Control {
-            kind: ui::WIDGET_DROPDOWN,
-            role: roles::CHOICE,
-            text: "pick",
-            options: paths,
-            on_change: "inspector_edit",
-            data: edit_of(line, on_node_picked),
-        },
+        pick_menu(line, icons::ui(icons::PICK_NODE), "Pick a node", paths, on_node_picked),
     ])
 }
 
 fn on_node_picked(state: &mut editor::State, line: inspector::Line, _data: any, picked: any) {
-    inspector::write_at(state, line.at, if picked.as_str() == "— none —" { "" } else { picked.as_str() });
+    inspector::write_at(state, line.at, if picked.as_str() == general::NONE { "" } else { picked.as_str() });
 }
 
 // What a list says before its rows, and the chip that adds one at the spec's
@@ -548,7 +545,7 @@ fn holder_row(state: &mut editor::State, line: inspector::Line, note: str, adds:
             kind: ui::WIDGET_BUTTON,
             text: "",
             icon: icons::ui(icons::ADD),
-            role: roles::ICON_ACTION_FORM,
+            role: roles::ICON_ACTION_FORM_QUIET,
             tooltip: "Add one",
             on_click: "inspector_edit",
             data: edit_of(line, on_entry_added),
@@ -591,24 +588,27 @@ fn script_path_row(state: &mut editor::State, line: inspector::Line, value: any)
             on_submit: "inspector_edit",
             data: edit_of(line, on_value_taken),
         },
-        ui::Control { kind: ui::WIDGET_MENU, role: roles::CHOICE, text: "pick", tooltip: "Name a script that exists", controls: script_picks(state, line) },
+        pick_menu(line, icons::ui(icons::PICK_FILE), "Pick a script that exists", shell::script_files(state), on_value_taken),
     ])
 }
 
-// A menu row a script: a menu is as wide as its caption, where a dropdown
-// takes its longest file name's room from the field beside it.
-fn script_picks(state: &mut editor::State, line: inspector::Line) -> [ui::Control] {
-    let out: [ui::Control] = [];
-    for file in shell::script_files(state) {
-        let data = edit_of(line, on_script_picked);
-        data[fields::VALUE] = file;
-        out.push(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ITEM_MENU, text: file, on_click: "inspector_edit", data: data });
+// A row's verb that opens a list to pick from: one glyph, as wide as it is
+// tall, where a dropdown would take its longest choice's room from the field
+// beside it. `taken` hears the choice as a dropdown's change would.
+fn pick_menu(line: inspector::Line, icon: str, tooltip: str, choices: [str], taken: fn(&mut editor::State, inspector::Line, any, any)) -> ui::Control {
+    let rows: [ui::Control] = [];
+    for choice in choices {
+        let data = edit_of(line, on_row_picked);
+        data[fields::VALUE] = choice;
+        data[TAKEN] = taken;
+        rows.push(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ITEM_MENU, text: choice, on_click: "inspector_edit", data: data });
     }
-    out
+    ui::Control { kind: ui::WIDGET_MENU, role: roles::ICON_ACTION_FORM, text: "", icon: icon, tooltip: tooltip, controls: rows }
 }
 
-fn on_script_picked(state: &mut editor::State, line: inspector::Line, data: any, _value: any) {
-    inspector::write_at(state, line.at, data[fields::VALUE]);
+fn on_row_picked(state: &mut editor::State, line: inspector::Line, data: any, _value: any) {
+    let taken: fn(&mut editor::State, inspector::Line, any, any) = data[TAKEN];
+    taken(state, line, data, data[fields::VALUE]);
 }
 
 // A reference, or an inline definition the engine reports as a `#!` digest. A
@@ -626,6 +626,7 @@ fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
             ui::Control {
                 kind: ui::WIDGET_TEXT_FIELD,
                 grow: 1,
+                icon: icons::asset(asset_type),
                 text: reference,
                 placeholder: asset_placeholder(state, asset_type, own),
                 on_submit: "inspector_edit",
@@ -634,20 +635,14 @@ fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
         },
     ];
     if asset_type == components::FONT && !inline {
-        controls.push(ui::Control {
-            kind: ui::WIDGET_DROPDOWN,
-            role: roles::CHOICE,
-            text: "pick",
-            options: fonts::choices(state),
-            on_change: "inspector_edit",
-            data: edit_of(line, on_font_picked),
-        });
+        controls.push(pick_menu(line, icons::ui(icons::PICK_FONT), "Pick a font", fonts::choices(state), on_font_picked));
     }
     if directory != "" {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_FORM,
-            text: if inline { "save to file" } else { "embed" },
+            role: roles::ICON_ACTION_FORM,
+            text: "",
+            icon: if inline { icons::ui(verbs::SAVE) } else { icons::ui(icons::EMBED) },
             tooltip: if inline {
                 "Write this {asset_type} to {directory}/ and reference it"
             } else {
@@ -664,11 +659,11 @@ fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
 // and where from: `red ← Rig`.
 fn asset_placeholder(state: editor::State, asset_type: str, own: str) -> str {
     if asset_type != asset_kinds::MATERIAL || own != "" {
-        return "— none —";
+        return general::NONE;
     }
     let from = inspector::inherited_material(state);
     if from.material == "" {
-        return "— none —";
+        return general::NONE;
     }
     "{inherited_label(state, from.material)} ← {util::last_segment(from.node)}"
 }
@@ -824,7 +819,7 @@ fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> 
     let row = labelled(state, line, [
         ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::ICON_ACTION_FORM,
+            role: roles::ICON_ACTION_FORM_QUIET,
             text: "",
             icon: icons::ui(icons::OPEN),
             tooltip: "Edit " + current,

@@ -36,6 +36,89 @@ grow = 1
 icon = "magnifying-glass"
 placeholder = "Search"
 
+# The filter beside the search: a node kind to show alone. Each row is
+# named by the component tag it keeps, so a plugin's is found by its tags.
+[[nodes]]
+id = "filter"
+name = "Filter"
+parent = "find"
+[nodes.widget]
+kind = "menu"
+role = "action_dock"
+tooltip = "Show one kind of node"
+[nodes.widget_button]
+icon = "funnel"
+
+[[nodes]]
+id = "filter_all"
+name = "all"
+parent = "filter"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+text = "All nodes"
+
+[[nodes]]
+id = "filter_3d"
+name = "3d"
+parent = "filter"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+text = "3D"
+
+[[nodes]]
+id = "filter_2d"
+name = "2d"
+parent = "filter"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+text = "2D"
+
+[[nodes]]
+id = "filter_physics"
+name = "physics"
+parent = "filter"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+text = "Physics"
+
+[[nodes]]
+id = "filter_render"
+name = "render"
+parent = "filter"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+text = "Rendering"
+
+[[nodes]]
+id = "filter_ui"
+name = "ui"
+parent = "filter"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+text = "UI"
+
+[[nodes]]
+id = "filter_script"
+name = "script"
+parent = "filter"
+bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+text = "Script"
+
 [[nodes]]
 id = "add"
 name = "Add"
@@ -45,20 +128,6 @@ bindings = { rows = [{ event = "pointer_click", action = "call", value = "add" }
 kind = "button"
 role = "action_dock"
 tooltip = "Add child node"
-
-# Each option but the first is a component tag the engine already carries,
-# so a plugin's component is found by the tags it declared.
-[[nodes]]
-id = "facet"
-name = "Facet"
-parent = "panel"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "facet_picked" }] }
-[nodes.widget]
-kind = "dropdown"
-role = "choice"
-text = "All nodes"
-[nodes.widget_dropdown]
-options = ["All nodes", "3D", "2D", "Physics", "Rendering", "UI", "Script"]
 
 # What a filter that left nothing says instead of an empty tree.
 [[nodes]]

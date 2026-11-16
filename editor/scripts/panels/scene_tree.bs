@@ -3,7 +3,9 @@
 
 use editor;
 use signals;
-use words::tabs;
+
+// The filter row that keeps every node.
+const ALL: str = "all";
 
 pub class SceneTree {
     node: Node,
@@ -12,25 +14,6 @@ pub class SceneTree {
     editor: editor::Editor?,
     /// What names the rows the tree holds.
     drawn: str,
-}
-
-/// The component tag the facet labelled `label` filters on; "" for all.
-fn facet_tag(label: any) -> str {
-    if label.as_str() == "3D" {
-        "3d"
-    } else if label.as_str() == "2D" {
-        "2d"
-    } else if label.as_str() == "Physics" {
-        tabs::PHYSICS
-    } else if label.as_str() == "Rendering" {
-        "render"
-    } else if label.as_str() == "UI" {
-        tabs::UI
-    } else if label.as_str() == "Script" {
-        tabs::SCRIPT
-    } else {
-        ""
-    }
 }
 
 impl SceneTree {
@@ -58,8 +41,9 @@ impl SceneTree {
         self.refresh();
     }
 
-    pub fn facet_picked(value: any) {
-        self.facet = facet_tag(value);
+    /// A row of the filter menu, named by the component tag it keeps.
+    pub fn facet_picked(_value: any, node: Node) {
+        self.facet = if node.name() == ALL { "" } else { node.name() };
         self.refresh();
     }
 
@@ -85,6 +69,9 @@ impl SceneTree {
     fn refresh() {
         let view = self.editor.unwrap().outline_view(self.query, self.facet, self.drawn);
         self.node.get_node("Find/Add").widget_button.icon = view.add_icon;
+        let filter = self.node.get_node("Find/Filter");
+        filter.widget_check.checked = self.facet != "";
+        filter.widget.tooltip = if self.facet == "" { "Show one kind of node" } else { "Showing {self.facet} nodes only" };
         let tree = self.node.get_node("Tree");
         let nothing = self.node.get_node("Nothing");
         if view.filtering && view.empty {

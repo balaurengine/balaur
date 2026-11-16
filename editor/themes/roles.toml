@@ -600,12 +600,16 @@ offset = [0, 1]
 [roles.icon_action_dialog.touch]
 height = "control_height_touch"
 
+# A row's verb as one glyph, its word its tooltip: a raised square the
+# height of the field beside it. The quiet one is a mark, flat until hovered.
 [roles.icon_action_form]
-font_size = "font_size_small"
-font_weight = 600
+font_size = "font_size_large"
 text_color = "text_muted"
+fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
 corner_radius = "radius_small"
-height = "control_height_small"
+height = "control_height"
 
 [roles.icon_action_form.hover]
 text_color = "text_default"
@@ -615,6 +619,23 @@ fill = "bg_control_hover"
 offset = [0, 1]
 
 [roles.icon_action_form.touch]
+height = "control_height_touch"
+
+[roles.icon_action_form_quiet]
+font_size = "font_size_small"
+font_weight = 600
+text_color = "text_muted"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.icon_action_form_quiet.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.icon_action_form_quiet.active]
+offset = [0, 1]
+
+[roles.icon_action_form_quiet.touch]
 height = "control_height_touch"
 
 [roles.icon_action_primary]

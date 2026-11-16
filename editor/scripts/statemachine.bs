@@ -536,7 +536,7 @@ fn on_transition_remove_pressed(state: &mut editor::State, data: any, _value: an
 
 // A row's close mark, which takes the row out, by `data`.
 fn remove(tooltip: str, data: any) -> ui::Control {
-    ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION_FORM, text: "", icon: icons::ui(icons::CLOSE), tooltip: tooltip, on_click: "handle", data: data }
+    ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION_FORM_QUIET, text: "", icon: icons::ui(icons::CLOSE), tooltip: tooltip, on_click: "handle", data: data }
 }
 
 // The label a transition's own field wears: indented, so the fields read as

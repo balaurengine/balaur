@@ -707,7 +707,7 @@ fn form_specs(state: editor::State) -> [form::Row] {
                     editor_control(state, setting, at),
                     ui::Control {
                         kind: ui::WIDGET_BUTTON,
-                        role: roles::ICON_ACTION_FORM,
+                        role: roles::ICON_ACTION_FORM_QUIET,
                         text: "",
                         icon: icons::ui(icons::CLOSE),
                         tooltip: "Reset this override",

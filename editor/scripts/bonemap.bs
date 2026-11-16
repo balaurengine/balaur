@@ -252,7 +252,7 @@ fn row(state: editor::State, paths: [str], name: str) -> [form::Row] {
     if picked != "" {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::ICON_ACTION_FORM,
+            role: roles::ICON_ACTION_FORM_QUIET,
             text: "",
             icon: icons::ui(icons::CLOSE),
             tooltip: "Leave this row empty",

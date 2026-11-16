@@ -262,7 +262,7 @@ fn row_spec(state: editor::State, at: int, row: any) -> form::Row {
     controls.push(typed(state, at, VALUE, as_text(row[fields::VALUE]), VALUE));
     controls.push(ui::Control {
         kind: ui::WIDGET_BUTTON,
-        role: roles::ICON_ACTION_FORM,
+        role: roles::ICON_ACTION_FORM_QUIET,
         text: "",
         icon: icons::ui(icons::CLOSE),
         tooltip: "Remove this binding",

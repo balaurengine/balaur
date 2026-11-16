@@ -492,7 +492,7 @@ fn project_spec(column_width: float, row: any) -> form::Row {
     }
     controls.push(ui::Control {
         kind: ui::WIDGET_BUTTON,
-        role: roles::ICON_ACTION_FORM,
+        role: roles::ICON_ACTION_FORM_QUIET,
         text: "",
         icon: icons::ui(icons::CLOSE),
         tooltip: "Forget this project",
