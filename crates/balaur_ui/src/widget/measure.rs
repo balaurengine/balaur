@@ -158,9 +158,23 @@ impl<'a> Measure<'a> {
     fn content(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let widget = &self.arena[index].widget;
         match widget.kind.as_str() {
-            // A scroll is meant to clip, so it answers with its stated size
-            // or with nothing.
-            w::SCROLL => egui::Vec2::ZERO,
+            // A scroll is meant to clip, so it answers with its stated size,
+            // else with what it holds up to a `max_width` or `max_height`
+            // (CSS's `overflow: auto` under a cap), else with nothing.
+            w::SCROLL => {
+                let cap = vec2(
+                    widget.layout.max_width.get(),
+                    widget.layout.max_height.get(),
+                );
+                if cap.x <= 0.0 && cap.y <= 0.0 {
+                    return egui::Vec2::ZERO;
+                }
+                let held = self.inner(index, theme);
+                vec2(
+                    if cap.x > 0.0 { held.x.min(cap.x) } else { 0.0 },
+                    if cap.y > 0.0 { held.y.min(cap.y) } else { 0.0 },
+                )
+            }
             // A picture with a `fit` is sized by the box it is given, so it
             // measures only what it states: Godot's expand modes.
             w::IMAGE if !widget.fit.is_empty() => vec2(widget.width, widget.height),

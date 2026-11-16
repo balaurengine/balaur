@@ -267,8 +267,9 @@ fn node_of(eng: &Engine, widget: &Widget, scale: f64, entity: Entity) -> Node {
             if !widget.secret {
                 node.set_value(caption.as_str());
             }
-            if !widget.placeholder.is_empty() {
-                node.set_placeholder(widget.placeholder.as_str());
+            let hint = crate::widget::field::placeholder_of(eng, widget);
+            if !hint.is_empty() {
+                node.set_placeholder(hint.as_str());
             }
             node.add_action(Action::SetValue);
         }

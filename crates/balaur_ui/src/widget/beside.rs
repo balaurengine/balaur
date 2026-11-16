@@ -415,6 +415,8 @@ impl Beside for WidgetRange {
 pub(crate) struct WidgetField {
     /// What a `text_field` or `text_area` shows while it is empty
     pub(crate) placeholder: SmolStr,
+    /// A localization key shown in place of `placeholder`, read in the locale in force as `text_key` is
+    pub(crate) placeholder_key: SmolStr,
     /// The most characters a `text_field` takes; 0 is no limit
     #[property(min = 0.0)]
     pub(crate) max_length: f32,
@@ -472,6 +474,7 @@ impl Beside for WidgetField {
 
     puts! { held, widget;
         placeholder => widget.placeholder = held.placeholder.clone();
+        placeholder_key => widget.placeholder_key = held.placeholder_key.clone();
         max_length => widget.max_length = held.max_length;
         numeric => widget.numeric = held.numeric;
         secret => widget.secret = held.secret;

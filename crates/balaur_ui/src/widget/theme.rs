@@ -222,6 +222,10 @@ pub struct Style {
     /// lifted under the pointer. What sits beside it never moves, and the
     /// move is rounded to whole pixels of the screen, so text stays sharp.
     pub offset: Option<[f32; 2]>,
+    /// How many times its size the widget and what it holds are drawn,
+    /// about its middle, as CSS's `scale`: a count's pop. The layout and what
+    /// sits beside it never move.
+    pub scale: Option<f32>,
 }
 
 /// One of `shadows = [{ y = 2, blur = 8, spread = 0, color = "#00000040" }]`,
@@ -336,6 +340,7 @@ impl Style {
             text_transform: self.text_transform.or(base.text_transform),
             transition: self.transition.or(base.transition),
             offset: self.offset.or(base.offset),
+            scale: self.scale.or(base.scale),
         }
     }
 
@@ -714,6 +719,7 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             let [x, y, ..] = four_of(Some(value));
             [x, y]
         }),
+        scale: number(k::SCALE).filter(|factor| *factor > 0.0),
     }
 }
 
@@ -933,6 +939,8 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     let border = widget.layout.border.map(crate::widget::node::Bits::get);
     let bordered = border.iter().any(|side| *side > 0.0);
     let moved = widget.offset != [0.0, 0.0];
+    // Zero is unset, as a widget built by hand holds it.
+    let scaled = widget.scale > 0.0 && (widget.scale - 1.0).abs() > f32::EPSILON;
     if widget.fill.is_empty()
         && widget.stroke.is_empty()
         && !widget.dashed
@@ -940,6 +948,7 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
         && widget.radius < 0.0
         && !bordered
         && !moved
+        && !scaled
     {
         return settled;
     }
@@ -964,6 +973,9 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     }
     if moved {
         style.offset = Some(widget.offset);
+    }
+    if scaled {
+        style.scale = Some(widget.scale);
     }
     Rc::new(style)
 }

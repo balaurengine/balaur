@@ -2480,7 +2480,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 60 properties
+`ui` · 61 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A click on one is its node's `pointer_click`, which a `bindings` row or its script's `on_pointer_click` answers; a `label`, a `panel` or an `image` senses a click only where one is heard.
 
@@ -2511,6 +2511,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>absolute</code></td><td>bool</td><td><code>false</code></td><td>Take this child out of its container&#x27;s run and place it by `inset` against the container&#x27;s box inside its border, drawn in its turn among its siblings; a root ignores it</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, and how far an `absolute` child sits in from each edge of its container inside its border, where a side below zero is left free; in design pixels</td></tr>
 <tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How far the widget and what it holds are drawn from where the layout put them, `[x, y]` in design pixels, as CSS&#x27;s `translate`: what sits beside it never moves. Over its role&#x27;s own; a tween moves it, as a bar sliding away</td></tr>
+<tr><td><code>scale</code></td><td>float</td><td><code>1.0</code></td><td>How many times its size the widget and what it holds are drawn, about its middle, as CSS&#x27;s `scale`: the layout and what sits beside it stay. Over its role&#x27;s own; a tween pops a count with it. 0 is unset At least 0.0.</td></tr>
 <tr><td><code>whole_window</code></td><td>bool</td><td><code>false</code></td><td>Whether this root draws over the whole window, whatever `ui.set_widget_layer` says: what an editor&#x27;s own chrome does. Ignored on a child.</td></tr>
 <tr><td><code>safe_area</code></td><td>flags</td><td><code>[&quot;left&quot;, &quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;]</code></td><td>The edges this root keeps clear of what a notch, a status bar or a home bar covers. A `fill` root&#x27;s own colour still reaches the edge, and one with no children is a backdrop and reaches it whole One of <code>left</code>, <code>top</code>, <code>right</code>, <code>bottom</code>.</td></tr>
 <tr><td><code>movable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag move this root and write its `x` and `y`: a `window` by its title bar, any other root by its whole box where no child takes the press</td></tr>
@@ -2697,7 +2698,7 @@ The rows a `dropdown` reads: what it offers, how tall its list grows and what sh
 
 ### `widget_field`
 
-`ui` · 16 properties
+`ui` · 17 properties
 
 The rows a `text_field`, `text_area` or `code` reads: what may be typed and how the editor behaves.
 
@@ -2705,6 +2706,7 @@ The rows a `text_field`, `text_area` or `code` reads: what may be typed and how 
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `text_field` or `text_area` shows while it is empty</td></tr>
+<tr><td><code>placeholder_key</code></td><td>string</td><td>—</td><td>A localization key shown in place of `placeholder`, read in the locale in force as `text_key` is</td></tr>
 <tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The most characters a `text_field` takes; 0 is no limit At least 0.0.</td></tr>
 <tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `text_field` to digits, a sign and a point</td></tr>
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `text_field`&#x27;s text as dots, for a password</td></tr>

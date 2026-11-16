@@ -7741,6 +7741,7 @@
       "absolute",
       "inset",
       "offset",
+      "scale",
       "whole_window",
       "safe_area",
       "movable",
@@ -7828,6 +7829,7 @@
     ],
     "widget_field": [
       "placeholder",
+      "placeholder_key",
       "max_length",
       "numeric",
       "secret",
@@ -17879,6 +17881,13 @@
         ],
         "type": "flags"
       },
+      "scale": {
+        "default": 1.0,
+        "description": "How many times its size the widget and what it holds are drawn, about its middle, as CSS's `scale`: the layout and what sits beside it stay. Over its role's own; a tween pops a count with it. 0 is unset",
+        "group": "placement",
+        "min": 0.0,
+        "type": "float"
+      },
       "shrink": {
         "default": -1.0,
         "description": "Share of the shortfall this child gives up when its container is too small along its direction; below zero is 1 for one that grows and 0 otherwise",
@@ -18273,6 +18282,11 @@
       "placeholder": {
         "default": "",
         "description": "What a `text_field` or `text_area` shows while it is empty",
+        "type": "string"
+      },
+      "placeholder_key": {
+        "default": "",
+        "description": "A localization key shown in place of `placeholder`, read in the locale in force as `text_key` is",
         "type": "string"
       },
       "prefix": {

@@ -378,6 +378,45 @@ impl Brush {
         });
     }
 
+    /// What was drawn since `mark`, moved by the style's `offset` and then
+    /// scaled by its `scale` about `about`, the widget's middle.
+    pub(crate) fn transform_since(
+        &self,
+        mark: Slot,
+        style: &crate::widget::theme::Style,
+        about: egui::Pos2,
+    ) {
+        if let Some([x, y]) = style.offset {
+            self.shift_since(mark, egui::vec2(x, y));
+        }
+        if let Some(factor) = style.scale {
+            self.scale_since(
+                mark,
+                about
+                    + style
+                        .offset
+                        .map_or(egui::Vec2::ZERO, |[x, y]| egui::vec2(x, y)),
+                factor,
+            );
+        }
+    }
+
+    /// What was drawn since `mark`, `factor` times its size about `about`.
+    pub(crate) fn scale_since(&self, mark: Slot, about: egui::Pos2, factor: f32) {
+        if (factor - 1.0).abs() <= f32::EPSILON {
+            return;
+        }
+        let layer = self.0.layer_id();
+        let to = egui::emath::TSTransform::from_translation(about.to_vec2());
+        let from = egui::emath::TSTransform::from_translation(-about.to_vec2());
+        let by = to * egui::emath::TSTransform::from_scaling(factor) * from;
+        self.0.ctx().graphics_mut(|g| {
+            let list = g.entry(layer);
+            let end = list.next_idx();
+            list.transform_range(mark.0, end, by);
+        });
+    }
+
     pub(crate) fn slot(&self) -> Slot {
         Slot(self.0.add(egui::Shape::Noop))
     }

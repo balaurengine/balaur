@@ -258,10 +258,11 @@ fn a_reader_presses_a_button_and_sets_a_slider() {
     assert_eq!(focused(&app), Some(widgets[4]));
 }
 
-// A tooltip by its key is read in the locale in force, as a caption by its
-// `text_key` is: a reader hears it in the player's language.
+// A tooltip and a field's placeholder by their keys are read in the locale
+// in force, as a caption by its `text_key` is: a reader hears them in the
+// player's language.
 #[test]
-fn a_tooltip_key_is_read_in_the_locale() {
+fn a_tooltip_key_and_a_placeholder_key_are_read_in_the_locale() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
@@ -270,8 +271,16 @@ fn a_tooltip_key_is_read_in_the_locale() {
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
     std::fs::create_dir_all(dir.path().join("strings")).unwrap();
-    std::fs::write(dir.path().join("strings/en.toml"), "back = \"Back\"\n").unwrap();
-    std::fs::write(dir.path().join("strings/ro.toml"), "back = \"Înapoi\"\n").unwrap();
+    std::fs::write(
+        dir.path().join("strings/en.toml"),
+        "back = \"Back\"\nsearch = \"Search\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("strings/ro.toml"),
+        "back = \"Înapoi\"\nsearch = \"Caută\"\n",
+    )
+    .unwrap();
     let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let app = balaur::standard_app(config).unwrap();

@@ -162,6 +162,8 @@ pub struct Widget {
     pub font_style: SmolStr,
     /// What a `text_field` shows while empty.
     pub placeholder: SmolStr,
+    /// A localization key shown in place of `placeholder`.
+    pub placeholder_key: SmolStr,
     /// The most characters a `text_field` takes; 0 is no limit.
     pub max_length: f32,
     /// Draw a `text_field`'s text as dots.
@@ -234,6 +236,8 @@ pub struct Widget {
     pub inset: [f32; 4],
     /// Drawn this far from its place, `[x, y]`, over its role's `offset`.
     pub offset: [f32; 2],
+    /// Drawn this many times its size about its middle, over its role's `scale`.
+    pub scale: f32,
     /// The nine-patch borders of an `image`, in the picture's own pixels.
     pub slice: [f32; 4],
     /// How far a finger drags a `scroll` before it scrolls, in design pixels.

@@ -191,7 +191,7 @@ pub(crate) fn edit(
         )),
         margin: margin_of(widget, &look.style),
         color,
-        placeholder: face.shape(&widget.placeholder, None),
+        placeholder: face.shape(&placeholder_of(at.eng, widget), None),
         icon: lead_icon(ui, at, index, font),
         prefix: face.shape(&widget.egui.prefix, None),
         suffix: face.shape(&widget.suffix, None),
@@ -284,4 +284,13 @@ fn left(
             focus.focused = None;
         }
     }
+}
+
+/// What a field shows while it is empty: its `placeholder_key` read in the
+/// locale in force, else its `placeholder`.
+pub(crate) fn placeholder_of(eng: &balaur_core::Engine, widget: &Widget) -> smol_str::SmolStr {
+    if widget.placeholder_key.is_empty() {
+        return widget.placeholder.clone();
+    }
+    balaur_core::strings::plain(eng, &widget.placeholder_key)
 }

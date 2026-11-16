@@ -334,6 +334,9 @@ pub(crate) struct WidgetProperties {
     /// How far the widget and what it holds are drawn from where the layout put them, `[x, y]` in design pixels, as CSS's `translate`: what sits beside it never moves. Over its role's own; a tween moves it, as a bar sliding away
     #[property(default = [0.0, 0.0], group = "placement")]
     pub(crate) offset: [f32; 2],
+    /// How many times its size the widget and what it holds are drawn, about its middle, as CSS's `scale`: the layout and what sits beside it stay. Over its role's own; a tween pops a count with it. 0 is unset
+    #[property(default = 1.0, min = 0.0, group = "placement")]
+    pub(crate) scale: f32,
     /// Whether this root draws over the whole window, whatever `ui.set_widget_layer` says: what an editor's own chrome does. Ignored on a child.
     #[property(group = "placement")]
     pub(crate) whole_window: bool,

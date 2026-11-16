@@ -846,3 +846,95 @@ fn an_offset_moves_what_is_drawn_not_the_box() {
         "the fill is drawn 30 down: {painted:?}"
     );
 }
+
+// A node's `scale` draws it that many times its size about its middle, as
+// CSS's `scale`; its box stays.
+#[test]
+fn a_scale_draws_bigger_about_the_middle_not_the_box() {
+    let (_dir, app) = app();
+    let popped = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "7" x = 100.0 y = 100.0 width = 40.0 height = 40.0 fill = "#ff0000" scale = 1.5 }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let boxed = balaur_ui::widget_rect(popped).expect("it drew");
+    let red = egui::Color32::from_rgb(255, 0, 0);
+    let painted = out
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::epaint::Shape::Rect(r) if r.fill == red => Some(r.rect),
+            _ => None,
+        })
+        .expect("the fill is painted");
+    assert!(
+        (boxed.width() - 40.0).abs() < 1.0,
+        "the box stays: {boxed:?}"
+    );
+    assert!(
+        (painted.width() - 60.0).abs() < 1.0,
+        "drawn half again as big: {painted:?}"
+    );
+    assert!(
+        (painted.center() - boxed.center()).length() < 1.0,
+        "about its middle: {painted:?} in {boxed:?}"
+    );
+}
+
+// A scroll capped by a `max_height` is as tall as what it holds up to the
+// cap, as CSS's `overflow: auto`: inside a page that scrolls, it is not
+// squeezed to nothing.
+#[test]
+fn a_capped_scroll_holds_its_content_up_to_its_cap() {
+    let (_dir, app) = app();
+    let page = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 widget_layout = { align_items = "stretch" } }.into(),
+    );
+    let short = add_child_widget(
+        &app,
+        page,
+        "Short",
+        &toml::toml! { kind = "scroll" max_height = 300.0 widget_scroll = { axis = "vertical" } }
+            .into(),
+    );
+    add_child_widget(
+        &app,
+        short,
+        "Row",
+        &toml::toml! { kind = "button" text = "One" height = 40.0 }.into(),
+    );
+    let tall = add_child_widget(
+        &app,
+        page,
+        "Tall",
+        &toml::toml! { kind = "scroll" max_height = 100.0 widget_scroll = { axis = "vertical" } }
+            .into(),
+    );
+    for n in 0..5 {
+        add_child_widget(
+            &app,
+            tall,
+            &format!("R{n}"),
+            &toml::toml! { kind = "button" text = "Row" height = 40.0 }.into(),
+        );
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let (short, tall) = (
+        balaur_ui::widget_rect(short).expect("drew"),
+        balaur_ui::widget_rect(tall).expect("drew"),
+    );
+    assert!(
+        (short.height() - 40.0).abs() < 2.0,
+        "as tall as its one row: {short:?}"
+    );
+    assert!(
+        (tall.height() - 100.0).abs() < 2.0,
+        "no taller than its cap: {tall:?}"
+    );
+}

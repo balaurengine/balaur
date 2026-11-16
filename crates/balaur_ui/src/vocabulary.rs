@@ -536,6 +536,7 @@ pub(crate) mod keys {
     pub(crate) const TRANSITION: &str = "transition";
     /// How far a theme table draws a widget from its place, `[x, y]`.
     pub(crate) const OFFSET: &str = "offset";
+    pub(crate) const SCALE: &str = "scale";
     /// The colour of the ring a focused control draws outside its edge, as
     /// CSS's `outline`.
     pub(crate) const OUTLINE: &str = "outline";

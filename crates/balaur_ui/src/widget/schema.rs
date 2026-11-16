@@ -385,6 +385,7 @@ cache_fields! {
         k::ABSOLUTE => widget.layout.absolute = asked.absolute;
         k::INSET => widget.inset = asked.inset;
         k::OFFSET => widget.offset = asked.offset;
+        k::SCALE => widget.scale = asked.scale;
         k::WHOLE_WINDOW => widget.whole_window = asked.whole_window;
         k::SAFE_AREA => widget.safe_area = edges(&asked.safe_area);
         k::MOVABLE => egui(widget).movable = asked.movable;
