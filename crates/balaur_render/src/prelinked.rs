@@ -242,10 +242,13 @@ fn in_nested_project(pack: &balaur_core::Pack, path: &str) -> bool {
         .skip(1)
         .filter(|dir| !dir.as_os_str().is_empty())
         .any(|dir| {
-            let manifest = dir.join(balaur_core::project::MANIFEST);
-            let manifest = manifest.to_string_lossy();
-            pack.scenes.contains_key(manifest.as_ref())
-                || pack.assets.contains_key(manifest.as_ref())
+            // A pack's keys are `/` paths, where `join` spells `\` on Windows.
+            let manifest = format!(
+                "{}/{}",
+                dir.to_string_lossy(),
+                balaur_core::project::MANIFEST
+            );
+            pack.scenes.contains_key(&manifest) || pack.assets.contains_key(&manifest)
         })
 }
 

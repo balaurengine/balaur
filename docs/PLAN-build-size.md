@@ -268,7 +268,10 @@ LTO, so a game with physics would ship more bytes than the one binary does.
 4. **Data.** The tonemapping table, done. Left: the default face, if a game
    that ships its own can leave it.
 5. **The budget.** Done: `package_runtime.sh web` fails a push whose `bare`
-   template passes 10.4 MB, the 10.38 above rounded up to a tenth.
+   template passes 10.5 MB. It was 10.4, the 10.38 above rounded up to a
+   tenth, until 2026-11-15 took `bare` to 10.47: every state of a control
+   eased from the theme, shadows as lists, icons by name, the spinner and
+   the switch in `balaur_ui`, and script properties in the compiler.
 6. **Native.** The table, done: `native_crates.py` reads a template's
    symbols through `nm` for Linux, macOS, Android and iOS; an MSVC binary
    keeps its symbols apart. A budget only after a release of numbers.

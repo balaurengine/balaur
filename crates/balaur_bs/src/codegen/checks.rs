@@ -138,10 +138,16 @@ pub(crate) fn check_structs(prog: &Program) -> R<()> {
                 && f.public
                 && let Some(what) = unwritable(&f.ty, prog, &mut vec![])
             {
+                // A linked class's field is at a line of its own file.
+                let file = prog
+                    .class_origin
+                    .iter()
+                    .find(|(c, _)| c == n)
+                    .map_or(String::new(), |(_, key)| format!("in {key}: "));
                 return err(
                     f.pos,
                     format!(
-                        "`{}` is `pub`, so a scene may set it, but a scene cannot write {what}; make it `internal`",
+                        "{file}`{}` is `pub`, so a scene may set it, but a scene cannot write {what}; make it `internal`",
                         f.name
                     ),
                 );

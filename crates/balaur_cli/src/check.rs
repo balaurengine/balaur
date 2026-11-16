@@ -423,11 +423,13 @@ script = { source = \"editor/tool.bs\" }
         };
         let refused = scripts.attach(balaur::node_id_of(node), &uses).unwrap_err();
         let refused = format!("{refused:#}");
-        let reaches = format!(
-            "`use editor::tool;` reaches `{}`",
-            game_root.join("editor/tool.bs").display()
+        // The path is named with `/` on every platform, so only its end is
+        // spelled the same on Windows as a root's `join`.
+        assert!(
+            refused.contains("`use editor::tool;` reaches `")
+                && refused.contains("/editor/tool.bs`"),
+            "{refused}"
         );
-        assert!(refused.contains(&reaches), "{refused}");
         let played = {
             let mut world = app.engine.world_mut();
             balaur::scene::spawn_node(&mut world, "Played", app.engine.root())

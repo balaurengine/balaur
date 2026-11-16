@@ -23,28 +23,28 @@ pub class Case {
     pub script: str,
     /// A kind case's one component, its parameters and its spacing.
     pub component: str,
-    pub params: any,
+    internal params: any,
     pub pitch: float,
     /// Where a placed case puts its bodies, when it works them out up front.
     pub spots: [Vec3],
     /// The order a deleting node case frees in.
     pub order: str,
-    pub setup: fn(world::World, Case),
+    internal setup: fn(world::World, Case),
     /// Builds the `i`th thing: a body for a physics case, a node for a load
     /// case.
-    pub place: fn(world::World, Case, int),
-    pub link: fn(world::World, Case, int),
-    pub after: fn(world::World, Case),
+    internal place: fn(world::World, Case, int),
+    internal link: fn(world::World, Case, int),
+    internal after: fn(world::World, Case),
     /// The per-tick work a case wants; most want none.
-    pub step: fn(world::World, Case, int),
+    internal step: fn(world::World, Case, int),
     /// Whatever a case counts for itself, for its report.
-    pub extra: fn(world::World, Case) -> any,
+    internal extra: fn(world::World, Case) -> any,
     pub iterations: int,
     pub repeats: int,
     /// The frame stages a node case's loop lands in.
     pub stages: [str],
-    pub prepare: fn(world::World, Case),
-    pub run: fn(world::World, Case),
+    internal prepare: fn(world::World, Case),
+    internal run: fn(world::World, Case),
 }
 
 /// A case that does nothing yet: every function a no-op, ten thousand of
