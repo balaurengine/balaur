@@ -158,6 +158,9 @@ pub(crate) mod words {
     pub(crate) const ABOVE: &str = "above";
     pub(crate) const BELOW: &str = "below";
     pub(crate) const POINTER: &str = "pointer";
+    /// A menu's rows along the foot of the screen, over a dim: daisyUI's
+    /// `modal modal-bottom`, which a `[narrow]` table asks for on a phone.
+    pub(crate) const SHEET: &str = "sheet";
     /// The side placements past the first of each side, which opens at its
     /// start: `below` is under the button from its left edge.
     pub(crate) const BELOW_CENTER: &str = "below_center";
@@ -184,6 +187,7 @@ pub(crate) mod words {
         LEFT_END,
         POINTER,
         CENTER,
+        SHEET,
     ];
     /// The placements a menu falls back to, which are the side ones.
     pub(crate) const SIDE_PLACEMENTS: &[&str] = &[

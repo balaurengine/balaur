@@ -592,3 +592,159 @@ fn a_secondary_click_on_a_tree_row_opens_the_named_menu() {
         "a right click on a tree row opened no menu"
     );
 }
+
+/// A menu at (10, 10) with a sheet head and two rows, its `widget` keys
+/// extended by `extra`, on a screen `width` design pixels wide (egui's is
+/// the harness's 640 by 480 whatever it says).
+fn sheet_menu(
+    extra: toml::Table,
+    width: f32,
+) -> (
+    tempfile::TempDir,
+    balaur_core::App,
+    [Entity; 4],
+    egui::Context,
+) {
+    let (dir, app) = app();
+    balaur_core::facts::update_device(&app.engine, |facts| {
+        facts.screen_size = [width, 480.0];
+        facts.ui_scale = 1.0;
+    });
+    let mut params = toml::toml! { kind = "menu" text = "Language" x = 10.0 y = 10.0 };
+    params.extend(extra);
+    let host = add_widget(&app, &params.into());
+    let head = toml::toml! { kind = "label" text = "Pick one" width = 120.0 height = 20.0 widget_child = { title_bar = true } };
+    let head = add_child_widget(&app, host, "Head", &head.into());
+    let mut rows = Vec::new();
+    for name in ["R0", "R1"] {
+        let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
+        rows.push(add_child_widget(&app, host, name, &row.into()));
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    (dir, app, [host, head, rows[0], rows[1]], ctx)
+}
+
+/// The rect a node was drawn in this pass, if it was.
+fn drawn_at(out: &egui::FullOutput, entity: Entity) -> Option<egui::Rect> {
+    let rect = balaur_ui::widget_rect(entity)?;
+    out.shapes
+        .iter()
+        .any(|s| match &s.shape {
+            egui::epaint::Shape::Rect(r) => r.rect.intersects(rect),
+            _ => false,
+        })
+        .then_some(rect)
+}
+
+// A phone's list: the rows along the foot of the screen over a dim, its
+// head first, rather than hung off the button (daisyUI's `modal-bottom`).
+#[test]
+fn a_sheet_opens_its_rows_along_the_foot_of_the_screen_under_its_head() {
+    let (_dir, app, [host, head, first, last], ctx) =
+        sheet_menu(toml::toml! { widget_menu = { placement = "sheet" } }, 640.0);
+    let at = root_rect(&ctx, host).center();
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    let out = pass(&app, &ctx, vec![]);
+    let top = balaur_ui::widget_rect(head).expect("the head drew");
+    let bottom = balaur_ui::widget_rect(last).expect("the rows drew");
+    assert!(
+        bottom.max.y > 440.0,
+        "the rows sit on the screen's foot: {bottom:?}"
+    );
+    assert!(
+        top.max.y <= balaur_ui::widget_rect(first).unwrap().min.y,
+        "the head comes first"
+    );
+    let dims = |r: &egui::epaint::RectShape| {
+        let [red, green, blue, alpha] = r.fill.to_array();
+        // Faded in over egui's fade time, so dim at all on its first frame.
+        red == 0 && green == 0 && blue == 0 && alpha > 0 && r.rect.width() >= 640.0
+    };
+    assert!(
+        out.shapes
+            .iter()
+            .any(|s| matches!(&s.shape, egui::epaint::Shape::Rect(r) if dims(r))),
+        "the page behind is dimmed"
+    );
+}
+
+// Where the menu drops down, its sheet head is left out: the button says
+// what it picks.
+#[test]
+fn a_dropdown_leaves_its_sheet_head_out() {
+    let (_dir, app, [host, head, first, _], ctx) = sheet_menu(toml::Table::new(), 640.0);
+    let at = root_rect(&ctx, host).center();
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    let out = pass(&app, &ctx, vec![]);
+    assert!(drawn_at(&out, first).is_some(), "the rows drop down");
+    assert!(
+        balaur_ui::widget_rect(first).unwrap().max.y < 200.0,
+        "under the button"
+    );
+    let title = balaur_ui::widget_rect(head);
+    assert!(
+        title.is_none_or(|rect| rect.width() <= 0.0
+            || !rect.intersects(balaur_ui::widget_rect(first).unwrap().expand(40.0))),
+        "the head is not drawn in the dropdown: {title:?}"
+    );
+}
+
+// A click on the dim shuts the sheet, as on a dialog; so does a row.
+#[test]
+fn the_dim_and_a_row_shut_a_sheet() {
+    for shut_by_row in [false, true] {
+        let (_dir, mut app, [host, _, first, _], ctx) =
+            sheet_menu(toml::toml! { widget_menu = { placement = "sheet" } }, 640.0);
+        let at = root_rect(&ctx, host).center();
+        pass(&app, &ctx, press(at, true));
+        pass(&app, &ctx, press(at, false));
+        pass(&app, &ctx, vec![]);
+        let target = if shut_by_row {
+            balaur_ui::widget_rect(first).unwrap().center()
+        } else {
+            pos2(320.0, 20.0)
+        };
+        pass(&app, &ctx, press(target, true));
+        pass(&app, &ctx, press(target, false));
+        consume_input(&mut app);
+        pass(&app, &ctx, vec![]);
+        let out = pass(&app, &ctx, vec![]);
+        let still = out.shapes.iter().any(|s| match &s.shape {
+            egui::epaint::Shape::Rect(r) => (r.rect.width() - 173.0).abs() < 1.0,
+            _ => false,
+        });
+        assert!(
+            !still,
+            "a click on the {} left the sheet up",
+            if shut_by_row { "row" } else { "dim" }
+        );
+    }
+}
+
+// A phone's own list: a `[narrow]` table makes the menu a sheet there and
+// leaves it a dropdown on a wider screen, as `max-sm:modal-bottom` does.
+#[test]
+fn a_narrow_table_makes_the_menu_a_sheet_on_a_phone() {
+    for (width, sheeted) in [(390.0, true), (1024.0, false)] {
+        let (_dir, app, [host, _, _, last], ctx) = sheet_menu(
+            toml::toml! {
+                [narrow]
+                placement = "sheet"
+            },
+            width,
+        );
+        let at = root_rect(&ctx, host).center();
+        pass(&app, &ctx, press(at, true));
+        pass(&app, &ctx, press(at, false));
+        pass(&app, &ctx, vec![]);
+        let row = balaur_ui::widget_rect(last).expect("the rows drew");
+        assert_eq!(
+            row.max.y > 440.0,
+            sheeted,
+            "{width} wide: the last row at {row:?}"
+        );
+    }
+}

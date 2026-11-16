@@ -234,7 +234,7 @@ impl Beside for WidgetSeparator {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_menu")]
 pub(crate) struct WidgetMenu {
-    /// Where a `menu` opens: under its button, above it, to its right or to its left, each from the side's start (`below` starts at the button's left edge, `right` at its top) or at `_center` or `_end`; at the pointer; or centred on the screen
+    /// Where a `menu` opens: under its button, above it, to its right or to its left, each from the side's start (`below` starts at the button's left edge, `right` at its top) or at `_center` or `_end`; at the pointer; centred on the screen; or as a `sheet` along the screen's foot over a dim, as wide as the screen, which a `[narrow]` table asks for on a phone (daisyUI's `max-sm:modal-bottom`)
     #[property(default = Placement::new(w::BELOW))]
     pub(crate) placement: Placement,
     /// The placements a `menu`'s popup tries, in order, where its own does not fit the screen; empty tries egui's, and naming the placement alone keeps it where it is

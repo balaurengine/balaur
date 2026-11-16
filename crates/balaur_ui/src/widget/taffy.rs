@@ -728,7 +728,13 @@ fn sync(
     let owns = (is_root || owns_children(&widget.kind)) && !folded;
     let leaf = !owns || placed.children.is_empty();
     let shape = Shape {
-        pad: crate::widget::arrange::padding_only(widget, &look.style),
+        // A menu's padding is its button's: the rows it opens sit in the
+        // frame its `body` table draws, with that frame's own.
+        pad: if is_root && widget.kind == w::MENU {
+            crate::widget::arrange::Pad::default()
+        } else {
+            crate::widget::arrange::padding_only(widget, &look.style)
+        },
         gap: crate::widget::arrange::gap_of(widget, &look.style),
         band: if leaf {
             0.0
@@ -869,8 +875,13 @@ fn gather(
     let at = origin + egui::vec2(layout.location.x, layout.location.y);
     let rect = egui::Rect::from_min_size(at, egui::vec2(layout.size.width, layout.size.height));
     out.insert(index, rect);
-    // A child at a time rather than `children`, which clones its vector.
-    for (slot, child) in arena[index].children.iter().enumerate() {
+    // A child at a time rather than `children`, which clones its vector. A
+    // child drawn in a title bar has no node here, so the slots skip it.
+    let laid = arena[index]
+        .children
+        .iter()
+        .filter(|child| !crate::widget::kinds::in_title_bar(arena, index, **child));
+    for (slot, child) in laid.enumerate() {
         let Ok(kid) = held.tree.child_at_index(node, slot) else {
             continue;
         };

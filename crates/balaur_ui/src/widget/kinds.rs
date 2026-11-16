@@ -15,6 +15,7 @@ use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
 use crate::widget::paint::{self, Brush};
+use crate::widget::sheet::{on_plate, sheet};
 use crate::widget::theme::{Style, WidgetState, rich};
 
 /// One of the widget's `options`, chosen from a list that drops down.
@@ -240,6 +241,9 @@ pub(crate) fn menu(
     // side on hover, keeps one of them open at a time, and shuts it with the
     // menu it hangs off.
     let inner = egui::containers::menu::is_in_menu(ui);
+    let sheeted = !inner && widget.placement == w::SHEET;
+    // The frame round what it opens, a fold's way: the theme's `body` table.
+    let body = at.style(index).body.clone();
     // A menu whose rows are nodes: its button is dressed by the theme like any
     // other, and the rows carry the icons, shortcuts and ticks a flat list of
     // strings cannot.
@@ -249,9 +253,21 @@ pub(crate) fn menu(
             egui::containers::menu::SubMenu::new()
                 .show(ui, &response, |ui| popup_rows(ui, at, index))
                 .is_some()
+        } else if sheeted {
+            sheet(ui, at, index, &response, |ui, at| {
+                rows_in(ui, at, index, true)
+            })
         } else {
-            dropped(&response, widget, &fallbacks, ui)
-                .show(|ui| popup_rows(ui, at, index))
+            // A popup of a stated width is filled across, as a sheet is.
+            let fills = widget.egui.popup_width > 0.0;
+            dropped(&response, widget, &fallbacks, ui, body.is_some())
+                .show(|ui| {
+                    on_plate(ui, at.eng, body.as_deref(), false, |ui| {
+                        if rows_in(ui, at, index, fills) {
+                            ui.close();
+                        }
+                    });
+                })
                 .is_some()
         };
         if up {
@@ -267,22 +283,38 @@ pub(crate) fn menu(
     // What `Ui::menu_button` does, with the placement this node asked for:
     // the same button and the same menu popup, which is all that call is.
     let response = crate::widget::button::text_button(ui, label, None);
-    let rows = |ui: &mut egui::Ui| {
+    let pick_from = |ui: &mut egui::Ui| {
+        let mut chose = None;
         for option in &options {
             let row = rich(option.as_str(), font, color, slant, &look);
             if crate::widget::button::text_button(ui, row, None).clicked() {
-                picked = Some(option.to_string());
-                ui.close();
+                chose = Some(option.to_string());
             }
+        }
+        chose
+    };
+    let mut rows = |ui: &mut egui::Ui| {
+        if let Some(chose) = pick_from(ui) {
+            picked = Some(chose);
+            ui.close();
         }
     };
     let up = if inner {
         egui::containers::menu::SubMenu::new()
             .show(ui, &response, rows)
             .is_some()
+    } else if sheeted {
+        sheet(ui, at, index, &response, |ui, _| {
+            let chose = pick_from(ui);
+            let shut = chose.is_some();
+            if shut {
+                picked = chose;
+            }
+            shut
+        })
     } else {
-        dropped(&response, widget, &fallbacks, ui)
-            .show(rows)
+        dropped(&response, widget, &fallbacks, ui, body.is_some())
+            .show(|ui| on_plate(ui, at.eng, body.as_deref(), false, &mut rows))
             .is_some()
     };
     if up {
@@ -341,12 +373,17 @@ fn dropped<'a>(
     widget: &Widget,
     fallbacks: &'a [egui::RectAlign],
     ui: &egui::Ui,
+    plated: bool,
 ) -> egui::Popup<'a> {
     let o = &widget.egui;
     // The rows decide for themselves unless `close_on` says otherwise: egui's
     // default closes on any click inside, which would shut the menu under a
     // toggle that keeps it open.
     let mut popup = egui::Popup::menu(response).close_behavior(closing(&o.close_on));
+    // The theme draws the frame round the rows itself, shadows and all.
+    if plated {
+        popup = popup.frame(egui::Frame::NONE);
+    }
     if o.popup_gap >= 0.0 {
         popup = popup.gap(o.popup_gap);
     }
@@ -393,8 +430,22 @@ fn dropped<'a>(
 /// the way `fold` solves what it opens, then drawn by the same walker every
 /// container uses. A row's click is its own, so nothing new comes back.
 pub(crate) fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    if rows_in(ui, at, index, false) {
+        ui.close();
+    }
+}
+
+/// A menu's rows laid out in `ui`: hugging what they measure, or `fills`, as
+/// wide as the room and free to run down, as a sheet's scroll and a popup of
+/// a stated width hold them. Answers whether a row that was clicked shuts the
+/// menu.
+fn rows_in(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, fills: bool) -> bool {
     let room = ui.available_rect_before_wrap();
-    let space = crate::widget::taffy::Room::hugging(room);
+    let space = if fills {
+        crate::widget::taffy::Room::scrolling(room, w::VERTICAL)
+    } else {
+        crate::widget::taffy::Room::hugging(room)
+    };
     let solved = crate::widget::taffy::solve_subtree(
         at.eng,
         at.arena,
@@ -413,15 +464,12 @@ pub(crate) fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize)
     let nodes = at.arena;
     // A row that opened a submenu chose nothing, so the menu it sits in
     // stays up; every other row closes it unless it says `keep_open`.
-    let closes = at.clicked[before..].iter().any(|entity| {
+    at.clicked[before..].iter().any(|entity| {
         nodes
             .iter()
             .find(|placed| placed.entity == *entity)
             .is_some_and(|placed| !placed.widget.keep_open && placed.widget.kind != w::MENU)
-    });
-    if closes {
-        ui.close();
-    }
+    })
 }
 
 /// A swatch that opens a picker: Godot's `ColorPickerButton`. The colour is
@@ -730,13 +778,16 @@ fn grown(
         .collect()
 }
 
-/// Whether `child` is drawn in its fold's header rather than under it.
+/// Whether `child` is drawn in its fold's header rather than under it, or is
+/// a menu's sheet head where the menu drops down instead, and is left out.
 pub(crate) fn in_title_bar(
     arena: &[crate::widget::arena::Placed],
     parent: usize,
     child: usize,
 ) -> bool {
-    arena[parent].widget.kind == w::FOLD && arena[child].widget.title_bar
+    let host = &arena[parent].widget;
+    arena[child].widget.title_bar
+        && (host.kind == w::FOLD || (host.kind == w::MENU && host.placement != w::SHEET))
 }
 
 /// One title bar child in the box the header gave it, and what it lays out.

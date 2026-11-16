@@ -171,7 +171,7 @@ pub(crate) struct WidgetChild {
     pub(crate) row: SmolStr,
     /// On a `grid`'s child: the columns it covers, in the words `row` takes
     pub(crate) column: SmolStr,
-    /// On a `fold`'s child: drawn in the fold's header after its arrow and caption, as Godot's title bar control is
+    /// On a `fold`'s child: drawn in the fold's header after its arrow and caption, as Godot's title bar control is. On a `menu`'s row: its sheet's head, a title and a close, left out where the menu drops down
     pub(crate) title_bar: bool,
     /// On a `menu`'s row: leave the menu open when clicked, as a toggle does; any other row closes it
     pub(crate) keep_open: bool,

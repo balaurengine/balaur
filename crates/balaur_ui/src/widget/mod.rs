@@ -33,6 +33,7 @@ pub(crate) mod properties;
 pub(crate) mod rows;
 pub(crate) mod schema;
 pub(crate) mod scroll;
+pub(crate) mod sheet;
 pub(crate) mod sizing;
 pub(crate) mod slide;
 pub(crate) mod table;

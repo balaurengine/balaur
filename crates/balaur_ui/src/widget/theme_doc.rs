@@ -91,6 +91,14 @@ arrow = "art/folded.png"         # the header's arrow picture; the ▸ and ▾ g
 fill = "bg_panel"
 padding = 8.0
 
+[menu.body]                      # the frame round what a menu opens, its shadows too; egui's popup where none
+fill = "bg_panel"
+padding = 8.0
+
+[menu.narrow.body]               # a phone's, whole in its place: the sheet `[narrow] placement = "sheet"` opens
+fill = "bg_panel"                # its foot square on the screen's
+padding = 12.0
+
 [roles.card]                     # any table may carry a gradient and a shadow
 gradient = { kind = "linear", stops = ["primary_fill", "bg_panel"], angle = 90 }  # in place of fill; 0 runs left to right
 # kind = "radial" with center = [0.5, 0.5] and radius = 0.5 runs out from the middle; at = [0, 0.3, 1] places three stops
