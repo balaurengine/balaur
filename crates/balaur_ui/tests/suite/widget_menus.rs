@@ -748,3 +748,86 @@ fn a_narrow_table_makes_the_menu_a_sheet_on_a_phone() {
         );
     }
 }
+
+/// Whether the page behind is dimmed this pass, as a sheet or a dialog dims it.
+fn dimmed(out: &egui::FullOutput) -> bool {
+    rects(out).iter().any(|(rect, fill)| {
+        let [red, green, blue, alpha] = fill.to_array();
+        red == 0 && green == 0 && blue == 0 && alpha > 0 && rect.width() >= 640.0
+    })
+}
+
+// A sheet left open while the window widens is shut when it narrows again:
+// it is not up for a pass it was not drawn in.
+#[test]
+fn a_sheet_left_open_at_a_wider_class_comes_back_shut() {
+    let (_dir, app, [host, ..], ctx) = sheet_menu(
+        toml::toml! {
+            [narrow]
+            placement = "sheet"
+        },
+        390.0,
+    );
+    let at = root_rect(&ctx, host).center();
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    assert!(dimmed(&pass(&app, &ctx, vec![])), "the sheet opened");
+    for width in [1024.0, 390.0] {
+        balaur_core::facts::update_device(&app.engine, |facts| facts.screen_size = [width, 480.0]);
+        for _ in 0..3 {
+            pass(&app, &ctx, vec![]);
+        }
+    }
+    assert!(
+        !dimmed(&pass(&app, &ctx, vec![])),
+        "back on the phone, it stays shut"
+    );
+}
+
+// `close_on = "never"` leaves a sheet to Escape: the dim does not shut it.
+#[test]
+fn a_sheet_that_closes_on_nothing_shuts_on_escape_alone() {
+    let (_dir, mut app, [host, ..], ctx) = sheet_menu(
+        toml::toml! { widget_menu = { placement = "sheet", close_on = "never" } },
+        640.0,
+    );
+    let at = root_rect(&ctx, host).center();
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    pass(&app, &ctx, vec![]);
+    let dim = pos2(320.0, 20.0);
+    pass(&app, &ctx, press(dim, true));
+    pass(&app, &ctx, press(dim, false));
+    consume_input(&mut app);
+    pass(&app, &ctx, vec![]);
+    assert!(dimmed(&pass(&app, &ctx, vec![])), "the dim left it up");
+    pass(&app, &ctx, key(egui::Key::Escape));
+    pass(&app, &ctx, vec![]);
+    assert!(!dimmed(&pass(&app, &ctx, vec![])), "Escape shut it");
+}
+
+// A menu of strings opens as a sheet too, its options along the foot.
+#[test]
+fn a_menu_of_options_opens_as_a_sheet() {
+    let (_dir, app) = app();
+    balaur_core::facts::update_device(&app.engine, |facts| {
+        facts.screen_size = [640.0, 480.0];
+        facts.ui_scale = 1.0;
+    });
+    let host = add_widget(
+        &app,
+        &toml::toml! { kind = "menu" text = "Pick" x = 10.0 y = 10.0 widget_menu = { placement = "sheet", options = ["Alpha", "Beta"] } }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let at = root_rect(&ctx, host).center();
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    let out = pass(&app, &ctx, vec![]);
+    assert!(dimmed(&out), "over the dim");
+    let beta = texts(&out).into_iter().find(|(text, _)| text == "Beta");
+    assert!(
+        beta.as_ref().is_some_and(|(_, at)| at.y > 400.0),
+        "its options along the foot: {beta:?}"
+    );
+}

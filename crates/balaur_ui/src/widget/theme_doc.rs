@@ -94,7 +94,8 @@ padding = 8.0
 [dialog]
 backdrop = "#0000004c"           # what it dims the screen with, a sheet's too, as the web's ::backdrop
 
-[menu.body]                      # the frame round what a menu opens, its shadows too; egui's popup where none
+[menu.body]                      # the frame round what a menu opens, its shadows too: a dropdown, a sheet,
+                                 # a context menu; egui's popup where none, and on a submenu
 fill = "bg_panel"
 padding = 8.0
 

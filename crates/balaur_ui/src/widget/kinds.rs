@@ -262,7 +262,7 @@ pub(crate) fn menu(
             let fills = widget.egui.popup_width > 0.0;
             dropped(&response, widget, &fallbacks, ui, body.is_some())
                 .show(|ui| {
-                    on_plate(ui, at.eng, body.as_deref(), false, |ui| {
+                    on_plate(ui, at.eng, body.as_deref(), None, |ui| {
                         if rows_in(ui, at, index, fills) {
                             ui.close();
                         }
@@ -314,7 +314,7 @@ pub(crate) fn menu(
         })
     } else {
         dropped(&response, widget, &fallbacks, ui, body.is_some())
-            .show(|ui| on_plate(ui, at.eng, body.as_deref(), false, &mut rows))
+            .show(|ui| on_plate(ui, at.eng, body.as_deref(), None, &mut rows))
             .is_some()
     };
     if up {
@@ -779,7 +779,8 @@ fn grown(
 }
 
 /// Whether `child` is drawn in its fold's header rather than under it, or is
-/// a menu's sheet head where the menu drops down instead, and is left out.
+/// a menu's sheet head where the menu is not laying its rows out as a sheet
+/// (a dropdown, a submenu, a context menu), and is left out.
 pub(crate) fn in_title_bar(
     arena: &[crate::widget::arena::Placed],
     parent: usize,
@@ -787,7 +788,8 @@ pub(crate) fn in_title_bar(
 ) -> bool {
     let host = &arena[parent].widget;
     arena[child].widget.title_bar
-        && (host.kind == w::FOLD || (host.kind == w::MENU && host.placement != w::SHEET))
+        && (host.kind == w::FOLD
+            || (host.kind == w::MENU && !crate::widget::sheet::sheeting(parent)))
 }
 
 /// One title bar child in the box the header gave it, and what it lays out.
@@ -1086,14 +1088,24 @@ pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usiz
     let outer = at.theme.clone();
     let root = crate::widget::layer::theme_root(at.eng);
     at.theme = crate::widget::arena::theme_at(at.eng, at.arena, menu, &root);
-    egui::Popup::new(id, ctx, egui::PopupAnchor::PointerFixed, ui.layer_id())
+    // On the menu's `body` plate where its theme draws one, as its dropdown.
+    let body = at.style(menu).body.clone();
+    let mut popup = egui::Popup::new(id, ctx, egui::PopupAnchor::PointerFixed, ui.layer_id())
         .kind(egui::PopupKind::Menu)
         .layout(egui::Layout::top_down_justified(egui::Align::Min))
         .style(egui::containers::menu::menu_style)
         .gap(0.0)
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-        .open_memory(pressed.then_some(egui::SetOpenCommand::Bool(true)))
-        .show(|ui| popup_rows(ui, at, menu));
+        .open_memory(pressed.then_some(egui::SetOpenCommand::Bool(true)));
+    if body.is_some() {
+        popup = popup.frame(egui::Frame::NONE);
+    }
+    popup.show(|ui| {
+        let eng = at.eng;
+        on_plate(ui, eng, body.as_deref(), None, |ui| {
+            popup_rows(ui, at, menu);
+        });
+    });
     at.theme = outer;
     at.shown.push(at.arena[menu].entity);
 }

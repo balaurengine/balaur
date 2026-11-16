@@ -80,3 +80,29 @@ fn a_window_moves_with_its_title_bar_and_shuts_on_its_cross() {
         "the cross shuts the window"
     );
 }
+
+// A dialog dims what is behind it unless it says clear: `backdrop_color`
+// with no alpha is no dim, left unset it is its theme's.
+#[test]
+fn a_clear_backdrop_dims_nothing() {
+    for (asked, dims) in [
+        (
+            toml::toml! { kind = "dialog" text = "Sure?" width = 200.0 height = 100.0 },
+            true,
+        ),
+        (
+            toml::toml! { kind = "dialog" text = "Sure?" width = 200.0 height = 100.0 widget_window = { backdrop_color = [0.0, 0.0, 0.0, 0.0] } },
+            false,
+        ),
+    ] {
+        let (_dir, app) = app();
+        add_widget(&app, &asked.into());
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let out = pass(&app, &ctx, vec![]);
+        let dimmed = rects(&out)
+            .iter()
+            .any(|(rect, fill)| rect.width() >= 640.0 && fill.a() > 0);
+        assert_eq!(dimmed, dims, "dimmed: {dimmed}, asked for {dims}");
+    }
+}

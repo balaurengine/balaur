@@ -378,27 +378,25 @@ impl Brush {
         });
     }
 
-    /// What was drawn since `mark`, moved by the style's `offset` and then
-    /// scaled by its `scale` about `about`, the widget's middle.
+    /// What was drawn since `mark`, moved by its role's `offset` and its
+    /// node's, then scaled by the two `scale`s about `about`, the widget's
+    /// middle. A scale of 0 draws nothing: a tween shrinks it out.
     pub(crate) fn transform_since(
         &self,
         mark: Slot,
         style: &crate::widget::theme::Style,
+        widget: &crate::widget::node::Widget,
         about: egui::Pos2,
     ) {
-        if let Some([x, y]) = style.offset {
-            self.shift_since(mark, egui::vec2(x, y));
+        // The node's own over its role's, as CSS's `translate` and `scale`
+        // over a `:hover` rule's: the two add, and the two multiply.
+        let [rx, ry] = style.offset.unwrap_or_default();
+        let shift = egui::vec2(rx + widget.offset[0], ry + widget.offset[1]);
+        if shift != egui::Vec2::ZERO {
+            self.shift_since(mark, shift);
         }
-        if let Some(factor) = style.scale {
-            self.scale_since(
-                mark,
-                about
-                    + style
-                        .offset
-                        .map_or(egui::Vec2::ZERO, |[x, y]| egui::vec2(x, y)),
-                factor,
-            );
-        }
+        let factor = style.scale.unwrap_or(1.0) * widget.scale;
+        self.scale_since(mark, about + shift, factor);
     }
 
     /// What was drawn since `mark`, `factor` times its size about `about`.

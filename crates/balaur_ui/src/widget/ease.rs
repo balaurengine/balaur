@@ -261,8 +261,8 @@ impl Style {
     }
 
     /// The style `t` of the way from `self` to `to`, 0 to 1, as a state
-    /// change eases over `transition`. Colours, the shadow and `offset` run
-    /// between the two; a fill, an edge, an outline or a shadow only one
+    /// change eases over `transition`. Colours, the shadow, `offset` and
+    /// `scale` run between the two; a fill, an edge, an outline or a shadow only one
     /// states runs from clear, an ink only one states steps, as does
     /// everything else, at halfway.
     #[must_use]
@@ -292,6 +292,14 @@ impl Style {
                 Some([ax + (bx - ax) * t, ay + (by - ay) * t])
             }
         };
+        // Unset is its size, 1.
+        let scale = match (self.scale, to.scale) {
+            (None, None) => None,
+            (from, into) => {
+                let (a, b) = (from.unwrap_or(1.0), into.unwrap_or(1.0));
+                Some(a + (b - a) * t)
+            }
+        };
         Self {
             fill: paint(self.fill, to.fill),
             stroke: paint(self.stroke, to.stroke),
@@ -300,6 +308,7 @@ impl Style {
             icon_color: ink(self.icon_color, to.icon_color),
             shadows,
             offset,
+            scale,
             ..if t < 0.5 { self.clone() } else { to.clone() }
         }
     }

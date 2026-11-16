@@ -15,7 +15,15 @@ use crate::widget::theme::WidgetTheme;
 use balaur_core::Engine;
 use egui::vec2;
 use rustc_hash::FxHashMap;
+use std::cell::RefCell;
 use std::rc::Rc;
+
+thread_local! {
+    /// What each capped scroll measured this pass, by entity: a stack's draw
+    /// asks again every frame, and the walk is every row it holds. Only the
+    /// pass's own: the next one starts it again.
+    static CAPPED: RefCell<(u64, FxHashMap<u64, egui::Vec2>)> = RefCell::new((u64::MAX, FxHashMap::default()));
+}
 
 /// A measure over one tree, memoised within itself: a container asks each
 /// child for a whole subtree, and its own parent will ask again. egui caches
@@ -68,7 +76,6 @@ impl<'a> Measure<'a> {
         // the theme would cache one dressed by no theme at all.
         let theme = crate::widget::arena::theme_at(self.eng, self.arena, index, theme);
         let whole = self.natural(index, &theme);
-        crate::widget::arrange::record_natural(self.arena[index].entity, whole);
         let size = (whole - self.inset(index, &theme)).max(egui::Vec2::ZERO);
         self.leaves.insert(index, size);
         size
@@ -95,7 +102,9 @@ impl<'a> Measure<'a> {
     /// The smallest box `index` can be drawn in, in design pixels.
     ///
     /// Zero on an axis nothing can answer for: a `draw` node is a script's to
-    /// fill, and a `scroll` exists to be smaller than what is in it.
+    /// fill, and a `scroll` exists to be smaller than what is in it. Zero
+    /// for a hidden widget, whatever it or its role states, as taffy gives
+    /// it no box.
     pub(crate) fn of(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         if let Some(size) = self.seen.get(&index) {
             return *size;
@@ -104,12 +113,11 @@ impl<'a> Measure<'a> {
         // arena is built from one and a bad one should not hang the frame.
         self.seen.insert(index, egui::Vec2::ZERO);
         let widget = &self.arena[index].widget;
+        if !widget.visible {
+            return egui::Vec2::ZERO;
+        }
         let theme = crate::widget::arena::theme_at(self.eng, self.arena, index, theme);
-        let size = if widget.visible {
-            self.natural(index, &theme)
-        } else {
-            egui::Vec2::ZERO
-        };
+        let size = self.natural(index, &theme);
         let floor = vec2(widget.min_width, widget.min_height);
         // What the node states, else its role: the size taffy gives it, so a
         // kind that measures its children (a stack) agrees with the layout.
@@ -161,20 +169,7 @@ impl<'a> Measure<'a> {
             // A scroll is meant to clip, so it answers with its stated size,
             // else with what it holds up to a `max_width` or `max_height`
             // (CSS's `overflow: auto` under a cap), else with nothing.
-            w::SCROLL => {
-                let cap = vec2(
-                    widget.layout.max_width.get(),
-                    widget.layout.max_height.get(),
-                );
-                if cap.x <= 0.0 && cap.y <= 0.0 {
-                    return egui::Vec2::ZERO;
-                }
-                let held = self.inner(index, theme);
-                vec2(
-                    if cap.x > 0.0 { held.x.min(cap.x) } else { 0.0 },
-                    if cap.y > 0.0 { held.y.min(cap.y) } else { 0.0 },
-                )
-            }
+            w::SCROLL => self.capped(index, theme),
             // A picture with a `fit` is sized by the box it is given, so it
             // measures only what it states: Godot's expand modes.
             w::IMAGE if !widget.fit.is_empty() => vec2(widget.width, widget.height),
@@ -364,6 +359,82 @@ impl<'a> Measure<'a> {
 
     /// A row or column: its children end to end along its axis, the widest
     /// across, plus the gaps between them and its own padding.
+    /// A scroll's content under its `max_width` and `max_height`: what it
+    /// holds, up to the cap less its padding (the cap is its whole box's, as
+    /// CSS's on a border box), and on an axis it does not cap all it holds;
+    /// nothing with no cap at all. Kept for the pass ([`CAPPED`]).
+    fn capped(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let widget = &self.arena[index].widget;
+        let cap = vec2(
+            widget.layout.max_width.get(),
+            widget.layout.max_height.get(),
+        );
+        if cap.x <= 0.0 && cap.y <= 0.0 {
+            return egui::Vec2::ZERO;
+        }
+        let pass = self.painter.ctx().cumulative_pass_nr();
+        let key = self.arena[index].entity.to_bits().get();
+        let kept = CAPPED.with(|held| {
+            let held = held.borrow();
+            if held.0 == pass {
+                held.1.get(&key).copied()
+            } else {
+                None
+            }
+        });
+        if let Some(size) = kept {
+            return size;
+        }
+        let held = self.inner(index, theme);
+        let room = (cap - self.pad(index, theme).taken()).max(egui::Vec2::ZERO);
+        let size = vec2(
+            if cap.x > 0.0 {
+                held.x.min(room.x)
+            } else {
+                held.x
+            },
+            if cap.y > 0.0 {
+                held.y.min(room.y)
+            } else {
+                held.y
+            },
+        );
+        CAPPED.with(|held| {
+            let mut held = held.borrow_mut();
+            if held.0 != pass {
+                *held = (pass, FxHashMap::default());
+            }
+            held.1.insert(key, size);
+        });
+        size
+    }
+
+    /// A scroll capped down, at the width the layout settled on: its rows'
+    /// wrapping text broken to that width, as the column it lays them in
+    /// does, up to the cap. Its content box, as [`Measure::wrapped`] answers.
+    fn capped_at(&mut self, index: usize, width: f32, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let arena = self.arena;
+        let theme = crate::widget::arena::theme_at(self.eng, arena, index, theme);
+        let inset = self.inset(index, &theme);
+        let room = (width - inset.x).max(1.0);
+        let mut down = 0.0f32;
+        let mut drawn = 0usize;
+        for &child in &arena[index].children {
+            let whole = self.of(child, &theme);
+            if whole == egui::Vec2::ZERO {
+                continue;
+            }
+            let tall = self
+                .wrapped(child, room, &theme)
+                .map_or(whole.y, |size| size.y + self.inset(child, &theme).y);
+            down += tall;
+            drawn += 1;
+        }
+        down += self.gap(index, &theme).y * (drawn.saturating_sub(1) as f32);
+        let most = arena[index].widget.layout.max_height.get() - self.pad(index, &theme).taken().y;
+        vec2(room, down.min(most.max(0.0)))
+    }
+
     fn container(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         self.inner(index, theme) + self.pad(index, theme).taken()
     }
@@ -852,7 +923,8 @@ impl<'a> Measure<'a> {
 
     /// What a wrapping block's content needs in a box of `width`, padding
     /// included in the box and left out of the answer as [`Self::leaf`]
-    /// leaves it out: `None` for anything that does not wrap.
+    /// leaves it out: `None` for anything that does not wrap. A scroll
+    /// capped down wraps, as its rows do.
     pub(crate) fn wrapped(
         &mut self,
         index: usize,
@@ -864,13 +936,21 @@ impl<'a> Measure<'a> {
         let arena = self.arena;
         let widget = &arena[index].widget;
         let kind = widget.kind.as_str();
-        if !widget.visible || !widget.wrap || !matches!(kind, w::LABEL | w::BUTTON) || width <= 0.0
+        let capped = kind == w::SCROLL && widget.layout.max_height.get() > 0.0;
+        if !widget.visible
+            || !(capped || (widget.wrap && matches!(kind, w::LABEL | w::BUTTON)))
+            || width <= 0.0
         {
             return None;
         }
         let key = (index, width.to_bits());
         if let Some(size) = self.wraps.get(&key) {
             return Some(*size);
+        }
+        if capped {
+            let size = self.capped_at(index, width, theme);
+            self.wraps.insert(key, size);
+            return Some(size);
         }
         let caption = caption(self.eng, widget);
         if caption.is_empty() {

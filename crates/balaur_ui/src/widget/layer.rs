@@ -39,7 +39,7 @@ fn above_keyboard(facts: &balaur_core::facts::DeviceFacts, area: egui::Rect) -> 
 /// The insets are a fact about the display, so they are the same whichever
 /// surface a root draws on: a root filling the screen loses them all, and one
 /// in a viewport that the notch does not reach loses nothing.
-fn inside_safe_area(
+pub(crate) fn inside_safe_area(
     facts: &balaur_core::facts::DeviceFacts,
     area: egui::Rect,
     edges: [bool; 4],
@@ -319,12 +319,12 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
                 (pos, align),
                 takes_pointer(&placed[root]),
             ));
-    let dim = crate::widget::window::dim(eng, painting, root);
     let shown = if modal {
         // egui's own modal: it dims the screen, holds the layer above every
         // other, keeps the pointer out of what is behind, and says when
         // Escape or the dim was what asked to close.
         let dismissable = widget.egui.dismissable;
+        let dim = crate::widget::window::dim(eng, painting, root);
         let shut = egui::Modal::new(egui::Id::unique(("balaur-dialog", entity)))
             .area(root_area)
             .frame(egui::Frame::NONE)
@@ -543,9 +543,9 @@ pub(crate) struct Painting<'a> {
     pub(crate) surface: egui::Rect,
     /// That root's surface before the notch and the keyboard are taken off,
     /// which is how far its own colour reaches.
-    edge_to_edge: egui::Rect,
+    pub(crate) edge_to_edge: egui::Rect,
     /// The display, read once for the frame's roots.
-    facts: balaur_core::facts::DeviceFacts,
+    pub(crate) facts: balaur_core::facts::DeviceFacts,
     pub(crate) clicked: Vec<Entity>,
     pub(crate) edits: Vec<(Entity, Edit)>,
     /// Where this pass drew what takes the pointer: every widget that does
@@ -846,7 +846,8 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     }
     // Moved and scaled once drawn, children and all, so the layout and what
     // the pointer reaches stay where they were: CSS's `translate`, `scale`.
-    brush.transform_since(mark, &look.style, ui.max_rect().center());
+    let about = ui.max_rect().center();
+    brush.transform_since(mark, &look.style, &at.arena[index].widget, about);
     crate::widget::kinds::context_menu(ui, at, index);
     at.state = outer;
 }

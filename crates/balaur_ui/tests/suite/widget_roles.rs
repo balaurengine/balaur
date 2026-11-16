@@ -757,3 +757,55 @@ fn a_truncated_button_caption_ends_inside_its_width() {
     assert!(glyphs > 40.0, "the caption was cut to nothing: {glyphs}");
     assert!((rect.width() - 100.0).abs() < 0.5, "{rect:?}");
 }
+
+/// A 100 by 40 button at (20, 20) in a theme of `source`, its own rows
+/// extended by `extra`, hovered, after `frames` passes.
+fn hovered_plate(source: &str, extra: toml::Table, frames: usize) -> (egui::Rect, egui::Rect) {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(dir.path().join("themes/moves.toml"), source).unwrap();
+    let mut asked = toml::toml! { kind = "button" text = "Go" theme = "themes/moves.toml" x = 20.0 y = 20.0 width = 100.0 height = 40.0 };
+    asked.extend(extra);
+    let button = add_widget(&app, &asked.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rest = root_rect(&ctx, button);
+    let mut out = pass(&app, &ctx, vec![egui::Event::PointerMoved(rest.center())]);
+    for _ in 1..frames {
+        out = pass(&app, &ctx, vec![]);
+    }
+    let plate = rects(&out)
+        .into_iter()
+        .find(|(_, fill)| *fill == egui::Color32::from_rgb(0, 0, 0))
+        .map(|(rect, _)| rect)
+        .expect("the plate");
+    (rest, plate)
+}
+
+// A node's own `offset` adds to its role's hover table's, as CSS's
+// `translate` over a `:hover` transform: a bar slid down still lifts.
+#[test]
+fn a_node_s_offset_adds_to_its_hover_table_s() {
+    let (rest, plate) = hovered_plate(
+        "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\n[button.hover]\noffset = [0, -2]\n",
+        toml::toml! { offset = [0.0, 30.0] },
+        4,
+    );
+    assert!(
+        (plate.min.y - (rest.min.y + 28.0)).abs() < 0.5,
+        "30 down and 2 up: {plate:?} from {rest:?}"
+    );
+}
+
+// A hover table's `scale` grows over the transition, as its `offset` runs.
+#[test]
+fn a_transition_eases_a_hover_scale() {
+    let theme = "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\ntransition = 0.2\n[button.hover]\nscale = 2.0\n";
+    let (_, early) = hovered_plate(theme, toml::Table::new(), 1);
+    assert!(
+        early.width() > 100.5 && early.width() < 199.5,
+        "on its way a frame in: {early:?}"
+    );
+    let (_, late) = hovered_plate(theme, toml::Table::new(), 40);
+    assert!((late.width() - 200.0).abs() < 1.0, "and arrives: {late:?}");
+}

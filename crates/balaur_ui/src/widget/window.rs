@@ -294,9 +294,9 @@ pub(crate) fn drag_signs(anchor: &str) -> (f32, f32) {
     (x, y)
 }
 
-/// What a dialog at `root` dims the screen with: its own `backdrop_color`,
-/// else the `backdrop` of the theme it wears (a root may state its own),
-/// else black at 55 %.
+/// What a dialog at `root` dims the screen with: its own `backdrop_color`
+/// (clear is no dim), else the `backdrop` of the theme it wears (a root may
+/// state its own), else black at 55 %.
 pub(crate) fn dim(eng: &balaur_core::Engine, painting: &Painting<'_>, root: usize) -> Color32 {
     let placed = painting.arena;
     let theme = crate::widget::arena::theme_at(eng, placed, root, &painting.theme);
@@ -306,9 +306,10 @@ pub(crate) fn dim(eng: &balaur_core::Engine, painting: &Painting<'_>, root: usiz
     )
 }
 
-/// A dialog's dim from its own `backdrop_color`, else its style's.
+/// A dialog's dim from its own `backdrop_color`, else its style's: a
+/// negative alpha, the default, is a colour the scene never stated.
 pub(crate) fn dim_of(widget: &Widget, style: &crate::widget::theme::Style) -> Color32 {
-    if widget.egui.backdrop_color[3] > 0.0 {
+    if widget.egui.backdrop_color[3] >= 0.0 {
         return crate::widget::node::rgba_color(widget.egui.backdrop_color);
     }
     style.backdrop.unwrap_or(DIM)

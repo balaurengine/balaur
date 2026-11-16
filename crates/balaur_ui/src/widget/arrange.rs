@@ -78,10 +78,18 @@ pub(crate) fn rect_value(r: egui::Rect) -> balaur_script::Value {
     ])
 }
 
-/// What a widget asked for when it was last laid out, padding included.
+/// What a widget asked for when it was last laid out: its content, padding
+/// included, or what it or its role states, and its floor.
 pub(crate) fn record_natural(entity: Entity, size: egui::Vec2) {
     NATURAL.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), size);
+    });
+}
+
+/// Forget what a widget that is gone asked for.
+pub(crate) fn forget_natural(bits: u64) {
+    NATURAL.with(|m| {
+        m.borrow_mut().remove(&bits);
     });
 }
 

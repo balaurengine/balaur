@@ -570,7 +570,7 @@ fn install_rects(m: &mut Module<Engine>) {
             NATURAL_SIZE,
             &[],
             "-> Vec2",
-            "The width and height a `widget` node asks for before its container grows or shrinks it, as CSS's max-content, in design pixels: what a row of words weighs against its room. Zero until it has been laid out once.",
+            "The width and height a `widget` node asks for before its container grows or shrinks it, as CSS's max-content, in design pixels: its content and padding, or what it or its role states, a container's from its children's. What a row of words weighs against its room. Zero until it has been laid out once; a hidden one keeps what it asked for when last shown.",
         ),
         (
             TAB_RECT,

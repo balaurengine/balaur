@@ -31,7 +31,7 @@ pub(crate) struct WidgetButton {
     pub(crate) face_gap: f32,
     /// Text drawn against its far edge, dimmer than its caption: a shortcut, or a menu's caret
     pub(crate) trailing: SmolStr,
-    /// The name of a glyph in the theme's icon font drawn after `text`, at the icon's size and in its ink, `gap` from it: a picker's `chevron-down`. It takes `trailing`'s place
+    /// The name of a glyph in the theme's icon font drawn after `text`, at the icon's size and in its ink: `gap` from the caption, or against the far edge where the caption starts at its start (`text_align = "start"`), as a picker's `chevron-down`. It takes `trailing`'s place. On a button and a menu whose rows are nodes; a menu of `options` has none
     pub(crate) trailing_icon: SmolStr,
     /// A spinner before `text` in place of its icon, as daisyUI's `loading` button: what a button shows while what it started is under way. It still clicks; `enabled = false` beside it keeps a second press out
     pub(crate) loading: bool,

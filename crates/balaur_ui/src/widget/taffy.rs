@@ -627,6 +627,7 @@ pub(crate) fn solve(
                 false,
                 true,
             );
+            remeasure_holders(&mut held, arena, root, index, theme, &mut measure);
         }
         let solved = held.tree.compute_layout_with_measure(
             node,
@@ -702,6 +703,41 @@ fn leaf(
     }
 }
 
+/// A kind that places its own children (a scroll, a fold, a stack, tabs, a
+/// menu) is a leaf in its parent's tree, sized by what it holds: one holding
+/// the slot a write touched is measured again, or a list a filter shortened
+/// would keep the box it had. Up to the solve's root, which was synced whole.
+fn remeasure_holders(
+    held: &mut Held,
+    arena: &[Placed],
+    root: usize,
+    touched: usize,
+    theme: &Rc<WidgetTheme>,
+    measure: &mut Measure<'_>,
+) {
+    let mut up = arena[touched].parent;
+    while let Some(above) = up {
+        if above == root {
+            return;
+        }
+        let kind = arena[above].widget.kind.as_str();
+        if lays_out(kind) && !owns_children(kind) {
+            let at = crate::widget::arena::theme_at(measure.eng, arena, above, theme);
+            sync(
+                held,
+                arena,
+                above,
+                &at,
+                measure,
+                [Side::Hug, Side::Hug],
+                false,
+                true,
+            );
+        }
+        up = arena[above].parent;
+    }
+}
+
 /// Mirror one widget and its children into the tree, and answer its node.
 #[allow(
     clippy::too_many_arguments,
@@ -721,6 +757,11 @@ fn sync(
     let widget = &placed.widget;
     let theme = crate::widget::theme::theme_of(measure.eng, &widget.theme, theme);
     let look = crate::widget::arena::look_of(arena, index, &theme);
+    // What it asks for, for `ui.natural_size`, on the walk that looks: a
+    // hidden one keeps what it asked for when last shown.
+    if deep && widget.visible {
+        crate::widget::arrange::record_natural(placed.entity, measure.of(index, &theme));
+    }
     // A kind that places its own children is measured as a leaf, and so is an
     // empty container. Neither recurses, so the measure can happen here; a
     // folded window keeps only its title bar.
@@ -907,6 +948,7 @@ pub(crate) fn sweep(eng: &Engine) {
             if let Some(kept) = held.nodes.remove(&key) {
                 let _ = held.tree.remove(kept.id);
             }
+            crate::widget::arrange::forget_natural(key.0);
         }
     });
 }

@@ -58,7 +58,8 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
 }
 
 /// What a widget asked for when it was last laid out, before its container
-/// grew or shrank it, in design pixels; `None` before it was laid out.
+/// grew or shrank it, in design pixels; `None` before it was laid out. A
+/// hidden one keeps what it asked for when last shown.
 #[must_use]
 pub fn natural_size(entity: balaur_core::hecs::Entity) -> Option<egui::Vec2> {
     widget::arrange::natural_of(entity)
@@ -342,6 +343,16 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
     pacing::note_pass(eng, started.elapsed());
 }
 
+/// Where every frame is one set step (a test, a picture), egui's own fades,
+/// a popup's and a modal's, are let go: they run on the pass's clock, which
+/// the step does not set, so a picture caught one mid-fade by chance. The
+/// widgets' own easing already runs on the engine's clock.
+fn hold_fades_to_the_step(eng: &Engine, ctx: &egui::Context) {
+    if eng.steps_fixed() && ctx.global_style().animation_time > 0.0 {
+        ctx.all_styles_mut(|style| style.animation_time = 0.0);
+    }
+}
+
 /// The UI pass with no window: the one a windowed backend makes, at its
 /// pace, on a screen `width` by `height` points that nothing paints. What
 /// lets a headless editor run the checks that read its own shell.
@@ -393,6 +404,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
         return;
     };
     sweep_freed(eng, &state);
+    hold_fades_to_the_step(eng, ctx);
     // Pictures a preload decoded since the last pass, up before anything draws.
     images::settle(eng, ctx);
     {

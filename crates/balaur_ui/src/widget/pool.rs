@@ -133,7 +133,10 @@ fn shapeless() -> Spec {
         (k::CORNER_RADIUS.into(), Value::Int(-1)),
         (k::FILL.into(), Value::text("")),
         (k::TOOLTIP.into(), Value::text("")),
+        (k::TOOLTIP_KEY.into(), Value::text("")),
         (k::TEXT.into(), Value::text("")),
+        (k::OFFSET.into(), both(0)),
+        (k::SCALE.into(), Value::Int(1)),
     ])
 }
 
@@ -731,7 +734,8 @@ fn four_sides(value: Value) -> Value {
 }
 
 const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?, on_change: string?, on_submit: string?, data: any, \
-    role: string?, text: string?, tooltip: string?, icon: string?, icon_color: string?, image: string?, \
+    role: string?, text: string?, tooltip: string?, tooltip_key: string?, icon: string?, icon_color: string?, \
+    trailing_icon: string?, image: string?, placeholder_key: string?, \
     font: string?, prefix: string?, trailing: string?, placeholder: string?, fill: string?, stroke: string?, \
     align_items: string?, justify: string?, text_align: string?, anchor: string?, fit: string?, state: string?, \
     grow: float?, width: float?, height: float?, min_width: float?, x: float?, y: float?, \
@@ -739,7 +743,8 @@ const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?,
     min: float?, max: float?, step: float?, drag_speed: float?, font_weight: int?, decimals: int?, \
     visible: bool?, enabled: bool?, interactive: bool?, focusable: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
     absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, loading: bool?, \
-    options: [string]?, items: [Item]?, value: any, text_color: string?, picked_color: Color?, padding: Sides?, inset: Sides?, margin: Sides?, gap: Vec2? }";
+    options: [string]?, items: [Item]?, value: any, text_color: string?, picked_color: Color?, padding: Sides?, inset: Sides?, margin: Sides?, gap: Vec2?, \
+    offset: Vec2?, scale: float? }";
 
 /// `ui.fill_strip` and `ui.fill_slot`.
 pub(crate) fn install_pool(m: &mut Module<Engine>) {

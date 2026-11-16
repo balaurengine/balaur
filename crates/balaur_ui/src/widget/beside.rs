@@ -181,8 +181,8 @@ pub(crate) struct WidgetWindow {
     /// Let Escape or a click on the dim shut a `dialog`; off, only the scene does
     #[property(default = true)]
     pub(crate) dismissable: bool,
-    /// What a `dialog` dims the screen behind it with; fully transparent takes its theme's `backdrop`, else black at 55 %
-    #[property(color, default = [0.0, 0.0, 0.0, 0.0])]
+    /// What a `dialog` dims the screen behind it with, clear for no dim; unset (the default, a negative alpha) takes its theme's `backdrop`, else black at 55 %
+    #[property(color, default = [0.0, 0.0, 0.0, -1.0])]
     pub(crate) backdrop_color: [f32; 4],
 }
 

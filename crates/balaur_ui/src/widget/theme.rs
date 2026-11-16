@@ -938,17 +938,14 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     // styles repeated.
     let border = widget.layout.border.map(crate::widget::node::Bits::get);
     let bordered = border.iter().any(|side| *side > 0.0);
-    let moved = widget.offset != [0.0, 0.0];
-    // Zero is unset, as a widget built by hand holds it.
-    let scaled = widget.scale > 0.0 && (widget.scale - 1.0).abs() > f32::EPSILON;
+    // The node's `offset` and `scale` are not folded in: they compose with
+    // the state the role is in when it is drawn (`Brush::transform_since`).
     if widget.fill.is_empty()
         && widget.stroke.is_empty()
         && !widget.dashed
         && widget.icon_color.is_empty()
         && widget.radius < 0.0
         && !bordered
-        && !moved
-        && !scaled
     {
         return settled;
     }
@@ -970,12 +967,6 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     }
     if bordered {
         style.border = Some(border);
-    }
-    if moved {
-        style.offset = Some(widget.offset);
-    }
-    if scaled {
-        style.scale = Some(widget.scale);
     }
     Rc::new(style)
 }

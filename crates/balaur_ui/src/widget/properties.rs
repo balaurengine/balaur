@@ -331,10 +331,10 @@ pub(crate) struct WidgetProperties {
     /// Left, top, right and bottom margins a root with `anchor = "fill"` keeps from its surface, and how far an `absolute` child sits in from each edge of its container inside its border, where a side below zero is left free; in design pixels
     #[property(default = [0.0, 0.0, 0.0, 0.0], group = "placement")]
     pub(crate) inset: [f32; 4],
-    /// How far the widget and what it holds are drawn from where the layout put them, `[x, y]` in design pixels, as CSS's `translate`: what sits beside it never moves. Over its role's own; a tween moves it, as a bar sliding away
+    /// How far the widget and what it holds are drawn from where the layout put them, `[x, y]` in design pixels, as CSS's `translate`: what sits beside it never moves. Added to its role's own, in whatever state it is in; a tween moves it, as a bar sliding away
     #[property(default = [0.0, 0.0], group = "placement")]
     pub(crate) offset: [f32; 2],
-    /// How many times its size the widget and what it holds are drawn, about its middle, as CSS's `scale`: the layout and what sits beside it stay. Over its role's own; a tween pops a count with it. 0 is unset
+    /// How many times its size the widget and what it holds are drawn, about its middle, as CSS's `scale`: the layout and what sits beside it stay. Times its role's own, in whatever state it is in; a tween pops a count with it, and 0 draws nothing
     #[property(default = 1.0, min = 0.0, group = "placement")]
     pub(crate) scale: f32,
     /// Whether this root draws over the whole window, whatever `ui.set_widget_layer` says: what an editor's own chrome does. Ignored on a child.

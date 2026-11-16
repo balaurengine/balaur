@@ -938,3 +938,199 @@ fn a_capped_scroll_holds_its_content_up_to_its_cap() {
         "no taller than its cap: {tall:?}"
     );
 }
+
+/// A page 200 wide holding one scroll capped at `cap` down, with `params`
+/// for the scroll's other rows, and the rows `add` puts in it.
+fn capped_page(
+    params: toml::Table,
+    add: impl FnOnce(&balaur_core::App, Entity),
+) -> (tempfile::TempDir, balaur_core::App, Entity, egui::Context) {
+    let (dir, app) = app();
+    let page = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 padding = 0.0 widget_layout = { align_items = "stretch" } }.into(),
+    );
+    let mut asked = toml::toml! { kind = "scroll" widget_scroll = { axis = "vertical" } widget_layout = { gap = [0.0, 0.0] } };
+    asked.extend(params);
+    let scroll = add_child_widget(&app, page, "List", &asked.into());
+    add(&app, scroll);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    (dir, app, scroll, ctx)
+}
+
+fn rows_of(app: &balaur_core::App, scroll: Entity, count: usize) -> Vec<Entity> {
+    (0..count)
+        .map(|n| {
+            add_child_widget(
+                app,
+                scroll,
+                &format!("R{n}"),
+                &toml::toml! { kind = "button" text = "Row" height = 40.0 }.into(),
+            )
+        })
+        .collect()
+}
+
+// A filter that hides most of a capped list shortens it: the scroll is
+// measured again when a row inside it changes, not only when it does.
+#[test]
+fn a_capped_scroll_shrinks_when_its_rows_are_hidden() {
+    let mut rows = Vec::new();
+    let (_dir, app, scroll, ctx) =
+        capped_page(toml::toml! { max_height = 300.0 }, |app, scroll| {
+            rows = rows_of(app, scroll, 5);
+        });
+    let full = balaur_ui::widget_rect(scroll).expect("drew");
+    assert!((full.height() - 200.0).abs() < 2.0, "five rows: {full:?}");
+    for row in &rows[1..] {
+        set_shown(&app, *row, false);
+    }
+    for _ in 0..3 {
+        pass(&app, &ctx, vec![]);
+    }
+    let one = balaur_ui::widget_rect(scroll).expect("drew");
+    assert!((one.height() - 40.0).abs() < 2.0, "one row left: {one:?}");
+}
+
+// A hidden row takes no room, whatever height it states.
+#[test]
+fn a_hidden_row_with_a_stated_height_takes_no_room_in_a_capped_scroll() {
+    let (_dir, _app, scroll, _ctx) =
+        capped_page(toml::toml! { max_height = 300.0 }, |app, scroll| {
+            let rows = rows_of(app, scroll, 2);
+            set_shown(app, rows[1], false);
+        });
+    let held = balaur_ui::widget_rect(scroll).expect("drew");
+    assert!(
+        (held.height() - 40.0).abs() < 2.0,
+        "the shown row alone: {held:?}"
+    );
+}
+
+// Its padding is inside its cap, as CSS's `max-height` on a border box.
+#[test]
+fn a_capped_scroll_s_padding_is_inside_its_cap() {
+    let (_dir, _app, scroll, _ctx) = capped_page(
+        toml::toml! { max_height = 100.0 padding = 10.0 },
+        |app, scroll| {
+            rows_of(app, scroll, 5);
+        },
+    );
+    let held = balaur_ui::widget_rect(scroll).expect("drew");
+    assert!(
+        (held.height() - 100.0).abs() < 2.0,
+        "no taller than its cap: {held:?}"
+    );
+}
+
+// A paragraph in a capped scroll breaks at the scroll's width, and the
+// scroll is as tall as its lines.
+#[test]
+fn a_capped_scroll_is_as_tall_as_its_wrapped_text() {
+    let words = "a few words that run on ".repeat(8);
+    let (_dir, _app, scroll, _ctx) =
+        capped_page(toml::toml! { max_height = 300.0 }, |app, scroll| {
+            let mut text = toml::toml! { kind = "label" widget_text = { wrap = true } };
+            text.insert("text".into(), words.as_str().into());
+            add_child_widget(app, scroll, "Text", &text.into());
+        });
+    let held = balaur_ui::widget_rect(scroll).expect("drew");
+    assert!(
+        held.height() > 60.0 && held.height() <= 300.0,
+        "several lines tall: {held:?}"
+    );
+}
+
+// In a row, a scroll capped down is as wide as what it holds: the axis it
+// does not cap is not squeezed to nothing.
+#[test]
+fn a_capped_scroll_in_a_row_is_as_wide_as_what_it_holds() {
+    let (_dir, app) = app();
+    let row = add_widget(
+        &app,
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 padding = 0.0 }.into(),
+    );
+    let scroll = add_child_widget(
+        &app,
+        row,
+        "List",
+        &toml::toml! { kind = "scroll" max_height = 100.0 padding = 0.0 widget_scroll = { axis = "vertical" } }.into(),
+    );
+    add_child_widget(
+        &app,
+        scroll,
+        "Wide",
+        &toml::toml! { kind = "button" text = "Wide" width = 120.0 height = 40.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let held = balaur_ui::widget_rect(scroll).expect("drew");
+    assert!(
+        (held.width() - 120.0).abs() < 2.0,
+        "its row's width: {held:?}"
+    );
+}
+
+// A container says what it asks for too: a row its children's widths and
+// the gap between.
+#[test]
+fn a_row_says_what_it_asked_for() {
+    let (_dir, app) = app();
+    let row = add_widget(
+        &app,
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 padding = 0.0 widget_layout = { gap = [8.0, 0.0] } }.into(),
+    );
+    for (name, width) in [("A", 50.0), ("B", 70.0)] {
+        let mut button = toml::toml! { kind = "button" text = "x" height = 30.0 };
+        button.insert("width".into(), width.into());
+        add_child_widget(&app, row, name, &button.into());
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let asked = balaur_ui::natural_size(row).expect("it was laid out");
+    assert!((asked.x - 128.0).abs() < 1.0, "50, 8 and 70: {asked:?}");
+}
+
+// An open fold's header child stays in its header, and the body's children
+// keep their own places under it.
+#[test]
+fn an_open_fold_s_body_rows_keep_their_places_beside_a_header_child() {
+    let (_dir, app) = app();
+    let fold = add_widget(
+        &app,
+        &toml::toml! { kind = "fold" text = "Audio" x = 0.0 y = 0.0 width = 300.0 widget_fold = { open = true } widget_layout = { gap = [0.0, 0.0] } }.into(),
+    );
+    add_child_widget(
+        &app,
+        fold,
+        "Badge",
+        &toml::toml! { kind = "label" text = "new" widget_child = { title_bar = true } }.into(),
+    );
+    let rows: Vec<Entity> = ["One", "Two"]
+        .iter()
+        .map(|name| {
+            add_child_widget(
+                &app,
+                fold,
+                name,
+                &toml::toml! { kind = "button" text = "Row" height = 30.0 }.into(),
+            )
+        })
+        .collect();
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let (one, two) = (
+        balaur_ui::widget_rect(rows[0]).expect("drew"),
+        balaur_ui::widget_rect(rows[1]).expect("drew"),
+    );
+    assert!(
+        (two.min.y - one.max.y).abs() < 1.0,
+        "the second row right under the first: {one:?}, {two:?}"
+    );
+    assert!(one.min.y > 0.0, "and the first under the header: {one:?}");
+}

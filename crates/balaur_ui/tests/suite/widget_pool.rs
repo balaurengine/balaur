@@ -482,3 +482,46 @@ fn a_patch_writes_what_moved_and_the_next_fill_compares_against_it() {
         "a fill reads the patch, not what it last wrote itself"
     );
 }
+
+// A slot reused takes nothing from the control it held: not its tooltip's
+// key, which would win over the new words, nor a pop's scale or offset.
+#[test]
+fn a_reused_slot_forgets_the_last_control_s_tooltip_key_scale_and_offset() {
+    let (_dir, mut app) = app_with(
+        "pub class Root { node: Node, frames: int }
+impl Root {
+    fn update(dt: float) {
+        self.frames += 1;
+        let bar = self.node.get_node(\"Bar\");
+        if self.frames == 1 {
+            ui::fill_slot(bar, 0, ui::Control { kind: ui::WIDGET_BUTTON, text: \"<\", tooltip_key: \"back\", scale: 1.05, offset: vec2(0.0, 4.0) });
+        } else {
+            ui::fill_slot(bar, 0, ui::Control { kind: ui::WIDGET_BUTTON, text: \"Play\", tooltip: \"Start\" });
+        }
+    }
+}
+",
+    );
+    app.tick(1.0 / 60.0);
+    let slot = kids(&app)[0];
+    assert_eq!(
+        prop(&app, slot, "tooltip_key"),
+        Some(toml::Value::String("back".into()))
+    );
+    app.tick(1.0 / 60.0);
+    assert_eq!(kids(&app)[0], slot, "the same node");
+    assert_eq!(
+        prop(&app, slot, "tooltip_key"),
+        Some(toml::Value::String(String::new())),
+        "the key is gone"
+    );
+    let scale = prop(&app, slot, "scale")
+        .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)));
+    assert_eq!(scale, Some(1.0), "drawn at its size");
+    let offset = prop(&app, slot, "offset").expect("an offset");
+    let moved = offset.as_array().is_some_and(|xy| {
+        xy.iter()
+            .any(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)) != Some(0.0))
+    });
+    assert!(!moved, "where it was put: {offset:?}");
+}
