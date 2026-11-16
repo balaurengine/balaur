@@ -773,6 +773,7 @@ role = "input_form"
 grow = 1
 min_width = 240
 [nodes.widget_field]
+icon = "magnifying-glass"
 placeholder = "Filter projects"
 
 [[nodes]]

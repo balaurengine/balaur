@@ -143,8 +143,9 @@ pub(crate) fn gap_of(widget: &Widget, style: &Style, font_size: f32) -> f32 {
 }
 
 /// A box that answers the pointer the way egui's button does, with nothing
-/// painted in it: at least `min`, its padding and a control's height, under
-/// the next automatic id, and named to a screen reader as `kind`.
+/// painted in it: at least `min` and a control's height, under the next
+/// automatic id, and named to a screen reader as `kind`. The caller counts
+/// the padding, which a one-glyph button leaves off its sides.
 pub(crate) fn sensor(
     ui: &mut egui::Ui,
     min: egui::Vec2,
@@ -153,7 +154,7 @@ pub(crate) fn sensor(
     label: &str,
 ) -> egui::Response {
     let spacing = ui.spacing();
-    let mut size = min.max(spacing.button_padding * 2.0);
+    let mut size = min;
     size.y = size.y.max(spacing.interact_size.y);
     let (id, rect) = ui.allocate_space(size);
     let response = ui.interact(rect, id, sense);

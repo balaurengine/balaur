@@ -358,7 +358,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
     }
     out.push(ui::Control {
         kind: ui::WIDGET_BUTTON,
-        role: roles::ITEM_BAR,
+        role: roles::ICON_ACTION_PRIMARY,
         text: "",
         icon: if tokens[panel_keys::DARK].as_bool() { icons::ui(icons::DARK) } else { icons::ui(icons::LIGHT) },
         tooltip: "Toggle theme",

@@ -1,30 +1,30 @@
-//! A fold's head: the one look anything that opens and shuts wears. The caret
-//! that says which it is, the thing's icon and its title, a step further in
-//! for each level it sits under. An inspector's section, a list inside one and
-//! a plugin's group are this head and nothing else; the theme's `*_fold` roles
-//! say how it looks, and a level is the only thing that tells two apart.
+//! A fold's head: the one look anything that opens and shuts wears. One tile,
+//! as a tab is, holding the caret that says which it is, the thing's icon and
+//! title, and what acts on the whole of it (a switch, the mark that takes it
+//! away). An inspector's section, a list inside one and a plugin's group are
+//! this head and nothing else; the theme's `*_fold` roles say how it looks.
 
 use icons;
 use words::roles;
 
-/// The head as one row: `depth` steps in, the caret, then the icon and the
-/// title on a flat button that opens or shuts it. `icon_color` is the kind's
-/// own colour where the icon carries one, as a component's does, and empty
-/// for the role's; `action` is a button carrying the caller's `on_click` and
-/// `data`, which the title takes.
-pub fn head(open: bool, title: str, icon: str, icon_color: str, depth: int, tooltip: str, action: ui::Control) -> ui::Control {
-    let controls: [ui::Control] = [];
-    let left = depth;
-    while left > 0 {
-        controls.push(ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_FOLD_INDENT });
-        left -= 1;
-    }
-    controls.push(ui::Control {
-        kind: ui::WIDGET_LABEL,
-        role: roles::TEXT_FOLD_CARET,
-        text: ui::glyph(icons::ui(if open { icons::CARET_OPEN } else { icons::CARET_SHUT })),
+/// The head as one tile: the caret and the title both open or shut it, and
+/// `trailing` sits at its far end. A head at the top is filled; one inside
+/// another is outlined, a step in for each level past the first. `icon_color`
+/// is the kind's own colour where the icon carries one, as a component's
+/// does, and empty for the role's; `action` is a button carrying the
+/// caller's `on_click` and `data`.
+pub fn head_with(open: bool, title: str, icon: str, icon_color: str, depth: int, tooltip: str, action: ui::Control, trailing: [ui::Control]) -> ui::Control {
+    let tile: [ui::Control] = [];
+    tile.push(ui::Control {
+        kind: ui::WIDGET_BUTTON,
+        role: roles::ICON_ACTION_FOLD,
+        text: "",
+        icon: icons::ui(if open { icons::CARET_OPEN } else { icons::CARET_SHUT }),
+        tooltip: tooltip,
+        on_click: action.on_click.or(""),
+        data: action.data,
     });
-    controls.push(ui::Control {
+    tile.push(ui::Control {
         kind: ui::WIDGET_BUTTON,
         role: if depth == 0 { roles::ACTION_FOLD } else { roles::ACTION_FOLD_NESTED },
         grow: 1,
@@ -35,11 +35,26 @@ pub fn head(open: bool, title: str, icon: str, icon_color: str, depth: int, tool
         on_click: action.on_click.or(""),
         data: action.data,
     });
-    ui::Control {
+    for control in trailing {
+        tile.push(control);
+    }
+    let row: [ui::Control] = [];
+    let left = depth - 1;
+    while left > 0 {
+        row.push(ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_FOLD_INDENT });
+        left -= 1;
+    }
+    row.push(ui::Control {
         kind: ui::WIDGET_ROW,
-        role: roles::LAYOUT_FOLD,
+        role: if depth == 0 { roles::TILE_FOLD } else { roles::TILE_FOLD_NESTED },
         grow: 1,
         align_items: ui::ALIGN_CENTER,
-        controls: controls,
-    }
+        controls: tile,
+    });
+    ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_FOLD, grow: 1, align_items: ui::ALIGN_CENTER, controls: row }
+}
+
+/// The same head with nothing at its far end.
+pub fn head(open: bool, title: str, icon: str, icon_color: str, depth: int, tooltip: str, action: ui::Control) -> ui::Control {
+    head_with(open, title, icon, icon_color, depth, tooltip, action, [])
 }

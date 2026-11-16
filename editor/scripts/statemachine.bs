@@ -327,7 +327,7 @@ fn offer(state: editor::State) -> [ui::Control] {
         caption("no state machine on this node"),
         ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_FORM_SECONDARY,
+            role: roles::ACTION_FORM,
             text: "add state machine",
             tooltip: "Give the node an embedded `state_machine` over its own player",
             on_click: "handle",
@@ -430,7 +430,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [form::Row] {
             },
             ui::Control {
                 kind: ui::WIDGET_BUTTON,
-                role: roles::ACTION_FORM_SECONDARY,
+                role: roles::ACTION_FORM,
                 text: "add state",
                 tooltip: "A state playing the clip of its own name",
                 on_click: "handle",
@@ -480,7 +480,7 @@ fn transition_specs(state: editor::State, doc: any, out: [form::Row]) {
             ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, grow: 1, text: TRANSITIONS },
             ui::Control {
                 kind: ui::WIDGET_BUTTON,
-                role: roles::ACTION_FORM_SECONDARY,
+                role: roles::ACTION_FORM,
                 text: "add transition",
                 tooltip: "A transition between two states, opened for editing",
                 on_click: "handle",

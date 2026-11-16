@@ -239,9 +239,9 @@ fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> f
     let mark = icons::component(name);
     let title = if line.mark == inspector::MARK_WARNING { name + "  ⚠" } else { name };
     let open = line.spec[project_fields::OPEN].as_bool();
-    let controls = [fold::head(open, title, mark.glyph, ink(state.theme, mark.token), 0, line.why, ui::Control { kind: ui::WIDGET_BUTTON, on_click: "inspector_edit", data: edit_of(line, on_folded) })];
+    let trailing: [ui::Control] = [];
     if line.spec["enabled"].as_bool() {
-        controls.push(ui::Control {
+        trailing.push(ui::Control {
             kind: ui::WIDGET_SWITCH,
             role: roles::SWITCH_FORM,
             checked: enabled.as_bool(),
@@ -251,9 +251,9 @@ fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> f
         });
     }
     if line.spec["removable"].as_bool() {
-        controls.push(ui::Control {
+        trailing.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::ICON_ACTION_FORM,
+            role: roles::ICON_ACTION_TAB,
             text: "",
             icon: icons::ui(icons::CLOSE),
             tooltip: "Remove component",
@@ -261,6 +261,8 @@ fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> f
             data: edit_of(line, on_component_removed),
         });
     }
+    let action = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "inspector_edit", data: edit_of(line, on_folded) };
+    let controls = [fold::head_with(open, title, mark.glyph, ink(state.theme, mark.token), 0, line.why, action, trailing)];
     form::Row { height: line.height, slot_role: roles::LAYOUT_FOLD, controls: controls }
 }
 
@@ -354,6 +356,7 @@ fn vector_row(state: &mut editor::State, line: inspector::Line, spec: any, value
     let datatype = spec[fields::TYPE].as_str();
     let count = if datatype == datatypes::VEC4 { 4 } else if datatype == datatypes::VEC2 { 2 } else { 3 };
     let letters = ["x", "y", "z", "w"];
+    let inks = [theme_tokens::AXIS_X, theme_tokens::AXIS_Y, theme_tokens::AXIS_Z, ""];
     let speed = if spec[layout_fields::STEP] == nil { 0.02 } else { spec[layout_fields::STEP].as_float() };
     let controls: [ui::Control] = [];
     for slot in 0..count {
@@ -363,6 +366,7 @@ fn vector_row(state: &mut editor::State, line: inspector::Line, spec: any, value
             value: shown_as(spec, channel(held, slot, 0.0)),
             drag_speed: speed,
             prefix: letters[slot],
+            icon_color: inks[slot],
             on_change: "inspector_edit",
             data: { layout_fields::LINE: line.key, fields::FN: on_vector_edited, SLOT: slot, fields::COUNT: count },
         });
@@ -642,7 +646,7 @@ fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
     if directory != "" {
         controls.push(ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_DOCK_SECONDARY,
+            role: roles::ACTION_FORM,
             text: if inline { "save to file" } else { "embed" },
             tooltip: if inline {
                 "Write this {asset_type} to {directory}/ and reference it"
@@ -762,6 +766,7 @@ fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, val
     }
     let count = if datatype == datatypes::VEC2 { 2 } else { 3 };
     let letters = ["x", "y", "z"];
+    let inks = [theme_tokens::AXIS_X, theme_tokens::AXIS_Y, theme_tokens::AXIS_Z];
     let held = util::list_or_empty(value);
     let cells: [ui::Control] = [];
     for slot in 0..count {
@@ -770,6 +775,7 @@ fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, val
             grow: 1,
             drag_speed: 0.02,
             prefix: letters[slot],
+            icon_color: inks[slot],
             value: channel(held, slot, 0.0),
             on_change: "inspector_edit",
             data: { layout_fields::LINE: line.key, fields::FN: on_parameter_channel, SLOT: slot, fields::COUNT: count },
@@ -818,7 +824,7 @@ fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> 
     let row = labelled(state, line, [
         ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::ICON_ACTION_FORM_SECONDARY,
+            role: roles::ICON_ACTION_FORM,
             text: "",
             icon: icons::ui(icons::OPEN),
             tooltip: "Edit " + current,

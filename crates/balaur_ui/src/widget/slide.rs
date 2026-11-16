@@ -348,6 +348,7 @@ impl Slide<'_> {
             range,
             clamp_existing,
             prefix: self.prefix,
+            adorn: None,
             suffix: self.suffix,
             min_decimals: self.min_decimals,
             max_decimals: self.max_decimals,

@@ -364,6 +364,8 @@ pub(crate) struct WidgetRange {
     pub(crate) axis: Axis,
     /// Text drawn before a `number_field`'s or a shown `slider`'s number with a space between
     pub(crate) prefix: SmolStr,
+    /// A `number_field`'s prefix's ink, standing apart at its start, as `#rrggbb` or a name from the theme's `[colors]`, as an axis's letter in its axis colour; empty takes the role's `icon_color`
+    pub(crate) icon_color: SmolStr,
     /// Units drawn after a `number_field`'s or a shown `slider`'s number with a space between
     pub(crate) suffix: SmolStr,
 }
@@ -398,6 +400,7 @@ impl Beside for WidgetRange {
         animate => egui(widget).animate = held.animate;
         axis => widget.axis = held.axis.0.clone();
         prefix => egui(widget).prefix = held.prefix.clone();
+        icon_color => widget.icon_color = held.icon_color.clone();
         suffix => widget.suffix = held.suffix.clone();
     }
 }
@@ -432,6 +435,10 @@ pub(crate) struct WidgetField {
     pub(crate) tab_inserts: bool,
     /// The chord that submits a `text_field`, as `Enter` or `cmd+Enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says
     pub(crate) submit_key: SmolStr,
+    /// The name of a glyph in the theme's icon font drawn at a `text_field`'s start, before its prefix, as a search box's magnifying glass
+    pub(crate) icon: SmolStr,
+    /// That glyph's ink, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's `icon_color`, else the placeholder's
+    pub(crate) icon_color: SmolStr,
     /// Text drawn before a `text_field`'s or `text_area`'s text
     pub(crate) prefix: SmolStr,
     /// Text drawn after a `text_field`'s or `text_area`'s text
@@ -473,6 +480,8 @@ impl Beside for WidgetField {
         caret_at_end => egui(widget).caret_at_end = held.caret_at_end;
         tab_inserts => egui(widget).tab_inserts = held.tab_inserts;
         submit_key => egui(widget).submit_key = held.submit_key.clone();
+        icon => widget.icon = held.icon.clone();
+        icon_color => widget.icon_color = held.icon_color.clone();
         prefix => egui(widget).prefix = held.prefix.clone();
         suffix => widget.suffix = held.suffix.clone();
         text_align => widget.text_align = held.text_align.0.clone();

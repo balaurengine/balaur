@@ -35,6 +35,29 @@ def names_of(sheet: str) -> dict[int, str]:
     return found
 
 
+def true_bearings(face_path: str) -> None:
+    """Each glyph's left side bearing where its outline starts.
+
+    Phosphor's faces give every glyph a bearing of 0 whatever its outline,
+    so a renderer that places a glyph by its bearing (egui's does) draws
+    every icon off centre to the left, by as much as a fifth of its width.
+    """
+    face = TTFont(face_path)
+    glyf, hmtx = face["glyf"], face["hmtx"]
+    moved = 0
+    for name in face.getGlyphOrder():
+        drawn = glyf[name]
+        if drawn.numberOfContours == 0:
+            continue
+        drawn.recalcBounds(glyf)
+        advance, bearing = hmtx[name]
+        if bearing != drawn.xMin:
+            hmtx[name] = (advance, drawn.xMin)
+            moved += 1
+    face.save(face_path)
+    print(f"{face_path}: {moved} bearings set to their outlines")
+
+
 def main(sheet_path: str, face_path: str) -> None:
     names = names_of(open(sheet_path, encoding="utf-8").read())
     # Read from one copy, renamed in another: a table read before the rename
@@ -120,3 +143,4 @@ if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
     if len(sys.argv) == 5:
         add_weight(sys.argv[2], sys.argv[3], sys.argv[4], "bold")
+    true_bearings(sys.argv[2])

@@ -1,5 +1,8 @@
 // The colour tokens of a theme the editor reads.
 
+internal const AXIS_X: str = "axis_x";
+internal const AXIS_Y: str = "axis_y";
+internal const AXIS_Z: str = "axis_z";
 internal const BG_CONTROL: str = "bg_control";
 internal const BORDER_DEFAULT: str = "border_default";
 internal const DANGER_TEXT: str = "danger_text";

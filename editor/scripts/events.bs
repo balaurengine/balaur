@@ -565,7 +565,7 @@ pub fn fill(state: &mut editor::State) {
         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, grow: 1, text: node.name() },
         ui::Control {
             kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_FORM_SECONDARY,
+            role: roles::ACTION_FORM,
             text: "Convert to script",
             icon: icons::ui(icons::SCRIPTFILE),
             on_click: "handle",

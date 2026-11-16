@@ -439,6 +439,11 @@ impl Brush {
         self.0.galley(at, galley, fallback);
     }
 
+    /// A galley in one ink, whatever colour it was shaped in.
+    pub(crate) fn galley_inked(&self, at: Pos2, galley: Arc<Galley>, ink: Color32) {
+        self.0.galley_with_override_text_color(at, galley, ink);
+    }
+
     /// One line of text placed by `anchor` at `at`; the box it took.
     pub(crate) fn text(
         &self,

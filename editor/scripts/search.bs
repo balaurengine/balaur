@@ -3,7 +3,9 @@
 // "find in the tree" and "find in settings" feel like the same gesture.
 
 use editor;
+use icons;
 use words::roles;
+use words::verbs;
 
 /// A search control a pooled strip holds, rather than one drawn: the same
 /// state under the same `id`, so `query` answers for either. Its edit comes
@@ -13,6 +15,7 @@ pub fn control(state: editor::State, id: str, placeholder: str) -> ui::Control {
     ui::Control {
         kind: ui::WIDGET_TEXT_FIELD,
         role: roles::INPUT_DOCK,
+        icon: icons::ui(verbs::SEARCH),
         text: query(state, id),
         placeholder: placeholder,
         on_change: "search_typed",

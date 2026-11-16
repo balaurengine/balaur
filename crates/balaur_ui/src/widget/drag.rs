@@ -8,7 +8,7 @@
 
 use std::ops::RangeInclusive;
 
-use egui::{Key, Modifiers, Sense};
+use egui::{Color32, Key, Modifiers, Sense};
 
 use crate::vocabulary::words as w;
 use crate::widget::paint::Brush;
@@ -84,6 +84,9 @@ pub(crate) struct DragNumber<'a> {
     /// Hold a number set outside the range inside it, rather than show it.
     pub(crate) clamp_existing: bool,
     pub(crate) prefix: &'a str,
+    /// The prefix's own ink: it stands against the start, apart from the
+    /// number, as an axis's letter does; the quiet ink unset.
+    pub(crate) adorn: Option<Color32>,
     pub(crate) suffix: &'a str,
     pub(crate) min_decimals: usize,
     pub(crate) max_decimals: Option<usize>,
@@ -284,6 +287,7 @@ impl DragNumber<'_> {
             margin: crate::widget::arrange::Pad::of([pad.x, pad.y, pad.x, pad.y]),
             color: ui.visuals().text_color(),
             placeholder: None,
+            icon: None,
             prefix: None,
             suffix: None,
             colors: None,
@@ -308,7 +312,7 @@ impl DragNumber<'_> {
     fn dragged(&mut self, ui: &mut egui::Ui, moment: &Moment, shown: &str) -> egui::Response {
         let id = moment.id;
         let value = *self.value;
-        let response = face(ui, (self.prefix, shown, self.suffix));
+        let response = face(ui, (self.prefix, shown, self.suffix), self.adorn);
         let cursor = if value <= *self.range.start() {
             egui::CursorIcon::ResizeEast
         } else if value < *self.range.end() {
@@ -421,11 +425,20 @@ pub(crate) fn face_size(
 }
 
 /// The resting box: the number in egui's button frame, dragged or clicked.
-fn face(ui: &mut egui::Ui, (prefix, value, suffix): (&str, &str, &str)) -> egui::Response {
-    let pieces = faces(ui.ctx(), ui.style(), (prefix, value, suffix));
+/// A prefix stands against the start in its `adorn` ink, and the number and
+/// its suffix sit in the room after it.
+fn face(
+    ui: &mut egui::Ui,
+    (prefix, value, suffix): (&str, &str, &str),
+    adorn: Option<Color32>,
+) -> egui::Response {
+    let lead = faces(ui.ctx(), ui.style(), (prefix, "", "")).pop();
+    let pieces = faces(ui.ctx(), ui.style(), ("", value, suffix));
+    let lead_x = lead.as_ref().map_or(0.0, |piece| piece.size().x);
     let inner = runs_size(&pieces);
     let pad = ui.spacing().button_padding;
-    let (id, rect) = ui.allocate_space(face_size(ui.spacing(), &pieces));
+    let whole = (inner + egui::vec2(lead_x, 0.0) + pad * 2.0).max(ui.spacing().interact_size);
+    let (id, rect) = ui.allocate_space(whole);
     let response = ui.interact(rect, id, Sense::click_and_drag());
     if ui.is_rect_visible(rect) {
         let look = ui.style().interact(&response);
@@ -436,8 +449,15 @@ fn face(ui: &mut egui::Ui, (prefix, value, suffix): (&str, &str, &str)) -> egui:
             look.bg_stroke,
             egui::StrokeKind::Inside,
         );
+        let mut room = rect.shrink2(pad);
+        if let Some(lead) = lead {
+            let at = egui::pos2(room.min.x, room.center().y - lead.size().y / 2.0);
+            let ink = adorn.unwrap_or_else(|| ui.visuals().weak_text_color());
+            room.min.x += lead.size().x;
+            Brush::of(ui).galley_inked(at, lead, ink);
+        }
         let placed = egui::Align2([ui.layout().horizontal_align(), ui.layout().vertical_align()]);
-        let content = placed.align_size_within_rect(inner, rect.shrink2(pad));
+        let content = placed.align_size_within_rect(inner, room);
         let mut x = content.min.x;
         for piece in pieces {
             let at = egui::pos2(x, content.center().y - piece.size().y / 2.0);

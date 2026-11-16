@@ -546,8 +546,8 @@ pub fn hud_view(state: editor::State) -> HudView {
     HudView {
         shown: state.viewport_live && state.stage_chrome && !state.chrome_off,
         inset: [0.0, -1.0, hud_inset(state), 0.0],
-        x_ink: tokens["axis_x"].as_str(),
-        y_ink: tokens["axis_y"].as_str(),
+        x_ink: tokens[theme_tokens::AXIS_X].as_str(),
+        y_ink: tokens[theme_tokens::AXIS_Y].as_str(),
         zoom: "{state.zoom as int} %",
         add_icon: icons::ui(icons::ADD),
         remove_icon: icons::ui("minimize"),

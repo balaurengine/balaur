@@ -49,29 +49,73 @@ transition = 0.12
 [button.focus]
 outline = "primary_text"
 
-# A field is a well below the panel, a control is raised above it; both
-# ease, show their edge under the pointer and ring themselves for the
-# keyboard as a button does.
+# Whatever role it wears, a field is a well below the panel and a dropdown
+# a control above it; the mono face is only for paths and code.
 [text_field]
 transition = 0.12
+text_color = "text_default"
+fill = "bg_app"
+stroke_width = 1
+stroke = "border_default"
+corner_radius = "radius_small"
+height = "control_height"
+
+[text_field.hover]
+stroke = "text_subtle"
+
+[text_field.touch]
+height = "control_height_touch"
 
 [text_field.focus]
 outline = "primary_text"
 
 [text_area]
 transition = 0.12
+text_color = "text_default"
+fill = "bg_app"
+stroke_width = 1
+stroke = "border_default"
+corner_radius = "radius_small"
+
+[text_area.hover]
+stroke = "text_subtle"
 
 [text_area.focus]
 outline = "primary_text"
 
 [number_field]
 transition = 0.12
+icon_color = "text_subtle"
+text_color = "text_default"
+fill = "bg_app"
+stroke_width = 1
+stroke = "border_default"
+corner_radius = "radius_small"
+height = "control_height"
+
+[number_field.hover]
+stroke = "text_subtle"
+
+[number_field.touch]
+height = "control_height_touch"
 
 [number_field.focus]
 outline = "primary_text"
 
 [dropdown]
 transition = 0.12
+text_color = "text_default"
+fill = "bg_control"
+stroke_width = 1
+stroke = "border_default"
+corner_radius = "radius_small"
+height = "control_height"
+
+[dropdown.hover]
+fill = "bg_control_hover"
+
+[dropdown.touch]
+height = "control_height_touch"
 
 [dropdown.focus]
 outline = "primary_text"
@@ -326,20 +370,6 @@ offset = [0, 1]
 [roles.action_dock_quiet.touch]
 height = "control_height_touch"
 
-[roles.action_dock_secondary]
-font_size = "font_size_small"
-font_weight = 600
-text_color = "secondary_text"
-fill = "secondary_bg"
-corner_radius = "radius_small"
-height = "control_height_small"
-
-[roles.action_dock_secondary.active]
-offset = [0, 1]
-
-[roles.action_dock_secondary.touch]
-height = "control_height_touch"
-
 [roles.action_form]
 font_weight = 600
 text_color = "text_muted"
@@ -391,20 +421,6 @@ fill = "primary_fill_hover"
 stroke = "primary_fill_hover"
 
 [roles.action_form_primary.active]
-offset = [0, 1]
-
-[roles.action_form_secondary]
-font_weight = 600
-text_color = "secondary_text"
-fill = "secondary_bg"
-corner_radius = "radius_small"
-height = "control_height_small"
-
-[roles.action_form_secondary.hover]
-text_color = "text_default"
-fill = "bg_control_hover"
-
-[roles.action_form_secondary.active]
 offset = [0, 1]
 
 [roles.action_manager]
@@ -483,13 +499,32 @@ height = "control_height"
 gap = 4
 
 [roles.layout_fold_indent]
-width = 16
+width = 12
 
-[roles.text_fold_caret]
+# The tile a head is: a top one filled as a raised control, one inside
+# another only outlined.
+[roles.tile_fold]
+fill = "bg_control"
+corner_radius = "radius_small"
+padding_x = 2
+gap = 0
+
+[roles.tile_fold_nested]
+stroke = "border_default"
+stroke_width = 1
+corner_radius = "radius_small"
+padding_x = 2
+gap = 0
+
+# The caret at a head's start: flat, the tile's own ink.
+[roles.icon_action_fold]
 font_size = "font_size_small"
 text_color = "text_subtle"
-text_align = "center"
-width = 16
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.icon_action_fold.hover]
+text_color = "text_default"
 
 [roles.action_fold]
 font = "heading"
@@ -580,22 +615,6 @@ fill = "bg_control_hover"
 offset = [0, 1]
 
 [roles.icon_action_form.touch]
-height = "control_height_touch"
-
-[roles.icon_action_form_secondary]
-text_color = "secondary_text"
-fill = "secondary_bg"
-corner_radius = "radius_small"
-height = "control_height"
-
-[roles.icon_action_form_secondary.hover]
-text_color = "text_default"
-fill = "bg_control_hover"
-
-[roles.icon_action_form_secondary.active]
-offset = [0, 1]
-
-[roles.icon_action_form_secondary.touch]
 height = "control_height_touch"
 
 [roles.icon_action_primary]
@@ -982,7 +1001,6 @@ fill = "bg_control_hover"
 height = "control_height_touch"
 
 [roles.input]
-font = "mono"
 text_color = "text_default"
 fill = "bg_app"
 stroke_width = 1
@@ -999,8 +1017,6 @@ font = "mono"
 font_size = 13
 
 [roles.input_dock]
-font = "mono"
-font_size = "font_size_small"
 text_color = "text_default"
 fill = "bg_app"
 stroke_width = 1
@@ -1015,7 +1031,6 @@ stroke = "text_subtle"
 height = "control_height_touch"
 
 [roles.input_form]
-font = "mono"
 text_color = "text_default"
 fill = "bg_app"
 stroke_width = 1
@@ -1045,7 +1060,7 @@ height = "control_height_touch"
 
 [roles.input_path]
 font = "mono"
-text_color = "secondary_text"
+text_color = "text_default"
 fill = "bg_app"
 stroke_width = 1
 stroke = "border_default"

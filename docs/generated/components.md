@@ -2694,7 +2694,7 @@ The rows a `dropdown` reads: what it offers, how tall its list grows and what sh
 
 ### `widget_field`
 
-`ui` · 14 properties
+`ui` · 16 properties
 
 The rows a `text_field`, `text_area` or `code` reads: what may be typed and how the editor behaves.
 
@@ -2710,6 +2710,8 @@ The rows a `text_field`, `text_area` or `code` reads: what may be typed and how 
 <tr><td><code>caret_at_end</code></td><td>bool</td><td><code>true</code></td><td>Put the caret at the end of a `text_field`, `text_area` or `code`&#x27;s text when it first takes focus; off, at the start</td></tr>
 <tr><td><code>tab_inserts</code></td><td>bool</td><td><code>false</code></td><td>Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on</td></tr>
 <tr><td><code>submit_key</code></td><td>string</td><td>—</td><td>The chord that submits a `text_field`, as `Enter` or `cmd+Enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says</td></tr>
+<tr><td><code>icon</code></td><td>string</td><td>—</td><td>The name of a glyph in the theme&#x27;s icon font drawn at a `text_field`&#x27;s start, before its prefix, as a search box&#x27;s magnifying glass</td></tr>
+<tr><td><code>icon_color</code></td><td>string</td><td>—</td><td>That glyph&#x27;s ink, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the role&#x27;s `icon_color`, else the placeholder&#x27;s</td></tr>
 <tr><td><code>prefix</code></td><td>string</td><td>—</td><td>Text drawn before a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
 <tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Text drawn after a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
 <tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where what a `text_field` or `text_area` edits sits in its width One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
@@ -2827,7 +2829,7 @@ The rows a `menu` reads: where its popup opens and what shuts it.
 
 ### `widget_range`
 
-`ui` · 24 properties
+`ui` · 25 properties
 
 The rows a `slider`, `number_field` or `progress_bar` reads: where it stands in its range, how it moves and how it is drawn.
 
@@ -2857,6 +2859,7 @@ The rows a `slider`, `number_field` or `progress_bar` reads: where it stands in 
 <tr><td><code>animate</code></td><td>bool</td><td><code>false</code></td><td>Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise</td></tr>
 <tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a `slider` runs: up its box under `vertical`, along it otherwise One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
 <tr><td><code>prefix</code></td><td>string</td><td>—</td><td>Text drawn before a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between</td></tr>
+<tr><td><code>icon_color</code></td><td>string</td><td>—</td><td>A `number_field`&#x27;s prefix&#x27;s ink, standing apart at its start, as `#rrggbb` or a name from the theme&#x27;s `[colors]`, as an axis&#x27;s letter in its axis colour; empty takes the role&#x27;s `icon_color`</td></tr>
 <tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Units drawn after a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between</td></tr>
 </tbody>
 </table>

@@ -43,6 +43,7 @@ kind = "text_field"
 role = "input_dock"
 grow = 1
 [nodes.widget_field]
+icon = "magnifying-glass"
 placeholder = "Search"
 
 [[nodes]]

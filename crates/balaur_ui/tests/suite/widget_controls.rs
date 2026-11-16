@@ -297,3 +297,37 @@ fn a_list_takes_its_row_pitch_from_its_theme() {
     let pitch = at("Two") - at("One");
     assert!((pitch - 31.0).abs() < 0.6, "the rows are {pitch} apart");
 }
+
+// A one-glyph button's ink sits in the middle of its box: the icon face's
+// bearings are its outlines', so nothing is drawn off to one side.
+#[test]
+fn a_lone_glyph_is_drawn_in_the_middle_of_its_button() {
+    let (dir, app) = app_with_editor_fonts();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/square.toml"),
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n\n[button]\nheight = 30\n",
+    )
+    .unwrap();
+    let mark = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "" theme = "themes/square.toml" x = 20.0 y = 20.0 widget_button = { icon = "stop" } }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let rect = balaur_ui::widget_rect(mark).expect("it drew");
+    let ink = out
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::epaint::Shape::Text(t) => Some(t.galley.mesh_bounds.translate(t.pos.to_vec2())),
+            _ => None,
+        })
+        .expect("the glyph is drawn");
+    assert!(
+        (ink.center().x - rect.center().x).abs() < 1.0,
+        "ink {ink:?} in {rect:?}"
+    );
+}

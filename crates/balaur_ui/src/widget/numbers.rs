@@ -266,6 +266,7 @@ pub(crate) fn drag_value(
         },
         clamp_existing: bounded && o.clamp_existing,
         prefix: &prefix,
+        adorn: look.style.icon_color,
         suffix: &suffix,
         min_decimals: decimals.unwrap_or(0),
         max_decimals: decimals,

@@ -11,6 +11,7 @@ use egui::{Rect, Vec2, vec2};
 use crate::widget::arrange::{Pad, padding_of, padding_only, solved_of};
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
+use crate::widget::paint::Brush;
 use crate::widget::theme::Style;
 use crate::widget::typing::{Field, Typesetter, Typing};
 
@@ -191,6 +192,7 @@ pub(crate) fn edit(
         margin: margin_of(widget, &look.style),
         color,
         placeholder: face.shape(&widget.placeholder, None),
+        icon: lead_icon(ui, at, index, font),
         prefix: face.shape(&widget.egui.prefix, None),
         suffix: face.shape(&widget.suffix, None),
         colors: None,
@@ -232,6 +234,31 @@ pub(crate) fn edit(
     }
     field.owner = Some(entity);
     state.borrow_mut().fields.insert(key, field);
+}
+
+/// The field's `icon` in the theme's icon font at its text's size, in its
+/// role's `icon_color` or the placeholder's quiet ink; none without one.
+fn lead_icon(
+    ui: &egui::Ui,
+    at: &Painting<'_>,
+    index: usize,
+    font: &egui::FontId,
+) -> Option<(std::sync::Arc<egui::Galley>, egui::Color32)> {
+    let widget = &at.arena[index].widget;
+    if widget.icon.is_empty() {
+        return None;
+    }
+    let look = at.look(index);
+    let glyph = crate::widget::icons::Icons::of(at.eng, &look).glyph(&widget.icon)?;
+    let face = egui::FontId::new(font.size, look.icon.clone());
+    let ink = look
+        .style
+        .icon_color
+        .unwrap_or_else(|| ui.visuals().weak_text_color());
+    Some((
+        Brush::of(ui).line_of(glyph, face, egui::Color32::WHITE),
+        ink,
+    ))
 }
 
 /// A field focus left: the submit chord and a click away both submit, and

@@ -589,6 +589,7 @@ pub(crate) fn code_editor(
         margin,
         color: colors.ident,
         placeholder: None,
+        icon: None,
         prefix: None,
         suffix: None,
         colors: Some(&paint_line),

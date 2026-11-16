@@ -178,6 +178,7 @@ kind = "text_field"
 role = "input_dock"
 grow = 1
 [nodes.widget_field]
+icon = "magnifying-glass"
 placeholder = "Search"
 
 # The cards: a dragged one let go over the viewport places its file there.

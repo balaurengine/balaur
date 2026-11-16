@@ -271,6 +271,9 @@ pub(crate) struct Typing<'a> {
     pub(crate) color: Color32,
     /// Shown while it is empty.
     pub(crate) placeholder: Option<Rc<balaur_text::Shaped>>,
+    /// A glyph at the start, before the prefix, in its own ink: a search
+    /// box's magnifying glass.
+    pub(crate) icon: Option<(std::sync::Arc<egui::Galley>, Color32)>,
     /// Drawn before and after the text, never typed into.
     pub(crate) prefix: Option<Rc<balaur_text::Shaped>>,
     pub(crate) suffix: Option<Rc<balaur_text::Shaped>>,
@@ -296,6 +299,9 @@ impl Typing<'_> {
     /// The box the text runs in: `rect` without the margin and the affixes.
     pub(crate) fn inner(&self, rect: Rect) -> Rect {
         let mut inner = self.margin.inside(rect);
+        if let Some((icon, _)) = &self.icon {
+            inner.min.x += icon.size().x + AFFIX_GAP;
+        }
         if let Some(prefix) = &self.prefix {
             inner.min.x += prefix.size.x + AFFIX_GAP;
         }
@@ -502,11 +508,14 @@ impl Typing<'_> {
         }
         let brush = Brush::of(ui);
         let ink = ui.visuals().text_color();
+        let mut lead = rect.min.x + self.margin.left;
+        if let Some((icon, tint)) = &self.icon {
+            let at = pos2(lead, rect.center().y - icon.size().y / 2.0);
+            brush.galley(at, std::sync::Arc::clone(icon), *tint);
+            lead += icon.size().x + AFFIX_GAP;
+        }
         if let Some(prefix) = &self.prefix {
-            let at = pos2(
-                rect.min.x + self.margin.left,
-                rect.center().y - prefix.size.y / 2.0,
-            );
+            let at = pos2(lead, rect.center().y - prefix.size.y / 2.0);
             brush.shaped(texture, prefix, at, ink);
         }
         if let Some(suffix) = &self.suffix {

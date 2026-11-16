@@ -40,6 +40,7 @@ parent = "head"
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
+grow = 1
 [nodes.widget_text]
 truncate = true
 
@@ -52,6 +53,7 @@ bindings = { rows = [{ event = "emitted:value_changed", action = "call", value =
 kind = "text_field"
 role = "input_dock"
 [nodes.widget_field]
+icon = "magnifying-glass"
 placeholder = "Search"
 
 [[nodes]]

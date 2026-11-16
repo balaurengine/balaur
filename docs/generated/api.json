@@ -7829,6 +7829,8 @@
       "caret_at_end",
       "tab_inserts",
       "submit_key",
+      "icon",
+      "icon_color",
       "prefix",
       "suffix",
       "text_align",
@@ -7906,6 +7908,7 @@
       "animate",
       "axis",
       "prefix",
+      "icon_color",
       "suffix"
     ],
     "widget_rows": [
@@ -18209,6 +18212,16 @@
         "description": "Let the reader change a `text_field`, `text_area` or `code`'s text; off, it can be neither edited nor selected",
         "type": "bool"
       },
+      "icon": {
+        "default": "",
+        "description": "The name of a glyph in the theme's icon font drawn at a `text_field`'s start, before its prefix, as a search box's magnifying glass",
+        "type": "string"
+      },
+      "icon_color": {
+        "default": "",
+        "description": "That glyph's ink, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's `icon_color`, else the placeholder's",
+        "type": "string"
+      },
       "line_break": {
         "default": "word_smart",
         "description": "Where a `text_area`'s wrapped line may break",
@@ -18646,6 +18659,11 @@
         "description": "How wide a `rect` handle is against its height",
         "min": 0.0,
         "type": "float"
+      },
+      "icon_color": {
+        "default": "",
+        "description": "A `number_field`'s prefix's ink, standing apart at its start, as `#rrggbb` or a name from the theme's `[colors]`, as an axis's letter in its axis colour; empty takes the role's `icon_color`",
+        "type": "string"
       },
       "largest_finite": {
         "default": 0.0,
