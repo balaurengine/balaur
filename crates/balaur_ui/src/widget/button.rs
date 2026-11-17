@@ -45,7 +45,9 @@ fn face_of(
     width: f32,
 ) -> Face {
     let widget = &at.arena[index].widget;
-    // As tall as the caption's type, keeping the picture's own aspect.
+    // As tall as the button's icon (`icon_size`, else the caption's type),
+    // keeping the picture's own aspect: a brand's mark beside a glyph's.
+    let edge = crate::widget::text::icon_px(widget, style, font.size);
     let picture = (!widget.source.is_empty())
         .then(|| crate::images::texture_of(at.eng, ui.ctx(), &widget.source).ok())
         .flatten()
@@ -56,7 +58,7 @@ fn face_of(
             } else {
                 1.0
             };
-            (texture.id(), vec2(font.size * aspect, font.size))
+            (texture.id(), vec2(edge * aspect, edge))
         });
     let plate = if picture.is_some() && style.plate.is_some() {
         2.0

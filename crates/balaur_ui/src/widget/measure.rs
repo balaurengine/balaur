@@ -646,7 +646,11 @@ impl<'a> Measure<'a> {
                     .line_of(glyph, face, egui::Color32::WHITE)
                     .size()
             });
-        let pic = self.picture(widget, style, font.size);
+        let pic = self.picture(
+            widget,
+            style,
+            crate::widget::text::icon_px(widget, style, font.size),
+        );
         // A trailing glyph in the icon font, else trailing text.
         let tail_glyph = (!widget.trailing_icon.is_empty())
             .then(|| crate::widget::icons::Icons::of(self.eng, &look).glyph(&widget.trailing_icon))
@@ -712,8 +716,8 @@ impl<'a> Measure<'a> {
         sized
     }
 
-    /// A button's picture at its caption's height, with the disc a role may
-    /// put under it.
+    /// A button's picture at its icon's size (`icon_size`, else the
+    /// caption's height), with the disc a role may put under it.
     fn picture(
         &self,
         widget: &Widget,

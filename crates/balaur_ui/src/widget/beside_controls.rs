@@ -24,7 +24,7 @@ pub(crate) struct WidgetButton {
     /// That glyph's size in design pixels; below zero takes the caption's
     #[property(default = -1.0)]
     pub(crate) icon_size: f32,
-    /// The project-relative picture drawn before the caption at the caption's height
+    /// The project-relative picture drawn before the caption at the icon's size: `icon_size`, else the caption's height
     pub(crate) image: SmolStr,
     /// The space between its picture, icon and caption, in design pixels; below zero takes the theme's own, else half the font size
     #[property(default = -1.0)]

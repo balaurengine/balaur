@@ -125,3 +125,31 @@ fn every_container_draws_in_the_box_it_measured() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+// A button's picture is as big as its icon would be: a stated `icon_size`
+// sizes a brand's mark as it sizes a glyph, else the caption's height.
+#[test]
+fn a_button_s_picture_takes_its_icon_s_size() {
+    let (dir, app) = app();
+    let mut mark = image::RgbaImage::new(8, 8);
+    for pixel in mark.pixels_mut() {
+        *pixel = image::Rgba([0, 0, 0, 255]);
+    }
+    mark.save(dir.path().join("mark.png")).unwrap();
+    let caption = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "B" x = 0.0 y = 0.0 widget_button = { image = "mark.png" } }
+            .into(),
+    );
+    let sized = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "B" x = 0.0 y = 100.0 widget_button = { image = "mark.png", icon_size = 40.0 } }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let (small, big) = (root_rect(&ctx, caption), root_rect(&ctx, sized));
+    assert!(big.height() >= 40.0, "{big:?}");
+    assert!(big.width() >= small.width() + 20.0, "{small:?} vs {big:?}");
+}

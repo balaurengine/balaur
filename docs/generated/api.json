@@ -18071,7 +18071,7 @@
       },
       "image": {
         "default": "",
-        "description": "The project-relative picture drawn before the caption at the caption's height",
+        "description": "The project-relative picture drawn before the caption at the icon's size: `icon_size`, else the caption's height",
         "type": "string"
       },
       "loading": {
