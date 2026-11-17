@@ -143,6 +143,10 @@ pub(crate) fn caption_room(widget: &Widget, natural: f32, width: f32, taken: f32
         .then_some(room.max(1.0))
 }
 
+/// What a line may run past its column before it is cut: a layout's sums
+/// leave a box a hair short of the text it was measured for.
+const SLACK: f32 = 0.5;
+
 /// The width a label shapes at, and the column it is cut at when it states
 /// one. A grown child was squeezed by the layout, so the box it was given is
 /// its column; both are boxes, and the text runs inside the padding.
@@ -170,10 +174,13 @@ fn label_width(
     };
     // A wrapping block takes the room; a truncating line takes its column, so
     // the shaper knows where to cut. Neither is the other.
+    // A truncating line is cut where it runs past its column by more than
+    // the half pixel a layout's sums can leave it short (a title laid out at
+    // 99.9 for its 99.94), as `caption_room` and `elided` allow.
     let width = if widget.wrap {
         Some(room.max(1.0))
     } else if widget.truncate && stated > 0.0 {
-        Some(stated)
+        Some(stated + SLACK)
     } else {
         None
     };

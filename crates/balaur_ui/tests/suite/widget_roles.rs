@@ -245,6 +245,46 @@ fn a_truncated_label_ends_in_an_ellipsis() {
     let _ = cut;
 }
 
+// A truncating label given a box a hair short of its line (a layout's sums
+// leave one 99.9 for a line of 99.94) draws the whole line, not an ellipsis.
+#[test]
+fn a_truncated_label_a_hair_short_draws_its_whole_line() {
+    let (_dir, app) = app();
+    let free = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "Hangman" x = 0.0 y = 0.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let natural = root_rect(&ctx, free).width();
+    let snug = natural - 0.4;
+    let held = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "Hangman" width = snug x = 0.0 y = 100.0 widget_text = { truncate = true } }
+            .into(),
+    );
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let at = root_rect(&ctx, held);
+    let drawn = out
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Mesh(_) => {
+                let bounds = shape.shape.visual_bounding_rect();
+                (bounds.center().y > at.top() && bounds.center().y < at.bottom())
+                    .then_some(bounds.width())
+            }
+            _ => None,
+        })
+        .fold(0.0_f32, f32::max);
+    assert!(
+        drawn > natural - 2.0,
+        "the line was cut: {drawn} drawn of {natural}"
+    );
+}
+
 // A pooled row has no script of its own, so its submit is reported the way a button reports its
 // click: true for one frame.
 #[test]
