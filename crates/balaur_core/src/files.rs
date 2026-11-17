@@ -48,6 +48,15 @@ pub trait FileBackend {
     /// there. Only ever compared with another answer from the same backend:
     /// a virtual one counts edits rather than reading a clock.
     fn mtime(&self, path: &Path) -> Option<f64>;
+    /// How many bytes a file holds, or `None` for one that is not there and
+    /// for a directory. The default reads the file whole; a backend with
+    /// the size at hand says so.
+    fn size(&self, path: &Path) -> Option<u64> {
+        if self.is_dir(path) {
+            return None;
+        }
+        self.read(path).ok().map(|bytes| bytes.len() as u64)
+    }
     /// The names directly under `path`, each with whether it is a directory.
     /// Dotfiles are the caller's to filter; this reports what is there.
     fn list(&self, path: &Path) -> Vec<(String, bool)>;
@@ -199,6 +208,13 @@ impl FileBackend for DiskFs {
             .duration_since(std::time::UNIX_EPOCH)
             .ok()
             .map(|d| d.as_secs_f64())
+    }
+
+    fn size(&self, path: &Path) -> Option<u64> {
+        std::fs::metadata(path)
+            .ok()
+            .filter(std::fs::Metadata::is_file)
+            .map(|m| m.len())
     }
 
     fn sync(&self, path: &Path) {

@@ -776,6 +776,9 @@ impl FileBackend for Mounted {
     fn mtime(&self, path: &Path) -> Option<f64> {
         self.base.mtime(&self.real(path))
     }
+    fn size(&self, path: &Path) -> Option<u64> {
+        self.base.size(&self.real(path))
+    }
     fn list(&self, path: &Path) -> Vec<(String, bool)> {
         let mut out = self.base.list(&self.real(path));
         for entry in self.mounted_in(path) {

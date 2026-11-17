@@ -412,6 +412,13 @@ pub(crate) fn fs_mtime(eng: &Engine, args: &[Value]) -> Result<Value> {
         .map_or(Value::Nil, Value::Num))
 }
 
+pub(crate) fn fs_size(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let path = resolve(eng, &named(eng, args, 0)?)?;
+    Ok(files::backend(eng).size(&path).map_or(Value::Nil, |bytes| {
+        Value::Int(i64::try_from(bytes).unwrap_or(i64::MAX))
+    }))
+}
+
 pub(crate) fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {
     let dir = &*named(eng, args, 0)?;
     let path = resolve(eng, dir)?;

@@ -502,6 +502,10 @@ impl FileBackend for ProjectFs {
         self.inner.mtime(path)
     }
 
+    fn size(&self, path: &Path) -> Option<u64> {
+        self.inner.size(path)
+    }
+
     fn list(&self, path: &Path) -> Vec<(String, bool)> {
         self.inner.list(path)
     }

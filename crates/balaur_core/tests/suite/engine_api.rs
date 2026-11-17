@@ -415,6 +415,26 @@ fn a_files_modification_time_is_readable_and_absent_for_one_that_is_not_there() 
     assert!(at > 1_700_000_000.0, "seconds since the epoch, got {at}");
 }
 
+// A cache counts what it keeps without reading every file.
+#[test]
+fn a_files_size_is_readable_and_absent_for_a_directory_or_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let eng = &app.engine;
+    let s = |t: &str| Value::Str(t.into());
+
+    assert_eq!(
+        call(eng, "fs", "size", &[s("nothing.toml")]).unwrap(),
+        Value::Nil
+    );
+    call(eng, "fs", "write", &[s("kept/thing.toml"), s("a = 1\n")]).unwrap();
+    assert_eq!(
+        call(eng, "fs", "size", &[s("kept/thing.toml")]).unwrap(),
+        Value::Int(6)
+    );
+    assert_eq!(call(eng, "fs", "size", &[s("kept")]).unwrap(), Value::Nil);
+}
+
 #[test]
 fn a_script_can_ask_which_plugins_loaded() {
     let dir = tempfile::tempdir().unwrap();

@@ -268,6 +268,7 @@ pub(crate) fn document_fs(m: &mut balaur_script::Module<Engine>) {
         (words::functions::RENAME, &[], "(from: string, to: string)", "Move a project-relative file or directory, creating the destination's parent first."),
         ("copy", &[], "(from: string, to: string)", "Copy a file byte for byte, creating the destination's parent first. What `read` and `write` cannot do for an image or a model."),
         ("modified_time", &[], "(path: string) -> float?", "When a file last changed, in seconds since the Unix epoch; nil for one that is not there."),
+        ("size", &[], "(path: string) -> int?", "How many bytes a file holds, as a cache's \"free up space\" counts them; nil for one that is not there and for a directory."),
     ]);
 }
 

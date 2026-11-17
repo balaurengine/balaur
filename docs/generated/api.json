@@ -2150,6 +2150,10 @@
         "least": 2,
         "signature": "(str, str)"
       },
+      "fs::size": {
+        "least": 1,
+        "signature": "(str) -> int?"
+      },
       "fs::write": {
         "least": 2,
         "signature": "(str, str)"
@@ -20622,6 +20626,7 @@
         "read": "A whole file as text, project-relative unless absolute and found inside the pack in a packed run; nil when it cannot be read.",
         "remove": "Delete a project-relative file, or a directory and everything under it; false when there was nothing there.",
         "rename": "Move a project-relative file or directory, creating the destination's parent first.",
+        "size": "How many bytes a file holds, as a cache's \"free up space\" counts them; nil for one that is not there and for a directory.",
         "write": "Write text to a project-relative file, creating the directory it goes in. The text lands in a file beside it, synced, then renamed over it, so a crash mid-write keeps the old file whole."
       },
       "editor": [],
@@ -20634,6 +20639,7 @@
         "read",
         "remove",
         "rename",
+        "size",
         "write"
       ],
       "methods": {},
@@ -20647,6 +20653,7 @@
         "read": "(str) -> str?",
         "remove": "(str) -> bool",
         "rename": "(str, str)",
+        "size": "(str) -> int?",
         "write": "(str, str)"
       }
     },

@@ -21,7 +21,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
-| [`fs`](#fs) | 9 | 0 |
+| [`fs`](#fs) | 10 | 0 |
 | [`geometry2d`](#geometry2d) | 11 | 0 |
 | [`geometry3d`](#geometry3d) | 7 | 0 |
 | [`hash`](#hash) | 2 | 0 |
@@ -361,6 +361,7 @@ Files on disk, project-relative unless the path is absolute. In a packed build `
 | `read` | `(str) -> str?` |
 | `remove` | `(str) -> bool` |
 | `rename` | `(str, str)` |
+| `size` | `(str) -> int?` |
 | `write` | `(str, str)` |
 
 ## `geometry2d`

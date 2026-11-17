@@ -20,8 +20,8 @@ use crate::batteries_api::{
 };
 use crate::engine::Engine;
 use crate::file_api::{
-    fs_copy, fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write,
-    json_encode, json_parse, toml_encode, toml_parse, toml_patch,
+    fs_copy, fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_size,
+    fs_write, json_encode, json_parse, toml_encode, toml_parse, toml_patch,
 };
 use crate::regex_api::{
     regex_escape, regex_matches, regex_replace, regex_search, regex_search_all, regex_split,
@@ -493,6 +493,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: words::modules::FS,
             name: "modified_time",
             call: fs_mtime,
+        },
+        EngineOp {
+            module: words::modules::FS,
+            name: "size",
+            call: fs_size,
         },
         EngineOp {
             module: words::modules::ENGINE,
