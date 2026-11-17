@@ -65,12 +65,6 @@ inputs:
       Upload what was built, under the same `balaur-*` names a release holds.
     required: false
     default: "true"
-  attest:
-    description: >-
-      Attach Sigstore build provenance to the artifacts. The calling job needs
-      `id-token: write` and `attestations: write`.
-    required: false
-    default: "false"
 
 runs:
   using: composite
@@ -206,7 +200,3 @@ runs:
         path: dist/*
         if-no-files-found: error
 
-    - if: inputs.attest == 'true'
-      uses: actions/attest-build-provenance@v4
-      with:
-        subject-path: dist/*

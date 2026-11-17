@@ -1,7 +1,7 @@
 name: Export a Balaur game
 description: >-
   Run `balaur export` once per target, signed with the credentials given here,
-  and upload each build as an artifact with build provenance.
+  and upload each build as an artifact.
 
 inputs:
   project:
@@ -105,12 +105,6 @@ inputs:
     description: Upload each build as an artifact named `game-<target>`.
     required: false
     default: "true"
-  attest:
-    description: >-
-      Attach Sigstore build provenance to each artifact. The calling job needs
-      `id-token: write` and `attestations: write`.
-    required: false
-    default: "false"
 
 runs:
   using: composite
@@ -214,11 +208,6 @@ runs:
         name: game-${{ runner.os }}-${{ runner.arch }}
         path: ${{ inputs.project }}/${{ inputs.output }}
         if-no-files-found: error
-
-    - if: inputs.attest == 'true'
-      uses: actions/attest-build-provenance@v4
-      with:
-        subject-path: ${{ inputs.project }}/${{ inputs.output }}/**/*
 
     # A keychain outliving the job would be a signing identity left on a
     # shared runner, so it goes even when an export above failed.

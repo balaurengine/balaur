@@ -21,8 +21,6 @@ jobs:
   build-editor:
     permissions:
       contents: read
-      id-token: write
-      attestations: write
     name: build editor · ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
@@ -104,7 +102,6 @@ jobs:
           build-deps: ${{ matrix.container && 'false' || 'true' }}
           # A gigabyte each, forty of them: cached, they evict the test caches.
           cache: "false"
-          attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # Runtimes for the non-desktop platforms, packaged as the shape
   # each OS starts (scripts/package_runtime.sh). Web is wasm-bindgen on
@@ -112,8 +109,6 @@ jobs:
   build-platforms:
     permissions:
       contents: read
-      id-token: write
-      attestations: write
     name: build ${{ matrix.platform }}${{ matrix.label && format(' · {0}', matrix.label) }}
     runs-on: ${{ matrix.host }}
     strategy:
@@ -182,15 +177,12 @@ jobs:
           threads: ${{ matrix.threads }}
           # A gigabyte each, forty of them: cached, they evict the test caches.
           cache: "false"
-          attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # A game template per desktop and variant: one physics world, neither, or a
   # headless server. Each exports an example with this run's editor and plays it.
   build-templates:
     permissions:
       contents: read
-      id-token: write
-      attestations: write
     name: build ${{ matrix.desktop.target }}-${{ matrix.variant }}
     needs: build-editor
     runs-on: ${{ matrix.desktop.os }}
@@ -231,15 +223,12 @@ jobs:
           build-deps: ${{ matrix.desktop.container && 'false' || 'true' }}
           # A gigabyte each, forty of them: cached, they evict the test caches.
           cache: "false"
-          attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # Exports a game with each template and checks the result is what the OS
   # installs or a host serves — the half a template build cannot check.
   export-mobile:
     permissions:
       contents: read
-      id-token: write
-      attestations: write
     name: export ${{ matrix.platform }}
     needs: [build-editor, build-platforms]
     runs-on: ${{ matrix.host }}
@@ -304,11 +293,6 @@ jobs:
           name: balaur-example-${{ matrix.platform }}
           path: dist/balaur-example-*
           if-no-files-found: error
-      - name: Attest what was built
-        if: github.event_name == 'push' || github.event_name == 'release'
-        uses: actions/attest-build-provenance@v4
-        with:
-          subject-path: dist/balaur-example-*
 
   # `export-game` over an example, with the engine this run built rather than a
   # published one: the action a game's own repository calls, proven on every
@@ -316,8 +300,6 @@ jobs:
   export-with-the-action:
     permissions:
       contents: read
-      id-token: write
-      attestations: write
     name: export a game with the action
     needs: [build-editor, build-platforms, build-templates]
     runs-on: ubuntu-latest
@@ -353,7 +335,6 @@ jobs:
           project: examples/hello
           targets: "linux-x64 web"
           download: "false"
-          attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # The web build as the one download a site refreshes: the editor's module
   # and project, and each web runtime with the examples exported onto it by

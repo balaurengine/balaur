@@ -6,7 +6,7 @@ runtimes and the actions that know its flags from the same tag.
 | `uses:` | Produces |
 | --- | --- |
 | `balaurengine/balaur/.github/actions/setup@v0.2.0` | `balaur` on `PATH`, verified against the release's `SHA256SUMS`, with the templates you name |
-| `balaurengine/balaur/.github/actions/export-game@v0.2.0` | a signed build per target, uploaded with build provenance |
+| `balaurengine/balaur/.github/actions/export-game@v0.2.0` | a signed build per target, uploaded as an artifact |
 | `balaurengine/balaur/.github/actions/build-engine@v0.2.0` | the editor and templates built from source, for features the published build lacks |
 
 `setup` installs the release its own ref names. `@main` and `nightly` follow the
@@ -66,7 +66,7 @@ base64 -w0 release.jks                  # Linux
 
 | Target | Needs | Runner |
 | --- | --- | --- |
-| `linux-x64`, `linux-arm64` | nothing; a Linux download is verified by its provenance attestation | any |
+| `linux-x64`, `linux-arm64` | nothing | any |
 | `windows-x64`, `windows-arm64` | `windows-certificate` and its password, or an Azure Trusted Signing metadata JSON for a cloud HSM | any; a non-Windows runner signs through `osslsigncode` |
 | `macos-universal` | `macos-certificate`, `macos-identity`, and the three `notary-*` inputs to notarize | macOS |
 | `ios` | `macos-certificate` holding the Apple Distribution `.p12`, `ios-identity`, `ios-provisioning-profile`; `ipa: true` for TestFlight | macOS |
@@ -76,22 +76,6 @@ base64 -w0 release.jks                  # Linux
 Identities, team ids and keystore aliases are not secrets and may live in the
 project's `[apple]`, `[android]` and `[windows]` tables, so a click in the
 editor and a run on a runner sign the same way. The passwords never do.
-
-## Provenance
-
-```yaml
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-    steps:
-      - uses: balaurengine/balaur/.github/actions/export-game@v0.2.0
-        with:
-          attest: true
-```
-
-Sigstore provenance, checked by `gh attestation verify` with no certificate and
-no account.
 
 ## A custom engine
 

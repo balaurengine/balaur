@@ -325,8 +325,8 @@ the same on every machine. A case is one entry in `cases_kinds.bs` or
   `all-features` so the audit reaches the windowed tree. Yanked crates, unknown
   registries and git sources are denied, bar the three pinned forks
   `deny.toml` allows by name.
-- Releases carry `SHA256SUMS` and build-provenance attestations, verifiable
-  with `gh attestation verify`.
+- Releases carry `SHA256SUMS`, which `setup`, `balaur export` and `balaur update`
+  check every download against.
 - `build.yml` builds the engine and exports a game with the published actions
   a player's own repository calls, `build-engine` and `export-game`, so a
   broken action fails here first.

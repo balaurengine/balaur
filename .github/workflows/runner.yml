@@ -31,8 +31,6 @@ jobs:
   build:
     permissions:
       contents: write
-      id-token: write
-      attestations: write
     # Signing credentials do not cross into a called workflow on their own,
     # and without them the Mac build has an identity name but no certificate.
     secrets: inherit
