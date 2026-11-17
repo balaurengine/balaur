@@ -39,6 +39,14 @@ pub(crate) trait Beside: Component + Clone {
     /// Whether a widget of this kind reads the rows.
     fn reads(kind: &str) -> bool;
 
+    /// Whether a widget of this kind is given the rows' defaults where its
+    /// node states none. A kind that reads them only now and then is not:
+    /// the defaults would cost each such widget its own copy of the options
+    /// they all share.
+    fn defaults(_kind: &str) -> bool {
+        true
+    }
+
     /// The rows onto the widget the layer reads.
     fn put(&self, widget: &mut Widget);
 
@@ -494,11 +502,11 @@ impl Beside for WidgetField {
     }
 }
 
-/// The rows a `scroll`, `list`, `tree` or `table` reads: its bars, where it is scrolled to and what scrolls it.
+/// The rows a `scroll`, `list`, `tree` or `table` reads, and a `row`, `column`, `grid` or `panel` whose `overflow` is `scroll`: its bars, where it is scrolled to and what scrolls it.
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_scroll")]
 pub(crate) struct WidgetScroll {
-    /// Which way a `scroll` moves, the other way its contents filling the box it was given
+    /// Which way a `scroll` moves, the other way its contents filling the box it was given; on a box whose `overflow` is `scroll`, which way it may be moved, its contents laid out as the box lays them out
     #[property(default = Axis::new(w::BOTH))]
     pub(crate) axis: Axis,
     /// When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box
@@ -538,6 +546,13 @@ pub(crate) struct WidgetScroll {
 impl Beside for WidgetScroll {
     fn reads(kind: &str) -> bool {
         matches!(kind, w::SCROLL | w::LIST | w::TREE | w::TABLE)
+            || crate::widget::node::may_scroll(kind)
+    }
+
+    /// A container reads these only once its `overflow` scrolls, and is
+    /// handed the defaults as it draws ([`crate::widget::scroll::rows_of`]).
+    fn defaults(kind: &str) -> bool {
+        !crate::widget::node::may_scroll(kind)
     }
 
     puts! { held, widget;
@@ -835,7 +850,8 @@ fn put_held<C: Beside>(
     }
     match world.get::<&C>(entity) {
         Ok(held) => held.put(widget),
-        Err(_) => C::default().put(widget),
+        Err(_) if C::defaults(&asked.kind.0) => C::default().put(widget),
+        Err(_) => {}
     }
 }
 

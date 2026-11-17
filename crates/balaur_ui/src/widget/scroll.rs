@@ -47,6 +47,22 @@ pub(crate) fn begin_pass(eng: &Engine, ctx: &egui::Context) {
     });
 }
 
+/// The widget a box whose `overflow` is `scroll` reads its scroll rows from:
+/// itself once they were put on it, else a copy carrying their defaults. A
+/// container is built without them (`Beside::defaults`), and one that never
+/// was given them has no `axis`: only `widget_scroll` writes a container's.
+pub(crate) fn rows_of(
+    widget: &crate::widget::node::Widget,
+) -> std::borrow::Cow<'_, crate::widget::node::Widget> {
+    use crate::widget::beside::Beside;
+    if !widget.axis.is_empty() {
+        return std::borrow::Cow::Borrowed(widget);
+    }
+    let mut copy = widget.clone();
+    crate::widget::beside::WidgetScroll::default().put(&mut copy);
+    std::borrow::Cow::Owned(copy)
+}
+
 /// Whether dragging a scroll's content scrolls it, by its `drag_scroll`:
 /// `always`, `never`, else under a finger.
 pub(crate) fn drags(mode: &str) -> bool {

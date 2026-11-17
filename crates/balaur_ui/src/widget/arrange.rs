@@ -271,6 +271,119 @@ pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style) -> eg
     vec2(across, down)
 }
 
+/// The scroll area a box of `inner` draws what it holds in: its axes, its
+/// bars, the wheel and the drag as the widget's scroll rows have them.
+fn area_of(
+    ui: &egui::Ui,
+    eng: &balaur_core::Engine,
+    entity: balaur_core::hecs::Entity,
+    widget: &Widget,
+    inner: egui::Vec2,
+) -> egui::ScrollArea {
+    let dead = crate::widget::scroll::deadzone(widget.deadzone);
+    let drags = crate::widget::scroll::drags(&widget.egui.drag_scroll);
+    let (sideways, downwards) = crate::widget::taffy::scroll_axes(&widget.axis);
+    // The box on both ends: egui's own least scrolled size is 64 points,
+    // which drew a shorter box past its row.
+    let area = egui::ScrollArea::new([sideways, downwards])
+        .id_salt(("balaur-scroll", entity))
+        .max_width(inner.x)
+        .max_height(inner.y)
+        .min_scrolled_width(inner.x)
+        .min_scrolled_height(inner.y);
+    let mut area = crate::widget::scroll::dressed(ui, area, widget, entity);
+    // With a deadzone the finger scrolls nothing until it has travelled
+    // that far, so a tap on a child lands; past it, this drags the
+    // offset itself.
+    let dragged = (dead > 0.0 && drags)
+        .then(|| crate::widget::scroll::deadzone_drag(ui, eng, entity, dead))
+        .flatten();
+    if dead > 0.0 {
+        area = area.scroll_source(egui::scroll_area::ScrollSource {
+            scroll_bar: true,
+            drag: egui::scroll_area::DragScroll::Never,
+            mouse_wheel: widget.egui.wheel_scroll,
+        });
+    }
+    if let Some(offset) = dragged {
+        area = area.scroll_offset(offset);
+    }
+    area
+}
+
+/// What a box whose `overflow` is `scroll` holds, drawn in a scroll area over
+/// `viewport`, the box inside its padding.
+///
+/// The layout put the children where they go with everything around the
+/// box, past its edge where they run on (CSS's `overflow: auto`); the area
+/// moves them, and all they hold, by how far it is scrolled.
+fn scroll_held(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    axis: Axis,
+    viewport: egui::Rect,
+) {
+    let nodes = at.arena;
+    let entity = nodes[index].entity;
+    let widget = crate::widget::scroll::rows_of(&nodes[index].widget);
+    let mut inner_ui = ui.new_child(egui::UiBuilder::new().max_rect(viewport));
+    let ui = &mut inner_ui;
+    hold_to(ui, viewport.size());
+    let area = area_of(ui, at.eng, entity, &widget, viewport.size());
+    let shown = area.show(ui, |ui| {
+        shift(
+            &mut at.rects,
+            nodes,
+            index,
+            ui.max_rect().min - viewport.min,
+        );
+        // Focus moved under this box comes into view from where the layout
+        // put it: a row past the edge is never drawn to ask.
+        if let Some(focused) = at.arrived
+            && let Some(found) = nodes.iter().position(|placed| placed.entity == focused)
+            && within(nodes, found, index)
+            && let Some(rect) = at.rects.get(&found)
+        {
+            ui.scroll_to_rect(*rect, None);
+        }
+        lay_out(ui, at, index, axis);
+    });
+    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.clamped_offset());
+}
+
+/// Move where the layout put everything under `index` by `by`: what a
+/// scrolled box's contents are drawn at. A widget whose kind lays its own
+/// children out holds them in a solve of its own, which follows its box.
+fn shift(
+    rects: &mut crate::widget::taffy::Rects,
+    arena: &[crate::widget::arena::Placed],
+    index: usize,
+    by: egui::Vec2,
+) {
+    if by == egui::Vec2::ZERO {
+        return;
+    }
+    for child in &arena[index].children {
+        if let Some(rect) = rects.get_mut(child) {
+            *rect = rect.translate(by);
+            shift(rects, arena, *child, by);
+        }
+    }
+}
+
+/// Whether the widget at `index` stands somewhere under the one at `above`.
+fn within(arena: &[crate::widget::arena::Placed], index: usize, above: usize) -> bool {
+    let mut at = index;
+    while let Some(parent) = arena[at].parent {
+        if parent == above {
+            return true;
+        }
+        at = parent;
+    }
+    false
+}
+
 /// A scroll container: the box is the parent's to decide and the children are
 /// free to run past it, which is what makes a list in a sized panel scroll
 /// rather than stretch the panel.
@@ -307,34 +420,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let mut inner_ui = frame_ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(held)));
         let ui = &mut inner_ui;
         hold_to(ui, inner);
-        let dead = crate::widget::scroll::deadzone(widget.deadzone);
-        let drags = crate::widget::scroll::drags(&widget.egui.drag_scroll);
-        let (sideways, downwards) = crate::widget::taffy::scroll_axes(&widget.axis);
-        // The box on both ends: egui's own least scrolled size is 64 points,
-        // which drew a shorter box past its row.
-        let area = egui::ScrollArea::new([sideways, downwards])
-            .id_salt(("balaur-scroll", entity))
-            .max_width(inner.x)
-            .max_height(inner.y)
-            .min_scrolled_width(inner.x)
-            .min_scrolled_height(inner.y);
-        let mut area = crate::widget::scroll::dressed(ui, area, widget, entity);
-        // With a deadzone the finger scrolls nothing until it has travelled
-        // that far, so a tap on a child lands; past it, this drags the
-        // offset itself.
-        let dragged = (dead > 0.0 && drags)
-            .then(|| crate::widget::scroll::deadzone_drag(ui, at.eng, entity, dead))
-            .flatten();
-        if dead > 0.0 {
-            area = area.scroll_source(egui::scroll_area::ScrollSource {
-                scroll_bar: true,
-                drag: egui::scroll_area::DragScroll::Never,
-                mouse_wheel: widget.egui.wheel_scroll,
-            });
-        }
-        if let Some(offset) = dragged {
-            area = area.scroll_offset(offset);
-        }
+        let area = area_of(ui, at.eng, entity, widget, inner);
         let shown = area.show(ui, |ui| {
             // Solved on its own, with the scroll's axis free: the contents
             // take what they measure and the bar makes up the difference.
@@ -610,7 +696,8 @@ pub(crate) fn stated_of(widget: &Widget) -> egui::Vec2 {
 }
 
 /// A bare container: its own frame where the theme gives it one, then the
-/// children at the rects the layout pass decided.
+/// children at the rects the layout pass decided, in a scroll area where its
+/// `overflow` is `scroll`.
 ///
 /// A `row` or a `column` paints nothing unless asked, which is what keeps a
 /// box that only lays out invisible; a `fill` or a `stroke` makes it a tile,
@@ -626,7 +713,25 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
             &style,
         ));
     }
-    lay_out(ui, at, index, axis);
+    let inside = padding_of(&at.arena[index].widget, &style).inside(ui.max_rect());
+    lay_out_within(ui, at, index, axis, inside);
+}
+
+/// A box's children at the rects the layout decided: scrolled over
+/// `viewport`, the box inside its padding and under what it draws itself,
+/// where its `overflow` is `scroll`.
+pub(crate) fn lay_out_within(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    axis: Axis,
+    viewport: egui::Rect,
+) {
+    if crate::widget::node::scrolls_within(&at.arena[index].widget) {
+        scroll_held(ui, at, index, axis, viewport);
+    } else {
+        lay_out(ui, at, index, axis);
+    }
 }
 
 /// The children themselves, each drawn into the rect the layout pass gave it.

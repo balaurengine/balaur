@@ -11,7 +11,7 @@ use smol_str::SmolStr;
 use crate::vocabulary::words as w;
 use crate::widget::arena::{Begun, Look, Placed, begin, keep, look_of, stamp_now};
 use crate::widget::arrange::{
-    Axis, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
+    Axis, contain, hold_to, lay_out_within, padding_of, record_rect, roll_measurements, scroller,
     settle_rects, solved_of, tabs,
 };
 use crate::widget::focus::{
@@ -1150,7 +1150,8 @@ fn panel(
     }
     // A panel with nothing in it is the panel it always was.
     let held = std::mem::replace(&mut at.bounds, min);
-    lay_out(&mut inner, at, index, Axis::Column);
+    let under = inner.available_rect_before_wrap();
+    lay_out_within(&mut inner, at, index, Axis::Column, under);
     at.bounds = held;
     // Measured from the children where there are only children: a root that
     // hugs at a right or bottom corner sits in an `Area` whose own corner is

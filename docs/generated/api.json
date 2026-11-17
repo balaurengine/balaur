@@ -6484,7 +6484,7 @@
     "widget_menu": "The rows a `menu` reads: where its popup opens and what shuts it.",
     "widget_range": "The rows a `slider`, `number_field` or `progress_bar` reads: where it stands in its range, how it moves and how it is drawn.",
     "widget_rows": "The rows a `list`, `tree` or `table` reads: what it holds and what is picked.",
-    "widget_scroll": "The rows a `scroll`, `list`, `tree` or `table` reads: its bars, where it is scrolled to and what scrolls it.",
+    "widget_scroll": "The rows a `scroll`, `list`, `tree` or `table` reads, and a `row`, `column`, `grid` or `panel` whose `overflow` is `scroll`: its bars, where it is scrolled to and what scrolls it.",
     "widget_separator": "The rows a `separator` reads: the room it takes and how far its line runs.",
     "widget_shortcut": "The rows of a chord that clicks a widget, which any kind may carry.",
     "widget_table": "The rows a `table` reads: its columns and how they sort.",
@@ -18027,7 +18027,7 @@
       },
       "overflow": {
         "default": "visible",
-        "description": "What the layout keeps for content past this widget's box: `scroll` keeps `scrollbar_width` clear inside its edge, the others nothing. Layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), a `scroll` kind is what scrolls, and each kind clips as it draws",
+        "description": "What becomes of content past this widget's box. A `row`, `column`, `grid` or `panel` that says `scroll` scrolls it, as CSS's `overflow: auto`: as large as what it holds, giving way where its container leaves it less (its `shrink` is 1 unless stated) and scrolling what no longer fits, by the rows of `widget_scroll`; it keeps `scrollbar_width` clear inside its edge. On any other kind, and for the other words, layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), and each kind clips as it draws",
         "options": [
           "visible",
           "clip",
@@ -18934,7 +18934,7 @@
       },
       "axis": {
         "default": "both",
-        "description": "Which way a `scroll` moves, the other way its contents filling the box it was given",
+        "description": "Which way a `scroll` moves, the other way its contents filling the box it was given; on a box whose `overflow` is `scroll`, which way it may be moved, its contents laid out as the box lays them out",
         "options": [
           "both",
           "horizontal",

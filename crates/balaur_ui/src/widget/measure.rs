@@ -514,6 +514,8 @@ impl<'a> Measure<'a> {
 
     /// A grid, estimated for a kind that measures it rather than solving it:
     /// the biggest child's cell, tiled as many wide as `grid_columns` names.
+    /// Tracks stated in pixels (`repeat(15, 24)`) are what it is across
+    /// them, whatever it holds: squares with no size of their own.
     fn grid(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let arena = self.arena;
         let placed = &arena[index];
@@ -524,6 +526,13 @@ impl<'a> Measure<'a> {
             named => named,
         };
         let gap = self.gap(index, theme);
+        let run = |tracks: Vec<f32>, gap: f32| {
+            tracks.iter().sum::<f32>() + gap * (tracks.len() as f32 - 1.0)
+        };
+        let stated = (
+            crate::widget::grid::fixed_tracks(&widget.layout.grid_columns).map(|t| run(t, gap.x)),
+            crate::widget::grid::fixed_tracks(&widget.layout.grid_rows).map(|t| run(t, gap.y)),
+        );
         let mut cell = egui::Vec2::ZERO;
         let mut count = 0usize;
         for child in children {
@@ -534,14 +543,18 @@ impl<'a> Measure<'a> {
             cell = cell.max(size);
             count += 1;
         }
-        if count == 0 {
+        if count == 0 && (stated.0.is_none() || stated.1.is_none()) {
             return egui::Vec2::ZERO;
         }
         let rows = count.div_ceil(columns);
         let across = columns.min(count);
         let inner = vec2(
-            across as f32 * cell.x + gap.x * (across as f32 - 1.0),
-            rows as f32 * cell.y + gap.y * (rows as f32 - 1.0),
+            stated
+                .0
+                .unwrap_or(across as f32 * cell.x + gap.x * (across as f32 - 1.0)),
+            stated
+                .1
+                .unwrap_or(rows as f32 * cell.y + gap.y * (rows as f32 - 1.0)),
         );
         let pad = padding_of(
             widget,

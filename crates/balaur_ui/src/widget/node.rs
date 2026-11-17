@@ -429,6 +429,19 @@ pub(crate) struct EguiOptions {
     pub(crate) fade_in: bool,
 }
 
+/// Whether this kind is a box that may scroll what runs past it, by its
+/// `overflow`: the containers the layout solves with what is around them.
+pub(crate) fn may_scroll(kind: &str) -> bool {
+    matches!(kind, w::ROW | w::COLUMN | w::GRID | w::PANEL)
+}
+
+/// Whether this widget is a box that scrolls what runs past it: a `row`, a
+/// `column`, a `grid` or a `panel` whose `overflow` is `scroll`, as CSS's
+/// `overflow: auto`.
+pub(crate) fn scrolls_within(widget: &Widget) -> bool {
+    widget.layout.overflow == w::overflow::SCROLL && may_scroll(&widget.kind)
+}
+
 /// Whether this kind lays its widget children out rather than ignoring them.
 ///
 /// A `panel` counts: it already draws a frame, and a frame with things in it

@@ -101,3 +101,42 @@ fn no_row_beside_the_widget_is_a_row_of_the_widget() {
         );
     }
 }
+
+#[test]
+fn a_container_is_built_without_the_scroll_rows_it_seldom_reads() {
+    for kind in [w::ROW, w::COLUMN, w::GRID, w::PANEL] {
+        assert!(
+            WidgetScroll::reads(kind) && !WidgetScroll::defaults(kind),
+            "a `{kind}` reads `widget_scroll` and is not handed its defaults"
+        );
+    }
+    assert!(WidgetScroll::defaults(w::SCROLL));
+}
+
+#[test]
+fn a_box_that_scrolls_reads_the_rows_defaults_until_its_node_states_them() {
+    use std::borrow::Cow;
+    let asked = WidgetProperties {
+        kind: crate::widget::properties::Kind::new(w::COLUMN),
+        ..WidgetProperties::default()
+    };
+    let bare = widget_of(&asked);
+    let read = crate::widget::scroll::rows_of(&bare);
+    assert!(
+        matches!(read, Cow::Owned(_)),
+        "a bare column is read as it is"
+    );
+    assert!(
+        read.axis == w::BOTH
+            && read.egui.wheel_scroll
+            && read.egui.scroll_offset.iter().all(|at| *at < 0.0)
+    );
+    let mut stated = widget_of(&asked);
+    WidgetScroll {
+        wheel_scroll: false,
+        ..WidgetScroll::default()
+    }
+    .put(&mut stated);
+    let read = crate::widget::scroll::rows_of(&stated);
+    assert!(matches!(read, Cow::Borrowed(_)) && !read.egui.wheel_scroll);
+}

@@ -2588,7 +2588,7 @@ The rarer words about a box, which any kind may carry: what its size measures, w
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>box_sizing</code></td><td>enum</td><td><code>border</code></td><td>What `width` and `height` measure: `border`, the whole box, or `content`, the box inside `padding` and `border` One of <code>border</code>, <code>content</code>.</td></tr>
-<tr><td><code>overflow</code></td><td>enum</td><td><code>visible</code></td><td>What the layout keeps for content past this widget&#x27;s box: `scroll` keeps `scrollbar_width` clear inside its edge, the others nothing. Layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), a `scroll` kind is what scrolls, and each kind clips as it draws One of <code>visible</code>, <code>clip</code>, <code>hidden</code>, <code>scroll</code>.</td></tr>
+<tr><td><code>overflow</code></td><td>enum</td><td><code>visible</code></td><td>What becomes of content past this widget&#x27;s box. A `row`, `column`, `grid` or `panel` that says `scroll` scrolls it, as CSS&#x27;s `overflow: auto`: as large as what it holds, giving way where its container leaves it less (its `shrink` is 1 unless stated) and scrolling what no longer fits, by the rows of `widget_scroll`; it keeps `scrollbar_width` clear inside its edge. On any other kind, and for the other words, layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), and each kind clips as it draws One of <code>visible</code>, <code>clip</code>, <code>hidden</code>, <code>scroll</code>.</td></tr>
 <tr><td><code>scrollbar_width</code></td><td>float</td><td><code>0.0</code></td><td>The room a box with `overflow = &quot;scroll&quot;` keeps clear inside its edge for a bar, in design pixels At least 0.0.</td></tr>
 <tr><td><code>contain</code></td><td>flags</td><td><code>[]</code></td><td>Containment: `layout` or `paint` makes the box lay out on its own, and `layout` also gives it no baseline for a parent&#x27;s `baseline` alignment One of <code>layout</code>, <code>paint</code>.</td></tr>
 <tr><td><code>safe_align</code></td><td>bool</td><td><code>false</code></td><td>Where `align_items`, `align_self`, `align_content` or `justify` would push a child past its container&#x27;s start, put it at the start instead, so the start stays in view</td></tr>
@@ -2889,12 +2889,12 @@ The rows a `list`, `tree` or `table` reads: what it holds and what is picked.
 
 `ui` · 12 properties
 
-The rows a `scroll`, `list`, `tree` or `table` reads: its bars, where it is scrolled to and what scrolls it.
+The rows a `scroll`, `list`, `tree` or `table` reads, and a `row`, `column`, `grid` or `panel` whose `overflow` is `scroll`: its bars, where it is scrolled to and what scrolls it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a `scroll` moves, the other way its contents filling the box it was given One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
+<tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a `scroll` moves, the other way its contents filling the box it was given; on a box whose `overflow` is `scroll`, which way it may be moved, its contents laid out as the box lays them out One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
 <tr><td><code>scrollbar</code></td><td>enum</td><td><code>auto</code></td><td>When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box One of <code>auto</code>, <code>always</code>, <code>never</code>.</td></tr>
 <tr><td><code>scroll_offset</code></td><td>vec2</td><td><code>[-1.0, -1.0]</code></td><td>Where a `scroll`, `list`, `tree` or `table` is scrolled to, across and down, in design pixels: written as the reader scrolls, and a new one written by the scene or a script scrolls it there. Below zero on an axis leaves that axis where it is; `ui.scroll` takes it too</td></tr>
 <tr><td><code>stick_to_end</code></td><td>bool</td><td><code>false</code></td><td>Keep a `scroll`, `list`, `tree` or `table` at its end as content arrives, until the reader scrolls away from it; `ui.scroll` takes it too</td></tr>

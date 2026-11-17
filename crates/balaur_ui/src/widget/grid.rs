@@ -216,6 +216,30 @@ pub(crate) fn template(text: &str) -> Result<Vec<GridTemplateComponent<String>>,
         .collect()
 }
 
+/// The tracks of a template that states every one in design pixels (`120`,
+/// `repeat(3, 24)`), in order: what the grid is across them whatever it
+/// holds. `None` for a template with any other word, or with none.
+pub(crate) fn fixed_tracks(text: &str) -> Option<Vec<f32>> {
+    let mut out = Vec::new();
+    for word in words(text) {
+        let Some(args) = call(word, t::REPEAT) else {
+            out.push(number(word).ok()?);
+            continue;
+        };
+        let (count, tracks) = args.split_first()?;
+        let count = count.parse::<u16>().ok()?;
+        let sizes = tracks
+            .iter()
+            .flat_map(|part| words(part))
+            .map(|part| number(part).ok())
+            .collect::<Option<Vec<_>>>()?;
+        for _ in 0..count {
+            out.extend_from_slice(&sizes);
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
+
 /// An `auto_columns` or `auto_rows` list, which takes no `repeat`.
 ///
 /// # Errors

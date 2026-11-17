@@ -430,10 +430,11 @@ fn flex_into(out: &mut Style, widget: &Widget) {
     out.flex_line_count = layout.min_lines.max(1);
     out.flex_grow = grow;
     // `flex: 1 1 0` where it grows: content must not inflate the share it
-    // starts from. A box that does not grow is never shrunk.
+    // starts from. A box that does not grow is never shrunk, but one that
+    // scrolls what runs past it: giving way is what it scrolls for.
     out.flex_shrink = if layout.shrink.get() >= 0.0 {
         layout.shrink.get()
-    } else if grow > 0.0 {
+    } else if grow > 0.0 || crate::widget::node::scrolls_within(widget) {
         1.0
     } else {
         0.0
