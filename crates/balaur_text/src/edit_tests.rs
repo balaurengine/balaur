@@ -175,6 +175,43 @@ fn a_right_to_left_caret_walks_left() {
 }
 
 #[test]
+fn a_letter_drawn_by_the_glyph_before_it_shares_that_glyphs_caret_stops() {
+    let text = "سلام";
+    let cluster = |bytes, x, width| Cluster {
+        bytes,
+        x,
+        width,
+        line: 0,
+        rtl: true,
+    };
+    // As CI's Linux lays it out in Noto: the alef has no advance, the lam draws both.
+    let mut drawn = vec![
+        cluster((6, 8), 45.94, 9.78),
+        cluster((4, 6), 55.72, 0.0),
+        cluster((2, 4), 55.72, 12.2),
+        cluster((0, 2), 67.92, 13.16),
+    ];
+    join_carried(&mut drawn, 0, text);
+    let clusters = Clusters {
+        lines: vec![LineBox {
+            top: 0.0,
+            height: 20.0,
+            bytes: (0, text.len()),
+            rtl: true,
+            clusters: (0, drawn.len()),
+        }],
+        clusters: drawn,
+        stops: boundaries(text),
+    };
+    let xs: Vec<f32> = boundaries(text)
+        .iter()
+        .map(|at| clusters.caret(*at).0)
+        .collect();
+    assert_eq!(clusters.clusters.len(), 3, "the alef joined the lam");
+    assert!(xs.windows(2).all(|w| w[0] > w[1]), "{xs:?}");
+}
+
+#[test]
 fn hindi_thai_and_mixed_direction_text_round_trip() {
     let mut state = asking();
     for (probe, text) in [('न', "नमस्ते दुनिया"), ('ส', "สวัสดีครับ"), ('ש', "abc שלום def")]

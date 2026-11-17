@@ -89,6 +89,7 @@ pub(crate) fn clusters(buffer: &Buffer, text: &str, line_height: f32) -> Cluster
                 }),
             }
         }
+        join_carried(&mut out.clusters, from, text);
         let (start, end) = if first == usize::MAX {
             (base, base)
         } else {
@@ -112,6 +113,30 @@ pub(crate) fn clusters(buffer: &Buffer, text: &str, line_height: f32) -> Cluster
         });
     }
     out
+}
+
+/// A letter with no advance is drawn by the glyph before it, as Noto's Arabic
+/// draws lam-alef: it joins that cluster, so its caret stop is shared out.
+fn join_carried(clusters: &mut Vec<Cluster>, from: usize, text: &str) {
+    let mut at = from;
+    while at < clusters.len() {
+        let c = clusters[at];
+        let letter = text
+            .get(c.bytes.0..c.bytes.1)
+            .is_some_and(|s| s.chars().any(char::is_alphabetic));
+        let host = (c.width <= 0.0 && letter)
+            .then(|| {
+                (from..clusters.len())
+                    .find(|&i| clusters[i].bytes.1 == c.bytes.0 && clusters[i].rtl == c.rtl)
+            })
+            .flatten();
+        if let Some(host) = host {
+            clusters[host].bytes.1 = c.bytes.1;
+            clusters.remove(at);
+        } else {
+            at += 1;
+        }
+    }
 }
 
 /// A text laid out for editing: the glyphs a label would draw for it, and
