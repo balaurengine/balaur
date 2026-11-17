@@ -172,11 +172,8 @@ fn label_width(
     } else {
         0.0
     };
-    // A wrapping block takes the room; a truncating line takes its column, so
-    // the shaper knows where to cut. Neither is the other.
-    // A truncating line is cut where it runs past its column by more than
-    // the half pixel a layout's sums can leave it short (a title laid out at
-    // 99.9 for its 99.94), as `caption_room` and `elided` allow.
+    // A wrapping block takes the room; a truncating line its column, cut only
+    // past its `SLACK`, as `caption_room` and `elided` allow.
     let width = if widget.wrap {
         Some(room.max(1.0))
     } else if widget.truncate && stated > 0.0 {
