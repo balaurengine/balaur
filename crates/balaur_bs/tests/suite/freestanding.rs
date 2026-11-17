@@ -1,8 +1,11 @@
 // The C a native build compiles includes no header and calls no library: its
 // object needs no symbol from outside, and it answers every call as wasmi does.
 
+use crate::programs::corpus::native::{kept, run, version};
 use balaur_bs::runtime::{EngineKind, HostFns, Limits, Runtime, Value, load_native};
 use balaur_bs::{Compiled, Options, compile};
+use std::path::PathBuf;
+use std::process::Command;
 
 const SRC: &str = r#"
 pub fn floors(x: float) -> float { math::floor(x) }
@@ -17,63 +20,44 @@ pub fn bits(a: int, b: int) -> int { a & b ^ (a | ~b) ^ a << b ^ a >> b }
 "#;
 
 // Under GCC the prelude takes setjmp from the C library, so only clang builds
-// it needing nothing.
-fn clang(cc: &str) -> bool {
-    std::process::Command::new(cc)
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("clang"))
+// it needing nothing: `clang` by name, else `$CC` or `cc` when it is clang.
+fn clang() -> Option<(String, String)> {
+    let named = std::env::var("CC").into_iter().chain(["cc".to_string()]);
+    std::iter::once("clang".to_string())
+        .chain(named)
+        .find_map(|cc| Some((cc.clone(), version(&cc).filter(|v| v.contains("clang"))?)))
 }
 
-fn build_bare(c: &Compiled) -> Option<std::path::PathBuf> {
-    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".into());
-    if !clang(&cc) {
-        return None;
-    }
-    let dir = std::env::temp_dir().join(format!("balaur-bare-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let (source, obj, lib) = (
-        dir.join("scripts.c"),
-        dir.join("scripts.o"),
-        dir.join("scripts.lib"),
-    );
-    std::fs::write(
-        &source,
-        balaur_bs::c::translate(&[c.wasm.as_slice()]).unwrap(),
-    )
+const BARE: [&str; 8] = [
+    "-O2",
+    "-ffreestanding",
+    "-fno-math-errno",
+    "-fno-stack-protector",
+    "-ffp-contract=off",
+    "-fPIC",
+    "-w",
+    "-c",
+];
+
+fn build_bare(c: &Compiled, cc: &str, version: &str) -> PathBuf {
+    let source = balaur_bs::c::translate(&[c.wasm.as_slice()]).unwrap();
+    let obj = kept(&[cc, version, &BARE.join(" "), &source], "o", |out| {
+        let file = out.with_extension("c");
+        std::fs::write(&file, &source).map_err(|e| e.to_string())?;
+        let built = run(Command::new(cc).args(BARE).arg("-o").arg(out).arg(&file));
+        let _ = std::fs::remove_file(&file);
+        built.map(|_| ())
+    })
     .unwrap();
-    let run = |cmd: &mut std::process::Command| {
-        let out = cmd.output().unwrap();
-        assert!(
-            out.status.success(),
-            "{}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-        String::from_utf8_lossy(&out.stdout).into_owned()
-    };
-    run(std::process::Command::new(&cc)
-        .args([
-            "-O2",
-            "-ffreestanding",
-            "-fno-math-errno",
-            "-fno-stack-protector",
-            "-ffp-contract=off",
-            "-fPIC",
-            "-w",
-            "-c",
-            "-o",
-        ])
-        .arg(&obj)
-        .arg(&source));
     // Apple's linker refuses a dylib without libSystem, so the object is what
     // shows the build needs nothing.
-    let needs = run(std::process::Command::new("nm").arg("-u").arg(&obj));
+    let needs = run(Command::new("nm").arg("-u").arg(&obj)).unwrap();
     assert_eq!(needs.trim(), "", "the C calls outside itself");
-    run(std::process::Command::new(&cc)
-        .args(["-shared", "-o"])
-        .arg(&lib)
-        .arg(&obj));
-    Some(lib)
+    let named = obj.display().to_string();
+    kept(&[cc, version, "-shared", &named], "lib", |out| {
+        run(Command::new(cc).arg("-shared").arg("-o").arg(out).arg(&obj)).map(|_| ())
+    })
+    .unwrap()
 }
 
 fn bits(r: &Result<Value, balaur_bs::runtime::RunError>) -> Option<u64> {
@@ -86,10 +70,12 @@ fn bits(r: &Result<Value, balaur_bs::runtime::RunError>) -> Option<u64> {
 
 #[test]
 fn a_build_linked_against_nothing_answers_as_wasmi_does() {
-    let c = compile(SRC, &Options::default()).unwrap();
-    let Some(lib) = build_bare(&c) else {
+    let Some((cc, version)) = clang() else {
+        eprintln!("no clang here; the bare build is not exercised");
         return;
     };
+    let c = compile(SRC, &Options::default()).unwrap();
+    let lib = build_bare(&c, &cc, &version);
     assert_eq!(load_native(&lib), Ok(1));
     let on = |engine| {
         let limits = Limits {

@@ -319,7 +319,7 @@ fn an_articulation_refuses_a_break_threshold() {
 // another key rebuilds the joint with: the ball stays held up after it.
 #[test]
 fn a_script_limit_and_motor_survive_a_patch_of_another_key() {
-    crate::joints_and_characters::run_clean(
+    crate::joints_and_characters::run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -369,6 +369,7 @@ impl Scenario {
         if self.ticks == 110 {
             let y = self.node.transform.position.y;
             if y <= -0.3 { log::error("the patch rebuilt the joint without the script's limit: y is {y}"); }
+            log::error("checked");
         }
     }
 }

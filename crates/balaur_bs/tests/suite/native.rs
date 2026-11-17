@@ -2,42 +2,19 @@
 // iOS export does with Xcode's: each must answer exactly what wasmi does.
 
 use balaur_bs::runtime::{
-    Command, EngineKind, HostFns, Limits, Object, Reentry, RunError, Runtime, Value, load_native,
+    Command, EngineKind, HostFns, Limits, Object, Reentry, RunError, Runtime, Value,
 };
 use balaur_bs::{Compiled, Options, compile};
 use std::cell::RefCell;
-use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
-static BUILT: AtomicUsize = AtomicUsize::new(0);
-
-/// `modules` as one native library, loaded.
+/// `modules` as native code, loaded.
 pub(super) fn build(modules: &[&Compiled]) {
     let wasm: Vec<&[u8]> = modules.iter().map(|c| c.wasm.as_slice()).collect();
-    let c = balaur_bs::c::translate(&wasm).unwrap_or_else(|e| panic!("{e}"));
-    let dir = std::env::temp_dir().join(format!(
-        "balaur-native-{}-{}",
-        std::process::id(),
-        BUILT.fetch_add(1, Ordering::Relaxed)
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    let source = dir.join("scripts.c");
-    std::fs::write(&source, &c).unwrap();
-    let lib: PathBuf = dir.join("scripts.lib");
-    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".into());
-    let out = std::process::Command::new(cc)
-        .args(["-O2", "-ffp-contract=off", "-fPIC", "-shared", "-w", "-o"])
-        .arg(&lib)
-        .arg(&source)
-        .output()
-        .expect("a C compiler");
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
+    assert_eq!(
+        crate::programs::corpus::native::load(&wasm),
+        Ok(modules.len())
     );
-    assert_eq!(load_native(&lib), Ok(modules.len()));
 }
 
 fn on(engine: EngineKind, c: &Compiled, host: HostFns) -> Runtime {

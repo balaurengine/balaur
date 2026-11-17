@@ -93,7 +93,11 @@ fn booted(scene_text: &str) -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene_text).unwrap();
     std::fs::write(dir.path().join("scripts/counter.bs"), COUNTER).unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     (dir, app)
 }

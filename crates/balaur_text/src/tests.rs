@@ -17,6 +17,21 @@ fn asking() -> TextState {
     TextState::over(ProjectFonts::new(&faces(), "en-US").with_system_fonts())
 }
 
+/// Whether a face on this machine covers `c`. Off CI a machine without one
+/// skips the test. CI installs a face for every script these tests shape, so a
+/// missing one there fails instead of passing having shaped nothing.
+pub(crate) fn covered(state: &mut TextState, c: char) -> bool {
+    let covered = state.covers(c);
+    assert!(
+        covered || std::env::var_os("CI").is_none(),
+        "no face covers {c:?} on a CI runner"
+    );
+    if !covered {
+        eprintln!("skipped: no face covers {c:?} on this machine");
+    }
+    covered
+}
+
 fn shape(text: &str, width: Option<f32>) -> (TextState, Shaped) {
     let mut state = asking();
     let mut request = Request::new(text, 20.0);
@@ -58,8 +73,7 @@ fn a_character_no_project_face_draws_takes_up_the_face_the_system_picks() {
     assert_eq!(tofu.quads[0].uv, tofu.quads[1].uv);
     let mut state = asking();
     let before = state.generation();
-    if !state.covers('日') {
-        eprintln!("skipped: no Han face on this machine");
+    if !covered(&mut state, '日') {
         return;
     }
     assert_ne!(state.generation(), before, "egui never hears of the face");
@@ -228,8 +242,7 @@ fn a_width_breaks_a_long_line_into_more_than_one() {
 #[test]
 fn hebrew_runs_right_to_left_when_a_face_covers_it() {
     let (mut state, shaped) = shape("שלום", None);
-    if !state.covers('ש') {
-        eprintln!("skipped: no Hebrew face on this machine");
+    if !covered(&mut state, 'ש') {
         return;
     }
     assert_eq!(shaped.quads.len(), 4);
@@ -240,8 +253,7 @@ fn hebrew_runs_right_to_left_when_a_face_covers_it() {
 #[test]
 fn arabic_letters_join_into_contextual_forms_when_a_face_covers_it() {
     let (mut state, joined) = shape("سلام", None);
-    if !state.covers('س') {
-        eprintln!("skipped: no Arabic face on this machine");
+    if !covered(&mut state, 'س') {
         return;
     }
     let (_, isolated) = shape("س ل ا م", None);

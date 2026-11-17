@@ -23,7 +23,11 @@ fn text_after(body: &str) -> Option<toml::Value> {
         ),
     )
     .unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
     let node = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Scenario")?;
@@ -197,7 +201,11 @@ impl Scenario {
     )
     .unwrap();
     std::fs::write(dir.path().join("scripts/scenario.bs"), script).unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
     let node =

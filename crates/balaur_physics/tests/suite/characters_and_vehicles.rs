@@ -7,12 +7,12 @@ use balaur_core::scene::{self, Transform};
 use balaur_core::{App, components, snapshot};
 use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
-use crate::joints_and_characters::run_clean;
+use crate::joints_and_characters::run_checked;
 
 /// A world with a wall two units along x, its collider table `wall`, and a
 /// player whose `character3d` table is `character`, walking into it.
 fn walk(wall: &str, collider: &str, character: &str, expect: &str) {
-    run_clean(
+    run_checked(
         &format!(
             r#"[[nodes]]
 id = "n_world"
@@ -54,6 +54,7 @@ impl Scenario {{
         if self.ticks == 110 {{
             let x = self.node.transform.position.x;
             {expect}
+            log::error(\"checked\");
         }}
     }}
 }}
@@ -99,7 +100,7 @@ fn a_character_passes_the_body_kinds_and_solids_its_filter_leaves_out() {
 // A second collider on the character's own body, out in front of it, must not stop its moves.
 #[test]
 fn a_character_never_meets_its_own_body() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_player"
 name = "Player"
@@ -131,6 +132,7 @@ impl Scenario {
         if self.ticks == 60 {
             let x = self.node.transform.position.x;
             if x <= 3.0 { log::error("the character's own collider stopped it: x is {x}"); }
+            log::error("checked");
         }
     }
 }
@@ -140,7 +142,7 @@ impl Scenario {
 
 #[test]
 fn a_2d_character_walks_through_a_sensor() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -177,6 +179,7 @@ impl Scenario {
         if self.ticks == 110 {
             let x = self.node.transform.position.x;
             if x <= 3.0 { log::error("the 2D character stopped at a sensor: x is {x}"); }
+            log::error("checked");
         }
     }
 }

@@ -76,19 +76,31 @@ fn an_unobserved_or_freed_node_hears_nothing() {
     let (app, _, ship, mast) = tree();
     let heard = Heard::default();
     let heard_too = heard.clone();
-    let id = events::observe(&app.engine, "hit", Some(ship), move |_, _| {
-        heard_too
-            .borrow_mut()
-            .push(("ship".into(), Entity::DANGLING, Entity::DANGLING));
-    });
+    let id = events::observe(
+        &app.engine,
+        "hit",
+        Some(ship),
+        move |_, event: &Observed<'_>| {
+            heard_too
+                .borrow_mut()
+                .push(("gone".into(), event.target, event.at));
+        },
+    );
+    listen(&app.engine, &heard, "kept", "hit", Some(ship));
     events::unobserve(&app.engine, id);
     events::announce(&app.engine, ship, "hit", Value::Nil);
-    assert!(heard.borrow().is_empty());
+    assert_eq!(*heard.borrow(), vec![("kept".into(), ship, ship)]);
+    heard.borrow_mut().clear();
     listen(&app.engine, &heard, "mast", "hit", Some(mast));
     balaur_core::scene::free_node(&app.engine, mast);
     let again = app.engine.spawn_node("Mast", ship);
+    listen(&app.engine, &heard, "any", "hit", None);
     events::announce(&app.engine, again, "hit", Value::Nil);
-    assert!(heard.borrow().is_empty(), "a new node is not the freed one");
+    assert_eq!(
+        *heard.borrow(),
+        vec![("any".into(), again, again)],
+        "a new node is not the freed one"
+    );
 }
 
 #[test]

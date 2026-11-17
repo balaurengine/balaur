@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use super::{delete_account, run_with_addon, sign_in, tag};
+use crate::gamend::{delete_account, run_with_addon, sign_in, tag};
 
 const FLOWS: &str = include_str!("flows.bs");
 
@@ -33,7 +33,7 @@ impl Drop for Leftovers {
 /// Run one flow and hold its report to `steps`, each `name=status` or a
 /// check's `name=yes`.
 fn run_flow(flow: &str, with_b: bool, steps: &[&str]) {
-    let Some((server, _turn)) = super::server() else {
+    let Some(server) = crate::gamend::server() else {
         return;
     };
     let tag = tag();

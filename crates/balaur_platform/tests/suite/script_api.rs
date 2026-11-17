@@ -4,13 +4,10 @@
 //! No store is loaded here, which is the case worth proving: a script written
 //! against `platform.*` has to keep running on a machine that has none.
 
-use balaur_testkit::{e2e_enabled, run_until};
+use balaur_testkit::run_until;
 
 #[test]
 fn a_script_awaits_one_call_after_another() {
-    if !e2e_enabled() {
-        return;
-    }
     run_until(
         r#"
 pub class Scenario { node: Node }
@@ -36,9 +33,6 @@ impl Scenario {
 
 #[test]
 fn a_script_reads_the_player_before_a_sign_in_has_landed() {
-    if !e2e_enabled() {
-        return;
-    }
     run_until(
         r#"
 pub class Scenario { node: Node }
@@ -56,9 +50,6 @@ impl Scenario {
 
 #[test]
 fn every_call_answers_an_id_to_await_and_a_row_reads_as_its_record() {
-    if !e2e_enabled() {
-        return;
-    }
     run_until(
         r#"
 pub class Scenario { node: Node }

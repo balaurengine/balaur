@@ -5,5 +5,5 @@ pub fn unwrapped(k: int) -> int {
     x.unwrap()
 }
 
-// expect: unwrapped(0) traps
+// expect: unwrapped(0) traps unreachable
 // expect: unwrapped(3) == 3

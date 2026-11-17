@@ -99,7 +99,11 @@ fn said(app: &balaur::App) -> Option<String> {
 #[test]
 fn a_project_extension_is_loaded_and_reachable_from_a_script() {
     let dir = project(true);
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
 
     assert_eq!(
@@ -117,7 +121,11 @@ fn a_project_without_extensions_still_boots() {
         "pub class Root { node: Node }\n",
     )
     .unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
 }
@@ -127,7 +135,11 @@ fn a_project_without_extensions_still_boots() {
 #[test]
 fn an_extension_survives_many_frames() {
     let dir = project(true);
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     for _ in 0..60 {
         app.tick(1.0 / 60.0);

@@ -49,6 +49,18 @@ pub(crate) fn project_with(scene: &str, script: &str, files: &[(&str, &str)]) ->
     }
 }
 
+/// The error a script logs after its last check, so a check that never ran
+/// fails its test rather than passing it.
+pub(crate) const CHECKED: &str = "checked";
+
+/// Fails unless `errors` holds the [`CHECKED`] line and nothing else.
+pub(crate) fn assert_checked(errors: &[String]) {
+    assert!(
+        errors.len() == 1 && errors[0].starts_with(CHECKED),
+        "the checks did not run clean: {errors:#?}"
+    );
+}
+
 /// Every error logged since the project booted, with its fields.
 pub(crate) fn errors() -> Vec<String> {
     balaur_core::logbuf::heard()

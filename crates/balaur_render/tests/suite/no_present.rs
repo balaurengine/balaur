@@ -154,7 +154,6 @@ fn run() -> (Option<Seen>, Option<Seen>) {
 #[test]
 fn a_window_that_cannot_present_keeps_its_layout_and_hears_a_dialog_shut() {
     if !crate::film::gpu_present() {
-        eprintln!("skipped: no GPU adapter");
         return;
     }
     let (before, after) = run();

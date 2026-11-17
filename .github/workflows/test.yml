@@ -1,7 +1,8 @@
 name: Test
 
 # Everything that actually runs the engine. Static checks are in lint.yml,
-# documentation in docs.yml, and anything producing a download in build.yml.
+# documentation in docs.yml, anything producing a download in build.yml, and
+# the checks too long for every push in scheduled.yml.
 
 on:
   # Runs from .github/workflows/runner.yml, which owns the triggers; kept
@@ -14,14 +15,6 @@ env:
   # No RUSTFLAGS here: it replaces .cargo/config.toml's wholesale, dropping
   # the Swift rpath. Warnings are lint.yml's, where clippy denies them.
 
-  # The cargo e2e suites (full app boots over real sockets) gate on this so
-  # a plain local `cargo test` skips them; CI always runs everything.
-  BALAUR_E2E: "1"
-
-concurrency:
-  group: test-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   # On all three desktop platforms, because platform code is where the engine
   # actually differs: path handling, the macOS dock-icon path, and the windowed
@@ -32,14 +25,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          # The hosted Linux and Windows runners have no GPU, so the tests
+          # that draw are left out there and counted skipped.
+          - os: ubuntu-latest
+            gamend: true
+            filter: 'not (package(balaur_render) & test(/^(film|mirror|no_present)::/))'
+          - os: macos-latest
+            gamend: true
+            filter: 'all()'
+          # Gamend's CLI has no Windows build, so the live suites stay out too.
+          - os: windows-latest
+            gamend: false
+            filter: 'not (package(balaur_render) & test(/^(film|mirror|no_present)::/)) & not (package(balaur) & test(/^gamend::live::/))'
+    env:
+      BALAUR_E2E: ${{ matrix.gamend && '1' || '0' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
       # Audio and input for the headless build; X11/Wayland/xkb for the
-      # windowed one, which links winit.
+      # windowed one, which links winit. The fonts cover every script the text
+      # tests shape, which fail on CI where no face covers one.
       - name: Linux build deps
         if: runner.os == 'Linux'
         run: |
@@ -51,17 +59,22 @@ jobs:
             libasound2-dev libudev-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
             libxkbcommon-dev libwayland-dev \
-            lld
+            lld fonts-noto-core fonts-droid-fallback
+      # Saved on a red run too: main is red often enough that a cache saved
+      # only on green was evicted before the next run could read it.
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@nextest
-      # The local Gamend on port 4000 the live suites talk to. Its CLI has no
-      # Windows build, so Windows skips them.
+          cache-on-failure: true
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest@0.9.152
+      # The server the live suites talk to on port 4000. The addon they drive
+      # is generated against Gamend's main, which `server-latest` follows.
       - name: Start a Gamend server
         id: gamend
-        if: runner.os != 'Windows'
-        uses: appsinacup/gamend/actions/setup-gamend@main
+        if: matrix.gamend
+        uses: appsinacup/gamend/actions/setup-gamend@03125d597f47934671ed26d1a5cfb55cbd20e6be
         with:
           env: |
             GAMEND_CLIENT_LOGS_ENABLED=true
@@ -69,18 +82,20 @@ jobs:
             GAMEND_RATELIMIT_GENERAL_LIMIT=1200
       # Every demo set at its default size; the action's `seed` runs only with arguments.
       - name: Seed it
-        if: runner.os != 'Windows'
+        if: matrix.gamend
         working-directory: ${{ steps.gamend.outputs.project }}
         run: gamend demo.seed
-      # A process per test, run in parallel, rather than one binary at a time.
-      # nextest has no doctest runner, so those stay with cargo.
+      # A process per test, run in parallel; the ci profile adds the live
+      # suites and writes JUnit for the run's summary.
       - name: Unit and integration tests
         shell: bash
-        env:
-          BALAUR_E2E_GAMEND: ${{ runner.os == 'Windows' && '0' || '1' }}
-        run: |
-          cargo suite --no-fail-fast
-          cargo test --workspace --doc
+        run: cargo suite --profile ci --no-fail-fast -E '${{ matrix.filter }}'
+      - name: Upload the test report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-${{ matrix.os }}
+          path: target/nextest/ci/junit.xml
       # A 500 from the server says only that something raised; its log says what.
       - name: The Gamend server's log, when the tests failed
         if: failure() && steps.gamend.outcome == 'success'
@@ -90,25 +105,25 @@ jobs:
       # hold, compiled with warnings as errors. Scripts compile the same on
       # every platform, so one runner is enough.
       - name: Every script checked
-        if: runner.os == 'Linux'
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
         shell: bash
         run: ./scripts/check_scripts.sh
       # The editor's scripts built to C as an export builds a game's, beside
       # the binary, and the editor's own states run on them: every script as
       # native code, every state clean. lld links it; clang is the image's.
       - name: The editor as native code
-        if: runner.os == 'Linux'
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
         shell: bash
         run: ./scripts/editor_native.sh
       # The same corpus on the browser's own WebAssembly engine, beside wasmi,
       # in Node. The runner's version is the `wasm-bindgen` in Cargo.lock.
       # Node refuses code from strings, as the site's content policy does.
       - uses: taiki-e/install-action@v2
-        if: runner.os == 'Linux'
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
         with:
           tool: wasm-bindgen@0.2.129
       - name: Scripts on the browser's engine
-        if: runner.os == 'Linux'
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
         shell: bash
         env:
           CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
@@ -116,71 +131,49 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           cargo test -p balaur_bs --target wasm32-unknown-unknown --features web --test web
-      # Extensions are off by default, so `--workspace` above never builds the
+      # Extensions are off by default, so the suite above never builds the
       # dlopen path, the cdylib, or the tests that load one at run time.
       - name: Extension tests
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
-          cargo test -p balaur_plugin --features extensions
-          cargo test -p balaur --features extensions
+          cargo nextest run -p balaur_plugin -p balaur --features balaur/extensions \
+            --no-fail-fast -E 'test(/^(extensions?|c_extension)::/)'
       # A build with a subsystem switched off is the point of having features;
-      # nothing else builds or runs one.
+      # nothing else builds or runs one. The code is the same on every OS.
       - name: Without the optional subsystems
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
         shell: bash
         run: |
           cargo build -p balaur_cli --no-default-features
-          cargo test -p balaur_core --no-default-features
-          cargo test -p balaur_physics --no-default-features --features physics2d,physics3d
+          cargo nextest run -p balaur_core --no-default-features --no-fail-fast
+          cargo nextest run -p balaur_physics --no-default-features --features physics2d,physics3d --no-fail-fast
+      # The promise is that one binary reproduces a simulation everywhere: if
+      # the sources do not rebuild the same binary, a divergence cannot be
+      # bisected. The build above is the first of its two.
+      - name: The same sources build the same binary
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        run: ./scripts/reproducible_build.sh
       # Whether two CPUs stepped the same physics: this records it and the
       # simulation job diffs.
       - name: Determinism — record the per-tick digest trace
+        if: ${{ !cancelled() }}
         shell: bash
         run: ./scripts/determinism_trace.sh record target/determinism
       - name: Upload determinism traces
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: traces-${{ matrix.os }}
           path: target/determinism/traces.txt
 
-
-  # The Balaur Script compiler's fuzz targets, twenty minutes each, seeded from
-  # the corpus (docs/PLAN-script-tests.md); a find is uploaded as a program.
-  script:
-    name: balaur script tests · ${{ matrix.target }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [compile, run]
-    steps:
-      - uses: actions/checkout@v7
-      - name: Nightly, for libFuzzer's instrumentation
-        run: rustup toolchain install nightly --profile minimal
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-fuzz
-      - name: Seed from the corpus
-        run: |
-          mkdir -p crates/balaur_bs/fuzz/corpus/${{ matrix.target }}
-          find crates/balaur_bs/tests/programs -name '*.bs' \
-            -exec cp {} crates/balaur_bs/fuzz/corpus/${{ matrix.target }}/ \;
-      - name: Fuzz
-        working-directory: crates/balaur_bs
-        # The prebuilt cargo-fuzz defaults to its own musl target, which the
-        # sanitizer refuses; the runner's glibc one is named.
-        run: cargo +nightly fuzz run ${{ matrix.target }} --target x86_64-unknown-linux-gnu -- -max_total_time=1200
-      - name: What it found
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: fuzz-${{ matrix.target }}
-          path: crates/balaur_bs/fuzz/artifacts
-
   # The multi-platform half of the determinism promise: same sources, same
-  # simulation. A failure here names the tick two platforms parted on.
+  # simulation. A failure here names the tick two platforms parted on, and a
+  # platform whose trace is missing fails it too.
   simulation-matches:
     name: every platform steps the same simulation
     needs: test
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -189,84 +182,4 @@ jobs:
           pattern: traces-*
           path: traces
       - name: Compare
-        run: ./scripts/determinism_trace.sh compare traces
-
-  # The promise is that one binary reproduces a simulation everywhere. If the
-  # binary is not reproducible from one runner's own sources, that promise is
-  # not testable and a divergence cannot be bisected.
-  reproducible-build:
-    name: the same sources build the same binary
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Linux build deps
-        run: |
-          # The image's Chrome and Microsoft repos, which nothing here installs
-          # from: a hash mismatch in one fails the whole `apt-get update`.
-          sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev libudev-dev
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Build twice, compare
-        run: ./scripts/reproducible_build.sh
-
-  # What the tests actually reach, reported rather than gated: a threshold is
-  # a number people write tests against, and nothing here should turn red
-  # because a well-tested change moved a percentage.
-  coverage:
-    name: line coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      # The same set the test job takes.
-      - name: Linux build deps
-        run: |
-          # The image's Chrome and Microsoft repos, which nothing here installs
-          # from: a hash mismatch in one fails the whole `apt-get update`.
-          sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
-          sudo apt-get update
-          sudo apt-get install -y \
-            libasound2-dev libudev-dev \
-            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      # Prebuilt, as with nextest above: `cargo install` rebuilt the coverage
-      # tool from source every run, for 2m35s of the job's clock.
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
-      # rust-toolchain.toml pins only rustfmt and clippy.
-      - name: llvm-tools
-        run: rustup component add llvm-tools-preview
-      # The test job's server, so the live suites count here too.
-      - name: Start a Gamend server
-        id: gamend
-        uses: appsinacup/gamend/actions/setup-gamend@main
-        with:
-          env: |
-            GAMEND_CLIENT_LOGS_ENABLED=true
-            GAMEND_RATELIMIT_AUTH_LIMIT=60
-            GAMEND_RATELIMIT_GENERAL_LIMIT=1200
-      - name: Seed it
-        working-directory: ${{ steps.gamend.outputs.project }}
-        run: gamend demo.seed
-      - name: Measure
-        run: ./scripts/coverage.sh
-      - name: The Gamend server's log, when the tests failed
-        if: failure() && steps.gamend.outcome == 'success'
-        working-directory: ${{ steps.gamend.outputs.project }}
-        run: tail -n 300 .gamend/tmp/log/erlang.log.*
-      # Per crate, in the run summary, because one workspace percentage is
-      # mostly a weighted average of balaur_core and balaur_render.
-      - name: Summarise
-        run: |
-          python3 scripts/coverage_report.py --markdown target/coverage/lcov.info \
-            >>"$GITHUB_STEP_SUMMARY"
-      - name: Upload lcov
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-lcov
-          path: target/coverage/lcov.info
+        run: ./scripts/determinism_trace.sh compare traces 3

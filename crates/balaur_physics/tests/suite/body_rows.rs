@@ -240,7 +240,7 @@ impl Scenario {
         let n = self.node;
         [n.body3d.is_ccd_active(), n.body3d.world_center_of_mass(), n.body3d.local_center_of_mass(), n.body3d.total_inertia(),
          n.body3d.total_inertia_rotation(), n.body3d.effective_mass(), n.body3d.effective_angular_inertia(),
-         n.body3d.time_since_can_sleep(), n.body3d.predict_position(0.5), n.body3d.next_position(), true]
+         n.body3d.predict_position(0.5), true]
     }
 }
 ",
@@ -254,7 +254,7 @@ impl Scenario {
         [v[0] as f32, v[1] as f32, v[2] as f32]
     };
     let near = |a: [f32; 3], b: [f32; 3]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-4);
-    assert_eq!(found[10], balaur_script::Value::Bool(true), "the probe ran");
+    assert_eq!(found[8], balaur_script::Value::Bool(true), "the probe ran");
     assert_eq!(
         found[0],
         balaur_script::Value::Bool(false),
@@ -277,13 +277,11 @@ impl Scenario {
         (trace - 6.0).abs() < 1e-3,
         "the world inertia's trace is {trace}"
     );
-    assert!(number(&found[7]) >= 0.0);
-    let turned = vec3(entry(&found[8], "rotation"));
+    let turned = vec3(entry(&found[7], "rotation"));
     assert!(
         near(turned, [0.0, 0.0, 0.5]),
         "half a second at one radian a second turned it {turned:?}"
     );
-    assert!(near(vec3(entry(&found[9], "rotation")), [0.0, 0.0, 0.0]));
 }
 
 #[test]
@@ -343,7 +341,7 @@ impl Scenario {
     pub fn probe() -> [any] {
         let n = self.node;
         [n.body2d.is_ccd_active(), n.body2d.world_center_of_mass(), n.body2d.local_center_of_mass(), n.body2d.total_inertia(),
-         n.body2d.effective_mass(), n.body2d.effective_angular_inertia(), n.body2d.time_since_can_sleep(),
+         n.body2d.effective_mass(), n.body2d.effective_angular_inertia(),
          n.body2d.predict_position(0.5), n.body2d.predict_position_with_forces(0.5), true]
     }
 }
@@ -358,7 +356,7 @@ impl Scenario {
         let v = boot::vector(value);
         [v[0] as f32, v[1] as f32]
     };
-    assert_eq!(found[9], balaur_script::Value::Bool(true), "the probe ran");
+    assert_eq!(found[8], balaur_script::Value::Bool(true), "the probe ran");
     assert_eq!(found[0], balaur_script::Value::Bool(false));
     let centre = vec2(&found[1]);
     assert!(
@@ -369,13 +367,112 @@ impl Scenario {
     assert!((number(&found[3]) - 3.0).abs() < 1e-4);
     assert_eq!(vec2(&found[4]), [2.0, 0.0], "a locked axis has mass");
     assert!(number(&found[5]) > 0.0);
-    let coasting = vec2(entry(&found[7], "position"));
-    let pushed = vec2(entry(&found[8], "position"));
+    let coasting = vec2(entry(&found[6], "position"));
+    let pushed = vec2(entry(&found[7], "position"));
     assert!(
         pushed[0] > coasting[0] + 1e-3,
         "the force moved nothing: {pushed:?} against {coasting:?}"
     );
     // One tick at one radian a second, then half a second more.
-    let turned = number(entry(&found[7], "rotation"));
+    let turned = number(entry(&found[6], "rotation"));
     assert!((turned - (0.5 + 1.0 / 60.0)).abs() < 1e-3, "{turned}");
+}
+
+const STILL_AND_SPINNING: &str = r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
+id = "n_still3d"
+name = "Still3d"
+parent = "n_world"
+script = { source = "scripts/scenario.bs" }
+body3d = { kind = "dynamic", gravity_scale = 0.0 }
+collider3d = { shape = { kind = "sphere", radius = 0.5 } }
+
+[[nodes]]
+id = "n_spinning3d"
+name = "Spinning3d"
+parent = "n_world"
+script = { source = "scripts/scenario.bs" }
+transform = { position = [4.0, 0.0, 0.0] }
+body3d = { kind = "dynamic", gravity_scale = 0.0, initial_angular_velocity = [0.0, 0.0, 1.0] }
+collider3d = { shape = { kind = "sphere", radius = 0.5 } }
+
+[[nodes]]
+id = "n_still2d"
+name = "Still2d"
+parent = "n_world"
+script = { source = "scripts/scenario.bs" }
+body2d = { kind = "dynamic", gravity_scale = 0.0 }
+collider2d = { shape = { kind = "circle", radius = 0.5 } }
+
+[[nodes]]
+id = "n_spinning2d"
+name = "Spinning2d"
+parent = "n_world"
+script = { source = "scripts/scenario.bs" }
+transform = { position = [4.0, 0.0, 0.0] }
+body2d = { kind = "dynamic", gravity_scale = 0.0, initial_angular_velocity = 1.0 }
+collider2d = { shape = { kind = "circle", radius = 0.5 } }
+"#;
+
+/// A quarter of a second of steps, short of the half-second `time_to_sleep`
+/// after which a still body sleeps and its clock stops.
+const STEPS: usize = 15;
+
+// rapier's clock runs while a body stays below its sleep threshold and goes
+// back to zero while it moves; the next pose is where the last step left it.
+#[test]
+fn a_still_body_counts_the_time_it_could_sleep_and_a_spinning_one_turns() {
+    let mut booted = boot::project(
+        STILL_AND_SPINNING,
+        r#"pub class Scenario { node: Node }
+impl Scenario {
+    pub fn probe() -> [any] {
+        let n = self.node;
+        if n.has_component("body3d") { return [n.body3d.time_since_can_sleep(), n.body3d.next_position().rotation]; }
+        return [n.body2d.time_since_can_sleep(), n.body2d.next_position().rotation];
+    }
+}
+"#,
+    );
+    booted.tick(STEPS);
+    let elapsed = STEPS as f64 / 60.0;
+    let probe = |name: &str| {
+        let node = booted.node(&format!("World/{name}"));
+        let balaur_script::Value::List(found) = booted.call(node, "probe") else {
+            panic!("{name}'s probe answered no list");
+        };
+        found
+    };
+    for still in ["Still3d", "Still2d"] {
+        let clock = number(&probe(still)[0]);
+        assert!(
+            (clock - elapsed).abs() <= 1.0 / 60.0 + 1e-4,
+            "{still} could sleep for {clock} s of the {elapsed} s it sat still"
+        );
+    }
+    let spun = probe("Spinning3d");
+    let clock = number(&spun[0]);
+    assert!(
+        clock.abs() < 1e-6,
+        "a spinning body counted {clock} s to sleep"
+    );
+    let turned = boot::vector(&spun[1]);
+    assert!(
+        turned[0].abs() < 1e-4 && turned[1].abs() < 1e-4 && (turned[2] - elapsed).abs() < 1e-3,
+        "{STEPS} steps at one radian a second left the next pose turned {turned:?}"
+    );
+    let flat = probe("Spinning2d");
+    let clock = number(&flat[0]);
+    assert!(
+        clock.abs() < 1e-6,
+        "a spinning 2D body counted {clock} s to sleep"
+    );
+    let flat_turn = number(&flat[1]);
+    assert!(
+        (flat_turn - elapsed).abs() < 1e-3,
+        "{STEPS} steps at one radian a second left the next 2D pose turned {flat_turn}"
+    );
 }

@@ -5,7 +5,7 @@
 
 use std::net::TcpListener;
 
-use balaur_testkit::{e2e_enabled, run_until};
+use balaur_testkit::run_until;
 
 /// An echo server for one websocket connection on a fresh port.
 fn serve_echo() -> String {
@@ -34,9 +34,6 @@ fn serve_echo() -> String {
 // A round trip through the default `on_websocket_event` handler.
 #[test]
 fn a_script_opens_echoes_and_closes() {
-    if !e2e_enabled() {
-        return;
-    }
     let echo = serve_echo();
     let source = format!(
         r#"
@@ -66,9 +63,6 @@ impl Scenario {{
 
 #[test]
 fn a_script_sends_and_receives_a_binary_frame() {
-    if !e2e_enabled() {
-        return;
-    }
     let echo = serve_echo();
     let source = format!(
         r#"
@@ -101,9 +95,6 @@ impl Scenario {{
 // the `error` event when nothing listens.
 #[test]
 fn a_script_awaits_connect_until_it_opens_or_fails() {
-    if !e2e_enabled() {
-        return;
-    }
     let echo = serve_echo();
     let nothing = {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();

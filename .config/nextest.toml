@@ -1,12 +1,25 @@
-# nextest runs a process per test across every core, which a wall-clock budget
-# cannot survive: `balaur_bench` asserts frame times, so it takes the machine
-# to itself and measures what the numbers were recorded against.
+# Every test that needs a live Gamend sits in `gamend::live`:
+# a plain run leaves them out and counts them skipped, `--profile ci` runs them.
+[profile.default]
+default-filter = 'not (package(balaur) & test(/^gamend::live::/))'
+
+[profile.ci]
+default-filter = 'all()'
+
+[profile.ci.junit]
+path = 'junit.xml'
+
+# A local Gamend on SQLite runs out of connections when the suite's processes
+# all reach it at once. A group queues them without holding a slot each.
+[test-groups]
+gamend = { max-threads = 1 }
+
 [[profile.default.overrides]]
-filter = 'package(balaur_bench)'
-threads-required = 'num-cpus'
+filter = 'package(balaur) & test(/^gamend::live::/)'
+test-group = 'gamend'
 
 # The tests that take seconds start first, so the rest fill the cores
 # around them rather than leaving one running alone at the end.
 [[profile.default.overrides]]
-filter = 'test(every_program_answers_as_written_on_every_engine) | test(every_target_builds_hello_needing_nothing) | test(random_programs_answer_as_the_reference_interpreter_does) | test(every_engine_function_hovers) | test(units_answer_as_the_whole_file_does)'
+filter = 'test(every_program_answers_as_written_on_every_engine) | test(builds_hello) | test(random_programs_answer_as_the_reference_interpreter_does) | test(every_engine_function_hovers) | test(units_answer_as_the_whole_file_does) | test(a_broken_program_is_an_error_never_a_panic) | test(every_example_in_the_language_chapter_does_what_it_says)'
 priority = 100

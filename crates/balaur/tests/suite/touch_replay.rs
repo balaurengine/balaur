@@ -57,7 +57,11 @@ fn project(dir: &std::path::Path) {
 
 /// A booted game on a 1000 x 600 screen, so the stick sits at (150, 450).
 fn booted(dir: &std::path::Path) -> App {
-    let mut app = standard_app(AppConfig::dev(dir.to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     balaur_core::facts::update_device(&app.engine, |f| {
         f.screen_size = [1000.0, 600.0];

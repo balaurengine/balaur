@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The lint job: fmt, every clippy shape, and the checks that read files.
-# One script owns them, so this and `precommit.sh --lints` cannot drift apart.
+# What the pre-push hook runs: fmt, every clippy shape and the checks that
+# read files, the part of lint.yml this machine can, as `precommit.sh --lints`.
 set -euo pipefail
 exec "$(dirname "$0")/precommit.sh" --lints

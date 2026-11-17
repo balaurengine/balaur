@@ -37,7 +37,11 @@ script = { source = "scripts/runner.bs" }
 
 fn booted(dir: &std::path::Path) -> App {
     balaur::logbuf::capture_for_test();
-    let mut app = standard_app(AppConfig::dev(dir.to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     app
 }

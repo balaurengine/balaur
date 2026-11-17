@@ -42,7 +42,11 @@ fn project(dir: &std::path::Path) {
 }
 
 fn app_in(dir: &std::path::Path) -> App {
-    standard_app(AppConfig::dev(dir.to_string_lossy().as_ref())).unwrap()
+    standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.to_string_lossy().as_ref())
+    })
+    .unwrap()
 }
 
 fn script_path(dir: &std::path::Path) -> String {
@@ -345,7 +349,9 @@ fn waiting_for_a_client_that_never_comes_gives_up_at_the_deadline() {
     let took = started.elapsed();
     assert!(waited.is_err_and(|err| err.to_string().contains("no debugger attached")));
     assert!(took >= patience, "it waited the whole time: {took:?}");
-    assert!(took < patience * 10, "and gave up then: {took:?}");
+    // Far past the patience, so a loaded machine still passes: what fails is a
+    // wait that never ends.
+    assert!(took < patience * 50, "and gave up then: {took:?}");
 }
 
 #[test]

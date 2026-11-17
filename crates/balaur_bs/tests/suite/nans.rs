@@ -89,26 +89,8 @@ fn a_nan_leaves_a_module_as_the_canonical_nan_on_every_engine() {
 #[cfg(all(feature = "c", feature = "native"))]
 #[test]
 fn a_nan_leaves_a_native_build_as_the_canonical_nan() {
-    use balaur_bs::runtime::load_native;
     let c = compile(SRC, &Options::default()).unwrap();
-    let src = balaur_bs::c::translate(&[c.wasm.as_slice()]).unwrap();
-    let dir = std::env::temp_dir().join(format!("balaur-nans-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("scripts.c"), src).unwrap();
-    let lib = dir.join("scripts.lib");
-    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".into());
-    let out = std::process::Command::new(cc)
-        .args(["-O2", "-ffp-contract=off", "-fPIC", "-shared", "-w", "-o"])
-        .arg(&lib)
-        .arg(dir.join("scripts.c"))
-        .output()
-        .expect("a C compiler");
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert_eq!(load_native(&lib), Ok(1));
+    super::native::build(&[&c]);
     every_nan_is_canonical(EngineKind::Native, &c);
 }
 

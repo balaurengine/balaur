@@ -7,13 +7,60 @@ use smol_str::SmolStr;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
+#[cfg(all(feature = "c", feature = "native", not(target_arch = "wasm32")))]
+pub(crate) mod native;
+
 pub(crate) const EXPECT: &str = "// expect: ";
 pub(crate) const ERROR: &str = "// error: ";
 pub(crate) const LIVE: &str = "// live: ";
 
+/// A call's fuel on wasmi, three thousand times what the corpus's hungriest
+/// call burns, so only an endless loop runs out. wasmi runs first; the engines
+/// after it run as a game runs them, unmetered, on what wasmi finished.
+pub(crate) const FUEL: u64 = 1_000_000_000;
+
+/// The trap of a call that ran out of [`FUEL`].
+pub(crate) const OUT_OF_FUEL: &str = "fuel";
+
+/// Each trap a corpus file names, and what each engine's message says for it,
+/// matched against its first line in this order: each engine words its own.
+const TRAPS: [(&str, &[&str]); 8] = [
+    (OUT_OF_FUEL, &["fuel"]),
+    ("stack", &["stack"]),
+    ("divide_by_zero", &["divide by zero", "remainder by zero"]),
+    (
+        "overflow",
+        &["integer overflow", "divide result unrepresentable"],
+    ),
+    (
+        "fn_value",
+        &[
+            "element",
+            "indirect call",
+            "`fn` value",
+            "function signature",
+            "table",
+        ],
+    ),
+    ("memory", &["memory"]),
+    ("conversion", &["conversion", "unrepresentable"]),
+    ("unreachable", &["unreachable"]),
+];
+
+/// The trap `message` says, as a corpus file names it; `None` for a message
+/// no engine writes for a trap of its own.
+pub(crate) fn trap_kind(message: &str) -> Option<&'static str> {
+    let first = message.lines().next().unwrap_or("").to_lowercase();
+    TRAPS
+        .iter()
+        .find(|(_, says)| says.iter().any(|s| first.contains(s)))
+        .map(|(kind, _)| *kind)
+}
+
 pub(crate) enum Want {
     Value(Value),
-    Trap(Option<String>),
+    /// A trap, of the kind named when one is.
+    Trap(Option<&'static str>),
 }
 
 pub(crate) struct Check {
@@ -97,6 +144,19 @@ pub(crate) fn run(
                         "{name}: {engine_name} left {live} objects alive, want {want}"
                     ));
                 }
+                // The engines after wasmi have no fuel and would never end the loop.
+                let endless =
+                    p.expected.checks.iter().zip(&outcomes).find(|(_, o)| {
+                        o.as_ref().is_err_and(|e| trap_kind(e) == Some(OUT_OF_FUEL))
+                    });
+                if let Some((check, _)) = endless {
+                    failures.push(format!(
+                        "{name}:{} `{}`: {engine_name} ran out of fuel; the later engines did not run",
+                        check.line + 1,
+                        check.call
+                    ));
+                    return;
+                }
                 runs.push((engine_name, outcomes));
             }
             Err(e) => failures.push(format!("{name}: {engine_name}: {e}")),
@@ -119,7 +179,7 @@ pub(crate) fn run(
         let met = match (&check.want, &first[i]) {
             (Want::Value(want), Ok(got)) => same(want, got),
             (Want::Trap(None), Err(_)) => true,
-            (Want::Trap(Some(text)), Err(msg)) => msg.contains(text.as_str()),
+            (Want::Trap(kind), Err(msg)) => trap_kind(msg) == *kind,
             _ => false,
         };
         if !met && !bless {
@@ -132,10 +192,9 @@ pub(crate) fn run(
     }
     if bless {
         for (check, outcome) in p.expected.checks.iter_mut().zip(first) {
-            check.want = match (outcome, &check.want) {
-                (Ok(v), _) => Want::Value(v.clone()),
-                (Err(_), Want::Trap(text)) => Want::Trap(text.clone()),
-                (Err(_), Want::Value(_)) => Want::Trap(None),
+            check.want = match outcome {
+                Ok(v) => Want::Value(v.clone()),
+                Err(msg) => Want::Trap(trap_kind(msg)),
             };
         }
     }
@@ -158,6 +217,39 @@ pub(crate) fn engines() -> Vec<(&'static str, EngineKind)> {
     ]
 }
 
+/// `each` over `items` on every core, each worker taking the next item left,
+/// and what each gave in the items' order.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn on_every_core<T: Send, R: Send>(
+    items: &mut [T],
+    each: impl Fn(&mut T) -> R + Sync,
+) -> Vec<R> {
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let slots: Vec<Mutex<(&mut T, Option<R>)>> = items
+        .iter_mut()
+        .map(|item| Mutex::new((item, None)))
+        .collect();
+    let next = AtomicUsize::new(0);
+    let workers = std::thread::available_parallelism()
+        .map_or(1, usize::from)
+        .min(slots.len());
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                while let Some(slot) = slots.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    let (item, out) = &mut *slot.lock().unwrap();
+                    *out = Some(each(item));
+                }
+            });
+        }
+    });
+    slots
+        .into_iter()
+        .map(|slot| slot.into_inner().unwrap().1.expect("a worker took it"))
+        .collect()
+}
+
 pub(crate) fn run_all(
     compiled: &Compiled,
     engine: EngineKind,
@@ -165,6 +257,7 @@ pub(crate) fn run_all(
 ) -> Result<(Vec<Outcome>, i32), String> {
     let limits = Limits {
         engine,
+        fuel: matches!(engine, EngineKind::Wasmi).then_some(FUEL),
         ..Limits::default()
     };
     let mut rt = Runtime::new(compiled, HostFns::default(), limits).map_err(|e| e.to_string())?;
@@ -190,6 +283,12 @@ pub(crate) fn read_expectations(src: &str) -> Result<Expected, String> {
             expected.checks.push(check);
         }
     }
+    if !expected.errors.is_empty() && !expected.checks.is_empty() {
+        return Err(
+            "`// error:` and `// expect:` lines both: a program that fails to compile runs no call"
+                .into(),
+        );
+    }
     Ok(expected)
 }
 
@@ -198,15 +297,20 @@ pub(crate) fn parse_check(text: &str) -> Result<Check, String> {
         (call.trim(), Want::Value(Parser::all(value.trim())?))
     } else if let Some((call, rest)) = text.split_once(" traps") {
         let rest = rest.trim();
-        let message = if rest.is_empty() {
-            None
-        } else {
-            match Parser::all(rest)? {
-                Value::Str(s) => Some(s),
-                _ => return Err("a trap's message is a string".into()),
-            }
-        };
-        (call.trim(), Want::Trap(message))
+        // Native code has no fuel, so a call that runs out never ends there.
+        let kinds: Vec<&'static str> = TRAPS
+            .iter()
+            .map(|(kind, _)| *kind)
+            .filter(|kind| *kind != OUT_OF_FUEL)
+            .collect();
+        let kind = kinds.iter().copied().find(|kind| *kind == rest);
+        if kind.is_none() && !rest.is_empty() {
+            return Err(format!(
+                "`{rest}` is not a trap a call may expect: one of {}",
+                kinds.join(", ")
+            ));
+        }
+        (call.trim(), Want::Trap(kind))
     } else {
         return Err("want `f(args) == value` or `f(args) traps`".into());
     };
@@ -270,10 +374,15 @@ pub(crate) fn same_fields(x: &[(SmolStr, Value)], y: &[(SmolStr, Value)]) -> boo
     x.len() == y.len() && x.iter().zip(y).all(|((k, a), (l, b))| k == l && same(a, b))
 }
 
+/// Two answers alike to the bit, or two traps of one kind; a trap no kind
+/// names is held to the other's message.
 pub(crate) fn same_outcome(a: &Outcome, b: &Outcome) -> bool {
     match (a, b) {
         (Ok(x), Ok(y)) => same(x, y),
-        (Err(_), Err(_)) => true,
+        (Err(x), Err(y)) => match (trap_kind(x), trap_kind(y)) {
+            (None, None) => x == y,
+            (k, l) => k == l,
+        },
         _ => false,
     }
 }
@@ -289,7 +398,7 @@ pub(crate) fn show_want(w: &Want) -> String {
     match w {
         Want::Value(v) => show(v),
         Want::Trap(None) => "a trap".into(),
-        Want::Trap(Some(t)) => format!("a trap with {t:?}"),
+        Want::Trap(Some(kind)) => format!("a trap ({kind})"),
     }
 }
 
@@ -297,7 +406,7 @@ pub(crate) fn show_want_line(w: &Want) -> String {
     match w {
         Want::Value(v) => format!("== {}", show(v)),
         Want::Trap(None) => "traps".into(),
-        Want::Trap(Some(t)) => format!("traps {t:?}"),
+        Want::Trap(Some(kind)) => format!("traps {kind}"),
     }
 }
 

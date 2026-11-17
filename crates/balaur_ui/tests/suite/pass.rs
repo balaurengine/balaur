@@ -312,8 +312,13 @@ fn a_pasted_image_is_said_and_written_out() {
 
 #[test]
 fn a_theme_can_be_set_from_a_script() {
-    run_clean(
-        r##"ui::set_theme({ "panel": "#101418", "text": "#f0f0f0", "accent": "#d5814e" });"##,
+    let (_dir, _app, ctx, errors) =
+        run_with(r##"ui::set_theme({ "colors": { "bg_panel": "#101418" } });"##);
+    assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
+    assert_eq!(
+        ctx.global_style().visuals.panel_fill,
+        egui::Color32::from_rgb(0x10, 0x14, 0x18),
+        "egui's panels wear the theme"
     );
 }
 
@@ -490,11 +495,24 @@ fn a_lazy_shell_nobody_touched_runs_no_pass_however_long_it_waits() {
     });
     assert!(errors.is_empty(), "{errors:#?}");
     balaur_ui::honour_lazy(&app.engine);
-    feed(&app, &ctx, Vec::new());
-    std::thread::sleep(std::time::Duration::from_millis(300));
+    // Stepped as the loop steps: a pass at a new screen size owes egui another.
+    let mut owed = std::time::Duration::ZERO;
+    for _ in 0..4 {
+        if owed == std::time::Duration::MAX {
+            break;
+        }
+        let _ = balaur_ui::wants_pass(&app.engine, &ctx, false);
+        owed = feed(&app, &ctx, Vec::new()).viewport_output[&egui::ViewportId::ROOT].repaint_delay;
+    }
+    assert_eq!(owed, std::time::Duration::MAX, "egui still owes a pass");
     // The first answer may spend a log line another test wrote meanwhile;
     // the tick, which nothing spends, would have answered both.
     let _ = balaur_ui::wants_pass(&app.engine, &ctx, false);
+    assert_eq!(
+        balaur_ui::next_frame(&app.engine, &ctx),
+        balaur_ui::NextFrame::Sleep(None),
+        "a pass is owed, now or later"
+    );
     assert!(
         !balaur_ui::wants_pass(&app.engine, &ctx, false),
         "a pass ran with nothing to answer"

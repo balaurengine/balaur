@@ -4,13 +4,13 @@
 pub fn encoded(data: [int]) -> str { encoding::base64(data) }
 pub fn decoded(text: str) -> [int] { encoding::from_base64(text) }
 
-// expect: encoded([256]) traps
-// expect: encoded([1, 2, -1]) traps
-// expect: encoded([1, 300, 2, 4]) traps
-// expect: decoded("@@@@") traps
-// expect: decoded("Zg=") traps
-// expect: decoded("Zg=a") traps
-// expect: decoded("Zh==") traps
-// expect: decoded("Zm9=") traps
-// expect: decoded("Zg==Zg==") traps
-// expect: decoded("Zm 9") traps
+// expect: encoded([256]) traps unreachable
+// expect: encoded([1, 2, -1]) traps unreachable
+// expect: encoded([1, 300, 2, 4]) traps unreachable
+// expect: decoded("@@@@") traps unreachable
+// expect: decoded("Zg=") traps unreachable
+// expect: decoded("Zg=a") traps unreachable
+// expect: decoded("Zh==") traps unreachable
+// expect: decoded("Zm9=") traps unreachable
+// expect: decoded("Zg==Zg==") traps unreachable
+// expect: decoded("Zm 9") traps unreachable

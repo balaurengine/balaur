@@ -3,8 +3,8 @@
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
 use balaur_core::{App, AppConfig};
@@ -28,28 +28,56 @@ fn app_with(dir: &std::path::Path, http: &str) -> App {
     app
 }
 
-/// A keep-alive HTTP/1.1 server answering `ok` after `hold`, counting the
-/// connections it took, the requests it read and the most it held at once.
+/// A keep-alive HTTP/1.1 server answering `ok`, counting the connections it
+/// took and the requests it read.
 struct Server {
     url: String,
     connections: Arc<AtomicUsize>,
-    requests: Arc<AtomicUsize>,
-    peak: Arc<AtomicUsize>,
+    flight: Arc<(Mutex<Flight>, Condvar)>,
+}
+
+/// The requests a server has read, the ones it is still answering, and the
+/// most it answered at once; `open` is the gate the test lifts.
+#[derive(Clone, Copy, Default)]
+struct Flight {
+    read: usize,
+    active: usize,
+    peak: usize,
+    open: bool,
+}
+
+impl Server {
+    fn flight(&self) -> Flight {
+        *lock(&self.flight)
+    }
+
+    fn open(&self) {
+        lock(&self.flight).open = true;
+        self.flight.1.notify_all();
+    }
+}
+
+fn lock(flight: &(Mutex<Flight>, Condvar)) -> std::sync::MutexGuard<'_, Flight> {
+    flight.0.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 fn serve(hold: Duration) -> Server {
+    serve_held(hold, |_| true)
+}
+
+/// A server that answers each request once `release` holds of its flight,
+/// and `hold` after that.
+fn serve_held(hold: Duration, release: fn(&Flight) -> bool) -> Server {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let connections = Arc::new(AtomicUsize::new(0));
-    let requests = Arc::new(AtomicUsize::new(0));
-    let peak = Arc::new(AtomicUsize::new(0));
-    let active = Arc::new(AtomicUsize::new(0));
-    let counters = (connections.clone(), requests.clone(), peak.clone());
+    let flight = Arc::new((Mutex::new(Flight::default()), Condvar::new()));
+    let (taken, shared) = (connections.clone(), flight.clone());
     std::thread::spawn(move || {
         for stream in listener.incoming() {
             let Ok(mut stream) = stream else { continue };
-            counters.0.fetch_add(1, Ordering::SeqCst);
-            let (requests, peak, active) = (counters.1.clone(), counters.2.clone(), active.clone());
+            taken.fetch_add(1, Ordering::SeqCst);
+            let flight = shared.clone();
             std::thread::spawn(move || {
                 let mut seen = Vec::new();
                 let mut chunk = [0u8; 4096];
@@ -63,11 +91,18 @@ fn serve(hold: Duration) -> Server {
                     }
                     let end = seen.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
                     seen.drain(..end);
-                    requests.fetch_add(1, Ordering::SeqCst);
-                    let now = active.fetch_add(1, Ordering::SeqCst) + 1;
-                    peak.fetch_max(now, Ordering::SeqCst);
+                    let mut now = lock(&flight);
+                    now.read += 1;
+                    now.active += 1;
+                    now.peak = now.peak.max(now.active);
+                    flight.1.notify_all();
+                    while !release(&now) {
+                        now = flight.1.wait(now).unwrap_or_else(PoisonError::into_inner);
+                    }
+                    drop(now);
                     std::thread::sleep(hold);
-                    active.fetch_sub(1, Ordering::SeqCst);
+                    lock(&flight).active -= 1;
+                    flight.1.notify_all();
                     let reply = "HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok";
                     if stream.write_all(reply.as_bytes()).is_err() {
                         return;
@@ -79,8 +114,7 @@ fn serve(hold: Duration) -> Server {
     Server {
         url,
         connections,
-        requests,
-        peak,
+        flight,
     }
 }
 
@@ -132,29 +166,13 @@ fn collect(app: &mut App, want: usize) -> Vec<Value> {
     seen
 }
 
-/// Everything that arrives while ticking for `span`.
-#[allow(clippy::disallowed_methods, reason = "a test's window")]
-fn collect_for(app: &mut App, span: Duration) -> Vec<Value> {
-    let until = std::time::Instant::now() + span;
-    let mut seen = Vec::new();
-    while std::time::Instant::now() < until {
-        app.tick(1.0 / 60.0);
-        seen.extend(
-            app.engine
-                .resource::<HttpSnapshot>()
-                .borrow()
-                .responses
-                .iter()
-                .cloned(),
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    seen
-}
-
+// Each request is held until three are in, or all thirty have been read:
+// three at once is then the pool's doing, whatever the machine's load.
 #[test]
 fn requests_past_max_parallel_wait_their_turn_and_all_answer() {
-    let server = serve(Duration::from_millis(30));
+    let server = serve_held(Duration::from_millis(30), |flight| {
+        flight.active >= 3 || flight.read >= 30
+    });
     let dir = tempfile::tempdir().unwrap();
     let mut app = app_with(dir.path(), "max_parallel = 3");
     for _ in 0..30 {
@@ -169,7 +187,7 @@ fn requests_past_max_parallel_wait_their_turn_and_all_answer() {
         "and every answer was the server's"
     );
     assert_eq!(
-        server.peak.load(Ordering::SeqCst),
+        server.flight().peak,
         3,
         "never more than three at once, and three while others waited"
     );
@@ -184,7 +202,7 @@ fn requests_one_after_another_reuse_one_connection() {
         start(&app, get(&server.url));
         assert_eq!(collect(&mut app, 1).len(), 1, "request {round} answered");
     }
-    assert_eq!(server.requests.load(Ordering::SeqCst), 5);
+    assert_eq!(server.flight().read, 5);
     assert_eq!(
         server.connections.load(Ordering::SeqCst),
         1,
@@ -192,10 +210,11 @@ fn requests_one_after_another_reuse_one_connection() {
     );
 }
 
+// One worker takes the queue in order, and the first request is held until
+// the second is cancelled: a third answered means the second's turn is past.
 #[test]
 fn a_cancelled_request_still_waiting_never_reaches_the_server() {
-    let hold = Duration::from_millis(200);
-    let server = serve(hold);
+    let server = serve_held(Duration::ZERO, |flight| flight.open);
     let dir = tempfile::tempdir().unwrap();
     let mut app = app_with(dir.path(), "max_parallel = 1");
     let first = start(&app, get(&server.url));
@@ -206,7 +225,9 @@ fn a_cancelled_request_still_waiting_never_reaches_the_server() {
             .borrow_mut()
             .cancel(second)
     );
-    let events = collect(&mut app, 2);
+    server.open();
+    let third = start(&app, get(&server.url));
+    let events = collect(&mut app, 3);
     let kinds: Vec<_> = events
         .iter()
         .map(|event| {
@@ -217,16 +238,18 @@ fn a_cancelled_request_still_waiting_never_reaches_the_server() {
         })
         .collect();
     let id = |n: u64| Some(Value::Int(i64::try_from(n).unwrap()));
-    assert!(kinds.contains(&(id(second), Some(Value::Str("cancelled".into())))));
-    assert!(kinds.contains(&(id(first), Some(Value::Str("response".into())))));
-    // Long enough for the queued one to have gone out and come back, had it
-    // been sent.
-    let late = collect_for(&mut app, hold * 2);
-    assert!(late.is_empty(), "nothing more arrived: {late:?}");
+    let kind = |name: &str| Some(Value::Str(name.into()));
+    assert_eq!(kinds.len(), 3, "{kinds:?}");
+    assert!(
+        kinds.contains(&(id(second), kind("cancelled"))),
+        "{kinds:?}"
+    );
+    assert!(kinds.contains(&(id(first), kind("response"))), "{kinds:?}");
+    assert!(kinds.contains(&(id(third), kind("response"))), "{kinds:?}");
     assert_eq!(
-        server.requests.load(Ordering::SeqCst),
-        1,
-        "only the first went out"
+        server.flight().read,
+        2,
+        "the first and the third went out, the second never"
     );
 }
 

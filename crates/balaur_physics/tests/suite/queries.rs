@@ -3,7 +3,7 @@
 
 use balaur::standard_app;
 
-use crate::LOG;
+use crate::{LOG, boot};
 
 /// A scene with two balls on the y axis, both immovable world geometry, and
 /// `body` running in `Near`'s `init`, with `items` above the script's struct.
@@ -73,9 +73,11 @@ fn run_clean(body: &str) {
     run_clean_with("", body);
 }
 
+/// [`run_with`], failing unless `body` ran to its last line and logged no
+/// other error.
 fn run_clean_with(items: &str, body: &str) {
-    let errors = run_with(items, body);
-    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
+    let checked = format!("{body}\n        log::error(\"{}\");", boot::CHECKED);
+    boot::assert_checked(&run_with(items, &checked));
 }
 
 #[test]

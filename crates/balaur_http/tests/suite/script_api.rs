@@ -8,7 +8,7 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
-use balaur_testkit::{e2e_enabled, run_until};
+use balaur_testkit::run_until;
 
 /// Serve one canned HTTP/1.1 response on a fresh port, returning the url.
 fn serve_one(response: &'static str) -> String {
@@ -65,9 +65,6 @@ fn echo_body() -> String {
 
 #[test]
 fn a_delete_carries_the_body_it_was_given() {
-    if !e2e_enabled() {
-        return;
-    }
     let url = echo_body();
     let source = format!(
         r#"
@@ -87,9 +84,6 @@ impl Scenario {{
 
 #[test]
 fn a_script_awaits_one_request_after_another() {
-    if !e2e_enabled() {
-        return;
-    }
     let awaited =
         serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nraven");
     let handled =

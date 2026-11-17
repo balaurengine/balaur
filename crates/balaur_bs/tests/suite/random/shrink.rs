@@ -5,44 +5,47 @@
 use super::interp::type_of;
 use super::{E, Func, S, T};
 
-/// The smallest program edits reach from `funcs` while `still` holds,
-/// trying at most `budget` of them.
+/// The smallest program edits reach from `funcs` while the failure holds,
+/// trying at most `budget` of them. `still` is handed the next `batch` edits
+/// in order, as if none held, and names the first that does.
 pub(super) fn shrink(
     funcs: &[Func],
-    still: &mut dyn FnMut(&[Func]) -> bool,
+    still: &mut dyn FnMut(&[Vec<Func>]) -> Option<usize>,
+    batch: usize,
     budget: usize,
 ) -> Vec<Func> {
     let mut best = funcs.to_vec();
     let mut least = weight(&best);
     let mut tries = 0;
+    let (mut site, mut option, mut progressed) = (0, 0, false);
     loop {
-        let mut progressed = false;
-        let mut site = 0;
-        while site < sites(&best) {
-            let mut option = 0;
-            let mut kept = false;
-            while let Some(smaller) = edit(&best, site, option) {
+        let mut next: Vec<(usize, Vec<Func>)> = Vec::new();
+        while next.len() < batch && tries + next.len() < budget && site < sites(&best) {
+            if let Some(smaller) = edit(&best, site, option) {
                 option += 1;
-                let w = weight(&smaller);
-                if w >= least {
-                    continue;
+                if weight(&smaller) < least {
+                    next.push((site, smaller));
                 }
-                if tries == budget {
-                    return best;
-                }
-                tries += 1;
-                if still(&smaller) {
-                    (best, least, kept, progressed) = (smaller, w, true, true);
-                    break;
-                }
-            }
-            // A kept edit leaves this site holding something new to try.
-            if !kept {
-                site += 1;
+            } else {
+                (site, option) = (site + 1, 0);
             }
         }
-        if !progressed {
-            return best;
+        if next.is_empty() {
+            // The budget spent, or a pass that kept nothing.
+            if site < sites(&best) || !progressed {
+                return best;
+            }
+            (site, option, progressed) = (0, 0, false);
+            continue;
+        }
+        tries += next.len();
+        let candidates: Vec<Vec<Func>> = next.iter().map(|(_, f)| f.clone()).collect();
+        if let Some(i) = still(&candidates) {
+            let (at, smaller) = next.swap_remove(i);
+            least = weight(&smaller);
+            best = smaller;
+            // A kept edit leaves its site holding something new to try.
+            (site, option, progressed) = (at, 0, true);
         }
     }
 }

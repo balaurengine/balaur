@@ -253,9 +253,10 @@ fn a_map_may_keep_its_cells_in_a_file() {
         "[[assets]]\nid = \"set\"\ntype = \"tileset\"\ntexture = \"tests/fixtures/sprite_200x100.png\"\ntile_size = 50\ncolumns = 4\n\n[[nodes]]\nid = \"n\"\nname = \"Map\"\n\n[nodes.tilemap]\ntileset = \"#set\"\ncells = { kind = \"file\", path = \"levels/cave.cells\" }\n",
     )
     .unwrap();
-    let mut app = balaur::standard_app(balaur::AppConfig::dev(
-        dir.path().to_string_lossy().as_ref(),
-    ))
+    let mut app = balaur::standard_app(balaur::AppConfig {
+        watch: false,
+        ..balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
     .unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);

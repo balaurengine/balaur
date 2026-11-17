@@ -25,8 +25,8 @@ if [ "${1:-}" = "--html" ]; then
   shift
 fi
 
-# balaur_bench takes the machine to itself to time frames, and the window
-# paths need a display a coverage run has not got.
+# balaur_bench holds benchmarks and no tests, so leaving it out only spares
+# building criterion instrumented.
 status=0
 # `--no-report` keeps old profiles, so a previous run's would count again.
 cargo llvm-cov clean --profraw-only
@@ -39,10 +39,8 @@ cargo llvm-cov nextest \
 # Extensions are off by default, so the C ABI and the dlopen path compiled
 # above without a line of either running: their tests are behind the flag.
 # `--no-report` implies `--no-clean`; cargo-llvm-cov refuses the pair.
-cargo llvm-cov nextest -p balaur_plugin --features extensions \
-  --no-fail-fast --no-report || status=$?
-cargo llvm-cov nextest -p balaur --features extensions \
-  --no-fail-fast --no-report || status=$?
+cargo llvm-cov nextest -p balaur_plugin -p balaur --features balaur/extensions \
+  --no-fail-fast --no-report -E 'test(/^(extensions?|c_extension)::/)' || status=$?
 
 # From the recorded profiles, not a second test run: HTML too costs nothing.
 mkdir -p target/coverage

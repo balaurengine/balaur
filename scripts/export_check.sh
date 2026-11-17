@@ -3,7 +3,7 @@
 # shape that platform installs or serves. Why it stops there:
 # docs/PLAN-mobile-export.md step 2.
 #
-# Usage: export_check.sh <ios|android|web>[-2d|-3d|-bare]
+# Usage: [BALAUR_EXPORTER=<editor>] export_check.sh <ios|android|web>[-2d|-3d|-bare]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -29,11 +29,15 @@ archive="$dist/balaur-runtime-$platform.tar.gz"
 tar -xzf "$archive" -C "$work/runtimes"
 ls "$work/runtimes"
 
-step "build the exporter"
-# Headless: exporting compiles scripts and copies files, and never opens a
-# window, so the windowed feature would only cost build time here.
-cargo build --release -p balaur_cli --no-default-features --features headless
-balaur=$PWD/target/release/balaur
+# CI hands it the editor its run built, as a player exports with theirs.
+balaur=${BALAUR_EXPORTER:-}
+if [ -z "$balaur" ]; then
+  step "build the exporter"
+  # Headless: exporting compiles scripts and copies files, and never opens a
+  # window, so the windowed feature would only cost build time here.
+  cargo build --release -p balaur_cli --no-default-features --features headless
+  balaur=$PWD/target/release/balaur
+fi
 
 step "export a game"
 # A one-world template gets an example that uses that world alone, so exporting

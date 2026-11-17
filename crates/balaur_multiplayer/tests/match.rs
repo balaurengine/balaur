@@ -111,7 +111,11 @@ fn project() -> tempfile::TempDir {
 }
 
 fn boot(dir: &tempfile::TempDir) -> App {
-    let mut app = balaur::standard_app(AppConfig::dev(dir.path())).unwrap();
+    let mut app = balaur::standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path())
+    })
+    .unwrap();
     app.load_project().unwrap();
     app.advance(1.0 / 60.0);
     app
@@ -128,25 +132,50 @@ fn state(app: &App) -> std::rc::Rc<std::cell::RefCell<MultiplayerState>> {
     app.engine.resource::<MultiplayerState>()
 }
 
-/// Frame both apps until `done` says so, or fail after a while, saying where
-/// each machine stood.
+/// Frame both apps until `done` says so, saying where each stood if not. A
+/// loaded machine plays slowly but keeps moving, so a match fails once nothing
+/// moved for a while, or once it moved for far longer than any machine needs.
 #[allow(
     clippy::disallowed_methods,
-    reason = "a test's timeout, not simulation"
+    reason = "a test's stall window, not simulation"
 )]
 fn run(apps: &mut [&mut App], what: &str, done: impl Fn(&[&mut App]) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let started = Instant::now();
+    let mut seen = progress(apps);
+    let mut moved_at = started;
     while !done(apps) {
         assert!(
-            Instant::now() < deadline,
-            "timed out waiting until {what}\n{}",
+            moved_at.elapsed() < Duration::from_secs(30),
+            "stalled waiting until {what}\n{}",
+            standing(apps)
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(600),
+            "moving but never {what}\n{}",
             standing(apps)
         );
         for app in apps.iter_mut() {
             app.advance(1.0 / 60.0);
         }
+        let now = progress(apps);
+        if now != seen {
+            seen = now;
+            moved_at = Instant::now();
+        }
         std::thread::sleep(Duration::from_millis(2));
     }
+}
+
+/// Each machine's state and settled tick: what moves while a match does.
+fn progress(apps: &[&mut App]) -> Vec<(&'static str, u64)> {
+    apps.iter()
+        .map(|app| {
+            let state = state(app);
+            let state = state.borrow();
+            let tick = state.session().map_or(0, balaur::NetSession::tick);
+            (state.state().name(), tick)
+        })
+        .collect()
 }
 
 /// Each machine's state, tick and links, then the engine's last log lines.

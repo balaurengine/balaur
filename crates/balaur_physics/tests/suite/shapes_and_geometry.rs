@@ -3,7 +3,7 @@
 
 use balaur::standard_app;
 
-use crate::LOG;
+use crate::{LOG, boot};
 
 /// A project whose scene declares a cube mesh and a small voxel grid, so the
 /// asset-backed shapes have something to be built from.
@@ -56,15 +56,16 @@ shape = { kind = "voxels", voxels = "#pillar" }
         .collect()
 }
 
-fn run_clean(script: &str) {
-    let errors = run(script);
-    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
+/// [`run`], failing unless `script` logged [`boot::CHECKED`] after its checks
+/// and nothing else.
+fn run_checked(script: &str) {
+    boot::assert_checked(&run(script));
 }
 
 // The point of voxels over a mesh: a game may dig into them.
 #[test]
 fn a_voxel_grid_can_be_dug_into() {
-    run_clean(
+    run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -73,6 +74,7 @@ impl Scenario {
         if self.node.collider3d.voxel(0, 1, 0) { log::error("digging left the cell filled"); }
         self.node.collider3d.set_voxel(5, 5, 5, true);
         if !self.node.collider3d.voxel(5, 5, 5) { log::error("a new cell was not added"); }
+        log::error("checked");
     }
 }
 "#,
@@ -83,13 +85,14 @@ impl Scenario {
 // how a voxel terrain gets on screen at all.
 #[test]
 fn a_voxel_collider_can_be_turned_into_a_mesh() {
-    run_clean(
+    run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
         let mesh = self.node.collider3d.mesh();
         if mesh.points.len() <= 0 { log::error("the grid tessellated to nothing"); }
         if mesh.indices.len() % 3 != 0 { log::error("the triangles are not triples"); }
+        log::error("checked");
     }
 }
 "#,
@@ -98,7 +101,7 @@ impl Scenario {
 
 #[test]
 fn the_mesh_backed_shapes_build() {
-    run_clean(
+    run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -109,6 +112,7 @@ impl Scenario {
             self.node.set_component("collider3d", { "shape": { "kind": "fit", "mesh": "#wedge", "fit": fit } });
         }
         self.node.set_component("collider3d", { "shape": { "kind": "voxelized_mesh", "mesh": "#wedge", "voxel_size": 0.25 } });
+        log::error("checked");
     }
 }
 "##,
@@ -117,7 +121,7 @@ impl Scenario {
 
 #[test]
 fn the_solver_knobs_are_set_and_read_back() {
-    run_clean(
+    run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -136,6 +140,7 @@ impl Scenario {
             }
         }
         if physics::threads() < 1 { log::error("a build always has at least one thread"); }
+        log::error("checked");
     }
 }
 "#,
@@ -144,7 +149,7 @@ impl Scenario {
 
 #[test]
 fn the_geometry_toolkit_works_on_a_mesh() {
-    run_clean(
+    run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -161,6 +166,7 @@ impl Scenario {
 
         let halves = geometry3d::split(wedge, geometry3d::Plane { point: vec3(0.25, 0.0, 0.0), normal: vec3(1.0, 0.0, 0.0) });
         if halves.len() != 2 { log::error("a cut gives two halves, not {halves.len()}"); }
+        log::error("checked");
     }
 }
 "##,
@@ -169,7 +175,7 @@ impl Scenario {
 
 #[test]
 fn debug_draw_is_set_and_read_back() {
-    run_clean(
+    run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -183,6 +189,7 @@ impl Scenario {
         if modes.contacts.unwrap() { log::error("a mode that was not named came on"); }
         physics::set_debug_draw(physics::DebugDraw { enabled: false });
         if physics::debug_draw().enabled.unwrap() { log::error("the switch did not go off"); }
+        log::error("checked");
     }
 }
 "#,

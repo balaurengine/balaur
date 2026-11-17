@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import os
 import json
 import re
@@ -1081,6 +1082,23 @@ def stats_markdown() -> str:
     return "".join(out)
 
 
+CTX: Context | None = None
+
+
+def _start_worker(ctx: Context) -> None:
+    global CTX
+    CTX = ctx
+
+
+def _checked(path: Path) -> tuple[list[Finding], list[Measured], list[tuple[Path, int]]]:
+    """One file's findings and what the size rules measured, from a worker:
+    the measurements are module state, which a worker's process keeps apart."""
+    MEASURED_FNS.clear()
+    MEASURED_FILES.clear()
+    found = check_script(path) if path.suffix == ".bs" else check_file(path, CTX)
+    return found, list(MEASURED_FNS), list(MEASURED_FILES)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -1092,10 +1110,14 @@ def main() -> int:
     findings: list[Finding] = []
     files = rust_files()
     ctx = scan_context(files)
-    for path in files:
-        findings.extend(check_file(path, ctx))
-    for path in source_files(".bs"):
-        findings.extend(check_script(path))
+    # Each file is checked on its own, so they spread over every core; `map`
+    # keeps the order the findings print in.
+    with concurrent.futures.ProcessPoolExecutor(
+            initializer=_start_worker, initargs=(ctx,)) as pool:
+        for found, fns, sized in pool.map(_checked, files + source_files(".bs"), chunksize=16):
+            findings.extend(found)
+            MEASURED_FNS.extend(fns)
+            MEASURED_FILES.extend(sized)
     findings.extend(check_showcase())
     findings.extend(check_setting_units(files))
     findings.extend(check_themes())

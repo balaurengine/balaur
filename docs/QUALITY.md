@@ -5,13 +5,15 @@ says how to run them locally and what each costs.
 
 ## CI
 
-`runner.yml` is the one push and pull-request trigger, and calls the rest.
+`runner.yml` is the one push and pull-request trigger, and calls the rest but
+`scheduled.yml`. On main each commit's run is its own, so none is cancelled.
 
 | Workflow | Covers |
 | --- | --- |
 | `lint.yml` | format, every clippy shape, the house, comment, string, prose and API lints, the notices, cargo-deny |
 | `docs.yml` | rustdoc, and `docs/generated/` against a booted engine |
-| `test.yml` | the tests, the socket suites, the determinism traces, the reproducible build, coverage, and the compiler's fuzz targets |
+| `test.yml` | the tests, the live Gamend suites, the determinism traces, the reproducible build |
+| `scheduled.yml` | once a day on main: the compiler's fuzz targets and line coverage |
 | `build.yml` | every platform's build, templates, exports and signing check |
 | `container.yml`, `container-signer.yml` | the engine's and the signing toolchain's container images (`docker/README.md`) |
 
@@ -155,7 +157,8 @@ Every exemption carries its reason inline, so it stops being cited as precedent.
   bytes from the same sources.
 - **Every platform steps the same simulation.** `scripts/determinism_trace.sh`
   records one digest per tick for 600 frames over five examples on Linux,
-  macOS and Windows, and `compare` diffs them.
+  macOS and Windows, and `compare` diffs them. A platform that recorded none
+  fails it.
 - **The same sources build the same binary.** `scripts/reproducible_build.sh`
   builds twice and compares, so a divergence can be bisected.
 - `scripts/e2e.sh` exports every example twice in separate processes, and the
@@ -165,21 +168,31 @@ A change that alters a recorded digest says why.
 
 ## Tests
 
-`cargo test --workspace` runs on all three desktop platforms. Beyond it:
+`cargo suite --profile ci` runs on all three desktop platforms: nextest, a
+process per test, and a JUnit report uploaded beside the run. Beyond it:
 
-- `cargo test -p balaur_plugin --features extensions` and `-p balaur --features
-  extensions`: the dlopen path, the cdylib, and loading one at run time.
-- `cargo build -p balaur_cli --no-default-features`, with core and physics
-  tested without them: nothing else exercises a subsystem switched off.
-- `cargo test -p balaur_render --features aseprite`, which `precommit.sh` runs
-  and `test.yml` does not.
+- A test that needs what a machine may lack skips off CI and fails on it: a
+  hardware GPU (`film`, `mirror`, `no_present` in `balaur_render`), a font
+  for the script it shapes, a Gamend server. CI leaves a test out by name
+  where its runner lacks the thing, so the run counts it skipped: the drawing
+  tests on Linux and Windows, the live Gamend suites on Windows. Linux CI
+  installs `fonts-noto-core` and `fonts-droid-fallback` for the text tests.
+- The extension tests, `cargo nextest run -p balaur_plugin -p balaur --features
+  balaur/extensions`: the dlopen path, the cdylib, and loading one at run time.
+- On Linux, `cargo build -p balaur_cli --no-default-features`, with core and
+  physics tested without them: nothing else exercises a subsystem switched off.
 - **The Balaur Script corpus**: `crates/balaur_bs/tests/programs/`, `.bs` files
   whose `// expect:` lines are calls and their answers and whose `// error:`
-  lines are their compile errors, written out whole. Each runs on every engine
-  the build has (wasmi, wasmtime, native code through C), which must agree to
-  the bit; `cargo test --workspace` turns all three on. CI also runs it on the
-  browser's engine in Node (`--test web`, wasm32). `BLESS=1` rewrites the
-  answers from what ran.
+  lines are their compile errors, written out whole; a file holds one kind or
+  the other. A trap is written with its kind, `traps unreachable`. Each runs on
+  every engine the build has (wasmi, wasmtime, native code through C), which
+  must agree to the bit and on the kind of trap; `cargo suite` turns all three
+  on, and on CI the test fails with fewer. wasmi runs first under fuel, so an
+  endless loop fails there; the others run unmetered, as a game runs them.
+  There is one test per folder. The C is built in libraries side by side and
+  cached by its hash under `CARGO_TARGET_TMPDIR`, so a rerun skips the
+  compiler. CI also runs it on the browser's engine in Node (`--test web`,
+  wasm32). `BLESS=1` rewrites the answers from what ran, and fails the run.
 - **The language chapter**: every ```` ```bs ```` fence in `docs/language/`
   says what it does in its comments. `// f(x) == v` runs the call,
   `// f(x) traps` expects a trap, and `// error: L:C: message` is the compile
@@ -194,19 +207,23 @@ A change that alters a recorded digest says why.
   each under fuel. Nothing may panic, and every module written validates.
   `BS_FUZZ_SEED` and `BS_FUZZ_MUTANTS` (12 a program by default) widen a run.
   `crates/balaur_bs/fuzz/` holds the same two checks as `cargo fuzz` targets,
-  `compile` and `run`, which `test.yml` runs for twenty minutes each.
+  `compile` and `run`, which `scheduled.yml` runs for twenty minutes each.
 - **Random programs**: `tests/suite/random.rs` generates well-typed programs
   and runs each on every engine and on a small interpreter kept for the test,
   which must agree. The engines share one compiler, so only this catches it
-  writing the wrong code. 60 a push; `BS_RANDOM_PROGRAMS` sets more. A
-  disagreement is shrunk, printed and saved under `tests/programs/random/`.
+  writing the wrong code. 60 a push, in four tests; `BS_RANDOM_PROGRAMS` sets
+  more. A disagreement is shrunk, printed and saved under
+  `target/tmp/bs-random/`.
 - `scripts/check_scripts.sh`: `balaur check --strict` over the editor, its
-  library and templates, and every example, on Linux after the tests.
-- `scripts/e2e_tests.sh`: suites where a full app boots over real sockets
-  (`balaur_http`, `balaur_websocket`, `balaur_platform`, and the library's
-  Gamend addon in `balaur`), gated on `BALAUR_E2E`. The Gamend ones talk to a
-  local Gamend on port 4000 (`GAMEND_URL` overrides): CI starts one with
-  Gamend's `setup-gamend` action, and locally `gamend daemon` serves one.
+  library and templates, and every example, on Linux after the tests and in
+  `precommit.sh`. `scripts/editor_native.sh` runs the editor's states on its
+  scripts built to C, on Linux after the tests and in `precommit.sh --e2e`.
+- `scripts/e2e_tests.sh`: the library's Gamend addon against a live server,
+  the tests under `gamend::live` in `balaur`. nextest's default profile leaves
+  them out and counts them skipped; `--profile ci` runs them one at a time,
+  and they skip unless `BALAUR_E2E=1`. They talk to a local Gamend on port
+  4000 (`GAMEND_URL` overrides): CI starts one with Gamend's `setup-gamend`
+  action, pinned to a commit, and locally `gamend daemon` serves one.
 
 What keeps a run short:
 

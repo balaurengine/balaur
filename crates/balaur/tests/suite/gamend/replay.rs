@@ -6,7 +6,7 @@ use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 use balaur_core::variables::Variables;
 use balaur_script::Value;
 
-use super::{addon_files, delete_account, sign_in, tag};
+use super::addon_files;
 
 const SCENE: &str = r#"
 [variables]
@@ -70,7 +70,7 @@ impl Probe {
 }
 "#;
 
-fn project(dir: &std::path::Path, url: &str, device: &str, tag: &str) {
+pub(super) fn project(dir: &std::path::Path, url: &str, device: &str, tag: &str) {
     let probe = PROBE
         .replace("@URL@", url)
         .replace("@DEVICE@", device)
@@ -122,7 +122,7 @@ type Recorded = Vec<(serde_json::Map<String, serde_json::Value>, Option<u64>)>;
 /// The run against the server: every tick's arrivals and digest, until the
 /// probe has said what it heard.
 #[allow(clippy::disallowed_methods, reason = "a test's deadline")]
-fn record(dir: &std::path::Path) -> (Recorded, String) {
+pub(super) fn record(dir: &std::path::Path) -> (Recorded, String) {
     let mut app = booted(dir, false);
     let mut frames = Vec::new();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
@@ -151,7 +151,7 @@ fn record(dir: &std::path::Path) -> (Recorded, String) {
 
 /// A fresh app, so the client's node and its session are as empty as the
 /// recording's start found them.
-fn replayed(dir: std::path::PathBuf, recorded: Recorded) -> String {
+pub(super) fn replayed(dir: std::path::PathBuf, recorded: Recorded) -> String {
     std::thread::spawn(move || {
         let mut app = booted(&dir, true);
         for (tick, (sources, digest)) in recorded.iter().enumerate() {
@@ -169,36 +169,6 @@ fn replayed(dir: std::path::PathBuf, recorded: Recorded) -> String {
     })
     .join()
     .unwrap()
-}
-
-#[test]
-fn a_recorded_session_with_gamend_traffic_replays_with_no_server() {
-    let Some((server, _turn)) = super::server() else {
-        return;
-    };
-    let tag = tag();
-    let device = format!("balaur-replay-{tag}");
-    let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), &server, &device, &tag);
-    let (recorded, heard) =
-        std::thread::scope(|scope| scope.spawn(|| record(dir.path())).join().unwrap());
-    if let Some((_, token)) = sign_in(&server, &device) {
-        assert_eq!(
-            delete_account(&server, &token, ""),
-            200,
-            "the probe's account stayed"
-        );
-    }
-    assert_eq!(
-        heard, "login 200 201 open ok error 200 true",
-        "the recording itself"
-    );
-    // A replay sends nothing: the server is pointed nowhere, and still the
-    // probe hears what it heard.
-    let elsewhere = tempfile::tempdir().unwrap();
-    project(elsewhere.path(), "http://127.0.0.1:9", &device, &tag);
-    let again = replayed(elsewhere.path().to_path_buf(), recorded);
-    assert_eq!(again, heard, "the replay heard something else");
 }
 
 /// What a server answers each native sign-in, in the probe's order: a session

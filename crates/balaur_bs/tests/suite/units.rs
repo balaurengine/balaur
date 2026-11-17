@@ -77,14 +77,45 @@ fn whole(path: &str, files: &[(&str, &str)]) -> Compiled {
     compile(src, &options).unwrap_or_else(|e| panic!("{e}"))
 }
 
-fn engines() -> Vec<EngineKind> {
-    vec![
-        EngineKind::Wasmi,
-        EngineKind::Auto,
-        #[cfg(all(feature = "c", feature = "native"))]
-        EngineKind::Native,
-    ]
+/// Each test once on each engine, so the engines run side by side. Each names
+/// its engine: `Auto` would take a native build the process loaded before.
+macro_rules! on_every_engine {
+    ($($test:ident),* $(,)?) => {$(
+        mod $test {
+            use balaur_bs::runtime::EngineKind;
+
+            #[test]
+            fn on_wasmi() {
+                super::$test(EngineKind::Wasmi);
+            }
+
+            #[cfg(jit)]
+            #[test]
+            fn on_wasmtime() {
+                super::$test(EngineKind::Wasmtime);
+            }
+
+            #[cfg(all(feature = "c", feature = "native"))]
+            #[test]
+            fn on_native() {
+                super::$test(EngineKind::Native);
+            }
+        }
+    )*};
 }
+
+on_every_engine!(
+    units_answer_as_the_whole_file_does,
+    units_may_use_each_other_and_the_file_that_uses_them,
+    an_async_function_of_another_unit_is_awaited,
+    an_internal_async_function_of_another_file_in_the_package_is_awaited,
+    a_unit_leaves_out_what_another_unit_declares_optional,
+    a_unit_is_made_only_when_it_is_first_called,
+    a_unit_reads_a_deeper_module_only_for_the_types_it_meets,
+    a_script_calls_another_script_of_its_instance_as_its_class,
+    a_function_a_field_holds_still_answers_after_a_reload,
+    a_held_function_the_new_code_dropped_holds_none_after_a_reload,
+);
 
 /// On the native engine, `units` built into a library and loaded first, as
 /// an export builds a project's; on any other, nothing.
@@ -169,23 +200,20 @@ const FILES: [(&str, &str); 3] = [
     ("scripts/defs.bs", DEFS),
 ];
 
-#[test]
-fn units_answer_as_the_whole_file_does() {
+fn units_answer_as_the_whole_file_does(engine: EngineKind) {
     let units = linked("scripts/main.bs", &FILES);
     assert!(units.meta.unit.is_some());
     assert_eq!(units.linked.len(), 2);
     let all = whole("scripts/main.bs", &FILES);
-    for engine in engines() {
-        let mut a = runtime(&units, engine);
-        let mut b = runtime(&all, engine);
-        for f in [
-            "area", "label", "picked", "first", "bag", "bumped", "table", "halved",
-        ] {
-            let got = a.call(f, &[]).unwrap_or_else(|e| panic!("{f}: {e}"));
-            assert_eq!(Ok(got), b.call(f, &[]), "{f} on {engine:?}");
-        }
-        assert_eq!(a.live(), 0, "every unit's allocations are let go of");
+    let mut a = runtime(&units, engine);
+    let mut b = runtime(&all, engine);
+    for f in [
+        "area", "label", "picked", "first", "bag", "bumped", "table", "halved",
+    ] {
+        let got = a.call(f, &[]).unwrap_or_else(|e| panic!("{f}: {e}"));
+        assert_eq!(Ok(got), b.call(f, &[]), "{f} on {engine:?}");
     }
+    assert_eq!(a.live(), 0, "every unit's allocations are let go of");
 }
 
 #[test]
@@ -210,8 +238,7 @@ fn a_unit_carries_only_its_own_functions() {
     assert_eq!(util(&units), util(&other));
 }
 
-#[test]
-fn units_may_use_each_other_and_the_file_that_uses_them() {
+fn units_may_use_each_other_and_the_file_that_uses_them(engine: EngineKind) {
     let main = "use a;\nuse gamend::core;\npub struct S { n: int }\n\
                 pub fn bump(n: int) -> int { n + 1 }\n\
                 pub fn run() -> int { a::up(0) + core::given() }";
@@ -228,10 +255,8 @@ fn units_may_use_each_other_and_the_file_that_uses_them() {
         ("scripts/gamend/core.bs", "pub fn given() -> int { 40 }"),
     ];
     let units = linked("scripts/main.bs", &files);
-    for engine in engines() {
-        let mut rt = runtime(&units, engine);
-        assert_eq!(rt.call("run", &[]), Ok(Value::Int(44)), "{engine:?}");
-    }
+    let mut rt = runtime(&units, engine);
+    assert_eq!(rt.call("run", &[]), Ok(Value::Int(44)), "{engine:?}");
 }
 
 const WAITS: &str = r"
@@ -269,33 +294,30 @@ pub async fn run() -> int {
 }
 ";
 
-#[test]
-fn an_async_function_of_another_unit_is_awaited() {
+fn an_async_function_of_another_unit_is_awaited(engine: EngineKind) {
     let files = [("scripts/run.bs", WAITER), ("scripts/waits.bs", WAITS)];
     let units = linked("scripts/run.bs", &files);
-    for engine in engines() {
-        native(engine, with_uses(&units));
-        let host = HostFns::default().on_async("wait", |args| {
-            let Value::Float(s) = args[0] else { panic!() };
-            (s, Value::Void)
-        });
-        let limits = Limits {
-            engine,
-            ..Limits::default()
-        };
-        let mut rt = Runtime::new(&units, host, limits).unwrap_or_else(|e| panic!("{e}"));
-        let mut task = rt.start("run", &[]).unwrap();
-        let mut out = None;
-        for _ in 0..1000 {
-            if let Some(v) = rt.poll(&mut task, None).unwrap() {
-                out = Some(v);
-                break;
-            }
-            rt.advance(0.125);
+    native(engine, with_uses(&units));
+    let host = HostFns::default().on_async("wait", |args| {
+        let Value::Float(s) = args[0] else { panic!() };
+        (s, Value::Void)
+    });
+    let limits = Limits {
+        engine,
+        ..Limits::default()
+    };
+    let mut rt = Runtime::new(&units, host, limits).unwrap_or_else(|e| panic!("{e}"));
+    let mut task = rt.start("run", &[]).unwrap();
+    let mut out = None;
+    for _ in 0..1000 {
+        if let Some(v) = rt.poll(&mut task, None).unwrap() {
+            out = Some(v);
+            break;
         }
-        assert_eq!(out, Some(Value::Int(11)), "{engine:?}");
-        assert_eq!(rt.live(), 0);
+        rt.advance(0.125);
     }
+    assert_eq!(out, Some(Value::Int(11)), "{engine:?}");
+    assert_eq!(rt.live(), 0);
 }
 
 const INNER: &str = r"
@@ -317,32 +339,29 @@ pub async fn run() -> int {
 }
 ";
 
-#[test]
-fn an_internal_async_function_of_another_file_in_the_package_is_awaited() {
+fn an_internal_async_function_of_another_file_in_the_package_is_awaited(engine: EngineKind) {
     let files = [("scripts/outer.bs", OUTER), ("scripts/other.bs", INNER)];
     let units = linked("scripts/outer.bs", &files);
-    for engine in engines() {
-        native(engine, with_uses(&units));
-        let host = HostFns::default().on_async("wait", |args| {
-            let Value::Float(s) = args[0] else { panic!() };
-            (s, Value::Void)
-        });
-        let limits = Limits {
-            engine,
-            ..Limits::default()
-        };
-        let mut rt = Runtime::new(&units, host, limits).unwrap_or_else(|e| panic!("{e}"));
-        let mut task = rt.start("run", &[]).unwrap();
-        let mut out = None;
-        for _ in 0..100 {
-            if let Some(v) = rt.poll(&mut task, None).unwrap_or_else(|e| panic!("{e}")) {
-                out = Some(v);
-                break;
-            }
-            rt.advance(0.125);
+    native(engine, with_uses(&units));
+    let host = HostFns::default().on_async("wait", |args| {
+        let Value::Float(s) = args[0] else { panic!() };
+        (s, Value::Void)
+    });
+    let limits = Limits {
+        engine,
+        ..Limits::default()
+    };
+    let mut rt = Runtime::new(&units, host, limits).unwrap_or_else(|e| panic!("{e}"));
+    let mut task = rt.start("run", &[]).unwrap();
+    let mut out = None;
+    for _ in 0..100 {
+        if let Some(v) = rt.poll(&mut task, None).unwrap_or_else(|e| panic!("{e}")) {
+            out = Some(v);
+            break;
         }
-        assert_eq!(out, Some(Value::Int(151)), "{engine:?}");
+        rt.advance(0.125);
     }
+    assert_eq!(out, Some(Value::Int(151)), "{engine:?}");
 }
 
 const LEFT_OUT: &str = r#"
@@ -393,54 +412,51 @@ pub async fn nap(seconds: float, label: str?, tag: any) -> str {
 "#;
 
 // The caller only sees what `parts` declares; the nil is made on its side.
-#[test]
-fn a_unit_leaves_out_what_another_unit_declares_optional() {
+fn a_unit_leaves_out_what_another_unit_declares_optional(engine: EngineKind) {
     let files = [("scripts/run.bs", LEFT_OUT), ("scripts/parts.bs", PARTS)];
     let units = linked("scripts/run.bs", &files);
     let flat = whole("scripts/run.bs", &files);
-    for engine in engines() {
-        for program in [&units, &flat] {
-            native(engine, with_uses(program));
-            let host = HostFns::default().on_async("wait", |args| {
-                let Value::Float(s) = args[0] else { panic!() };
-                (s, Value::Void)
-            });
-            let limits = Limits {
-                engine,
-                ..Limits::default()
-            };
-            let mut rt = Runtime::new(program, host, limits).unwrap_or_else(|e| panic!("{e}"));
-            assert_eq!(
-                rt.call("free", &[]).unwrap(),
-                Value::Str("1 none true|2 x true|3 y false".into()),
-                "{engine:?}"
-            );
-            assert_eq!(
-                rt.call("method", &[]).unwrap(),
-                Value::Str("1 a 12 true|2 b 2 true|3 c 3 false".into()),
-                "{engine:?}"
-            );
-            assert_eq!(
-                rt.call("after_mut", &[]).unwrap(),
-                Value::Str("7".into()),
-                "{engine:?}"
-            );
-            let mut task = rt.start("later", &[]).unwrap();
-            let mut out = None;
-            for _ in 0..1000 {
-                if let Some(v) = rt.poll(&mut task, None).unwrap() {
-                    out = Some(v);
-                    break;
-                }
-                rt.advance(0.125);
+    for program in [&units, &flat] {
+        native(engine, with_uses(program));
+        let host = HostFns::default().on_async("wait", |args| {
+            let Value::Float(s) = args[0] else { panic!() };
+            (s, Value::Void)
+        });
+        let limits = Limits {
+            engine,
+            ..Limits::default()
+        };
+        let mut rt = Runtime::new(program, host, limits).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(
+            rt.call("free", &[]).unwrap(),
+            Value::Str("1 none true|2 x true|3 y false".into()),
+            "{engine:?}"
+        );
+        assert_eq!(
+            rt.call("method", &[]).unwrap(),
+            Value::Str("1 a 12 true|2 b 2 true|3 c 3 false".into()),
+            "{engine:?}"
+        );
+        assert_eq!(
+            rt.call("after_mut", &[]).unwrap(),
+            Value::Str("7".into()),
+            "{engine:?}"
+        );
+        let mut task = rt.start("later", &[]).unwrap();
+        let mut out = None;
+        for _ in 0..1000 {
+            if let Some(v) = rt.poll(&mut task, None).unwrap() {
+                out = Some(v);
+                break;
             }
-            assert_eq!(
-                out,
-                Some(Value::Str("nap true|x true|y false".into())),
-                "{engine:?}"
-            );
-            assert_eq!(rt.live(), 0, "{engine:?}");
+            rt.advance(0.125);
         }
+        assert_eq!(
+            out,
+            Some(Value::Str("nap true|x true|y false".into())),
+            "{engine:?}"
+        );
+        assert_eq!(rt.live(), 0, "{engine:?}");
     }
 }
 
@@ -477,8 +493,7 @@ fn a_unit_checks_a_call_against_the_declaration() {
     );
 }
 
-#[test]
-fn a_unit_is_made_only_when_it_is_first_called() {
+fn a_unit_is_made_only_when_it_is_first_called(engine: EngineKind) {
     let main = "use never;\npub fn run() -> int { 1 }\npub fn other() -> int { never::boom() }";
     let files = [
         ("scripts/main.bs", main),
@@ -488,14 +503,12 @@ fn a_unit_is_made_only_when_it_is_first_called() {
         ),
     ];
     let units = linked("scripts/main.bs", &files);
-    for engine in engines() {
-        let mut rt = runtime(&units, engine);
-        assert_eq!(rt.call("run", &[]), Ok(Value::Int(1)));
-        let e = rt.call("other", &[]).unwrap_err();
-        assert!(!e.msg.is_empty(), "{engine:?}");
-        // A trap in another unit leaves the script running.
-        assert_eq!(rt.call("run", &[]), Ok(Value::Int(1)));
-    }
+    let mut rt = runtime(&units, engine);
+    assert_eq!(rt.call("run", &[]), Ok(Value::Int(1)));
+    let e = rt.call("other", &[]).unwrap_err();
+    assert!(!e.msg.is_empty(), "{engine:?}");
+    // A trap in another unit leaves the script running.
+    assert_eq!(rt.call("run", &[]), Ok(Value::Int(1)));
 }
 
 #[test]
@@ -515,8 +528,7 @@ fn what_a_file_declares_is_hashed_without_its_bodies() {
     assert_eq!(parsed.known("a.bs"), Some(c));
 }
 
-#[test]
-fn a_unit_reads_a_deeper_module_only_for_the_types_it_meets() {
+fn a_unit_reads_a_deeper_module_only_for_the_types_it_meets(engine: EngineKind) {
     let main = "use shapes;\npub struct M { n: int }\n\
                 pub fn width() -> float { let s = shapes::square(3.0); s.size.w + s.area() }";
     let files = [
@@ -538,10 +550,8 @@ fn a_unit_reads_a_deeper_module_only_for_the_types_it_meets() {
     // `geo` for the type `shapes` hands back; `unused` only through `shapes`'s own unit.
     assert_eq!(units.meta.uses, ["scripts/shapes.bs", "scripts/geo.bs"]);
     assert_eq!(units.linked.len(), 3);
-    for engine in engines() {
-        let mut rt = runtime(&units, engine);
-        assert_eq!(rt.call("width", &[]), Ok(Value::Float(12.0)), "{engine:?}");
-    }
+    let mut rt = runtime(&units, engine);
+    assert_eq!(rt.call("width", &[]), Ok(Value::Float(12.0)), "{engine:?}");
 }
 
 #[test]
@@ -562,9 +572,11 @@ fn a_unit_kept_as_bytes_runs_as_it_was_built() {
             )
         })
         .collect();
-    let mut rt = runtime(&back, EngineKind::Auto);
-    assert_eq!(rt.call("bag", &[]), Ok(Value::Int(10)));
-    assert_eq!(rt.call("halved", &[]), Ok(Value::Int(5)));
+    for engine in without_native() {
+        let mut rt = runtime(&back, engine);
+        assert_eq!(rt.call("bag", &[]), Ok(Value::Int(10)), "{engine:?}");
+        assert_eq!(rt.call("halved", &[]), Ok(Value::Int(5)), "{engine:?}");
+    }
     assert!(
         Compiled::from_bytes(&back.wasm).is_none(),
         "not bytes it wrote"
@@ -697,47 +709,50 @@ fn linked_project(units: &HashMap<String, Arc<Compiled>>, engine: EngineKind) ->
 // A project's scripts are units of one instance: a script reaches another
 // node's script as its class, a direct call that copies nothing, and a node
 // running another file reads as nil.
-#[test]
-fn a_script_calls_another_script_of_its_instance_as_its_class() {
+fn a_script_calls_another_script_of_its_instance_as_its_class(engine: EngineKind) {
     let units = units_of(&PROJECT);
-    for engine in engines() {
-        native(engine, units.values().map(AsRef::as_ref));
-        let Linked {
-            mut rt,
-            editor,
-            panel,
-            ..
-        } = linked_project(&units, engine);
-        assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(1)));
-        assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(2)));
-        assert_eq!(rt.get(&editor, "edits"), Some(Value::Int(2)), "{engine:?}");
-        assert_eq!(
-            rt.get(&editor, "names"),
-            Some(Value::Array(vec![
-                Value::Str("panel".into()),
-                Value::Str("panel".into())
-            ]))
-        );
-        assert_eq!(
-            rt.call_method(&panel, "mistaken", &[]),
-            Ok(Value::Bool(true))
-        );
-        rt.drop_object(panel);
-        rt.drop_object(editor);
-        assert_eq!(rt.live(), 0, "{engine:?}");
-    }
+    native(engine, units.values().map(AsRef::as_ref));
+    let Linked {
+        mut rt,
+        editor,
+        panel,
+        ..
+    } = linked_project(&units, engine);
+    assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(1)));
+    assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(2)));
+    assert_eq!(rt.get(&editor, "edits"), Some(Value::Int(2)), "{engine:?}");
+    assert_eq!(
+        rt.get(&editor, "names"),
+        Some(Value::Array(vec![
+            Value::Str("panel".into()),
+            Value::Str("panel".into())
+        ]))
+    );
+    assert_eq!(
+        rt.call_method(&panel, "mistaken", &[]),
+        Ok(Value::Bool(true))
+    );
+    rt.drop_object(panel);
+    rt.drop_object(editor);
+    assert_eq!(rt.live(), 0, "{engine:?}");
 }
 
-// The engines a build with probes or counters runs on: a native build holds
-// neither.
-const ENGINES: [EngineKind; 2] = [EngineKind::Wasmi, EngineKind::Auto];
+/// The engines that run a module no native build holds: one with probes or
+/// counters, or one read back from bytes.
+fn without_native() -> Vec<EngineKind> {
+    vec![
+        EngineKind::Wasmi,
+        #[cfg(jit)]
+        EngineKind::Wasmtime,
+    ]
+}
 
 // A profiler's counters are one count across the units a call runs in, and
 // each function's row is in its own unit.
 #[test]
 fn a_typed_call_counts_in_every_unit_it_runs_in() {
     let units = built_as(&PROJECT, |_, options| options.profile = true);
-    for engine in ENGINES {
+    for engine in without_native() {
         let Linked {
             mut rt,
             editor,
@@ -898,7 +913,7 @@ fn a_typed_call_runs_metered_and_direct() {
             .values()
             .all(|unit| unit.meta.direct && unit.meta.metered)
     );
-    for engine in ENGINES {
+    for engine in without_native() {
         let Linked {
             mut rt,
             editor,
@@ -1008,28 +1023,25 @@ impl Holder {
 }
 ";
 
-#[test]
-fn a_function_a_field_holds_still_answers_after_a_reload() {
+fn a_function_a_field_holds_still_answers_after_a_reload(engine: EngineKind) {
     let files = [("scripts/main.bs", HOLDER), ("scripts/picks.bs", PICKS)];
     let units = linked("scripts/main.bs", &files);
-    for engine in engines() {
-        let mut rt = runtime(&units, engine);
-        let mut holder = rt.object("Holder", &[]).unwrap();
-        rt.call_method(&holder, "pick", &[]).unwrap();
-        assert_eq!(
-            rt.call_method(&holder, "call", &[Value::Int(2)]),
-            Ok(Value::Int(6)),
-            "{engine:?}"
-        );
-        rt.reload(&units, HostFns::default(), &mut [&mut holder])
-            .unwrap();
-        assert_eq!(
-            rt.call_method(&holder, "call", &[Value::Int(5)]),
-            Ok(Value::Int(15)),
-            "{engine:?}: the held function after a reload"
-        );
-        rt.drop_object(holder);
-    }
+    let mut rt = runtime(&units, engine);
+    let mut holder = rt.object("Holder", &[]).unwrap();
+    rt.call_method(&holder, "pick", &[]).unwrap();
+    assert_eq!(
+        rt.call_method(&holder, "call", &[Value::Int(2)]),
+        Ok(Value::Int(6)),
+        "{engine:?}"
+    );
+    rt.reload(&units, HostFns::default(), &mut [&mut holder])
+        .unwrap();
+    assert_eq!(
+        rt.call_method(&holder, "call", &[Value::Int(5)]),
+        Ok(Value::Int(15)),
+        "{engine:?}: the held function after a reload"
+    );
+    rt.drop_object(holder);
 }
 
 // `double` takes the place `triple` had in the table, so a held `fn` kept by
@@ -1039,8 +1051,7 @@ fn double(x: int) -> int { x * 2 }
 pub fn picked() -> fn(int) -> int { double }
 ";
 
-#[test]
-fn a_held_function_the_new_code_dropped_holds_none_after_a_reload() {
+fn a_held_function_the_new_code_dropped_holds_none_after_a_reload(engine: EngineKind) {
     let before = [("scripts/main.bs", HOLDER), ("scripts/picks.bs", PICKS)];
     let after = [
         ("scripts/main.bs", HOLDER),
@@ -1050,18 +1061,16 @@ fn a_held_function_the_new_code_dropped_holds_none_after_a_reload() {
         linked("scripts/main.bs", &before),
         linked("scripts/main.bs", &after),
     );
-    for engine in engines() {
-        let mut rt = runtime(&old, engine);
-        let mut holder = rt.object("Holder", &[]).unwrap();
-        rt.call_method(&holder, "pick", &[]).unwrap();
-        native(engine, with_uses(&new));
-        rt.reload(&new, HostFns::default(), &mut [&mut holder])
-            .unwrap();
-        assert_eq!(rt.get(&holder, "run"), Some(Value::Int(0)), "{engine:?}");
-        assert!(
-            rt.call_method(&holder, "call", &[Value::Int(5)]).is_err(),
-            "{engine:?}"
-        );
-        rt.drop_object(holder);
-    }
+    let mut rt = runtime(&old, engine);
+    let mut holder = rt.object("Holder", &[]).unwrap();
+    rt.call_method(&holder, "pick", &[]).unwrap();
+    native(engine, with_uses(&new));
+    rt.reload(&new, HostFns::default(), &mut [&mut holder])
+        .unwrap();
+    assert_eq!(rt.get(&holder, "run"), Some(Value::Int(0)), "{engine:?}");
+    assert!(
+        rt.call_method(&holder, "call", &[Value::Int(5)]).is_err(),
+        "{engine:?}"
+    );
+    rt.drop_object(holder);
 }

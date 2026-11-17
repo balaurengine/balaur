@@ -14,9 +14,6 @@ env:
   # No RUSTFLAGS: it replaces .cargo/config.toml's, and the Apple rpath
   # lives there. Warnings are denied in lint.yml.
 
-concurrency:
-  group: docs-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   # `-D warnings` here is mostly about intra-doc links: a `[`Thing`]` that

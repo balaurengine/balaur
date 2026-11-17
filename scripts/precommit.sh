@@ -24,6 +24,13 @@ for arg in "$@"; do
   esac
 done
 
+if [ "$mode" = --full ] || [ "$mode" = --e2e ]; then
+  command -v cargo-nextest >/dev/null 2>&1 || {
+    printf 'the tests need cargo-nextest (cargo install cargo-nextest --locked)\n' >&2
+    exit 2
+  }
+fi
+
 logs=target/precommit
 mkdir -p "$logs"
 
@@ -113,14 +120,10 @@ host_stream() {
   files_stream || bad=1
   step 'clippy workspace' cargo clippy --workspace --all-targets -- -D warnings || bad=1
   if [ "$mode" != "--lints" ]; then
-    # nextest gives each test its own process and runs them in parallel. It
-    # has no doctest runner, so those stay with cargo.
-    if command -v cargo-nextest >/dev/null 2>&1; then
-      step 'tests' cargo suite --no-fail-fast || bad=1
-      step 'doctests' cargo test --workspace --doc || bad=1
-    else
-      step 'tests' cargo test --workspace || bad=1
-    fi
+    # A process per test: libtest runs a binary's tests as threads of one
+    # process, where one test's log lines land in another's assertions.
+    step 'tests' cargo suite --no-fail-fast || bad=1
+    step 'scripts checked' ./scripts/check_scripts.sh || bad=1
     # docs.yml denies rustdoc's warnings, which is how a dead intra-doc link
     # is caught; without the flag this passed locally and failed on push.
     step 'rustdoc' env RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --lib || bad=1
@@ -159,30 +162,30 @@ features_stream() {
   return $bad
 }
 
-# The two shapes test.yml runs the engine in and `--workspace` never builds:
-# the dlopen path, and a build with the optional subsystems switched off. Their
-# own directories, because the clippy stream is in `ext` at the same time.
+# The shapes test.yml runs the engine in and `--workspace` never builds, each in
+# its own directory: the dlopen path, and the subsystems switched off.
 shapes_stream() {
   side_env
   local bad=0
-  step 'extension plugin tests' shape exttest test -p balaur_plugin --features extensions || bad=1
-  step 'extension tests' shape exttest test -p balaur --features extensions || bad=1
-  # `balaur import file.aseprite` is behind a feature, so its tests are not in
-  # the default run: without this the whole module compiles for nobody.
-  step 'aseprite tests' shape exttest test -p balaur_render --features aseprite || bad=1
+  step 'extension tests' shape exttest nextest run -p balaur_plugin -p balaur \
+    --features balaur/extensions --no-fail-fast -E 'test(/^(extensions?|c_extension)::/)' || bad=1
   step 'no-default build' shape nodefault build -p balaur_cli --no-default-features || bad=1
-  step 'no-default tests' shape nodefault test -p balaur_core -p balaur_physics --no-default-features || bad=1
+  step 'no-default core tests' shape nodefault nextest run -p balaur_core --no-default-features || bad=1
+  step 'no-default physics tests' shape nodefault nextest run -p balaur_physics \
+    --no-default-features --features physics2d,physics3d || bad=1
   return $bad
 }
 
-# The suites that boot an app over real sockets, and the example pipeline:
-# minutes, so they are their own tier rather than part of every commit. Both
-# build in `target/`.
+# The live Gamend suites, the example pipeline and the editor as native code:
+# minutes, so they are their own tier rather than part of every commit.
 e2e_stream() {
   export CARGO_BUILD_JOBS=$side_jobs RUST_TEST_THREADS=$side_jobs
   local bad=0
   step 'e2e tests' ./scripts/e2e_tests.sh || bad=1
   step 'e2e examples' ./scripts/e2e.sh || bad=1
+  # Its own shape; the C of every editor script takes minutes, both Mac slices.
+  step 'editor as native code' env CARGO_TARGET_DIR=target/shape/headless \
+    ./scripts/editor_native.sh target/shape/headless/editor-native || bad=1
   return $bad
 }
 
@@ -192,7 +195,7 @@ wasm_stream() {
   side_env
   local bad=0
   step 'clippy wasm' shape wasm clippy --target wasm32-unknown-unknown -p balaur_cli \
-    --no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,window,webgl,physics2d,physics3d,import,editor,bs-web \
+    --no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,window,webgl,physics2d,physics3d,import,editor,bs-wasmi,bs-web \
     -- -D warnings || bad=1
   step 'clippy wasm default' shape wasm-default clippy --target wasm32-unknown-unknown \
     -p balaur_cli -- -D warnings || bad=1

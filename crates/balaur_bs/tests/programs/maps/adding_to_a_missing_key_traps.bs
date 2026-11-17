@@ -6,4 +6,4 @@ pub fn missing() -> int {
     0
 }
 
-// expect: missing() traps
+// expect: missing() traps unreachable

@@ -62,13 +62,12 @@ if [ "$target" = macos-universal ]; then
   # One binary for both Apple Silicon and Intel. Shipping two macOS downloads
   # and asking the user which Mac they have is a worse answer than lipo.
   rustup target add aarch64-apple-darwin x86_64-apple-darwin
-  # `apple` is in because the template is prebuilt: a game exported onto it
-  # cannot link GameKit afterwards. It costs bytes and no entitlement.
-  # 12.0 is where StoreKit 2 starts, and the Swift shim is built for it.
+  # `apple` is in because the template is prebuilt: GameKit cannot link later.
+  # 12.0 starts StoreKit 2. Both slices in one build, so their single-threaded
+  # fat-LTO links run side by side.
   MACOSX_DEPLOYMENT_TARGET=12.0 cargo build --release -p balaur_cli \
-    ${defaults[@]+"${defaults[@]}"} --features "$features" --target aarch64-apple-darwin
-  MACOSX_DEPLOYMENT_TARGET=12.0 cargo build --release -p balaur_cli \
-    ${defaults[@]+"${defaults[@]}"} --features "$features" --target x86_64-apple-darwin
+    ${defaults[@]+"${defaults[@]}"} --features "$features" \
+    --target aarch64-apple-darwin --target x86_64-apple-darwin
   bin="target/balaur-universal"
   lipo -create -output "$bin" \
     "target/aarch64-apple-darwin/release/balaur" \

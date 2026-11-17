@@ -26,16 +26,25 @@ const WALL: [u8; 3] = [0x3c, 0x47, 0x53];
 const BACKGROUND: [f32; 3] = [0.2, 0.4, 0.6];
 const SIDE: u32 = 64;
 
-/// Whether a hardware adapter answers. A software rasterizer counts as none:
-/// it is not what a player's picture is drawn with.
+/// Whether a hardware adapter answers; a software rasterizer counts as none.
+/// Off CI a missing one skips the test. CI leaves these tests out where it has
+/// no GPU, so a runner that loses its GPU fails instead of drawing nothing.
 pub(crate) fn gpu_present() -> bool {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
         ..wgpu::InstanceDescriptor::new_without_display_handle()
     });
     let asked = instance.request_adapter(&wgpu::RequestAdapterOptions::default());
-    pollster::block_on(asked)
-        .is_ok_and(|adapter| adapter.get_info().device_type != wgpu::DeviceType::Cpu)
+    let present = pollster::block_on(asked)
+        .is_ok_and(|adapter| adapter.get_info().device_type != wgpu::DeviceType::Cpu);
+    assert!(
+        present || std::env::var_os("CI").is_none(),
+        "no hardware GPU adapter on a CI runner that runs the GPU tests"
+    );
+    if !present {
+        eprintln!("skipped: no GPU adapter");
+    }
+    present
 }
 
 /// The first frame drawn with the script's background, as the PNG a run writes.
@@ -100,7 +109,6 @@ fn assert_pixel(picture: &image::RgbaImage, x: u32, wanted: [u8; 3], what: &str)
 #[test]
 fn an_authored_colour_is_the_pixel_a_shot_holds() {
     if !gpu_present() {
-        eprintln!("skipped: no GPU adapter");
         return;
     }
     let picture = shot();

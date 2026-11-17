@@ -3,7 +3,7 @@
 
 use balaur::standard_app;
 
-use crate::LOG;
+use crate::{LOG, boot};
 
 /// Run a project made of `scene` and one script, and report what it logged as
 /// an error.
@@ -35,15 +35,16 @@ pub(crate) fn run(scene: &str, script: &str) -> Vec<String> {
         .collect()
 }
 
-pub(crate) fn run_clean(scene: &str, script: &str) {
-    let errors = run(scene, script);
-    assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
+/// [`run`], failing unless the script logged [`boot::CHECKED`] after its
+/// checks and nothing else.
+pub(crate) fn run_checked(scene: &str, script: &str) {
+    boot::assert_checked(&run(scene, script));
 }
 
 // A sensor tells the node's script who walked into it, and who left.
 #[test]
 fn a_trigger_calls_its_script_when_something_enters() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -80,6 +81,7 @@ impl Scenario {
         if self.ticks == 110 {
             if self.seen < 1 { log::error("nothing ever entered the trigger"); }
             if self.left < 1 { log::error("nothing ever left it"); }
+            log::error("checked");
         }
     }
 }
@@ -89,7 +91,7 @@ impl Scenario {
 
 #[test]
 fn a_joint_holds_two_bodies_together() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -131,6 +133,7 @@ impl Scenario {
             let far = math::sqrt(position.x * position.x + position.y * position.y);
             if far >= 1.2 { log::error("the joint let go: the body is {far} from the anchor"); }
             if position.y >= -0.1 { log::error("the body never swung: y is {position.y}"); }
+            log::error("checked");
         }
     }
 }
@@ -141,7 +144,7 @@ impl Scenario {
 // A hard landing tells the floor who hit it and how hard, as one map.
 #[test]
 fn a_contact_force_arrives_as_one_map() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -178,8 +181,9 @@ impl Scenario {
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
-        if self.ticks == 110 && self.hits <= 0 {
-            log::error("the landing never reported a force from the crate");
+        if self.ticks == 110 {
+            if self.hits <= 0 { log::error("the landing never reported a force from the crate"); }
+            log::error("checked");
         }
     }
 }
@@ -190,7 +194,7 @@ impl Scenario {
 // A joint that gives way names both of its bodies and the force it broke at.
 #[test]
 fn a_breaking_joint_says_what_it_held_and_how_hard() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -238,8 +242,9 @@ impl Scenario {
 
     fn fixed_update(dt: float) {
         self.ticks += 1;
-        if self.ticks == 60 && self.broke != 1 {
-            log::error("the joint broke {self.broke} times with its payload");
+        if self.ticks == 60 {
+            if self.broke != 1 { log::error("the joint broke {self.broke} times with its payload"); }
+            log::error("checked");
         }
     }
 }
@@ -251,7 +256,7 @@ impl Scenario {
 // stands for the body above it, as a collider on a child does.
 #[test]
 fn a_joint_on_a_bodiless_child_ties_the_body_above_it() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -298,6 +303,7 @@ impl Scenario {
             let far = math::sqrt(position.x * position.x + position.y * position.y);
             if far >= 1.2 { log::error("the child's joint did not hold: the body is {far} from the anchor"); }
             if position.y >= -0.1 { log::error("the body never swung: y is {position.y}"); }
+            log::error("checked");
         }
     }
 }
@@ -307,7 +313,7 @@ impl Scenario {
 
 #[test]
 fn a_2d_joint_on_a_bodiless_child_ties_the_body_above_it() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -353,6 +359,7 @@ impl Scenario {
             let far = math::sqrt(position.x * position.x + position.y * position.y);
             if far >= 1.2 { log::error("the child's joint did not hold: the body is {far} from the anchor"); }
             if position.y >= -0.1 { log::error("the body never swung: y is {position.y}"); }
+            log::error("checked");
         }
     }
 }
@@ -364,7 +371,7 @@ impl Scenario {
 // a scene file names nodes in whatever order it likes.
 #[test]
 fn a_joint_waits_for_a_node_that_comes_later() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -404,6 +411,7 @@ impl Scenario {
             let position = self.node.transform.position;
             let far = math::sqrt(position.x * position.x + position.y * position.y);
             if far >= 1.2 { log::error("the forward reference never connected: {far} away"); }
+            log::error("checked");
         }
     }
 }
@@ -415,7 +423,7 @@ impl Scenario {
 // through it or being pushed back by the solver.
 #[test]
 fn a_character_slides_along_a_wall_instead_of_entering_it() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -452,6 +460,7 @@ impl Scenario {
             let position = self.node.transform.position;
             if position.x >= 1.2 { log::error("the character walked into the wall: x is {position.x}"); }
             if position.z <= 0.5 { log::error("the character did not slide along it: z is {position.z}"); }
+            log::error("checked");
         }
     }
 }
@@ -555,7 +564,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
 // The ray only misses while the box is still standing on end.
 #[test]
 fn a_rotated_2d_character_keeps_its_angle_when_it_moves() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_player"
 name = "Player"
@@ -581,6 +590,7 @@ impl Scenario {
             if flat != nil { log::error("the character lay back down: a ray beside it still hits"); }
             let upright = physics2d::raycast(physics2d::RayQuery { origin: vec2(0.0, 3.0), direction: vec2(0.0, -1.0), max_distance: 100.0 });
             if upright == nil { log::error("the character is not where the test thinks it is"); }
+            log::error("checked");
         }
     }
 }
@@ -591,7 +601,7 @@ impl Scenario {
 // parry's `local_p1` is in the first shape's local space, and the first may be the other node.
 #[test]
 fn a_contact_point_is_reported_in_world_space() {
-    run_clean(
+    run_checked(
         r#"[[nodes]]
 id = "n_world"
 name = "World"
@@ -631,6 +641,7 @@ impl Scenario {
                 if y >= -8.0 { log::error("the contact point is in local space: y is {y}"); }
             }
             if self.seen <= 0 { log::error("the body never landed, so nothing was checked"); }
+            log::error("checked");
         }
     }
 }

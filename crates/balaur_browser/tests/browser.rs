@@ -13,7 +13,11 @@ fn app() -> App {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "[[nodes]]\nname = \"Node\"\n").unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     // The directory may go: the project is loaded and nothing here saves.
     std::mem::forget(dir);

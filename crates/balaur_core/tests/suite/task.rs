@@ -92,30 +92,45 @@ fn a_job_handed_a_thread_runs_to_completion() {
 /// How long a test waits on a pool before calling it stuck.
 const PATIENCE: std::time::Duration = std::time::Duration::from_secs(5);
 
+// Every job waits at the gate the test holds shut, so three running at once
+// is the pool's doing and not a race with how long a job takes.
 #[test]
 fn a_pool_runs_no_more_than_its_limit_at_once_and_runs_everything() {
-    use std::sync::Arc;
+    use std::sync::{Arc, RwLock};
     let pool = task::Pool::new("test-limit");
+    let gate = Arc::new(RwLock::new(()));
+    let shut = gate.write().unwrap();
     let active = Arc::new(AtomicUsize::new(0));
     let peak = Arc::new(AtomicUsize::new(0));
-    let (done, finished) = std::sync::mpsc::channel();
+    let (started, starts) = std::sync::mpsc::channel();
     for _ in 0..20 {
-        let (active, peak, done) = (active.clone(), peak.clone(), done.clone());
+        let (gate, active, peak) = (gate.clone(), active.clone(), peak.clone());
+        let started = started.clone();
         pool.submit(
             move || {
                 let now = active.fetch_add(1, Ordering::SeqCst) + 1;
                 peak.fetch_max(now, Ordering::SeqCst);
-                std::thread::sleep(std::time::Duration::from_millis(10));
+                let _ = started.send(std::thread::current().name().map(String::from));
+                drop(gate.read());
                 active.fetch_sub(1, Ordering::SeqCst);
-                let _ = done.send(());
             },
             3,
         );
     }
-    for job in 0..20 {
-        assert!(finished.recv_timeout(PATIENCE).is_ok(), "job {job} ran");
+    let mut threads = std::collections::BTreeSet::new();
+    for job in 0..3 {
+        let thread = starts.recv_timeout(PATIENCE);
+        threads.insert(thread.unwrap_or_else(|_| panic!("job {job} started")));
     }
-    assert_eq!(peak.load(Ordering::SeqCst), 3, "three at once, never more");
+    assert_eq!(active.load(Ordering::SeqCst), 3, "three at once");
+    assert_eq!(pool.waiting(), 17, "and the rest wait their turn");
+    drop(shut);
+    for job in 3..20 {
+        let thread = starts.recv_timeout(PATIENCE);
+        threads.insert(thread.unwrap_or_else(|_| panic!("job {job} started")));
+    }
+    assert_eq!(peak.load(Ordering::SeqCst), 3, "never more");
+    assert_eq!(threads.len(), 3, "on three threads: {threads:?}");
 }
 
 #[test]
@@ -163,9 +178,11 @@ fn a_dropped_pool_drops_the_jobs_still_waiting() {
     }
     assert_eq!(pool.waiting(), 5, "five queued behind the one running");
     drop(pool);
-    release.send(()).unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // The worker is still held, so the queued jobs' captures can only be
+    // gone because the drop dropped them.
+    assert_eq!(Arc::strong_count(&ran), 1, "the queued jobs were dropped");
     assert_eq!(ran.load(Ordering::SeqCst), 0, "none of the queued ones ran");
+    release.send(()).unwrap();
 }
 
 #[test]

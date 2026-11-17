@@ -178,8 +178,30 @@ fn corpus(dir: &Path) -> Vec<PathBuf> {
     out
 }
 
-#[test]
-fn a_broken_program_is_an_error_never_a_panic() {
+/// The corpus in parts by each file's name, a test each, so they spread over
+/// the cores.
+macro_rules! parts {
+    ($($part:ident = $k:expr),* $(,)?) => {
+        const PARTS: u64 = [$($k),*].len() as u64;
+        $(
+            mod $part {
+                #[test]
+                fn a_broken_program_is_an_error_never_a_panic() {
+                    super::part($k);
+                }
+            }
+        )*
+    };
+}
+
+parts!(
+    first_quarter = 0,
+    second_quarter = 1,
+    third_quarter = 2,
+    fourth_quarter = 3
+);
+
+fn part(k: u64) {
     let seed: u64 = std::env::var("BS_FUZZ_SEED")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -190,9 +212,22 @@ fn a_broken_program_is_an_error_never_a_panic() {
         .unwrap_or(12);
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/programs");
     let mut failures = Vec::new();
-    for (n, path) in corpus(&root).iter().enumerate() {
-        let src = std::fs::read_to_string(path).unwrap();
-        let mut rng = Rng(seed ^ (n as u64 + 1).wrapping_mul(0x9e37_79b9_7f4a_7c15));
+    for path in corpus(&root) {
+        let name = path
+            .strip_prefix(&root)
+            .unwrap_or(&path)
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join("/");
+        // By its name, so a file added elsewhere leaves this one's mutants be.
+        let hash =
+            u64::from_str_radix(&balaur_bs::module_hash(name.as_bytes())[..16], 16).unwrap_or(1);
+        if hash % PARTS != k {
+            continue;
+        }
+        let src = std::fs::read_to_string(&path).unwrap();
+        let mut rng = Rng(seed ^ hash);
         for _ in 0..per_program {
             let mutant = mutate(&src, &mut rng);
             let outcome = catch_unwind(AssertUnwindSafe(|| exercise(&mutant)));
@@ -206,8 +241,7 @@ fn a_broken_program_is_an_error_never_a_panic() {
                     .unwrap_or_else(|| "a panic".into()),
             };
             failures.push(format!(
-                "{} (seed {seed}): {problem}\n--- mutant ---\n{mutant}\n---",
-                path.strip_prefix(&root).unwrap_or(path).display()
+                "{name} (seed {seed}): {problem}\n--- mutant ---\n{mutant}\n---"
             ));
         }
     }

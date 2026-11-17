@@ -148,12 +148,19 @@ no comment saying why.
   carries one control proving the script ran, or it holds vacuously.
 - Feature tests and performance tests stay apart. Benchmarks live in
   `crates/balaur_bench/benches/`, and no CI job gates on them.
-- The suites that boot an app over real sockets gate on `BALAUR_E2E`, so a
-  plain `cargo test` stays fast; `scripts/e2e_tests.sh` runs them.
-- The Gamend suites talk to a local Gamend on port 4000, or to `GAMEND_URL`;
-  `BALAUR_E2E_GAMEND=0` skips them. Never gamend.org: it is a live site, and
-  a ten-second stall there failed four tests on main. `gamend daemon` serves
-  one locally.
+- The live Gamend suites sit under `gamend::live` in `balaur`: `cargo suite`
+  leaves them out and counts them skipped, and `scripts/e2e_tests.sh` runs
+  them with `BALAUR_E2E=1`. They talk to a local Gamend on port 4000, or to
+  `GAMEND_URL`. Never gamend.org: it is a live site, and a ten-second stall
+  there failed four tests on main. `gamend daemon` serves one locally.
+- A test that needs what a machine may lack, a GPU, a font or a server, skips
+  off CI and fails on it. CI leaves it out by name where the runner lacks it,
+  so a missing one is counted, never passed.
+- A wait on wall time fails soon once nothing moves, and at a total only far
+  past any loaded machine's pace: a slow run passes, and a stuck one never
+  hangs.
+- A test boot turns the file watcher off, `watch: false`, unless reloading is
+  what it tests: the watcher reports the files the test just wrote.
 
 ## Writing
 

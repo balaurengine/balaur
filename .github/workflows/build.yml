@@ -16,9 +16,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build-editor:
@@ -105,6 +102,8 @@ jobs:
           # The step above installed them, and the action's own step reaches
           # for sudo, which a container has no need of and does not carry.
           build-deps: ${{ matrix.container && 'false' || 'true' }}
+          # A gigabyte each, forty of them: cached, they evict the test caches.
+          cache: "false"
           attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # Runtimes for the non-desktop platforms, packaged as the shape
@@ -181,6 +180,8 @@ jobs:
           variant: ${{ matrix.variant }}
           web-features: ${{ matrix.web-features }}
           threads: ${{ matrix.threads }}
+          # A gigabyte each, forty of them: cached, they evict the test caches.
+          cache: "false"
           attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # A game template per desktop and variant: one physics world, neither, or a
@@ -219,34 +220,17 @@ jobs:
             sh -s -- -y --default-toolchain none --profile minimal
           echo "$HOME/.cargo/bin" >>"$GITHUB_PATH"
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
-        with:
-          name: balaur-${{ matrix.desktop.target }}
-          path: editor
       # The editor this run built is what exports the smoke game.
-      - name: Unpack the editor
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd editor
-          # A test, not `ls`: under pipefail the one name that is absent fails the step.
-          for archive in balaur-editor-${{ matrix.desktop.target }}.tar.gz balaur-editor-${{ matrix.desktop.target }}.zip; do
-            [ -f "$archive" ] && break
-          done
-          # Git Bash's tar reads no zip; the Windows images carry 7z.
-          case "$archive" in
-          *.zip) 7z x -bso0 -bsp0 "$archive" ;;
-          *) tar -xzf "$archive" ;;
-          esac
-          exe=balaur-editor-${{ matrix.desktop.target }}/balaur
-          [ -f "$exe.exe" ] && exe="$exe.exe"
-          chmod +x "$exe"
-          echo "BALAUR_EXPORTER=$PWD/$exe" >>"$GITHUB_ENV"
+      - uses: ./.github/actions/unpack-editor
+        with:
+          target: ${{ matrix.desktop.target }}
       - uses: ./.github/actions/build-engine
         with:
           target: ${{ matrix.desktop.target }}
           variant: ${{ matrix.variant }}
           build-deps: ${{ matrix.desktop.container && 'false' || 'true' }}
+          # A gigabyte each, forty of them: cached, they evict the test caches.
+          cache: "false"
           attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # Exports a game with each template and checks the result is what the OS
@@ -257,7 +241,7 @@ jobs:
       id-token: write
       attestations: write
     name: export ${{ matrix.platform }}
-    needs: build-platforms
+    needs: [build-editor, build-platforms]
     runs-on: ${{ matrix.host }}
     strategy:
       fail-fast: false
@@ -266,30 +250,43 @@ jobs:
           # macOS for `vtool`, which tells an iOS binary from a host one.
           - platform: ios
             host: macos-latest
+            editor: macos-universal
           # Ubuntu for the SDK build-tools that assemble and sign the APK.
           - platform: android
             host: ubuntu-latest
+            editor: linux-x64
           - platform: web
             host: ubuntu-latest
-          - { platform: web-2d, host: ubuntu-latest }
-          - { platform: web-3d, host: ubuntu-latest }
-          - { platform: web-bare, host: ubuntu-latest }
-          - { platform: ios-2d, host: macos-latest }
-          - { platform: ios-3d, host: macos-latest }
-          - { platform: ios-bare, host: macos-latest }
-          - { platform: android-2d, host: ubuntu-latest }
-          - { platform: android-3d, host: ubuntu-latest }
-          - { platform: android-bare, host: ubuntu-latest }
+            editor: linux-x64
+          - { platform: web-2d, host: ubuntu-latest, editor: linux-x64 }
+          - { platform: web-3d, host: ubuntu-latest, editor: linux-x64 }
+          - { platform: web-bare, host: ubuntu-latest, editor: linux-x64 }
+          - { platform: ios-2d, host: macos-latest, editor: macos-universal }
+          - { platform: ios-3d, host: macos-latest, editor: macos-universal }
+          - { platform: ios-bare, host: macos-latest, editor: macos-universal }
+          - { platform: android-2d, host: ubuntu-latest, editor: linux-x64 }
+          - { platform: android-3d, host: ubuntu-latest, editor: linux-x64 }
+          - { platform: android-bare, host: ubuntu-latest, editor: linux-x64 }
     steps:
       - uses: actions/checkout@v7
-      - name: Linux build deps
+      # The editor is windowed, so loading it wants the libraries it links,
+      # though exporting never opens a window.
+      - name: Linux libraries
         if: runner.os == 'Linux'
         run: |
           # The image's Chrome and Microsoft repos, which nothing here installs
           # from: a hash mismatch in one fails the whole `apt-get update`.
           sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libudev-dev libvulkan1 mesa-vulkan-drivers
+          sudo apt-get install -y \
+            libasound2-dev libudev-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev \
+            libvulkan1 mesa-vulkan-drivers
+      # This run's editor exports the game, as a player's does.
+      - uses: ./.github/actions/unpack-editor
+        with:
+          target: ${{ matrix.editor }}
       # The web export boots in the image's Chrome, as the play bundle does.
       - if: startsWith(matrix.platform, 'web')
         uses: actions/setup-node@v7
@@ -299,10 +296,6 @@ jobs:
         with:
           name: balaur-runtime-${{ matrix.platform }}
           path: dist
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: export-${{ matrix.platform }}
-          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Export a game with the template
         shell: bash
         run: ./scripts/export_check.sh ${{ matrix.platform }}

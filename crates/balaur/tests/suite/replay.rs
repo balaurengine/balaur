@@ -28,7 +28,11 @@ fn project(dir: &std::path::Path) {
 }
 
 fn booted(dir: &std::path::Path) -> App {
-    let mut app = standard_app(AppConfig::dev(dir.to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     app
 }
@@ -161,7 +165,10 @@ impl Runner {
     )
     .unwrap();
     let file = dir.path().join("dark.blr");
-    let config = || AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    let config = || AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    };
     let mut app = standard_app(config()).unwrap();
     replay::start_recording(&app.engine, &file, "fixture", "", false).unwrap();
     balaur_core::facts::update_device(&app.engine, |facts| facts.dark_mode = true);

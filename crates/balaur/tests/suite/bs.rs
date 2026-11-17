@@ -53,7 +53,18 @@ pub(super) fn spun(app: &App) -> [u32; 4] {
     t.rotation.to_array().map(f32::to_bits)
 }
 
+/// A dev run with the watcher off: it reports the files a test wrote just
+/// before booting, and the reload that starts ends a parked init.
 pub(super) fn booted(dir: &Path) -> App {
+    let mut config = AppConfig::dev(dir.to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    app
+}
+
+/// A dev run that follows its files, for the tests of reloading.
+fn watched(dir: &Path) -> App {
     let mut app = standard_app(AppConfig::dev(dir.to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     app
@@ -152,7 +163,7 @@ fn an_exported_spinner_runs_as_native_code() {
 #[test]
 fn a_saved_bs_script_reloads_under_a_running_scene() {
     let dir = project("spinner.bs");
-    let mut app = booted(dir.path());
+    let mut app = watched(dir.path());
     ticked(&mut app, FRAMES);
     let [x, ..] = spun(&app).map(f32::from_bits);
     assert!(x.abs() < 1e-6, "the spinner turns about y, not x");
@@ -182,7 +193,7 @@ fn a_script_uses_a_library_file_and_reloads_with_it() {
     let lib = dir.path().join("scripts/steps.bs");
     std::fs::write(&lib, "pub fn next(n: int) -> int { n + 1 }\n").unwrap();
     balaur::build_pack(dir.path()).expect("a library exports beside its users");
-    let mut app = booted(dir.path());
+    let mut app = watched(dir.path());
     ticked(&mut app, 2);
     assert_eq!(field(&app, "Counter", "count"), Some(Int(2)));
     std::fs::write(&lib, "pub fn next(n: int) -> int { n + 100 }\n").unwrap();
@@ -208,7 +219,7 @@ fn a_library_whose_struct_changes_rebuilds_the_script_reading_it() {
         "pub struct Step { pub by: int }\npub fn step() -> Step { Step { by: 1 } }\n",
     )
     .unwrap();
-    let mut app = booted(dir.path());
+    let mut app = watched(dir.path());
     ticked(&mut app, 2);
     assert_eq!(field(&app, "Counter", "count"), Some(Int(2)));
     std::fs::write(
@@ -283,9 +294,13 @@ fn an_export_refuses_a_script_whose_module_the_project_ignores() {
     assert!(err.contains("\"addons/**\""), "{err}");
 }
 
-const WAITER: &str = "pub class Waiter { node: Node, stage: int }
+const WAITER: &str = "pub class Waiter { node: Node, stage: int, reloads: int }
 
 impl Waiter {
+    fn on_hot_reload() {
+        self.reloads += 1;
+    }
+
     async fn init() {
         self.stage = 1;
         await task::frames(3);
@@ -315,12 +330,7 @@ fn waiter() -> tempfile::TempDir {
 }
 
 fn stage(app: &App) -> Option<balaur_script::Value> {
-    let node = {
-        let world = app.engine.world();
-        balaur_core::scene::find_node(&world, app.engine.root(), "Waiter").unwrap()
-    };
-    let host = app.engine.script_host().unwrap();
-    host.script_field(balaur_core::node_id_of(node), "stage")
+    field(app, "Waiter", "stage")
 }
 
 #[test]
@@ -350,12 +360,26 @@ fn an_async_init_awaits_engine_frames_and_seconds() {
 fn a_file_written_as_it_was_keeps_its_parked_init() {
     use balaur_script::Value::Int;
     let dir = waiter();
-    let mut app = booted(dir.path());
+    let mut app = watched(dir.path());
     assert_eq!(stage(&app), Some(Int(1)));
-    std::fs::write(dir.path().join("scripts/waiter.bs"), WAITER).unwrap();
+    let path = dir.path().join("scripts/waiter.bs");
+    std::fs::write(&path, WAITER).unwrap();
     std::thread::sleep(std::time::Duration::from_millis(500));
     ticked(&mut app, 4);
     assert_eq!(stage(&app), Some(Int(2)), "the parked init went on");
+    assert_eq!(
+        field(&app, "Waiter", "reloads"),
+        Some(Int(0)),
+        "an unchanged file reloaded"
+    );
+    // The control: the same watcher hears a real edit, so the write above
+    // was heard and passed over, not missed.
+    std::fs::write(&path, format!("{WAITER}// edited\n")).unwrap();
+    assert!(
+        ticked_until(&mut app, |app| field(app, "Waiter", "reloads")
+            == Some(Int(1))),
+        "the watcher never reported an edit"
+    );
 }
 
 const COUNTER: &str = "pub class Counter { count: int }

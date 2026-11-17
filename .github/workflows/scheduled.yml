@@ -1,0 +1,110 @@
+name: Scheduled
+
+# The checks too long for every push, once a day on main: the Balaur Script
+# compiler's fuzz targets and line coverage. Neither has a verdict a push
+# waits on, so neither belongs in runner.yml.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The compiler's fuzz targets, twenty minutes each, seeded from the corpus
+  # (docs/PLAN-script-tests.md); a find is uploaded as a program.
+  script:
+    name: balaur script fuzz · ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [compile, run]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Nightly, for libFuzzer's instrumentation
+        run: rustup toolchain install nightly --profile minimal
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz@0.13.2
+      # Named by their path: two programs share a file name in different folders.
+      - name: Seed from the corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          corpus=crates/balaur_bs/fuzz/corpus/${{ matrix.target }}
+          mkdir -p "$corpus"
+          cd crates/balaur_bs/tests/programs
+          find . -name '*.bs' | while IFS= read -r f; do
+            f=${f#./}
+            cp "$f" "$GITHUB_WORKSPACE/$corpus/${f//\//_}"
+          done
+      - name: Fuzz
+        working-directory: crates/balaur_bs
+        # The prebuilt cargo-fuzz defaults to its own musl target, which the
+        # sanitizer refuses; the runner's glibc one is named.
+        run: cargo +nightly fuzz run ${{ matrix.target }} --target x86_64-unknown-linux-gnu -- -max_total_time=1200
+      - name: What it found
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: crates/balaur_bs/fuzz/artifacts
+
+  # What the tests actually reach, reported rather than gated: a threshold is
+  # a number people write tests against, and nothing here should turn red
+  # because a well-tested change moved a percentage.
+  coverage:
+    name: line coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # The same set the test job takes.
+      - name: Linux build deps
+        run: |
+          # The image's Chrome and Microsoft repos, which nothing here installs
+          # from: a hash mismatch in one fails the whole `apt-get update`.
+          sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev libudev-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.9.1,nextest@0.9.152
+      # rust-toolchain.toml pins only rustfmt and clippy.
+      - name: llvm-tools
+        run: rustup component add llvm-tools-preview
+      # The test job's server, so the live suites count here too.
+      - name: Start a Gamend server
+        id: gamend
+        uses: appsinacup/gamend/actions/setup-gamend@03125d597f47934671ed26d1a5cfb55cbd20e6be
+        with:
+          env: |
+            GAMEND_CLIENT_LOGS_ENABLED=true
+            GAMEND_RATELIMIT_AUTH_LIMIT=60
+            GAMEND_RATELIMIT_GENERAL_LIMIT=1200
+      - name: Seed it
+        working-directory: ${{ steps.gamend.outputs.project }}
+        run: gamend demo.seed
+      - name: Measure
+        env:
+          BALAUR_E2E: "1"
+        run: ./scripts/coverage.sh --profile ci
+      - name: The Gamend server's log, when the tests failed
+        if: failure() && steps.gamend.outcome == 'success'
+        working-directory: ${{ steps.gamend.outputs.project }}
+        run: tail -n 300 .gamend/tmp/log/erlang.log.*
+      # Per crate, in the run summary, because one workspace percentage is
+      # mostly a weighted average of balaur_core and balaur_render.
+      - name: Summarise
+        run: |
+          python3 scripts/coverage_report.py --markdown target/coverage/lcov.info \
+            >>"$GITHUB_STEP_SUMMARY"
+      - name: Upload lcov
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-lcov
+          path: target/coverage/lcov.info

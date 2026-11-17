@@ -232,7 +232,6 @@ fn shots() -> Vec<image::RgbaImage> {
 #[test]
 fn a_square_follows_its_parent_through_every_change_and_nothing_else() {
     if !gpu_present() {
-        eprintln!("skipped: no GPU adapter");
         return;
     }
     let pictures = shots();

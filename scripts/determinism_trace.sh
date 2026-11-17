@@ -5,7 +5,7 @@
 # ("The digest") says how to find out what parted.
 #
 # Usage: determinism_trace.sh record  [outdir]
-#        determinism_trace.sh compare <dir>
+#        determinism_trace.sh compare <dir> [platforms]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -37,13 +37,19 @@ record() {
 }
 
 compare() {
-  local root=$1
+  local root=$1 want=${2:-0}
   local files=()
   # Read into an array without `mapfile`, which macOS's bash 3.2 lacks.
   while IFS= read -r f; do files+=("$f"); done < <(find "$root" -name traces.txt | sort)
 
   if [ "${#files[@]}" -eq 0 ]; then
     printf '::error::no traces.txt under %s — did the record jobs upload theirs?\n' "$root"
+    exit 1
+  fi
+
+  # One trace compared with nothing passes, so a record that never ran fails.
+  if [ "${#files[@]}" -lt "$want" ]; then
+    printf '::error::%s of %s platforms recorded a trace under %s\n' "${#files[@]}" "$want" "$root"
     exit 1
   fi
 
@@ -64,6 +70,6 @@ compare() {
 
 case "${1:-}" in
   record)  record "${2:-target/determinism}" ;;
-  compare) compare "${2:?compare needs a directory}" ;;
-  *) printf 'usage: %s record [outdir] | compare <dir>\n' "$0" >&2; exit 2 ;;
+  compare) compare "${2:?compare needs a directory}" "${3:-0}" ;;
+  *) printf 'usage: %s record [outdir] | compare <dir> [platforms]\n' "$0" >&2; exit 2 ;;
 esac

@@ -678,56 +678,114 @@ mod tests {
     }
 
     // The real thing, where clang and lld are installed: hello's scripts for
-    // every target, each library needing nothing, and this machine's loaded.
-    #[test]
-    fn every_target_builds_hello_needing_nothing() {
-        let llvm = Llvm::find();
-        if llvm.clang.is_none() || llvm.ld64.is_none() || llvm.elf.is_none() || llvm.coff.is_none()
-        {
-            eprintln!("no clang and lld here; the native build is not exercised");
-            return;
-        }
+    // each target, each library needing nothing, and this machine's loaded.
+    fn hello() -> Request {
         let hello = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/hello");
         let pack = balaur::build_pack(&hello).unwrap();
         let scripts = balaur::native_scripts(&hello, &mut [], &pack)
             .unwrap()
             .unwrap();
-        let request = Request {
+        Request {
             scripts,
             mode: NativeScripts::On,
             min_macos: "11.0".into(),
-        };
-        let out = tempfile::tempdir().unwrap();
-        let magic = |path: &Path| std::fs::read(path).unwrap()[..4].to_vec();
-        // Side by side: each is a clang and a link of its own, and one after
-        // another they were the longest test in the workspace.
-        std::thread::scope(|scope| {
-            for (target, start) in [
-                ("linux-x64", b"\x7fELF".to_vec()),
-                ("linux-arm64-server", b"\x7fELF".to_vec()),
-                ("windows-x64", b"MZ".to_vec()),
-                ("windows-arm64", b"MZ".to_vec()),
-                ("macos-universal", vec![0xca, 0xfe, 0xba, 0xbe]),
-            ] {
-                let (out, request, magic) = (&out, &request, &magic);
-                scope.spawn(move || {
-                    let exe = out.path().join(target).join("game");
-                    std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
-                    let lib = build_desktop(&exe, target, request).unwrap().unwrap();
-                    assert_eq!(magic(&lib)[..start.len()], start, "{target}");
-                });
-            }
-        });
-        assert_eq!(
-            build_desktop(&out.path().join("game"), "web", &request).unwrap(),
-            None
-        );
+        }
+    }
 
+    /// Whether clang and `linker` are here; when not, it says which is missing.
+    fn found(llvm: &Llvm, linker: Option<&Path>, name: &str) -> bool {
+        llvm.with(linker, name)
+            .map_err(|why| eprintln!("{why}; the native build is not exercised"))
+            .is_ok()
+    }
+
+    fn magic(path: &Path) -> Vec<u8> {
+        std::fs::read(path).unwrap()[..4].to_vec()
+    }
+
+    /// `target`'s library beside a game, opening with `start`; loaded when it
+    /// is this machine's.
+    fn desktop(target: &str, start: &[u8]) {
+        let request = hello();
+        let out = tempfile::tempdir().unwrap();
+        let lib = build_desktop(&out.path().join("game"), target, &request)
+            .unwrap()
+            .unwrap();
+        assert_eq!(magic(&lib)[..start.len()], *start, "{target}");
+        let here = match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("macos", _) => "macos-universal",
+            ("linux", "x86_64") => "linux-x64",
+            ("linux", "aarch64") => "linux-arm64-server",
+            _ => "",
+        };
+        if target == here {
+            // Each script's unit, and the one the project's instance starts from.
+            assert_eq!(
+                balaur::script_bs::load_native(&lib).unwrap(),
+                request.scripts.modules + 1
+            );
+        }
+    }
+
+    #[test]
+    fn linux_x64_builds_hello_needing_nothing() {
+        let llvm = Llvm::find();
+        if found(&llvm, llvm.elf.as_deref(), "ld.lld") {
+            desktop("linux-x64", b"\x7fELF");
+        }
+    }
+
+    #[test]
+    fn linux_arm64_builds_hello_needing_nothing() {
+        let llvm = Llvm::find();
+        if found(&llvm, llvm.elf.as_deref(), "ld.lld") {
+            desktop("linux-arm64-server", b"\x7fELF");
+        }
+    }
+
+    #[test]
+    fn windows_x64_builds_hello_needing_nothing() {
+        let llvm = Llvm::find();
+        if found(&llvm, llvm.coff.as_deref(), LLD_LINK) {
+            desktop("windows-x64", b"MZ");
+        }
+    }
+
+    #[test]
+    fn windows_arm64_builds_hello_needing_nothing() {
+        let llvm = Llvm::find();
+        if found(&llvm, llvm.coff.as_deref(), LLD_LINK) {
+            desktop("windows-arm64", b"MZ");
+        }
+    }
+
+    #[test]
+    fn macos_builds_hello_needing_nothing() {
+        let llvm = Llvm::find();
+        if has_xcode("macosx") || found(&llvm, llvm.ld64.as_deref(), "ld64.lld") {
+            desktop("macos-universal", &[0xca, 0xfe, 0xba, 0xbe]);
+        }
+    }
+
+    #[test]
+    fn the_web_builds_no_native_scripts() {
+        let out = tempfile::tempdir().unwrap();
+        let built = build_desktop(&out.path().join("game"), "web", &request(NativeScripts::On));
+        assert_eq!(built.unwrap(), None);
+    }
+
+    #[test]
+    fn android_builds_hello_in_each_64_bit_abi() {
+        let llvm = Llvm::find();
+        if !found(&llvm, llvm.elf.as_deref(), "ld.lld") {
+            return;
+        }
+        let out = tempfile::tempdir().unwrap();
         let layout = out.path().join("android");
         for abi in ["arm64-v8a", "x86_64", "armeabi-v7a"] {
             std::fs::create_dir_all(layout.join("lib").join(abi)).unwrap();
         }
-        build_android(&layout, &request).unwrap();
+        build_android(&layout, &hello()).unwrap();
         for abi in ["arm64-v8a", "x86_64"] {
             assert_eq!(
                 magic(&layout.join("lib").join(abi).join("libBalaurScripts.so")),
@@ -735,7 +793,15 @@ mod tests {
             );
         }
         assert!(!layout.join("lib/armeabi-v7a/libBalaurScripts.so").exists());
+    }
 
+    #[test]
+    fn ios_builds_hello_as_a_framework() {
+        let llvm = Llvm::find();
+        if !has_xcode("iphoneos") && !found(&llvm, llvm.ld64.as_deref(), "ld64.lld") {
+            return;
+        }
+        let out = tempfile::tempdir().unwrap();
         let app = out.path().join("Run.app");
         std::fs::create_dir_all(&app).unwrap();
         std::fs::write(app.join("Run"), header(CPU_ARM64, Some(2))).unwrap();
@@ -743,16 +809,24 @@ mod tests {
             bundle_id: "org.balaur.hello".into(),
             ..AppleConfig::default()
         };
-        build_framework(&app, "Run", &request, &apple).unwrap();
+        build_framework(&app, "Run", &hello(), &apple).unwrap();
         let framework = app.join("Frameworks/BalaurScripts.framework");
         assert_eq!(
             magic(&framework.join("BalaurScripts")),
             MH_MAGIC_64.to_le_bytes()
         );
         assert!(framework.join("Info.plist").is_file());
+    }
 
-        // Where there is no Xcode, as in a Linux container: lld links the slice.
-        let work = Work::new(&request.scripts).unwrap();
+    // Where there is no Xcode, as in a Linux container: lld links the slice.
+    #[test]
+    fn ios_builds_hello_with_lld_where_there_is_no_xcode() {
+        let llvm = Llvm::find();
+        if !found(&llvm, llvm.ld64.as_deref(), "ld64.lld") {
+            return;
+        }
+        let out = tempfile::tempdir().unwrap();
+        let work = Work::new(&hello().scripts).unwrap();
         let device = AppleSlice {
             arch: "arm64",
             triple: "arm64-apple-ios15.0".into(),
@@ -772,21 +846,5 @@ mod tests {
                 simulator: false
             })
         );
-
-        let host = match (std::env::consts::OS, std::env::consts::ARCH) {
-            ("macos", _) => Some("macos-universal"),
-            ("linux", "x86_64") => Some("linux-x64"),
-            ("linux", "aarch64") => Some("linux-arm64"),
-            _ => None,
-        };
-        if let Some(target) = host {
-            let lib =
-                native_scripts_beside(&out.path().join(target).join("game"), std::env::consts::OS);
-            // Each script's unit, and the one the project's instance starts from.
-            assert_eq!(
-                balaur::script_bs::load_native(&lib).unwrap(),
-                request.scripts.modules + 1
-            );
-        }
     }
 }

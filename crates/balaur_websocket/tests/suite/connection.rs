@@ -180,17 +180,38 @@ fn a_refused_upgrade_reports_its_http_status() {
 #[test]
 fn a_connection_opened_while_resimulating_never_connects() {
     let a = app();
-    let listener = WebsocketListener::bind(&a.engine, "127.0.0.1:0").unwrap();
+    let mut listener = WebsocketListener::bind(&a.engine, "127.0.0.1:0").unwrap();
     let b = app();
     b.engine
         .resource::<balaur_core::rollback::Resimulating>()
         .borrow_mut()
         .0 = true;
     let mut client = Connection::connect(&b.engine, &listener.url(), SocketOptions::default());
-    for _ in 0..20 {
-        assert!(client.receive().is_empty());
+    // Dialled after it, from a live app: by the time this one is in and
+    // answering, a socket the first had opened would be in too.
+    let live = app();
+    let mut control = Connection::connect(&live.engine, &listener.url(), SocketOptions::default());
+    let mut accepted = Vec::new();
+    for _ in 0..400 {
+        accepted.extend(listener.accept());
+        if !accepted.is_empty() {
+            break;
+        }
         std::thread::sleep(Duration::from_millis(5));
     }
+    assert_eq!(accepted.len(), 1, "one peer came in");
+    let mut server = accepted.remove(0);
+    assert!(opened(&receive_until(&mut server, opened)));
+    assert!(opened(&receive_until(&mut control, opened)));
+    server.send_text("here").unwrap();
+    assert_eq!(
+        receive_until(&mut control, |got| !got.is_empty()),
+        vec![Arrival::Text(String::from("here"))],
+        "the peer that came in is the live client"
+    );
+    let late = listener.accept();
+    assert!(late.is_empty(), "{} more peers came in", late.len());
+    assert!(client.receive().is_empty());
     assert_eq!(
         client.state(),
         LinkState::Connecting,

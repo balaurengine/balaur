@@ -56,8 +56,39 @@ fn every_declared_body_kind_is_accepted() {
     }
 }
 
+/// The asset a shape kind is built from, for the kinds built from one.
+fn asset_of(shape: &str) -> Option<&'static str> {
+    match shape {
+        "heightfield" => Some("heightfield"),
+        "voxels" => Some("voxels"),
+        "triangle_mesh"
+        | "convex_hull"
+        | "convex_decomposition"
+        | "polyline"
+        | "voxelized_mesh"
+        | "fit"
+        | "convex_mesh"
+        | "convex_polygon"
+        | "voxelized_points" => Some("mesh"),
+        _ => None,
+    }
+}
+
+/// Whether the world `component` lives in holds a collider for `e`.
+fn built(app: &App, component: &str, e: Entity) -> bool {
+    if component == "collider3d" {
+        let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
+        state.borrow().colliders.contains_key(&e)
+    } else {
+        let state = app.engine.resource::<balaur_physics::PhysicsState2d>();
+        state.borrow().colliders.contains_key(&e)
+    }
+}
+
+// A shape built from an asset has none here, so the one answer short of a
+// collider is the error naming the asset it needs.
 #[test]
-fn every_declared_shape_is_accepted() {
+fn every_declared_shape_builds_or_names_the_asset_it_needs() {
     let app = app();
     for (component, shapes) in [
         ("collider3d", balaur_physics::SHAPE_KINDS),
@@ -66,14 +97,22 @@ fn every_declared_shape_is_accepted() {
         for (_, shape) in shapes {
             let root = app.engine.root();
             let e = scene::spawn_node(&mut app.engine.world_mut(), shape, root);
-            let params: toml::Value = toml::from_str(&format!("kind = \"{shape}\"")).unwrap();
-            // A mesh-backed shape has no asset here and says so; only an
-            // unknown word is a rejection.
-            if let Err(e) = components::add(&app.engine, e, component, Some(&params)) {
-                assert!(
-                    !e.to_string().contains("unknown"),
-                    "{component} shape `{shape}` was rejected: {e}"
-                );
+            let params: toml::Value =
+                toml::from_str(&format!("shape = {{ kind = \"{shape}\" }}")).unwrap();
+            let added = components::add(&app.engine, e, component, Some(&params));
+            match (asset_of(shape), added) {
+                (None, Ok(())) => assert!(
+                    built(&app, component, e),
+                    "{component} shape `{shape}` built nothing"
+                ),
+                (None, Err(e)) => panic!("{component} shape `{shape}` was rejected: {e:#}"),
+                (Some(asset), Err(e)) => assert!(
+                    format!("{e:#}").contains(&format!("needs a `{asset}` asset")),
+                    "{component} shape `{shape}` did not ask for its {asset}: {e:#}"
+                ),
+                (Some(asset), Ok(())) => {
+                    panic!("{component} shape `{shape}` built with no {asset} to build from")
+                }
             }
         }
     }

@@ -39,7 +39,11 @@ fn walked(app: &App) -> (f32, f32) {
 }
 
 fn booted(dir: &std::path::Path) -> App {
-    let mut app = standard_app(AppConfig::dev(dir.to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     app
 }

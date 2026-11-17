@@ -162,8 +162,7 @@ fn a_left_to_right_caret_walks_right_and_a_click_lands_back() {
 #[test]
 fn a_right_to_left_caret_walks_left() {
     let mut state = asking();
-    if !state.covers('س') {
-        eprintln!("skipped: no Arabic face on this machine");
+    if !crate::tests::covered(&mut state, 'س') {
         return;
     }
     let text = "سلام عليكم";
@@ -180,8 +179,7 @@ fn hindi_thai_and_mixed_direction_text_round_trip() {
     let mut state = asking();
     for (probe, text) in [('न', "नमस्ते दुनिया"), ('ส', "สวัสดีครับ"), ('ש', "abc שלום def")]
     {
-        if !state.covers(probe) {
-            eprintln!("skipped {text:?}: no face covers it on this machine");
+        if !crate::tests::covered(&mut state, probe) {
             continue;
         }
         round_trips(&mut state, text);
@@ -217,8 +215,7 @@ fn an_empty_text_has_one_line_and_its_caret_at_the_start() {
 #[test]
 fn the_caret_walks_a_mixed_direction_line_in_visual_order() {
     let mut state = asking();
-    if !state.covers('ש') {
-        eprintln!("skipped: no Hebrew face on this machine");
+    if !crate::tests::covered(&mut state, 'ש') {
         return;
     }
     let text = "abc שלום def";

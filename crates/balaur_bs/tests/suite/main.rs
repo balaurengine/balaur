@@ -11,7 +11,8 @@ mod engine_api;
 mod events;
 mod fnrefs;
 mod format;
-#[cfg(all(feature = "c", feature = "native"))]
+// The object is read with `nm`, and a Windows target refuses `-fPIC`.
+#[cfg(all(unix, feature = "c", feature = "native"))]
 mod freestanding;
 mod lending;
 mod library;

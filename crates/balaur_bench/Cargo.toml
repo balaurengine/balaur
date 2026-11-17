@@ -7,8 +7,11 @@ license.workspace = true
 authors.workspace = true
 publish = false
 
+# Benchmarks only: with doctests on, every test build compiles this library,
+# and criterion with it.
 [lib]
 test = false
+doctest = false
 
 [dependencies]
 balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "bs"] }

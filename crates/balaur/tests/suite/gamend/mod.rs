@@ -4,7 +4,7 @@
 //! deleted before they end.
 
 mod client;
-mod flows;
+mod live;
 mod replay;
 
 use std::time::Duration;
@@ -55,21 +55,9 @@ pub(crate) fn run_with_addon(source: &str, markers: &[&str], deadline: Duration)
     balaur_testkit::run_until_within(&borrowed, source, markers, deadline)
 }
 
-/// The live server, held by this test alone: a local Gamend on SQLite runs
-/// out of connections when the suite's processes all reach it at once.
-/// `None` skips the test, as `balaur_testkit::gamend_url` does.
-pub(crate) fn server() -> Option<(String, std::fs::File)> {
-    let url = balaur_testkit::gamend_url()?;
-    let path = std::env::temp_dir().join("balaur-gamend-suite.lock");
-    let turn = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .open(&path)
-        .unwrap_or_else(|e| panic!("cannot open {}: {e}", path.display()));
-    turn.lock()
-        .unwrap_or_else(|e| panic!("cannot lock {}: {e}", path.display()));
-    Some((url, turn))
+/// The live server, or `None` to skip, as `balaur_testkit::gamend_url` says.
+pub(crate) fn server() -> Option<String> {
+    balaur_testkit::gamend_url()
 }
 
 /// A name no other run uses, for the accounts a test makes.

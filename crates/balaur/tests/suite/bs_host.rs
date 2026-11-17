@@ -129,6 +129,7 @@ impl Rival {
 
 #[test]
 fn a_script_detached_in_a_frame_is_not_called_later_in_it() {
+    use balaur_script::Value::Str;
     balaur_core::logbuf::capture_for_test();
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
@@ -156,6 +157,15 @@ fn a_script_detached_in_a_frame_is_not_called_later_in_it() {
             .collect();
         assert!(errors.is_empty(), "{errors:#?}");
     }
+    let said = |name: &str| field(&app, &format!("Root/{name}"), "said");
+    let left = [said("First"), said("Second")];
+    assert!(
+        matches!(
+            &left,
+            [Some(Str(said)), None] | [None, Some(Str(said))] if *said == "here"
+        ),
+        "the one that ran first keeps its script, the other has none: {left:?}"
+    );
 }
 
 #[test]

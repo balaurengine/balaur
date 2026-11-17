@@ -10,10 +10,11 @@ on:
     types: [published]
   workflow_dispatch:
 
+# Superseding a branch is free; superseding `main` is not: a cancelled run
+# saves no cache and leaves no verdict. A group holds one pending run and a
+# third push cancels it, so on main each commit is a group of its own.
 concurrency:
-  group: all-${{ github.ref }}
-  # Superseding a branch is free; superseding `main` is not. A cancelled run
-  # saves no build cache and leaves no verdict on the commit that made it.
+  group: all-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:

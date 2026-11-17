@@ -152,17 +152,27 @@ autoplay = "idle"
     );
 }
 
+// `Ghost`'s key is one nothing handles, so the log is heard saying so.
 #[test]
 fn a_saved_animation_node_no_longer_warns_that_nothing_handles_it() {
     balaur_core::logbuf::capture_for_test();
     let app = app();
     let source = r#"
 [[nodes]]
+id = "box"
 name = "Box"
 
 [nodes.animation]
 library = "animations/hero.toml"
 autoplay = "idle"
+
+[[nodes]]
+id = "ghost"
+name = "Ghost"
+parent = "box"
+
+[nodes.cloner]
+count = 3
 "#;
     let root = app.engine.root();
     project::instantiate_scene(&app.engine, source, root, false).unwrap();
@@ -172,8 +182,13 @@ autoplay = "idle"
         .filter(|message| message.contains("no registered handler"))
         .collect();
     assert!(
-        unhandled.is_empty(),
-        "the animation scene key is still unhandled: {unhandled:?}"
+        matches!(unhandled.as_slice(), [only] if only.contains("'cloner'")),
+        "only the ghost's key is unhandled: {unhandled:?}"
+    );
+    let entity = scene::find_node(&app.engine.world(), root, "Box").unwrap();
+    assert!(
+        components::get(&app.engine, entity, "animation").is_some(),
+        "the box carries its animation"
     );
 }
 

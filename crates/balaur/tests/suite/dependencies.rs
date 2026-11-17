@@ -76,9 +76,10 @@ fn a_dependency_script_reads_its_own_module_and_files() {
 #[test]
 fn use_inside_a_dependency_never_reaches_the_games_module() {
     let dir = workspace(false);
-    let mut app = standard_app(AppConfig::dev(
-        dir.path().join("game").to_string_lossy().as_ref(),
-    ))
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().join("game").to_string_lossy().as_ref())
+    })
     .unwrap();
     let Err(err) = app.load_project() else {
         panic!("the dependency's `use util;` linked the game's util.bs");

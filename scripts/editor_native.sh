@@ -25,7 +25,13 @@ case "$(uname -s)-$(uname -m)" in
   *) printf '::error::no desktop target for %s\n' "$(uname -sm)"; exit 1 ;;
 esac
 
-out=${1:-$(mktemp -d)}
+if [ -n "${1:-}" ]; then
+  # Absolute: the run below starts from inside the project.
+  out=$(mkdir -p "$1" && cd "$1" && pwd)
+else
+  out=$(mktemp -d)
+  trap 'rm -rf "$out"' EXIT
+fi
 rm -rf "$out/native" "$out/project"
 mkdir -p "$out/native"
 "$bin" export editor --target "$target" --runtime "$bin" -o "$out/native/game" >/dev/null
@@ -42,6 +48,10 @@ states=(
 )
 list=$(IFS=+; printf '%s' "${states[*]}")
 cp -R examples/hello "$out/project"
+# The plugin seam's worked example, as scripts/e2e.sh gives the run of
+# test:plugin_docks: the editor itself ships no demo dock.
+mkdir -p "$out/project/editor"
+cp scripts/plugins/counter.bs "$out/project/editor/"
 set +e
 log=$(cd "$out/project" && BALAUR_EDITOR="$root/editor" RUST_LOG=info \
   "$out/native/balaur" edit . --frames 100000 --state "suite:$list" 2>&1)

@@ -24,6 +24,16 @@ fn run_logged(body: &str) -> (App, Vec<String>, Vec<String>) {
 /// `body` as a node's `init`, then `frames` ticks; what an immediate verb
 /// drew is still in its buffer with none.
 fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
+    run_after(|_| {}, body, frames)
+}
+
+/// [`run_frames`], with `published` writing what a windowed backend would
+/// before the script starts.
+fn run_after(
+    published: impl FnOnce(&App),
+    body: &str,
+    frames: usize,
+) -> (App, Vec<String>, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -33,6 +43,7 @@ fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();
+    published(&app);
     app.load_project().unwrap();
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
@@ -131,37 +142,77 @@ fn a_colour_may_be_set_without_alpha() {
     );
 }
 
-// `camera_pose` reports where the camera actually is, which only a windowed
-// backend knows. Headless the pose stays at its default, so this checks the
-// call surface rather than a round trip.
+/// `body` as `init` once `published` has run, held to reaching its end
+/// without logging an error.
+fn reads_back(published: impl FnOnce(&App), body: &str) {
+    let (_app, errors, lines) = run_after(published, &format!("{body}\nlog::info(\"read\");"), 1);
+    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
+    assert!(
+        lines.iter().any(|l| l == "read"),
+        "the script never reached its checks: {lines:#?}"
+    );
+}
+
+// `camera_pose` reports where a backend put the camera, not what a
+// `camera3d` asked; this writes what a backend publishes.
 #[test]
-fn the_cameras_pose_can_be_read() {
-    run_clean(
+fn the_cameras_pose_reads_what_the_backend_published() {
+    reads_back(
+        |app| {
+            let snapshot = app.engine.resource::<balaur_render::ViewportSnapshot3d>();
+            let mut snapshot = snapshot.borrow_mut();
+            snapshot.eye = [1.0, 2.0, 3.0];
+            snapshot.target = [0.0, 0.5, -4.0];
+            snapshot.fov = 0.75;
+            snapshot.scale_factor = 2.0;
+            snapshot.view_proj[5] = 6.0;
+            snapshot.ray_origin = [7.0, 0.0, 0.0];
+            snapshot.ray_dir = [0.0, 0.0, -1.0];
+        },
         r#"
         let pose = render::camera_pose();
         let eye: Vec3 = pose.eye;
         let target: Vec3 = pose.target;
-        if eye.x != 0.0 || target.z != 0.0 || pose.fov != 0.0 { log::error("a headless pose should be zeros"); }
-        // Screen maths divides by it; a zero made the editor's pointer NaN.
+        if eye.x != 1.0 || eye.y != 2.0 || eye.z != 3.0 { log::error("eye {eye.x} {eye.y} {eye.z}"); }
+        if target.y != 0.5 || target.z != -4.0 { log::error("target {target.y} {target.z}"); }
+        if pose.fov != 0.75 { log::error("fov {pose.fov}"); }
         let dpi = pose.scale_factor;
-        if dpi != 1.0 { log::error("a headless scale should be one, got {dpi}"); }
+        if dpi != 2.0 { log::error("scale {dpi}"); }
         let matrix: [float] = render::camera_matrix();
+        if matrix.len() != 16 || matrix[5] != 6.0 || matrix[0] != 0.0 { log::error("matrix {matrix[5]}"); }
         let ray = render::mouse_ray();
         let origin: Vec3 = ray.origin;
         let direction: Vec3 = ray.direction;
+        if origin.x != 7.0 || direction.z != -1.0 { log::error("ray {origin.x} {direction.z}"); }
+        "#,
+    );
+}
+
+// Screen maths divides by it; a zero made the editor's pointer NaN.
+#[test]
+fn a_headless_camera_scale_is_one() {
+    reads_back(
+        |_| {},
+        r#"
+        let dpi = render::camera_pose().scale_factor;
+        if dpi != 1.0 { log::error("a headless scale should be one, got {dpi}"); }
         "#,
     );
 }
 
 #[test]
-fn the_2d_camera_reports_its_centre_and_zoom() {
-    run_clean(
+fn the_2d_camera_reports_the_centre_and_zoom_the_backend_published() {
+    reads_back(
+        |app| {
+            let snapshot = app.engine.resource::<balaur_render::ViewportSnapshot2d>();
+            let mut snapshot = snapshot.borrow_mut();
+            snapshot.center = [3.0, -5.0];
+            snapshot.zoom = 40.0;
+        },
         r#"
-        // Like camera_pose, this reports the viewport a backend writes each
-        // frame, so headless it stays at its default rather than echoing back.
         let view = render::camera_2d();
         let center: Vec2 = view.center;
-        if center.x != 0.0 || view.zoom != 0.0 { log::error("a headless 2D view should be zeros"); }
+        if center.x != 3.0 || center.y != -5.0 || view.zoom != 40.0 { log::error("view {center.x} {center.y} {view.zoom}"); }
         "#,
     );
 }

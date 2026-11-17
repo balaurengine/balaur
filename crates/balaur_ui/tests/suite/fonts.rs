@@ -156,7 +156,12 @@ fn a_caption_egui_lays_out_takes_up_the_face_the_system_picks() {
     balaur_text::shaper(&control.engine)
         .borrow_mut()
         .cover(hebrew);
+    // CI installs a Hebrew face, so there a missing one fails.
     if system_faces(&control) == 0 {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "no Hebrew face on a CI runner"
+        );
         eprintln!("skipped: no Hebrew face on this machine");
         return;
     }

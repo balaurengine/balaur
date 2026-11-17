@@ -53,6 +53,13 @@ inputs:
       job installed them already.
     required: false
     default: "true"
+  cache:
+    description: >-
+      Restore and save the Rust build cache. A repository building many
+      templates at once can turn it off: each is a gigabyte, and together
+      they push every other cache out of the repository's 10 GB.
+    required: false
+    default: "true"
   upload:
     description: >-
       Upload what was built, under the same `balaur-*` names a release holds.
@@ -103,6 +110,7 @@ runs:
     # The cache key names the feature list, which is comma separated, and the
     # action refuses a key with a comma in it.
     - id: cachekey
+      if: inputs.cache == 'true'
       shell: bash
       run: |
         set -euo pipefail
@@ -110,6 +118,7 @@ runs:
         echo "key=${{ steps.what.outputs.artifact }}-${features//,/-}" >>"$GITHUB_OUTPUT"
 
     - uses: Swatinem/rust-cache@v2
+      if: inputs.cache == 'true'
       with:
         key: ${{ steps.cachekey.outputs.key }}
         save-if: ${{ github.ref == 'refs/heads/main' }}

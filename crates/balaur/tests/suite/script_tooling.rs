@@ -49,7 +49,11 @@ fn host() -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(dir.path().join(PATH), SCRIPT).unwrap();
     std::fs::write(dir.path().join("helper.bs"), HELPER).unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.load_project().unwrap();
     (dir, app)
 }

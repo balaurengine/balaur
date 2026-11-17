@@ -12,7 +12,11 @@ use super::bs::{field, one_script};
 /// A dev run of the project at `dir` as the editor's binary boots the editor:
 /// every script of it may call the tools.
 pub(super) fn booted(dir: &Path) -> App {
-    let mut app = standard_app(AppConfig::dev(dir.to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.to_string_lossy().as_ref())
+    })
+    .unwrap();
     balaur_plugin::load(&mut app, &mut tools(dir)).unwrap();
     app.load_project().unwrap();
     app
@@ -147,7 +151,11 @@ fn functions_of(app: &App, module: &str) -> Vec<String> {
 fn a_game_runtime_has_no_debugger_and_no_script_tools() {
     use balaur_script::Value::{Bool, Str};
     let dir = one_script("Pauser", PAUSER_BS);
-    let game = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let game = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     for module in ["debugger", "script"] {
         let offered = functions_of(&game, module);
         assert!(offered.is_empty(), "a game is offered {offered:?}");

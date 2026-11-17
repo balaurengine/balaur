@@ -1,0 +1,34 @@
+name: Unpack this run's editor
+description: >-
+  Downloads the editor build-editor uploaded for one desktop, unpacks it and
+  names its binary in BALAUR_EXPORTER, for the jobs that export with it.
+
+inputs:
+  target:
+    description: The desktop the editor was built for, e.g. linux-x64.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: balaur-${{ inputs.target }}
+        path: editor
+    - shell: bash
+      run: |
+        set -euo pipefail
+        cd editor
+        # A test, not `ls`: under pipefail the one name that is absent fails the step.
+        for archive in balaur-editor-${{ inputs.target }}.tar.gz balaur-editor-${{ inputs.target }}.zip; do
+          [ -f "$archive" ] && break
+        done
+        # Git Bash's tar reads no zip; the Windows images carry 7z.
+        case "$archive" in
+        *.zip) 7z x -bso0 -bsp0 "$archive" ;;
+        *) tar -xzf "$archive" ;;
+        esac
+        exe=balaur-editor-${{ inputs.target }}/balaur
+        [ -f "$exe.exe" ] && exe="$exe.exe"
+        chmod +x "$exe"
+        echo "BALAUR_EXPORTER=$PWD/$exe" >>"$GITHUB_ENV"

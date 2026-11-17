@@ -1,6 +1,6 @@
-//! The harness the socket-facing e2e suites share: the gate that keeps them
-//! off a plain `cargo test`, the lock around the global log, and one booted
-//! app ticked until its script has said what it was meant to say.
+//! The harness the socket-facing suites share: the gate that keeps the live
+//! Gamend ones off a plain `cargo test`, the lock around the global log, and
+//! one booted app ticked until its script has said what it was meant to say.
 //!
 //! Every suite that boots `balaur::standard_app` over a real socket wants the
 //! same three things, and had its own copy of them. A scenario's own server —
@@ -12,29 +12,14 @@ use std::time::{Duration, Instant};
 
 use balaur::{AppConfig, standard_app};
 
-/// These tests boot full apps and speak real sockets: CI's job. A plain local
-/// `cargo test` skips them so iteration stays fast; `BALAUR_E2E=1` (what
-/// `scripts/e2e_tests.sh` and CI set) runs them.
-#[must_use]
-pub fn e2e_enabled() -> bool {
-    if std::env::var_os("BALAUR_E2E").is_some() {
-        return true;
-    }
-    eprintln!("skipped: e2e suite; run scripts/e2e_tests.sh or set BALAUR_E2E=1");
-    false
-}
-
-/// The Gamend server a live suite talks to on an e2e run: `GAMEND_URL`, or a
-/// local one on port 4000, never a public one. `None` skips the suite, as
-/// `BALAUR_E2E_GAMEND=0` asks where no server runs. Never a stand-in: a test
-/// that passes against one proves the stand-in.
+/// The Gamend server a live suite talks to: `GAMEND_URL`, or a local one on
+/// port 4000, never a public one. `None` skips the suite unless `BALAUR_E2E=1`
+/// asks for it, which `scripts/e2e_tests.sh` and CI set where a server runs.
+/// Never a stand-in: a test that passes against one proves the stand-in.
 #[must_use]
 pub fn gamend_url() -> Option<String> {
-    if !e2e_enabled() {
-        return None;
-    }
-    if std::env::var_os("BALAUR_E2E_GAMEND").is_some_and(|run| run == "0") {
-        eprintln!("skipped: Gamend suite (BALAUR_E2E_GAMEND=0)");
+    if std::env::var_os("BALAUR_E2E").is_none_or(|run| run != "1") {
+        eprintln!("skipped: live Gamend suite; set BALAUR_E2E=1 with a server running");
         return None;
     }
     Some(std::env::var("GAMEND_URL").unwrap_or_else(|_| String::from("http://localhost:4000")))

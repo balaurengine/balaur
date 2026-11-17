@@ -6,7 +6,7 @@
 
 use balaur::standard_app;
 
-use crate::LOG;
+use crate::{LOG, boot};
 
 /// Run `body` inside a script's `init`, then report anything logged as an
 /// error, or the compile error that stopped the load. A binding that is
@@ -48,14 +48,18 @@ fn run(body: &str) -> Vec<String> {
         .collect()
 }
 
-fn run_clean(body: &str) {
-    let errors = run(body);
-    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
+/// [`run`], failing unless `body` reached its last line and logged no other
+/// error: a call that errors ends the script, and nothing after it would log.
+fn run_to_the_end(body: &str) {
+    boot::assert_checked(&run(&format!(
+        "{body}\n        log::error(\"{}\");",
+        boot::CHECKED
+    )));
 }
 
 #[test]
 fn colliders_can_be_added_in_every_shape_the_api_offers() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
@@ -66,7 +70,7 @@ fn colliders_can_be_added_in_every_shape_the_api_offers() {
 
 #[test]
 fn linear_velocity_is_set_and_read_back() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
@@ -81,7 +85,7 @@ fn linear_velocity_is_set_and_read_back() {
 
 #[test]
 fn an_impulse_starts_a_body_moving() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
@@ -94,7 +98,7 @@ fn an_impulse_starts_a_body_moving() {
 
 #[test]
 fn pause_and_sleeping_are_readable_after_being_set() {
-    run_clean(
+    run_to_the_end(
         r#"
         physics::set_paused(true);
         if !physics::is_paused() { log::error("set_paused(true) did not stick"); }
@@ -108,19 +112,33 @@ fn pause_and_sleeping_are_readable_after_being_set() {
     );
 }
 
+// A clear empties both worlds and keeps their gravity, which is a setting.
 #[test]
-fn gravity_and_clear_are_callable() {
-    run_clean(
-        r"
+fn clear_removes_every_collider_and_keeps_the_gravity() {
+    run_to_the_end(
+        r#"
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
+        self.node.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_CIRCLE, "radius": 0.5 } });
+        let deep = physics3d::RayQuery { origin: vec3(0.0, 5.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 10.0 };
+        let flat = physics2d::RayQuery { origin: vec2(0.0, 5.0), direction: vec2(0.0, -1.0), max_distance: 10.0 };
+        if physics3d::raycast(deep) == nil { log::error("the 3D ray missed the ball before the clear"); }
+        if physics2d::raycast(flat) == nil { log::error("the 2D ray missed the disc before the clear"); }
         physics3d::set_gravity(vec3(0.0, -1.0, 0.0));
+        physics2d::set_gravity(vec2(0.0, -2.0));
         physics::clear();
-        ",
+        if physics3d::raycast(deep) != nil { log::error("the 3D ray met a ball the clear removed"); }
+        if physics2d::raycast(flat) != nil { log::error("the 2D ray met a disc the clear removed"); }
+        let down = physics3d::gravity().y;
+        if down != -1.0 { log::error("the clear set 3D gravity to {down}"); }
+        let fall = physics2d::gravity().y;
+        if fall != -2.0 { log::error("the clear set 2D gravity to {fall}"); }
+        "#,
     );
 }
 
 #[test]
 fn the_2d_world_has_the_same_shape_of_api() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
         self.node.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_CIRCLE, "radius": 0.5 } });
@@ -137,7 +155,7 @@ fn the_2d_world_has_the_same_shape_of_api() {
 
 #[test]
 fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
@@ -166,7 +184,7 @@ fn a_wrong_argument_is_reported_not_fatal() {
 
 #[test]
 fn a_component_call_binds_the_node_for_the_module_driving_it() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
         self.node.body2d.apply_impulse(vec2(1.0, 0.0));
@@ -189,13 +207,6 @@ fn a_component_call_no_driving_module_declares_is_refused() {
         errors.iter().any(|e| e.contains("sprite")),
         "expected an error naming the component, got {errors:#?}"
     );
-}
-
-/// As `run_clean`, with proof the script reached its last line: a call that
-/// errors ends the script, and nothing after it would log.
-fn run_to_the_end(body: &str) {
-    let errors = run(&format!("{body}\nlog::error(\"reached the end\");"));
-    assert_eq!(errors, ["reached the end"], "the script did not run clean");
 }
 
 const BALL_3D: &str = r#"
@@ -424,7 +435,7 @@ fn a_body_refuses_loose_floats_and_the_other_dimensions_vector() {
 
 #[test]
 fn a_handle_method_drops_its_components_name() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_BOX } });
@@ -455,7 +466,7 @@ fn a_handle_method_spelled_with_its_components_name_is_refused() {
 // Every setter owes a reader (N8).
 #[test]
 fn every_tuning_key_that_can_be_written_reads_back() {
-    run_clean(
+    run_to_the_end(
         r#"
         physics::set_tuning(physics::TuningOptions {
             friction_in_bias_pass: true,
@@ -502,7 +513,7 @@ fn voxelize_refuses_a_resolution_it_would_never_finish() {
 // The chassis's own `forward_axis`, not z: a car built along x would read its sideways slide.
 #[test]
 fn vehicle_speed_measures_along_the_chassis_forward_axis() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body3d", { "kind": "dynamic" });
         self.node.set_component("collider3d", { "shape": { "kind": "box" } });
@@ -518,7 +529,7 @@ fn vehicle_speed_measures_along_the_chassis_forward_axis() {
 // without building a table for it.
 #[test]
 fn a_collider_property_is_read_and_written_as_a_field() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body3d", { "kind": "dynamic" });
         self.node.set_component("collider3d", { "shape": { "kind": "box" }, "density": 1.0 });
@@ -535,7 +546,7 @@ fn a_collider_property_is_read_and_written_as_a_field() {
 
 #[test]
 fn writing_one_property_field_leaves_the_others() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("collider3d", { "shape": { "kind": "sphere", "radius": 0.75 }, "density": 2.5 });
         self.node.collider3d.density = 0.9;
@@ -565,7 +576,7 @@ fn a_property_of_another_component_is_refused() {
 
 #[test]
 fn apply_force_pushes_for_one_step_and_leaves_no_constant_force() {
-    run_clean(
+    run_to_the_end(
         r#"
         self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC, "gravity_scale": 0.0, "mass": 1.0 });
         self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
@@ -580,7 +591,8 @@ fn apply_force_pushes_for_one_step_and_leaves_no_constant_force() {
 
 #[test]
 fn each_world_takes_its_own_tuning_over_the_shared_keys() {
-    let errors = run(r#"
+    run_to_the_end(
+        r#"
         physics::set_tuning(physics::TuningOptions {
             length_unit: 2.0,
             soft_resweep_strain: 0.5,
@@ -599,10 +611,6 @@ fn each_world_takes_its_own_tuning_over_the_shared_keys() {
         if both.physics3d.friction_model.unwrap() != "simplified" { log::error("the 3D world lost its friction model"); }
         let counted = physics::counters();
         if !(counted.physics3d.solver_ms >= 0.0 && counted.physics2d.ccd_substep_count >= 0) { log::error("a counter is missing"); }
-        log::error("checked: tuning");
-    "#);
-    assert!(
-        errors.len() == 1 && errors[0].contains("checked: tuning"),
-        "the check did not run clean: {errors:#?}"
+    "#,
     );
 }

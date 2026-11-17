@@ -351,16 +351,38 @@ fn a_2d_instance_turns_about_z_and_lands_in_the_plane() {
 
 #[test]
 fn a_missing_asset_draws_nothing_rather_than_failing_the_node() {
-    let (_dir, mut app) = app();
+    let (dir, mut app) = app();
+    std::fs::create_dir_all(dir.path().join("multimeshes")).unwrap();
+    std::fs::write(
+        dir.path().join("multimeshes/posts.toml"),
+        "type = \"multimesh\"\nmesh = { type = \"mesh\", kind = \"box\" }\ninstances = [{ position = [1.0, 0.0, 0.0] }]\n",
+    )
+    .unwrap();
     let owner = node(&app, "Row", app.engine.root());
+    let found = node(&app, "Found", app.engine.root());
     add(
         &app,
         owner,
         "multimesh3d",
         "source = \"multimeshes/nowhere.toml\"",
     );
+    add(
+        &app,
+        found,
+        "multimesh3d",
+        "source = \"multimeshes/posts.toml\"",
+    );
     app.tick(1.0 / 60.0);
     assert!(placed(&app, owner).is_empty());
+    assert!(
+        components::get(&app.engine, owner, "multimesh3d").is_some(),
+        "the node keeps its component"
+    );
+    let beside = placed(&app, found);
+    assert!(
+        beside.len() == 1 && near(beside[0], Vec3::X),
+        "an asset that is there draws: {beside:?}"
+    );
 }
 
 /// Scenario project whose main scene holds one `multimesh` asset and the two nodes

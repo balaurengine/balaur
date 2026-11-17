@@ -3,7 +3,7 @@
 
 use balaur::standard_app;
 
-use crate::LOG;
+use crate::{LOG, boot};
 
 /// A project holding a closed tetrahedron mesh, a soft cuboid in 3D and a
 /// soft grid in 2D, each with a script attached.
@@ -90,11 +90,6 @@ kind = "grid"
     (dir, app)
 }
 
-fn run_clean(script: &str) {
-    let errors = run(script);
-    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
-}
-
 /// How many soft bodies the 3D world holds.
 fn bodies(app: &balaur_core::App) -> usize {
     let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
@@ -102,28 +97,26 @@ fn bodies(app: &balaur_core::App) -> usize {
     state.borrow().soft_bodies.len()
 }
 
-fn run_clean_for(script: &str, ticks: u32) {
-    let errors = run_for(script, ticks);
-    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
-}
-
 #[test]
 fn a_cuboid_soft_body_has_the_particles_its_cell_counts_ask_for() {
-    run_clean(
+    run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
         // Three particles an axis for two cells an axis.
         if self.node.softbody3d.particle_count() != 27 { log::error("the cuboid was not 3x3x3 particles"); }
+        log::error("checked");
     }
 }
 "#,
+        4,
+        boot::CHECKED,
     );
 }
 
 #[test]
 fn every_3d_layout_builds() {
-    run_clean(
+    run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -138,9 +131,12 @@ impl Scenario {
         if n.softbody3d.particle_count() != 8 { log::error("the rope has the wrong particle count"); }
         n.set_component("softbody3d", { "kind": physics3d::SOFT_TRIANGLE_MESH, "mesh": "#wedge" });
         if n.softbody3d.particle_count() != 4 { log::error("the wedge has four corners"); }
+        log::error("checked");
     }
 }
 "##,
+        4,
+        boot::CHECKED,
     );
 }
 
@@ -148,7 +144,7 @@ impl Scenario {
 // what comes out is a body with more particles than the mesh had corners.
 #[test]
 fn a_volumetric_body_fills_a_closed_mesh_with_cells() {
-    run_clean(
+    run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -156,16 +152,19 @@ impl Scenario {
         n.set_component("soft_volumetric3d", { "cell_size": 0.2 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
         if n.softbody3d.particle_count() <= 4 { log::error("the tetrahedrization added no particles"); }
         if n.softbody3d.volume() <= 0.0 { log::error("the filled body encloses nothing"); }
+        log::error("checked");
     }
 }
 "##,
+        4,
+        boot::CHECKED,
     );
 }
 
 // The cell size is the knob that matters: a smaller one is a finer body.
 #[test]
 fn a_smaller_cell_size_makes_a_finer_volumetric_body() {
-    run_clean(
+    run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -174,9 +173,12 @@ impl Scenario {
         let coarse = n.softbody3d.particle_count();
         n.set_component("soft_volumetric3d", { "cell_size": 0.15 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
         if n.softbody3d.particle_count() <= coarse { log::error("halving the cell size added no particles"); }
+        log::error("checked");
     }
 }
 "##,
+        4,
+        boot::CHECKED,
     );
 }
 
@@ -216,7 +218,7 @@ impl Scenario {
 // drawn from them rather than from what was authored.
 #[test]
 fn a_falling_soft_body_moves_its_particles() {
-    run_clean(
+    run_checked(
         r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
 impl Scenario {
     fn init() {
@@ -228,10 +230,13 @@ impl Scenario {
         if self.ticks == 3 {
             let now = self.node.softbody3d.particle(0).position;
             if now.y >= self.first.y { log::error("gravity did not move the body's particles"); }
+            log::error("checked");
         }
     }
 }
 "#,
+        4,
+        boot::CHECKED,
     );
 }
 
@@ -239,7 +244,7 @@ impl Scenario {
 // the rest of the body.
 #[test]
 fn a_pinned_particle_stays_where_it_was_put() {
-    run_clean(
+    run_checked(
         r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
 impl Scenario {
     fn init() {
@@ -253,16 +258,19 @@ impl Scenario {
             let held = self.node.softbody3d.particle(0).position;
             if math::abs(held.y - self.first.y) >= 0.001 { log::error("the pinned particle fell"); }
             if self.node.softbody3d.particle(7).position.y >= self.first.y { log::error("the free end did not fall"); }
+            log::error("checked");
         }
     }
 }
 "#,
+        4,
+        boot::CHECKED,
     );
 }
 
 #[test]
 fn the_2d_world_has_the_same_shape_of_api() {
-    run_clean(
+    run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -275,9 +283,12 @@ impl Scenario {
         if blob.softbody2d.particle_count() != 6 { log::error("the 2D rope has the wrong count"); }
         blob.set_component("softbody2d", { "kind": physics2d::SOFT_TRIANGLE_MESH, "mesh": "#square" });
         if blob.softbody2d.particle_count() != 4 { log::error("the square has four corners"); }
+        log::error("checked");
     }
 }
 "##,
+        4,
+        boot::CHECKED,
     );
 }
 
@@ -285,7 +296,7 @@ impl Scenario {
 // than tetrahedrized, and the same `cell_size` knob decides how finely.
 #[test]
 fn a_2d_volumetric_body_fills_an_outline_with_triangles() {
-    run_clean(
+    run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -293,9 +304,12 @@ impl Scenario {
         blob.set_component("soft_volumetric2d", { "cell_size": 0.2 }); blob.set_component("softbody2d", { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": "#square" });
         if blob.softbody2d.particle_count() <= 4 { log::error("the triangulation added no particles"); }
         if blob.softbody2d.area() <= 0.0 { log::error("the filled body encloses nothing"); }
+        log::error("checked");
     }
 }
 "##,
+        4,
+        boot::CHECKED,
     );
 }
 
@@ -304,7 +318,7 @@ impl Scenario {
 // strain comes apart, and the node's `on_torn` hears about it.
 #[test]
 fn a_rope_past_its_tear_strain_comes_apart() {
-    run_clean_for(
+    run_checked(
         r#"pub class Scenario { node: Node, torn: int, ticks: int, before: int }
 impl Scenario {
     fn init() {
@@ -327,15 +341,15 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 40 {
-            // A control first: without it a body that never simulated would
-            // pass this test by never tearing and never being asked to.
             if self.before != 12 { log::error("the rope was not built with twelve particles"); }
             if self.torn <= 0 { log::error("the rope never tore, after 40 steps under its own weight"); }
+            log::error("checked");
         }
     }
 }
 "#,
-        45,
+        41,
+        boot::CHECKED,
     );
 }
 
@@ -530,16 +544,19 @@ fn removing_a_soft_body_takes_its_solved_mesh_with_it() {
 // back has to say 0 still: a saved number would stay put when `cells` moves.
 #[test]
 fn an_automatic_particle_radius_reads_back_as_automatic() {
-    run_clean(
+    run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
         self.node.set_component("soft_grid3d", { "cells": [2.0, 2.0, 2.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "particle_radius": 0.0 });
         let read = self.node.get_component("softbody3d");
         if read["particle_radius"].as_float() != 0.0 || read["particle_radius"].kind() == "nil" { log::error("the automatic radius read back as a number"); }
+        log::error("checked");
     }
 }
 "#,
+        4,
+        boot::CHECKED,
     );
 }
 
@@ -603,15 +620,18 @@ impl Scenario {
 // The skin as the collision mesh: a skinned volumetric body builds with it.
 #[test]
 fn a_skinned_body_can_collide_through_its_skin() {
-    run_clean(
+    run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
         self.node.set_component("soft_volumetric3d", { "cell_size": 0.2 }); self.node.set_component("soft_skin3d", { "skin": true, "skin_collision": true }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
         if self.node.softbody3d.particle_count() <= 0 { log::error("the skinned body has no particles"); }
+        log::error("checked");
     }
 }
 "##,
+        4,
+        boot::CHECKED,
     );
 }
 

@@ -254,7 +254,11 @@ fn snap_aov_asks_the_renderer_for_an_auxiliary_output() {
          impl Scenario {\n    fn init() { render::snap_aov(render::AOV_CAMERA_NORMALS, \"shots/n.png\"); }\n}\n",
     )
     .unwrap();
-    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let mut app = standard_app(AppConfig {
+        watch: false,
+        ..AppConfig::dev(dir.path().to_string_lossy().as_ref())
+    })
+    .unwrap();
     app.engine.insert_resource(balaur_render::WindowedBackend);
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);

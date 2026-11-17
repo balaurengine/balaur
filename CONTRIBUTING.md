@@ -37,17 +37,18 @@ times.
 | --- | --- | ---: | ---: |
 | `cargo check -p <crate>` | that crate and what depends on it | n/a | seconds |
 | `cargo check --workspace` | the loop while writing; fingerprints 400 crates | a full build | 23 s |
-| `scripts/precommit.sh --files` | rustfmt and the six lints that only read files | 7 s | 7 s |
+| `scripts/precommit.sh --files` | rustfmt and the six lints that only read files | 25 s | 25 s |
 | `scripts/precommit.sh --lints` | the above, every clippy shape (thirteen on macOS, ten elsewhere) and cargo-deny | a full build | 6 s |
-| `scripts/precommit.sh` | the above, plus every test and both kinds of docs | a full build | 48 m |
-| `scripts/precommit.sh --e2e` | the above, plus the socket suites and every example project | a full build | 48 m plus the pipeline |
+| `scripts/precommit.sh` | the above, plus every test, the scripts checked and both kinds of docs | a full build | not measured |
+| `scripts/precommit.sh --e2e` | the above, plus the live Gamend suites, every example project and the editor as native code | a full build | the above plus the pipeline |
 | `scripts/e2e.sh target/e2e hello` | one project through check, run, export, play, edit and render | n/a | 8 m |
 | `node scripts/web_smoke.mjs dist/play` | every pack of a web bundle in headless Chrome, 8 s each | n/a | 2 m |
 
 `--fix` on any tier runs `cargo fmt --all` first. Each feature shape keeps its
 own target directory, so switching shapes is what rebuilds, not running again.
-Warm, the tests are 46 of the 48 minutes, and more cores do not shorten them:
-each `balaur` suite test boots a whole app, and that boot is serialised.
+Warm, `cargo suite` alone ran in 132 to 221 s over four runs on that machine
+while other work shared it: 3,418 tests, a process each. The longest are the
+export tests that compile hello's scripts to C for one target each.
 
 Install the hook once, and a push runs `--lints` on its own:
 
@@ -55,10 +56,10 @@ Install the hook once, and a push runs `--lints` on its own:
 git config core.hooksPath .githooks
 ```
 
-CI alone runs the pack and trace comparison across platforms, the
-reproducible build, line coverage, and `build.yml`'s template, export and
-signing check for every platform. `scripts/coverage.sh` gives the coverage
-number locally.
+CI alone runs the trace comparison across platforms, the reproducible build,
+`build.yml`'s template, export and signing check for every platform, and once
+a day the fuzz targets and line coverage. `scripts/coverage.sh` gives the
+coverage number locally.
 
 ## Speed
 

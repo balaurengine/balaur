@@ -795,25 +795,45 @@ fn a_number_field_moves_by_its_drag_speed() {
 
 #[test]
 fn a_scroll_the_wheel_may_not_scroll_stays_put() {
-    let (_dir, mut app, scroll, _lines, ctx) = scroll_of_lines(
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 padding = 0.0 widget_scroll = { wheel_scroll = false } widget_layout = { gap = [0.0, 0.0] } }.into(),
+    // After a wheel: where the first line sits, how far down the reader says
+    // it is, and how many `scrolled` it said.
+    let wheeled = |wheel_scroll: bool| {
+        let (_dir, mut app, scroll, lines, ctx) = scroll_of_lines(
+            &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 padding = 0.0 widget_scroll = { wheel_scroll = wheel_scroll } widget_layout = { gap = [0.0, 0.0] } }.into(),
+        );
+        let wheel = vec![
+            egui::Event::PointerMoved(pos2(100.0, 50.0)),
+            egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(0.0, -90.0),
+                phase: egui::TouchPhase::Move,
+                source: egui::MouseWheelSource::Unknown,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ];
+        pass(&app, &ctx, wheel);
+        for _ in 0..10 {
+            pass(&app, &ctx, vec![]);
+        }
+        consume_input(&mut app);
+        let top = balaur_ui::widget_rect(lines[0]).unwrap().min.y;
+        let down = balaur::components::get(&app.engine, scroll, "widget_scroll")
+            .and_then(|read| read.get("scroll_offset")?.as_array()?.get(1)?.as_float());
+        let said = balaur_core::events::delivered_from(&app.engine, scroll, "scrolled").len();
+        (top, down, said)
+    };
+    let (top, down, said) = wheeled(true);
+    assert!(
+        top < -1.0 && down.is_some_and(|y| y > 1.0) && said > 0,
+        "the wheel scrolls a scroll that lets it: {top}, {down:?}, {said} said"
     );
-    let wheel = vec![
-        egui::Event::PointerMoved(pos2(100.0, 50.0)),
-        egui::Event::MouseWheel {
-            unit: egui::MouseWheelUnit::Point,
-            delta: egui::vec2(0.0, -90.0),
-            phase: egui::TouchPhase::Move,
-            source: egui::MouseWheelSource::Unknown,
-            modifiers: egui::Modifiers::NONE,
-        },
-    ];
-    pass(&app, &ctx, wheel);
-    for _ in 0..5 {
-        pass(&app, &ctx, vec![]);
-    }
-    consume_input(&mut app);
-    assert!(balaur_core::events::delivered_from(&app.engine, scroll, "scrolled").is_empty());
+    let (top, down, said) = wheeled(false);
+    assert!(top.abs() < 0.5, "the first line stayed at the top: {top}");
+    assert!(
+        down.is_none_or(|y| y < 0.0),
+        "the reader wrote a scroll: {down:?}"
+    );
+    assert_eq!(said, 0, "and no `scrolled` was said");
 }
 
 #[test]
