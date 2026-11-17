@@ -594,7 +594,7 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
     let (_dir, mut app) = app();
     let holder = add_widget(
         &app,
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 widget_scroll = { scroll_deadzone = 30.0 } widget_layout = { gap = [0.0, 0.0] } }
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 widget_scroll = { scroll_deadzone = 30.0, drag_scroll = "always" } widget_layout = { gap = [0.0, 0.0] } }
             .into(),
     );
     let first = add_child_widget(

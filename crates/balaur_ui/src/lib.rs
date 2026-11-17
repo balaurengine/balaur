@@ -446,6 +446,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     // Before the classes are read by anything: the theme answers by them, and
     // so does the floor egui's own controls take.
     widget::theme::set_pass_classes(&widget::arena::begin_classes(eng));
+    widget::scroll::begin_pass(eng, ctx);
     apply_long_press(eng, ctx);
     bridge::enter_pass(ctx);
     routing::pass_begins(eng);

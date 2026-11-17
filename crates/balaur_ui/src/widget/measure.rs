@@ -166,9 +166,8 @@ impl<'a> Measure<'a> {
     fn content(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let widget = &self.arena[index].widget;
         match widget.kind.as_str() {
-            // A scroll is meant to clip, so it answers with its stated size,
-            // else with what it holds up to a `max_width` or `max_height`
-            // (CSS's `overflow: auto` under a cap), else with nothing.
+            // A scroll clips: what it holds up to a cap, across the one way
+            // it scrolls, else nothing (CSS's `overflow: auto`).
             w::SCROLL => self.capped(index, theme),
             // A picture with a `fit` is sized by the box it is given, so it
             // measures only what it states: Godot's expand modes.
@@ -370,7 +369,18 @@ impl<'a> Measure<'a> {
             widget.layout.max_height.get(),
         );
         if cap.x <= 0.0 && cap.y <= 0.0 {
-            return egui::Vec2::ZERO;
+            // Uncapped, nothing along the way it scrolls and what it holds
+            // across the other: a row that slides sideways is as tall as its
+            // content, as CSS's `overflow-x: auto` box is.
+            let (sideways, downwards) = crate::widget::taffy::scroll_axes(&widget.axis);
+            if sideways == downwards {
+                return egui::Vec2::ZERO;
+            }
+            let held = self.inner(index, theme);
+            return vec2(
+                if sideways { 0.0 } else { held.x },
+                if downwards { 0.0 } else { held.y },
+            );
         }
         let pass = self.painter.ctx().cumulative_pass_nr();
         let key = self.arena[index].entity.to_bits().get();

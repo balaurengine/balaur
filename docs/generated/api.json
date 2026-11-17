@@ -18986,7 +18986,7 @@
       },
       "drag_scroll": {
         "default": "touch",
-        "description": "When dragging a `scroll`, `list`, `tree` or `table`'s content scrolls it: on a touch screen, always, or never; a `scroll_deadzone` takes the drag over itself",
+        "description": "When dragging a `scroll`, `list`, `tree` or `table`'s content scrolls it: on a touch screen (or with `[input] emulate_touch_from_mouse`, the mouse standing in for a finger), always, or never; a `scroll_deadzone` takes the drag over itself, and a child that takes the drag itself (`sense = \"drag\"`, a slider) keeps it",
         "options": [
           "touch",
           "always",
@@ -19008,7 +19008,7 @@
       },
       "scroll_deadzone": {
         "default": 0.0,
-        "description": "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once",
+        "description": "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 takes the project's `[ui] scroll_deadzone`",
         "min": 0.0,
         "type": "float"
       },
@@ -27671,6 +27671,18 @@
         "host": true,
         "max": 8192.0,
         "min": 1.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "ui/scroll_deadzone",
+      "scope": "project",
+      "spec": {
+        "default": 8.0,
+        "help": "How far a finger travels on a `scroll` before it scrolls, in design pixels, so a tap that wobbles stays a tap on what it landed on: Android's touch slop, Godot's `scroll_deadzone` for every scroll. A scroll's own `scroll_deadzone` goes over it; 0 scrolls at once.",
+        "max": 256.0,
+        "min": 0.0,
         "type": "float"
       }
     },

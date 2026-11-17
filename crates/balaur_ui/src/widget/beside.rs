@@ -518,13 +518,13 @@ pub(crate) struct WidgetScroll {
     /// How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui's own
     #[property(default = [1.0, 1.0])]
     pub(crate) wheel_speed: [f32; 2],
-    /// When dragging a `scroll`, `list`, `tree` or `table`'s content scrolls it: on a touch screen, always, or never; a `scroll_deadzone` takes the drag over itself
+    /// When dragging a `scroll`, `list`, `tree` or `table`'s content scrolls it: on a touch screen (or with `[input] emulate_touch_from_mouse`, the mouse standing in for a finger), always, or never; a `scroll_deadzone` takes the drag over itself, and a child that takes the drag itself (`sense = "drag"`, a slider) keeps it
     #[property(default = DragScroll::new(w::TOUCH))]
     pub(crate) drag_scroll: DragScroll,
     /// The pointer's shape while a drag scrolls a `scroll`, `list`, `tree` or `table`'s content; `arrow` leaves it as it is
     #[property(default = Cursor::new(w::cursor::ARROW))]
     pub(crate) drag_cursor: Cursor,
-    /// How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once
+    /// How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 takes the project's `[ui] scroll_deadzone`
     #[property(min = 0.0)]
     pub(crate) scroll_deadzone: f32,
     /// The narrowest a `scroll`, `list`, `tree` or `table` draws while its content runs past it sideways, in design pixels; 0 takes egui's

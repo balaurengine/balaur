@@ -924,6 +924,7 @@ system_text_size = { type = "bool", default = true, applies = "restart", help = 
 narrow_below_pixels = { type = "float", host = true, default = 600.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of width a layout reads `narrow`: one column, one panel at a time. Android's own line between its compact and medium window classes." }
 wide_from_pixels = { type = "float", host = true, default = 840.0, min = 1.0, max = 8192.0, applies = "restart", help = "From this many design pixels of width a layout reads `wide` and may spread out. Between the two lines it reads `medium`." }
 short_below_pixels = { type = "float", host = true, default = 480.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of height a layout reads `short`, which is a phone on its side." }
+scroll_deadzone = { type = "float", default = 8.0, min = 0.0, max = 256.0, help = "How far a finger travels on a `scroll` before it scrolls, in design pixels, so a tap that wobbles stays a tap on what it landed on: Android's touch slop, Godot's `scroll_deadzone` for every scroll. A scroll's own `scroll_deadzone` goes over it; 0 scrolls at once." }
 "#,
         ),
     );

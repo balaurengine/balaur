@@ -307,7 +307,8 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let mut inner_ui = frame_ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(held)));
         let ui = &mut inner_ui;
         hold_to(ui, inner);
-        let dead = widget.deadzone;
+        let dead = crate::widget::scroll::deadzone(widget.deadzone);
+        let drags = crate::widget::scroll::drags(&widget.egui.drag_scroll);
         let (sideways, downwards) = crate::widget::taffy::scroll_axes(&widget.axis);
         // The box on both ends: egui's own least scrolled size is 64 points,
         // which drew a shorter box past its row.
@@ -321,7 +322,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // With a deadzone the finger scrolls nothing until it has travelled
         // that far, so a tap on a child lands; past it, this drags the
         // offset itself.
-        let dragged = (dead > 0.0)
+        let dragged = (dead > 0.0 && drags)
             .then(|| crate::widget::scroll::deadzone_drag(ui, at.eng, entity, dead))
             .flatten();
         if dead > 0.0 {

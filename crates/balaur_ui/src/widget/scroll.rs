@@ -1,8 +1,72 @@
 //! A finger dragging a `scroll`: the deadzone before it scrolls, and the
 //! fling that carries on after it lifts.
 
+use std::cell::Cell;
+
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
+
+thread_local! {
+    /// What this pass's drags read once: whether a finger drives the screen
+    /// (or the mouse stands in for one), and the project's deadzone.
+    static PASS: Cell<(bool, f32)> = const { Cell::new((false, 0.0)) };
+}
+
+/// Read once a pass, after its classes: whether a `drag_scroll = "touch"`
+/// scroll drags, which is the screen's `touch` class or `[input]
+/// emulate_touch_from_mouse` (the mouse standing in for a finger, as
+/// Godot's does, so a desktop tries a phone's scrolling), and `[ui]
+/// scroll_deadzone`, which under a finger is also how far a tap may wobble.
+/// egui's own `OnTouch` waits for touch events egui is never sent, so
+/// balaur decides it.
+pub(crate) fn begin_pass(eng: &Engine, ctx: &egui::Context) {
+    let number = |path: &str| {
+        balaur_core::settings::get(eng, path).and_then(|value| {
+            value
+                .as_float()
+                .or_else(|| value.as_integer().map(|whole| whole as f64))
+        })
+    };
+    let emulated = balaur_core::settings::get(eng, "input/emulate_touch_from_mouse")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let finger = crate::widget::theme::pass_is_touch() || emulated;
+    let dead = number("ui/scroll_deadzone").unwrap_or(0.0).max(0.0) as f32;
+    PASS.with(|held| held.set((finger, dead)));
+    // Under a finger a tap that wobbles less than the deadzone is still a
+    // tap, as a phone's touch slop is; a mouse keeps egui's own six.
+    let slop = if finger {
+        dead.max(CLICK_SLOP)
+    } else {
+        CLICK_SLOP
+    };
+    ctx.options_mut(|options| {
+        if (options.input_options.max_click_dist - slop).abs() > f32::EPSILON {
+            options.input_options.max_click_dist = slop;
+        }
+    });
+}
+
+/// Whether dragging a scroll's content scrolls it, by its `drag_scroll`:
+/// `always`, `never`, else under a finger.
+pub(crate) fn drags(mode: &str) -> bool {
+    use crate::vocabulary::words as w;
+    match mode {
+        w::ALWAYS => true,
+        w::NEVER => false,
+        _ => PASS.with(Cell::get).0,
+    }
+}
+
+/// How far a drag travels before a scroll moves: its own `scroll_deadzone`,
+/// else the project's.
+pub(crate) fn deadzone(stated: f32) -> f32 {
+    if stated > 0.0 {
+        stated
+    } else {
+        PASS.with(Cell::get).1
+    }
+}
 
 /// Below this a lift is a tap that happened to move, not a flick, and the
 /// list should stop where the finger left it. Points per second.
@@ -10,6 +74,8 @@ const FLING_MIN: f32 = 120.0;
 /// How fast a flick runs out, as a proportion kept per second. Time-based, so
 /// the same flick throws the same distance at any frame rate.
 const FLING_DECAY: f32 = 0.0025;
+/// How far a press may move and still click, egui's own default, in points.
+const CLICK_SLOP: f32 = 6.0;
 
 /// The offset a finger past a scroll's deadzone asks for, or `None` while
 /// nothing is dragging that far. The press is remembered with the offset
@@ -48,6 +114,13 @@ pub(crate) fn deadzone_drag(
     // A finger back on the list stops it where it is, which is what everyone
     // expects of a list still coasting.
     state.scroll_flings.remove(&key);
+    // A press a child took as its own drag (a slider, a board's letters) is
+    // never the list's: CSS's `touch-action: none`, Godot's control that
+    // handles the drag. Its own scrollbar's handle is one too.
+    if ui.ctx().dragged_id().is_some() {
+        state.scroll_drags.remove(&key);
+        return None;
+    }
     let (origin, latest) = (origin?, latest?);
     if let std::collections::hash_map::Entry::Vacant(slot) = state.scroll_drags.entry(key) {
         let inside =
@@ -119,10 +192,10 @@ pub(crate) fn dressed(
         .wheel_scroll_multiplier(egui::vec2(o.wheel_speed[0], o.wheel_speed[1]))
         .scroll_source(ScrollSource {
             scroll_bar: true,
-            drag: match o.drag_scroll.as_str() {
-                w::ALWAYS => DragScroll::Always,
-                w::NEVER => DragScroll::Never,
-                _ => DragScroll::OnTouch,
+            drag: if drags(&o.drag_scroll) {
+                DragScroll::Always
+            } else {
+                DragScroll::Never
             },
             mouse_wheel: o.wheel_scroll,
         });
