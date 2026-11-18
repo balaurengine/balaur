@@ -35,3 +35,51 @@ fn a_corrupted_glb_is_an_error_and_never_a_panic() {
         );
     }
 }
+
+#[test]
+fn a_glb_declaring_less_than_its_header_is_an_error() {
+    let mut bytes = b"glTF".to_vec();
+    bytes.extend_from_slice(&2u32.to_le_bytes());
+    bytes.extend_from_slice(&4u32.to_le_bytes());
+    let err = balaur_asset::glb::parse_gltf(&bytes, "short.glb", &|_| {
+        Err(anyhow::anyhow!("no side files"))
+    })
+    .unwrap_err();
+    assert!(
+        format!("{err:#}").contains("shorter than its own header"),
+        "{err:#}"
+    );
+}
+
+#[test]
+fn a_mesh_naming_a_position_accessor_it_has_not_got_is_an_error() {
+    let json =
+        br#"{"asset":{"version":"2.0"},"meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}]}"#;
+    let err = balaur_asset::glb::parse_gltf(json, "bare.gltf", &|_| {
+        Err(anyhow::anyhow!("no side files"))
+    })
+    .unwrap_err();
+    assert!(
+        format!("{err:#}").contains("position accessor it has not got"),
+        "{err:#}"
+    );
+}
+
+#[test]
+fn nodes_that_are_each_others_children_are_read_once() {
+    let json = br#"{"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[0]}],
+"nodes":[{"name":"A","children":[1]},{"name":"B","children":[0]}]}"#;
+    let imported = balaur_asset::glb::import(json, "loop.gltf", &|_| {
+        Err(anyhow::anyhow!("no side files"))
+    })
+    .unwrap();
+    let names: Vec<&str> = imported.scene["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|n| n.get("name")?.as_str())
+        .collect();
+    for name in ["A", "B"] {
+        assert_eq!(names.iter().filter(|&&n| n == name).count(), 1, "{names:?}");
+    }
+}

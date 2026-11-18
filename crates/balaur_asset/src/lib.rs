@@ -2,6 +2,7 @@
 //! decoded to pixels, and the `texture` asset.
 
 pub mod glb;
+mod glb_checks;
 mod glb_material;
 pub mod pixels;
 pub mod texture_asset;

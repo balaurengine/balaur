@@ -107,9 +107,7 @@ pub(crate) struct Model {
 
 impl Model {
     fn load(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<Self> {
-        let file = gltf::Gltf::from_slice(bytes).with_context(|| format!("reading {name}"))?;
-        let mut blob = file.blob;
-        let document = file.document;
+        let (document, mut blob) = crate::glb_checks::read_gltf(bytes, name)?;
         let mut buffers = Vec::new();
         let mut side_files = Vec::new();
         for buffer in document.buffers() {
@@ -264,10 +262,17 @@ impl Model {
     }
 
     /// Every node of the scene, parents before children, siblings in order.
+    /// Each once: a file's children lists may form a cycle, or name a node
+    /// under two parents.
     fn scene_nodes(&self) -> Vec<usize> {
         let mut out = Vec::new();
+        let mut seen = vec![false; self.document.nodes().len()];
         let mut stack: Vec<usize> = self.scene_roots().into_iter().rev().collect();
         while let Some(node) = stack.pop() {
+            if seen.get(node).is_none_or(|&was| was) {
+                continue;
+            }
+            seen[node] = true;
             out.push(node);
             if let Some(n) = self.document.nodes().nth(node) {
                 let children: Vec<usize> = n.children().map(|c| c.index()).collect();
@@ -1081,6 +1086,9 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
         let mut tracks: Vec<toml::Value> = Vec::new();
         let mut length: f32 = 0.0;
         for channel in animation.channels() {
+            if !crate::glb_checks::target_reads(&model.document, &channel) {
+                continue;
+            }
             let reader = channel.reader(|b| model.buffer(&b));
             let Some(times) = reader.read_inputs() else {
                 continue;

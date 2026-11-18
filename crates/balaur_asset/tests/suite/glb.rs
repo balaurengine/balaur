@@ -376,6 +376,83 @@ fn an_import_writes_bones_a_mesh_node_and_a_clip_keyed_by_path() {
     toml::to_string(&clips).unwrap();
 }
 
+/// One change to the column's glTF.
+type Damage = fn(&mut serde_json::Value);
+
+/// The column's glTF with one thing in it changed.
+fn damaged_column(damage: Damage) -> Vec<u8> {
+    let (json, bin) = column_parts(Buffer::Bin, false);
+    let mut doc: serde_json::Value = serde_json::from_str(&json).unwrap();
+    damage(&mut doc);
+    glb(&doc.to_string(), &bin)
+}
+
+#[test]
+fn a_channel_aimed_at_no_node_or_no_property_is_left_out_of_its_clip() {
+    let cases: [(&str, Damage); 2] = [
+        ("a property glTF has no name for", |j| {
+            j["animations"][0]["channels"][0]["target"]["path"] = "wobble".into();
+        }),
+        ("a node the file has not got", |j| {
+            j["animations"][0]["channels"][0]["target"]["node"] = 9.into();
+        }),
+    ];
+    for (what, damage) in cases {
+        let imported = glb::import(&damaged_column(damage), "column.glb", &glb::no_side_files)
+            .unwrap_or_else(|e| panic!("{what}: {e:#}"));
+        let tracks = imported
+            .clips
+            .as_ref()
+            .and_then(|c| c.get("clips")?.get("wave")?.get("tracks")?.as_array())
+            .map_or(0, Vec::len);
+        assert_eq!(tracks, 0, "{what} still made a track");
+    }
+    let whole = glb::import(&column(), "column.glb", &glb::no_side_files).unwrap();
+    assert!(whole.clips.is_some(), "the undamaged column lost its clip");
+}
+
+#[test]
+fn an_accessor_its_use_does_not_take_is_refused() {
+    let cases: [(&str, Damage); 9] = [
+        ("positions as pairs", |j| {
+            j["accessors"][0]["type"] = "VEC2".into();
+        }),
+        ("indices as floats", |j| {
+            j["accessors"][1]["componentType"] = 5126.into();
+        }),
+        ("inverse bind matrices as numbers", |j| {
+            j["accessors"][4]["type"] = "SCALAR".into();
+        }),
+        ("times as pairs", |j| {
+            j["accessors"][5]["type"] = "VEC2".into();
+            j["accessors"][5]["count"] = 1.into();
+        }),
+        ("rotations as u32", |j| {
+            j["accessors"][6]["componentType"] = 5125.into();
+        }),
+        ("no times at all", |j| {
+            j["accessors"][5]["count"] = 0.into();
+        }),
+        ("more times than their view holds", |j| {
+            j["accessors"][5]["count"] = 1_000_000_000_000u64.into();
+        }),
+        ("rotations closer than one rotation apart", |j| {
+            j["bufferViews"][6]["byteStride"] = 4.into();
+        }),
+        ("a view past the end of its buffer", |j| {
+            j["bufferViews"][6]["byteOffset"] = 1_000_000.into();
+        }),
+    ];
+    for (what, damage) in cases {
+        let bytes = damaged_column(damage);
+        let err = glb::import(&bytes, "column.glb", &glb::no_side_files)
+            .err()
+            .unwrap_or_else(|| panic!("{what} was read"));
+        let err = format!("{err:#}");
+        assert!(err.contains("accessor "), "{what}: {err}");
+    }
+}
+
 #[test]
 fn a_gltf_reads_its_buffer_beside_itself_through_the_reader() {
     let (json, bin) = column_parts(Buffer::Side, false);
