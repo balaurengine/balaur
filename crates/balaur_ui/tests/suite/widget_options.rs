@@ -205,6 +205,25 @@ fn an_animated_progress_bar_asks_for_frames_only_while_short_of_full() {
 }
 
 #[test]
+fn a_progress_bar_at_nothing_paints_its_track_alone() {
+    let rects = |value: f64| {
+        let (_dir, _app, _, _, out) = drawn(
+            &toml::toml! { kind = "progress_bar"   width = 160.0 x = 0.0 y = 0.0 widget_range = { value = value } }.into(),
+        );
+        out.shapes
+            .iter()
+            .filter(|shape| matches!(shape.shape, egui::epaint::Shape::Rect(_)))
+            .count()
+    };
+    assert_eq!(rects(0.5), 2, "under way: the track and its fill");
+    assert_eq!(
+        rects(0.0),
+        1,
+        "not begun: the track, no round end of a fill"
+    );
+}
+
+#[test]
 fn a_progress_bar_with_no_font_size_is_as_tall_as_a_line_of_its_caption() {
     let (_dir, _app, bar, _, _) = drawn(
         &toml::toml! { kind = "progress_bar" text = "half"  x = 0.0 y = 0.0 widget_range = { value = 0.5 } }.into(),

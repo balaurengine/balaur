@@ -375,11 +375,15 @@ fn paint_bar(
         1.0
     };
     let fill = style.fill.unwrap_or(visuals.selection.bg_fill);
-    painter.fill(
-        filled,
-        radius,
-        Color32::from(egui::Rgba::from(fill) * shade),
-    );
+    // None at all at nothing, as daisyUI's `progress` at 0: the round end's
+    // least width is for a bar under way, not one not begun.
+    if fraction > 0.0 {
+        painter.fill(
+            filled,
+            radius,
+            Color32::from(egui::Rgba::from(fill) * shade),
+        );
+    }
     if animate && style.radius.is_none() {
         let time = ui.input(|i| i.time);
         let start = time * std::f64::consts::TAU;
