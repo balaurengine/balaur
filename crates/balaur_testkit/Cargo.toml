@@ -12,7 +12,8 @@ test = false
 
 [dependencies]
 tempfile = "3"
-balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
+# `bs`: the kit's projects attach scripts, which need a backend to load.
+balaur = { workspace = true, features = ["bs", "compile", "physics2d", "physics3d"] }
 balaur_core.workspace = true
 
 [lints]
