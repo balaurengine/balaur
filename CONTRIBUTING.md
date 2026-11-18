@@ -57,9 +57,8 @@ git config core.hooksPath .githooks
 ```
 
 CI alone runs the trace comparison across platforms, the reproducible build,
-`build.yml`'s template, export and signing check for every platform, and once
-a day the fuzz targets and line coverage. `scripts/coverage.sh` gives the
-coverage number locally.
+`build.yml`'s template, export and signing check for every platform, and each
+night the fuzz targets. `scripts/coverage.sh` gives the line coverage locally.
 
 ## Speed
 

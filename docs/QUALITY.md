@@ -6,15 +6,15 @@ says how to run them locally and what each costs.
 ## CI
 
 `runner.yml` is the one push and pull-request trigger, and calls the rest but
-`scheduled.yml`. On main a running run is never cancelled; a newer push
-replaces only the run still waiting to start.
+`fuzz.yml`. On main a running run is never cancelled; a newer push replaces
+only the run still waiting to start.
 
 | Workflow | Covers |
 | --- | --- |
 | `lint.yml` | format, every clippy shape, the house, comment, string, prose and API lints, the notices, cargo-deny |
 | `docs.yml` | rustdoc, and `docs/generated/` against a booted engine |
 | `test.yml` | the tests, the live Gamend suites, the determinism traces, the reproducible build |
-| `scheduled.yml` | once a day on main: the compiler's fuzz targets and line coverage |
+| `fuzz.yml` | each night on main: every target in `fuzz/`, two hours each |
 | `build.yml` | every platform's build, templates, exports and signing check |
 | `container.yml`, `container-signer.yml` | the engine's and the signing toolchain's container images (`docker/README.md`) |
 
@@ -207,8 +207,8 @@ process per test, and a JUnit report uploaded beside the run. Beyond it:
   into every corpus program, then reads, formats, analyses, compiles and runs
   each under fuel. Nothing may panic, and every module written validates.
   `BS_FUZZ_SEED` and `BS_FUZZ_MUTANTS` (12 a program by default) widen a run.
-  `crates/balaur_bs/fuzz/` holds the same two checks as `cargo fuzz` targets,
-  `compile` and `run`, which `scheduled.yml` runs for twenty minutes each.
+  `fuzz/` holds the same two checks as the `cargo fuzz` targets
+  `script_compile` and `script_run`, under [Fuzzing](#fuzzing).
 - **Random programs**: `tests/suite/random.rs` generates well-typed programs
   and runs each on every engine and on a small interpreter kept for the test,
   which must agree. The engines share one compiler, so only this catches it
@@ -240,6 +240,38 @@ What keeps a run short:
 - A dependency's heavy generic is called through a concrete type the
   dependency compiles itself at opt 3 (`image`'s `DynamicImage`), not
   instantiated in a crate built at opt 0.
+
+## Fuzzing
+
+`fuzz/` is one `cargo fuzz` crate with a target for each place the engine
+reads bytes it did not write. `fuzz.yml` runs each for two hours a night on
+every core, from the corpus the last night grew, and uploads any input that
+crashed or hung. From the repository root:
+
+```bash
+./fuzz/seed.sh scene fuzz/corpus/scene
+cargo +nightly fuzz run scene
+```
+
+| Target | What it reads |
+| --- | --- |
+| `script_compile` | any text as Balaur Script: read, formatted, analysed, compiled; every module written validates |
+| `script_run` | a program that compiles, each public function called under fuel and a memory cap |
+| `script_unit` | a compiled unit as a pack carries it, damaged byte by byte |
+| `pack` | any bytes as a `.bpak`, and one built from the input then damaged; one that reads writes itself back unchanged |
+| `standalone` | any bytes as an executable carrying a pack, PE certificate table included |
+| `ignore` | a `project.toml`'s ignore patterns, matched against a path |
+| `obj`, `gltf` | any bytes as an OBJ, glTF or GLB model, and its import |
+| `scene` | any text as a scene file on an app with physics and animation, then three frames |
+| `net_peer` | a peer's messages to a host in a two-player match, and the ticks after each |
+| `websocket` | a handshake, a close frame, and a permessage-deflate stream |
+
+`fuzz/seed.sh` starts each target from the files the repository holds of its
+input, and `fuzz/seeds/` from hand-written ones where it holds none. The crate
+is its own workspace, so the root's `[patch]` forks do not reach it, and
+`balaur` and `balaur_import`, which need them, stay out. A target reaches a
+crate's internals through that crate's `#[cfg(fuzzing)] pub mod fuzzing`,
+which only `cargo fuzz` compiles.
 
 ## End to end, over every example
 

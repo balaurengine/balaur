@@ -62,6 +62,34 @@ mod backend {
 mod browser;
 mod vocabulary;
 
+/// What `fuzz/` reaches that no caller can: the code reading a peer's bytes.
+#[cfg(all(fuzzing, not(target_family = "wasm")))]
+pub mod fuzzing {
+    use crate::frames::{Deflate, DeflateParams, close_status, deflate_params, verify};
+
+    /// A `Sec-WebSocket-Extensions` answer, then each payload inflated in turn
+    /// on one connection's window, the way a compressed stream arrives.
+    pub fn inflate(extensions: &str, payloads: &[&[u8]]) {
+        let params = deflate_params(extensions, true).ok().flatten();
+        let mut deflate = Deflate::new(params.unwrap_or(DeflateParams {
+            client_takeover: true,
+            server_takeover: true,
+        }));
+        for payload in payloads {
+            if deflate.inflate(payload).is_err() {
+                return;
+            }
+        }
+    }
+
+    /// Any bytes as the handshake from either end, and as a close frame.
+    pub fn handshake(head: &[u8]) {
+        let _ = verify(head, "dGhlIHNhbXBsZSBub25jZQ==", true);
+        let _ = crate::listener::request_key(head);
+        let _ = close_status(head);
+    }
+}
+
 #[cfg(target_family = "wasm")]
 mod backend {
     use crate::SocketCommand;

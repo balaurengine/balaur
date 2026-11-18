@@ -1,0 +1,74 @@
+name: Fuzz
+
+# Every fuzz target in fuzz/, each night on main: too long for a push, and
+# nothing a push waits on.
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Read off fuzz/Cargo.toml, so a new target is fuzzed without a line here.
+  targets:
+    runs-on: ubuntu-latest
+    outputs:
+      names: ${{ steps.list.outputs.names }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: list
+        run: |
+          python3 -c 'import json, tomllib; print("names=" + json.dumps([b["name"] for b in tomllib.load(open("fuzz/Cargo.toml", "rb"))["bin"]]))' >>"$GITHUB_OUTPUT"
+
+  # Two hours each on every core, from the corpus the last run grew; a find
+  # is uploaded as the input that caused it.
+  fuzz:
+    name: fuzz · ${{ matrix.target }}
+    needs: targets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.targets.outputs.names) }}
+    env:
+      CORPUS: fuzz/corpus/${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Nightly, for libFuzzer's instrumentation
+        run: rustup toolchain install nightly --profile minimal
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz@0.13.2
+      # A cache key is never overwritten, so each run saves its own and the
+      # prefix restores the newest.
+      - name: The corpus the last run grew
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.CORPUS }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: fuzz-corpus-${{ matrix.target }}-
+      - name: Seed from the repository's files
+        run: ./fuzz/seed.sh ${{ matrix.target }} "$CORPUS"
+      - name: Fuzz
+        # The prebuilt cargo-fuzz defaults to its own musl target, which the
+        # sanitizer refuses; the runner's glibc one is named. An input still
+        # running after a minute is a hang, and fails the run as one.
+        run: >-
+          cargo +nightly fuzz run ${{ matrix.target }}
+          --target x86_64-unknown-linux-gnu --jobs "$(nproc)"
+          -- -max_total_time=7200 -timeout=60
+      # After a find too: the inputs that reached new code stay found.
+      - name: Keep the corpus
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.CORPUS }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+      - name: What it found
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: fuzz/artifacts

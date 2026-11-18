@@ -2,7 +2,7 @@ name: Test
 
 # Everything that actually runs the engine. Static checks are in lint.yml,
 # documentation in docs.yml, anything producing a download in build.yml, and
-# the checks too long for every push in scheduled.yml.
+# the fuzz targets in fuzz.yml.
 
 on:
   # Runs from .github/workflows/runner.yml, which owns the triggers; kept

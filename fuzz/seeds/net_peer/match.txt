@@ -1,0 +1,8 @@
+{"Control":{"kind":"hello","protocol":1,"name":"guest","token":""}}
+{"Inputs":{"player":2,"seq":1,"from":1,"values":[{"Int":10}],"lead":0}}
+{"Inputs":{"player":2,"seq":2,"from":1,"values":[{"Int":10},{"Int":20},{"Float":0.5}],"lead":1}}
+{"Digest":{"tick":1,"digest":12345}}
+{"Ping":{"id":7}}
+{"Pong":{"id":7}}
+{"Inputs":{"player":1,"seq":3,"from":2,"values":[{"Bool":true}],"lead":-1}}
+{"Control":{"kind":"bye"}}

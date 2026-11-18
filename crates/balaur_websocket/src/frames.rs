@@ -199,7 +199,11 @@ impl std::fmt::Display for Refused {
 impl std::error::Error for Refused {}
 
 /// Check the upgrade and read back what the server agreed to.
-fn verify(head: &[u8], key: &str, offered_deflate: bool) -> Result<Option<DeflateParams>> {
+pub(crate) fn verify(
+    head: &[u8],
+    key: &str,
+    offered_deflate: bool,
+) -> Result<Option<DeflateParams>> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut response = httparse::Response::new(&mut headers);
     response
@@ -643,7 +647,7 @@ const NO_STATUS: u16 = 1005;
 const ABNORMAL: u16 = 1006;
 
 /// A close frame's status and reason; a frame naming no status is 1005.
-fn close_status(payload: &[u8]) -> (u16, String) {
+pub(crate) fn close_status(payload: &[u8]) -> (u16, String) {
     let Some(&[high, low]) = payload.get(..2) else {
         return (NO_STATUS, String::new());
     };

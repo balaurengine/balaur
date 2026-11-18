@@ -1,3 +1,5 @@
 # LF in the index and on every checkout: a CRLF checkout (Windows CI) exports
 # different pack bytes than Linux and macOS from the same sources.
 * text=auto eol=lf
+# Fuzz seeds are inputs byte for byte: an HTTP handshake keeps its CRLFs.
+fuzz/seeds/** -text

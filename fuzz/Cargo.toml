@@ -1,0 +1,108 @@
+# `cargo +nightly fuzz run <target>` from the repository root. docs/QUALITY.md
+# "Fuzzing" says why it is its own workspace, and which crates it cannot take.
+[package]
+name = "balaur_fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+anyhow = "1"
+serde_json = "1"
+balaur_bs = { path = "../crates/balaur_bs", features = ["wasmi"] }
+balaur_core = { path = "../crates/balaur_core" }
+balaur_script = { path = "../crates/balaur_script" }
+balaur_plugin = { path = "../crates/balaur_plugin" }
+balaur_net = { path = "../crates/balaur_net" }
+balaur_websocket = { path = "../crates/balaur_websocket" }
+balaur_geometry = { path = "../crates/balaur_geometry" }
+balaur_asset = { path = "../crates/balaur_asset" }
+balaur_physics = { path = "../crates/balaur_physics" }
+balaur_animation = { path = "../crates/balaur_animation" }
+# wasmi's default dispatch needs the optimiser's tail calls, which the
+# sanitizer's instrumentation stops: each instruction then took a host frame.
+wasmi = { version = "2", default-features = false, features = ["portable-dispatch"] }
+wasmparser = { version = "0.262", default-features = false, features = ["std", "validate"] }
+
+[workspace]
+
+[[bin]]
+name = "script_compile"
+path = "fuzz_targets/script_compile.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "script_run"
+path = "fuzz_targets/script_run.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "script_unit"
+path = "fuzz_targets/script_unit.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pack"
+path = "fuzz_targets/pack.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "standalone"
+path = "fuzz_targets/standalone.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ignore"
+path = "fuzz_targets/ignore.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "obj"
+path = "fuzz_targets/obj.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "gltf"
+path = "fuzz_targets/gltf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "scene"
+path = "fuzz_targets/scene.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "net_peer"
+path = "fuzz_targets/net_peer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "websocket"
+path = "fuzz_targets/websocket.rs"
+test = false
+doc = false
+bench = false

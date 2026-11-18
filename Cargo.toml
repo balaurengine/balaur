@@ -37,6 +37,8 @@ too_long_first_doc_paragraph = "allow"
 
 [workspace.lints.rust]
 unreachable_pub    = "warn"
+# `cargo fuzz` builds with `--cfg fuzzing`; fuzz/ reaches crate internals by it.
+unexpected_cfgs    = { level = "warn", check-cfg = ["cfg(fuzzing)"] }
 rust_2018_idioms   = { level = "warn", priority = -1 }
 
 [workspace.dependencies]

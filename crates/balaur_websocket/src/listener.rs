@@ -216,7 +216,7 @@ fn read_request(stream: &mut impl std::io::Read) -> Result<(Vec<u8>, Vec<u8>)> {
     }
 }
 
-fn request_key(head: &[u8]) -> Result<String> {
+pub(crate) fn request_key(head: &[u8]) -> Result<String> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut request = httparse::Request::new(&mut headers);
     request.parse(head).context("parsing the upgrade request")?;
