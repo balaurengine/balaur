@@ -10,11 +10,11 @@ on:
     types: [published]
   workflow_dispatch:
 
-# Superseding a branch is free; on `main` a running run finishes, and a newer
-# push replaces only the one still pending, which has spent nothing yet.
+# A newer push cancels the run before it, on `main` too: only the latest
+# commit's run finishes.
 concurrency:
   group: all-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 jobs:
   lint:

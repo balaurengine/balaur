@@ -6,8 +6,8 @@ says how to run them locally and what each costs.
 ## CI
 
 `runner.yml` is the one push and pull-request trigger, and calls the rest but
-`fuzz.yml`. On main a running run is never cancelled; a newer push replaces
-only the run still waiting to start.
+`fuzz.yml`. A newer push cancels the run before it, on main too, so only the
+latest commit's run finishes.
 
 | Workflow | Covers |
 | --- | --- |
