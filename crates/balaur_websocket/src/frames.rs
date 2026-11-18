@@ -17,7 +17,7 @@ use balaur_core::wake::Worker;
 use mio::{Events, Interest, Token};
 
 use anyhow::{Context, Result, anyhow, bail};
-use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress};
+use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 use tungstenite::client::{IntoClientRequest, uri_mode};
 use tungstenite::handshake::client::generate_request;
 use tungstenite::handshake::derive_accept_key;
@@ -325,9 +325,18 @@ impl Deflate {
                 out.reserve(out.len().max(256));
             }
             let before = self.decompress.total_in();
-            self.decompress
-                .decompress_vec(&input[consumed..], &mut out, FlushDecompress::Sync)?;
+            let status = self.decompress.decompress_vec(
+                &input[consumed..],
+                &mut out,
+                FlushDecompress::Sync,
+            )?;
             consumed += usize::try_from(self.decompress.total_in() - before)?;
+            // A sender may end a message with a final block (RFC 7692
+            // §7.2.3.4): what follows it is not read, and no window outlives it.
+            if status == Status::StreamEnd {
+                self.decompress.reset(false);
+                return Ok(out);
+            }
             if consumed == input.len() && out.len() < out.capacity() {
                 break;
             }
@@ -759,6 +768,37 @@ mod tests {
         );
         assert_eq!(b.inflate(&first).unwrap(), text.as_bytes());
         assert_eq!(b.inflate(&second).unwrap(), text.as_bytes());
+    }
+
+    /// A raw deflate stream ended by a final block, as some senders write one.
+    fn finished(text: &[u8]) -> Vec<u8> {
+        let mut compress = Compress::new(Compression::default(), false);
+        let mut out = Vec::with_capacity(text.len() + 64);
+        compress
+            .compress_vec(text, &mut out, FlushCompress::Finish)
+            .unwrap();
+        out
+    }
+
+    #[test]
+    fn a_message_ending_in_a_final_block_inflates_and_the_next_starts_afresh() {
+        let mut b = Deflate::new(DeflateParams {
+            client_takeover: true,
+            server_takeover: true,
+        });
+        assert_eq!(b.inflate(&finished(b"Hello")).unwrap(), b"Hello");
+        assert_eq!(b.inflate(&finished(b"World")).unwrap(), b"World");
+    }
+
+    #[test]
+    fn the_rfcs_final_block_example_reads_as_hello() {
+        let mut b = Deflate::new(DeflateParams {
+            client_takeover: true,
+            server_takeover: true,
+        });
+        let payload = [0xf3, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00, 0x00];
+        assert_eq!(b.inflate(&payload).unwrap(), b"Hello");
+        assert_eq!(b.inflate(&finished(b"World")).unwrap(), b"World");
     }
 
     #[test]
