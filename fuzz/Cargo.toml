@@ -25,7 +25,7 @@ balaur_physics = { path = "../crates/balaur_physics" }
 balaur_animation = { path = "../crates/balaur_animation" }
 # wasmi's default dispatch needs the optimiser's tail calls, which the
 # sanitizer's instrumentation stops: each instruction then took a host frame.
-wasmi = { version = "2", default-features = false, features = ["portable-dispatch"] }
+wasmi = { version = "2.0.1", default-features = false, features = ["portable-dispatch"] }
 wasmparser = { version = "0.262", default-features = false, features = ["std", "validate"] }
 
 [workspace]

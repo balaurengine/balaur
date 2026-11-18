@@ -787,10 +787,10 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [wasm-encoder](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder) | 0.261.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasm-encoder](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder) | 0.262.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasm_sync](https://github.com/DouglasDwyer/wasm_sync) | 0.1.2 | `MIT OR Apache-2.0` |
-| [wasmi](https://github.com/wasmi-labs/wasmi) | 2.0.0 | `MIT OR Apache-2.0` |
-| [wasmi_collections](https://github.com/wasmi-labs/wasmi) | 2.0.0 | `MIT OR Apache-2.0` |
-| [wasmi_core](https://github.com/wasmi-labs/wasmi) | 2.0.0 | `MIT OR Apache-2.0` |
-| [wasmi_ir](https://github.com/wasmi-labs/wasmi) | 2.0.0 | `MIT OR Apache-2.0` |
+| [wasmi](https://github.com/wasmi-labs/wasmi) | 2.0.1 | `MIT OR Apache-2.0` |
+| [wasmi_collections](https://github.com/wasmi-labs/wasmi) | 2.0.1 | `MIT OR Apache-2.0` |
+| [wasmi_core](https://github.com/wasmi-labs/wasmi) | 2.0.1 | `MIT OR Apache-2.0` |
+| [wasmi_ir](https://github.com/wasmi-labs/wasmi) | 2.0.1 | `MIT OR Apache-2.0` |
 | [wasmparser](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser) | 0.228.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasmparser](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser) | 0.261.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasmparser](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser) | 0.262.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
