@@ -407,15 +407,17 @@ impl WidgetTheme {
         if let Some(held) = self.settled.borrow().get(&key) {
             return Rc::clone(held);
         }
-        let base = self.style(kind);
+        // Each in its own classes before the next goes over it: the kind's
+        // touch height is the kind's, and a role's own height still wins.
+        let base = in_classes(&self.style(kind), &active);
         let mut settled = match self.roles.get(role) {
-            Some(style) => style.over(&base),
+            Some(style) => in_classes(style, &active).over(&base),
             None => base,
         };
         if settled.font.is_none() {
             settled.font = self.fonts.get(t::FONT_DEFAULT).map(SmolStr::new);
         }
-        let made = Rc::new(in_classes(&settled, &active));
+        let made = Rc::new(settled);
         self.settled.borrow_mut().insert(key, Rc::clone(&made));
         made
     }

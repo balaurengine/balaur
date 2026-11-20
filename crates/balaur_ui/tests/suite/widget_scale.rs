@@ -320,6 +320,51 @@ mod classes {
         );
     }
 
+    // The kind's touch table is the kind's: a role that states its own height
+    // (a count badge, a card that fits its text) keeps it on a phone, and a
+    // role's own touch table goes over that.
+    #[test]
+    fn a_role_s_height_wins_over_its_kind_s_touch_table() {
+        let height_with = |role: &str| {
+            let (dir, app) = app();
+            std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+            std::fs::write(
+                dir.path().join("themes/t.toml"),
+                "type = \"widget_theme\"\n[button]\nheight = 24.0\n[button.touch]\nheight = 44.0\n\
+                 [roles.count]\nheight = 20.0\n\
+                 [roles.big]\nheight = 20.0\n[roles.big.touch]\nheight = 50.0\n",
+            )
+            .unwrap();
+            let mut params = toml::toml! {
+                kind = "button" text = "1" x = 0.0 y = 0.0 theme = "themes/t.toml"
+            };
+            params.insert("role".into(), role.into());
+            let widget = add_widget(&app, &params.into());
+            balaur_core::facts::update_device(&app.engine, |facts: &mut DeviceFacts| {
+                facts.screen_size = [390.0, 844.0];
+                facts.ui_scale = 1.0;
+            });
+            let mut platform = balaur_core::facts::platform(&app.engine);
+            platform.touchscreen = true;
+            app.engine
+                .resource::<balaur_core::facts::Facts>()
+                .borrow_mut()
+                .0 = Some(platform);
+            let ctx = egui::Context::default();
+            settle(&app, &ctx);
+            balaur_ui::widget_rect(widget)
+                .expect("the button drew")
+                .height()
+        };
+        let count = height_with("count");
+        let big = height_with("big");
+        assert!((count - 20.0).abs() < 1.0, "the count was {count}");
+        assert!(
+            (big - 50.0).abs() < 1.0,
+            "the role's touch table gave {big}"
+        );
+    }
+
     // A finger never hovers, so a tooltip a cursor rests for is one a phone
     // would otherwise never see. It opens on the hold and stays until the
     // finger lifts.
