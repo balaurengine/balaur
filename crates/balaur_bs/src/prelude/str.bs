@@ -1,7 +1,8 @@
 //! The methods of a `str`, compiled into a program that calls them. Offsets
 //! are bytes, as `len` counts them, moved back onto the start of a character.
 //! A number that does not parse is 0. Case comes from the tables `build.rs`
-//! writes from Rust's own, a character at a time.
+//! writes from Rust's own, a character at a time; marks, decompositions and
+//! which characters are letters from Unicode's data, the same way.
 
 pub fn contains(text: str, needle: str) -> bool {
     find_from(text, needle, 0) >= 0
@@ -34,6 +35,60 @@ pub fn to_upper(text: str) -> str {
 
 pub fn to_lower(text: str) -> str {
     recase(text, false)
+}
+
+// Each character as Unicode decomposes it (NFD), less its combining marks
+// (`Mn`): what a search compares, so `café` and `cafe` are one word.
+pub fn without_marks(text: str) -> str {
+    let codes: [int] = [];
+    let length = text.len();
+    let at = 0;
+    while at < length {
+        let byte = __byte(text, at);
+        if byte < 128 {
+            codes.push(byte);
+            at += 1;
+        } else {
+            let code = code_at(text, at);
+            at += char_len(text, at);
+            if within(MARKS, code) {
+                // A mark, dropped.
+            } else if code >= 44032 && code <= 55203 {
+                syllable(code, codes);
+            } else {
+                cased(UNMARKED, UNMARKED_MANY, code, codes);
+            }
+        }
+    }
+    encode(codes)
+}
+
+// The runs of letters and digits (Unicode's `L` and `N`), in order: what
+// stands between them is no word.
+pub fn split_words(text: str) -> [str] {
+    let out: [str] = [];
+    let length = text.len();
+    let start = -1;
+    let at = 0;
+    while at < length {
+        let code = code_at(text, at);
+        let inside = if code < 128 {
+            (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
+        } else {
+            within(WORD_CHARS, code)
+        };
+        if inside && start < 0 {
+            start = at;
+        } else if !inside && start >= 0 {
+            out.push(part(text, start, at));
+            start = -1;
+        }
+        at += char_len(text, at);
+    }
+    if start >= 0 {
+        out.push(part(text, start, length));
+    }
+    out
 }
 
 pub fn trim(text: str) -> str {
@@ -306,6 +361,35 @@ fn cased(one: str, many: str, code: int, out: [int]) {
     while made < hex(many, record * 25 + 6, 1) {
         out.push(hex(many, record * 25 + 7 + made * 6, 6));
         made += 1;
+    }
+}
+
+// Whether `code` is in one of the table's ranges: twelve hex digits each,
+// the first code point then the last, in order.
+fn within(table: str, code: int) -> bool {
+    let lo = 0;
+    let hi = table.len() / 12;
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        if code < hex(table, mid * 12, 6) {
+            hi = mid;
+        } else if code > hex(table, mid * 12 + 6, 6) {
+            lo = mid + 1;
+        } else {
+            return true;
+        }
+    }
+    false
+}
+
+// A Hangul syllable as NFD takes it apart, by Unicode's arithmetic: its
+// leading consonant, its vowel and its trailing consonant where it has one.
+fn syllable(code: int, out: [int]) {
+    let index = code - 44032;
+    out.push(4352 + index / 588);
+    out.push(4449 + index % 588 / 28);
+    if index % 28 != 0 {
+        out.push(4519 + index % 28);
     }
 }
 

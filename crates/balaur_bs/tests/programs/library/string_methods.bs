@@ -21,6 +21,8 @@ pub fn path(s: str) -> str {
 }
 pub fn letters(s: str) -> int { s.chars().len() }
 pub fn show(x: int) -> str { "<{x}>" }
+pub fn plain(s: str) -> str { s.without_marks() }
+pub fn worded(s: str) -> [str] { s.split_words() }
 
 // expect: words("a bb c") == ["a", "bb", "c"]
 // expect: shout("  hi  ") == "HI"
@@ -43,4 +45,11 @@ pub fn show(x: int) -> str { "<{x}>" }
 // expect: show(1234567890) == "<1234567890>"
 // expect: show(9223372036854775807) == "<9223372036854775807>"
 // expect: show(-9223372036854775808) == "<-9223372036854775808>"
+// expect: plain("Ştefan café, ÅNGSTRÖM") == "Stefan cafe, ANGSTROM"
+// expect: plain("ἄλφα ḉ ợ") == "αλφα c o"
+// expect: plain("한글") == "\u{1112}\u{1161}\u{11ab}\u{1100}\u{1173}\u{11af}"
+// expect: plain("ﬁ ½") == "ﬁ ½"
+// expect: worded("fishing-net (2)") == ["fishing", "net", "2"]
+// expect: worded("один—два, ünd 3½") == ["один", "два", "ünd", "3½"]
+// expect: worded(" ,. ") == []
 // live: 0

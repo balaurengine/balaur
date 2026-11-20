@@ -127,6 +127,8 @@ pub fn text(data: [int]) -> str { encoding::from_utf8(data).or("?") }
 | `chars()` | a list of one-character strings |
 | `trim()` | a copy without whitespace at the ends |
 | `to_upper()`, `to_lower()` | a copy in that case, for all of Unicode |
+| `without_marks()` | a copy decomposed as Unicode's NFD, less its combining marks: `"café"` is `"cafe"`, what a search compares |
+| `split_words()` | the runs of letters and digits, in order: `"fishing-net (2)"` is `["fishing", "net", "2"]` |
 | `parse_int()`, `parse_float()` | the number, or `0` when the text is no number |
 
 ```bs

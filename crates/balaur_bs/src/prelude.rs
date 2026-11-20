@@ -22,6 +22,7 @@ const METHODS: [(&str, &[&str]); 2] = [
         &[
             include_str!("prelude/str.bs"),
             include_str!(concat!(env!("OUT_DIR"), "/case.bs")),
+            include_str!(concat!(env!("OUT_DIR"), "/marks.bs")),
         ],
     ),
     (words::keywords::ANY, &[include_str!("prelude/any.bs")]),

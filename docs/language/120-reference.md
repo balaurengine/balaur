@@ -68,7 +68,8 @@ that decides.
 - `+` joins two strings, and `==` and `!=` compare them.
 - `len` counts bytes. `slice(a, b)` takes byte offsets: one inside a character moves back onto it, and one past the end stops at the end.
 - `contains`, `starts_with`, `ends_with`, `find` (or `-1`), `replace`, `split`, `split_once`, `chars`, `trim`,
-  `to_upper`, `to_lower`, `parse_int` and `parse_float` (`0` when the text is no number).
+  `to_upper`, `to_lower`, `without_marks` (decomposed, less combining marks), `split_words` (the runs
+  of letters and digits), `parse_int` and `parse_float` (`0` when the text is no number).
 - `bytes()` is the UTF-8 as a `[int]`, and `encoding::from_utf8(bytes)` the way back, nil when they are not UTF-8.
 
 ## Lists
