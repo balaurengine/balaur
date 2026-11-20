@@ -141,9 +141,13 @@ pub(crate) fn export_bundle(
     web_assets: &[(PathBuf, Vec<u8>)],
     icons: Option<&Icons>,
 ) -> Result<PathBuf> {
-    if kind != Bundle::Web {
-        crate::require_icon(icons, kind.platform())?;
-    }
+    let mark;
+    let icons = if kind == Bundle::Web {
+        icons
+    } else {
+        mark = crate::icon_or_mark(icons, kind.platform())?;
+        Some(&*mark)
+    };
     if kind == Bundle::Ios {
         apple.check(Platform::Ios)?;
     }
@@ -291,7 +295,7 @@ pub(crate) fn export_macos_app(
     icons: Option<&Icons>,
     native: Option<&crate::native::Request>,
 ) -> Result<PathBuf> {
-    crate::require_icon(icons, words::native::MACOS)?;
+    let icons = crate::icon_or_mark(icons, words::native::MACOS)?;
     apple.check(Platform::Macos)?;
     let app = output.unwrap_or_else(|| PathBuf::from(format!("{name}.app")));
     if let Some(dir) = app.parent().filter(|d| !d.as_os_str().is_empty()) {
@@ -321,10 +325,7 @@ pub(crate) fn export_macos_app(
         None => false,
     };
     std::fs::write(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
-    let icon_keys = match icons {
-        Some(icons) => icons.write_macos(&app, &apple.min_macos)?,
-        None => String::new(),
-    };
+    let icon_keys = icons.write_macos(&app, &apple.min_macos)?;
     std::fs::write(
         app.join("Contents").join("Info.plist"),
         apple.info_plist(Platform::Macos, name, &icon_keys)?,

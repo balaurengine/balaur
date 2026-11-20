@@ -25,7 +25,12 @@ pub(crate) const ICON_MONOCHROME: &str = "icon_monochrome";
 /// the middle 66: the picture is inset to that, so no shape crops it.
 const SAFE_ZONE: f32 = 66.0 / 108.0;
 
+/// Balaur's own app icon, the editor's: what a bundle shows for a project
+/// that names none.
+const MARK: &[u8] = include_bytes!("../../../editor/assets/balaur-app-icon.png");
+
 /// The project's icon, and the forms beside it, each square at [`SIDE`].
+#[derive(Clone)]
 pub(crate) struct Icons {
     plain: RgbaImage,
     dark: Option<RgbaImage>,
@@ -63,6 +68,24 @@ impl Icons {
                 .transpose()?,
             title,
         }))
+    }
+
+    /// Balaur's mark alone, for a project whose `[application]` names no icon.
+    ///
+    /// # Errors
+    /// Never for the mark this crate embeds; a decode error otherwise.
+    pub(crate) fn mark() -> Result<Self> {
+        let plain = image::load_from_memory(MARK)?.to_rgba8();
+        Ok(Self {
+            plain: if plain.width() == SIDE {
+                plain
+            } else {
+                resized(&plain, SIDE)
+            },
+            dark: None,
+            monochrome: None,
+            title: None,
+        })
     }
 
     /// A set from pictures already in hand, for a test.
@@ -605,6 +628,15 @@ mod tests {
             Some(square([20, 20, 60, 255])),
             Some(square([255, 255, 255, 255])),
         )
+    }
+
+    #[test]
+    fn a_project_with_no_icon_gets_balaurs_mark_at_full_size() {
+        let mark = crate::icon_or_mark(None, "ios").unwrap();
+        assert_eq!(mark.plain.dimensions(), (SIDE, SIDE));
+        let own = icons();
+        let kept = crate::icon_or_mark(Some(&own), "ios").unwrap();
+        assert!(matches!(kept, std::borrow::Cow::Borrowed(_)));
     }
 
     #[test]

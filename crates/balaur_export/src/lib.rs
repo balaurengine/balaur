@@ -712,15 +712,20 @@ fn presented(opts: &Options<'_>, manifest: &toml::Table) -> Result<(String, Opti
     ))
 }
 
-/// A bundle a store lists and a home screen shows needs its picture: there
-/// is no default one to ship.
-pub(crate) fn require_icon(icons: Option<&icon::Icons>, platform: &str) -> Result<()> {
-    anyhow::ensure!(
-        icons.is_some(),
-        "[application] icon is not set: a {platform} bundle shows it on the home screen \
-         and in the store, e.g. icon = \"icon.png\" (a square picture)"
+/// A bundle a store lists and a home screen shows needs a picture: the
+/// project's, else Balaur's own, with a warning that says how to set one.
+pub(crate) fn icon_or_mark<'a>(
+    icons: Option<&'a icon::Icons>,
+    platform: &str,
+) -> Result<std::borrow::Cow<'a, icon::Icons>> {
+    if let Some(icons) = icons {
+        return Ok(std::borrow::Cow::Borrowed(icons));
+    }
+    tracing::warn!(
+        "[application] icon is not set: the {platform} bundle shows Balaur's. \
+         Set icon = \"icon.png\" (a square picture) for the game's own"
     );
-    Ok(())
+    Ok(std::borrow::Cow::Owned(icon::Icons::mark()?))
 }
 
 /// The exported game's file name: the project directory's, or `game` for a

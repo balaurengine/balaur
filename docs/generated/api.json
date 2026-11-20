@@ -27424,7 +27424,7 @@
       "spec": {
         "applies": "restart",
         "default": "",
-        "help": "A project-relative square picture, a PNG or an SVG, that every export writes as that platform's app icon, and the window shows while the game runs. 1024 pixels is what a store asks for.",
+        "help": "A project-relative square picture, a PNG or an SVG, that every export writes as that platform's app icon, and the window shows while the game runs. 1024 pixels is what a store asks for. Empty: an iOS, Android or macOS app shows Balaur's.",
         "host": true,
         "order": 8,
         "type": "string"
