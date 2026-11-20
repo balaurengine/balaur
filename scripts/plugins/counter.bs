@@ -61,7 +61,7 @@ impl Counter {
         {
             PANELS: [{ ID: COUNTER, TITLE: "Counter", DRAW: "panel" }],
             "dialogs": [{ ID: COUNTER_WINDOW, TITLE: "Counter", ROWS: "dialog" }],
-            "commands": [{ TITLE: "Count scripted nodes", ICON: "Σ", SHORTCUT: "", RUN: COUNT }],
+            "commands": [{ TITLE: "Count scripted nodes", ICON: "hash", SHORTCUT: "", RUN: COUNT }],
             "inspector_sections": [{
                 COMPONENT: COUNTER,
                 SCHEMA: { SCRIPTED: { TYPE: "int", READONLY: true, DEFAULT: 0, DESCRIPTION: "How many nodes named a script at the last count" } },
