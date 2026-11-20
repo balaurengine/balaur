@@ -4,6 +4,7 @@
 
 use editor;
 use form;
+use pool;
 use settings;
 use util;
 use window;
@@ -106,7 +107,7 @@ fn specs(state: editor::State) -> [form::Row] {
                     kind: ui::WIDGET_BUTTON,
                     role: roles::CHIP,
                     text: "export settings",
-                    on_click: "handle",
+                    on_click: "handle", target: pool::editor(),
                     data: { fields::FN: on_settings_clicked },
                 },
             ],
@@ -147,7 +148,7 @@ fn runtime_spec(state: editor::State) -> form::Row? {
                 role: roles::CHOICE_FORM,
                 text: if now.kind() == types::KIND_STRING { now } else { options[0] },
                 options: options,
-                on_change: "handle",
+                on_change: "handle", target: pool::editor(),
                 data: { fields::FN: on_runtime_picked },
             },
         ],
@@ -176,7 +177,7 @@ fn folder_button(state: editor::State) -> [ui::Control] {
             role: roles::ACTION_FORM,
             text: "Reveal",
             tooltip: "Show the last export in the file manager",
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_reveal_clicked },
         },
     ];
@@ -245,7 +246,7 @@ fn export_button(state: editor::State, name: str, installed: bool, fetchable: bo
         role: roles::ACTION_FORM,
         text: if installed { verbs::EXPORT } else { "download & export" },
         tooltip: "Export the project for this target",
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_export_clicked, fields::NAME: name },
     }
 }

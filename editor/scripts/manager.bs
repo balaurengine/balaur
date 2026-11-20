@@ -5,6 +5,7 @@
 use editor;
 use form;
 use icons;
+use pool;
 use shipped;
 use signals;
 use style;
@@ -473,7 +474,7 @@ fn project_spec(column_width: float, row: any) -> form::Row {
                     text: row[fields::NAME],
                     icon: if gone { icons::panel(icons::PROBLEMS) } else { "" },
                     tooltip: here,
-                    on_click: "handle",
+                    on_click: "handle", target: pool::editor(),
                     data: { fields::FN: on_project_pressed, GONE: gone, HERE: here },
                 },
                 ui::Control {
@@ -496,7 +497,7 @@ fn project_spec(column_width: float, row: any) -> form::Row {
         text: "",
         icon: icons::ui(icons::CLOSE),
         tooltip: "Forget this project",
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_forget_pressed, HERE: here },
     });
     form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls }
@@ -601,7 +602,7 @@ fn card_of(controls: [ui::Control], state: editor::State, data: any) -> ui::Cont
                 absolute: true,
                 inset: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
                 tooltip: "Copy into " + state.manager.parent,
-                on_click: "handle",
+                on_click: "handle", target: pool::editor(),
                 data: data,
             },
         ],
@@ -708,7 +709,7 @@ fn head_controls(state: editor::State, tokens: any) -> [ui::Control] {
             role: roles::ACTION_MANAGER,
             tooltip: "Esc",
             text: "Back to " + state.game_name,
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_back_pressed },
         });
     }
@@ -730,7 +731,7 @@ fn tab_controls(state: editor::State) -> [ui::Control] {
             text: row[1],
             role: roles::TAB_MANAGER,
             checked: state.manager.tab == id,
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_page_picked, fields::ID: id },
         });
     }
@@ -793,7 +794,7 @@ pub fn new_fill(state: &mut editor::State) {
                     grow: 1,
                     text: state.manager.name,
                     placeholder: "my-game",
-                    on_change: "handle",
+                    on_change: "handle", target: pool::editor(),
                     data: { fields::FN: on_name_typed },
                 },
             ],
@@ -807,7 +808,7 @@ pub fn new_fill(state: &mut editor::State) {
                     grow: 1,
                     text: state.manager.template,
                     options: ids,
-                    on_change: "handle",
+                    on_change: "handle", target: pool::editor(),
                     data: { fields::FN: on_template_picked },
                 },
             ],
@@ -829,7 +830,7 @@ pub fn new_fill(state: &mut editor::State) {
                 kind: ui::WIDGET_BUTTON,
                 role: roles::ACTION_FORM_PRIMARY,
                 text: "Create",
-                on_click: "handle",
+                on_click: "handle", target: pool::editor(),
                 data: { fields::FN: on_create_pressed },
             },
         ],

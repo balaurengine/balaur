@@ -5,6 +5,7 @@
 use editor;
 use form;
 use manager;
+use pool;
 use util;
 use versions;
 use window;
@@ -100,7 +101,7 @@ fn link(text: str, url: str) -> ui::Control {
         role: roles::CHIP,
         text: text,
         tooltip: url,
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_link_clicked, URL: url },
     }
 }
@@ -137,7 +138,7 @@ fn update_rows(state: editor::State, mine: any, out: [form::Row]) {
         kind: ui::WIDGET_BUTTON,
         role: roles::ACTION_FORM,
         text: if state.manager.reading { "Checking" } else { "Check" },
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_check_clicked },
     });
     out.push(form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls });

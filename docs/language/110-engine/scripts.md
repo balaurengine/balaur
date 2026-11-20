@@ -65,11 +65,11 @@ A scene inits children before parents.
 ## Methods the engine calls by name
 
 A method with no mark is the file's own, and nothing outside the file calls it. The engine calls a `pub` one
-by name when something names it: a binding row in a scene, or `on_hit` for an [event](events.md). A button with this row calls `pressed` on the nearest node from
-its own up whose script has it:
+by name when something names it: a binding row in a scene, or `on_hit` for an [event](events.md). A button with this row calls `pressed` on its
+parent, the node its `target` path names; a row naming no `target` calls the button itself:
 
 ```toml
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "pressed" }] }
 ```
 
 The method is handed the event's value and then the node the row sits on, and may name neither.

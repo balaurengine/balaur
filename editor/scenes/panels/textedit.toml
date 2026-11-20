@@ -17,9 +17,9 @@ id = "field"
 name = "Field"
 parent = "textedit"
 bindings = { rows = [
-    { event = "emitted:focus_exited", action = "call", value = "blurred" },
-    { event = "emitted:value_changed", action = "call", value = "typed" },
-    { event = "emitted:submitted", action = "call", value = "submitted" },
+    { event = "emitted:focus_exited", action = "call", target = "..", value = "blurred" },
+    { event = "emitted:value_changed", action = "call", target = "..", value = "typed" },
+    { event = "emitted:submitted", action = "call", target = "..", value = "submitted" },
 ] }
 [nodes.widget]
 kind = "text_field"

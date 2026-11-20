@@ -5,6 +5,7 @@ use editor;
 use form;
 use history;
 use model;
+use pool;
 use scatter;
 use util;
 use window;
@@ -107,7 +108,7 @@ fn specs(state: editor::State) -> [form::Row] {
                 grow: 1,
                 text: fields.kind,
                 options: [scatter::SURFACE, scatter::ROW, scatter::RING, scatter::GRID],
-                on_change: "handle",
+                on_change: "handle", target: pool::editor(),
                 data: { fields::FN: on_layout_picked },
             },
         ],
@@ -128,7 +129,7 @@ fn specs(state: editor::State) -> [form::Row] {
                     grow: 1,
                     text: if fields.surface == "" { NONE } else { fields.surface },
                     options: paths,
-                    on_change: "handle",
+                    on_change: "handle", target: pool::editor(),
                     data: { fields::FN: on_surface_picked },
                 },
             ],
@@ -177,7 +178,7 @@ fn specs(state: editor::State) -> [form::Row] {
                 grow: 1,
                 text: "Populate",
                 tooltip: "Replace the asset's instances with this layout, as one undo step",
-                on_click: "handle",
+                on_click: "handle", target: pool::editor(),
                 data: { fields::FN: on_populate_pressed },
             },
         ],
@@ -246,7 +247,7 @@ fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::St
                 grow: 1,
                 value: value as float,
                 drag_speed: 1.0,
-                on_change: "handle",
+                on_change: "handle", target: pool::editor(),
                 data: { fields::FN: on_whole_changed, project_fields::WRITE: write },
             },
         ],
@@ -268,7 +269,7 @@ fn number(state: editor::State, label: str, value: float, step: float, write: fn
                 grow: 1,
                 value: value,
                 drag_speed: step,
-                on_change: "handle",
+                on_change: "handle", target: pool::editor(),
                 data: { fields::FN: on_number_changed, project_fields::WRITE: write },
             },
         ],
@@ -294,7 +295,7 @@ fn fraction(state: editor::State, label: str, value: float, write: fn(&mut edito
                 drag_speed: 0.05,
                 min: 0.0,
                 max: 1.0,
-                on_change: "handle",
+                on_change: "handle", target: pool::editor(),
                 data: { fields::FN: on_fraction_changed, project_fields::WRITE: write },
             },
         ],

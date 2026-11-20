@@ -10,6 +10,7 @@ use inspector;
 use lint;
 use model;
 use plugins;
+use pool;
 use sceneedit;
 use search;
 use selection;
@@ -152,7 +153,7 @@ fn instance_note(state: &mut editor::State, node: Node) {
                         text: "",
                         icon: icons::ui(icons::OPEN_PREFAB),
                         tooltip: "Open the prefab; an edit there reaches every copy of it",
-                        on_click: "inspector_edit",
+                        on_click: "inspector_edit", target: pool::editor(),
                         data: { layout_fields::LINE: key, fields::FN: on_prefab_open },
                     },
                 ],
@@ -265,7 +266,7 @@ fn bindings_section(state: &mut editor::State) {
                 grow: 1,
                 text: "{events::rows(state).len()} row(s) · open the Bindings view",
                 icon: icons::ui(icons::EVENTS),
-                on_click: "inspector_edit",
+                on_click: "inspector_edit", target: pool::editor(),
                 data: { layout_fields::LINE: key, fields::FN: on_bindings_open },
             },
         ],

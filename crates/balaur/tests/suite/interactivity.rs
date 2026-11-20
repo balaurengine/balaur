@@ -789,7 +789,8 @@ fn a_node_offers_the_events_its_components_announce() {
 }
 
 /// A part two levels under the screen that holds it, a bell beside them, and
-/// rows on the part's button: one naming no target, one naming the bell.
+/// rows on the part's button: two naming the screen, one the bell, one the
+/// part, and one naming none, which is the button's own.
 const PART: &str = r#"
 [[nodes]]
 id = "n_scene"
@@ -820,6 +821,18 @@ parent = "n_part"
 [[nodes.bindings.rows]]
 event = "emitted:picked"
 action = "call"
+target = "../.."
+value = "chosen"
+
+[[nodes.bindings.rows]]
+event = "emitted:taken"
+action = "call"
+target = ".."
+value = "chosen"
+
+[[nodes.bindings.rows]]
+event = "emitted:own"
+action = "call"
 value = "chosen"
 
 [[nodes.bindings.rows]]
@@ -831,6 +844,7 @@ value = "chosen"
 [[nodes.bindings.rows]]
 event = "pointer_drag"
 action = "call"
+target = "../.."
 value = "dragged"
 "#;
 
@@ -861,11 +875,10 @@ fn held(app: &balaur::App, name: &str, field: &str) -> Option<Value> {
 }
 
 /// A script whose own `chosen` is private: the file's, so no row reaches it.
-const PRIVATE_PART: &str = r#"pub class Part { node: Node, taken: int, offers: bool, above: bool }
+const PRIVATE_PART: &str = r#"pub class Part { node: Node, taken: int, offers: bool }
 impl Part {
     pub fn init() {
         self.offers = self.node.has_method("chosen");
-        self.above = self.node.parent().has_method("chosen");
     }
     pub fn take() { self.chosen(); }
     fn chosen() { self.taken += 1; }
@@ -873,7 +886,7 @@ impl Part {
 "#;
 
 #[test]
-fn a_call_row_passes_a_private_method_by_for_the_pub_one_above() {
+fn a_call_row_does_not_reach_a_private_method() {
     let scene = PART.replace(
         "name = \"Part\"\nparent = \"n_screen\"\n",
         "name = \"Part\"\nparent = \"n_screen\"\nscript = { source = \"scripts/part.bs\" }\n",
@@ -886,15 +899,15 @@ fn a_call_row_passes_a_private_method_by_for_the_pub_one_above() {
         ],
     );
     let button = node(&app, "Screen/Part/Button");
+    balaur_core::events::emit_from(&app.engine, button, "taken", Value::Int(7));
     balaur_core::events::emit_from(&app.engine, button, "picked", Value::Int(7));
     app.tick(1.0 / 60.0);
-    assert_eq!(held(&app, "Screen", "calls"), Some(Value::Int(1)));
-    assert_eq!(held(&app, "Screen/Part", "taken"), Some(Value::Int(0)));
     assert_eq!(
-        held(&app, "Screen/Part", "above"),
-        Some(Value::Bool(true)),
-        "init ran"
+        held(&app, "Screen", "calls"),
+        Some(Value::Int(1)),
+        "the control: a row naming a pub method ran"
     );
+    assert_eq!(held(&app, "Screen/Part", "taken"), Some(Value::Int(0)));
     assert_eq!(
         held(&app, "Screen/Part", "offers"),
         Some(Value::Bool(false))
@@ -902,7 +915,25 @@ fn a_call_row_passes_a_private_method_by_for_the_pub_one_above() {
 }
 
 #[test]
-fn a_call_row_with_no_target_reaches_the_nearest_script_above_with_the_payload_and_its_node() {
+fn a_call_row_naming_no_target_calls_its_own_node() {
+    let scene = PART.replace(
+        "name = \"Button\"\nparent = \"n_part\"\n",
+        "name = \"Button\"\nparent = \"n_part\"\nscript = { source = \"scripts/hearer.bs\" }\n",
+    );
+    let (_dir, mut app) = app_with_scripts(&scene, &[("scripts/hearer.bs", HEARER)]);
+    let button = node(&app, "Screen/Part/Button");
+    balaur_core::events::emit_from(&app.engine, button, "own", Value::Int(4));
+    app.tick(1.0 / 60.0);
+    assert_eq!(held(&app, "Screen/Part/Button", "got"), Some(Value::Int(4)));
+    assert_eq!(
+        held(&app, "Screen", "calls"),
+        Some(Value::Int(0)),
+        "nothing above it is searched for the method"
+    );
+}
+
+#[test]
+fn a_call_row_naming_an_ancestor_calls_it_with_the_payload_and_its_node() {
     let (_dir, mut app) = app_with_scripts(PART, &[("scripts/hearer.bs", HEARER)]);
     let button = node(&app, "Screen/Part/Button");
     balaur_core::events::emit_from(&app.engine, button, "picked", Value::Int(7));
@@ -917,7 +948,7 @@ fn a_call_row_with_no_target_reaches_the_nearest_script_above_with_the_payload_a
     assert_eq!(
         held(&app, "Screen/Bell", "calls"),
         Some(Value::Int(0)),
-        "a sibling is not on the way up"
+        "only the target is called"
     );
 }
 
@@ -997,8 +1028,8 @@ fn a_nodes_own_event_reaches_its_hook_with_itself_as_the_source() {
     assert_eq!(held(&app, "Screen", "calls"), Some(Value::Int(0)));
 }
 
-/// A part whose button calls `go_home`, instanced twice: once as it is, once
-/// with the row overridden to call `go_account`.
+/// A part whose button calls `go_home` on the screen two levels up, instanced
+/// twice: once as it is, once with the row overridden to call `go_account`.
 const BAR: &str = r#"
 [[nodes]]
 id = "bar"
@@ -1010,7 +1041,7 @@ kind = "row"
 id = "left"
 name = "Left"
 parent = "bar"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "go_home" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "go_home" }] }
 [nodes.widget]
 kind = "button"
 text = "Back"
@@ -1035,7 +1066,7 @@ parent = "n_scene"
 instance = "scenes/bar.toml"
 
 [nodes.overrides.Left]
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "go_account" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "go_account" }] }
 "#;
 
 const SCREEN: &str = r#"pub class Screen { node: Node, went: str }
@@ -1048,7 +1079,7 @@ impl Screen {
 "#;
 
 #[test]
-fn a_parts_button_reaches_the_screen_that_holds_it_and_an_override_renames_its_method() {
+fn a_parts_button_reaches_the_screen_its_target_names_and_an_override_renames_its_method() {
     let dir = tempfile::tempdir().unwrap();
     for folder in ["scenes", "scripts"] {
         std::fs::create_dir_all(dir.path().join(folder)).unwrap();

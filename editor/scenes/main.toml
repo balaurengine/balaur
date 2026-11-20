@@ -62,7 +62,7 @@ kind = "menu"
 role = "action_brand"
 tooltip = "Menu"
 [nodes.widget_button]
-face_gap = 0
+face_gap = 4
 [nodes.widget_layout]
 gap = [0, 0]
 
@@ -320,6 +320,9 @@ name = "RailTop"
 parent = "railslot"
 [nodes.widget]
 kind = "row"
+# The handle keeps its own height: the row's is the handle and the gap below.
+[nodes.widget_layout]
+align_items = "start"
 
 # The folded left dock's way back, on the rail's own sheet.
 [[nodes]]
@@ -335,10 +338,10 @@ role = "sheet_rail"
 id = "rail_handle_open"
 name = "Open"
 parent = "rail_handle"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "open_left" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "open_left" }] }
 [nodes.widget]
 kind = "button"
-role = "icon_action"
+role = "icon_action_caret"
 
 # The rail is only as tall as its tools, so it takes the top of the slot
 # rather than the whole of it; `layout.bs` states the height.
@@ -766,7 +769,7 @@ wrap_children = "wrap"
 id = "manager_filter"
 name = "Filter"
 parent = "manager_tools"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "filter_typed" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../../..", value = "filter_typed" }] }
 [nodes.widget]
 kind = "text_field"
 role = "input_form"
@@ -780,7 +783,7 @@ placeholder = "Filter projects"
 id = "manager_open"
 name = "Open"
 parent = "manager_tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_manager"
@@ -790,7 +793,7 @@ text = "Open folder"
 id = "manager_new"
 name = "New"
 parent = "manager_tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"

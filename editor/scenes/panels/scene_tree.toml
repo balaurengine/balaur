@@ -27,7 +27,7 @@ align_items = "center"
 id = "search"
 name = "Search"
 parent = "find"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "search_typed" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../..", value = "search_typed" }] }
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
@@ -53,7 +53,7 @@ icon = "funnel"
 id = "filter_all"
 name = "all"
 parent = "filter"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "facet_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "item_menu"
@@ -63,7 +63,7 @@ text = "All nodes"
 id = "filter_3d"
 name = "3d"
 parent = "filter"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "facet_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "item_menu"
@@ -73,7 +73,7 @@ text = "3D"
 id = "filter_2d"
 name = "2d"
 parent = "filter"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "facet_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "item_menu"
@@ -83,7 +83,7 @@ text = "2D"
 id = "filter_physics"
 name = "physics"
 parent = "filter"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "facet_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "item_menu"
@@ -93,7 +93,7 @@ text = "Physics"
 id = "filter_render"
 name = "render"
 parent = "filter"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "facet_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "item_menu"
@@ -103,7 +103,7 @@ text = "Rendering"
 id = "filter_ui"
 name = "ui"
 parent = "filter"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "facet_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "item_menu"
@@ -113,7 +113,7 @@ text = "UI"
 id = "filter_script"
 name = "script"
 parent = "filter"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "facet_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "facet_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "item_menu"
@@ -123,7 +123,7 @@ text = "Script"
 id = "add"
 name = "Add"
 parent = "find"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "add" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "add" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock"
@@ -144,8 +144,8 @@ id = "tree"
 name = "Tree"
 parent = "panel"
 bindings = { rows = [
-    { event = "emitted:value_changed", action = "call", value = "tree_picked" },
-    { event = "emitted:marked", action = "call", value = "tree_mark" },
+    { event = "emitted:value_changed", action = "call", target = "..", value = "tree_picked" },
+    { event = "emitted:marked", action = "call", target = "/Editor", value = "tree_mark" },
 ] }
 [nodes.widget]
 kind = "tree"
@@ -170,7 +170,7 @@ kind = "menu"
 id = "tree_add"
 name = "TreeAdd"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_add_child" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_add_child" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -180,7 +180,7 @@ text = "Add child"
 id = "tree_change"
 name = "TreeChange"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_change_type" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_change_type" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -190,7 +190,7 @@ text = "Change type…"
 id = "tree_actions"
 name = "TreeActions"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_actions" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_actions" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -200,7 +200,7 @@ text = "Actions…"
 id = "tree_up"
 name = "TreeUp"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_move_up" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_move_up" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -210,7 +210,7 @@ text = "Move up"
 id = "tree_down"
 name = "TreeDown"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_move_down" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_move_down" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -220,7 +220,7 @@ text = "Move down"
 id = "tree_rename"
 name = "TreeRename"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_rename" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_rename" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -230,7 +230,7 @@ text = "Rename"
 id = "tree_script"
 name = "TreeScript"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_attach_script" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_attach_script" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -240,7 +240,7 @@ text = "Attach script"
 id = "tree_duplicate"
 name = "TreeDuplicate"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_duplicate" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_duplicate" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -250,7 +250,7 @@ text = "Duplicate"
 id = "tree_hidden"
 name = "TreeHidden"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_toggle_hidden" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_toggle_hidden" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -260,7 +260,7 @@ text = "Hide or show"
 id = "tree_locked"
 name = "TreeLocked"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_toggle_locked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_toggle_locked" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"
@@ -270,7 +270,7 @@ text = "Lock or unlock"
 id = "tree_delete"
 name = "TreeDelete"
 parent = "tree_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "tree_delete" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "/Editor", value = "tree_delete" }] }
 [nodes.widget]
 kind = "button"
 role = "action_tree"

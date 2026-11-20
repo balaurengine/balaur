@@ -12,7 +12,7 @@ use words::roles;
 /// another is outlined, a step in for each level past the first. `icon_color`
 /// is the kind's own colour where the icon carries one, as a component's
 /// does, and empty for the role's; `action` is a button carrying the
-/// caller's `on_click` and `data`.
+/// caller's `on_click`, `target` and `data`.
 pub fn head_with(open: bool, title: str, icon: str, icon_color: str, depth: int, tooltip: str, action: ui::Control, trailing: [ui::Control]) -> ui::Control {
     let tile: [ui::Control] = [];
     tile.push(ui::Control {
@@ -22,6 +22,7 @@ pub fn head_with(open: bool, title: str, icon: str, icon_color: str, depth: int,
         icon: icons::ui(if open { icons::CARET_OPEN } else { icons::CARET_SHUT }),
         tooltip: tooltip,
         on_click: action.on_click.or(""),
+        target: action.target,
         data: action.data,
     });
     tile.push(ui::Control {
@@ -33,6 +34,7 @@ pub fn head_with(open: bool, title: str, icon: str, icon_color: str, depth: int,
         icon_color: icon_color,
         tooltip: tooltip,
         on_click: action.on_click.or(""),
+        target: action.target,
         data: action.data,
     });
     for control in trailing {

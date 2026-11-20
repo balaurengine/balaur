@@ -11,6 +11,7 @@ use left;
 use manager;
 use newnode;
 use palette;
+use pool;
 use populate;
 use settings;
 use shell;
@@ -181,7 +182,7 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::
         filled.widget.width = box.width;
         filled.widget.height = box.height;
     }
-    ui::fill_strip(SHEET + "/SheetBar", head(title, actions, ui::Control { on_click: "handle", data: { fields::FN: on_close_clicked } }));
+    ui::fill_strip(SHEET + "/SheetBar", head(title, actions, ui::Control { on_click: "handle", target: pool::editor(), data: { fields::FN: on_close_clicked } }));
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SIDE);
@@ -246,6 +247,7 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
         placeholder: options[form_fields::PLACEHOLDER],
         on_change: options[form_fields::ON_CHANGE],
         on_submit: options[form_fields::ON_SUBMIT],
+        target: pool::editor(),
         data: options[fields::DATA],
     };
     ui::fill_strip(PICKER + "/PickerHead", [

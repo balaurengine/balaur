@@ -26,7 +26,7 @@ id = "cards"
 name = "Cards"
 parent = "panel"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "card_clicked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "card_clicked" }] }
 [nodes.widget]
 kind = "list"
 grow = 1

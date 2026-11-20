@@ -25,7 +25,7 @@ align_items = "center"
 id = "clear"
 name = "Clear"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "clear" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "clear" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -37,7 +37,7 @@ tooltip = "Empty the log buffer"
 id = "error"
 name = "error"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "level_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "level_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -48,7 +48,7 @@ tooltip = "Show error and above"
 id = "warn"
 name = "warn"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "level_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "level_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -59,7 +59,7 @@ tooltip = "Show warn and above"
 id = "all"
 name = "all"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "level_picked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "level_picked" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -70,7 +70,7 @@ tooltip = "Show all and above"
 id = "search"
 name = "Search"
 parent = "tools"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "search_typed" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../..", value = "search_typed" }] }
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"

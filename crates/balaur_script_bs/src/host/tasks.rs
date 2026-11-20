@@ -136,13 +136,7 @@ impl BsHost {
     // Busy file or instance: not yet, and the next frame asks again.
     fn step(&self, p: Pending) -> Result<Polled> {
         let file = self.inner.files.borrow().get(&p.path).cloned();
-        let inst = self
-            .inner
-            .instances
-            .borrow()
-            .iter()
-            .find(|i| i.node == p.node)
-            .cloned();
+        let inst = self.inner.by_node.borrow().get(&p.node).cloned();
         let (Some(file), Some(inst)) = (file, inst) else {
             return Err(anyhow!("[{}] {}: the instance is gone", p.path, p.method));
         };

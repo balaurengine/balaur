@@ -3,7 +3,7 @@
 //! `kit_field` and the rest in editor.bs.
 
 // A verb answers a row, and the pool writes it onto the dock's subtree. A control
-// with `on_click: "relay"`, `data: { to, method }` gets `method(data, value)`.
+// with `on_click: "method"`, `target: node` gets `method(data, value)` on that node.
 
 use editor;
 use fold;
@@ -55,15 +55,6 @@ pub fn changed(state: &mut editor::State) {
 pub fn open_dialog(state: &mut editor::State, id: str) {
     state.registry.open[id] = true;
     changed(state);
-}
-
-/// Hand a plugin control's edit to the method its `data` names on the node
-/// it names: what a control's `"relay"` means.
-pub fn relay(data: any, value: any) {
-    let to = data[layout_fields::TO].as_node();
-    if to.is_valid() {
-        to.call(data[fields::METHOD].as_str(), data, value);
-    }
 }
 
 /// Point `engine::user_data_directory()` at the game's own, and let `fs`

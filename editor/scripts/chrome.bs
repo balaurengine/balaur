@@ -247,7 +247,7 @@ pub fn fill(state: &mut editor::State) {
     if node.is_valid() {
         node.widget_button.image = mark.logo;
         node.widget.text = mark.name;
-        node.widget_button.trailing = ui::glyph(icons::ui(icons::CARET_DOWN));
+        node.widget_button.trailing_icon = icons::ui(icons::CARET_DOWN);
         node.widget_menu.showing = state.menu_open;
     }
     ui::fill_strip(BRAND_NODE, menu::rows(state));
@@ -314,7 +314,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
             text: if state.compact { "" } else { workspace.name },
             icon: workspace.icon,
             tooltip: workspace.name,
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_workspace_pressed, fields::ID: id },
         });
     }
@@ -328,7 +328,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         checked: state.split,
         text: if state.compact { "" } else { "Split" },
         tooltip: "Show the code and the viewport at once (⌘\\)",
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_split_pressed },
     });
     // Beside the split, because the two are the same question: how much of the
@@ -348,7 +348,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         } else {
             "The selection has no script to focus"
         },
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_focus_pressed },
     });
     // The spring: what is after it sits against the bar's right edge.
@@ -362,7 +362,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         text: "",
         icon: if tokens[panel_keys::DARK].as_bool() { icons::ui(icons::DARK) } else { icons::ui(icons::LIGHT) },
         tooltip: "Toggle theme",
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_theme_pressed },
     });
     let named = !state.compact;
@@ -372,7 +372,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         text: if named { "Run a command" } else { "" },
         icon: icons::ui(icons::SEARCH),
         tooltip: "⌘K",
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_command_pressed },
     });
     out
@@ -431,9 +431,9 @@ fn doc_controls(state: editor::State, tokens: any) -> [ui::Control] {
 
 // One open document's tab; only the script and the bindings close.
 fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool) -> [ui::Control] {
-    let pick = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "handle", data: { fields::FN: on_doc_picked, fields::ID: id } };
+    let pick = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "handle", target: pool::editor(), data: { fields::FN: on_doc_picked, fields::ID: id } };
     let close: ui::Control? = if closable {
-        ui::Control { kind: ui::WIDGET_BUTTON, tooltip: "Close", on_click: "handle", data: { fields::FN: on_doc_close_pressed, fields::ID: id } }
+        ui::Control { kind: ui::WIDGET_BUTTON, tooltip: "Close", on_click: "handle", target: pool::editor(), data: { fields::FN: on_doc_close_pressed, fields::ID: id } }
     } else {
         nil
     };
@@ -467,7 +467,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             role: roles::ICON_ACTION_PRIMARY,
             checked: state.playing,
             tooltip: if state.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" },
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_play_pressed },
         },
         ui::Control {
@@ -484,7 +484,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             } else {
                 "Pause simulation"
             },
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_pause_pressed, REPLAYING: replaying },
         },
         ui::Control {
@@ -494,7 +494,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             enabled: running,
             role: roles::ICON_ACTION_PRIMARY,
             tooltip: if running { "Stop" } else { "Nothing is running" },
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_stop_pressed, REPLAYING: replaying },
         },
     ]

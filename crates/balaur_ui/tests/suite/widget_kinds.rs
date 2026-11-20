@@ -294,7 +294,7 @@ fn a_label_whose_click_is_heard_takes_a_pointer_click() {
         &app,
         &toml::toml! {
             kind = "label" text = "Continue" x = 0.0 y = 0.0
-            bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_go" }] }
+            bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "on_go" }] }
         }
         .into(),
     );

@@ -37,9 +37,9 @@ id = "editor"
 name = "Editor"
 parent = "scroll"
 bindings = { rows = [
-    { event = "emitted:value_changed", action = "call", value = "typed" },
-    { event = "emitted:caret_changed", action = "call", value = "caret" },
-    { event = "emitted:gutter_clicked", action = "call", value = "gutter" },
+    { event = "emitted:value_changed", action = "call", target = "../..", value = "typed" },
+    { event = "emitted:caret_changed", action = "call", target = "../..", value = "caret" },
+    { event = "emitted:gutter_clicked", action = "call", target = "../..", value = "gutter" },
 ] }
 [nodes.widget]
 kind = "code"

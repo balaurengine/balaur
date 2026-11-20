@@ -67,7 +67,7 @@ role = "group"
 id = "list"
 name = "List"
 parent = "list_box"
-bindings = { rows = [{ event = "emitted:moved", action = "call", value = "on_moved" }] }
+bindings = { rows = [{ event = "emitted:moved", action = "call", target = "../../../..", value = "on_moved" }] }
 [nodes.widget]
 kind = "list"
 grow = 1
@@ -100,7 +100,7 @@ role = "group"
 id = "outline"
 name = "Outline"
 parent = "tree_box"
-bindings = { rows = [{ event = "emitted:moved", action = "call", value = "on_moved" }] }
+bindings = { rows = [{ event = "emitted:moved", action = "call", target = "../../../..", value = "on_moved" }] }
 [nodes.widget]
 kind = "tree"
 font = "fonts/JetBrainsMono-Regular.ttf"

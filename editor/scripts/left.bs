@@ -8,6 +8,7 @@ use form;
 use icons;
 use lint;
 use model;
+use pool;
 use sceneedit;
 use search;
 use selection;
@@ -498,7 +499,7 @@ pub fn rename_fill(state: &mut editor::State) {
                     role: roles::ACTION_FORM_PRIMARY,
                     grow: 1,
                     text: "Rename",
-                    on_click: "handle",
+                    on_click: "handle", target: pool::editor(),
                     data: { fields::FN: on_rename_clicked },
                 },
             ],

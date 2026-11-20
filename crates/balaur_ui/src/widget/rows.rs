@@ -16,6 +16,9 @@ use crate::widget::theme::{Style, WidgetTheme};
 
 const DRAG: &str = "drag";
 
+// How far a tree row's caret reaches from its centre, as a share of the row.
+const CARET_REACH: f32 = 0.16;
+
 /// What a row view paints its parts with, past the ink and the face every
 /// widget has: the theme's `[colors]` where it names them, and the built-in
 /// look where it does not. A colour with no alpha draws nothing, which is how
@@ -565,13 +568,12 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         let caret = ui.interact(box_, ui.scope_id().with(("caret", r.slot)), Sense::click());
         hit.folded = caret.clicked();
         hit.folded_hovered = caret.hovered();
-        Brush::of(ui).text(
-            box_.center(),
-            egui::Align2::CENTER_CENTER,
-            if r.shut { "\u{25b8}" } else { "\u{25be}" },
-            r.font.clone(),
+        // Drawn to the row's height: a text triangle is a few pixels at the row's type size.
+        Brush::of(ui).add(paint::polygon(
+            caret_points(box_.center(), step * CARET_REACH, r.shut),
             r.color,
-        );
+            Stroke::NONE,
+        ));
     }
     if r.parent || r.indent {
         at += step;
@@ -1119,4 +1121,23 @@ pub(crate) fn tree(
     color: Color32,
 ) {
     rows(ui, at, index, font, color, true);
+}
+
+/// A row's caret: pointing right while its children are shut, down while open.
+fn caret_points(center: egui::Pos2, reach: f32, shut: bool) -> Vec<egui::Pos2> {
+    let (x, y) = (center.x, center.y);
+    let near = reach * 0.6;
+    if shut {
+        vec![
+            pos2(x - near, y - reach),
+            pos2(x + reach, y),
+            pos2(x - near, y + reach),
+        ]
+    } else {
+        vec![
+            pos2(x - reach, y - near),
+            pos2(x + reach, y - near),
+            pos2(x, y + reach),
+        ]
+    }
 }

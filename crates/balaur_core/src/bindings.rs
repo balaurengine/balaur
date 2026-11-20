@@ -43,8 +43,8 @@ pub enum Action {
     OpenUrl,
     /// `events.emit(value)`.
     Emit,
-    /// Call the method `value` with the event's values, then the bound node:
-    /// on the target, or with none on the nearest node up whose script has it.
+    /// Call the method `value` on the target with the event's values, then
+    /// the bound node.
     Call,
     /// Show or hide the target; `value` is read as a bool.
     Visible,
@@ -96,8 +96,7 @@ pub struct Binding {
     pub when_source: String,
     pub action: Action,
     /// A node path relative to the bound node, or a variable name for the
-    /// variable actions. Empty means the bound node itself, and for `call`
-    /// the nearest node from it up whose script has the method.
+    /// variable actions. Empty means the bound node itself.
     pub target: String,
     pub value: Value,
 }
@@ -479,22 +478,6 @@ fn target_of(eng: &Engine, entity: Entity, row: &Binding) -> Result<Entity> {
         .ok_or_else(|| anyhow!("`{}` names no node from here", row.target))
 }
 
-/// The nearest node, `from` first and then up the tree, whose script declares
-/// `method`: where a `call` row naming no target lands, so a part instanced
-/// under two screens reaches whichever holds it.
-#[must_use]
-pub fn nearest_with_method(eng: &Engine, from: Entity, method: &str) -> Option<Entity> {
-    let host = eng.script_host()?;
-    let world = eng.world();
-    let mut current = from;
-    loop {
-        if host.has_method(crate::node_id_of(current), method) {
-            return Some(current);
-        }
-        current = world.get::<&crate::scene::Parent>(current).ok()?.0;
-    }
-}
-
 /// An event's values as a handler is handed them: `args`, then `source`, the
 /// node the event was said on.
 #[must_use]
@@ -549,12 +532,8 @@ fn run(eng: &Engine, entity: Entity, row: &Binding, args: &[Value]) -> Result<()
         }
         Action::Call => {
             let method = text_of(&row.value);
-            let target = if row.target.is_empty() {
-                nearest_with_method(eng, entity, &method)
-            } else {
-                Some(target_of(eng, entity, row)?)
-            };
-            if let (Some(target), Some(host)) = (target, eng.script_host()) {
+            let target = target_of(eng, entity, row)?;
+            if let Some(host) = eng.script_host() {
                 let args = with_source(args, entity);
                 host.call_on(crate::node_id_of(target), &method, &args);
             }

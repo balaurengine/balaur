@@ -244,7 +244,7 @@ gap = [6, 6]
 id = "n_menu_faster"
 name = "Faster"
 parent = "n_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_faster" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "on_faster" }] }
 
 [nodes.widget]
 kind = "button"
@@ -255,7 +255,7 @@ font_size = 13
 id = "n_menu_slower"
 name = "Slower"
 parent = "n_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_slower" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "on_slower" }] }
 
 [nodes.widget]
 kind = "button"
@@ -266,7 +266,7 @@ font_size = 13
 id = "n_menu_reverse"
 name = "Reverse"
 parent = "n_menu"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_reverse" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "on_reverse" }] }
 
 [nodes.widget]
 kind = "button"

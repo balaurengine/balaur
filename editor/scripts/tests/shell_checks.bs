@@ -25,6 +25,7 @@ use themewin;
 use util;
 use viewport;
 use window;
+use words::window_marks;
 use tests::viewport_checks;
 
 // The centre must be showing the viewport when no document is open: a stray
@@ -853,4 +854,95 @@ internal fn snap_chip(state: &mut editor::State) {
     } else {
         chips[defs::CHIP_SNAP] = was;
     }
+}
+
+// What one click of `test:rail` presses: a mark, in the workspace that shows it.
+struct RailClick {
+    workspace: str,
+    mark: str,
+}
+
+// Frames each click takes: the workspace is picked, the rail fills and is
+// laid out, the mark is clicked, and the frame after it the click has landed.
+const RAIL_PHASES: int = 4;
+
+// Every workspace's tools, last first, so the default Select is pressed from
+// another tool and no click starts where it ends; then the fold and its undo.
+fn rail_clicks() -> [RailClick] {
+    let out: [RailClick] = [];
+    for space in defs::workspaces() {
+        let tools = defs::tools(space.id);
+        let at = tools.len();
+        while at > 0 {
+            at -= 1;
+            out.push(RailClick { workspace: space.id, mark: tools[at] });
+        }
+    }
+    out.push(RailClick { workspace: defs::WORKSPACE_SCENE, mark: window_marks::COLLAPSE });
+    out.push(RailClick { workspace: defs::WORKSPACE_SCENE, mark: window_marks::RESTORE });
+    out
+}
+
+// Each mark on the rail, clicked as the pointer would, runs its tool.
+pub fn rail(state: &mut editor::State) {
+    state.rail_demo = 0;
+    selftest::stepping(state, "rail");
+}
+
+pub fn rail_step(state: &mut editor::State) {
+    let clicks = rail_clicks();
+    let index = state.rail_demo / RAIL_PHASES;
+    let phase = state.rail_demo % RAIL_PHASES;
+    state.rail_demo += 1;
+    if index >= clicks.len() {
+        state.rail_demo = -1;
+        selftest::check(index > 2, "the rail clicked its marks ({index})");
+        log::info("selftest rail: done");
+        return;
+    }
+    let click = clicks[index];
+    if phase == 0 && state.workspace != click.workspace {
+        shell::set_workspace(state, click.workspace);
+    } else if phase == 2 {
+        let found = rail_mark_node(scene::root().get_node(RAIL_NODE), rail_tooltip(click.mark));
+        selftest::check(found != nil && ui::click(found.unwrap()), "the {click.mark} mark takes a click in {click.workspace}");
+    } else if phase == 3 {
+        rail_clicked(state, click);
+    }
+}
+
+const RAIL_NODE: str = "Editor/Shell/Body/Centre/UpperRow/RailSlot/Rail";
+
+fn rail_clicked(state: editor::State, click: RailClick) {
+    if click.mark == window_marks::COLLAPSE {
+        selftest::check(state.rail_shut, "the collapse mark folds the rail");
+    } else if click.mark == window_marks::RESTORE {
+        selftest::check(!state.rail_shut, "the restore mark brings it back");
+    } else {
+        selftest::check(state.tool == click.mark, "the {click.mark} mark picks its tool in {click.workspace} ({state.tool})");
+    }
+}
+
+fn rail_tooltip(mark: str) -> str {
+    if mark == window_marks::COLLAPSE {
+        "Hide the tools"
+    } else if mark == window_marks::RESTORE {
+        "Show the tools"
+    } else {
+        defs::tool_name(mark)
+    }
+}
+
+// The rail's control whose tooltip is `tip`, at whatever depth its columns put it.
+fn rail_mark_node(host: Node, tip: str) -> Node? {
+    for kid in host.children() {
+        if kid.visible() == true && kid.widget.tooltip == tip {
+            return kid;
+        }
+        let deeper = rail_mark_node(kid, tip);
+        if deeper != nil {
+            return deeper;
+        }
+    }
+    nil
 }

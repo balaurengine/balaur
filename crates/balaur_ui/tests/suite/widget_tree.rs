@@ -66,10 +66,10 @@ fn a_widget_under_a_hidden_node_draws_nothing_until_it_is_shown() {
     );
 }
 
-// A Godot `pressed` wired to the scene's root script: the handler lives on
-// an ancestor, and the click has to find it there.
+// A `pressed` wired to the scene's root script: the handler lives on an
+// ancestor, and the row's target names it.
 #[test]
-fn a_click_reaches_the_nearest_ancestor_whose_script_declares_the_handler() {
+fn a_click_reaches_the_ancestor_its_row_names() {
     let script = "pub class Owner { node: Node, hits: int }
 impl Owner {
     pub fn on_go() { self.hits += 1; }
@@ -94,7 +94,7 @@ impl Owner {
         "Go",
         &toml::toml! {
             kind = "button" text = "Sail"
-            bindings = { rows = [{ event = "pointer_click", action = "call", value = "on_go" }] }
+            bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "on_go" }] }
         }
         .into(),
     );
@@ -109,14 +109,14 @@ impl Owner {
     assert_eq!(
         hits,
         Some(balaur_script::Value::Int(1)),
-        "the button's own node has no script, so the click belongs to the owner's"
+        "the row names the owner two levels up"
     );
 }
 
-// A panel's one script answers the controls under it whose rows name its
-// method, and the method is told the button and which control spoke.
+// A panel's one script answers the controls under it whose rows name it, and
+// the method is told the button and which control spoke.
 #[test]
-fn a_row_with_no_target_hands_the_nearest_script_the_value_and_the_widget() {
+fn a_row_naming_a_panel_hands_its_script_the_value_and_the_widget() {
     let script = "pub class Panel { node: Node, heard: int, last: str }
 impl Panel {
     pub fn pressed(button: str, node: Node) {
@@ -145,7 +145,7 @@ impl Panel {
         "Go",
         &toml::toml! {
             kind = "button" text = "Go"
-            bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
+            bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
         }
         .into(),
     );
@@ -155,7 +155,7 @@ impl Panel {
         "Stop",
         &toml::toml! {
             kind = "button" text = "Stop"
-            bindings = { rows = [{ event = "pointer_click", action = "call", value = "pressed" }] }
+            bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
         }
         .into(),
     );

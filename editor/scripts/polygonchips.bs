@@ -3,6 +3,7 @@
 
 use editor;
 use polygon;
+use pool;
 use signals;
 use util;
 use words::fields;
@@ -22,7 +23,7 @@ pub fn mode_specs(state: editor::State) -> [ui::Control] {
             text: polygon::mode_name(id),
             role: roles::CHIP,
             checked: mode == id,
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_mode_picked, PICKED: id },
         });
     }
@@ -52,7 +53,7 @@ pub fn option_specs(state: editor::State) -> [ui::Control] {
                 text: names[util::int_min(active, names.len() - 1)],
                 options: names,
                 tooltip: "The bone the brush paints",
-                on_change: "handle",
+                on_change: "handle", target: pool::editor(),
                 data: { fields::FN: option_bone, fields::NAMES: names },
             });
         }
@@ -74,7 +75,7 @@ fn option_field(value: float, step: float, low: float, high: float, prefix: str,
         max: high,
         prefix: prefix,
         tooltip: tooltip,
-        on_change: "handle",
+        on_change: "handle", target: pool::editor(),
         data: { fields::FN: then },
     }
 }

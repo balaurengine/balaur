@@ -54,7 +54,7 @@ role = "text_code_caption"
 id = "guess"
 name = "guess"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -65,7 +65,7 @@ tooltip = "Fill every row whose canonical name matches a bone, ignoring case and
 id = "clear"
 name = "clear"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -76,7 +76,7 @@ tooltip = "Empty every row"
 id = "save"
 name = "save"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"

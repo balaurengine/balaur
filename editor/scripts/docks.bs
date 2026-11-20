@@ -10,6 +10,7 @@ use layout;
 use left;
 use lint;
 use plugins;
+use pool;
 use session;
 use signals;
 use style;
@@ -631,9 +632,9 @@ fn tail_controls(state: editor::State, side: str) -> [ui::Control] {
         kind: ui::WIDGET_BUTTON,
         text: "",
         icon: icons::ui(shut_icon(side)),
-        role: roles::ICON_ACTION_TAB,
+        role: roles::ICON_ACTION_TAB_CARET,
         tooltip: "Minimize",
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_fold_pressed, SIDE: side },
     };
     // Every panel carries its own tools in its own scene.
@@ -657,11 +658,11 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
         let info = panel(state, held.as_str());
         let active = dock[dock_fields::ACTIVE] == held;
         let label = tab_label(state, held.as_str());
-        let pick = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "handle", data: { fields::FN: on_tab_picked, SIDE: side, inspector_fields::HELD: held } };
+        let pick = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "handle", target: pool::editor(), data: { fields::FN: on_tab_picked, SIDE: side, inspector_fields::HELD: held } };
         let close = ui::Control {
             kind: ui::WIDGET_BUTTON,
             tooltip: "Close {info["name"]}",
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_tab_close_pressed, inspector_fields::HELD: held },
         };
         out.push(tab::tile(label.as_str(), "", active, false, pick, close));
@@ -675,7 +676,7 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
                 kind: ui::WIDGET_BUTTON,
                 role: roles::ITEM_MENU,
                 text: panel(state, held.as_str())[fields::NAME].as_str(),
-                on_click: "handle",
+                on_click: "handle", target: pool::editor(),
                 data: { fields::FN: on_tab_picked, SIDE: side, inspector_fields::HELD: held },
             });
         }
@@ -702,7 +703,7 @@ fn on_tab_close_pressed(state: &mut editor::State, data: any, _value: any) {
 /// leading run that fits, slid along until it reaches the active tab.
 pub fn shown_tabs(state: &mut editor::State, side: str) -> [any] {
     let dock = state.docks[side];
-    let fold = style::role_size_in_pixels(state, roles::ICON_ACTION_TAB, layout_fields::HEIGHT, 20.0);
+    let fold = style::role_size_in_pixels(state, roles::ICON_ACTION_TAB_CARET, layout_fields::HEIGHT, 20.0);
     let room = state.layout[side][layout_fields::WIDTH].as_float() - fold - HEAD_EDGE;
     let frame = tab_frame(state);
     if tabs_width(state, side, frame) <= room {

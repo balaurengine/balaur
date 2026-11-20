@@ -36,7 +36,7 @@ role = "text_note"
 id = "create"
 name = "Create"
 parent = "missing"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
@@ -65,7 +65,7 @@ align_items = "center"
 id = "add"
 name = "AddKey"
 parent = "head"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -76,7 +76,7 @@ tooltip = "Insert keyframe at playhead (or press K)"
 id = "delete"
 name = "DeleteKey"
 parent = "head"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -90,7 +90,7 @@ icon = "minus"
 id = "length"
 name = "Length"
 parent = "head"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "clip_changed" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../../..", value = "clip_changed" }] }
 [nodes.widget]
 kind = "number_field"
 role = "input_number"
@@ -103,7 +103,7 @@ suffix = " s"
 id = "loop"
 name = "Loop"
 parent = "head"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "clip_changed" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../../..", value = "clip_changed" }] }
 [nodes.widget]
 kind = "dropdown"
 role = "choice"
@@ -205,7 +205,7 @@ role = "layout_lane"
 id = "scrub"
 name = "Scrub"
 parent = "scrub_row"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "seek" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../../..", value = "seek" }] }
 [nodes.widget]
 kind = "slider"
 [nodes.widget_range]

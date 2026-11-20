@@ -366,10 +366,12 @@ impl BsHost {
 
     // The object goes back to its instance, or is freed if the node went.
     fn release_held(&self, file: &Rc<File>, node: u64, path: &str, obj: Object) {
-        let instances = self.inner.instances.borrow();
-        let inst = instances
-            .iter()
-            .find(|i| i.node == node && i.path == path)
+        let inst = self
+            .inner
+            .by_node
+            .borrow()
+            .get(&node)
+            .filter(|i| i.path == path)
             .cloned();
         match inst {
             Some(inst) => {

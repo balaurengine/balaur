@@ -212,6 +212,8 @@ pub class State {
     internal fps: float = 0.0,
     // -1 when the layout self-test is not running.
     internal layout_demo: int = -1,
+    // `test:rail`'s frames since it started; -1 at rest.
+    internal rail_demo: int = -1,
     // The same for the row views' test, and the row it asks for.
     internal rows_demo: int = -1,
     internal plugin_demo: int = -1,
@@ -549,7 +551,7 @@ impl Editor {
     pub fn relayout_shell() { frame::relayout(self.state); }
 
     /// A search control's edit: the query under the `id` it carries.
-    pub fn search_typed(id: any, text: any, control: Node) {
+    pub fn search_control_typed(id: any, text: any, control: Node) {
         search::typed(self.state, id.as_str(), text.as_str());
         refill_panel(control);
     }
@@ -734,13 +736,6 @@ impl Editor {
         refill_panel(control);
     }
 
-    /// A plugin control's edit, handed to the method its `data` names on the
-    /// plugin's node: `on_click: "relay"`, `data: { to, method, .. }`.
-    pub fn relay(data: any, value: any, control: Node) {
-        kit::relay(data, value);
-        refill_panel(control);
-    }
-
     /// The kit, for a plugin filling its dock: see kit.bs. `part` names
     /// where on the dock `host`: "head", "foot", "side" or the body.
     pub fn kit_bar(host: str, part: str, controls: [ui::Control]) { kit::bar(host, part, controls); }
@@ -904,7 +899,7 @@ impl Editor {
     /// What the stage chrome, the chips and the HUD show, and their verbs.
     pub fn stage_view() -> center::StageView { center::stage_view(self.state) }
 
-    pub fn chips_fill(near: bool) -> bool { center::fill_chips(self.state, near) }
+    pub fn chips_fill() -> bool { center::fill_chips(self.state) }
 
     pub fn hud_view() -> center::HudView { center::hud_view(self.state) }
 

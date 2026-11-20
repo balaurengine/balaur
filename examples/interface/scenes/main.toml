@@ -64,7 +64,7 @@ grow = 1
 id = "shuffle"
 name = "Shuffle"
 parent = "head"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "shuffle" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "shuffle" }] }
 [nodes.widget]
 kind = "button"
 text = "Shuffle"

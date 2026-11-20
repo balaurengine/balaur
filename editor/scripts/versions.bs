@@ -5,6 +5,7 @@ use editor;
 use form;
 use icons;
 use manager;
+use pool;
 use util;
 use words::fields;
 use words::inspector_fields;
@@ -52,7 +53,7 @@ internal fn engine_specs(state: &mut editor::State, column_width: float) -> [for
         role: roles::ACTION_FORM,
         icon: icons::ui(icons::RESET),
         text: if state.manager.reading { "Checking" } else { "Check" },
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_check_pressed },
     });
     let out: [form::Row] = [form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: head }];
@@ -68,7 +69,7 @@ internal fn engine_specs(state: &mut editor::State, column_width: float) -> [for
             role: roles::CHIP,
             text: line,
             checked: state.manager.follow == line.as_str(),
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_line_pressed, layout_fields::LINE: line },
         });
     }
@@ -130,14 +131,14 @@ fn release_specs(state: editor::State, mine: any, out: [form::Row]) {
                 grow: 1,
                 text: state.manager.tag,
                 placeholder: "v0.2.0",
-                on_change: "handle",
+                on_change: "handle", target: pool::editor(),
                 data: { fields::FN: on_tag_typed },
             },
             ui::Control {
                 kind: ui::WIDGET_BUTTON,
                 role: roles::ACTION_FORM,
                 text: "Install",
-                on_click: "handle",
+                on_click: "handle", target: pool::editor(),
                 data: { fields::FN: on_install_typed_pressed },
             },
         ],
@@ -270,7 +271,7 @@ pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
             kind: ui::WIDGET_BUTTON,
             role: roles::ACTION_FORM,
             text: "Download",
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_download_pressed, DOWNLOAD: download },
         };
     }
@@ -282,7 +283,7 @@ pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
         kind: ui::WIDGET_BUTTON,
         role: roles::ACTION_FORM,
         text: if row[fields::ORDER].as_str() == OLDER { "Downgrade" } else { "Install" },
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_install_row_pressed, fields::TAG: tag },
     }
 }

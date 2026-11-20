@@ -1,6 +1,7 @@
 //! The Recordings tab while one is open: the replay's transport and lanes.
 
 use editor;
+use pool;
 use session;
 use signals;
 use style;
@@ -57,7 +58,7 @@ pub fn mark(state: editor::State, x: float, passed: bool, tooltip: str, data: an
         absolute: true,
         inset: ui::Sides { left: x - half, top: 0.0, right: -1.0, bottom: -1.0 },
         tooltip: tooltip,
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: data,
     }
 }

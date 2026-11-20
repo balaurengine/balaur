@@ -10,6 +10,7 @@ use history;
 use icons;
 use inspector;
 use model;
+use pool;
 use sceneedit;
 use selftest;
 use shell;
@@ -330,7 +331,7 @@ fn offer(state: editor::State) -> [ui::Control] {
             role: roles::ACTION_FORM,
             text: "add state machine",
             tooltip: "Give the node an embedded `state_machine` over its own player",
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_add_machine_pressed },
         },
     ];
@@ -357,7 +358,7 @@ fn header_controls(state: editor::State, found: Source) -> [ui::Control] {
             role: roles::CHOICE_FORM,
             text: doc[START].as_str(),
             options: state_names(doc),
-            on_change: "handle",
+            on_change: "handle", target: pool::editor(),
             data: { fields::FN: on_start_picked },
         },
     ];
@@ -403,7 +404,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [form::Row] {
                 grow: 1,
                 text: if clip.as_str() == "" { state_name } else { clip.as_str() },
                 options: clips,
-                on_change: "handle",
+                on_change: "handle", target: pool::editor(),
                 data: { fields::FN: on_state_clip_picked, STATE: state_name },
             }
         } else {
@@ -424,8 +425,8 @@ fn row_specs(state: &mut editor::State, doc: any) -> [form::Row] {
                 grow: 1,
                 text: state.machine.naming,
                 placeholder: "new state",
-                on_change: "handle",
-                on_submit: "handle_submit",
+                on_change: "handle", target: pool::editor(),
+                on_submit: "handle_submit", target: pool::editor(),
                 data: { fields::FN: on_new_state_typed, project_fields::SUBMIT: on_new_state_submitted },
             },
             ui::Control {
@@ -433,7 +434,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [form::Row] {
                 role: roles::ACTION_FORM,
                 text: "add state",
                 tooltip: "A state playing the clip of its own name",
-                on_click: "handle",
+                on_click: "handle", target: pool::editor(),
                 data: { fields::FN: on_add_state_pressed },
             },
         ],
@@ -483,7 +484,7 @@ fn transition_specs(state: editor::State, doc: any, out: [form::Row]) {
                 role: roles::ACTION_FORM,
                 text: "add transition",
                 tooltip: "A transition between two states, opened for editing",
-                on_click: "handle",
+                on_click: "handle", target: pool::editor(),
                 data: { fields::FN: on_add_transition_pressed },
             },
         ],
@@ -503,7 +504,7 @@ fn transition_specs(state: editor::State, doc: any, out: [form::Row]) {
         let mode = if transition[ADVANCE_MODE] == nil { animation::ADVANCE_MODE_ENABLED } else { transition[ADVANCE_MODE].as_str() };
         let action = ui::Control {
             kind: ui::WIDGET_BUTTON,
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_transition_picked, project_fields::OPEN: open, fields::INDEX: index },
         };
         out.push(form::Row {
@@ -536,7 +537,7 @@ fn on_transition_remove_pressed(state: &mut editor::State, data: any, _value: an
 
 // A row's close mark, which takes the row out, by `data`.
 fn remove(tooltip: str, data: any) -> ui::Control {
-    ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION_FORM_QUIET, text: "", icon: icons::ui(icons::CLOSE), tooltip: tooltip, on_click: "handle", data: data }
+    ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION_FORM_QUIET, text: "", icon: icons::ui(icons::CLOSE), tooltip: tooltip, on_click: "handle", target: pool::editor(), data: data }
 }
 
 // The label a transition's own field wears: indented, so the fields read as
@@ -552,7 +553,7 @@ fn choice(state: editor::State, at: int, key: str, current: str, choices: [str])
         grow: 1,
         text: current,
         options: choices,
-        on_change: "handle",
+        on_change: "handle", target: pool::editor(),
         data: { fields::FN: on_choice_picked, layout_fields::AT: at, fields::KEY: key },
     }
 }
@@ -570,7 +571,7 @@ fn text_of(state: editor::State, at: int, key: str, current: str, placeholder: s
         grow: 1,
         text: current,
         placeholder: placeholder,
-        on_submit: "handle_submit",
+        on_submit: "handle_submit", target: pool::editor(),
         data: { project_fields::SUBMIT: on_text_submitted, inspector_fields::CURRENT: current, layout_fields::AT: at, fields::KEY: key },
     }
 }
@@ -595,7 +596,7 @@ fn number(state: editor::State, at: int, key: str, current: float, whole: bool) 
         min: 0.0,
         max: if whole { 1000.0 } else { 100.0 },
         drag_speed: if whole { 1.0 } else { 0.01 },
-        on_change: "handle",
+        on_change: "handle", target: pool::editor(),
         data: { fields::FN: on_number_changed, layout_fields::AT: at, fields::KEY: key, layout_fields::WHOLE: whole },
     }
 }
@@ -616,7 +617,7 @@ fn flag(state: editor::State, at: int, key: str, on: bool) -> ui::Control {
         kind: ui::WIDGET_SWITCH,
         role: roles::SWITCH_FORM,
         checked: on,
-        on_change: "handle",
+        on_change: "handle", target: pool::editor(),
         data: { fields::FN: on_flag_changed, layout_fields::AT: at, fields::KEY: key },
     }
 }

@@ -48,7 +48,7 @@ truncate = true
 id = "search"
 name = "Search"
 parent = "panel"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "search_typed" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "..", value = "search_typed" }] }
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
@@ -70,7 +70,7 @@ text = "nothing selected"
 id = "scroll"
 name = "Scroll"
 parent = "panel"
-bindings = { rows = [{ event = "emitted:scrolled", action = "call", value = "scrolled" }] }
+bindings = { rows = [{ event = "emitted:scrolled", action = "call", target = "..", value = "scrolled" }] }
 [nodes.widget]
 kind = "scroll"
 grow = 1
@@ -100,7 +100,7 @@ align_items = "center"
 id = "add"
 name = "Add"
 parent = "foot"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "add" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "add" }] }
 [nodes.widget]
 kind = "button"
 role = "action"

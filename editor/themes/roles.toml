@@ -300,7 +300,7 @@ stroke_width = 1
 stroke = "border_default"
 corner_radius = "radius"
 height = "control_height_large"
-padding_x = 3
+padding_x = 6
 
 [roles.action_brand.hover]
 fill = "bg_control_hover"
@@ -516,9 +516,10 @@ corner_radius = "radius_small"
 padding_x = 2
 gap = 0
 
-# The caret at a head's start: flat, the tile's own ink.
+# The caret at a head's start: flat, the tile's own ink. A caret is half the
+# width of other glyphs, so it takes the size above its row's text.
 [roles.icon_action_fold]
-font_size = "font_size_small"
+font_size = "font_size_large"
 text_color = "text_subtle"
 corner_radius = "radius_small"
 height = "control_height_small"
@@ -677,6 +678,34 @@ fill = "bg_control_hover"
 [roles.icon_action_tab.touch]
 height = "control_height_touch"
 
+# A dock's fold, beside the close marks: a caret, a size up to match them.
+[roles.icon_action_tab_caret]
+font_size = "font_size_title"
+text_color = "text_subtle"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.icon_action_tab_caret.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.icon_action_tab_caret.touch]
+height = "control_height_touch"
+
+# A folded dock's handle: the rail's icon button, its caret a size up.
+[roles.icon_action_caret]
+font_size = "font_size_title"
+text_color = "text_muted"
+corner_radius = "radius"
+height = "control_height_large"
+
+[roles.icon_action_caret.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.icon_action_caret.touch]
+height = "control_height_touch"
+
 # Chips and tabs: a small toggle, on while `checked`.
 [roles.chip]
 font_size = "font_size_small"
@@ -832,11 +861,13 @@ gap = 0
 [roles.tab_label]
 font_weight = 600
 text_color = "text_subtle"
+corner_radius = "radius_small"
 height = "control_height"
 padding_x = 6
 
 [roles.tab_label.hover]
-text_color = "text_muted"
+text_color = "text_default"
+fill = "bg_control_hover"
 
 [roles.tab_label.checked]
 text_color = "primary_text"
@@ -849,11 +880,13 @@ height = "control_height_touch"
 
 [roles.tab_label_bar]
 text_color = "text_subtle"
+corner_radius = "radius_small"
 height = "control_height_large"
 padding_x = 8
 
 [roles.tab_label_bar.hover]
-text_color = "text_muted"
+text_color = "text_default"
+fill = "bg_control_hover"
 
 [roles.tab_label_bar.checked]
 text_color = "primary_text"

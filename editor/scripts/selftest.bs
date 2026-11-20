@@ -338,6 +338,9 @@ fn step_one(state: &mut editor::State, name: str) -> bool {
         "window" => {
             shell_checks::sheet_close_step(state);
         }
+        "rail" => {
+            shell_checks::rail_step(state);
+        }
         "events" => {
             project_checks::events_step(state);
         }
@@ -381,6 +384,7 @@ fn under_way(state: editor::State, name: str) -> bool {
         "settings" => state.settings.demo >= 0,
         "themewin" => state.themewin.demo >= 0,
         "window" => state.window.demo >= 0,
+        "rail" => state.rail_demo >= 0,
         "events" => state.events_demo >= 0,
         "rows" => state.rows_demo >= 0,
         "import" => state.import_demo >= 0,

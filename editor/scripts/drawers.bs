@@ -9,6 +9,7 @@ use icons;
 use inspector;
 use model;
 use plugins;
+use pool;
 use sceneedit;
 use shell;
 use signals;
@@ -54,7 +55,7 @@ pub fn row_of(state: &mut editor::State, line: inspector::Line, value: any) -> f
     }
     let datatype = spec[fields::TYPE].as_str();
     // A plugin's drawer for this datatype wins over the built-in; its controls
-    // write with `on_change: "inspector_write"` and `data: { at }`, the `at` it got.
+    // write with `on_change: "inspector_write", target: pool::editor()` and `data: { at }`, the `at` it got.
     let controls = plugins::property_controls(state, datatype, spec, value, line.at);
     if controls != nil {
         return labelled(state, line, util::list_or_empty(controls));
@@ -200,7 +201,7 @@ fn add_tail(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
             icon: icons::ui(icons::CLOSE),
             role: roles::ICON_ACTION_FORM_QUIET,
             tooltip: "Take this one out",
-            on_click: "inspector_edit",
+            on_click: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_entry_removed),
         });
     }
@@ -212,7 +213,7 @@ fn add_tail(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
                 icon: icons::ui(verbs::RESET),
                 role: roles::ICON_ACTION_FORM,
                 tooltip: "Reset to the script's default",
-                on_click: "inspector_edit",
+                on_click: "inspector_edit", target: pool::editor(),
                 data: edit_of(line, on_script_property_reset),
             });
         }
@@ -250,7 +251,7 @@ fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> f
             role: roles::SWITCH_FORM,
             checked: enabled.as_bool(),
             tooltip: line.root[fields::DESCRIPTION].as_str(),
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_enabled_toggled),
         });
     }
@@ -261,11 +262,11 @@ fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> f
             text: "",
             icon: icons::ui(icons::CLOSE),
             tooltip: "Remove component",
-            on_click: "inspector_edit",
+            on_click: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_component_removed),
         });
     }
-    let action = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "inspector_edit", data: edit_of(line, on_folded) };
+    let action = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "inspector_edit", target: pool::editor(), data: edit_of(line, on_folded) };
     let controls = [fold::head_with(open, title, mark.glyph, ink(state.theme, mark.token), 0, line.why, action, trailing)];
     form::Row { height: line.height, slot_role: roles::LAYOUT_FOLD, controls: controls }
 }
@@ -281,7 +282,7 @@ fn on_component_removed(state: &mut editor::State, line: inspector::Line, _data:
 fn fold_row(state: &mut editor::State, line: inspector::Line) -> form::Row {
     let text = "{util::property_label(line.at.property)} · {line.spec["count"].as_int()}";
     let open = line.spec[project_fields::OPEN].as_bool();
-    let head = fold::head(open, text, icons::ui(icons::ENTRY_LIST), "", 1, line.why, ui::Control { kind: ui::WIDGET_BUTTON, on_click: "inspector_edit", data: edit_of(line, on_folded) });
+    let head = fold::head(open, text, icons::ui(icons::ENTRY_LIST), "", 1, line.why, ui::Control { kind: ui::WIDGET_BUTTON, on_click: "inspector_edit", target: pool::editor(), data: edit_of(line, on_folded) });
     form::Row { height: line.height, slot_role: roles::LAYOUT_FOLD, controls: [head] }
 }
 
@@ -327,7 +328,7 @@ fn float_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
             grow: 1,
             value: shown_as(spec, number_of(value)),
             drag_speed: if spec[layout_fields::STEP] == nil { 0.02 } else { spec[layout_fields::STEP].as_float() },
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_float_edited),
         },
     ])
@@ -344,7 +345,7 @@ fn int_row(state: &mut editor::State, line: inspector::Line, spec: any, value: a
             grow: 1,
             value: number_of(value),
             drag_speed: if spec[layout_fields::STEP] == nil { 1.0 } else { spec[layout_fields::STEP].as_float() },
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_int_edited),
         },
     ])
@@ -371,7 +372,7 @@ fn vector_row(state: &mut editor::State, line: inspector::Line, spec: any, value
             drag_speed: speed,
             prefix: letters[slot],
             icon_color: inks[slot],
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: { layout_fields::LINE: line.key, fields::FN: on_vector_edited, SLOT: slot, fields::COUNT: count },
         });
     }
@@ -396,7 +397,7 @@ fn bool_row(state: &mut editor::State, line: inspector::Line, value: any) -> for
             kind: ui::WIDGET_CHECKBOX,
             text: "",
             checked: value.as_bool(),
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_value_taken),
         },
     ])
@@ -415,7 +416,7 @@ fn enum_row(state: &mut editor::State, line: inspector::Line, spec: any, value: 
             grow: 1,
             text: inspector::as_text(value),
             options: util::list_or_empty(spec[schema_fields::OPTIONS]),
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_value_taken),
         },
     ])
@@ -426,7 +427,7 @@ fn enum_row(state: &mut editor::State, line: inspector::Line, spec: any, value: 
 fn color_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     let held = util::list_or_empty(value);
     labelled(state, line, [
-        ui::Control { kind: ui::WIDGET_COLOR_PICKER, picked_color: held, on_change: "inspector_edit", data: edit_of(line, on_value_taken) },
+        ui::Control { kind: ui::WIDGET_COLOR_PICKER, picked_color: held, on_change: "inspector_edit", target: pool::editor(), data: edit_of(line, on_value_taken) },
         ui::Control { kind: ui::WIDGET_LABEL, grow: 1, text: color_text(held), role: roles::TEXT_BODY },
     ])
 }
@@ -444,7 +445,7 @@ fn text_row(state: &mut editor::State, line: inspector::Line, value: any) -> for
             role: roles::INPUT,
             text: model::relative_file(state, inspector::as_text(value)).as_str(),
             placeholder: "— empty —",
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_value_taken),
         },
     ])
@@ -468,7 +469,7 @@ fn flags_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
             text: name,
             role: roles::CHIP_FLAG,
             checked: on,
-            on_click: "inspector_edit",
+            on_click: "inspector_edit", target: pool::editor(),
             data: { layout_fields::LINE: line.key, fields::FN: on_flag_toggled, fields::NAME: name },
         });
     }
@@ -506,7 +507,7 @@ fn node_row(state: &mut editor::State, line: inspector::Line, value: any) -> for
             grow: 1,
             text: inspector::as_text(value),
             placeholder: general::NONE,
-            on_submit: "inspector_edit",
+            on_submit: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_value_taken),
         },
         pick_menu(line, icons::ui(icons::PICK_NODE), "Pick a node", paths, on_node_picked),
@@ -547,7 +548,7 @@ fn holder_row(state: &mut editor::State, line: inspector::Line, note: str, adds:
             icon: icons::ui(icons::ADD),
             role: roles::ICON_ACTION_FORM_QUIET,
             tooltip: "Add one",
-            on_click: "inspector_edit",
+            on_click: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_entry_added),
         });
     }
@@ -585,7 +586,7 @@ fn script_path_row(state: &mut editor::State, line: inspector::Line, value: any)
             grow: 1,
             text: inspector::as_text(value),
             placeholder: "scripts/name.bs",
-            on_submit: "inspector_edit",
+            on_submit: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_value_taken),
         },
         pick_menu(line, icons::ui(icons::PICK_FILE), "Pick a script that exists", shell::script_files(state), on_value_taken),
@@ -601,7 +602,7 @@ fn pick_menu(line: inspector::Line, icon: str, tooltip: str, choices: [str], tak
         let data = edit_of(line, on_row_picked);
         data[fields::VALUE] = choice;
         data[TAKEN] = taken;
-        rows.push(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ITEM_MENU, text: choice, on_click: "inspector_edit", data: data });
+        rows.push(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ITEM_MENU, text: choice, on_click: "inspector_edit", target: pool::editor(), data: data });
     }
     ui::Control { kind: ui::WIDGET_MENU, role: roles::ICON_ACTION_FORM, text: "", icon: icon, tooltip: tooltip, controls: rows }
 }
@@ -629,7 +630,7 @@ fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
                 icon: icons::asset(asset_type),
                 text: reference,
                 placeholder: asset_placeholder(state, asset_type, own),
-                on_submit: "inspector_edit",
+                on_submit: "inspector_edit", target: pool::editor(),
                 data: edit_of(line, on_value_taken),
             }
         },
@@ -648,7 +649,7 @@ fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
             } else {
                 "Copy this file's definition onto the node"
             },
-            on_click: "inspector_edit",
+            on_click: "inspector_edit", target: pool::editor(),
             data: { layout_fields::LINE: line.key, fields::FN: on_asset_embed_or_save, INLINE: inline, inspector_fields::REFERENCE: reference },
         });
     }
@@ -736,7 +737,7 @@ fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, val
                 kind: ui::WIDGET_SWITCH,
                 role: roles::SWITCH_FORM,
                 checked: value.as_bool(),
-                on_change: "inspector_edit",
+                on_change: "inspector_edit", target: pool::editor(),
                 data: edit_of(line, on_feature_toggled),
             },
         ]);
@@ -748,12 +749,12 @@ fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, val
             channels = [value["r"].as_float(), value["g"].as_float(), value["b"].as_float(), value["a"].as_float()];
         }
         return labelled(state, line, [
-            ui::Control { kind: ui::WIDGET_COLOR_PICKER, picked_color: channels, on_change: "inspector_edit", data: edit_of(line, on_parameter_taken) },
+            ui::Control { kind: ui::WIDGET_COLOR_PICKER, picked_color: channels, on_change: "inspector_edit", target: pool::editor(), data: edit_of(line, on_parameter_taken) },
         ]);
     }
     if datatype == datatypes::FLOAT {
         return labelled(state, line, [
-            ui::Control { kind: ui::WIDGET_NUMBER_FIELD, grow: 1, value: value.as_float(), drag_speed: 0.001, on_change: "inspector_edit", data: edit_of(line, on_parameter_taken) },
+            ui::Control { kind: ui::WIDGET_NUMBER_FIELD, grow: 1, value: value.as_float(), drag_speed: 0.001, on_change: "inspector_edit", target: pool::editor(), data: edit_of(line, on_parameter_taken) },
         ]);
     }
     if datatype == asset_kinds::TEXTURE {
@@ -772,7 +773,7 @@ fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, val
             prefix: letters[slot],
             icon_color: inks[slot],
             value: channel(held, slot, 0.0),
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: { layout_fields::LINE: line.key, fields::FN: on_parameter_channel, SLOT: slot, fields::COUNT: count },
         });
     }
@@ -795,7 +796,7 @@ fn texture_row(state: &mut editor::State, line: inspector::Line, value: any) -> 
             grow: 1,
             text: if current == "" { general::NONE } else { current },
             options: choices,
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_texture_picked),
         },
     ])
@@ -823,7 +824,7 @@ fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> 
             text: "",
             icon: icons::ui(icons::OPEN),
             tooltip: "Edit " + current,
-            on_click: "inspector_edit",
+            on_click: "inspector_edit", target: pool::editor(),
             data: edit_of(line, on_shader_opened),
         },
         ui::Control {
@@ -831,7 +832,7 @@ fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> 
             grow: 1,
             text: current,
             options: choices,
-            on_change: "inspector_edit",
+            on_change: "inspector_edit", target: pool::editor(),
             data: { layout_fields::LINE: line.key, fields::FN: on_shader_picked, inspector_fields::CURRENT: current },
         },
     ]);

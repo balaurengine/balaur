@@ -24,7 +24,7 @@ impl Rail {
     }
 
     pub fn on_stage_changed(_change: any) {
-        self.handle();
+        self.show_handle();
     }
 
     pub fn open_left() {
@@ -35,7 +35,7 @@ impl Rail {
         self.editor.unwrap().rail_fill();
     }
 
-    fn handle() {
+    fn show_handle() {
         let view = self.editor.unwrap().stage_view();
         let sheet = self.node.get_node("RailTop/Handle");
         sheet.set_visible(view.rail_handle);

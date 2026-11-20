@@ -4,9 +4,9 @@
 //!
 //! A spec is a `widget` property table plus `on_click`, `on_change` and
 //! `on_submit`, each the name of a method that hears the control's
-//! `pointer_click`, `value_changed` or `submitted`: called on the nearest node above
-//! the control whose script has it, with the spec's `data`, then the edit,
-//! then the control's node. The pool keeps the names; no widget holds one.
+//! `pointer_click`, `value_changed` or `submitted`: called on the spec's
+//! `target` node, with the spec's `data`, then the edit, then the control's
+//! node. The pool keeps the names and the target; no widget holds them.
 //! A spec carrying `controls` is a group: one node holding its controls. A
 //! node is written only when what is asked of it changed, and spare nodes
 //! are hidden rather than freed.
@@ -61,6 +61,8 @@ struct Pooled {
     host: u64,
     key: String,
     data: Value,
+    /// The node every handler is called on; none where the spec names no handler.
+    target: Option<u64>,
     /// The method each of [`HANDLERS`] names, in its order; empty for none.
     calls: [String; HANDLERS.len()],
 }
@@ -307,19 +309,31 @@ impl Pool<'_> {
 
     /// Keep what `node`'s handlers are handed first and the method each of
     /// its events calls, taken off `want`: neither is the widget's to hold.
-    fn listen(&self, key: &str, node: &Value, want: &mut Spec) {
+    fn listen(&self, key: &str, node: &Value, want: &mut Spec) -> Result<()> {
         let data = want.remove(p::DATA).unwrap_or(Value::Nil);
+        let target = match want.remove(p::TARGET) {
+            Some(Value::Node(id)) => Some(id),
+            _ => None,
+        };
         let calls = HANDLERS.map(|(named, _)| match want.remove(named) {
             Some(Value::Str(method)) => method,
             _ => String::new(),
         });
+        if target.is_none()
+            && let Some(method) = calls.iter().find(|method| !method.is_empty())
+        {
+            return Err(anyhow!(
+                "control `{key}` calls `{method}` but names no `target` node to call it on"
+            ));
+        }
         let Value::Node(id) = node else {
-            return;
+            return Ok(());
         };
         let fresh = Pooled {
             host: self.host,
             key: key.to_string(),
             data,
+            target,
             calls,
         };
         let clicks = fresh.hears(balaur_core::hooks::POINTER_CLICK);
@@ -328,6 +342,7 @@ impl Pool<'_> {
         if was.is_some_and(|was| was.hears(balaur_core::hooks::POINTER_CLICK)) != clicks {
             self.click_hearer_changed(*id);
         }
+        Ok(())
     }
 
     /// A spare control hears nothing.
@@ -469,7 +484,7 @@ impl Pool<'_> {
     /// One control: who hears it, then what the spec wants it to hold.
     fn control(&self, key: &str, node: &Value, want: Spec) -> Result<()> {
         let mut set = want;
-        self.listen(key, node, &mut set);
+        self.listen(key, node, &mut set)?;
         set.entry(p::VISIBLE.into()).or_insert(Value::Bool(true));
         self.patched(key, node, &set)
     }
@@ -490,7 +505,7 @@ impl Pool<'_> {
         let air = if want.contains_key(k::ROLE) { -1 } else { 0 };
         let mut set = table(&[(k::KIND, Value::text(w::ROW)), (k::GAP, both(air))]);
         set.extend(want);
-        self.listen(key, node, &mut set);
+        self.listen(key, node, &mut set)?;
         set.entry(p::VISIBLE.into()).or_insert(Value::Bool(true));
         set.remove(p::CONTROLS);
         self.patched(key, node, &set)?;
@@ -646,8 +661,19 @@ pub(crate) fn heard(
             } else {
                 as_reported(value)
             };
+            let target = pooled.target.map(balaur_script::NodeId)?;
+            let Some(on) = balaur_core::entity_of(target)
+                .ok()
+                .filter(|on| eng.world().contains(*on))
+            else {
+                tracing::warn!(
+                    "control `{}` calls `{method}` on a node that is gone",
+                    pooled.key
+                );
+                return None;
+            };
             Some(PoolCall {
-                on: balaur_core::bindings::nearest_with_method(eng, *entity, method)?,
+                on,
                 method: method.clone(),
                 args: vec![pooled.data.clone(), edit, Value::Node(id)],
             })
@@ -733,7 +759,7 @@ fn four_sides(value: Value) -> Value {
     Value::List(SIDE_NAMES.map(side).to_vec())
 }
 
-const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?, on_change: string?, on_submit: string?, data: any, \
+const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?, on_change: string?, on_submit: string?, target: node?, data: any, \
     role: string?, text: string?, tooltip: string?, tooltip_key: string?, icon: string?, icon_color: string?, \
     trailing_icon: string?, image: string?, placeholder_key: string?, \
     font: string?, prefix: string?, trailing: string?, placeholder: string?, fill: string?, stroke: string?, \
@@ -753,7 +779,7 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
             FILL_STRIP,
             &[],
             "(host: string, controls: [Control]) -> bool",
-            "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on_click` or `on_change` hears the reader's edit and `on_submit` hears Enter as they happen: the name of a method, called on the nearest node above the control whose script has it with the control's `data`, then the edit, then the control's node. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
+            "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on_click` or `on_change` hears the reader's edit and `on_submit` hears Enter as they happen: the name of a `pub` method, called on the control's `target` node with the control's `data`, then the edit, then the control's node; a control naming one and no `target` is an error. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         ),
         (
             FILL_SLOT,
@@ -777,7 +803,7 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         (
             "Control",
             CONTROL,
-            "One pooled control: its `kind`, the `widget` rows it sets and those of the component beside it that holds them, what hears its edit (`on_click`, `on_change`, `on_submit`, a method on the nearest node above it) and the `data` that handler is called with; a control with `controls` is a row holding them.",
+            "One pooled control: its `kind`, the `widget` rows it sets and those of the component beside it that holds them, what hears its edit (`on_click`, `on_change`, `on_submit`, a method on its `target` node) and the `data` that handler is called with; a control with `controls` is a row holding them.",
         ),
         (
             "Item",

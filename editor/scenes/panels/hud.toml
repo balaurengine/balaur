@@ -76,7 +76,7 @@ align_items = "center"
 id = "out"
 name = "Out"
 parent = "zoom"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "zoom_out" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "zoom_out" }] }
 [nodes.widget]
 kind = "button"
 role = "icon_action_form_quiet"
@@ -94,7 +94,7 @@ text = "100 %"
 id = "in"
 name = "In"
 parent = "zoom"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "zoom_in" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "zoom_in" }] }
 [nodes.widget]
 kind = "button"
 role = "icon_action_form_quiet"
@@ -115,7 +115,7 @@ align_items = "center"
 id = "bottom_open"
 name = "Open"
 parent = "bottom"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "open_bottom" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "open_bottom" }] }
 [nodes.widget]
 kind = "button"
 role = "icon_action_form_quiet"

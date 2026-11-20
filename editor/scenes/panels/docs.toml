@@ -25,7 +25,7 @@ align_items = "center"
 id = "module"
 name = "Module"
 parent = "tools"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "module_picked" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../..", value = "module_picked" }] }
 [nodes.widget]
 kind = "dropdown"
 role = "choice"
@@ -37,7 +37,7 @@ options = []
 id = "search"
 name = "Search"
 parent = "tools"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "search_typed" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../..", value = "search_typed" }] }
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"

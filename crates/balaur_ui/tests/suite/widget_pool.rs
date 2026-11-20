@@ -7,6 +7,12 @@ use balaur_core::hecs::Entity;
 
 /// A `Root` running `body` as its `update`, over a `Bar` row to fill.
 fn app_with(body: &str) -> (tempfile::TempDir, App) {
+    app_with_bar(body, None)
+}
+
+/// The same with `bar` as the strip's own script, a node nearer every control
+/// than the root.
+fn app_with_bar(body: &str, bar: Option<&str>) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
@@ -15,11 +21,17 @@ fn app_with(body: &str) -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = { source = \"root.bs\" }\n\n\
-         [[nodes]]\nid = \"bar\"\nname = \"Bar\"\nparent = \"root\"\nwidget = { kind = \"row\" }\n",
+        format!(
+            "[[nodes]]\nid = \"root\"\nname = \"Root\"\nscript = {{ source = \"root.bs\" }}\n\n\
+         [[nodes]]\nid = \"bar\"\nname = \"Bar\"\nparent = \"root\"\nwidget = {{ kind = \"row\" }}\n{}",
+            if bar.is_some() { "script = { source = \"bar.bs\" }\n" } else { "" }
+        ),
     )
     .unwrap();
     std::fs::write(dir.path().join("root.bs"), body).unwrap();
+    if let Some(bar) = bar {
+        std::fs::write(dir.path().join("bar.bs"), bar).unwrap();
+    }
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();
@@ -130,7 +142,7 @@ fn a_reader_s_click_reaches_its_key_and_a_script_s_write_does_not() {
         "pub class Root { node: Node, on: bool, edits: int }
 impl Root {
     pub fn update(dt: float) {
-        let controls: [any] = [{ \"kind\": \"checkbox\", \"checked\": self.on, \"on_change\": \"toggled\" }];
+        let controls: [any] = [{ \"kind\": \"checkbox\", \"checked\": self.on, \"on_change\": \"toggled\", \"target\": self.node }];
         ui::fill_strip(\"Root/Bar\", controls);
     }
     pub fn toggled(data: any, v: any) {
@@ -185,7 +197,7 @@ impl Root {
     }
     pub fn update(dt: float) {
         let controls: [any] = [
-            { \"kind\": \"label\", \"text\": \"One\", \"width\": 80, \"on_click\": \"pick\", \"data\": \"one\" },
+            { \"kind\": \"label\", \"text\": \"One\", \"width\": 80, \"on_click\": \"pick\", \"target\": self.node, \"data\": \"one\" },
             { \"kind\": \"label\", \"text\": \"Two\", \"width\": 80 },
         ];
         ui::fill_strip(\"Root/Bar\", controls);
@@ -202,6 +214,7 @@ impl Root {
     crate::support::settle(&app, &ctx);
     let made = kids(&app);
     assert_eq!(prop(&app, made[0], "on_click"), None, "no row holds it");
+    assert_eq!(prop(&app, made[0], "target"), None, "nor its target");
     let root = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Root")
         .expect("the scene has a Root node");
     let picked = |app: &App| crate::support::script_text(app, root, "picked");
@@ -283,10 +296,10 @@ impl Root {
                 \"min\": 0.01,
                 \"max\": 2.0,
                 \"prefix\": \"px\",
-                \"on_change\": \"edited\",
+                \"on_change\": \"edited\", \"target\": self.node,
             }
         } else {
-            { \"kind\": \"number_field\", \"grow\": 1, \"value\": -24.0, \"on_change\": \"edited\" }
+            { \"kind\": \"number_field\", \"grow\": 1, \"value\": -24.0, \"on_change\": \"edited\", \"target\": self.node }
         };
         ui::fill_strip(\"Root/Bar\", [control]);
     }
@@ -524,4 +537,73 @@ impl Root {
             .any(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)) != Some(0.0))
     });
     assert!(!moved, "where it was put: {offset:?}");
+}
+
+#[test]
+fn a_pooled_click_calls_its_target_and_not_a_nearer_node_with_the_same_method() {
+    let (_dir, mut app) = app_with_bar(
+        "pub class Root { node: Node, frames: int, picks: int }
+impl Root {
+    pub fn update(dt: float) {
+        self.frames += 1;
+        let controls: [any] = [{ \"kind\": \"button\", \"text\": \"Go\", \"on_click\": \"pick\", \"target\": self.node }];
+        ui::fill_strip(\"Root/Bar\", controls);
+        if self.frames == 2 {
+            ui::click(scene::root().get_node(\"Root/Bar\").children()[0]);
+        }
+    }
+    pub fn pick(data: any, on: any) { self.picks += 1; }
+}
+",
+        Some(
+            "pub class Bar { node: Node, stolen: int }
+impl Bar {
+    pub fn pick(data: any, on: any) { self.stolen += 1; }
+}
+",
+        ),
+    );
+    for _ in 0..4 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(number(&app, "picks"), Some(1.0));
+    let bar = bar(&app);
+    assert_eq!(
+        crate::support::script_number(&app, bar, "stolen"),
+        Some(0.0),
+        "the strip's own script declares `pick` too, and is not called"
+    );
+}
+
+#[test]
+fn a_pooled_control_naming_a_handler_and_no_target_is_refused() {
+    balaur_core::logbuf::capture_for_test();
+    let (_dir, mut app) = app_with(
+        "pub class Root { node: Node, frames: int, filled: int }
+impl Root {
+    pub fn update(dt: float) {
+        self.frames += 1;
+        let controls: [any] = [{ \"kind\": \"button\", \"text\": \"Go\", \"on_click\": \"pick\" }];
+        ui::fill_strip(\"Root/Bar\", controls);
+        self.filled += 1;
+    }
+    pub fn pick(data: any, on: any) {}
+}
+",
+    );
+    app.tick(1.0 / 60.0);
+    assert!(
+        number(&app, "frames").is_some_and(|n| n > 0.0),
+        "the script ran"
+    );
+    assert_eq!(number(&app, "filled"), Some(0.0));
+    let said: Vec<String> = balaur_core::logbuf::heard()
+        .into_iter()
+        .map(|e| e.message)
+        .collect();
+    assert!(
+        said.iter()
+            .any(|line| line.contains("pick") && line.contains("target")),
+        "the error names the method and what is missing: {said:#?}"
+    );
 }

@@ -53,7 +53,7 @@ gap = [10, 10]
 id = "host"
 name = "Host"
 parent = "buttons"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "host" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "host" }] }
 [nodes.widget]
 kind = "button"
 text = "Host"
@@ -63,7 +63,7 @@ role = "primary"
 id = "join"
 name = "Join"
 parent = "buttons"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "join" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "join" }] }
 [nodes.widget]
 kind = "button"
 text = "Join"

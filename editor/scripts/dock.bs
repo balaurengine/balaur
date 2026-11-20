@@ -10,6 +10,7 @@ use history;
 use icons;
 use importer;
 use model;
+use pool;
 use search;
 use session;
 use shell;
@@ -840,7 +841,7 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
             text: "",
             icon: icons::ui(verbs::PLAY),
             tooltip: "Replay this recording",
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_replay_pressed, RECORDING: recording },
         },
         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: if recording.started == "" { recording.name } else { recording.started } },
@@ -862,7 +863,7 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
         kind: ui::WIDGET_BUTTON,
         role: roles::ACTION_FORM,
         text: "delete",
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_delete_pressed, RECORDING: recording },
     });
     out.push(ui::Control {
@@ -870,7 +871,7 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
         role: roles::ACTION_FORM,
         text: "copy to project",
         tooltip: "Copy into the project, for a bug report or `balaur replay`",
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_copy_pressed, RECORDING: recording },
     });
     if !recording.name.starts_with("kept-") {
@@ -879,7 +880,7 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
             role: roles::ACTION_FORM,
             text: "keep",
             tooltip: "Never prune this one",
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_keep_pressed, RECORDING: recording },
         });
     }

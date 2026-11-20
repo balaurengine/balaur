@@ -25,7 +25,7 @@ align_items = "center"
 id = "scripts"
 name = "Scripts"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "scripts" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "scripts" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"

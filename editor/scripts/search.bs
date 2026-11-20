@@ -4,12 +4,13 @@
 
 use editor;
 use icons;
+use pool;
 use words::roles;
 use words::verbs;
 
 /// A search control a pooled strip holds, rather than one drawn: the same
 /// state under the same `id`, so `query` answers for either. Its edit comes
-/// back to the Editor's `search_typed` with the `id` it carries. A column
+/// back to the Editor's `search_control_typed` with the `id` it carries. A column
 /// stretches it across; a row it sits in sets its `grow`.
 pub fn control(state: editor::State, id: str, placeholder: str) -> ui::Control {
     ui::Control {
@@ -18,7 +19,7 @@ pub fn control(state: editor::State, id: str, placeholder: str) -> ui::Control {
         icon: icons::ui(verbs::SEARCH),
         text: query(state, id),
         placeholder: placeholder,
-        on_change: "search_typed",
+        on_change: "search_control_typed", target: pool::editor(),
         data: id,
     }
 }

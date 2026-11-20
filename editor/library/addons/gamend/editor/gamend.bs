@@ -14,6 +14,7 @@ const CLAIM: str = "claim";
 const ERROR: str = "error";
 const ERRORS: str = "errors";
 const LINK: str = "link";
+const TARGET: str = "target";
 const LOGIN: str = "login";
 const MESSAGE: str = "message";
 const MESSAGES: str = "messages";
@@ -122,6 +123,11 @@ pub class Gamend {
 // The Editor, whose methods are what a plugin reaches the editor through.
 fn editor() -> Node {
     scene::root().get_node("Editor")
+}
+
+// What the dock shows moved, so it fills again.
+fn dock_changed() {
+    editor().call("kit_changed");
 }
 
 fn core_pages() -> [str] {
@@ -325,7 +331,7 @@ impl Gamend {
         let link = client::connection();
         let out: [any] = [heading("Server")];
         out.push(field(core::URL, link.url, { COPY: true }));
-        out.push(field("target", target.name, {}));
+        out.push(field(TARGET, target.name, {}));
         out.push(field("hook plugin", if target.plugin == "" { "none: set [gamend] plugin" } else { target.plugin }, {}));
         out.push(field(HEALTH, brief(self.fetch(HEALTH, "/api/v1/health")), {}));
         out.push(field("addon", addon_version(), {}));
@@ -664,9 +670,8 @@ impl Gamend {
         }
     }
 
-    // What the dock's controls call, through the Editor's `relay`: each is
-    // handed the control's `data` and its edit, and the dock fills again
-    // after it.
+    // What the dock's controls call on this node: each is handed the
+    // control's `data` and its edit, and fills the dock again after it.
 
     /// Talk to the other of the project's servers from now on, remembered
     /// for this person only.
@@ -674,12 +679,14 @@ impl Gamend {
         let name = data[SERVER].as_str();
         let target = client::server();
         if target.name == name && client::connection().url == target.url {
+            dock_changed();
             return;
         }
         settings::set(core::SERVER_SETTING, name);
         editor().call("kit_save_prefs");
         client::configure("", "");
         self.forget("");
+        dock_changed();
     }
 
     /// Ask the account for a code, then wait for the person to approve it.
@@ -687,6 +694,7 @@ impl Gamend {
         self.cloud_replies = {};
         let body = json::encode({ LABEL: "Balaur editor" });
         self.cloud_send(LINK, "POST", LINKS_PATH, body, 15.0);
+        dock_changed();
     }
 
     /// Stop waiting: the held claim is cut and the code left to run out.
@@ -696,10 +704,12 @@ impl Gamend {
             self.cloud_asked.remove(CLAIM);
         }
         self.cloud_link = nil;
+        dock_changed();
     }
 
     pub fn cloud_refresh(_data: any, _value: any) {
         self.cloud_replies.remove(SERVERS);
+        dock_changed();
     }
 
     /// Forget the token here. gamend.org's `/editor/connect` lists it until
@@ -708,6 +718,7 @@ impl Gamend {
         settings::set(CLOUD_TOKEN, "");
         editor().call("kit_save_prefs");
         self.cloud_replies = {};
+        dock_changed();
     }
 
     /// Make a server this project's: `gamend/url`, kept in `project.toml`,
@@ -717,10 +728,12 @@ impl Gamend {
         editor().call("kit_save_project");
         client::configure("", "");
         self.forget("");
+        dock_changed();
     }
 
     pub fn open_site(data: any, _value: any) {
         engine::open_url(data[core::URL].as_str());
+        dock_changed();
     }
 
     /// Ask again for what a page shows; a feature's page takes the id
@@ -729,38 +742,46 @@ impl Gamend {
         let name = data[FEATURE].as_str();
         if name == "" {
             self.forget("");
+            dock_changed();
             return;
         }
         self.ids[name] = self.drafts[name].as_str();
         self.forget(name + "/");
+        dock_changed();
     }
 
     pub fn sign_in(_data: any, _value: any) {
         self.replies.remove(LOGIN);
         self.node.call("await_sign_in");
+        dock_changed();
     }
 
     /// The session as `auth.bs` keeps it.
     pub fn keep_session(_data: any, _value: any) {
         let held = auth::session();
         if held == nil {
+            dock_changed();
             return;
         }
         auth::keep(held.unwrap());
+        dock_changed();
     }
 
     pub fn sign_out(_data: any, _value: any) {
         auth::restore(nil);
         self.forget("");
+        dock_changed();
     }
 
     pub fn restore_saved(_data: any, _value: any) {
         auth::restore(saved_session());
         self.forget("");
+        dock_changed();
     }
 
     pub fn forget_saved(_data: any, _value: any) {
         save::remove(SESSION_SLOT);
+        dock_changed();
     }
 
     /// A field's change and its Enter both land here: Enter brings the text
@@ -771,6 +792,7 @@ impl Gamend {
             self.kv_get();
         }
         self.kv_draft = typed;
+        dock_changed();
     }
 
     pub fn kv_get(_data: any, _value: any) {
@@ -780,6 +802,7 @@ impl Gamend {
         if self.kv_key != "" {
             self.fetch(key, "/api/v1/kv/" + self.kv_key);
         }
+        dock_changed();
     }
 
     /// As `kv_typed`, for a feature's id: Enter asks its views with it.
@@ -790,24 +813,29 @@ impl Gamend {
             self.ids[name] = typed;
         }
         self.drafts[name] = typed;
+        dock_changed();
     }
 
     pub fn filter_by(data: any, _value: any) {
         self.filter = data[FILTER].as_str();
+        dock_changed();
     }
 
     pub fn clear_activity(_data: any, _value: any) {
         activity::clear();
+        dock_changed();
     }
 
     pub fn toggle_row(data: any, _value: any) {
         let key = data[KEY].as_str();
         self.open[key] = !self.open[key].as_bool();
+        dock_changed();
     }
 
     pub fn flush_logs(_data: any, _value: any) {
         let state = service::get();
         state.flush = true;
+        dock_changed();
     }
 }
 
@@ -1097,20 +1125,10 @@ fn button(to: Node, text: str, method: str, data: any) -> any {
         KIND: ui::WIDGET_BUTTON,
         ROLE: "chip",
         TEXT: text,
-        "on_click": "relay",
-        DATA: relayed(data, to, method),
+        "on_click": method,
+        TARGET: to,
+        DATA: data,
     }
-}
-
-// `data` with the node and the method a relayed press calls.
-fn relayed(data: any, to: Node, method: str) -> any {
-    let out: any = {};
-    for key in data.keys() {
-        out[key] = data[key];
-    }
-    out["to"] = to;
-    out[METHOD] = method;
-    out
 }
 
 /// A field whose every edit, and its Enter, call `method` on the dock's node.
@@ -1121,9 +1139,10 @@ fn text_field(to: Node, method: str, text: str, placeholder: str, data: any) -> 
         "width": 220,
         TEXT: text,
         "placeholder": placeholder,
-        "on_change": "relay",
-        "on_submit": "relay",
-        DATA: relayed(data, to, method),
+        "on_change": method,
+        "on_submit": method,
+        TARGET: to,
+        DATA: data,
     }
 }
 

@@ -54,7 +54,7 @@ role = "text_code_caption"
 id = "bind"
 name = "bind"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -65,7 +65,7 @@ tooltip = "Give every listed vertex all of its weight to the bone picked in the 
 id = "unbind"
 name = "unbind"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -76,7 +76,7 @@ tooltip = "Take the listed vertices off every bone"
 id = "normalize"
 name = "normalize"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -87,7 +87,7 @@ tooltip = "Scale each listed vertex's weights so they sum to one"
 id = "auto"
 name = "auto"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -98,7 +98,7 @@ tooltip = "Weight by distance to each bone's segment"
 id = "smooth"
 name = "smooth"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -110,7 +110,7 @@ id = "all"
 name = "all"
 parent = "verbs"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"

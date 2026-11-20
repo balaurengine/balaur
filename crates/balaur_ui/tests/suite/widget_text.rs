@@ -36,7 +36,7 @@ impl Owner {
         kind = "label" x = 10.0 y = 10.0
         text = "read the [url=docs/ui]manual[/url] first"
         widget_text = { markup = true }
-        bindings = { rows = [{ event = "emitted:link_clicked", action = "call", value = "on_go" }] }
+        bindings = { rows = [{ event = "emitted:link_clicked", action = "call", target = "..", value = "on_go" }] }
     };
     let entity = add_child_widget(&app, owner, "Label", &label.into());
     let ctx = egui::Context::default();
@@ -98,7 +98,7 @@ impl Owner {
         kind = "label" x = 10.0 y = 10.0
         text = "read the [url=docs/ui]manual[/url] first"
         widget_text = { markup = true }
-        bindings = { rows = [{ event = "emitted:link_clicked", action = "call", value = "on_go" }] }
+        bindings = { rows = [{ event = "emitted:link_clicked", action = "call", target = "..", value = "on_go" }] }
     };
     let entity = add_child_widget(&app, owner, "Label", &label.into());
     let ctx = egui::Context::default();

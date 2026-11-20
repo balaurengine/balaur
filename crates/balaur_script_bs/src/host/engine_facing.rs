@@ -118,14 +118,16 @@ impl ScriptHost<Engine> for BsHost {
             )
             .map_err(|e| anyhow!("[{path}] {e}"))?;
         self.detach(node);
-        self.inner.instances.borrow_mut().push(Rc::new(Instance {
+        let made = Rc::new(Instance {
             node: node.0,
             path: key_of(path),
             pointer: Cell::new(Runtime::pointer(&obj)),
             obj: RefCell::new(Some(obj)),
             lent: RefCell::new(None),
             gone: Cell::new(false),
-        }));
+        });
+        self.inner.by_node.borrow_mut().insert(node.0, made.clone());
+        self.inner.instances.borrow_mut().push(made);
         if self.inner.holds.get() > 0 {
             self.inner.held.borrow_mut().push(node.0);
         } else {
@@ -188,6 +190,7 @@ impl ScriptHost<Engine> for BsHost {
             .instances
             .borrow_mut()
             .retain(|i| i.node != node.0);
+        self.inner.by_node.borrow_mut().remove(&node.0);
         inst.gone.set(true);
         if let Some(obj) = inst.obj.borrow_mut().take() {
             file.drop_object(obj);

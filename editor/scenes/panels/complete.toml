@@ -17,7 +17,7 @@ whole_window = true
 id = "list"
 name = "List"
 parent = "complete"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "list_clicked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "list_clicked" }] }
 [nodes.widget]
 kind = "list"
 role = "list_log"
@@ -58,7 +58,7 @@ kind = "row"
 id = "up"
 name = "Up"
 parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
 [nodes.widget]
 kind = "button"
 focusable = false
@@ -70,7 +70,7 @@ takes_typing = true
 id = "down"
 name = "Down"
 parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
 [nodes.widget]
 kind = "button"
 focusable = false
@@ -82,7 +82,7 @@ takes_typing = true
 id = "accept"
 name = "Accept"
 parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
 [nodes.widget]
 kind = "button"
 focusable = false
@@ -94,7 +94,7 @@ takes_typing = true
 id = "tab"
 name = "Tab"
 parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
 [nodes.widget]
 kind = "button"
 focusable = false
@@ -106,7 +106,7 @@ takes_typing = true
 id = "close"
 name = "Close"
 parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "key" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
 [nodes.widget]
 kind = "button"
 focusable = false

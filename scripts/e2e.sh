@@ -164,6 +164,7 @@ STATES_ON=(angrynerds hello objects rig)
 EDITOR_STATES=(
   test:timings                              # first: it reads the frame before
   test:layout test:picker test:every_node   # the centre; the node picker
+  test:rail                                 # each tool mark, clicked
   test:tiles "show:input,input@90"          # Tiles; a showcase, ninety frames
   test:plugin_docks                         # scripts/plugins/counter.bs
   test:clipboard test:script_paths          # copy, paste; Assets' file verbs

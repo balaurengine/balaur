@@ -40,6 +40,7 @@ internal const ICON_ACTION_FORM: str = "icon_action_form";
 internal const ICON_ACTION_FORM_QUIET: str = "icon_action_form_quiet";
 internal const ICON_ACTION_PRIMARY: str = "icon_action_primary";
 internal const ICON_ACTION_TAB: str = "icon_action_tab";
+internal const ICON_ACTION_TAB_CARET: str = "icon_action_tab_caret";
 internal const INPUT: str = "input";
 internal const INPUT_CODE: str = "input_code";
 internal const INPUT_DOCK: str = "input_dock";

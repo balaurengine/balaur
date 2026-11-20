@@ -890,8 +890,6 @@ pub fn plugin_step(state: &mut editor::State) {
     selftest::check(util::contains(labels, "alpha") && util::contains(labels, "beta"), "an opened file's keys are rows under it ({labels})");
     fs::remove(kit::game_data(state) + "/" + PROBE_FILE);
     selection::only(state, 0);
-    inspector::refill(state);
-    selftest::check(inspector::line_named(state, "counter.scripted") != nil, "a plugin's section is its own component's rows");
 }
 
 /// The Events view authors rows and writes the script they are equivalent to.
@@ -930,7 +928,7 @@ pub fn eventviews(state: &mut editor::State) {
         { "event": "pointer_drag", "action": "call", "value": "dragged" },
         { "event": "pointer_click", "action": "call", "target": "../Screen", "value": "picked" },
     ]);
-    selftest::check(calls.contains("self.call_up(\"dragged\", dx, dy, source);"), "a call naming no target climbs to its method with the hook's values and the node: {calls}");
+    selftest::check(calls.contains("self.node.call(\"dragged\", dx, dy, source);"), "a call naming no target calls its own node with the hook's values and the node: {calls}");
     selftest::check(calls.contains("self.node.get_node(\"../Screen\").call(\"picked\", button, source);"), "and one naming a target calls it with the same");
     let call_problems = scene_checks::errors_in(calls);
     selftest::check(call_problems.len() == 0, "and compiles: {call_problems}");

@@ -160,6 +160,7 @@ fn states() -> any {
         "test:change_types": panel_checks::change_types,
         "test:import_job": project_checks::importing,
         "test:pen": tool_checks::pendemo,
+        "test:rail": shell_checks::rail,
         "test:plugin_docks": project_checks::plugin_docks,
         "settings": settings::open,
         EXPORT: exporter::open,

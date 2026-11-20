@@ -9,7 +9,7 @@ use words::roles;
 /// the name and the close mark paint only their ink, each lighting up on its
 /// own under the pointer so a click lands on the half it was aimed at.
 /// `in_bar` takes the bar's height for it. `pick` and `close` are buttons
-/// carrying the caller's `on_click`, `data` and `tooltip`; nil for `close`
+/// carrying the caller's `on_click`, `target`, `data` and `tooltip`; nil for `close`
 /// is a tab that does not close.
 pub fn tile(label: str, icon: str, active: bool, in_bar: bool, pick: ui::Control, close: ui::Control?) -> ui::Control {
     // Built by pushing: a `[` after an `if` block is read as indexing it.
@@ -22,6 +22,7 @@ pub fn tile(label: str, icon: str, active: bool, in_bar: bool, pick: ui::Control
         checked: active,
         tooltip: pick.tooltip.or(""),
         on_click: pick.on_click.or(""),
+        target: pick.target,
         data: pick.data,
     });
     if close != nil {
@@ -33,6 +34,7 @@ pub fn tile(label: str, icon: str, active: bool, in_bar: bool, pick: ui::Control
             role: roles::ICON_ACTION_TAB,
             tooltip: mark.tooltip.or("Close"),
             on_click: mark.on_click.or(""),
+            target: mark.target,
             data: mark.data,
         });
     }

@@ -184,6 +184,8 @@ struct Inner {
     /// The instance beside it, made with the first file that needs it.
     aside: RefCell<Option<Rc<Home>>>,
     instances: RefCell<Vec<Rc<Instance>>>,
+    /// The same instances by node: a call to one node finds its script at once.
+    by_node: RefCell<std::collections::HashMap<u64, Rc<Instance>>>,
     /// The fields a scene set to a node's path that hold its script.
     links: RefCell<Vec<links::Link>>,
     held: RefCell<Vec<u64>>,
@@ -345,6 +347,7 @@ impl BsHost {
                 project: RefCell::default(),
                 aside: RefCell::default(),
                 instances: RefCell::default(),
+                by_node: RefCell::default(),
                 links: RefCell::default(),
                 reload_owed: RefCell::default(),
                 held: RefCell::default(),
@@ -438,12 +441,7 @@ impl BsHost {
             .bind_engine(move |key, ret| crate::bind(&engine, &registry, key, ret))
             .scripts(move |node, file, class| {
                 let inner = host.upgrade()?;
-                let inst = inner
-                    .instances
-                    .borrow()
-                    .iter()
-                    .find(|inst| inst.node == node.cast_unsigned())
-                    .cloned()?;
+                let inst = inner.by_node.borrow().get(&node.cast_unsigned()).cloned()?;
                 if inst.path != file || inst.gone.get() || balaur_bs::script_class(file) != class {
                     return None;
                 }
@@ -836,13 +834,7 @@ impl BsHost {
     }
 
     fn instance(&self, node: NodeId) -> Option<(Rc<File>, Rc<Instance>)> {
-        let inst = self
-            .inner
-            .instances
-            .borrow()
-            .iter()
-            .find(|i| i.node == node.0)
-            .cloned()?;
+        let inst = self.inner.by_node.borrow().get(&node.0).cloned()?;
         let file = self.inner.files.borrow().get(&inst.path).cloned()?;
         Some((file, inst))
     }

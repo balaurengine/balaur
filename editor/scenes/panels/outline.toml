@@ -16,7 +16,7 @@ grow = 1
 id = "list"
 name = "List"
 parent = "panel"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "list_picked" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "..", value = "list_picked" }] }
 [nodes.widget]
 kind = "list"
 grow = 1

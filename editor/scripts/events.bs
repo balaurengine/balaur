@@ -7,6 +7,7 @@ use history;
 use icons;
 use inspector;
 use model;
+use pool;
 use shell;
 use signals;
 use util;
@@ -199,7 +200,7 @@ fn pick(state: editor::State, at: int, key: str, current: str, choices: [str]) -
         grow: 1,
         text: current,
         options: choices,
-        on_change: "handle",
+        on_change: "handle", target: pool::editor(),
         data: { fields::FN: on_field_picked, layout_fields::AT: at, fields::KEY: key },
     }
 }
@@ -216,7 +217,7 @@ fn typed(state: editor::State, at: int, key: str, current: str, placeholder: str
         grow: 1,
         text: current,
         placeholder: placeholder,
-        on_submit: "handle_submit",
+        on_submit: "handle_submit", target: pool::editor(),
         data: { project_fields::SUBMIT: on_field_typed, inspector_fields::CURRENT: current, layout_fields::AT: at, fields::KEY: key },
     }
 }
@@ -255,7 +256,7 @@ fn row_spec(state: editor::State, at: int, row: any) -> form::Row {
             grow: 1,
             text: if target == "" { "(this node)" } else { target },
             options: target_paths(state),
-            on_change: "handle",
+            on_change: "handle", target: pool::editor(),
             data: { fields::FN: on_target_picked, layout_fields::AT: at },
         });
     }
@@ -266,7 +267,7 @@ fn row_spec(state: editor::State, at: int, row: any) -> form::Row {
         text: "",
         icon: icons::ui(icons::CLOSE),
         tooltip: "Remove this binding",
-        on_click: "handle",
+        on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_remove_clicked, layout_fields::AT: at },
     });
     form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls }
@@ -334,40 +335,21 @@ pub fn script_of(class_name: str, rows: any) -> str {
         out += "    }}\n";
     }
     let first = heard.len() == 0;
-    let climbs = false;
     for hook in util::keys_sorted(byhook) {
         let own = util::contains(heard, hook.slice(HOOK_PREFIX.len(), hook.len()));
         let arguments = (if own { PAYLOAD } else { hook_arguments(hook) }) + ", source: Node";
         out += (if first { "" } else { "\n" }) + "    pub fn {hook}({arguments}) {{\n";
         first = false;
         for row in byhook[hook] {
-            climbs = climbs || climbs_to_its_method(row);
             out += "        " + guarded(row, handed(arguments)) + "\n";
         }
         out += "    }}\n";
-    }
-    if climbs {
-        out += call_up();
     }
     out + "}}\n"
 }
 
 // What a hook with one value, or none the engine names, is handed first.
 const PAYLOAD: str = "payload: any";
-
-// What a `call` row naming no target does: the method on the nearest node
-// from this one up whose script has it.
-fn call_up() -> str {
-    "\n    fn call_up(method: str, first: any, second: any, third: any) {{\n"
-        + "        let at = self.node;\n"
-        + "        while at.is_valid() && !at.has_method(method) {{\n"
-        + "            at = at.parent();\n"
-        + "        }}\n"
-        + "        if at.is_valid() {{\n"
-        + "            at.call(method, first, second, third);\n"
-        + "        }}\n"
-        + "    }}\n"
-}
 
 /// The arguments each hook is handed before the node it happened on, so the
 /// written method's signature is the one the engine calls.
@@ -402,10 +384,6 @@ fn handed(arguments: str) -> [str] {
         out.push(argument.split(":")[0].trim());
     }
     out
-}
-
-fn climbs_to_its_method(row: any) -> bool {
-    action_of(row) == CALL && row[inspector_fields::TARGET].as_str() == ""
 }
 
 fn guarded(row: any, handed: [str]) -> str {
@@ -477,16 +455,6 @@ fn as_call(row: any, handed: [str]) -> str {
         "engine::open_url(\"{value}\");"
     } else if action == EMIT {
         "{node}.emit(\"{value}\", nil);"
-    } else if action == CALL && target == "" {
-        // Three places, the most a hook hands on: nil fills what it does not.
-        let passed: [str] = [];
-        for name in handed {
-            passed.push(name);
-        }
-        while passed.len() < 3 {
-            passed.push("nil");
-        }
-        "self.call_up(\"{value}\", {util::join(passed, ", ")});"
     } else if action == CALL {
         "{node}.call(\"{value}\", {util::join(handed, ", ")});"
     } else if action == components::VISIBLE {
@@ -568,7 +536,7 @@ pub fn fill(state: &mut editor::State) {
             role: roles::ACTION_FORM,
             text: "Convert to script",
             icon: icons::ui(icons::SCRIPTFILE),
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_convert_clicked },
         },
         ui::Control {
@@ -576,7 +544,7 @@ pub fn fill(state: &mut editor::State) {
             role: roles::ACTION_FORM_PRIMARY,
             text: "Add row",
             icon: icons::ui(icons::ADD),
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_add_row_clicked },
         },
     ]);

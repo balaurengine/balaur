@@ -253,7 +253,7 @@ pub fn fill_rail(state: editor::State) {
     let column: [ui::Control] = [];
     // A column keeps the sheet's own gap, read off its role: `rail_span` counts it.
     for mark in rail_marks(state) {
-        column.push(rail_mark(state, mark));
+        column.push(rail_mark(state, mark, grid.diameter));
         if column.len() as float >= grid.rows {
             columns.push(ui::Control { kind: ui::WIDGET_COLUMN, gap: vec2(grid.gap, grid.gap), controls: column });
             column = [];
@@ -262,12 +262,13 @@ pub fn fill_rail(state: editor::State) {
     if column.len() > 0 {
         columns.push(ui::Control { kind: ui::WIDGET_COLUMN, gap: vec2(grid.gap, grid.gap), controls: column });
     }
-    ui::fill_strip(RAIL, columns);
+    // A panel stacks what it holds, so the columns go side by side in a row.
+    ui::fill_strip(RAIL, [ui::Control { kind: ui::WIDGET_ROW, gap: vec2(grid.gap, grid.gap), controls: columns }]);
 }
 
 // One mark: a tool, or the one that folds the rail away or brings it back.
-fn rail_mark(state: editor::State, mark: str) -> ui::Control {
-    let round: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION, text: "" };
+fn rail_mark(state: editor::State, mark: str, side: float) -> ui::Control {
+    let round: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION, text: "", width: side };
     if mark == window_marks::RESTORE {
         round.icon = icons::ui(icons::RESTORE);
         round.tooltip = "Show the tools";
@@ -368,16 +369,15 @@ fn frame_16_9(viewport_rect: any) -> [float] {
     [margin_x, margin_y, margin_x, margin_y]
 }
 
-/// Fill the chip strip, and say whether it shows. `near` is whether the
-/// pointer is over it, which is when the chips step forward.
-pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
+/// Fill the chip strip, and say whether it shows.
+pub fn fill_chips(state: &mut editor::State) -> bool {
     if !(state.viewport_live && state.stage_chrome) {
         return false;
     }
     let out: [ui::Control] = [];
     for definition in defs::chips(state.workspace) {
         let label = if definition.key == defs::CHIP_PROJECTION && state.mode2d { "2D · Orthographic" } else { definition.label };
-        out.push(chip(state, definition.key, label, definition.starts, near));
+        out.push(chip(state, definition.key, label, definition.starts));
     }
     // The Polygon tool's modes sit with the chips: Godot's UV editor tabs, in
     // the viewport rather than a window.
@@ -408,7 +408,7 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
     true
 }
 
-fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near: bool) -> ui::Control {
+fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?) -> ui::Control {
     if !state.chip_state.has(state.workspace) {
         state.chip_state[state.workspace] = {};
     }
@@ -423,7 +423,7 @@ fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near
     let button: ui::Control = ui::Control {
         kind: ui::WIDGET_BUTTON,
         text: label,
-        role: if near { roles::CHIP } else { roles::CHIP_QUIET },
+        role: roles::CHIP,
         checked: on,
     };
     pool::on(button, chip_pressed, { LIVE: live != nil, WORKSPACE: state.workspace, fields::KEY: key, ON: on })
@@ -467,7 +467,7 @@ fn view_chip(state: editor::State) -> ui::Control {
             role: roles::ITEM_MENU,
             text: mode[1],
             checked: name == current,
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_view_mode_picked, fields::NAME: name },
         });
     }
@@ -499,7 +499,7 @@ fn bookmark_chips(state: editor::State) -> [ui::Control] {
             role: roles::CHIP,
             checked: held,
             tooltip: if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
-            on_click: "handle",
+            on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_bookmark_pressed, fields::KEY: key },
         });
     }

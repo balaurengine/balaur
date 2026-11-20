@@ -26,7 +26,7 @@ align_items = "center"
 id = "material"
 name = "material"
 parent = "kinds"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "kind" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "kind" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -36,7 +36,7 @@ text = "Materials"
 id = "sky"
 name = "sky"
 parent = "kinds"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "kind" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "kind" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -46,7 +46,7 @@ text = "Skies"
 id = "model"
 name = "model"
 parent = "kinds"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "kind" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "kind" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -56,7 +56,7 @@ text = "Models"
 id = "scene"
 name = "scene"
 parent = "kinds"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "kind" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "kind" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -66,7 +66,7 @@ text = "Lighting"
 id = "rig"
 name = "rig"
 parent = "kinds"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "kind" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "kind" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -76,7 +76,7 @@ text = "Rigs"
 id = "addon"
 name = "addon"
 parent = "kinds"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "kind" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "kind" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -86,7 +86,7 @@ text = "Addons"
 id = "template"
 name = "template"
 parent = "kinds"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "kind" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "kind" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -97,7 +97,7 @@ text = "Templates"
 id = "deps"
 name = "deps"
 parent = "kinds"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "kind" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "kind" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -108,7 +108,7 @@ text = "Dependencies"
 id = "forge"
 name = "forge"
 parent = "kinds"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "kind" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "kind" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -128,7 +128,7 @@ role = "text_note"
 id = "cards"
 name = "Cards"
 parent = "panel"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "card_clicked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "card_clicked" }] }
 [nodes.widget]
 kind = "list"
 grow = 1
@@ -141,7 +141,7 @@ id = "table"
 name = "Table"
 parent = "panel"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "card_clicked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "card_clicked" }] }
 [nodes.widget]
 kind = "table"
 role = "list_log"

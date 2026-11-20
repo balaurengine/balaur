@@ -28,7 +28,7 @@ id = "pause"
 name = "Pause"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "pause" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pause" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
@@ -41,7 +41,7 @@ id = "continue"
 name = "continue"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "step" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
@@ -53,7 +53,7 @@ id = "over"
 name = "over"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "step" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
@@ -65,7 +65,7 @@ id = "into"
 name = "into"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "step" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
@@ -77,7 +77,7 @@ id = "out"
 name = "out"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "step" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "step" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
@@ -115,7 +115,7 @@ grow = 1
 id = "break"
 name = "BreakOnError"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "break_on_error" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "break_on_error" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -127,7 +127,7 @@ id = "stack"
 name = "Stack"
 parent = "panel"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "frame_clicked" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "frame_clicked" }] }
 [nodes.widget]
 kind = "tree"
 role = "list_log"

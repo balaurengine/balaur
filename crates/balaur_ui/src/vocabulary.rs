@@ -600,6 +600,8 @@ pub(crate) mod pool {
     pub(crate) const ON_CLICK: &str = "on_click";
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_SUBMIT: &str = "on_submit";
+    /// The node those methods are called on.
+    pub(crate) const TARGET: &str = "target";
 }
 
 /// The state tables a theme entry holds, by CSS's words. `checked` answers

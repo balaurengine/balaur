@@ -111,24 +111,18 @@ fn a_tree_caret_folds_the_branch_under_it() {
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    let shown = |out: &egui::FullOutput| {
-        texts(out)
-            .into_iter()
-            .map(|(t, _)| t)
-            .filter(|t| t != "▾" && t != "▸")
-            .collect::<Vec<_>>()
-    };
+    let shown = |out: &egui::FullOutput| texts(out).into_iter().map(|(t, _)| t).collect::<Vec<_>>();
     let open = shown(&pass(&app, &ctx, vec![]));
     assert!(
         open.iter().any(|t| t == "Leaf"),
         "the branch starts open: {open:?}"
     );
-    // The caret sits left of the row it folds.
+    // The caret is the square at the start of the row it folds, left of its name.
     let (_, at) = texts(&pass(&app, &ctx, vec![]))
         .into_iter()
-        .find(|(t, _)| t == "▾")
-        .expect("a parent row draws a caret");
-    let hit = pos2(at.x + 3.0, at.y + 3.0);
+        .find(|(t, _)| t == "Root")
+        .expect("the parent row draws its name");
+    let hit = pos2(4.0, at.y + 3.0);
     pass(&app, &ctx, press(hit, true));
     pass(&app, &ctx, press(hit, false));
     let folded = shown(&pass(&app, &ctx, vec![]));
@@ -781,7 +775,7 @@ impl Owner {
             &toml::toml! {
                 kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
                 widget_list = { reorderable = true }
-                bindings = { rows = [{ event = "emitted:moved", action = "call", value = "on_moved" }] }
+                bindings = { rows = [{ event = "emitted:moved", action = "call", target = "..", value = "on_moved" }] }
                 widget_rows = { row_height = 20.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
             }
             .into(),
@@ -840,7 +834,7 @@ impl Owner {
         "Rows",
         &toml::toml! {
             kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-            bindings = { rows = [{ event = "emitted:moved", action = "call", value = "on_moved" }] }
+            bindings = { rows = [{ event = "emitted:moved", action = "call", target = "..", value = "on_moved" }] }
             widget_rows = { row_height = 20.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
         }
         .into(),
@@ -888,7 +882,7 @@ impl Owner {
             &toml::toml! {
                 kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
                 widget_list = { draggable = true, grid_columns = "repeat(3, 1fr)" }
-                bindings = { rows = [{ event = "emitted:dropped", action = "call", value = "on_dropped" }] }
+                bindings = { rows = [{ event = "emitted:dropped", action = "call", target = "..", value = "on_dropped" }] }
                 widget_rows = { items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
             }
             .into(),
@@ -986,7 +980,7 @@ impl Owner {
         "Rows",
         &toml::toml! {
             kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-            bindings = { rows = [{ event = "emitted:marked", action = "call", value = "on_marked" }] }
+            bindings = { rows = [{ event = "emitted:marked", action = "call", target = "..", value = "on_marked" }] }
             widget_rows = { row_height = 20.0, items = [{ label = "One", key = "one", marks = [{ name = "eye", icon = "E" }, { name = "lock", icon = "L" }] }, { label = "Two", key = "two", marks = [{ name = "eye", icon = "E" }] }] }
         }
         .into(),

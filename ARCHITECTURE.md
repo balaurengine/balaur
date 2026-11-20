@@ -176,10 +176,12 @@ one backend.
 - One handler shape: `on_<name>(payload, source)`, `source` the node the event
   was said on. A node hears its own engine events unasked and another's after
   `events.listen`. A method naming fewer parameters is handed fewer.
-- A `call` row in `bindings` naming no `target` calls the nearest node from its
-  own up whose script has the method (`bindings::nearest_with_method`), with
-  the event's values and then the row's node. A core hook of two values keeps
-  both: `on_pointer_drag(dx, dy, source)`.
+- A `call` row in `bindings` calls the node its `target` path names, or its
+  own node when it names none, with the event's values and then the row's
+  node. A pooled control names its `target` node beside its `on_click`. Nothing
+  searches the tree for a method, so a panel declaring a method of the same
+  name cannot take another's click. A core hook of two values keeps both:
+  `on_pointer_drag(dx, dy, source)`.
 - A `bindings` row's `when` is a comparison of scene variables with values,
   never a script expression: what a comparison cannot say is a script.
   Convert to script writes the `.bs` a node's rows equal, one method a hook

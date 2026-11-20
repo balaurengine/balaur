@@ -1091,13 +1091,13 @@ fn the_editor_libraries_answer_a_script_that_uses_them() {
     );
 }
 
-const NAMED_HANDLERS: &str = r#"pub class Panel { frame: int, said: str, clicks: int }
+const NAMED_HANDLERS: &str = r#"pub class Panel { node: Node, frame: int, said: str, clicks: int }
 impl Panel {
     pub fn update(dt: float) {
         self.frame += 1;
         let controls: [any] = [
-            { "kind": "text_field", "text": "", "on_change": "typed", "data": "query" },
-            { "kind": "button", "text": "Go", "on_click": "pressed", "data": 7 },
+            { "kind": "text_field", "text": "", "on_change": "typed", "target": self.node, "data": "query" },
+            { "kind": "button", "text": "Go", "on_click": "pressed", "target": self.node, "data": 7 },
         ];
         ui::fill_strip("Panel/Strip", controls);
         if self.frame == 2 {
@@ -1118,7 +1118,7 @@ impl Panel {
 "#;
 
 // A script that hands the engine no functions names its handler: the pool
-// calls it on the script above the control, with the spec's data first.
+// calls it on the control's target, with the spec's data first.
 #[test]
 fn a_pooled_control_calls_the_method_it_names_with_its_data() {
     use balaur_script::Value::{Int, Str};

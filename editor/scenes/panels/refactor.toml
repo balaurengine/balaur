@@ -25,7 +25,7 @@ text = "Rename"
 id = "from"
 name = "From"
 parent = "panel"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "field_typed" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "..", value = "field_typed" }] }
 [nodes.widget]
 kind = "text_field"
 role = "input_form"
@@ -36,7 +36,7 @@ placeholder = "name"
 id = "to"
 name = "To"
 parent = "panel"
-bindings = { rows = [{ event = "emitted:value_changed", action = "call", value = "field_typed" }] }
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "..", value = "field_typed" }] }
 [nodes.widget]
 kind = "text_field"
 role = "input_form"
@@ -71,7 +71,7 @@ role = "layout_actions"
 id = "apply"
 name = "Apply"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "apply" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "apply" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
@@ -81,7 +81,7 @@ text = "Apply"
 id = "cancel"
 name = "Cancel"
 parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", value = "cancel" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "cancel" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
