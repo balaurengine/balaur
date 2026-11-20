@@ -793,7 +793,7 @@ mod tests {
     #[test]
     fn an_ios_bundle_off_a_mac_gets_loose_icons_and_their_keys() {
         let dir = tempfile::tempdir().unwrap();
-        let keys = icons().write_ios(dir.path(), "15.0").unwrap();
+        let keys = icons().write_ios(dir.path(), "15.0", false).unwrap();
         assert!(keys.contains("CFBundleIconFiles") && keys.contains("AppIcon60x60"));
         assert_eq!(
             image::open(dir.path().join("AppIcon60x60@3x.png"))
