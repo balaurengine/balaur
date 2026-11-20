@@ -5,6 +5,9 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+# A workspace of its own: extension tests load a plugin built apart from the engine.
+[workspace]
+
 [lib]
 crate-type = ["cdylib"]
 

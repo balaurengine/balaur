@@ -1,8 +1,6 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
-# Out-of-workspace on purpose: extension tests must load a separately built plugin.
-exclude = ["examples/extension_greeter"]
 
 [workspace.package]
 version = "0.2.0-alpha.1"
