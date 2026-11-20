@@ -188,7 +188,7 @@ fn a_script_uses_a_library_file_and_reloads_with_it() {
     use balaur_script::Value::Int;
     let dir = one_script(
         "Counter",
-        "use steps;\npub class Counter { count: int }\nimpl Counter {\n    fn update(dt: float) {\n        self.count = steps::next(self.count);\n    }\n}\n",
+        "use steps;\npub class Counter { count: int }\nimpl Counter {\n    pub fn update(dt: float) {\n        self.count = steps::next(self.count);\n    }\n}\n",
     );
     let lib = dir.path().join("scripts/steps.bs");
     std::fs::write(&lib, "pub fn next(n: int) -> int { n + 1 }\n").unwrap();
@@ -211,7 +211,7 @@ fn a_library_whose_struct_changes_rebuilds_the_script_reading_it() {
     use balaur_script::Value::Int;
     let dir = one_script(
         "Counter",
-        "use steps;\npub class Counter { count: int }\nimpl Counter {\n    fn update(dt: float) {\n        self.count += steps::step().by;\n    }\n}\n",
+        "use steps;\npub class Counter { count: int }\nimpl Counter {\n    pub fn update(dt: float) {\n        self.count += steps::step().by;\n    }\n}\n",
     );
     let lib = dir.path().join("scripts/steps.bs");
     std::fs::write(
@@ -273,7 +273,7 @@ fn an_export_names_a_bs_script_that_does_not_compile() {
 fn an_export_refuses_a_script_whose_module_the_project_ignores() {
     let dir = one_script(
         "Counter",
-        "use addons::steps;\npub class Counter { count: int }\nimpl Counter {\n    fn update(dt: float) {\n        self.count = steps::next(self.count);\n    }\n}\n",
+        "use addons::steps;\npub class Counter { count: int }\nimpl Counter {\n    pub fn update(dt: float) {\n        self.count = steps::next(self.count);\n    }\n}\n",
     );
     std::fs::write(
         dir.path().join("project.toml"),
@@ -297,11 +297,11 @@ fn an_export_refuses_a_script_whose_module_the_project_ignores() {
 const WAITER: &str = "pub class Waiter { node: Node, stage: int, reloads: int }
 
 impl Waiter {
-    fn on_hot_reload() {
+    pub fn on_hot_reload() {
         self.reloads += 1;
     }
 
-    async fn init() {
+    pub async fn init() {
         self.stage = 1;
         await task::frames(3);
         self.stage = 2;
@@ -384,7 +384,7 @@ fn a_file_written_as_it_was_keeps_its_parked_init() {
 
 const COUNTER: &str = "pub class Counter { count: int }
 impl Counter {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let next = self.count + 1;
         self.count = next;
     }
@@ -462,7 +462,7 @@ fn a_breakpoint_freezes_the_game_until_the_editor_steps_on() {
 
 const TICKER: &str = "pub class Ticker { ticks: int }
 impl Ticker {
-    async fn go() {
+    pub async fn go() {
         await task::frames(1);
         let seen = self.ticks;
         self.ticks = seen + 1;
@@ -508,7 +508,7 @@ fn a_breakpoint_in_an_async_method_holds_its_task() {
 
 const CRASHER: &str = "pub class Crasher { at: int }
 impl Crasher {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let items = [1, 2, 3];
         self.at += 1;
         self.at = items[self.at + 5];
@@ -574,7 +574,7 @@ fn balaur_check_names_the_line_a_bs_script_breaks_on() {
 const MOVER_BS: &str = "pub class Mover { node: Node, arm: Node, seen: int, label: str }
 
 impl Mover {
-    fn init() {
+    pub fn init() {
         self.arm = self.node.get_node(\"Arm\");
         self.arm.set_name(\"Hand\");
         self.node.add_tag(\"mover\");
@@ -582,7 +582,7 @@ impl Mover {
         self.label = self.node.path();
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0);
         let arm = self.arm.transform.position; self.arm.transform.position = vec3(arm.x + 0.0, arm.y + dt, arm.z + 0.0);
     }
@@ -668,7 +668,7 @@ fn node_operations_reach_the_node_its_children_and_its_tags() {
 const HITTER_BS: &str = "pub class Hitter { node: Node, done: bool }
 
 impl Hitter {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if !self.done {
             self.done = true;
             let hit: any = { \"damage\": 3, \"tags\": [\"fire\", \"ice\"] };
@@ -748,7 +748,7 @@ fn payloads_cross_between_scripts_as_any() {
 fn a_binding_that_takes_or_gives_a_value_is_typed_any() {
     let source = "pub class Fetcher { kept: any }
 impl Fetcher {
-    fn init() {
+    pub fn init() {
         let text = json::encode(1);
         self.kept = json::parse(text);
     }
@@ -761,7 +761,7 @@ impl Fetcher {
 
 const LOGGER_BS: &str = "pub class Logger { node: Node, matched: bool, scale: float }
 impl Logger {
-    fn init() {
+    pub fn init() {
         log::info(\"bs says info\");
         log::warn(\"bs says warn\");
         log::error(\"bs says error\");
@@ -831,7 +831,7 @@ pub class Reach {
     pointer: float,
 }
 impl Reach {
-    fn init() {
+    pub fn init() {
         self.button = input::MOUSE_BUTTON_LEFT;
         self.turn = math::PI * 2.0;
         events::listen(self.node, \"ping\");
@@ -871,7 +871,7 @@ fn a_bs_script_reaches_constants_optional_arguments_and_tuples() {
 
 const CHECKER_BS: &str = "pub class Checker { node: Node, count: int, message: str, line: int, first: str }
 impl Checker {
-    fn init() {
+    pub fn init() {
         let found = script::check(\"scripts/other.bs\", \"pub struct Point {{ x: int }}\\nfn missing() -> int {{ nope }}\");
         self.count = found.len();
         self.message = found[0].message;
@@ -912,7 +912,7 @@ impl Orc {
 const ASKER_BS: &str = "pub class Asker { node: Node, hp: int, name: str }
 
 impl Asker {
-    async fn init() {
+    pub async fn init() {
         let asked = self.node.get_node(\"Orc\").call_async(\"info\", nil);
         let info = await task::wait(asked);
         self.hp = info[\"hp\"].as_int();
@@ -949,7 +949,7 @@ fn task_wait_hands_an_async_init_what_the_engine_answered() {
 
 const TOOLED_BS: &str = "pub class Tooled { node: Node, speed: float }
 impl Tooled {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.speed += dt;
     }
 }
@@ -1029,7 +1029,7 @@ fn engine_calls_cost() {
     };
     let bs = |body: &str| {
         format!(
-            "pub class Bench {{ node: Node, out: float }}\nimpl Bench {{\n    fn update(dt: float) {{\n        let t = 0.0;\n        for i in 0..{CALLS} {{ {body} }}\n        self.out = t;\n    }}\n}}\n"
+            "pub class Bench {{ node: Node, out: float }}\nimpl Bench {{\n    pub fn update(dt: float) {{\n        let t = 0.0;\n        for i in 0..{CALLS} {{ {body} }}\n        self.out = t;\n    }}\n}}\n"
         )
     };
     let rows = [
@@ -1057,7 +1057,7 @@ use defs;
 use icons;
 pub class Check { said: str }
 impl Check {
-    fn init() {
+    pub fn init() {
         let color = util::hex_to_rgb(\"#ff8000\");
         let back = util::rotate_euler([0.1, 0.2, 0.3], 2, 0.0);
         let table: any = { \"b\": 1, \"a\": 2 };

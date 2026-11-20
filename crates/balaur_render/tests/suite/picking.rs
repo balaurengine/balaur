@@ -28,7 +28,7 @@ source = "#wedge"
 /// node where the scene put it, and the assertions below would hold vacuously.
 const SCRIPT: &str = r#"pub class Wedge { node: Node }
 impl Wedge {
-    fn init() {
+    pub fn init() {
         let through = render::pick_ray_at(vec3(-0.5, -0.5, 5.0), vec3(0.0, 0.0, -1.0));
         if through == nil || !through.unwrap().node.is_valid() {
             log::error("the ray through the triangle picked nothing");

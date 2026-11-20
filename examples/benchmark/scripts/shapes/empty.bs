@@ -6,7 +6,7 @@ pub class Empty {
 }
 
 impl Empty {
-    fn init() {
+    pub fn init() {
         self.n = 0.0;
     }
 }

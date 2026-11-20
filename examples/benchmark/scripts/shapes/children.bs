@@ -6,7 +6,7 @@ pub class Children {
 }
 
 impl Children {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let seen = 0;
         for kid in self.node.children() {
             seen += 1;

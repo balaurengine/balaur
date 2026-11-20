@@ -12,7 +12,7 @@ fn a_script_awaits_one_call_after_another() {
         r#"
 pub class Scenario { node: Node }
 impl Scenario {
-    async fn init() {
+    pub async fn init() {
         let store = platform::backend();
         let r = await task::wait(platform::sign_in());
         let kind = r["kind"];
@@ -37,7 +37,7 @@ fn a_script_reads_the_player_before_a_sign_in_has_landed() {
         r#"
 pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let store: str = platform::backend();
         let player: platform::Player? = platform::player();
         log::info("platform-empty {store} {player == nil}");
@@ -54,7 +54,7 @@ fn every_call_answers_an_id_to_await_and_a_row_reads_as_its_record() {
         r#"
 pub class Scenario { node: Node }
 impl Scenario {
-    async fn init() {
+    pub async fn init() {
         let options = platform::ScoresOptions { count: 5, start: 1, scope: "friends", period: "week" };
         let presence = await task::wait(platform::set_presence("in the caves"));
         let progress = await task::wait(platform::progress("first_blood", 50.0));

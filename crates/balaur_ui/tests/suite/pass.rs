@@ -535,7 +535,7 @@ fn a_headless_run_answers_the_window_the_project_states() {
     std::fs::write(
         dir.path().join("root.bs"),
         "pub class Root { node: Node, width: float, height: float }\n\
-         impl Root {\n    fn update(dt: float) {\n        let size = ui::window_size();\n        \
+         impl Root {\n    pub fn update(dt: float) {\n        let size = ui::window_size();\n        \
          self.width = size.x;\n        self.height = size.y;\n    }\n}\n",
     )
     .unwrap();

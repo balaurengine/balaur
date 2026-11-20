@@ -108,7 +108,7 @@ fn hits(app: &balaur::App) -> i64 {
 /// A bystander that feeds a press from its own update, once, and hears as the other does.
 const BYSTANDER_FEEDS: &str = r#"pub class Bystander { node: Node }
 impl Bystander {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if scene::variable("hits").as_int() == 0 {
             input::set_mouse_down(0, true);
         }
@@ -654,7 +654,7 @@ fn a_finished_clip_calls_its_own_node_once_when_the_node_also_subscribes() {
         dir.path().join("scenes/wave.bs"),
         r#"pub class Wave { node: Node }
 impl Wave {
-    fn init() { events::listen(self.node, "animation_finished", self.node); }
+    pub fn init() { events::listen(self.node, "animation_finished", self.node); }
     pub fn on_animation_finished(clip: any) {
         scene::set_variable("score", scene::variable("score").as_int() + 1);
     }
@@ -858,6 +858,47 @@ impl Hearer {
 fn held(app: &balaur::App, name: &str, field: &str) -> Option<Value> {
     let host = app.engine.script_host().unwrap();
     host.script_field(balaur::node_id_of(node(app, name)), field)
+}
+
+/// A script whose own `chosen` is private: the file's, so no row reaches it.
+const PRIVATE_PART: &str = r#"pub class Part { node: Node, taken: int, offers: bool, above: bool }
+impl Part {
+    pub fn init() {
+        self.offers = self.node.has_method("chosen");
+        self.above = self.node.parent().has_method("chosen");
+    }
+    pub fn take() { self.chosen(); }
+    fn chosen() { self.taken += 1; }
+}
+"#;
+
+#[test]
+fn a_call_row_passes_a_private_method_by_for_the_pub_one_above() {
+    let scene = PART.replace(
+        "name = \"Part\"\nparent = \"n_screen\"\n",
+        "name = \"Part\"\nparent = \"n_screen\"\nscript = { source = \"scripts/part.bs\" }\n",
+    );
+    let (_dir, mut app) = app_with_scripts(
+        &scene,
+        &[
+            ("scripts/hearer.bs", HEARER),
+            ("scripts/part.bs", PRIVATE_PART),
+        ],
+    );
+    let button = node(&app, "Screen/Part/Button");
+    balaur_core::events::emit_from(&app.engine, button, "picked", Value::Int(7));
+    app.tick(1.0 / 60.0);
+    assert_eq!(held(&app, "Screen", "calls"), Some(Value::Int(1)));
+    assert_eq!(held(&app, "Screen/Part", "taken"), Some(Value::Int(0)));
+    assert_eq!(
+        held(&app, "Screen/Part", "above"),
+        Some(Value::Bool(true)),
+        "init ran"
+    );
+    assert_eq!(
+        held(&app, "Screen/Part", "offers"),
+        Some(Value::Bool(false))
+    );
 }
 
 #[test]

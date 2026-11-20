@@ -702,10 +702,10 @@ def gen_hooks(api):
     )
     return (
         "# Hooks\n\n"
-        "The methods the engine calls on a node's script by name. Each is a method\n"
-        "of the script's struct, `fn update(dt: float)`, and a script declares only\n"
-        "the ones it wants. What a component announces is listed with the component\n"
-        "in [components.md](./components.md).\n\n"
+        "The methods the engine calls on a node's script by name. Each is a `pub`\n"
+        "method of the script's class, `pub fn update(dt: float)`, and a script\n"
+        "declares only the ones it wants. What a component announces is listed with\n"
+        "the component in [components.md](./components.md).\n\n"
         "<table>\n<thead><tr><th>hook</th><th>when</th></tr></thead>\n"
         f"<tbody>\n{rows}\n</tbody>\n</table>\n\n"
         "## Every node\n\n"

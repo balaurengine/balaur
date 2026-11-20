@@ -15,11 +15,11 @@ use helper;
 
 pub class Ball { node: Node, speed: float = 4.0 }
 impl Ball {
-    fn init() {
+    pub fn init() {
         let node = self.node;
         node.body2d.apply_impulse(vec2(0.0, 5.0));
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let hit = physics2d::raycast(physics2d::RayQuery {});
         self.speed = helper::assist(self.speed);
     }
@@ -203,7 +203,7 @@ fn references_are_every_use_of_a_name() {
 #[test]
 fn formatting_is_idempotent() {
     let (_dir, app) = host();
-    let messy = SCRIPT.replace("    fn init() {", "fn init()   {");
+    let messy = SCRIPT.replace("    pub fn init() {", "pub fn init()   {");
     let once = tools(&app).format(PATH, &messy).unwrap();
     assert_eq!(once, SCRIPT, "the house layout");
     let twice = tools(&app).format(PATH, &once).unwrap();

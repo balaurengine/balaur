@@ -68,7 +68,7 @@ fn a_voxel_grid_can_be_dug_into() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         if !self.node.collider3d.voxel(0, 1, 0) { log::error("the middle cell should be filled"); }
         self.node.collider3d.set_voxel(0, 1, 0, false);
         if self.node.collider3d.voxel(0, 1, 0) { log::error("digging left the cell filled"); }
@@ -88,7 +88,7 @@ fn a_voxel_collider_can_be_turned_into_a_mesh() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let mesh = self.node.collider3d.mesh();
         if mesh.points.len() <= 0 { log::error("the grid tessellated to nothing"); }
         if mesh.indices.len() % 3 != 0 { log::error("the triangles are not triples"); }
@@ -104,7 +104,7 @@ fn the_mesh_backed_shapes_build() {
     run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         for kind in ["convex_hull", "convex_decomposition", "triangle_mesh"] {
             self.node.set_component("collider3d", { "shape": { "kind": kind, "mesh": "#wedge" } });
         }
@@ -124,7 +124,7 @@ fn the_solver_knobs_are_set_and_read_back() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         physics::set_tuning(physics::TuningOptions { solver_iterations: 8, length_unit: 64.0, ccd_substeps: 2 });
         let tuning = physics::tuning().physics3d;
         let iterations = tuning.solver_iterations.unwrap();
@@ -152,7 +152,7 @@ fn the_geometry_toolkit_works_on_a_mesh() {
     run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let wedge = geometry3d::load_mesh("#wedge");
         let hull = geometry3d::convex_hull(wedge);
         let points = hull.points.len();
@@ -178,7 +178,7 @@ fn debug_draw_is_set_and_read_back() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         physics::set_debug_draw(physics::DebugDraw { colliders: true });
         let usual = physics::debug_draw();
         if !usual.enabled.unwrap() { log::error("the switch did not stay on"); }

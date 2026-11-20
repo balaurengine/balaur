@@ -599,7 +599,8 @@ pub fn form_check_step(state: &mut editor::State) {
     } else if stage == 6 {
         let head = inspector::line_named(state, "body2d.enabled");
         selftest::check(head != nil && head.unwrap().kind == inspector::HEAD, "a section's head carries its component's enabled");
-        ui::edit(inspector::row_of_line(state, "body2d.enabled").get_node("C1/C2"), false);
+        // The switch sits in the fold head's tile, after its caret and title.
+        ui::edit(inspector::row_of_line(state, "body2d.enabled").get_node("C1/C0/C0/C2"), false);
     } else {
         form_check_rows(state, run, node, stage);
     }

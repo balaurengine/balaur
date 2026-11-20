@@ -6,7 +6,7 @@ use balaur::{AppConfig, standard_app};
 const CHECKS: &str = r"
 pub class Checks { node: Node, done: int, failed: bool }
 impl Checks {
-    fn init() {
+    pub fn init() {
         let quarter = quat::from_axis_angle(vec3(0.0, 1.0, 0.0), math::PI / 2.0);
         let turned = quat::rotate(quarter, vec3(1.0, 0.0, 0.0));
         self.check(math::abs(turned.x) < 0.001 && math::abs(turned.z + 1.0) < 0.001, 'a quarter turn about y takes x to -z');

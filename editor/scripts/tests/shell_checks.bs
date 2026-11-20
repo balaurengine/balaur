@@ -807,8 +807,10 @@ pub fn theme_edit_step(state: &mut editor::State) {
     let roles: [str] = [];
     for row in host.children() {
         if row.visible() == true {
+            // A control role's sample is a row of it in each state.
             let slot = row.get_node("C1").get_node("C0");
-            roles.push(slot.widget.role);
+            let first = slot.get_node("C0");
+            roles.push(if first.is_valid() { first.widget.role } else { slot.widget.role });
         }
     }
     selftest::check(util::contains(roles, "tab"), "the Controls page draws the tab role as itself ({roles.len()})");

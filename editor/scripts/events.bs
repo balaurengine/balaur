@@ -327,7 +327,7 @@ pub fn script_of(class_name: str, rows: any) -> str {
     }
     let out = "// Written from this node's event bindings.\n\npub class {class_name} {{\n    node: Node,\n}}\n\nimpl {class_name} {{\n";
     if heard.len() > 0 {
-        out += "    fn init() {{\n";
+        out += "    pub fn init() {{\n";
         for name in heard {
             out += "        events::listen(self.node, \"{name}\", self.node);\n";
         }

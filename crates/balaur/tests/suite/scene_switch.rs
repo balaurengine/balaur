@@ -12,15 +12,15 @@ const SCREEN: &str = "pub class Screen {
     pub updates: int,
 }
 impl Screen {
-    fn init() {
+    pub fn init() {
         self.inits += 1;
         let keeper = scene::root().get_node(\"Keeper\");
         if keeper.is_valid() { keeper.call(\"saw_init\"); }
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.updates += 1;
     }
-    fn on_free() {
+    pub fn on_free() {
         let keeper = scene::root().get_node(\"Keeper\");
         if keeper.is_valid() { keeper.call(\"saw_free\"); }
     }
@@ -50,7 +50,7 @@ const KEEPER: &str = "pub class Keeper {
     pub updates: int,
 }
 impl Keeper {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.updates += 1;
     }
     pub fn saw_init() {

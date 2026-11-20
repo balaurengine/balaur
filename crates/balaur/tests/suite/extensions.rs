@@ -58,8 +58,8 @@ fn project(with_extension: bool) -> tempfile::TempDir {
         dir.path().join("scripts/root.bs"),
         "pub class Root { node: Node, said: str, count: int }\n\
          impl Root {\n\
-             fn init() { self.said = greeter::greet(\"world\"); }\n\
-             fn update(dt: float) { self.count = greeter::greetings(); }\n\
+             pub fn init() { self.said = greeter::greet(\"world\"); }\n\
+             pub fn update(dt: float) { self.count = greeter::greetings(); }\n\
          }\n",
     )
     .unwrap();

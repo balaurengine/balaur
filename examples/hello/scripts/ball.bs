@@ -9,13 +9,13 @@ pub class Ball {
 }
 
 impl Ball {
-    fn init() {
+    pub fn init() {
         self.node.set_component("body3d", { KIND: physics3d::BODY_DYNAMIC });
         self.node.set_component("collider3d", { "shape": { KIND: physics3d::SHAPE_SPHERE, "radius": 0.5 } });
         self.reported = false;
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let y = self.node.transform.position.y;
         if y < 0.2 && !self.reported {
             self.reported = true;

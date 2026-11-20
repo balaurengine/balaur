@@ -11,7 +11,7 @@ pub class Platform {
 }
 
 impl Platform {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         // P holds the clip where it is; P again carries on from there. `stop`
         // would end it instead, leaving nothing to resume.
         if input::key_just_pressed(input::KEY_P) {

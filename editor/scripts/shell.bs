@@ -507,7 +507,7 @@ pub fn on_pause(state: &mut editor::State, pause: any) {
 /// `DoorBell`, with the two hooks a node calls.
 fn bs_template(rel: str) -> str {
     let name = util::class_of(rel);
-    "pub class " + name + " {{\n    node: Node,\n}}\n\nimpl " + name + " {{\n    fn init() {{\n    }}\n\n    fn update(dt: float) {{\n    }}\n}}\n"
+    "pub class " + name + " {{\n    node: Node,\n}}\n\nimpl " + name + " {{\n    pub fn init() {{\n    }}\n\n    pub fn update(dt: float) {{\n    }}\n}}\n"
 }
 
 pub fn attach_script(state: &mut editor::State) {

@@ -55,8 +55,8 @@ fn a_strip_makes_a_node_a_control_and_hides_what_a_shorter_list_leaves() {
     let (_dir, mut app) = app_with(
         "pub class Root { node: Node, count: int, frames: int }
 impl Root {
-    fn init() { self.count = 3; }
-    fn update(dt: float) {
+    pub fn init() { self.count = 3; }
+    pub fn update(dt: float) {
         self.frames += 1;
         let controls: [any] = [];
         for index in 0..self.count { controls.push({ \"kind\": \"label\", \"text\": \"L{index}\" }); }
@@ -90,7 +90,7 @@ fn a_pooled_row_goes_to_the_component_its_kind_reads() {
     let (_dir, mut app) = app_with(
         "pub class Root { node: Node, frames: int }
 impl Root {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frames += 1;
         let controls: [any] = [];
         if self.frames == 1 {
@@ -129,7 +129,7 @@ fn a_reader_s_click_reaches_its_key_and_a_script_s_write_does_not() {
     let (_dir, mut app) = app_with(
         "pub class Root { node: Node, on: bool, edits: int }
 impl Root {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let controls: [any] = [{ \"kind\": \"checkbox\", \"checked\": self.on, \"on_change\": \"toggled\" }];
         ui::fill_strip(\"Root/Bar\", controls);
     }
@@ -180,10 +180,10 @@ fn a_pooled_label_s_click_calls_the_method_its_spec_names() {
     let (_dir, mut app) = app_with(
         "pub class Root { node: Node, picked: str, with: bool }
 impl Root {
-    fn init() {
+    pub fn init() {
         scene::root().get_node(\"Root/Bar\").patch_component(\"widget\", { \"x\": 0.0, \"y\": 0.0 });
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let controls: [any] = [
             { \"kind\": \"label\", \"text\": \"One\", \"width\": 80, \"on_click\": \"pick\", \"data\": \"one\" },
             { \"kind\": \"label\", \"text\": \"Two\", \"width\": 80 },
@@ -234,7 +234,7 @@ fn a_host_a_script_hid_shows_again_every_time_it_is_filled() {
     let (_dir, mut app) = app_with(
         "pub class Root { node: Node, frames: int }
 impl Root {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frames += 1;
         if self.frames % 2 == 0 {
             scene::root().get_node(\"Root/Bar\").set_visible(false);
@@ -270,10 +270,10 @@ fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
     let (_dir, mut app) = app_with(
         "pub class Root { node: Node, frames: int, edits: int }
 impl Root {
-    fn init() {
+    pub fn init() {
         scene::root().get_node(\"Root/Bar\").patch_component(\"widget\", { \"kind\": \"column\", \"anchor\": \"fill\" });
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frames += 1;
         let control: any = if self.frames < 3 {
             {
@@ -361,7 +361,7 @@ fn row(said: str, y: float) -> any {
     { \"kind\": \"label\", \"text\": said, \"absolute\": true, \"inset\": ui::Sides { left: 0.0, top: y, right: 0.0, bottom: -1.0 } }
 }
 impl Root {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frame += 1;
         let host = scene::root().get_node(\"Root/Bar\");
         if self.frame == 1 {
@@ -437,7 +437,7 @@ fn row(said: str) -> any {
     { \"kind\": \"row\", \"controls\": [{ \"kind\": \"label\", \"text\": said }] }
 }
 impl Root {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frame += 1;
         let host = scene::root().get_node(\"Root/Bar\");
         if self.frame == 1 {
@@ -490,7 +490,7 @@ fn a_reused_slot_forgets_the_last_control_s_tooltip_key_scale_and_offset() {
     let (_dir, mut app) = app_with(
         "pub class Root { node: Node, frames: int }
 impl Root {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frames += 1;
         let bar = self.node.get_node(\"Bar\");
         if self.frames == 1 {

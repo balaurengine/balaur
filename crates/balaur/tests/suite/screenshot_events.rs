@@ -24,7 +24,7 @@ fn a_screenshot_in_a_run_with_no_renderer_says_it_failed() {
     std::fs::write(
         dir.path().join("scenes/shoot.bs"),
         "pub class Shoot { node: Node }\n\
-         impl Shoot { fn init() { render::screenshot(\"shots/one.png\"); } }\n",
+         impl Shoot { pub fn init() { render::screenshot(\"shots/one.png\"); } }\n",
     )
     .unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());

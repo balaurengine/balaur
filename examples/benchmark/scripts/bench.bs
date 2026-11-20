@@ -96,7 +96,7 @@ pub class Bench {
 }
 
 impl Bench {
-    fn init() {
+    pub fn init() {
         self.cases = catalogue();
         self.queue = [];
         self.results = [];
@@ -172,7 +172,7 @@ impl Bench {
         nil
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.sample();
         let before = self.status;
         self.advance();
@@ -181,7 +181,7 @@ impl Bench {
         }
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         if self.state == WARM || self.state == TIME {
             self.tick += 1;
             let c = self.entry.unwrap().case;

@@ -14,16 +14,16 @@ const COUNTER: &str = "pub class Counter {
     pub token: int,
 }
 impl Counter {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.updates = self.updates + 1;
     }
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.fixed = self.fixed + 1;
     }
-    fn on_paused_changed(paused: bool) {
+    pub fn on_paused_changed(paused: bool) {
         self.told = self.told + 1;
     }
-    async fn waits_on(token: int) {
+    pub async fn waits_on(token: int) {
         await task::wait(token);
         self.woke = self.woke + 1;
     }

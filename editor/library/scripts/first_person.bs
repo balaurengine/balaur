@@ -29,7 +29,7 @@ pub class FirstPerson {
 }
 
 impl FirstPerson {
-    fn init() {
+    pub fn init() {
         self.held = self.node.transform.position.y;
         self.eye = self.node;
         for child in self.node.children() {
@@ -42,7 +42,7 @@ impl FirstPerson {
         }
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let moved = input::mouse_delta();
         self.yaw -= moved.x * self.sensitivity;
         // Straight up and straight down are where a first-person view stops:
@@ -78,7 +78,7 @@ impl FirstPerson {
         }
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let forward = axis(input::KEY_W, input::KEY_S);
         let sideways = axis(input::KEY_D, input::KEY_A);
         // Walking is flat: the pitch aims the view, never the feet.

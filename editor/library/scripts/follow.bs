@@ -15,7 +15,7 @@ pub class Follow {
 }
 
 impl Follow {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if self.target == "" {
             return;
         }

@@ -381,7 +381,7 @@ fn joint_state_reads_a_hinges_angle_its_coordinates_and_its_limit() {
         PENDULUMS,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 20 {
             let swing = self.node.joint3d.state();
@@ -467,7 +467,7 @@ fn a_geared_joint_follows_the_joint_it_names() {
         GEARED,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 30 {
             let upper = self.node.joint3d.state().coordinates.unwrap().rotation_x.unwrap();

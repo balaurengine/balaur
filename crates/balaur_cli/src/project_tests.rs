@@ -118,7 +118,7 @@ mod tests {
         std::fs::create_dir_all(dir.path().join("tests")).unwrap();
         write(
             "tests/holds.bs",
-            "pub class Holds { node: Node }\nimpl Holds { fn init() {} }\n",
+            "pub class Holds { node: Node }\nimpl Holds { pub fn init() {} }\n",
         );
         test_project(dir.path(), 1, None)
     }
@@ -188,7 +188,7 @@ mod tests {
         let test = |name: &str, body: &str| {
             let class = name[..1].to_uppercase() + &name[1..];
             let source = format!(
-                "pub class {class} {{ node: Node }}\nimpl {class} {{ fn init() {{ {body} }} }}\n"
+                "pub class {class} {{ node: Node }}\nimpl {class} {{ pub fn init() {{ {body} }} }}\n"
             );
             std::fs::write(dir.path().join(format!("tests/{name}.bs")), source).unwrap();
         };

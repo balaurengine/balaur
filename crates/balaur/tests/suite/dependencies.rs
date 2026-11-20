@@ -18,7 +18,7 @@ pub class Button {
 }
 
 impl Button {
-    fn init() {
+    pub fn init() {
         self.value = util::value();
         self.found = fs::exists(\"art/hit.png\");
     }

@@ -53,7 +53,7 @@ shape = { kind = "sphere", radius = 0.5 }
     .unwrap();
     std::fs::write(
         dir.path().join("scripts/scenario.bs"),
-        format!("{items}\npub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n{body}\n    }}\n}}\n"),
+        format!("{items}\npub class Scenario {{ node: Node }}\nimpl Scenario {{\n    pub fn init() {{\n{body}\n    }}\n}}\n"),
     )
     .unwrap();
 

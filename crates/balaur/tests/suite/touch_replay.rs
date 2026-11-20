@@ -10,7 +10,7 @@ use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 
 const SCRIPT: &str = "pub class Runner { node: Node }
 impl Runner {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let at = self.node.transform.position; self.node.transform.position = vec3(at.x + input::action_value(\"move_x\") * dt, at.y + 0.0, at.z + 0.0);
     }
 }
@@ -150,7 +150,7 @@ fn nobody_touching_the_stick_leaves_the_runner_still() {
 /// the four gestures, each of which must answer with nothing happening.
 const VERBS: &str = "pub class Runner { node: Node }
 impl Runner {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         input::set_action_value(\"jump\", 1.0);
         input::set_touch(3, vec2(500.0, 300.0), \"start\");
         let zoom = 1.0;
@@ -163,7 +163,7 @@ impl Runner {
         if input::long_press() != nil { zoom = 1.0; }
         input::set_action_value(\"reached\", 1.0);
     }
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         if input::action_down(\"jump\") { let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0); }
     }
 }

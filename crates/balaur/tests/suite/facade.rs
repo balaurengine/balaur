@@ -23,7 +23,7 @@ fn project(dir: &std::path::Path, script: (&str, &str)) {
 
 const SCRIPT: (&str, &str) = (
     "root.bs",
-    "pub class Root { node: Node, ran: bool }\nimpl Root { fn init() { self.ran = true; } }\n",
+    "pub class Root { node: Node, ran: bool }\nimpl Root { pub fn init() { self.ran = true; } }\n",
 );
 
 /// The scene's `Root`, the node the project's script is attached to.
@@ -285,7 +285,7 @@ fn an_asset_only_a_compiled_script_names_survives_a_strip() {
     let dir = tempfile::tempdir().unwrap();
     let script = (
         "root.bs",
-        "pub class Root { node: Node }\nimpl Root { fn init() { let path = \"art/spare.png\"; } }\n",
+        "pub class Root { node: Node }\nimpl Root { pub fn init() { let path = \"art/spare.png\"; } }\n",
     );
     project(dir.path(), script);
     std::fs::create_dir_all(dir.path().join("art")).unwrap();
@@ -349,7 +349,7 @@ fn a_project_whose_script_calls_the_engine_can_be_exported() {
             "root.bs",
             "pub class Root { node: Node, ran: bool }\n\
              impl Root {\n\
-             \x20   fn init() {\n\
+             \x20   pub fn init() {\n\
              \x20       if input::key_just_pressed(input::KEY_SPACE) {\n\
              \x20           self.ran = true;\n\
              \x20       }\n\
@@ -369,7 +369,7 @@ fn a_packed_project_lists_and_reads_its_documents() {
         (
             "root.bs",
             "pub class Root { node: Node, ran: bool }\n\
-             impl Root { fn init() { self.ran = fs::read(\"strings/ro.toml\") != nil; } }\n",
+             impl Root { pub fn init() { self.ran = fs::read(\"strings/ro.toml\") != nil; } }\n",
         ),
     );
     std::fs::create_dir(dir.path().join("strings")).unwrap();
@@ -415,7 +415,7 @@ fn the_focus_keys_stay_the_widgets_until_the_game_takes_them() {
     let polling = (
         "root.bs",
         "pub class Root { node: Node, on: bool }\n\
-         impl Root { fn update(dt: float) { self.on = input::key_down(input::KEY_UP); } }\n",
+         impl Root { pub fn update(dt: float) { self.on = input::key_down(input::KEY_UP); } }\n",
     );
     assert!(!keyboard_after("", polling), "a script reads an arrow");
 }
@@ -427,7 +427,7 @@ fn a_script_can_attach_another_script() {
     std::fs::write(
         dir.path().join("scripts/other.bs"),
         "pub class Other { node: Node, other_ran: int }\n\
-         impl Other { fn init() { self.other_ran = 1; } }\n",
+         impl Other { pub fn init() { self.other_ran = 1; } }\n",
     )
     .unwrap();
     std::fs::write(
@@ -436,7 +436,7 @@ fn a_script_can_attach_another_script() {
         pub class Root { node: Node }
 
         impl Root {
-            fn init() {
+            pub fn init() {
                 self.node.add_child("Kid").attach_script("scripts/other.bs");
             }
         }
@@ -475,7 +475,7 @@ fn script_path_names_the_script_a_node_was_given() {
         pub class Root { node: Node, own_path: str, fresh_path: str, kid_path: str }
 
         impl Root {
-            fn init() {
+            pub fn init() {
                 self.own_path = self.node.script_path();
                 let kid = self.node.add_child("Kid");
                 self.fresh_path = kid.script_path();
@@ -525,8 +525,8 @@ fn reload_script_picks_up_a_rewritten_file() {
         dir.path().join("scripts/root.bs"),
         "pub class Root { node: Node, version: int }\n\
          impl Root {\n\
-             fn init() { self.version = 1; }\n\
-             fn update(dt: float) {}\n\
+             pub fn init() { self.version = 1; }\n\
+             pub fn update(dt: float) {}\n\
          }\n",
     )
     .unwrap();
@@ -545,8 +545,8 @@ fn reload_script_picks_up_a_rewritten_file() {
         dir.path().join("scripts/root.bs"),
         "pub class Root { node: Node, version: int }\n\
          impl Root {\n\
-             fn init() { self.version = 2; }\n\
-             fn update(dt: float) { self.version = 2; }\n\
+             pub fn init() { self.version = 2; }\n\
+             pub fn update(dt: float) { self.version = 2; }\n\
          }\n",
     )
     .unwrap();
@@ -577,7 +577,7 @@ fn mouse_position_is_readable_without_a_window() {
             "root.bs",
             "pub class Root { node: Node, done: int }\n\
              impl Root {\n\
-             \x20   fn init() {\n\
+             \x20   pub fn init() {\n\
              \x20       let at = input::mouse_position();\n\
              \x20       let scrolled = input::scroll_delta();\n\
              \x20       if at.x == at.x && scrolled.x == 0.0 && scrolled.y == 0.0 {\n\

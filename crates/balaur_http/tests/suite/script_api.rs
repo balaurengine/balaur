@@ -70,7 +70,7 @@ fn a_delete_carries_the_body_it_was_given() {
         r#"
 pub class Scenario {{ node: Node }}
 impl Scenario {{
-    async fn init() {{
+    pub async fn init() {{
         let r = await task::wait(http::request("{url}", http::RequestOptions {{ method: "DELETE", body: "ids=7" }}));
         let status = r["status"];
         let body = r["body"];
@@ -92,7 +92,7 @@ fn a_script_awaits_one_request_after_another() {
         r#"
 pub class Scenario {{ node: Node }}
 impl Scenario {{
-    async fn init() {{
+    pub async fn init() {{
         let r = await task::wait(http::request("{awaited}"));
         let status = r["status"];
         let body = r["body"];

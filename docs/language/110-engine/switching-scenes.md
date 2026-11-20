@@ -17,7 +17,7 @@ pub class TitleScreen {
 }
 
 impl TitleScreen {
-    fn init() {
+    pub fn init() {
         scene::preload("scenes/level.toml");
     }
 

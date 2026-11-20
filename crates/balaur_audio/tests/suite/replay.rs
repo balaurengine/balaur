@@ -13,13 +13,13 @@ const PROBE: &str = r"
 pub class Probe { node: Node }
 
 impl Probe {
-    fn init() {
+    pub fn init() {
         let listed = audio::devices().len() as float;
         let heard = if audio::device_ready() { 1.0 } else { -1.0 };
         self.node.transform.position = vec3(listed, 0.0, heard);
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let at = self.node.transform.position;
         let step = if audio::device_ready() { 1.0 } else { -1.0 };
         self.node.transform.position = vec3(at.x, at.y + step, at.z);

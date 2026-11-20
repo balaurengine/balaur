@@ -493,6 +493,16 @@ impl Runtime {
     // Taking the object is the point: once released, its fields must not be read.
     #[allow(clippy::needless_pass_by_value)]
     pub fn drop_object(&mut self, obj: Object) {
+        let batching = self.host.borrow().batching;
+        if let Some((base, count)) = batching {
+            let held = obj.raw[0].bytes();
+            for k in 0..count as usize {
+                let slot = base as usize + 8 * k;
+                if self.wasm.read(slot, 8) == held {
+                    self.wasm.write(slot, &[0; 8]);
+                }
+            }
+        }
         self.in_unit(obj.unit, |rt| {
             let ty = Ty::Struct(obj.ty.clone());
             rt.release(&ty, &obj.raw);
@@ -606,7 +616,9 @@ impl Runtime {
         for (ty, value) in info.params.iter().zip(args) {
             raw.extend(self.encode(ty, value)?);
         }
+        self.host.borrow_mut().batching = Some((base, objs.len() as u32));
         let out = self.invoke(&key, &raw, 0);
+        self.host.borrow_mut().batching = None;
         self.invoke(words::FREE, &[Raw::I32(base as i32)], 0)?;
         out.map(|_| true)
     }

@@ -15,7 +15,7 @@ pub class ClickToMove {
 }
 
 impl ClickToMove {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if !input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             return;
         }
@@ -38,7 +38,7 @@ impl ClickToMove {
         self.walking = true;
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         if self.on_floor {
             self.vy = 0.0;
         } else {

@@ -13,7 +13,7 @@ const POINT: Vec3 = Vec3::new(4.0, -1.5, 7.25);
 const PLACER: &str = r"
 pub class Placer { node: Node, frames: int, first: Vec3, read: Vec3 }
 impl Placer {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frames += 1;
         if self.frames == 1 {
             self.first = self.node.transform.global_position();
@@ -129,7 +129,7 @@ fn a_script_reads_the_composed_world_position_on_its_first_frame() {
 const LEADER: &str = r"
 pub class Leader { node: Node, frames: int }
 impl Leader {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frames += 1;
         self.node.transform.set_global_position(vec3(self.frames as float, 0.0, 0.0));
     }
@@ -140,7 +140,7 @@ impl Leader {
 const WATCHER: &str = r#"
 pub class Watcher { node: Node, leader_at: Vec3, rider_at: Vec3 }
 impl Watcher {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.leader_at = self.node.get_node("../Leader").transform.global_position();
         self.rider_at = self.node.get_node("../Leader/Rider").transform.global_position();
     }

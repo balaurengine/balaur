@@ -373,7 +373,7 @@ fn a_sensor_soft_body_passes_through_the_floor() {
         "kind = \"box\"\nsensor = true\n[nodes.soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 90 {
             let y = self.node.softbody3d.world_center_of_mass().y;
@@ -394,7 +394,7 @@ fn a_volumetric_crust_holds_fewer_particles_than_a_solid_fill() {
         "kind = \"box\"\n[nodes.soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_volumetric3d", { "cell_size": 0.2 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#cube" });
         let solid = n.softbody3d.particle_count();
@@ -418,7 +418,7 @@ fn a_script_reads_every_particle_edge_and_cell_row() {
         "kind = \"box\"\nsoft_material = { tear_strain = 10.0 }\n[nodes.soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         let p = n.softbody3d.particle(0);
         let mass = p.mass;
@@ -478,7 +478,7 @@ fn a_cut_splits_the_body_and_its_pieces_stay_reachable() {
         "kind = \"rope\"\ngravity_scale = 0.0\n[nodes.soft_rope3d]\nparticle_count = 6",
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         let before = n.softbody3d.particle_count();
         let blade = [vec3(-1.0, -0.5, -1.0), vec3(1.0, -0.5, -1.0), vec3(0.0, -0.5, 2.0)];
@@ -510,7 +510,7 @@ fn a_2d_polyline_takes_its_meshs_triangle_edges_when_asked() {
         "kind = \"box\"\n[nodes.soft_grid3d]\ncells = [1.0, 1.0, 1.0]",
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let flat = scene::root().get_node("World/Flat");
         flat.set_component("softbody2d", { "kind": physics2d::SOFT_POLYLINE, "mesh": "#square" });
         let chain = flat.softbody2d.edges().len();

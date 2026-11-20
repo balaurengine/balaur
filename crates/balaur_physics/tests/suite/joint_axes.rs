@@ -354,7 +354,7 @@ anchor = [-1.0, 0.0, 0.0]
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.joint3d.axes = [{ "axis": physics3d::AXIS_ROTATION_X, "limits": [-0.2, 0.2], "motor": physics3d::MOTOR_VELOCITY, "motor_target": 0.0, "damping": 0.5 }];
         self.node.joint3d.collide_connected = true;
         let axes = self.node.joint3d.axes;
@@ -364,7 +364,7 @@ impl Scenario {
         if math::abs(axes[0]["limits"][1].as_float() - 0.2) >= 0.0001 { log::error("the patch dropped the limit"); }
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
             let y = self.node.transform.position.y;
@@ -454,7 +454,7 @@ fn arm_2d() -> String {
 /// Logs the distance left to the target as an error the harness collects.
 const ARM_SCRIPT: &str = r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             CALL;

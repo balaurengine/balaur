@@ -251,7 +251,7 @@ fn snap_aov_asks_the_renderer_for_an_auxiliary_output() {
     std::fs::write(
         dir.path().join("scripts/scenario.bs"),
         "pub class Scenario { node: Node }\n\
-         impl Scenario {\n    fn init() { render::snap_aov(render::AOV_CAMERA_NORMALS, \"shots/n.png\"); }\n}\n",
+         impl Scenario {\n    pub fn init() { render::snap_aov(render::AOV_CAMERA_NORMALS, \"shots/n.png\"); }\n}\n",
     )
     .unwrap();
     let mut app = standard_app(AppConfig {

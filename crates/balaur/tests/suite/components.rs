@@ -22,7 +22,7 @@ fn plugin_components_roundtrip_through_the_registry() {
         pub class Checks { node: Node, done: int, failed: bool }
 
         impl Checks {
-            fn init() {
+            pub fn init() {
                 let names = scene::component_types();
                 for expected in ["body3d", "collider3d", "shape3d", "widget"] {
                     self.check(has(names, expected), "{expected} not registered");
@@ -539,7 +539,7 @@ fn an_inline_asset_is_the_type_its_table_declares() {
         pub class Checks { node: Node, done: int }
 
         impl Checks {
-            fn init() {
+            pub fn init() {
                 let n = scene::root().add_child("Curve");
                 n.set_component("line2d", {
                     "width": 0.05,
@@ -604,7 +604,7 @@ fn a_one_property_write_leaves_the_rest() {
         pub class Checks { node: Node, done: int, failed: bool }
 
         impl Checks {
-            fn init() {
+            pub fn init() {
                 let n = scene::root().add_child("Moved");
                 n.set_component("transform", { "position": [1.0, 2.0, 3.0], "scale": [4.0, 4.0, 4.0] });
                 n.transform.position = vec3(9.0, 0.0, 0.0);
@@ -643,7 +643,7 @@ fn a_handle_on_a_missing_component_reads_its_defaults() {
         pub class Checks { node: Node, done: int }
 
         impl Checks {
-            fn init() {
+            pub fn init() {
                 let bare = scene::root().add_child("Bare");
                 bare.remove_component("transform");
                 let scale = bare.transform.scale.x;
@@ -670,7 +670,7 @@ fn a_keyed_read_answers_one_property() {
         pub class Checks { node: Node, done: int, failed: bool }
 
         impl Checks {
-            fn init() {
+            pub fn init() {
                 let n = scene::root().add_child("Keyed");
                 n.set_component("widget", { "text": "hi", "kind": "button" });
                 n.set_component("collider3d", { "shape": { "kind": "sphere", "radius": 0.7 } });

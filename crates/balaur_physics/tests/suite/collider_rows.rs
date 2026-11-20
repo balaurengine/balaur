@@ -504,7 +504,7 @@ fn a_heightfield_loses_its_asset_holes_and_the_ones_a_script_cuts() {
         )),
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.collider3d.set_heightfield_hole(1, 1, true);
     }
 
@@ -552,7 +552,7 @@ fn a_2d_heightfield_loses_the_segments_its_holes_name() {
         )),
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.collider2d.set_heightfield_hole(5, true);
     }
 

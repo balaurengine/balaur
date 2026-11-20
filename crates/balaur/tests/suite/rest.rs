@@ -7,7 +7,7 @@ use balaur::{App, AppConfig, DEFAULT_FIXED_DT, rest, standard_app};
 /// one-shot timer again: from inside the step that had just found it stopped.
 const SCRIPT: &str = "pub class Relay { node: Node, pub rung: int }
 impl Relay {
-    fn on_timeout(payload: any) {
+    pub fn on_timeout(payload: any) {
         self.rung += 1;
         let at = self.node.transform.position;
         self.node.transform.position = vec3(at.x + 1.0, at.y + 0.0, at.z + 0.0);

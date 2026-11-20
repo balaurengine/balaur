@@ -44,7 +44,7 @@ tracks = [
 const HERO: &str = r#"
 pub class Hero { node: Node }
 impl Hero {
-    fn init() {
+    pub fn init() {
         self.node.animation.play("hop", animation::PlayOptions { speed_scale: 1.0 });
     }
     pub fn on_animation_finished(name: str) {
@@ -193,16 +193,16 @@ fn a_script_reads_the_playhead_back_through_the_module() {
     let script = r#"
 pub class Watch { node: Node, clip: str, playing: bool, elapsed: float, ended: str }
 impl Watch {
-    fn init() {
+    pub fn init() {
         self.node.animation.play("hop");
         self.node.animation.seek(0.25);
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.clip = self.node.animation.current_clip().or("");
         self.playing = self.node.animation.is_playing();
         self.elapsed = self.node.animation.time();
     }
-    fn on_animation_finished(clip: str) {
+    pub fn on_animation_finished(clip: str) {
         self.ended = clip;
     }
 }
@@ -241,7 +241,7 @@ fn a_script_defines_a_clip_of_its_own_and_plays_it() {
     let script = r#"
 pub class Define { node: Node }
 impl Define {
-    fn init() {
+    pub fn init() {
         let keys = [
             animation::Key { time: 0.0, value: [0.0, 0.0, 0.0] },
             animation::Key { time: 1.0, value: [0.0, 8.0, 0.0] },
@@ -278,7 +278,7 @@ fn a_clip_read_as_an_any_reaches_the_call_by_its_keys() {
     let script = r#"
 pub class Define { node: Node }
 impl Define {
-    fn init() {
+    pub fn init() {
         let clip: any = {
             "length": 1.0,
             "tracks": [{
@@ -310,7 +310,7 @@ fn a_script_queues_a_clip_behind_the_one_playing() {
     let script = r#"
 pub class Queue { node: Node }
 impl Queue {
-    fn init() {
+    pub fn init() {
         self.node.animation.play("hop");
         self.node.animation.queue("wave");
     }
@@ -337,10 +337,10 @@ fn a_script_pauses_and_resumes_a_clip() {
     let script = r#"
 pub class Hold { node: Node, held: bool, woken: bool }
 impl Hold {
-    fn init() {
+    pub fn init() {
         self.node.animation.play("wave");
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if self.node.animation.time() > 0.1 && !self.held {
             self.held = true;
             self.node.animation.pause();
@@ -372,10 +372,10 @@ fn a_script_stops_a_clip_and_nothing_is_current_afterwards() {
     let script = r#"
 pub class Halt { node: Node }
 impl Halt {
-    fn init() {
+    pub fn init() {
         self.node.animation.play("wave");
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if self.node.animation.time() > 0.1 {
             self.node.animation.stop();
         }
@@ -403,7 +403,7 @@ impl Halt {
 const TWEEN: &str = r#"
 pub class Mover { node: Node, handle: int, running: bool }
 impl Mover {
-    fn init() {
+    pub fn init() {
         let rise = animation::Step {
             property: "position",
             to: [0.0, 6.0, 0.0],
@@ -412,7 +412,7 @@ impl Mover {
         };
         self.handle = animation::tween(self.node, animation::Tween { steps: [rise, animation::Step { call: "on_landed" }] });
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.running = animation::is_tween_running(self.handle);
     }
     pub fn on_landed() {
@@ -490,7 +490,7 @@ fn a_script_reaches_for_the_shorter_spelling() {
     let script = r#"
 pub class Hop { node: Node }
 impl Hop {
-    fn init() {
+    pub fn init() {
         let step = animation::Step {
             property: "position",
             to: [0.0, 4.0, 0.0],
@@ -524,7 +524,7 @@ impl Hop {
 const FINISHED: &str = r#"
 pub class Mover { node: Node, handle: int, finished: int, elapsed: float, read: float, quad: float }
 impl Mover {
-    fn init() {
+    pub fn init() {
         let step = animation::Step {
             property: "position",
             to: [0.0, 6.0, 0.0],
@@ -534,7 +534,7 @@ impl Mover {
         self.handle = animation::tween(self.node, animation::Tween { steps: [step] });
         self.quad = animation::ease(animation::EASE_IN_QUAD, 0.5);
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.elapsed += dt;
         self.read = 10.0 * animation::ease("linear", math::min(self.elapsed / 0.5, 1.0));
     }
@@ -577,7 +577,7 @@ fn a_script_hears_which_tween_finished_and_eases_a_number_itself() {
 const CONSTANTS: &str = r#"
 pub class Constants { node: Node }
 impl Constants {
-    fn init() {
+    pub fn init() {
         let keys = [
             animation::Key { time: 0.0, value: [0.0, 0.0, 0.0] },
             animation::Key { time: 1.0, value: [0.0, 2.0, 0.0], ease: animation::EASE_IN_OUT_SINE },

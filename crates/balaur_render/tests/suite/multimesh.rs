@@ -465,7 +465,7 @@ fn a_script_moves_an_instance_every_frame_and_reads_it_back() {
     let (app, errors, lines) = run_shared(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let moved = self.node.multimesh3d.instance_transform(1);
         moved.origin.x += 1.0;
         let x = moved.origin.x;
@@ -498,7 +498,7 @@ fn the_count_grows_with_plain_instances_and_keeps_those_below_it() {
     let (app, errors, lines) = run_shared(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.multimesh3d.set_instance_count(4);
         let grown = self.node.multimesh3d.instances();
         self.node.multimesh3d.set_instance_count(1);
@@ -536,7 +536,7 @@ fn an_index_past_the_end_is_an_error_that_names_the_count() {
     let (_app, errors, _) = run_shared(
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() { self.node.multimesh3d.set_instance_color(5, color(1.0, 1.0, 1.0, 1.0)); }
+    pub fn init() { self.node.multimesh3d.set_instance_color(5, color(1.0, 1.0, 1.0, 1.0)); }
 }
 ",
         1,
@@ -556,7 +556,7 @@ fn instances_read_off_one_node_set_another_whole() {
     let (app, errors, _) = run_shared(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let mine = self.node.multimesh3d.instances();
         mine[0].position = vec3(0.0, 5.0, 0.0);
         mine[1].custom = color(1.0, 2.0, 3.0, 4.0);
@@ -583,7 +583,7 @@ fn a_script_keeps_a_shear() {
     let (app, errors, _) = run_shared(
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let sheared = Transform3d {
             x: vec3(1.0, 0.0, 0.0),
             y: vec3(0.5, 1.0, 0.0),
@@ -610,7 +610,7 @@ fn a_transform_read_off_one_instance_sets_another() {
     let (app, errors, _) = run_shared(
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let second = self.node.multimesh3d.instance_transform(1);
         self.node.multimesh3d.set_instance_transform(0, second);
     }
@@ -634,7 +634,7 @@ fn a_2d_instance_reads_and_takes_a_transform_2d() {
         "multimesh2d",
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let second = self.node.multimesh2d.instance_transform(1);
         log::info("x at {second.origin.x}");
         let turned = Transform2d {
@@ -667,7 +667,7 @@ fn a_list_is_no_transform() {
     run_shared(
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let short: [float] = [1.0, 0.0, 0.0];
         self.node.multimesh3d.set_instance_transform(0, short);
     }
@@ -683,7 +683,7 @@ fn an_instance_answers_the_texture_rectangle_its_row_names() {
         "multimesh2d",
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.multimesh2d.set_instances([
             render::MultimeshInstance { position: vec3(0.0, 0.0, 0.0) },
             render::MultimeshInstance { position: vec3(1.0, 0.0, 0.0), region_origin: vec2(8.0, 16.0), region_size: vec2(32.0, 24.0) },
@@ -708,7 +708,7 @@ impl Scenario {
 fn colour_and_custom_data_read_back_through(component: &str) {
     let script = r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.HANDLE.set_instance_color(1, color(0.25, 0.5, 0.75, 1.0));
         self.node.HANDLE.set_instance_custom_data(1, color(1.0, 2.0, 3.0, 4.0));
         let tint = self.node.HANDLE.instance_color(1);
@@ -747,7 +747,7 @@ fn a_2d_multimesh_grows_and_cuts_its_draw_as_a_3d_one_does() {
         "multimesh2d",
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.multimesh2d.set_instance_count(3);
         let grown = self.node.multimesh2d.instance_count();
         self.node.multimesh2d.set_visible_instance_count(1);

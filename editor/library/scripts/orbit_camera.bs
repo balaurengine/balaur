@@ -17,11 +17,11 @@ pub class OrbitCamera {
 }
 
 impl OrbitCamera {
-    fn init() {
+    pub fn init() {
         self.range = self.distance;
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             let moved = input::mouse_delta();
             self.yaw -= moved.x * self.sensitivity;

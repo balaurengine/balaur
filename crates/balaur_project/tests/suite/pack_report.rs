@@ -70,7 +70,7 @@ fn a_path_in_a_script_literal_counts_as_a_reference() {
     let mut pack = two_textures();
     pack.scripts.insert(
         "player.bs".to_string(),
-        b"pub class Player { node: Node }\nimpl Player { fn init() { self.node.sprite.texture = \"art/spare.png\"; } }"
+        b"pub class Player { node: Node }\nimpl Player { pub fn init() { self.node.sprite.texture = \"art/spare.png\"; } }"
             .to_vec(),
     );
     assert!(balaur_project::packing::unreferenced(&pack, &[]).is_empty());

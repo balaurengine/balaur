@@ -7,7 +7,7 @@ pub class StringFormat {
 }
 
 impl StringFormat {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.text = "{1.0 / dt} fps";
     }
 }

@@ -19,7 +19,7 @@ use addons::gamend::lobbies;
 
 pub class Scenario {{ node: Node }}
 impl Scenario {{
-    async fn init() {{
+    pub async fn init() {{
         client::configure("{url}", "");
         let boards = await leaderboards::list_leaderboards({{ "page": 1 }});
         let listed = boards["body"]["data"];
@@ -54,7 +54,7 @@ use addons::gamend::users;
 
 pub class Scenario {{ node: Node, socket: int }}
 impl Scenario {{
-    async fn init() {{
+    pub async fn init() {{
         client::configure("{url}", "sdk_probe");
         let login = await client::login_device("{device}");
         while login["error"].as_str().contains("(429)") {{
@@ -71,7 +71,7 @@ impl Scenario {{
         self.socket = client::connect(self.node);
     }}
 
-    async fn on_gamend_event(e: any) {{
+    pub async fn on_gamend_event(e: any) {{
         if e["kind"].as_str() != "open" {{
             return;
         }}

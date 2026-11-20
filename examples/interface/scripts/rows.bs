@@ -39,7 +39,7 @@ impl Rows {
         }
     }
 
-    fn init() {
+    pub fn init() {
         self.frame = 0;
         self.shot = asked();
         self.cards = screen::cards_in_order();
@@ -85,7 +85,7 @@ impl Rows {
     }
 
     // Late enough that the layout has settled and the rows are in.
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frame += 1;
         if self.frame == 30 && self.shot != "" {
             render::screenshot(self.shot);

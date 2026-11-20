@@ -27,7 +27,7 @@ pub class Level {
     pub seen: float,
 }
 impl Level {
-    fn init() {
+    pub fn init() {
         if self.settings != nil { self.seen = self.settings.unwrap().volume; }
     }
     pub fn louder() -> float {

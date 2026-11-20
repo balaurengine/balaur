@@ -117,7 +117,7 @@ impl Socket {
         self.node.set_process("always");
     }
 
-    fn update(_dt: float) {
+    pub fn update(_dt: float) {
         let now = engine::unix_time();
         if self.phase == WAITING && now >= self.retry_at {
             self.begin();
@@ -132,7 +132,7 @@ impl Socket {
         }
     }
 
-    fn on_free() {
+    pub fn on_free() {
         if self.ws != 0 {
             websocket::close(self.ws);
         }

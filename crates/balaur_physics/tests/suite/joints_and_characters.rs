@@ -76,7 +76,7 @@ impl Scenario {
     pub fn on_collision_enter(collision: any) { self.seen += 1; }
     pub fn on_collision_exit(collision: any) { self.left += 1; }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
             if self.seen < 1 { log::error("nothing ever entered the trigger"); }
@@ -126,7 +126,7 @@ anchor = [-1.0, 0.0, 0.0]
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
             let position = self.node.transform.position;
@@ -179,7 +179,7 @@ impl Scenario {
         }
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
             if self.hits <= 0 { log::error("the landing never reported a force from the crate"); }
@@ -240,7 +240,7 @@ impl Scenario {
         }
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 60 {
             if self.broke != 1 { log::error("the joint broke {self.broke} times with its payload"); }
@@ -296,7 +296,7 @@ anchor = [-1.0, 0.0, 0.0]
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
             let position = self.node.transform.position;
@@ -352,7 +352,7 @@ anchor = [-1.0, 0.0]
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
             let position = self.node.transform.position;
@@ -405,7 +405,7 @@ shape = { kind = "sphere", radius = 0.2 }
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
             let position = self.node.transform.position;
@@ -453,7 +453,7 @@ floor_snap_length = 0.0
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         self.node.character3d.move_by(vec3(0.1, 0.0, 0.05));
         if self.ticks == 110 {
@@ -582,7 +582,7 @@ step_height = 0.0
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         self.node.character2d.move_by(vec2(0.0, 0.0));
         if self.ticks == 30 {
@@ -632,7 +632,7 @@ shape = { kind = "sphere", radius = 0.5 }
 "#,
         r#"pub class Scenario { node: Node, ticks: int, seen: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 110 {
             for contact in self.node.collider3d.contacts() {

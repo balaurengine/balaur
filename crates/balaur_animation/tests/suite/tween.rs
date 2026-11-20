@@ -937,7 +937,7 @@ fn zero_length_steps_at_the_end_are_where_a_tween_leaves_the_node() {
 const MOVER: &str = r#"
 pub class Mover { node: Node, landed: int, ready: bool }
 impl Mover {
-    fn init() {
+    pub fn init() {
         let rise = animation::Step { property: "position", to: [0.0, 10.0, 0.0], duration: 0.5 };
         animation::tween(self.node, animation::Tween { steps: [rise, animation::Step { call: "land" }] });
         self.ready = true;

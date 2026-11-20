@@ -194,7 +194,7 @@ fn lookup_side(c: &mut Criterion) {
 
 /// What `get_node` looks up: a random tree of 1000 nodes under the script's
 /// own, each named by its path from there.
-const LOOKUPS: &str = "    fn init() {
+const LOOKUPS: &str = "    pub fn init() {
         let nodes = [self.node];
         let names = [\"\"];
         for i in 0..1000 {
@@ -207,7 +207,7 @@ const LOOKUPS: &str = "    fn init() {
             self.paths.push(path);
         }
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         for path in self.paths {
             let found = self.node.get_node(path);
         }
@@ -218,7 +218,7 @@ const LOOKUPS: &str = "    fn init() {
 fn script_side(c: &mut Criterion) {
     let mut group = c.benchmark_group("node_ops_script");
     group.throughput(Throughput::Elements(COUNT as u64));
-    let update = |body: &str| format!("    fn update(dt: float) {{ {body} }}");
+    let update = |body: &str| format!("    pub fn update(dt: float) {{ {body} }}");
     let bodies = [
         (
             "loop_only",

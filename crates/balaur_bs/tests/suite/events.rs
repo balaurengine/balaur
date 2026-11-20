@@ -172,7 +172,7 @@ impl Hearer {
         self.on_lost(token);
     }
     pub fn on_scored(points: int) {}
-    fn on_lost(token: int) {}
+    pub fn on_lost(token: int) {}
 }
 
 fn helper() {}

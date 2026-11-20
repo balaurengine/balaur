@@ -14,10 +14,10 @@ fn source() -> String {
     script(
         ", t: float",
         &format!(
-            "    fn init() {{
+            "    pub fn init() {{
         self.node.multimesh3d.set_instance_count({COUNT});
     }}
-    fn update(dt: float) {{
+    pub fn update(dt: float) {{
         self.t = self.t + dt;
         for i in 0..{COUNT} {{
             let placed = Transform3d {{ x: vec3(1.0, 0.0, 0.0), y: vec3(0.0, 1.0, 0.0), z: vec3(0.0, 0.0, 1.0), origin: vec3(i as float, self.t, 0.0) }};

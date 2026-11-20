@@ -236,7 +236,7 @@ one_way = true
 
 const RISE: &str = r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.body2d.set_linear_velocity(vec2(0.0, 15.0));
     }
 }

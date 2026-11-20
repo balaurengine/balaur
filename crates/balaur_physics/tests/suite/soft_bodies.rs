@@ -102,7 +102,7 @@ fn a_cuboid_soft_body_has_the_particles_its_cell_counts_ask_for() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         // Three particles an axis for two cells an axis.
         if self.node.softbody3d.particle_count() != 27 { log::error("the cuboid was not 3x3x3 particles"); }
         log::error("checked");
@@ -119,7 +119,7 @@ fn every_3d_layout_builds() {
     run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_sphere3d", { "radius": 0.5, "subdivisions": 1 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_SPHERE });
         if n.softbody3d.particle_count() <= 0 { log::error("the sphere has no particles"); }
@@ -147,7 +147,7 @@ fn a_volumetric_body_fills_a_closed_mesh_with_cells() {
     run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_volumetric3d", { "cell_size": 0.2 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
         if n.softbody3d.particle_count() <= 4 { log::error("the tetrahedrization added no particles"); }
@@ -167,7 +167,7 @@ fn a_smaller_cell_size_makes_a_finer_volumetric_body() {
     run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_volumetric3d", { "cell_size": 0.4 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
         let coarse = n.softbody3d.particle_count();
@@ -188,7 +188,7 @@ impl Scenario {
 fn a_layout_past_the_particle_cap_is_refused() {
     let errors = run(r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_grid3d", { "cells": [400.0, 400.0, 400.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX });
     }
 }
@@ -203,7 +203,7 @@ impl Scenario {
 fn a_cell_count_no_integer_holds_is_refused_rather_than_built() {
     let errors = run(r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_grid3d", { "cells": [1.0e30, 1.0e30, 1.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_CLOTH });
     }
 }
@@ -221,11 +221,11 @@ fn a_falling_soft_body_moves_its_particles() {
     run_checked(
         r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.first = self.node.softbody3d.particle(0).position;
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
             let now = self.node.softbody3d.particle(0).position;
@@ -247,12 +247,12 @@ fn a_pinned_particle_stays_where_it_was_put() {
     run_checked(
         r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_rope3d", { "particle_count": 8 }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "pinned_particles": [0] });
         self.first = self.node.softbody3d.particle(0).position;
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
             let held = self.node.softbody3d.particle(0).position;
@@ -273,7 +273,7 @@ fn the_2d_world_has_the_same_shape_of_api() {
     run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let blob = self.node.get_node("Blob2d");
         if blob.softbody2d.particle_count() != 9 { log::error("the grid was not 3x3 particles"); }
         if blob.softbody2d.rest_area() <= 0.0 { log::error("the grid encloses nothing"); }
@@ -299,7 +299,7 @@ fn a_2d_volumetric_body_fills_an_outline_with_triangles() {
     run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let blob = self.node.get_node("Blob2d");
         blob.set_component("soft_volumetric2d", { "cell_size": 0.2 }); blob.set_component("softbody2d", { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": "#square" });
         if blob.softbody2d.particle_count() <= 4 { log::error("the triangulation added no particles"); }
@@ -321,7 +321,7 @@ fn a_rope_past_its_tear_strain_comes_apart() {
     run_checked(
         r#"pub class Scenario { node: Node, torn: int, ticks: int, before: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         // One end pinned, a heavy free end, and edges that break at a tenth of
         // their rest length: the rope cannot hold itself up.
         self.node.set_component("soft_rope3d", { "a": [0.0, 0.0, 0.0], "b": [0.0, -2.0, 0.0], "particle_count": 12 });
@@ -338,7 +338,7 @@ impl Scenario {
         if tear.has("pieces") { self.torn += 1; }
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 40 {
             if self.before != 12 { log::error("the rope was not built with twelve particles"); }
@@ -547,7 +547,7 @@ fn an_automatic_particle_radius_reads_back_as_automatic() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_grid3d", { "cells": [2.0, 2.0, 2.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "particle_radius": 0.0 });
         let read = self.node.get_component("softbody3d");
         if read["particle_radius"].as_float() != 0.0 || read["particle_radius"].kind() == "nil" { log::error("the automatic radius read back as a number"); }
@@ -592,14 +592,14 @@ fn a_body_on_the_implicit_solver_falls() {
     let errors = run_for(
         r#"pub class Scenario { node: Node, first: Vec3, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_grid3d", { "cells": [2.0, 2.0, 2.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "solver": physics3d::SOFT_SOLVER_FEM, "soft_material": { "cell_model": physics3d::CELL_COROTATIONAL } });
         let read = self.node.get_component("softbody3d");
         if read["solver"].as_str() != physics3d::SOFT_SOLVER_FEM { log::error("the body runs on the constraint solver"); }
         self.first = self.node.softbody3d.particle(0).position;
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
             let now = self.node.softbody3d.particle(0).position;
@@ -623,7 +623,7 @@ fn a_skinned_body_can_collide_through_its_skin() {
     run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_volumetric3d", { "cell_size": 0.2 }); self.node.set_component("soft_skin3d", { "skin": true, "skin_collision": true }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#wedge" });
         if self.node.softbody3d.particle_count() <= 0 { log::error("the skinned body has no particles"); }
         log::error("checked");
@@ -642,7 +642,7 @@ fn a_disk_keeps_its_area_when_it_lands() {
     let errors = run_for(
         r#"pub class Scenario { node: Node, before: float, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let floor = self.node.add_child("Floor");
         floor.set_component("transform", { "position": [0.0, -0.8, 0.0] });
         floor.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_RECTANGLE, "size": [10.0, 0.4] } });
@@ -651,7 +651,7 @@ impl Scenario {
         self.before = blob.softbody2d.area();
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 90 {
             let now = self.node.get_node("Blob2d").softbody2d.area();
@@ -691,7 +691,7 @@ fn a_2d_volumetric_body_hands_over_the_mesh_it_filled() {
     let solved = solved_2d(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.get_node("Blob2d").set_component("soft_volumetric2d", { "cell_size": 0.2 }); self.node.get_node("Blob2d").set_component("softbody2d", { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": "#square" });
     }
 }
@@ -717,7 +717,7 @@ fn a_2d_rope_hands_over_a_ribbon() {
     let solved = solved_2d(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.get_node("Blob2d").set_component("soft_rope2d", { "a": [0.0, 0.0], "b": [1.0, 0.0], "particle_count": 5 }); self.node.get_node("Blob2d").set_component("softbody2d", { "kind": physics2d::SOFT_ROPE });
     }
 }
@@ -735,7 +735,7 @@ fn a_2d_polygon_body_keeps_a_vertex_inside_its_outline() {
     let solved = solved_2d(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let floor = self.node.add_child("Floor");
         floor.set_component("transform", { "position": [0.0, -0.8, 0.0] });
         floor.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_RECTANGLE, "size": [10.0, 0.4] } });
@@ -769,7 +769,7 @@ fn a_generated_body_is_drawn_in_its_color() {
     let (_dir, app) = boot(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.get_node("Blob2d").softbody2d.color = color(0.9, 0.3, 0.2, 1.0);
     }
 }
@@ -800,7 +800,7 @@ fn a_ray_that_meets_a_soft_body_names_its_node() {
     let errors = run_for(
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             let hit = physics3d::raycast(physics3d::RayQuery { origin: vec3(0.0, 5.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 20.0 });
@@ -829,7 +829,7 @@ fn a_torn_off_piece_is_drawn_and_freed_with_its_node() {
     let (_dir, mut app) = boot(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_rope3d", { "a": [0.0, 0.0, 0.0], "b": [0.0, -2.0, 0.0], "particle_count": 12 });
         self.node.set_component("softbody3d", {
             "kind": physics3d::SOFT_ROPE,
@@ -885,7 +885,7 @@ fn a_material_change_does_not_rebuild_the_body_from_rest() {
     let errors = run_for(
         r#"pub class Scenario { node: Node, ticks: int, before: float }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 6 {
@@ -923,11 +923,11 @@ fn a_body_that_does_not_collide_lets_a_ray_through() {
     run_checked(
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_grid3d", { "cells": [2.0, 2.0, 2.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "collides": false });
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             let hit = physics3d::raycast(physics3d::RayQuery { origin: vec3(0.0, 5.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 20.0 });
@@ -947,7 +947,7 @@ fn a_woven_cloth_and_a_2d_skin_collision_build() {
     run_checked(
         r##"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_grid3d", { "cells": [4.0, 4.0, 1.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_CLOTH, "soft_material": { "warp_hz": 80.0, "weft_hz": 10.0 } });
         if self.node.softbody3d.particle_count() != 25 { log::error("a woven 4x4 cloth is not 5x5 particles"); }
         let flat = self.node.get_node("Blob2d");
@@ -1001,7 +1001,7 @@ fn built_with(script: &str) -> (bool, bool) {
 fn orientation_picks_a_solid_or_a_shell() {
     let sphere = |orientation: &str| {
         built_with(&format!(
-            "pub class Scenario {{ node: Node }}\nimpl Scenario {{ fn init() {{ self.node.set_component(\"soft_sphere3d\", {{ \"radius\": 0.5, \"subdivisions\": 1 }}); self.node.set_component(\"softbody3d\", {{ \"kind\": physics3d::SOFT_SPHERE, \"orientation\": {orientation} }}); }} }}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{ pub fn init() {{ self.node.set_component(\"soft_sphere3d\", {{ \"radius\": 0.5, \"subdivisions\": 1 }}); self.node.set_component(\"softbody3d\", {{ \"kind\": physics3d::SOFT_SPHERE, \"orientation\": {orientation} }}); }} }}\n"
         ))
         .0
     };
@@ -1025,7 +1025,7 @@ fn orientation_picks_a_solid_or_a_shell() {
 fn shape_matching_auto_keeps_the_layouts_own_choice() {
     let mesh = |matching: &str| {
         built_with(&format!(
-            "pub class Scenario {{ node: Node }}\nimpl Scenario {{ fn init() {{ self.node.set_component(\"softbody3d\", {{ \"kind\": physics3d::SOFT_TRIANGLE_MESH, \"mesh\": \"#wedge\", \"soft_material\": {{ \"shape_matching\": {matching} }} }}); }} }}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{ pub fn init() {{ self.node.set_component(\"softbody3d\", {{ \"kind\": physics3d::SOFT_TRIANGLE_MESH, \"mesh\": \"#wedge\", \"soft_material\": {{ \"shape_matching\": {matching} }} }}); }} }}\n"
         ))
         .1
     };
@@ -1035,7 +1035,7 @@ fn shape_matching_auto_keeps_the_layouts_own_choice() {
     );
     assert!(!mesh("physics3d::SHAPE_MATCHING_OFF"), "off kept it");
     let cuboid = built_with(
-        "pub class Scenario { node: Node }\nimpl Scenario { fn init() { self.node.set_component(\"soft_grid3d\", { \"cells\": [2.0, 2.0, 2.0] }); self.node.set_component(\"softbody3d\", { \"kind\": physics3d::SOFT_BOX, \"soft_material\": { \"shape_matching\": physics3d::SHAPE_MATCHING_ON } }); } }\n",
+        "pub class Scenario { node: Node }\nimpl Scenario { pub fn init() { self.node.set_component(\"soft_grid3d\", { \"cells\": [2.0, 2.0, 2.0] }); self.node.set_component(\"softbody3d\", { \"kind\": physics3d::SOFT_BOX, \"soft_material\": { \"shape_matching\": physics3d::SHAPE_MATCHING_ON } }); } }\n",
     );
     assert!(cuboid.1, "on did not turn shape matching on for a cuboid");
 }

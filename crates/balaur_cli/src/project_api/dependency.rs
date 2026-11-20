@@ -128,7 +128,7 @@ mod tests {
 }
 
 impl Asker {
-    fn init() {
+    pub fn init() {
         self.before = dependency::list().len();
         dependency::add_path("", "kit", "../kit");
         let found = dependency::list();

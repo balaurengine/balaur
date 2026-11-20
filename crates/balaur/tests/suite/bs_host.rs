@@ -7,7 +7,7 @@ use super::bs::{booted, field, one_script, project, spun, ticked};
 
 const PAIR: &str = "pub class Pair { node: Node, hits: int, answer: int, seen: int }
 impl Pair {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if self.node.name() == \"Outer\" {
             let inner = self.node.get_node(\"Inner\");
             self.answer = inner.call(\"hit\", 5).as_int();
@@ -59,10 +59,10 @@ pub class Host {
 }
 
 impl Host {
-    fn init() {
+    pub fn init() {
         self.count = Count { n: 0 };
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.node.get_node(\"Guest\").call(\"visit\");
         self.seen = self.count.n;
     }
@@ -117,7 +117,7 @@ const RIVAL: &str = "pub class Rival {
 }
 
 impl Rival {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if self.said == \"\" {
             let other = if self.node.name() == \"First\" { \"Second\" } else { \"First\" };
             self.node.parent().get_node(other).detach_script();
@@ -216,10 +216,10 @@ impl Editor {
 const PANEL: &str = "use editor;
 pub class Panel { node: Node, editor: editor::Editor?, seen: int }
 impl Panel {
-    fn init() {
+    pub fn init() {
         self.editor = self.node.parent().script;
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if self.editor != nil {
             self.seen = self.editor.unwrap().edit();
         }
@@ -276,7 +276,7 @@ fn a_script_holds_another_nodes_script_as_its_class() {
 const READER: &str = "use editor;
 pub class Panel { node: Node, seen: int }
 impl Panel {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let found: editor::Editor? = self.node.parent().script;
         if found != nil {
             self.seen = found.unwrap().edit();
@@ -421,7 +421,7 @@ fn a_reload_keeps_the_typed_link_under_every_build() {
 // once the plain method that asked for it has returned.
 const ASKER: &str = "pub class Asker { node: Node, heard: str }
 impl Asker {
-    fn init() {
+    pub fn init() {
         let token = events::next(\"ping\");
         self.node.call(\"hear\", token);
         events::emit(\"ping\", \"hello\");

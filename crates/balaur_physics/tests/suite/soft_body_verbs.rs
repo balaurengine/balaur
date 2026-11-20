@@ -8,7 +8,7 @@ fn a_2d_particle_is_placed_pushed_and_struck_from_a_script() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let b = self.node.get_node("Blob2d");
         b.set_component("soft_grid2d", { "cells": [2.0, 2.0] }); b.set_component("softbody2d", { "kind": physics2d::SOFT_GRID, "gravity_scale": 0.0 });
         b.softbody2d.set_particle_position(0, vec2(5.0, 6.0));
@@ -56,7 +56,7 @@ fn a_2d_soft_body_reports_its_elements_mass_and_centre() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let b = self.node.get_node("Blob2d");
         b.set_component("soft_grid2d", { "cells": [2.0, 2.0] }); b.set_component("softbody2d", { "kind": physics2d::SOFT_GRID, "gravity_scale": 0.0 });
         let count = b.softbody2d.particle_count();
@@ -107,7 +107,7 @@ fn a_2d_particle_tied_to_a_body_is_listed_and_let_go() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let b = self.node.get_node("Blob2d");
         let hook = b.add_child("Hook");
         hook.set_component("body2d", { "kind": physics2d::BODY_STATIC });
@@ -132,7 +132,7 @@ fn a_2d_rope_is_torn_and_cut_at_once() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let b = self.node.get_node("Blob2d");
         b.set_component("soft_rope2d", { "particle_count": 12 }); b.set_component("softbody2d", { "kind": physics2d::SOFT_ROPE, "gravity_scale": 0.0, "min_piece": 1 });
         let before = b.softbody2d.particle_count();
@@ -158,7 +158,7 @@ fn a_2d_edge_marked_to_tear_splits_at_the_next_step() {
     run_checked(
         r#"pub class Scenario { node: Node, ticks: int, before: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let b = self.node.get_node("Blob2d");
         b.set_component("soft_rope2d", { "particle_count": 12 }); b.set_component("softbody2d", { "kind": physics2d::SOFT_ROPE, "gravity_scale": 0.0, "min_piece": 1 });
         self.before = b.softbody2d.particle_count();
@@ -167,7 +167,7 @@ impl Scenario {
         if !b.softbody2d.has_pending_tears() { log::error("tear_edge marked nothing"); }
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             let b = self.node.get_node("Blob2d");
@@ -188,7 +188,7 @@ fn a_2d_cell_marked_to_tear_splits_at_the_next_step() {
     run_checked(
         r#"pub class Scenario { node: Node, ticks: int, before: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let b = self.node.get_node("Blob2d");
         b.set_component("soft_grid2d", { "cells": [2.0, 2.0] }); b.set_component("softbody2d", { "kind": physics2d::SOFT_GRID, "gravity_scale": 0.0 });
         self.before = b.softbody2d.particle_count();
@@ -196,7 +196,7 @@ impl Scenario {
         if !b.softbody2d.has_pending_tears() { log::error("tear_cell marked nothing"); }
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             let b = self.node.get_node("Blob2d");
@@ -217,14 +217,14 @@ fn a_stretched_2d_rope_sets_and_reset_plasticity_undoes_it() {
     run_checked(
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let b = self.node.get_node("Blob2d");
         b.set_component("soft_rope2d", { "particle_count": 3 }); b.set_component("softbody2d", { "kind": physics2d::SOFT_ROPE, "gravity_scale": 0.0, "pinned_particles": [0, 2], "soft_material": { "edge_plastic_yield": 0.01, "edge_plastic_creep": 50.0, "edge_plastic_max": 2.0 } });
         let end = b.softbody2d.particle(2).position;
         b.softbody2d.set_particle_position(2, vec2(end.x, end.y * 3.0));
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         let b = self.node.get_node("Blob2d");
         if self.ticks == 30 {
@@ -248,7 +248,7 @@ fn two_2d_soft_bodies_that_meet_report_the_contact() {
     run_checked(
         r#"pub class Scenario { node: Node, ticks: int, other: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let b = self.node.get_node("Blob2d");
         b.set_component("soft_grid2d", { "cells": [2.0, 2.0] }); b.set_component("softbody2d", { "kind": physics2d::SOFT_GRID, "gravity_scale": 0.0, "pinned_particles": [0, 1, 2, 3, 4, 5, 6, 7, 8] });
         let none = b.softbody2d.contacts();
@@ -259,7 +259,7 @@ impl Scenario {
         self.other = other;
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 60 {
             let mine = self.node.get_node("Blob2d").softbody2d.contacts();
@@ -281,13 +281,13 @@ fn a_resting_soft_body_sleeps_and_wake_up_wakes_it_in_both_dimensions() {
     run_checked(
         r#"pub class Scenario { node: Node, ticks: int, slept: bool }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_grid3d", { "cells": [1.0, 1.0, 1.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "gravity_scale": 0.0 });
         let b = self.node.get_node("Blob2d");
         b.set_component("soft_grid2d", { "cells": [1.0, 1.0] }); b.set_component("softbody2d", { "kind": physics2d::SOFT_GRID, "gravity_scale": 0.0 });
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         let b = self.node.get_node("Blob2d");
         if !self.slept && self.node.softbody3d.is_sleeping() && b.softbody2d.is_sleeping() {
@@ -314,7 +314,7 @@ fn a_collision_mesh_rides_a_2d_body_as_one_more_collider() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let colliders = |first: &str| {
         let script = format!(
-            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n        let b = self.node.get_node(\"Blob2d\");\n        {first}b.set_component(\"soft_grid2d\", {{ \"cells\": [2.0, 2.0] }}); b.set_component(\"softbody2d\", {{ \"kind\": \"grid\" }});\n    }}\n}}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    pub fn init() {{\n        let b = self.node.get_node(\"Blob2d\");\n        {first}b.set_component(\"soft_grid2d\", {{ \"cells\": [2.0, 2.0] }}); b.set_component(\"softbody2d\", {{ \"kind\": \"grid\" }});\n    }}\n}}\n"
         );
         let (dir, app) = boot(&script, 2);
         let state = app.engine.resource::<balaur_physics::PhysicsState2d>();
@@ -334,7 +334,7 @@ fn a_3d_particle_is_placed_pushed_and_struck_from_a_script() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_grid3d", { "cells": [1.0, 1.0, 1.0] }); n.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "gravity_scale": 0.0 });
         n.softbody3d.set_particle_position(0, vec3(5.0, 6.0, 7.0));
@@ -375,7 +375,7 @@ fn a_3d_soft_body_reports_its_rest_volume_cells_and_hinges() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_grid3d", { "cells": [1.0, 1.0, 1.0] }); n.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "gravity_scale": 0.0 });
         let rest = n.softbody3d.rest_volume();
@@ -404,7 +404,7 @@ fn a_3d_body_is_torn_at_once_and_its_marked_cell_at_the_next_step() {
     run_checked(
         r#"pub class Scenario { node: Node, ticks: int, before: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 12 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "gravity_scale": 0.0, "min_piece": 1 });
         let crossing = n.softbody3d.crossing([vec3(-1.0, -0.5, -1.0), vec3(1.0, -0.5, -1.0), vec3(0.0, -0.5, 2.0)]);
@@ -416,7 +416,7 @@ impl Scenario {
         if !n.softbody3d.has_pending_tears() { log::error("tear_cell marked nothing"); }
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             let n = self.node;

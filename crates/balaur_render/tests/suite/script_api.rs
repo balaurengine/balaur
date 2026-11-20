@@ -87,7 +87,7 @@ fn project(body: &str) -> tempfile::TempDir {
     std::fs::write(
         dir.path().join("scripts/scenario.bs"),
         format!(
-            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\nfn init() {{\n{body}\n}}\n}}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\npub fn init() {{\n{body}\n}}\n}}\n"
         ),
     )
     .unwrap();
@@ -477,7 +477,7 @@ fn an_occluders_outline_answers_its_points_as_vectors() {
         r#"self.node.set_component("shape2d", { "shape": { "kind": "rectangle", "size": [2.0, 4.0] } });
 self.node.set_component("occluder2d", {});
 }
-fn update(dt: float) {
+pub fn update(dt: float) {
 let points = self.node.occluder2d.outline();
 if points.len() == 5 {
     let first: Vec2 = points[0];
@@ -632,7 +632,7 @@ fn a_texture_s_pixels_per_unit_is_its_import_setting_or_the_default() {
         root.join("scripts/scenario.bs"),
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         if render::texture_pixels_per_unit("art/set.png") != 64.0 { log::error("the import setting was not read"); }
         if render::texture_pixels_per_unit("art/plain.png") != 100.0 { log::error("an image with none is not at 100"); }
         log::error("checked: pixels per unit");
@@ -709,7 +709,7 @@ fn count(words: [str], word: str) -> int {
 
 pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let all = windings(render::trace_texture("art/shapes.png", render::TraceOptions { tolerance: 0.0, holes: true }));
         let largest = windings(render::trace_texture("art/shapes.png", render::TraceOptions { tolerance: 0.0 }));
         log::error("checked: {all.len()} {largest.len()} {largest[0]}");
@@ -769,7 +769,7 @@ fn the_window_reads_the_safe_area_and_refresh_rate_the_device_reported() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = project(
         r#"}
-fn update(dt: float) {
+pub fn update(dt: float) {
 let inset = window::safe_area();
 log::info("insets {inset.top} {inset.bottom} at {window::refresh_rate()}");"#,
     );

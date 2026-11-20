@@ -214,7 +214,7 @@ fn a_2d_voxel_grid_resizes_crops_and_joins_its_neighbour() {
         GRIDS,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.get_node("A").collider2d.combine_voxels(self.node.get_node("B"));
         self.node.get_node("Cropped").collider2d.crop_voxels(0, 0, 1, 0);
         self.node.get_node("Alone").collider2d.set_voxel_size(vec2(0.5, 0.5));

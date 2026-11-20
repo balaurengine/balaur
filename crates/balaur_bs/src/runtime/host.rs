@@ -170,6 +170,9 @@ pub(crate) struct HostState {
     pub(crate) shares: Vec<rustc_hash::FxHashMap<String, Option<Rc<[usize]>>>>,
     /// What letting go of each script struct releases ([`Release`]), by unit.
     pub(crate) releases: Vec<rustc_hash::FxHashMap<String, Rc<[Release]>>>,
+    /// A batch call's object slots while it runs, by base and count: an
+    /// object let go of meanwhile has its slot cleared, and the batch skips it.
+    pub(crate) batching: Option<(u32, u32)>,
 }
 
 /// One heap slot of a struct being let go of: where it sits, its type, and
@@ -222,6 +225,7 @@ impl HostState {
             counted: meta_profiled,
             shares: vec![],
             releases: vec![],
+            batching: None,
             now: 0.0,
             debugger,
         };

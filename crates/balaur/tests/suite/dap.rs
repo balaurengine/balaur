@@ -13,8 +13,8 @@ use serde_json::{Value as Json, json};
 /// Line 8 calls out, for stepping into.
 const SCRIPT: &str = "pub class Runner { node: Node, n: int, ran: int }
 impl Runner {
-    fn init() { self.n = 0; }
-    fn update(dt: float) {
+    pub fn init() { self.n = 0; }
+    pub fn update(dt: float) {
         let before = self.n;
         // nothing on this line
         self.n = before + 1;

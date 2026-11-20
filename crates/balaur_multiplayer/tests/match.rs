@@ -69,11 +69,11 @@ transform = { position = [0.0, 0.0, 0.0] }
 const ARENA_SCRIPT: &str = r#"
 pub class Arena { node: Node, view: Node }
 impl Arena {
-    fn init() {
+    pub fn init() {
         self.view = self.node.get_node("View");
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let me = multiplayer::local_player().or(0);
         multiplayer::set_input(multiplayer::tick() % 5 + me * 10);
         for slot in [0, 1] {

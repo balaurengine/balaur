@@ -83,7 +83,7 @@ mod tests {
 }
 
 impl Asks {
-    fn init() {
+    pub fn init() {
         self.scoped = debugger::scope().is_valid();
         self.ran = 1;
     }
@@ -101,7 +101,7 @@ impl Asks {
 }
 
 impl Verbs {
-    fn init() {
+    pub fn init() {
         self.read = dependency::list().len();
     }
 }
@@ -274,7 +274,7 @@ pub class Uses {
 }
 
 impl Uses {
-    fn init() {
+    pub fn init() {
         self.pinged = tool::ping();
     }
 }

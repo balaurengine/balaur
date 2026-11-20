@@ -103,11 +103,21 @@ pub fn broken() -> int { core::seed() }
 // error: 4:26: `seed` is internal to `addons/kit`: mark it `pub` there
 ```
 
-`pub` says more than the others on two things. A `pub` free function is one the engine may call, and a `pub`
-field is a [property](engine/properties.md) a scene tunes. A field other files read and no scene should set is
-`internal`.
+`pub` says more than the others on two things. `pub` is what the engine may call, for a method as for a free
+function: a hook, a binding row, an event and `node.call` reach only a `pub` method. A `pub` field is a
+[property](engine/properties.md) a scene tunes. A field other files read and no scene should set is `internal`.
 
-The engine and `node.call` reach a method by its name as the script runs, so its hooks need no mark.
+A hook with no mark would never run, so it does not compile:
+
+```bs
+pub class Door { node: Node }
+
+impl Door {
+    fn init() {}
+}
+
+// error: 4:5: the engine calls `init` only on a `pub` method: mark it `pub`
+```
 
 ## How a file is found
 

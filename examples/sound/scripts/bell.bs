@@ -8,13 +8,13 @@ pub class Bell {
 }
 
 impl Bell {
-    fn on_timeout(payload: any) {
+    pub fn on_timeout(payload: any) {
         self.node.sound.play();
         self.rung += 1;
         self.tell();
     }
 
-    fn on_sound_finished(handle: any) {
+    pub fn on_sound_finished(handle: any) {
         self.finished += 1;
         self.tell();
     }

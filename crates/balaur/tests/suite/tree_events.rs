@@ -42,7 +42,7 @@ fn add(n: int) {
 pub class Nest { node: Node }
 
 impl Nest {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let stage = scene::variable("stage").as_int();
         if stage == 0 {
             let kid = self.node.add_child("Kid");

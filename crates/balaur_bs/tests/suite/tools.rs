@@ -10,7 +10,7 @@ const SRC: &str = "pub class Mover {
 }
 
 impl Mover {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let reply: any = nil;
         let label = \"hi\";
         for h in self.hits {
@@ -155,7 +155,7 @@ fn hover_names_the_type_and_definition_finds_the_declaration() {
 #[test]
 fn hovering_a_methods_name_where_it_is_declared_shows_its_signature() {
     let a = analyze(SRC, &api());
-    assert_eq!(a.hover(8, 9).as_deref(), Some("fn update(float)"));
+    assert_eq!(a.hover(8, 13).as_deref(), Some("fn update(float)"));
     assert_eq!(a.hover(17, 13).as_deref(), Some("fn boost(float) -> float"));
 }
 
@@ -203,7 +203,7 @@ fn signature_help_names_the_call_and_the_argument() {
 
 #[test]
 fn rename_reaches_every_use_and_leaves_text_alone() {
-    let src = "pub class S { hp: int }\nimpl S {\n    fn update(dt: float) {\n        let msg = \"hp {self.hp}\";\n        self.hp += 1; // hp up\n    }\n}\n";
+    let src = "pub class S { hp: int }\nimpl S {\n    pub fn update(dt: float) {\n        let msg = \"hp {self.hp}\";\n        self.hp += 1; // hp up\n    }\n}\n";
     let a = analyze(src, &api());
     assert_eq!(
         a.references("hp").len(),
@@ -225,8 +225,8 @@ fn rename_reaches_every_use_and_leaves_text_alone() {
 
 #[test]
 fn format_reindents_and_keeps_comments() {
-    let messy = "pub class S { hp: int }\nimpl S {\n  fn update(dt: float) {   \n      // grow\n self.hp += 1;\n\n\n\n        let v = vec3(1.0,\n2.0, 3.0);\n  }\n}\n\n\n";
-    let want = "pub class S { hp: int }\nimpl S {\n    fn update(dt: float) {\n        // grow\n        self.hp += 1;\n\n        let v = vec3(1.0,\n            2.0, 3.0);\n    }\n}\n";
+    let messy = "pub class S { hp: int }\nimpl S {\n  pub fn update(dt: float) {   \n      // grow\n self.hp += 1;\n\n\n\n        let v = vec3(1.0,\n2.0, 3.0);\n  }\n}\n\n\n";
+    let want = "pub class S { hp: int }\nimpl S {\n    pub fn update(dt: float) {\n        // grow\n        self.hp += 1;\n\n        let v = vec3(1.0,\n            2.0, 3.0);\n    }\n}\n";
     let a = analyze(messy, &api());
     assert_eq!(a.format(), want);
     assert_eq!(

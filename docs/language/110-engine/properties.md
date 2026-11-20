@@ -28,7 +28,7 @@ pub class Turret {
 }
 
 impl Turret {
-    fn init() {
+    pub fn init() {
         log::info("{self.label} covers {self.range}");
     }
 }

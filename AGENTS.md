@@ -117,14 +117,14 @@ The traps a newcomer meets first. `docs/language/` is the whole language.
   expression: a list closing a function after an `if` is the `if` indexed.
   Write `return [..];`.
 - A `{` in a string starts an interpolation; `{{` and `}}` write braces.
-- A plain method cannot await. To hear a call's reply it starts an async
+- A plain method cannot await. To hear a call's reply it starts a `pub` async
   method of its own, `self.node.call("await_reply", id)`, which runs once the
   plain method has returned.
 - An unmarked item is its file's own, `internal` its package's (the
   `addons/<name>` or `deps/<alias>` it sits in, else the project), `pub`
-  everyone's. A `pub` free function is also an entry point for the engine, and
-  a `pub` field is what a scene tunes, so a field other files only read is
-  `internal`.
+  everyone's. Only a `pub` function or method is one the engine calls: a
+  hook, a binding row, an event, `node.call`. A `pub` field is what a scene
+  tunes, so a field other files only read is `internal`.
 - A host function's error **ends the whole script call**, and nothing catches
   it. A typo should: a component or property nothing has, a node that is gone.
   Where a failure is expected the host answers nil or `false` instead

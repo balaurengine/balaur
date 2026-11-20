@@ -10,7 +10,7 @@ fn counted(value: any, kind: str) -> int {
 }
 
 impl Kinds {
-    fn init() {
+    pub fn init() {
         self.matched = counted(nil, types::KIND_NIL) +
             counted(true, types::KIND_BOOL) +
             counted(1, types::KIND_INT) +

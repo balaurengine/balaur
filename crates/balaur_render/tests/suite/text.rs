@@ -19,7 +19,7 @@ fn text_after(body: &str) -> Option<toml::Value> {
     std::fs::write(
         dir.path().join("scripts/scenario.bs"),
         format!(
-            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\nfn init() {{\n{body}\n}}\n}}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\npub fn init() {{\n{body}\n}}\n}}\n"
         ),
     )
     .unwrap();
@@ -180,7 +180,7 @@ fn a_text_style_written_inline_is_filed_with_its_rows() {
 fn text_measures_wider_with_more_letters_and_taller_with_a_bigger_font() {
     let script = r#"pub class Scenario { node: Node, measured: str }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let short = render::text_size("ab", render::TextOptions { font_size: 20.0 });
         let long = render::text_size("abcdef", render::TextOptions { font_size: 20.0 });
         let big = render::text_size("ab", render::TextOptions { font_size: 40.0 });

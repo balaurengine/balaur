@@ -11,12 +11,12 @@ pub class LogSink {
 }
 
 impl LogSink {
-    fn init() {
+    pub fn init() {
         self.sink = logs::setup("");
         self.report_in = 0;
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         logs::pump(self.sink, self.node, dt);
         // The dock reads the report, and asks for a flush, on the client's node.
         let state = service::get();

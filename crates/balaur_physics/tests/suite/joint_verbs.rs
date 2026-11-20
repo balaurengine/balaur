@@ -113,7 +113,7 @@ fn a_2d_joint_reports_its_angle_limit_and_force() {
         JOINTS_2D,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 20 {
             let held = scene::root().get_node("World/Limited").joint2d.state();
@@ -140,7 +140,7 @@ fn a_2d_rope_stops_at_its_length_and_a_spring_pulls_to_its_rest() {
         JOINTS_2D,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 120 {
             let roped = scene::root().get_node("World/Roped").transform.position;
@@ -166,7 +166,7 @@ fn a_2d_joint_snaps_past_its_break_force_and_holds_below_it() {
         JOINTS_2D,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 60 {
             let snapped = scene::root().get_node("World/Snapped").transform.position.y;
@@ -220,7 +220,7 @@ follow{dim} = {{ target = "/World/Goal", kind = "pid", position_gain = {gains}, 
     let script = format!(
         r#"pub class Scenario {{ node: Node, ticks: int }}
 impl Scenario {{
-    fn fixed_update(dt: float) {{
+    pub fn fixed_update(dt: float) {{
         self.ticks += 1;
         if self.ticks == 300 {{ {call} }}
         if self.ticks == 320 {{ log::error("height {{self.node.transform.position.y}}"); }}
@@ -289,7 +289,7 @@ fn a_wheel_is_driven_braked_and_steered_from_a_script() {
         CAR,
         r#"pub class Scenario { node: Node, ticks: int, driven: float }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         let wheel = self.node.get_node("Wheel");
         if self.ticks == 2 {

@@ -84,7 +84,7 @@ fn near(a: float, b: float) -> bool { math::abs(a - b) < 1e-4 }
 pub class Runner { node: Node, tick: int, done: int, failed: bool }
 
 impl Runner {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.tick += 1;
         let pad = 7;
         if self.tick == 1 {
@@ -165,11 +165,11 @@ const RUMBLE: &str = r#"
 pub class Runner { node: Node, tick: int, started: int, refused: int, finished: int, finished_at: int }
 
 impl Runner {
-    fn init() {
+    pub fn init() {
         self.refused = 1;
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.tick += 1;
         if self.tick == 1 {
             input::set_gamepad(7, input::GamepadReport { rumble: true });
@@ -291,7 +291,7 @@ const PLAYER: &str = r#"
 pub class Runner { node: Node }
 
 impl Runner {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let at = self.node.transform.position; self.node.transform.position = vec3(at.x + input::action_value("move_x") * dt, at.y + 0.0, at.z + 0.0);
         if input::action_just_pressed("jump") {
             input::gamepad_rumble(7, input::RumbleOptions { duration: 0.05 });

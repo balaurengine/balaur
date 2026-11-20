@@ -8,7 +8,7 @@ pub class TimerWait {
 }
 
 impl TimerWait {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.n += 1;
         if self.n % 30 != 0 {
             return;

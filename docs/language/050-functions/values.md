@@ -97,7 +97,7 @@ pub fn run() -> int {
 // run() == 6
 ```
 
-The engine calls back by name instead: a [listener](../engine/events.md) names a method.
+The engine calls back by name instead: a [listener](../engine/events.md) names a `pub` method.
 
 ## What is a value
 

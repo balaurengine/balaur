@@ -75,6 +75,14 @@ pub(crate) mod words {
         pub(crate) const VALUES_IN_ORDER: &str = "values_in_order";
     }
 
+    /// The methods the engine calls on a script by name, which only a `pub` one answers.
+    pub(crate) mod hooks {
+        pub(crate) const FIXED_UPDATE: &str = "fixed_update";
+        pub(crate) const INIT: &str = "init";
+        pub(crate) const ON: &str = "on_";
+        pub(crate) const UPDATE: &str = "update";
+    }
+
     pub(crate) mod packages {
         pub(crate) const ADDONS: &str = "addons";
         pub(crate) const DEPS: &str = "deps";

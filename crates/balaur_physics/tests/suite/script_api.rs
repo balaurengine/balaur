@@ -29,7 +29,7 @@ fn run(body: &str) -> Vec<String> {
     .unwrap();
     std::fs::write(
         dir.path().join("scripts/scenario.bs"),
-        format!("pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n{body}\n    }}\n}}\n"),
+        format!("pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    pub fn init() {{\n{body}\n    }}\n}}\n"),
     )
     .unwrap();
 

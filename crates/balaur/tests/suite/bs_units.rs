@@ -8,7 +8,7 @@ use balaur_core::engine_api::user_data_dir_of;
 const BOOTED: &str = "pub class Booted { node: Node, ran: int }
 
 impl Booted {
-    fn init() {
+    pub fn init() {
         self.ran = 1;
     }
 }

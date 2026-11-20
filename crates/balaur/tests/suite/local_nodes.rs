@@ -10,7 +10,7 @@ const KEEPER: &str = "pub class Keeper {
     pub signed_in: int,
 }
 impl Keeper {
-    fn init() {
+    pub fn init() {
         self.node.add_tag(\"local\");
     }
     pub fn sign_in() {
@@ -21,7 +21,7 @@ impl Keeper {
 
 const MOVER: &str = "pub class Mover { node: Node, pub steps: int }
 impl Mover {
-    fn fixed_update(dt: float) { self.steps += 1; }
+    pub fn fixed_update(dt: float) { self.steps += 1; }
 }
 ";
 
@@ -124,10 +124,10 @@ const ARENA: &str = "pub class Arena {
     view: Node,
 }
 impl Arena {
-    fn init() {
+    pub fn init() {
         self.view = self.node.get_node(\"View\");
     }
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let marker = self.node.get_node(\"P0\");
         self.view.transform.position = marker.transform.position;
     }

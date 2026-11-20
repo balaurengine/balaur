@@ -65,7 +65,7 @@ fn shot() -> image::RgbaImage {
         "scripts/back.bs",
         &format!(
             "pub class Back {{ node: Node }}\n\
-             impl Back {{ fn init() {{ render::set_background(color({r:?}, {g:?}, {b:?}, 1.0)); }} }}\n"
+             impl Back {{ pub fn init() {{ render::set_background(color({r:?}, {g:?}, {b:?}, 1.0)); }} }}\n"
         ),
     );
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());

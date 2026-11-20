@@ -12,7 +12,7 @@ pub class PlatformerRig {
 }
 
 impl PlatformerRig {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let right = if input::key_down(input::KEY_D) { 1.0 } else { 0.0 };
         let left = if input::key_down(input::KEY_A) { 1.0 } else { 0.0 };
         let sideways = right - left;

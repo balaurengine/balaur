@@ -99,7 +99,7 @@ fn the_script_api_exposes_tags_and_warnings_and_builds_a_recipe() {
         pub class Checks { node: Node, done: int, failed: bool }
 
         impl Checks {
-            fn init() {
+            pub fn init() {
                 let tags = scene::component_tags("collider2d").unwrap();
                 self.check(has(tags, "2d"), "collider2d should be tagged 2d");
                 self.check(has(tags, "physics"), "collider2d should be tagged physics");

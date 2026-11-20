@@ -21,12 +21,12 @@ pub class Spinner {
 }
 
 impl Spinner {
-    fn init() {
+    pub fn init() {
         self.angle = 0.0;
         self.direction = if self.clockwise { 1.0 } else { -1.0 };
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if input::action_just_pressed("reverse") {
             self.direction = -self.direction;
         }
@@ -48,7 +48,7 @@ script = { source = "scripts/spinner.bs" }
 
 ## Hooks
 
-The engine calls these methods when the class declares them.
+The engine calls these methods when the class declares them `pub`. A hook with no mark is a compile error.
 
 | Hook | When |
 | --- | --- |
@@ -64,8 +64,8 @@ A scene inits children before parents.
 
 ## Methods the engine calls by name
 
-Any other method is yours. The engine also calls one by name when something names it: a binding row in a
-scene, or `on_hit` for an [event](events.md). A button with this row calls `pressed` on the nearest node from
+A method with no mark is the file's own, and nothing outside the file calls it. The engine calls a `pub` one
+by name when something names it: a binding row in a scene, or `on_hit` for an [event](events.md). A button with this row calls `pressed` on the nearest node from
 its own up whose script has it:
 
 ```toml

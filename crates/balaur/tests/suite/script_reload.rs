@@ -5,7 +5,7 @@ fn a_reload_tells_the_instances_of_that_file_and_keeps_their_state() {
     let dir = tempfile::tempdir().unwrap();
     let script = |class: &str| {
         format!(
-            "pub class {class} {{ node: Node, pub reloads: int, pub kept: int }}\nimpl {class} {{\n    fn init() {{ self.kept = 7; }}\n    fn on_hot_reload() {{ self.reloads = self.reloads + 1; }}\n}}\n"
+            "pub class {class} {{ node: Node, pub reloads: int, pub kept: int }}\nimpl {class} {{\n    pub fn init() {{ self.kept = 7; }}\n    pub fn on_hot_reload() {{ self.reloads = self.reloads + 1; }}\n}}\n"
         )
     };
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
@@ -107,7 +107,7 @@ fn a_watched_directory_says_what_changed_and_reloads_its_scripts() {
     let file = game.path().join("scripts/visitor.bs");
     let source = |version: u32| {
         format!(
-            "pub class Visitor {{ node: Node, pub reloads: int }}\nimpl Visitor {{\n    fn on_hot_reload() {{ self.reloads = self.reloads + 1; }}\n    pub fn version() -> int {{ {version} }}\n}}\n"
+            "pub class Visitor {{ node: Node, pub reloads: int }}\nimpl Visitor {{\n    pub fn on_hot_reload() {{ self.reloads = self.reloads + 1; }}\n    pub fn version() -> int {{ {version} }}\n}}\n"
         )
     };
     std::fs::write(&file, source(0)).unwrap();

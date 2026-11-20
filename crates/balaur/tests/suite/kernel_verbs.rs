@@ -77,7 +77,7 @@ fn the_math_a_script_has_answers_as_libm_does() {
     let (_dir, app) = booted(
         r"pub class Probe { node: Node, atan: float, exp: float, log: float, log10: float, sinh: float, cosh: float, tanh: float }
 impl Probe {
-    fn init() {
+    pub fn init() {
         self.atan = math::atan(1.0);
         self.exp = math::exp(1.0);
         self.log = math::log(10.0);
@@ -113,10 +113,10 @@ fn a_script_reads_the_tick_it_runs_in_and_the_rate_the_project_set() {
     let (_dir, mut app) = booted(
         r"pub class Probe { node: Node, rate: int, seen: int, steps: int }
 impl Probe {
-    fn init() {
+    pub fn init() {
         self.rate = engine::tick_hz();
     }
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.seen = engine::tick();
         self.steps += 1;
     }
@@ -143,10 +143,10 @@ fn a_node_that_stops_listening_hears_no_more() {
     let (_dir, mut app) = booted(
         r#"pub class Probe { node: Node, heard: int, frame: int }
 impl Probe {
-    fn init() {
+    pub fn init() {
         events::listen(self.node, "ping");
     }
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frame += 1;
         if self.frame == 1 {
             self.node.emit("ping", nil);
@@ -179,7 +179,7 @@ impl Probe {
 fn a_script_reads_the_locale_the_system_reports() {
     let script = r#"pub class Probe { node: Node, locale: str }
 impl Probe {
-    fn init() {
+    pub fn init() {
         let said = strings::system_locale();
         self.locale = if said == nil { "nil" } else { said.unwrap() };
     }
@@ -223,7 +223,7 @@ script = { source = "scripts/probe.bs" }
         scene,
         r#"pub class Probe { node: Node, steps: int }
 impl Probe {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.steps += 1;
         if self.steps == 2 {
             self.node.transform.position = vec3(10.0, 0.0, 0.0);
@@ -298,7 +298,7 @@ timer = { wait_time = 1.0 }
         scene,
         r#"pub class Probe { node: Node, found: str, none: int }
 impl Probe {
-    fn init() {
+    pub fn init() {
         for at in scene::with_component("timer") {
             self.found = self.found + at.name() + ";";
         }
@@ -319,7 +319,7 @@ fn a_reference_that_resolves_to_nothing_is_absent_rather_than_an_error() {
     let (_dir, app) = booted(
         r#"pub class Probe { node: Node, seen: str }
 impl Probe {
-    fn init() {
+    pub fn init() {
         self.seen = "{assets::exists("art/dot.png")} {assets::exists("art/none.png")} {assets::exists("id://nowhere")}";
     }
 }
@@ -340,7 +340,7 @@ fn a_seconds_wait_wakes_on_the_step_a_frames_wait_of_its_length_does() {
     let (_dir, mut app) = booted(
         r#"pub class Probe { node: Node, by_seconds: [int], by_frames: [int], woken: int }
 impl Probe {
-    fn init() {
+    pub fn init() {
         self.by_seconds = [0; 600];
         self.by_frames = [0; 600];
         for k in 1..600 {

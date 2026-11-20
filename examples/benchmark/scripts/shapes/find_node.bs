@@ -6,7 +6,7 @@ pub class FindNode {
 }
 
 impl FindNode {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.found = self.node.get_node("../..").is_valid();
     }
 }

@@ -9,7 +9,7 @@ use balaur_core::{App, AppConfig, node_id_of, scene};
 const PLAYS: &str = r#"
 pub class Plays { node: Node }
 impl Plays {
-    fn init() {
+    pub fn init() {
         audio::play_file("hit.wav", audio::PlayFileOptions { bus: "sfx", volume_linear: 0.9 });
         audio::play_file("hit.wav", audio::PlayFileOptions { position: vec3(3.0, 0.0, 0.0), max_distance: 10.0 });
         let player = audio::play_file("hit.wav");

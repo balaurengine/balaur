@@ -48,7 +48,7 @@ floor_snap_length = 0.0
         &format!(
             "pub class Scenario {{ node: Node, ticks: int }}
 impl Scenario {{
-    fn fixed_update(dt: float) {{
+    pub fn fixed_update(dt: float) {{
         self.ticks += 1;
         self.node.character3d.move_by(vec3(0.1, 0.0, 0.0));
         if self.ticks == 110 {{
@@ -126,7 +126,7 @@ shape = { kind = "sphere", radius = 0.15 }
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         self.node.character3d.move_by(vec3(0.1, 0.0, 0.0));
         if self.ticks == 60 {
@@ -173,7 +173,7 @@ floor_snap_length = 0.0
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         self.node.character2d.move_by(vec2(0.1, 0.0));
         if self.ticks == 110 {
@@ -473,7 +473,7 @@ floor_snap_length = 0.0
 
 const WALK: &str = "pub class Scenario { node: Node }
 impl Scenario {
-    fn fixed_update(dt: float) { self.node.character3d.move_by(vec3(0.05, 0.0, 0.0)); }
+    pub fn fixed_update(dt: float) { self.node.character3d.move_by(vec3(0.05, 0.0, 0.0)); }
 }
 ";
 
@@ -554,7 +554,7 @@ fn a_collision_reports_where_the_sweep_met_the_obstacle() {
         &wall_and_player(CAPSULE, ""),
         r#"pub class Scenario { node: Node, done: bool }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let moved = self.node.character3d.move_by(vec3(0.2, 0.0, 0.0));
         if !self.done && moved.collisions.len() > 0 {
             let hit = moved.collisions[0];
@@ -722,11 +722,11 @@ fn speed_and_wheel_state_read_the_kept_controller() {
         DRIVEWAY,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.body3d.set_linear_velocity(vec3(0.0, 0.0, 4.0));
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         let wheel = self.node.get_node("Wheel");
         if self.ticks == 3 {

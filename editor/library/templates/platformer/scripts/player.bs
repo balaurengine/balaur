@@ -9,7 +9,7 @@ pub class Player {
 }
 
 impl Player {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let sideways = input::action_value("move");
         // Whether the last move ended on the ground decides between falling
         // and being able to jump.

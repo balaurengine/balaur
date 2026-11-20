@@ -110,7 +110,7 @@ fn script_side(c: &mut Criterion) {
     for (name, body) in cases {
         let source = script(
             "",
-            &format!("    fn update(dt: float) {{ for i in 0..1000 {{ {body} }} }}"),
+            &format!("    pub fn update(dt: float) {{ for i in 0..1000 {{ {body} }} }}"),
         );
         let project = Project::new(Backend::Bs, &source).unwrap();
         let app = app(Backend::Bs, &project).unwrap();
@@ -150,7 +150,7 @@ fn seam_arg_cost(c: &mut Criterion) {
     for (name, call) in cases {
         let body = script(
             "",
-            &format!("    fn update(dt: float) {{ for i in 0..1000 {{ {call}; }} }}"),
+            &format!("    pub fn update(dt: float) {{ for i in 0..1000 {{ {call}; }} }}"),
         );
         let project = Project::new(Backend::Bs, &body).unwrap();
         let mut app = app(Backend::Bs, &project).unwrap();

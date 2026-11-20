@@ -24,12 +24,12 @@ impl Monkey {
         {}
     }
 
-    fn init() {
+    pub fn init() {
         random::seed(SEED);
         log::info("monkey: seed {SEED}");
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frame += 1;
         if self.frame < WARM_UP_FRAMES {
             return;

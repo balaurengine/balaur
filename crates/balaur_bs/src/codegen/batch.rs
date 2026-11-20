@@ -51,12 +51,21 @@ pub(super) fn batch_fn(g: &Gen, sig: &Sig) -> (u32, FuncBody) {
         I::I32Add,
         I::LocalSet(addr),
     ]);
+    // A cleared slot is an object let go of since the batch began.
+    code.extend([
+        I::Block(BlockType::Empty),
+        I::LocalGet(addr),
+        load(ValType::I32, 0),
+        I::I32Eqz,
+        I::BrIf(0),
+    ]);
     for (j, vt) in selfv.iter().enumerate() {
         code.extend([I::LocalGet(addr), load(*vt, 8 * j as u64)]);
     }
     code.extend((0..argv.len() as u32).map(|a| I::LocalGet(2 + a)));
     code.push(I::Call(sig.idx));
     code.extend((0..nret).map(|_| I::Drop));
+    code.push(I::End);
     code.extend([
         I::LocalGet(k),
         I::I32Const(1),

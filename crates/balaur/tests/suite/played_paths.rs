@@ -7,7 +7,7 @@ use balaur_script::Value;
 
 const READER: &str = r#"pub class Reader { node: Node, read: str, listed: str, there: bool, shaped: bool }
 impl Reader {
-    fn init() {
+    pub fn init() {
         self.read = fs::read("data/note.txt").or("nil");
         for entry in fs::list("data") {
             self.listed = self.listed + entry.name + ";";

@@ -6,7 +6,7 @@ pub class Counter {
 }
 
 impl Counter {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.t += dt;
     }
 }

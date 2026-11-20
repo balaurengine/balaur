@@ -94,7 +94,7 @@ shape = { kind = "box", size = [1.0, 1.0, 1.0] }
 impl Scenario {
     pub fn on_collision_enter(collision: any) { bump("hit", 1); }
     pub fn on_sleeping_changed(asleep: bool) { if asleep { bump("slept", 1); } }
-    fn fixed_update(dt: float) { bump("ticks", 1); }
+    pub fn fixed_update(dt: float) { bump("ticks", 1); }
 }
 "#,
         240,
@@ -148,7 +148,7 @@ shape = { kind = "rectangle", size = [1.0, 1.0] }
 impl Scenario {
     pub fn on_collision_enter(collision: any) { bump("hit", 1); }
     pub fn on_sleeping_changed(asleep: bool) { if asleep { bump("slept", 1); } }
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         bump("ticks", 1);
         if self.node.body2d.is_moving() {
             scene::set_variable("moved", 1);
@@ -205,7 +205,7 @@ script = { source = "scripts/scenario.bs" }
 "#,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         // One end pinned and edges that break at a tenth of their rest length,
         // so the heavy free end tears it and falls onto the ground.
         self.node.set_component("soft_rope3d", { "a": [0.0, 0.0, 0.0], "b": [0.0, -2.0, 0.0], "particle_count": 12 });
@@ -218,7 +218,7 @@ impl Scenario {
     }
     pub fn on_torn(tear: any) { bump("edges", tear["edges"].len()); }
     pub fn on_collision_enter(collision: any) { bump("hit", 1); }
-    fn fixed_update(dt: float) { bump("ticks", 1); }
+    pub fn fixed_update(dt: float) { bump("ticks", 1); }
 }
 "#,
         180,
@@ -243,7 +243,7 @@ script = { source = "scripts/scenario.bs" }
 "#,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_rope3d", { "a": [0.0, 0.0, 0.0], "b": [0.0, -2.0, 0.0], "particle_count": 12 });
         self.node.set_component("softbody3d", {
             "kind": physics3d::SOFT_ROPE,

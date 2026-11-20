@@ -77,7 +77,7 @@ pub class Ball {
 }
 
 impl Ball {
-    fn update(dt: float) {                        // per frame; fixed_update is per fixed tick
+    pub fn update(dt: float) {                    // per frame; fixed_update is per fixed tick
         self.angle += dt * self.speed;
         self.node.transform.rotation_euler = vec3(0.0, self.angle, 0.0);
     }

@@ -28,7 +28,7 @@ shape = { kind = "voxels", voxels = "#wall" }
 /// the assertion below reads back off the shape.
 const SCRIPT: &str = r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         if !self.node.collider2d.voxel(0, 1) { log::error("the cell above the corner should be filled"); }
         if self.node.collider2d.voxel(4, 4) { log::error("a cell nobody wrote should be empty"); }
         self.node.collider2d.set_voxel(0, 1, false);

@@ -45,7 +45,7 @@ const ASKS_TOOLS_BS: &str = r#"pub class Editor {
 }
 
 impl Editor {
-    fn init() {
+    pub fn init() {
         let src = "pub struct Racer {{ speed: float }}\nimpl Racer {{\n    fn update(dt: float) {{\n        self.\n    }}\n}}\n";
         let rows = script::complete("scripts/racer.bs", src, 4, 14);
         self.completed = rows.len();
@@ -105,7 +105,7 @@ fn the_editor_s_script_module_answers_for_a_bs_file() {
 const EXPORTER_BS: &str =
     "pub class Tuned { pub speed: float = 2.5, pub label: str = \"go\", seen: str }
 impl Tuned {
-    fn init() {
+    pub fn init() {
         let rows = script::exports(\"scripts/tuned.bs\");
         self.seen = \"{rows.len()} {rows[0][\"name\"]}={rows[0][\"default\"]} {rows[1][\"name\"]}:{rows[1][\"type\"]}\";
     }
@@ -125,7 +125,7 @@ fn a_script_reads_what_another_declares_tunable() {
 
 const PAUSER_BS: &str = "pub class Pauser { node: Node, tidy: str, scoped: bool }
 impl Pauser {
-    fn init() {
+    pub fn init() {
         self.tidy = script::format(\"scripts/pauser.bs\", \"fn tidy() {{\\nlet count = 1;\\n}}\\n\");
         self.scoped = debugger::scope().is_valid();
     }

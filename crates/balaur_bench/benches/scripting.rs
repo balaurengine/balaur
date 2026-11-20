@@ -14,14 +14,16 @@ const MAP: &str = "{ \"x\": 1.0, \"y\": 2.0, \"name\": \"widget\" }";
 /// Bodies that do the same work in each language.
 fn source(backend: Backend, body: Body) -> String {
     match (backend, body) {
-        (Backend::Bs, Body::Empty) => script("", "    fn init() {}\n    fn update(dt: float) {}"),
+        (Backend::Bs, Body::Empty) => {
+            script("", "    pub fn init() {}\n    pub fn update(dt: float) {}")
+        }
         (Backend::Bs, Body::State) => script(
             ", n: float",
-            "    fn init() { self.n = 0.0; }\n    fn update(dt: float) { self.n = self.n + dt; }",
+            "    pub fn init() { self.n = 0.0; }\n    pub fn update(dt: float) { self.n = self.n + dt; }",
         ),
         (Backend::Bs, Body::NodeApi) => script(
             "",
-            "    fn init() {}\n    fn update(dt: float) { self.node.transform.translate(dt, 0.0, 0.0); }",
+            "    pub fn init() {}\n    pub fn update(dt: float) { self.node.transform.translate(dt, 0.0, 0.0); }",
         ),
     }
 }
@@ -77,8 +79,10 @@ fn call_all_across_nodes(c: &mut Criterion) {
         group.throughput(Throughput::Elements(count as u64));
         for backend in Backend::ALL {
             let body = match (backend, declared) {
-                (Backend::Bs, true) => script("", "    fn init() {}\n    fn on_hot_reload() {}"),
-                (Backend::Bs, false) => script("", "    fn init() {}"),
+                (Backend::Bs, true) => {
+                    script("", "    pub fn init() {}\n    pub fn on_hot_reload() {}")
+                }
+                (Backend::Bs, false) => script("", "    pub fn init() {}"),
             };
             let project = Project::new(backend, &body).unwrap();
             let app = app(backend, &project).unwrap();
@@ -99,7 +103,7 @@ fn binding_call(c: &mut Criterion) {
         let body = match backend {
             Backend::Bs => script(
                 "",
-                "    fn update(dt: float) { bench::noop(1, 2.0, \"three\"); }",
+                "    pub fn update(dt: float) { bench::noop(1, 2.0, \"three\"); }",
             ),
         };
         let project = Project::new(backend, &body).unwrap();
@@ -216,7 +220,7 @@ fn binding_arg_shapes(c: &mut Criterion) {
                 Backend::Bs => script(
                     ", opts: any",
                     &format!(
-                        "    fn init() {{ {setup} }}\n    fn update(dt: float) {{ bench::take({arg}); }}"
+                        "    pub fn init() {{ {setup} }}\n    pub fn update(dt: float) {{ bench::take({arg}); }}"
                     ),
                 ),
             };

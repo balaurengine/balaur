@@ -594,10 +594,33 @@ fn no_reserved_names(prog: &ast::Program) -> Result<(), Error> {
     Ok(())
 }
 
+// The engine calls only a `pub` method, so a private hook would never run.
+fn no_private_hooks(prog: &ast::Program) -> Result<(), Error> {
+    use vocabulary::words::hooks;
+    let hook = |name: &str| {
+        [hooks::INIT, hooks::UPDATE, hooks::FIXED_UPDATE].contains(&name)
+            || name.starts_with(hooks::ON)
+    };
+    let private = prog.fns.iter().find(|f| {
+        !f.public && hook(&f.name) && f.owner.as_ref().is_some_and(|o| prog.classes.contains(o))
+    });
+    match private {
+        Some(f) => Err(Error {
+            pos: f.pos,
+            msg: format!(
+                "the engine calls `{}` only on a `pub` method: mark it `pub`",
+                f.name
+            ),
+        }),
+        None => Ok(()),
+    }
+}
+
 // The file parsed, its modules linked in, the prelude and the engine's
 // records beside its own structs; the files linked.
 fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Error> {
     let mut prog = parse::parse(src)?;
+    no_private_hooks(&prog)?;
     modules::no_editors_use(
         &prog,
         &options.path,

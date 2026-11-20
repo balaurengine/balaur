@@ -351,7 +351,7 @@ fn a_raycast_stops_finding_a_freed_node() {
         TWO_BALLS,
         r#"pub class Scenario { node: Node, ticks: int, hit_before: bool }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         let opts = physics3d::RayQuery { origin: vec3(0.0, 8.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 100.0 };
         if self.ticks == 2 {
@@ -376,11 +376,11 @@ fn a_call_on_a_freed_node_errors_rather_than_panicking() {
         TWO_BALLS,
         r#"pub class Scenario { node: Node, ticks: int, target: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.target = scene::root().get_node("/World/Target");
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             self.target.queue_free();

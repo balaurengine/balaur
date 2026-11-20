@@ -1,4 +1,4 @@
-use super::run;
+use super::{compile_error, run};
 use balaur_bs::runtime::{HostFns, Limits, Runtime, Value};
 use balaur_bs::{Options, compile};
 
@@ -320,4 +320,18 @@ fn a_property_the_component_lacks_does_not_compile() {
     );
     let wrong = with("let x = self.node.transfrom.position;");
     assert!(wrong.contains("no component `transfrom`"), "{wrong}");
+}
+
+#[test]
+fn a_private_hook_on_a_class_is_a_compile_error() {
+    for hook in [
+        "init()",
+        "update(dt: float)",
+        "fixed_update(dt: float)",
+        "on_hit(by: int)",
+    ] {
+        let src = format!("pub class Door {{ n: int }}\nimpl Door {{\n    fn {hook} {{}}\n}}\n");
+        let error = compile_error(&src);
+        assert!(error.contains("mark it `pub`"), "{hook}: {error}");
+    }
 }

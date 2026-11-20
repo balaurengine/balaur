@@ -203,7 +203,7 @@ fn ragdoll_blend_turns_it_on_partway_through() {
         &rig(0.0, 0.0, None),
         r"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.ticks += 1;
         if self.ticks == 30 {
             self.node.ragdoll.influence = 1.0;
@@ -245,7 +245,7 @@ fn a_blend_back_to_zero_hands_the_rig_back_its_own_pose() {
         &rig(1.0, 0.0, None),
         r"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.ticks += 1;
         if self.ticks == 30 {
             self.node.ragdoll.influence = 0.0;

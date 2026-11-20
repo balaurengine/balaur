@@ -172,7 +172,7 @@ fn a_paused_game_and_a_paused_world_hold_a_falling_body_at_rest() {
 
 #[test]
 fn a_soft_body_is_pending_while_it_is_awake_and_at_rest_once_it_is_taken_out() {
-    let script = "pub class Scenario { node: Node }\nimpl Scenario { fn init() {} }\n";
+    let script = "pub class Scenario { node: Node }\nimpl Scenario { pub fn init() {} }\n";
     let (_dir, mut app) = crate::soft_bodies::boot(script, 2);
     assert!(pends(&app), "two soft bodies are falling, and no rigid one");
 

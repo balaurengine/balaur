@@ -6,7 +6,7 @@ use balaur_script::{StepMode, Value};
 
 const SHELL: &str = "pub class Shell { node: Node, pub frames: int }
 impl Shell {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frames = self.frames + 1;
     }
 }
@@ -14,10 +14,10 @@ impl Shell {
 
 const GAME: &str = "pub class Game { node: Node, pub frames: int, pub reloads: int }
 impl Game {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.frames = self.frames + 1;
     }
-    fn on_hot_reload() {
+    pub fn on_hot_reload() {
         self.reloads = self.reloads + 1;
     }
 }
@@ -229,7 +229,7 @@ fn a_stop_and_the_resume_after_it_are_two_events() {
 
 const CLOCKED: &str = "pub class Clocked { node: Node, pub now: float }
 impl Clocked {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.now = engine::unix_time();
     }
 }

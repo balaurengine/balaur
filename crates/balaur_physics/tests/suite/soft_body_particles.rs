@@ -8,14 +8,14 @@ fn pinning_a_free_particle_holds_it_and_unpinning_lets_it_fall() {
     run_checked(
         r#"pub class Scenario { node: Node, first: float, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE });
         n.softbody3d.pin_particle(0);
         self.first = n.softbody3d.particle(0).position.y;
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 4 {
@@ -40,13 +40,13 @@ fn a_held_particle_is_dragged_to_its_target() {
     run_checked(
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "pinned_particles": [0] });
         n.softbody3d.set_particle_target(0, vec3(2.0, 1.0, 0.0));
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 3 {
             let at = self.node.softbody3d.particle(0).position;
@@ -66,14 +66,14 @@ fn an_impulse_kicks_the_body_and_the_edges_report_their_stress() {
     run_checked(
         r#"pub class Scenario { node: Node, first: float, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "pinned_particles": [0] });
         n.softbody3d.apply_impulse(vec3(0.0, 20.0, 0.0));
         self.first = n.softbody3d.particle(7).position.y;
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 2 {
@@ -97,7 +97,7 @@ fn a_particle_tied_to_a_body_hangs_from_it() {
     run_checked(
         r#"pub class Scenario { node: Node, hook: Node, ticks: int, first: float }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let hook = self.node.add_child("Hook");
         hook.set_component("transform", { "position": [0.0, 0.0, 0.0] });
         hook.set_component("body3d", { "kind": physics3d::BODY_STATIC });
@@ -106,7 +106,7 @@ impl Scenario {
         self.first = self.node.softbody3d.particle(0).position.y;
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         let n = self.node;
         if self.ticks == 1 {
@@ -130,14 +130,14 @@ fn the_2d_body_takes_the_same_calls() {
     run_checked(
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let blob = self.node.get_node("Blob2d");
         blob.set_component("soft_rope2d", { "particle_count": 6 }); blob.set_component("softbody2d", { "kind": physics2d::SOFT_ROPE });
         blob.softbody2d.pin_particle(0);
         blob.softbody2d.apply_radial_impulse(vec2(0.0, 0.0), 5.0, 0.0);
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             let blob = self.node.get_node("Blob2d");
@@ -161,7 +161,7 @@ fn per_particle_and_per_edge_rows_build_and_name_what_they_cannot() {
     run_checked(
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_rope3d", { "particle_count": 4 });
         self.node.set_component("softbody3d", {
             "kind": physics3d::SOFT_ROPE,
@@ -179,7 +179,7 @@ impl Scenario {
     );
     let short = run(r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_rope3d", { "particle_count": 4 }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "masses": [1.0, 2.0] });
     }
 }
@@ -187,7 +187,7 @@ impl Scenario {
     assert!(short.iter().any(|e| e.contains("masses")), "{short:#?}");
     let stray = run(r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.set_component("soft_rope3d", { "particle_count": 4 }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "tear_resistance": [{ "a": 0, "b": 3, "resistance": 0.5 }] });
     }
 }

@@ -15,7 +15,7 @@ use addons::gamend::users;
 
 pub class Scenario {{ node: Node }}
 impl Scenario {{
-    async fn init() {{
+    pub async fn init() {{
         let answer = await {call};
         log::info("sent {{answer["kind"]}}");
     }}
@@ -45,7 +45,7 @@ use addons::gamend::users;
 
 pub class Scenario { node: Node }
 impl Scenario {
-    async fn init() {
+    pub async fn init() {
         client::configure("http://127.0.0.1:9", "");
         let answer = await users::get_user("7");
         log::info("sent {answer["kind"]}");
@@ -62,7 +62,7 @@ use addons::gamend::client;
 
 pub class Scenario { node: Node }
 impl Scenario {
-    async fn init() {
+    pub async fn init() {
         let reply = await task::wait(client::join(4242, "lobby:1"));
         log::info("refused {reply["kind"]} {reply["error"]}");
     }
@@ -82,7 +82,7 @@ use addons::gamend::client;
 
 pub class Scenario { node: Node, heard: int }
 impl Scenario {
-    async fn init() {
+    pub async fn init() {
         let first = await task::wait(client::connect(self.node));
         let second = await task::wait(client::connect(self.node));
         await task::frames(2);
@@ -108,7 +108,7 @@ use addons::gamend::socket;
 
 pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let waits = "";
         for attempt in 1..socket::RECONNECT_TRIES + 1 {
             waits = waits + " {socket::backoff(attempt)}";
@@ -131,7 +131,7 @@ use addons::gamend::auth;
 
 pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let kept = auth::restore({ "user_id": "u1", "username": "tester", "access_token": "a", "refresh_token": "r", "expires_in": 900, "expires_at": 1790000000 });
         let s = auth::session().unwrap();
         let refused = auth::restore({ "user_id": "u2" });
@@ -158,7 +158,7 @@ use addons::gamend::client;
 
 pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         settings::set("gamend/url", "https://play.example");
         settings::set("gamend/local_url", "http://localhost:4000");
         let near = client::server();

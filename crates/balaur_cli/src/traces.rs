@@ -128,7 +128,7 @@ mod tests {
 
     const WALKER: &str = "pub class Walker { node: Node }
 impl Walker {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         let at = self.node.transform.position;
         self.node.transform.position = vec3(at.x + dt, at.y, at.z);
     }

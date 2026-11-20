@@ -137,7 +137,7 @@ fn digging_a_cell_rebuilds_what_the_map_collides_with() {
     let (app, errors) = run(
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.tilemap.set_cell(0, 0, -1);
     }
 }

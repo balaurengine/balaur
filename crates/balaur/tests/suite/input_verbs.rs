@@ -47,7 +47,7 @@ fn every_declared_action_is_listed_for_a_rebinding_screen() {
     let (_dir, mut app) = booted(
         r#"pub class Probe { node: Node, listed: str }
 impl Probe {
-    fn init() {
+    pub fn init() {
         let names = input::actions();
         let joined = "";
         for name in names {
@@ -73,7 +73,7 @@ fn a_finger_that_lands_and_lifts_in_one_frame_is_both_started_and_ended() {
     let (_dir, mut app) = booted(
         r#"pub class Probe { node: Node, seen: str }
 impl Probe {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let started = input::touches_just_started();
         let ended = input::touches_just_ended();
         self.seen = self.seen + "{started.len()}/{ended.len()} ";
@@ -117,7 +117,7 @@ fn a_vibration_with_no_motor_does_nothing_and_says_nothing() {
     let (_dir, mut app) = booted(
         r"pub class Probe { node: Node, done: int }
 impl Probe {
-    fn init() {
+    pub fn init() {
         input::vibrate(0.25);
         input::vibrate(-1.0);
         self.done = 1;

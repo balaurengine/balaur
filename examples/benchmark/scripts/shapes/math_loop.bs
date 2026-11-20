@@ -7,7 +7,7 @@ pub class MathLoop {
 }
 
 impl MathLoop {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let total = 0.0;
         let i = 0;
         while i < 100 {

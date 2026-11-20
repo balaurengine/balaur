@@ -45,7 +45,7 @@ pub class Tower {
 }
 
 impl Tower {
-    fn init() {
+    pub fn init() {
         self.enemy = scene::root().get_node("World/Enemy");
         events::listen(self.node, "hit", self.enemy);
         events::listen(self.node, "alarm");
@@ -124,6 +124,6 @@ impl Gate {
 
 ## Events from the engine
 
-The engine calls methods by name too: `on_animation_finished(name, source)` from an animation, and
+The engine calls `pub` methods by name too: `on_animation_finished(name, source)` from an animation, and
 `on_websocket_event` from an HTTP request. A node hears its own engine events with no `listen`: a button's
 script hears its click as `on_pointer_click(button, source)`. Most have a polling twin, such as `input::key_just_pressed`, for code that prefers to ask each frame.

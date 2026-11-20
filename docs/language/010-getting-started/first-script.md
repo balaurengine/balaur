@@ -31,11 +31,11 @@ pub class Hello {
 }
 
 impl Hello {
-    fn init() {
+    pub fn init() {
         log::info("hello from {self.node.name()}");
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.elapsed += dt;
     }
 }
@@ -66,11 +66,11 @@ pub class Hello {
 }
 
 impl Hello {
-    fn init() {
+    pub fn init() {
         log::info("hello from {self.node.name()}");
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.elapsed += dt;
         if self.elapsed > 1.0 {
             self.elapsed -= 1.0;

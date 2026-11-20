@@ -39,7 +39,7 @@ fn a_script_opens_echoes_and_closes() {
         r#"
 pub class Scenario {{ node: Node, socket: int }}
 impl Scenario {{
-    fn init() {{
+    pub fn init() {{
         self.socket = websocket::connect(self.node, "{echo}");
     }}
 
@@ -68,7 +68,7 @@ fn a_script_sends_and_receives_a_binary_frame() {
         r#"
 pub class Scenario {{ node: Node, socket: int }}
 impl Scenario {{
-    fn init() {{
+    pub fn init() {{
         self.socket = websocket::connect(self.node, "{echo}");
     }}
 
@@ -104,7 +104,7 @@ fn a_script_awaits_connect_until_it_opens_or_fails() {
         r#"
 pub class Scenario {{ node: Node }}
 impl Scenario {{
-    async fn init() {{
+    pub async fn init() {{
         let socket = websocket::connect(self.node, "{echo}");
         let opened = await task::wait(socket);
         let kind = opened["kind"];

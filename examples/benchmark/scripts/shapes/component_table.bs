@@ -11,7 +11,7 @@ pub class ComponentTable {
 }
 
 impl ComponentTable {
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         let radius = self.node.get_component(SHAPE2D)[SHAPE][RADIUS];
         self.seen = if radius.kind() == types::KIND_FLOAT { radius.as_float() } else { 0.0 };
         self.node.shape2d.shape = { RADIUS: self.seen };

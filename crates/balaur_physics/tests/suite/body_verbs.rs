@@ -95,7 +95,7 @@ fn a_2d_body_reports_its_mass_energy_and_dominance() {
         BODY_2D,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         if n.body2d.total_mass() != 2.0 { log::error("total_mass is {n.body2d.total_mass()}, not the stated 2"); }
         n.body2d.set_linear_velocity(vec2(3.0, 0.0));
@@ -127,7 +127,7 @@ fn a_2d_body_takes_a_held_torque_and_a_torque_impulse() {
         BODY_2D,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         n.body2d.add_constant_torque(2.0);
         n.body2d.add_constant_torque(1.0);
@@ -152,7 +152,7 @@ fn a_2d_body_is_put_to_sleep_and_woken_one_by_one_and_all_at_once() {
         BODY_2D,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         if n.body2d.is_sleeping() { log::error("a new body is asleep"); }
         n.body2d.sleep();
@@ -177,7 +177,7 @@ fn a_2d_kinematic_body_reports_where_it_was_told_to_go() {
         BODY_2D,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             let mover = scene::root().get_node("World/Mover");
@@ -200,7 +200,7 @@ fn a_3d_body_reports_its_mass_energy_and_dominance() {
         BODY_3D,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         if n.body3d.total_mass() != 2.0 { log::error("total_mass is {n.body3d.total_mass()}, not the stated 2"); }
         n.body3d.set_linear_velocity(vec3(3.0, 0.0, 0.0));
@@ -231,11 +231,11 @@ fn a_3d_body_predicts_the_pull_of_its_forces() {
         BODY_3D,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         self.node.body3d.add_constant_force(vec3(4.0, 0.0, 0.0));
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
             let n = self.node;
@@ -258,7 +258,7 @@ fn a_3d_body_is_put_to_sleep_and_woken_one_by_one_and_all_at_once() {
         BODY_3D,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let n = self.node;
         if n.body3d.is_sleeping() { log::error("a new body is asleep"); }
         n.body3d.sleep();
@@ -284,7 +284,7 @@ fn a_3d_bodys_hardest_contact_counts_its_child_colliders() {
         BODY_3D,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 20 {
             let held = scene::root().get_node("World/Dropped").body3d.max_contact_impulse();

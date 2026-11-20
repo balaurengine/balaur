@@ -5,5 +5,5 @@ pub class Noop {
 }
 
 impl Noop {
-    fn update(dt: float) {}
+    pub fn update(dt: float) {}
 }

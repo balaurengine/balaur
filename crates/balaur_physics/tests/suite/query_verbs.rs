@@ -50,7 +50,7 @@ fn the_2d_world_answers_point_box_shape_ray_and_pair_queries() {
         BALLS,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let far = scene::root().get_node("World/Far");
         let found = physics2d::closest_point(physics2d::PointQuery { point: vec2(3.0, 6.0), max_distance: 100.0 });
         if found == nil { log::error("closest_point found nothing"); }
@@ -83,7 +83,7 @@ fn the_3d_world_answers_a_box_query_and_a_collider_names_its_handles() {
         BALLS,
         r#"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let boxed = physics3d::overlap_aabb(physics3d::BoxQuery { min: vec3(-1.0, 5.0, -1.0), max: vec3(1.0, 7.0, 1.0) });
         if !(boxed.len() == 1 && boxed[0] == self.node) { log::error("overlap_aabb found {boxed.len()} around the near ball"); }
         let none = physics3d::overlap_aabb(physics3d::BoxQuery { min: vec3(5.0, 5.0, 5.0), max: vec3(6.0, 6.0, 6.0) });
@@ -114,7 +114,7 @@ fn two_meshes_are_intersected_and_a_mesh_is_split_into_its_pieces() {
 
 pub class Scenario { node: Node }
 impl Scenario {
-    fn init() {
+    pub fn init() {
         let a: [Vec3] = [];
         let ai: [int] = [];
         cube(0.0, 0, a, ai);

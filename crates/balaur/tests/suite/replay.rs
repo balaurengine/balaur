@@ -6,7 +6,7 @@ use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 
 const SCRIPT: &str = "pub class Runner { node: Node }
 impl Runner {
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         if input::key_down(input::KEY_SPACE) { let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0); }
     }
 }
@@ -120,7 +120,7 @@ fn a_recording_that_cannot_be_read_answers_nil() {
         dir.path().join("scripts").join("runner.bs"),
         "pub class Runner { node: Node, pub info_nil: bool, pub load_nil: bool }
 impl Runner {
-    fn init() {
+    pub fn init() {
         self.info_nil = replay::info(\"nope.blr\") == nil;
         self.load_nil = replay::load(\"nope.blr\") == nil;
     }
@@ -157,7 +157,7 @@ fn a_replay_starts_in_the_dark_mode_its_recording_started_in() {
         dir.path().join("scripts").join("runner.bs"),
         "pub class Runner { node: Node, dark: bool }
 impl Runner {
-    fn init() {
+    pub fn init() {
         self.dark = engine::dark_mode();
     }
 }

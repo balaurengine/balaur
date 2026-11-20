@@ -17,7 +17,7 @@ pub class Try {
 }
 
 impl Try {
-    fn init() {
+    pub fn init() {
         log::info("{double(21)}");
     }
 }
@@ -43,7 +43,7 @@ pub class Doubles {
 }
 
 impl Doubles {
-    fn init() {
+    pub fn init() {
         if double(21) != 42 {
             log::error("double is wrong");
         }

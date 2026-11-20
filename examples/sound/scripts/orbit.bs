@@ -10,11 +10,11 @@ pub class Orbit {
 }
 
 impl Orbit {
-    fn init() {
+    pub fn init() {
         render::set_background(color(0.07, 0.08, 0.10, 1.0));
     }
 
-    fn fixed_update(dt: float) {
+    pub fn fixed_update(dt: float) {
         self.angle += dt * TURNS_PER_SECOND * math::TAU;
         self.node.transform.position = vec3(math::cos(self.angle) * RADIUS, math::sin(self.angle) * RADIUS, 0.0);
     }

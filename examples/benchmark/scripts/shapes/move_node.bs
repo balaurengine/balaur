@@ -8,11 +8,11 @@ pub class MoveNode {
 }
 
 impl MoveNode {
-    fn init() {
+    pub fn init() {
         self.home = self.node.transform.position;
     }
 
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         self.t += dt;
         let at = self.home;
         self.node.transform.position = vec3(at.x, at.y + math::sin(self.t) * 4.0, at.z);

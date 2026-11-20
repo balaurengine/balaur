@@ -86,7 +86,7 @@ fn the_right_and_middle_buttons_reach_a_node_as_the_left_does() {
 #[test]
 fn an_action_let_go_is_heard_as_one_pressed_is() {
     let script = ear(r#"
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if scene::variable("heard").as_int() == 0 { input::set_action_value("jump", 1.0); }
     }
     pub fn on_action_pressed(name: str) { tell("pressed {name}"); }
@@ -127,7 +127,7 @@ fn the_device_s_changes_reach_every_script() {
 #[test]
 fn a_setting_and_a_language_a_script_changes_are_heard_the_next_frame() {
     let script = ear(r#"
-    fn update(dt: float) {
+    pub fn update(dt: float) {
         if scene::variable("said").as_str() == "" {
             scene::set_variable("said", "asked;");
             settings::set("audio/volume", 0.5);
@@ -150,8 +150,8 @@ fn a_setting_and_a_language_a_script_changes_are_heard_the_next_frame() {
 fn a_script_listening_for_logged_hears_a_line_written() {
     balaur_core::logbuf::capture_for_test();
     let script = ear(r#"
-    fn init() { events::listen(self.node, "logged"); }
-    fn update(dt: float) {
+    pub fn init() { events::listen(self.node, "logged"); }
+    pub fn update(dt: float) {
         if scene::variable("said").as_str() == "" {
             scene::set_variable("said", "asked;");
             log::info("a line for the log view");
@@ -171,8 +171,8 @@ fn a_script_listening_for_logged_hears_a_line_written() {
 #[test]
 fn a_script_listening_for_assets_reloaded_hears_an_invalidate() {
     let script = ear(r#"
-    fn init() { events::listen(self.node, "assets_reloaded"); }
-    fn update(dt: float) {
+    pub fn init() { events::listen(self.node, "assets_reloaded"); }
+    pub fn update(dt: float) {
         if scene::variable("said").as_str() == "" {
             scene::set_variable("said", "asked;");
             assets::invalidate();
@@ -192,8 +192,8 @@ fn a_script_listening_for_assets_reloaded_hears_an_invalidate() {
 #[test]
 fn a_script_listening_for_changed_hears_what_the_writes_changed() {
     let script = ear(r#"
-    fn init() { events::listen(self.node, "changed"); }
-    fn update(dt: float) {
+    pub fn init() { events::listen(self.node, "changed"); }
+    pub fn update(dt: float) {
         let said = scene::variable("said").as_str();
         if said == "" {
             scene::set_variable("said", "waited;");
@@ -237,8 +237,8 @@ fn a_script_listening_for_changed_hears_what_the_writes_changed() {
 #[test]
 fn a_script_listening_for_changed_under_a_node_hears_that_subtree() {
     let script = ear(r#"
-    fn init() { events::listen(self.node, "changed", self.node); }
-    fn update(dt: float) {
+    pub fn init() { events::listen(self.node, "changed", self.node); }
+    pub fn update(dt: float) {
         let said = scene::variable("said").as_str();
         if said == "" {
             scene::set_variable("said", "waited;");
@@ -269,7 +269,7 @@ fn a_script_listening_for_changed_under_a_node_hears_that_subtree() {
 #[test]
 fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
     let script = ear(r#"
-    fn init() { events::listen(self.node, "pointer_scrolled"); }
+    pub fn init() { events::listen(self.node, "pointer_scrolled"); }
     pub fn on_pointer_scrolled(turn: any) { tell("scrolled {turn[1]}"); }
 "#);
     let (_dir, mut app) = app_with(&script);
@@ -289,7 +289,7 @@ fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
 #[test]
 fn a_script_listening_for_files_dropped_hears_the_paths() {
     let script = ear(r#"
-    fn init() { events::listen(self.node, "files_dropped"); }
+    pub fn init() { events::listen(self.node, "files_dropped"); }
     pub fn on_files_dropped(paths: any) { tell("dropped {paths[0].as_str()}"); }
 "#);
     let (_dir, mut app) = app_with(&script);

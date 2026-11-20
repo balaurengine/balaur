@@ -102,7 +102,7 @@ pub class Inspector {
 }
 
 impl Inspector {
-    fn init() {
+    pub fn init() {
         let tree: scene_tree::SceneTree? = self.node.get_node("../Tree").script;
         if tree != nil {
             log::info("{tree.unwrap().size}");

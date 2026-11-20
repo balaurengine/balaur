@@ -30,7 +30,7 @@ use addons::gamend::users;
 pub class Probe { node: Node, socket: int }
 
 impl Probe {
-    async fn init() {
+    pub async fn init() {
         client::configure("@URL@", "");
         let login = await client::login_device("@DEVICE@");
         let me = await users::get_current_user();
@@ -58,7 +58,7 @@ use addons::gamend::client;
 pub class Probe { node: Node }
 
 impl Probe {
-    async fn init() {
+    pub async fn init() {
         client::configure("http://127.0.0.1:9", "");
         let google = await client::login_google("google-id-token");
         let apple = await client::login_apple("apple-code");

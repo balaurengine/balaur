@@ -128,8 +128,12 @@ impl File {
         }
     }
 
+    /// A `pub` method: the only kind the engine, `node.call` and a binding reach.
     fn method(&self, name: &str) -> Option<&balaur_bs::FnInfo> {
-        self.compiled.meta.method(&self.ty, name)
+        self.compiled
+            .meta
+            .method(&self.ty, name)
+            .filter(|info| info.public)
     }
     fn field_ty(&self, name: &str) -> Option<Ty> {
         self.compiled
