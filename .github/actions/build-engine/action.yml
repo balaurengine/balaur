@@ -14,8 +14,8 @@ inputs:
     default: ""
   platform:
     description: >-
-      A runtime template to build instead of a desktop one: ios, android or
-      web.
+      A runtime template to build instead of a desktop one: ios, ios-sim
+      (Xcode's Simulator), android or web.
     required: false
     default: ""
   features:

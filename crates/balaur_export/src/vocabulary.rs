@@ -15,6 +15,7 @@ pub(crate) mod words {
         pub(crate) const ANDROID: &str = "android";
         pub(crate) const ARM64_V8A: &str = "arm64-v8a";
         pub(crate) const IOS: &str = "ios";
+        pub(crate) const IOS_SIM: &str = "ios-sim";
         pub(crate) const LINUX_ARM64: &str = "linux-arm64";
         pub(crate) const LINUX_X64: &str = "linux-x64";
         pub(crate) const MACOS_UNIVERSAL: &str = "macos-universal";

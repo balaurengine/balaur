@@ -40,6 +40,7 @@ pub(crate) mod words {
     pub(crate) mod targets {
         pub(crate) const ANDROID: &str = "android";
         pub(crate) const IOS: &str = "ios";
+        pub(crate) const IOS_SIM: &str = "ios-sim";
         pub(crate) const MACOS_UNIVERSAL: &str = "macos-universal";
         pub(crate) const PACK: &str = "pack";
         pub(crate) const WEB: &str = "web";

@@ -94,6 +94,7 @@ notes=$(
 - `balaur-editor-<platform>` — the editor, as an archive
 - `balaur-runtime-<platform>` — one desktop runtime
 - `balaur-runtime-ios` / `-android` / `-web.tar.gz` — mobile and web runtimes
+- `balaur-runtime-ios-sim.tar.gz` — the iOS runtime for Xcode's Simulator, `--target ios-sim`
 - `balaur-runtime-<target>-2d` / `-3d` — every runtime with one physics world
 - `balaur-runtime-<target>-bare` — every runtime with neither
 - `balaur-runtime-<desktop>-server` — a headless dedicated-server runtime per desktop

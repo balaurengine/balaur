@@ -3,11 +3,11 @@
 # shape that platform installs or serves. Why it stops there:
 # docs/PLAN-mobile-export.md step 2.
 #
-# Usage: [BALAUR_EXPORTER=<editor>] export_check.sh <ios|android|web>[-2d|-3d|-bare]
+# Usage: [BALAUR_EXPORTER=<editor>] export_check.sh <ios|ios-sim|android|web>[-2d|-3d|-bare]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-platform=${1:?usage: export_check.sh <ios|android|web>[-2d|-3d|-bare]}
+platform=${1:?usage: export_check.sh <ios|ios-sim|android|web>[-2d|-3d|-bare]}
 base=${platform%-[23]d}
 base=${base%-bare}
 # What a variant's examples are written to, beside the platform's own.
@@ -52,7 +52,7 @@ esac
 ./scripts/with_icon.sh "$work/project"
 # The capabilities an Apple game declares are export-side, so the check needs a
 # project that declares some.
-if [ "$base" = ios ]; then
+if [ "$base" = ios ] || [ "$base" = ios-sim ]; then
   cat >>"$work/project/project.toml" <<'TOML'
 
 [apple]
@@ -98,7 +98,7 @@ fi
   "$balaur" export project --target "$base" $apk)
 
 case $base in
-ios)
+ios | ios-sim)
   app="$work/project.app"
   [ -d "$app" ] || fail "no $app"
   [ -f "$app/game.bpak" ] || fail "the exported .app carries no pack"
@@ -110,10 +110,15 @@ ios)
   # `file` says arm64 Mach-O for host and iOS alike, so ask the load command.
   # Which one it is depends on the deployment target: LC_BUILD_VERSION names a
   # platform, LC_VERSION_MIN_IPHONEOS names iOS by existing at all.
+  if [ "$base" = ios-sim ]; then
+    built='platform +IOSSIMULATOR'
+  else
+    built='platform +IOS( |$)|LC_VERSION_MIN_IPHONEOS'
+  fi
   if command -v vtool >/dev/null 2>&1; then
     build=$(vtool -show-build "$app/Balaur" 2>/dev/null || true)
-    grep -qiE 'platform +IOS|LC_VERSION_MIN_IPHONEOS' <<<"$build" ||
-      fail "the .app executable was not built for iOS: $(tr '\n' ' ' <<<"$build")"
+    grep -qiE "$built" <<<"$build" ||
+      fail "the .app executable was not built for $base: $(tr '\n' ' ' <<<"$build")"
   fi
   grep -q '<string>org.balaur.example</string>' "$app/Info.plist" ||
     fail "Info.plist does not carry the project's own bundle identifier"
@@ -139,7 +144,7 @@ ios)
     plutil -lint "$ent" >/dev/null || fail "the entitlements are not a valid plist"
   fi
   printf '\nexported %s\n' "$app"
-  (cd "$work" && tar -czf "$dist/balaur-example-ios$suffix.tar.gz" "project.app")
+  (cd "$work" && tar -czf "$dist/balaur-example-$platform.tar.gz" "project.app")
   ;;
 android)
   layout="$work/project-android"
@@ -205,7 +210,7 @@ web)
   printf '\nexported %s\n' "$out"
   (cd "$work" && tar -czf "$dist/balaur-example-$platform.tar.gz" "project-web")
   ;;
-*) fail "unknown platform \"$platform\" (expected ios, android or web, each with -2d, -3d or -bare)" ;;
+*) fail "unknown platform \"$platform\" (expected ios, ios-sim, android or web, each with -2d, -3d or -bare)" ;;
 esac
 
 rm -rf "$work"

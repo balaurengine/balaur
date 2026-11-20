@@ -263,8 +263,13 @@ impl Icons {
     /// catalog with the dark and tinted forms, which is what the App Store
     /// takes; elsewhere it is the loose files a device install reads.
     /// Answers the `Info.plist` keys that name them.
-    pub(crate) fn write_ios(&self, app: &Path, minimum: &str) -> Result<String> {
-        if let Some(catalog) = self.compile_catalog(app, app, Catalog::Ios, minimum) {
+    pub(crate) fn write_ios(&self, app: &Path, minimum: &str, simulator: bool) -> Result<String> {
+        let platform = if simulator {
+            Catalog::IosSimulator
+        } else {
+            Catalog::Ios
+        };
+        if let Some(catalog) = self.compile_catalog(app, app, platform, minimum) {
             return Ok(catalog);
         }
         for (file, size) in [
@@ -368,7 +373,7 @@ impl Icons {
                 )
             };
             match catalog {
-                Catalog::Ios => {
+                Catalog::Ios | Catalog::IosSimulator => {
                     let file = format!("icon{suffix}.png");
                     write(&set.join(&file), &png(picture, SIDE))?;
                     images.push(format!(
@@ -503,6 +508,9 @@ fn json_string(text: &str) -> String {
 #[derive(Clone, Copy)]
 enum Catalog {
     Ios,
+    /// The same catalog compiled for the simulator, whose home screen draws
+    /// no icon from a device's `Assets.car`.
+    IosSimulator,
     Mac,
 }
 
@@ -510,13 +518,14 @@ impl Catalog {
     const fn platform(self) -> &'static str {
         match self {
             Self::Ios => "iphoneos",
+            Self::IosSimulator => "iphonesimulator",
             Self::Mac => "macosx",
         }
     }
 
     const fn devices(self) -> &'static [&'static str] {
         match self {
-            Self::Ios => &["iphone", "ipad"],
+            Self::Ios | Self::IosSimulator => &["iphone", "ipad"],
             Self::Mac => &["mac"],
         }
     }

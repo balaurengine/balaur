@@ -171,6 +171,7 @@ fn note(target: &str) -> &'static str {
         words::targets::MACOS_UNIVERSAL | words::targets::IOS if !cfg!(target_os = "macos") => {
             "signing needs macOS"
         }
+        words::targets::IOS_SIM => "runs in Xcode's Simulator, never on a phone",
         words::targets::ANDROID => {
             "an installable APK needs the Android SDK, an AAB bundletool too"
         }
