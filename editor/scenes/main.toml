@@ -22,7 +22,6 @@ parent = "n_editor"
 [nodes.widget]
 kind = "column"
 interactive = false
-whole_window = true
 # Anchored `fill`, the engine sizes and places it, insets and all; nothing
 # patches it.
 anchor = "fill"
@@ -696,7 +695,6 @@ script = { source = "scripts/panels/manager.bs" }
 visible = false
 [nodes.widget]
 kind = "column"
-whole_window = true
 anchor = "fill"
 role = "sheet_manager"
 [nodes.widget_layout]
@@ -828,7 +826,6 @@ script = { source = "scripts/panels/picker.bs" }
 bindings = { rows = [{ event = "emitted:closed", action = "call", value = "closed" }] }
 [nodes.widget]
 kind = "dialog"
-whole_window = true
 role = "sheet_picker"
 # A `dialog` draws its caption, and the default one is the word "label".
 anchor = "center_top"
@@ -875,7 +872,6 @@ script = { source = "scripts/panels/sheet.bs" }
 bindings = { rows = [{ event = "emitted:closed", action = "call", value = "closed" }] }
 [nodes.widget]
 kind = "dialog"
-whole_window = true
 role = "sheet_dialog"
 [nodes.widget_window]
 # A `dialog` draws its caption, and the default one is the word "label".
@@ -957,7 +953,6 @@ visible = false
 kind = "column"
 role = "layout_split"
 anchor = "top_left"
-whole_window = true
 
 # `--state fontdemo`'s sheet of every script, face and icon, over the stage.
 [[nodes]]
@@ -969,7 +964,6 @@ visible = false
 kind = "panel"
 role = "sheet_picker"
 anchor = "top_left"
-whole_window = true
 
 # The box select's outline, placed while the drag lasts.
 [[nodes]]
@@ -980,7 +974,6 @@ visible = false
 [nodes.widget]
 kind = "panel"
 anchor = "top_left"
-whole_window = true
 fill = "none"
 stroke = "primary_text"
 dashed = true

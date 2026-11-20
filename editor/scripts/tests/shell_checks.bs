@@ -98,7 +98,11 @@ pub fn layout_step(state: &mut editor::State) {
         selftest::check(stage_width >= floor.width && stage_height >= floor.height, "the stage keeps its floor ({stage_width as int} × {stage_height as int})");
     }
     selftest::check(!layout::over_sheet(state, stage_x + stage_width / 2.0, stage_y + stage_height / 2.0), "the middle of the stage belongs to the scene");
-    selftest::check(state.viewport.width == stage_width && state.viewport.height == stage_height, "the widget layer gets the stage rect");
+    selftest::check(state.viewport.width == stage_width && state.viewport.height == stage_height, "the game's screen is placed from the stage rect");
+    if state.mirror != nil && !state.playing && state.workspace != defs::WORKSPACE_UI {
+        let screen = state.mirror.unwrap();
+        selftest::check(screen.widget.kind == ui::WIDGET_VIEWPORT && screen.widget.width == 0.0, "a game's widgets have no screen outside play and the Interface");
+    }
     // Every sheet the shell is showing is placed: a zero rect turns egui's
     // own area constraint back on and piles the shell into the corner. A
     // folded dock is showing nothing, and has no rect to be wrong about.

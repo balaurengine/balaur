@@ -1,5 +1,5 @@
 // The strip along the stage's foot that the axis and zoom pills own. The
-// widget layer is inset by it, so a game's bottom-anchored HUD sits above
+// game's screen stops short of it, so a game's bottom-anchored HUD sits above
 // the editor's chrome rather than under it.
 
 use complete;

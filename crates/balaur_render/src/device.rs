@@ -192,17 +192,12 @@ impl Probe {
     }
 }
 
-/// The widget layer's default surface in physical pixels, so touch controls
-/// sit where the game's widgets do: the viewport in the editor, and nowhere
-/// while the host has the game's surface off.
+/// The screen the game's widgets draw on in physical pixels, so touch controls
+/// sit where they do: its viewport in the editor, nowhere while that viewport
+/// has no size, and the window everywhere else.
 fn game_area(app: &App, scale: f32) -> Option<[f32; 4]> {
-    let layer = app.engine.try_resource::<balaur_ui::WidgetLayerConfig>()?;
-    let layer = layer.borrow();
-    if !layer.enabled {
-        return Some([0.0; 4]);
-    }
-    // The layer measures in design pixels and this fact is physical.
-    layer.rect.map(|rect| rect.map(|v| v * scale))
+    // Measured in design pixels; this fact is physical.
+    balaur_ui::content_screen(&app.engine).map(|rect| rect.map(|v| v * scale))
 }
 
 /// Hand the scale a script asked for to egui, as its zoom factor, before

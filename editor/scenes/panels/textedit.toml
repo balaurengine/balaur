@@ -10,7 +10,6 @@ visible = false
 kind = "panel"
 role = "sheet_textedit"
 anchor = "top_left"
-whole_window = true
 
 [[nodes]]
 id = "field"

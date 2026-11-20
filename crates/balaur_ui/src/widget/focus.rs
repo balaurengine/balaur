@@ -147,19 +147,19 @@ pub(super) fn around(
 /// Every widget the scene is showing, in the order the draw reaches them.
 ///
 /// Walked from the roots rather than read off the arena: a button under a
-/// hidden panel or on a surface the host turned off is never drawn, and an
+/// hidden panel or in a viewport drawn at no size is never drawn, and an
 /// `accept` on it would be a click nobody could have seen to ask for.
 pub(super) fn reachable(
     placed: &[Placed],
     roots: &[usize],
-    on: &dyn Fn(&Widget) -> bool,
+    on: &dyn Fn(usize) -> bool,
 ) -> Vec<usize> {
     let mut stops = Vec::new();
     let mut stack: Vec<usize> = roots
         .iter()
         .rev()
         .copied()
-        .filter(|&root| on(&placed[root].widget))
+        .filter(|&root| on(root))
         .collect();
     while let Some(index) = stack.pop() {
         let one = &placed[index];

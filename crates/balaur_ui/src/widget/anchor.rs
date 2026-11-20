@@ -156,3 +156,31 @@ fn wide(widget: &Widget, area: egui::Rect) -> Option<(egui::Pos2, Align2, egui::
         _ => return None,
     })
 }
+
+/// Give egui the box the layout solved for a root it has never shown: with a
+/// size on record, egui skips the pass that would only measure it. `false`
+/// where the layout has no box for the root.
+pub(crate) fn seed_area(
+    ctx: &egui::Context,
+    rect: Option<&egui::Rect>,
+    layer: egui::LayerId,
+    (pos, pivot): (egui::Pos2, Align2),
+    interactable: bool,
+) -> bool {
+    let Some(rect) = rect else {
+        return false;
+    };
+    ctx.memory_mut(|m| {
+        m.areas_mut().set_state(
+            layer,
+            egui::AreaState {
+                pivot_pos: Some(pos),
+                pivot,
+                size: Some(rect.size()),
+                interactable,
+                last_became_visible_at: None,
+            },
+        );
+    });
+    true
+}

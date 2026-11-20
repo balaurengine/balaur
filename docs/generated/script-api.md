@@ -56,7 +56,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 39 | 64 |
+| [`ui`](#ui) | 38 | 65 |
 | [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -1232,7 +1232,6 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `set_load_progress` | `(float, str?)` |
 | `set_scale` | `(float)` |
 | `set_theme` | `(any)` |
-| `set_widget_layer` | `(bool, Vec2?, Vec2?)` |
 | `tab_rect` | `(Node) -> ui::Rect?` |
 | `takes_pointer_at` | `(Vec2) -> bool` |
 | `wants_keyboard` | `() -> bool` |
@@ -1241,7 +1240,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `width_class` | `() -> str` |
 | `window_size` | `() -> Vec2` |
 
-**Constants** (64):
+**Constants** (65):
 
 | Name | Value |
 | --- | --- |
@@ -1270,7 +1269,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `FONT_STYLE_NORMAL` | `"normal"` |
 | `FONT_STYLE_OBLIQUE` | `"oblique"` |
 
-…and 40 more.
+…and 41 more.
 
 ## `websocket`
 

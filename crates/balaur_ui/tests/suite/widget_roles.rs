@@ -148,25 +148,17 @@ fn a_grow_child_of_a_fill_root_takes_what_is_left() {
         "type = \"widget_theme\"\n\n[roles.ground]\npadding = 14.0\ngap = 10.0\n\n[roles.strip]\nwidth = 620.0\nheight = 34.0\n\n[roles.wide]\nwidth = 620.0\n",
     )
     .unwrap();
-    // Two fill roots on one named surface, as the editor's shell and start
-    // screen are: the second is what the start screen found empty.
+    // Two fill roots on the window, as the editor's shell and start screen
+    // are: the second is what the start screen found empty.
     let _under = add_widget(
         &app,
-        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" whole_window = true }
-            .into(),
+        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" }.into(),
     );
     let root = add_widget(
         &app,
-        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" whole_window = true role = "ground" safe_area = ["left", "top", "right", "bottom"] }
+        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" role = "ground" safe_area = ["left", "top", "right", "bottom"] }
             .into(),
     );
-    // The default surface off, the way the start screen points it while it is up.
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        let mut config = config.borrow_mut();
-        config.enabled = false;
-        config.rect = Some([0.0, 0.0, 0.0, 0.0]);
-    }
     let kid = |name: &str, params: toml::Value| {
         let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), name, root);
         balaur::components::add(&app.engine, node, "widget", Some(&params)).unwrap();

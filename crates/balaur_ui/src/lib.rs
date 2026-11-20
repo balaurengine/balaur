@@ -57,6 +57,25 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget::arrange::drawn_at(entity)
 }
 
+/// The screen the played content draws on, `[x, y, width, height]` in design
+/// pixels: the `viewport` at or above the content's root, zero while that
+/// viewport is not drawn. `None` where no viewport holds it, so the window is.
+#[must_use]
+pub fn content_screen(eng: &Engine) -> Option<[f32; 4]> {
+    let mut at = balaur_core::project::content_scope(eng)?;
+    let world = eng.world();
+    loop {
+        let viewport = world
+            .get::<&widget::node::Widget>(at)
+            .is_ok_and(|widget| widget.kind == vocabulary::words::VIEWPORT);
+        if viewport {
+            let rect = widget::arrange::drawn_at(at).unwrap_or(egui::Rect::ZERO);
+            return Some([rect.min.x, rect.min.y, rect.width(), rect.height()]);
+        }
+        at = world.get::<&balaur_core::scene::Parent>(at).ok()?.0;
+    }
+}
+
 /// What a widget asked for when it was last laid out, before its container
 /// grew or shrank it, in design pixels; `None` before it was laid out. A
 /// hidden one keeps what it asked for when last shown.

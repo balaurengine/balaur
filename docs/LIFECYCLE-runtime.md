@@ -1871,25 +1871,39 @@ Source: `crates/balaur_ui/src/routing.rs`, `PointerRoute.held`.
 
 Starts in `None`. Never ends.
 
-### Widget layer
+### Widget keyboard
 
-`WidgetLayerConfig` holds whether roots draw and whether keys move focus. A `whole_window` root draws over the whole window whatever `enabled` says.
+`WidgetLayerConfig` holds whether keys move focus.
 
-Source: `crates/balaur_ui/src/widget/node.rs`, `WidgetLayerConfig.enabled`, `WidgetLayerConfig.keyboard` and `Surface`; `crates/balaur/src/lib.rs`, `drive_ui_focus`.
+Source: `crates/balaur_ui/src/widget/node.rs`, `WidgetLayerConfig.keyboard`; `crates/balaur/src/lib.rs`, `drive_ui_focus`.
 
 | State | What is true |
 |---|---|
-| `enabled=true` | Roots draw, in `rect` or the whole window. |
-| `enabled=false` | Roots draw nothing, and their widgets are no focus stops. |
 | `keyboard=true` | The arrows, Tab, Enter and Space move and activate focus, while egui does not want the keyboard. |
 | `keyboard=false` | They do nothing to focus: the game took them. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | Script `ui.set_widget_layer` | `enabled` as asked | Writes `rect` too. |
 | any | `drive_ui_focus`, each frame | `keyboard` as read | True where the project declares `ui_accept`, `ui_next` or `ui_previous`, or where no action binds those keys and no script has read one. |
 
-Starts with both true. Never ends.
+Starts true. Never ends.
+
+### Viewport
+
+A `viewport` widget is the screen for the widgets under it, each a root placed against its box. Whether it shows them is read from its rect each pass.
+
+Source: `crates/balaur_ui/src/widget/layer.rs`, `draw_roots` and `screen_of`; `crates/balaur_ui/src/widget/arena.rs`, `Placed.screen`.
+
+| State | What is true |
+|---|---|
+| shown | Visible and drawn with an area this pass: the widgets in it draw, clipped to it, and take focus and clicks inside it. |
+| off | Hidden, or drawn with no width or height: the widgets in it draw nothing and are no focus stops. |
+
+| From | Trigger | To | What it does |
+|---|---|---|---|
+| any | Its `width`, `height` or visibility written, or its container resized | as read next pass | Focus reads the last pass's rect, the draw this pass's. |
+
+Starts as its first pass draws it. Ends when the node is freed.
 
 ## Render
 

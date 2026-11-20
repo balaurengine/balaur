@@ -188,15 +188,22 @@ internal fn relayout(state: &mut editor::State) {
     }
 }
 
-// The game's UI layer, clipped to the viewport during play and in the
-// Interface workspace; placed when the stage, play or the workspace moves.
+// The game's screen: the stage during play and in the Interface workspace,
+// no size otherwise; placed when the stage, play or the workspace moves.
 internal fn widget_layer(state: editor::State) {
+    if state.mirror == nil || !state.mirror.unwrap().is_valid() {
+        return;
+    }
     let rect = gizmo::viewport_rect(state);
     let widgets_on = (state.playing || state.workspace == defs::WORKSPACE_UI) && state.viewport_live;
-    // Inset by the strip the axis and zoom pills own, so a bottom-anchored
+    // Short of the strip the axis and zoom pills own, so a bottom-anchored
     // HUD label sits above the editor's chrome instead of under it.
-    let band = if widgets_on { center::hud_height(state) + 6.0 } else { 0.0 };
-    ui::set_widget_layer(widgets_on, vec2(rect.x, rect.y), vec2(rect.width, math::max(0.0, rect.height - band)));
+    let band = center::hud_height(state) + 6.0;
+    let screen = state.mirror.unwrap();
+    screen.widget.x = rect.x;
+    screen.widget.y = rect.y;
+    screen.widget.width = if widgets_on { rect.width } else { 0.0 };
+    screen.widget.height = if widgets_on { math::max(0.0, rect.height - band) } else { 0.0 };
 }
 
 /// What the layout is decided from besides the boxes themselves, so a word

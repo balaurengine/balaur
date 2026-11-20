@@ -9,16 +9,18 @@ use egui::{Align2, Color32, pos2, vec2};
 use smol_str::SmolStr;
 
 use crate::vocabulary::words as w;
-use crate::widget::arena::{Begun, Look, Placed, begin, keep, look_of, stamp_now};
+use crate::widget::arena::{
+    Begun, Look, Placed, begin, keep, look_of, screen_of, stamp_now, takes_pointer,
+};
 use crate::widget::arrange::{
-    Axis, contain, hold_to, lay_out_within, padding_of, record_rect, roll_measurements, scroller,
-    settle_rects, solved_of, tabs,
+    Axis, contain, drawn_at, hold_to, lay_out_within, padding_of, placing_at, record_rect,
+    roll_measurements, scroller, settle_rects, solved_of, tabs,
 };
 use crate::widget::focus::{
     advance, focus_before, focus_moved, focus_stops, keyboard_move, keyboard_side, reachable,
     shortcuts,
 };
-use crate::widget::node::{Surface, UiFocus, Widget, WidgetLayerConfig};
+use crate::widget::node::{UiFocus, Widget, WidgetLayerConfig};
 use crate::widget::paint::Brush;
 use crate::widget::theme::{Pointer, Style, WidgetState, WidgetTheme, face, rich, theme_of};
 
@@ -91,28 +93,23 @@ fn paint_to_the_edge(ui: &mut egui::Ui, at: &mut Painting<'_>, root: usize, kept
     }
 }
 
-/// Every visible root, each where it draws.
-fn draw_roots(
-    ctx: &egui::Context,
-    painting: &mut Painting<'_>,
-    roots: &[usize],
-    surface_of: &dyn Fn(&Widget) -> Surface,
-) {
-    let (placed, screen) = (painting.arena, painting.surface);
+/// Every visible root, each on its screen: the window, or the `viewport` it
+/// sits in, as that viewport was drawn this pass. A viewport drawn at no size
+/// draws nothing in it.
+fn draw_roots(ctx: &egui::Context, painting: &mut Painting<'_>, roots: &[usize]) {
+    let (placed, window) = (painting.arena, painting.surface);
     for &root in roots {
-        let widget = &placed[root].widget;
-        if !widget.visible {
+        if !placed[root].widget.visible {
             continue;
         }
-        let surface = surface_of(widget);
-        if !surface.enabled {
-            continue;
-        }
-        let area = match surface.rect {
-            Some([x, y, w, h]) => egui::Rect::from_min_size(pos2(x, y), vec2(w, h)),
-            None => screen,
+        let area = match placed[root].screen {
+            None => window,
+            Some(viewport) => match screen_of(placed, viewport, placing_at) {
+                Some(rect) => rect,
+                None => continue,
+            },
         };
-        draw_root(ctx, painting, root, area);
+        draw_root(ctx, painting, root, area, placed[root].screen.is_some());
     }
 }
 
@@ -121,16 +118,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
     };
-    let (default, keyboard) = {
-        let layer = layer.borrow();
-        (
-            Surface {
-                enabled: layer.enabled,
-                rect: layer.rect,
-            },
-            layer.keyboard,
-        )
-    };
+    let keyboard = layer.borrow().keyboard;
     let screen = ctx.viewport_rect();
     crate::widget::input::follow_hearers(eng);
     let stamp = stamp_now(eng);
@@ -147,13 +135,6 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         crate::access::written(eng, ctx, &[], &[], &[]);
         return;
     }
-    let surface_of = |widget: &Widget| {
-        if widget.whole_window {
-            Surface::default()
-        } else {
-            default
-        }
-    };
     let was_focused = eng
         .try_resource::<UiFocus>()
         .and_then(|f| f.borrow().focused);
@@ -161,7 +142,13 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let keys = keyboard && !ctx.egui_wants_keyboard_input();
     let asked = keys.then(|| keyboard_move(ctx)).flatten();
     let side = keys.then(|| keyboard_side(ctx)).flatten();
-    let shown = reachable(&placed, &roots, &|widget| surface_of(widget).enabled);
+    // Last pass's rects: the keyboard moves before this pass draws anything.
+    let live = |root: usize| {
+        placed[root]
+            .screen
+            .is_none_or(|viewport| screen_of(&placed, viewport, drawn_at).is_some())
+    };
+    let shown = reachable(&placed, &roots, &live);
     let stops = focus_stops(&placed, &shown);
     let accepted = advance(eng, &stops, asked, side);
     let turned = turned_fold(&placed, accepted);
@@ -195,7 +182,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         under: Vec::new(),
         shown: Vec::new(),
     };
-    draw_roots(ctx, &mut painting, &roots, &surface_of);
+    draw_roots(ctx, &mut painting, &roots);
     settle(eng, ctx);
     crate::access::written(eng, ctx, &placed, &roots, &shown);
     let mut edits = std::mem::take(&mut painting.edits);
@@ -225,10 +212,41 @@ fn settle(eng: &Engine, ctx: &egui::Context) {
     crate::widget::taffy::sweep(eng);
 }
 
-/// Draw one root into the area its surface gives it, and record where it
+/// The egui area a root draws in: at `pos` by `align`, at its `order`, kept
+/// to `clip` where it sits in a viewport.
+fn root_area(
+    root: &Placed,
+    (pos, align, assigned, order): (egui::Pos2, Align2, egui::Vec2, egui::Order),
+    clip: Option<egui::Rect>,
+) -> egui::Area {
+    let mut area = egui::Area::new(egui::Id::unique((BALAUR_WIDGET, root.entity)))
+        .order(order)
+        .pivot(align)
+        .fixed_pos(pos)
+        .interactable(takes_pointer(root));
+    if assigned != egui::Vec2::ZERO {
+        // Egui's first frame otherwise guesses a size and pushes the corner
+        // in to keep the guess on screen, and the cursor keeps it there.
+        area = area.default_size(assigned);
+    }
+    if let Some(clip) = clip {
+        area = area.constrain_to(clip);
+    }
+    // A widget appears when the scene says so, at the alpha its own theme
+    // sets, unless it asks for egui's fade.
+    area.fade_in(root.widget.egui.fade_in)
+}
+
+/// Draw one root into the area its screen gives it, and record where it
 /// landed. Split from [`draw`] under `MAX_FN_LINES`; the seam is one root's
 /// own placement and pass, which needs nothing from the loop around it.
-fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area: egui::Rect) {
+fn draw_root(
+    ctx: &egui::Context,
+    painting: &mut Painting<'_>,
+    root: usize,
+    area: egui::Rect,
+    confined: bool,
+) {
     let (eng, placed) = (painting.eng, painting.arena);
     let entity = placed[root].entity;
     let widget = &placed[root].widget;
@@ -245,6 +263,8 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
     // one with children keeps them clear of the notch and the keyboard.
     let fills = widget.anchor == w::FILL;
     painting.edge_to_edge = area;
+    // A root in a viewport is kept to it, and so is everything it draws.
+    let clip = confined.then_some(area);
     let area = if fills && placed[root].children.is_empty() {
         area
     } else {
@@ -275,21 +295,12 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
     };
     let layer = egui::LayerId::new(order, egui::Id::unique((BALAUR_WIDGET, entity)));
     painting.root_layers.push(layer);
-    let mut root_area = egui::Area::new(egui::Id::unique((BALAUR_WIDGET, entity)))
-        .order(order)
-        .pivot(align)
-        .fixed_pos(pos)
-        .interactable(takes_pointer(&placed[root]));
-    if assigned != egui::Vec2::ZERO {
-        // Egui's first frame otherwise guesses a size and pushes the corner
-        // in to keep the guess on screen, and the cursor keeps it there.
-        root_area = root_area.default_size(assigned);
-    }
-    // A widget appears when the scene says so, at the alpha its own theme
-    // sets, unless it asks for egui's fade.
-    let root_area = root_area.fade_in(widget.egui.fade_in);
+    let root_area = root_area(&placed[root], (pos, align, assigned, order), clip);
     let dragged_by_box = widget.egui.movable && widget.kind != w::WINDOW;
     let fill = |ui: &mut egui::Ui, painting: &mut Painting<'_>| {
+        if let Some(clip) = clip {
+            ui.set_clip_rect(ui.clip_rect().intersect(clip));
+        }
         // A root handed a box reserves it before anything draws: its
         // children are placed at absolute rects and report nothing
         // back, so the area would otherwise hug the first of them.
@@ -312,7 +323,7 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
         .memory(|m| m.area_rect(egui::Id::unique((BALAUR_WIDGET, entity))))
         .is_none()
         && (modal
-            || !seed_area(
+            || !crate::widget::anchor::seed_area(
                 ctx,
                 painting.rects.get(&root),
                 layer,
@@ -347,40 +358,6 @@ fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area
         .memory(|m| m.area_rect(egui::Id::unique((BALAUR_WIDGET, entity))))
         .unwrap_or(shown.rect);
     record_rect(entity, drawn);
-}
-
-/// Whether egui hands a root's layer the pointer: not when the root lets it
-/// through and holds nothing that could take it, as a notice drawn on top.
-fn takes_pointer(root: &crate::widget::arena::Placed) -> bool {
-    !(root.widget.pointer_through && root.children.is_empty())
-}
-
-/// Give egui the box the layout solved for a root it has never shown: with a
-/// size on record, egui skips the pass that would only measure it. `false`
-/// where the layout has no box for the root.
-fn seed_area(
-    ctx: &egui::Context,
-    rect: Option<&egui::Rect>,
-    layer: egui::LayerId,
-    (pos, pivot): (egui::Pos2, Align2),
-    interactable: bool,
-) -> bool {
-    let Some(rect) = rect else {
-        return false;
-    };
-    ctx.memory_mut(|m| {
-        m.areas_mut().set_state(
-            layer,
-            egui::AreaState {
-                pivot_pos: Some(pos),
-                pivot,
-                size: Some(rect.size()),
-                interactable,
-                last_became_visible_at: None,
-            },
-        );
-    });
-    true
 }
 
 /// A `movable` root that is not a window: a drag on its box where no child
@@ -891,7 +868,15 @@ fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &placed.widget;
     let passive = matches!(
         widget.kind.as_str(),
-        w::LABEL | w::PANEL | w::ROW | w::COLUMN | w::GRID | w::STACK | w::SCROLL | w::PROGRESS_BAR
+        w::LABEL
+            | w::PANEL
+            | w::ROW
+            | w::COLUMN
+            | w::GRID
+            | w::STACK
+            | w::SCROLL
+            | w::PROGRESS_BAR
+            | w::VIEWPORT
     );
     if !passive || !widget.hears_click || widget.disabled {
         return;
@@ -932,7 +917,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         (true, true) => SmolStr::default(),
         (true, false) => themed.map_or_else(SmolStr::default, SmolStr::new),
     };
-    let through = widget.pointer_through;
+    let through = widget.pointer_through || widget.kind == w::VIEWPORT;
     if widget.disabled {
         ui.disable();
     }
@@ -974,6 +959,11 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::PROGRESS_BAR => crate::widget::numbers::progress(ui, at, index, &caption, &font, color),
         w::SEPARATOR => crate::widget::kinds::separator(ui, at, index),
         w::STACK => crate::widget::kinds::stack(ui, at, index),
+        // A screen for what sits in it: those draw as roots of their own.
+        w::VIEWPORT => {
+            let size = solved_of(&at.arena[index].widget, &at.style(index), at.assigned);
+            ui.allocate_exact_size(size, egui::Sense::hover());
+        }
         w::FOLD => crate::widget::kinds::fold(ui, at, index, &caption, &font, color),
         // A picture from the project, sized by what it states or by itself.
         w::IMAGE => crate::widget::picture::image(ui, at, index),

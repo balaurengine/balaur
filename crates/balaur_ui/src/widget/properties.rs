@@ -271,7 +271,7 @@ pub(crate) struct WidgetProperties {
     /// Off, the widget is greyed out and swallows its clicks
     #[property(default = true)]
     pub(crate) enabled: bool,
-    /// Corner, edge or middle the offset is measured from: of the surface for a root, of the parent's box inside a `stack`; `fill` takes the whole of it less `inset`
+    /// Corner, edge or middle the offset is measured from: of the screen for a root (the window, or the `viewport` it sits in), of the parent's box inside a `stack`; `fill` takes the whole of it less `inset`
     #[property(default = Anchor::new(w::TOP_LEFT), group = "placement")]
     pub(crate) anchor: Anchor,
     /// A root drawn above every root that is not, as a message read over whatever is on screen
@@ -337,9 +337,6 @@ pub(crate) struct WidgetProperties {
     /// How many times its size the widget and what it holds are drawn, about its middle, as CSS's `scale`: the layout and what sits beside it stay. Times its role's own, in whatever state it is in; a tween pops a count with it, and 0 draws nothing
     #[property(default = 1.0, min = 0.0, group = "placement")]
     pub(crate) scale: f32,
-    /// Whether this root draws over the whole window, whatever `ui.set_widget_layer` says: what an editor's own chrome does. Ignored on a child.
-    #[property(group = "placement")]
-    pub(crate) whole_window: bool,
     /// The edges this root keeps clear of what a notch, a status bar or a home bar covers. A `fill` root's own colour still reaches the edge, and one with no children is a backdrop and reaches it whole
     #[property(flags, default = vec![Edge::new(w::LEFT), Edge::new(w::TOP), Edge::new(w::RIGHT), Edge::new(w::BOTTOM)], group = "placement")]
     pub(crate) safe_area: Vec<Edge>,

@@ -1160,6 +1160,12 @@ write. It walks widgets in scene order and wraps.
   its own `anchor`: what a Godot MarginContainer does, and what a plain
   Control's anchored children do. Every other container queues its children
   up, so `anchor` is read on a root and inside a stack, nowhere else.
+- **A `viewport` is the screen for what sits in it**, as Godot's SubViewport
+  is. Each widget under it is a root of that screen: placed against the
+  viewport's box by the rules a root follows against the window, clipped to
+  it, and given no focus or clicks past its edge. A viewport with no size
+  draws nothing in it. Where a tree is says what its screen is; no widget
+  names one, so a scene draws the same in a window and in an editor's stage.
 - A widget holds no handler name. It announces its events from its node
   (`value_changed`, `submitted`, and a click as `pointer_click`, a world node's name for
   it), and a scene hears one with a `bindings` row: `{ event = "pointer_click",
@@ -1812,8 +1818,8 @@ fire = ["mouse:left"]
   Godot's `TouchScreenButton` is a `Node2D`: the widget pass runs in the
   backend's draw, after actions derive and never headless. They are hit-tested
   in `First` against `DeviceFacts`' recorded `screen_size`, `ui_scale`,
-  `safe_area` and `game_area`, the widget layer's default surface, so a game
-  played in the editor keeps them in the viewport. `balaur_render` only paints
+  `safe_area` and `game_area`, the `viewport` over the played content, so a
+  game played in the editor keeps them in the stage. `balaur_render` only paints
   them.
 - A control *feeds* an action (`InputActions::feed`, `input.set_action_value`)
   rather than being bound to one: the furthest from rest wins against the

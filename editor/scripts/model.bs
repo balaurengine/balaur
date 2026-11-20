@@ -703,6 +703,9 @@ pub fn set_view_2d(centre_x: float, centre_y: float, zoom: float) {
 fn mirror(state: &mut editor::State) -> Node {
     if state.mirror == nil || !state.mirror.unwrap().is_valid() {
         let made = scene::root().add_child("Edited");
+        // The scene's screen: its widgets are placed and clipped in the stage
+        // as a game's are in the window, and none of them reaches the shell.
+        made.set_component(components::WIDGET, { fields::KIND: ui::WIDGET_VIEWPORT });
         // What the edited scene's writes move, and nothing the shell writes.
         events::listen(scene::root().get_node("Editor"), CHANGED, made);
         debugger::set_scope(made);

@@ -2,6 +2,7 @@
 
 #[allow(unused_imports, reason = "each suite uses part of the shared helpers")]
 use crate::support::*;
+use balaur_core::App;
 use balaur_core::hecs::Entity;
 use egui::pos2;
 
@@ -337,28 +338,45 @@ fn grow_divides_what_the_fixed_children_leave() {
     );
 }
 
-// Two roots, two surfaces: the whole reason the editor's own chrome cannot
-// share the rect a game's HUD is confined to.
-#[test]
-fn a_root_draws_on_the_surface_it_names() {
-    let (_dir, app) = app();
-    let hud = add_widget(
-        &app,
+/// Text the pass drew, in draw order.
+fn drew_texts(out: &egui::FullOutput) -> Vec<String> {
+    out.shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) => Some(text.galley.text().to_string()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A viewport at (300, 200), 100 by 100, with `hud` in it, and `chrome` on the
+/// window beside it: an editor's stage and its own shell.
+fn screen_and_window(app: &App) -> (Entity, Entity, Entity) {
+    let screen = add_widget(
+        app,
+        &toml::toml! { kind = "viewport" x = 300.0 y = 200.0 width = 100.0 height = 100.0 }.into(),
+    );
+    let hud = add_child_widget(
+        app,
+        screen,
+        "Hud",
         &toml::toml! { kind = "panel" text = "hud" x = 0.0 y = 0.0 width = 40.0 height = 20.0 }
             .into(),
     );
     let chrome = add_widget(
-        &app,
-        &toml::toml! { kind = "panel" text = "chrome" x = 0.0 y = 0.0 width = 40.0 height = 20.0 whole_window = true }
+        app,
+        &toml::toml! { kind = "panel" text = "chrome" x = 0.0 y = 0.0 width = 40.0 height = 20.0 }
             .into(),
     );
-    // The default surface is pushed into a corner, the way the editor points
-    // it at the viewport. The chrome stays on the whole screen.
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        let mut config = config.borrow_mut();
-        config.rect = Some([300.0, 200.0, 100.0, 100.0]);
-    }
+    (screen, hud, chrome)
+}
+
+// A widget in a viewport is placed against it as a root is against the
+// window; one beside it keeps the window.
+#[test]
+fn a_widget_in_a_viewport_is_placed_against_the_viewport() {
+    let (_dir, app) = app();
+    let (_screen, hud, chrome) = screen_and_window(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let rect = |entity: Entity| {
@@ -366,33 +384,137 @@ fn a_root_draws_on_the_surface_it_names() {
             .expect("it drew")
     };
     assert!(
-        rect(hud).min.x >= 299.0,
-        "the default surface did not move the hud: {:?}",
+        (rect(hud).min - pos2(300.0, 200.0)).length() < 1.0,
+        "the hud is not at the viewport's corner: {:?}",
         rect(hud)
     );
     assert!(
         rect(chrome).min.x < 10.0,
-        "a whole-window root should not follow the default surface: {:?}",
+        "a root beside the viewport moved with it: {:?}",
         rect(chrome)
     );
+}
 
-    // Turning the default surface off is what play does; the chrome stays.
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        config.borrow_mut().enabled = false;
-    }
+// A viewport with no size is a screen that is off: what is in it draws
+// nothing, and the window's roots draw as before.
+#[test]
+fn a_viewport_with_no_size_draws_nothing_in_it() {
+    let (_dir, app) = app();
+    let (screen, _hud, _chrome) = screen_and_window(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let before = drew_texts(&pass(&app, &ctx, vec![]));
+    assert!(
+        before.iter().any(|t| t == "hud"),
+        "control: the hud drew: {before:?}"
+    );
+    let zero = toml::Value::Float(0.0);
+    balaur::components::set_property(&app.engine, screen, "widget", "width", &zero).unwrap();
+    settle(&app, &ctx);
+    let after = drew_texts(&pass(&app, &ctx, vec![]));
+    assert!(
+        after.iter().any(|t| t == "chrome") && !after.iter().any(|t| t == "hud"),
+        "a viewport with no size still drew what is in it: {after:?}"
+    );
+}
+
+// What runs past a viewport's edge is cut there, and a click past the edge
+// reaches nothing in it.
+#[test]
+fn a_widget_past_a_viewports_edge_is_clipped_and_takes_no_click() {
+    let (_dir, mut app) = app();
+    let screen = add_widget(
+        &app,
+        &toml::toml! { kind = "viewport" x = 100.0 y = 100.0 width = 100.0 height = 100.0 }.into(),
+    );
+    let strip = add_child_widget(
+        &app,
+        screen,
+        "Strip",
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 300.0 height = 30.0 }.into(),
+    );
+    let inside = add_child_widget(
+        &app,
+        strip,
+        "Inside",
+        &toml::toml! { kind = "button" text = "in" width = 60.0 height = 30.0 }.into(),
+    );
+    let _gap = add_child_widget(
+        &app,
+        strip,
+        "Gap",
+        &toml::toml! { kind = "row" width = 120.0 height = 30.0 }.into(),
+    );
+    let outside = add_child_widget(
+        &app,
+        strip,
+        "Outside",
+        &toml::toml! { kind = "button" text = "out" width = 60.0 height = 30.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let click_on = |app: &mut App, entity: Entity| {
+        let at = balaur_ui::widget_rect(entity).expect("laid out").center();
+        pass(app, &ctx, press(at, true));
+        pass(app, &ctx, press(at, false));
+        consume_input(app);
+    };
+    click_on(&mut app, inside);
+    assert!(
+        clicked(&app, inside),
+        "control: a button inside the viewport takes a click"
+    );
+    let out_at = balaur_ui::widget_rect(outside).expect("laid out");
+    assert!(
+        out_at.min.x >= 200.0,
+        "control: the second button is past the edge: {out_at:?}"
+    );
+    click_on(&mut app, outside);
+    assert!(
+        !clicked(&app, outside),
+        "a button past the viewport's edge took a click"
+    );
     let out = pass(&app, &ctx, vec![]);
-    let drew: Vec<String> = out
+    assert!(
+        !out.shapes.is_empty(),
+        "control: the viewport's widgets drew"
+    );
+    let past: Vec<egui::Rect> = out
         .shapes
         .iter()
-        .filter_map(|shape| match &shape.shape {
-            egui::epaint::Shape::Text(text) => Some(text.galley.text().to_string()),
-            _ => None,
-        })
+        .map(|shape| shape.clip_rect)
+        .filter(|clip| clip.max.x > 200.5)
         .collect();
     assert!(
-        drew.iter().any(|t| t == "chrome") && !drew.iter().any(|t| t == "hud"),
-        "turning the default surface off should not take the chrome with it: {drew:?}"
+        past.is_empty(),
+        "shapes drew past the viewport's right edge: {past:?}"
+    );
+}
+
+// A dialog in a viewport opens inside it, not in the middle of the window.
+#[test]
+fn a_dialog_in_a_viewport_opens_inside_it() {
+    let (_dir, app) = app();
+    let screen = add_widget(
+        &app,
+        &toml::toml! { kind = "viewport" x = 500.0 y = 300.0 width = 200.0 height = 160.0 }.into(),
+    );
+    let dialog = add_child_widget(
+        &app,
+        screen,
+        "Ask",
+        &toml::toml! { kind = "dialog" text = "sure?" width = 80.0 height = 40.0 widget_window = { open = true } }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let drawn = ctx
+        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", dialog))))
+        .expect("the dialog drew");
+    let viewport = egui::Rect::from_min_size(pos2(500.0, 300.0), egui::vec2(200.0, 160.0));
+    assert!(
+        viewport.expand(1.0).contains_rect(drawn),
+        "the dialog left its viewport: {drawn:?}"
     );
 }
 

@@ -43,6 +43,9 @@ pub(crate) struct Placed {
     /// Whose faces the widget's text draws in: the played content's under
     /// the subtree that plays it, the engine's own everywhere else.
     pub(crate) project: balaur_text::FontProject,
+    /// The arena index of the `viewport` that is this widget's screen, or
+    /// `None` where the window is.
+    pub(crate) screen: Option<usize>,
 }
 
 /// A widget's resolved look: what to paint it with and what face to draw its
@@ -340,16 +343,21 @@ fn forest(
     index_of.clear();
     // The subtree drawing in the played content's faces, when one is played.
     let content_scope = balaur_core::project::content_scope(eng);
-    // (node, the arena index of the widget laying it out, if any, whose faces)
-    let mut stack: Vec<(Entity, Option<usize>, balaur_text::FontProject)> =
-        vec![(eng.root(), None, balaur_text::FontProject::Host)];
-    while let Some((entity, owner, project)) = stack.pop() {
+    // (node, the widget laying it out, whose faces, the viewport it draws in)
+    let mut stack: Vec<(
+        Entity,
+        Option<usize>,
+        balaur_text::FontProject,
+        Option<usize>,
+    )> = vec![(eng.root(), None, balaur_text::FontProject::Host, None)];
+    while let Some((entity, owner, project, screen)) = stack.pop() {
         let project = if content_scope == Some(entity) {
             balaur_text::FontProject::Content
         } else {
             project
         };
         let mut next_owner = owner;
+        let mut next_screen = screen;
         if let Ok(widget) = world.get::<&Widget>(entity) {
             let index = arena.len();
             let widget = for_classes(eng, entity, &widget, classes);
@@ -360,6 +368,11 @@ fn forest(
             // beneath it leaves them to be anchored on their own. Read before
             // the widget moves, so the arena is built with one clone a node.
             next_owner = lays_out(&widget.kind).then_some(index);
+            // What sits in a viewport is placed against it as against the
+            // window: each widget under it is a root of that screen.
+            if widget.kind == crate::vocabulary::words::VIEWPORT {
+                next_screen = Some(index);
+            }
             // A dialog, and a widget drawn `on_top`, opens over the screen
             // wherever the scene puts it: a screen authors its own confirm
             // and its own toast, and neither takes a place in its layout.
@@ -374,6 +387,7 @@ fn forest(
                 look: RefCell::default(),
                 alpha: 1.0,
                 project,
+                screen,
             });
             index_of.insert(entity.to_bits().get(), index);
             match owner {
@@ -384,7 +398,7 @@ fn forest(
         if let Ok(children) = world.get::<&Children>(entity) {
             // Pushed in reverse so the stack pops them in declaration order.
             for child in children.0.iter().rev() {
-                stack.push((*child, next_owner, project));
+                stack.push((*child, next_owner, project, next_screen));
             }
         }
     }
@@ -562,4 +576,26 @@ fn room_of(placed: &[Placed], index: usize, surface: [f32; 2]) -> [f32; 2] {
         up = one.parent;
     }
     surface
+}
+
+/// The rect a viewport is a screen of, from `drawn`: `None` while it is hidden
+/// or has no area, so nothing in it draws or takes the keyboard.
+pub(crate) fn screen_of(
+    placed: &[Placed],
+    viewport: usize,
+    drawn: fn(balaur_core::hecs::Entity) -> Option<egui::Rect>,
+) -> Option<egui::Rect> {
+    if !placed[viewport].widget.visible {
+        return None;
+    }
+    drawn(placed[viewport].entity).filter(|rect| rect.width() > 0.0 && rect.height() > 0.0)
+}
+
+/// Whether egui hands a root's layer the pointer: not when the root lets it
+/// through and holds nothing that could take it, as a notice drawn on top,
+/// nor a viewport, whose contents are roots that take their own.
+pub(crate) fn takes_pointer(root: &Placed) -> bool {
+    let through =
+        root.widget.pointer_through || root.widget.kind == crate::vocabulary::words::VIEWPORT;
+    !(through && root.children.is_empty())
 }

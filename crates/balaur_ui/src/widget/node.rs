@@ -118,9 +118,6 @@ pub struct Widget {
     pub handle: f32,
     /// Which child a `tabs` shows, by node name; empty shows the first.
     pub active: SmolStr,
-    /// Whether a *root* widget draws over the whole window, whatever the host
-    /// set. Ignored on a child, which is placed by its parent.
-    pub whole_window: bool,
     /// Whether text breaks to the width it was given rather than running past
     /// it on one line.
     pub wrap: bool,
@@ -463,43 +460,19 @@ pub(crate) fn lays_out(kind: &str) -> bool {
     )
 }
 
-/// Where and whether the widget layer draws. Games leave the default (full
-/// window); editors point it at their viewport and enable it during play.
+/// How the keyboard reaches the widgets.
 pub struct WidgetLayerConfig {
-    pub enabled: bool,
     /// Whether arrows, Tab, Enter and Space move and activate the focus.
     ///
     /// `standard_app` takes it away while the game has those keys: an action
     /// binding one, or a script reading one, so a game that moves with the
     /// arrows and jumps with Space does not click its own HUD button.
     pub keyboard: bool,
-    /// Design-px rect (x, y, w, h); None = whole screen.
-    pub rect: Option<[f32; 4]>,
-}
-
-/// Whether a root draws, and where.
-#[derive(Clone, Copy)]
-pub(crate) struct Surface {
-    pub enabled: bool,
-    pub rect: Option<[f32; 4]>,
-}
-
-impl Default for Surface {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            rect: None,
-        }
-    }
 }
 
 impl Default for WidgetLayerConfig {
     fn default() -> Self {
-        Self {
-            enabled: true,
-            keyboard: true,
-            rect: None,
-        }
+        Self { keyboard: true }
     }
 }
 

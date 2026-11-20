@@ -322,22 +322,6 @@ fn a_theme_can_be_set_from_a_script() {
     );
 }
 
-#[test]
-fn the_widget_layer_is_placed_by_two_vectors_and_fills_the_window_without_them() {
-    let layer = |app: &App| {
-        let layer = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        let layer = layer.borrow();
-        (layer.enabled, layer.rect)
-    };
-    let (_dir, app, _, errors) =
-        run_with("ui::set_widget_layer(true, vec2(10.0, 20.0), vec2(320.0, 240.0));");
-    assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
-    assert_eq!(layer(&app), (true, Some([10.0, 20.0, 320.0, 240.0])));
-    let (_dir, app, _, errors) = run_with("ui::set_widget_layer(false);");
-    assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
-    assert_eq!(layer(&app), (false, None));
-}
-
 /// A button under `Root`, placed where a pass draws it whole.
 const BUTTON: &str = "[[nodes]]\nid = \"go\"\nname = \"Go\"\nparent = \"root\"\n\
      widget = { kind = \"button\", text = \"Go\", x = 20.0, y = 20.0 }\n";

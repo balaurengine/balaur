@@ -31,7 +31,6 @@ const SET_CLIPBOARD: &str = "set_clipboard";
 const SET_FOCUS: &str = "set_focus";
 const SET_SCALE: &str = "set_scale";
 const SET_THEME: &str = "set_theme";
-const SET_WIDGET_LAYER: &str = "set_widget_layer";
 const TAB_RECT: &str = "tab_rect";
 const TAKES_POINTER_AT: &str = "takes_pointer_at";
 const WANTS_KEYBOARD: &str = "wants_keyboard";
@@ -93,6 +92,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_SEPARATOR", w::SEPARATOR),
     ("WIDGET_CODE", w::CODE),
     ("WIDGET_STACK", w::STACK),
+    ("WIDGET_VIEWPORT", w::VIEWPORT),
 ];
 
 /// Where a container puts its children, and where text sits in its width.
@@ -231,30 +231,8 @@ fn install_theme(m: &mut Module<Engine>) {
     });
 }
 
-/// `ui.*` bindings: widget layer.
+/// `ui.*` bindings: rects, focus and driving.
 fn install_widget_layer(m: &mut Module<Engine>) {
-    m.describe(&[(
-        SET_WIDGET_LAYER,
-        &[],
-        "(on: bool, position: Vec2?, size: Vec2?)",
-        "Turn drawing of the scene's `widget` nodes on or off, and confine it to the rect at `position` of `size`, in design pixels; the whole window when either is left out.",
-    )]);
-    {
-        // No reader by design (N8): the `WidgetLayerConfig` entry already
-        // holds the flag and the rect; add `ui.widget_layer` when a caller
-        // needs to read them back.
-        m.function(
-            SET_WIDGET_LAYER,
-            |eng: &Engine, (enabled, position, size): (bool, Option<Value>, Option<Value>)| {
-                let rect = rect_of(position.as_ref(), size.as_ref())?;
-                let layer = eng.resource::<crate::WidgetLayerConfig>();
-                let mut layer = layer.borrow_mut();
-                layer.enabled = enabled;
-                layer.rect = rect;
-                Ok(())
-            },
-        );
-    }
     install_rects(m);
     install_focus(m);
     install_driving(m);
@@ -266,16 +244,6 @@ fn vec2_of(what: &str, value: &Value) -> anyhow::Result<[f32; 2]> {
         Value::Vec2(pair) => Ok(*pair),
         other => anyhow::bail!("{what} is a Vec2, not a {}", other.type_name()),
     }
-}
-
-/// Both vectors or none: a partial rect is a caller that meant the screen.
-fn rect_of(position: Option<&Value>, size: Option<&Value>) -> anyhow::Result<Option<[f32; 4]>> {
-    let (Some(position), Some(size)) = (position, size) else {
-        return Ok(None);
-    };
-    let [x, y] = vec2_of("a widget layer's position", position)?;
-    let [w, h] = vec2_of("a widget layer's size", size)?;
-    Ok(Some([x, y, w, h]))
 }
 
 /// `ui.*` bindings: which widget the keyboard and the pad are pointing at.

@@ -110,6 +110,11 @@ pub(crate) fn tab_head_at(entity: Entity) -> Option<egui::Rect> {
     TAB_HEADS.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
 }
 
+/// Where a widget was drawn so far this pass, or `None` before it is.
+pub(crate) fn placing_at(entity: Entity) -> Option<egui::Rect> {
+    PLACING.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
+}
+
 pub(crate) fn record_rect(entity: Entity, rect: egui::Rect) {
     PLACING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), rect);

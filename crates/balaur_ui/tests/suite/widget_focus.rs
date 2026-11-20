@@ -82,24 +82,37 @@ fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
     );
 }
 
-// A surface the host turned off is not somewhere focus can be either — in the
-// editor that is a played game's HUD with the widget layer switched off.
+// A viewport drawn at no size is not somewhere focus can be either: in the
+// editor that is a game's HUD while neither play nor the Interface is up.
 #[test]
-fn a_root_on_a_disabled_surface_is_not_a_focus_stop() {
+fn a_widget_in_a_viewport_with_no_size_is_not_a_focus_stop() {
     let (_dir, app) = app();
-    let (_column, buttons) = menu(&app);
+    let screen = add_widget(
+        &app,
+        &toml::toml! { kind = "viewport" x = 0.0 y = 0.0 width = 300.0 height = 200.0 }.into(),
+    );
+    let go = add_child_widget(
+        &app,
+        screen,
+        "Go",
+        &toml::toml! { kind = "button" text = "Go" x = 10.0 y = 10.0 }.into(),
+    );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        config.borrow_mut().enabled = false;
-    }
     pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), None, "focus landed on an undrawn surface");
+    assert_eq!(
+        focused(&app),
+        Some(go),
+        "control: the button takes focus in a drawn viewport"
+    );
+    let width = toml::Value::Float(0.0);
+    balaur::components::set_property(&app.engine, screen, "widget", "width", &width).unwrap();
+    settle(&app, &ctx);
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
     pass(&app, &ctx, key(egui::Key::Enter));
     assert!(
-        !clicked(&app, buttons[0]),
-        "an accept clicked a button on a surface nothing draws"
+        !clicked(&app, go),
+        "an accept clicked a button in a viewport nothing draws"
     );
 }
 

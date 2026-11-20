@@ -10,6 +10,7 @@ pub(crate) mod words {
     pub(crate) const PANEL: &str = "panel";
     pub(crate) const ROW: &str = "row";
     pub(crate) const STACK: &str = "stack";
+    pub(crate) const VIEWPORT: &str = "viewport";
     pub(crate) const COLUMN: &str = "column";
     pub(crate) const SCROLL: &str = "scroll";
     pub(crate) const TEXT_AREA: &str = "text_area";
@@ -65,6 +66,7 @@ pub(crate) mod words {
         SEPARATOR,
         CODE,
         STACK,
+        VIEWPORT,
     ];
 
     pub(crate) const CONTAIN: &str = "contain";
@@ -463,7 +465,6 @@ pub(crate) mod keys {
     pub(crate) const SYNTAX_STRING: &str = "syntax_string";
     pub(crate) const SYNTAX_TYPE: &str = "syntax_type";
     pub(crate) const KIND: &str = "kind";
-    pub(crate) const WHOLE_WINDOW: &str = "whole_window";
     pub(crate) const TEXT_STYLE: &str = "text_style";
     pub(crate) const MAX_HEIGHT: &str = "max_height";
     pub(crate) const MAX_WIDTH: &str = "max_width";

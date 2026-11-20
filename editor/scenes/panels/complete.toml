@@ -11,7 +11,6 @@ visible = false
 kind = "panel"
 role = "sheet_complete"
 anchor = "top_left"
-whole_window = true
 
 [[nodes]]
 id = "list"
