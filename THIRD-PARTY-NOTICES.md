@@ -194,19 +194,19 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | cpu-time | 1.0.0 | `MIT OR Apache-2.0` |
 | [cpufeatures](https://github.com/RustCrypto/utils) | 0.2.17 | `MIT OR Apache-2.0` |
 | [cpufeatures](https://github.com/RustCrypto/utils) | 0.3.1 | `MIT OR Apache-2.0` |
-| cranelift-assembler-x64 | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| cranelift-assembler-x64-meta | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-bforest](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-bitset](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-codegen](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-codegen-meta](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-codegen-shared](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-control](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-entity](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-frontend](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-isle](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-native](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
-| [cranelift-srcgen](https://github.com/bytecodealliance/wasmtime) | 0.137.1 | `Apache-2.0 WITH LLVM-exception` |
+| cranelift-assembler-x64 | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| cranelift-assembler-x64-meta | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-bforest](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-bitset](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-codegen](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-codegen-meta](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-codegen-shared](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-control](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-entity](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-frontend](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-isle](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-native](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
+| [cranelift-srcgen](https://github.com/bytecodealliance/wasmtime) | 0.137.3 | `Apache-2.0 WITH LLVM-exception` |
 | [crc](https://github.com/mrhooray/crc-rs.git) | 3.4.0 | `MIT OR Apache-2.0` |
 | [crc-catalog](https://github.com/akhilles/crc-catalog.git) | 2.5.0 | `MIT OR Apache-2.0` |
 | [crc32fast](https://github.com/srijs/rust-crc32fast) | 1.5.3 | `MIT OR Apache-2.0` |
@@ -553,8 +553,8 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [profiling](https://github.com/aclysma/profiling) | 1.0.18 | `MIT OR Apache-2.0` |
 | [profiling-procmacros](https://github.com/aclysma/profiling) | 1.0.18 | `MIT OR Apache-2.0` |
 | [psm](https://github.com/rust-lang/stacker/) | 0.1.32 | `MIT OR Apache-2.0` |
-| [pulley-interpreter](https://github.com/bytecodealliance/wasmtime/tree/main/pulley) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| [pulley-macros](https://github.com/bytecodealliance/wasmtime/tree/main/pulley/macros) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
+| [pulley-interpreter](https://github.com/bytecodealliance/wasmtime/tree/main/pulley) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| [pulley-macros](https://github.com/bytecodealliance/wasmtime/tree/main/pulley/macros) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
 | [pulp](https://github.com/sarah-quinones/pulp/) | 0.22.3 | `MIT` |
 | [pulp-wasm-simd-flag](https://github.com/sarah-quinones/pulp/) | 0.1.1 | `MIT` |
 | [pxfm](https://github.com/awxkee/pxfm) | 0.1.30 | `BSD-3-Clause OR Apache-2.0` |
@@ -787,24 +787,24 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [wasm-encoder](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder) | 0.261.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasm-encoder](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder) | 0.262.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasm_sync](https://github.com/DouglasDwyer/wasm_sync) | 0.1.2 | `MIT OR Apache-2.0` |
-| [wasmi](https://github.com/wasmi-labs/wasmi) | 2.0.1 | `MIT OR Apache-2.0` |
-| [wasmi_collections](https://github.com/wasmi-labs/wasmi) | 2.0.1 | `MIT OR Apache-2.0` |
-| [wasmi_core](https://github.com/wasmi-labs/wasmi) | 2.0.1 | `MIT OR Apache-2.0` |
-| [wasmi_ir](https://github.com/wasmi-labs/wasmi) | 2.0.1 | `MIT OR Apache-2.0` |
+| [wasmi](https://github.com/wasmi-labs/wasmi) | 2.0.2 | `MIT OR Apache-2.0` |
+| [wasmi_collections](https://github.com/wasmi-labs/wasmi) | 2.0.2 | `MIT OR Apache-2.0` |
+| [wasmi_core](https://github.com/wasmi-labs/wasmi) | 2.0.2 | `MIT OR Apache-2.0` |
+| [wasmi_ir](https://github.com/wasmi-labs/wasmi) | 2.0.2 | `MIT OR Apache-2.0` |
 | [wasmparser](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser) | 0.228.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasmparser](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser) | 0.261.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasmparser](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser) | 0.262.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasmprinter](https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmprinter) | 0.261.0 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
-| [wasmtime](https://github.com/bytecodealliance/wasmtime) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-environ](https://github.com/bytecodealliance/wasmtime) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-component-util](https://github.com/bytecodealliance/wasmtime) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| wasmtime-internal-core | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-cranelift](https://github.com/bytecodealliance/wasmtime) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-fiber](https://github.com/bytecodealliance/wasmtime) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-jit-debug](https://github.com/bytecodealliance/wasmtime) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-jit-icache-coherence](https://github.com/bytecodealliance/wasmtime) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-unwinder](https://github.com/bytecodealliance/wasmtime) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
-| [wasmtime-internal-versioned-export-macros](https://github.com/bytecodealliance/wasmtime) | 50.0.1 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime](https://github.com/bytecodealliance/wasmtime) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-environ](https://github.com/bytecodealliance/wasmtime) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-component-util](https://github.com/bytecodealliance/wasmtime) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| wasmtime-internal-core | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-cranelift](https://github.com/bytecodealliance/wasmtime) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-fiber](https://github.com/bytecodealliance/wasmtime) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-jit-debug](https://github.com/bytecodealliance/wasmtime) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-jit-icache-coherence](https://github.com/bytecodealliance/wasmtime) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-unwinder](https://github.com/bytecodealliance/wasmtime) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
+| [wasmtime-internal-versioned-export-macros](https://github.com/bytecodealliance/wasmtime) | 50.0.3 | `Apache-2.0 WITH LLVM-exception` |
 | [wayland-backend](https://github.com/smithay/wayland-rs) | 0.3.17 | `MIT` |
 | [wayland-client](https://github.com/smithay/wayland-rs) | 0.31.15 | `MIT` |
 | [wayland-csd-frame](https://github.com/rust-windowing/wayland-csd-frame) | 0.3.0 | `MIT` |
@@ -2027,7 +2027,7 @@ MIT License
 <details>
 <summary>Which packages carry this exact file</summary>
 
-cranelift-bforest 0.137.1, cranelift-codegen 0.137.1, cranelift-codegen-meta 0.137.1, cranelift-codegen-shared 0.137.1, cranelift-control 0.137.1, cranelift-entity 0.137.1, cranelift-frontend 0.137.1, cranelift-native 0.137.1, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, regalloc2 0.15.2, rustix 0.38.44, rustix 1.1.5, target-lexicon 0.13.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-encoder 0.261.0, wasm-encoder 0.262.0, wasmparser 0.261.0, wasmparser 0.262.0, wasmprinter 0.261.0, wasmtime 50.0.1, wasmtime-environ 50.0.1, wasmtime-internal-cranelift 50.0.1, wasmtime-internal-fiber 50.0.1, wasmtime-internal-unwinder 50.0.1, wit-bindgen 0.57.1
+cranelift-bforest 0.137.3, cranelift-codegen 0.137.3, cranelift-codegen-meta 0.137.3, cranelift-codegen-shared 0.137.3, cranelift-control 0.137.3, cranelift-entity 0.137.3, cranelift-frontend 0.137.3, cranelift-native 0.137.3, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, regalloc2 0.15.2, rustix 0.38.44, rustix 1.1.5, target-lexicon 0.13.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-encoder 0.261.0, wasm-encoder 0.262.0, wasmparser 0.261.0, wasmparser 0.262.0, wasmprinter 0.261.0, wasmtime 50.0.3, wasmtime-environ 50.0.3, wasmtime-internal-cranelift 50.0.3, wasmtime-internal-fiber 50.0.3, wasmtime-internal-unwinder 50.0.3, wit-bindgen 0.57.1
 
 </details>
 
