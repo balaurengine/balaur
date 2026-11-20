@@ -19,6 +19,7 @@ mod engine_api;
 mod expectations;
 mod fixed_update;
 mod frozen;
+mod ignore_patterns;
 mod interpolation;
 mod kept_changes;
 mod kernel_manifest;

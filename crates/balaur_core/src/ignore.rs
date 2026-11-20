@@ -84,24 +84,67 @@ pub fn matching<'a>(patterns: &'a [String], rel: &str) -> Option<&'a str> {
 /// Whether `pattern` matches `text`, with `*` inside a path segment and `**`
 /// across them. Byte-wise: a wildcard spans whatever it spans, and everything
 /// else is compared literally.
+/// Time is the pattern's length times the text's, however many wildcards.
+#[must_use]
 pub fn glob_matches(pattern: &str, text: &str) -> bool {
-    fn matches(pattern: &[u8], text: &[u8]) -> bool {
-        match pattern.first() {
-            None => text.is_empty(),
-            Some(b'*') if pattern.get(1) == Some(&b'*') => {
-                let rest = &pattern[2..];
-                // `**/` stands for no directory at all as well as for many.
-                if rest.first() == Some(&b'/') && matches(&rest[1..], text) {
-                    return true;
-                }
-                (0..=text.len()).any(|at| matches(rest, &text[at..]))
-            }
-            Some(b'*') => {
-                let segment = text.iter().position(|&b| b == b'/').unwrap_or(text.len());
-                (0..=segment).any(|at| matches(&pattern[1..], &text[at..]))
-            }
-            Some(&byte) => text.first() == Some(&byte) && matches(&pattern[1..], &text[1..]),
-        }
+    #[derive(Clone, Copy, PartialEq)]
+    enum Token {
+        AcrossSegments,
+        InSegment,
+        Byte(u8),
     }
-    matches(pattern.as_bytes(), text.as_bytes())
+    let mut tokens = Vec::with_capacity(pattern.len());
+    let mut bytes = pattern.bytes().peekable();
+    while let Some(byte) = bytes.next() {
+        tokens.push(match byte {
+            b'*' if bytes.next_if_eq(&b'*').is_some() => Token::AcrossSegments,
+            b'*' => Token::InSegment,
+            byte => Token::Byte(byte),
+        });
+    }
+
+    // Transitions only move forward, so one pass in order closes the set.
+    let close = |reached: &mut [bool]| {
+        for at in 0..tokens.len() {
+            if !reached[at] {
+                continue;
+            }
+            match tokens[at] {
+                Token::AcrossSegments => {
+                    reached[at + 1] = true;
+                    // `**/` stands for no directory at all as well as for many.
+                    if tokens.get(at + 1) == Some(&Token::Byte(b'/')) {
+                        reached[at + 2] = true;
+                    }
+                }
+                Token::InSegment => reached[at + 1] = true,
+                Token::Byte(_) => {}
+            }
+        }
+    };
+
+    let mut reached = vec![false; tokens.len() + 1];
+    let mut next = reached.clone();
+    reached[0] = true;
+    close(&mut reached);
+    for byte in text.bytes() {
+        next.fill(false);
+        for (at, token) in tokens.iter().enumerate() {
+            if !reached[at] {
+                continue;
+            }
+            match *token {
+                Token::AcrossSegments => next[at] = true,
+                Token::InSegment if byte != b'/' => next[at] = true,
+                Token::Byte(want) if want == byte => next[at + 1] = true,
+                _ => {}
+            }
+        }
+        close(&mut next);
+        if !next.contains(&true) {
+            return false;
+        }
+        std::mem::swap(&mut reached, &mut next);
+    }
+    reached[tokens.len()]
 }
