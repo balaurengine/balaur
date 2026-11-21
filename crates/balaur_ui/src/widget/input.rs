@@ -682,6 +682,15 @@ fn settle_edits(
         let Some(entity) = resolve(eng, key) else {
             continue;
         };
+        // Raised on a node that need not be a widget.
+        if let Edit::Shortcut(name) = edit {
+            said.push((
+                entity,
+                crate::widget::shortcuts::SHORTCUT_PRESSED_EVENT,
+                Value::Str(name.clone()),
+            ));
+            continue;
+        }
         {
             let world = eng.world();
             let (Ok(mut asked), Ok(mut widget)) = (

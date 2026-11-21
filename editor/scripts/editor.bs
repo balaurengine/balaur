@@ -948,14 +948,11 @@ impl Editor {
     /// a dropped one is.
     pub fn on_image_pasted(_size: any) { dropin::paste_image(self.state); }
 
-    /// A shell key's command, by the name of its node in scenes/panels/keys.toml.
+    /// A shell key's command, by the name its row in scenes/panels/keys.toml runs.
     pub fn command(name: str) {
-        commands::run(self.state, name);
+        commands::press(self.state, name);
         signals::bars(self.state);
     }
-
-    /// What the keys need to say which of them are live.
-    pub fn keys_view() -> commands::KeysView { commands::keys_view(self.state) }
 
     /// A script stopped, or stopped somewhere else: the engine's word, where
     /// the editor used to ask it every frame.

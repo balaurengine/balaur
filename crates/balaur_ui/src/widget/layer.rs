@@ -133,6 +133,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     // the resource lookup and no more, and a reader hears an empty window.
     if placed.is_empty() {
         crate::access::written(eng, ctx, &[], &[], &[]);
+        crate::widget::shortcuts::record_alone(eng, ctx);
         return;
     }
     let was_focused = eng
@@ -154,6 +155,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let turned = turned_fold(&placed, accepted);
     // A chord is a click by another name, as an `accept` is.
     let fired = shortcuts(ctx, &placed, &shown);
+    let pressed = crate::widget::shortcuts::pressed(eng, ctx, &index_of, &shown);
     let (focused, taking, arriving) = focus_before(eng);
     let mut painting = Painting {
         eng,
@@ -186,6 +188,11 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     settle(eng, ctx);
     crate::access::written(eng, ctx, &placed, &roots, &shown);
     let mut edits = std::mem::take(&mut painting.edits);
+    edits.extend(
+        pressed
+            .into_iter()
+            .map(|(node, name)| (node, Edit::Shortcut(name))),
+    );
     let clicked = std::mem::take(&mut painting.clicked);
     edits.extend(crate::widget::input::pass_edits(eng, ctx, &painting));
     crate::routing::widgets_drew(
@@ -743,6 +750,8 @@ pub(crate) enum Edit {
     Scrolled([f32; 2]),
     /// A `window`'s close button was pressed.
     CloseRequested,
+    /// A row of a node's `shortcuts` was pressed, by its name.
+    Shortcut(String),
 }
 
 /// Draw one widget and, when it is a container, what is laid out inside it.

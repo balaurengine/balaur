@@ -331,6 +331,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         // Before `widget`, so a scene gives a node these first and builds
         // its widget once, with their rows.
         widget::beside::register_all(reg);
+        widget::shortcuts::register(reg);
         widget::schema::register_widget_component(reg);
         // The two components holding a picture a widget draws.
         for component in [

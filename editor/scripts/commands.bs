@@ -29,11 +29,12 @@ use signals;
 use theme;
 use themewin;
 use tiles;
+use util;
 use window;
 use words::changes;
 use words::command;
 use words::components;
-use words::form_fields;
+use words::fields;
 use words::tabs;
 use words::tools;
 
@@ -42,6 +43,7 @@ const ADD_BONE: str = "add_bone";
 const APPLY_REST: str = "apply_rest";
 const BINDINGS_TO_SCRIPT: str = "bindings_to_script";
 const CANCEL: str = "cancel";
+const CHORD: str = "chord";
 const CHANGE_TYPE: str = "change_type";
 const CLEAR_DEFORM: str = "clear_deform";
 const CLEAR_POLYGONS: str = "clear_polygons";
@@ -68,16 +70,17 @@ const OPEN_SCRIPT: str = "open_script";
 const OVERWRITE_REST: str = "overwrite_rest";
 const PICTURE: str = "picture";
 const PROMOTE_CLIP: str = "promote_clip";
-const REDO_Y: str = "redo_y";
 const RELOAD_SCRIPTS: str = "reload_scripts";
 const RENAME_SYMBOL: str = "rename_symbol";
 const REPLACE: str = "replace";
 const SCALE_DOWN: str = "scale_down";
 const SCALE_UP: str = "scale_up";
+const SHORTCUTS: str = "shortcuts";
 const SOFT_BODY: str = "soft_body";
 const SPRITE_TO_POLYGON: str = "sprite_to_polygon";
 const SYNC_BONES: str = "sync_bones";
 const TRACE_POLYGON: str = "trace_polygon";
+const WHILE_TYPING: str = "while_typing";
 const WORKSPACE: str = "workspace_";
 
 /// One command: the name a key, a palette row and a menu row run it by, and
@@ -87,16 +90,6 @@ pub struct Command {
     internal label: str,
     internal icon: str,
     internal tags: str,
-}
-
-pub struct KeysView {
-    internal stopped: bool,
-    internal playing: bool,
-}
-
-/// What the keys need to know to say which of them are live.
-pub fn keys_view(state: editor::State) -> KeysView {
-    KeysView { stopped: stopped(state), playing: state.playing }
 }
 
 fn entry(id: str, label: str, icon: str) -> Command {
@@ -251,9 +244,8 @@ pub fn offered(state: &mut editor::State, list: [Command]) -> [Command] {
 
 /// The command named `id`, or nil when the shell has none by that name.
 pub fn find(state: &mut editor::State, id: str) -> Command? {
-    let wanted = if id == REDO_Y { command::REDO } else { id };
     for item in all(state) {
-        if item.id == wanted {
+        if item.id == id {
             return item;
         }
     }
@@ -292,17 +284,55 @@ pub fn chord(state: &mut editor::State, id: str) -> str {
     if spelled == nil { "" } else { ui::chord_text(spelled.as_str()) }
 }
 
-// Each command's first chord, by the name of its key: a shifted key is
+/// The names the keys' rows run, in the order scenes/panels/keys.toml lists
+/// them.
+pub fn key_names() -> [str] {
+    let out: [str] = [];
+    for row in key_rows() {
+        out.push(row[fields::NAME].as_str());
+    }
+    out
+}
+
+fn key_rows() -> any {
+    util::list_or_empty(scene::root().get_node(KEYS).component_property(SHORTCUTS, fields::ROWS))
+}
+
+// Each command's first chord, by the name its row runs: a shifted key is
 // listed before its plain one, so the first is the one a row shows.
 fn chords() -> any {
     let out: any = {};
-    for key in scene::root().get_node(KEYS).children() {
-        let name = if key.name() == REDO_Y { command::REDO } else { key.name() };
+    for row in key_rows() {
+        let name = row[fields::NAME].as_str();
         if out[name] == nil {
-            out[name] = key.component_property(components::WIDGET_SHORTCUT, form_fields::SHORTCUT);
+            out[name] = row[CHORD];
         }
     }
     out
+}
+
+/// What a key's press runs: the command its row names, or where that one
+/// would not act, the first other on the same chord that would, so F5
+/// continues a stopped script and plays otherwise. A row kept out of typing
+/// is passed over while a field holds the keyboard, as its press would be.
+pub fn press(state: &mut editor::State, name: str) {
+    if live(state, name) {
+        run(state, name);
+        return;
+    }
+    if state.chords == nil {
+        state.chords = chords();
+    }
+    let spelled = state.chords[name];
+    let typing = ui::wants_keyboard();
+    for row in key_rows() {
+        let other = row[fields::NAME].as_str();
+        let allowed = !typing || row[WHILE_TYPING] != false;
+        if other != name && row[CHORD] == spelled && allowed && live(state, other) {
+            run(state, other);
+            return;
+        }
+    }
 }
 
 /// Run the command `id`. One that would not act does nothing.
@@ -323,7 +353,7 @@ pub fn run(state: &mut editor::State, id: str) {
             }
         }
         command::UNDO => { shell::undo(state); }
-        command::REDO | REDO_Y => { shell::redo(state); }
+        command::REDO => { shell::redo(state); }
         command::ADD_CHILD => { newnode::open(state); }
         CHANGE_TYPE => { newnode::open_change(state); }
         SOFT_BODY => {

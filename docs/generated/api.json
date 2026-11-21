@@ -6433,6 +6433,7 @@
     "screen_notifier2d": "A box that announces `screen_entered` as it comes on screen and `screen_exited` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.",
     "shape2d": "A 2D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`, and the dimensions that kind reads. A stroked line is `line2d`.",
     "shape3d": "A 3D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`, and the dimensions that kind reads.",
+    "shortcuts": "Chords a node answers: a press of one raises `shortcut_pressed` with its row's `name` on this node, whose script hears it as `on_shortcut_pressed` and whose bindings as `emitted:shortcut_pressed`. A row answers while its node is shown: hidden, or under a widget that is not drawn, as a `viewport` with no size, it is silent. A widget's own `shortcut` is matched first, then the nodes in tree order, a row before a later one with its chord",
     "soft_circle2d": "The size of a `softbody2d` laid out as a circle: a disk of particles inside a rim.",
     "soft_cloth_tube3d": "The shape of a `softbody3d` laid out as a cloth_tube: a sleeve of cloth wrapped around a segment.",
     "soft_collision2d": "A mesh the node's `softbody2d` meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D.",
@@ -6621,6 +6622,12 @@
       [
         "screen_exited",
         "nil, as the last of it leaves"
+      ]
+    ],
+    "shortcuts": [
+      [
+        "shortcut_pressed",
+        "the row's `name`"
       ]
     ],
     "softbody2d": [
@@ -7372,6 +7379,9 @@
       "light_layers",
       "receive_shadows",
       "segmentation_id"
+    ],
+    "shortcuts": [
+      "rows"
     ],
     "soft_circle2d": [
       "radius",
@@ -8203,6 +8213,9 @@
     "shape3d": [
       "3d",
       "render"
+    ],
+    "shortcuts": [
+      "ui"
     ],
     "soft_circle2d": [
       "2d",
@@ -14342,6 +14355,44 @@
         "default": "",
         "description": "Image file, project-relative, or a `texture` asset, drawn over the shape's own UVs; empty draws the colour alone",
         "type": "asset"
+      }
+    },
+    "shortcuts": {
+      "rows": {
+        "default": [],
+        "description": "The rows, each `{ chord, name, while_typing, takes_typing }`",
+        "of": {
+          "default": {
+            "chord": "",
+            "name": "",
+            "takes_typing": false,
+            "while_typing": true
+          },
+          "fields": {
+            "chord": {
+              "default": "",
+              "description": "The chord, spelled as `[input.actions]` spells one: `cmd+shift+KeyS`, `F5`",
+              "type": "string"
+            },
+            "name": {
+              "default": "",
+              "description": "What `shortcut_pressed` carries",
+              "type": "string"
+            },
+            "takes_typing": {
+              "default": false,
+              "description": "Whether it takes its key ahead of a field being typed into, a plain key included: a completion list's arrows, Enter and Escape",
+              "type": "bool"
+            },
+            "while_typing": {
+              "default": true,
+              "description": "Whether it fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing",
+              "type": "bool"
+            }
+          },
+          "type": "record"
+        },
+        "type": "list"
       }
     },
     "soft_circle2d": {

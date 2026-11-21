@@ -1,42 +1,19 @@
-// The shell keys' one script: a chord clicks its button, and the button's
-// name is the command the Editor runs. F5 is play until a script stops, and
-// then it and the step keys are the debugger's.
+// The shell keys' one script: a chord's row names the command the Editor
+// runs, and the command table says which of a chord's rows would act.
 
 use editor;
-use signals;
-use words::command;
 
 pub class Keys {
     node: Node,
     editor: editor::Editor?,
 }
 
-fn STOPPED() -> [str] {
-    [command::CONTINUE, command::STEP_OVER, command::STEP_INTO, command::STEP_OUT]
-}
-
 impl Keys {
     pub fn init() {
-        let source = scene::root().get_node("Editor");
-        self.editor = source.script;
-        events::listen(self.node, signals::DEBUGGER_CHANGED, source);
+        self.editor = scene::root().get_node("Editor").script;
     }
 
-    /// A script stopped or went on, or play started or stopped.
-    pub fn on_debugger_changed(_change: any) {
-        self.refresh();
-    }
-
-    pub fn pressed(_value: any, node: Node) {
-        self.editor.unwrap().command(node.name());
-    }
-
-    fn refresh() {
-        let state = self.editor.unwrap().keys_view();
-        for name in STOPPED() {
-            self.node.get_node(name).widget.enabled = state.stopped;
-        }
-        self.node.get_node(command::PLAY).widget.enabled = !state.stopped;
-        self.node.get_node(command::BREAK).widget.enabled = state.playing && !state.stopped;
+    pub fn on_shortcut_pressed(name: str) {
+        self.editor.unwrap().command(name);
     }
 }

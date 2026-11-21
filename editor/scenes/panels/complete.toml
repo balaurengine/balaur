@@ -1,12 +1,19 @@
 # The completion list under the caret: what may be typed there, with the
-# doc line of the one picked. Its keys take the arrows, Enter, Tab and Escape
-# ahead of the code being typed into, and only while the list is up.
+# doc line of the one picked. Its shortcuts take the arrows, Enter, Tab and
+# Escape ahead of the code being typed into, and only while the list is up.
 
 [[nodes]]
 id = "complete"
 name = "Complete"
 script = { source = "scripts/panels/complete.bs" }
 visible = false
+shortcuts = { rows = [
+    { chord = "ArrowUp", name = "Up", takes_typing = true },
+    { chord = "ArrowDown", name = "Down", takes_typing = true },
+    { chord = "Enter", name = "Accept", takes_typing = true },
+    { chord = "Tab", name = "Tab", takes_typing = true },
+    { chord = "Escape", name = "Close", takes_typing = true },
+] }
 [nodes.widget]
 kind = "panel"
 role = "sheet_complete"
@@ -31,84 +38,3 @@ kind = "label"
 role = "text_code_caption"
 [nodes.widget_text]
 truncate = true
-
-# A scroll with no room in it: the keys are laid out, so their chords fire,
-# and clipped, so nothing of them shows.
-[[nodes]]
-id = "keys"
-name = "Keys"
-parent = "complete"
-[nodes.widget]
-kind = "scroll"
-height = 1
-interactive = false
-[nodes.widget_scroll]
-scrollbar = "never"
-axis = "horizontal"
-
-[[nodes]]
-id = "keys_row"
-name = "Row"
-parent = "keys"
-[nodes.widget]
-kind = "row"
-
-[[nodes]]
-id = "up"
-name = "Up"
-parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
-[nodes.widget]
-kind = "button"
-focusable = false
-[nodes.widget_shortcut]
-shortcut = "ArrowUp"
-takes_typing = true
-
-[[nodes]]
-id = "down"
-name = "Down"
-parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
-[nodes.widget]
-kind = "button"
-focusable = false
-[nodes.widget_shortcut]
-shortcut = "ArrowDown"
-takes_typing = true
-
-[[nodes]]
-id = "accept"
-name = "Accept"
-parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
-[nodes.widget]
-kind = "button"
-focusable = false
-[nodes.widget_shortcut]
-shortcut = "Enter"
-takes_typing = true
-
-[[nodes]]
-id = "tab"
-name = "Tab"
-parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
-[nodes.widget]
-kind = "button"
-focusable = false
-[nodes.widget_shortcut]
-shortcut = "Tab"
-takes_typing = true
-
-[[nodes]]
-id = "close"
-name = "Close"
-parent = "keys_row"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "key" }] }
-[nodes.widget]
-kind = "button"
-focusable = false
-[nodes.widget_shortcut]
-shortcut = "Escape"
-takes_typing = true

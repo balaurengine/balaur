@@ -1,5 +1,5 @@
 // The completion list's one script: up under the caret while the Editor has
-// something to offer, its keys move the pick, accept it or close the list,
+// something to offer, its shortcuts move the pick, accept it or close the list,
 // and a row clicked is accepted.
 
 use editor;
@@ -20,8 +20,8 @@ impl Complete {
         self.refresh();
     }
 
-    pub fn key(_value: any, node: Node) {
-        self.editor.unwrap().complete_key(node.name());
+    pub fn on_shortcut_pressed(name: str) {
+        self.editor.unwrap().complete_key(name);
     }
 
     pub fn list_clicked(_value: any, node: Node) {

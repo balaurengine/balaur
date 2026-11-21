@@ -31,7 +31,6 @@ use words::components;
 use words::window_marks;
 
 const BRAND: str = "Editor/Shell/Head/HeadRow/Brand";
-const KEYS: str = "Editor/Keys";
 const PICKER_ROWS: str = "Editor/Picker/PickerScroll/PickerRows";
 
 // The centre must be showing the viewport when no document is open: a stray
@@ -960,14 +959,19 @@ fn rail_mark_node(host: Node, tip: str) -> Node? {
 /// `--state test:commands`: every shell key names a command, and the palette
 /// and the mark's menu write each command's chord the way its key spells it.
 pub fn commands_agree(state: &mut editor::State) {
-    let keys = scene::root().get_node(KEYS).children();
+    let keys = commands::key_names();
     let unknown: [str] = [];
     for key in keys {
-        if commands::find(state, key.name()) == nil {
-            unknown.push(key.name());
+        if commands::find(state, key) == nil {
+            unknown.push(key);
         }
     }
     selftest::check(keys.len() > 30 && unknown.len() == 0, "each of the {keys.len()} keys names a command ({unknown})");
+    // F5's first row is continue: with no script stopped, the press plays.
+    let was = state.playing;
+    commands::press(state, command::CONTINUE);
+    selftest::check(state.playing != was, "a key whose command would not act runs the one on its chord that would");
+    shell::toggle_play(state);
     shell::open_palette(state, "");
     palette::fill(state);
     let lines: any = {};

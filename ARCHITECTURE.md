@@ -1166,6 +1166,11 @@ write. It walks widgets in scene order and wraps.
   it, and given no focus or clicks past its edge. A viewport with no size
   draws nothing in it. Where a tree is says what its screen is; no widget
   names one, so a scene draws the same in a window and in an editor's stage.
+- **A chord is data on a node.** A `shortcuts` table's rows each pair a
+  chord with a name, and a press raises `shortcut_pressed` with that name on
+  the node, which need not be a widget. A row answers while its node is shown,
+  so a scene's keys in a viewport with no size are silent. A widget's own
+  `shortcut` clicks it and draws its chord, for a menu row or a button.
 - A widget holds no handler name. It announces its events from its node
   (`value_changed`, `submitted`, and a click as `pointer_click`, a world node's name for
   it), and a scene hears one with a `bindings` row: `{ event = "pointer_click",
@@ -1685,10 +1690,11 @@ docks that fold and move, the command palette, dark and light token sets.
 - Undo is a list of changes `scene.keep_changes` kept, each with the value
   it replaced, keyed by stable id.
 - Each command the shell runs is one entry in `editor/scripts/commands.bs`:
-  its name, label, icon and when it would act. A key in
+  its name, label, icon and when it would act. A row of the `shortcuts` in
   `scenes/panels/keys.toml` names one, the palette lists those that would act,
   and the mark menu shows five. Each row writes its key's chord through
-  `ui::chord_text`, so a chord is spelled once.
+  `ui::chord_text`, so a chord is spelled once. Two rows on one chord run
+  whichever would act: F5 continues a stopped script, and plays otherwise.
 - A game's editor plugins sit in its `editor/` folder and in each addon's.
   Only those files and the editor's own may call the editor's modules, so a
   game script that calls one fails in Play as it would in an export.

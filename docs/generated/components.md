@@ -2478,6 +2478,28 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ## UI
 
+### `shortcuts`
+
+`ui` · 1 property
+
+Chords a node answers: a press of one raises `shortcut_pressed` with its row's `name` on this node, whose script hears it as `on_shortcut_pressed` and whose bindings as `emitted:shortcut_pressed`. A row answers while its node is shown: hidden, or under a widget that is not drawn, as a `viewport` with no size, it is silent. A widget's own `shortcut` is matched first, then the nodes in tree order, a row before a later one with its chord
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>rows</code></td><td>list of record · <code>chord, name, takes_typing, while_typing</code></td><td><code>[]</code></td><td>The rows, each `{ chord, name, while_typing, takes_typing }`</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `shortcuts`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>shortcut_pressed</code></td><td>the row&#x27;s <code>name</code></td></tr>
+</tbody>
+</table>
+
 ### `widget`
 
 `ui` · 60 properties

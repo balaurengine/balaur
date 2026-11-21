@@ -1,6 +1,6 @@
 # One node with the script, and the shell as `widget` nodes the engine lays
-# out for `layout.bs` to read back. They paint nothing and have their own
-# surface, so the rect a game's HUD is confined to never reaches them.
+# out for `layout.bs` to read back. The edited scene's widgets sit in the
+# `Edited` viewport, kept to the stage.
 
 [[nodes]]
 id = "n_editor"
@@ -1001,7 +1001,7 @@ name = "InputView"
 parent = "n_editor"
 instance = "scenes/panels/inputview.toml"
 
-# The shell's keys, a node a command: see scenes/panels/keys.toml.
+# The shell's keys, a row a command: see scenes/panels/keys.toml.
 [[nodes]]
 id = "keys"
 name = "Keys"

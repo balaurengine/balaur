@@ -2,10 +2,10 @@
 
 What is left before the editor's shell is built the way a game's UI is: a
 screen given by where a tree sits, look from the theme, and events authored in
-the scene. The `viewport` kind is built, the editor opens on itself with its
-edited copy kept in the stage, its scenes take their look from roles, and
-its commands are one table (`commands.bs`) the keys, the palette and the
-menu share.
+the scene. The `viewport` kind is built and the editor opens on itself, its
+edited copy kept in the stage. Its scenes take their look from roles, its
+commands are one table (`commands.bs`) the keys, palette and menu share, and
+its keys are a `shortcuts` table on one node.
 
 ## Steps
 
@@ -23,10 +23,7 @@ menu share.
    tables read one screen for the pass, the viewport over the played content
    (`arena.rs` `read_classes`, `room_of`). Read the viewport above each widget.
    Done when two viewports of different widths each pick their own class.
-4. **Shortcuts as data.** The hotkeys are 46 hidden buttons in `keys.toml` and
-   `complete.toml`. Add a `shortcuts` component, a table of chords on one node
-   raising `shortcut_pressed`. Done when both scenes are one node each.
-5. **Item scenes in place of the pool.** `ui::fill_strip`, `fill_slot` and
+4. **Item scenes in place of the pool.** `ui::fill_strip`, `fill_slot` and
    `patch_control` build controls from tables a script writes, handlers
    included. Add `scene::repeat(host, items)`, one instance of a small scene per
    item, and move the shell over in order: fixed sets into the scenes, one-action

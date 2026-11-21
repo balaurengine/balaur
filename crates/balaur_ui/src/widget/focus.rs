@@ -197,7 +197,9 @@ pub(super) fn shortcuts(ctx: &egui::Context, placed: &[Placed], shown: &[usize])
                 return None;
             }
             let (modifiers, key) = crate::chord::chord(&widget.shortcut)?;
-            if typing && !fires_while_typing(widget, modifiers, key) {
+            if typing
+                && !fires_while_typing(widget.takes_typing, widget.while_typing, modifiers, key)
+            {
                 return None;
             }
             ctx.input_mut(|input| input.consume_key(modifiers, key))
@@ -210,9 +212,14 @@ pub(super) fn shortcuts(ctx: &egui::Context, placed: &[Placed], shown: &[usize])
 /// the widget allows, and only one that is not itself typing. A plain or
 /// shifted key is a character for the field, so `KeyH` cannot hide a node while
 /// someone writes a name; a function key and a command chord are not.
-fn fires_while_typing(widget: &Widget, modifiers: egui::Modifiers, key: egui::Key) -> bool {
+pub(crate) fn fires_while_typing(
+    takes_typing: bool,
+    while_typing: bool,
+    modifiers: egui::Modifiers,
+    key: egui::Key,
+) -> bool {
     let commanded = modifiers.command || modifiers.ctrl || modifiers.alt || modifiers.mac_cmd;
-    widget.takes_typing || (widget.while_typing && (commanded || is_function_key(key)))
+    takes_typing || (while_typing && (commanded || is_function_key(key)))
 }
 
 fn is_function_key(key: egui::Key) -> bool {
