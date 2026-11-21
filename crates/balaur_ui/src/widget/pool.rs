@@ -481,12 +481,15 @@ impl Pool<'_> {
         self.write(self.ops.patch, node, value)
     }
 
-    /// One control: who hears it, then what the spec wants it to hold.
+    /// One control: who hears it, then what the spec wants it to hold. A
+    /// node that was a group keeps its controls as nodes, so they are hidden:
+    /// under a control that lays nothing out each would draw on its own.
     fn control(&self, key: &str, node: &Value, want: Spec) -> Result<()> {
         let mut set = want;
         self.listen(key, node, &mut set)?;
         set.entry(p::VISIBLE.into()).or_insert(Value::Bool(true));
-        self.patched(key, node, &set)
+        self.patched(key, node, &set)?;
+        self.fill(key, node, &[])
     }
 
     /// A control, or a group when its spec carries `controls`.

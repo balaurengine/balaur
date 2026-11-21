@@ -563,7 +563,7 @@ pub fn fill_imports(state: &mut editor::State) -> FillImports {
 
 /// The status strip, what its script asks for on `status_changed`.
 pub fn fill_status(state: &mut editor::State) {
-    ui::fill_strip(STATUS_NODE, status_controls(state, state.theme, state.layout[dock_fields::BOTTOM][layout_fields::WIDTH].as_float()));
+    ui::fill_strip(STATUS_NODE, status_controls(state, state.layout[dock_fields::BOTTOM][layout_fields::WIDTH].as_float()));
 }
 
 /// What the strip is built from: `status_mode` carries the pause, the play,
@@ -589,17 +589,17 @@ fn status_mode(state: editor::State) -> str {
     "editing"
 }
 
-fn status_controls(state: editor::State, tokens: any, room: float) -> [ui::Control] {
+fn status_controls(state: editor::State, room: float) -> [ui::Control] {
     let stopped = state.debug.paused.kind() == types::KIND_MAP;
-    let lamp = (if stopped {
-        tokens[theme_tokens::PRIMARY_TEXT]
+    let lamp = if stopped {
+        roles::MARK_LAMP_PRIMARY
     } else if state.playing {
-        tokens[theme_tokens::SUCCESS_TEXT]
+        roles::MARK_LAMP_SUCCESS
     } else {
-        tokens[theme_tokens::TEXT_SUBTLE]
-    }).as_str();
+        roles::MARK_LAMP
+    };
     let out: [ui::Control] = [
-        ui::Control { kind: ui::WIDGET_ROW, role: roles::MARK_LAMP, fill: lamp },
+        ui::Control { kind: ui::WIDGET_ROW, role: lamp },
         ui::Control { kind: ui::WIDGET_LABEL, text: status_mode(state), role: roles::TEXT_STATUS },
     ];
     // Narrow: the columns go one at a time rather than running together.

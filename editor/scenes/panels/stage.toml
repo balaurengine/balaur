@@ -20,11 +20,9 @@ parent = "chrome"
 visible = false
 [nodes.widget]
 kind = "panel"
+role = "mark_safe"
 absolute = true
 inset = [34.0, 34.0, 34.0, 34.0]
-fill = "none"
-stroke = "primary_fill"
-dashed = true
 interactive = false
 
 [[nodes]]
@@ -34,10 +32,8 @@ parent = "chrome"
 visible = false
 [nodes.widget]
 kind = "panel"
+role = "mark_resolution"
 absolute = true
-fill = "none"
-stroke = "border_default"
-dashed = true
 interactive = false
 
 # Drags sideways rather than painting its last chip over whatever sits beside

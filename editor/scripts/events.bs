@@ -19,7 +19,6 @@ use words::layout_fields;
 use words::project_fields;
 use words::roles;
 use words::tabs;
-use words::theme_tokens;
 use words::verbs;
 
 const ADD_VARIABLE: str = "add_variable";
@@ -611,7 +610,7 @@ fn hook_specs(state: &mut editor::State, out: [form::Row]) {
                     role: roles::SHEET_HOOK,
                     align_items: ui::ALIGN_CENTER,
                     controls: [
-                        ui::Control { kind: ui::WIDGET_ROW, role: roles::MARK_LAMP, fill: if lifecycle { theme_tokens::PRIMARY_TEXT } else { theme_tokens::SECONDARY_TEXT } },
+                        ui::Control { kind: ui::WIDGET_ROW, role: if lifecycle { roles::MARK_LAMP_PRIMARY } else { roles::MARK_LAMP_SECONDARY } },
                         ui::Control { kind: ui::WIDGET_LABEL, text: "{node.name()}.{name}()", role: roles::TEXT_CODE },
                         ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
                         ui::Control { kind: ui::WIDGET_LABEL, text: "{script}:{hook["line"]}", role: roles::TEXT_CAPTION },

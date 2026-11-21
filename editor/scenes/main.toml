@@ -62,8 +62,6 @@ role = "action_brand"
 tooltip = "Menu"
 [nodes.widget_button]
 face_gap = 4
-[nodes.widget_layout]
-gap = [0, 0]
 
 # Longer than a narrow window, and than any window once enough documents are
 # open, so it clips and drags sideways rather than drawing past the bar. A
@@ -120,6 +118,7 @@ parent = "left"
 script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
+role = "sheet_dock"
 grow = 1
 
 # The dock's tab row: one control a tab, and the mark that closes it.
@@ -228,6 +227,7 @@ parent = "right"
 script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
+role = "sheet_dock"
 grow = 1
 
 # The right sheet in three: the header and the search the panel draws, the
@@ -306,10 +306,7 @@ parent = "upper_row"
 script = { source = "scripts/panels/rail.bs" }
 [nodes.widget]
 kind = "column"
-[nodes.widget_layout]
-# The handle's row states its own air; an empty one would still hold the
-# rail a gap below the stage's top.
-gap = [0, 0]
+role = "layout_rail"
 
 # Where a folded left dock's handle goes, above the tools rather than beside
 # them; `layout.bs` gives it a height only when there is one to draw.
@@ -386,9 +383,8 @@ parent = "centre"
 script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
+role = "sheet_dock_bottom"
 height = 174
-[nodes.widget_layout]
-gap = [0, 0]
 
 # What a dock panel may scroll, and the status strip sharing the same sheet so
 # a tall panel cannot push it off the bottom.
@@ -973,10 +969,8 @@ parent = "n_editor"
 visible = false
 [nodes.widget]
 kind = "panel"
+role = "mark_marquee"
 anchor = "top_left"
-fill = "none"
-stroke = "primary_text"
-dashed = true
 interactive = false
 
 # Typing over a text node where it is drawn: see scenes/panels/textedit.toml.

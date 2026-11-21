@@ -20,7 +20,6 @@ positions = [[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]]
 [[nodes]]
 id = "n_bench"
 name = "Bench"
-parent = ""
 script = { source = "scripts/bench.bs" }
 
 [[nodes]]

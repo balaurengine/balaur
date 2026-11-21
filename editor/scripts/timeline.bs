@@ -16,7 +16,6 @@ use words::layout_fields;
 use words::log_fields;
 use words::roles;
 use words::schema_fields;
-use words::theme_tokens;
 
 const INLINE: str = "inline";
 
@@ -107,10 +106,9 @@ fn fill_ruler(state: &mut editor::State, length: float, lane_x: float, lane_widt
         });
         rules.push(ui::Control {
             kind: ui::WIDGET_ROW,
+            role: roles::MARK_TICK,
             absolute: true,
             inset: ui::Sides { left: tick_x, top: 0.0, right: -1.0, bottom: 0.0 },
-            width: 1,
-            fill: theme_tokens::BORDER_DEFAULT,
             interactive: false,
         });
         seconds += step;
@@ -124,12 +122,11 @@ fn fill_ruler(state: &mut editor::State, length: float, lane_x: float, lane_widt
 
 // A lane per track: its lamp and name, then its keys placed by time.
 fn track_rows(state: &mut editor::State, definition: any, length: float, lane_width: float) -> [ui::Control] {
-    let tokens = state.theme;
     let tracks = anim::tracks(definition);
     let rows: [ui::Control] = [];
     for index in 0..tracks.len() {
         let track = tracks[index];
-        let color = (if index % 2 == 0 { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] }).as_str();
+        let lamp = if index % 2 == 0 { roles::MARK_LAMP_PRIMARY } else { roles::MARK_LAMP_SECONDARY };
         let keys: [ui::Control] = [];
         for key in util::list_or_empty(track[fields::KEYS]) {
             let when = key[log_fields::TIME].as_float();
@@ -137,7 +134,7 @@ fn track_rows(state: &mut editor::State, definition: any, length: float, lane_wi
             let passed = when <= state.anim.time + 1e-4;
             keys.push(lanes::mark(state, (when / length) * lane_width, passed, "{util::fixed(when, 2)} s", { fields::FN: on_key_pressed, fields::WHEN: when }));
         }
-        rows.push(lanes::lane(state, color, anim::track_label(track), keys, lane_width));
+        rows.push(lanes::lane(state, lamp, anim::track_label(track), keys, lane_width));
     }
     rows
 }

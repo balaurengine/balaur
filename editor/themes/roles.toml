@@ -301,6 +301,7 @@ stroke = "border_default"
 corner_radius = "radius"
 height = "control_height_large"
 padding_x = 6
+gap = 0
 
 [roles.action_brand.hover]
 fill = "bg_control_hover"
@@ -1178,6 +1179,18 @@ text_color = "warning_text"
 fill = "bg_panel"
 corner_radius = "radius_large"
 
+# A dock's sheet. The bottom one's tab row, body and status strip sit flush.
+[roles.sheet_dock]
+fill = "bg_panel"
+corner_radius = "radius_large"
+padding = 8
+
+[roles.sheet_dock_bottom]
+fill = "bg_panel"
+corner_radius = "radius_large"
+padding = 8
+gap = 0
+
 # A card on the start screen: an example or a template to begin from.
 [roles.sheet_card]
 fill = "bg_panel"
@@ -1381,11 +1394,57 @@ gap = 8
 [roles.bar_status.touch]
 height = "control_height"
 
-# The dot at the status strip's start, in the state's colour.
+# The dot at the start of a status, a hook or a lane, in its state's colour:
+# idle, running or first, playing, and second.
 [roles.mark_lamp]
+fill = "text_subtle"
 corner_radius = "full"
 width = 6
 height = 6
+
+[roles.mark_lamp_primary]
+fill = "primary_text"
+corner_radius = "full"
+width = 6
+height = 6
+
+[roles.mark_lamp_success]
+fill = "success_text"
+corner_radius = "full"
+width = 6
+height = 6
+
+[roles.mark_lamp_secondary]
+fill = "secondary_text"
+corner_radius = "full"
+width = 6
+height = 6
+
+# Dashed outlines over the stage: a box being dragged out, the safe-area
+# inset, and the frame of the game's resolution.
+[roles.mark_marquee]
+fill = "none"
+stroke = "primary_text"
+dashed = true
+
+[roles.mark_safe]
+fill = "none"
+stroke = "primary_fill"
+dashed = true
+
+[roles.mark_resolution]
+fill = "none"
+stroke = "border_default"
+dashed = true
+
+# The Timeline's playhead, and the rule under each of its ruler's ticks.
+[roles.mark_playhead]
+fill = "primary_text"
+width = 2
+
+[roles.mark_tick]
+fill = "border_default"
+width = 1
 
 [roles.toolbar_dock]
 height = "control_height"
@@ -1470,6 +1529,10 @@ width = 190
 
 [roles.layout_split]
 gap = 12
+
+# The rail's column: the folded dock's handle states its own air above it.
+[roles.layout_rail]
+gap = 0
 
 [roles.layout_toolbar]
 padding_x = 12

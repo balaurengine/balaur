@@ -285,3 +285,27 @@ fn a_role_stacks_its_face_sizes_its_icon_and_names_its_edge_s_sides() {
     );
     assert_eq!(theme.resolved("row", "").border, None);
 }
+
+#[test]
+fn a_role_s_fill_of_none_is_transparent_and_its_dashed_outline_stays() {
+    balaur_core::logbuf::capture_for_test();
+    let doc = "type = \"widget_theme\"\n\n[roles.outline]\nfill = \"none\"\nstroke = \"#336699\"\ndashed = true\n";
+    let theme = parse(&toml::from_str::<toml::Value>(doc).unwrap());
+    let outline = theme.resolved("panel", "outline");
+    assert_eq!(outline.fill, Some(egui::Color32::TRANSPARENT));
+    assert_eq!(outline.stroke, parse_color("#336699"));
+    assert_eq!(
+        outline.dashed,
+        Some(true),
+        "control: the rest of the role was read"
+    );
+    let warned: Vec<String> = balaur_core::logbuf::heard()
+        .into_iter()
+        .filter(|e| e.level == "warn" && e.message.contains("none"))
+        .map(|e| e.message)
+        .collect();
+    assert!(
+        warned.is_empty(),
+        "`none` was reported as no colour: {warned:?}"
+    );
+}

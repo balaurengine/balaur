@@ -483,6 +483,9 @@ fn parse_color(text: &str) -> Option<Color32> {
 /// silently black: a theme is authored by hand, and a typo should say so.
 fn color(value: &toml::Value, what: &str, colors: &BTreeMap<String, Color32>) -> Option<Color32> {
     let text = value.as_str()?;
+    if text == w::NONE {
+        return Some(Color32::TRANSPARENT);
+    }
     let parsed = parse_color(text).or_else(|| colors.get(text).copied());
     if parsed.is_none() {
         tracing::warn!("widget theme: '{text}' is not a colour or a token for {what}");

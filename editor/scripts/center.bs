@@ -756,7 +756,6 @@ const HOOKS: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Ho
 
 /// Fill the hooks list: the file's engine-facing surface, beside the code.
 pub fn fill_hooks(state: &mut editor::State) {
-    let tokens = state.theme;
     let file = open_file(state);
     util::set_text(HOOKS + "/Title", if file.shading { "Shader" } else { "Hooks in file" });
     let pills: [ui::Control] = [];
@@ -774,7 +773,7 @@ pub fn fill_hooks(state: &mut editor::State) {
                 role: roles::SHEET_HOOK,
                 align_items: ui::ALIGN_CENTER,
                 controls: [
-                    ui::Control { kind: ui::WIDGET_ROW, role: roles::MARK_LAMP, fill: if lifecycle { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] } },
+                    ui::Control { kind: ui::WIDGET_ROW, role: if lifecycle { roles::MARK_LAMP_PRIMARY } else { roles::MARK_LAMP_SECONDARY } },
                     ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: hook.name },
                 ],
             });

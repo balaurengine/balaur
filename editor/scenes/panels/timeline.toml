@@ -169,9 +169,8 @@ name = "Playhead"
 parent = "lanes"
 [nodes.widget]
 kind = "row"
+role = "mark_playhead"
 absolute = true
-width = 2
-fill = "primary_text"
 interactive = false
 
 [[nodes]]

@@ -22,12 +22,12 @@ const PADDING_X: str = "padding_x";
 // A scroll bar's width, which the marks stay clear of.
 const SCROLL_BAR: float = 16.0;
 
-/// One lane of the Timeline or a recording: its lamp in `lamp`, a colour or
+/// One lane of the Timeline or a recording: its lamp in `lamp`, a lamp role or
 /// "" for none, its name, then `marks` across `marks_width`.
 pub fn lane(state: editor::State, lamp: str, name: str, marks: [ui::Control], marks_width: float) -> ui::Control {
     let controls: [ui::Control] = [];
     if lamp != "" {
-        controls.push(ui::Control { kind: ui::WIDGET_ROW, role: roles::MARK_LAMP, fill: lamp });
+        controls.push(ui::Control { kind: ui::WIDGET_ROW, role: lamp });
     }
     controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_LANE, truncate: true, tooltip: name, text: name });
     controls.push(ui::Control {

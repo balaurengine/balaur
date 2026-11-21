@@ -607,3 +607,46 @@ impl Root {
         "the error names the method and what is missing: {said:#?}"
     );
 }
+
+// A slot that held a group and is filled as one control keeps the group's
+// nodes; shown, each would draw on its own at the window's corner.
+#[test]
+fn a_group_filled_as_one_control_hides_what_it_held() {
+    let (_dir, mut app) = app_with(
+        "pub class Root { node: Node, frames: int }
+impl Root {
+    pub fn update(dt: float) {
+        self.frames += 1;
+        let group: [any] = [{ \"kind\": \"row\", \"controls\": [{ \"kind\": \"label\", \"text\": \"inner\" }] }];
+        let leaf: [any] = [{ \"kind\": \"button\", \"text\": \"alone\" }];
+        ui::fill_strip(\"Root/Bar\", if self.frames < 3 { group } else { leaf });
+    }
+}
+",
+    );
+    app.tick(1.0 / 60.0);
+    let slot = kids(&app)[0];
+    let inner = {
+        let world = app.engine.world();
+        world
+            .get::<&balaur_core::scene::Children>(slot)
+            .map(|c| c.0[0])
+            .expect("the group made its label")
+    };
+    assert!(
+        crate::support::own_visible(&app, inner),
+        "control: the group's label shows"
+    );
+    for _ in 0..3 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(
+        prop(&app, slot, "kind"),
+        Some(toml::Value::String("button".into())),
+        "control: the slot is a button now"
+    );
+    assert!(
+        !crate::support::own_visible(&app, inner),
+        "the group's label still shows under a button"
+    );
+}
