@@ -137,6 +137,59 @@ fn a_played_project_draws_in_its_own_faces_and_reads_them_again() {
     assert!((width(&app, FontProject::Content, "", "iiii") - own).abs() < 0.01);
 }
 
+// An editor opened on its own folder plays content whose faces are its own:
+// an icon in the mirror draws in the engine's family for its icon font, as
+// egui has no other, where one asked of the content's would draw a box.
+#[test]
+fn content_played_from_the_engine_s_own_folder_draws_its_icons() {
+    let (dir, app) = crate::support::app_with_editor_fonts();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/icons.toml"),
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n",
+    )
+    .unwrap();
+    let own = app
+        .engine
+        .resource::<balaur_core::project::ProjectRoot>()
+        .borrow()
+        .0
+        .clone();
+    let mirror = crate::support::add_child_widget(
+        &app,
+        app.engine.root(),
+        "Edited",
+        &toml::toml! { kind = "viewport" x = 0.0 y = 0.0 width = 400.0 height = 300.0 }.into(),
+    );
+    balaur_core::project::set_content_root(&app.engine, &own.to_string_lossy());
+    app.engine.set_debug_scope(Some(mirror));
+    crate::support::add_child_widget(
+        &app,
+        mirror,
+        "Go",
+        &toml::toml! { kind = "button" text = "go" theme = "themes/icons.toml" x = 0.0 y = 0.0 widget_button = { icon = "cursor" } }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    crate::support::settle(&app, &ctx);
+    let out = crate::support::pass(&app, &ctx, vec![]);
+    // Phosphor's `cursor`.
+    let family = out
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::epaint::Shape::Text(text) if text.galley.text() == "\u{e1dc}" => {
+                Some(text.galley.job.sections[0].format.font_id.family.clone())
+            }
+            _ => None,
+        })
+        .expect("control: the icon drew");
+    assert!(
+        matches!(&family, egui::FontFamily::Name(name) if name.starts_with("host|")),
+        "the mirror's icon drew in {family:?}"
+    );
+}
+
 /// How many of the system's faces `app`'s shaper has taken up.
 fn system_faces(app: &App) -> usize {
     let shaper = balaur_text::shaper(&app.engine);

@@ -674,12 +674,17 @@ impl<'a> Measure<'a> {
             style,
             crate::widget::text::icon_px(widget, style, font.size),
         );
-        // A trailing glyph in the icon font, else trailing text.
-        let tail_glyph = (!widget.trailing_icon.is_empty())
-            .then(|| crate::widget::icons::Icons::of(self.eng, &look).glyph(&widget.trailing_icon))
+        // The trailing part worn as a chip, else a glyph in the icon font,
+        // else trailing text.
+        let icons = crate::widget::icons::Icons::of(self.eng, &look);
+        let chip = crate::widget::button::chip_of(&self.painter, &icons, theme, &look, widget);
+        let tail_glyph = (chip.is_none() && !widget.trailing_icon.is_empty())
+            .then(|| icons.glyph(&widget.trailing_icon))
             .flatten();
-        let tail_mark = tail_glyph.is_some();
-        let tail = if let Some(glyph) = tail_glyph {
+        let tail_mark = tail_glyph.is_some() || chip.is_some();
+        let tail = if let Some(chip) = &chip {
+            chip.size
+        } else if let Some(glyph) = tail_glyph {
             let face = egui::FontId::new(
                 crate::widget::text::icon_px(widget, style, font.size),
                 look.icon.clone(),

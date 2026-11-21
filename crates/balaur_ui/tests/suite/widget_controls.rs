@@ -420,3 +420,60 @@ fn a_trailing_icon_is_drawn_after_the_caption() {
         "the glyph {glyph:?} sits after the words in {chevron:?}"
     );
 }
+
+// A Start button's price: the trailing words worn as a chip of the role
+// `trailing_role` names, on its fill inside its padding, after the caption,
+// and the button as wide as both.
+#[test]
+fn a_trailing_role_wears_the_trailing_part_as_a_chip() {
+    let (dir, app) = app_with_editor_fonts();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/price.toml"),
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n\n\
+         [roles.price]\nfill = \"#ffcc00\"\ntext_color = \"#112233\"\npadding_x = 6\npadding_y = 2\n",
+    )
+    .unwrap();
+    let place = |role: &str, y: f64| {
+        add_widget(
+            &app,
+            &toml::toml! { kind = "button" text = "Start" theme = "themes/price.toml" x = 20.0 y = y widget_button = { trailing = "100", trailing_role = role } }
+                .into(),
+        )
+    };
+    let bare = place("", 20.0);
+    let chip = place("price", 120.0);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let rect = |node| balaur_ui::widget_rect(node).expect("it drew");
+    let (bare, chip) = (rect(bare), rect(chip));
+    let gold = egui::Color32::from_rgb(0xff, 0xcc, 0x00);
+    let pill = out
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::epaint::Shape::Rect(r) if r.fill == gold && chip.contains_rect(r.rect) => {
+                Some(r.rect)
+            }
+            _ => None,
+        })
+        .expect("the chip's fill is drawn inside the button, which measured room for it");
+    assert!(
+        !out.shapes.iter().any(|s| matches!(&s.shape,
+            egui::epaint::Shape::Rect(r) if r.fill == gold && bare.contains_rect(r.rect))),
+        "no chip on {bare:?}, which names no role"
+    );
+    assert!(
+        pill.center().x > chip.center().x,
+        "the chip {pill:?} sits after the caption in {chip:?}"
+    );
+    let ink = egui::Color32::from_rgb(0x11, 0x22, 0x33);
+    let words = out.shapes.iter().any(|s| match &s.shape {
+        egui::epaint::Shape::Text(t) => {
+            pill.contains(t.pos + t.galley.rect.center().to_vec2()) && t.fallback_color == ink
+        }
+        _ => false,
+    });
+    assert!(words, "the price is drawn on the chip in the role's ink");
+}

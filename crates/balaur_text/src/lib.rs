@@ -34,7 +34,7 @@ mod shape;
 
 use atlas::GlyphAtlas;
 pub use font::{Font, FontSettings};
-pub use fonts::{FontProject, GlyphNames, LoadedFont, ProjectFonts};
+pub use fonts::{FontProject, GlyphNames, LoadedFont, ProjectFonts, content_apart};
 pub use markup::Align;
 pub use options::{
     Case, Decoration, Feature, Hinting, LineBreak, Options, PLAIN, Shaping, Slant, Stretch,
@@ -1015,11 +1015,7 @@ fn follow_files(eng: &Engine, state: &std::cell::RefCell<TextState>) {
         state.host = host;
         state.forget_shaped();
     }
-    // A content root that is the project's own plays nothing apart from it.
-    let wanted = balaur_core::project::content_root(eng).filter(|root| {
-        eng.try_resource::<balaur_core::project::ProjectRoot>()
-            .is_none_or(|own| own.borrow().0 != *root)
-    });
+    let wanted = crate::fonts::content_apart(eng);
     let content_moved = {
         let mut held = state.borrow_mut();
         match (&mut held.content, &wanted) {

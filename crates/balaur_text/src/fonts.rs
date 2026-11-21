@@ -146,10 +146,13 @@ pub enum FontProject {
 
 impl FontProject {
     /// The project `entity` draws its text in: the content's when one is
-    /// played and the node sits in the subtree playing it.
+    /// played apart from the engine's own and the node sits in the subtree
+    /// playing it.
     #[must_use]
     pub fn of(eng: &Engine, entity: balaur_core::hecs::Entity) -> Self {
-        Self::content_if(balaur_core::project::in_content(eng, entity))
+        Self::content_if(
+            content_apart(eng).is_some() && balaur_core::project::in_content(eng, entity),
+        )
     }
 
     /// The content's when `in_content`, else the host's.
@@ -199,6 +202,17 @@ pub fn read_system_fonts_ahead(reg: &mut balaur_plugin::Registry<'_>) {
             system_fonts::read_ahead();
         }
     });
+}
+
+/// The root of the played content when it has faces apart from the engine's
+/// own project: none while it plays its own, or content under its own root,
+/// as an editor opened on its own folder does.
+#[must_use]
+pub fn content_apart(eng: &Engine) -> Option<std::path::PathBuf> {
+    balaur_core::project::content_root(eng).filter(|root| {
+        eng.try_resource::<balaur_core::project::ProjectRoot>()
+            .is_none_or(|own| own.borrow().0 != *root)
+    })
 }
 
 /// The directory a project's faces are read from, as `ProjectFiles` takes it.

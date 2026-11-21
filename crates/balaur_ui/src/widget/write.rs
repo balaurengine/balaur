@@ -572,7 +572,7 @@ fn forget_freed(eng: &Engine, freed: &[Entity]) {
 
 const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?, on_change: string?, on_submit: string?, target: node?, data: any, \
     role: string?, text: string?, tooltip: string?, tooltip_key: string?, icon: string?, icon_color: string?, \
-    trailing_icon: string?, image: string?, placeholder_key: string?, \
+    trailing_icon: string?, trailing_role: string?, image: string?, placeholder_key: string?, \
     font: string?, prefix: string?, trailing: string?, placeholder: string?, fill: string?, stroke: string?, \
     align_items: string?, justify: string?, text_align: string?, anchor: string?, fit: string?, state: string?, \
     grow: float?, width: float?, height: float?, min_width: float?, x: float?, y: float?, \

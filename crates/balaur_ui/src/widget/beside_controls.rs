@@ -33,6 +33,8 @@ pub(crate) struct WidgetButton {
     pub(crate) trailing: SmolStr,
     /// The name of a glyph in the theme's icon font drawn after `text`, at the icon's size and in its ink: `gap` from the caption, or against the far edge where the caption starts at its start (`text_align = "start"`), as a picker's `chevron-down`. It takes `trailing`'s place. On a button and a menu whose rows are nodes; a menu of `options` has none
     pub(crate) trailing_icon: SmolStr,
+    /// A role from the theme the trailing part wears as a chip, as a price in coins on a Start button (daisyUI's badge inside a `btn`): `trailing_icon` then `trailing` side by side, `gap` from the caption, inside the role's padding on its `fill` and `radius` (half the chip's height where it names none), the glyph in its `icon_color` and the words in its `text_color` at its `font_size`. Empty draws the trailing part bare
+    pub(crate) trailing_role: SmolStr,
     /// A spinner before `text` in place of its icon, as daisyUI's `loading` button: what a button shows while what it started is under way. It still clicks; `enabled = false` beside it keeps a second press out
     pub(crate) loading: bool,
     /// What the pointer may do to it: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui's drag distance is a drag and no click; `drag` and `hover` never click
@@ -53,6 +55,7 @@ impl Beside for WidgetButton {
         face_gap => widget.face_gap = held.face_gap;
         trailing => widget.trailing = held.trailing.clone();
         trailing_icon => widget.trailing_icon = held.trailing_icon.clone();
+        trailing_role => widget.trailing_role = held.trailing_role.clone();
         loading => widget.loading = held.loading;
         sense => egui(widget).sense = held.sense.0.clone();
     }

@@ -346,8 +346,10 @@ fn forest(
     crate::widget::screens::forget();
     roots.clear();
     index_of.clear();
-    // The subtree drawing in the played content's faces, when one is played.
-    let content_scope = balaur_core::project::content_scope(eng);
+    // The subtree drawing in the played content's faces, when it has faces
+    // apart from this project's.
+    let content_scope = balaur_core::project::content_scope(eng)
+        .filter(|_| balaur_text::content_apart(eng).is_some());
     // (node, the widget laying it out, whose faces, the viewport it draws in)
     let mut stack: Vec<(
         Entity,

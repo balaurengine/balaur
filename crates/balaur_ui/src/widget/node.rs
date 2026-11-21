@@ -130,6 +130,9 @@ pub struct Widget {
     pub trailing: SmolStr,
     /// A glyph after a button's caption, in its icon's ink: a picker's chevron.
     pub trailing_icon: SmolStr,
+    /// A role the button's trailing glyph and text wear together as a chip:
+    /// a price in coins on a Start button.
+    pub trailing_role: SmolStr,
     /// A chord that clicks this widget from anywhere, as `cmd+shift+KeyS`.
     pub shortcut: SmolStr,
     /// Whether that chord fires while a text field holds the keyboard.

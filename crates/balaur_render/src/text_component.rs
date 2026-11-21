@@ -236,7 +236,8 @@ macro_rules! renderable_of {
 /// Write the component, keeping the version so the backend rebuilds.
 pub(crate) fn set_text(eng: &Engine, entity: Entity, mut next: TextRenderable) -> Result<()> {
     // Not a property: where the node sits says whose faces it draws in.
-    next.style.in_content = balaur_core::project::in_content(eng, entity);
+    next.style.in_content =
+        balaur_text::FontProject::of(eng, entity) == balaur_text::FontProject::Content;
     let world = eng.world();
     if let Ok(current) = world.get::<&TextRenderable>(entity) {
         if *current == next {

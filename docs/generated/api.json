@@ -6320,6 +6320,7 @@
         "tooltip_key": "str?",
         "trailing": "str?",
         "trailing_icon": "str?",
+        "trailing_role": "str?",
         "truncate": "bool?",
         "value": "any",
         "visible": "bool?",
@@ -7822,6 +7823,7 @@
       "face_gap",
       "trailing",
       "trailing_icon",
+      "trailing_role",
       "loading",
       "sense"
     ],
@@ -18149,6 +18151,11 @@
       "trailing_icon": {
         "default": "",
         "description": "The name of a glyph in the theme's icon font drawn after `text`, at the icon's size and in its ink: `gap` from the caption, or against the far edge where the caption starts at its start (`text_align = \"start\"`), as a picker's `chevron-down`. It takes `trailing`'s place. On a button and a menu whose rows are nodes; a menu of `options` has none",
+        "type": "string"
+      },
+      "trailing_role": {
+        "default": "",
+        "description": "A role from the theme the trailing part wears as a chip, as a price in coins on a Start button (daisyUI's badge inside a `btn`): `trailing_icon` then `trailing` side by side, `gap` from the caption, inside the role's padding on its `fill` and `radius` (half the chip's height where it names none), the glyph in its `icon_color` and the words in its `text_color` at its `font_size`. Empty draws the trailing part bare",
         "type": "string"
       }
     },

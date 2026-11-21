@@ -27,6 +27,9 @@ struct Face {
     /// The trailing part is a glyph (`trailing_icon`), drawn in the icon's
     /// ink a gap after the caption, not dimmed text against the far edge.
     tail_mark: bool,
+    /// The trailing part worn as a chip (`trailing_role`), in `trailing`'s
+    /// place.
+    chip: Option<Chip>,
     size: egui::Vec2,
     gap: f32,
     effects: balaur_text::Effects,
@@ -65,19 +68,8 @@ fn face_of(
     } else {
         0.0
     };
-    // A shortcut draws itself the way the platform writes it, so a row that
-    // says `cmd+KeyS` needs no second spelling of it beside the caption.
-    let shown = if widget.trailing.is_empty() {
-        crate::chord::chord_shown(ui.ctx(), &widget.shortcut)
-    } else {
-        Some(widget.trailing.to_string())
-    };
     let look = at.look(index);
-    let mark_after = tail_glyph(ui, at, &look, widget, font);
-    let tail_mark = mark_after.is_some();
-    let trailing = mark_after.or_else(|| {
-        shown.map(|text| Brush::of(ui).line_of(text, font.clone(), Color32::PLACEHOLDER))
-    });
+    let (trailing, chip, tail_mark) = tail_of(ui, at, &look, widget, font);
     let spinner = if widget.loading {
         crate::widget::text::icon_px(widget, &look.style, font.size)
     } else {
@@ -99,7 +91,10 @@ fn face_of(
     let pic = picture.map_or(egui::Vec2::ZERO, |(_, s)| {
         s + egui::Vec2::splat(plate * 2.0)
     });
-    let tail = trailing.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
+    let tail = chip.as_ref().map_or_else(
+        || trailing.as_ref().map_or(egui::Vec2::ZERO, |g| g.size()),
+        |c| c.size,
+    );
     let gap = gap_of(widget, style, font.size);
     let tail_gap = tail_gap_of(tail.x, tail_mark, gap, font.size);
     let mut shaped = crate::widget::text::shaped_caption(ui, at, index, caption, font, None);
@@ -143,10 +138,43 @@ fn face_of(
         plain,
         trailing,
         tail_mark,
+        chip,
         size,
         gap,
         effects: widget.text_look.effects,
     }
+}
+
+/// A button's trailing part, shaped: worn as a chip (`trailing_role`), else
+/// its glyph (`trailing_icon`), else its text or the shortcut it answers;
+/// and whether it sits a gap from the caption (a glyph, a chip) rather than
+/// against the far edge.
+fn tail_of(
+    ui: &egui::Ui,
+    at: &Painting<'_>,
+    look: &crate::widget::arena::Look,
+    widget: &Widget,
+    font: &egui::FontId,
+) -> (Option<std::sync::Arc<egui::Galley>>, Option<Chip>, bool) {
+    let icons = crate::widget::icons::Icons::of(at.eng, look);
+    if let Some(chip) = chip_of(&Brush::of(ui), &icons, &at.theme, look, widget) {
+        return (None, Some(chip), true);
+    }
+    if let Some(glyph) = tail_glyph(ui, at, look, widget, font) {
+        return (Some(glyph), None, true);
+    }
+    // A shortcut draws itself the way the platform writes it, so a row that
+    // says `cmd+KeyS` needs no second spelling of it beside the caption.
+    let shown = if widget.trailing.is_empty() {
+        crate::chord::chord_shown(ui.ctx(), &widget.shortcut)
+    } else {
+        Some(widget.trailing.to_string())
+    };
+    let Some(text) = shown else {
+        return (None, None, false);
+    };
+    let galley = Brush::of(ui).line_of(text, font.clone(), Color32::PLACEHOLDER);
+    (Some(galley), None, false)
 }
 
 /// A button's `trailing_icon` shaped in the icon font at its icon's size,
@@ -167,6 +195,95 @@ fn tail_glyph(
         look.icon.clone(),
     );
     Some(Brush::of(ui).line_of(glyph, mark, Color32::PLACEHOLDER))
+}
+
+/// A button's trailing part worn as a chip (`trailing_role`): its glyph
+/// (`trailing_icon`) and its words (`trailing`) side by side inside the
+/// role's padding, on its `fill`: a price in coins on a Start button.
+pub(crate) struct Chip {
+    glyph: Option<std::sync::Arc<egui::Galley>>,
+    words: Option<std::sync::Arc<egui::Galley>>,
+    style: std::rc::Rc<Style>,
+    pad: egui::Vec2,
+    gap: f32,
+    /// Its box, padding included.
+    pub(crate) size: egui::Vec2,
+}
+
+/// The chip a button's `trailing_role` dresses its trailing part in,
+/// measured; `None` where it names no role or there is nothing to wear it.
+pub(crate) fn chip_of(
+    brush: &Brush,
+    icons: &crate::widget::icons::Icons,
+    theme: &crate::widget::theme::WidgetTheme,
+    look: &crate::widget::arena::Look,
+    widget: &Widget,
+) -> Option<Chip> {
+    if widget.trailing_role.is_empty() {
+        return None;
+    }
+    let style = theme.resolved(w::LABEL, &widget.trailing_role);
+    let size = style.font_size.unwrap_or(look.font.size);
+    let mark = egui::FontId::new(style.icon_size.unwrap_or(size), look.icon.clone());
+    let glyph = (!widget.trailing_icon.is_empty())
+        .then(|| icons.glyph(&widget.trailing_icon))
+        .flatten()
+        .map(|glyph| brush.line_of(glyph, mark, Color32::PLACEHOLDER));
+    let words = (!widget.trailing.is_empty()).then(|| {
+        let font = egui::FontId::new(size, look.font.family.clone());
+        brush.line_of(widget.trailing.to_string(), font, Color32::PLACEHOLDER)
+    });
+    if glyph.is_none() && words.is_none() {
+        return None;
+    }
+    let pad = vec2(
+        style.padding_x.or(style.padding).unwrap_or(0.0),
+        style.padding_y.or(style.padding).unwrap_or(0.0),
+    );
+    let gap = style.gap.unwrap_or(size / 4.0);
+    let mark = glyph.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
+    let text = words.as_ref().map_or(egui::Vec2::ZERO, |g| g.size());
+    let between = if mark.x > 0.0 && text.x > 0.0 {
+        gap
+    } else {
+        0.0
+    };
+    let size = vec2(
+        mark.x + between + text.x + pad.x * 2.0,
+        mark.y.max(text.y) + pad.y * 2.0,
+    );
+    Some(Chip {
+        glyph,
+        words,
+        style,
+        pad,
+        gap,
+        size,
+    })
+}
+
+impl Chip {
+    /// The chip with its top left at `min`: its box, then its glyph and its
+    /// words, each in the role's ink, else the button's.
+    fn paint(&self, painter: &Brush, min: egui::Pos2, ink: Color32) {
+        let rect = egui::Rect::from_min_size(min, self.size);
+        if let Some(fill) = self.style.fill {
+            painter.fill(rect, self.style.radius.unwrap_or(rect.height() / 2.0), fill);
+        }
+        let middle = rect.center().y;
+        let mut x = rect.min.x + self.pad.x;
+        if let Some(glyph) = &self.glyph {
+            let y = middle - glyph.size().y / 2.0;
+            let tint = self.style.icon_color.unwrap_or(ink);
+            painter.galley(pos2(x, y), std::sync::Arc::clone(glyph), tint);
+            x += glyph.size().x + if self.words.is_some() { self.gap } else { 0.0 };
+        }
+        if let Some(words) = &self.words {
+            let y = middle - words.size().y / 2.0;
+            let tint = self.style.text_color.unwrap_or(ink);
+            painter.galley(pos2(x, y), std::sync::Arc::clone(words), tint);
+        }
+    }
 }
 
 /// The space before a button's trailing part: its gap before a glyph, which
@@ -385,6 +502,14 @@ fn paint_face(
             ink.gamma_multiply(0.55)
         };
         painter.galley(pos2(x, y), std::sync::Arc::clone(trailing), tint);
+    }
+    if let Some(chip) = &face.chip {
+        let x = if left {
+            inner.max.x - chip.size.x
+        } else {
+            at_x + face.size.x - chip.size.x
+        };
+        chip.paint(&painter, pos2(x, middle - chip.size.y / 2.0), ink);
     }
     if let Some((texture, size)) = face.picture {
         let disc = egui::Rect::from_min_size(

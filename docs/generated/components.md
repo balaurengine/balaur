@@ -2618,7 +2618,7 @@ The rarer words about a box, which any kind may carry: what its size measures, w
 
 ### `widget_button`
 
-`ui` · 9 properties
+`ui` · 10 properties
 
 The rows a `button` or `menu` reads: what its face holds beside its caption, and what the pointer may do to it.
 
@@ -2632,6 +2632,7 @@ The rows a `button` or `menu` reads: what its face holds beside its caption, and
 <tr><td><code>face_gap</code></td><td>float</td><td><code>-1.0</code></td><td>The space between its picture, icon and caption, in design pixels; below zero takes the theme&#x27;s own, else half the font size</td></tr>
 <tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text drawn against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
 <tr><td><code>trailing_icon</code></td><td>string</td><td>—</td><td>The name of a glyph in the theme&#x27;s icon font drawn after `text`, at the icon&#x27;s size and in its ink: `gap` from the caption, or against the far edge where the caption starts at its start (`text_align = &quot;start&quot;`), as a picker&#x27;s `chevron-down`. It takes `trailing`&#x27;s place. On a button and a menu whose rows are nodes; a menu of `options` has none</td></tr>
+<tr><td><code>trailing_role</code></td><td>string</td><td>—</td><td>A role from the theme the trailing part wears as a chip, as a price in coins on a Start button (daisyUI&#x27;s badge inside a `btn`): `trailing_icon` then `trailing` side by side, `gap` from the caption, inside the role&#x27;s padding on its `fill` and `radius` (half the chip&#x27;s height where it names none), the glyph in its `icon_color` and the words in its `text_color` at its `font_size`. Empty draws the trailing part bare</td></tr>
 <tr><td><code>loading</code></td><td>bool</td><td><code>false</code></td><td>A spinner before `text` in place of its icon, as daisyUI&#x27;s `loading` button: what a button shows while what it started is under way. It still clicks; `enabled = false` beside it keeps a second press out</td></tr>
 <tr><td><code>sense</code></td><td>enum</td><td><code>click</code></td><td>What the pointer may do to it: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui&#x27;s drag distance is a drag and no click; `drag` and `hover` never click One of <code>click</code>, <code>click_and_drag</code>, <code>drag</code>, <code>hover</code>.</td></tr>
 </tbody>
