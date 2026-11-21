@@ -873,9 +873,9 @@ stateDiagram-v2
 | `boot` | `--size` is parsed, then `standard_app` builds the engine and its plugins. |
 | `debugger_up` | `--debug` binds the adapter. `--debug-wait` blocks until a client configures or 120 s pass. |
 | `before_load` | `--record` opens its recording. `--scene`, the dark mode fact and `--touch` are set, all before any script runs. |
-| `loaded` | `load_project` ran each script's `init`. Then `--fixed-tick`, `--trace-digest` and `--timings` are applied. |
+| `loaded` | `load_project` ran each script's `init`. Then `--fixed-tick`, `--trace-digest` and `--timings` or `--timings-json` are applied. |
 | `frame_loop` | The loop of the chosen display mode runs. |
-| `ending` | `stop_recording` closes a recording with `"quit"`. The log is flushed, timings are printed and the exit code is applied. |
+| `ending` | `stop_recording` closes a recording with `"quit"`. The log is flushed, timings are printed or written as JSON, and the exit code is applied. |
 | `failed` | An `Err` reached `main`. |
 
 | From | Trigger | To | What it does |

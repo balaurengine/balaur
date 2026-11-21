@@ -282,3 +282,61 @@ fn the_report_counts_how_often_a_span_ran_each_frame() {
     assert_eq!(calls("ui"), "1.00", "{report}");
     assert_eq!(calls("ui rerun"), "2.00", "{report}");
 }
+
+#[test]
+fn a_gauge_reports_its_first_peak_last_and_steepest_rise() {
+    use balaur_core::timings::Unit;
+    let mut log = TimingLog::default();
+    for nodes in [100.0, 120.0, 400.0, 380.0, 390.0] {
+        let mut timings = Timings::default();
+        timings.frame = Duration::from_millis(2);
+        timings.gauges = vec![("nodes".into(), nodes, Unit::Count)];
+        log.observe(&timings);
+    }
+    let report = log.report();
+    let row = report
+        .lines()
+        .find(|line| line.starts_with("nodes"))
+        .unwrap_or_else(|| panic!("no nodes row in\n{report}"));
+    assert!(row.contains("400 (frame 2)"), "{row}");
+    assert!(row.contains("+280 (frame 2)"), "{row}");
+    assert!(row.split_whitespace().nth(1) == Some("100"), "{row}");
+    let json = log.json();
+    assert_eq!(json["gauges"]["nodes"]["last"], 390.0, "{json}");
+    assert_eq!(json["gauges"]["nodes"]["peak_frame"], 2, "{json}");
+}
+
+#[test]
+fn the_engine_samples_its_nodes_and_memory_once_gauges_are_on() {
+    balaur_core::timings::sample_gauges();
+    let mut app = app();
+    app.tick(DEFAULT_FIXED_DT);
+    let gauges = last(&app).gauges;
+    let nodes = gauges.iter().find(|g| g.0 == "nodes");
+    assert!(nodes.is_some_and(|g| g.1 >= 1.0), "{gauges:?}");
+    if cfg!(any(target_os = "linux", target_os = "macos", windows)) {
+        let memory = gauges.iter().find(|g| g.0 == "memory");
+        assert!(memory.is_some_and(|g| g.1 > 1024.0 * 1024.0), "{gauges:?}");
+    }
+}
+
+#[test]
+fn the_json_summary_names_a_spike_and_what_it_cost() {
+    let mut log = TimingLog::default();
+    for frame in [2, 2, 2, 2, 2, 2, 2, 2, 2, 300] {
+        let mut timings = Timings::default();
+        timings.frame = Duration::from_millis(frame);
+        timings.spans = vec![("scene/switch".into(), Duration::from_millis(frame - 1))];
+        log.observe(&timings);
+    }
+    let json = log.json();
+    assert_eq!(json["frames"], 10, "{json}");
+    assert_eq!(json["spikes"][0]["frame"], 9, "{json}");
+    assert_eq!(json["spikes"][0]["cause"], "scene/switch", "{json}");
+    assert!(
+        json["spread"]["worst"]
+            .as_f64()
+            .is_some_and(|ms| ms > 299.0),
+        "{json}"
+    );
+}

@@ -158,6 +158,11 @@ enum Command {
         /// share of a 60 Hz frame. What a budget is set against.
         #[arg(long)]
         timings: bool,
+        /// Write the same summary as JSON to this file when the run ends,
+        /// with every gauge (the nodes, the memory): what a tool holding a
+        /// budget reads. Logs the run's timings whether or not `--timings` prints them.
+        #[arg(long, value_name = "PATH")]
+        timings_json: Option<PathBuf>,
         /// Record the run — every tick's input and digest — to a file
         /// `balaur replay` can play back.
         #[arg(long, value_name = "PATH")]
@@ -370,7 +375,7 @@ mod web_editor;
 mod web_export;
 #[cfg(not(target_arch = "wasm32"))]
 use traces::replay_session;
-use traces::{log_timings, print_timings, record_to, trace_digest_to};
+use traces::{end_timings, log_timings, print_timings, record_to, trace_digest_to};
 
 // Rayon's pool, built from Web Workers because `std::thread` spawns none on
 // this target. The page awaits `initThreadPool` before `start`; only the
@@ -522,6 +527,7 @@ fn dispatch(command: Command) -> Result<()> {
             size,
             trace_digest,
             timings,
+            timings_json,
             record,
             debug,
             debug_wait,
@@ -537,6 +543,7 @@ fn dispatch(command: Command) -> Result<()> {
             touch,
             trace_digest,
             timings,
+            timings_json,
             record,
             debug,
             debug_wait,
@@ -685,6 +692,7 @@ struct RunOpts {
     touch: bool,
     trace_digest: Option<PathBuf>,
     timings: bool,
+    timings_json: Option<PathBuf>,
     record: Option<PathBuf>,
     debug: Option<u16>,
     debug_wait: bool,
@@ -766,6 +774,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         touch,
         trace_digest,
         timings: _,
+        timings_json,
         record,
         debug,
         debug_wait,
@@ -812,7 +821,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         .manifest()
         .map_or_else(|| words::general::BALAUR.to_string(), |m| m.name.clone());
     // Registered last, so the frame it folds in is the whole frame.
-    let timings = opts.timings.then(|| log_timings(&mut app));
+    let timings = (opts.timings || timings_json.is_some()).then(|| log_timings(&mut app));
     let engine = app.engine.clone();
     if display == Display::Headless {
         balaur::keep_log(&app);
@@ -830,7 +839,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         balaur_core::replay::stop_recording(&engine, QUIT);
         balaur::logbuf::flush_file();
         if let Some(log) = &timings {
-            print_timings(log);
+            end_timings(log, opts.timings, timings_json.as_deref())?;
         }
         exit_with(engine.exit_code());
         return Ok(());
@@ -850,7 +859,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     };
     balaur_core::replay::stop_recording(&engine, QUIT);
     if let Some(log) = &timings {
-        print_timings(log);
+        end_timings(log, opts.timings, timings_json.as_deref())?;
     }
     ran?;
     exit_with(engine.exit_code());

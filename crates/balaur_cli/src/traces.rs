@@ -17,12 +17,30 @@ pub(super) fn print_timings(log: &std::rc::Rc<std::cell::RefCell<balaur::timings
     );
 }
 
+/// A run's timings at its end: printed where `--timings` asked, written as
+/// JSON where `--timings-json` named a file.
+pub(super) fn end_timings(
+    log: &std::rc::Rc<std::cell::RefCell<balaur::timings::TimingLog>>,
+    print: bool,
+    json: Option<&Path>,
+) -> Result<()> {
+    if print {
+        print_timings(log);
+    }
+    if let Some(path) = json {
+        let text = serde_json::to_string_pretty(&log.borrow().json())?;
+        std::fs::write(path, text).with_context(|| format!("writing {}", path.display()))?;
+    }
+    Ok(())
+}
+
 /// Fold every frame's timings into one log, kept by the caller so it survives
 /// the loop that consumes the app.
 pub(super) fn log_timings(
     app: &mut App,
 ) -> std::rc::Rc<std::cell::RefCell<balaur::timings::TimingLog>> {
     balaur::timings::count_cpu();
+    balaur::timings::sample_gauges();
     let log = std::rc::Rc::new(std::cell::RefCell::new(
         balaur::timings::TimingLog::default(),
     ));

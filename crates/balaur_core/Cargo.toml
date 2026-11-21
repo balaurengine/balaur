@@ -81,3 +81,10 @@ rayon = "1"
 # whose cores are all alike.
 [target.'cfg(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux", target_os = "windows"))'.dependencies]
 gdt-cpus = { version = "0.2606", default-features = false }
+
+# The memory the process holds, for the `memory` gauge (`timings`).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }

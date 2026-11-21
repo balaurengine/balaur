@@ -38,6 +38,11 @@ use crate::vocabulary::words;
 
 const FRAME: &str = "frame";
 const WALL: &str = "wall";
+/// The gauges the engine samples itself while a run's timings are logged.
+const NODES: &str = "nodes";
+/// A run's slowest: a column of the report and a point of its spread.
+const WORST: &str = "worst";
+const MEMORY: &str = "memory";
 
 thread_local! {
     /// What the run spent before its first frame, summed by name in the order
@@ -107,6 +112,12 @@ pub fn note_boot(name: &str, elapsed: Duration) {
             None => spans.push((name.into(), elapsed)),
         },
     );
+}
+
+/// The boot's phases in the order they ran, each summed by name.
+#[must_use]
+pub fn boot_phases() -> Vec<(SmolStr, Duration)> {
+    BOOT.with_borrow(Clone::clone)
 }
 
 /// The table `--timings` prints for the boot, empty when nothing measured one.
@@ -210,6 +221,11 @@ pub struct Timings {
     /// span that fans out to the thread pool spent against its wall time.
     pub span_cpu: Vec<(SmolStr, Duration)>,
     pending_cpu: Vec<(SmolStr, Duration)>,
+    /// Levels read as the frame ended, by name, the last one filed winning:
+    /// the nodes alive and the memory the process holds, while [`sample_gauges`]
+    /// is on, and whatever a plugin counts ([`gauge`]).
+    pub gauges: Vec<(SmolStr, f64, Unit)>,
+    pending_gauges: Vec<(SmolStr, f64, Unit)>,
     /// The process's CPU time when the last frame ended.
     cpu_at: Option<Duration>,
     /// Wall time since the frame before was published: the window
@@ -222,6 +238,66 @@ pub struct Timings {
 /// Whether spans count their CPU time as well, which costs a system call
 /// each: on while a run's timings are being logged.
 static COUNT_CPU: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether each frame reads the engine's own gauges, the nodes and the
+/// memory: a count and a system call, on while a run's timings are logged.
+static SAMPLE_GAUGES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// What a gauge's number counts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unit {
+    /// Things: nodes, widgets, draw calls.
+    Count,
+    /// Bytes, printed in megabytes.
+    Bytes,
+}
+
+impl Unit {
+    fn word(self) -> &'static str {
+        match self {
+            Self::Count => "count",
+            Self::Bytes => "bytes",
+        }
+    }
+
+    fn show(self, value: f64) -> String {
+        match self {
+            Self::Count => format!("{value:.0}"),
+            Self::Bytes => format!("{:.1} MB", value / (1024.0 * 1024.0)),
+        }
+    }
+}
+
+/// Read the engine's own gauges every frame from now on, for [`TimingLog`]'s
+/// report: the nodes alive and the memory the process holds.
+pub fn sample_gauges() {
+    SAMPLE_GAUGES.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// File `value` as this frame's level of `name`: a count a plugin keeps,
+/// widgets drawn or draw calls. Filed twice in a frame, the last one stands.
+pub fn gauge(eng: &Engine, name: &str, value: f64, unit: Unit) {
+    if let Some(timings) = eng.try_resource::<Timings>() {
+        file_gauge(&mut timings.borrow_mut().pending_gauges, name, value, unit);
+    }
+}
+
+fn file_gauge(gauges: &mut Vec<(SmolStr, f64, Unit)>, name: &str, value: f64, unit: Unit) {
+    match gauges.iter_mut().find(|g| g.0 == name) {
+        Some(slot) => {
+            slot.1 = value;
+            slot.2 = unit;
+        }
+        None => gauges.push((name.into(), value, unit)),
+    }
+}
+
+/// The memory the process holds now, its resident set, in bytes; `None`
+/// where the platform does not say.
+#[must_use]
+pub fn process_memory() -> Option<u64> {
+    memory::resident()
+}
 
 /// Count every span's CPU time from now on, for [`TimingLog`]'s report.
 pub fn count_cpu() {
@@ -299,7 +375,29 @@ pub(crate) fn publish(eng: &Engine, frame: Duration, stages: [Duration; 8], fixe
     let Some(timings) = eng.try_resource::<Timings>() else {
         return;
     };
+    // Read before the table is borrowed: a count of the world is a borrow
+    // of its own.
+    let sampled = SAMPLE_GAUGES
+        .load(std::sync::atomic::Ordering::Relaxed)
+        .then(|| (eng.world().len(), process_memory()));
     let mut timings = timings.borrow_mut();
+    if let Some((nodes, memory)) = sampled {
+        file_gauge(
+            &mut timings.pending_gauges,
+            NODES,
+            f64::from(nodes),
+            Unit::Count,
+        );
+        if let Some(bytes) = memory {
+            file_gauge(
+                &mut timings.pending_gauges,
+                MEMORY,
+                bytes as f64,
+                Unit::Bytes,
+            );
+        }
+    }
+    timings.gauges = std::mem::take(&mut timings.pending_gauges);
     timings.frame = frame;
     // Not `wall`: the loop writes that, and the last one it measured stands
     // until it measures another.
@@ -390,6 +488,19 @@ pub struct TimingLog {
     marks: Vec<Mark>,
     /// CPU time and wall time of every span that counted its CPU, by name.
     span_cpu: Vec<(String, Duration, Duration)>,
+    /// Every gauge's run, by name, in the order each was first seen.
+    gauges: Vec<GaugeRun>,
+}
+
+/// One gauge over a run: where it started, its peak and when, where it ended,
+/// and its steepest one-frame climb, which is where a leak or a burst is.
+struct GaugeRun {
+    name: String,
+    unit: Unit,
+    first: f64,
+    peak: (f64, u64),
+    last: f64,
+    rise: (f64, u64),
 }
 
 /// One frame as the spike report reads it: how long it took, how much CPU
@@ -435,6 +546,28 @@ impl TimingLog {
                     slot.2 += wall;
                 }
                 None => self.span_cpu.push((name.to_string(), *cpu, wall)),
+            }
+        }
+        for (name, value, unit) in &timings.gauges {
+            let frame = self.frames;
+            match self.gauges.iter_mut().find(|g| g.name == name.as_str()) {
+                Some(run) => {
+                    if *value > run.peak.0 {
+                        run.peak = (*value, frame);
+                    }
+                    if *value - run.last > run.rise.0 {
+                        run.rise = (*value - run.last, frame);
+                    }
+                    run.last = *value;
+                }
+                None => self.gauges.push(GaugeRun {
+                    name: name.to_string(),
+                    unit: *unit,
+                    first: *value,
+                    peak: (*value, frame),
+                    last: *value,
+                    rise: (0.0, frame),
+                }),
             }
         }
         self.frames += 1;
@@ -497,7 +630,7 @@ impl TimingLog {
         let width = rows.iter().map(|r| r.0.len()).max().unwrap_or(0).max(6);
         let mut out = format!(
             "\n{:width$}  {:>9}  {:>9}  {:>9}  {:>7}\n",
-            "stage", "mean", "worst", "of frame", "a frame"
+            "stage", "mean", WORST, "of frame", "a frame"
         );
         for (name, mean, worst, calls) in &rows {
             let line = format!(
@@ -530,83 +663,136 @@ impl TimingLog {
             );
         }
         out.push_str(&self.distribution());
+        out.push_str(&self.gauge_table());
         out
+    }
+
+    /// Each gauge's first, peak and last levels, and its steepest climb.
+    fn gauge_table(&self) -> String {
+        if self.gauges.is_empty() {
+            return String::new();
+        }
+        let width = self
+            .gauges
+            .iter()
+            .map(|g| g.name.len())
+            .max()
+            .unwrap_or(0)
+            .max(6);
+        let mut out = format!(
+            "\n{:width$}  {:>10}  {:>22}  {:>10}  {:>22}\n",
+            "gauge", "first", "peak", "last", "steepest rise"
+        );
+        for g in &self.gauges {
+            let line = format!(
+                "{:width$}  {:>10}  {:>22}  {:>10}  {:>22}",
+                g.name,
+                g.unit.show(g.first),
+                format!("{} (frame {})", g.unit.show(g.peak.0), g.peak.1),
+                g.unit.show(g.last),
+                format!("+{} (frame {})", g.unit.show(g.rise.0), g.rise.1),
+            );
+            let _ = writeln!(out, "{}", line.trim_end());
+        }
+        out
+    }
+
+    /// The run as data, for a tool that holds a budget: the boot's phases,
+    /// each stage's and span's mean and worst, the frames' spread and spikes,
+    /// the cores kept busy and every gauge, durations in milliseconds.
+    #[must_use]
+    pub fn json(&self) -> serde_json::Value {
+        use serde_json::{Map, Value, json};
+        let ms = |d: Duration| d.as_secs_f64() * 1000.0;
+        let frames = u32::try_from(self.frames).unwrap_or(u32::MAX).max(1);
+        let boot: Map<String, Value> = boot_phases()
+            .into_iter()
+            .map(|(name, cost)| (name.to_string(), json!(ms(cost))))
+            .collect();
+        let mut stages = Map::new();
+        for (i, name) in STAGE_NAMES.iter().enumerate() {
+            stages.insert(
+                (*name).to_string(),
+                json!({ "mean": ms(self.stage_totals[i] / frames), "worst": ms(self.stage_worst[i]) }),
+            );
+        }
+        let spans: Map<String, Value> = self
+            .spans
+            .iter()
+            .map(|s| {
+                (
+                    s.name.clone(),
+                    json!({
+                        "mean": ms(s.total / frames),
+                        "worst": ms(s.worst),
+                        "calls": s.calls as f64 / f64::from(frames),
+                    }),
+                )
+            })
+            .collect();
+        let gauges: Map<String, Value> = self
+            .gauges
+            .iter()
+            .map(|g| {
+                (
+                    g.name.clone(),
+                    json!({
+                        "unit": g.unit.word(),
+                        "first": g.first,
+                        "peak": g.peak.0,
+                        "peak_frame": g.peak.1,
+                        "last": g.last,
+                        "rise": g.rise.0,
+                        "rise_frame": g.rise.1,
+                    }),
+                )
+            })
+            .collect();
+        let (spread, spikes) = self.spread();
+        json!({
+            "frames": self.frames,
+            "boot": boot,
+            "frame": { "mean": ms(self.frame_total / frames), "worst": ms(self.frame_worst) },
+            "spread": spread.iter().map(|(k, d)| ((*k).to_string(), json!(ms(*d)))).collect::<Map<String, Value>>(),
+            "spikes": spikes.iter().map(|(frame, period, cause, cost)| json!({
+                "frame": frame, "ms": ms(*period), "cause": cause, "cause_ms": ms(*cost),
+            })).collect::<Vec<Value>>(),
+            "cpu": self.cores().map_or(Value::Null, |(average, busiest)| json!({ "average": average, "busiest": busiest })),
+            "stages": stages,
+            "spans": spans,
+            "gauges": gauges,
+        })
     }
 
     /// The frame times' spread, the frames that stood out of it and what each
     /// spent its time on, and how many cores the run kept busy.
     fn distribution(&self) -> String {
-        let mut periods: Vec<Duration> = self.marks.iter().map(|m| m.period).collect();
-        periods.sort_unstable();
-        let at = |share: f64| {
-            let last = periods.len().saturating_sub(1);
-            periods[((last as f64) * share).round() as usize]
-        };
-        let (median, mut out) = (at(0.5), String::new());
+        let (spread, spikes) = self.spread();
+        let mut out = String::new();
         let _ = writeln!(
             out,
             "\nframes  p50 {}  p95 {}  p99 {}  worst {}",
-            millis(median),
-            millis(at(0.95)),
-            millis(at(0.99)),
-            millis(at(1.0)),
+            millis(spread[0].1),
+            millis(spread[1].1),
+            millis(spread[2].1),
+            millis(spread[3].1),
         );
-        // Twice the median and a millisecond over it: a frame a player could
-        // feel, not one a fast frame's noise doubles.
-        let over = median * 2;
-        let mut spikes: Vec<(usize, &Mark)> = self
-            .marks
-            .iter()
-            .enumerate()
-            .filter(|(_, m)| m.period > over && m.period > median + Duration::from_millis(1))
-            .collect();
         let _ = writeln!(out, "spikes  {} over twice the median", spikes.len());
-        spikes.sort_by_key(|(_, m)| std::cmp::Reverse(m.period));
-        for (frame, mark) in spikes.iter().take(8) {
-            // What the loop spent drawing a frame is published with the next
-            // frame's stages, and a shader it built after them with the one after
-            // that, so a frame's cause can be two tables behind it.
-            let (name, cost) = self.marks[*frame..]
-                .iter()
-                .take(3)
-                .map(|m| &m.costliest)
-                .max_by_key(|(_, cost)| *cost)
-                .unwrap_or(&mark.costliest);
+        for (frame, period, name, cost) in spikes.iter().take(8) {
             let _ = writeln!(
                 out,
                 "  frame {frame}: {}, most in {name} ({})",
-                millis(mark.period),
+                millis(*period),
                 millis(*cost),
             );
         }
-        let (cpu, period): (Duration, Duration) = self
-            .marks
-            .iter()
-            .fold((Duration::ZERO, Duration::ZERO), |(c, p), m| {
-                (c + m.cpu, p + m.interval)
-            });
-        // The CPU clock's step, as small as a frame saw it: a frame or span
-        // only a few steps long reads its slices as cores it never had.
-        let step = self
-            .marks
-            .iter()
-            .map(|m| m.cpu)
-            .filter(|cpu| !cpu.is_zero())
-            .min()
-            .unwrap_or_default();
-        if cpu > Duration::ZERO && period > Duration::ZERO {
-            let busiest = self
-                .marks
-                .iter()
-                .filter(|m| !m.interval.is_zero() && m.interval >= step * 2)
-                .map(|m| m.cpu.as_secs_f64() / m.interval.as_secs_f64())
-                .fold(0.0, f64::max);
+        if let Some((average, busiest)) = self.cores() {
             let _ = writeln!(
                 out,
-                "cpu     {:.2} cores busy on average, {busiest:.2} in the busiest frame",
-                cpu.as_secs_f64() / period.as_secs_f64(),
+                "cpu     {average:.2} cores busy on average, {busiest:.2} in the busiest frame",
             );
         }
+        let step = self.cpu_step();
         for (name, cpu, wall) in &self.span_cpu {
             if !wall.is_zero() && *wall >= step * 20 {
                 let _ = writeln!(
@@ -617,6 +803,96 @@ impl TimingLog {
             }
         }
         out
+    }
+
+    /// The frame times at p50, p95, p99 and worst, and every frame over twice
+    /// the median, slowest first: its number, its period, and what cost it
+    /// the most with that cost.
+    #[allow(
+        clippy::type_complexity,
+        reason = "a spike's four fields, read once by the report and once by the json"
+    )]
+    fn spread(
+        &self,
+    ) -> (
+        [(&'static str, Duration); 4],
+        Vec<(usize, Duration, String, Duration)>,
+    ) {
+        let mut periods: Vec<Duration> = self.marks.iter().map(|m| m.period).collect();
+        periods.sort_unstable();
+        let at = |share: f64| {
+            let last = periods.len().saturating_sub(1);
+            periods
+                .get(((last as f64) * share).round() as usize)
+                .copied()
+                .unwrap_or_default()
+        };
+        let median = at(0.5);
+        let spread = [
+            ("p50", median),
+            ("p95", at(0.95)),
+            ("p99", at(0.99)),
+            (WORST, at(1.0)),
+        ];
+        // Twice the median and a millisecond over it: a frame a player could
+        // feel, not one a fast frame's noise doubles.
+        let over = median * 2;
+        let mut spikes: Vec<(usize, &Mark)> = self
+            .marks
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.period > over && m.period > median + Duration::from_millis(1))
+            .collect();
+        spikes.sort_by_key(|(_, m)| std::cmp::Reverse(m.period));
+        let spikes = spikes
+            .into_iter()
+            .map(|(frame, mark)| {
+                // What the loop spent drawing a frame is published with the next
+                // frame's stages, and a shader it built after them with the one after
+                // that, so a frame's cause can be two tables behind it.
+                let (name, cost) = self.marks[frame..]
+                    .iter()
+                    .take(3)
+                    .map(|m| &m.costliest)
+                    .max_by_key(|(_, cost)| *cost)
+                    .unwrap_or(&mark.costliest);
+                (frame, mark.period, name.to_string(), *cost)
+            })
+            .collect();
+        (spread, spikes)
+    }
+
+    /// The CPU clock's step, as small as a frame saw it: a frame or span only
+    /// a few steps long reads its slices as cores it never had.
+    fn cpu_step(&self) -> Duration {
+        self.marks
+            .iter()
+            .map(|m| m.cpu)
+            .filter(|cpu| !cpu.is_zero())
+            .min()
+            .unwrap_or_default()
+    }
+
+    /// The cores the run kept busy on average and in its busiest frame;
+    /// `None` where the platform counts no CPU time.
+    fn cores(&self) -> Option<(f64, f64)> {
+        let (cpu, period): (Duration, Duration) = self
+            .marks
+            .iter()
+            .fold((Duration::ZERO, Duration::ZERO), |(c, p), m| {
+                (c + m.cpu, p + m.interval)
+            });
+        if cpu.is_zero() || period.is_zero() {
+            return None;
+        }
+        let step = self.cpu_step();
+        let busiest = self
+            .marks
+            .iter()
+            .filter(|m| !m.interval.is_zero() && m.interval >= step * 2)
+            .map(|m| m.cpu.as_secs_f64() / m.interval.as_secs_f64())
+            .fold(0.0, f64::max);
+        Some((cpu.as_secs_f64() / period.as_secs_f64(), busiest))
     }
 }
 
@@ -638,4 +914,69 @@ fn costliest(timings: &Timings) -> (SmolStr, Duration) {
 
 fn millis(d: Duration) -> String {
     format!("{:.3} ms", d.as_secs_f64() * 1000.0)
+}
+
+/// The process's resident set, per platform.
+mod memory {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    pub(super) fn resident() -> Option<u64> {
+        // `statm`'s second field is the resident set, in pages.
+        let statm = std::fs::read_to_string("/proc/self/statm").ok()?; // os files: the kernel's, never a game's
+        let pages: u64 = statm.split_whitespace().nth(1)?.parse().ok()?;
+        // SAFETY: `sysconf` reads a constant of the system and touches no memory of ours.
+        let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+        Some(pages * u64::try_from(page).ok()?)
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    pub(super) fn resident() -> Option<u64> {
+        let mut info = std::mem::MaybeUninit::<libc::proc_taskinfo>::zeroed();
+        let size = i32::try_from(std::mem::size_of::<libc::proc_taskinfo>()).ok()?;
+        // SAFETY: the buffer is a zeroed `proc_taskinfo` of the size passed,
+        // which is what `PROC_PIDTASKINFO` fills; the call writes nothing else.
+        let wrote = unsafe {
+            libc::proc_pidinfo(
+                libc::getpid(),
+                libc::PROC_PIDTASKINFO,
+                0,
+                info.as_mut_ptr().cast(),
+                size,
+            )
+        };
+        if wrote != size {
+            return None;
+        }
+        // SAFETY: `proc_pidinfo` filled the whole struct, as its return says.
+        Some(unsafe { info.assume_init() }.pti_resident_size)
+    }
+
+    #[cfg(windows)]
+    pub(super) fn resident() -> Option<u64> {
+        use windows_sys::Win32::System::ProcessStatus::{
+            GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS,
+        };
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+        let mut counters = std::mem::MaybeUninit::<PROCESS_MEMORY_COUNTERS>::zeroed();
+        let size = u32::try_from(std::mem::size_of::<PROCESS_MEMORY_COUNTERS>()).ok()?;
+        // SAFETY: the buffer is a zeroed `PROCESS_MEMORY_COUNTERS` of the size
+        // passed, and the pseudo handle of the current process needs no closing.
+        let ok = unsafe { GetProcessMemoryInfo(GetCurrentProcess(), counters.as_mut_ptr(), size) };
+        if ok == 0 {
+            return None;
+        }
+        // SAFETY: the call succeeded, so it filled the struct.
+        let counters = unsafe { counters.assume_init() };
+        u64::try_from(counters.WorkingSetSize).ok()
+    }
+
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "macos",
+        target_os = "ios",
+        windows
+    )))]
+    pub(super) fn resident() -> Option<u64> {
+        None
+    }
 }
