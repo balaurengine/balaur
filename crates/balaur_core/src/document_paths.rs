@@ -148,7 +148,7 @@ pub fn prefixed_in(
 /// The root of the project whose content `entity` plays, when that is not
 /// the engine's own: the game an editor edits, whose files a node there names
 /// as that project spells them.
-fn content_root_of(eng: &Engine, entity: hecs::Entity) -> Option<PathBuf> {
+pub(crate) fn content_root_of(eng: &Engine, entity: hecs::Entity) -> Option<PathBuf> {
     let root = crate::project::content_root(eng)?;
     crate::project::in_content(eng, entity).then_some(root)
 }

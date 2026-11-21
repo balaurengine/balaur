@@ -989,6 +989,7 @@ dependencies = [
  "js-sys",
  "libc",
  "libm",
+ "mach2",
  "memmap2",
  "mio",
  "rayon",

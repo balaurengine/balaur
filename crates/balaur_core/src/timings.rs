@@ -957,24 +957,24 @@ mod memory {
 
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     pub(super) fn resident() -> Option<u64> {
-        let mut info = std::mem::MaybeUninit::<libc::proc_taskinfo>::zeroed();
-        let size = i32::try_from(std::mem::size_of::<libc::proc_taskinfo>()).ok()?;
-        // SAFETY: the buffer is a zeroed `proc_taskinfo` of the size passed,
-        // which is what `PROC_PIDTASKINFO` fills; the call writes nothing else.
-        let wrote = unsafe {
-            libc::proc_pidinfo(
-                libc::getpid(),
-                libc::PROC_PIDTASKINFO,
-                0,
+        use mach2::task_info::{MACH_TASK_BASIC_INFO, MACH_TASK_BASIC_INFO_COUNT};
+        let mut info = std::mem::MaybeUninit::<mach2::task_info::mach_task_basic_info>::zeroed();
+        let mut count = MACH_TASK_BASIC_INFO_COUNT;
+        // SAFETY: the buffer is a zeroed `mach_task_basic_info` of the count
+        // passed, which is what `MACH_TASK_BASIC_INFO` fills.
+        let answered = unsafe {
+            mach2::task::task_info(
+                mach2::traps::mach_task_self(),
+                MACH_TASK_BASIC_INFO,
                 info.as_mut_ptr().cast(),
-                size,
+                &raw mut count,
             )
         };
-        if wrote != size {
+        if answered != mach2::kern_return::KERN_SUCCESS {
             return None;
         }
-        // SAFETY: `proc_pidinfo` filled the whole struct, as its return says.
-        Some(unsafe { info.assume_init() }.pti_resident_size)
+        // SAFETY: `task_info` succeeded, so it filled the struct.
+        Some(unsafe { info.assume_init() }.resident_size)
     }
 
     #[cfg(windows)]

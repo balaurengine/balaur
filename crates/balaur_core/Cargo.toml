@@ -83,8 +83,11 @@ rayon = "1"
 gdt-cpus = { version = "0.2606", default-features = false }
 
 # The memory the process holds, for the `memory` gauge (`timings`).
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
 libc = "0.2"
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+mach2 = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }

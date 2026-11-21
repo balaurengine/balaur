@@ -512,6 +512,39 @@ fn a_node_of_another_projects_content_names_files_as_it_spells_them() {
     );
 }
 
+#[test]
+fn a_scene_built_under_another_projects_content_names_its_script_from_that_project() {
+    let dir = project(&[("scripts/player.bs", "")]);
+    let editor = tempfile::tempdir().unwrap();
+    let app = app_in(editor.path());
+    let root = app.engine.root();
+    let mirror = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Played", root);
+    balaur_core::project::set_content_root(&app.engine, dir.path().to_str().unwrap());
+    app.engine.set_debug_scope(Some(mirror));
+    let player = "[[nodes]]\nid = \"n_player\"\nname = \"Player\"\n\n[nodes.script]\nsource = \"scripts/player.bs\"\n";
+    balaur_core::project::instantiate_scene(&app.engine, player, mirror, false).unwrap();
+    balaur_core::project::instantiate_scene(&app.engine, player, root, false).unwrap();
+    let script = |parent| {
+        let world = app.engine.world();
+        let built = *world
+            .get::<&balaur_core::Children>(parent)
+            .unwrap()
+            .0
+            .last()
+            .unwrap();
+        world
+            .get::<&balaur_core::NodeScript>(built)
+            .unwrap()
+            .path
+            .clone()
+    };
+    assert_eq!(
+        script(mirror),
+        format!("{}/scripts/player.bs", dir.path().to_str().unwrap())
+    );
+    assert_eq!(script(root), "scripts/player.bs");
+}
+
 // A component's struct is the record a save reads: a colour comes back as
 // the hex it was written as, an inline asset as its table, and a property
 // left at its default is not written.

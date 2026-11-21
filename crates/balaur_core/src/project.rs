@@ -574,7 +574,8 @@ type PendingScript = (Entity, String, Vec<(String, Value)>);
 /// declaration order; scripts are attached (and `init` runs) after the whole
 /// tree exists, so `init` can already look up sibling nodes.
 /// `attach_scripts: false` builds the tree and plugin components only, which
-/// is what an editor mirroring a foreign project wants.
+/// is what an editor mirroring a foreign project wants. Under a node playing
+/// another project's content, the text names its files from that project.
 pub fn instantiate_scene(
     eng: &Engine,
     source: &str,
@@ -640,9 +641,10 @@ fn instantiate_from(
     attach_scripts: bool,
     foreign: Option<&std::path::Path>,
 ) -> Result<()> {
+    let played = crate::document_paths::content_root_of(eng, base);
     instantiate_doc(
         eng,
-        &parse_scene(eng, source, foreign)?,
+        &parse_scene(eng, source, foreign.or(played.as_deref()))?,
         source,
         base,
         attach_scripts,

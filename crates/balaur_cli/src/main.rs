@@ -375,7 +375,7 @@ mod web_editor;
 mod web_export;
 #[cfg(not(target_arch = "wasm32"))]
 use traces::replay_session;
-use traces::{end_timings, log_timings, print_timings, record_to, trace_digest_to};
+use traces::{end_timings, log_timings, record_to, trace_digest_to};
 
 // Rayon's pool, built from Web Workers because `std::thread` spawns none on
 // this target. The page awaits `initThreadPool` before `start`; only the
@@ -1028,7 +1028,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
         balaur::run(app, "balaur editor")
     };
     if let Some(log) = &log {
-        print_timings(log);
+        traces::print_timings(log);
     }
     ran
 }
