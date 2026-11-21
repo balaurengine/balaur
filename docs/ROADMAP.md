@@ -77,6 +77,7 @@ being built, marked `done`, never back in the shipped one.
 | **Multiplayer dock and Play as two** — a second instance of the game started from the editor, with each link and its stats in a dock. | 0.4 | [PLAN-multiplayer.md#3-steps](PLAN-multiplayer.md#3-steps) |
 | **The editor in a browser** — native targets exported from a tab, a folder on disk edited in place, and a debugger outside the tab. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
 | **A green `main`** — the same outputs on every machine, a bad file an error rather than a crash, and documents that match the code. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
+| **No copy that is not the point** — a value is read through a reference, a lint holds the shapes of a needless copy, and the 300 found are taken down. | 0.3 | [PLAN-copies.md](PLAN-copies.md) |
 | **What the editor's frame costs** — the shell restates only what changed, and `[window] low_processor` draws no frame while nothing moves. | (0.2) done | no plan |
 | **Node conversions** — reparent, make scene root, save a branch as a scene, fit a collider to what is drawn, and bake a boolean. | (0.2) | [PLAN-node-conversions.md](PLAN-node-conversions.md) |
 | **The editor on a tablet and a phone** — the docks fold away on a small screen and open one at a time, and every control clears a finger. | 0.8 | [PLAN-responsive.md](PLAN-responsive.md) |

@@ -1,0 +1,429 @@
+crates/balaur/src/event_names.rs	copy-per-item	.extend(names.events.iter().map(|event| event.name.clone()));
+crates/balaur/src/event_names.rs	copy-per-item	.map(|heard| (scene.clone(), heard)),
+crates/balaur/src/interact.rs	copy-per-item	names.iter().filter(|name| test(name)).cloned().collect()
+crates/balaur/src/lib.rs	copy-per-item	.filter_map(|(name, choice)| Some((name.clone(), choice.config()?.clone())))
+crates/balaur/src/lib.rs	copy-per-item	let checked = checked.iter().cloned().collect();
+crates/balaur_animation/src/bindings.rs	copy-per-item	Some(Value::Map(pairs)) => pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()),
+crates/balaur_animation/src/lib.rs	copy-per-item	.map(|held| (*held).clone())
+crates/balaur_animation/src/machine.rs	copy-per-item	..template.clone()
+crates/balaur_animation/src/machine.rs	copy-per-item	.map(|held| (*held).clone())
+crates/balaur_animation/src/machine.rs	copy-per-item	.map(|name| (name.clone(), playback.reference(machine.clip_of(name))))
+crates/balaur_animation/src/machine.rs	copy-per-item	.map(|run| run.current.clone())
+crates/balaur_animation/src/machine.rs	copy-per-item	.map(|t| (t.to.clone(), Entry::over(t)))
+crates/balaur_animation/src/machine.rs	copy-per-item	Ok(clip) => Some((name.clone(), clip)),
+crates/balaur_animation/src/machine.rs	copy-per-item	methods.push(t.check.clone());
+crates/balaur_animation/src/machine.rs	copy-per-item	run.reference.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	.map(|(k, v)| (k.clone(), *v))
+crates/balaur_animation/src/snapshot.rs	copy-per-item	.map(|(name, reference)| (name.clone(), reference.clone()))
+crates/balaur_animation/src/snapshot.rs	copy-per-item	.map(|curve| curve.points().to_vec())
+crates/balaur_animation/src/snapshot.rs	copy-per-item	.then(|| crate::ease::Points::from_points(fade.curve.clone())),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	None if fade.clip_name.is_empty() => player.library.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	Some((_, reference)) => reference.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	autoplay: playback.autoplay.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	call: key.call.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	call: key.call.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	check_node: run.check_node.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	clip_name: fade.clip_name.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	clip_name: playback.clip_name.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	current: run.current.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	finished: playback.finished.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	jump: run.jump.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	library: playback.library.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	pending: run.pending.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	pending: tween.pending.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	player: run.player.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	queue: playback.queue.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	reference: run.reference.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	retarget: playback.retarget_reference.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	root_node: playback.root_node.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	step_ends: tween.step_ends.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	target: track.target.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	target: track.target.clone(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	times: run.times.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+crates/balaur_animation/src/snapshot.rs	copy-per-item	travel: run.travel.clone(),
+crates/balaur_animation/src/system.rs	copy-per-item	.map(|playback| playback.finished.clone())
+crates/balaur_apple/src/arrivals.rs	copy-to-borrow	.and_then(|data| serde_json::from_slice(&data.to_vec()).ok())
+crates/balaur_asset/src/glb.rs	copy-per-item	(POSITION, it.map(|v| v.to_vec()).collect())
+crates/balaur_asset/src/glb.rs	copy-per-item	(SCALE, it.map(|v| v.to_vec()).collect())
+crates/balaur_asset/src/glb.rs	copy-per-item	.map(|uri| (uri.clone(), Beside::Named(uri.clone())))
+crates/balaur_asset/src/glb.rs	copy-per-item	rotations.into_f32().map(|q| q.to_vec()).collect(),
+crates/balaur_audio/src/backend/mod.rs	copy-per-item	.map(|route| (route.name.clone(), joins(&route.name)))
+crates/balaur_audio/src/bus.rs	copy-per-item	let Some(parent) = buses.buses.get(&at).map(|b| b.parent.clone()) else {
+crates/balaur_audio/src/bus.rs	copy-per-item	let names: Vec<String> = buses.buses.keys().cloned().collect();
+crates/balaur_audio/src/bus.rs	copy-per-item	name: name.clone(),
+crates/balaur_audio/src/bus.rs	copy-per-item	self.buses.keys().cloned().collect()
+crates/balaur_audio/src/component.rs	copy-per-item	.map(|held| (*held).clone())
+crates/balaur_audio/src/lib.rs	copy-per-item	.map(|held| (*held).clone())
+crates/balaur_audio/src/lib.rs	copy-per-item	.map(|routed| (routed.bus.clone(), routed.volume))
+crates/balaur_bs/src/analysis/edit.rs	copy-per-item	let params: Vec<crate::Ty> = x.params.iter().map(|p| p.ty.clone()).collect();
+crates/balaur_bs/src/analysis/mod.rs	copy-per-item	key: f.key.clone(),
+crates/balaur_bs/src/analysis/mod.rs	copy-per-item	let params: Vec<crate::Ty> = x.params.iter().map(|p| p.ty.clone()).collect();
+crates/balaur_bs/src/analysis/types.rs	copy-per-item	key: f.key.clone(),
+crates/balaur_bs/src/codegen/asyncs.rs	copy-per-item	.map(|(p, k)| (p + shift, k.clone()))
+crates/balaur_bs/src/codegen/convert.rs	copy-per-item	.map(|((name, _), at)| (name.clone(), index(var(CELL), expr(ExprKind::Int(at)))))
+crates/balaur_bs/src/codegen/convert.rs	copy-per-item	.map(|(name, _)| (name.clone(), index(var(CELL), text(name))))
+crates/balaur_bs/src/codegen/func.rs	copy-per-item	.map(|(_, l)| l.clone())
+crates/balaur_bs/src/codegen/func.rs	copy-per-item	name: n.clone(),
+crates/balaur_bs/src/codegen/func.rs	copy-per-item	ty: lv.ty.clone(),
+crates/balaur_bs/src/codegen/func.rs	copy-to-iterate	for (s, h) in self.owned.clone() {
+crates/balaur_bs/src/codegen/func.rs	copy-to-iterate	for r in self.refs.clone() {
+crates/balaur_bs/src/codegen/func.rs	copy-to-iterate	for s in lv.slots.clone() {
+crates/balaur_bs/src/codegen/mod.rs	copy-out-of-a-cell	probes: g.probes.borrow().clone(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	(name.clone(), declared)
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	(name.clone(), fields.collect())
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	.filter_map(|f| f.default.clone().map(|d| (f.name.clone(), d)))
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	.filter_map(|made| made.1.clone().map(|ty| (made.0, ty)))
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	.map(|(_, name)| name.clone())
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	.map(|(i, f)| (f.key.clone(), i))
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	.map(|class| (class.clone(), options.path.clone()))
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	.map(|o| self.vts(&Ty::Struct(o.clone())))
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	e.name.clone(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	e.variants.iter().map(|v| v.name.clone()).collect(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	fs.iter().map(|p| (p.name.clone(), p.ty.clone())).collect(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	let classes: BTreeSet<String> = prog.classes.iter().cloned().collect();
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	let fields = fields.iter().map(|f| (f.name.clone(), f.ty.clone()));
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	n.clone(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	name.clone(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	params: f.params.iter().map(|p| p.ty.clone()).collect(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	params: func.params.iter().map(|param| param.ty.clone()).collect(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	params: func.params.iter().map(|param| param.ty.clone()).collect(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	params: x.params.iter().map(|p| p.ty.clone()).collect(),
+crates/balaur_bs/src/codegen/mod.rs	copy-per-item	shown.map(|f| (f.name.clone(), f.doc.clone())).collect(),
+crates/balaur_bs/src/codegen/units.rs	copy-per-item	prog.origin.iter().cloned().collect();
+crates/balaur_bs/src/enums.rs	copy-per-item	.map(|(_, t)| t.clone());
+crates/balaur_bs/src/enums.rs	copy-per-item	.map(|(f, _)| f.clone())
+crates/balaur_bs/src/enums.rs	copy-per-item	consts: prog.consts.iter().map(|(n, _)| n.clone()).collect(),
+crates/balaur_bs/src/lib.rs	copy-per-item	(n.clone(), fields)
+crates/balaur_bs/src/lib.rs	copy-per-item	.map(|(_, doc)| doc.clone())
+crates/balaur_bs/src/lib.rs	copy-per-item	doc: doc.clone(),
+crates/balaur_bs/src/lib.rs	copy-per-item	name: module.clone(),
+crates/balaur_bs/src/lib.rs	copy-per-item	name: name.clone(),
+crates/balaur_bs/src/lib.rs	copy-per-item	params: func.params.iter().map(|param| param.ty.clone()).collect(),
+crates/balaur_bs/src/lib.rs	copy-per-item	ty: ty.clone(),
+crates/balaur_bs/src/modules.rs	copy-per-item	(Some(parsed), None) => parsed.cached(key).map(|p| (*p).clone()).ok_or(Error {
+crates/balaur_bs/src/modules.rs	copy-per-item	.chain(root.consts.iter().map(|(n, _)| n.clone()))
+crates/balaur_bs/src/modules.rs	copy-per-item	.map(|(key, name)| (name.clone(), key.clone())),
+crates/balaur_bs/src/modules.rs	copy-per-item	.map(|f| f.name.clone());
+crates/balaur_bs/src/modules.rs	copy-per-item	consts: m.consts.iter().map(|(n, _)| n.clone()).collect(),
+crates/balaur_bs/src/modules.rs	copy-per-item	let keys = linked.done.iter().map(|(k, _)| k.clone()).collect();
+crates/balaur_bs/src/modules.rs	copy-per-item	let mut scope: Vec<String> = f.params.iter().map(|p| p.name.clone()).collect();
+crates/balaur_bs/src/modules.rs	copy-per-item	let mut scope: Vec<String> = f.params.iter().map(|p| p.name.clone()).collect();
+crates/balaur_bs/src/modules.rs	copy-per-item	private_fns: private.iter().map(|f| f.name.clone()).collect(),
+crates/balaur_bs/src/modules.rs	copy-per-item	public_fns: public.iter().map(|f| f.name.clone()).collect(),
+crates/balaur_bs/src/modules.rs	copy-per-item	scope.extend(binds.iter().map(|(_, bound)| bound.clone()));
+crates/balaur_bs/src/modules.rs	copy-per-item	self.0.borrow().files.get(key).map(|d| d.program.clone())
+crates/balaur_bs/src/modules.rs	copy-per-item	structs: m.structs.iter().map(|(n, _)| n.clone()).collect(),
+crates/balaur_bs/src/modules.rs	copy-per-item	structs: root.structs.iter().map(|(n, _)| n.clone()).collect(),
+crates/balaur_bs/src/names.rs	copy-per-item	.map(|f| (f.name.clone(), f.pos))
+crates/balaur_bs/src/names.rs	copy-per-item	.map(|f| f.name.clone())
+crates/balaur_bs/src/parse.rs	copy-per-item	.map(|e| e.name.clone())
+crates/balaur_bs/src/prelude.rs	copy-per-item	..func.clone()
+crates/balaur_bs/src/prelude.rs	copy-per-item	.map(|(name, sources)| (name, sources.to_vec()))
+crates/balaur_bs/src/prelude.rs	copy-per-item	.map(|param| param.ty.clone())
+crates/balaur_bs/src/prelude.rs	copy-per-item	Some((name.to_string(), params, func.ret.clone()))
+crates/balaur_bs/src/reach.rs	copy-per-item	files: prog.files.iter().cloned().collect(),
+crates/balaur_bs/src/reach.rs	copy-per-item	let mut kept: BTreeMap<String, bool> = prog.kept.iter().cloned().collect();
+crates/balaur_bs/src/reach.rs	copy-per-item	let mut scope: Vec<String> = f.params.iter().map(|p| p.name.clone()).collect();
+crates/balaur_bs/src/runtime/debugger.rs	copy-per-item	file: file.clone(),
+crates/balaur_bs/src/runtime/debugger.rs	copy-per-item	v.name.clone(),
+crates/balaur_bs/src/runtime/marshal.rs	copy-per-item	.map(|(_, v)| v.clone())
+crates/balaur_bs/src/runtime/mod.rs	copy-out-of-a-cell	let Some(meta) = self.units.borrow().get(unit).cloned() else {
+crates/balaur_bs/src/runtime/mod.rs	copy-per-item	.map(|(_, ty)| ty.clone())
+crates/balaur_bs/src/runtime/mod.rs	copy-per-item	.map(|(name, value)| (smol_str::SmolStr::new(*name), value.clone()))
+crates/balaur_bs/src/runtime/mod.rs	copy-per-item	kept_all.push(carried.into_iter().cloned().collect());
+crates/balaur_bs/src/runtime/mod.rs	copy-to-borrow	Some(ty) => self.refit_fns(into, obj.unit, &ty.clone(), value),
+crates/balaur_bs/src/runtime/profile.rs	copy-per-item	(calls > 0).then(|| (name.clone(), calls, own.max(0).cast_unsigned()))
+crates/balaur_bs/src/runtime/profile.rs	copy-per-item	.map(|(unit, meta)| (unit, meta.clone()))
+crates/balaur_bs/src/runtime/wasmi_engine.rs	copy-per-item	.map(|u| u.fns.clone())
+crates/balaur_bs/src/runtime/wasmtime_engine.rs	copy-per-item	.map(|u| u.fns.clone())
+crates/balaur_bs/src/runtime/web_engine.rs	copy-out-of-a-cell	DIRECT.with(|t| t.borrow().get(ctx as usize).cloned().flatten())
+crates/balaur_bs/src/runtime/web_engine.rs	copy-out-of-a-cell	if let Some(module) = MODULES.with(|modules| modules.borrow().get(&hash).cloned()) {
+crates/balaur_cli/src/api_dump.rs	copy-per-item	(f.key.clone(), row)
+crates/balaur_cli/src/api_dump.rs	copy-per-item	(k.clone(), serde_json::Value::Object(fields))
+crates/balaur_cli/src/api_dump.rs	copy-per-item	(k.clone(), v)
+crates/balaur_cli/src/api_dump.rs	copy-per-item	(name.clone(), described)
+crates/balaur_cli/src/api_dump.rs	copy-per-item	.map(|(n, t)| (n.clone(), serde_json::json!(t.to_string())))
+crates/balaur_cli/src/api_dump.rs	copy-per-item	.map(|(name, def)| (name.to_string(), def.events.to_vec()))
+crates/balaur_cli/src/api_dump.rs	copy-per-item	.map(|(name, def)| (name.to_string(), def.tags.to_vec()))
+crates/balaur_cli/src/deps_cmd.rs	copy-per-item	.map(|c| c.as_os_str().to_owned())
+crates/balaur_cli/src/deps_cmd.rs	copy-per-item	.map(|entry| (entry.name.clone(), entry))
+crates/balaur_cli/src/import_api.rs	copy-per-item	.map(|(_, bytes)| bytes.clone())
+crates/balaur_cli/src/lsp.rs	copy-per-item	.map(|(_, text)| text.clone())
+crates/balaur_cli/src/project_api.rs	copy-per-item	table.insert(keys::NAME.into(), toml::Value::String(row.name.clone()));
+crates/balaur_cli/src/project_api.rs	copy-per-item	table.insert(keys::PATH.into(), toml::Value::String(row.path.clone()));
+crates/balaur_cli/src/project_api.rs	copy-per-item	toml::Value::String(row.version.clone()),
+crates/balaur_cli/src/project_api/dependency.rs	copy-per-item	Value::Str(path) => Ok(path.clone()),
+crates/balaur_cli/src/project_web.rs	copy-per-item	(keys::NAME.into(), Value::Str(row.name.clone())),
+crates/balaur_cli/src/project_web.rs	copy-per-item	(keys::PATH.into(), Value::Str(row.id.clone())),
+crates/balaur_cli/src/update.rs	copy-per-item	.map(|release| release.tag.clone())
+crates/balaur_cli/src/web_store.rs	copy-out-of-a-cell	LIVE.with(|live| live.borrow().clone())
+crates/balaur_cli/src/web_store.rs	copy-per-item	.map(|b| js_sys::Uint8Array::new(&b).to_vec())
+crates/balaur_core/src/app.rs	copy-out-of-a-cell	let tags = self.engine.resource::<crate::tags::Tags>().borrow().clone();
+crates/balaur_core/src/assets.rs	copy-out-of-a-cell	let hit = state.borrow().definitions.get(key).cloned();
+crates/balaur_core/src/assets.rs	copy-per-item	.map(|definition| definition.body.clone())
+crates/balaur_core/src/assets.rs	copy-per-item	self.0.iter().map(|(n, _)| n.clone()).collect()
+crates/balaur_core/src/batteries_api.rs	copy-per-item	(keys::VALUE.into(), Value::Str(value.clone())),
+crates/balaur_core/src/batteries_api.rs	copy-per-item	(words::scene_toml::NAME.into(), Value::Str(name.clone())),
+crates/balaur_core/src/bindings.rs	copy-per-item	.map(|(_, run)| run.clone())
+crates/balaur_core/src/changes.rs	copy-per-item	.map(|changes| changes.borrow().leaving.clone())
+crates/balaur_core/src/components.rs	copy-per-item	.and_then(|r| r.borrow().at(index).map(|(n, _)| n.clone()))
+crates/balaur_core/src/components.rs	copy-per-item	.filter_map(|(key, _)| Some((key.to_owned(), specs.remove(key)?)))
+crates/balaur_core/src/components.rs	copy-per-item	.map(|(_, (name, def))| (name.clone(), def.lifecycle))
+crates/balaur_core/src/components.rs	copy-per-item	.map(|(n, d)| (n.to_string(), d.schema.clone()))
+crates/balaur_core/src/components.rs	copy-per-item	.map(|(prop, v)| (prop.clone(), v.clone()))
+crates/balaur_core/src/components/accepts.rs	copy-per-item	.map(|(key, _)| key.clone())
+crates/balaur_core/src/components/derived.rs	copy-per-item	.filter_map(|&(name, index)| Some((name.to_owned(), held.read(index)?)))
+crates/balaur_core/src/components/derived.rs	copy-per-item	.map(|(key, value)| (key.clone(), value.to_value()))
+crates/balaur_core/src/components/derived.rs	copy-per-item	.map(|(name, field)| ((*name).to_owned(), field))
+crates/balaur_core/src/components/derived.rs	copy-per-item	.map(|held| (key.clone(), held))
+crates/balaur_core/src/components/derived.rs	copy-per-item	.map(|name| (*name).to_owned())
+crates/balaur_core/src/components/derived.rs	copy-per-item	.map(|option| toml::Value::String((*option).to_owned()))
+crates/balaur_core/src/components/derived.rs	copy-per-item	.map_err(|why| why.context(key.clone()))
+crates/balaur_core/src/components/schema.rs	copy-per-item	.map(|(name, field)| (name.clone(), zero_of(field)))
+crates/balaur_core/src/components/schema.rs	copy-per-item	variants.keys().cloned().collect::<Vec<_>>().join(", ")
+crates/balaur_core/src/components/written.rs	copy-per-item	.map(|(index, (name, def))| (index, name.to_string(), def.schema.clone()))
+crates/balaur_core/src/components/written.rs	copy-per-item	registry.at(index).map(|(_, def)| def.schema.clone())
+crates/balaur_core/src/dependencies.rs	copy-per-item	.map(|dep| (dep.game.clone(), dep.alias.clone()))
+crates/balaur_core/src/dependencies.rs	copy-per-item	.map(|dep| dep.root.clone())
+crates/balaur_core/src/dependencies.rs	copy-per-item	.map(|installs| installs.borrow().0.clone())
+crates/balaur_core/src/engine.rs	copy-out-of-a-cell	self.inner.script_host.borrow().clone()
+crates/balaur_core/src/engine_api.rs	copy-per-item	.map(|a| a.borrow().0.clone())
+crates/balaur_core/src/engine_api.rs	copy-per-item	.map(|m| m.borrow().name.clone())
+crates/balaur_core/src/events.rs	copy-out-of-a-cell	let found = state.borrow().delivered.get(name).cloned();
+crates/balaur_core/src/events.rs	copy-out-of-a-cell	let found = state.borrow().delivered.get(name).cloned();
+crates/balaur_core/src/events/observers.rs	copy-per-item	.map(|list| list.iter().map(|(_, observer)| observer.clone()).collect())
+crates/balaur_core/src/facts.rs	copy-per-item	.map(|d| d.borrow().now.clone())
+crates/balaur_core/src/file_api.rs	copy-per-item	.map(|(k, val)| Ok((k.clone(), to_json(val)?)))
+crates/balaur_core/src/file_api.rs	copy-per-item	.map(|editor| editor.borrow().0.clone());
+crates/balaur_core/src/files.rs	copy-out-of-a-cell	.with(|d| d.borrow().clone())
+crates/balaur_core/src/handler.rs	copy-per-item	Some(Value::Str(s)) => Ok(s.clone()),
+crates/balaur_core/src/ids.rs	copy-per-item	.map(|id| id.0.clone())
+crates/balaur_core/src/ids.rs	copy-per-item	world.get::<&StableId>(entity).ok().map(|id| id.0.clone())
+crates/balaur_core/src/logbuf.rs	copy-out-of-a-cell	HEARD.with(|heard| heard.borrow().clone().unwrap_or_default())
+crates/balaur_core/src/logbuf.rs	copy-per-item	buffer.entries.iter().skip(skip).cloned().collect()
+crates/balaur_core/src/logbuf.rs	copy-per-item	lock().as_ref().map(|sink| sink.path.clone())
+crates/balaur_core/src/node_api.rs	copy-per-item	.map(|(k, val)| Ok((k.clone(), to_toml(val)?)))
+crates/balaur_core/src/node_api.rs	copy-per-item	.map(|n| n.0.clone())
+crates/balaur_core/src/node_api.rs	copy-per-item	let Ok(was) = eng.world().get::<&Name>(e).map(|n| n.0.clone()) else {
+crates/balaur_core/src/node_api/scripts.rs	copy-per-item	.map(|instanced| instanced.source.clone());
+crates/balaur_core/src/node_api/scripts.rs	copy-per-item	.map(|script| script.path.clone());
+crates/balaur_core/src/node_api/scripts.rs	copy-per-item	.map(|script| script.props.clone())
+crates/balaur_core/src/pack.rs	copy-per-item	.map(|(k, v)| (k.clone(), v.clone().into_bytes())),
+crates/balaur_core/src/pack.rs	copy-per-item	eng.insert_resource(Self(pack.scenes.keys().cloned().collect()));
+crates/balaur_core/src/pack.rs	copy-per-item	out.extend(self.assets.iter().map(|(k, v)| (k.clone(), v.clone())));
+crates/balaur_core/src/pack.rs	copy-per-item	out.extend(self.scripts.iter().map(|(k, v)| (k.clone(), v.clone())));
+crates/balaur_core/src/pack_tail.rs	copy-per-item	.map(|scene| toml::Value::String(scene.clone()))
+crates/balaur_core/src/plugins.rs	copy-per-item	.map(|r| r.borrow().0.clone())
+crates/balaur_core/src/plugins.rs	copy-per-item	.map(|r| r.borrow().0.iter().map(|p| p.name.clone()).collect())
+crates/balaur_core/src/preload.rs	copy-out-of-a-cell	.and_then(|preloaders| preloaders.borrow().0.get(key).cloned())
+crates/balaur_core/src/preload.rs	copy-per-item	.map(|(path, _)| path.clone())
+crates/balaur_core/src/project.rs	copy-per-item	.map(|m| m.borrow().0.clone())
+crates/balaur_core/src/project.rs	copy-per-item	.map(|n| n.id.clone())
+crates/balaur_core/src/project.rs	copy-per-item	.map(|root| root.borrow().0.clone())
+crates/balaur_core/src/project.rs	copy-per-item	Some((entity, script.path.clone(), script.props.clone()))
+crates/balaur_core/src/project/instances.rs	copy-per-item	.map(|t| (*t).clone())
+crates/balaur_core/src/project/problems.rs	copy-per-item	.map(|prefab| path_of(eng, prefab).unwrap_or_else(|_| prefab.clone()));
+crates/balaur_core/src/project/scene_walks.rs	copy-per-item	.map(|c| c.0.clone())
+crates/balaur_core/src/project_files.rs	copy-out-of-a-cell	self.index.borrow().as_ref()?.get(id).cloned()
+crates/balaur_core/src/project_files.rs	copy-per-item	.map(|(id, _)| id.clone())
+crates/balaur_core/src/relationships.rs	copy-per-item	.map(|held| held.list().to_vec())
+crates/balaur_core/src/replay.rs	copy-per-item	(!list.is_empty()).then(|| (frame.tick, list.clone()))
+crates/balaur_core/src/replay_api.rs	copy-per-item	("label".into(), Value::Str(event.label.clone())),
+crates/balaur_core/src/replay_api.rs	copy-per-item	(keys::KIND.into(), Value::Str(event.kind.clone())),
+crates/balaur_core/src/replay_api.rs	copy-per-item	.map(|m| m.borrow().name.clone())
+crates/balaur_core/src/rollback.rs	copy-per-item	.map(|(_, value)| value.clone())
+crates/balaur_core/src/scene.rs	copy-per-item	.map(|n| n.0.clone())
+crates/balaur_core/src/scene/rank.rs	copy-per-item	.map(|(_, rank)| rank.clone())
+crates/balaur_core/src/scene_api.rs	copy-per-item	(words::scene_toml::NAME.into(), Value::Str(name.clone())),
+crates/balaur_core/src/scene_api.rs	copy-per-item	.map(|script| script.path.clone());
+crates/balaur_core/src/scene_api.rs	copy-per-item	spec.map_or(Value::Nil, |s| s.value.clone()),
+crates/balaur_core/src/scene_switch.rs	copy-per-item	.map(|c| c.0.clone())
+crates/balaur_core/src/scene_switch.rs	copy-per-item	.map(|scenes| scenes.borrow().0.clone())
+crates/balaur_core/src/scene_toml.rs	copy-per-item	.filter_map(|(key, value)| Some((key.clone(), crate::node_api::to_toml(value).ok()?)))
+crates/balaur_core/src/scene_toml.rs	copy-per-item	.map(|(_, id)| id.clone())
+crates/balaur_core/src/scene_toml.rs	copy-per-item	.map(|(key, value)| (key.clone(), value.clone()))
+crates/balaur_core/src/scene_toml.rs	copy-per-item	.map(|(key, value)| (key.clone(), value.clone()))
+crates/balaur_core/src/scene_toml.rs	copy-per-item	.map(|children| children.0.clone())
+crates/balaur_core/src/scene_toml.rs	copy-per-item	.map(|facts| (*facts.defaults).clone())
+crates/balaur_core/src/scene_toml.rs	copy-per-item	.map(|instanced| (instanced.source.clone(), instanced.unmatched.clone()));
+crates/balaur_core/src/scene_toml.rs	copy-per-item	.map(|name| name.0.clone())
+crates/balaur_core/src/scene_toml.rs	copy-per-item	.map(|tag| toml::Value::String(tag.clone()))
+crates/balaur_core/src/scene_toml.rs	copy-per-item	let mut candidate = base.clone();
+crates/balaur_core/src/scene_toml.rs	copy-per-item	while !taken.insert(candidate.clone()) {
+crates/balaur_core/src/settings.rs	copy-per-item	.map(|d| d.path.clone())
+crates/balaur_core/src/settings.rs	copy-per-item	let declared: Vec<String> = registry.borrow().0.iter().map(|d| d.path.clone()).collect();
+crates/balaur_core/src/settings_api.rs	copy-per-item	(keys::PATH.into(), Value::Str(def.path.clone())),
+crates/balaur_core/src/snapshot.rs	copy-per-item	(Some(s.path.clone()), s.props.clone())
+crates/balaur_core/src/snapshot.rs	copy-per-item	.map_or_else(|_| String::new(), |n| n.0.clone());
+crates/balaur_core/src/snapshot.rs	copy-per-item	path: frame.path.clone(),
+crates/balaur_core/src/snapshot.rs	copy-per-item	tags: tags.0.clone(),
+crates/balaur_core/src/states.rs	copy-per-item	.map(|(component, body)| (component.clone(), body.clone()))
+crates/balaur_core/src/states.rs	copy-per-item	self.named.iter().map(|(name, _)| name.clone()).collect()
+crates/balaur_core/src/strings.rs	copy-per-item	.filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+crates/balaur_core/src/strings.rs	copy-per-item	.map(|r| r.borrow().0.clone())
+crates/balaur_core/src/timings.rs	copy-per-item	g.name.clone(),
+crates/balaur_core/src/timings.rs	copy-per-item	s.name.clone(),
+crates/balaur_core/src/variables.rs	copy-per-item	self.declared.keys().cloned().collect()
+crates/balaur_debug/src/dap.rs	copy-per-item	.map(|(_, l)| l.clone())
+crates/balaur_debug/src/dap.rs	copy-per-item	.map(|(_, v)| v.clone());
+crates/balaur_debug/src/dap.rs	copy-per-item	.map(|(i, v)| (i.to_string(), v.clone()))
+crates/balaur_debug/src/dap.rs	copy-per-item	.map(|f| f.locals.clone())
+crates/balaur_debug/src/dap.rs	copy-per-item	let paths: Vec<String> = self.reported_lines.iter().map(|(p, _)| p.clone()).collect();
+crates/balaur_geometry/src/path/shape.rs	copy-per-item	.map(|(ring, z)| (ring.clone(), -z))
+crates/balaur_geometry/src/triangulate.rs	copy-to-borrow	let filled = triangulator.triangulate(&contours.to_vec());
+crates/balaur_import/src/scene_check.rs	copy-per-item	.map(|kids| kids.0.clone())
+crates/balaur_import/src/scene_check.rs	copy-per-item	.map(|name| name.0.clone())
+crates/balaur_input/src/actions.rs	copy-per-item	.map(|(name, list)| (name.clone(), list.iter().map(Binding::text).collect()))
+crates/balaur_input/src/actions.rs	copy-per-item	.map(|name| (name.clone(), actions.bindings(name)))
+crates/balaur_input/src/actions.rs	copy-per-item	self.bound.keys().cloned().collect()
+crates/balaur_input/src/gamepad.rs	copy-per-item	.map(|live| live.info.clone())
+crates/balaur_input/src/gamepad.rs	copy-per-item	info: pad.info.clone(),
+crates/balaur_input/src/gamepad.rs	copy-per-item	let names = |set: &DetHashSet<String>| set.iter().cloned().collect();
+crates/balaur_input/src/gamepad.rs	copy-per-item	name: pad.info.name.clone(),
+crates/balaur_input/src/gamepad.rs	copy-per-item	touches: pad.touches.clone(),
+crates/balaur_input/src/sensors.rs	copy-per-item	.map(|dev| dev.path().to_owned())
+crates/balaur_input/src/sensors.rs	copy-per-item	Some((*key, reading.clone()?))
+crates/balaur_multiplayer/src/api.rs	copy-per-item	Value::Str(member.name.clone()),
+crates/balaur_multiplayer/src/lib.rs	copy-per-item	.map(|member| member.name.clone())
+crates/balaur_multiplayer/src/options.rs	copy-per-item	.map(|manifest| manifest.borrow().main_scene.clone())
+crates/balaur_net/src/netsession.rs	copy-to-iterate	for local in self.locals.clone() {
+crates/balaur_physics/src/collider.rs	copy-per-item	.map(|(entity, asked)| (*entity, Some(asked.clone())));
+crates/balaur_physics/src/dim2/collider.rs	copy-per-item	.map(|(entity, asked)| (*entity, Some(asked.clone())));
+crates/balaur_physics/src/dim2/follow.rs	copy-per-item	query.iter().map(|(e, f)| (e, f.clone())).collect()
+crates/balaur_physics/src/dim2/joint.rs	copy-per-item	.map(|held| (*held).clone()),
+crates/balaur_physics/src/dim2/softbody.rs	copy-per-item	.map(|t| t.0.clone());
+crates/balaur_physics/src/dim2/tiles.rs	copy-per-item	.map(|grid| (*grid).clone())
+crates/balaur_physics/src/follow.rs	copy-per-item	query.iter().map(|(e, f)| (e, f.clone())).collect()
+crates/balaur_physics/src/joint.rs	copy-per-item	.map(|held| (*held).clone()),
+crates/balaur_physics/src/ragdoll.rs	copy-per-item	.map(|(e, r)| (e, r.clone()))
+crates/balaur_physics/src/shared/beside.rs	copy-per-item	.map(|carried| (carried.name.to_owned(), (carried.save)(eng, world)))
+crates/balaur_physics/src/shared/beside.rs	copy-per-item	.map(|held| (*held).clone())
+crates/balaur_physics/src/shared/body.rs	copy-out-of-a-cell	let params = state.borrow().collider_params.get(&collider).cloned();
+crates/balaur_physics/src/shared/body.rs	copy-to-iterate	for collider in state.world.bodies[handle].colliders().to_vec() {
+crates/balaur_physics/src/snapshot.rs	copy-per-item	.map(|(entity, value)| (key_of(world, *entity), value.clone()))
+crates/balaur_physics/src/snapshot.rs	copy-per-item	.map(|(name, value)| (name.clone(), value.clone()))
+crates/balaur_physics/src/snapshot.rs	copy-per-item	table.entry(name.clone()).or_insert_with(|| value.clone());
+crates/balaur_physics/src/vehicle.rs	copy-per-item	controller: vehicle.controller.clone(),
+crates/balaur_project/src/packing.rs	copy-per-item	.map(|(k, v)| ((*k).clone(), (*v).clone()))
+crates/balaur_project/src/packing.rs	copy-per-item	.map(|(k, v)| (k.clone(), v.clone()))
+crates/balaur_project/src/packing.rs	copy-per-item	.map(|(k, v)| (k.clone(), v.clone()))
+crates/balaur_project/src/packing.rs	copy-per-item	key: key.clone(),
+crates/balaur_project/src/packing.rs	copy-per-item	waits: waits.keys().map(|key| (*key).clone()).collect(),
+crates/balaur_render/src/app_icon.rs	copy-per-item	.map(|icon| icon.borrow().name.clone());
+crates/balaur_render/src/aseprite.rs	copy-per-item	(tag.name.clone(), frames, loop_mode)
+crates/balaur_render/src/boolean.rs	copy-per-item	.map(|b| (b.op, b.options, b.look.texture.clone()))
+crates/balaur_render/src/boolean.rs	copy-per-item	.map(|children| children.0.clone())
+crates/balaur_render/src/camera.rs	copy-per-item	let lens = spatial.as_ref().map(|s| s.1.clone()).unwrap_or_default();
+crates/balaur_render/src/frame_group.rs	copy-per-item	(p.array_view.clone(), records)
+crates/balaur_render/src/frame_group.rs	copy-per-item	env.sampler.clone(),
+crates/balaur_render/src/frame_group.rs	copy-per-item	env.view.clone(),
+crates/balaur_render/src/kiss3d_backend/geometry.rs	copy-per-item	.clone()
+crates/balaur_render/src/kiss3d_backend/geometry.rs	copy-per-item	indices: faces.clone(),
+crates/balaur_render/src/kiss3d_backend/geometry.rs	copy-per-item	joints: skin.joints.clone(),
+crates/balaur_render/src/kiss3d_backend/geometry.rs	copy-per-item	normals: normals.clone(),
+crates/balaur_render/src/kiss3d_backend/geometry.rs	copy-per-item	positions: coords.clone(),
+crates/balaur_render/src/kiss3d_backend/geometry.rs	copy-per-item	positions: coords.clone(),
+crates/balaur_render/src/kiss3d_backend/geometry.rs	copy-per-item	skeleton: renderable.skeleton.clone(),
+crates/balaur_render/src/kiss3d_backend/geometry.rs	copy-per-item	uvs: uvs.clone().unwrap_or_default(),
+crates/balaur_render/src/kiss3d_backend/geometry.rs	copy-per-item	weights: skin.weights.clone(),
+crates/balaur_render/src/material_cache.rs	copy-per-item	manager.add(shared.clone(), &manager_name(reference));
+crates/balaur_render/src/material_check.rs	copy-per-item	(NAME.to_string(), Value::Str(field.name.clone())),
+crates/balaur_render/src/material_check.rs	copy-per-item	.map(|(_, param)| param.clone());
+crates/balaur_render/src/multimesh.rs	copy-per-item	.map(|asset| asset.instances.clone())
+crates/balaur_render/src/overlay.rs	copy-per-item	let Some(mesh) = node.data().object().map(|object| object.mesh().clone()) else {
+crates/balaur_render/src/particles.rs	copy-per-item	slots.get(&entity).map(|slot| slot.group.clone())
+crates/balaur_render/src/prelinked.rs	copy-per-item	row.insert(WGSL.into(), toml::Value::String(linked.wgsl.clone()));
+crates/balaur_render/src/prelinked.rs	copy-per-item	toml::Value::String(f.name.clone()),
+crates/balaur_render/src/shader_material_3d.rs	copy-per-item	let (layout, shader) = (pipeline_layout.clone(), shader.clone());
+crates/balaur_render/src/shaders.rs	copy-per-item	.sort_by_cached_key(|decl| declared_name(decl).map(|ident| ident.name().clone()));
+crates/balaur_render/src/sync_2d.rs	copy-per-item	.map(|slot| slot.node.clone())
+crates/balaur_render/src/sync_2d.rs	copy-per-item	.or_else(|| batches.head(entity).map(|run| run.node.clone()))
+crates/balaur_render/src/sync_2d.rs	copy-per-item	.or_else(|| maps.get(&entity).map(|slot| slot.node.clone()))
+crates/balaur_render/src/sync_2d.rs	copy-per-item	.then(|| node.data().object().map(|object| object.mesh().clone()))
+crates/balaur_script/src/debug.rs	copy-per-item	("function".into(), Value::Str(f.function.clone())),
+crates/balaur_script/src/debug.rs	copy-per-item	("locals".into(), Value::Map(f.locals.clone())),
+crates/balaur_script/src/debug.rs	copy-per-item	(PATH.into(), Value::Str(f.path.clone())),
+crates/balaur_script_bs/src/api.rs	copy-per-item	.filter_map(|(k, spec)| Some((k.clone(), schema_ty(spec.get("type")?.as_str()?)?)))
+crates/balaur_script_bs/src/api.rs	copy-per-item	.filter_map(|(k, v)| Some((k.clone(), literal(v)?)))
+crates/balaur_script_bs/src/api.rs	copy-per-item	.map(|(k, v)| (k.clone(), *v))
+crates/balaur_script_bs/src/api.rs	copy-per-item	.map(|(k, v)| (k.clone(), v.clone()))
+crates/balaur_script_bs/src/api.rs	copy-per-item	let known: BTreeSet<String> = structs.keys().cloned().collect();
+crates/balaur_script_bs/src/api.rs	copy-per-item	let names: BTreeSet<String> = records.iter().map(|(k, _)| k.clone()).collect();
+crates/balaur_script_bs/src/api.rs	copy-per-item	let typed_here: Vec<String> = functions.iter().map(|f| f.key.clone()).collect();
+crates/balaur_script_bs/src/host.rs	copy-out-of-a-cell	let Some(file) = self.inner.files.borrow().get(path).cloned() else {
+crates/balaur_script_bs/src/host.rs	copy-out-of-a-cell	let file = self.inner.files.borrow().get(&inst.path).cloned()?;
+crates/balaur_script_bs/src/host.rs	copy-out-of-a-cell	let inst = self.inner.by_node.borrow().get(&node.0).cloned()?;
+crates/balaur_script_bs/src/host.rs	copy-out-of-a-cell	let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+crates/balaur_script_bs/src/host.rs	copy-out-of-a-cell	let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+crates/balaur_script_bs/src/host.rs	copy-per-item	.filter_map(|(key, bytes)| Some((key.clone(), Arc::new(Compiled::from_bytes(bytes)?))))
+crates/balaur_script_bs/src/host.rs	copy-per-item	.filter_map(|inst| unit_of(&inst.path).map(|unit| (inst.clone(), unit)))
+crates/balaur_script_bs/src/host.rs	copy-per-item	.map(|(_, t)| t.clone())
+crates/balaur_script_bs/src/host.rs	copy-per-item	path: inst.path.clone(),
+crates/balaur_script_bs/src/host.rs	copy-per-item	to.canonicalize().unwrap_or_else(|_| to.clone()),
+crates/balaur_script_bs/src/host/burst.rs	copy-out-of-a-cell	let before = self.inner.read.borrow().get(key).cloned();
+crates/balaur_script_bs/src/host/burst.rs	copy-per-item	.map(|(linked, _)| linked.clone()),
+crates/balaur_script_bs/src/host/burst.rs	copy-per-item	let mut queued: BTreeSet<String> = todo.iter().cloned().collect();
+crates/balaur_script_bs/src/host/debug.rs	copy-out-of-a-cell	let Some(file) = self.inner.files.borrow().get(&path).cloned() else {
+crates/balaur_script_bs/src/host/debug.rs	copy-out-of-a-cell	let asked = self.inner.breaks.borrow().get(&key).cloned();
+crates/balaur_script_bs/src/host/debug.rs	copy-out-of-a-cell	let home = self.place_slot(place).borrow().clone();
+crates/balaur_script_bs/src/host/debug.rs	copy-per-item	.map(|(n, v)| (n.clone(), to_neutral(v)))
+crates/balaur_script_bs/src/host/debug.rs	copy-per-item	function: f.func.clone(),
+crates/balaur_script_bs/src/host/debug.rs	copy-per-item	let keys: Vec<String> = self.inner.files.borrow().keys().cloned().collect();
+crates/balaur_script_bs/src/host/debug.rs	copy-per-item	path: f.file.clone(),
+crates/balaur_script_bs/src/host/engine_facing.rs	copy-out-of-a-cell	let Some(file) = self.inner.files.borrow().get(&inst.path).cloned() else {
+crates/balaur_script_bs/src/host/engine_facing.rs	copy-out-of-a-cell	let all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+crates/balaur_script_bs/src/host/engine_facing.rs	copy-per-item	let init_ref: Vec<(&str, L)> = init.iter().map(|(n, v)| (n.as_str(), v.clone())).collect();
+crates/balaur_script_bs/src/host/engine_facing.rs	copy-per-item	self.inner.called.borrow().iter().cloned().collect()
+crates/balaur_script_bs/src/host/exports.rs	copy-per-item	.map(|(field, ty)| Some((field.clone(), spec_of(meta, ty, depth + 1)?)))
+crates/balaur_script_bs/src/host/exports.rs	copy-per-item	Ok(done) => Some((name.clone(), done)),
+crates/balaur_script_bs/src/host/exports.rs	copy-per-item	Some((field.clone(), spec_of(meta, ty, depth + 1)?))
+crates/balaur_script_bs/src/host/exports.rs	copy-per-item	Ty::Optional(inner) => (**inner).clone(),
+crates/balaur_script_bs/src/host/exports.rs	copy-per-item	other => other.clone(),
+crates/balaur_script_bs/src/host/links.rs	copy-per-item	(link.holder, link.field.clone())
+crates/balaur_script_bs/src/host/links.rs	copy-per-item	.map(|l| (l.holder, l.field.clone(), l.path.clone()))
+crates/balaur_script_bs/src/host/profile.rs	copy-per-item	.map(|(path, (calls, steps))| (path.clone(), *calls, *steps))
+crates/balaur_script_bs/src/host/profile.rs	copy-per-item	let keys: Vec<String> = inner.files.borrow().keys().cloned().collect();
+crates/balaur_script_bs/src/host/tasks.rs	copy-out-of-a-cell	let Some(file) = self.inner.files.borrow().get(&p.path).cloned() else {
+crates/balaur_script_bs/src/host/tasks.rs	copy-out-of-a-cell	let file = self.inner.files.borrow().get(&p.path).cloned();
+crates/balaur_script_bs/src/host/tasks.rs	copy-out-of-a-cell	let inst = self.inner.by_node.borrow().get(&p.node).cloned();
+crates/balaur_script_bs/src/host/units.rs	copy-out-of-a-cell	let home = self.place_slot(place).borrow().clone();
+crates/balaur_script_bs/src/host/units.rs	copy-per-item	.map(|(key, file)| (key.clone(), file.clone()))
+crates/balaur_script_bs/src/tool_verbs.rs	copy-per-item	(keys::NAME.into(), function.clone()),
+crates/balaur_testkit/src/lib.rs	copy-per-item	let fresh: Vec<_> = heard.iter().skip(heard_at).cloned().collect();
+crates/balaur_text/src/fonts.rs	copy-per-item	Some((names.get(glyph)?.as_str().to_owned(), char::from_u32(code)?))
+crates/balaur_text/src/fonts.rs	copy-per-item	let settings = balaur_core::import::resolved(eng, &path).stamp.clone();
+crates/balaur_text/src/shape.rs	copy-per-item	&span.text[piece.range.clone()],
+crates/balaur_ui/src/bridge.rs	copy-out-of-a-cell	let ctx = PASS.with(|p| p.borrow().clone());
+crates/balaur_ui/src/splash.rs	copy-out-of-a-cell	.map(|l| l.borrow().clone());
+crates/balaur_ui/src/splash.rs	copy-per-item	.map(|l| l.borrow().clone());
+crates/balaur_ui/src/theme.rs	copy-per-item	.filter_map(|(name, v)| Some((name.clone(), parse_hex(v.as_str()?)?)))
+crates/balaur_ui/src/theme.rs	copy-per-item	.filter_map(|(name, v)| Some((name.clone(), v.as_str()?.to_string())))
+crates/balaur_ui/src/theme.rs	copy-per-item	.map(|asked| asked.reference.clone())
+crates/balaur_ui/src/theme.rs	copy-per-item	.map(|asked| asked.reference.clone())
+crates/balaur_ui/src/theme.rs	copy-per-item	Some((name.clone(), balaur_core::components::as_f64(v)? as f32))
+crates/balaur_ui/src/widget/arrange.rs	copy-per-item	label.clone()
+crates/balaur_ui/src/widget/arrange.rs	copy-per-item	page.name.clone()
+crates/balaur_ui/src/widget/arrange.rs	copy-per-item	page.name.clone()
+crates/balaur_ui/src/widget/arrange.rs	copy-per-item	page.widget.text.clone()
+crates/balaur_ui/src/widget/beside.rs	copy-per-item	held.placement_fallbacks.iter().map(|side| side.0.clone()).collect();
+crates/balaur_ui/src/widget/button.rs	copy-per-item	look.icon.clone(),
+crates/balaur_ui/src/widget/button.rs	copy-per-item	shown.map(|text| Brush::of(ui).line_of(text, font.clone(), Color32::PLACEHOLDER))
+crates/balaur_ui/src/widget/drag.rs	copy-per-item	rich = rich.text_style(number.clone());
+crates/balaur_ui/src/widget/input.rs	copy-out-of-a-cell	return kept.borrow().clone();
+crates/balaur_ui/src/widget/input.rs	copy-per-item	.map(|part| Value::Str(part.clone()))
+crates/balaur_ui/src/widget/input.rs	copy-per-item	return Value::List(rows.iter().map(|row| Value::Str(row.clone())).collect());
+crates/balaur_ui/src/widget/measure.rs	copy-to-borrow	.shape_for_egui(&self.painter.ctx().clone(), &request)
+crates/balaur_ui/src/widget/measure.rs	copy-to-borrow	.shape_for_egui(&self.painter.ctx().clone(), &request)
+crates/balaur_ui/src/widget/measure.rs	copy-to-borrow	crate::images::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)
+crates/balaur_ui/src/widget/measure.rs	copy-to-borrow	crate::widget::code::natural(self.eng, &self.painter.ctx().clone(), placed.entity, &look)
+crates/balaur_ui/src/widget/pool.rs	copy-per-item	.map(|(_, kind)| kind.clone());
+crates/balaur_ui/src/widget/pool.rs	copy-per-item	.map(|(key, value)| ((*key).to_string(), value.clone()))
+crates/balaur_ui/src/widget/pool.rs	copy-per-item	.map(|(key, value)| (key.clone(), value.clone()))
+crates/balaur_ui/src/widget/rows.rs	copy-per-item	.map(|&i| items[i].key().to_owned())
+crates/balaur_ui/src/widget/rows.rs	copy-to-borrow	.then(|| crate::images::texture_of(at.eng, &ui.ctx().clone(), &widget.source).ok())
+crates/balaur_ui/src/widget/schema.rs	copy-per-item	.filter_map(|(word, table)| Some((word, table.as_table()?.clone())))
+crates/balaur_ui/src/widget/schema.rs	copy-per-item	.map(|(entity, widget)| (entity, widget.text_look.text_style.clone()))
+crates/balaur_ui/src/widget/theme.rs	copy-per-item	.filter_map(|(name, v)| Some((name.clone(), v.as_str()?.to_string())))
+crates/balaur_ui/src/widget/theme.rs	copy-per-item	Some((name.clone(), balaur_core::components::as_f64(v)? as f32))
+crates/balaur_ui/src/widget/theme_files.rs	copy-per-item	themes.root = root.as_ref().map(|root| root.borrow().0.clone());
+crates/balaur_webtransport/src/tls.rs	copy-per-item	.to_vec()
