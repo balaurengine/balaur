@@ -12,13 +12,13 @@ use signals;
 use util;
 use words::asset_kinds;
 use words::changes;
+use words::command;
 use words::components;
 use words::fields;
 use words::log_fields;
 use words::project_fields;
 use words::statuses;
 use words::tabs;
-use words::verbs;
 
 const ADDON: str = "addon";
 const DEPENDENCY: str = "dependency";
@@ -262,9 +262,9 @@ pub fn view(state: &mut editor::State) -> View {
         // Listed rather than placed, because a template makes a project and
         // the editor is already in one.
         for entry in known.templates {
-            let command = "balaur new my-game --template {entry["id"].as_str()}";
-            items.push(ui::Item { cells: [entry["name"].as_str(), entry[log_fields::NOTE].as_str(), command], key: command });
-            held[command] = command;
+            let made = "balaur new my-game --template {entry["id"].as_str()}";
+            items.push(ui::Item { cells: [entry["name"].as_str(), entry[log_fields::NOTE].as_str(), made], key: made });
+            held[made] = made;
         }
         state.library.shown = Shown { held: held };
         let says = if items.len() == 0 {
@@ -423,7 +423,7 @@ pub fn heard(state: &mut editor::State, event: any) {
         } else {
             log::info("added deps/{alias}");
         }
-    } else if kind == statuses::FAILED && event[log_fields::JOB].as_str() != verbs::COPY {
+    } else if kind == statuses::FAILED && event[log_fields::JOB].as_str() != command::COPY {
         state.library.forge_says = event[log_fields::MESSAGE].as_str();
         log::warn("Forge: " + event[log_fields::MESSAGE].as_str());
     } else {

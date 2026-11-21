@@ -713,7 +713,7 @@ kind = "row"
 role = "toolbar_manager"
 
 # The page under the tabs: what the screen was told last, a job's bar, the
-# Projects tab's filter and verbs, and the rows of whichever tab is up.
+# Projects tab's filter and commands, and the rows of whichever tab is up.
 [[nodes]]
 id = "manager_body"
 name = "ManagerBody"
@@ -746,7 +746,7 @@ role = "layout_actions"
 align_items = "center"
 
 # Wraps under a phone's width: a filter and three buttons do not share 280
-# pixels, so the verbs drop to the line below.
+# pixels, so the commands drop to the line below.
 [[nodes]]
 id = "manager_tools"
 name = "Tools"
@@ -777,7 +777,7 @@ placeholder = "Filter projects"
 id = "manager_open"
 name = "Open"
 parent = "manager_tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_manager"
@@ -787,7 +787,7 @@ text = "Open folder"
 id = "manager_new"
 name = "New"
 parent = "manager_tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"

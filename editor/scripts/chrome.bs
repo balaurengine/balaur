@@ -18,6 +18,7 @@ use shell;
 use tab;
 use theme;
 use util;
+use words::command;
 use words::dock_fields;
 use words::fields;
 use words::layout_fields;
@@ -27,7 +28,6 @@ use words::project_fields;
 use words::roles;
 use words::tabs;
 use words::theme_tokens;
-use words::verbs;
 
 const FILE: str = "file";
 const REPLAYING: str = "replaying";
@@ -140,7 +140,7 @@ fn workspaces_x(state: editor::State) -> float {
 }
 
 /// Where one workspace pill's centre lands in the bar, in design px, so the
-/// showcase's drawn cursor can be put on the pill its verb presses.
+/// showcase's drawn cursor can be put on the pill its command presses.
 pub fn workspace_spot(state: editor::State, id: str) -> Spot {
     let bar: any = state.layout[dock_fields::BAR];
     let per = layout::workspace_width(state);
@@ -176,7 +176,7 @@ pub fn doc_spot(state: editor::State, id: str) -> Spot {
 }
 
 /// Where the Focus chip sits, so the showcase's drawn cursor lands on the
-/// control its verb presses. The strip runs workspaces, documents, split,
+/// control its command presses. The strip runs workspaces, documents, split,
 /// focus, the spring, then the transport, so it is two slots back.
 pub fn focus_spot(state: editor::State) -> Spot {
     let bar: any = state.layout[dock_fields::BAR];
@@ -336,7 +336,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
     let can_focus = state.focus || shell::focus_target(state);
     out.push(ui::Control {
         kind: ui::WIDGET_BUTTON,
-        icon: icons::ui(if state.focus { "unfocus" } else { verbs::FOCUS }),
+        icon: icons::ui(if state.focus { "unfocus" } else { command::FOCUS }),
         role: roles::TAB_WORKSPACE,
         checked: state.focus,
         text: if state.compact { "" } else { "Focus" },
@@ -422,7 +422,7 @@ fn doc_controls(state: editor::State, tokens: any) -> [ui::Control] {
         }
     }
     if state.events_open {
-        for entry in doc_tab(state, tabs::EVENTS, icons::ui(icons::EVENTS), verbs::BINDINGS, true) {
+        for entry in doc_tab(state, tabs::EVENTS, icons::ui(icons::EVENTS), command::BINDINGS, true) {
             out.push(entry);
         }
     }
@@ -463,7 +463,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
         ui::Control {
             kind: ui::WIDGET_BUTTON,
             text: "",
-            icon: icons::ui(verbs::PLAY),
+            icon: icons::ui(command::PLAY),
             role: roles::ICON_ACTION_PRIMARY,
             checked: state.playing,
             tooltip: if state.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" },

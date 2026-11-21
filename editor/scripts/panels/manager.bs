@@ -1,6 +1,6 @@
 // The start screen's one script: its head, its tabs and the page under them,
 // filled by the Editor when what they show moved or the screen was resized.
-// The toolbar's verbs are this panel's own; a row's run their own handlers.
+// The toolbar's commands are this panel's own; a row's run their own handlers.
 
 use editor;
 
@@ -32,8 +32,8 @@ impl Manager {
         self.editor.unwrap().manager_filter(value.as_str());
     }
 
-    pub fn verb(_value: any, node: Node) {
-        self.editor.unwrap().manager_verb(node.name());
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.unwrap().manager_pressed(node.name());
     }
 
     pub fn refill() {

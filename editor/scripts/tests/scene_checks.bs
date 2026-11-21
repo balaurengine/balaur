@@ -460,7 +460,7 @@ pub fn undo(state: &mut editor::State) {
 }
 
 /// Copy and paste, which the shell drives from a clipboard event no headless
-/// run can raise: the two document verbs behind it, asserted directly.
+/// run can raise: the two document commands behind it, asserted directly.
 pub fn clipboard(state: &mut editor::State) {
     let before = state.nodes.len();
     let name = model::selected_node(state).name();
@@ -547,7 +547,7 @@ fn rows_in_file(state: editor::State) -> int {
     util::list_or_empty(toml::parse(sceneedit::node_text(state, state.scene_root.unwrap()))["nodes"]).len()
 }
 
-// Placing a prefab from the editor: the palette's verb adds an instance node,
+// Placing a prefab from the editor: the palette's command adds an instance node,
 // the engine builds the prefab under it, and undo takes the whole thing back.
 pub fn placing(state: &mut editor::State) {
     let scenes = model::scene_files(state);
@@ -571,7 +571,7 @@ pub fn placing(state: &mut editor::State) {
     selftest::check(rows_in_file(state) == file_rows + 1, "exactly one row was added to the file");
     selftest::check(state.nodes.len() > before + 1, "and the prefab's own nodes came with it ({state.nodes.len()} in all)");
     selftest::check(selftest::mirror_resolves(state), "every row resolves, the new prefab's included");
-    // A scene that instanced itself would recurse; the verb refuses.
+    // A scene that instanced itself would recurse; the command refuses.
     let held = state.nodes.len();
     selftest::expect_warning("a scene cannot instantiate itself");
     sceneedit::instance_scene(state, state.scene_rel);

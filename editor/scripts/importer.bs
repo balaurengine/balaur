@@ -10,6 +10,7 @@ use pool;
 use recipes;
 use util;
 use words::asset_kinds;
+use words::command;
 use words::datatypes;
 use words::fields;
 use words::inspector_fields;
@@ -18,7 +19,6 @@ use words::panel_keys;
 use words::roles;
 use words::schema_fields;
 use words::tools;
-use words::verbs;
 
 const COUNT: str = "count";
 const NUMBER: str = "number";
@@ -77,7 +77,7 @@ fn ROWS() -> any {
             { fields::KEY: "flip_green", fields::KIND: datatypes::BOOL, FALLBACK: false, fields::HELP: "invert green, for a normal map baked the way DirectX reads one" },
             { fields::KEY: recipes::PIXELS_PER_UNIT, fields::KIND: NUMBER, FALLBACK: 100.0, layout_fields::STEP: 1.0, fields::HELP: "texture pixels to one world unit, for a sprite whose own is 0" },
             { fields::KEY: tools::SCALE, fields::KIND: NUMBER, FALLBACK: 1.0, layout_fields::STEP: 0.25, fields::ONLY: "svg", fields::HELP: "pixels per SVG unit; the raster a sprite measures" },
-            { fields::KEY: RECODE, fields::KIND: datatypes::ENUM, schema_fields::OPTIONS: [ORIGINAL, "webp", "quantized"], FALLBACK: verbs::EXPORT, fields::HELP: "how an export re-encodes this file, over [export] images" },
+            { fields::KEY: RECODE, fields::KIND: datatypes::ENUM, schema_fields::OPTIONS: [ORIGINAL, "webp", "quantized"], FALLBACK: command::EXPORT, fields::HELP: "how an export re-encodes this file, over [export] images" },
             { fields::KEY: "quality", fields::KIND: NUMBER, FALLBACK: 80.0, layout_fields::STEP: 5.0, layout_fields::WHOLE: true, fields::HELP: "the palette's 0 to 100 quality when this file is quantized" },
         ],
         "audio": [
@@ -86,7 +86,7 @@ fn ROWS() -> any {
             { fields::KEY: "loop_offset", fields::KIND: NUMBER, FALLBACK: 0.0, layout_fields::STEP: 0.1, fields::HELP: "seconds in that each repeat starts from, past an intro" },
             { fields::KEY: "force_mono", fields::KIND: datatypes::BOOL, FALLBACK: false, fields::HELP: "mixed to one channel at export; a WAV only" },
             { fields::KEY: "max_rate_hz", fields::KIND: COUNT, schema_fields::OPTIONS: ["0", "11025", "22050", "32000", "44100", "48000"], FALLBACK: 0, fields::HELP: "the highest sample rate a WAV ships at, in Hz; 0 keeps its own" },
-            { fields::KEY: RECODE, fields::KIND: datatypes::ENUM, schema_fields::OPTIONS: [ORIGINAL, "flac", "vorbis"], FALLBACK: verbs::EXPORT, fields::HELP: "how an export re-encodes this file, over [export] audio" },
+            { fields::KEY: RECODE, fields::KIND: datatypes::ENUM, schema_fields::OPTIONS: [ORIGINAL, "flac", "vorbis"], FALLBACK: command::EXPORT, fields::HELP: "how an export re-encodes this file, over [export] audio" },
         ],
         "font": [
             { fields::KEY: tools::SCALE, fields::KIND: NUMBER, FALLBACK: 1.0, layout_fields::STEP: 0.05, fields::HELP: "how much larger its glyphs draw and advance, in widgets and world text" },
@@ -295,7 +295,7 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
         ui::Control {
             kind: ui::WIDGET_BUTTON,
             text: "",
-            icon: icons::ui(verbs::RESET),
+            icon: icons::ui(command::RESET),
             role: roles::ICON_ACTION_FORM,
             tooltip: "Drop this key and follow the project again",
             on_click: "handle", target: pool::editor(),

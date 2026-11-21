@@ -25,8 +25,14 @@ use themewin;
 use util;
 use viewport;
 use window;
-use words::window_marks;
 use tests::viewport_checks;
+use words::command;
+use words::components;
+use words::window_marks;
+
+const BRAND: str = "Editor/Shell/Head/HeadRow/Brand";
+const KEYS: str = "Editor/Keys";
+const PICKER_ROWS: str = "Editor/Picker/PickerScroll/PickerRows";
 
 // The centre must be showing the viewport when no document is open: a stray
 // split used to leave a collapsed code pane over it in every workspace.
@@ -392,7 +398,7 @@ pub fn palette_step(state: &mut editor::State) {
     }
     state.palette_demo = -1;
     selftest::check(state.palette_query == "physics", "a palette query survives the frames after it is set ('{state.palette_query}')");
-    let host = scene::root().get_node("Editor/Picker/PickerScroll/PickerRows");
+    let host = scene::root().get_node(PICKER_ROWS);
     if !selftest::check(host.is_valid(), "the palette's matches are nodes") {
         return;
     }
@@ -413,7 +419,7 @@ pub fn palette_step(state: &mut editor::State) {
     selftest::check(shown.len() > 0 && shown[0] && held == 1, "the first match alone wears the held look, which is what Enter runs ({shown})");
     let box = ui::widget_rect(scene::root().get_node("Editor/Picker"));
     selftest::check(box != nil && box.unwrap().height > 100.0, "the picker is as tall as the matches it holds ({box})");
-    // Enter runs the first match by its verb, and closes the palette.
+    // Enter runs the first match by its command, and closes the palette.
     let overlay = state.show_input;
     for turn in 0..2 {
         shell::open_palette(state, "input overlay");
@@ -949,4 +955,58 @@ fn rail_mark_node(host: Node, tip: str) -> Node? {
         }
     }
     nil
+}
+
+/// `--state test:commands`: every shell key names a command, and the palette
+/// and the mark's menu write each command's chord the way its key spells it.
+pub fn commands_agree(state: &mut editor::State) {
+    let keys = scene::root().get_node(KEYS).children();
+    let unknown: [str] = [];
+    for key in keys {
+        if commands::find(state, key.name()) == nil {
+            unknown.push(key.name());
+        }
+    }
+    selftest::check(keys.len() > 30 && unknown.len() == 0, "each of the {keys.len()} keys names a command ({unknown})");
+    shell::open_palette(state, "");
+    palette::fill(state);
+    let lines: any = {};
+    buttons(scene::root().get_node(PICKER_ROWS), lines);
+    shell::close_palette(state);
+    let wrong: [str] = [];
+    let chorded = 0;
+    for found in commands::offered(state, commands::all(state)) {
+        let chord = commands::chord(state, found.id);
+        let shown = lines[found.label];
+        if shown == nil {
+            wrong.push("{found.label} is not listed");
+        } else if shown.as_str() != chord {
+            wrong.push("{found.label} shows '{shown}' for '{chord}'");
+        }
+        if chord != "" {
+            chorded += 1;
+        }
+    }
+    selftest::check(chorded > 20 && wrong.len() == 0, "the palette lists every live command, {chorded} with their key's chord ({wrong})");
+    let rows: any = {};
+    buttons(scene::root().get_node(BRAND), rows);
+    let menu_wrong: [str] = [];
+    for id in [command::PALETTE, command::SETTINGS, command::EXPORT, command::THEME, command::ABOUT] {
+        let found = commands::find(state, id).unwrap();
+        let shown = rows[found.label];
+        if shown == nil || shown.as_str() != commands::chord(state, id) {
+            menu_wrong.push("{found.label} shows '{shown}'");
+        }
+    }
+    selftest::check(commands::chord(state, command::PALETTE) != "" && menu_wrong.len() == 0, "the menu's rows carry the palette's labels and chords ({menu_wrong})");
+}
+
+// Every shown button under `node`, its caption to the text at its far edge.
+fn buttons(node: Node, out: any) {
+    for child in node.children() {
+        if child.visible() == true && child.has_component(components::WIDGET) && child.widget.kind == ui::WIDGET_BUTTON {
+            out[child.widget.text] = child.widget_button.trailing;
+        }
+        buttons(child, out);
+    }
 }

@@ -1,8 +1,8 @@
 //! What a plugin fills its dock with. A plugin cannot `use` the editor's
-//! modules, so each verb is an Editor method it calls by name: `kit_rows`,
+//! modules, so each command is an Editor method it calls by name: `kit_rows`,
 //! `kit_field` and the rest in editor.bs.
 
-// A verb answers a row, and the pool writes it onto the dock's subtree. A control
+// A command answers a row, and the pool writes it onto the dock's subtree. A control
 // with `on_click: "method"`, `target: node` gets `method(data, value)` on that node.
 
 use editor;
@@ -15,11 +15,11 @@ use settings;
 use signals;
 use util;
 use words::changes;
+use words::command;
 use words::fields;
 use words::layout_fields;
 use words::project_fields;
 use words::roles;
-use words::verbs;
 
 const FOOT: str = "foot";
 const SIDE: str = "side";
@@ -84,7 +84,7 @@ fn game_name(state: editor::State) -> str {
     toml::parse(text.unwrap())[project_fields::APPLICATION][fields::NAME].as_str()
 }
 
-/// What a verb remembers between frames: open tabs, open branches, drafts.
+/// What a command remembers between frames: open tabs, open branches, drafts.
 fn memory(state: &mut editor::State) -> any {
     if state.kit_state == nil {
         state.kit_state = {};
@@ -218,10 +218,10 @@ pub fn field(state: &mut editor::State, label: str, value: any, options: any) ->
         },
     ];
     if masked {
-        let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: if revealed { verbs::HIDE } else { "show" } };
+        let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: if revealed { command::HIDE } else { "show" } };
         controls.push(pool::on(button, field_toggled, { fields::KEY: key }));
     }
-    if option(options, verbs::COPY, false).as_bool() {
+    if option(options, command::COPY, false).as_bool() {
         let whole = option(options, "copy_text", text);
         let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: "copy" };
         controls.push(pool::on(button, field_copied, { layout_fields::WHOLE: whole }));

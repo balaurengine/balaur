@@ -4723,6 +4723,10 @@
         "least": 1,
         "signature": "(str, any) -> str"
       },
+      "ui::chord_text": {
+        "least": 1,
+        "signature": "(str) -> str"
+      },
       "ui::clear_focus": {
         "least": 0,
         "signature": "()"
@@ -26945,6 +26949,7 @@
       ],
       "doc": "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
       "docs": {
+        "chord_text": "A chord as a widget's `shortcut` and `[input.actions]` spell it, `cmd+shift+KeyS`, in the spelling the platform shows: `\u21e7\u2318S` on a Mac, `Ctrl+Shift+S` elsewhere. What a row naming a command writes beside it. A chord no key reads is an error.",
         "clear_focus": "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `focus_exited`.",
         "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         "colors_apart": "Every pair of a `widget_theme` document's colours that say something by hue (`primary`, `success`, `warning`, `danger`), closest first, as `{ first, second, distance, vision }`: how far apart they stand in CIELAB for the colour vision that sees them closest. Under 10 the two read as one colour to that reader.",
@@ -26986,6 +26991,7 @@
       },
       "editor": [],
       "functions": [
+        "chord_text",
         "clear_focus",
         "click",
         "colors_apart",
@@ -27028,6 +27034,7 @@
       "methods": {},
       "name": "ui",
       "signatures": {
+        "chord_text": "(str) -> str",
         "clear_focus": "()",
         "click": "(Node, ui::ClickOptions?) -> bool",
         "colors_apart": "(any) -> [ui::ColorsApart]",

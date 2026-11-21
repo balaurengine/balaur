@@ -995,7 +995,7 @@ fn note(text: str) -> ui::Control {
     ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: text }
 }
 
-// The row every mode is on: the tools, the two verbs, and which tile is held.
+// The row every mode is on: the tools, the two commands, and which tile is held.
 fn mode_row(state: editor::State, out: [[ui::Control]]) {
     let row: [ui::Control] = [];
     for id in MODES() {

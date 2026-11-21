@@ -1,5 +1,5 @@
 // What the bottom dock's panels are built from: each tab is a scene with its
-// own script, and these are the views and verbs it asks the Editor for.
+// own script, and these are the views and commands it asks the Editor for.
 
 use anim;
 use defs;
@@ -19,6 +19,7 @@ use util;
 use viewport;
 use words::asset_kinds;
 use words::changes;
+use words::command;
 use words::dock_fields;
 use words::fields;
 use words::general;
@@ -31,7 +32,6 @@ use words::schema_fields;
 use words::statuses;
 use words::tabs;
 use words::theme_tokens;
-use words::verbs;
 
 const ENV: str = "env";
 const INFO: str = "info";
@@ -499,7 +499,7 @@ fn edit_dependency(state: editor::State) {
 }
 
 /// What the Assets panel shows for a search: where the browser is, its cards
-/// and the verbs' state. The cards are kept, so a pick names its file.
+/// and the commands' state. The cards are kept, so a pick names its file.
 pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     let tokens = state.theme;
     let directory = state.assets.directory;
@@ -593,13 +593,13 @@ pub fn assets_pick(state: &mut editor::State, row: str) {
     }
 }
 
-/// The strip's verbs, by the name of the button pressed; `rename_to` is the
+/// The strip's commands, by the name of the button pressed; `rename_to` is the
 /// new name submitted.
-pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
+pub fn assets_pressed(state: &mut editor::State, name: str, value: str) {
     let chosen = state.assets.selected != "";
-    if verb == "Up" {
+    if name == "Up" {
         state.assets.directory = util::parent_directory(state.assets.directory);
-    } else if verb == "Import" {
+    } else if name == "Import" {
         // Asks and imports: a dialog on a desktop, the page's own chooser in
         // a tab, and the same reports either way.
         if dropin::in_flight(state) > 0 {
@@ -607,30 +607,30 @@ pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
         } else {
             import::choose();
         }
-    } else if verb == "Folder" {
+    } else if name == "Folder" {
         if !refuse_in_dependency(state, state.assets.directory) {
             new_folder(state);
         }
-    } else if verb == "Local" && chosen {
+    } else if name == "Local" && chosen {
         make_local(state);
-    } else if verb == "Move" && chosen {
+    } else if name == "Move" && chosen {
         move_to_shelf(state);
-    } else if verb == "Source" {
+    } else if name == "Source" {
         edit_dependency(state);
-    } else if verb == "Update" {
+    } else if name == "Update" {
         // `balaur fetch --update`, on a thread; the Library hears it end.
         if forge::fetch(state.game_root, true) {
             log::info("updating the dependencies");
         }
-    } else if verb == "Rename" && chosen {
+    } else if name == "Rename" && chosen {
         if !refuse_in_dependency(state, state.assets.selected) {
             state.assets.renaming = !state.assets.renaming;
         }
-    } else if verb == "Delete" && chosen {
+    } else if name == "Delete" && chosen {
         if !refuse_in_dependency(state, state.assets.selected) {
             delete_asset(state);
         }
-    } else if verb == RENAME_TO {
+    } else if name == RENAME_TO {
         rename_asset(state, value);
     }
     signals::changed(state, changes::ASSETS);
@@ -714,7 +714,7 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
 }
 
 fn step_icons() -> [str] {
-    [icons::ui(verbs::PLAY), icons::ui("step-over"), icons::ui(STEP_INTO), icons::ui("step-out")]
+    [icons::ui(command::PLAY), icons::ui("step-over"), icons::ui(STEP_INTO), icons::ui("step-out")]
 }
 
 /// A step pressed, by the name of its button.
@@ -831,7 +831,7 @@ pub fn recordings_verify(state: &mut editor::State) {
     signals::changed(state, changes::RECORDINGS);
 }
 
-// One recording: the verb that plays it, what it is, and the three that keep,
+// One recording: the command that plays it, what it is, and the three that keep,
 // copy or drop it.
 fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
     let out: [ui::Control] = [
@@ -839,7 +839,7 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
             kind: ui::WIDGET_BUTTON,
             role: roles::ACTION_FORM_PRIMARY,
             text: "",
-            icon: icons::ui(verbs::PLAY),
+            icon: icons::ui(command::PLAY),
             tooltip: "Replay this recording",
             on_click: "handle", target: pool::editor(),
             data: { fields::FN: on_replay_pressed, RECORDING: recording },
@@ -916,7 +916,7 @@ const BUDGET_MILLISECONDS: float = 16.667;
 /// its headline, and what to say when there is nothing to measure.
 pub fn meter_view(state: editor::State, what: str) -> MeterView {
     let tokens = state.theme;
-    if what == verbs::COST {
+    if what == command::COST {
         return cost_view(state, tokens);
     }
     let scripts = state.script_profiling;

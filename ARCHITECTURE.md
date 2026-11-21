@@ -1684,6 +1684,11 @@ docks that fold and move, the command palette, dark and light token sets.
   editor script hot reloads the editor.
 - Undo is a list of changes `scene.keep_changes` kept, each with the value
   it replaced, keyed by stable id.
+- Each command the shell runs is one entry in `editor/scripts/commands.bs`:
+  its name, label, icon and when it would act. A key in
+  `scenes/panels/keys.toml` names one, the palette lists those that would act,
+  and the mark menu shows five. Each row writes its key's chord through
+  `ui::chord_text`, so a chord is spelled once.
 - A game's editor plugins sit in its `editor/` folder and in each addon's.
   Only those files and the editor's own may call the editor's modules, so a
   game script that calls one fails in Play as it would in an export.

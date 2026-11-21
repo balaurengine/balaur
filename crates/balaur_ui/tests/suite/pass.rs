@@ -243,6 +243,23 @@ fn the_frame_queries_answer_between_passes() {
     );
 }
 
+#[test]
+fn a_chord_is_written_the_way_the_platform_shows_it() {
+    let (cmd, shift) = if cfg!(target_vendor = "apple") {
+        ("⌘", "⇧")
+    } else {
+        ("Ctrl+", "Shift+")
+    };
+    run_clean(&format!(
+        r#"
+        let shown = ui::chord_text("cmd+shift+KeyS");
+        if !shown.contains("{cmd}") || !shown.contains("{shift}") || !shown.ends_with("S") {{ log::error("cmd+shift+KeyS reads {{shown}}"); }}
+        let key = ui::chord_text("F5");
+        if key != "F5" {{ log::error("F5 reads {{key}}"); }}
+        "#
+    ));
+}
+
 // A script copies between passes; the next pass hands the text over.
 #[test]
 fn the_clipboard_is_written_by_the_next_pass() {

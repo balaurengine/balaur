@@ -256,7 +256,7 @@ pub fn standing(state: editor::State, channel: str) -> str {
     id + " is published"
 }
 
-/// The verb a release row carries, as a control: what `row_press` draws.
+/// The command a release row carries, as a control: what `row_press` draws.
 /// Nil where there is none: an install already running, or a held build.
 pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
     if row[inspector_fields::CURRENT].as_bool() == true {

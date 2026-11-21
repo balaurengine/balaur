@@ -11,11 +11,11 @@ use pool;
 use rig;
 use signals;
 use util;
+use words::command;
 use words::fields;
 use words::geometry_fields;
 use words::project_fields;
 use words::roles;
-use words::verbs;
 
 const CLEAR: str = "clear";
 const GUESS: str = "guess";
@@ -215,7 +215,7 @@ pub fn fill(state: editor::State) {
             filled += 1;
         }
     }
-    util::set_text(PANEL + "/Body/Verbs/Count", "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig");
+    util::set_text(PANEL + "/Body/Buttons/Count", "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig");
     let rows: [form::Row] = [];
     for name in HUMANOID() {
         for spec in row(state, paths, name) {
@@ -225,13 +225,13 @@ pub fn fill(state: editor::State) {
     form::fill(PANEL + "/Body/Scroll/Rows", rows, NAME_WIDTH);
 }
 
-/// A verb by the name of its button.
-pub fn verb(state: &mut editor::State, name: str) {
+/// A button of the panel's, by its name, pressed.
+pub fn pressed(state: &mut editor::State, name: str) {
     if name == GUESS {
         autofill(state);
     } else if name == CLEAR {
         clear(state);
-    } else if name == verbs::SAVE {
+    } else if name == command::SAVE {
         save(state);
     }
 }

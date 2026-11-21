@@ -1,5 +1,5 @@
 # The Assets tab: the project's files as cards, where the browser is, its
-# verbs and a search. One script answers them; the files are the Editor's.
+# commands and a search. One script answers them; the files are the Editor's.
 
 [[nodes]]
 id = "panel"
@@ -26,7 +26,7 @@ id = "up"
 name = "Up"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock"
@@ -77,7 +77,7 @@ role = "text_caption"
 id = "import"
 name = "Import"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock"
@@ -88,7 +88,7 @@ tooltip = "Bring in a model, a sprite or a level"
 id = "folder"
 name = "Folder"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock"
@@ -101,7 +101,7 @@ id = "local"
 name = "Local"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock"
@@ -114,7 +114,7 @@ id = "move"
 name = "Move"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock"
@@ -127,7 +127,7 @@ id = "source"
 name = "Source"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock"
@@ -139,7 +139,7 @@ id = "update"
 name = "Update"
 parent = "tools"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock"
@@ -150,7 +150,7 @@ tooltip = "Fetch the newest commit of each dependency's branch or tag"
 id = "rename"
 name = "Rename"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock_quiet"
@@ -161,7 +161,7 @@ tooltip = "Select an item first"
 id = "delete"
 name = "Delete"
 parent = "tools"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_dock_quiet"

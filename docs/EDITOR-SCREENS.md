@@ -249,7 +249,8 @@ selected.
 ## 7. The mark menu: `menu.bs`
 
 The mark at the head of the bar is the shell's one menu, opened with a left
-click. It holds the command palette, Settings and Export, then every panel
+click. It holds the command palette, Settings, the theme, Export and About,
+each a command of `commands.bs` beside its key's chord, then every panel
 with a tick beside the open ones, two to a line. Its last row puts the current
 workspace's panels back. A folded side dock is a rail of the same marks: the
 one that opens it, then one per panel it holds. Shot `36-menu`, whose `menu`

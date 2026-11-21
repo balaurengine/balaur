@@ -176,7 +176,8 @@ EDITOR_STATES=(
   test:inspector_rows                       # a row's edit, its log, the window
   test:pen                                  # anchors, a handle, its asset
   test:tools test:lint                      # the code pane's answers; Problems
-  test:palette test:panels test:imports     # the palette; the menu's panels; Import
+  test:palette test:commands test:panels    # the palette; its chords; the menu's panels
+  test:imports                              # Import
   test:deselect test:viewport_clicks        # nothing selected; a click on the stage
   test:gestures                             # two fingers: a pinch and a drag
   test:picture                              # the scene drawn by a second run

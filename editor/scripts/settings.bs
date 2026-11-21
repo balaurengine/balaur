@@ -15,6 +15,7 @@ use themewin;
 use util;
 use window;
 use words::changes;
+use words::command;
 use words::datatypes;
 use words::fields;
 use words::general;
@@ -23,7 +24,6 @@ use words::project_fields;
 use words::roles;
 use words::schema_fields;
 use words::theme_modes;
-use words::verbs;
 
 const EDITOR: str = "editor";
 const PROJECT: str = "project";
@@ -97,7 +97,7 @@ pub fn open_at(state: &mut editor::State, category: str) {
 }
 
 pub fn open(state: &mut editor::State) {
-    window::show(state, verbs::SETTINGS);
+    window::show(state, command::SETTINGS);
     load_files(state);
 }
 
@@ -537,7 +537,7 @@ fn row_width(state: editor::State) -> float {
 /// Fill the sheet: what its script asks for when Settings is up.
 pub fn fill(state: &mut editor::State) {
     let stacked = ui::window_size().x < STACK_BELOW;
-    let found = window::sheet_form(state, verbs::SETTINGS, "Settings", save_button(state));
+    let found = window::sheet_form(state, command::SETTINGS, "Settings", save_button(state));
     if found == nil {
         return;
     }

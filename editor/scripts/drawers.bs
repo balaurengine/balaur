@@ -15,6 +15,7 @@ use shell;
 use signals;
 use util;
 use words::asset_kinds;
+use words::command;
 use words::components;
 use words::datatypes;
 use words::fields;
@@ -27,7 +28,6 @@ use words::schema_fields;
 use words::tabs;
 use words::theme_tokens;
 use words::tools;
-use words::verbs;
 
 const DEGREES: str = "degrees";
 const INLINE: str = "inline";
@@ -184,7 +184,7 @@ fn labelled(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
     }
 }
 
-// The same for controls that sit apart, as a row of verbs does.
+// The same for controls that sit apart, as a row of commands does.
 fn apart(state: &mut editor::State, line: inspector::Line, controls: [ui::Control]) -> form::Row {
     let row = labelled(state, line, controls);
     row.slot_role = roles::LAYOUT_ACTIONS;
@@ -210,7 +210,7 @@ fn add_tail(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
             controls.push(ui::Control {
                 kind: ui::WIDGET_BUTTON,
                 text: "",
-                icon: icons::ui(verbs::RESET),
+                icon: icons::ui(command::RESET),
                 role: roles::ICON_ACTION_FORM,
                 tooltip: "Reset to the script's default",
                 on_click: "inspector_edit", target: pool::editor(),
@@ -237,7 +237,7 @@ fn on_folded(state: &mut editor::State, line: inspector::Line, _data: any, _valu
     inspector::fold(state, line);
 }
 
-// A section's head: what folds it, the component's `enabled`, and the verb that
+// A section's head: what folds it, the component's `enabled`, and the command that
 // takes the component off. What the engine says of it is a mark on the title.
 fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> form::Row {
     let name = line.at.component;
@@ -593,7 +593,7 @@ fn script_path_row(state: &mut editor::State, line: inspector::Line, value: any)
     ])
 }
 
-// A row's verb that opens a list to pick from: one glyph, as wide as it is
+// A row's command that opens a list to pick from: one glyph, as wide as it is
 // tall, where a dropdown would take its longest choice's room from the field
 // beside it. `taken` hears the choice as a dropdown's change would.
 fn pick_menu(line: inspector::Line, icon: str, tooltip: str, choices: [str], taken: fn(&mut editor::State, inspector::Line, any, any)) -> ui::Control {
@@ -643,7 +643,7 @@ fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value:
             kind: ui::WIDGET_BUTTON,
             role: roles::ICON_ACTION_FORM,
             text: "",
-            icon: if inline { icons::ui(verbs::SAVE) } else { icons::ui(icons::EMBED) },
+            icon: if inline { icons::ui(command::SAVE) } else { icons::ui(icons::EMBED) },
             tooltip: if inline {
                 "Write this {asset_type} to {directory}/ and reference it"
             } else {

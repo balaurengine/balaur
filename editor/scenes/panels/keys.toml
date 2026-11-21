@@ -101,8 +101,8 @@ focusable = false
 shortcut = "cmd+Backslash"
 
 [[nodes]]
-id = "zoom_in"
-name = "zoom_in"
+id = "scale_up"
+name = "scale_up"
 parent = "keys"
 bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "pressed" }] }
 [nodes.widget]
@@ -112,8 +112,8 @@ focusable = false
 shortcut = "cmd+Equal"
 
 [[nodes]]
-id = "zoom_out"
-name = "zoom_out"
+id = "scale_down"
+name = "scale_down"
 parent = "keys"
 bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "pressed" }] }
 [nodes.widget]
@@ -302,8 +302,8 @@ shortcut = "alt+KeyS"
 while_typing = false
 
 [[nodes]]
-id = "reload"
-name = "reload"
+id = "reload_scripts"
+name = "reload_scripts"
 parent = "keys"
 bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "pressed" }] }
 [nodes.widget]
@@ -362,8 +362,8 @@ shortcut = "cmd+KeyZ"
 while_typing = false
 
 [[nodes]]
-id = "theme"
-name = "theme"
+id = "dark_chrome"
+name = "dark_chrome"
 parent = "keys"
 bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "pressed" }] }
 [nodes.widget]

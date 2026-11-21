@@ -148,13 +148,13 @@ fn on_key_pressed(state: &mut editor::State, data: any, _value: any) {
     anim::seek(state, data[fields::WHEN].as_float());
 }
 
-/// The Timeline tab's verbs, by the name of the button pressed.
-pub fn verb(state: &mut editor::State, verb: str) {
-    if verb == "AddKey" {
+/// The Timeline tab's commands, by the name of the button pressed.
+pub fn pressed(state: &mut editor::State, name: str) {
+    if name == "AddKey" {
         anim::add_key(state, state.anim.time);
-    } else if verb == "DeleteKey" {
+    } else if name == "DeleteKey" {
         anim::delete_key_at(state, state.anim.time);
-    } else if verb == "Create" {
+    } else if name == "Create" {
         anim::ensure_clip(state);
     }
     signals::changed(state, changes::TIMELINE);

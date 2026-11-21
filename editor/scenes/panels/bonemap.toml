@@ -1,5 +1,5 @@
 # The Bone map tab: the canonical skeleton against this rig's bones, a row a
-# canonical bone with the rig's bone it means, and the verbs that fill, empty
+# canonical bone with the rig's bone it means, and the commands that fill, empty
 # and write the map. One script fills it from the Editor and answers it.
 
 [[nodes]]
@@ -33,8 +33,8 @@ role = "layout_dock"
 grow = 1
 
 [[nodes]]
-id = "verbs"
-name = "Verbs"
+id = "buttons"
+name = "Buttons"
 parent = "body"
 [nodes.widget]
 kind = "row"
@@ -45,7 +45,7 @@ align_items = "center"
 [[nodes]]
 id = "count"
 name = "Count"
-parent = "verbs"
+parent = "buttons"
 [nodes.widget]
 kind = "label"
 role = "text_code_caption"
@@ -53,8 +53,8 @@ role = "text_code_caption"
 [[nodes]]
 id = "guess"
 name = "guess"
-parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+parent = "buttons"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -64,8 +64,8 @@ tooltip = "Fill every row whose canonical name matches a bone, ignoring case and
 [[nodes]]
 id = "clear"
 name = "clear"
-parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+parent = "buttons"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -75,8 +75,8 @@ tooltip = "Empty every row"
 [[nodes]]
 id = "save"
 name = "save"
-parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+parent = "buttons"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"

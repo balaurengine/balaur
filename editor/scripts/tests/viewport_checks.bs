@@ -465,7 +465,7 @@ fn deselect_checks(state: &mut editor::State, had: int) {
     selftest::check(selection::count(state) == 0, "and no selected rows");
     selftest::check(!model::selected_node(state).is_valid(), "the panels read no node rather than indexing past the rows");
     selftest::check(selftest::mirror_resolves(state), "the scene still resolves ({before} rows were selected)");
-    // Every verb on "the selected node", with none: each returns rather than
+    // Every command on "the selected node", with none: each returns rather than
     // indexing row -1, which threw and left a Cmd+S unsaved.
     let rows = state.nodes.len();
     sceneedit::rename_selected(state, "Renamed");
@@ -479,7 +479,7 @@ fn deselect_checks(state: &mut editor::State, had: int) {
     shell::goto_definition(state);
     shell::format_active(state);
     statemachine::create(state);
-    selftest::check(state.nodes.len() == rows && !state.renaming && state.selected < 0, "and every verb on the selection leaves the document and the selection alone");
+    selftest::check(state.nodes.len() == rows && !state.renaming && state.selected < 0, "and every command on the selection leaves the document and the selection alone");
 }
 
 // Every tool any workspace offers, each drawn with nothing selected.

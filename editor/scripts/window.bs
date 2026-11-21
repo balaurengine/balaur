@@ -19,11 +19,11 @@ use signals;
 use style;
 use themewin;
 use util;
+use words::command;
 use words::fields;
 use words::form_fields;
 use words::layout_fields;
 use words::roles;
-use words::verbs;
 
 const MANAGER_NEW: str = "manager-new";
 const OPEN: str = "open";
@@ -118,15 +118,15 @@ const SHEET: str = "Editor/Sheet";
 
 /// Fill whichever screen is up: what the sheet's script asks for.
 pub fn fill(state: &mut editor::State) {
-    if state.window.open == verbs::SETTINGS {
+    if state.window.open == command::SETTINGS {
         settings::fill(state);
-    } else if state.window.open == verbs::THEME {
+    } else if state.window.open == command::THEME {
         themewin::fill(state);
-    } else if state.window.open == verbs::EXPORT {
+    } else if state.window.open == command::EXPORT {
         exporter::fill(state);
-    } else if state.window.open == verbs::ABOUT {
+    } else if state.window.open == command::ABOUT {
         about::fill(state);
-    } else if state.window.open == verbs::POPULATE {
+    } else if state.window.open == command::POPULATE {
         populate::fill(state);
     } else if state.window.open == MANAGER_NEW {
         manager::new_fill(state);
@@ -143,7 +143,7 @@ pub fn closed(state: &mut editor::State) {
     }
 }
 
-/// A dialog's head, which `header_dialog` lays out: its name, the verbs it
+/// A dialog's head, which `header_dialog` lays out: its name, the commands it
 /// carries, and `close`, a button carrying the caller's handler.
 pub fn head(title: str, actions: [ui::Control], close: ui::Control) -> [ui::Control] {
     let out: [ui::Control] = [

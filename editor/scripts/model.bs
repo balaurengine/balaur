@@ -1012,7 +1012,7 @@ pub fn transform_part(found: Node, key: str, fallback: [float]) -> [float] {
 /// The transform component's name, and the properties it holds.
 pub const TRANSFORM: str = "transform";
 
-/// Whether a row is active. A click on empty stage leaves none, so a verb on
+/// Whether a row is active. A click on empty stage leaves none, so a command on
 /// "the selected node" asks first.
 pub fn has_selection(state: editor::State) -> bool {
     state.selected >= 0 && state.selected < state.nodes.len()

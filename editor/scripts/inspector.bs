@@ -338,7 +338,7 @@ pub fn hide_panel() {
     util::hide(PANEL);
 }
 
-/// The verb under the form: a component for the selected node, from the
+/// The command under the form: a component for the selected node, from the
 /// palette.
 pub fn add(state: &mut editor::State) {
     if model::has_selection(state) {

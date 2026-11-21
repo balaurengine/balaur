@@ -8,9 +8,9 @@ use rig;
 use sceneedit;
 use selection;
 use util;
+use words::command;
 use words::components;
 use words::inspector_fields;
-use words::verbs;
 
 const MAX: str = "max";
 const MIN: str = "min";
@@ -140,7 +140,7 @@ pub fn group(state: &mut editor::State) {
     center = util::vector_scale(center, 1.0 / rows.len() as float);
     // The group's own position is local to whatever it lands under.
     let base = util::xyz(parent.transform.global_position());
-    history::record(state, verbs::GROUP);
+    history::record(state, command::GROUP);
     let made = sceneedit::spawn(state, parent, "Group", { components::TRANSFORM: {
         inspector_fields::POSITION: util::vector_subtract(center, base),
         animation::PROPERTY_ROTATION_EULER: [0.0, 0.0, 0.0],
@@ -172,7 +172,7 @@ pub fn ungroup(state: &mut editor::State) {
         log::info("nothing to ungroup");
         return;
     }
-    history::record(state, verbs::UNGROUP);
+    history::record(state, command::UNGROUP);
     let up = found.parent();
     let place = found.sibling_index();
     for child in children {
@@ -206,7 +206,7 @@ pub fn toggle_hidden_of(state: &mut editor::State, rows: [int]) {
         }
     }
     let to = !any_visible;
-    history::record(state, if to { "show" } else { verbs::HIDE });
+    history::record(state, if to { "show" } else { command::HIDE });
     for row in rows {
         let found = model::node(state, row);
         if found.is_valid() {

@@ -30,3 +30,18 @@ pub(crate) fn chord_shown(ctx: &egui::Context, text: &str) -> Option<String> {
     let (modifiers, key) = chord(text)?;
     Some(ctx.format_shortcut(&egui::KeyboardShortcut::new(modifiers, key)))
 }
+
+/// [`chord_shown`] for a script, which may ask between passes: there no
+/// context says which platform the window is on, so the build's target does.
+pub(crate) fn chord_text(text: &str) -> Option<String> {
+    crate::bridge::with_ctx(|ctx| Ok(chord_shown(ctx, text))).unwrap_or_else(|_| {
+        let (modifiers, key) = chord(text)?;
+        let mac = egui::os::OperatingSystem::from_target_os().is_mac();
+        let names = if mac {
+            &egui::ModifierNames::SYMBOLS
+        } else {
+            &egui::ModifierNames::NAMES
+        };
+        Some(egui::KeyboardShortcut::new(modifiers, key).format(names, mac))
+    })
+}

@@ -1,5 +1,5 @@
 // The Timeline tab's one script: the Editor fills it when the clip, the
-// playhead or the room moved, and it hands back the scrubber, the key verbs
+// playhead or the room moved, and it hands back the scrubber, the key commands
 // and a clip asked for. A key's own dot seeks to it.
 
 use editor;
@@ -48,8 +48,8 @@ impl Timeline {
         self.editor.unwrap().timeline_clip(node.name(), value);
     }
 
-    pub fn verb(_value: any, node: Node) {
-        self.editor.unwrap().timeline_verb(node.name());
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.unwrap().timeline_pressed(node.name());
     }
 
     pub fn refill() {

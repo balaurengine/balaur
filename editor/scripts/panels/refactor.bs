@@ -52,6 +52,6 @@ impl Refactor {
         self.open = true;
         self.node.get_node("Count").widget.text = view.count;
         self.node.get_node("Hits").widget_rows.items = view.hits;
-        self.node.get_node("Verbs/Apply").widget.enabled = view.ready;
+        self.node.get_node("Buttons/Apply").widget.enabled = view.ready;
     }
 }

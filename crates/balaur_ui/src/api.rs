@@ -11,6 +11,7 @@ use crate::theme;
 use crate::vocabulary::words as w;
 use crate::{UiConfig, UiState};
 
+const CHORD_TEXT: &str = "chord_text";
 const CLEAR_FOCUS: &str = "clear_focus";
 const COMPLETE_THEME: &str = "complete_theme";
 const EDIT: &str = "edit";
@@ -464,7 +465,12 @@ fn install_queries(m: &mut Module<Engine>) {
         (WANTS_KEYBOARD, &[], "", "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone."),
         (WANTS_POINTER, &[], "", "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window."),
         (TAKES_POINTER_AT, &[], "(point: Vec2) -> bool", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
+        (CHORD_TEXT, &[], "(chord: string) -> string", "A chord as a widget's `shortcut` and `[input.actions]` spell it, `cmd+shift+KeyS`, in the spelling the platform shows: `⇧⌘S` on a Mac, `Ctrl+Shift+S` elsewhere. What a row naming a command writes beside it. A chord no key reads is an error."),
     ]);
+    m.function(CHORD_TEXT, |_eng: &Engine, chord: String| {
+        crate::chord::chord_text(&chord)
+            .ok_or_else(|| anyhow::anyhow!("no key reads the chord `{chord}`"))
+    });
     m.function(WINDOW_SIZE, |eng: &Engine, ()| {
         // The backend publishes the screen before the tick, and the tick runs
         // before the first pass: until then egui's viewport is a placeholder.

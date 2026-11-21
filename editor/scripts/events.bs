@@ -11,6 +11,7 @@ use pool;
 use shell;
 use signals;
 use util;
+use words::command;
 use words::components;
 use words::fields;
 use words::hooks;
@@ -19,7 +20,6 @@ use words::layout_fields;
 use words::project_fields;
 use words::roles;
 use words::tabs;
-use words::verbs;
 
 const ADD_VARIABLE: str = "add_variable";
 const CALL: str = "call";
@@ -440,7 +440,7 @@ fn as_call(row: any, handed: [str]) -> str {
         "scene::set_variable(\"{target}\", {literal(value)});"
     } else if action == ADD_VARIABLE {
         "scene::set_variable(\"{target}\", scene::variable(\"{target}\").as_float() + {literal(value)});"
-    } else if action == verbs::PLAY {
+    } else if action == command::PLAY {
         "{node}.animation.play(\"{value}\");"
     } else if action == PLAY_SOUND {
         "{node}.sound.play();"

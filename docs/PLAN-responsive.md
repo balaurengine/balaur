@@ -2,7 +2,7 @@
 
 What is left before the editor's shell is used under a finger on a tablet and
 a phone. The screen and input classes, their override tables and the shell's
-folding are built; the shots are taken by `scripts/uiaudit.sh` at each class.
+folding are built, and every chord has a palette line; the shots are taken by `scripts/uiaudit.sh` at each class.
 
 ## Steps
 
@@ -14,10 +14,7 @@ folding are built; the shots are taken by `scripts/uiaudit.sh` at each class.
    a tablet's size and at a phone's in both orientations, and read the class
    each reports. Done when each passes and the shots join
    [EDITOR-SCREENS.md](EDITOR-SCREENS.md).
-3. **A palette row per shortcut.** A phone has no chord, so every chord in
-   `editor/scenes/panels/keys.toml` needs a command in `palette.bs`. Done when
-   the selftest fails on a chord no palette command names.
-4. **One layout pass for the docks and the chrome.** `layout::stage_room` in
+3. **One layout pass for the docks and the chrome.** `layout::stage_room` in
    `editor/scripts/layout.bs` works out the room the docks leave before the
    layout runs, repeating its widths. Lay out the docks first, then the chrome
    against what they left. Done when `stage_room` is gone and the layout

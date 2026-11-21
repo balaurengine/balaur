@@ -39,8 +39,8 @@ impl Lanes {
         self.editor.unwrap().lanes_seek(value.as_float());
     }
 
-    pub fn verb(_value: any, node: Node) {
-        self.editor.unwrap().lanes_verb(node.name());
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.unwrap().lanes_pressed(node.name());
     }
 
     pub fn refill() {

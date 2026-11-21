@@ -1,5 +1,5 @@
 # The refactor sheet: the name and what it becomes, then every place it is
-# and the verbs. One script hands each edit to the Editor.
+# and the commands. One script hands each edit to the Editor.
 
 [[nodes]]
 id = "panel"
@@ -60,8 +60,8 @@ kind = "list"
 role = "list_refactor"
 
 [[nodes]]
-id = "verbs"
-name = "Verbs"
+id = "buttons"
+name = "Buttons"
 parent = "panel"
 [nodes.widget]
 kind = "row"
@@ -70,7 +70,7 @@ role = "layout_actions"
 [[nodes]]
 id = "apply"
 name = "Apply"
-parent = "verbs"
+parent = "buttons"
 bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "apply" }] }
 [nodes.widget]
 kind = "button"
@@ -80,7 +80,7 @@ text = "Apply"
 [[nodes]]
 id = "cancel"
 name = "Cancel"
-parent = "verbs"
+parent = "buttons"
 bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "cancel" }] }
 [nodes.widget]
 kind = "button"

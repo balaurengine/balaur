@@ -1,6 +1,6 @@
 # The Timeline tab: the clip's keys over time, a lane a track, with the ruler
 # they are read against, the playhead and the scrubber under them. One script
-# fills it from the Editor, which owns the clip, and answers its verbs.
+# fills it from the Editor, which owns the clip, and answers its commands.
 
 [[nodes]]
 id = "panel"
@@ -12,7 +12,7 @@ kind = "column"
 role = "layout_dock"
 grow = 1
 
-# What the player is missing, and the verb that gives it a clip.
+# What the player is missing, and the command that gives it a clip.
 [[nodes]]
 id = "missing"
 name = "Missing"
@@ -36,7 +36,7 @@ role = "text_note"
 id = "create"
 name = "Create"
 parent = "missing"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
@@ -65,7 +65,7 @@ align_items = "center"
 id = "add"
 name = "AddKey"
 parent = "head"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"
@@ -76,7 +76,7 @@ tooltip = "Insert keyframe at playhead (or press K)"
 id = "delete"
 name = "DeleteKey"
 parent = "head"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "chip"

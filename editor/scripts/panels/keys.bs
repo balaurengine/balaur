@@ -4,7 +4,7 @@
 
 use editor;
 use signals;
-use words::verbs;
+use words::command;
 
 pub class Keys {
     node: Node,
@@ -12,7 +12,7 @@ pub class Keys {
 }
 
 fn STOPPED() -> [str] {
-    ["continue", verbs::STEP_OVER, verbs::STEP_INTO, verbs::STEP_OUT]
+    [command::CONTINUE, command::STEP_OVER, command::STEP_INTO, command::STEP_OUT]
 }
 
 impl Keys {
@@ -36,7 +36,7 @@ impl Keys {
         for name in STOPPED() {
             self.node.get_node(name).widget.enabled = state.stopped;
         }
-        self.node.get_node(verbs::PLAY).widget.enabled = !state.stopped;
-        self.node.get_node("break").widget.enabled = state.playing && !state.stopped;
+        self.node.get_node(command::PLAY).widget.enabled = !state.stopped;
+        self.node.get_node(command::BREAK).widget.enabled = state.playing && !state.stopped;
     }
 }

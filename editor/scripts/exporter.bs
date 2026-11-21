@@ -1,5 +1,5 @@
 // The Export sheet: every target this install can build, what each one still
-// needs, and where the last build landed. The verb is the engine's `export`
+// needs, and where the last build landed. The command is the engine's `export`
 // module, which is the same library `balaur export` runs.
 
 use editor;
@@ -8,6 +8,7 @@ use pool;
 use settings;
 use util;
 use window;
+use words::command;
 use words::fields;
 use words::inspector_fields;
 use words::log_fields;
@@ -15,7 +16,6 @@ use words::project_fields;
 use words::roles;
 use words::schema_fields;
 use words::statuses;
-use words::verbs;
 
 const INSTALLED: str = "installed";
 
@@ -43,7 +43,7 @@ pub fn state() -> ExporterState {
 
 pub fn open(state: &mut editor::State) {
     refresh(state);
-    window::show(state, verbs::EXPORT);
+    window::show(state, command::EXPORT);
 }
 
 fn refresh(state: &mut editor::State) {
@@ -80,7 +80,7 @@ pub fn report(state: &mut editor::State, event: any) {
 
 /// Fill the sheet: what its script asks for when Export is up.
 pub fn fill(state: &mut editor::State) {
-    let hosts: any = window::sheet_form(state, verbs::EXPORT, "Export", folder_button(state));
+    let hosts: any = window::sheet_form(state, command::EXPORT, "Export", folder_button(state));
     if util::is_nil(hosts) {
         return;
     }
@@ -90,7 +90,7 @@ pub fn fill(state: &mut editor::State) {
 }
 
 /// Every row the sheet shows: what it builds, the link to the settings it
-/// builds from, and a target with its verb.
+/// builds from, and a target with its command.
 fn specs(state: editor::State) -> [form::Row] {
     if state.exporter.rows.len() == 0 {
         let none = [form::note("no targets — this build has no exporter")];
@@ -124,7 +124,7 @@ fn specs(state: editor::State) -> [form::Row] {
 }
 
 fn on_settings_clicked(state: &mut editor::State, data: any, _value: any) {
-    settings::open_at(state, verbs::EXPORT);
+    settings::open_at(state, command::EXPORT);
 }
 
 /// The `[export] runtime` choice, with the options its schema declares.
@@ -217,9 +217,9 @@ fn target_specs(state: editor::State, row: any, out: [form::Row]) {
         controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::NOTE_WARNING, text: note_text });
     }
     controls.push(ui::Control { kind: ui::WIDGET_ROW, grow: 1 });
-    let verb = export_button(state, name, installed, fetchable, status);
-    if verb != nil {
-        controls.push(verb.unwrap());
+    let button = export_button(state, name, installed, fetchable, status);
+    if button != nil {
+        controls.push(button.unwrap());
     }
     if status == statuses::STARTED {
         controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "building…" });
@@ -244,7 +244,7 @@ fn export_button(state: editor::State, name: str, installed: bool, fetchable: bo
     ui::Control {
         kind: ui::WIDGET_BUTTON,
         role: roles::ACTION_FORM,
-        text: if installed { verbs::EXPORT } else { "download & export" },
+        text: if installed { command::EXPORT } else { "download & export" },
         tooltip: "Export the project for this target",
         on_click: "handle", target: pool::editor(),
         data: { fields::FN: on_export_clicked, fields::NAME: name },

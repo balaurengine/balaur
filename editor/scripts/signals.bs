@@ -10,12 +10,12 @@ use lint;
 use session;
 use util;
 use viewport;
+use words::command;
 use words::dock_fields;
 use words::layout_fields;
 use words::roles;
 use words::tabs;
 use words::tools;
-use words::verbs;
 
 internal const OUTLINE: str = "outline_changed";
 internal const INSPECTOR: str = "inspector_changed";
@@ -94,9 +94,9 @@ event bonemap_changed;
 /// the tile brush, the state machine, the recordings and the debugger.
 fn panels() -> [str] {
     [
-        PROBLEMS, DOCS, ASSETS, verbs::LIBRARY, tools::TILES, MACHINE, tabs::RECORDINGS, DEBUGGER,
+        PROBLEMS, DOCS, ASSETS, command::LIBRARY, tools::TILES, MACHINE, tabs::RECORDINGS, DEBUGGER,
         roles::SHEET, "picker", MANAGER, TEXTEDIT, PLUGINS, INPUTVIEW,
-        CODE, COMPLETE, REFACTOR, verbs::TIMELINE, tabs::WEIGHTS, BONEMAP,
+        CODE, COMPLETE, REFACTOR, command::TIMELINE, tabs::WEIGHTS, BONEMAP,
     ]
 }
 

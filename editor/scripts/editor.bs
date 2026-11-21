@@ -270,6 +270,8 @@ pub class State {
     internal log_cursor: int = 0,
     internal panels: docks::Panels?,
     internal palette_cache: palette::Found?,
+    // Each command's chord, as scenes/panels/keys.toml spells it.
+    internal chords: any,
     internal newnode_cache: [newnode::Entry]?,
     internal brand: chrome::Brand?,
     internal mirror: Node?,
@@ -593,7 +595,7 @@ impl Editor {
 
     pub fn tree_move_down() { sceneedit::move_sibling(self.state, 1); }
 
-    /// The palette, its first lines the verbs the selected node offers.
+    /// The palette, its first lines the commands the selected node offers.
     pub fn tree_actions() { shell::open_palette(self.state, ""); }
 
     pub fn tree_attach_script() { shell::attach_script(self.state); }
@@ -710,7 +712,7 @@ impl Editor {
     pub fn on_plugins_changed(_change: any) { signals::heard(self.state, signals::PLUGINS_CHANGED); }
 
     /// The scene's nodes in tree order, for a plugin reading the scene: a
-    /// change made through the editor's verbs is one its undo takes back.
+    /// change made through the editor's commands is one its undo takes back.
     pub fn nodes() -> [Node] { self.state.nodes }
 
     /// The folder of the game the editor has open, which a plugin's paths
@@ -816,16 +818,16 @@ impl Editor {
     /// An open recording's lanes: fill them, the transport and the scrubber.
     pub fn lanes_fill() { lanes::fill(self.state); }
 
-    pub fn lanes_verb(verb: str) { lanes::verb(self.state, verb); }
+    pub fn lanes_pressed(name: str) { lanes::pressed(self.state, name); }
 
     pub fn lanes_seek(time: float) { lanes::seek(self.state, time); }
 
-    /// The Timeline tab: fill it, seek the scrubber, and its verbs.
+    /// The Timeline tab: fill it, seek the scrubber, and its commands.
     pub fn timeline_fill() { timeline::fill(self.state); }
 
     pub fn timeline_seek(time: float) { anim::seek(self.state, time); }
 
-    pub fn timeline_verb(verb: str) { timeline::verb(self.state, verb); }
+    pub fn timeline_pressed(name: str) { timeline::pressed(self.state, name); }
 
     /// A clip setting the Timeline's head changed: its length or its loop.
     pub fn timeline_clip(setting: str, value: any) { timeline::clip(self.state, setting, value); }
@@ -835,14 +837,14 @@ impl Editor {
     /// Fill the Weights tab from the polygon being edited.
     pub fn weights_fill() { weights::fill(self.state); }
 
-    pub fn weights_verb(verb: str) { weights::verb(self.state, verb); }
+    pub fn weights_pressed(name: str) { weights::pressed(self.state, name); }
 
     pub fn on_weights_changed(_change: any) { signals::heard(self.state, "weights_changed"); }
 
     /// Fill the Bone map tab from the rig selected and the map so far.
     pub fn bonemap_fill() { bonemap::fill(self.state); }
 
-    pub fn bonemap_verb(verb: str) { bonemap::verb(self.state, verb); }
+    pub fn bonemap_pressed(name: str) { bonemap::pressed(self.state, name); }
 
     pub fn on_bonemap_changed(_change: any) { signals::heard(self.state, "bonemap_changed"); }
 
@@ -865,12 +867,12 @@ impl Editor {
 
     pub fn refactor_close() { refactor::close(self.state); }
 
-    /// Fill the start screen, its filter as it is typed, and its verbs.
+    /// Fill the start screen, its filter as it is typed, and its commands.
     pub fn manager_fill() { manager::fill(self.state); }
 
     pub fn manager_filter(text: str) { manager::set_filter(self.state, text); }
 
-    pub fn manager_verb(name: str) { manager::verb(self.state, name); }
+    pub fn manager_pressed(name: str) { manager::pressed(self.state, name); }
 
     /// Fill the sheet with whichever screen is up, and hear it shut.
     pub fn sheet_fill() { window::fill(self.state); }
@@ -896,14 +898,14 @@ impl Editor {
         frame::relayout_if_moved(self.state);
     }
 
-    /// What the stage chrome, the chips and the HUD show, and their verbs.
+    /// What the stage chrome, the chips and the HUD show, and their commands.
     pub fn stage_view() -> center::StageView { center::stage_view(self.state) }
 
     pub fn chips_fill() -> bool { center::fill_chips(self.state) }
 
     pub fn hud_view() -> center::HudView { center::hud_view(self.state) }
 
-    pub fn stage_verb(verb: str) { center::stage_verb(self.state, verb); }
+    pub fn stage_pressed(name: str) { center::stage_pressed(self.state, name); }
 
     /// Fill the top bar: the brand, its menu and the strip.
     pub fn chrome_fill() { chrome::fill(self.state); }
@@ -963,12 +965,12 @@ impl Editor {
     pub fn on_debugger_resumed(_nothing: any) { shell::stopped(self.state); }
 
     /// The Assets panel's cards and strip for a search, a card picked, and its
-    /// verbs: up, import, folder, rename, delete and the new name submitted.
+    /// commands: up, import, folder, rename, delete and the new name submitted.
     pub fn assets_view(query: str) -> dock::AssetsView { dock::assets_view(self.state, query) }
 
     pub fn assets_pick(row: str) { dock::assets_pick(self.state, row); }
 
-    pub fn assets_verb(verb: str, value: str) { dock::assets_verb(self.state, verb, value); }
+    pub fn assets_pressed(name: str, value: str) { dock::assets_pressed(self.state, name, value); }
 
     /// The Library panel's cards or templates, its kind, and what a pick places.
     pub fn library_view() -> library::View { library::view(self.state) }

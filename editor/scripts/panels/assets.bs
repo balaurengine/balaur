@@ -56,11 +56,11 @@ impl Assets {
     }
 
     pub fn name_submitted(value: any) {
-        self.editor.unwrap().assets_verb(RENAME_TO, value.as_str());
+        self.editor.unwrap().assets_pressed(RENAME_TO, value.as_str());
     }
 
-    pub fn verb(_value: any, node: Node) {
-        self.editor.unwrap().assets_verb(node.name(), "");
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.unwrap().assets_pressed(node.name(), "");
     }
 
     /// Laid out on screen by the dock, a frame after `docks_changed`: what it

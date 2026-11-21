@@ -28,7 +28,7 @@ impl Rail {
     }
 
     pub fn open_left() {
-        self.editor.unwrap().stage_verb(center::OPEN_LEFT);
+        self.editor.unwrap().stage_pressed(center::OPEN_LEFT);
     }
 
     pub fn refill() {

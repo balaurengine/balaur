@@ -425,7 +425,7 @@ pub fn paste_image(state: &mut editor::State) {
     place_file(state, rel);
 }
 
-/// No node: what a verb that placed none answers.
+/// No node: what a command that placed none answers.
 fn nothing() -> Node {
     nil
 }
@@ -463,7 +463,7 @@ pub fn take(state: &mut editor::State, path: str) {
         }
         nothing()
     };
-    // A verb that instanced a scene selected it itself, and one that only
+    // A command that instanced a scene selected it itself, and one that only
     // copied a file changed no node.
     select_placed(state, placed);
 }

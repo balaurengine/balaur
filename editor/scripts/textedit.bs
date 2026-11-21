@@ -86,7 +86,7 @@ fn component(found: Node) -> str {
     }
 }
 
-/// Whether the selection carries text, so the shell can offer the verb.
+/// Whether the selection carries text, so the shell can offer the command.
 pub fn editable(state: editor::State) -> bool {
     component(model::selected_node(state)) != ""
 }

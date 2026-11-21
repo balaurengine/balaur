@@ -21,7 +21,7 @@ impl Recordings {
         self.refresh();
     }
 
-    /// The verify switch is this panel's own; a row's verbs have run their
+    /// The verify switch is this panel's own; a row's commands have run their
     /// handlers by now, so what is left is to show what they changed.
     pub fn verify() {
         self.editor.unwrap().recordings_verify();

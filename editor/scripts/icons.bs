@@ -2,6 +2,7 @@
 // Fill weight as `x`, the Bold one as `x-bold`.
 
 use words::asset_kinds;
+use words::command;
 use words::components;
 use words::general;
 use words::glyphs;
@@ -10,7 +11,6 @@ use words::tabs;
 use words::theme_modes;
 use words::theme_tokens;
 use words::tools;
-use words::verbs;
 use words::window_marks;
 
 const TRANSFORM: str = "transform";
@@ -67,7 +67,7 @@ const MULTIMESH2D: str = "multimesh2d";
 const MULTIMESH3D: str = "multimesh3d";
 internal const OPEN: str = "open";
 internal const OUTPUT: str = "output";
-const PAUSE: str = "pause";
+internal const PAUSE: str = "pause";
 internal const SCRIPTFILE: str = "scriptfile";
 const SELECT_ALL: str = "select-all";
 const SHAPE2D: str = "shape2d";
@@ -75,9 +75,9 @@ const SHAPE3D: str = "shape3d";
 const SHUT: str = "shut";
 const SKELETON: str = "skeleton";
 const SPRITE: str = "sprite";
-const STEP_INTO: str = "step-into";
-const STEP_OUT: str = "step-out";
-const STEP_OVER: str = "step-over";
+internal const STEP_INTO: str = "step-into";
+internal const STEP_OUT: str = "step-out";
+internal const STEP_OVER: str = "step-over";
 const TEXT3D: str = "text3d";
 const TILE_COLLISION: str = "tile_collision";
 const TILEMAP: str = "tilemap";
@@ -173,14 +173,14 @@ pub fn component(name: str) -> Component {
     if name == SHAPE3D || name == MESH || name == TEXT3D || name == MULTIMESH3D {
         return Component { glyph: workspace(tabs::SCENE), token: "node_3d" };
     }
-    if name.starts_with(BODY) || name.starts_with("collider") || name.starts_with("character") || name.starts_with("joint") || name.starts_with("softbody") || name.starts_with("wheel") || name.starts_with("vehicle") || name == TILE_COLLISION || name == verbs::RAGDOLL {
+    if name.starts_with(BODY) || name.starts_with("collider") || name.starts_with("character") || name.starts_with("joint") || name.starts_with("softbody") || name.starts_with("wheel") || name.starts_with("vehicle") || name == TILE_COLLISION || name == command::RAGDOLL {
         return Component { glyph: workspace(tabs::PHYSICS), token: theme_tokens::NODE_PHYSICS };
     }
     if name.starts_with(CAMERA) || name == theme_modes::LIGHT || name == ENVIRONMENT {
         return Component { glyph: ui(VIEWMODE), token: theme_tokens::NODE_DEFAULT };
     }
     if name == tabs::ANIMATION || name == ANIMATION_PLAYER {
-        return Component { glyph: panel(verbs::TIMELINE), token: theme_tokens::NODE_DEFAULT };
+        return Component { glyph: panel(command::TIMELINE), token: theme_tokens::NODE_DEFAULT };
     }
     if name == TILEMAP || name == TILESET {
         return Component { glyph: panel(tools::TILES), token: theme_tokens::NODE_2D };
@@ -188,7 +188,7 @@ pub fn component(name: str) -> Component {
     if name == asset_kinds::AUDIO || name == AUDIO_PLAYER {
         return Component { glyph: panel(tabs::RECORDINGS), token: theme_tokens::NODE_DEFAULT };
     }
-    if name == verbs::BINDINGS || name == tabs::EVENTS {
+    if name == command::BINDINGS || name == tabs::EVENTS {
         return Component { glyph: ui(tabs::EVENTS), token: theme_tokens::NODE_DEFAULT };
     }
     Component { glyph: node(WORLD), token: theme_tokens::NODE_DEFAULT }
@@ -205,17 +205,17 @@ pub fn panel(id: str) -> str {
         tabs::PROBLEMS => glyphs::WARNING,
         ASSETS => glyphs::FOLDER,
         DOCS => glyphs::BOOK_OPEN_TEXT,
-        verbs::TIMELINE => glyphs::FILM_STRIP,
+        command::TIMELINE => glyphs::FILM_STRIP,
         DEBUGGER => glyphs::BUG,
         tabs::RECORDINGS => glyphs::RECORD,
         tabs::PROFILER => glyphs::CHART_BAR,
         tools::TILES => glyphs::SQUARES_FOUR,
         tabs::WEIGHTS => glyphs::RECEIPT,
         BONEMAP => glyphs::BAG,
-        verbs::STATEMACHINE => glyphs::POLYGON,
-        verbs::LIBRARY => glyphs::STACK_SIMPLE,
+        command::STATEMACHINE => glyphs::POLYGON,
+        command::LIBRARY => glyphs::STACK_SIMPLE,
         asset_kinds::MATERIAL => glyphs::PALETTE,
-        verbs::COST => glyphs::SQUARE_HALF,
+        command::COST => glyphs::SQUARE_HALF,
         tabs::EVENTS => glyphs::LINK,
         _ => glyphs::COLUMNS,
     }
@@ -225,9 +225,9 @@ pub fn panel(id: str) -> str {
 pub fn ui(name: str) -> str {
     match name {
         ADD => glyphs::PLUS_BOLD,
-        verbs::UNDO => glyphs::ARROW_COUNTER_CLOCKWISE,
-        verbs::REDO => glyphs::ARROW_CLOCKWISE,
-        verbs::SAVE => glyphs::FLOPPY_DISK,
+        command::UNDO => glyphs::ARROW_COUNTER_CLOCKWISE,
+        command::REDO => glyphs::ARROW_CLOCKWISE,
+        command::SAVE => glyphs::FLOPPY_DISK,
         RELOAD => glyphs::ARROWS_CLOCKWISE,
         EMBED => glyphs::ARROW_SQUARE_IN,
         PICK_FILE => glyphs::FOLDER_OPEN,
@@ -244,21 +244,21 @@ pub fn ui(name: str) -> str {
         MINIMIZE => glyphs::MINUS_BOLD,
         window_marks::RESTORE => glyphs::CARET_UP,
         window_marks::COLLAPSE => glyphs::CARET_DOWN,
-        verbs::SPLIT => glyphs::COLUMNS,
-        verbs::FOCUS => glyphs::CORNERS_OUT,
+        command::SPLIT => glyphs::COLUMNS,
+        command::FOCUS => glyphs::CORNERS_OUT,
         UNFOCUS => glyphs::CORNERS_IN,
-        verbs::RESET => glyphs::ARROW_COUNTER_CLOCKWISE,
-        verbs::SETTINGS => glyphs::GEAR,
-        verbs::ABOUT => glyphs::INFO,
-        verbs::EXPORT => glyphs::EXPORT,
-        verbs::SEARCH => glyphs::MAGNIFYING_GLASS,
+        command::RESET => glyphs::ARROW_COUNTER_CLOCKWISE,
+        command::SETTINGS => glyphs::GEAR,
+        command::ABOUT => glyphs::INFO,
+        command::EXPORT => glyphs::EXPORT,
+        command::SEARCH => glyphs::MAGNIFYING_GLASS,
         theme_modes::DARK => glyphs::MOON,
         theme_modes::LIGHT => glyphs::SUN,
         INSTANCE => glyphs::COPY,
         tabs::EVENTS => glyphs::LINK,
         SCRIPTFILE => glyphs::FILE_CODE,
         BOOKMARK => glyphs::BOOKMARK,
-        verbs::COPY => glyphs::COPY_SIMPLE,
+        command::COPY => glyphs::COPY_SIMPLE,
         OPEN => glyphs::CARET_UP,
         SHUT => glyphs::CARET_DOWN,
         ENTRY_LIST => glyphs::LIST_BULLETS,
@@ -271,7 +271,7 @@ pub fn ui(name: str) -> str {
         ARROW_LINE_LEFT => glyphs::ARROW_LINE_LEFT,
         ARROW_LINE_RIGHT => glyphs::ARROW_LINE_RIGHT,
         ARROW_LINE_DOWN => glyphs::ARROW_LINE_DOWN,
-        verbs::PLAY => glyphs::PLAY,
+        command::PLAY => glyphs::PLAY,
         PAUSE => glyphs::PAUSE,
         statuses::STOP => glyphs::STOP,
         STEP_OVER => glyphs::ARROW_U_UP_RIGHT,
@@ -285,12 +285,12 @@ pub fn ui(name: str) -> str {
         ALIGN_CENTER_V => glyphs::ALIGN_CENTER_HORIZONTAL,
         DISTRIBUTE_H => glyphs::ARROWS_OUT_LINE_HORIZONTAL,
         DISTRIBUTE_V => glyphs::ARROWS_OUT_LINE_VERTICAL,
-        verbs::GROUP => glyphs::BOUNDING_BOX,
-        verbs::UNGROUP => glyphs::SELECTION,
+        command::GROUP => glyphs::BOUNDING_BOX,
+        command::UNGROUP => glyphs::SELECTION,
         SELECT_ALL => glyphs::SELECTION_PLUS,
-        verbs::ISOLATE => glyphs::CORNERS_OUT,
+        command::ISOLATE => glyphs::CORNERS_OUT,
         FILTER => glyphs::FUNNEL_SIMPLE,
-        verbs::LOCK => glyphs::LOCK,
+        command::LOCK => glyphs::LOCK,
         UNLOCK => glyphs::LOCK_OPEN,
         components::VISIBLE => glyphs::EYE,
         HIDDEN => glyphs::EYE_SLASH,
@@ -300,7 +300,7 @@ pub fn ui(name: str) -> str {
         tools::PEN => glyphs::PEN_NIB_STRAIGHT,
         general::PATH => glyphs::LINE_SEGMENT,
         asset_kinds::MATERIAL => glyphs::PALETTE,
-        verbs::LIBRARY => glyphs::STACK_SIMPLE,
+        command::LIBRARY => glyphs::STACK_SIMPLE,
         VIEWMODE => glyphs::SELECTION_INVERSE,
         _ => glyphs::DOT,
     }

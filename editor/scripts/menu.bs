@@ -2,69 +2,47 @@
 // screens that are not panels, and a tick beside every panel there is, open
 // or not. A tab's close mark takes one away; this is where it comes back.
 
-use about;
-use defs;
+use commands;
 use docks;
 use editor;
-use exporter;
 use icons;
 use pool;
-use settings;
-use shell;
-use themewin;
+use words::command;
 use words::fields;
 use words::roles;
-use words::verbs;
-
-const VERB: str = "verb";
 
 /// The menu's rows, as the nodes the pool keeps under the mark. Filled once a
 /// pass; the menu node draws them in its popup when it is opened.
 pub fn rows(state: &mut editor::State) -> [ui::Control] {
-    let out: [ui::Control] = [
-        action(icons::ui(icons::SEARCH), "Command palette", "⌘K", verbs::PALETTE),
-        action(icons::ui("settings"), "Settings", "⌘,", verbs::SETTINGS),
-        action(icons::ui(icons::DARK), "Theme", "", verbs::THEME),
-        action(icons::ui(icons::EXPORT), "Export", "⌘E", verbs::EXPORT),
-        action(icons::ui("about"), "About Balaur", "", verbs::ABOUT),
-        rule(),
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: "Panels" },
-    ];
+    let out: [ui::Control] = [];
+    for id in [command::PALETTE, command::SETTINGS, command::THEME, command::EXPORT, command::ABOUT] {
+        out.push(action(state, id));
+    }
+    out.push(rule());
+    out.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: "Panels" });
     for pair in panel_pairs(state) {
         out.push(pair);
     }
     out.push(rule());
-    out.push(action(icons::ui(icons::RESET), "Reset to {defs::workspace_name(state.workspace)}", "", verbs::RESET));
+    out.push(action(state, command::RESET));
     out
 }
 
-// One of the menu's verbs, by the name its row carries.
 fn act(state: &mut editor::State, data: any, _value: any) {
-    let verb = data[VERB].as_str();
-    if verb == verbs::PALETTE {
-        shell::open_palette(state, "");
-    } else if verb == verbs::SETTINGS {
-        settings::open(state);
-    } else if verb == verbs::THEME {
-        themewin::open(state);
-    } else if verb == verbs::EXPORT {
-        exporter::open(state);
-    } else if verb == verbs::ABOUT {
-        about::open(state);
-    } else if verb == verbs::RESET {
-        docks::apply_workspace(state, state.workspace);
-    }
+    commands::run(state, data[fields::ID].as_str());
 }
 
-fn action(icon: str, label: str, key: str, verb: str) -> ui::Control {
+// The command `id` as the palette shows it, its chord against the far edge.
+fn action(state: &mut editor::State, id: str) -> ui::Control {
+    let found = commands::find(state, id).unwrap();
     let row: ui::Control = ui::Control {
         kind: ui::WIDGET_BUTTON,
         role: roles::ITEM_MENU,
-        text: label,
-        icon: icon,
-        trailing: key,
+        text: found.label,
+        icon: found.icon,
+        trailing: commands::chord(state, id),
     };
-    pool::on(row, act, { VERB: verb })
+    pool::on(row, act, { fields::ID: id })
 }
 
 // A rule across the menu, which is as wide as its widest row.

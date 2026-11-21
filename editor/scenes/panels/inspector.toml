@@ -1,5 +1,5 @@
 # The Inspector: the selected node's header, a search, its form and the one
-# verb under it. One script answers the controls here; the Editor owns the
+# command under it. One script answers the controls here; the Editor owns the
 # document and puts the form's rows on the pool when asked.
 
 [[nodes]]

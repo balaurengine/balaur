@@ -27,7 +27,7 @@ impl Stage {
 
     pub fn open(_value: any, node: Node) {
         let side = node.parent().name();
-        self.editor.unwrap().stage_verb(if side == "Left" { center::OPEN_LEFT } else { center::OPEN_RIGHT });
+        self.editor.unwrap().stage_pressed(if side == "Left" { center::OPEN_LEFT } else { center::OPEN_RIGHT });
     }
 
     fn refresh() {

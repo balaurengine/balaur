@@ -26,7 +26,7 @@ align_items = "center"
 id = "play"
 name = "Play"
 parent = "head"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form_primary"
@@ -38,7 +38,7 @@ icon = "play"
 id = "step"
 name = "Step"
 parent = "head"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -51,7 +51,7 @@ icon = "arrow-line-right"
 id = "stop"
 name = "Stop"
 parent = "head"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"

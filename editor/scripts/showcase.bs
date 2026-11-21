@@ -66,6 +66,9 @@ pub struct Span {
     data: any,
 }
 
+// The key a sequence's step carries its name under.
+const STEP: str = "step";
+
 // The tool rail's first button below the sheet's own padding, and the pitch of
 // the buttons under it.
 const TOOL_TOP: float = 22.0;
@@ -197,11 +200,11 @@ fn over_ui(sequence: Sequence, from: int, to: int, run: fn(&mut editor::State, a
     sequence.spans_ui.push(Span { from: from, to: to, run: run, data: data });
 }
 
-// One of `verb`'s verbs as an act, with what else it reads.
-fn act_verb(sequence: Sequence, frame: int, name: str, data: any) {
+// One of `clip_step`'s steps as an act, with what else it reads.
+fn act_step(sequence: Sequence, frame: int, name: str, data: any) {
     let carried = util::copy(data);
-    carried["verb"] = name;
-    act(sequence, frame, verb, carried);
+    carried[STEP] = name;
+    act(sequence, frame, clip_step, carried);
 }
 
 fn ease(progress: float) -> float {
@@ -287,18 +290,18 @@ fn tap(sequence: Sequence, frame: int, key: str) {
     hold(sequence, frame, frame + 8, [key]);
 }
 
-// A chord held while the verb `name` runs: the overlay names the keys, which
+// A chord held while the step `name` runs: the overlay names the keys, which
 // is the only thing that explains a shortcut nobody can see being typed.
 fn chord(sequence: Sequence, frame: int, held: [str], name: str) {
     at(sequence, frame, keys, { "keys": held, "down": true });
-    act_verb(sequence, frame + 3, name, {});
+    act_step(sequence, frame + 3, name, {});
     at(sequence, frame + 16, keys, { "keys": held, "down": false });
 }
 
 /// Where a control sits, in design px, read off the rects `layout.bs`
 /// publishes rather than measured off a screenshot. The showcase feeds the
 /// snapshot and the widgets read the window, so a click here is drawn rather
-/// than delivered: the sequence calls the verb itself.
+/// than delivered: the sequence calls the step itself.
 fn spot(state: editor::State, name: str) -> [float] {
     let bottom = state.layout["bottom"];
     let right = state.layout["right"];
@@ -472,11 +475,11 @@ fn at_place(name: str, value: any) -> any {
 }
 
 // A click a viewer can follow: the cursor walks in, presses where the control
-// is, the verb runs under it, and the button comes back up.
+// is, the step runs under it, and the button comes back up.
 fn click(sequence: Sequence, frame: int, place: any, name: str, data: any) {
     glide(sequence, frame - GLIDE, frame, place);
     at(sequence, frame, pressed_at, { "place": place });
-    act_verb(sequence, frame + 3, name, data);
+    act_step(sequence, frame + 3, name, data);
     at(sequence, frame + 12, release);
 }
 
@@ -536,8 +539,8 @@ fn restore_source(state: &mut editor::State, rel: str) {
 }
 
 // What the clips do, by the name a step carries, with what else it carries.
-fn verb(state: &mut editor::State, data: any) {
-    let name = data["verb"].as_str();
+fn clip_step(state: &mut editor::State, data: any) {
+    let name = data[STEP].as_str();
     match name {
         "workspace" => { shell::set_workspace(state, data["id"].as_str()); }
         "choose" => {
@@ -680,7 +683,7 @@ fn pulling(state: &mut editor::State, data: any, progress: float) {
 // The screen the editor starts on: its pages in turn, then the sheet that
 // makes a project from a template.
 fn manager_pages(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "manager", {});
+    act_step(sequence, 1, "manager", {});
     click(sequence, 50, at_place("manager", "examples"), "manager_tab", { "id": "examples" });
     click(sequence, 210, at_place("manager", "projects"), "manager_tab", { "id": "projects" });
     click(sequence, 330, at_place("manager", "new"), "manager_new", {});
@@ -689,9 +692,9 @@ fn manager_pages(state: &mut editor::State, sequence: Sequence) {
 // Files arriving one at a time, each let go where the pointer is: the editor
 // keeps drawing while the job writes them.
 fn importing(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
-    act_verb(sequence, 1, "dock", { "id": "assets" });
-    act_verb(sequence, 1, "drip_off", {});
+    act_step(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
+    act_step(sequence, 1, "dock", { "id": "assets" });
+    act_step(sequence, 1, "drip_off", {});
     drop_file(sequence, 70, 0.34, 0.44);
     drop_file(sequence, 190, 0.56, 0.34);
     drop_file(sequence, 310, 0.44, 0.62);
@@ -706,7 +709,7 @@ fn drop_file(sequence: Sequence, frame: int, fraction_x: float, fraction_y: floa
 // The code pane taking the window: a node with a script, the Focus chip
 // folding the three docks away, and the shortcut putting them back.
 fn focusing(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCRIPT });
+    act_step(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCRIPT });
     click_row(sequence, 40, "Spinner");
     click(sequence, 200, at_place("spot", "focus_chip"), "focus", {});
     chord(sequence, 480, [input::KEY_LEFT_SHIFT, input::KEY_LEFT_META, input::KEY_BACKSLASH], "focus");
@@ -715,7 +718,7 @@ fn focusing(state: &mut editor::State, sequence: Sequence) {
 // Scenes and nodes, `examples/hello`: the tree, the inspector following the
 // selection, an edit, and its undo.
 fn scenes(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
+    act_step(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
     click_row(sequence, 30, "Platform");
     click_row(sequence, 150, "Ball");
     click_row(sequence, 250, "Spinner");
@@ -724,7 +727,7 @@ fn scenes(state: &mut editor::State, sequence: Sequence) {
     // A drag on the inspector's scale field, with the button held throughout.
     glide(sequence, 520 - GLIDE, 520, at_place("spot", "scale_x"));
     at(sequence, 540, press);
-    at(sequence, 540, verb, { "verb": "record", "label": "scale Spinner" });
+    at(sequence, 540, clip_step, { STEP: "record", "label": "scale Spinner" });
     over_ui(sequence, 540, 620, scaling);
     over(sequence, 540, 620, follow, following(at_place("spot", "scale_x"), 30.0));
     at(sequence, 630, release);
@@ -739,14 +742,14 @@ fn scaling(state: &mut editor::State, data: any, progress: float) {
 // Scripting, `examples/hello`: a change saved while the scene runs, then a
 // breakpoint stepped in the Debugger dock.
 fn scripting(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "keep", { "rel": SPINNER });
+    act_step(sequence, 1, "keep", { "rel": SPINNER });
     click(sequence, 30, at_place("spot", "script_tab"), "workspace", { "id": defs::WORKSPACE_SCRIPT });
     click_row(sequence, 110, "Spinner");
     click(sequence, 200, at_place("spot", "play"), "play", {});
     // The cursor rests on the edited line, or on the last one the pane can
     // show when the edit is below its foot.
     glide(sequence, 300 - GLIDE, 300, { "gutter": "self.angle += dt", "rel": SPINNER, "dx": 220.0 });
-    act_verb(sequence, 320, "edit", { "rel": SPINNER, "from": "(self.speed + nudge", "to": "(self.speed * 4.0 + nudge" });
+    act_step(sequence, 320, "edit", { "rel": SPINNER, "from": "(self.speed + nudge", "to": "(self.speed * 4.0 + nudge" });
     chord(sequence, 400, [input::KEY_LEFT_META, input::KEY_S], "save");
     // Scrolled to first: the line the breakpoint goes on is near the file's
     // foot, and a mark on a line half off the pane reads as nothing happening.
@@ -754,20 +757,20 @@ fn scripting(state: &mut editor::State, sequence: Sequence) {
     click(sequence, 520, place, "breakpoint", { "rel": SPINNER, "needle": "action_just_pressed" });
     chord(sequence, 640, ["F10"], "step_over");
     chord(sequence, 720, ["F10"], "step_over");
-    act_verb(sequence, 800, "breakpoint", { "rel": SPINNER, "needle": "let nudge" });
-    act_verb(sequence, 800, "continue", {});
-    act_verb(sequence, 860, "restore", { "rel": SPINNER });
+    act_step(sequence, 800, "breakpoint", { "rel": SPINNER, "needle": "let nudge" });
+    act_step(sequence, 800, "continue", {});
+    act_step(sequence, 860, "restore", { "rel": SPINNER });
 }
 
 // Completion, `examples/hello`: the caret lands after `text`, a module path,
 // and the popup opens under it. The caret is placed rather than typed, the
 // way `edit_source` writes the buffer rather than typing into it.
 fn completion(state: &mut editor::State, sequence: Sequence, text: str) {
-    act_verb(sequence, 1, "keep", { "rel": SPINNER });
+    act_step(sequence, 1, "keep", { "rel": SPINNER });
     // Re-opened every frame: `center::code_pane` runs after this and would
     // otherwise close it from the widget's own caret, which offscreen is none.
     over_ui(sequence, 20, 400, completing, { "rel": SPINNER, "text": text });
-    act_verb(sequence, 420, "restore", { "rel": SPINNER });
+    act_step(sequence, 420, "restore", { "rel": SPINNER });
 }
 
 // Put `text` on its own line after `fn init`, where the pane already looks
@@ -802,16 +805,16 @@ fn completing(state: &mut editor::State, data: any, _progress: float) {
 
 // Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.
 fn animation(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "fit_figure", {});
+    act_step(sequence, 1, "fit_figure", {});
     click(sequence, 20, at_place("spot", "animation_tab"), "workspace", { "id": defs::WORKSPACE_ANIMATION });
     click_row(sequence, 90, "Thigh");
     click(sequence, 150, at_place("spot", "bone_tool"), "bone_tool", {});
     over_ui(sequence, 200, 340, scrubbing);
-    act_verb(sequence, 380, "seek", { "time": 1.0 });
+    act_step(sequence, 380, "seek", { "time": 1.0 });
     // Drag the bone itself: the cursor sits on it while it turns.
     glide(sequence, 430 - GLIDE, 430, at_place("selection", true));
     at(sequence, 430, press);
-    act_verb(sequence, 434, "record", { "label": "pose Thigh" });
+    act_step(sequence, 434, "record", { "label": "pose Thigh" });
     over_ui(sequence, 434, 520, posing);
     over(sequence, 434, 520, follow, following(at_place("selection", true), 0.0));
     at(sequence, 530, release);
@@ -834,17 +837,17 @@ fn posing(state: &mut editor::State, data: any, progress: float) {
 // shot at the towers.
 fn physics(state: &mut editor::State, sequence: Sequence) {
     click(sequence, 20, at_place("spot", "physics_tab"), "workspace", { "id": defs::WORKSPACE_PHYSICS });
-    act_verb(sequence, 23, "zoom", { "to": 45.0 });
+    act_step(sequence, 23, "zoom", { "to": 45.0 });
     click_row(sequence, 80, "Bird");
     click(sequence, 150, at_place("spot", "play"), "play", {});
-    act_verb(sequence, 160, "fit_level", {});
+    act_step(sequence, 160, "fit_level", {});
     fling(sequence, 220);
 }
 
 // Input, `examples/hello`: the overlay, fed the keys and clicks a person
 // would press.
 fn input_clip(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
+    act_step(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
     click_row(sequence, 30, "Spinner");
     click(sequence, 110, at_place("spot", "play"), "play", {});
     tap(sequence, 200, "Space");
@@ -868,44 +871,44 @@ fn sweeping(state: &mut editor::State, data: any, progress: float) {
 // open the session and it flies again with nobody at the mouse; scrub back,
 // pause, play on.
 fn determinism(state: &mut editor::State, sequence: Sequence) {
-    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
-    act_verb(sequence, 1, "zoom", { "to": 45.0 });
-    act_verb(sequence, 1, "verify", {});
-    act_verb(sequence, 1, "dock", { "id": "recordings" });
+    act_step(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
+    act_step(sequence, 1, "zoom", { "to": 45.0 });
+    act_step(sequence, 1, "verify", {});
+    act_step(sequence, 1, "dock", { "id": "recordings" });
     click_row(sequence, 40, "Bird");
     click(sequence, 120, at_place("spot", "play"), "play", {});
-    act_verb(sequence, 123, "dock", { "id": "recordings" });
-    act_verb(sequence, 130, "fit_level", {});
+    act_step(sequence, 123, "dock", { "id": "recordings" });
+    act_step(sequence, 130, "fit_level", {});
     fling(sequence, 200);
     click(sequence, 520, at_place("spot", "stop"), "stop", {});
-    act_verb(sequence, 523, "dock", { "id": "recordings" });
+    act_step(sequence, 523, "dock", { "id": "recordings" });
     click(sequence, 640, at_place("spot", "recordings"), "open_newest", {});
-    act_verb(sequence, 650, "fit_level", {});
+    act_step(sequence, 650, "fit_level", {});
 }
 
 // Shaders, `examples/shaders`: the material in the inspector, its shader in
 // the code editor, a channel view, and a save that relinks the sprite.
 fn shaders(state: &mut editor::State, sequence: Sequence) {
     let rel = "shaders/glow.wesl";
-    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
+    act_step(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
     // The dock names each previewed line and its type as it is asked for.
-    act_verb(sequence, 1, "dock", { "id": "output" });
-    act_verb(sequence, 1, "keep", { "rel": rel });
+    act_step(sequence, 1, "dock", { "id": "output" });
+    act_step(sequence, 1, "keep", { "rel": rel });
     click_row(sequence, 40, "Logo");
     click(sequence, 150, at_place("spot", "shader_field"), "shader", { "rel": rel });
     // No per-line value preview: `render::set_shader_preview` relinks the
     // material in a run and not in the editor, so the viewport would show the
     // same picture whichever line was asked for.
     click(sequence, 320, at_place("spot", "doc_scene"), "doctab", { "id": "scene" });
-    act_verb(sequence, 400, "debug_view", { "id": "uv" });
-    act_verb(sequence, 520, "debug_view", { "id": "normals" });
-    act_verb(sequence, 640, "debug_view", { "id": "" });
+    act_step(sequence, 400, "debug_view", { "id": "uv" });
+    act_step(sequence, 520, "debug_view", { "id": "normals" });
+    act_step(sequence, 640, "debug_view", { "id": "" });
     click(sequence, 700, at_place("spot", "doc_code"), "doctab", { "id": "script" });
-    act_verb(sequence, 780, "edit", { "rel": rel, "from": "dist * params.rings", "to": "dist * params.rings * 3.0" });
+    act_step(sequence, 780, "edit", { "rel": rel, "from": "dist * params.rings", "to": "dist * params.rings * 3.0" });
     chord(sequence, 840, [input::KEY_LEFT_META, input::KEY_S], "save");
     click(sequence, 900, at_place("spot", "doc_scene"), "doctab", { "id": "scene" });
-    act_verb(sequence, 1080, "doctab", { "id": "script" });
-    act_verb(sequence, 1080, "restore", { "rel": rel });
+    act_step(sequence, 1080, "doctab", { "id": "script" });
+    act_step(sequence, 1080, "restore", { "rel": rel });
 }
 
 // The Theme window, `examples/hello`: a duplicate's primary colour walked to
@@ -956,7 +959,7 @@ fn mix(from: str, to: str, progress: float) -> str {
 fn theme_editor(state: &mut editor::State, sequence: Sequence) {
     let preferences = settings::preferences_path();
     let was = fs::read(preferences);
-    act_verb(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
+    act_step(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
     chord(sequence, 40, [input::KEY_LEFT_META, input::KEY_K], "palette");
     over_ui(sequence, 70, 110, typing, { "word": "theme" });
     click(sequence, 150, at_place("centre", "Editor/Picker/PickerScroll/PickerRows/R0"), "theme", {});
@@ -977,11 +980,11 @@ fn theme_editor(state: &mut editor::State, sequence: Sequence) {
     // The bar reads title, spring, Save, close: Save is its third node.
     click(sequence, 870, at_place("centre", "Editor/Sheet/SheetBar/C2"), "theme_save", {});
     click(sequence, 950, at_place("centre", "Editor/Sheet/SheetBar/C3"), "window_hide", {});
-    let put_back: any = { "verb": "theme_put_back", "prefs": preferences };
+    let put_back: any = { STEP: "theme_put_back", "prefs": preferences };
     if was != nil {
         put_back["kept"] = was.unwrap();
     }
-    at(sequence, 1030, verb, put_back);
+    at(sequence, 1030, clip_step, put_back);
 }
 
 // The palette's query typed a letter at a time.

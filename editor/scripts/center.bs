@@ -19,6 +19,7 @@ use signals;
 use style;
 use util;
 use words::changes;
+use words::command;
 use words::components;
 use words::dock_fields;
 use words::fields;
@@ -32,7 +33,6 @@ use words::statuses;
 use words::tabs;
 use words::theme_tokens;
 use words::tools;
-use words::verbs;
 use words::window_marks;
 
 internal const OPEN_BOTTOM: str = "open_bottom";
@@ -556,17 +556,17 @@ pub fn hud_view(state: editor::State) -> HudView {
     }
 }
 
-/// The HUD's and the handles' verbs, by name.
-pub fn stage_verb(state: &mut editor::State, verb: str) {
-    if verb == verbs::ZOOM_OUT {
+/// The HUD's and the handles' commands, by name.
+pub fn stage_pressed(state: &mut editor::State, name: str) {
+    if name == command::ZOOM_OUT {
         shell::set_zoom(state, state.zoom - 25.0);
-    } else if verb == verbs::ZOOM_IN {
+    } else if name == command::ZOOM_IN {
         shell::set_zoom(state, state.zoom + 25.0);
-    } else if verb == OPEN_LEFT {
+    } else if name == OPEN_LEFT {
         docks::open_from_handle(state, sides::LEFT);
-    } else if verb == OPEN_RIGHT {
+    } else if name == OPEN_RIGHT {
         docks::open_from_handle(state, sides::RIGHT);
-    } else if verb == OPEN_BOTTOM {
+    } else if name == OPEN_BOTTOM {
         docks::open_from_handle(state, sides::BOTTOM);
     }
     signals::bars(state);

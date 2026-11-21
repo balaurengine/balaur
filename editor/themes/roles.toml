@@ -271,7 +271,7 @@ font = "heading"
 font_size = "font_size_large"
 text_color = "text_default"
 
-# Actions: a button with a verb on it, by where it sits and what it does.
+# Actions: a button with a command on it, by where it sits and what it does.
 [roles.action]
 font_weight = 600
 text_color = "text_default"
@@ -602,7 +602,7 @@ offset = [0, 1]
 [roles.icon_action_dialog.touch]
 height = "control_height_touch"
 
-# A row's verb as one glyph, its word its tooltip: a raised square the
+# A row's command as one glyph, its word its tooltip: a raised square the
 # height of the field beside it. The quiet one is a mark, flat until hovered.
 [roles.icon_action_form]
 font_size = "font_size_large"

@@ -1,4 +1,4 @@
-// The editor's verbs on its state `state`: selection, workspaces, play, the
+// The editor's commands on its state `state`: selection, workspaces, play, the
 // palette, breakpoints, the pause, and the start-up states.
 
 use anim;
@@ -21,6 +21,7 @@ use theme;
 use util;
 use window;
 use words::changes;
+use words::command;
 use words::dock_fields;
 use words::fields;
 use words::inspector_fields;
@@ -29,7 +30,6 @@ use words::project_fields;
 use words::statuses;
 use words::tabs;
 use words::tools;
-use words::verbs;
 
 const WRITTEN: str = "written";
 const DEBUGGER: str = "debugger";
@@ -102,13 +102,13 @@ fn stepped(state: &mut editor::State, label: str, moved_or: str?) {
 }
 
 pub fn undo(state: &mut editor::State) {
-    stop_for(state, verbs::UNDO);
-    stepped(state, verbs::UNDO, history::undo(state));
+    stop_for(state, command::UNDO);
+    stepped(state, command::UNDO, history::undo(state));
 }
 
 pub fn redo(state: &mut editor::State) {
-    stop_for(state, verbs::REDO);
-    stepped(state, verbs::REDO, history::redo(state));
+    stop_for(state, command::REDO);
+    stepped(state, command::REDO, history::redo(state));
 }
 
 pub fn set_workspace(state: &mut editor::State, id: str) {
@@ -229,7 +229,7 @@ pub fn leave_focus(state: &mut editor::State) {
     signals::bars(state);
 }
 
-/// Forget the layout focus folded, without putting it back: a verb asked for
+/// Forget the layout focus folded, without putting it back: a command asked for
 /// under focus wins over the record it would have restored.
 pub fn drop_focus(state: &mut editor::State) {
     state.focus = false;

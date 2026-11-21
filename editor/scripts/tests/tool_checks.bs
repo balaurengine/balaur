@@ -153,7 +153,7 @@ pub fn polygons(state: &mut editor::State) {
     log::info("selftest polygon: done");
 }
 
-/// The Weights dock's five verbs, Mirror, and a deform key: everything the
+/// The Weights dock's five commands, Mirror, and a deform key: everything the
 /// rigging panels do to a mesh that is arithmetic rather than a gesture.
 ///
 /// Runs on the same inline polygon `polygons` finds, and undoes everything,
@@ -247,7 +247,7 @@ pub fn weighting(state: &mut editor::State) {
     log::info("selftest weights: done");
 }
 
-// One bone's whole column of weights, summed: what a verb over every vertex
+// One bone's whole column of weights, summed: what a command over every vertex
 // moves, in one number.
 fn column(state: editor::State, at: int) -> float {
     let total = 0.0;

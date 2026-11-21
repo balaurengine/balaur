@@ -1,5 +1,5 @@
 // The Weights dock: the picked vertices as a table, one number per bone,
-// editable in place, with the five verbs a rigger reaches for. Everything
+// editable in place, with the five commands a rigger reaches for. Everything
 // here writes through `history`, so one undo takes back a whole Normalise.
 
 use editor;
@@ -76,7 +76,7 @@ fn set_weight(bone: any, at: int, value: float) {
     weights[at] = if clamped < EPSILON { 0.0 } else { clamped };
 }
 
-// Every verb records first and pushes the polygon after, the one shape every
+// Every command records first and pushes the polygon after, the one shape every
 // edit in this dock takes: `begin` before the change, `done` after it.
 fn begin(state: &mut editor::State, label: str) -> bool {
     if !polygon::editable(state) {
@@ -294,7 +294,7 @@ fn bone_segments(state: editor::State, bones: any) -> [rig::Geometry?] {
 // The tab's own scene, under the bottom dock.
 const PANEL: str = "Editor/Shell/Body/Centre/Bottom/Weights";
 
-/// Fill the tab from the polygon: the verbs' scope, a head a bone, and a row a
+/// Fill the tab from the polygon: the commands' scope, a head a bone, and a row a
 /// listed vertex with a field a weight. Called by its script on a word.
 pub fn fill(state: editor::State) {
     let maybe_listing = table(state);
@@ -307,8 +307,8 @@ pub fn fill(state: editor::State) {
     util::set_visible(PANEL + "/Missing", false);
     util::set_visible(PANEL + "/Body", true);
     let picked = polygon::has_pick(state);
-    util::set_text(PANEL + "/Body/Verbs/Scope", if picked { "{listing.at.len()} picked" } else { "all {listing.at.len()}" });
-    util::set_visible(PANEL + "/Body/Verbs/all", picked);
+    util::set_text(PANEL + "/Body/Buttons/Scope", if picked { "{listing.at.len()} picked" } else { "all {listing.at.len()}" });
+    util::set_visible(PANEL + "/Body/Buttons/all", picked);
     form::fill(PANEL + "/Body/Header", [form::Row { controls: header(state, listing) }]);
     let rows: [form::Row] = [];
     for at in listing.at {
@@ -317,8 +317,8 @@ pub fn fill(state: editor::State) {
     form::fill(PANEL + "/Body/Scroll/Rows", rows);
 }
 
-/// A verb by the name of its button.
-pub fn verb(state: &mut editor::State, name: str) {
+/// A button of the panel's, by its name, pressed.
+pub fn pressed(state: &mut editor::State, name: str) {
     if name == BIND {
         bind(state);
     } else if name == UNBIND {

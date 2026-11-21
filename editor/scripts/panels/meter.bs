@@ -4,8 +4,8 @@
 
 use editor;
 use signals;
+use words::command;
 use words::tabs;
-use words::verbs;
 
 pub class Meter {
     node: Node,
@@ -19,7 +19,7 @@ const EVERY: float = 0.25;
 
 impl Meter {
     pub fn init() {
-        self.what = if self.node.name() == "Profiler" { tabs::PROFILER } else { verbs::COST };
+        self.what = if self.node.name() == "Profiler" { tabs::PROFILER } else { command::COST };
         let source = scene::root().get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, signals::DOCKS, source);

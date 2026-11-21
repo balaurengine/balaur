@@ -1,9 +1,12 @@
-// The verbs a menu row, the palette and a hotkey name.
+// The commands a key, a palette row and a menu row name, and the buttons a
+// panel answers by name.
 
 internal const ABOUT: str = "about";
 internal const ADD_CHILD: str = "add_child";
 internal const ATTACH_SCRIPT: str = "attach_script";
 internal const BINDINGS: str = "bindings";
+internal const BREAK: str = "break";
+internal const CONTINUE: str = "continue";
 internal const COPY: str = "copy";
 internal const COST: str = "cost";
 internal const EXPORT: str = "export";

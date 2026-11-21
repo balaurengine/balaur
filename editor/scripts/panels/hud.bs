@@ -5,9 +5,9 @@ use center;
 use editor;
 use signals;
 use themewin;
+use words::command;
 use words::components;
 use words::dock_fields;
-use words::verbs;
 
 pub class Hud {
     node: Node,
@@ -26,15 +26,15 @@ impl Hud {
     }
 
     pub fn zoom_out() {
-        self.editor.unwrap().stage_verb(verbs::ZOOM_OUT);
+        self.editor.unwrap().stage_pressed(command::ZOOM_OUT);
     }
 
     pub fn zoom_in() {
-        self.editor.unwrap().stage_verb(verbs::ZOOM_IN);
+        self.editor.unwrap().stage_pressed(command::ZOOM_IN);
     }
 
     pub fn open_bottom() {
-        self.editor.unwrap().stage_verb(center::OPEN_BOTTOM);
+        self.editor.unwrap().stage_pressed(center::OPEN_BOTTOM);
     }
 
     fn refresh() {

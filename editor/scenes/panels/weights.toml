@@ -1,6 +1,6 @@
 # The Weights tab: the picked vertices as a table, a column a bone, every
-# weight a number field, under the five verbs a rigger reaches for. One script
-# fills it from the Editor, which owns the polygon, and answers its verbs.
+# weight a number field, under the five commands a rigger reaches for. One script
+# fills it from the Editor, which owns the polygon, and answers its commands.
 
 [[nodes]]
 id = "panel"
@@ -33,8 +33,8 @@ role = "layout_dock"
 grow = 1
 
 [[nodes]]
-id = "verbs"
-name = "Verbs"
+id = "buttons"
+name = "Buttons"
 parent = "body"
 [nodes.widget]
 kind = "row"
@@ -45,7 +45,7 @@ align_items = "center"
 [[nodes]]
 id = "scope"
 name = "Scope"
-parent = "verbs"
+parent = "buttons"
 [nodes.widget]
 kind = "label"
 role = "text_code_caption"
@@ -53,8 +53,8 @@ role = "text_code_caption"
 [[nodes]]
 id = "bind"
 name = "bind"
-parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+parent = "buttons"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -64,8 +64,8 @@ tooltip = "Give every listed vertex all of its weight to the bone picked in the 
 [[nodes]]
 id = "unbind"
 name = "unbind"
-parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+parent = "buttons"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -75,8 +75,8 @@ tooltip = "Take the listed vertices off every bone"
 [[nodes]]
 id = "normalize"
 name = "normalize"
-parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+parent = "buttons"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -86,8 +86,8 @@ tooltip = "Scale each listed vertex's weights so they sum to one"
 [[nodes]]
 id = "auto"
 name = "auto"
-parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+parent = "buttons"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -97,8 +97,8 @@ tooltip = "Weight by distance to each bone's segment"
 [[nodes]]
 id = "smooth"
 name = "smooth"
-parent = "verbs"
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+parent = "buttons"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"
@@ -108,9 +108,9 @@ tooltip = "Average each listed vertex with the ones sharing an edge"
 [[nodes]]
 id = "all"
 name = "all"
-parent = "verbs"
+parent = "buttons"
 visible = false
-bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "verb" }] }
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
 [nodes.widget]
 kind = "button"
 role = "action_form"

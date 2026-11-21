@@ -16,6 +16,7 @@ use selftest;
 use shell;
 use signals;
 use util;
+use words::command;
 use words::fields;
 use words::general;
 use words::inspector_fields;
@@ -23,7 +24,6 @@ use words::layout_fields;
 use words::project_fields;
 use words::roles;
 use words::tabs;
-use words::verbs;
 
 const SM_PROBE: str = "sm_probe";
 const ADVANCE_MODE: str = "advance_mode";
@@ -316,7 +316,7 @@ pub fn body(state: &mut editor::State) {
     form::fill(ROWS, row_specs(state, doc), NAME_WIDTH, false);
 }
 
-/// What the strip says when the node runs no machine: why, and the verb that
+/// What the strip says when the node runs no machine: why, and the command that
 /// gives it one.
 fn offer(state: editor::State) -> [ui::Control] {
     // Bound, never a literal after a `}`: the block's value would be indexed
@@ -642,7 +642,7 @@ fn field_specs(state: editor::State, at: int, transition: any, names: [str], tar
     out.push(field_spec(CONDITION, text_of(state, at, CONDITION, transition[CONDITION].as_str(), general::NONE)));
     out.push(field_spec(CHECK, text_of(state, at, CHECK, transition[CHECK].as_str(), "no method")));
     out.push(field_spec(PRIORITY, number(state, at, PRIORITY, priority as float, true)));
-    out.push(field_spec(verbs::RESET, flag(state, at, verbs::RESET, transition[RESET] == nil || transition[RESET].as_bool())));
+    out.push(field_spec(command::RESET, flag(state, at, command::RESET, transition[RESET] == nil || transition[RESET].as_bool())));
     out.push(field_spec("break loop at end", flag(state, at, BREAK_LOOP_AT_END, transition[BREAK_LOOP_AT_END].as_bool())));
 }
 
@@ -709,7 +709,7 @@ pub fn selftest(state: &mut editor::State) {
     check(sceneedit::node_text(state, state.nodes[node_index]) == before, "undoing everything restores the node");
     // Left on the dock with a transition open, so the shot this state takes
     // is of the fields as well as the rows.
-    docks::show(state, verbs::STATEMACHINE);
+    docks::show(state, command::STATEMACHINE);
     // Only where the scene authored one: the undo above took back the machine
     // this test made, so a node that came with none has none now.
     let found = source(state);

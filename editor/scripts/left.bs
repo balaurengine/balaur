@@ -46,7 +46,7 @@ pub struct Secondary {
     rows: [Item],
 }
 
-/// One row of the secondary list, and what picking it does: `verb` is
+/// One row of the secondary list, and what picking it does: `action` is
 /// "choose" (the node at `at`), "script" (the node running `rel`), "scene"
 /// (open `rel`) or "" for a row that only says something.
 pub struct Item {
@@ -54,7 +54,7 @@ pub struct Item {
     name: str,
     meta: str,
     key: str,
-    verb: str,
+    action: str,
     at: int,
     rel: str,
 }
@@ -130,8 +130,8 @@ fn open_rows(state: &mut editor::State) -> [any] {
 }
 
 // `key` tells apart two rows that read the same; it is never drawn.
-fn item(icon: str, name: str, meta: str, key: str, verb: str, at: int, rel: str) -> Item {
-    Item { icon: icon, name: name, meta: meta, key: key, verb: verb, at: at, rel: rel }
+fn item(icon: str, name: str, meta: str, key: str, action: str, at: int, rel: str) -> Item {
+    Item { icon: icon, name: name, meta: meta, key: key, action: action, at: at, rel: rel }
 }
 
 // A row that only says something: picking it does nothing.
@@ -234,16 +234,16 @@ fn secondary_scenes(state: &mut editor::State) -> Secondary {
 
 // What picking a secondary row does.
 fn act(state: &mut editor::State, row: Item) {
-    if row.verb == CHOOSE {
+    if row.action == CHOOSE {
         shell::choose(state, row.at);
-    } else if row.verb == tabs::SCRIPT {
+    } else if row.action == tabs::SCRIPT {
         for index in 0..state.nodes.len() {
             if model::script_rel(state.nodes[index]).as_str() == row.rel {
                 shell::choose(state, index);
                 return;
             }
         }
-    } else if row.verb == tabs::SCENE && state.scene_rel != row.rel {
+    } else if row.action == tabs::SCENE && state.scene_rel != row.rel {
         model::open_scene(state, row.rel);
     }
 }
@@ -476,7 +476,7 @@ pub fn rename_close(state: &mut editor::State) {
     window::picker_shut(state);
 }
 
-/// One field and one verb, on the picker every search box in the shell uses:
+/// One field and one command, on the picker every search box in the shell uses:
 /// the tree is a widget-layer list, which has no cell to edit in place, so
 /// the rename happens over it.
 /// Fill the picker: what its script asks for while a rename is up.

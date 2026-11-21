@@ -85,7 +85,7 @@ pub fn state() -> SessionState {
         // The tick the detail list describes.
         at: 0,
         // The sessions directory as last listed, and whether that still
-        // holds: a file moving in it, or the editor's own verbs, says not.
+        // holds: a file moving in it, or the editor's own commands, says not.
         list: [],
         listed: false,
         // What the replay last said it is doing, a `replay::STATE_*`.

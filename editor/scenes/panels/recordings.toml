@@ -1,5 +1,5 @@
 # The Recordings tab while none is open: every play, newest first, each with
-# the verbs that replay, keep, copy or drop it. One script answers them; the
+# the commands that replay, keep, copy or drop it. One script answers them; the
 # rows are made by the Editor, which owns the recordings.
 
 [[nodes]]

@@ -45,8 +45,8 @@ pub fn physics_panel(state: &mut editor::State) {
     selftest::check(util::contains(inspector::node_components(state), collider), "the inspector lists the {collider} it added");
     // What the mesh can become is the palette's, offered for this node alone.
     let offered: [str] = [];
-    for verb in palette::node_verbs(state) {
-        offered.push(verb.label);
+    for line in palette::node_lines(state) {
+        offered.push(line.label);
     }
     selftest::check(util::contains(offered, "Collide as hull") && util::contains(offered, "Deform as surface"), "the palette offers the shapes the mesh can be turned into");
     // A shape action writes the mesh and the kind together, in one undo.

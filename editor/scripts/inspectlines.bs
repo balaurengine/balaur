@@ -18,6 +18,7 @@ use shell;
 use style;
 use util;
 use words::asset_kinds;
+use words::command;
 use words::datatypes;
 use words::fields;
 use words::inspector_fields;
@@ -27,7 +28,6 @@ use words::project_fields;
 use words::roles;
 use words::schema_fields;
 use words::tabs;
-use words::verbs;
 
 const GROUPS: str = "groups";
 const KIND: str = "kind";
@@ -233,7 +233,7 @@ fn component_sections(state: &mut editor::State) {
     let drew = 0;
     for component in ordered_components(state, all) {
         // Its rows are a table of tables, which the Events view already draws.
-        if component == verbs::BINDINGS {
+        if component == command::BINDINGS {
             drew += 1;
             bindings_section(state);
             continue;
@@ -255,7 +255,7 @@ fn component_sections(state: &mut editor::State) {
 
 // A pointer at the Events view, in place of the rows no drawer can show.
 fn bindings_section(state: &mut editor::State) {
-    head_line(state, verbs::BINDINGS, false);
+    head_line(state, command::BINDINGS, false);
     let key = "@bindings";
     fixed_line(state, key, form::Row {
         height: role_height(state, roles::ACTION_NOTE),

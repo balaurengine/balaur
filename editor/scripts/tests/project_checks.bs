@@ -29,7 +29,7 @@ use window;
 use panels::scene_tree;
 use tests::scene_checks;
 
-/// The Assets dock's three verbs. Everything it makes it also removes, so a
+/// The Assets dock's three commands. Everything it makes it also removes, so a
 /// run leaves the example project exactly as it found it.
 pub fn assets(state: &mut editor::State) {
     let root = state.game_root + "/";
@@ -320,7 +320,7 @@ pub fn tooling(state: &mut editor::State) {
     // Find and replace reaches the same files a rename does.
     let hits = script::find(rel, source, "fn ");
     selftest::check(hits.len() > 0, "find reaches the text in the file");
-    // Formatting is idempotent, and neither verb writes anything.
+    // Formatting is idempotent, and neither command writes anything.
     let once = script::format(rel, source);
     selftest::check(script::format(rel, once) == once, "formatting twice is formatting once");
     let edits = script::rename(rel, source, "node", "owner");

@@ -1,5 +1,5 @@
 // Rigging: bones drawn as diamonds (2D) or octahedra (3D), the Rig bone tool
-// that grows a chain, and the two rest-pose verbs. A bone is a node with
+// that grows a chain, and the two rest-pose commands. A bone is a node with
 // `bone2d` or `bone3d`; this module only reads and writes those.
 
 use defs;
@@ -711,7 +711,7 @@ pub fn bone_count(state: editor::State, row: int) -> int {
     }
 }
 
-// File what a rest verb moved behind the components' backs, under row
+// File what a rest command moved behind the components' backs, under row
 // `root_index`: each bone's transform, or its `bone2d`, as what it asks for, so a
 // save and an undo see it.
 fn sync_bones(state: &mut editor::State, root_index: int, transforms: bool) {

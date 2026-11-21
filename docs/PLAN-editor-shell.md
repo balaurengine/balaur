@@ -3,7 +3,9 @@
 What is left before the editor's shell is built the way a game's UI is: a
 screen given by where a tree sits, look from the theme, and events authored in
 the scene. The `viewport` kind is built, the editor opens on itself with its
-edited copy kept in the stage, and its scenes take their look from roles.
+edited copy kept in the stage, its scenes take their look from roles, and
+its commands are one table (`commands.bs`) the keys, the palette and the
+menu share.
 
 ## Steps
 
@@ -21,15 +23,10 @@ edited copy kept in the stage, and its scenes take their look from roles.
    tables read one screen for the pass, the viewport over the played content
    (`arena.rs` `read_classes`, `room_of`). Read the viewport above each widget.
    Done when two viewports of different widths each pick their own class.
-4. **One command table.** Hotkeys (`commands.bs`), the palette and the menu
-   dispatch commands apart and disagree on five. Keep each command once, with
-   its chord, and build the palette and menu rows from it; name them commands
-   where the editor says verbs. Done when a self-test finds every chord in the
-   palette and the menu under the same text.
-5. **Shortcuts as data.** The hotkeys are 46 hidden buttons in `keys.toml` and
+4. **Shortcuts as data.** The hotkeys are 46 hidden buttons in `keys.toml` and
    `complete.toml`. Add a `shortcuts` component, a table of chords on one node
    raising `shortcut_pressed`. Done when both scenes are one node each.
-6. **Item scenes in place of the pool.** `ui::fill_strip`, `fill_slot` and
+5. **Item scenes in place of the pool.** `ui::fill_strip`, `fill_slot` and
    `patch_control` build controls from tables a script writes, handlers
    included. Add `scene::repeat(host, items)`, one instance of a small scene per
    item, and move the shell over in order: fixed sets into the scenes, one-action

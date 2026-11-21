@@ -1,5 +1,5 @@
 // The Weights tab's one script: the Editor fills it when the polygon, its
-// pick or the selection moved, and it hands back the verbs. A weight's own
+// pick or the selection moved, and it hands back the commands. A weight's own
 // field writes itself, and a vertex's or bone's own button picks it.
 
 use editor;
@@ -32,8 +32,8 @@ impl Weights {
         self.refresh();
     }
 
-    pub fn verb(_value: any, node: Node) {
-        self.editor.unwrap().weights_verb(node.name());
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.unwrap().weights_pressed(node.name());
         self.refresh();
     }
 

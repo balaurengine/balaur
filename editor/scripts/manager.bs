@@ -6,13 +6,14 @@ use editor;
 use form;
 use icons;
 use pool;
+use settings;
 use shipped;
 use signals;
 use style;
-use settings;
 use util;
 use versions;
 use window;
+use words::command;
 use words::fields;
 use words::layout_fields;
 use words::log_fields;
@@ -21,7 +22,6 @@ use words::project_fields;
 use words::roles;
 use words::statuses;
 use words::tabs;
-use words::verbs;
 
 const COPIED: str = "copied";
 const ENGINE: str = "engine";
@@ -85,7 +85,7 @@ pub fn state() -> ManagerState {
         on: false,
         // Whether the shell under the screen is hidden; see `cover`.
         covering: false,
-        tab: verbs::PROJECTS,
+        tab: command::PROJECTS,
         recent: [],
         read: false,
         filter: "",
@@ -153,7 +153,7 @@ pub fn open(state: &mut editor::State) {
     // The other two pages are not offered in a tab, so neither is a state
     // that left the screen on one of them.
     if in_tab() {
-        state.manager.tab = verbs::PROJECTS;
+        state.manager.tab = command::PROJECTS;
     }
 }
 
@@ -206,7 +206,7 @@ pub fn close(state: &mut editor::State) {
 }
 
 /// Where a control the showcase points at sits, in design px, by the name it
-/// knows it as: a tab by its id, or one of the Projects tab's verbs; `None`
+/// knows it as: a tab by its id, or one of the Projects tab's commands; `None`
 /// before it has drawn.
 pub fn spot(state: editor::State, name: str) -> Spot? {
     let node = if name == NEW {
@@ -358,8 +358,8 @@ pub fn set_filter(state: &mut editor::State, text: str) {
     told(state);
 }
 
-/// The Projects tab's verbs, by the name of the button pressed.
-pub fn verb(state: &mut editor::State, name: str) {
+/// The Projects tab's commands, by the name of the button pressed.
+pub fn pressed(state: &mut editor::State, name: str) {
     if name == "New" {
         window::show(state, NEW_SHEET);
         return;
@@ -390,11 +390,11 @@ fn head_note(state: editor::State) {
     ui::fill_strip(PROGRESS(), controls);
 }
 
-// The filter and the three verbs, up on the Projects tab. A tab has no folder
+// The filter and the three commands, up on the Projects tab. A tab has no folder
 // picker and nowhere to write a template: the page it runs in is what starts
 // a project there, and this screen reopens one.
 fn tools(state: editor::State) {
-    let up = state.manager.tab == verbs::PROJECTS;
+    let up = state.manager.tab == command::PROJECTS;
     let acting = !in_tab();
     util::set_visible(TOOLS(), up);
     util::set_text(TOOLS() + "/Filter", state.manager.filter);
@@ -666,7 +666,7 @@ pub fn forge_heard(state: &mut editor::State, event: any) {
         state.manager.copying = "";
         go(state, event[project_fields::PATH].as_str());
         return;
-    } else if kind == statuses::FAILED && (event[log_fields::JOB].as_str() == verbs::COPY || event[log_fields::JOB].as_str() == verbs::SEARCH) {
+    } else if kind == statuses::FAILED && (event[log_fields::JOB].as_str() == command::COPY || event[log_fields::JOB].as_str() == command::SEARCH) {
         state.manager.copying = "";
         state.manager.failed = event[log_fields::MESSAGE].as_str();
     } else {

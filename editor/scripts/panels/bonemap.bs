@@ -1,5 +1,5 @@
 // The Bone map tab's one script: the Editor fills it when the map or the
-// selection moved, and it hands back the verbs. A row's own buttons pick,
+// selection moved, and it hands back the commands. A row's own buttons pick,
 // open and empty it.
 
 use editor;
@@ -28,8 +28,8 @@ impl Bonemap {
         self.refresh();
     }
 
-    pub fn verb(_value: any, node: Node) {
-        self.editor.unwrap().bonemap_verb(node.name());
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.unwrap().bonemap_pressed(node.name());
     }
 
     /// Laid out on screen by the dock, a frame after `docks_changed`: what it

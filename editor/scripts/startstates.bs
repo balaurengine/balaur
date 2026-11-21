@@ -14,6 +14,7 @@ use exporter;
 use manager;
 use model;
 use newnode;
+use panels::scene_tree;
 use plugins;
 use polygon;
 use populate;
@@ -25,18 +26,18 @@ use showcase;
 use signals;
 use statemachine;
 use suite;
+use tests::panel_checks;
+use tests::project_checks;
 use tests::scene_checks;
+use tests::shell_checks;
 use tests::tool_checks;
 use tests::viewport_checks;
-use tests::panel_checks;
-use tests::shell_checks;
-use tests::project_checks;
 use theme;
 use themewin;
 use tiles;
 use util;
-use panels::scene_tree;
 use words::changes;
+use words::command;
 use words::dock_fields;
 use words::fields;
 use words::hooks;
@@ -46,7 +47,6 @@ use words::project_fields;
 use words::sides;
 use words::tabs;
 use words::tools;
-use words::verbs;
 
 const ASSETS: str = "assets";
 const CHROME: str = "chrome";
@@ -144,6 +144,7 @@ fn states() -> any {
         "test:export_runtime": shell_checks::export_runtime,
         "test:panels": shell_checks::menu_panels,
         "test:palette": shell_checks::palette_screen,
+        "test:commands": shell_checks::commands_agree,
         "test:focus": shell_checks::focusing,
         "focus": state_focus,
         "test:selection": scene_checks::selecting,
@@ -318,7 +319,7 @@ fn state_tool(state: &mut editor::State, tool: str) {
 // `tab:<id>` picks a document tab; `tab:split` opens the code beside the
 // viewport. Both are shell state a screenshot cannot otherwise reach.
 fn state_tab(state: &mut editor::State, tab: str) {
-    if tab == verbs::SPLIT {
+    if tab == command::SPLIT {
         state.split = true;
         signals::bars(state);
     } else {
