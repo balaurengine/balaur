@@ -78,20 +78,26 @@ fn asked() -> bool {
 
 #[cfg(target_os = "ios")]
 fn asked() -> bool {
+    use objc2::{ClassType, msg_send, rc::Retained};
     use objc2_foundation::MainThreadMarker;
     use objc2_ui_kit::{UIApplication, UIUserInterfaceStyle, UIWindowScene};
-    let Some(mtm) = MainThreadMarker::new() else {
+    if MainThreadMarker::new().is_none() {
         return false;
-    };
+    }
+    // Nil until `UIApplicationMain` runs, which the boot asks before: the
+    // binding's own `sharedApplication` panics on that nil.
+    // SAFETY: a class method of no arguments, answering the app or nil.
+    let app: Option<Retained<UIApplication>> =
+        unsafe { msg_send![UIApplication::class(), sharedApplication] };
     // None before the first scene connects; asked again next frame.
-    let Some(scene) = UIApplication::sharedApplication(mtm)
-        .connectedScenes()
-        .iter()
-        .find_map(|scene| scene.downcast::<UIWindowScene>().ok())
-    else {
+    let Some(scene) = app.and_then(|app| {
+        app.connectedScenes()
+            .iter()
+            .find_map(|scene| scene.downcast::<UIWindowScene>().ok())
+    }) else {
         return false;
     };
-    // SAFETY: read on the main thread, which `mtm` proves this is.
+    // SAFETY: read on the main thread, which the marker above proved this is.
     let style = unsafe { scene.traitCollection().userInterfaceStyle() };
     style == UIUserInterfaceStyle::Dark
 }

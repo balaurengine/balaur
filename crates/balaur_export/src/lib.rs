@@ -131,13 +131,14 @@ pub type ExtraModules = dyn Fn() -> Vec<Box<dyn balaur_plugin::Plugin>>;
 /// Every target `--target` accepts, in the order an export sheet lists them:
 /// the desktops a player downloads, the platforms that ship a bundle, then a
 /// dedicated server per desktop.
-pub const TARGETS: [&str; 13] = [
+pub const TARGETS: [&str; 14] = [
     "linux-x64",
     words::targets::LINUX_ARM64,
     words::targets::MACOS_UNIVERSAL,
     words::targets::WINDOWS_X64,
     words::targets::WINDOWS_ARM64,
     words::targets::IOS,
+    words::targets::IOS_SIM,
     words::targets::ANDROID,
     words::targets::WEB,
     "linux-x64-server",
@@ -792,6 +793,22 @@ mod tests {
         assert!(!runtime_installed("web", &roots));
         assert!(!runtime_installed("web-3d", &roots));
         assert!(!TARGETS.contains(&"web-2d"));
+    }
+
+    // The device's template sits at the top of the runtimes; the simulator's
+    // must never be taken for it, nor it for the simulator's.
+    #[test]
+    fn the_simulator_template_is_not_the_device_one() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("Balaur.app")).unwrap();
+        let roots = vec![dir.path().to_path_buf()];
+        assert!(runtime_installed("ios", &roots));
+        assert!(!runtime_installed("ios-sim", &roots));
+
+        std::fs::create_dir_all(dir.path().join("balaur-runtime-ios-sim-bare/Balaur.app")).unwrap();
+        assert!(runtime_installed("ios-sim-bare", &roots));
+        assert!(!runtime_installed("ios-bare", &roots));
+        assert_eq!(split_variant("ios-sim-bare"), ("ios-sim", Some("bare")));
     }
 
     #[test]

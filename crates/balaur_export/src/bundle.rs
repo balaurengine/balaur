@@ -27,10 +27,12 @@ pub(crate) enum Bundle {
 }
 
 impl Bundle {
-    /// A variant (`ios-2d`) is its platform's bundle over a template of its own.
+    /// A variant (`ios-2d`) is its platform's bundle over a template of its own,
+    /// and so is the simulator: `ios-sim` is the same `.app` over a template
+    /// built for it.
     pub(crate) fn for_target(target: &str) -> Option<Self> {
         match crate::split_variant(target).0 {
-            words::targets::IOS => Some(Self::Ios),
+            words::targets::IOS | words::targets::IOS_SIM => Some(Self::Ios),
             words::targets::ANDROID => Some(Self::Android),
             words::targets::WEB => Some(Self::Web),
             _ => None,
@@ -213,8 +215,9 @@ pub(crate) fn export_bundle(
     if kind == Bundle::Ios {
         let plist = output.join("Info.plist");
         let executable = runtime_executable(&plist).unwrap_or_else(|| "Balaur".to_string());
+        let simulator = crate::native::built_for_simulator(&output.join(&executable));
         let icon_keys = match icons {
-            Some(icons) => icons.write_ios(&output, &apple.min_ios)?,
+            Some(icons) => icons.write_ios(&output, &apple.min_ios, simulator)?,
             None => String::new(),
         };
         std::fs::write(

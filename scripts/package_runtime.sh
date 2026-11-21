@@ -70,9 +70,10 @@ ios | ios-sim)
 </plist>
 PLIST
   # A variant's bundle sits in a directory named for it, so two unpack side
-  # by side; the platform's own stays at the top, where an export looks first.
-  if [ -n "$variant" ]; then
-    name=balaur-runtime-$platform-$variant
+  # by side; the device's own stays at the top, where an export looks first.
+  # The simulator's is never at the top: it would land on the device's.
+  if [ -n "$variant" ] || [ "$platform" = ios-sim ]; then
+    name=balaur-runtime-$platform${variant:+-$variant}
     rm -rf "${dist:?}/$name"
     mkdir -p "$dist/$name"
     mv "$app" "$dist/$name/"
