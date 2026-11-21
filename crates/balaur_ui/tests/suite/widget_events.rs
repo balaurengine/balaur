@@ -6,8 +6,8 @@ use balaur_script::Value;
 use egui::pos2;
 
 use crate::support::{
-    add_widget, add_widget_to, app, app_with_script, consume_input, pass, pass_at, press,
-    script_text, settle, texts,
+    add_child_widget, add_widget, add_widget_to, app, app_with_script, clicked, consume_input,
+    pass, pass_at, press, script_text, settle, texts,
 };
 
 /// What the widget's node heard under `event` on the last tick.
@@ -209,6 +209,35 @@ fn a_paste_no_field_took_is_heard_with_its_text() {
         balaur_core::events::delivered(&app.engine, "pasted"),
         vec![balaur_script::Value::Str("[[nodes]]".into())]
     );
+}
+
+// What a script reveals it can click in the same frame: `click` asks the
+// tree as it stands, as `visible_in_tree` does, not the copy the frame's
+// sync makes after the scripts.
+#[test]
+fn a_widget_shown_this_frame_takes_a_click() {
+    let (_dir, mut app) = app();
+    let root = app.engine.root();
+    let page = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Page", root);
+    let go = add_child_widget(
+        &app,
+        page,
+        "Go",
+        &toml::toml! { kind = "button" text = "Go" }.into(),
+    );
+    balaur_core::scene::set_visible(&app.engine, page, false);
+    consume_input(&mut app);
+    assert!(
+        !balaur_ui::click(&app.engine, go, false),
+        "hidden, it takes none"
+    );
+    balaur_core::scene::set_visible(&app.engine, page, true);
+    assert!(
+        balaur_ui::click(&app.engine, go, false),
+        "shown now, it takes one"
+    );
+    consume_input(&mut app);
+    assert!(clicked(&app, go));
 }
 
 // A clicked widget says `pointer_click` from its node, as a clicked world

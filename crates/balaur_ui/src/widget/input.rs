@@ -156,10 +156,10 @@ pub(crate) fn record(
 pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
     let clickable = {
         let world = eng.world();
-        let shown = hidden
-            || world
-                .get::<&balaur_core::GlobalAppearance>(entity)
-                .is_ok_and(|a| a.visible);
+        // Shown as the tree stands now, as `visible_in_tree` answers: a
+        // widget revealed this frame takes the click its next tick delivers,
+        // though the frame's sync has not copied the change down yet.
+        let shown = hidden || balaur_core::scene::composed_appearance(&world, entity).visible;
         let enabled = world.get::<&Widget>(entity).is_ok_and(|w| !w.disabled);
         shown && enabled
     };
