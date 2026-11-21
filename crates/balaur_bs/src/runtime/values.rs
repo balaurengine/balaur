@@ -264,25 +264,27 @@ pub(crate) fn read_any(meta: &Meta, m: &(impl Reader + ?Sized), p: usize) -> Val
     }
 }
 
+/// What the payload of an `any` cell points at, borrowed from the value the
+/// cell holds: a string, a list's items, or a map's keys or values, each
+/// made by the encoder as the array or string it is in memory.
+///
+/// Borrowed, so a map's values are written from where they stand: built as
+/// a list of their own, every level of a nested map copied all below it
+/// again, and a parsed document paid for its depth over and over.
+pub(crate) enum Part<'a> {
+    Str(&'a str),
+    List(&'a [Value]),
+    Keys(&'a [(SmolStr, Value)]),
+    Values(&'a [(SmolStr, Value)]),
+}
+
 /// The tag and payload of a cell holding `v`, with whatever the payload
-/// points at made by `heap`: `(Str, v)` and `(Array(Any), list)`.
+/// points at made by `heap`.
 pub(crate) fn any_cell<E>(
     v: &Value,
-    mut heap: impl FnMut(&Ty, &Value) -> Result<u32, E>,
+    mut heap: impl FnMut(Part<'_>) -> Result<u32, E>,
 ) -> Result<Option<(i32, u64)>, E> {
     use crate::anys::{BOOL, FLOAT, INT, LIST, MAP, NODE, STR};
-    let list = Ty::Array(Box::new(Ty::Any));
-    let map = |heap: &mut dyn FnMut(&Ty, &Value) -> Result<u32, E>,
-               entries: &[(SmolStr, Value)]| {
-        let keys = entries
-            .iter()
-            .map(|(k, _)| Value::Str(k.to_string()))
-            .collect();
-        let values = entries.iter().map(|(_, v)| v.clone()).collect();
-        let k = heap(&Ty::Array(Box::new(Ty::Str)), &Value::Array(keys))?;
-        let v = heap(&list, &Value::Array(values))?;
-        Ok((MAP, u64::from(k) | (u64::from(v) << 32)))
-    };
     Ok(Some(match v {
         // A binding answers a vector only for a struct, never for an `any`.
         Value::Void | Value::Vector(_) => return Ok(None),
@@ -290,10 +292,33 @@ pub(crate) fn any_cell<E>(
         Value::Int(x) => (INT, *x as u64),
         Value::Node(x) => (NODE, *x as u64),
         Value::Float(x) => (FLOAT, x.to_bits()),
-        Value::Str(_) => (STR, u64::from(heap(&Ty::Str, v)?)),
-        Value::Array(_) => (LIST, u64::from(heap(&list, v)?)),
-        Value::Map(entries) | Value::Struct(_, entries) => map(&mut heap, entries)?,
+        Value::Str(s) => (STR, u64::from(heap(Part::Str(s))?)),
+        Value::Array(items) => (LIST, u64::from(heap(Part::List(items))?)),
+        Value::Map(entries) | Value::Struct(_, entries) => {
+            let k = heap(Part::Keys(entries))?;
+            let v = heap(Part::Values(entries))?;
+            (MAP, u64::from(k) | (u64::from(v) << 32))
+        }
     }))
+}
+
+/// A string's bytes in memory: its count of one, its length, its text.
+pub(crate) fn str_bytes(s: &str) -> Vec<u8> {
+    let mut b = Vec::with_capacity(8 + s.len());
+    b.extend(1i32.to_le_bytes());
+    b.extend((s.len() as u32).to_le_bytes());
+    b.extend(s.as_bytes());
+    b
+}
+
+/// An array's 16-byte header: its count of one, its length and capacity,
+/// where its items are.
+pub(crate) fn array_header(len: usize, data: u32) -> Vec<u8> {
+    let mut b = 1i32.to_le_bytes().to_vec();
+    for x in [len as u32, len as u32, data] {
+        b.extend(x.to_le_bytes());
+    }
+    b
 }
 
 /// The 16 bytes of a cell: one reference, the tag, the payload.

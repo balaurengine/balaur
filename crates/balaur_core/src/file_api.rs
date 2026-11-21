@@ -596,9 +596,91 @@ pub(crate) fn as_item(value: &toml::Value) -> toml_edit::Item {
 }
 
 pub(crate) fn json_parse(_: &Engine, args: &[Value]) -> Result<Value> {
-    match serde_json::from_str::<serde_json::Value>(text(args, 0)?) {
-        Ok(parsed) => from_json(&parsed),
+    match serde_json::from_str::<Parsed>(text(args, 0)?) {
+        Ok(Parsed(parsed)) => Ok(parsed),
         Err(_) => Ok(Value::Nil),
+    }
+}
+
+/// A JSON document read straight into script values, with no
+/// `serde_json::Value` tree built first and walked again: a word pack is
+/// megabytes, and the second tree was work for nothing. What it reads is
+/// what [`from_json`] makes of that tree: an object's keys sorted, the last
+/// of a repeated one kept, a number an int where it is a whole one that fits.
+struct Parsed(Value);
+
+impl<'de> serde::Deserialize<'de> for Parsed {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(ParsedVisitor).map(Parsed)
+    }
+}
+
+struct ParsedVisitor;
+
+impl<'de> serde::de::Visitor<'de> for ParsedVisitor {
+    type Value = Value;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("a JSON value")
+    }
+
+    fn visit_unit<E>(self) -> Result<Value, E> {
+        Ok(Value::Nil)
+    }
+
+    fn visit_bool<E>(self, b: bool) -> Result<Value, E> {
+        Ok(Value::Bool(b))
+    }
+
+    fn visit_i64<E>(self, n: i64) -> Result<Value, E> {
+        Ok(Value::Int(n))
+    }
+
+    fn visit_u64<E>(self, n: u64) -> Result<Value, E> {
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "past an i64, JSON's number is a float, as serde_json reads it"
+        )]
+        Ok(i64::try_from(n).map_or(Value::Num(n as f64), Value::Int))
+    }
+
+    fn visit_f64<E>(self, n: f64) -> Result<Value, E> {
+        Ok(Value::Num(n))
+    }
+
+    fn visit_str<E>(self, s: &str) -> Result<Value, E> {
+        Ok(Value::Str(s.to_owned()))
+    }
+
+    fn visit_string<E>(self, s: String) -> Result<Value, E> {
+        Ok(Value::Str(s))
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {
+        let mut items = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+        while let Some(Parsed(item)) = seq.next_element()? {
+            items.push(item);
+        }
+        Ok(Value::List(items))
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Value, A::Error> {
+        let mut pairs: Vec<(String, Value)> = Vec::with_capacity(map.size_hint().unwrap_or(0));
+        while let Some((key, Parsed(value))) = map.next_entry::<String, Parsed>()? {
+            pairs.push((key, value));
+        }
+        // Stable, so of two same keys the later stays after the earlier, and
+        // takes its place.
+        pairs.sort_by(|a, b| a.0.cmp(&b.0));
+        pairs.dedup_by(|later, earlier| {
+            if later.0 == earlier.0 {
+                std::mem::swap(later, earlier);
+                true
+            } else {
+                false
+            }
+        });
+        Ok(Value::Map(pairs))
     }
 }
 

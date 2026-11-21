@@ -7,53 +7,37 @@
     reason = "a part of the module above, split for length"
 )]
 use super::*;
+use values::Part;
 
 impl Runtime {
     // The module's own copy of `v`: strings and arrays are allocated in it.
     pub(super) fn encode(&mut self, ty: &Ty, v: &Value) -> Result<Vec<Raw>, RunError> {
         Ok(match (ty, v) {
-            (Ty::Str, Value::Str(s)) => {
-                let p = self.alloc(8 + s.len() as u32)?;
-                let mut b = 1i32.to_le_bytes().to_vec();
-                b.extend((s.len() as u32).to_le_bytes());
-                b.extend(s.as_bytes());
-                self.wasm.write(p as usize, &b);
-                vec![Raw::I32(p as i32)]
-            }
+            (Ty::Str, Value::Str(s)) => vec![Raw::I32(self.str_of(s)? as i32)],
             (Ty::Array(et), Value::Array(items)) => {
-                let esz = 8 * width(&self.meta, et);
-                let data = if items.is_empty() {
-                    0
-                } else {
-                    self.alloc((items.len() * esz) as u32)?
-                };
-                for (i, it) in items.iter().enumerate() {
-                    let b: Vec<u8> = self
-                        .encode(et, it)?
-                        .into_iter()
-                        .flat_map(Raw::bytes)
-                        .collect();
-                    self.wasm.write(data as usize + i * esz, &b);
-                }
-                let h = self.alloc(16)?;
-                let mut b = 1i32.to_le_bytes().to_vec();
-                for x in [items.len() as u32, items.len() as u32, data] {
-                    b.extend(x.to_le_bytes());
-                }
-                self.wasm.write(h as usize, &b);
-                vec![Raw::I32(h as i32)]
+                vec![Raw::I32(self.array_of(et, items.iter())? as i32)]
             }
             (Ty::Any, v) => {
-                let cell = values::any_cell(v, |t, v| {
-                    Ok::<u32, RunError>(self.encode(t, v)?[0].i32() as u32)
+                let cell = values::any_cell(v, |part| match part {
+                    Part::Str(s) => self.str_of(s),
+                    Part::List(items) => self.array_of(&Ty::Any, items.iter()),
+                    Part::Keys(entries) => {
+                        let mut bytes = Vec::with_capacity(entries.len() * 8);
+                        for (key, _) in entries {
+                            bytes.extend(Raw::I32(self.str_of(key)? as i32).bytes());
+                        }
+                        self.array_with(entries.len(), &bytes)
+                    }
+                    Part::Values(entries) => {
+                        self.array_of(&Ty::Any, entries.iter().map(|(_, v)| v))
+                    }
                 })?;
                 let Some((tag, payload)) = cell else {
                     return Ok(vec![Raw::I32(0)]);
                 };
-                let p = self.alloc(crate::anys::CELL as u32)?;
-                self.wasm
-                    .write(p as usize, &values::cell_bytes(tag, payload));
-                vec![Raw::I32(p as i32)]
+                vec![Raw::I32(
+                    self.written(&values::cell_bytes(tag, payload))? as i32
+                )]
             }
             (Ty::Optional(_), Value::Void) => values::zero(&self.meta, ty),
             (Ty::Optional(t), v) => {
@@ -90,6 +74,43 @@ impl Runtime {
                 line: None,
             })?,
         })
+    }
+
+    // `bytes` in a block of their own: allocated and written in one go, with
+    // nothing zeroed first that is written over at once.
+    fn written(&mut self, bytes: &[u8]) -> Result<u32, RunError> {
+        let p = self.alloc_unzeroed(bytes.len() as u32)?;
+        self.wasm.write(p as usize, bytes);
+        Ok(p)
+    }
+
+    fn str_of(&mut self, s: &str) -> Result<u32, RunError> {
+        self.written(&values::str_bytes(s))
+    }
+
+    // An array of `et`, its items encoded into one buffer and written once,
+    // not a write a slot.
+    fn array_of<'a>(
+        &mut self,
+        et: &Ty,
+        items: impl ExactSizeIterator<Item = &'a Value>,
+    ) -> Result<u32, RunError> {
+        let len = items.len();
+        let esz = 8 * width(&self.meta, et);
+        let mut bytes = Vec::with_capacity(len * esz);
+        for (i, it) in items.enumerate() {
+            for raw in self.encode(et, it)? {
+                bytes.extend(raw.bytes());
+            }
+            bytes.resize((i + 1) * esz, 0);
+        }
+        self.array_with(len, &bytes)
+    }
+
+    // An array of `len` items whose slots are `bytes`, and its header.
+    fn array_with(&mut self, len: usize, bytes: &[u8]) -> Result<u32, RunError> {
+        let data = if len == 0 { 0 } else { self.written(bytes)? };
+        self.written(&values::array_header(len, data))
     }
 
     // A class object holding `raw`, counted once for its holder.

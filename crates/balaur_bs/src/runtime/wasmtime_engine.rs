@@ -930,7 +930,10 @@ struct Wasmtime {
 struct Export {
     func: wasmtime::Func,
     params: Box<[Slot]>,
-    results: Box<[Slot]>,
+    /// Counted, so a call takes them out of the borrow of the export it
+    /// was found by without copying them: this runs for every call into
+    /// the module.
+    results: Rc<[Slot]>,
 }
 
 impl Wasmtime {
@@ -960,7 +963,7 @@ impl Wasmtime {
             let export = Export {
                 func,
                 params: kinds(&mut ty.params())?,
-                results: kinds(&mut ty.results())?,
+                results: kinds(&mut ty.results())?.into(),
             };
             self.funcs[unit].insert(name.to_string(), export);
         }
@@ -989,7 +992,7 @@ impl Wasm for Wasmtime {
         if !fits {
             return Err(format!("`{name}` was called with the wrong arguments"));
         }
-        let (func, kinds) = (export.func, export.results.clone());
+        let (func, kinds) = (export.func, Rc::clone(&export.results));
         self.slots.clear();
         self.slots.extend(args.iter().map(|r| val_raw(*r)));
         self.slots.resize(args.len().max(results), ValRaw::i32(0));

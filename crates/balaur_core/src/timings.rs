@@ -43,6 +43,8 @@ const NODES: &str = "nodes";
 /// A run's slowest: a column of the report and a point of its spread.
 const WORST: &str = "worst";
 const MEMORY: &str = "memory";
+/// A stage's cost no span inside it accounts for, as a spike's cause says it.
+const OUTSIDE_SPANS: &str = ", outside a span";
 
 thread_local! {
     /// What the run spent before its first frame, summed by name in the order
@@ -503,6 +505,17 @@ struct GaugeRun {
     rise: (f64, u64),
 }
 
+/// A frame that stood out of a run's spread: its number, how long it took,
+/// the CPU the process spent in it (a frame it mostly waited through was the
+/// machine's, not the game's), and what cost it the most.
+struct Spike {
+    frame: usize,
+    period: Duration,
+    cpu: Duration,
+    cause: String,
+    cost: Duration,
+}
+
 /// One frame as the spike report reads it: how long it took, how much CPU
 /// it kept busy, and what in it cost the most.
 struct Mark {
@@ -754,8 +767,9 @@ impl TimingLog {
             "boot": boot,
             "frame": { "mean": ms(self.frame_total / frames), "worst": ms(self.frame_worst) },
             "spread": spread.iter().map(|(k, d)| ((*k).to_string(), json!(ms(*d)))).collect::<Map<String, Value>>(),
-            "spikes": spikes.iter().map(|(frame, period, cause, cost)| json!({
-                "frame": frame, "ms": ms(*period), "cause": cause, "cause_ms": ms(*cost),
+            "spikes": spikes.iter().map(|spike| json!({
+                "frame": spike.frame, "ms": ms(spike.period), "cpu_ms": ms(spike.cpu),
+                "cause": spike.cause, "cause_ms": ms(spike.cost),
             })).collect::<Vec<Value>>(),
             "cpu": self.cores().map_or(Value::Null, |(average, busiest)| json!({ "average": average, "busiest": busiest })),
             "stages": stages,
@@ -778,12 +792,21 @@ impl TimingLog {
             millis(spread[3].1),
         );
         let _ = writeln!(out, "spikes  {} over twice the median", spikes.len());
-        for (frame, period, name, cost) in spikes.iter().take(8) {
+        for spike in spikes.iter().take(8) {
+            // A frame the process sat out most of was the machine's, not the
+            // game's: its CPU says how much of it was work.
+            let waited = if !spike.cpu.is_zero() && spike.cpu * 2 < spike.period {
+                format!(", {} of it on the CPU", millis(spike.cpu))
+            } else {
+                String::new()
+            };
             let _ = writeln!(
                 out,
-                "  frame {frame}: {}, most in {name} ({})",
-                millis(*period),
-                millis(*cost),
+                "  frame {}: {}{waited}, most in {} ({})",
+                spike.frame,
+                millis(spike.period),
+                spike.cause,
+                millis(spike.cost),
             );
         }
         if let Some((average, busiest)) = self.cores() {
@@ -808,16 +831,7 @@ impl TimingLog {
     /// The frame times at p50, p95, p99 and worst, and every frame over twice
     /// the median, slowest first: its number, its period, and what cost it
     /// the most with that cost.
-    #[allow(
-        clippy::type_complexity,
-        reason = "a spike's four fields, read once by the report and once by the json"
-    )]
-    fn spread(
-        &self,
-    ) -> (
-        [(&'static str, Duration); 4],
-        Vec<(usize, Duration, String, Duration)>,
-    ) {
+    fn spread(&self) -> ([(&'static str, Duration); 4], Vec<Spike>) {
         let mut periods: Vec<Duration> = self.marks.iter().map(|m| m.period).collect();
         periods.sort_unstable();
         let at = |share: f64| {
@@ -854,9 +868,17 @@ impl TimingLog {
                     .iter()
                     .take(3)
                     .map(|m| &m.costliest)
+                    // No more than the frame cost: a slow neighbour's is not its.
+                    .filter(|(_, cost)| *cost <= mark.period)
                     .max_by_key(|(_, cost)| *cost)
                     .unwrap_or(&mark.costliest);
-                (frame, mark.period, name.to_string(), *cost)
+                Spike {
+                    frame,
+                    period: mark.period,
+                    cpu: mark.cpu,
+                    cause: name.to_string(),
+                    cost: *cost,
+                }
             })
             .collect();
         (spread, spikes)
@@ -897,7 +919,9 @@ impl TimingLog {
 }
 
 /// What in a frame cost the most: its costliest span, which names the work,
-/// or its costliest stage where no span was filed.
+/// where it is most of the costliest stage; else that stage, said to have
+/// spent it outside any span, so a report never names a span for a cost it
+/// holds a sliver of.
 fn costliest(timings: &Timings) -> (SmolStr, Duration) {
     let span = timings.spans.iter().max_by_key(|(_, d)| *d).cloned();
     let stage = STAGE_NAMES
@@ -906,6 +930,9 @@ fn costliest(timings: &Timings) -> (SmolStr, Duration) {
         .max_by_key(|(_, d)| *d)
         .map(|(n, d)| (SmolStr::new(n), d));
     match (span, stage) {
+        (Some(span), Some(stage)) if span.1 * 2 < stage.1 => {
+            (SmolStr::new(format!("{}{OUTSIDE_SPANS}", stage.0)), stage.1)
+        }
         (Some(span), _) => span,
         (None, Some(stage)) => stage,
         (None, None) => (SmolStr::default(), Duration::ZERO),

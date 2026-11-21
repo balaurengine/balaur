@@ -60,7 +60,10 @@ pub(crate) fn bind(
     let (eng, ret) = (eng.clone(), ret.clone());
     let structs = registry.structs();
     let answer = move |v: anyhow::Result<Value>, ret: &Ty| match v {
-        Ok(v) => Ok(scalar(&v, ret).unwrap_or_else(|| convert::from_neutral(&v, ret, &*structs))),
+        Ok(v) => Ok(match scalar(&v, ret) {
+            Some(answer) => answer,
+            None => convert::from_neutral_owned(v, ret, &*structs),
+        }),
         Err(e) => Err(format!("{e:#}")),
     };
     if waits::is_wait(key) {

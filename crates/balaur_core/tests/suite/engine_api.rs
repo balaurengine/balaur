@@ -237,6 +237,50 @@ fn json_round_trips_through_neutral_values() {
     assert_eq!(parsed, again, "a round trip changed the document");
 }
 
+// Read straight into values, a document comes out as it did through a
+// `serde_json::Value`: an object's keys sorted, the last of a repeated key.
+#[test]
+fn json_reads_an_objects_keys_sorted_and_the_last_of_a_repeated_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let parsed = call(
+        &app.engine,
+        "json",
+        "parse",
+        &[Value::Str(
+            "{\"b\": [{\"z\": 1, \"a\": null}], \"a\": \"first\", \"a\": \"last\"}".into(),
+        )],
+    )
+    .unwrap();
+    assert_eq!(
+        parsed,
+        Value::Map(vec![
+            ("a".into(), Value::Str("last".into())),
+            (
+                "b".into(),
+                Value::List(vec![Value::Map(vec![
+                    ("a".into(), Value::Nil),
+                    ("z".into(), Value::Int(1)),
+                ])]),
+            ),
+        ])
+    );
+}
+
+#[test]
+fn json_reads_a_whole_number_past_an_int_as_a_float_and_a_bad_document_as_nil() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let parse =
+        |text: &str| call(&app.engine, "json", "parse", &[Value::Str(text.into())]).unwrap();
+    assert_eq!(
+        parse("18446744073709551615"),
+        Value::Num(18_446_744_073_709_551_615.0)
+    );
+    assert_eq!(parse("-3"), Value::Int(-3));
+    assert_eq!(parse("{\"open\": "), Value::Nil);
+}
+
 #[test]
 fn json_keeps_integers_and_floats_apart() {
     let dir = tempfile::tempdir().unwrap();

@@ -4,9 +4,10 @@
 use super::args::{CallArgs, Params, Slots, vector_width};
 use super::debugger::{self, Debugger};
 use super::engine::{ImportCtx, Raw, Raws, Shared};
-use super::values::{Reader, Value, encode_plain, width};
+use super::values::{Part, Reader, Value, encode_plain, width};
 use crate::vocabulary::words as vocab;
 use crate::{Meta, Ty, words};
+use smol_str::SmolStr;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -375,11 +376,7 @@ pub(crate) fn encode_owned(
             } else {
                 ""
             };
-            let p = ctx.alloc(8 + s.len())?;
-            ctx.write(p, &1i32.to_le_bytes());
-            ctx.write(p + 4, &(s.len() as u32).to_le_bytes());
-            ctx.write(p + 8, s.as_bytes());
-            smallvec::smallvec![Raw::I32(p as i32)]
+            smallvec::smallvec![Raw::I32(str_owned(ctx, s)? as i32)]
         }
         (Ty::Array(et), Value::Array(_) | Value::Void) => {
             let items: &[Value] = if let Value::Array(items) = v {
@@ -387,30 +384,19 @@ pub(crate) fn encode_owned(
             } else {
                 &[]
             };
-            let esz = 8 * width(meta, et);
-            let data = if items.is_empty() {
-                0
-            } else {
-                ctx.alloc(items.len() * esz)?
-            };
-            for (i, it) in items.iter().enumerate() {
-                let b: Vec<u8> = encode_owned(ctx, meta, et, it)?
-                    .into_iter()
-                    .flat_map(Raw::bytes)
-                    .collect();
-                ctx.write(data + i * esz, &b);
-            }
-            let h = ctx.alloc(16)?;
-            let mut b = 1i32.to_le_bytes().to_vec();
-            for x in [items.len(), items.len(), data] {
-                b.extend((x as u32).to_le_bytes());
-            }
-            ctx.write(h, &b);
-            smallvec::smallvec![Raw::I32(h as i32)]
+            smallvec::smallvec![Raw::I32(array_owned(ctx, meta, et, items.iter())? as i32)]
         }
         (Ty::Any, v) => {
-            let cell = super::values::any_cell(v, |t, v| {
-                Ok::<u32, String>(encode_owned(ctx, meta, t, v)?[0].i32() as u32)
+            let cell = super::values::any_cell(v, |part| {
+                let p = match part {
+                    Part::Str(s) => str_owned(ctx, s)?,
+                    Part::List(items) => array_owned(ctx, meta, &Ty::Any, items.iter())?,
+                    Part::Keys(entries) => strs_owned(ctx, entries)?,
+                    Part::Values(entries) => {
+                        array_owned(ctx, meta, &Ty::Any, entries.iter().map(|(_, v)| v))?
+                    }
+                };
+                Ok::<u32, String>(p as u32)
             })?;
             let Some((tag, payload)) = cell else {
                 return Ok(smallvec::smallvec![Raw::I32(0)]);
@@ -451,6 +437,58 @@ pub(crate) fn encode_owned(
         }
         _ => Raws::from_vec(encode_plain(meta, ty, v)?),
     })
+}
+
+/// A string the script owns, written in one go.
+fn str_owned(ctx: &mut dyn ImportCtx, s: &str) -> Result<usize, String> {
+    let p = ctx.alloc(8 + s.len())?;
+    ctx.write(p, &super::values::str_bytes(s));
+    Ok(p)
+}
+
+/// An array of `et` the script owns, its items encoded into one buffer and
+/// written once, not a write a slot.
+fn array_owned<'a>(
+    ctx: &mut dyn ImportCtx,
+    meta: &Meta,
+    et: &Ty,
+    items: impl ExactSizeIterator<Item = &'a Value>,
+) -> Result<usize, String> {
+    let len = items.len();
+    let esz = 8 * width(meta, et);
+    let data = if len == 0 { 0 } else { ctx.alloc(len * esz)? };
+    let mut bytes = Vec::with_capacity(len * esz);
+    for (i, it) in items.enumerate() {
+        for raw in encode_owned(ctx, meta, et, it)? {
+            bytes.extend(raw.bytes());
+        }
+        bytes.resize((i + 1) * esz, 0);
+    }
+    if data != 0 {
+        ctx.write(data, &bytes);
+    }
+    let h = ctx.alloc(16)?;
+    ctx.write(h, &super::values::array_header(len, data as u32));
+    Ok(h)
+}
+
+/// A map's keys as a `[str]` the script owns.
+fn strs_owned(ctx: &mut dyn ImportCtx, entries: &[(SmolStr, Value)]) -> Result<usize, String> {
+    let data = if entries.is_empty() {
+        0
+    } else {
+        ctx.alloc(entries.len() * 8)?
+    };
+    let mut bytes = Vec::with_capacity(entries.len() * 8);
+    for (key, _) in entries {
+        bytes.extend(Raw::I32(str_owned(ctx, key)? as i32).bytes());
+    }
+    if data != 0 {
+        ctx.write(data, &bytes);
+    }
+    let h = ctx.alloc(16)?;
+    ctx.write(h, &super::values::array_header(entries.len(), data as u32));
+    Ok(h)
 }
 
 /// What nearly every call answers, a number, a flag, a node or nothing, as its
@@ -577,7 +615,12 @@ pub(crate) fn dispatch(
         Kind::AwaitHeap => {
             let handle = i64_at(0);
             let meta = h.types(unit);
-            let v = resolved(&h);
+            // Taken, not copied: this await is its one reader, and it can be
+            // a whole document. The key stays: it says the wait is over.
+            let v = h
+                .resolved
+                .get_mut(&handle)
+                .map_or(Value::Void, |kept| std::mem::replace(kept, Value::Void));
             let ty = h.heap_awaits.remove(&handle).unwrap_or(Ty::Void);
             drop(h);
             encode_owned(ctx, &meta, &ty, &v)

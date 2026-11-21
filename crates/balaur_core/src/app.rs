@@ -476,7 +476,9 @@ impl App {
         });
         // Before the script tick, so an event emitted last frame reaches its
         // handler at a point where nothing is mid-iteration.
-        app.add_system(Stage::Update, crate::events::pump_system);
+        app.add_system(Stage::Update, |eng, dt| {
+            crate::timings::measure(eng, "events/pump", || crate::events::pump_system(eng, dt));
+        });
         app.add_system(Stage::Update, |eng, dt| {
             if let Some(host) = eng.script_host() {
                 crate::timings::measure(eng, "scripts/update", || host.update(dt));
@@ -519,8 +521,10 @@ impl App {
                 );
             }
             if !freed.is_empty() {
-                scene::announce_leaving(eng, &freed);
-                scene::free_nodes(eng, &freed);
+                crate::timings::measure(eng, "scene/free", || {
+                    scene::announce_leaving(eng, &freed);
+                    scene::free_nodes(eng, &freed);
+                });
             }
         });
         app.add_system(Stage::Last, crate::preload::warm_system);

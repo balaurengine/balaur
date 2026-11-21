@@ -948,9 +948,14 @@ impl Runtime {
     }
 
     fn alloc(&mut self, n: u32) -> Result<u32, RunError> {
-        let p = self.invoke(words::ALLOC, &[Raw::I32(n as i32)], 1)?[0].i32() as u32;
+        let p = self.alloc_unzeroed(n)?;
         self.wasm.write(p as usize, &vec![0; n as usize]);
         Ok(p)
+    }
+
+    // A block the caller writes whole at once, so not zeroed first.
+    fn alloc_unzeroed(&mut self, n: u32) -> Result<u32, RunError> {
+        Ok(self.invoke(words::ALLOC, &[Raw::I32(n as i32)], 1)?[0].i32() as u32)
     }
 
     // A call while another is parked runs above its frames on the shadow stack,

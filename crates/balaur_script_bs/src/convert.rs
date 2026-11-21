@@ -192,6 +192,43 @@ pub(crate) fn dynamic(v: &N) -> L {
     }
 }
 
+/// [`dynamic`] for a value its holder is done with: its strings and lists
+/// are moved into what the `any` holds, where `dynamic` would copy each one
+/// out of a tree dropped the line after. A parsed document is megabytes of
+/// them.
+pub(crate) fn dynamic_owned(v: N) -> L {
+    match v {
+        N::Str(s) => L::Str(s),
+        N::List(items) | N::Many(items) => L::Array(items.into_iter().map(dynamic_owned).collect()),
+        N::Map(entries) => L::Map(
+            entries
+                .into_iter()
+                .map(|(k, v)| (SmolStr::from(k), dynamic_owned(v)))
+                .collect(),
+        ),
+        other => dynamic(&other),
+    }
+}
+
+/// [`from_neutral`] for a value its holder is done with, as an engine
+/// call's answer is: what `ty` takes as it comes (a string, a list, an
+/// `any`) is moved, not copied; anything else is read as `from_neutral`
+/// reads it.
+pub(crate) fn from_neutral_owned<R: Records>(v: N, ty: &Ty, records: &R) -> L {
+    match (ty, v) {
+        (Ty::Any, v) => dynamic_owned(v),
+        (Ty::Str, N::Str(s)) => L::Str(s),
+        (Ty::Optional(t), v) if !matches!(v, N::Nil) => from_neutral_owned(v, t, records),
+        (Ty::Array(et), N::List(items) | N::Many(items)) => L::Array(
+            items
+                .into_iter()
+                .map(|i| from_neutral_owned(i, et, records))
+                .collect(),
+        ),
+        (ty, v) => from_neutral(&v, ty, records),
+    }
+}
+
 /// `v` as a value of `ty`; a field it does not carry stays at its default.
 pub(crate) fn from_neutral<R: Records>(v: &N, ty: &Ty, records: &R) -> L {
     match (ty, v) {

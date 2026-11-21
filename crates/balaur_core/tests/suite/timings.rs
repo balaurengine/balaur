@@ -223,6 +223,80 @@ fn a_spike_is_named_after_what_the_loop_filed_after_it() {
     );
 }
 
+// A span is named for a cost it holds most of; a stage that spent its time
+// where no span is says so, which is the ask for a span there.
+#[test]
+fn a_spike_a_stage_spent_outside_its_spans_names_the_stage() {
+    let mut log = TimingLog::default();
+    let table = |frame_ms, update_ms, span_ms| {
+        let mut timings = Timings::default();
+        timings.frame = Duration::from_millis(frame_ms);
+        timings.stages[Stage::Update as usize] = Duration::from_millis(update_ms);
+        timings.spans = vec![("scripts/update".into(), Duration::from_millis(span_ms))];
+        timings
+    };
+    for _ in 0..10 {
+        log.observe(&table(2, 2, 1));
+    }
+    log.observe(&table(700, 690, 12));
+    let report = log.report();
+    assert!(
+        report.contains("frame 10: 700.000 ms, most in update, outside a span (690.000 ms)"),
+        "{report}"
+    );
+    assert_eq!(
+        log.json()["spikes"][0]["cause"],
+        "update, outside a span",
+        "{report}"
+    );
+}
+
+// What the loop files a frame or two late can name a slow frame, never a
+// quick one beside it: a cause costs no more than its frame.
+#[test]
+fn a_quick_frame_is_not_named_after_a_slow_neighbours_cost() {
+    let mut log = TimingLog::default();
+    let table = |frame_ms, spans: &[(&str, u64)]| {
+        let mut timings = Timings::default();
+        timings.frame = Duration::from_millis(frame_ms);
+        timings.spans = spans
+            .iter()
+            .map(|(name, ms)| ((*name).into(), Duration::from_millis(*ms)))
+            .collect();
+        timings
+    };
+    for _ in 0..10 {
+        log.observe(&table(2, &[("ui", 1)]));
+    }
+    log.observe(&table(8, &[("ui", 6)]));
+    log.observe(&table(600, &[("scene/switch", 590)]));
+    let report = log.report();
+    assert!(
+        report.contains("frame 10: 8.000 ms, most in ui (6.000 ms)"),
+        "{report}"
+    );
+}
+
+// A frame the process waited through was the machine's: its CPU says how
+// much of it was work, in the report and in the JSON.
+#[test]
+fn a_spike_says_the_cpu_it_spent_where_that_is_under_half_of_it() {
+    let mut log = TimingLog::default();
+    for (frame_ms, cpu_ms) in [(2, 2), (2, 2), (2, 2), (2, 2), (900, 100)] {
+        let mut timings = Timings::default();
+        timings.frame = Duration::from_millis(frame_ms);
+        timings.cpu = Duration::from_millis(cpu_ms);
+        timings.spans = vec![("scene/switch".into(), Duration::from_millis(frame_ms - 1))];
+        log.observe(&timings);
+    }
+    let report = log.report();
+    assert!(
+        report.contains("frame 4: 900.000 ms, 100.000 ms of it on the CPU, most in scene/switch"),
+        "{report}"
+    );
+    assert_eq!(log.json()["spikes"][0]["cpu_ms"], 100.0, "{report}");
+}
+
 // The loop notes the period before the next tick, so the table carrying a
 // frame's stages carries the period they ran in.
 #[test]
