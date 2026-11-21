@@ -492,6 +492,15 @@ const CPU_X86_64: u32 = 0x0100_0007;
 const LC_BUILD_VERSION: u32 = 0x32;
 const PLATFORM_IOS_SIMULATOR: u32 = 7;
 
+/// Whether the iOS executable at `path` is the simulator's, which the
+/// bundle around it has to be built for too.
+pub(crate) fn built_for_simulator(path: &Path) -> bool {
+    std::fs::read(path)
+        .ok()
+        .and_then(|bin| slice_of(&bin))
+        .is_some_and(|slice| slice.simulator)
+}
+
 fn slice_of(bin: &[u8]) -> Option<Slice> {
     let word = |at: usize| Some(u32::from_le_bytes(bin.get(at..at + 4)?.try_into().ok()?));
     if word(0)? != MH_MAGIC_64 {

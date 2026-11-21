@@ -119,6 +119,10 @@ jobs:
           # that belongs to whoever ships the game, never to this repo.
           - platform: ios
             host: macos-latest
+          # The same .app for the simulator, the host's arm64 rather than the
+          # phone's: an export anyone can try with no device and no signing.
+          - platform: ios-sim
+            host: macos-latest
           - platform: android
             host: ubuntu-latest
           # Each with one physics world, then with neither, as a game template
@@ -126,6 +130,9 @@ jobs:
           - { platform: ios, host: macos-latest, variant: 2d, label: 2d }
           - { platform: ios, host: macos-latest, variant: 3d, label: 3d }
           - { platform: ios, host: macos-latest, variant: bare, label: bare }
+          - { platform: ios-sim, host: macos-latest, variant: 2d, label: 2d }
+          - { platform: ios-sim, host: macos-latest, variant: 3d, label: 3d }
+          - { platform: ios-sim, host: macos-latest, variant: bare, label: bare }
           - { platform: android, host: ubuntu-latest, variant: 2d, label: 2d }
           - { platform: android, host: ubuntu-latest, variant: 3d, label: 3d }
           - { platform: android, host: ubuntu-latest, variant: bare, label: bare }
@@ -253,6 +260,10 @@ jobs:
           - { platform: ios-2d, host: macos-latest, editor: macos-universal }
           - { platform: ios-3d, host: macos-latest, editor: macos-universal }
           - { platform: ios-bare, host: macos-latest, editor: macos-universal }
+          - { platform: ios-sim, host: macos-latest, editor: macos-universal }
+          - { platform: ios-sim-2d, host: macos-latest, editor: macos-universal }
+          - { platform: ios-sim-3d, host: macos-latest, editor: macos-universal }
+          - { platform: ios-sim-bare, host: macos-latest, editor: macos-universal }
           - { platform: android-2d, host: ubuntu-latest, editor: linux-x64 }
           - { platform: android-3d, host: ubuntu-latest, editor: linux-x64 }
           - { platform: android-bare, host: ubuntu-latest, editor: linux-x64 }
