@@ -1,5 +1,5 @@
 use super::{call, run};
-use balaur_bs::runtime::{HostFns, Limits, Runtime, Value};
+use balaur_bs::runtime::{EngineKind, HostFns, Limits, Runtime, Value};
 use balaur_bs::{HostApi, HostSignature, Options, Ty, compile};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -179,4 +179,88 @@ fn a_value_handed_to_the_engine_every_frame_is_freed_every_frame() {
     assert!(last("draw::caption").contains(&format!("caption {FRAMES}")));
     rt.drop_object(screen);
     assert_eq!(rt.live(), 0);
+}
+
+const DOCS: &str = r#"
+    extern fn doc(rows: int) -> any;
+
+    pub fn read(times: int, rows: int) -> int {
+        let seen = 0;
+        for t in 0..times {
+            let d = doc(rows);
+            for row in d["rows"] {
+                seen += row["tags"].len() + row["name"].as_str().len();
+            }
+        }
+        seen
+    }
+
+    pub fn own(n: int) -> int {
+        let mine: [str] = [];
+        for i in 0..n { mine.push("mine {i}"); }
+        mine.len()
+    }
+"#;
+
+// A document of `rows` rows, each a name and a list of tags, as a parsed
+// file hands a script one: a block a value.
+fn doc(rows: i64) -> Value {
+    let row = |i: i64| {
+        Value::Map(vec![
+            ("name".into(), Value::Str(format!("row {i}"))),
+            (
+                "tags".into(),
+                Value::Array(vec![Value::Str("a".into()), Value::Str(format!("tag {i}"))]),
+            ),
+        ])
+    };
+    Value::Map(vec![(
+        "rows".into(),
+        Value::Array((0..rows).map(row).collect()),
+    )])
+}
+
+// Blocks the engine takes as `__alloc` would (`runtime::heap`) are freed,
+// reused and laid out as the script's own, on every engine.
+#[test]
+fn what_the_engine_hands_a_script_is_freed_and_reused_alike_on_every_engine() {
+    let run_on = |engine| {
+        let compiled = compile(DOCS, &Options::default()).unwrap_or_else(|e| panic!("{e}"));
+        let host = HostFns::default().on("doc", |args| match args.first() {
+            Some(Value::Int(rows)) => doc(*rows),
+            _ => Value::Void,
+        });
+        let limits = Limits {
+            engine,
+            ..Limits::default()
+        };
+        let mut rt = Runtime::new(&compiled, host, limits).unwrap_or_else(|e| panic!("{e}"));
+        let once = call(&mut rt, "read", &[Value::Int(1), Value::Int(400)]);
+        assert_eq!(rt.live(), 0, "a document outlived the call that read it");
+        // A loop holds its last document while the next one comes, so two
+        // stand at once from the second turn on: the heap is that big after.
+        call(&mut rt, "read", &[Value::Int(3), Value::Int(400)]);
+        let bytes = rt.memory_bytes();
+        let many = call(&mut rt, "read", &[Value::Int(30), Value::Int(400)]);
+        assert_eq!(
+            rt.memory_bytes(),
+            bytes,
+            "a later document did not reuse the first's blocks"
+        );
+        let own = call(&mut rt, "own", &[Value::Int(400)]);
+        assert_eq!(
+            rt.memory_bytes(),
+            bytes,
+            "the script's own lists did not reuse them"
+        );
+        assert_eq!(rt.live(), 0);
+        (once, many, own, bytes)
+    };
+    let wasmi = run_on(EngineKind::Wasmi);
+    // Two tags a row, and each name's letters: "row " and its number.
+    let names: usize = (0..400).map(|i: usize| i.to_string().len() + 4).sum();
+    assert_eq!(wasmi.0, Value::Int(i64::try_from(400 * 2 + names).unwrap()));
+    // `jit`, not the feature: the feature asks, and iOS refuses a JIT.
+    #[cfg(jit)]
+    assert_eq!(run_on(EngineKind::Wasmtime), wasmi);
 }

@@ -12,7 +12,7 @@ mod lend;
 mod lower;
 mod optional;
 mod releases;
-mod rt;
+pub(crate) mod rt;
 mod sections;
 mod stmt;
 mod units;

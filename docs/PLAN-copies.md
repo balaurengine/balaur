@@ -74,10 +74,21 @@ Cheap handles are not copies in this sense: `Rc`, `Arc`, `SmolStr`,
   (`from_neutral_owned`, `dynamic_owned`).
 - An awaited value is taken by the await that reads it, not cloned.
 - A call into a module no longer copies its result kinds (`Rc<[Slot]>`).
+- A block for what the engine hands a script is taken by the engine as
+  the module's `__alloc` would take it, on the module's memory and its
+  allocator's globals, with no call into the module (`runtime::heap`, on
+  wasmtime and wasmi; the module still grows its memory). Same size class,
+  same free list or bump, so the heap ends block for block as the module's
+  own calls would leave it: `heap`'s tests hold the two to one sequence,
+  and `memory`'s that what the engine hands over is freed, reused and the
+  same on both engines. Modules now export `__bump` beside `__live`.
 
-Measured on the 1.6 MB pack, debug engine: 1,932 ms to about 700 ms. What
-is left is the walk itself: one allocation in the module for each value
-(§ Script boundary, 4 and the note under it).
+Measured on a quiet machine, debug engine, the 1.6 MB pack parsed for a
+script: 60 ms before the host-side allocator, 29 ms after (200,000 ints in
+a list: 68 ms to 37 ms). An earlier figure of 1,932 ms then 700 ms was
+taken while the machine ran other builds at a load of about 300, which
+inflated it tenfold: a time is taken on a quiet machine, or by the CPU
+the process spent.
 
 ## The review
 
@@ -175,16 +186,15 @@ argument and a call (`marshal.rs:14`, `engine.rs:40`); one call into the
 module to count down each lent object (`mod.rs:495-510`); `Meta::fields`
 and `is_class` linear over every struct (`lib.rs:425-433`), run a value.
 
-**Measured, 2026-11-21, debug engine, wasmtime:** an engine call that
-answers a bool costs 1.4 µs; one that answers a string 4.2 µs; a value
-written into a module 2.5 µs (200,000 ints in a list: 0.5 s), where the
-module makes 400,000 allocations of its own in 14 ms. So the call into the
-module's `__alloc` for each value is what a large answer pays. The module's
-allocator is a bump pointer and a free list a size class
-(`codegen/rt.rs:135`), its globals exported (`__bump`, `__live`): the host
-can run the same steps on the module's memory itself and call in only to
-grow it. Not done: it wants a release engine's numbers first, and a test
-that a block the host made is one the module frees.
+**Measured, 2026-11-21, debug engine, wasmtime**, on a busy machine: an
+engine call that answers a bool cost 1.4 µs, a value written into a
+module 2.5 µs, where the module made 400,000 allocations of its own in
+14 ms: the call into the module's `__alloc` for each value was what a
+large answer paid. **Done**: `runtime::heap` takes the block from the
+engine's side (see Done). Left on this path: the browser's engine and a
+native build still call `__alloc` for each block (`web_engine.rs`,
+`native_engine.rs`), the second copies above, and a release engine's
+numbers.
 
 ### Core (`balaur_core` and the crates it carries)
 
@@ -413,8 +423,9 @@ Recomputed every frame, where it could wait for its inputs:
    (core 1, recomputed 1-6): what every list an app builds pays a row.
 5. The component write path (core 4-7, 10-12): what every node pays at
    instantiate.
-6. The script boundary's second copies (2, 3, 8, 9, 10) and the host-side
-   allocator, with a release engine's numbers.
+6. The script boundary's second copies (2, 3, 8, 9, 10), the host-side
+   allocator on the browser's engine and a native build (done on wasmtime
+   and wasmi), and a release engine's numbers.
 7. Arrivals (core 2, 3) and events (core 9, 18).
 8. The rest, a crate at a time, the baseline shrinking to nothing.
 

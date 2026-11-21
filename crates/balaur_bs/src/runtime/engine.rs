@@ -39,6 +39,12 @@ impl Raw {
 pub(crate) trait Wasm {
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String>;
     fn has_func(&mut self, name: &str) -> bool;
+    /// A block of `size` bytes taken from here as the module's `__alloc`
+    /// would take it, without a call into the module (`heap::take`); `None`
+    /// where this engine, or this request, leaves it to the module.
+    fn take(&mut self, _size: usize) -> Option<u32> {
+        None
+    }
     /// [`Wasm::call`] on unit `unit` of a script built as units, made now if
     /// this is its first call; unit 0 is the script's own.
     fn call_in(

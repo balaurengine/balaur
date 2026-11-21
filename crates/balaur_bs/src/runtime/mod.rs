@@ -8,6 +8,7 @@
 mod args;
 mod debugger;
 mod engine;
+mod heap;
 mod host;
 mod marshal;
 #[cfg(native)]
@@ -953,8 +954,12 @@ impl Runtime {
         Ok(p)
     }
 
-    // A block the caller writes whole at once, so not zeroed first.
+    // A block the caller writes whole at once, so not zeroed first: taken
+    // here as the module's allocator would, or asked of it.
     fn alloc_unzeroed(&mut self, n: u32) -> Result<u32, RunError> {
+        if let Some(at) = self.wasm.take(n as usize) {
+            return Ok(at);
+        }
         Ok(self.invoke(words::ALLOC, &[Raw::I32(n as i32)], 1)?[0].i32() as u32)
     }
 

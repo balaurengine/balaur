@@ -25,6 +25,9 @@ struct Data {
     /// The module's allocator, found once: every string or array a host
     /// function hands back is written into what it gives.
     alloc: Option<wasmtime::TypedFunc<i32, i32>>,
+    /// The allocator's bump pointer and count of live blocks, found once:
+    /// what a block taken from here instead (`heap::take`) moves.
+    heap: Option<Heap>,
     host: Shared,
     limits: Option<wasmtime::StoreLimits>,
     /// A script built as units: them all, its own first.
@@ -58,6 +61,40 @@ struct LinkUnit {
     /// once it is made: what a held `fn` is found again by.
     fns: Vec<String>,
     table: Option<u32>,
+}
+
+#[derive(Clone, Copy)]
+struct Heap {
+    bump: Global,
+    live: Global,
+}
+
+impl Heap {
+    // A script's own instance's, or the ones every unit of a linked script
+    // shares.
+    fn of(mut cx: impl AsContextMut<Data = Data>, inst: Instance) -> Option<Self> {
+        let mut find = |name: &str| shared(&cx, name).or_else(|| inst.get_global(&mut cx, name));
+        Some(Self {
+            bump: find(words::BUMP)?,
+            live: find(words::LIVE)?,
+        })
+    }
+
+    // A block of `size` bytes taken as the module's `__alloc` takes one
+    // (`heap::take`), and counted as live; `None` leaves it to the module.
+    fn take(self, mut cx: impl AsContextMut<Data = Data>, size: usize) -> Option<u32> {
+        let mem = cx.as_context().data().mem?;
+        let (Val::I32(bump), Val::I32(live)) = (self.bump.get(&mut cx), self.live.get(&mut cx))
+        else {
+            return None;
+        };
+        let (at, after) = super::heap::take(mem.data_mut(&mut cx), bump.cast_unsigned(), size)?;
+        self.bump.set(&mut cx, Val::I32(after.cast_signed())).ok()?;
+        self.live
+            .set(&mut cx, Val::I32(live.wrapping_add(1)))
+            .ok()?;
+        Some(at)
+    }
 }
 
 // One of the globals every unit of a linked script shares.
@@ -166,6 +203,11 @@ impl ImportCtx for Ctx<'_, '_> {
         unit_instance(&mut *self.0, unit).map(|_| ())
     }
     fn alloc(&mut self, size: usize) -> Result<usize, String> {
+        if let Some(heap) = self.0.data().heap
+            && let Some(at) = heap.take(&mut *self.0, size)
+        {
+            return Ok(at as usize);
+        }
         let Some(alloc) = self.0.data().alloc.clone() else {
             return Err(format!("no export `{}`", words::ALLOC));
         };
@@ -546,6 +588,7 @@ pub(crate) fn instantiate(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
         .map_err(|e| e.to_string())?;
     store.data_mut().mem = inst.get_memory(&mut store, words::MEMORY);
     store.data_mut().alloc = inst.get_typed_func(&mut store, words::ALLOC).ok();
+    store.data_mut().heap = Heap::of(&mut store, inst);
     Ok(Box::new(Wasmtime {
         store,
         inst,
@@ -563,6 +606,7 @@ fn store_for(eng: &Engine, setup: &Setup<'_>) -> Store<Data> {
         Data {
             mem: None,
             alloc: None,
+            heap: None,
             host: setup.host.clone(),
             limits,
             links: None,
@@ -639,6 +683,7 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     let unit = setup.meta.unit.as_ref().ok_or("not a unit")?;
     let inst = make_unit(&mut store, 0, setup.wasm, unit, setup.key)?;
     store.data_mut().alloc = inst.get_typed_func(&mut store, words::ALLOC).ok();
+    store.data_mut().heap = Heap::of(&mut store, inst);
     Ok(Box::new(Wasmtime {
         store,
         inst,
@@ -974,6 +1019,9 @@ impl Wasmtime {
 impl Wasm for Wasmtime {
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String> {
         self.call_in(0, name, args, results)
+    }
+    fn take(&mut self, size: usize) -> Option<u32> {
+        self.store.data().heap?.take(&mut self.store, size)
     }
     fn call_in(
         &mut self,

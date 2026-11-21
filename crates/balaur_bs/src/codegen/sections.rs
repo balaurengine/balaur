@@ -27,6 +27,9 @@ pub(super) fn export_section(
     ex.export(words::ALLOC, ExportKind::Func, g.h.alloc + shift);
     ex.export(words::FREE, ExportKind::Func, g.h.free + shift);
     ex.export(words::LIVE, ExportKind::Global, G_LIVE);
+    // With `__live`, what the host needs to take a block as `__alloc` would
+    // (`runtime::heap`) without a call into the module.
+    ex.export(words::BUMP, ExportKind::Global, G_BUMP);
     ex.export(words::DBG_RESET, ExportKind::Func, g.h.dbg_reset + shift);
     if g.meter {
         ex.export(words::FUEL, ExportKind::Global, g.fuel);

@@ -91,9 +91,23 @@ fn a_direct_module_imports_only_its_entry_points() {
         },
     )
     .unwrap();
-    let text = String::from_utf8_lossy(&c.wasm);
-    assert!(text.contains("__bs_call1") && text.contains("__bs_result"));
-    assert!(!text.contains("bump"), "an import kept its own name");
+    let mut imports = Vec::new();
+    for payload in wasmparser::Parser::new(0).parse_all(&c.wasm) {
+        if let Ok(wasmparser::Payload::ImportSection(section)) = payload {
+            for import in section.into_imports() {
+                imports.push(import.unwrap().name.to_string());
+            }
+        }
+    }
+    assert!(
+        imports.iter().any(|i| i.starts_with("__bs_call")),
+        "{imports:?}"
+    );
+    assert!(imports.iter().any(|i| i == "__bs_result"), "{imports:?}");
+    assert!(
+        !imports.iter().any(|i| i == "bump"),
+        "an import kept its own name: {imports:?}"
+    );
 }
 
 #[test]
