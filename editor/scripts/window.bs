@@ -164,9 +164,6 @@ pub fn head(title: str, actions: [ui::Control], close: ui::Control) -> [ui::Cont
 
 const CLOSE: str = "Close";
 
-fn on_close_clicked(state: &mut editor::State, data: any, _value: any) {
-    hide(state);
-}
 
 /// The hosts a screen fills: its own column down the left, and the rows
 /// beside it. Opens the sheet for `id`, with `actions`, control specs, beside
@@ -182,7 +179,8 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::
         filled.widget.width = box.width;
         filled.widget.height = box.height;
     }
-    ui::fill_strip(SHEET + "/SheetBar", head(title, actions, ui::Control { on_click: "handle", target: pool::editor(), data: { fields::FN: on_close_clicked } }));
+    scene::root().get_node(SHEET + "/SheetBar/Title").widget.text = title;
+    ui::fill_strip(SHEET + "/SheetBar/Actions", actions);
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SIDE);
@@ -225,8 +223,8 @@ pub fn picker_shut(state: &mut editor::State) {
 /// Open the picker and answer where its rows go.
 ///
 /// `options` names the glyph before the query, the `placeholder` behind it, the
-/// `query` itself and what to do with an edit (`on_change`) and an Enter
-/// (`on_submit`), and how tall its rows are; a `width` over its role's.
+/// `query` itself and how tall its rows are; a `width` over its role's. What
+/// is typed goes to `picker_typed`.
 pub fn picker(state: &mut editor::State, options: any) -> str {
     let screen = ui::window_size();
     // One width, taken from the screen: a phone is narrower than what a
@@ -239,22 +237,15 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
         filled.widget_window.open = true;
         filled.widget.width = width;
     }
-    let field: ui::Control = ui::Control {
-        kind: ui::WIDGET_TEXT_FIELD,
-        role: roles::INPUT_PICKER,
-        text: options[form_fields::QUERY].as_str(),
-        grow: 1,
-        placeholder: options[form_fields::PLACEHOLDER],
-        on_change: options[form_fields::ON_CHANGE],
-        on_submit: options[form_fields::ON_SUBMIT],
-        target: pool::editor(),
-        data: options[fields::DATA],
-    };
-    ui::fill_strip(PICKER + "/PickerHead", [
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_MARK_PICKER, text: ui::glyph(options[fields::MARK].as_str()) },
-        field,
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::CHIP_KEY, text: "esc" },
-    ]);
+    let head = scene::root().get_node(PICKER + "/PickerHead");
+    head.get_node("Mark").widget.text = ui::glyph(options[fields::MARK].as_str());
+    let query = head.get_node("Query");
+    let text = options[form_fields::QUERY].as_str();
+    // Written only when it moved: what was just typed is already there.
+    if query.widget.text != text {
+        query.widget.text = text;
+    }
+    query.widget_field.placeholder = options[form_fields::PLACEHOLDER].as_str();
     let filled = scene::root().get_node(PICKER + "/PickerScroll");
     if filled.is_valid() {
         filled.set_visible(true);
@@ -263,7 +254,7 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
     // The field takes the caret the frame the picker opens, and keeps it: a
     // search box you have to click into is one you may as well not have.
     if !state.picker_focused {
-        let node = scene::root().get_node(PICKER + "/PickerHead/C1");
+        let node = scene::root().get_node(PICKER + "/PickerHead/Query");
         if node.is_valid() {
             ui::set_focus(node);
             state.picker_focused = true;
@@ -278,6 +269,32 @@ pub fn picker_rows_height(state: editor::State, count: int) -> float {
     let row = style::role_size_in_pixels(state, roles::ITEM_PICKER, layout_fields::HEIGHT, 30.0);
     let gap = style::role_size_in_pixels(state, roles::LIST_PICKER, layout_fields::GAP, 2.0);
     (count as float) * (row + gap)
+}
+
+/// What was typed in the picker, for whichever of its screens is up.
+pub fn picker_typed(state: &mut editor::State, text: str) {
+    if state.palette {
+        palette::typed(state, text);
+    } else if state.newnode {
+        newnode::typed(state, text);
+    } else if state.renaming {
+        left::rename_typed(state, text);
+    } else if fonts::finding(state) {
+        fonts::typed(state, text);
+    }
+}
+
+/// Enter in the picker's field.
+pub fn picker_submitted(state: &mut editor::State, text: str) {
+    if state.palette {
+        palette::submitted(state, text);
+    } else if state.newnode {
+        newnode::typed(state, text);
+    } else if state.renaming {
+        left::rename_submitted(state, text);
+    } else if fonts::finding(state) {
+        fonts::typed(state, text);
+    }
 }
 
 /// What the picker shows moved: the word its script fills on.

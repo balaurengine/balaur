@@ -36,6 +36,7 @@ mod replay;
 mod rest;
 mod rotations;
 mod save_addon;
+mod scene_repeat;
 mod scene_switch;
 mod screenshot_events;
 mod script_check;

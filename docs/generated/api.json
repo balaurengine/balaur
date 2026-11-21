@@ -4539,6 +4539,10 @@
         "least": 1,
         "signature": "(str)"
       },
+      "scene::repeat": {
+        "least": 2,
+        "signature": "(Node, [scene::RepeatItem]) -> [Node]"
+      },
       "scene::root": {
         "least": 0,
         "signature": "() -> Node"
@@ -6154,6 +6158,10 @@
       "scene::InstantiateOptions": {
         "root": "str?",
         "scripts": "bool?"
+      },
+      "scene::RepeatItem": {
+        "key": "str",
+        "scene": "str"
       },
       "scene::SwitchOptions": {
         "fade": "float?",
@@ -26411,6 +26419,7 @@
         "keep_changes": "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged.",
         "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
         "preload": "Ready a scene before a switch to it: its file and every prefab under it read and parsed now, and the pictures they name decoding on a worker thread. No node is built and nothing in the world changes, so a replay that never preloaded builds the same world. An error when a file does not read or parse, said now rather than at the switch.",
+        "repeat": "One instance of each item's scene file under `host`, in the items' order after the host's other children, and the instance's root for each. An instance is kept from call to call: the same key keeps its node, a new key takes a spare of the same scene, and an instance no item asks for is hidden, not freed, so a list asked for every pass builds only when it grows. Each root is named for its item's `key`, so a binding row handing over the node says which item it is; a spare is named `spare0`, `spare1` and on. An instance's stable ids are the file's under `<host id>/<n>/`, as a prefab instance's are. A scene file with more than one root is an error, as are two items sharing a key and a key that is empty or holds a `/`.",
         "root": "The tree's root node.",
         "set_variable": "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing.",
         "switch": "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene the last switch built under `under` is freed, each of its scripts' `on_free` running, and `path` is built there new, every `init` running: a visit always starts fresh, and a switch to the file already there is a reset. `under` is the tree's root when nil, where the main scene stands; only that scene's own root goes, so a node a script made beside it under the same parent stays and keeps running. `fade` is seconds of crossover: the old scene's root fades out to the clear colour over the first half, the switch happens, and the new one fades in over the second. A scene `preload` warmed builds from its caches; one it did not is read on the frame.",
@@ -26438,6 +26447,7 @@
         "keep_changes",
         "node_by_id",
         "preload",
+        "repeat",
         "root",
         "set_variable",
         "switch",
@@ -26466,6 +26476,7 @@
         "keep_changes": "(Node?)",
         "node_by_id": "(str, Node?) -> Node",
         "preload": "(str)",
+        "repeat": "(Node, [scene::RepeatItem]) -> [Node]",
         "root": "() -> Node",
         "set_variable": "(str, any)",
         "switch": "(str, scene::SwitchOptions?)",

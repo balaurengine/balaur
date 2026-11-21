@@ -201,7 +201,7 @@ pub fn rail_metrics(state: editor::State) -> RailMetrics {
     // the same sheet, and the sheet's own air.
     RailMetrics {
         diameter: style::role_size_in_pixels(state, roles::ICON_ACTION, HEIGHT, 30.0),
-        gap: style::role_size_in_pixels(state, roles::SHEET_RAIL, layout_fields::GAP, 4.0),
+        gap: style::role_size_in_pixels(state, roles::LAYOUT_MARKS, layout_fields::GAP, 4.0),
         padding: style::role_size_in_pixels(state, roles::SHEET_RAIL, layout_fields::PADDING, 6.0),
     }
 }
@@ -236,8 +236,12 @@ pub fn rail_span(grid: RailGrid, count: float) -> float {
     2.0 * grid.padding + count * grid.diameter + (count - 1.0) * grid.gap
 }
 
-// The rail's sheet, which the pool fills with a column of marks a column.
-const RAIL: str = "Editor/Shell/Body/Centre/UpperRow/RailSlot/Rail";
+// The rail's grid, one mark a cell.
+const MARKS: str = "Editor/Shell/Body/Centre/UpperRow/RailSlot/Rail/Marks";
+
+const MARK_SCENE: str = "scenes/items/rail_mark.toml";
+
+const AUTO: str = "auto";
 
 /// What the rail is built from, which `signals::bars` compares.
 pub fn rail_key(state: editor::State) -> [any] {
@@ -245,46 +249,48 @@ pub fn rail_key(state: editor::State) -> [any] {
     [state.workspace, state.tool, state.rail_shut, state.rail_visible, state.compact, state.touchscreen, grid.rows, grid.columns, state.theme_revision]
 }
 
-/// Fill the rail: the marks in as many columns as its height leaves room
-/// for, each a node a click on which runs its tool. What its script asks for.
+/// Fill the rail: the marks in as many rows as its height leaves room for,
+/// column by column. What its script asks for.
 pub fn fill_rail(state: editor::State) {
+    let host = scene::root().get_node(MARKS);
+    if !host.is_valid() {
+        return;
+    }
     let grid = rail_grid(state, state.layout[dock_fields::RAIL_ROOM].as_float());
-    let columns: [ui::Control] = [];
-    let column: [ui::Control] = [];
-    // A column keeps the sheet's own gap, read off its role: `rail_span` counts it.
-    for mark in rail_marks(state) {
-        column.push(rail_mark(state, mark, grid.diameter));
-        if column.len() as float >= grid.rows {
-            columns.push(ui::Control { kind: ui::WIDGET_COLUMN, gap: vec2(grid.gap, grid.gap), controls: column });
-            column = [];
-        }
+    let rows = AUTO;
+    for _ in 1..(grid.rows as int) {
+        rows = rows + " " + AUTO;
     }
-    if column.len() > 0 {
-        columns.push(ui::Control { kind: ui::WIDGET_COLUMN, gap: vec2(grid.gap, grid.gap), controls: column });
+    host.widget_grid.grid_rows = rows;
+    let marks = rail_marks(state);
+    let items: [scene::RepeatItem] = [];
+    for mark in marks {
+        items.push(scene::RepeatItem { key: mark, scene: MARK_SCENE });
     }
-    // A panel stacks what it holds, so the columns go side by side in a row.
-    ui::fill_strip(RAIL, [ui::Control { kind: ui::WIDGET_ROW, gap: vec2(grid.gap, grid.gap), controls: columns }]);
+    let nodes = scene::repeat(host, items);
+    for index in 0..marks.len() {
+        rail_mark(state, nodes[index], marks[index], grid.diameter);
+    }
 }
 
-// One mark: a tool, or the one that folds the rail away or brings it back.
-fn rail_mark(state: editor::State, mark: str, side: float) -> ui::Control {
-    let round: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION, text: "", width: side };
+// One mark's face: a tool, or the one that folds the rail away or brings it back.
+fn rail_mark(state: editor::State, node: Node, mark: str, side: float) {
+    node.widget.width = side;
+    node.widget_check.checked = state.tool == mark;
     if mark == window_marks::RESTORE {
-        round.icon = icons::ui(icons::RESTORE);
-        round.tooltip = "Show the tools";
+        node.widget_button.icon = icons::ui(icons::RESTORE);
+        node.widget.tooltip = "Show the tools";
     } else if mark == window_marks::COLLAPSE {
-        round.icon = icons::ui("collapse");
-        round.tooltip = "Hide the tools";
+        node.widget_button.icon = icons::ui("collapse");
+        node.widget.tooltip = "Hide the tools";
     } else {
-        round.icon = defs::tool_icon(mark);
-        round.tooltip = defs::tool_name(mark);
-        round.checked = state.tool == mark;
+        node.widget_button.icon = defs::tool_icon(mark);
+        node.widget.tooltip = defs::tool_name(mark);
     }
-    pool::on(round, rail_marked, { fields::MARK: mark })
 }
 
-fn rail_marked(state: &mut editor::State, data: any, _value: any) {
-    let mark = data[fields::MARK].as_str();
+/// A mark pressed: its tool, or the rail folded or opened.
+pub fn rail_marked(state: &mut editor::State, mark: str) {
     if mark == window_marks::RESTORE || mark == window_marks::COLLAPSE {
         state.rail_shut = mark == window_marks::COLLAPSE;
         signals::bars(state);

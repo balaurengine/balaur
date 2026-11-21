@@ -88,6 +88,136 @@ role = "toolbar_shell"
 [nodes.widget_layout]
 align_items = "center"
 
+# Each button is named for the command it runs, which the bar's script hands
+# to the Editor; `chrome.bs` writes what each reads now.
+[[nodes]]
+id = "head_workspace_1"
+name = "workspace_1"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_workspace"
+
+[[nodes]]
+id = "head_workspace_2"
+name = "workspace_2"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_workspace"
+
+[[nodes]]
+id = "head_workspace_3"
+name = "workspace_3"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_workspace"
+
+[[nodes]]
+id = "head_workspace_4"
+name = "workspace_4"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_workspace"
+
+[[nodes]]
+id = "head_workspace_5"
+name = "workspace_5"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_workspace"
+
+# The open documents: the scene, and the script and bindings while open.
+[[nodes]]
+id = "head_docs"
+name = "Docs"
+parent = "head_strip"
+[nodes.widget]
+kind = "row"
+role = "toolbar_shell"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "head_split"
+name = "split"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_workspace"
+
+[[nodes]]
+id = "head_focus"
+name = "focus"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_workspace"
+
+# What follows sits against the bar's right edge.
+[[nodes]]
+id = "head_spring"
+name = "Spring"
+parent = "head_strip"
+[nodes.widget]
+kind = "row"
+grow = 1
+
+[[nodes]]
+id = "head_play"
+name = "play"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_primary"
+
+[[nodes]]
+id = "head_pause"
+name = "pause"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_primary"
+
+[[nodes]]
+id = "head_stop"
+name = "stop"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_primary"
+
+[[nodes]]
+id = "head_dark_chrome"
+name = "dark_chrome"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_primary"
+
+[[nodes]]
+id = "head_palette"
+name = "palette"
+parent = "head_strip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "item_bar"
+
 [[nodes]]
 id = "body"
 name = "Body"
@@ -163,6 +293,19 @@ kind = "row"
 role = "layout_dock"
 [nodes.widget_layout]
 align_items = "center"
+
+[[nodes]]
+id = "left_fold"
+name = "Fold"
+parent = "left_tail"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "fold" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_tab_caret"
+text = ""
+tooltip = "Minimize"
+[nodes.widget_button]
+icon = "caret-left"
 
 # The Scene tab, its own scene and script: see scenes/panels/scene_tree.toml.
 [[nodes]]
@@ -275,6 +418,19 @@ role = "layout_dock"
 [nodes.widget_layout]
 align_items = "center"
 
+[[nodes]]
+id = "right_fold"
+name = "Fold"
+parent = "right_tail"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "fold" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_tab_caret"
+text = ""
+tooltip = "Minimize"
+[nodes.widget_button]
+icon = "caret-right"
+
 # The Inspector, its own scene and script: see scenes/panels/inspector.toml.
 [[nodes]]
 id = "inspector"
@@ -348,6 +504,17 @@ parent = "railslot"
 [nodes.widget]
 kind = "panel"
 role = "sheet_rail"
+
+# Filled down each column first, as many rows as the rail has room for.
+[[nodes]]
+id = "rail_marks"
+name = "Marks"
+parent = "rail"
+[nodes.widget]
+kind = "grid"
+role = "layout_marks"
+[nodes.widget_grid]
+auto_flow = "column"
 
 # The scene and the dock, stacked beside the rail.
 [[nodes]]
@@ -429,6 +596,19 @@ kind = "row"
 role = "layout_dock"
 [nodes.widget_layout]
 align_items = "center"
+
+[[nodes]]
+id = "bottom_fold"
+name = "Fold"
+parent = "bottom_tail"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "fold" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_tab_caret"
+text = ""
+tooltip = "Minimize"
+[nodes.widget_button]
+icon = "caret-down"
 
 # Output, Problems and Docs, each its own scene and script: see
 # scenes/panels/output.toml, problems.toml and docs.toml.
@@ -546,13 +726,62 @@ id = "status"
 name = "Status"
 parent = "bottom"
 script = { source = "scripts/panels/status.bs" }
-# A pooled row, not a hatch: the strip is labels and a dot, so the theme can
-# dress it and the layout can keep its boxes between passes.
+# Labels and a dot, so the theme dresses them; `chrome.bs` writes what each
+# says and hides the columns a narrow strip has no room for.
 [nodes.widget]
 kind = "row"
 role = "bar_status"
 [nodes.widget_layout]
 align_items = "center"
+
+[[nodes]]
+id = "status_lamp"
+name = "Lamp"
+parent = "status"
+[nodes.widget]
+kind = "row"
+role = "mark_lamp"
+
+[[nodes]]
+id = "status_mode"
+name = "Mode"
+parent = "status"
+[nodes.widget]
+kind = "label"
+role = "text_status"
+
+[[nodes]]
+id = "status_stats"
+name = "Stats"
+parent = "status"
+[nodes.widget]
+kind = "label"
+role = "text_caption"
+
+[[nodes]]
+id = "status_backend"
+name = "Backend"
+parent = "status"
+[nodes.widget]
+kind = "label"
+role = "text_caption"
+text = "kiss3d · wgpu"
+
+[[nodes]]
+id = "status_spring"
+name = "Spring"
+parent = "status"
+[nodes.widget]
+kind = "row"
+grow = 1
+
+[[nodes]]
+id = "status_place"
+name = "Place"
+parent = "status"
+[nodes.widget]
+kind = "label"
+role = "text_caption"
 
 [[nodes]]
 id = "work"
@@ -623,6 +852,50 @@ kind = "row"
 role = "header_doc"
 [nodes.widget_layout]
 align_items = "center"
+
+[[nodes]]
+id = "doc_heading"
+name = "Heading"
+parent = "doc_head"
+[nodes.widget]
+kind = "label"
+role = "text_heading"
+text = "event bindings"
+
+# The selected node's name.
+[[nodes]]
+id = "doc_node"
+name = "Node"
+parent = "doc_head"
+[nodes.widget]
+kind = "label"
+role = "text_code_caption"
+grow = 1
+
+# Named for the commands they run.
+[[nodes]]
+id = "doc_to_script"
+name = "bindings_to_script"
+parent = "doc_head"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "Convert to script"
+[nodes.widget_button]
+icon = "file-code"
+
+[[nodes]]
+id = "doc_add_row"
+name = "add_binding"
+parent = "doc_head"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "action_form_primary"
+text = "Add row"
+[nodes.widget_button]
+icon = "plus-bold"
 
 [[nodes]]
 id = "doc_scroll"
@@ -840,6 +1113,38 @@ role = "header_picker"
 align_items = "center"
 
 [[nodes]]
+id = "picker_mark"
+name = "Mark"
+parent = "picker_head"
+[nodes.widget]
+kind = "label"
+role = "text_mark_picker"
+
+# Whichever of the palette, the node picker, rename and the fonts is up
+# hears what is typed.
+[[nodes]]
+id = "picker_query"
+name = "Query"
+parent = "picker_head"
+bindings = { rows = [
+    { event = "emitted:value_changed", action = "call", target = "../..", value = "typed" },
+    { event = "emitted:submitted", action = "call", target = "../..", value = "submitted" },
+] }
+[nodes.widget]
+kind = "text_field"
+role = "input_picker"
+grow = 1
+
+[[nodes]]
+id = "picker_esc"
+name = "Esc"
+parent = "picker_head"
+[nodes.widget]
+kind = "label"
+role = "chip_key"
+text = "esc"
+
+[[nodes]]
 id = "picker_scroll"
 name = "PickerScroll"
 parent = "picker"
@@ -880,6 +1185,46 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 role = "header_dialog"
+
+[[nodes]]
+id = "sheet_title"
+name = "Title"
+parent = "sheet_bar"
+[nodes.widget]
+kind = "label"
+role = "text_title_dialog"
+
+[[nodes]]
+id = "sheet_spring"
+name = "Spring"
+parent = "sheet_bar"
+[nodes.widget]
+kind = "row"
+grow = 1
+
+# The commands the screen that is up carries, beside its close.
+[[nodes]]
+id = "sheet_actions"
+name = "Actions"
+parent = "sheet_bar"
+[nodes.widget]
+kind = "row"
+role = "layout_bar"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "sheet_close"
+name = "Close"
+parent = "sheet_bar"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "close_pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action"
+text = ""
+tooltip = "Close"
+[nodes.widget_button]
+icon = "x-bold"
 
 # The body a screen fills: a column of its own down the left, and the rows
 # beside it.

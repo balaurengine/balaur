@@ -24,6 +24,10 @@ impl Sheet {
         self.editor.unwrap().sheet_closed();
     }
 
+    pub fn close_pressed(_value: any, _node: Node) {
+        self.editor.unwrap().sheet_close();
+    }
+
     pub fn refill() {
         self.editor.unwrap().sheet_fill();
     }

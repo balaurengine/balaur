@@ -14,6 +14,6 @@ impl Keys {
     }
 
     pub fn on_shortcut_pressed(name: str) {
-        self.editor.unwrap().command(name);
+        self.editor.unwrap().key_pressed(name);
     }
 }

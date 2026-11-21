@@ -192,6 +192,7 @@ pub(crate) mod keys {
     pub(crate) const FIRST: &str = "first";
     pub(crate) const HOST: &str = "host";
     pub(crate) const ID: &str = "id";
+    pub(crate) const KEY: &str = "key";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const LAST: &str = "last";
     pub(crate) const NODES: &str = "nodes";
@@ -202,6 +203,7 @@ pub(crate) mod keys {
     pub(crate) const PARENT: &str = "parent";
     pub(crate) const PATH: &str = "path";
     pub(crate) const PROPS: &str = "props";
+    pub(crate) const SCENE: &str = "scene";
     pub(crate) const TICK: &str = "tick";
     pub(crate) const TIME: &str = "time";
     pub(crate) const TYPE: &str = "type";

@@ -63,6 +63,7 @@ pub mod rng;
 pub mod rollback;
 pub mod scene;
 pub mod scene_api;
+pub mod scene_repeat;
 pub mod scene_switch;
 pub mod scene_toml;
 pub mod schedule;

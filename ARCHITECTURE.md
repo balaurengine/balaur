@@ -1182,6 +1182,14 @@ write. It walks widgets in scene order and wraps.
 - `ui.fill_strip` and `ui.fill_slot` specs keep `on_click`, `on_change` and
   `on_submit`. The pool holds the names and calls each from the event its
   control announces, with the spec's `data`, the edit and the control.
+- `scene.repeat(host, items)` keeps one instance of an item scene per key
+  under a host. A key asked again keeps its node, a new key takes a hidden
+  spare of the same scene, and one no item asks for is hidden, not freed.
+  Each root is named for its key, so the item scene's `call` row hands over a
+  node whose name is its item. Its stable ids sit under `<host id>/<n>/`, as
+  a prefab instance's do: a binding row finds its node by id, so instances
+  sharing the file's ids would take each other's clicks. The tool rail is one: a `grid` of
+  `scenes/items/rail_mark.toml`.
 - The keyboard drives focus until the game shows the keys are its own: an action
   binding an arrow, Tab, Enter or Space, or a script reading one, unless it also
   declares a `ui_*` action. A pad moves focus and accepts as `ui.focus_next`, `focus_previous` and a click do, which `standard_app` maps
@@ -1695,6 +1703,9 @@ docks that fold and move, the command palette, dark and light token sets.
   and the mark menu shows five. Each row writes its key's chord through
   `ui::chord_text`, so a chord is spelled once. Two rows on one chord run
   whichever would act: F5 continues a stopped script, and plays otherwise.
+- A shell button is named for the command it runs: the bar's workspaces and
+  transport, the bindings tab's head. Its `call` row hands the panel's script
+  the button, which runs `Editor::command(name)`.
 - A game's editor plugins sit in its `editor/` folder and in each addon's.
   Only those files and the editor's own may call the editor's modules, so a
   game script that calls one fails in Play as it would in an export.

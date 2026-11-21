@@ -24,6 +24,16 @@ impl Picker {
         self.editor.unwrap().picker_closed();
     }
 
+    pub fn typed(value: any) {
+        self.editor.unwrap().picker_typed(value.as_str());
+        self.refill();
+    }
+
+    pub fn submitted(value: any) {
+        self.editor.unwrap().picker_submitted(value.as_str());
+        self.refill();
+    }
+
     pub fn refill() {
         self.editor.unwrap().picker_fill();
     }

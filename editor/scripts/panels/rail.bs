@@ -31,6 +31,12 @@ impl Rail {
         self.editor.unwrap().stage_pressed(center::OPEN_LEFT);
     }
 
+    /// A mark pressed, named for the mark it stands for.
+    pub fn marked(_value: any, node: Node) {
+        self.editor.unwrap().rail_marked(node.name());
+        self.refill();
+    }
+
     pub fn refill() {
         self.editor.unwrap().rail_fill();
     }

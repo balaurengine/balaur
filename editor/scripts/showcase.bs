@@ -978,8 +978,8 @@ fn theme_editor(state: &mut editor::State, sequence: Sequence) {
     over(sequence, 705, 785, follow, following(padding, 40.0));
     at(sequence, 790, release);
     // The bar reads title, spring, Save, close: Save is its third node.
-    click(sequence, 870, at_place("centre", "Editor/Sheet/SheetBar/C2"), "theme_save", {});
-    click(sequence, 950, at_place("centre", "Editor/Sheet/SheetBar/C3"), "window_hide", {});
+    click(sequence, 870, at_place("centre", "Editor/Sheet/SheetBar/Actions/C0"), "theme_save", {});
+    click(sequence, 950, at_place("centre", "Editor/Sheet/SheetBar/Close"), "window_hide", {});
     let put_back: any = { STEP: "theme_put_back", "prefs": preferences };
     if was != nil {
         put_back["kept"] = was.unwrap();

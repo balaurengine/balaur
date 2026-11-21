@@ -223,20 +223,19 @@ pub fn fill(state: &mut editor::State) {
         form_fields::PLACEHOLDER: "Nodes, commands, workspaces…",
         form_fields::QUERY: state.palette_query,
         form_fields::ROWS_H: window::picker_rows_height(state, matched.len()),
-        form_fields::ON_CHANGE: hooks::HANDLE,
-        form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
-        fields::DATA: { fields::FN: typed, project_fields::SUBMIT: submitted },
     };
     let host = window::picker(state, field);
     form::fill(host, row_specs(state, matched));
 }
 
-fn typed(state: &mut editor::State, data: any, text: any) {
-    state.palette_query = text.as_str();
+/// What is typed in the picker while the palette is up.
+pub fn typed(state: &mut editor::State, text: str) {
+    state.palette_query = text;
 }
 
-fn submitted(state: &mut editor::State, data: any, text: any) {
-    state.palette_query = text.as_str();
+/// Enter: the first match runs.
+pub fn submitted(state: &mut editor::State, text: str) {
+    state.palette_query = text;
     state.palette_submit = true;
 }
 

@@ -1508,6 +1508,10 @@ height = "control_height_small"
 padding_x = 8
 gap = 6
 
+# The tool rail's marks, column by column.
+[roles.layout_marks]
+gap = 4
+
 [roles.layout_mark]
 width = "control_height_large"
 height = "control_height_large"

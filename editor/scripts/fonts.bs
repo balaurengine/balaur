@@ -158,16 +158,14 @@ pub fn fill(state: &mut editor::State) {
         form_fields::PLACEHOLDER: "Open fonts: a family, serif, mono…",
         form_fields::QUERY: state.font_finding.unwrap().query,
         form_fields::ROWS_H: window::picker_rows_height(state, specs.len()),
-        form_fields::ON_CHANGE: hooks::HANDLE,
-        form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
-        fields::DATA: { fields::FN: typed, project_fields::SUBMIT: typed },
     });
     form::fill(host, specs);
 }
 
-fn typed(state: &mut editor::State, _data: any, text: any) {
+/// What is typed in the picker while the fonts are being looked through.
+pub fn typed(state: &mut editor::State, text: str) {
     let finding = state.font_finding.unwrap();
-    state.font_finding = Finding { at: finding.at, query: text.as_str() };
+    state.font_finding = Finding { at: finding.at, query: text };
 }
 
 fn rows(state: &mut editor::State) -> [form::Row] {

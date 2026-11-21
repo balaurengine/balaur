@@ -1,0 +1,11 @@
+# One mark of the tool rail: a tool, or the one that folds the rail away or
+# brings it back. Its key is the mark; `center.bs` writes its face.
+
+[[nodes]]
+id = "mark"
+name = "Mark"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "marked" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action"
+text = ""

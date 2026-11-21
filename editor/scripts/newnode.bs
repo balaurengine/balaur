@@ -180,19 +180,13 @@ pub fn fill(state: &mut editor::State) {
         form_fields::PLACEHOLDER: placeholder,
         form_fields::QUERY: state.newnode_query,
         form_fields::ROWS_H: window::picker_rows_height(state, specs.len()),
-        form_fields::ON_CHANGE: hooks::HANDLE,
-        form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
-        fields::DATA: { fields::FN: on_query_typed, project_fields::SUBMIT: on_query_submitted },
     });
     form::fill(host, specs);
 }
 
-fn on_query_typed(state: &mut editor::State, data: any, text: any) {
-    state.newnode_query = text.as_str();
-}
-
-fn on_query_submitted(state: &mut editor::State, data: any, text: any) {
-    state.newnode_query = text.as_str();
+/// What is typed in the picker while the node picker is up; Enter is the same.
+pub fn typed(state: &mut editor::State, text: str) {
+    state.newnode_query = text;
 }
 
 /// Every row the picker shows: the empty node ahead of the groups, then a

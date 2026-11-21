@@ -104,6 +104,11 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
             "How `instantiate` builds: `scripts: false` names each node's script without running it, and `root` is the project the text names its files from.",
         ),
         (
+            "RepeatItem",
+            "{ key: string, scene: string }",
+            "One item `repeat` keeps a node for: the key that tells it from the others, and the scene file its node is an instance of.",
+        ),
+        (
             "ToTomlOptions",
             "{ root: string? }",
             "The project whose root `to_toml` writes every path under, as it spells it.",
@@ -126,6 +131,7 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ("tagged", &[], "(tag: string) -> [node]", "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed."),
         ("instantiate", &[], "(source: string, parent: node?, opts: InstantiateOptions?)", "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it."),
         (words::functions::TO_TOML, &[], "(root: node, opts: ToTomlOptions?) -> string", "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `root` writes every path under that project's root as it spells it."),
+        ("repeat", &[], "(host: node, items: [RepeatItem]) -> [node]", "One instance of each item's scene file under `host`, in the items' order after the host's other children, and the instance's root for each. An instance is kept from call to call: the same key keeps its node, a new key takes a spare of the same scene, and an instance no item asks for is hidden, not freed, so a list asked for every pass builds only when it grows. Each root is named for its item's `key`, so a binding row handing over the node says which item it is; a spare is named `spare0`, `spare1` and on. An instance's stable ids are the file's under `<host id>/<n>/`, as a prefab instance's are. A scene file with more than one root is an error, as are two items sharing a key and a key that is empty or holds a `/`."),
         ("attach_scripts", &[], "(root: node)", "Run every script the nodes under a node name, children first: what starts a scene built with `scripts: false`."),
         ("keep_changes", &[], "(root: node?)", "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged."),
         ("take_changes", &[], "() -> [Change]", "The changes kept since the last take, oldest first, emptying the list: `{ node, kind, id }` with `kind` one of `component` (`component`, `properties`, `was`: the table asked before), `attached`, `removed` (`was`), `added` (`parent`), `freed` (`parent`, `place`, `was`: the subtree as scene text), `renamed` (`was`), `moved` (`parent`, `was`: `{ parent, place }`), `script` (`was`: `{ source, props }`, nil for none) and `keys` (`was`: every one of the node's own keys, `visible` to `tags`). Parents are stable ids, so a change outlives the nodes it names."),

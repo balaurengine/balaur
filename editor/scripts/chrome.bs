@@ -29,8 +29,9 @@ use words::roles;
 use words::tabs;
 use words::theme_tokens;
 
+const DARK_CHROME: str = "dark_chrome";
+
 const FILE: str = "file";
-const REPLAYING: str = "replaying";
 
 /// The mark and the name at the head of the bar.
 pub struct Brand {
@@ -152,7 +153,7 @@ pub fn workspace_spot(state: editor::State, id: str) -> Spot {
             slot = index;
         }
     }
-    let found = strip_spot(state, slot);
+    let found = spot_of(STRIP_NODE + "/" + WORKSPACE + "{slot + 1}");
     if found != nil {
         let spot = found.unwrap();
         return spot;
@@ -167,20 +168,25 @@ pub fn doc_spot(state: editor::State, id: str) -> Spot {
     let per = layout::workspace_width(state);
     let first = workspaces_x(state) + (defs::workspaces().len() as float) * per + 12.0;
     let slot = if id == tabs::SCRIPT { 1.0 } else { 0.0 };
-    let found = strip_spot(state, defs::workspaces().len() + (slot as int));
-    if found != nil {
-        let spot = found.unwrap();
-        return spot;
+    let docs = scene::root().get_node(DOCS_NODE);
+    if docs.is_valid() {
+        let kids = docs.children();
+        if (slot as int) < kids.len() {
+            let found = rect_spot(kids[slot as int]);
+            if found != nil {
+                let spot = found.unwrap();
+                return spot;
+            }
+        }
     }
     return Spot { x: first + slot * (TAB_WIDTH + 4.0) + TAB_WIDTH / 2.0, y: bar["y"].as_float() + bar[layout_fields::HEIGHT].as_float() / 2.0 };
 }
 
 /// Where the Focus chip sits, so the showcase's drawn cursor lands on the
-/// control its command presses. The strip runs workspaces, documents, split,
-/// focus, the spring, then the transport, so it is two slots back.
+/// control its command presses.
 pub fn focus_spot(state: editor::State) -> Spot {
     let bar: any = state.layout[dock_fields::BAR];
-    let found = strip_spot(state, transport_slot(state) - 2);
+    let found = spot_of(STRIP_NODE + "/" + command::FOCUS);
     if found != nil {
         let spot = found.unwrap();
         return spot;
@@ -191,7 +197,8 @@ pub fn focus_spot(state: editor::State) -> Spot {
 /// Where one of the transport's three buttons sits: play, pause, stop.
 pub fn transport_spot(state: editor::State, index: int) -> Spot {
     let bar: any = state.layout[dock_fields::BAR];
-    let found = strip_spot(state, transport_slot(state) + index);
+    let names = [command::PLAY, command::PAUSE, command::STOP];
+    let found = spot_of(STRIP_NODE + "/" + names[index]);
     if found != nil {
         let spot = found.unwrap();
         return spot;
@@ -201,24 +208,17 @@ pub fn transport_spot(state: editor::State, index: int) -> Spot {
     return Spot { x: block + 14.0 + (index as float) * BUTTON_PITCH, y: bar["y"].as_float() + bar[layout_fields::HEIGHT].as_float() / 2.0 };
 }
 
-// The transport comes after the workspaces, the open documents, the split, the
-// focus and the spring that pushes the right end over.
-fn transport_slot(state: editor::State) -> int {
-    defs::workspaces().len() + doc_controls(state, state.theme).len() + 3
+/// The centre of the control at `path`, in design px, from where it drew;
+/// `None` until it has drawn, when a caller estimates instead.
+fn spot_of(path: str) -> Spot? {
+    rect_spot(scene::root().get_node(path))
 }
 
-/// The centre of the strip's `slot`-th control, in design px, from the node it
-/// was drawn on; `None` until it has drawn, when a caller estimates instead.
-fn strip_spot(state: editor::State, slot: int) -> Spot? {
-    let strip = scene::root().get_node(STRIP_NODE);
-    if !strip.is_valid() {
+fn rect_spot(node: Node) -> Spot? {
+    if !node.is_valid() {
         return nil;
     }
-    let kids = strip.children();
-    if slot < 0 || slot >= kids.len() {
-        return nil;
-    }
-    let rect = ui::widget_rect(kids[slot]);
+    let rect = ui::widget_rect(node);
     if rect == nil {
         return nil;
     }
@@ -228,6 +228,10 @@ fn strip_spot(state: editor::State, slot: int) -> Spot? {
 
 // The strip beside the brand, which every control past it lives on.
 const STRIP_NODE: str = "Editor/Shell/Head/HeadRow/HeadScroll/HeadStrip";
+
+const DOCS_NODE: str = "Editor/Shell/Head/HeadRow/HeadScroll/HeadStrip/Docs";
+
+const WORKSPACE: str = "workspace_";
 
 const BRAND_NODE: str = "Editor/Shell/Head/HeadRow/Brand";
 
@@ -251,7 +255,8 @@ pub fn fill(state: &mut editor::State) {
         node.widget_menu.showing = state.menu_open;
     }
     ui::fill_strip(BRAND_NODE, menu::rows(state));
-    ui::fill_strip(STRIP_NODE, bar_controls(state, tokens));
+    strip(state, tokens);
+    ui::fill_strip(DOCS_NODE, doc_controls(state, tokens));
 }
 
 /// What the whole bar is built from, which `signals::chrome` compares.
@@ -301,102 +306,48 @@ fn strip_key(state: editor::State, tokens: any) -> [any] {
     ]
 }
 
-// Everything on the bar past the brand, in the order it reads: the workspaces,
-// the open documents, then the split, and the right end after a spring.
-fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
-    let out: [ui::Control] = [];
-    for workspace in defs::workspaces() {
-        let id = workspace.id;
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::TAB_WORKSPACE,
-            checked: state.workspace == id,
-            text: if state.compact { "" } else { workspace.name },
-            icon: workspace.icon,
-            tooltip: workspace.name,
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_workspace_pressed, fields::ID: id },
-        });
+// What each of the bar's buttons reads now: the workspaces, the split and
+// the focus, the transport, the theme and the palette.
+fn strip(state: editor::State, tokens: any) {
+    let strip = scene::root().get_node(STRIP_NODE);
+    if !strip.is_valid() {
+        return;
     }
-    for entry in doc_controls(state, tokens) {
-        out.push(entry);
+    let named = !state.compact;
+    let spaces = defs::workspaces();
+    for index in 0..spaces.len() {
+        let workspace = spaces[index];
+        let node = strip.get_node(WORKSPACE + "{index + 1}");
+        face(node, if named { workspace.name } else { "" }, workspace.icon, workspace.name);
+        node.widget_check.checked = state.workspace == workspace.id;
     }
-    out.push(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        icon: icons::ui(icons::SPLIT),
-        role: roles::TAB_WORKSPACE,
-        checked: state.split,
-        text: if state.compact { "" } else { "Split" },
-        tooltip: "Show the code and the viewport at once (⌘\\)",
-        on_click: "handle", target: pool::editor(),
-        data: { fields::FN: on_split_pressed },
-    });
+    let split = strip.get_node(command::SPLIT);
+    face(split, if named { "Split" } else { "" }, icons::ui(icons::SPLIT), "Show the code and the viewport at once (⌘\\)");
+    split.widget_check.checked = state.split;
     // Beside the split, because the two are the same question: how much of the
     // window the code is worth.
     let can_focus = state.focus || shell::focus_target(state);
-    out.push(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        icon: icons::ui(if state.focus { "unfocus" } else { command::FOCUS }),
-        role: roles::TAB_WORKSPACE,
-        checked: state.focus,
-        text: if state.compact { "" } else { "Focus" },
-        enabled: can_focus,
-        tooltip: if state.focus {
-            "Put the docks back (⇧⌘\\)"
-        } else if can_focus {
-            "Give the code the whole window (⇧⌘\\)"
-        } else {
-            "The selection has no script to focus"
-        },
-        on_click: "handle", target: pool::editor(),
-        data: { fields::FN: on_focus_pressed },
-    });
-    // The spring: what is after it sits against the bar's right edge.
-    out.push(ui::Control { kind: ui::WIDGET_ROW, grow: 1 });
-    for entry in transport_controls(state) {
-        out.push(entry);
-    }
-    out.push(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::ICON_ACTION_PRIMARY,
-        text: "",
-        icon: if tokens[panel_keys::DARK].as_bool() { icons::ui(icons::DARK) } else { icons::ui(icons::LIGHT) },
-        tooltip: "Toggle theme",
-        on_click: "handle", target: pool::editor(),
-        data: { fields::FN: on_theme_pressed },
-    });
-    let named = !state.compact;
-    out.push(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::ITEM_BAR,
-        text: if named { "Run a command" } else { "" },
-        icon: icons::ui(icons::SEARCH),
-        tooltip: "⌘K",
-        on_click: "handle", target: pool::editor(),
-        data: { fields::FN: on_command_pressed },
-    });
-    out
+    let focus = strip.get_node(command::FOCUS);
+    let focus_tip = if state.focus {
+        "Put the docks back (⇧⌘\\)"
+    } else if can_focus {
+        "Give the code the whole window (⇧⌘\\)"
+    } else {
+        "The selection has no script to focus"
+    };
+    face(focus, if named { "Focus" } else { "" }, icons::ui(if state.focus { "unfocus" } else { command::FOCUS }), focus_tip);
+    focus.widget_check.checked = state.focus;
+    focus.widget.enabled = can_focus;
+    transport(state, strip);
+    let dark = tokens[panel_keys::DARK].as_bool();
+    face(strip.get_node(DARK_CHROME), "", icons::ui(if dark { icons::DARK } else { icons::LIGHT }), "Toggle theme");
+    face(strip.get_node(command::PALETTE), if named { "Run a command" } else { "" }, icons::ui(icons::SEARCH), "⌘K");
 }
 
-fn on_workspace_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data[fields::ID].as_str();
-    shell::set_workspace(state, id);
-}
-
-fn on_split_pressed(state: &mut editor::State, data: any, _value: any) {
-    shell::toggle_split(state);
-}
-
-fn on_focus_pressed(state: &mut editor::State, data: any, _value: any) {
-    shell::toggle_focus(state);
-}
-
-fn on_theme_pressed(state: &mut editor::State, data: any, _value: any) {
-    theme::toggle(state);
-}
-
-fn on_command_pressed(state: &mut editor::State, data: any, _value: any) {
-    shell::open_palette(state, "");
+fn face(node: Node, text: str, icon: str, tooltip: str) {
+    node.widget.text = text;
+    node.widget_button.icon = icon;
+    node.widget.tooltip = tooltip;
 }
 
 // The open documents: the scene, always; the selection's script and the event
@@ -451,7 +402,7 @@ fn on_doc_close_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 // Play, pause and stop; the last two are off until something runs.
-fn transport_controls(state: editor::State) -> [ui::Control] {
+fn transport(state: editor::State, strip: Node) {
     let replaying = session::loaded(state);
     let running = state.playing || replaying;
     let paused = if replaying {
@@ -459,67 +410,23 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
     } else {
         state.playing && (physics::is_paused())
     };
-    [
-        ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: "",
-            icon: icons::ui(command::PLAY),
-            role: roles::ICON_ACTION_PRIMARY,
-            checked: state.playing,
-            tooltip: if state.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" },
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_play_pressed },
-        },
-        ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: "",
-            icon: icons::ui("pause"),
-            enabled: running,
-            role: roles::ICON_ACTION_PRIMARY,
-            checked: paused,
-            tooltip: if !running {
-                "Run the scene first"
-            } else if replaying {
-                "Pause playback"
-            } else {
-                "Pause simulation"
-            },
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_pause_pressed, REPLAYING: replaying },
-        },
-        ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: "",
-            icon: icons::ui("stop"),
-            enabled: running,
-            role: roles::ICON_ACTION_PRIMARY,
-            tooltip: if running { "Stop" } else { "Nothing is running" },
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_stop_pressed, REPLAYING: replaying },
-        },
-    ]
-}
-
-fn on_play_pressed(state: &mut editor::State, data: any, _value: any) {
-    shell::toggle_play(state);
-}
-
-fn on_pause_pressed(state: &mut editor::State, data: any, _value: any) {
-    let replaying: bool = data[REPLAYING].as_bool();
-    if replaying {
-        session::toggle_pause(state);
+    let play = strip.get_node(command::PLAY);
+    face(play, "", icons::ui(command::PLAY), if state.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" });
+    play.widget_check.checked = state.playing;
+    let pause = strip.get_node(command::PAUSE);
+    let pause_tip = if !running {
+        "Run the scene first"
+    } else if replaying {
+        "Pause playback"
     } else {
-        physics::set_paused(!physics::is_paused());
-    }
-}
-
-fn on_stop_pressed(state: &mut editor::State, data: any, _value: any) {
-    let replaying: bool = data[REPLAYING].as_bool();
-    if replaying {
-        session::close(state);
-    } else {
-        shell::stop_play(state);
-    }
+        "Pause simulation"
+    };
+    face(pause, "", icons::ui(command::PAUSE), pause_tip);
+    pause.widget_check.checked = paused;
+    pause.widget.enabled = running;
+    let stop = strip.get_node(command::STOP);
+    face(stop, "", icons::ui(command::STOP), if running { "Stop" } else { "Nothing is running" });
+    stop.widget.enabled = running;
 }
 
 /// The status strip: what the editor is doing, how big the scene is, and the
@@ -563,7 +470,7 @@ pub fn fill_imports(state: &mut editor::State) -> FillImports {
 
 /// The status strip, what its script asks for on `status_changed`.
 pub fn fill_status(state: &mut editor::State) {
-    ui::fill_strip(STATUS_NODE, status_controls(state, state.layout[dock_fields::BOTTOM][layout_fields::WIDTH].as_float()));
+    status(state, state.layout[dock_fields::BOTTOM][layout_fields::WIDTH].as_float());
 }
 
 /// What the strip is built from: `status_mode` carries the pause, the play,
@@ -589,40 +496,31 @@ fn status_mode(state: editor::State) -> str {
     "editing"
 }
 
-fn status_controls(state: editor::State, room: float) -> [ui::Control] {
+// Narrow: the columns go one at a time rather than running together.
+fn status(state: editor::State, room: float) {
+    let strip = scene::root().get_node(STATUS_NODE);
+    if !strip.is_valid() {
+        return;
+    }
     let stopped = state.debug.paused.kind() == types::KIND_MAP;
-    let lamp = if stopped {
+    strip.get_node("Lamp").widget.role = if stopped {
         roles::MARK_LAMP_PRIMARY
     } else if state.playing {
         roles::MARK_LAMP_SUCCESS
     } else {
         roles::MARK_LAMP
     };
-    let out: [ui::Control] = [
-        ui::Control { kind: ui::WIDGET_ROW, role: lamp },
-        ui::Control { kind: ui::WIDGET_LABEL, text: status_mode(state), role: roles::TEXT_STATUS },
-    ];
-    // Narrow: the columns go one at a time rather than running together.
+    strip.get_node("Mode").widget.text = status_mode(state);
+    let stats = strip.get_node("Stats");
+    stats.set_visible(room > 300.0);
     if room > 300.0 {
-        let stats = model::stats(state);
-        let nodes = stats.nodes;
-        let scripts = stats.scripts;
-        out.push(ui::Control {
-            kind: ui::WIDGET_LABEL,
-            text: "{nodes} {plural(nodes, "node")} · {scripts} {plural(scripts, tabs::SCRIPT)}",
-            role: roles::TEXT_CAPTION,
-        });
+        let counts = model::stats(state);
+        let nodes = counts.nodes;
+        let scripts = counts.scripts;
+        stats.widget.text = "{nodes} {plural(nodes, "node")} · {scripts} {plural(scripts, tabs::SCRIPT)}";
     }
-    if room > 560.0 {
-        out.push(ui::Control { kind: ui::WIDGET_LABEL, text: "kiss3d · wgpu", role: roles::TEXT_CAPTION });
-    }
-    out.push(ui::Control { kind: ui::WIDGET_ROW, grow: 1 });
-    if room > 420.0 {
-        out.push(ui::Control {
-            kind: ui::WIDGET_LABEL,
-            text: "{defs::workspace_name(state.workspace)} · {defs::tool_name(state.tool)}",
-            role: roles::TEXT_CAPTION,
-        });
-    }
-    out
+    strip.get_node("Backend").set_visible(room > 560.0);
+    let place = strip.get_node("Place");
+    place.set_visible(room > 420.0);
+    place.widget.text = "{defs::workspace_name(state.workspace)} · {defs::tool_name(state.tool)}";
 }

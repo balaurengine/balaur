@@ -68,6 +68,7 @@ internal const LAYOUT_FORM: str = "layout_form";
 internal const LAYOUT_LANE: str = "layout_lane";
 internal const LAYOUT_MANAGER: str = "layout_manager";
 internal const LAYOUT_MARK: str = "layout_mark";
+internal const LAYOUT_MARKS: str = "layout_marks";
 internal const LAYOUT_PLUGIN: str = "layout_plugin";
 internal const LAYOUT_SHADER: str = "layout_shader";
 internal const LAYOUT_SHELL: str = "layout_shell";

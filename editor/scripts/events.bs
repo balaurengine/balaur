@@ -527,26 +527,7 @@ pub fn fill(state: &mut editor::State) {
         return;
     }
     let node = model::selected_node(state);
-    ui::fill_strip(PANEL + "/DocHead", [
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: "event bindings" },
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, grow: 1, text: node.name() },
-        ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_FORM,
-            text: "Convert to script",
-            icon: icons::ui(icons::SCRIPTFILE),
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_convert_clicked },
-        },
-        ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_FORM_PRIMARY,
-            text: "Add row",
-            icon: icons::ui(icons::ADD),
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_add_row_clicked },
-        },
-    ]);
+    scene::root().get_node(PANEL + "/DocHead/Node").widget.text = node.name();
     let specs: [form::Row] = [];
     let held = rows(state);
     if held.len() == 0 {
@@ -558,14 +539,6 @@ pub fn fill(state: &mut editor::State) {
     variable_specs(state, specs);
     hook_specs(state, specs);
     form::fill(rows_host(), specs);
-}
-
-fn on_convert_clicked(state: &mut editor::State, data: any, _value: any) {
-    convert_to_script(state);
-}
-
-fn on_add_row_clicked(state: &mut editor::State, data: any, _value: any) {
-    add_row(state);
 }
 
 /// What the scene declares, so a `when` has something to name. Read-only: a

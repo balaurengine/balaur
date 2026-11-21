@@ -21,6 +21,11 @@ impl Topbar {
         self.editor.unwrap().chrome_fill();
     }
 
+    /// A button of the strip, named for the command it runs.
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.unwrap().command(node.name());
+    }
+
     pub fn refill() {
         self.editor.unwrap().chrome_fill();
     }

@@ -23,6 +23,7 @@ use refactor;
 use rig;
 use sceneedit;
 use selection;
+use session;
 use settings;
 use shell;
 use signals;
@@ -158,6 +159,8 @@ fn shell_commands(state: &mut editor::State) -> [Command] {
         entry(SOFT_BODY, "Make selection a soft body", icons::ui(icons::RESET)),
         entry(command::ATTACH_SCRIPT, "Attach script to selection", icons::ui(icons::SCRIPTFILE)),
         entry(command::PLAY, "Run scene", icons::ui(command::PLAY)),
+        entry(command::PAUSE, "Pause or resume the run", icons::ui(icons::PAUSE)),
+        entry(command::STOP, "Stop the run", icons::ui(command::STOP)),
         entry(command::CONTINUE, "Continue", icons::ui(command::PLAY)),
         entry(command::STEP_OVER, "Step over", icons::ui(icons::STEP_OVER)),
         entry(command::STEP_INTO, "Step into", icons::ui(icons::STEP_INTO)),
@@ -265,6 +268,7 @@ pub fn live(state: &mut editor::State, id: str) -> bool {
         OPEN_PROJECT => !manager::in_tab(),
         command::CONTINUE | command::STEP_OVER | command::STEP_INTO | command::STEP_OUT => stopped(state),
         command::PLAY => !stopped(state),
+        command::PAUSE | command::STOP => state.playing || session::loaded(state),
         command::BREAK => state.playing && !stopped(state),
         tools::KEY => state.workspace == defs::WORKSPACE_ANIMATION,
         _ => true,
@@ -365,6 +369,20 @@ pub fn run(state: &mut editor::State, id: str) {
         OPEN_SCRIPT => { shell::set_workspace(state, defs::WORKSPACE_SCRIPT); }
         DETACH_SCRIPT => { shell::detach_script(state); }
         command::PLAY => { shell::toggle_play(state); }
+        command::PAUSE => {
+            if session::loaded(state) {
+                session::toggle_pause(state);
+            } else {
+                physics::set_paused(!physics::is_paused());
+            }
+        }
+        command::STOP => {
+            if session::loaded(state) {
+                session::close(state);
+            } else {
+                shell::stop_play(state);
+            }
+        }
         command::CONTINUE => { shell::resume(state, debugger::CONTINUE); }
         command::STEP_OVER => { shell::resume(state, debugger::STEP_OVER); }
         command::STEP_INTO => { shell::resume(state, debugger::STEP_INTO); }

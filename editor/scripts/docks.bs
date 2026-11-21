@@ -613,7 +613,7 @@ pub fn active_tab_box(state: &mut editor::State, side: str) -> ActiveTabBox? {
 /// before the row has drawn. The self-test reads it: a hatch with no box is
 /// a dock whose tools are there and invisible.
 pub fn tools_box(side: str) -> ui::Rect? {
-    let found = scene::root().get_node(tail_of(side) + "/C0");
+    let found = scene::root().get_node(tail_of(side) + "/Fold");
     if !found.is_valid() {
         return nil;
     }
@@ -622,28 +622,10 @@ pub fn tools_box(side: str) -> ui::Rect? {
 
 fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
     ui::fill_strip(head_of(side), tab_controls(state, tokens, side, dock));
-    ui::fill_strip(tail_of(side), tail_controls(state, side));
 }
 
-/// The panel's own controls and the fold, in that order: where they have
-/// always been, at the end of the head rather than the end of the tabs.
-fn tail_controls(state: editor::State, side: str) -> [ui::Control] {
-    let fold: ui::Control = ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        text: "",
-        icon: icons::ui(shut_icon(side)),
-        role: roles::ICON_ACTION_TAB_CARET,
-        tooltip: "Minimize",
-        on_click: "handle", target: pool::editor(),
-        data: { fields::FN: on_fold_pressed, SIDE: side },
-    };
-    // Every panel carries its own tools in its own scene.
-    let controls = [fold];
-    controls
-}
-
-fn on_fold_pressed(state: &mut editor::State, data: any, _value: any) {
-    let side: str = data[SIDE].as_str();
+/// A dock's fold pressed: it shuts to its handle.
+pub fn fold(state: &mut editor::State, side: str) {
     state.docks[side][dock_fields::SHUT] = true;
     signals::docks(state);
 }
@@ -793,18 +775,8 @@ fn tab_width(state: &mut editor::State, id: str, frame: float) -> float {
     frame + 0.5 * style::size_in_pixels(state, FONT_SIZE) * tab_label(state, id).len() as float
 }
 
-// The caret on a dock's minimise button points at the edge it folds to, and
-// the one on its handle points back the way it opens.
-fn shut_icon(side: str) -> str {
-    if side == sides::LEFT {
-        CARET_LEFT
-    } else if side == sides::RIGHT {
-        CARET_RIGHT
-    } else {
-        "caret-down"
-    }
-}
-
+// The caret on a dock's handle points back the way it opens; the one on its
+// minimise button, in main.toml, at the edge it folds to.
 fn open_icon(side: str) -> str {
     if side == sides::LEFT {
         CARET_RIGHT

@@ -36,7 +36,8 @@ impl Dock {
         self.editor.unwrap().dock_fill(self.side);
     }
 
-    /// The tabs, the "+N" list and the fold run the Editor's own handlers, so
-    /// a dock has nothing to add; a panel with a script of its own hears its
-    /// controls first.
+    /// The fold, which shuts this dock to its handle.
+    pub fn fold(_value: any, _node: Node) {
+        self.editor.unwrap().dock_folded(self.side);
+    }
 }

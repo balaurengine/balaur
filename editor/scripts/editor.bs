@@ -652,6 +652,7 @@ impl Editor {
     /// script asks for when the docks moved. Answers the node of a panel that
     /// fills itself, for the dock to tell once it shows.
     pub fn dock_fill(side: str) -> str { docks::fill(self.state, side) }
+    pub fn dock_folded(side: str) { docks::fold(self.state, side); }
 
     pub fn on_problems_changed(_change: any) { signals::heard(self.state, signals::PROBLEMS_CHANGED); }
 
@@ -876,12 +877,15 @@ impl Editor {
 
     /// Fill the sheet with whichever screen is up, and hear it shut.
     pub fn sheet_fill() { window::fill(self.state); }
+    pub fn sheet_close() { window::hide(self.state); }
 
     pub fn sheet_closed() { window::closed(self.state); }
 
     /// Fill the picker with whichever of the palette, the node picker and rename
     /// is up, and hear it shut.
     pub fn picker_fill() { window::picker_fill(self.state); }
+    pub fn picker_typed(text: str) { window::picker_typed(self.state, text); }
+    pub fn picker_submitted(text: str) { window::picker_submitted(self.state, text); }
 
     pub fn picker_closed() { window::picker_closed(self.state); }
 
@@ -892,6 +896,7 @@ impl Editor {
 
     /// Fill the tool rail.
     pub fn rail_fill() { center::fill_rail(self.state); }
+    pub fn rail_marked(mark: str) { center::rail_marked(self.state, mark); }
 
     pub fn on_stage_changed(_change: any) {
         signals::heard(self.state, signals::STAGE);
@@ -949,8 +954,14 @@ impl Editor {
     pub fn on_image_pasted(_size: any) { dropin::paste_image(self.state); }
 
     /// A shell key's command, by the name its row in scenes/panels/keys.toml runs.
-    pub fn command(name: str) {
+    pub fn key_pressed(name: str) {
         commands::press(self.state, name);
+        signals::bars(self.state);
+    }
+
+    /// A button's command, by the name the button carries.
+    pub fn command(name: str) {
+        commands::run(self.state, name);
         signals::bars(self.state);
     }
 

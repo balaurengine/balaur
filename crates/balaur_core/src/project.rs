@@ -615,7 +615,22 @@ pub fn instantiate_scene_file(
     attach_scripts: bool,
 ) -> Result<()> {
     let (source, doc) = scene_doc(eng, path)?;
-    instantiate_doc(eng, &doc, &source, base, attach_scripts)
+    instantiate_doc(eng, &doc, &source, base, attach_scripts, String::new())
+}
+
+/// [`instantiate_scene_file`] with every stable id under `prefix`, as a
+/// prefab's instance has: what keeps two instances of one file apart.
+///
+/// # Errors
+/// If the file does not read, or the scene does not build.
+pub fn instantiate_scene_file_as(
+    eng: &Engine,
+    path: &str,
+    base: Entity,
+    prefix: String,
+) -> Result<()> {
+    let (source, doc) = scene_doc(eng, path)?;
+    instantiate_doc(eng, &doc, &source, base, true, prefix)
 }
 
 fn instantiate_from(
@@ -631,6 +646,7 @@ fn instantiate_from(
         source,
         base,
         attach_scripts,
+        String::new(),
     )
 }
 
@@ -640,9 +656,10 @@ fn instantiate_doc(
     source: &str,
     base: Entity,
     attach_scripts: bool,
+    prefix: String,
 ) -> Result<()> {
     let mut build = Build {
-        prefix: String::new(),
+        prefix,
         open: Vec::new(),
         pending: Vec::new(),
         attach_scripts,

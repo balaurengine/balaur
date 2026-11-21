@@ -101,7 +101,7 @@ pub(crate) fn instantiate_main_scene(
         );
     }
     let before = child_list(eng, base);
-    instantiate_doc(eng, &doc, source, base, true)?;
+    instantiate_doc(eng, &doc, source, base, true, String::new())?;
     if let Some(made) = child_list(eng, base)
         .into_iter()
         .find(|child| !before.contains(child))

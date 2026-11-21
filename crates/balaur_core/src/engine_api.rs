@@ -177,6 +177,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: words::modules::SCENE,
+            name: "repeat",
+            call: crate::scene_repeat::scene_repeat,
+        },
+        EngineOp {
+            module: words::modules::SCENE,
             name: "attach_scripts",
             call: attach_scripts,
         },
