@@ -135,7 +135,8 @@ bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..
 kind = "button"
 role = "tab_workspace"
 
-# The open documents: the scene, and the script and bindings while open.
+# The open documents, each a tab named for its document: the scene, and the
+# script and the bindings while they are open. Only those two close.
 [[nodes]]
 id = "head_docs"
 name = "Docs"
@@ -145,6 +146,89 @@ kind = "row"
 role = "toolbar_shell"
 [nodes.widget_layout]
 align_items = "center"
+
+[[nodes]]
+id = "doc_tab_scene"
+name = "scene"
+parent = "head_docs"
+[nodes.widget]
+kind = "row"
+role = "tile_tab"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "doc_pick_scene"
+name = "Pick"
+parent = "doc_tab_scene"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../..", value = "doc_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_label_bar"
+
+[[nodes]]
+id = "doc_tab_script"
+name = "script"
+parent = "head_docs"
+[nodes.widget]
+kind = "row"
+role = "tile_tab"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "doc_pick_script"
+name = "Pick"
+parent = "doc_tab_script"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../..", value = "doc_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_label_bar"
+
+[[nodes]]
+id = "doc_close_script"
+name = "Close"
+parent = "doc_tab_script"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../..", value = "doc_closed" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_tab"
+text = ""
+tooltip = "Close"
+[nodes.widget_button]
+icon = "x-bold"
+
+[[nodes]]
+id = "doc_tab_events"
+name = "events"
+parent = "head_docs"
+[nodes.widget]
+kind = "row"
+role = "tile_tab"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "doc_pick_events"
+name = "Pick"
+parent = "doc_tab_events"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../..", value = "doc_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_label_bar"
+
+[[nodes]]
+id = "doc_close_events"
+name = "Close"
+parent = "doc_tab_events"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../..", value = "doc_closed" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_tab"
+text = ""
+tooltip = "Close"
+[nodes.widget_button]
+icon = "x-bold"
 
 [[nodes]]
 id = "head_split"

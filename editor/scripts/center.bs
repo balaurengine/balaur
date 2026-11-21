@@ -11,8 +11,8 @@ use icons;
 use layout;
 use lint;
 use model;
+use polygon;
 use polygonchips;
-use pool;
 use shell;
 use showcase;
 use signals;
@@ -40,10 +40,7 @@ internal const OPEN_LEFT: str = "open_left";
 internal const OPEN_RIGHT: str = "open_right";
 const HEIGHT: str = "height";
 const WARNING: str = "warning";
-const LIVE: str = "live";
-const ON: str = "on";
 const RESTORE: str = "restore";
-const WORKSPACE: str = "workspace";
 const CODE: str = "code";
 
 pub struct StageFloor {
@@ -304,6 +301,19 @@ const CHIPS: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/St
 
 const CHIPS_BOX: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/Chrome/Chips";
 
+const CHIP_SCENE: str = "scenes/items/chip.toml";
+
+// The strip's groups, which a pressed chip is told apart by.
+const TOGGLES: str = "Toggles";
+
+const MODES: str = "Modes";
+
+const OPTIONS: str = "Options";
+
+const VIEW: str = "View";
+
+const VIEWS: str = "Views";
+
 /// What the stage chrome, the chips and the HUD are built from, which
 /// `signals::bars` compares.
 pub fn stage_key(state: editor::State) -> [any] {
@@ -380,32 +390,31 @@ pub fn fill_chips(state: &mut editor::State) -> bool {
     if !(state.viewport_live && state.stage_chrome) {
         return false;
     }
-    let out: [ui::Control] = [];
-    for definition in defs::chips(state.workspace) {
-        let label = if definition.key == defs::CHIP_PROJECTION && state.mode2d { "2D · Orthographic" } else { definition.label };
-        out.push(chip(state, definition.key, label, definition.starts));
+    let row = scene::root().get_node(CHIPS);
+    if !row.is_valid() {
+        return false;
     }
+    let toggles = defs::chips(state.workspace);
+    let items: [scene::RepeatItem] = [];
+    for definition in toggles {
+        items.push(scene::RepeatItem { key: definition.key, scene: CHIP_SCENE });
+    }
+    let nodes = scene::repeat(row.get_node(TOGGLES), items);
+    for index in 0..toggles.len() {
+        let definition = toggles[index];
+        let label = if definition.key == defs::CHIP_PROJECTION && state.mode2d { "2D · Orthographic" } else { definition.label };
+        chip(state, nodes[index], definition.key, label, definition.starts);
+    }
+    row.get_node(TOGGLES).set_visible(toggles.len() > 0);
     // The Polygon tool's modes sit with the chips: Godot's UV editor tabs, in
     // the viewport rather than a window.
-    if state.tool == tools::POLYGON {
-        for spec in polygonchips::mode_specs(state) {
-            out.push(spec);
-        }
-        for spec in polygonchips::option_specs(state) {
-            out.push(spec);
-        }
-    }
-    if state.workspace == defs::WORKSPACE_SCENE {
-        out.push(view_chip(state));
-        // The camera slots are the first thing a small window drops: four
-        // numbered pills for what ⌥1-4 already does.
-        if !state.compact {
-            for spec in bookmark_chips(state) {
-                out.push(spec);
-            }
-        }
-    }
-    ui::fill_strip(CHIPS, out);
+    let polygon = state.tool == tools::POLYGON;
+    polygonchips::fill(state, row.get_node(MODES), row.get_node(OPTIONS), polygon);
+    let scene_space = state.workspace == defs::WORKSPACE_SCENE;
+    view_chip(row.get_node(VIEW), scene_space);
+    // The camera slots are the first thing a small window drops: four
+    // numbered pills for what ⌥1-4 already does.
+    bookmark_chips(state, row.get_node(VIEWS), scene_space && !state.compact);
     // Clear of the folded left dock's handle, which shares this row.
     let filled = scene::root().get_node(CHIPS_BOX);
     if filled.is_valid() {
@@ -414,7 +423,7 @@ pub fn fill_chips(state: &mut editor::State) -> bool {
     true
 }
 
-fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?) -> ui::Control {
+fn chip(state: &mut editor::State, node: Node, key: str, label: str, default_on: bool?) {
     if !state.chip_state.has(state.workspace) {
         state.chip_state[state.workspace] = {};
     }
@@ -425,24 +434,31 @@ fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?) -> u
     if live == nil && !chips.has(key) {
         chips[key] = default_on != nil && default_on.unwrap();
     }
-    let on = if live != nil { live.unwrap() } else { chips[key].as_bool() };
-    let button: ui::Control = ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        text: label,
-        role: roles::CHIP,
-        checked: on,
-    };
-    pool::on(button, chip_pressed, { LIVE: live != nil, WORKSPACE: state.workspace, fields::KEY: key, ON: on })
+    node.widget.text = label;
+    node.widget_check.checked = chip_on(state, key);
 }
 
-fn chip_pressed(state: &mut editor::State, data: any, _value: any) {
-    let workspace = data[WORKSPACE].as_str();
-    let key = data[fields::KEY].as_str();
-    let now = !data[ON].as_bool();
-    if !data[LIVE].as_bool() {
-        state.chip_state[workspace][key] = now;
+// Whether the workspace's chip `key` is on now.
+fn chip_on(state: &mut editor::State, key: str) -> bool {
+    let live = shell::chip_value(state, state.workspace, key);
+    if live != nil { live.unwrap() } else { state.chip_state[state.workspace][key].as_bool() }
+}
+
+/// A chip pressed, by the group it sits in and its name: a toggle, a Polygon
+/// mode or a camera slot.
+pub fn chip_pressed(state: &mut editor::State, group: str, key: str) {
+    if group == TOGGLES {
+        let workspace = state.workspace;
+        let now = !chip_on(state, key);
+        if shell::chip_value(state, workspace, key) == nil {
+            state.chip_state[workspace][key] = now;
+        }
+        shell::on_chip(state, workspace, key, now);
+    } else if group == MODES {
+        polygon::set_mode(state, key);
+    } else if group == VIEWS {
+        bookmark(state, key);
     }
-    shell::on_chip(state, workspace, key, now);
     signals::bars(state);
 }
 
@@ -458,63 +474,48 @@ fn view_modes() -> [[str]] {
 
 /// The view-mode chip: shaded, or one channel drawn instead. Never a game
 /// feature; `render.set_debug_view` is the same call the palette makes.
-fn view_chip(state: editor::State) -> ui::Control {
+fn view_chip(node: Node, shown: bool) {
+    node.set_visible(shown);
+    if !shown {
+        return;
+    }
     let current = render::debug_view();
     let label = "Shaded";
-    let rows: [ui::Control] = [];
+    let labels: [str] = [];
     for mode in view_modes() {
         if mode[0] == current {
             label = mode[1];
         }
-        // Bound afresh: a closure made in a loop captures the binding.
-        let name = mode[0];
-        rows.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::ITEM_MENU,
-            text: mode[1],
-            checked: name == current,
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_view_mode_picked, fields::NAME: name },
-        });
+        labels.push(mode[1]);
     }
-    ui::Control {
-        kind: ui::WIDGET_MENU,
-        role: roles::CHIP,
-        checked: current != "",
-        text: ui::glyph(icons::ui("viewmode")) + "  " + label,
-        controls: rows,
-    }
+    node.widget.text = ui::glyph(icons::ui("viewmode")) + "  " + label;
+    node.widget_check.checked = current != "";
+    node.widget_menu.options = labels;
 }
 
-fn on_view_mode_picked(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data[fields::NAME].as_str();
-    render::set_debug_view(name);
+/// A view mode picked from the chip's menu, by its label.
+pub fn view_picked(state: &mut editor::State, label: str) {
+    for mode in view_modes() {
+        if mode[1] == label {
+            render::set_debug_view(mode[0]);
+        }
+    }
     signals::bars(state);
 }
 
 /// Four camera slots on the chip row: click to go, hold ⇧ to store where the
 /// camera is now. Editor state, kept nowhere: a view is not the scene.
-fn bookmark_chips(state: editor::State) -> [ui::Control] {
-    let out: [ui::Control] = [];
-    for slot in 1..5 {
-        let key = "{slot}";
-        let held = state.bookmarks[key] != nil;
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: key,
-            role: roles::CHIP,
-            checked: held,
-            tooltip: if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_bookmark_pressed, fields::KEY: key },
-        });
+fn bookmark_chips(state: editor::State, views: Node, shown: bool) {
+    views.set_visible(shown);
+    if !shown {
+        return;
     }
-    out
-}
-
-fn on_bookmark_pressed(state: &mut editor::State, data: any, _value: any) {
-    let key: str = data[fields::KEY].as_str();
-    bookmark(state, key);
+    for slot in views.children() {
+        let key = slot.name();
+        let held = state.bookmarks[key] != nil;
+        slot.widget_check.checked = held;
+        slot.widget.tooltip = if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" };
+    }
 }
 
 fn bookmark(state: &mut editor::State, key: str) {

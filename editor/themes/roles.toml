@@ -1369,6 +1369,10 @@ height = "control_height_large"
 [roles.header_stage.touch]
 height = 40
 
+# A group of chips inside the strip, spaced as the strip is.
+[roles.layout_chips]
+gap = 6
+
 # The shell's head: the bar's sheet, its row and the strip of controls.
 [roles.header_shell]
 padding = 5

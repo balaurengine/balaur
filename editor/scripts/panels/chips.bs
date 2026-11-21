@@ -20,8 +20,24 @@ impl Chips {
         self.refresh();
     }
 
-    /// A chip has run its own handler by now, so what is left is to show what
-    /// it changed.
+    /// A chip pressed: a toggle, a Polygon mode or a camera slot, by its row.
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.unwrap().chip_pressed(node.parent().name(), node.name());
+        self.refresh();
+    }
+
+    /// One of the Polygon mode's settings moved.
+    pub fn option_changed(value: any, node: Node) {
+        self.editor.unwrap().chip_option(node.name(), value);
+        self.refresh();
+    }
+
+    /// A view mode picked from the View chip's menu.
+    pub fn view_picked(value: any) {
+        self.editor.unwrap().view_picked(value.as_str());
+        self.refresh();
+    }
+
     pub fn refill() {
         self.refresh();
     }

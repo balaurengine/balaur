@@ -1188,8 +1188,9 @@ write. It walks widgets in scene order and wraps.
   Each root is named for its key, so the item scene's `call` row hands over a
   node whose name is its item. Its stable ids sit under `<host id>/<n>/`, as
   a prefab instance's do: a binding row finds its node by id, so instances
-  sharing the file's ids would take each other's clicks. The tool rail is one: a `grid` of
-  `scenes/items/rail_mark.toml`.
+  sharing the file's ids would take each other's clicks. The tool rail is a
+  `grid` of `scenes/items/rail_mark.toml`, and the viewport's toggles and the
+  Polygon tool's modes are `scenes/items/chip.toml`, whose row says which.
 - The keyboard drives focus until the game shows the keys are its own: an action
   binding an arrow, Tab, Enter or Space, or a script reading one, unless it also
   declares a `ui_*` action. A pad moves focus and accepts as `ui.focus_next`, `focus_previous` and a click do, which `standard_app` maps

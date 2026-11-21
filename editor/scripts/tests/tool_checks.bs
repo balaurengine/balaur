@@ -141,16 +141,36 @@ pub fn polygons(state: &mut editor::State) {
     selftest::check(back["positions"].len() == vertices, "undoing everything restores {name}'s vertices ({back["positions"].len()})");
     selftest::check(polygon::internal_count(back) == internal, "and its internal count");
     let modes = polygon::modes(state);
-    selftest::check(polygonchips::mode_specs(state).len() == modes.len(), "the strip holds a chip per mode ({modes.len()})");
+    selftest::check(chips_shown(state, MODES) == modes.len(), "the strip holds a chip per mode ({modes.len()})");
     polygon::set_mode(state, polygon::POINTS);
-    selftest::check(polygonchips::option_specs(state).len() == 1, "in Points it offers the trace's tolerance");
+    selftest::check(chips_shown(state, OPTIONS) == 1, "in Points it offers the trace's tolerance");
     if modes.len() > 1 {
         polygon::set_mode(state, tabs::WEIGHTS);
         let brush = if polygon::bones(state).len() > 0 { 3 } else { 2 };
-        selftest::check(polygonchips::option_specs(state).len() == brush, "in Weights the bone and the brush ({brush})");
+        selftest::check(chips_shown(state, OPTIONS) == brush, "in Weights the bone and the brush ({brush})");
         polygon::set_mode(state, polygon::POINTS);
     }
     log::info("selftest polygon: done");
+}
+
+// The chip strip's row, whose groups the Polygon tool fills.
+const CHIP_ROW: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/Chrome/Chips/Row";
+
+const MODES: str = "Modes";
+
+const OPTIONS: str = "Options";
+
+// How many of a chip group's controls the Polygon tool shows now.
+fn chips_shown(state: editor::State, group: str) -> int {
+    let row = scene::root().get_node(CHIP_ROW);
+    polygonchips::fill(state, row.get_node(MODES), row.get_node(OPTIONS), true);
+    let count = 0;
+    for kid in row.get_node(group).children() {
+        if kid.visible() == true {
+            count += 1;
+        }
+    }
+    count
 }
 
 /// The Weights dock's five commands, Mirror, and a deform key: everything the

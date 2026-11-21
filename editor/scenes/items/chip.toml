@@ -1,0 +1,10 @@
+# One chip of the viewport's strip: a toggle, or a Polygon mode. Named for its
+# key; the strip's script reads the row it sits in to know which.
+
+[[nodes]]
+id = "chip"
+name = "Chip"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "chip"

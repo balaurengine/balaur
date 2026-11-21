@@ -12,10 +12,8 @@ use layout;
 use manager;
 use menu;
 use model;
-use pool;
 use session;
 use shell;
-use tab;
 use theme;
 use util;
 use words::command;
@@ -168,16 +166,10 @@ pub fn doc_spot(state: editor::State, id: str) -> Spot {
     let per = layout::workspace_width(state);
     let first = workspaces_x(state) + (defs::workspaces().len() as float) * per + 12.0;
     let slot = if id == tabs::SCRIPT { 1.0 } else { 0.0 };
-    let docs = scene::root().get_node(DOCS_NODE);
-    if docs.is_valid() {
-        let kids = docs.children();
-        if (slot as int) < kids.len() {
-            let found = rect_spot(kids[slot as int]);
-            if found != nil {
-                let spot = found.unwrap();
-                return spot;
-            }
-        }
+    let found = spot_of(DOCS_NODE + "/" + id);
+    if found != nil {
+        let spot = found.unwrap();
+        return spot;
     }
     return Spot { x: first + slot * (TAB_WIDTH + 4.0) + TAB_WIDTH / 2.0, y: bar["y"].as_float() + bar[layout_fields::HEIGHT].as_float() / 2.0 };
 }
@@ -211,10 +203,7 @@ pub fn transport_spot(state: editor::State, index: int) -> Spot {
 /// The centre of the control at `path`, in design px, from where it drew;
 /// `None` until it has drawn, when a caller estimates instead.
 fn spot_of(path: str) -> Spot? {
-    rect_spot(scene::root().get_node(path))
-}
-
-fn rect_spot(node: Node) -> Spot? {
+    let node = scene::root().get_node(path);
     if !node.is_valid() {
         return nil;
     }
@@ -232,6 +221,8 @@ const STRIP_NODE: str = "Editor/Shell/Head/HeadRow/HeadScroll/HeadStrip";
 const DOCS_NODE: str = "Editor/Shell/Head/HeadRow/HeadScroll/HeadStrip/Docs";
 
 const WORKSPACE: str = "workspace_";
+
+const PICK: str = "Pick";
 
 const BRAND_NODE: str = "Editor/Shell/Head/HeadRow/Brand";
 
@@ -256,7 +247,7 @@ pub fn fill(state: &mut editor::State) {
     }
     ui::fill_strip(BRAND_NODE, menu::rows(state));
     strip(state, tokens);
-    ui::fill_strip(DOCS_NODE, doc_controls(state, tokens));
+    docs(state);
 }
 
 /// What the whole bar is built from, which `signals::chrome` compares.
@@ -351,54 +342,39 @@ fn face(node: Node, text: str, icon: str, tooltip: str) {
 }
 
 // The open documents: the scene, always; the selection's script and the event
-// bindings while they are open. Only the last two close.
-fn doc_controls(state: editor::State, tokens: any) -> [ui::Control] {
-    let node = model::selected_node(state);
-    let out: [ui::Control] = [];
+// bindings while they are open.
+fn docs(state: editor::State) {
+    let host = scene::root().get_node(DOCS_NODE);
+    if !host.is_valid() {
+        return;
+    }
     let scene = util::last_segment(state.scene_rel) + (if history::dirty(state) { " ●" } else { "" });
-    for entry in doc_tab(state, tabs::SCENE, icons::panel(icons::SCENE), scene, false) {
-        out.push(entry);
-    }
-    if state.script_open {
-        let attached = model::script_rel(node);
-        let label = if attached != nil {
-            let script = attached;
-            let dirty = state.script_dirty.has(state.game_root + "/" + script.as_str());
-            util::last_segment(script.as_str()) + (if dirty { " ●" } else { "" })
-        } else {
-            "no script"
-        };
-        for entry in doc_tab(state, tabs::SCRIPT, icons::ui(icons::SCRIPTFILE), label, true) {
-            out.push(entry);
-        }
-    }
-    if state.events_open {
-        for entry in doc_tab(state, tabs::EVENTS, icons::ui(icons::EVENTS), command::BINDINGS, true) {
-            out.push(entry);
-        }
-    }
-    out
-}
-
-// One open document's tab; only the script and the bindings close.
-fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool) -> [ui::Control] {
-    let pick = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "handle", target: pool::editor(), data: { fields::FN: on_doc_picked, fields::ID: id } };
-    let close: ui::Control? = if closable {
-        ui::Control { kind: ui::WIDGET_BUTTON, tooltip: "Close", on_click: "handle", target: pool::editor(), data: { fields::FN: on_doc_close_pressed, fields::ID: id } }
+    doc_tab(state, host, tabs::SCENE, icons::panel(icons::SCENE), scene, true);
+    let attached = model::script_rel(model::selected_node(state));
+    let label = if attached != nil {
+        let script = attached;
+        let dirty = state.script_dirty.has(state.game_root + "/" + script.as_str());
+        util::last_segment(script.as_str()) + (if dirty { " ●" } else { "" })
     } else {
-        nil
+        "no script"
     };
-    [tab::tile(label, icon, state.doctab == id, true, pick, close)]
+    doc_tab(state, host, tabs::SCRIPT, icons::ui(icons::SCRIPTFILE), label, state.script_open);
+    doc_tab(state, host, tabs::EVENTS, icons::ui(icons::EVENTS), command::BINDINGS, state.events_open);
 }
 
-fn on_doc_picked(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data[fields::ID].as_str();
-    shell::open_doc(state, id);
-}
-
-fn on_doc_close_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data[fields::ID].as_str();
-    shell::close_doc(state, id);
+// One open document's tab, its tile lit while it is the one showing.
+fn doc_tab(state: editor::State, host: Node, id: str, icon: str, label: str, open: bool) {
+    let tile = host.get_node(id);
+    tile.set_visible(open);
+    if !open {
+        return;
+    }
+    let active = state.doctab == id;
+    tile.widget.role = if active { roles::TILE_TAB_PRIMARY } else { roles::TILE_TAB };
+    let pick = tile.get_node(PICK);
+    pick.widget.text = label;
+    pick.widget_button.icon = icon;
+    pick.widget_check.checked = active;
 }
 
 // Play, pause and stop; the last two are off until something runs.

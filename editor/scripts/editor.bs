@@ -38,6 +38,7 @@ use palette;
 use pen;
 use plugins;
 use polygon;
+use polygonchips;
 use populate;
 use refactor;
 use rig;
@@ -907,6 +908,9 @@ impl Editor {
     pub fn stage_view() -> center::StageView { center::stage_view(self.state) }
 
     pub fn chips_fill() -> bool { center::fill_chips(self.state) }
+    pub fn chip_pressed(group: str, key: str) { center::chip_pressed(self.state, group, key); }
+    pub fn chip_option(name: str, value: any) { polygonchips::option_changed(self.state, name, value); }
+    pub fn view_picked(label: str) { center::view_picked(self.state, label); }
 
     pub fn hud_view() -> center::HudView { center::hud_view(self.state) }
 
@@ -914,6 +918,8 @@ impl Editor {
 
     /// Fill the top bar: the brand, its menu and the strip.
     pub fn chrome_fill() { chrome::fill(self.state); }
+    pub fn doc_picked(id: str) { shell::open_doc(self.state, id); signals::bars(self.state); }
+    pub fn doc_closed(id: str) { shell::close_doc(self.state, id); signals::bars(self.state); }
 
     /// Fill the import list and say what its bar and clock read.
     pub fn imports_fill() -> chrome::FillImports { chrome::fill_imports(self.state) }

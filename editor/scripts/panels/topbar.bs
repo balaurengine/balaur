@@ -26,6 +26,16 @@ impl Topbar {
         self.editor.unwrap().command(node.name());
     }
 
+    /// A document's tab picked, by the tile it sits in.
+    pub fn doc_picked(_value: any, node: Node) {
+        self.editor.unwrap().doc_picked(node.parent().name());
+    }
+
+    /// A document's tab closed.
+    pub fn doc_closed(_value: any, node: Node) {
+        self.editor.unwrap().doc_closed(node.parent().name());
+    }
+
     pub fn refill() {
         self.editor.unwrap().chrome_fill();
     }

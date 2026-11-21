@@ -3,101 +3,84 @@
 
 use editor;
 use polygon;
-use pool;
 use signals;
 use util;
-use words::fields;
 use words::project_fields;
-use words::roles;
 use words::tabs;
 
-const PICKED: str = "picked";
-const PX: str = "px";
+const CHIP_SCENE: str = "scenes/items/chip.toml";
 
-pub fn mode_specs(state: editor::State) -> [ui::Control] {
-    let mode = state.polygon.mode;
-    let out: [ui::Control] = [];
-    for id in polygon::modes(state) {
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: polygon::mode_name(id),
-            role: roles::CHIP,
-            checked: mode == id,
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_mode_picked, PICKED: id },
-        });
+// The settings' fields in the strip's Options row, by name.
+const BONE: str = "Bone";
+
+const RADIUS: str = "Radius";
+
+const STRENGTH: str = "Strength";
+
+const TOLERANCE: str = "Tolerance";
+
+/// The modes as chips under `modes`, then the mode's own settings under
+/// `options`: the trace's tolerance for the points, and in weights the bone
+/// painted and the brush. Tool state, never a property, so never the
+/// Inspector's. Both hide unless `shown`.
+pub fn fill(state: editor::State, modes: Node, options: Node, shown: bool) {
+    let ids: [str] = if shown { polygon::modes(state) } else { [] };
+    let items: [scene::RepeatItem] = [];
+    for id in ids {
+        items.push(scene::RepeatItem { key: id, scene: CHIP_SCENE });
     }
-    out
-}
-
-fn on_mode_picked(state: &mut editor::State, data: any, _value: any) {
-    polygon::set_mode(state, data[PICKED].as_str());
-    signals::bars(state);
-}
-
-/// The mode's own settings, after the modes in the viewport's strip: the
-/// trace's tolerance for the points, and in weights the bone painted and
-/// the brush. Tool state, never a property, so never the Inspector's.
-pub fn option_specs(state: editor::State) -> [ui::Control] {
-    let out: [ui::Control] = [];
-    if state.polygon.mode == tabs::WEIGHTS {
-        let names: [str] = [];
-        for bone in polygon::bones(state) {
-            names.push(bone[project_fields::PATH].as_str());
-        }
-        if names.len() > 0 {
-            let active = if state.polygon.bone != nil { state.polygon.bone.unwrap() } else { 0 };
-            out.push(ui::Control {
-                kind: ui::WIDGET_DROPDOWN,
-                role: roles::CHOICE,
-                text: names[util::int_min(active, names.len() - 1)],
-                options: names,
-                tooltip: "The bone the brush paints",
-                on_change: "handle", target: pool::editor(),
-                data: { fields::FN: option_bone, fields::NAMES: names },
-            });
-        }
-        out.push(option_field(state.polygon.radius, 0.5, 2.0, 400.0, PX, "How far the brush reaches", option_radius));
-        out.push(option_field(state.polygon.strength, 0.01, 0.01, 2.0, "×", "How much a stroke adds", option_strength));
-    } else if state.polygon.mode == polygon::POINTS {
-        out.push(option_field(state.polygon.tolerance, 0.1, 0.0, 64.0, PX, "How closely a trace follows the texture's alpha", option_tolerance));
+    let nodes = scene::repeat(modes, items);
+    for index in 0..ids.len() {
+        nodes[index].widget.text = polygon::mode_name(ids[index]);
+        nodes[index].widget_check.checked = state.polygon.mode == ids[index];
     }
-    out
+    modes.set_visible(shown);
+    let weights = shown && state.polygon.mode == tabs::WEIGHTS;
+    let points = shown && state.polygon.mode == polygon::POINTS;
+    let names = bone_names(state);
+    let bone = options.get_node(BONE);
+    bone.set_visible(weights && names.len() > 0);
+    if weights && names.len() > 0 {
+        let active = if state.polygon.bone != nil { state.polygon.bone.unwrap() } else { 0 };
+        bone.widget_dropdown.options = names;
+        bone.widget.text = names[util::int_min(active, names.len() - 1)];
+    }
+    field(options.get_node(RADIUS), weights, state.polygon.radius);
+    field(options.get_node(STRENGTH), weights, state.polygon.strength);
+    field(options.get_node(TOLERANCE), points, state.polygon.tolerance);
+    options.set_visible(weights || points);
 }
 
-fn option_field(value: float, step: float, low: float, high: float, prefix: str, tooltip: str, then: fn(&mut editor::State, any, any)) -> ui::Control {
-    ui::Control {
-        kind: ui::WIDGET_NUMBER_FIELD,
-        role: roles::INPUT_NUMBER,
-        value: value,
-        drag_speed: step,
-        min: low,
-        max: high,
-        prefix: prefix,
-        tooltip: tooltip,
-        on_change: "handle", target: pool::editor(),
-        data: { fields::FN: then },
+fn field(node: Node, shown: bool, value: float) {
+    node.set_visible(shown);
+    if shown {
+        node.widget_range.value = value;
     }
 }
 
-fn option_bone(state: &mut editor::State, data: any, picked: any) {
-    let names = util::list_or_empty(data[fields::NAMES]);
-    for at in 0..names.len() {
-        if names[at].as_str() == picked.as_str() {
-            state.polygon.bone = at;
+fn bone_names(state: editor::State) -> [str] {
+    let names: [str] = [];
+    for bone in polygon::bones(state) {
+        names.push(bone[project_fields::PATH].as_str());
+    }
+    names
+}
+
+/// One of the settings' fields moved, by its name.
+pub fn option_changed(state: &mut editor::State, name: str, value: any) {
+    if name == BONE {
+        let names = bone_names(state);
+        for at in 0..names.len() {
+            if names[at] == value.as_str() {
+                state.polygon.bone = at;
+            }
         }
+    } else if name == RADIUS {
+        state.polygon.radius = value.as_float();
+    } else if name == STRENGTH {
+        state.polygon.strength = value.as_float();
+    } else if name == TOLERANCE {
+        state.polygon.tolerance = value.as_float();
     }
     signals::bars(state);
-}
-
-fn option_radius(state: &mut editor::State, _data: any, value: any) {
-    state.polygon.radius = value.as_float();
-}
-
-fn option_strength(state: &mut editor::State, _data: any, value: any) {
-    state.polygon.strength = value.as_float();
-}
-
-fn option_tolerance(state: &mut editor::State, _data: any, value: any) {
-    state.polygon.tolerance = value.as_float();
 }
