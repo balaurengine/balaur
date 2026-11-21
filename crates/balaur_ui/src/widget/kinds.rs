@@ -72,10 +72,11 @@ pub(crate) fn dropdown(
     } else {
         ui.spacing().combo_height
     };
-    let up = egui::Popup::menu(&button)
+    let list = egui::Popup::menu(&button)
         .id(popup)
         .width(button.rect.width())
-        .close_behavior(closing(&widget.egui.close_on))
+        .close_behavior(closing(&widget.egui.close_on));
+    let up = crate::widget::popups::kept_inside(list, egui::RectAlign::BOTTOM_START, &[], 0.0)
         .show(|ui| {
             ui.set_min_width(ui.available_width());
             egui::ScrollArea::vertical()
@@ -395,7 +396,12 @@ fn dropped<'a>(
     }
     let placement = widget.placement.as_str();
     popup = match placement {
-        w::BELOW => popup,
+        w::BELOW => crate::widget::popups::kept_inside(
+            popup,
+            egui::RectAlign::BOTTOM_START,
+            fallbacks,
+            o.popup_gap.max(0.0),
+        ),
         // Where the pointer was when the menu opened, not where it is now:
         // egui only remembers that for a popup told to open, so the click
         // says so itself rather than leaving it to the toggle.
@@ -405,18 +411,29 @@ fn dropped<'a>(
             let set = response
                 .clicked()
                 .then_some(egui::SetOpenCommand::Bool(!open));
-            popup.at_pointer_fixed().open_memory(set)
+            crate::widget::popups::kept_inside(
+                popup.at_pointer_fixed().open_memory(set),
+                egui::RectAlign::BOTTOM_START,
+                fallbacks,
+                o.popup_gap.max(0.0),
+            )
         }
-        // Over the middle of the screen, and staying there: a menu the game
-        // put in the centre is not one egui may nudge to fit.
+        // Over the middle of the screen, the viewport's where it sits in one,
+        // and staying there: a menu the game put in the centre is not one
+        // egui may nudge to fit.
         w::CENTER => popup
-            .at_position(ui.ctx().viewport_rect().center())
+            .at_position(
+                crate::widget::popups::screen()
+                    .unwrap_or_else(|| ui.ctx().viewport_rect())
+                    .center(),
+            )
             .align(egui::RectAlign::over_corner(egui::Align2::CENTER_CENTER))
             .align_alternatives(&[]),
-        side => match side_of(side) {
-            Some(align) => popup.align(align),
-            None => popup,
-        },
+        side => {
+            let asked = side_of(side).unwrap_or(egui::RectAlign::BOTTOM_START);
+            let gap = o.popup_gap.max(0.0);
+            crate::widget::popups::kept_inside(popup.align(asked), asked, fallbacks, gap)
+        }
     };
     if widget.showing {
         popup = popup.open_memory(egui::SetOpenCommand::Bool(true));
@@ -1100,6 +1117,7 @@ pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usiz
     if body.is_some() {
         popup = popup.frame(egui::Frame::NONE);
     }
+    let popup = crate::widget::popups::kept_inside(popup, egui::RectAlign::BOTTOM_START, &[], 0.0);
     popup.show(|ui| {
         let eng = at.eng;
         on_plate(ui, eng, body.as_deref(), None, |ui| {

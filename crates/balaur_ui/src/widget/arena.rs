@@ -215,6 +215,7 @@ pub(crate) fn stamp_now(eng: &Engine) -> (u64, u64) {
     // A rotation is the same shape of change: every class table resolves
     // again, and no component was written to say so.
     pass_classes().hash(&mut hasher);
+    crate::widget::screens::hash(eng, &mut hasher);
     (balaur_core::scene::shape_revision(), hasher.finish())
 }
 
@@ -227,6 +228,7 @@ thread_local! {
 
 /// Read the screen once for the pass; everything after reads this.
 pub(crate) fn begin_classes(eng: &Engine) -> [&'static str; 3] {
+    crate::widget::screens::begin(eng);
     let now = read_classes(eng);
     CLASSES.with(|held| held.set(now));
     now
@@ -237,8 +239,9 @@ pub(crate) fn pass_classes() -> [&'static str; 3] {
     CLASSES.with(std::cell::Cell::get)
 }
 
-/// The class words a widget's tables are resolved against this pass, in the
+/// The class words the theme's tables are resolved against this pass, in the
 /// order they override: the input class, then the height, then the width.
+/// A widget's own class tables answer to its screen's instead (`screens`).
 ///
 /// Measured against the game's own area rather than the window, so a game
 /// played in a small viewport lays out as the viewport, not as the editor
@@ -302,7 +305,7 @@ fn patch(
     arena: &mut [Placed],
     index_of: &rustc_hash::FxHashMap<u64, usize>,
     dirty: &rustc_hash::FxHashSet<u64>,
-    classes: &[&str],
+    classes: [&'static str; 3],
 ) -> Option<Vec<usize>> {
     let world = eng.world();
     let mut touched = Vec::with_capacity(dirty.len());
@@ -312,7 +315,8 @@ fn patch(
         // Gone from the world, or its component removed: either way the shape
         // of the forest is not what the arena says it is.
         let widget = world.get::<&Widget>(entity).ok()?;
-        let widget = for_classes(eng, entity, &widget, classes);
+        let own = crate::widget::screens::classes(eng, arena, arena[index].screen, classes);
+        let widget = for_classes(eng, entity, &widget, &own);
         arena[index].draws_itself = draws_itself(&widget);
         arena[index].widget = widget;
         *arena[index].look.borrow_mut() = Looks::default();
@@ -332,13 +336,14 @@ fn forest(
     mut arena: Vec<Placed>,
     mut roots: Vec<usize>,
     mut index_of: rustc_hash::FxHashMap<u64, usize>,
-    classes: &[&str],
+    classes: [&'static str; 3],
 ) -> Arena {
     use balaur_core::scene::Children;
     let world = eng.world();
     // Refilled, not rebuilt: last pass's buffers hold room for about as many
     // nodes as this one has, so the walk pushes without growing.
     arena.clear();
+    crate::widget::screens::forget();
     roots.clear();
     index_of.clear();
     // The subtree drawing in the played content's faces, when one is played.
@@ -360,7 +365,8 @@ fn forest(
         let mut next_screen = screen;
         if let Ok(widget) = world.get::<&Widget>(entity) {
             let index = arena.len();
-            let widget = for_classes(eng, entity, &widget, classes);
+            let own = crate::widget::screens::classes(eng, &arena, screen, classes);
+            let widget = for_classes(eng, entity, &widget, &own);
             let name = world
                 .get::<&balaur_core::scene::Name>(entity)
                 .map_or_else(|_| SmolStr::default(), |n| SmolStr::new(&n.0));
@@ -440,17 +446,17 @@ pub(crate) fn begin(eng: &Engine, stamp: (u64, u64)) -> Begun {
             match if written.is_empty() {
                 Some(Vec::new())
             } else {
-                patch(eng, &mut arena, &index_of, &written, &classes)
+                patch(eng, &mut arena, &index_of, &written, classes)
             } {
                 Some(patched) => {
                     fresh = false;
                     touched = patched;
                     (arena, roots, index_of)
                 }
-                None => forest(eng, arena, roots, index_of, &classes),
+                None => forest(eng, arena, roots, index_of, classes),
             }
         }
-        Err((arena, roots, index_of)) => forest(eng, arena, roots, index_of, &classes),
+        Err((arena, roots, index_of)) => forest(eng, arena, roots, index_of, classes),
     };
     shown_by_tree(eng, &mut placed, fresh, &mut touched);
     // A font named before its file was there is asked for again when the
@@ -491,7 +497,7 @@ fn draws_itself(widget: &Widget) -> bool {
 fn shown_by_tree(eng: &Engine, placed: &mut [Placed], fresh: bool, touched: &mut Vec<usize>) {
     let revision = balaur_core::scene::appearance_revision();
     let moved = SEEN.with(|seen| seen.replace(revision)) != revision;
-    let [width, height] = balaur_core::facts::device(eng).design_game_size();
+    let [width, height] = crate::widget::screens::window(eng);
     let surface = (width as i32, height as i32);
     let resized = SURFACE.with(|seen| seen.replace(surface)) != surface;
     let reread = touched.clone();
@@ -561,8 +567,10 @@ fn has_lines(widget: &Widget) -> bool {
         || widget.hide_taller > 0.0
 }
 
-/// The room a widget's lines are read against, in design pixels.
-fn room_of(placed: &[Placed], index: usize, surface: [f32; 2]) -> [f32; 2] {
+/// The room a widget's lines are read against, in design pixels: its nearest
+/// sized container, else its screen, the viewport it sits in or `window`.
+fn room_of(placed: &[Placed], index: usize, window: [f32; 2]) -> [f32; 2] {
+    let surface = crate::widget::screens::room(placed, placed[index].screen, window);
     let mut up = placed[index].parent;
     while let Some(at) = up {
         let one = &placed[at];

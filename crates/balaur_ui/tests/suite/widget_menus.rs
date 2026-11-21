@@ -831,3 +831,84 @@ fn a_menu_of_options_opens_as_a_sheet() {
         "its options along the foot: {beta:?}"
     );
 }
+
+// A menu near a viewport's foot opens above its button, inside the viewport:
+// the window has room below, so egui alone would hang it there, over
+// whatever sits under the viewport.
+#[test]
+fn a_menu_near_a_viewports_foot_opens_inside_the_viewport() {
+    let (_dir, app) = app();
+    let screen = add_widget(
+        &app,
+        &toml::toml! { kind = "viewport" x = 100.0 y = 20.0 width = 300.0 height = 260.0 }.into(),
+    );
+    let options: Vec<String> = (0..8).map(|n| format!("Opt{n}")).collect();
+    let mut menu = toml::toml! { kind = "menu" text = "File" x = 10.0 y = 200.0 };
+    menu.insert(
+        "widget_menu".into(),
+        toml::toml! { showing = true options = [] }.into(),
+    );
+    menu["widget_menu"]["options"] =
+        toml::Value::Array(options.iter().map(|o| o.as_str().into()).collect());
+    add_child_widget(&app, screen, "File", &menu.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let out = pass(&app, &ctx, vec![]);
+    let rows: Vec<egui::Pos2> = texts(&out)
+        .into_iter()
+        .filter(|(text, _)| text.starts_with("Opt"))
+        .map(|(_, at)| at)
+        .collect();
+    assert_eq!(rows.len(), options.len(), "control: every row drew");
+    let viewport = egui::Rect::from_min_size(egui::pos2(100.0, 20.0), egui::vec2(300.0, 260.0));
+    assert!(
+        rows.iter().all(|at| viewport.contains(*at)),
+        "a row opened outside its viewport: {rows:?}"
+    );
+}
+
+// A tooltip near a viewport's right edge with no side wide enough slides
+// inside the viewport: the window has room to its right, so egui alone would not.
+#[test]
+fn a_tooltip_near_a_viewports_edge_stays_inside_it() {
+    use crate::support::pass_at;
+
+    let (_dir, app) = app();
+    let screen = add_widget(
+        &app,
+        &toml::toml! { kind = "viewport" x = 100.0 y = 20.0 width = 300.0 height = 260.0 }.into(),
+    );
+    let button = add_child_widget(
+        &app,
+        screen,
+        "Go",
+        &toml::toml! {
+            kind = "button" text = "go" x = 230.0 y = 100.0 width = 60.0 height = 30.0
+            tooltip = "a tooltip long enough to run past the edge"
+        }
+        .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let at = balaur_ui::widget_rect(button).expect("drawn").center();
+    let mut out = pass_at(&app, &ctx, vec![egui::Event::PointerMoved(at)], Some(0.0));
+    for step in 1..=20 {
+        out = pass_at(&app, &ctx, vec![], Some(f64::from(step) * 0.1));
+    }
+    let tip = out
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::epaint::Shape::Text(text) if text.galley.text().contains("long enough") => {
+                Some(text.visual_bounding_rect())
+            }
+            _ => None,
+        })
+        .expect("control: the tooltip drew");
+    let viewport = egui::Rect::from_min_size(egui::pos2(100.0, 20.0), egui::vec2(300.0, 260.0));
+    assert!(
+        viewport.expand(2.0).contains_rect(tip),
+        "the tooltip ran out of its viewport: {tip:?}"
+    );
+}

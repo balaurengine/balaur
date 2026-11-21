@@ -1119,3 +1119,72 @@ fn a_root_keeps_above_the_on_screen_keyboard_and_a_backdrop_stays() {
     );
     assert!((bottom(left) - unmoved).abs() < 1.0, "the other stays put");
 }
+
+// Two viewports of different widths each lay out as their own size: a label's
+// `[narrow]` table answers in the narrow one, its `[medium]` in the other.
+#[test]
+fn each_viewport_picks_its_own_class() {
+    let (_dir, app) = app();
+    let label: toml::Value = toml::toml! {
+        kind = "label" text = "x" x = 10.0 y = 10.0 width = 40.0
+        narrow = { width = 120.0 }
+        medium = { width = 200.0 }
+    }
+    .into();
+    let thin = add_widget(
+        &app,
+        &toml::toml! { kind = "viewport" x = 0.0 y = 0.0 width = 300.0 height = 100.0 }.into(),
+    );
+    let small = add_child_widget(&app, thin, "Thin", &label);
+    let broad = add_widget(
+        &app,
+        &toml::toml! { kind = "viewport" x = 0.0 y = 200.0 width = 620.0 height = 100.0 }.into(),
+    );
+    let middling = add_child_widget(&app, broad, "Broad", &label);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    let width = |entity: Entity| balaur_ui::widget_rect(entity).expect("drawn").width();
+    assert!(
+        (width(small) - 120.0).abs() < 1.0,
+        "the thin viewport's label took its narrow width: {}",
+        width(small)
+    );
+    assert!(
+        (width(middling) - 200.0).abs() < 1.0,
+        "the broad viewport's label took its medium width: {}",
+        width(middling)
+    );
+}
+
+// A line is read against the viewport a widget sits in, not the window.
+#[test]
+fn hide_narrower_reads_the_viewport_a_widget_sits_in() {
+    let (_dir, app) = app();
+    let label: toml::Value =
+        toml::toml! { kind = "label" text = "x" x = 10.0 y = 10.0 width = 40.0 hide_narrower = 400.0 }
+            .into();
+    let thin = add_widget(
+        &app,
+        &toml::toml! { kind = "viewport" x = 0.0 y = 0.0 width = 300.0 height = 100.0 }.into(),
+    );
+    let hidden = add_child_widget(&app, thin, "Thin", &label);
+    let broad = add_widget(
+        &app,
+        &toml::toml! { kind = "viewport" x = 0.0 y = 200.0 width = 620.0 height = 100.0 }.into(),
+    );
+    let shown = add_child_widget(&app, broad, "Broad", &label);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    assert!(
+        balaur_ui::widget_rect(shown).is_some(),
+        "control: the label in the broad viewport draws"
+    );
+    assert!(
+        balaur_ui::widget_rect(hidden).is_none(),
+        "the label in a viewport narrower than its line still draws"
+    );
+}

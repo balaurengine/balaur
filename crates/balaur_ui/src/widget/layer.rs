@@ -186,6 +186,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         shown: Vec::new(),
     };
     draw_roots(ctx, &mut painting, &roots);
+    crate::widget::window::escape_confined(ctx, &mut painting);
     settle(eng, ctx);
     crate::access::written(eng, ctx, &placed, &roots, &shown);
     let mut edits = std::mem::take(&mut painting.edits);
@@ -306,9 +307,7 @@ fn draw_root(
     let root_area = root_area(&placed[root], (pos, align, assigned, order), clip);
     let dragged_by_box = widget.egui.movable && widget.kind != w::WINDOW;
     let fill = |ui: &mut egui::Ui, painting: &mut Painting<'_>| {
-        if let Some(clip) = clip {
-            ui.set_clip_rect(ui.clip_rect().intersect(clip));
-        }
+        crate::widget::popups::confine(ui, clip);
         // A root handed a box reserves it before anything draws: its
         // children are placed at absolute rects and report nothing
         // back, so the area would otherwise hug the first of them.
@@ -338,7 +337,9 @@ fn draw_root(
                 (pos, align),
                 takes_pointer(&placed[root]),
             ));
-    let shown = if modal {
+    let shown = if let (true, Some(screen)) = (modal, clip) {
+        crate::widget::window::dialog_in(ctx, painting, (root, screen, layer), root_area, fill)
+    } else if modal {
         // egui's own modal: it dims the screen, holds the layer above every
         // other, keeps the pointer out of what is behind, and says when
         // Escape or the dim was what asked to close.
@@ -1088,7 +1089,7 @@ fn tip(ui: &egui::Ui, entity: Entity, tooltip: &str) {
     if ui.is_enabled() {
         crate::widget::theme::tip(&response, tooltip);
     } else {
-        response.on_disabled_hover_text(tooltip);
+        crate::widget::popups::disabled_text(&response, tooltip);
     }
 }
 

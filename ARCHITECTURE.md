@@ -1167,6 +1167,14 @@ write. It walks widgets in scene order and wraps.
   it, and given no focus or clicks past its edge. A viewport with no size
   draws nothing in it. Where a tree is says what its screen is; no widget
   names one, so a scene draws the same in a window and in an editor's stage.
+- A viewport keeps what opens from it. A dialog in it dims and holds the
+  viewport alone, so the editor around a played game stays clickable. A
+  menu, a dropdown's list, a context menu and a tooltip open on the side of
+  what they hang off that fits inside it, or slide inside where no side has
+  the room (`widget/popups.rs`). A widget's class tables and its
+  `hide_narrower` and the rest read its viewport's size where it last drew
+  (`widget/screens.rs`), so two viewports of different widths each lay out
+  as their own; the theme's tables read the played content's area.
 - **A chord is data on a node.** A `shortcuts` table's rows each pair a
   chord with a name, and a press raises `shortcut_pressed` with that name on
   the node, which need not be a widget. A row answers while its node is shown,

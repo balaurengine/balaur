@@ -317,3 +317,65 @@ pub(crate) fn dim_of(widget: &Widget, style: &crate::widget::theme::Style) -> Co
 
 /// The dim no theme names.
 pub(crate) const DIM: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 140);
+
+thread_local! {
+    /// The topmost dismissable dialog in a viewport this pass that Escape
+    /// may shut: the last drawn, which sits above the others.
+    static ESCAPABLE: std::cell::Cell<Option<Entity>> = const { std::cell::Cell::new(None) };
+}
+
+/// A dialog in a viewport: a dim over the viewport alone, which keeps the
+/// pointer from what it covers and shuts a `dismissable` dialog when clicked,
+/// and the dialog directly above it, on `layer`. egui's own modal would dim
+/// and hold the whole window, the editor's shell around a played game
+/// included. Escape is [`escape_confined`]'s, once every root has drawn.
+pub(crate) fn dialog_in(
+    ctx: &egui::Context,
+    painting: &mut Painting<'_>,
+    (root, screen, layer): (usize, egui::Rect, egui::LayerId),
+    area: egui::Area,
+    fill: impl FnOnce(&mut egui::Ui, &mut Painting<'_>),
+) -> egui::Response {
+    let entity = painting.arena[root].entity;
+    let dismissable = painting.arena[root].widget.egui.dismissable;
+    let ink = dim(painting.eng, painting, root);
+    let backdrop = egui::Area::new(egui::Id::unique(("balaur-dialog-dim", entity)))
+        .order(layer.order)
+        .fixed_pos(screen.min)
+        .constrain(false)
+        .show(ctx, |ui| {
+            let (rect, response) = ui.allocate_exact_size(screen.size(), Sense::click());
+            Brush::of(ui).fill(rect, 0.0, ink);
+            response
+        });
+    let shown = area.show(ctx, |ui| fill(ui, painting)).response;
+    // Directly above its dim, wherever egui moves the dim; a popup the
+    // dialog opens still goes above both.
+    ctx.set_sublayer(backdrop.response.layer_id, layer);
+    painting.root_layers.push(backdrop.response.layer_id);
+    painting.hits.push(screen);
+    if dismissable && backdrop.inner.clicked() {
+        painting.edits.push((entity, Edit::Open(false)));
+    }
+    // Escape is the viewport's while the pointer is over it, or nowhere.
+    let ours = ctx.pointer_hover_pos().is_none_or(|at| screen.contains(at));
+    if dismissable && ours {
+        ESCAPABLE.set(Some(entity));
+    }
+    shown
+}
+
+/// Escape, once every root has drawn, for the topmost dialog in a viewport
+/// that may take it: unless a popup is open, which Escape shuts first, or a
+/// root drawn after it took the key.
+pub(crate) fn escape_confined(ctx: &egui::Context, painting: &mut Painting<'_>) {
+    let Some(entity) = ESCAPABLE.take() else {
+        return;
+    };
+    if egui::Popup::is_any_open(ctx) {
+        return;
+    }
+    if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+        painting.edits.push((entity, Edit::Open(false)));
+    }
+}

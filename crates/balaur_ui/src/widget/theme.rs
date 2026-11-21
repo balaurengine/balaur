@@ -575,7 +575,7 @@ pub(crate) fn tip(response: &egui::Response, text: &str) {
         return;
     }
     if !pass_is_touch() {
-        response.clone().on_hover_text(text);
+        crate::widget::popups::hover_text(response, text);
         return;
     }
     // Timed here rather than taken from `Response::long_touched`, which egui
@@ -600,7 +600,7 @@ pub(crate) fn tip(response: &egui::Response, text: &str) {
             return;
         }
         if now - since >= length {
-            response.show_tooltip_text(text.to_owned());
+            crate::widget::popups::held_text(response, text);
         }
     });
 }
