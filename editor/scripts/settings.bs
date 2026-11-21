@@ -24,6 +24,7 @@ use words::project_fields;
 use words::roles;
 use words::schema_fields;
 use words::theme_modes;
+use words::theme_tokens;
 
 const EDITOR: str = "editor";
 const PROJECT: str = "project";
@@ -50,6 +51,9 @@ pub class SettingsState {
 // The search field this screen filters with; `crate::search` keys its own
 // buffer by the same id.
 const FIELD: str = "settings";
+
+// A scope's heading among the categories, which picks nothing.
+const HEADING: str = "#";
 
 pub fn state() -> SettingsState {
     SettingsState {
@@ -544,8 +548,8 @@ pub fn fill(state: &mut editor::State) {
     let hosts = found.unwrap();
     // Narrow, the categories go above the rows rather than beside them: a
     // sidebar and a column of settings leave neither enough room.
-    ui::fill_strip(hosts.side_rows, if stacked { [] } else { side_controls(state) });
-    util::set_visible(hosts.side, !stacked);
+    let lit = if query(state) == "" { current(state) } else { "" };
+    window::sheet_side(if stacked { [] } else { side_rows(state) }, lit, query(state));
     let label_width = label_column_width(state);
     let specs = form_specs(state);
     if stacked {
@@ -599,37 +603,36 @@ fn on_save_clicked(state: &mut editor::State, data: any, _value: any) {
 
 /// The column down the left: the search box, and a row per category under
 /// the scope it belongs to.
-fn side_controls(state: editor::State) -> [ui::Control] {
-    let out = [search::control(state, FIELD, "Search")];
+// The categories, each scope's under a heading of its own.
+fn side_rows(state: editor::State) -> [ui::Item] {
+    let out: [ui::Item] = [];
     let scope = "";
-    let at = current(state);
     let scopes = scopes();
-    for name in categories() {
-        // Bound afresh: a closure made in a loop captures the binding.
-        let category = name;
+    for category in categories() {
         let held = scopes[category];
         let here = if held == nil { PROJECT } else { held.as_str() };
         if here != scope {
             scope = here;
-            out.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: if scope == PROJECT { "Project" } else { THIS_EDITOR } });
+            let title = if scope == PROJECT { "Project" } else { THIS_EDITOR };
+            out.push(ui::Item { label: title, key: HEADING + title, tint: state.theme[theme_tokens::TEXT_SUBTLE].as_str() });
         }
-        let on = query(state) == "" && category == at;
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: category,
-            role: roles::ITEM_SIDEBAR,
-            checked: on,
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_category_clicked, fields::CATEGORY: category },
-        });
+        out.push(ui::Item { label: category, key: category });
     }
     out
 }
 
-fn on_category_clicked(state: &mut editor::State, data: any, _value: any) {
-    let category: any = data[fields::CATEGORY];
+/// A category picked in the sidebar: the search empties and the category shows.
+pub fn side_picked(state: &mut editor::State, key: str) {
+    if key.starts_with(HEADING) {
+        return;
+    }
     set_query(state, "");
-    state.settings.at = category.as_str();
+    state.settings.at = key;
+}
+
+/// What was typed in the sidebar's search.
+pub fn searched(state: &mut editor::State, text: str) {
+    set_query(state, text);
 }
 
 /// Every row the form shows: a note at its head, a heading per group, and a

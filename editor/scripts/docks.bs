@@ -10,16 +10,13 @@ use layout;
 use left;
 use lint;
 use plugins;
-use pool;
 use session;
 use signals;
 use style;
-use tab;
 use util;
 use words::dock_fields;
 use words::fields;
 use words::geometry_fields;
-use words::inspector_fields;
 use words::layout_fields;
 use words::panel_keys;
 use words::project_fields;
@@ -43,10 +40,21 @@ const OUTPUT: str = "output";
 const PROBLEMS: str = "problems";
 const PROFILER: str = "profiler";
 const RECORDINGS: str = "recordings";
-const SIDE: str = "side";
 const STATEMACHINE: str = "statemachine";
 const TIMELINE: str = "timeline";
 const FONT_SIZE: str = "font_size";
+
+const TAB_SCENE: str = "scenes/items/dock_tab.toml";
+
+// A dock's tab row: the tiles, and the "+N" menu after them.
+const TABS: str = "Tabs";
+
+const MORE: str = "More";
+
+// A tile's two halves.
+const PICK: str = "Pick";
+
+const CLOSE: str = "Close";
 
 pub struct Table {
     name: str,
@@ -588,15 +596,8 @@ fn tail_of(side: str) -> str {
 /// The active tab's box and the strip it scrolls in, or nil before the
 /// row has drawn. A tab past the strip's end is a panel showing with no tab.
 pub fn active_tab_box(state: &mut editor::State, side: str) -> ActiveTabBox? {
-    let at = 0;
-    let shown = shown_tabs(state, side);
     let active = state.docks[side][dock_fields::ACTIVE];
-    for index in 0..shown.len() {
-        if shown[index] == active {
-            at = index;
-        }
-    }
-    let tab = scene::root().get_node("{head_of(side)}/C{at}");
+    let tab = scene::root().get_node(head_of(side) + "/" + TABS + "/" + active.as_str());
     let strip = scene::root().get_node(head_stem(side) + "Tabs");
     if !tab.is_valid() || !strip.is_valid() {
         return nil;
@@ -620,8 +621,38 @@ pub fn tools_box(side: str) -> ui::Rect? {
     ui::widget_rect(found)
 }
 
+// The tabs the row has room for, the active one lit, then the rest under "+N".
 fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
-    ui::fill_strip(head_of(side), tab_controls(state, tokens, side, dock));
+    let row = scene::root().get_node(head_of(side));
+    if !row.is_valid() {
+        return;
+    }
+    let shown: [any] = shown_tabs(state, side);
+    let items: [scene::RepeatItem] = [];
+    for id in shown {
+        items.push(scene::RepeatItem { key: id.as_str(), scene: TAB_SCENE });
+    }
+    let tiles = scene::repeat(row.get_node(TABS), items);
+    for index in 0..shown.len() {
+        let id = shown[index].as_str();
+        let active = dock[dock_fields::ACTIVE] == id;
+        let tile = tiles[index];
+        tile.widget.role = if active { roles::TILE_TAB_PRIMARY } else { roles::TILE_TAB };
+        let pick = tile.get_node(PICK);
+        pick.widget.text = tab_label(state, id).as_str();
+        pick.widget_check.checked = active;
+        tile.get_node(CLOSE).widget.tooltip = "Close {panel(state, id)[fields::NAME]}";
+    }
+    let hidden: [str] = [];
+    for id in dock[dock_fields::TABS] {
+        if !has(shown, id.as_str()) {
+            hidden.push(panel(state, id.as_str())[fields::NAME].as_str());
+        }
+    }
+    let more = row.get_node(MORE);
+    more.set_visible(hidden.len() > 0);
+    more.widget.text = "+{hidden.len()}";
+    more.widget_menu.options = hidden;
 }
 
 /// A dock's fold pressed: it shuts to its handle.
@@ -630,55 +661,20 @@ pub fn fold(state: &mut editor::State, side: str) {
     signals::docks(state);
 }
 
-// One control a tab, the mark that closes it, and the fold at the end. The
-// panel's own tools are the hatch beside this strip.
-fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) -> [ui::Control] {
-    let out: [ui::Control] = [];
-    let shown: [any] = shown_tabs(state, side);
-    for id in shown {
-        let held = id;
-        let info = panel(state, held.as_str());
-        let active = dock[dock_fields::ACTIVE] == held;
-        let label = tab_label(state, held.as_str());
-        let pick = ui::Control { kind: ui::WIDGET_BUTTON, on_click: "handle", target: pool::editor(), data: { fields::FN: on_tab_picked, SIDE: side, inspector_fields::HELD: held } };
-        let close = ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            tooltip: "Close {info["name"]}",
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_tab_close_pressed, inspector_fields::HELD: held },
-        };
-        out.push(tab::tile(label.as_str(), "", active, false, pick, close));
-    }
-    let hidden: [ui::Control] = [];
-    for id in dock[dock_fields::TABS] {
-        if !has(shown, id.as_str()) {
-            // Bound afresh: a closure made in a loop captures the binding.
-            let held = id;
-            hidden.push(ui::Control {
-                kind: ui::WIDGET_BUTTON,
-                role: roles::ITEM_MENU,
-                text: panel(state, held.as_str())[fields::NAME].as_str(),
-                on_click: "handle", target: pool::editor(),
-                data: { fields::FN: on_tab_picked, SIDE: side, inspector_fields::HELD: held },
-            });
-        }
-    }
-    if hidden.len() > 0 {
-        out.push(ui::Control { kind: ui::WIDGET_MENU, role: roles::CHOICE, text: "+{hidden.len()}", tooltip: "More tabs", controls: hidden });
-    }
-    out
-}
-
-fn on_tab_picked(state: &mut editor::State, data: any, _value: any) {
-    let side: str = data[SIDE].as_str();
-    let held: str = data[inspector_fields::HELD].as_str();
-    state.docks[side][dock_fields::ACTIVE] = held;
+/// A dock's tab picked: its panel shows.
+pub fn tab_picked(state: &mut editor::State, side: str, id: str) {
+    state.docks[side][dock_fields::ACTIVE] = id;
     signals::docks(state);
 }
 
-fn on_tab_close_pressed(state: &mut editor::State, data: any, _value: any) {
-    let held: str = data[inspector_fields::HELD].as_str();
-    close(state, held);
+/// A panel picked from a dock's "+N", by the name it lists.
+pub fn more_picked(state: &mut editor::State, side: str, name: str) {
+    for id in state.docks[side][dock_fields::TABS] {
+        if panel(state, id.as_str())[fields::NAME].as_str() == name {
+            tab_picked(state, side, id.as_str());
+            return;
+        }
+    }
 }
 
 /// The tabs a dock's row has room for, the active one always among them: the

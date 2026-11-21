@@ -31,7 +31,7 @@ use words::components;
 use words::window_marks;
 
 const BRAND: str = "Editor/Shell/Head/HeadRow/Brand";
-const PICKER_ROWS: str = "Editor/Picker/PickerScroll/PickerRows";
+const PICKER_LIST: str = "Editor/Picker/List";
 
 // The centre must be showing the viewport when no document is open: a stray
 // split used to leave a collapsed code pane over it in every workspace.
@@ -397,25 +397,14 @@ pub fn palette_step(state: &mut editor::State) {
     }
     state.palette_demo = -1;
     selftest::check(state.palette_query == "physics", "a palette query survives the frames after it is set ('{state.palette_query}')");
-    let host = scene::root().get_node(PICKER_ROWS);
-    if !selftest::check(host.is_valid(), "the palette's matches are nodes") {
+    let list = scene::root().get_node(PICKER_LIST);
+    if !selftest::check(list.is_valid(), "the palette's matches are a list") {
         return;
     }
-    let shown: [bool] = [];
-    for row in host.children() {
-        if row.visible() == true {
-            let slot = row.get_node("C1").get_node("C0");
-            shown.push(slot.widget_check.checked == true);
-        }
-    }
-    selftest::check(shown.len() > 1, "the query narrowed the list to its matches ({shown.len()})");
-    let held = 0;
-    for on in shown {
-        if on {
-            held += 1;
-        }
-    }
-    selftest::check(shown.len() > 0 && shown[0] && held == 1, "the first match alone wears the held look, which is what Enter runs ({shown})");
+    let rows = util::list_or_empty(list.widget_rows.items);
+    selftest::check(rows.len() > 1, "the query narrowed the list to its matches ({rows.len()})");
+    let lit = list.widget.text;
+    selftest::check(rows.len() > 0 && lit == rows[0]["key"].as_str(), "the first match is the one lit, which is what Enter runs ({lit})");
     let box = ui::widget_rect(scene::root().get_node("Editor/Picker"));
     selftest::check(box != nil && box.unwrap().height > 100.0, "the picker is as tall as the matches it holds ({box})");
     // Enter runs the first match by its command, and closes the palette.
@@ -543,8 +532,8 @@ pub fn settings_step(state: &mut editor::State) {
         selftest::check(body != nil && body.unwrap().height > 100.0, "the sheet's body has the room its frame states ({body})");
         // Typed rather than set: the field's text is what a key press
         // changes, and the list has to follow it.
-        let field = scene::root().get_node("Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows/C0");
-        if selftest::check(field.is_valid() && field.widget.kind == "text_field", "the sidebar's first control is the search field") {
+        let field = scene::root().get_node("Editor/Sheet/SheetBody/SheetSplit/SheetSide/Search");
+        if selftest::check(field.is_valid() && field.visible() == true, "the sidebar shows its search field") {
             ui::edit(field, "scale");
         }
         return;
@@ -975,7 +964,9 @@ pub fn commands_agree(state: &mut editor::State) {
     shell::open_palette(state, "");
     palette::fill(state);
     let lines: any = {};
-    buttons(scene::root().get_node(PICKER_ROWS), lines);
+    for row in util::list_or_empty(scene::root().get_node(PICKER_LIST).widget_rows.items) {
+        lines[row["label"].as_str()] = row["note"];
+    }
     shell::close_palette(state);
     let wrong: [str] = [];
     let chorded = 0;

@@ -6,79 +6,34 @@ use commands;
 use docks;
 use editor;
 use icons;
-use pool;
 use words::command;
-use words::fields;
 use words::roles;
 
-/// The menu's rows, as the nodes the pool keeps under the mark. Filled once a
-/// pass; the menu node draws them in its popup when it is opened.
-pub fn rows(state: &mut editor::State) -> [ui::Control] {
-    let out: [ui::Control] = [];
-    for id in [command::PALETTE, command::SETTINGS, command::THEME, command::EXPORT, command::ABOUT] {
-        out.push(action(state, id));
+const PANEL_SCENE: str = "scenes/items/menu_panel.toml";
+
+const PANELS: str = "Panels";
+
+/// Write the menu's rows under `brand`, each the command it is named for as
+/// the palette shows it, then one row a panel, ticked where it is open.
+pub fn fill(state: &mut editor::State, brand: Node) {
+    for id in [command::PALETTE, command::SETTINGS, command::THEME, command::EXPORT, command::ABOUT, command::RESET] {
+        let found = commands::find(state, id).unwrap();
+        let row = brand.get_node(id);
+        row.widget.text = found.label;
+        row.widget_button.icon = found.icon;
+        row.widget_button.trailing = commands::chord(state, id);
     }
-    out.push(rule());
-    out.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_HEADING, text: "Panels" });
-    for pair in panel_pairs(state) {
-        out.push(pair);
-    }
-    out.push(rule());
-    out.push(action(state, command::RESET));
-    out
-}
-
-fn act(state: &mut editor::State, data: any, _value: any) {
-    commands::run(state, data[fields::ID].as_str());
-}
-
-// The command `id` as the palette shows it, its chord against the far edge.
-fn action(state: &mut editor::State, id: str) -> ui::Control {
-    let found = commands::find(state, id).unwrap();
-    let row: ui::Control = ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::ITEM_MENU,
-        text: found.label,
-        icon: found.icon,
-        trailing: commands::chord(state, id),
-    };
-    pool::on(row, act, { fields::ID: id })
-}
-
-// A rule across the menu, which is as wide as its widest row.
-fn rule() -> ui::Control {
-    ui::Control { kind: ui::WIDGET_SEPARATOR }
-}
-
-// Every panel, ticked where it is open, two to a line: seventeen down one
-// column outgrow the window. A click shuts one or puts it back; the menu stays up.
-fn panel_pairs(state: &mut editor::State) -> [ui::Control] {
     let ids = docks::known(state);
-    let out: [ui::Control] = [];
-    let index = 0;
-    while index < ids.len() {
-        let pair: [ui::Control] = [cell(state, ids[index])];
-        // A last one alone keeps to its half.
-        pair.push(if index + 1 < ids.len() { cell(state, ids[index + 1]) } else { ui::Control { kind: ui::WIDGET_ROW, grow: 1 } });
-        out.push(ui::Control { kind: ui::WIDGET_ROW, controls: pair });
-        index += 2;
+    let items: [scene::RepeatItem] = [];
+    for id in ids {
+        items.push(scene::RepeatItem { key: id, scene: PANEL_SCENE });
     }
-    out
-}
-
-fn cell(state: &mut editor::State, id: str) -> ui::Control {
-    let open = docks::side_of(state, id) != nil;
-    let row: ui::Control = ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: if open { roles::ITEM_MENU } else { roles::ITEM_MENU_QUIET },
-        icon: if open { icons::ui(icons::CHECK) } else { "" },
-        text: docks::name(state, id),
-        grow: 1,
-        keep_open: true,
-    };
-    pool::on(row, toggled, { fields::ID: id })
-}
-
-fn toggled(state: &mut editor::State, data: any, _value: any) {
-    docks::toggle(state, data[fields::ID].as_str());
+    let nodes = scene::repeat(brand.get_node(PANELS), items);
+    for index in 0..ids.len() {
+        let open = docks::side_of(state, ids[index]) != nil;
+        let row = nodes[index];
+        row.widget.text = docks::name(state, ids[index]).as_str();
+        row.widget.role = if open { roles::ITEM_MENU } else { roles::ITEM_MENU_QUIET };
+        row.widget_button.icon = if open { icons::ui(icons::CHECK) } else { "" };
+    }
 }

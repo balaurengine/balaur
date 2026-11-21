@@ -1,0 +1,32 @@
+# One tab of a dock's row, named for its panel: the name picks it and the
+# mark closes it. The dock's script hears both, the tile telling it which.
+
+[[nodes]]
+id = "tab"
+name = "Tab"
+[nodes.widget]
+kind = "row"
+role = "tile_tab"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "pick"
+name = "Pick"
+parent = "tab"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../..", value = "tab_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_label"
+
+[[nodes]]
+id = "close"
+name = "Close"
+parent = "tab"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../..", value = "tab_closed" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_tab"
+text = ""
+[nodes.widget_button]
+icon = "x-bold"

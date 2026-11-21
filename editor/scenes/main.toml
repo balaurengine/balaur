@@ -50,8 +50,7 @@ grow = 1
 [nodes.widget_layout]
 align_items = "center"
 
-# The brand, the shell's one menu, then a strip: how many workspaces and
-# documents there are changes with what is open, so `chrome.bs` fills both.
+# The brand, the shell's one menu, then the strip of the bar's buttons.
 [[nodes]]
 id = "brand"
 name = "Brand"
@@ -62,6 +61,95 @@ role = "action_brand"
 tooltip = "Menu"
 [nodes.widget_button]
 face_gap = 4
+
+# The menu's rows, each named for the command it runs; `menu.bs` writes their
+# labels and chords from the command table.
+[[nodes]]
+id = "brand_palette"
+name = "palette"
+parent = "brand"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+
+[[nodes]]
+id = "brand_settings"
+name = "settings"
+parent = "brand"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+
+[[nodes]]
+id = "brand_theme"
+name = "theme"
+parent = "brand"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+
+[[nodes]]
+id = "brand_export"
+name = "export"
+parent = "brand"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+
+[[nodes]]
+id = "brand_about"
+name = "about"
+parent = "brand"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+
+[[nodes]]
+id = "brand_rule"
+name = "Rule"
+parent = "brand"
+[nodes.widget]
+kind = "separator"
+
+[[nodes]]
+id = "brand_heading"
+name = "Heading"
+parent = "brand"
+[nodes.widget]
+kind = "label"
+role = "text_heading"
+text = "Panels"
+
+# Every panel, two to a line: seventeen down one column outgrow the window.
+[[nodes]]
+id = "brand_panels"
+name = "Panels"
+parent = "brand"
+[nodes.widget]
+kind = "grid"
+[nodes.widget_grid]
+grid_columns = "1fr 1fr"
+
+[[nodes]]
+id = "brand_rule_end"
+name = "RuleEnd"
+parent = "brand"
+[nodes.widget]
+kind = "separator"
+
+[[nodes]]
+id = "brand_reset"
+name = "reset"
+parent = "brand"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
 
 # Longer than a narrow window, and than any window once enough documents are
 # open, so it clips and drags sideways rather than drawing past the bar. A
@@ -368,6 +456,28 @@ role = "layout_dock"
 [nodes.widget_layout]
 align_items = "center"
 
+# The tabs the row has room for, one `scenes/items/dock_tab.toml` a panel,
+# then the rest under "+N".
+[[nodes]]
+id = "left_tab_tiles"
+name = "Tabs"
+parent = "left_tabs_row"
+[nodes.widget]
+kind = "row"
+role = "layout_dock"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "left_more"
+name = "More"
+parent = "left_tabs_row"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../../../..", value = "more_picked" }] }
+[nodes.widget]
+kind = "menu"
+role = "choice"
+tooltip = "More tabs"
+
 [[nodes]]
 id = "left_tail"
 name = "LeftTail"
@@ -491,6 +601,28 @@ kind = "row"
 role = "layout_dock"
 [nodes.widget_layout]
 align_items = "center"
+
+# The tabs the row has room for, one `scenes/items/dock_tab.toml` a panel,
+# then the rest under "+N".
+[[nodes]]
+id = "right_tab_tiles"
+name = "Tabs"
+parent = "right_tabs_row"
+[nodes.widget]
+kind = "row"
+role = "layout_dock"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "right_more"
+name = "More"
+parent = "right_tabs_row"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../../../..", value = "more_picked" }] }
+[nodes.widget]
+kind = "menu"
+role = "choice"
+tooltip = "More tabs"
 
 [[nodes]]
 id = "right_tail"
@@ -670,6 +802,28 @@ kind = "row"
 role = "layout_dock"
 [nodes.widget_layout]
 align_items = "center"
+
+# The tabs the row has room for, one `scenes/items/dock_tab.toml` a panel,
+# then the rest under "+N".
+[[nodes]]
+id = "bottom_tab_tiles"
+name = "Tabs"
+parent = "bottom_tabs_row"
+[nodes.widget]
+kind = "row"
+role = "layout_dock"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "bottom_more"
+name = "More"
+parent = "bottom_tabs_row"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../../../..", value = "more_picked" }] }
+[nodes.widget]
+kind = "menu"
+role = "choice"
+tooltip = "More tabs"
 
 [[nodes]]
 id = "bottom_tail"
@@ -1228,23 +1382,37 @@ kind = "label"
 role = "chip_key"
 text = "esc"
 
+# What the query matches: the palette's commands, the node types, the fonts.
 [[nodes]]
-id = "picker_scroll"
-name = "PickerScroll"
+id = "picker_list"
+name = "List"
 parent = "picker"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "..", value = "picked" }] }
 [nodes.widget]
-kind = "scroll"
-[nodes.widget_scroll]
-axis = "vertical"
-
-[[nodes]]
-id = "picker_rows"
-name = "PickerRows"
-parent = "picker_scroll"
-[nodes.widget]
-kind = "column"
+kind = "list"
 role = "list_picker"
-grow = 1
+
+# Said in place of the rows: nothing matched, or the catalogue has not answered.
+[[nodes]]
+id = "picker_note"
+name = "Note"
+parent = "picker"
+visible = false
+[nodes.widget]
+kind = "label"
+role = "text_note"
+
+# Rename's one command, under its field.
+[[nodes]]
+id = "picker_apply"
+name = "Apply"
+parent = "picker"
+visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "applied" }] }
+[nodes.widget]
+kind = "button"
+role = "action_form_primary"
+text = "Rename"
 
 # The one sheet over the shell: About, Export, New project and Settings all
 # fill it. A `dialog`, so egui dims the screen and says when Escape or a click
@@ -1329,22 +1497,36 @@ kind = "row"
 role = "layout_dialog"
 grow = 1
 
+# A screen's pages down the left: Settings' categories under its search,
+# Theme's pages. The screen up hears a pick and what is typed.
 [[nodes]]
 id = "sheet_side"
 name = "SheetSide"
 parent = "sheet_split"
 [nodes.widget]
-kind = "scroll"
+kind = "column"
 role = "layout_sidebar"
-[nodes.widget_scroll]
-axis = "vertical"
 
 [[nodes]]
-id = "sheet_side_rows"
-name = "SheetSideRows"
+id = "sheet_side_search"
+name = "Search"
 parent = "sheet_side"
+visible = false
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../../../..", value = "side_searched" }] }
 [nodes.widget]
-kind = "column"
+kind = "text_field"
+role = "input_dock"
+[nodes.widget_field]
+icon = "magnifying-glass"
+placeholder = "Search"
+
+[[nodes]]
+id = "sheet_side_pages"
+name = "Pages"
+parent = "sheet_side"
+bindings = { rows = [{ event = "emitted:value_changed", action = "call", target = "../../../..", value = "side_picked" }] }
+[nodes.widget]
+kind = "list"
 role = "list_sidebar"
 grow = 1
 

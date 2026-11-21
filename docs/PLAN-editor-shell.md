@@ -25,11 +25,10 @@ its keys are a `shortcuts` table on one node.
    Done when two viewports of different widths each pick their own class.
 4. **Item scenes in place of the pool.** `ui::fill_strip`, `fill_slot` and
    `patch_control` build controls from tables a script writes, handlers
-   included. `scene::repeat(host, items)` is built, and the bar's buttons and
-   open documents, the status strip, the rail, the viewport's chips, the docks'
-   folds, the sheet's and the picker's heads and the bindings tab's head are
-   scenes. Left, in order: one-action rows onto `list` and `menu` (palette,
-   pickers, sidebars, the brand menu, "+N", imports, recordings, projects);
-   composite items (dock tab, fold head, lane, card, hook pill); forms and the
-   inspector; the kit and its plugins. Done when `pool.rs` and `pool.bs` are
+   included. `scene::repeat(host, items)` is built. The bar, the status strip,
+   the rail, the chips, the brand menu, the docks' heads and tabs, the sheet's
+   head and sidebar, the picker, the imports toast and the recordings are
+   scenes; the picker and the sidebar are `list`s, "+N" a `menu`. Left, in
+   order: the start screen; composite items (fold head, lane, card, hook pill);
+   forms and the inspector; the kit and its plugins. Done when `pool.rs` and `pool.bs` are
    gone and the inspector scrolls at the pool's cost or less.

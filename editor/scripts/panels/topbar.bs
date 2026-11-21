@@ -36,6 +36,11 @@ impl Topbar {
         self.editor.unwrap().doc_closed(node.parent().name());
     }
 
+    /// A panel's row in the brand menu: it shuts, or comes back.
+    pub fn panel_toggled(_value: any, node: Node) {
+        self.editor.unwrap().panel_toggled(node.name());
+    }
+
     pub fn refill() {
         self.editor.unwrap().chrome_fill();
     }

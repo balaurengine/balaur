@@ -1,0 +1,98 @@
+# One recording in the Recordings tab, named for it: the command that replays
+# it, what it is and how it ended, then those that drop, copy or keep it. Each
+# button is named for what it does.
+
+[[nodes]]
+id = "recording"
+name = "Recording"
+[nodes.widget]
+kind = "row"
+role = "layout_actions"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "replay"
+name = "replay"
+parent = "recording"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "recording_pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "action_form_primary"
+text = ""
+tooltip = "Replay this recording"
+[nodes.widget_button]
+icon = "play"
+
+[[nodes]]
+id = "name"
+name = "Name"
+parent = "recording"
+[nodes.widget]
+kind = "label"
+role = "text_code"
+
+[[nodes]]
+id = "length"
+name = "Length"
+parent = "recording"
+[nodes.widget]
+kind = "label"
+role = "text_caption"
+
+[[nodes]]
+id = "ending"
+name = "Ending"
+parent = "recording"
+[nodes.widget]
+kind = "label"
+role = "note_danger"
+
+[[nodes]]
+id = "stale"
+name = "Stale"
+parent = "recording"
+[nodes.widget]
+kind = "label"
+role = "note_warning"
+text = "scripts changed"
+
+[[nodes]]
+id = "spring"
+name = "Spring"
+parent = "recording"
+[nodes.widget]
+kind = "row"
+grow = 1
+
+[[nodes]]
+id = "delete"
+name = "delete"
+parent = "recording"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "recording_pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "delete"
+
+[[nodes]]
+id = "copy"
+name = "copy"
+parent = "recording"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "recording_pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "copy to project"
+tooltip = "Copy into the project, for a bug report or `balaur replay`"
+
+[[nodes]]
+id = "keep"
+name = "keep"
+parent = "recording"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "recording_pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "action_form"
+text = "keep"
+tooltip = "Never prune this one"

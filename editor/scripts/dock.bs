@@ -5,12 +5,10 @@ use anim;
 use defs;
 use dropin;
 use editor;
-use form;
 use history;
 use icons;
 use importer;
 use model;
-use pool;
 use search;
 use session;
 use shell;
@@ -27,7 +25,6 @@ use words::glyphs;
 use words::layout_fields;
 use words::log_fields;
 use words::project_fields;
-use words::roles;
 use words::schema_fields;
 use words::statuses;
 use words::tabs;
@@ -45,7 +42,6 @@ const NODE: str = "node";
 const STAGE: str = "stage";
 const WEB: str = "web";
 const LOCALS: str = "locals";
-const RECORDING: str = "recording";
 const STEP_INTO: str = "step-into";
 const PAUSE: str = "pause";
 
@@ -812,99 +808,59 @@ fn open_at(state: &mut editor::State, finding: any) {
 // while a recording is open, and the lanes take its room.
 const RECORDINGS: str = "Editor/Shell/Body/Centre/Bottom/Recordings/Rows/Column";
 
+const RECORDING_SCENE: str = "scenes/items/recording.toml";
+
+// A recording's buttons, each named for what it does.
+const REPLAY: str = "replay";
+
+const DELETE: str = "delete";
+
+const COPY: str = "copy";
+
+const KEEP: str = "keep";
+
 /// Every recording this game has made, newest first, as a row each. "Keep"
 /// renames one out of the ring that prunes the oldest, so a session worth
 /// returning to survives the next ten runs.
 pub fn recordings_fill(state: &mut editor::State) -> RecordingsFill {
     let rows = session::listing(state);
-    let specs: [form::Row] = [];
+    let items: [scene::RepeatItem] = [];
     for recording in rows {
-        specs.push(form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: session_row(state, recording) });
+        items.push(scene::RepeatItem { key: recording.name, scene: RECORDING_SCENE });
     }
-    form::fill(RECORDINGS, specs);
+    let nodes = scene::repeat(scene::root().get_node(RECORDINGS), items);
+    for at in 0..rows.len() {
+        let recording = rows[at];
+        let row = nodes[at];
+        row.get_node("Name").widget.text = if recording.started == "" { recording.name } else { recording.started };
+        row.get_node("Length").widget.text = "{recording.ticks} ticks · {util::fixed(recording.seconds, 1)}s";
+        // How it ended, and whether its code has moved on since.
+        let ending = row.get_node("Ending");
+        ending.set_visible(recording.reason != statuses::STOP);
+        ending.widget.text = recording.reason;
+        row.get_node("Stale").set_visible(recording.stale);
+        row.get_node(KEEP).set_visible(!recording.name.starts_with("kept-"));
+    }
     RecordingsFill { verify: state.session.verify, count: rows.len() }
+}
+
+/// One of a recording's buttons, by its name: replay, delete, copy or keep.
+pub fn recording_pressed(state: &mut editor::State, name: str, button: str) {
+    if button == REPLAY {
+        session::open(state, name);
+    } else if button == DELETE {
+        session::remove(state, name);
+    } else if button == COPY {
+        session::export(state, name);
+    } else if button == KEEP {
+        session::keep(state, name);
+    }
 }
 
 /// The Recordings panel's verify switch.
 pub fn recordings_verify(state: &mut editor::State) {
     state.session.verify = !state.session.verify;
     signals::changed(state, changes::RECORDINGS);
-}
-
-// One recording: the command that plays it, what it is, and the three that keep,
-// copy or drop it.
-fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
-    let out: [ui::Control] = [
-        ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_FORM_PRIMARY,
-            text: "",
-            icon: icons::ui(command::PLAY),
-            tooltip: "Replay this recording",
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_replay_pressed, RECORDING: recording },
-        },
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: if recording.started == "" { recording.name } else { recording.started } },
-        ui::Control {
-            kind: ui::WIDGET_LABEL,
-            role: roles::TEXT_CAPTION,
-            text: "{recording.ticks} ticks · {util::fixed(recording.seconds, 1)}s",
-        },
-    ];
-    // How it ended, and whether its code has moved on since.
-    if recording.reason != statuses::STOP {
-        out.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::NOTE_DANGER, text: recording.reason });
-    }
-    if recording.stale {
-        out.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::NOTE_WARNING, text: "scripts changed" });
-    }
-    out.push(ui::Control { kind: ui::WIDGET_ROW, grow: 1 });
-    out.push(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::ACTION_FORM,
-        text: "delete",
-        on_click: "handle", target: pool::editor(),
-        data: { fields::FN: on_delete_pressed, RECORDING: recording },
-    });
-    out.push(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::ACTION_FORM,
-        text: "copy to project",
-        tooltip: "Copy into the project, for a bug report or `balaur replay`",
-        on_click: "handle", target: pool::editor(),
-        data: { fields::FN: on_copy_pressed, RECORDING: recording },
-    });
-    if !recording.name.starts_with("kept-") {
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_FORM,
-            text: "keep",
-            tooltip: "Never prune this one",
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_keep_pressed, RECORDING: recording },
-        });
-    }
-    out
-}
-
-fn on_replay_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data[RECORDING];
-    session::open(state, recording.name);
-}
-
-fn on_delete_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data[RECORDING];
-    session::remove(state, recording.name);
-}
-
-fn on_copy_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data[RECORDING];
-    session::export(state, recording.name);
-}
-
-fn on_keep_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data[RECORDING];
-    session::keep(state, recording.name);
 }
 
 // What one 60 Hz frame costs, as a bar per stage against that budget. The

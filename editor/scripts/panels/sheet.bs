@@ -28,6 +28,18 @@ impl Sheet {
         self.editor.unwrap().sheet_close();
     }
 
+    /// A page of the sidebar picked.
+    pub fn side_picked(value: any) {
+        self.editor.unwrap().sheet_side_picked(value.as_str());
+        self.refill();
+    }
+
+    /// What was typed in the sidebar's search.
+    pub fn side_searched(value: any) {
+        self.editor.unwrap().sheet_side_searched(value.as_str());
+        self.refill();
+    }
+
     pub fn refill() {
         self.editor.unwrap().sheet_fill();
     }

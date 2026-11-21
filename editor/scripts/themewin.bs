@@ -62,7 +62,6 @@ const TEXT: str = "text";
 const WARNING: str = "warning";
 const WIDTH: str = "width";
 const NEED: str = "need";
-const PAGE: str = "page";
 const RATIO: str = "ratio";
 const ROLE: str = "role";
 const TABLE: str = "table";
@@ -199,8 +198,7 @@ pub fn fill(state: &mut editor::State) {
         return;
     }
     let hosts = hosts.unwrap();
-    ui::fill_strip(hosts.side_rows, if stacked { [] } else { side_controls(state) });
-    util::set_visible(hosts.side, !stacked);
+    window::sheet_side(if stacked { [] } else { side_rows(state) }, state.themewin.page);
     let specs = form_specs(state);
     if stacked {
         specs.insert(0, page_picker(state));
@@ -248,26 +246,16 @@ fn page_title(state: editor::State, page: str) -> str {
     "{word}  {count}"
 }
 
-fn side_controls(state: editor::State) -> [ui::Control] {
-    let out: [ui::Control] = [];
-    for name in PAGES() {
-        // Bound afresh: a closure made in a loop captures the binding.
-        let page = name;
-        let on = state.themewin.page == page;
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: page_title(state, page),
-            role: roles::ITEM_SIDEBAR,
-            checked: on,
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_page_button_clicked, PAGE: page },
-        });
+fn side_rows(state: editor::State) -> [ui::Item] {
+    let out: [ui::Item] = [];
+    for page in PAGES() {
+        out.push(ui::Item { label: page_title(state, page), key: page });
     }
     out
 }
 
-fn on_page_button_clicked(state: &mut editor::State, data: any, _value: any) {
-    let page: str = data[PAGE].as_str();
+/// A page picked in the sidebar.
+pub fn side_picked(state: &mut editor::State, page: str) {
     state.themewin.page = page;
 }
 

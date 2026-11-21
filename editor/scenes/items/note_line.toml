@@ -1,0 +1,9 @@
+# One line of text in the note's ink: an import's progress in the toast.
+
+[[nodes]]
+id = "line"
+name = "Line"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+interactive = false

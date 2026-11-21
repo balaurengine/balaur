@@ -28,6 +28,12 @@ impl Recordings {
         self.refresh();
     }
 
+    /// One of a recording's buttons: the row is named for the recording.
+    pub fn recording_pressed(_value: any, node: Node) {
+        self.editor.unwrap().recording_pressed(node.parent().name(), node.name());
+        self.refresh();
+    }
+
     pub fn refill() {
         self.refresh();
     }

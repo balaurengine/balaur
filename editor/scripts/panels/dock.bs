@@ -36,6 +36,21 @@ impl Dock {
         self.editor.unwrap().dock_fill(self.side);
     }
 
+    /// A tab's name pressed, by the tile it sits in.
+    pub fn tab_picked(_value: any, node: Node) {
+        self.editor.unwrap().dock_tab_picked(self.side, node.parent().name());
+    }
+
+    /// A tab's close mark pressed.
+    pub fn tab_closed(_value: any, node: Node) {
+        self.editor.unwrap().dock_tab_closed(node.parent().name());
+    }
+
+    /// A panel picked from "+N", by its name.
+    pub fn more_picked(value: any) {
+        self.editor.unwrap().dock_more_picked(self.side, value.as_str());
+    }
+
     /// The fold, which shuts this dock to its handle.
     pub fn fold(_value: any, _node: Node) {
         self.editor.unwrap().dock_folded(self.side);

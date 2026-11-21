@@ -11,7 +11,6 @@ use left;
 use manager;
 use newnode;
 use palette;
-use pool;
 use populate;
 use settings;
 use shell;
@@ -40,8 +39,6 @@ pub class WindowState {
 }
 
 pub struct Hosts {
-    internal side: str,
-    internal side_rows: str,
     internal form: str,
 }
 
@@ -184,7 +181,39 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SIDE);
-    Hosts { side: SIDE, side_rows: SIDE_ROWS, form: FORM }
+    Hosts { form: FORM }
+}
+
+/// Show the sheet's sidebar with `rows`, the one keyed `lit` lit, and its
+/// search field holding `query` where the screen has one; nil hides it. No
+/// rows hides the sidebar.
+pub fn sheet_side(rows: [ui::Item], lit: str, query: str?) {
+    let side = scene::root().get_node(SIDE);
+    side.set_visible(rows.len() > 0);
+    let pages = side.get_node(PAGES);
+    pages.widget_rows.items = rows;
+    pages.widget.text = lit;
+    let search = side.get_node(SEARCH);
+    search.set_visible(query != nil);
+    if query != nil && search.widget.text != query.unwrap() {
+        search.widget.text = query.unwrap();
+    }
+}
+
+/// A page of the sheet's sidebar picked, for the screen that is up.
+pub fn side_picked(state: &mut editor::State, key: str) {
+    if state.window.open == command::SETTINGS {
+        settings::side_picked(state, key);
+    } else if state.window.open == command::THEME {
+        themewin::side_picked(state, key);
+    }
+}
+
+/// What was typed in the sidebar's search, for the screen that is up.
+pub fn side_searched(state: &mut editor::State, text: str) {
+    if state.window.open == command::SETTINGS {
+        settings::searched(state, text);
+    }
 }
 
 /// Hold the sheet to its head and `rows` rows of `role`, for a question with
@@ -202,7 +231,11 @@ pub fn fit(state: editor::State, rows: int, role: str) {
 
 const SIDE: str = "Editor/Sheet/SheetBody/SheetSplit/SheetSide";
 
-const SIDE_ROWS: str = "Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows";
+// The sidebar's search, and its pages under it.
+const SEARCH: str = "Search";
+
+const PAGES: str = "Pages";
+
 
 const FORM: str = "Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm";
 
@@ -210,6 +243,20 @@ const FORM: str = "Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm";
 // node picker, rename and the font catalogue take turns on it, since only
 // one of them is ever up.
 const PICKER: str = "Editor/Picker";
+
+// The picker's parts: its head and field, the rows, what it says in their
+// place, and rename's command.
+const HEAD: str = "PickerHead";
+
+const QUERY: str = "Query";
+
+const LIST: str = "List";
+
+const NOTE: str = "Note";
+
+const APPLY: str = "Apply";
+
+const ROW_HEIGHT: str = "row_height";
 
 /// Shut the picker, for the screen that was using it.
 pub fn picker_shut(state: &mut editor::State) {
@@ -220,12 +267,13 @@ pub fn picker_shut(state: &mut editor::State) {
     state.picker_focused = false;
 }
 
-/// Open the picker and answer where its rows go.
+/// Open the picker over `rows`, the one keyed `lit` lit; `note` is said in
+/// their place where there are none.
 ///
-/// `options` names the glyph before the query, the `placeholder` behind it, the
-/// `query` itself and how tall its rows are; a `width` over its role's. What
-/// is typed goes to `picker_typed`.
-pub fn picker(state: &mut editor::State, options: any) -> str {
+/// `options` names the glyph before the query, the `placeholder` behind it,
+/// the `query` itself and a `width` over its role's. What is typed goes to
+/// `picker_typed`, and a row picked to `picker_picked` with its key.
+pub fn picker(state: &mut editor::State, options: any, rows: [ui::Item], lit: str, note: str) {
     let screen = ui::window_size();
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
@@ -233,42 +281,68 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
     let wanted = if asked == nil { style::role_size_in_pixels(state, roles::SHEET_PICKER, layout_fields::WIDTH, 520.0) } else { asked.as_float() };
     let width = math::min(wanted, math::max(screen.x - 32.0, 240.0));
     let filled = scene::root().get_node(PICKER);
-    if filled.is_valid() {
-        filled.widget_window.open = true;
-        filled.widget.width = width;
+    if !filled.is_valid() {
+        return;
     }
-    let head = scene::root().get_node(PICKER + "/PickerHead");
+    filled.widget_window.open = true;
+    filled.widget.width = width;
+    let head = filled.get_node(HEAD);
     head.get_node("Mark").widget.text = ui::glyph(options[fields::MARK].as_str());
-    let query = head.get_node("Query");
+    let query = head.get_node(QUERY);
     let text = options[form_fields::QUERY].as_str();
     // Written only when it moved: what was just typed is already there.
     if query.widget.text != text {
         query.widget.text = text;
     }
     query.widget_field.placeholder = options[form_fields::PLACEHOLDER].as_str();
-    let filled = scene::root().get_node(PICKER + "/PickerScroll");
-    if filled.is_valid() {
-        filled.set_visible(true);
-        filled.widget.height = math::min(math::max(screen.y * 0.5, 160.0), options[form_fields::ROWS_H].as_float());
-    }
+    let list = filled.get_node(LIST);
+    list.set_visible(rows.len() > 0);
+    list.widget_rows.items = rows;
+    list.widget.text = lit;
+    list.widget.height = math::min(math::max(screen.y * 0.5, 160.0), picker_rows_height(state, rows.len()));
+    let said = filled.get_node(NOTE);
+    said.set_visible(note != "");
+    said.widget.text = note;
+    filled.get_node(APPLY).set_visible(false);
     // The field takes the caret the frame the picker opens, and keeps it: a
     // search box you have to click into is one you may as well not have.
     if !state.picker_focused {
-        let node = scene::root().get_node(PICKER + "/PickerHead/Query");
-        if node.is_valid() {
-            ui::set_focus(node);
-            state.picker_focused = true;
-        }
+        ui::set_focus(query);
+        state.picker_focused = true;
     }
-    PICKER + "/PickerScroll/PickerRows"
 }
 
-/// How tall `count` of the picker's rows stand with the air between them: the
-/// most its scroll is given.
-pub fn picker_rows_height(state: editor::State, count: int) -> float {
-    let row = style::role_size_in_pixels(state, roles::ITEM_PICKER, layout_fields::HEIGHT, 30.0);
-    let gap = style::role_size_in_pixels(state, roles::LIST_PICKER, layout_fields::GAP, 2.0);
-    (count as float) * (row + gap)
+/// Show the picker's one command under its field, for a screen that types a
+/// value rather than picking a row: rename.
+pub fn picker_apply() {
+    scene::root().get_node(PICKER + "/" + APPLY).set_visible(true);
+}
+
+/// The centre of the picker's row `index`, in design px, as drawn; empty
+/// before the list has drawn.
+pub fn picker_row_spot(state: editor::State, index: int) -> [float] {
+    list_row_spot(state, PICKER + "/" + LIST, roles::LIST_PICKER, index)
+}
+
+/// The centre of the sheet sidebar's row `index`, the same way.
+pub fn side_row_spot(state: editor::State, index: int) -> [float] {
+    list_row_spot(state, SIDE + "/" + PAGES, roles::LIST_SIDEBAR, index)
+}
+
+// The centre of row `index` of the list at `path`, whose rows `role` sizes.
+fn list_row_spot(state: editor::State, path: str, role: str, index: int) -> [float] {
+    let rect = ui::widget_rect(scene::root().get_node(path));
+    if rect == nil {
+        return [];
+    }
+    let box = rect.unwrap();
+    let row = style::role_size_in_pixels(state, role, ROW_HEIGHT, 30.0);
+    return [box.x + box.width / 2.0, box.y + row * ((index as float) + 0.5)];
+}
+
+// How tall `count` of the picker's rows stand: the most its list is given.
+fn picker_rows_height(state: editor::State, count: int) -> float {
+    (count as float) * style::role_size_in_pixels(state, roles::LIST_PICKER, ROW_HEIGHT, 30.0)
 }
 
 /// What was typed in the picker, for whichever of its screens is up.
@@ -294,6 +368,17 @@ pub fn picker_submitted(state: &mut editor::State, text: str) {
         left::rename_submitted(state, text);
     } else if fonts::finding(state) {
         fonts::typed(state, text);
+    }
+}
+
+/// A row of the picker picked, by its key, for whichever of its screens is up.
+pub fn picker_picked(state: &mut editor::State, key: str) {
+    if state.palette {
+        palette::picked(state, key);
+    } else if state.newnode {
+        newnode::picked(state, key);
+    } else if fonts::finding(state) {
+        fonts::picked(state, key);
     }
 }
 

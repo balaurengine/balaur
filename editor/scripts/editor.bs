@@ -48,7 +48,6 @@ use session;
 use settings;
 use shell;
 use showcase;
-use search;
 use signals;
 use statemachine;
 use suite;
@@ -553,12 +552,6 @@ impl Editor {
     /// Lay the shell out again, for a module that changed what it holds.
     pub fn relayout_shell() { frame::relayout(self.state); }
 
-    /// A search control's edit: the query under the `id` it carries.
-    pub fn search_control_typed(id: any, text: any, control: Node) {
-        search::typed(self.state, id.as_str(), text.as_str());
-        refill_panel(control);
-    }
-
     /// A pooled control's edit, for the function its spec's data names: see
     /// `pool::on`.
     pub fn handle(data: any, value: any, control: Node) {
@@ -654,6 +647,9 @@ impl Editor {
     /// fills itself, for the dock to tell once it shows.
     pub fn dock_fill(side: str) -> str { docks::fill(self.state, side) }
     pub fn dock_folded(side: str) { docks::fold(self.state, side); }
+    pub fn dock_tab_picked(side: str, id: str) { docks::tab_picked(self.state, side, id); }
+    pub fn dock_tab_closed(id: str) { docks::close(self.state, id); }
+    pub fn dock_more_picked(side: str, name: str) { docks::more_picked(self.state, side, name); }
 
     pub fn on_problems_changed(_change: any) { signals::heard(self.state, signals::PROBLEMS_CHANGED); }
 
@@ -879,6 +875,8 @@ impl Editor {
     /// Fill the sheet with whichever screen is up, and hear it shut.
     pub fn sheet_fill() { window::fill(self.state); }
     pub fn sheet_close() { window::hide(self.state); }
+    pub fn sheet_side_picked(key: str) { window::side_picked(self.state, key); }
+    pub fn sheet_side_searched(text: str) { window::side_searched(self.state, text); }
 
     pub fn sheet_closed() { window::closed(self.state); }
 
@@ -887,6 +885,8 @@ impl Editor {
     pub fn picker_fill() { window::picker_fill(self.state); }
     pub fn picker_typed(text: str) { window::picker_typed(self.state, text); }
     pub fn picker_submitted(text: str) { window::picker_submitted(self.state, text); }
+    pub fn picker_picked(key: str) { window::picker_picked(self.state, key); }
+    pub fn rename_apply() { left::apply_rename(self.state); }
 
     pub fn picker_closed() { window::picker_closed(self.state); }
 
@@ -918,6 +918,7 @@ impl Editor {
 
     /// Fill the top bar: the brand, its menu and the strip.
     pub fn chrome_fill() { chrome::fill(self.state); }
+    pub fn panel_toggled(id: str) { docks::toggle(self.state, id); signals::bars(self.state); }
     pub fn doc_picked(id: str) { shell::open_doc(self.state, id); signals::bars(self.state); }
     pub fn doc_closed(id: str) { shell::close_doc(self.state, id); signals::bars(self.state); }
 
@@ -1005,6 +1006,7 @@ impl Editor {
     pub fn recordings_fill() -> dock::RecordingsFill { dock::recordings_fill(self.state) }
 
     pub fn recordings_verify() { dock::recordings_verify(self.state); }
+    pub fn recording_pressed(name: str, button: str) { dock::recording_pressed(self.state, name, button); }
 
     /// The Debugger panel's stop, its steps, pause, break on error and a frame
     /// picked in the stack.

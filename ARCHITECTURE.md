@@ -1191,6 +1191,9 @@ write. It walks widgets in scene order and wraps.
   sharing the file's ids would take each other's clicks. The tool rail is a
   `grid` of `scenes/items/rail_mark.toml`, and the viewport's toggles and the
   Polygon tool's modes are `scenes/items/chip.toml`, whose row says which.
+  A dock's tabs, the brand menu's panels, the recordings and the imports'
+  lines are item scenes too. The picker and the sheet's sidebar are `list`s
+  whose rows the screen up hands over as `ui::Item`s, a pick coming back by key.
 - The keyboard drives focus until the game shows the keys are its own: an action
   binding an arrow, Tab, Enter or Space, or a script reading one, unless it also
   declares a `ui_*` action. A pad moves focus and accepts as `ui.focus_next`, `focus_previous` and a click do, which `standard_app` maps

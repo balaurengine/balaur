@@ -1577,10 +1577,19 @@ padding_y = 4
 gap = 2
 
 [roles.list_picker]
-gap = 2
+font_size = "font_size_large"
+icon_color = "primary_text"
+row_height = "control_height_large"
+
+[roles.list_picker.touch]
+row_height = "control_height_touch"
 
 [roles.list_plugin]
 gap = 2
 
 [roles.list_sidebar]
-gap = 2
+text_color = "text_muted"
+row_height = "control_height"
+
+[roles.list_sidebar.touch]
+row_height = "control_height_touch"

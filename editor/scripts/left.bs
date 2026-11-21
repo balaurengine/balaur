@@ -4,11 +4,9 @@ use anim;
 use arrange;
 use defs;
 use editor;
-use form;
 use icons;
 use lint;
 use model;
-use pool;
 use sceneedit;
 use search;
 use selection;
@@ -481,27 +479,12 @@ pub fn rename_close(state: &mut editor::State) {
 /// the rename happens over it.
 /// Fill the picker: what its script asks for while a rename is up.
 pub fn rename_fill(state: &mut editor::State) {
-    let button = style::role_size_in_pixels(state, roles::ACTION_FORM_PRIMARY, layout_fields::HEIGHT, 20.0);
-    let host = window::picker(state, {
+    window::picker(state, {
         fields::MARK: node_mark(state),
         form_fields::PLACEHOLDER: "Name",
         form_fields::QUERY: state.rename_text,
-        form_fields::ROWS_H: button + 6.0,
-    });
-    form::fill(host, [
-        form::Row {
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_BUTTON,
-                    role: roles::ACTION_FORM_PRIMARY,
-                    grow: 1,
-                    text: "Rename",
-                    on_click: "handle", target: pool::editor(),
-                    data: { fields::FN: on_rename_clicked },
-                },
-            ],
-        },
-    ]);
+    }, [], "", "");
+    window::picker_apply();
 }
 
 /// What is typed in the picker while a rename is up.
@@ -515,16 +498,13 @@ pub fn rename_submitted(state: &mut editor::State, text: str) {
     apply_rename(state);
 }
 
-fn on_rename_clicked(state: &mut editor::State, data: any, _value: any) {
-    apply_rename(state);
-}
 
 fn node_mark(state: editor::State) -> any {
     let found = model::selected_node(state);
     if found.is_valid() { model::node_icon(found).glyph } else { icons::ui(icons::SEARCH) }
 }
 
-fn apply_rename(state: &mut editor::State) {
+pub fn apply_rename(state: &mut editor::State) {
     sceneedit::rename_selected(state, state.rename_text);
     rename_close(state);
 }

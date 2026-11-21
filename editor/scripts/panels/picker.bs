@@ -34,6 +34,18 @@ impl Picker {
         self.refill();
     }
 
+    /// A row picked, by its key.
+    pub fn picked(value: any) {
+        self.editor.unwrap().picker_picked(value.as_str());
+        self.refill();
+    }
+
+    /// Rename's command pressed.
+    pub fn applied(_value: any, _node: Node) {
+        self.editor.unwrap().rename_apply();
+        self.refill();
+    }
+
     pub fn refill() {
         self.editor.unwrap().picker_fill();
     }

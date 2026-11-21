@@ -456,6 +456,10 @@ fn place_of(state: &mut editor::State, place: any) -> [float] {
         found = scrolled_gutter_spot(state, rel, line_of(state, rel, place["scrolled"].as_str()), place["row"].as_int());
     } else if place.has("manager") {
         found = manager_spot(state, place["manager"].as_str());
+    } else if place.has("picker_row") {
+        found = window::picker_row_spot(state, place["picker_row"].as_int());
+    } else if place.has("side_row") {
+        found = window::side_row_spot(state, place["side_row"].as_int());
     } else if place.has("centre") {
         found = centre_of(place["centre"].as_str());
     } else if place.has("head") {
@@ -916,7 +920,6 @@ fn shaders(state: &mut editor::State, sequence: Sequence) {
 // The copy and the preferences file are put back.
 const FORM: str = "Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm";
 
-const SIDE: str = "Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows";
 
 // A form row's control, found by the row's label: the rows are pooled, so a
 // row's index moves with whatever the page shows above it.
@@ -962,14 +965,14 @@ fn theme_editor(state: &mut editor::State, sequence: Sequence) {
     act_step(sequence, 1, "workspace", { "id": defs::WORKSPACE_SCENE });
     chord(sequence, 40, [input::KEY_LEFT_META, input::KEY_K], "palette");
     over_ui(sequence, 70, 110, typing, { "word": "theme" });
-    click(sequence, 150, at_place("centre", "Editor/Picker/PickerScroll/PickerRows/R0"), "theme", {});
+    click(sequence, 150, at_place("picker_row", 0), "theme", {});
     click(sequence, 250, at_place("head", "Duplicate"), "theme_duplicate", {});
     // One source: the fills, the inks and the tints derived from it follow.
     glide(sequence, 330 - GLIDE, 330, { "form": "primary", "at": 0 });
     at(sequence, 330, press);
     over_ui(sequence, 335, 455, recolouring);
     at(sequence, 460, release);
-    click(sequence, 540, at_place("centre", SIDE + "/C3"), "theme_page", { "id": "controls" });
+    click(sequence, 540, at_place("side_row", 3), "theme_page", { "id": "controls" });
     click(sequence, 620, { "form": "chip", "at": 1 }, "theme_role", { "id": "chip" });
     let padding: any = { "form": "  padding_x", "at": 0 };
     glide(sequence, 700 - GLIDE, 700, padding);

@@ -3,10 +3,8 @@
 // from first. Esc, a scrim click or a pick closes it.
 
 use editor;
-use form;
 use icons;
 use model;
-use pool;
 use presets;
 use recipes;
 use sceneedit;
@@ -16,10 +14,14 @@ use util;
 use window;
 use words::fields;
 use words::form_fields;
-use words::hooks;
-use words::inspector_fields;
-use words::project_fields;
-use words::roles;
+use words::theme_tokens;
+
+// What a pick of a row does: the empty node, a type, or a soft body's source.
+const EMPTY: str = "empty";
+
+const TYPE: str = "type";
+
+const SOURCE: str = "source";
 
 pub struct Entry {
     internal name: str,
@@ -165,7 +167,7 @@ pub fn place_source(state: &mut editor::State, source: Entry) {
 
 /// Fill the picker: what its script asks for while the node picker is up.
 pub fn fill(state: &mut editor::State) {
-    let specs = if state.newnode_soft != "" { source_specs(state, state.theme) } else { row_specs(state, state.theme) };
+    let found = lines(state, state.theme);
     let placeholder = if state.newnode_soft != "" {
         "Build the soft body from a shape or a file…"
     } else if state.newnode_change {
@@ -175,13 +177,35 @@ pub fn fill(state: &mut editor::State) {
         "Nodes, components, 2d, physics…"
     };
     let mark = if state.newnode_change { icons::ui("reset") } else { icons::ui(icons::ADD) };
-    let host = window::picker(state, {
+    let rows: [ui::Item] = [];
+    for line in found {
+        rows.push(line.item);
+    }
+    let note = if rows.len() == 0 { search::nothing_says(state.newnode_query) } else { "" };
+    window::picker(state, {
         fields::MARK: mark,
         form_fields::PLACEHOLDER: placeholder,
         form_fields::QUERY: state.newnode_query,
-        form_fields::ROWS_H: window::picker_rows_height(state, specs.len()),
-    });
-    form::fill(host, specs);
+    }, rows, "", note);
+}
+
+/// A row picked, by its key: the empty node, a type, or a soft body's source.
+/// A group's heading does nothing.
+pub fn picked(state: &mut editor::State, key: str) {
+    for line in lines(state, state.theme) {
+        if line.item.key != key {
+            continue;
+        }
+        if line.does == EMPTY {
+            sceneedit::add_child(state);
+            close(state);
+        } else if line.does == TYPE {
+            place(state, line.entry.unwrap());
+        } else if line.does == SOURCE {
+            place_source(state, line.entry.unwrap());
+        }
+        return;
+    }
 }
 
 /// What is typed in the picker while the node picker is up; Enter is the same.
@@ -189,16 +213,37 @@ pub fn typed(state: &mut editor::State, text: str) {
     state.newnode_query = text;
 }
 
+// One row of the picker: what it shows, what a pick of it does, and the type
+// or source it names.
+struct Line {
+    item: ui::Item,
+    does: str,
+    entry: Entry?,
+}
+
+fn lines(state: &mut editor::State, tokens: any) -> [Line] {
+    if state.newnode_soft != "" { source_lines(state, tokens) } else { type_lines(state, tokens) }
+}
+
+fn line(at: int, caption: str, mark: str, does: str, entry: Entry?) -> Line {
+    Line { item: ui::Item { label: caption, icon: mark, key: "{at}" }, does: does, entry: entry }
+}
+
+// A group's name over its rows, in the muted ink, picking nothing.
+fn heading(at: int, title: str, tokens: any) -> Line {
+    Line { item: ui::Item { label: title, key: "{at}", tint: tint_of(tokens, theme_tokens::TEXT_MUTED) }, does: "", entry: nil }
+}
+
 /// Every row the picker shows: the empty node ahead of the groups, then a
 /// heading and its matches per group.
-fn row_specs(state: &mut editor::State, tokens: any) -> [form::Row] {
+fn type_lines(state: &mut editor::State, tokens: any) -> [Line] {
     let query = state.newnode_query.to_lower();
     let rows = catalogue(state);
-    let out: [form::Row] = [];
+    let out: [Line] = [];
     // Ahead of the groups and in none of them: a node with no components has
     // no dimension to be filed under.
     if !state.newnode_change && (query == "" || "empty node".contains(query)) {
-        out.push(row_spec("Empty node  ·  a transform and nothing else", icons::node("world"), "", add_empty, {}));
+        out.push(line(out.len(), "Empty node  ·  a transform and nothing else", icons::node("world"), EMPTY));
     }
     for group in groups() {
         let title = group[1];
@@ -214,69 +259,35 @@ fn row_specs(state: &mut editor::State, tokens: any) -> [form::Row] {
         if shown.len() == 0 {
             continue;
         }
-        out.push(form::heading(title));
+        out.push(heading(out.len(), title, tokens));
         for row in shown {
-            // The type's own mark and colour, the same pair the inspector and
-            // the tree draw a component with.
-            let mark = icons::component(row.name);
             let caption = if row.note == "" { row.name } else { row.name + "  ·  " + row.note };
-            out.push(row_spec(caption, mark.glyph, tint_of(tokens, mark.token), place_row, { fields::ROW: row }));
+            out.push(line(out.len(), caption, icons::component(row.name).glyph, TYPE, row));
         }
-    }
-    if out.len() == 0 {
-        out.push(form::note(search::nothing_says(state.newnode_query)));
     }
     out
 }
 
-// A component's own colour, or "" for the role's where its token is none.
 fn tint_of(tokens: any, token: str) -> str {
     let tint = tokens[token];
     if tint == nil { "" } else { tint.as_str() }
 }
 
-fn add_empty(state: &mut editor::State, _data: any, _value: any) {
-    sceneedit::add_child(state);
-    close(state);
-}
-
-fn place_row(state: &mut editor::State, data: any, _value: any) {
-    let row: Entry = data[fields::ROW];
-    place(state, row);
-}
-
 /// The soft body's second step: a shape, or a file in the project, to build
 /// it from.
-fn source_specs(state: &mut editor::State, tokens: any) -> [form::Row] {
+fn source_lines(state: &mut editor::State, tokens: any) -> [Line] {
     let query = state.newnode_query.to_lower();
-    let out = [form::heading("Soft body from")];
+    let out = [heading(0, "Soft body from", tokens)];
     for source in catalogue(state) {
         let caption = source.label + "  ·  " + source.note;
         if query != "" && !caption.to_lower().contains(query) {
             continue;
         }
         let keys = source.parts.keys();
-        let mark = icons::component(if keys.len() > 0 { keys[0] } else { "" });
-        out.push(row_spec(caption, mark.glyph, tint_of(tokens, mark.token), place_source_row, { inspector_fields::SOURCE: source }));
+        out.push(line(out.len(), caption, icons::component(if keys.len() > 0 { keys[0] } else { "" }).glyph, SOURCE, source));
     }
     out
 }
 
-fn place_source_row(state: &mut editor::State, data: any, _value: any) {
-    let source: Entry = data[inspector_fields::SOURCE];
-    place_source(state, source);
-}
-
 // `icon_color` is the component's own mark colour, which is data rather than
 // styling: the tree and the inspector draw the same pair.
-fn row_spec(caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> form::Row {
-    let button = pool::on(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::ITEM_PICKER,
-        grow: 1,
-        text: caption,
-        icon: mark,
-        icon_color: color,
-    }, handler, data);
-    form::Row { controls: [button] }
-}

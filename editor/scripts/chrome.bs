@@ -244,8 +244,8 @@ pub fn fill(state: &mut editor::State) {
         node.widget.text = mark.name;
         node.widget_button.trailing_icon = icons::ui(icons::CARET_DOWN);
         node.widget_menu.showing = state.menu_open;
+        menu::fill(state, node);
     }
-    ui::fill_strip(BRAND_NODE, menu::rows(state));
     strip(state, tokens);
     docs(state);
 }
@@ -416,25 +416,32 @@ fn transport(state: editor::State, strip: Node) {
 // swallow clicks meant for the scene.
 const IMPORTS: str = "Editor/Imports";
 
+const LINE_SCENE: str = "scenes/items/note_line.toml";
+
 /// Fill the import list's lines and say what its bar and its clock read: what
 /// the list's script asks for when an import reported.
 pub fn fill_imports(state: &mut editor::State) -> FillImports {
     dropin::sweep(state);
-    let tokens = state.theme;
-    let lines: [ui::Control] = [];
+    let lines: [str] = [];
     for source in state.jobs.keys() {
         let job = state.jobs[source];
         let name = job[fields::NAME].as_str();
         let done = job[log_fields::DONE].as_int();
         let files = job[project_fields::FILES].as_int();
-        let line = if job[layout_fields::OVER].as_str() == "" {
+        lines.push(if job[layout_fields::OVER].as_str() == "" {
             if files > 0 { "{name} {done}/{files}" } else { name }
         } else {
             "{name} {job["over"].as_str()} · {done} {plural(done, FILE)}"
-        };
-        lines.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_NOTE, text: line });
+        });
     }
-    ui::fill_strip(IMPORTS + "/Lines", lines);
+    let items: [scene::RepeatItem] = [];
+    for at in 0..lines.len() {
+        items.push(scene::RepeatItem { key: "{at}", scene: LINE_SCENE });
+    }
+    let nodes = scene::repeat(scene::root().get_node(IMPORTS + "/Lines"), items);
+    for at in 0..lines.len() {
+        nodes[at].widget.text = lines[at];
+    }
     let totals = dropin::job_totals(state);
     FillImports {
         shown: lines.len() > 0,

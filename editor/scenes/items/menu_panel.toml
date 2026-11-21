@@ -1,0 +1,13 @@
+# One panel in the brand menu, named for the panel and ticked while it is
+# open; a click shuts it or puts it back, and the menu stays up.
+
+[[nodes]]
+id = "panel"
+name = "Panel"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../..", value = "panel_toggled" }] }
+[nodes.widget]
+kind = "button"
+role = "item_menu"
+grow = 1
+[nodes.widget_child]
+keep_open = true
