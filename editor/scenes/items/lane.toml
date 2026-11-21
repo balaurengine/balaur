@@ -1,0 +1,36 @@
+# One lane of the Timeline or a recording: its lamp, its name, then its marks
+# placed across it, each a `lane_mark.toml` or `track_key.toml`.
+
+[[nodes]]
+id = "lane"
+name = "Lane"
+[nodes.widget]
+kind = "row"
+role = "layout_lane"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "lamp"
+name = "Lamp"
+parent = "lane"
+[nodes.widget]
+kind = "row"
+role = "mark_lamp"
+
+[[nodes]]
+id = "name"
+name = "Name"
+parent = "lane"
+[nodes.widget]
+kind = "label"
+role = "text_lane"
+[nodes.widget_text]
+truncate = true
+
+[[nodes]]
+id = "marks"
+name = "Marks"
+parent = "lane"
+[nodes.widget]
+kind = "row"

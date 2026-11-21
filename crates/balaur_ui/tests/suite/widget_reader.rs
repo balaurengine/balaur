@@ -1,6 +1,6 @@
 //! The keys a `widget` answers without building its whole table.
 //!
-//! A pooled control asks for one property a frame, and the registry falls back
+//! A form's control asks for one property a frame, and the registry falls back
 //! to building the whole table for any key the component's read by index does
 //! not cover. That fallback is invisible: it answers correctly and costs a
 //! table. So the guard is that every key read alone agrees with the whole
@@ -44,11 +44,11 @@ fn every_key_the_reader_answers_agrees_with_the_whole_table() {
     );
 }
 
-// The keys the editor asks for on every pooled control every frame. Missing
+// The keys the editor asks for on every form control every frame. Missing
 // `submitted` alone was four in five of the editor's whole-table builds, and
 // nothing said so: the fallback answers correctly and costs forty keys.
 #[test]
-fn the_keys_a_pooled_control_reads_every_frame_are_answered_on_their_own() {
+fn the_keys_a_form_control_reads_every_frame_are_answered_on_their_own() {
     let (_dir, app) = app();
     let entity = add_widget(
         &app,

@@ -1095,15 +1095,13 @@ const NAMED_HANDLERS: &str = r#"pub class Panel { node: Node, frame: int, said: 
 impl Panel {
     pub fn update(dt: float) {
         self.frame += 1;
-        let controls: [any] = [
-            { "kind": "text_field", "text": "", "on_change": "typed", "target": self.node, "data": "query" },
-            { "kind": "button", "text": "Go", "on_click": "pressed", "target": self.node, "data": 7 },
-        ];
-        ui::fill_strip("Panel/Strip", controls);
+        let field = self.node.get_node("Strip/Field");
+        let go = self.node.get_node("Strip/Go");
+        ui::write([field], [ui::Control { kind: "text_field", text: "", on_change: "typed", target: self.node, data: "query" }]);
+        ui::write([go], [ui::Control { kind: "button", text: "Go", on_click: "pressed", target: self.node, data: 7 }]);
         if self.frame == 2 {
-            let made = scene::root().get_node("Panel/Strip").children();
-            ui::edit(made[0], "ball");
-            ui::click(made[1]);
+            ui::edit(field, "ball");
+            ui::click(go);
         }
     }
     pub fn typed(data: any, text: any) {
@@ -1117,15 +1115,17 @@ impl Panel {
 }
 "#;
 
-// A script that hands the engine no functions names its handler: the pool
-// calls it on the control's target, with the spec's data first.
+// A script that hands the engine no functions names its handler: the edit
+// calls it on the control's target, with the table's data first.
 #[test]
-fn a_pooled_control_calls_the_method_it_names_with_its_data() {
+fn a_written_control_calls_the_method_it_names_with_its_data() {
     use balaur_script::Value::{Int, Str};
     let dir = one_script("Panel", NAMED_HANDLERS);
     let scene = dir.path().join("main.toml");
     let mut text = std::fs::read_to_string(&scene).unwrap();
     text.push_str("\n[[nodes]]\nid = \"strip\"\nname = \"Strip\"\nparent = \"panel\"\n[nodes.widget]\nkind = \"row\"\n");
+    text.push_str("\n[[nodes]]\nid = \"field\"\nname = \"Field\"\nparent = \"strip\"\n[nodes.widget]\nkind = \"label\"\n");
+    text.push_str("\n[[nodes]]\nid = \"go\"\nname = \"Go\"\nparent = \"strip\"\n[nodes.widget]\nkind = \"label\"\n");
     std::fs::write(&scene, text).unwrap();
     let mut app = booted(dir.path());
     ticked(&mut app, 4);

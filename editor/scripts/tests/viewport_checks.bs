@@ -335,7 +335,7 @@ pub fn reselect_step(state: &mut editor::State) {
     let reselect = state.reselect.unwrap();
     reselect.waited += 1;
     // Find a row with something on it, settle, record, deselect, settle,
-    // reselect, settle, compare. The pool keeps its rows between passes, so
+    // reselect, settle, compare. The form keeps its rows between passes, so
     // every reading is taken once the panel has stopped moving.
     if reselect.stage == 0 {
         for index in 0..state.nodes.len() {
@@ -390,7 +390,7 @@ pub fn reselect_step(state: &mut editor::State) {
     let now = listed_components(state);
     selftest::check(model::node(state, reselect.row).is_valid(), "the reselected row resolves to its live node");
     selftest::check(now == reselect.had, "and its components are listed again ({now} of {reselect.had})");
-    // What the panel shows, not what it was asked to show: the form is a pool
+    // What the panel shows, not what it was asked to show: the form keeps its nodes
     // of retained rows, and one left hidden is invisible to a check that reads
     // the spec list instead.
     let drawn = inspector::drawn_rows();
@@ -400,7 +400,7 @@ pub fn reselect_step(state: &mut editor::State) {
     log::info("selftest deselect: done");
 }
 
-// Frames to let the pooled form stop moving before a reading is taken.
+// Frames to let the form stop moving before a reading is taken.
 internal const SETTLE: int = 8;
 
 /// A launch with no project: the start screen has the window, and the shell

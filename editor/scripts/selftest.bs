@@ -141,7 +141,7 @@ pub class ReadsCheck {
     internal until: float,
 }
 
-pub class PoolCheck {
+pub class ControlsCheck {
     internal stage: int,
     internal heard: [str],
 }
@@ -350,8 +350,8 @@ fn step_one(state: &mut editor::State, name: str) -> bool {
         "import" => {
             project_checks::import_step(state);
         }
-        "pool_check" => {
-            panel_checks::pool_check_step(state);
+        "controls_check" => {
+            panel_checks::controls_check_step(state);
         }
         "form_check" => {
             panel_checks::form_check_step(state);
@@ -388,7 +388,7 @@ fn under_way(state: editor::State, name: str) -> bool {
         "events" => state.events_demo >= 0,
         "rows" => state.rows_demo >= 0,
         "import" => state.import_demo >= 0,
-        "pool_check" => state.pool_check != nil,
+        "controls_check" => state.controls_check != nil,
         "form_check" => state.form_check != nil,
         "machine" => state.machine.demo >= 0,
         _ => false,

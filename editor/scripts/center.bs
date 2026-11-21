@@ -296,7 +296,7 @@ pub fn rail_marked(state: &mut editor::State, mark: str) {
     }
 }
 
-// The chip strip's row, which the pool fills with a node a chip.
+// The chip strip's row, whose chips are scene::repeat items.
 const CHIPS: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/Chrome/Chips/Row";
 
 const CHIPS_BOX: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/Chrome/Chips";
@@ -761,11 +761,13 @@ pub fn code_gutter(state: &mut editor::State, line: int) {
 // off the live buffer, and whether the buffer is unsaved.
 const HOOKS: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Hooks";
 
+const PILL_SCENE: str = "scenes/items/hook_pill.toml";
+
 /// Fill the hooks list: the file's engine-facing surface, beside the code.
 pub fn fill_hooks(state: &mut editor::State) {
     let file = open_file(state);
     util::set_text(HOOKS + "/Title", if file.shading { "Shader" } else { "Hooks in file" });
-    let pills: [ui::Control] = [];
+    let names: [str] = [];
     if !file.shading && file.relative_path != "" {
         // The file as it is open, buffer or disk: what the list was read off
         // may be the last file's.
@@ -774,19 +776,19 @@ pub fn fill_hooks(state: &mut editor::State) {
         let text = if buffered == nil { model::source(state, file.relative_path).as_str() } else { buffered.as_str() };
         read_hooks(state, file.relative_path, text);
         for hook in state.hooks_live {
-            let lifecycle = hook.name == hooks::INIT || hook.name == hooks::UPDATE;
-            pills.push(ui::Control {
-                kind: ui::WIDGET_ROW,
-                role: roles::SHEET_HOOK,
-                align_items: ui::ALIGN_CENTER,
-                controls: [
-                    ui::Control { kind: ui::WIDGET_ROW, role: if lifecycle { roles::MARK_LAMP_PRIMARY } else { roles::MARK_LAMP_SECONDARY } },
-                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: hook.name },
-                ],
-            });
+            names.push(hook.name);
         }
     }
-    ui::fill_strip(HOOKS + "/Pills", pills);
+    let items: [scene::RepeatItem] = [];
+    for at in 0..names.len() {
+        items.push(scene::RepeatItem { key: "{at}", scene: PILL_SCENE });
+    }
+    let pills = scene::repeat(scene::root().get_node(HOOKS + "/Pills"), items);
+    for at in 0..names.len() {
+        let lifecycle = names[at] == hooks::INIT || names[at] == hooks::UPDATE;
+        pills[at].get_node("Lamp").widget.role = if lifecycle { roles::MARK_LAMP_PRIMARY } else { roles::MARK_LAMP_SECONDARY };
+        pills[at].get_node("Name").widget.text = names[at];
+    }
     let dirty = file.relative_path != "" && state.script_dirty.has(state.game_root + "/" + file.relative_path);
     util::set_visible(HOOKS + "/Unsaved", dirty);
 }

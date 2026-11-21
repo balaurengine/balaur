@@ -1,0 +1,9 @@
+# One second's label along the Timeline's ruler, placed by time.
+
+[[nodes]]
+id = "tick"
+name = "Tick"
+[nodes.widget]
+kind = "label"
+role = "text_code_caption"
+absolute = true

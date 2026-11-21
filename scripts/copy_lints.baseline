@@ -416,9 +416,6 @@ crates/balaur_ui/src/widget/measure.rs	copy-to-borrow	.shape_for_egui(&self.pain
 crates/balaur_ui/src/widget/measure.rs	copy-to-borrow	.shape_for_egui(&self.painter.ctx().clone(), &request)
 crates/balaur_ui/src/widget/measure.rs	copy-to-borrow	crate::images::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)
 crates/balaur_ui/src/widget/measure.rs	copy-to-borrow	crate::widget::code::natural(self.eng, &self.painter.ctx().clone(), placed.entity, &look)
-crates/balaur_ui/src/widget/pool.rs	copy-per-item	.map(|(_, kind)| kind.clone());
-crates/balaur_ui/src/widget/pool.rs	copy-per-item	.map(|(key, value)| ((*key).to_string(), value.clone()))
-crates/balaur_ui/src/widget/pool.rs	copy-per-item	.map(|(key, value)| (key.clone(), value.clone()))
 crates/balaur_ui/src/widget/rows.rs	copy-per-item	.map(|&i| items[i].key().to_owned())
 crates/balaur_ui/src/widget/rows.rs	copy-to-borrow	.then(|| crate::images::texture_of(at.eng, &ui.ctx().clone(), &widget.source).ok())
 crates/balaur_ui/src/widget/schema.rs	copy-per-item	.filter_map(|(word, table)| Some((word, table.as_table()?.clone())))

@@ -43,11 +43,11 @@ pub(crate) struct ClickHearers(balaur_core::events::HearerWatch);
 
 /// Whether a click on this widget is heard: by a row on its node, its
 /// script's `on_pointer_click`, a listener or a waiter naming it, or the
-/// handler its pool spec names. What a label, a panel or a picture senses
-/// a click for.
+/// handler its control table names. What a label, a panel or a picture
+/// senses a click for.
 fn hears_click(eng: &Engine, entity: Entity) -> bool {
     balaur_core::events::is_heard_on(eng, entity, hooks::POINTER_CLICK)
-        || crate::widget::pool::hears(eng, entity, hooks::POINTER_CLICK)
+        || crate::widget::write::hears(eng, entity, hooks::POINTER_CLICK)
 }
 
 /// Bring each widget whose hearers may have changed to know whether its
@@ -171,7 +171,7 @@ pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
 
 /// Submit a `text_field` as Enter would, settled at the next tick: the text lands
 /// on the widget and it says `submitted`. What a headless harness types with, and
-/// what proves a pooled row hears it.
+/// what proves a written control hears it.
 pub fn submit(eng: &Engine, entity: Entity, text: &str) -> bool {
     let writable = eng
         .world()
@@ -523,14 +523,14 @@ fn apply_system(eng: &Engine, _dt: f32) {
     settle_edits(eng, &edits, &mut said);
     settle_clicks(eng, &clicked, &mut said, &mut flipped);
     said.append(&mut flipped);
-    // The pool's controls hear their edits and clicks here, and whom each
-    // calls is found before any handler runs, which may reshape the tree.
-    let mut pooled = crate::widget::pool::heard(eng, &said).into_iter();
+    // The controls hear their edits and clicks here, and whom each calls
+    // is found before any handler runs, which may reshape the tree.
+    let mut heard = crate::widget::write::heard(eng, &said).into_iter();
     // Each is the node's own event: its rows and its `on_<name>` now, its
     // listeners at the next pump.
     for (entity, event, value) in said {
         balaur_core::events::announce(eng, entity, event, value);
-        if let Some(Some(call)) = pooled.next() {
+        if let Some(Some(call)) = heard.next() {
             call.run(eng);
         }
     }

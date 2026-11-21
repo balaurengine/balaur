@@ -5,7 +5,6 @@ use autosave;
 use editor;
 use form;
 use icons;
-use pool;
 use search;
 use shell;
 use signals;
@@ -572,7 +571,7 @@ fn picker_spec(state: editor::State) -> form::Row {
         text: current(state),
         options: categories(),
     };
-    form::Row { controls: [pool::on(picker, on_category_picked, {})] }
+    form::Row { controls: [form::on(picker, on_category_picked, {})] }
 }
 
 fn on_category_picked(state: &mut editor::State, data: any, picked: any) {
@@ -590,7 +589,7 @@ fn save_button(state: editor::State) -> [ui::Control] {
             kind: ui::WIDGET_BUTTON,
             role: roles::ACTION_FORM_PRIMARY,
             text: "Save",
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: on_save_clicked },
         },
     ];
@@ -689,7 +688,7 @@ fn form_specs(state: editor::State) -> [form::Row] {
                 role: roles::ACTION_FORM_PRIMARY,
                 text: "Edit…",
                 tooltip: "Open the Theme dialog",
-                on_click: "handle", target: pool::editor(),
+                on_click: "handle", target: form::editor(),
                 data: { fields::FN: on_theme_edit_clicked },
             });
         }
@@ -714,7 +713,7 @@ fn form_specs(state: editor::State) -> [form::Row] {
                         text: "",
                         icon: icons::ui(icons::CLOSE),
                         tooltip: "Reset this override",
-                        on_click: "handle", target: pool::editor(),
+                        on_click: "handle", target: form::editor(),
                         data: { fields::FN: on_override_reset_clicked, layout_fields::AT: at },
                     },
                 ],
@@ -748,7 +747,7 @@ fn target_control(state: editor::State) -> ui::Control {
         role: roles::CHOICE_FORM,
         text: if state.settings.target == "" { "override for…" } else { "override for " + state.settings.target },
         options: options,
-        on_change: "handle", target: pool::editor(),
+        on_change: "handle", target: form::editor(),
         data: { fields::FN: on_override_target_picked },
     }
 }
@@ -774,7 +773,7 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
             kind: ui::WIDGET_SWITCH,
             role: roles::SWITCH_FORM,
             checked: value.as_bool(),
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_switch_toggled, project_fields::PATH: path },
         };
     }
@@ -787,7 +786,7 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
             grow: 1,
             text: if value.kind() == types::KIND_STRING { value.as_str() } else { "" },
             options: if named { theme::names() } else { util::list_or_empty(spec[schema_fields::OPTIONS]) },
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_choice_picked, project_fields::PATH: path },
         };
     }
@@ -806,7 +805,7 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
             min: low,
             max: high,
             drag_speed: if whole { 1.0 } else { 0.01 },
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_number_changed, project_fields::PATH: path, layout_fields::WHOLE: whole },
         };
     }
@@ -827,7 +826,7 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
         grow: 1,
         text: shown,
         secret: spec["secret"].as_bool(),
-        on_submit: "handle_submit", target: pool::editor(),
+        on_submit: "handle_submit", target: form::editor(),
         data: { project_fields::SUBMIT: on_text_submitted, project_fields::PATH: path, schema_fields::DATATYPE: datatype },
     }
 }

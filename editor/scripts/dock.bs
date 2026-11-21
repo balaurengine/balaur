@@ -923,7 +923,7 @@ fn script_rows(items: [ui::Item], tokens: any) {
         items.push(ui::Item { cells: [row.path, "{row.instructions} st", bar(share)], tint: tokens[theme_tokens::SECONDARY_TEXT].as_str() });
     }
     // Each function's own statements under its file's rows, a handler the
-    // pool calls by name among them.
+    // form calls by name among them.
     let functions = engine::function_costs();
     let top = if functions.len() == 0 { 0.0 } else { functions[0].instructions as float };
     for index in 0..util::int_min(functions.len(), FUNCTION_ROWS) {

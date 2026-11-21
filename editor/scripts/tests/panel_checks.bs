@@ -1,6 +1,6 @@
 // Self-tests of the Inspector and the panels built on it: the physics
 // panel, script and composite properties, recorded assets, recipes, type
-// changes, warnings, the pooled rows and their forms.
+// changes, warnings, the form kit's rows and their forms.
 
 use editor;
 use events;
@@ -11,7 +11,7 @@ use newnode;
 use palette;
 use physics;
 use polygon;
-use pool;
+use form;
 use recipes;
 use sceneedit;
 use search;
@@ -462,62 +462,62 @@ pub fn warning_marks(state: &mut editor::State) {
     log::info("selftest warnings: done");
 }
 
-// The row the pool check builds its strip in, under the shell's root.
-const POOL_HOST: str = "Editor";
-const POOL_CHECK: str = "PoolCheck";
+// The row the controls check builds its strip in, under the shell's root.
+const CONTROLS_HOST: str = "Editor";
+const CONTROLS_CHECK: str = "ControlsCheck";
 
-/// A pooled slot that turns from one kind of control into another holds the
+/// A form slot that turns from one kind of control into another holds the
 /// old control's value for a pass, and that value is not the reader's edit.
 ///
 /// A dropdown's slot spent a frame as a colour row's label, and coming back it
 /// reported the label's `0.20 0.22 0.26 1.00` as a pick: a script by that name.
-pub fn pool_kinds(state: &mut editor::State) {
-    let root = scene::root().get_node(POOL_HOST);
+pub fn control_kinds(state: &mut editor::State) {
+    let root = scene::root().get_node(CONTROLS_HOST);
     if !root.is_valid() {
-        log::info("selftest pool: no shell in this run, skipped");
+        log::info("selftest controls: no shell in this run, skipped");
         return;
     }
-    root.add_child(POOL_CHECK).set_component("widget", { "kind": ui::WIDGET_ROW });
-    state.pool_check = selftest::PoolCheck { stage: 0, heard: [] };
-    selftest::stepping(state, "pool_check");
+    root.add_child(CONTROLS_CHECK).set_component("widget", { "kind": ui::WIDGET_ROW });
+    state.controls_check = selftest::ControlsCheck { stage: 0, heard: [] };
+    selftest::stepping(state, "controls_check");
 }
 
 // One strip a pass, as the inspector does: the host made above resolves by
 // path from the next one.
-pub fn pool_check_step(state: &mut editor::State) {
-    if state.pool_check == nil {
+pub fn controls_check_step(state: &mut editor::State) {
+    if state.controls_check == nil {
         return;
     }
-    let pool_check = state.pool_check.unwrap();
-    let path = POOL_HOST + "/" + POOL_CHECK;
-    let heard = pool_check.heard;
-    let pick = pool::on(ui::Control { kind: "dropdown", text: "pick", options: ["a", "b"] }, pool_heard, {});
-    let stage = pool_check.stage;
-    pool_check.stage = stage + 1;
+    let controls_check = state.controls_check.unwrap();
+    let path = CONTROLS_HOST + "/" + CONTROLS_CHECK;
+    let heard = controls_check.heard;
+    let pick = form::on(ui::Control { kind: "dropdown", text: "pick", options: ["a", "b"] }, controls_heard, {});
+    let stage = controls_check.stage;
+    controls_check.stage = stage + 1;
     if stage == 0 || stage == 2 || stage == 4 {
-        ui::fill_strip(path, [pick]);
+        form::strip(path, [pick]);
     } else if stage == 1 {
-        ui::fill_strip(path, [ui::Control { kind: "label", text: "0.20 0.22 0.26 1.00" }]);
+        form::strip(path, [ui::Control { kind: "label", text: "0.20 0.22 0.26 1.00" }]);
     } else if stage == 3 {
         selftest::check(heard.len() == 0, "a slot that changed kind reports nothing ({heard})");
         // The control: a pick on a slot that stayed a dropdown still reaches `on`.
         ui::edit(scene::root().get_node(path + "/C0"), "b");
     } else {
-        state.pool_check = nil;
+        state.controls_check = nil;
         selftest::check(heard.len() == 1 && heard[0] == "b", "and a pick on a dropdown is heard ({heard})");
         scene::root().get_node(path).queue_free();
-        log::info("selftest pool: done");
+        log::info("selftest controls: done");
     }
 }
 
-// A pick the pool check's dropdown reports.
-fn pool_heard(state: &mut editor::State, data: any, value: any) {
-    if state.pool_check != nil {
-        state.pool_check.unwrap().heard.push(value.as_str());
+// A pick the controls check's dropdown reports.
+fn controls_heard(state: &mut editor::State, data: any, value: any) {
+    if state.controls_check != nil {
+        state.controls_check.unwrap().heard.push(value.as_str());
     }
 }
 
-/// What the pool's row for the line named `key` labels itself.
+/// What the form's row for the line named `key` labels itself.
 fn drawn_label(state: editor::State, key: str) -> str {
     let row = inspector::row_of_line(state, key);
     if !row.is_valid() {

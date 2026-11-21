@@ -5,7 +5,6 @@
 use editor;
 use form;
 use icons;
-use pool;
 use settings;
 use shipped;
 use signals;
@@ -32,9 +31,12 @@ const EMPTY: str = "empty";
 const FORGE: str = "forge";
 const MY_GAME: str = "my-game";
 const PROJECTS: str = "projects";
-const GONE: str = "gone";
-const HERE: str = "here";
 const MANAGER: str = "manager";
+const BACK: str = "Back";
+const EXISTS: str = "exists";
+const LINE: str = "Line";
+const PROJECT_SCENE: str = "scenes/items/project_row.toml";
+const CARD_SCENE: str = "scenes/items/card.toml";
 
 pub class ManagerState {
     internal on: bool,
@@ -222,20 +224,9 @@ pub fn spot(state: editor::State, name: str) -> Spot? {
     Spot { x: box.x + box.width / 2.0, y: box.y + box.height / 2.0 }
 }
 
-// The tab strip's node for the page `id`, in the order `tabs` lists them.
+// The tab strip's pill for the page `id`.
 fn tab_node(id: str) -> Node {
-    let host = scene::root().get_node(TABS_NODE());
-    if !host.is_valid() {
-        return nil;
-    }
-    let ids = tabs();
-    let kids = host.children();
-    for index in 0..ids.len() {
-        if ids[index][0] == id && index < kids.len() {
-            return kids[index];
-        }
-    }
-    nil
+    scene::root().get_node(TABS_NODE() + "/" + id)
 }
 
 /// Whether the screen has the window. A run with no project is the screen
@@ -306,6 +297,10 @@ fn PAGE() -> str {
     GROUND + "/ManagerBody/Scroll/Page"
 }
 
+fn ROWS() -> str {
+    PAGE() + "/Rows"
+}
+
 /// Fill the start screen: its head, its tabs and the page under them, from
 /// what this machine has opened, the examples and the release feed. What
 /// its script asks for on `manager_changed` and when it was resized.
@@ -324,21 +319,27 @@ pub fn fill(state: &mut editor::State) {
     }
     util::set_visible(GROUND, true);
     cover(state, true);
-    ui::fill_strip(HEAD_NODE(), head_controls(state, tokens));
-    ui::fill_strip(TABS_NODE(), tab_controls(state));
+    head(state, tokens);
+    tab_row(state);
     let column_width = page_width();
     head_note(state);
     tools(state);
-    let specs = if state.manager.tab == ENGINE {
+    let tab = state.manager.tab;
+    let projects = if tab == PROJECTS { shown(state) } else { [] };
+    project_rows(state, column_width, projects);
+    let cards: [Card] = if tab == EXAMPLES { example_cards(state) } else if tab == tabs::FORGE { forge_cards(state) } else { [] };
+    card_grid(state, cards, if tab == EXAMPLES { example_columns(column_width) } else { 1 });
+    let specs = if tab == ENGINE {
         versions::engine_specs(state, column_width)
-    } else if state.manager.tab == EXAMPLES {
-        examples_specs(state, column_width)
-    } else if state.manager.tab == tabs::FORGE {
-        forge_specs(state)
+    } else if tab == EXAMPLES {
+        examples_notes()
+    } else if tab == tabs::FORGE {
+        forge_notes(state)
     } else {
-        projects_specs(state, column_width)
+        projects_notes(state, projects)
     };
-    form::fill(PAGE(), specs);
+    form::fill(PAGE() + "/Says", forge_lead(state));
+    form::fill(ROWS(), specs);
 }
 
 // The page's width, as it was laid out: the widest the screen draws, whatever
@@ -360,6 +361,10 @@ pub fn set_filter(state: &mut editor::State, text: str) {
 
 /// The Projects tab's commands, by the name of the button pressed.
 pub fn pressed(state: &mut editor::State, name: str) {
+    if name == BACK {
+        close(state);
+        return;
+    }
     if name == "New" {
         window::show(state, NEW_SHEET);
         return;
@@ -387,7 +392,7 @@ fn head_note(state: editor::State) {
         []
     };
     util::set_visible(PROGRESS(), controls.len() > 0);
-    ui::fill_strip(PROGRESS(), controls);
+    form::strip(PROGRESS(), controls);
 }
 
 // The filter and the three commands, up on the Projects tab. A tab has no folder
@@ -432,229 +437,221 @@ internal fn rule() -> form::Row {
     form::Row { controls: [ui::Control { kind: ui::WIDGET_COLUMN, grow: 1, controls: [ui::Control { kind: ui::WIDGET_SEPARATOR }] }] }
 }
 
-fn projects_specs(state: editor::State, column_width: float) -> [form::Row] {
-    let rows: [any] = shown(state);
-    if rows.len() == 0 {
-        let empty = if in_tab() {
-            "This browser keeps no projects yet. The page opens one, and it is listed here after that."
-        } else {
-            "Nothing opened on this machine yet. Start from an example, or make one."
-        };
-        let why = if state.manager.recent.len() == 0 { empty } else { "No project matches that filter." };
-        let none = [say(why)];
-        return none;
+// What the Projects tab says where it lists nothing.
+fn projects_notes(state: editor::State, rows: [any]) -> [form::Row] {
+    if state.manager.tab != PROJECTS || rows.len() > 0 {
+        return [];
     }
-    let out: [form::Row] = [];
-    for row in rows {
-        out.push(project_spec(column_width, util::map_or_empty(row)));
-        out.push(rule());
-    }
-    out
+    let empty = if in_tab() {
+        "This browser keeps no projects yet. The page opens one, and it is listed here after that."
+    } else {
+        "Nothing opened on this machine yet. Start from an example, or make one."
+    };
+    let why = if state.manager.recent.len() == 0 { empty } else { "No project matches that filter." };
+    let none = [say(why)];
+    none
 }
 
-// Two lines: the name a click opens, and the folder under it. What a row says
-// about itself, when and with which engine, sits at the right edge, and a
-// phone shows when it was opened and nothing else.
-fn project_spec(column_width: float, row: any) -> form::Row {
-    let here = row[project_fields::PATH];
-    let exists = row["exists"];
-    let gone = if exists == nil { true } else { exists.as_bool() } != true;
-    let built = row[fields::VERSION].as_str();
-    let controls: [ui::Control] = [
-        // The engine's mark: a project keeps its own icon, and none of them
-        // is open, so the row wears the editor's.
-        ui::Control {
-            kind: ui::WIDGET_PANEL,
-            role: roles::SHEET_LOGO,
-            controls: [ui::Control { kind: ui::WIDGET_IMAGE, role: roles::LAYOUT_MARK, image: LOGO }],
-        },
-        ui::Control {
-            kind: ui::WIDGET_COLUMN,
-            controls: [
-                ui::Control {
-                    kind: ui::WIDGET_BUTTON,
-                    role: roles::ITEM_LIST,
-                    text: row[fields::NAME],
-                    icon: if gone { icons::panel(icons::PROBLEMS) } else { "" },
-                    tooltip: here,
-                    on_click: "handle", target: pool::editor(),
-                    data: { fields::FN: on_project_pressed, GONE: gone, HERE: here },
-                },
-                ui::Control {
-                    kind: ui::WIDGET_LABEL,
-                    role: roles::TEXT_CODE_CAPTION,
-                    truncate: true,
-                    text: if gone { here.as_str() + "  ·  disk not mounted" } else { here },
-                },
-            ],
-            grow: 1,
-        },
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: util::said_ago_since(row[fields::OPENED]) },
-    ];
-    if built != "" && !narrow(column_width) {
-        controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: built });
+// A row a project: the name a click opens and the folder under it, and what
+// it says about itself at the right edge; a phone shows when it was opened
+// and nothing else.
+fn project_rows(state: editor::State, column_width: float, rows: [any]) {
+    let items: [scene::RepeatItem] = [];
+    for at in 0..rows.len() {
+        items.push(scene::RepeatItem { key: "{at}", scene: PROJECT_SCENE });
     }
-    controls.push(ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::ICON_ACTION_FORM_QUIET,
-        text: "",
-        icon: icons::ui(icons::CLOSE),
-        tooltip: "Forget this project",
-        on_click: "handle", target: pool::editor(),
-        data: { fields::FN: on_forget_pressed, HERE: here },
-    });
-    form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls }
-}
-
-fn on_project_pressed(state: &mut editor::State, data: any, _value: any) {
-    let gone: bool = data[GONE].as_bool();
-    let here: any = data[HERE];
-    if !gone {
-        go(state, here.as_str());
+    let nodes = scene::repeat(scene::root().get_node(PAGE() + "/Projects"), items);
+    for at in 0..rows.len() {
+        let row = util::map_or_empty(rows[at]);
+        let here = row[project_fields::PATH].as_str();
+        let exists = row[EXISTS];
+        let gone = exists != nil && !exists.as_bool();
+        let built = row[fields::VERSION].as_str();
+        let line = nodes[at].get_node(LINE);
+        let open = line.get_node("Text/Open");
+        open.widget.text = row[fields::NAME].as_str();
+        open.widget_button.icon = if gone { icons::panel(icons::PROBLEMS) } else { "" };
+        open.widget.tooltip = here;
+        line.get_node("Text/Path").widget.text = if gone { here + "  ·  disk not mounted" } else { here };
+        line.get_node("Opened").widget.text = util::said_ago_since(row[fields::OPENED]);
+        let shows = built != "" && !narrow(column_width);
+        line.get_node("Built").set_visible(shows);
+        line.get_node("Built").widget.text = built;
     }
 }
 
-fn on_forget_pressed(state: &mut editor::State, data: any, _value: any) {
-    let here: any = data[HERE];
-    project::forget(here.as_str());
+// The project a row stands for, by the row's name: its place in the list.
+fn project_at(state: editor::State, key: str) -> any {
+    let rows = shown(state);
+    for at in 0..rows.len() {
+        if "{at}" == key {
+            return util::map_or_empty(rows[at]);
+        }
+    }
+    nil
+}
+
+/// A project's name pressed: it opens, unless its disk is gone.
+pub fn project_pressed(state: &mut editor::State, key: str) {
+    let row = project_at(state, key);
+    if row == nil {
+        return;
+    }
+    let exists = row[EXISTS];
+    if exists == nil || exists.as_bool() {
+        go(state, row[project_fields::PATH].as_str());
+    }
+}
+
+/// A project's forget mark pressed: it comes off the list.
+pub fn project_forgotten(state: &mut editor::State, key: str) {
+    let row = project_at(state, key);
+    if row == nil {
+        return;
+    }
+    project::forget(row[project_fields::PATH].as_str());
     state.manager.read = false;
     told(state);
 }
 
-fn examples_specs(state: editor::State, column_width: float) -> [form::Row] {
-    let rows = util::list_or_empty(shipped::examples());
-    if rows.len() == 0 {
-        let none = [say("No examples ship beside this build.")];
-        return none;
+// One card's face: a picture or the engine's mark, its name and the line
+// under it, and what a press on it does.
+struct Card {
+    image: str,
+    name: str,
+    note: str,
+    tooltip: str,
+}
+
+// How many examples go across a page `column_width` wide.
+fn example_columns(column_width: float) -> int {
+    if narrow(column_width) { 1 } else if column_width < 760.0 { 2 } else { 3 }
+}
+
+fn example_cards(state: editor::State) -> [Card] {
+    let out: [Card] = [];
+    for entry in util::list_or_empty(shipped::examples()) {
+        let row = util::map_or_empty(entry);
+        out.push(Card { image: row[COVER].as_str(), name: row[fields::NAME].as_str(), note: row[log_fields::NOTE].as_str(), tooltip: "Copy into " + state.manager.parent });
     }
-    let across = if narrow(column_width) { 1 } else if column_width < 760.0 { 2 } else { 3 };
-    // Floored: three cards and two seams have to add up to the column, and a
-    // third of a pixel each puts the last one past its edge.
-    let seam = style::role_size_in_pixels(state, roles::LAYOUT_SPLIT, layout_fields::GAP, 12.0);
-    let card_width = math::floor((column_width - (across - 1) as float * seam) / across as float);
-    let inner = card_width - 2.0 * style::role_size_in_pixels(state, roles::SHEET_CARD, layout_fields::PADDING, 12.0);
-    let cover = Cover { card: card_width, width: inner, height: math::floor(inner / COVER_ASPECT) };
-    let out: [form::Row] = [];
-    let start = 0;
-    while start < rows.len() {
-        let cards: [ui::Control] = [];
-        let column = 0;
-        while column < across && start + column < rows.len() {
-            cards.push(example_card(state, cover, util::map_or_empty(rows[start + column])));
-            column += 1;
-        }
-        out.push(form::Row {
-            controls: [
-                ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_SPLIT, controls: cards },
-            ],
-        });
-        start += across;
-    }
-    out.push(say("Opens a copy in your projects folder, so the example stays as it shipped."));
     out
 }
 
-// A card's width, and the picture's size inside its padding.
-struct Cover {
-    card: float,
-    width: float,
-    height: float,
-}
-
-// The picture, the name and the line under it, on a card a click on any of
-// which opens a copy.
-fn example_card(state: editor::State, cover: Cover, row: any) -> ui::Control {
-    let id = row[fields::ID];
-    let image = row[COVER].as_str();
-    let picture: ui::Control = if image != "" {
-        ui::Control { kind: ui::WIDGET_IMAGE, image: image, width: cover.width, height: cover.height, fit: COVER }
-    } else {
-        // No picture shipped: the engine's own mark, so the card still reads
-        // as a project rather than a blank.
-        ui::Control {
-            kind: ui::WIDGET_ROW,
-            width: cover.width,
-            height: cover.height,
-            justify: ui::ALIGN_CENTER,
-            align_items: ui::ALIGN_CENTER,
-            controls: [
-                ui::Control { kind: ui::WIDGET_PANEL, role: roles::SHEET_LOGO, controls: [ui::Control { kind: ui::WIDGET_IMAGE, role: roles::LAYOUT_MARK, image: LOGO }] },
-            ],
-        }
-    };
-    let card = card_of([
-        picture,
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE_DIALOG, text: row[fields::NAME].as_str() },
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: row[log_fields::NOTE].as_str(), truncate: true },
-    ], state, { fields::FN: on_example_pressed, fields::ID: id });
-    card.width = cover.card;
-    card
-}
-
-// A card a click on any of which presses: a button with nothing in it laid
-// over it from a bare box, since a padded one shifts what is laid over it.
-fn card_of(controls: [ui::Control], state: editor::State, data: any) -> ui::Control {
-    ui::Control {
-        kind: ui::WIDGET_COLUMN,
-        controls: [
-            ui::Control { kind: ui::WIDGET_PANEL, role: roles::SHEET_CARD, controls: controls },
-            ui::Control {
-                kind: ui::WIDGET_BUTTON,
-                role: roles::CHIP_QUIET,
-                text: "",
-                absolute: true,
-                inset: ui::Sides { left: 0.0, top: 0.0, right: 0.0, bottom: 0.0 },
-                tooltip: "Copy into " + state.manager.parent,
-                on_click: "handle", target: pool::editor(),
-                data: data,
-            },
-        ],
-    }
-}
-
-fn on_example_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: any = data[fields::ID];
-    open_example(state, id.as_str());
-}
-
-// Public projects on Forge, one row each, a click opening a copy in the
+// Public projects on Forge, a card each, a click opening a copy in the
 // projects folder as an example does. The first look asks Forge.
-fn forge_specs(state: &mut editor::State) -> [form::Row] {
+fn forge_cards(state: &mut editor::State) -> [Card] {
     if !state.manager.forge_asked {
         state.manager.forge_asked = forge::search("", "");
     }
-    let out: [form::Row] = [];
-    if state.manager.copying != "" {
-        out.push(say("Copying {state.manager.copying} into {state.manager.parent}"));
-    }
-    if state.manager.forge.len() == 0 {
-        out.push(say(if state.manager.forge_asked { "Asking " + forge::url() } else { "No public projects yet." }));
-        return out;
-    }
+    let out: [Card] = [];
     for row in state.manager.forge {
-        let project = row[project_fields::PROJECT].as_str();
         let tags = "";
         for tag in util::list_or_empty(row[fields::TAGS]) {
             tags = if tags == "" { tag.as_str() } else { tags + ", " + tag.as_str() };
         }
         let note = row[fields::DESCRIPTION].as_str();
-        let card = card_of([
-            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE_DIALOG, text: project },
-            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, truncate: true, text: if tags == "" { note } else { note + " · " + tags } },
-        ], state, { fields::FN: copy_forge_project, project_fields::PROJECT: project });
-        card.grow = 1;
-        out.push(form::Row { controls: [card] });
+        out.push(Card { image: "", name: row[project_fields::PROJECT].as_str(), note: if tags == "" { note } else { note + " · " + tags }, tooltip: "Copy into " + state.manager.parent });
     }
-    out.push(say("Opens a copy in your projects folder; the project on Forge stays as it is."));
     out
 }
 
-fn copy_forge_project(state: &mut editor::State, data: any, _value: any) {
-    let project = data[project_fields::PROJECT].as_str();
-    if state.manager.copying == "" && forge::copy(project, state.manager.parent) {
-        state.manager.copying = project;
-        told(state);
+// The cards, `across` to a line. A picture keeps the card's width less its
+// padding and the cover's aspect.
+fn card_grid(state: editor::State, cards: [Card], across: int) {
+    let grid = scene::root().get_node(PAGE() + "/Cards");
+    let columns = "1fr";
+    for _ in 1..across {
+        columns = columns + " 1fr";
     }
+    grid.widget_grid.grid_columns = columns;
+    let items: [scene::RepeatItem] = [];
+    for at in 0..cards.len() {
+        items.push(scene::RepeatItem { key: "{at}", scene: CARD_SCENE });
+    }
+    let nodes = scene::repeat(grid, items);
+    let seam = style::role_size_in_pixels(state, roles::LAYOUT_SPLIT, layout_fields::GAP, 12.0);
+    // Floored: the cards and the seams have to add up to the column, and a
+    // third of a pixel each puts the last one past its edge.
+    let card_width = math::floor((page_width() - (across - 1) as float * seam) / across as float);
+    let inner = card_width - 2.0 * style::role_size_in_pixels(state, roles::SHEET_CARD, layout_fields::PADDING, 12.0);
+    for at in 0..cards.len() {
+        let card = cards[at];
+        let sheet = nodes[at].get_node("Sheet");
+        let cover = sheet.get_node("Cover");
+        let pictured = card.image != "";
+        cover.set_visible(pictured);
+        if pictured {
+            cover.widget_image.image = card.image;
+            cover.widget.width = inner;
+            cover.widget.height = math::floor(inner / COVER_ASPECT);
+        }
+        let blank = sheet.get_node("Blank");
+        // No picture shipped, on an example: the engine's own mark, so the
+        // card still reads as a project rather than a blank.
+        blank.set_visible(!pictured && state.manager.tab == EXAMPLES);
+        blank.widget.width = inner;
+        blank.widget.height = math::floor(inner / COVER_ASPECT);
+        sheet.get_node("Name").widget.text = card.name;
+        sheet.get_node("Note").widget.text = card.note;
+        nodes[at].get_node("Press").widget.tooltip = card.tooltip;
+    }
+}
+
+/// A card pressed, by its place: an example or a Forge project copied in.
+pub fn card_pressed(state: &mut editor::State, key: str) {
+    if state.manager.tab == EXAMPLES {
+        let rows = util::list_or_empty(shipped::examples());
+        for at in 0..rows.len() {
+            if "{at}" == key {
+                open_example(state, util::map_or_empty(rows[at])[fields::ID].as_str());
+                return;
+            }
+        }
+    } else if state.manager.tab == tabs::FORGE {
+        for at in 0..state.manager.forge.len() {
+            if "{at}" == key {
+                let project = state.manager.forge[at][project_fields::PROJECT].as_str();
+                if state.manager.copying == "" && forge::copy(project, state.manager.parent) {
+                    state.manager.copying = project;
+                    told(state);
+                }
+                return;
+            }
+        }
+    }
+}
+
+fn examples_notes() -> [form::Row] {
+    if util::list_or_empty(shipped::examples()).len() == 0 {
+        let none = [say("No examples ship beside this build.")];
+        return none;
+    }
+    let some = [say("Opens a copy in your projects folder, so the example stays as it shipped.")];
+    some
+}
+
+// What the On Forge tab says above its cards: a copy under way, and Forge
+// being asked or having nothing.
+fn forge_lead(state: editor::State) -> [form::Row] {
+    let out: [form::Row] = [];
+    if state.manager.tab != tabs::FORGE {
+        return out;
+    }
+    if state.manager.copying != "" {
+        out.push(say("Copying {state.manager.copying} into {state.manager.parent}"));
+    }
+    if state.manager.forge.len() == 0 {
+        out.push(say(if state.manager.forge_asked { "Asking " + forge::url() } else { "No public projects yet." }));
+    }
+    out
+}
+
+fn forge_notes(state: editor::State) -> [form::Row] {
+    if state.manager.forge.len() == 0 {
+        return [];
+    }
+    let below = [say("Opens a copy in your projects folder; the project on Forge stays as it is.")];
+    below
 }
 
 /// A Forge job reported: the projects a search found, or a copy made.
@@ -698,51 +695,30 @@ pub fn cover(state: &mut editor::State, up: bool) {
 }
 
 /// The head strip: the mark, the name, the version, and the way back.
-fn head_controls(state: editor::State, tokens: any) -> [ui::Control] {
-    let ink = if tokens[panel_keys::DARK].as_bool() { LOGO_DARK } else { LOGO };
-    let out: [ui::Control] = [
-        ui::Control { kind: ui::WIDGET_IMAGE, role: roles::LAYOUT_MARK, image: ink },
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, text: "Balaur" },
-        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: project::version() },
-        ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
-    ];
-    if state.manager.back {
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            role: roles::ACTION_MANAGER,
-            tooltip: "Esc",
-            text: "Back to " + state.game_name,
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_back_pressed },
-        });
-    }
-    out
-}
-
-fn on_back_pressed(state: &mut editor::State, data: any, _value: any) {
-    close(state);
+fn head(state: editor::State, tokens: any) {
+    let strip = scene::root().get_node(HEAD_NODE());
+    strip.get_node("Mark").widget_image.image = if tokens[panel_keys::DARK].as_bool() { LOGO_DARK } else { LOGO };
+    strip.get_node("Version").widget.text = project::version();
+    let back = strip.get_node(BACK);
+    back.set_visible(state.manager.back);
+    back.widget.text = "Back to " + state.game_name;
 }
 
 // The shell's own tab shape: a pill per page, the open one filled.
-fn tab_controls(state: editor::State) -> [ui::Control] {
-    let out: [ui::Control] = [];
+fn tab_row(state: editor::State) {
+    let strip = scene::root().get_node(TABS_NODE());
+    let offered: any = {};
     for row in tabs() {
-        // Bound afresh: a closure made in a loop captures the binding.
-        let id = row[0];
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: row[1],
-            role: roles::TAB_MANAGER,
-            checked: state.manager.tab == id,
-            on_click: "handle", target: pool::editor(),
-            data: { fields::FN: on_page_picked, fields::ID: id },
-        });
+        offered[row[0]] = true;
     }
-    out
+    for tab in strip.children() {
+        tab.set_visible(offered.has(tab.name()));
+        tab.widget_check.checked = state.manager.tab == tab.name();
+    }
 }
 
-fn on_page_picked(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data[fields::ID].as_str();
+/// A page's pill pressed.
+pub fn tab_picked(state: &mut editor::State, id: str) {
     state.manager.tab = id;
 }
 
@@ -797,7 +773,7 @@ pub fn new_fill(state: &mut editor::State) {
                     grow: 1,
                     text: state.manager.name,
                     placeholder: "my-game",
-                    on_change: "handle", target: pool::editor(),
+                    on_change: "handle", target: form::editor(),
                     data: { fields::FN: on_name_typed },
                 },
             ],
@@ -811,7 +787,7 @@ pub fn new_fill(state: &mut editor::State) {
                     grow: 1,
                     text: state.manager.template,
                     options: ids,
-                    on_change: "handle", target: pool::editor(),
+                    on_change: "handle", target: form::editor(),
                     data: { fields::FN: on_template_picked },
                 },
             ],
@@ -833,7 +809,7 @@ pub fn new_fill(state: &mut editor::State) {
                 kind: ui::WIDGET_BUTTON,
                 role: roles::ACTION_FORM_PRIMARY,
                 text: "Create",
-                on_click: "handle", target: pool::editor(),
+                on_click: "handle", target: form::editor(),
                 data: { fields::FN: on_create_pressed },
             },
         ],

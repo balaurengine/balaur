@@ -5,7 +5,7 @@ use docks;
 use editor;
 use history;
 use model;
-use pool;
+use form;
 use recipes;
 use sceneedit;
 use selection;
@@ -945,10 +945,10 @@ fn on_flag_chip_clicked(state: &mut editor::State, data: any, _value: any) {
 /// A chip that is on or off, and what pressing it does: `handler` with `data`. The
 /// theme dresses both states; nothing here names a colour.
 fn chip(text: str, on: bool, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
-    pool::on(ui::Control { kind: ui::WIDGET_BUTTON, text: text, role: roles::CHIP, checked: on }, handler, data)
+    form::on(ui::Control { kind: ui::WIDGET_BUTTON, text: text, role: roles::CHIP, checked: on }, handler, data)
 }
 
-// The Tiles panel's strip of chips, which the pool makes into nodes.
+// The Tiles panel's strip of chips, which the form kit makes into nodes.
 const CHROME: str = "Editor/Shell/Body/Centre/Bottom/Tiles/Chrome";
 
 /// The palette: the two modes and the layers of the map as the Tiles panel's

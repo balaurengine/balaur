@@ -1,0 +1,9 @@
+# One key, button or action on the input overlay, held or just let go.
+
+[[nodes]]
+id = "chip"
+name = "Chip"
+[nodes.widget]
+kind = "button"
+role = "chip_key"
+interactive = false

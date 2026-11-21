@@ -39,6 +39,12 @@ impl Lanes {
         self.editor.unwrap().lanes_seek(value.as_float());
     }
 
+    /// A mark on a lane pressed: what it stands for is its place.
+    pub fn mark_pressed(_value: any, node: Node) {
+        self.editor.unwrap().lane_mark_pressed(node);
+        self.refill();
+    }
+
     pub fn pressed(_value: any, node: Node) {
         self.editor.unwrap().lanes_pressed(node.name());
     }

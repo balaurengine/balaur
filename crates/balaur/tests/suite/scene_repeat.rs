@@ -229,7 +229,14 @@ fn an_item_of_another_scene_gets_a_node_of_its_own() {
 #[test]
 fn a_scene_with_two_roots_or_two_items_sharing_a_key_end_the_call() {
     let (_dir, app) = app();
-    assert_eq!(fill(&app, &["a"], "pair.toml"), None);
+    fill(&app, &["a", "b"], "row.toml");
+    let before = rows(&app);
+    assert_eq!(fill(&app, &["a", "c"], "pair.toml"), None);
+    assert_eq!(
+        rows(&app),
+        before,
+        "a refused build leaves the host's rows as they were"
+    );
     assert_eq!(fill(&app, &["a", "a"], "row.toml"), None);
     assert_eq!(fill(&app, &["a/b"], "row.toml"), None, "a key names a node");
     assert_eq!(
@@ -237,4 +244,5 @@ fn a_scene_with_two_roots_or_two_items_sharing_a_key_end_the_call() {
         ["a"],
         "the host still repeats"
     );
+    assert_eq!(rows(&app).len(), 2, "on the rows it had built");
 }

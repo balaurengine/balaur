@@ -46,7 +46,7 @@ grow = 1
 [nodes.widget_scroll]
 axis = "vertical"
 
-# A form whose fields change with the file, so the pool makes them.
+# A form whose fields change with the file, so the form kit makes them.
 [[nodes]]
 id = "form"
 name = "Form"

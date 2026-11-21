@@ -21,6 +21,12 @@ const INLINE: str = "inline";
 
 const TIMELINE: str = "Editor/Shell/Body/Centre/Bottom/Timeline";
 
+const KEY_SCENE: str = "scenes/items/track_key.toml";
+
+const TICK_SCENE: str = "scenes/items/tick_label.toml";
+
+const RULE_SCENE: str = "scenes/items/tick_rule.toml";
+
 /// Fill the Timeline tab: what the player is missing, or the clip's ruler,
 /// rules, lanes and keys placed by time against the tab's width, the playhead
 /// and the scrubber. What its script asks for when any of them moved.
@@ -39,7 +45,7 @@ pub fn fill(state: &mut editor::State) {
     let lane_width = lanes::marks_width(state, TIMELINE, true);
     fill_head(state, node, definition);
     fill_ruler(state, length, lane_x, lane_width);
-    ui::fill_strip(TIMELINE + "/Body/Lanes/Scroll/Tracks", track_rows(state, definition, length, lane_width));
+    lanes::fill_lanes(state, scene::root().get_node(TIMELINE + "/Body/Lanes/Scroll/Tracks"), track_lanes(state, definition, length, lane_width), [], KEY_SCENE, lane_width);
     util::fill(TIMELINE + "/Body/ScrubRow", { layout_fields::PADDING: [lane_x, 0.0, 0.0, 0.0] });
     let filled = scene::root().get_node(TIMELINE + "/Body/ScrubRow/Scrub");
     if filled.is_valid() {
@@ -92,49 +98,45 @@ fn fill_head(state: &mut editor::State, node: Node, definition: any) {
 // rule per tick straight down through the lanes, then the playhead.
 fn fill_ruler(state: &mut editor::State, length: float, lane_x: float, lane_width: float) {
     let step = tick_step(length);
-    let ticks: [ui::Control] = [];
-    let rules: [ui::Control] = [];
+    let places: [float] = [];
     let seconds = 0.0;
     while seconds <= length + 1e-4 {
-        let tick_x = lane_at(lane_x, length, lane_width, seconds);
-        ticks.push(ui::Control {
-            kind: ui::WIDGET_LABEL,
-            role: roles::TEXT_CODE_CAPTION,
-            absolute: true,
-            inset: ui::Sides { left: tick_x, top: 2.0, right: -1.0, bottom: -1.0 },
-            text: util::fixed(seconds, 2),
-        });
-        rules.push(ui::Control {
-            kind: ui::WIDGET_ROW,
-            role: roles::MARK_TICK,
-            absolute: true,
-            inset: ui::Sides { left: tick_x, top: 0.0, right: -1.0, bottom: 0.0 },
-            interactive: false,
-        });
+        places.push(seconds);
         seconds += step;
     }
-    ui::fill_strip(TIMELINE + "/Body/Ruler", ticks);
-    ui::fill_strip(TIMELINE + "/Body/Lanes/Rules", rules);
+    let items: [scene::RepeatItem] = [];
+    let rule_items: [scene::RepeatItem] = [];
+    for at in 0..places.len() {
+        items.push(scene::RepeatItem { key: "{at}", scene: TICK_SCENE });
+        rule_items.push(scene::RepeatItem { key: "{at}", scene: RULE_SCENE });
+    }
+    let ticks = scene::repeat(scene::root().get_node(TIMELINE + "/Body/Ruler"), items);
+    let rules = scene::repeat(scene::root().get_node(TIMELINE + "/Body/Lanes/Rules"), rule_items);
+    for at in 0..places.len() {
+        let tick_x = lane_at(lane_x, length, lane_width, places[at]);
+        ticks[at].widget.text = util::fixed(places[at], 2);
+        ticks[at].patch_component(components::WIDGET, { dock_fields::INSET: [tick_x, 2.0, -1.0, -1.0] });
+        rules[at].patch_component(components::WIDGET, { dock_fields::INSET: [tick_x, 0.0, -1.0, 0.0] });
+    }
     util::fill(TIMELINE + "/Body/Lanes/Playhead", {
         dock_fields::INSET: [lane_at(lane_x, length, lane_width, math::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0],
     });
 }
 
 // A lane per track: its lamp and name, then its keys placed by time.
-fn track_rows(state: &mut editor::State, definition: any, length: float, lane_width: float) -> [ui::Control] {
+fn track_lanes(state: &mut editor::State, definition: any, length: float, lane_width: float) -> [lanes::Lane] {
     let tracks = anim::tracks(definition);
-    let rows: [ui::Control] = [];
+    let rows: [lanes::Lane] = [];
     for index in 0..tracks.len() {
         let track = tracks[index];
         let lamp = if index % 2 == 0 { roles::MARK_LAMP_PRIMARY } else { roles::MARK_LAMP_SECONDARY };
-        let keys: [ui::Control] = [];
+        let keys: [lanes::Mark] = [];
         for key in util::list_or_empty(track[fields::KEYS]) {
             let when = key[log_fields::TIME].as_float();
             // A key is its mark: held down once the playhead has passed it.
-            let passed = when <= state.anim.time + 1e-4;
-            keys.push(lanes::mark(state, (when / length) * lane_width, passed, "{util::fixed(when, 2)} s", { fields::FN: on_key_pressed, fields::WHEN: when }));
+            keys.push(lanes::Mark { x: (when / length) * lane_width, passed: when <= state.anim.time + 1e-4, tooltip: "{util::fixed(when, 2)} s" });
         }
-        rows.push(lanes::lane(state, lamp, anim::track_label(track), keys, lane_width));
+        rows.push(lanes::Lane { lamp: lamp, name: anim::track_label(track), marks: keys });
     }
     rows
 }
@@ -144,8 +146,22 @@ fn lane_at(lane_x: float, length: float, lane_width: float, seconds: float) -> f
     lane_x + (seconds / length) * lane_width
 }
 
-fn on_key_pressed(state: &mut editor::State, data: any, _value: any) {
-    anim::seek(state, data[fields::WHEN].as_float());
+/// A key pressed: the clip seeks to its time.
+pub fn key_pressed(state: &mut editor::State, node: Node) {
+    let place = lanes::mark_place(node);
+    let found = anim::definition(state);
+    if place == nil || found == nil {
+        return;
+    }
+    let tracks = anim::tracks(found);
+    let lane = place.unwrap()[0];
+    let index = place.unwrap()[1];
+    if lane < tracks.len() {
+        let keys = util::list_or_empty(tracks[lane][fields::KEYS]);
+        if index < keys.len() {
+            anim::seek(state, keys[index][log_fields::TIME].as_float());
+        }
+    }
 }
 
 /// The Timeline tab's commands, by the name of the button pressed.

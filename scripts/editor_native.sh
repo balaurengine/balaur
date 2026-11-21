@@ -44,7 +44,7 @@ cp "$bin" "$out/native/balaur"
 states=(
   test:layout test:picker test:every_node test:plugin_docks test:clipboard
   test:script_paths test:profiler test:drop test:events test:library test:rows
-  test:pool test:pen test:warnings test:settings
+  test:controls test:pen test:warnings test:settings
 )
 list=$(IFS=+; printf '%s' "${states[*]}")
 cp -R examples/hello "$out/project"

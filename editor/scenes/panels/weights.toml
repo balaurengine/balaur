@@ -117,7 +117,7 @@ role = "action_form"
 text = "all"
 tooltip = "List every vertex again"
 
-# The bone columns' heads, pooled: which bones there are is the polygon's.
+# The bone columns' heads, a form: which bones there are is the polygon's.
 # A form row as the rows under it are, so the columns line up.
 [[nodes]]
 id = "header"

@@ -941,18 +941,18 @@ pub fn eventviews(state: &mut editor::State) {
     selftest::check(names(verbs, "set_state") && names(verbs, "set_variable"), "and the actions");
     selftest::check(selftest::mirror_resolves(state), "the mirror still resolves");
     // Left on the tab, so the shot this state takes is of the rows and the
-    // step below sees what the pool put on the scene.
+    // step below sees what the form kit put on the scene.
     state.doctab = "events";
     state.events_demo = 0;
     selftest::stepping(state, "events");
     log::info("selftest eventviews: done");
 }
 
-// Two frames: the pool writes the rows on the first draw after this, and a
+// Two frames: the form kit writes the rows on the first draw after this, and a
 // node reports the box it was given the pass after it was laid out.
 const EVENTS_SETTLED: int = 3;
 
-/// The bindings as the pool left them: a row per binding, each carrying the
+/// The bindings as the form kit left them: a row per binding, each carrying the
 /// controls that edit it.
 pub fn events_step(state: &mut editor::State) {
     state.events_demo = state.events_demo + 1;

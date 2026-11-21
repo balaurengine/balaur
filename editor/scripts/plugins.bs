@@ -10,7 +10,7 @@ use docks;
 use editor;
 use inspector;
 use kit;
-use pool;
+use form;
 use signals;
 use util;
 use window;
@@ -142,6 +142,12 @@ fn load_one(state: &mut editor::State, host: Node, path: str, id: str) {
 // Every list is optional: a plugin declares only what it adds.
 fn add_all(state: &mut editor::State, owner: Node, declared: any) {
     for entry in util::list_or_empty(declared[dock_fields::PANELS]) {
+        // A panel's id names its tab and its row in the menu, so it is a name.
+        let id = entry[fields::ID].as_str();
+        if id == "" || id.contains("/") {
+            log::error("a panel's id names a node, so `{id}` cannot be one");
+            continue;
+        }
         state.registry.panels.push({
             fields::ID: entry[fields::ID],
             fields::TITLE: entry[fields::TITLE],
@@ -260,7 +266,7 @@ pub fn fill_dialogs(state: &mut editor::State) {
         if !state.registry.open[entry[fields::ID].as_str()].as_bool() {
             continue;
         }
-        let close = pool::on(ui::Control { kind: ui::WIDGET_BUTTON }, close_dialog, { fields::ID: entry[fields::ID] });
+        let close = form::on(ui::Control { kind: ui::WIDGET_BUTTON }, close_dialog, { fields::ID: entry[fields::ID] });
         let head = window::head(entry[fields::TITLE].as_str(), [], close);
         let body: [ui::Control] = [
             ui::Control { kind: ui::WIDGET_ROW, role: roles::HEADER_DIALOG, align_items: ui::ALIGN_CENTER, controls: head },
@@ -277,7 +283,7 @@ pub fn fill_dialogs(state: &mut editor::State) {
         filled.widget.x = viewport_rect["x"].as_float() + 12.0;
         filled.widget.y = viewport_rect["y"].as_float() + 12.0;
     }
-    ui::fill_strip(DIALOGS, out);
+    form::strip(DIALOGS, out);
 }
 
 fn close_dialog(state: &mut editor::State, data: any, _value: any) {
@@ -285,7 +291,7 @@ fn close_dialog(state: &mut editor::State, data: any, _value: any) {
     changed(state);
 }
 
-// A row a plugin hands back, as the pool's row specs read, laid out as one
+// A row a plugin hands back, as the form's row specs read, laid out as one
 // line: its label, then its controls.
 fn row_controls(row: any) -> ui::Control {
     let controls: [ui::Control] = [];

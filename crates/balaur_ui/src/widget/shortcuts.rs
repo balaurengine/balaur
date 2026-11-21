@@ -70,7 +70,7 @@ fn written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
 
 /// [`pressed`] in a pass with no widget, recorded at once: nothing else is.
 pub(crate) fn record_alone(eng: &Engine, ctx: &egui::Context) {
-    let edits: Vec<_> = pressed(eng, ctx, &rustc_hash::FxHashMap::default(), &[])
+    let edits: Vec<_> = pressed(eng, ctx, &rustc_hash::FxHashMap::default(), &[], &[])
         .into_iter()
         .map(|(node, name)| (node, crate::widget::layer::Edit::Shortcut(name)))
         .collect();
@@ -79,21 +79,33 @@ pub(crate) fn record_alone(eng: &Engine, ctx: &egui::Context) {
     }
 }
 
+/// The viewports with no size as last drawn: shown, but what sits in them is not.
+pub(crate) fn shut(placed: &[crate::widget::arena::Placed]) -> Vec<usize> {
+    (0..placed.len())
+        .filter(|&at| {
+            placed[at].widget.kind == crate::vocabulary::words::VIEWPORT
+                && crate::widget::arena::screen_of(placed, at, crate::widget::arrange::drawn_at)
+                    .is_none()
+        })
+        .collect()
+}
+
 /// The rows pressed this pass, each consumed, and the node it raises on.
 /// `shown` is the pass's drawn widgets, which a row under a widget needs its
-/// nearest one among.
+/// nearest one among; `shut` the viewports with no size, which silence it.
 pub(crate) fn pressed(
     eng: &Engine,
     ctx: &egui::Context,
     index_of: &rustc_hash::FxHashMap<u64, usize>,
     shown: &[usize],
+    shut: &[usize],
 ) -> Vec<(Entity, String)> {
     let world = eng.world();
     let mut nodes: Vec<(Vec<usize>, Entity)> = world
         .query::<(Entity, &Shortcuts)>()
         .iter()
         .map(|(entity, _)| entity)
-        .filter(|&entity| answers(&world, entity, index_of, shown))
+        .filter(|&entity| answers(&world, entity, index_of, shown, shut))
         .map(|entity| (tree_place(&world, entity), entity))
         .collect();
     if nodes.is_empty() {
@@ -128,12 +140,13 @@ pub(crate) fn pressed(
 }
 
 // Shown, and drawn where a widget is above it: the nearest one, itself
-// included, among this pass's.
+// included, among this pass's, and not a viewport with no size.
 fn answers(
     world: &World,
     entity: Entity,
     index_of: &rustc_hash::FxHashMap<u64, usize>,
     shown: &[usize],
+    shut: &[usize],
 ) -> bool {
     let visible = world
         .get::<&balaur_core::GlobalAppearance>(entity)
@@ -144,7 +157,7 @@ fn answers(
     let mut at = Some(entity);
     while let Some(node) = at {
         if let Some(index) = index_of.get(&node.to_bits().get()) {
-            return shown.contains(index);
+            return shown.contains(index) && !shut.contains(index);
         }
         at = world.get::<&Parent>(node).ok().map(|p| p.0);
     }

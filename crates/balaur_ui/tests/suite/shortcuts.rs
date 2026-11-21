@@ -90,13 +90,20 @@ fn a_hidden_node_s_shortcuts_are_silent() {
 // outside play: its keys must not answer the shell's chords.
 #[test]
 fn shortcuts_in_a_viewport_answer_only_while_it_has_a_size() {
-    for (width, heard) in [(0.0, Some(0.0)), (200.0, Some(1.0))] {
+    // Under a widget inside it, and straight under the viewport itself.
+    let cases = [
+        ("panel", 0.0, Some(0.0)),
+        ("panel", 200.0, Some(1.0)),
+        ("screen", 0.0, Some(0.0)),
+        ("screen", 200.0, Some(1.0)),
+    ];
+    for (holder, width, heard) in cases {
         let screen = format!(
             "[[nodes]]\nid = \"screen\"\nname = \"Screen\"\nparent = \"root\"\n\
              widget = {{ kind = \"viewport\", x = 0.0, y = 0.0, width = {width:.1}, height = 100.0 }}\n\
              [[nodes]]\nid = \"panel\"\nname = \"Panel\"\nparent = \"screen\"\n\
              widget = {{ kind = \"panel\" }}\n{}",
-            keys("panel", "{ chord = \"F10\", name = \"step\" }", "")
+            keys(holder, "{ chord = \"F10\", name = \"step\" }", "")
         );
         let (_dir, mut app, ctx, errors) = run(&Script {
             fields: FIELDS,
@@ -106,6 +113,10 @@ fn shortcuts_in_a_viewport_answer_only_while_it_has_a_size() {
         });
         assert!(errors.is_empty(), "{errors:#?}");
         press(&mut app, &ctx, egui::Key::F10, egui::Modifiers::NONE);
-        assert_eq!(count(&app, "step"), heard, "a viewport {width} wide");
+        assert_eq!(
+            count(&app, "step"),
+            heard,
+            "under {holder}, a viewport {width} wide"
+        );
     }
 }

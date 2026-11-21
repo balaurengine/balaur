@@ -1,8 +1,10 @@
 //! `--state bench:<edit>`: one edit a frame to the selection, the way the
 //! Inspector writes it, so a run can be measured by the instructions it
 //! retires against one that edits nothing. The
-//! edits: `text` and `color` on a `text2d`, `position` on its transform, and
-//! `engine_text`, the engine's own write that the Inspector's rows follow.
+//! edits: `text` and `color` on a `text2d`, `position` on its transform,
+//! `engine_text`, the engine's own write that the Inspector's rows follow, and
+//! `select`, the second node and the last picked in turn, a whole Inspector
+//! each frame.
 //!
 //! `--state idle:<seconds>` or `idle:<seconds>:<edit>`: the frames the editor
 //! draws while nothing touches it, after one such edit or none, logged as
@@ -15,6 +17,7 @@ use editor;
 use model;
 use sceneedit;
 use session;
+use shell;
 use util;
 use words::components;
 use words::datatypes;
@@ -23,6 +26,7 @@ const ENGINE_TEXT: str = "engine_text";
 const ONE: str = "one";
 const TWO: str = "two";
 const REPLAY: str = "replay";
+const SELECT: str = "select";
 
 /// A count of idle frames under way: the edit it starts with, the frame it
 /// began on, -1 before it has, when it begins and ends, and how long it runs.
@@ -58,6 +62,8 @@ fn edit(state: &mut editor::State, kind: str) {
         sceneedit::set_component_property(state, components::TRANSFORM, components::POSITION, [if flip { 0.0 } else { 0.5 }, 0.0, 0.0]);
     } else if kind == ENGINE_TEXT {
         found.text2d.text = if flip { ONE } else { TWO };
+    } else if kind == SELECT {
+        shell::choose(state, if flip { 1 } else { state.nodes.len() - 1 });
     }
 }
 

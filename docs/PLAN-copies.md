@@ -61,7 +61,7 @@ Cheap handles are not copies in this sense: `Rc`, `Arc`, `SmolStr`,
   in `nursery`, which the workspace leaves off: step 1 turns it on by name
   once what it finds is cleared.
 - Step 2's benches: a parse of a megabyte document handed to a script, and
-  a screen of pooled controls filled twice, so the two costs this plan
+  a screen of form controls filled twice, so the two costs this plan
   started from have a number a change is held against.
 
 ## Done
@@ -309,7 +309,8 @@ table is cloned a widget a frame (`Rc<Look>`, memoised by kind and role);
 the text cache hashes a borrowed request and a hit allocates nothing; the
 render mirror copies only dirty nodes.
 
-Pooled controls (`balaur_ui/src/widget/pool.rs`), for each control of each
+Written controls (`balaur_ui/src/widget/write.rs`, where the pool's routing
+and memo moved; the lines below are the pool's), for each control of each
 fill whether or not it changed, about seventy allocations for a spec of
 six keys:
 
@@ -327,7 +328,7 @@ six keys:
 
 Fix for all seven: compare the borrowed spec with what was written, inside
 the memo's borrow; build owned data only for what differs; write after the
-borrow ends (a write can re-enter the pool).
+borrow ends (a write can re-enter the writer).
 
 A widget read again (`balaur_ui/src/widget/`):
 

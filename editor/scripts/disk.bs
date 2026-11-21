@@ -7,7 +7,6 @@ use editor;
 use form;
 use lint;
 use model;
-use pool;
 use session;
 use shell;
 use signals;
@@ -234,7 +233,7 @@ fn row(controls: [ui::Control]) -> form::Row {
 }
 
 fn chip(text: str, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
-    pool::on(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: text }, handler, data)
+    form::on(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: text }, handler, data)
 }
 
 /// Reload: what was typed since the file last agreed is dropped.

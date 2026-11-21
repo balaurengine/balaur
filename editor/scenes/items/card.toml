@@ -1,0 +1,86 @@
+# One card on the start screen: an example or a project on Forge, named for
+# it. The picture, or the engine's mark where none shipped, the name and the
+# line under it, and a bare button over the lot that a click on any presses.
+
+[[nodes]]
+id = "card"
+name = "Card"
+[nodes.widget]
+kind = "column"
+
+[[nodes]]
+id = "sheet"
+name = "Sheet"
+parent = "card"
+[nodes.widget]
+kind = "panel"
+role = "sheet_card"
+
+[[nodes]]
+id = "cover"
+name = "Cover"
+parent = "sheet"
+visible = false
+[nodes.widget]
+kind = "image"
+[nodes.widget_image]
+fit = "cover"
+
+[[nodes]]
+id = "blank"
+name = "Blank"
+parent = "sheet"
+visible = false
+[nodes.widget]
+kind = "row"
+[nodes.widget_layout]
+justify = "center"
+align_items = "center"
+
+[[nodes]]
+id = "plate"
+name = "Plate"
+parent = "blank"
+[nodes.widget]
+kind = "panel"
+role = "sheet_logo"
+
+[[nodes]]
+id = "logo"
+name = "Logo"
+parent = "plate"
+[nodes.widget]
+kind = "image"
+role = "layout_mark"
+[nodes.widget_image]
+image = "assets/balaur-logo.png"
+
+[[nodes]]
+id = "name"
+name = "Name"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+role = "text_title_dialog"
+
+[[nodes]]
+id = "note"
+name = "Note"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+role = "text_code_caption"
+[nodes.widget_text]
+truncate = true
+
+[[nodes]]
+id = "press"
+name = "Press"
+parent = "card"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../..", value = "card_pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "chip_quiet"
+text = ""
+absolute = true
+inset = [0.0, 0.0, 0.0, 0.0]

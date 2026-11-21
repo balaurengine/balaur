@@ -1,0 +1,34 @@
+# One thing recorded at the playhead's tick: the tick, its kind, what it was.
+
+[[nodes]]
+id = "line"
+name = "Line"
+[nodes.widget]
+kind = "row"
+role = "layout_lane"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "tick"
+name = "Tick"
+parent = "line"
+[nodes.widget]
+kind = "label"
+role = "text_code_caption"
+
+[[nodes]]
+id = "kind"
+name = "Kind"
+parent = "line"
+[nodes.widget]
+kind = "label"
+role = "text_code_caption"
+
+[[nodes]]
+id = "label"
+name = "Label"
+parent = "line"
+[nodes.widget]
+kind = "label"
+role = "text_code"

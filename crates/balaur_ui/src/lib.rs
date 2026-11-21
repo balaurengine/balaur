@@ -5,7 +5,7 @@
 //! through egui once a pass. A script fills and answers nodes; it never
 //! draws. The plugin's `ui` module is what a script asks of the UI
 //! and tells it: where a node drew, focus, the scale, the theme, the
-//! clipboard, when the next pass runs, and the pooled rows a list is built
+//! clipboard, when the next pass runs, and the control tables a form is built
 //! from.
 // clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
 #![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
@@ -308,7 +308,6 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(UiState::default());
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
-        reg.insert_resource(widget::pool::PoolState::default());
         reg.insert_resource(UiFocus::default());
         reg.insert_resource(AccessTree::default());
         reg.insert_resource(routing::UiHits::default());

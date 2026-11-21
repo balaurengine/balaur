@@ -1,66 +1,112 @@
 //! The Recordings tab while one is open: the replay's transport and lanes.
 
 use editor;
-use pool;
 use session;
 use signals;
 use style;
 use util;
 use words::changes;
 use words::components;
+use words::dock_fields;
 use words::fields;
 use words::glyphs;
 use words::layout_fields;
-use words::log_fields;
 use words::roles;
 use words::schema_fields;
 
 const LANES: str = "Editor/Shell/Body/Centre/Bottom/Lanes";
+
+const LANE_SCENE: str = "scenes/items/lane.toml";
+
+const LINE_SCENE: str = "scenes/items/event_line.toml";
+
+const MARK_SCENE: str = "scenes/items/lane_mark.toml";
+
+// A lane's name among the rows, and a line's, each before its place.
+const LANE: str = "L";
+
+const LINE: str = "E";
+
+const MARKS: str = "Marks";
 
 const PADDING_X: str = "padding_x";
 
 // A scroll bar's width, which the marks stay clear of.
 const SCROLL_BAR: float = 16.0;
 
-/// One lane of the Timeline or a recording: its lamp in `lamp`, a lamp role or
-/// "" for none, its name, then `marks` across `marks_width`.
-pub fn lane(state: editor::State, lamp: str, name: str, marks: [ui::Control], marks_width: float) -> ui::Control {
-    let controls: [ui::Control] = [];
-    if lamp != "" {
-        controls.push(ui::Control { kind: ui::WIDGET_ROW, role: lamp });
+/// One lane of the Timeline or a recording: its lamp role, or "" for none,
+/// its name, and its marks.
+pub struct Lane {
+    internal lamp: str,
+    internal name: str,
+    internal marks: [Mark],
+}
+
+/// A lane's mark: `x` across its lane, held down once the playhead has passed it.
+pub struct Mark {
+    internal x: float,
+    internal passed: bool,
+    internal tooltip: str,
+}
+
+/// Lay `lanes` under `host`, each a `scenes/items/lane.toml` whose marks are
+/// `mark_scene`s across `marks_width`, then `lines`, each the three things a
+/// `scenes/items/event_line.toml` says. A lane is named `L<n>` and a mark by
+/// its place in it, which is what a press hands back.
+pub fn fill_lanes(state: editor::State, host: Node, lanes: [Lane], lines: [[str]], mark_scene: str, marks_width: float) {
+    let items: [scene::RepeatItem] = [];
+    for at in 0..lanes.len() {
+        items.push(scene::RepeatItem { key: LANE + "{at}", scene: LANE_SCENE });
     }
-    controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_LANE, truncate: true, tooltip: name, text: name });
-    controls.push(ui::Control {
-        kind: ui::WIDGET_ROW,
-        width: marks_width,
-        height: style::role_size_in_pixels(state, roles::LAYOUT_LANE, layout_fields::HEIGHT, 20.0),
-        controls: marks,
-    });
-    line(controls)
-}
-
-/// A row in a lane's look that is not a lane: what happened at a tick.
-pub fn line(controls: [ui::Control]) -> ui::Control {
-    // A group of controls has no air of its own; this one's is the role's.
-    ui::Control { kind: ui::WIDGET_ROW, role: roles::LAYOUT_LANE, align_items: ui::ALIGN_CENTER, controls: controls }
-}
-
-/// A lane's mark centred on `x`, held down once the playhead has passed it;
-/// a press calls `data`'s handler.
-pub fn mark(state: editor::State, x: float, passed: bool, tooltip: str, data: any) -> ui::Control {
+    for at in 0..lines.len() {
+        items.push(scene::RepeatItem { key: LINE + "{at}", scene: LINE_SCENE });
+    }
+    let nodes = scene::repeat(host, items);
     let half = style::role_size_in_pixels(state, roles::CHIP_QUIET, layout_fields::HEIGHT, 20.0) / 2.0;
-    ui::Control {
-        kind: ui::WIDGET_BUTTON,
-        role: roles::CHIP_QUIET,
-        text: "",
-        icon: glyphs::DOT,
-        checked: passed,
-        absolute: true,
-        inset: ui::Sides { left: x - half, top: 0.0, right: -1.0, bottom: -1.0 },
-        tooltip: tooltip,
-        on_click: "handle", target: pool::editor(),
-        data: data,
+    let tall = style::role_size_in_pixels(state, roles::LAYOUT_LANE, layout_fields::HEIGHT, 20.0);
+    for at in 0..lanes.len() {
+        let lane = lanes[at];
+        let row = nodes[at];
+        let lamp = row.get_node("Lamp");
+        lamp.set_visible(lane.lamp != "");
+        if lane.lamp != "" {
+            lamp.widget.role = lane.lamp;
+        }
+        let name = row.get_node("Name");
+        name.widget.text = lane.name;
+        name.widget.tooltip = lane.name;
+        let strip = row.get_node(MARKS);
+        strip.widget.width = marks_width;
+        strip.widget.height = tall;
+        let marks: [scene::RepeatItem] = [];
+        for index in 0..lane.marks.len() {
+            marks.push(scene::RepeatItem { key: "{index}", scene: mark_scene });
+        }
+        let placed = scene::repeat(strip, marks);
+        for index in 0..lane.marks.len() {
+            let mark = lane.marks[index];
+            let node = placed[index];
+            node.patch_component(components::WIDGET, { dock_fields::INSET: [mark.x - half, 0.0, -1.0, -1.0] });
+            node.widget_check.checked = mark.passed;
+            node.widget.tooltip = mark.tooltip;
+        }
     }
+    for at in 0..lines.len() {
+        let row = nodes[lanes.len() + at];
+        row.get_node("Tick").widget.text = lines[at][0];
+        row.get_node("Kind").widget.text = lines[at][1];
+        row.get_node("Label").widget.text = lines[at][2];
+    }
+}
+
+/// A pressed mark's lane and place in it, from the mark's node: nil for a
+/// node that is not one.
+pub fn mark_place(node: Node) -> [int]? {
+    let lane = node.parent().parent().name();
+    if !lane.starts_with(LANE) {
+        return nil;
+    }
+    return [lane.slice(LANE.len(), lane.len()).parse_int(), node.name().parse_int()];
 }
 
 /// Where a lane's marks start across it, with its lamp or without.
@@ -104,31 +150,36 @@ pub fn fill(state: editor::State) {
         filled.set_visible(parted != "");
         filled.widget.text = parted;
     }
-    let rows: [ui::Control] = [];
+    let lanes: [Lane] = [];
     for recorded in state.session.lanes {
-        let marks: [ui::Control] = [];
+        let marks: [Mark] = [];
         for recorded_mark in recorded.marks {
             let tick = recorded_mark.tick;
             let mark_x = math::clamp(((tick.as_int() - first) as float) / span, 0.0, 1.0) * lane_width;
-            let passed = tick.as_int() <= replay::position();
-            marks.push(mark(state, mark_x, passed, "{tick}: {recorded_mark.label}", { fields::FN: on_mark_pressed, log_fields::TICK: tick }));
+            marks.push(Mark { x: mark_x, passed: tick.as_int() <= replay::position(), tooltip: "{tick}: {recorded_mark.label}" });
         }
-        rows.push(lane(state, "", recorded.name, marks, lane_width));
+        lanes.push(Lane { lamp: "", name: recorded.name, marks: marks });
     }
     // Everything recorded at the tick the playhead is on, in the order it
     // happened.
+    let lines: [[str]] = [];
     for event in replay::events(state.session.at, state.session.at) {
-        rows.push(line([
-            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: "{event.tick}" },
-            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_CAPTION, text: event.kind },
-            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: event.label },
-        ]));
+        lines.push(["{event.tick}", event.kind, event.label]);
     }
-    ui::fill_strip(LANES + "/Scroll/Rows", rows);
+    fill_lanes(state, scene::root().get_node(LANES + "/Scroll/Rows"), lanes, lines, MARK_SCENE, lane_width);
 }
 
-fn on_mark_pressed(state: &mut editor::State, data: any, _value: any) {
-    session::seek(state, data[log_fields::TICK].as_int());
+/// A mark pressed: the replay seeks to its tick.
+pub fn mark_pressed(state: &mut editor::State, node: Node) {
+    let place = mark_place(node);
+    if place == nil {
+        return;
+    }
+    let lane = place.unwrap()[0];
+    let index = place.unwrap()[1];
+    if lane < state.session.lanes.len() && index < state.session.lanes[lane].marks.len() {
+        session::seek(state, state.session.lanes[lane].marks[index].tick.as_int());
+    }
 }
 
 /// The lanes' transport, by the name of the button pressed.

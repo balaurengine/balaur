@@ -178,7 +178,7 @@ one backend.
   `events.listen`. A method naming fewer parameters is handed fewer.
 - A `call` row in `bindings` calls the node its `target` path names, or its
   own node when it names none, with the event's values and then the row's
-  node. A pooled control names its `target` node beside its `on_click`. Nothing
+  node. A written control names its `target` node beside its `on_click`. Nothing
   searches the tree for a method, so a panel declaring a method of the same
   name cannot take another's click. A core hook of two values keeps both:
   `on_pointer_drag(dx, dy, source)`.
@@ -830,8 +830,9 @@ Each measurement is in instructions retired or milliseconds under wasmtime.
   its cells solid, against 27 million native.
 - `screen_notifier2d`: at least 1.8 million instructions a frame for 200
   notifiers as scripts, against 0.26 million native.
-- `ui::fill_strip`: the widget pool hands each control's `data` to its
-  handler, which a script fill cannot do.
+- `ui::write`: a control's table routed to the components that hold it,
+  written only where it moved, and its `data` handed to its handler, which a
+  script cannot do without a call a key.
 - `max_contact_impulse`, the character, vehicle and follow controllers, and
   rumble shaping: rapier's contact impulses and a pad's per-frame state are
   out of a script's reach.
@@ -1119,7 +1120,7 @@ like anything else. `balaur_ui` lays each subtree out with taffy and paints it
 with egui inside the kiss3d window, once a pass. A script fills nodes and
 answers their events; it never draws. The `ui` module is what a script asks of
 the UI and tells it: where a node drew, focus, the scale, the theme, the
-clipboard, when the next pass runs and pooled rows.
+clipboard, when the next pass runs and the control tables a form writes.
 
 - `row`, `column` and `panel` lay out their widget children: along the
   direction, `gap` apart, `padding` inside, `align`ed across. A child's own
@@ -1177,11 +1178,15 @@ write. It walks widgets in scene order and wraps.
   action = "call", value = "start" }`.
 - A `label`, a `panel` or an `image` senses a click only while one is heard on
   its node: a row, its script's `on_pointer_click`, a listener or a waiter
-  naming it, or its pool spec's `on_click` (`Widget::hears_click`, kept by
-  `input::follow_hearers` from `events::watch_hearers`).
-- `ui.fill_strip` and `ui.fill_slot` specs keep `on_click`, `on_change` and
-  `on_submit`. The pool holds the names and calls each from the event its
-  control announces, with the spec's `data`, the edit and the control.
+  naming it, or the `on_click` its control table names (`Widget::hears_click`,
+  kept by `input::follow_hearers` from `events::watch_hearers`).
+- `ui.write` keeps a control table's `on_click`, `on_change` and `on_submit`
+  off the widget and calls each from the event its control announces, with
+  the table's `data`, the edit and the control. It writes only what moved,
+  but `visible` every time, since `scene.repeat` shows a node it reuses. A
+  form's rows are item scenes
+  through `scene.repeat`, `scenes/items/control.toml` a control and
+  `control_group.toml` a group, written with `ui.write` by `editor/scripts/form.bs`.
 - `scene.repeat(host, items)` keeps one instance of an item scene per key
   under a host. A key asked again keeps its node, a new key takes a hidden
   spare of the same scene, and one no item asks for is hidden, not freed.
@@ -1191,8 +1196,10 @@ write. It walks widgets in scene order and wraps.
   sharing the file's ids would take each other's clicks. The tool rail is a
   `grid` of `scenes/items/rail_mark.toml`, and the viewport's toggles and the
   Polygon tool's modes are `scenes/items/chip.toml`, whose row says which.
-  A dock's tabs, the brand menu's panels, the recordings and the imports'
-  lines are item scenes too. The picker and the sheet's sidebar are `list`s
+  So are a dock's tabs, the brand menu's panels, the recordings, the
+  imports' lines, the start screen's projects and cards, the lanes of a
+  replay and of the Timeline, the ruler's ticks, the hook pills and the input
+  overlay's chips. The picker and the sheet's sidebar are `list`s
   whose rows the screen up hands over as `ui::Item`s, a pick coming back by key.
 - The keyboard drives focus until the game shows the keys are its own: an action
   binding an arrow, Tab, Enter or Space, or a script reading one, unless it also
@@ -1704,7 +1711,7 @@ docks that fold and move, the command palette, dark and light token sets.
 - Each command the shell runs is one entry in `editor/scripts/commands.bs`:
   its name, label, icon and when it would act. A row of the `shortcuts` in
   `scenes/panels/keys.toml` names one, the palette lists those that would act,
-  and the mark menu shows five. Each row writes its key's chord through
+  and the mark menu shows six. Each row writes its key's chord through
   `ui::chord_text`, so a chord is spelled once. Two rows on one chord run
   whichever would act: F5 continues a stopped script, and plays otherwise.
 - A shell button is named for the command it runs: the bar's workspaces and

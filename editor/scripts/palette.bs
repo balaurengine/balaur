@@ -274,4 +274,3 @@ fn matches(state: &mut editor::State) -> [Line] {
     }
     out
 }
-

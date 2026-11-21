@@ -202,7 +202,6 @@ fn matching(state: &mut editor::State) -> [any] {
     out
 }
 
-
 /// A family picked: its faces are asked for, then its upright regular one
 /// and its licence fetched into the project.
 pub fn take(state: &mut editor::State, family: any) {

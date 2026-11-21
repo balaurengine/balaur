@@ -63,7 +63,7 @@ fn a_row_written_alone_fills_what_a_whole_put_fills() {
     each_beside!(check_each!());
 }
 
-// A pooled control's table says nothing of which component holds a row,
+// A control's table says nothing of which component holds a row,
 // so no kind may read two that hold the same one.
 #[test]
 fn no_kind_reads_two_components_holding_one_row() {
@@ -89,7 +89,7 @@ fn no_kind_reads_two_components_holding_one_row() {
     }
 }
 
-// No component holds a row of `widget` itself, or a pooled control's
+// No component holds a row of `widget` itself, or a control's
 // table could not say which it meant.
 #[test]
 fn no_row_beside_the_widget_is_a_row_of_the_widget() {

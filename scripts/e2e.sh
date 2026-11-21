@@ -172,7 +172,7 @@ EDITOR_STATES=(
   test:theme_switch test:theme_editing      # light and back; a theme diff
   test:sheet_close test:settings test:export_runtime
   test:drop test:events                     # drag-in; the Events view
-  test:library test:rows test:pool test:camera_document test:warnings
+  test:library test:rows test:controls test:camera_document test:warnings
   test:inspector_rows                       # a row's edit, its log, the window
   test:pen                                  # anchors, a handle, its asset
   test:tools test:lint                      # the code pane's answers; Problems

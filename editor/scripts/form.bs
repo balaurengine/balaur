@@ -1,8 +1,14 @@
 //! A form: rows of a label beside, or above, the controls it names. A row is
-//! plain controls, so `ui::fill_strip` lays a form out and `ui::fill_slot`
-//! keeps the few rows of a long one on screen. Under the host, a row's label
-//! is `C<row>/C0` and its controls `C<row>/C1/C<n>`.
+//! plain controls, which `strip` puts on a host as item scenes, one a control,
+//! each written by `ui::write`; `slot_at` keeps the few rows of a long form on
+//! screen. Under the host, a row's label is `C<row>/C0` and its controls
+//! `C<row>/C1/C<n>`.
 
+use editor;
+use util;
+use words::fields;
+use words::hooks;
+use words::project_fields;
 use words::roles;
 
 /// One row: its `label` and `controls`, with no label across both columns;
@@ -21,11 +27,18 @@ pub class Row {
 
 const DEFAULT_HEIGHT: float = 0.0;
 
+const CONTROL_SCENE: str = "scenes/items/control.toml";
+
+const GROUP_SCENE: str = "scenes/items/control_group.toml";
+
+// A control's name under its host: its place, as `C0`, `C1`.
+const PLACE: str = "C";
+
 // A stacked label's line: the label role's text and its air.
 const LABEL_LINE: float = 16.0;
 const STACKED_GAP: float = 2.0;
 
-/// The control column's place in a row, as `ui::patch_control` takes it.
+/// The control column's place in a row, as `patch_at` takes it.
 pub const CELLS: int = 1;
 
 /// One row as a control: its label, then its controls in a row taking what
@@ -91,7 +104,7 @@ pub fn warning(text: str) -> Row {
     Row { controls: [ui::Control { kind: ui::WIDGET_LABEL, role: roles::NOTE_WARNING, grow: 1, wrap: true, text: text }] }
 }
 
-/// Every row of a form as the controls `ui::fill_strip` takes.
+/// Every row of a form as the controls `strip` takes.
 pub fn controls(rows: [Row], label_width: float, stacked: bool) -> [ui::Control] {
     let out: [ui::Control] = [];
     for row in rows {
@@ -103,15 +116,101 @@ pub fn controls(rows: [Row], label_width: float, stacked: bool) -> [ui::Control]
 /// Fill the node at `host` with `rows`, the labels `label_width` wide or
 /// above their controls when `stacked`: true when a control's table changed.
 pub fn fill(host: str, rows: [Row], label_width: float?, stacked: bool?) -> bool {
-    ui::fill_strip(host, controls(rows, width_of(label_width), stacked == true))
+    strip(host, controls(rows, width_of(label_width), stacked == true))
 }
 
 /// The row at `slot` under `host`, or that row hidden for nil.
 pub fn fill_slot(host: Node, slot: int, row: Row?, label_width: float?, stacked: bool?) -> bool {
     if row == nil {
-        return ui::fill_slot(host, slot);
+        return slot_at(host, slot);
     }
-    ui::fill_slot(host, slot, control(row.unwrap(), width_of(label_width), stacked == true))
+    slot_at(host, slot, control(row.unwrap(), width_of(label_width), stacked == true))
+}
+
+/// Put one node a control under the node at `host`, a path from the root:
+/// made, reused and hidden as the list changes, and each written only where
+/// its table changed. True when a control's table differed from the last one
+/// written to it.
+pub fn strip(host: str, controls: [ui::Control]) -> bool {
+    let node = scene::root().get_node(host);
+    if !node.is_valid() {
+        return false;
+    }
+    shown(node);
+    under(node, controls)
+}
+
+/// One child of `host`, the one at `slot`, filled as `strip` fills each and
+/// made with any before it that are missing, or hidden for nil. The others are
+/// left as they are, so a list of hundreds of rows writes the few on screen.
+pub fn slot_at(host: Node, slot: int, control: ui::Control?) -> bool {
+    shown(host);
+    let node = host.get_node(PLACE + "{slot}");
+    if !node.is_valid() {
+        let items: [scene::RepeatItem] = [];
+        for at in 0..slot + 1 {
+            items.push(scene::RepeatItem { key: PLACE + "{at}", scene: GROUP_SCENE });
+        }
+        node = scene::repeat(host, items)[slot];
+    }
+    if control == nil {
+        return ui::patch(node, ui::Control { visible: false });
+    }
+    let held = control.unwrap();
+    let changed = one(node, held);
+    // A slot is a group's node: one control in it hides what the group held.
+    if held.controls == nil {
+        under(node, []);
+    }
+    changed
+}
+
+/// What `patch` names written to the control at `at`, places down from
+/// `host`, and remembered, so the next fill compares against it. False where
+/// no control is there or nothing moved.
+pub fn patch_at(host: Node, at: [int], patch: ui::Control) -> bool {
+    shown(host);
+    let node = host;
+    for index in at {
+        node = node.get_node(PLACE + "{index}");
+        if !node.is_valid() {
+            return false;
+        }
+    }
+    ui::patch(node, patch)
+}
+
+// A host is shown by filling it: a script hides a whole form with a plain write.
+fn shown(host: Node) {
+    if host.visible() == false {
+        host.set_visible(true);
+    }
+}
+
+fn under(host: Node, controls: [ui::Control]) -> bool {
+    let items: [scene::RepeatItem] = [];
+    for at in 0..controls.len() {
+        let scene = if controls[at].controls == nil { CONTROL_SCENE } else { GROUP_SCENE };
+        items.push(scene::RepeatItem { key: PLACE + "{at}", scene: scene });
+    }
+    let nodes = scene::repeat(host, items);
+    let changed = ui::write(nodes, controls);
+    for at in 0..controls.len() {
+        let inner = controls[at].controls;
+        if inner != nil && under(nodes[at], inner.unwrap()) {
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn one(node: Node, control: ui::Control) -> bool {
+    let changed = ui::write([node], [control]);
+    let inner = control.controls;
+    if inner != nil && under(node, inner.unwrap()) {
+        changed = true;
+    }
+    changed
 }
 
 fn width_of(label_width: float?) -> float {
@@ -124,7 +223,7 @@ pub fn patch(host: Node, slot: int, patches: [any]) -> bool {
     let wrote = false;
     for index in 0..patches.len() {
         let patch = patches[index];
-        if patch != nil && ui::patch_control(host, [slot, CELLS, index], patch) {
+        if patch != nil && patch_at(host, [slot, CELLS, index], patch) {
             wrote = true;
         }
     }
@@ -177,4 +276,40 @@ fn with_field(row: Row, key: str, value: any) -> Row {
         row.y = value.as_float();
     }
     row
+}
+
+const BUTTON: str = "button";
+
+const EDITOR: str = "Editor";
+
+/// The Editor's node, which every shell control's handler is called on.
+pub fn editor() -> Node {
+    scene::root().get_node(EDITOR)
+}
+
+/// `spec`, whose edit `handler` hears with `data` and the edit: what a closure over
+/// the locals in `data` was. The Editor's `handle` makes the call.
+pub fn on(spec: ui::Control, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
+    let carried = util::copy(util::map_or_empty(data));
+    carried[fields::FN] = handler;
+    if spec.kind.or("") == BUTTON {
+        spec.on_click = hooks::HANDLE;
+    } else {
+        spec.on_change = hooks::HANDLE;
+    }
+    spec.target = editor();
+    spec.data = carried;
+    spec
+}
+
+/// The same for Enter in a field, beside or instead of its edit.
+pub fn on_submit(spec: ui::Control, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
+    let held = spec.data;
+    let carried = if held == nil { data } else { held };
+    let kept = util::copy(util::map_or_empty(carried));
+    kept[project_fields::SUBMIT] = handler;
+    spec.on_submit = hooks::HANDLE_SUBMIT;
+    spec.target = editor();
+    spec.data = kept;
+    spec
 }

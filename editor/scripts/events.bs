@@ -7,7 +7,6 @@ use history;
 use icons;
 use inspector;
 use model;
-use pool;
 use shell;
 use signals;
 use util;
@@ -199,7 +198,7 @@ fn pick(state: editor::State, at: int, key: str, current: str, choices: [str]) -
         grow: 1,
         text: current,
         options: choices,
-        on_change: "handle", target: pool::editor(),
+        on_change: "handle", target: form::editor(),
         data: { fields::FN: on_field_picked, layout_fields::AT: at, fields::KEY: key },
     }
 }
@@ -216,7 +215,7 @@ fn typed(state: editor::State, at: int, key: str, current: str, placeholder: str
         grow: 1,
         text: current,
         placeholder: placeholder,
-        on_submit: "handle_submit", target: pool::editor(),
+        on_submit: "handle_submit", target: form::editor(),
         data: { project_fields::SUBMIT: on_field_typed, inspector_fields::CURRENT: current, layout_fields::AT: at, fields::KEY: key },
     }
 }
@@ -255,7 +254,7 @@ fn row_spec(state: editor::State, at: int, row: any) -> form::Row {
             grow: 1,
             text: if target == "" { "(this node)" } else { target },
             options: target_paths(state),
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_target_picked, layout_fields::AT: at },
         });
     }
@@ -266,7 +265,7 @@ fn row_spec(state: editor::State, at: int, row: any) -> form::Row {
         text: "",
         icon: icons::ui(icons::CLOSE),
         tooltip: "Remove this binding",
-        on_click: "handle", target: pool::editor(),
+        on_click: "handle", target: form::editor(),
         data: { fields::FN: on_remove_clicked, layout_fields::AT: at },
     });
     form::Row { slot_role: roles::LAYOUT_ACTIONS, controls: controls }

@@ -1,5 +1,5 @@
 // The Inspector: the selected node's components as lines, walked when what it
-// shows changes, a row of the pool only while on screen.
+// shows changes, a form row only while on screen.
 
 use anim;
 use drawers;
@@ -184,7 +184,7 @@ pub const MARK_OVERRIDE: str = "override";
 
 const LABEL_WIDTH: float = 82.0;
 const LINE_GAP: float = 2.0;
-// The pool's label line over a stacked row, and its air: `form`'s own.
+// The form's label line over a stacked row, and its air: `form`'s own.
 const STACKED_LABEL: float = 18.0;
 // Lines kept built past each edge of the view, so a small scroll writes none.
 const OVERSCAN: int = 6;
@@ -205,7 +205,7 @@ pub fn node_components(state: &mut editor::State) -> [str] {
     return [];
 }
 
-/// How many of the pool's rows are showing: a row left hidden is visible to a
+/// How many of the form's rows are showing: a row left hidden is visible to a
 /// test rather than only to the eye.
 pub fn drawn_rows() -> int {
     let host = scene::root().get_node(FORM);
@@ -221,7 +221,7 @@ pub fn drawn_rows() -> int {
     shown
 }
 
-/// How many rows the pool has ever made for the form.
+/// How many rows the form has ever made for the form.
 pub fn made_rows() -> int {
     let host = scene::root().get_node(FORM);
     if host.is_valid() { host.children().len() } else { 0 }
@@ -241,7 +241,7 @@ pub fn control_of(state: editor::State, label: str) -> Node {
     nil
 }
 
-/// The pool's row for the line named `key`, while it is on screen.
+/// The form's row for the line named `key`, while it is on screen.
 pub fn row_of_line(state: editor::State, key: str) -> Node {
     let form = state.inspect;
     let at = form.named[key];
@@ -366,7 +366,7 @@ pub fn view(state: editor::State) -> View {
 }
 
 /// Walk the form again for the selection, filtered by `query`, and put what
-/// is on screen on the pool's rows.
+/// is on screen on the form's rows.
 pub fn fill(state: &mut editor::State, query: str) {
     state.search[panel_keys::INSPECTOR] = query;
     refill(state);

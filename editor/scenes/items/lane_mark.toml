@@ -1,0 +1,14 @@
+# One mark on a recording's lane, held down once the playhead has passed it: a
+# press seeks the replay to its tick.
+
+[[nodes]]
+id = "mark"
+name = "Mark"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../..", value = "mark_pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "chip_quiet"
+text = ""
+absolute = true
+[nodes.widget_button]
+icon = "dot"

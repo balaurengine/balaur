@@ -4759,14 +4759,6 @@
         "least": 1,
         "signature": "(Node, any) -> bool"
       },
-      "ui::fill_slot": {
-        "least": 2,
-        "signature": "(Node, int, ui::Control?) -> bool"
-      },
-      "ui::fill_strip": {
-        "least": 2,
-        "signature": "(str, [ui::Control]) -> bool"
-      },
       "ui::finish_loading": {
         "least": 0,
         "signature": "()"
@@ -4815,9 +4807,9 @@
         "least": 0,
         "signature": "() -> str"
       },
-      "ui::patch_control": {
-        "least": 3,
-        "signature": "(Node, [int], ui::Control) -> bool"
+      "ui::patch": {
+        "least": 2,
+        "signature": "(Node, ui::Control) -> bool"
       },
       "ui::pixels_per_design": {
         "least": 0,
@@ -4882,6 +4874,10 @@
       "ui::window_size": {
         "least": 0,
         "signature": "() -> Vec2"
+      },
+      "ui::write": {
+        "least": 2,
+        "signature": "([Node], [ui::Control]) -> bool"
       },
       "websocket::close": {
         "least": 1,
@@ -27009,7 +27005,7 @@
           "value": "\"wide\""
         }
       ],
-      "doc": "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
+      "doc": "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the control tables a form writes. Nothing here draws; a UI is `widget` nodes in a scene.",
       "docs": {
         "chord_text": "A chord as a widget's `shortcut` and `[input.actions]` spell it, `cmd+shift+KeyS`, in the spelling the platform shows: `\u21e7\u2318S` on a Mac, `Ctrl+Shift+S` elsewhere. What a row naming a command writes beside it. A chord no key reads is an error.",
         "clear_focus": "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `focus_exited`.",
@@ -27019,8 +27015,6 @@
         "contrast": "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",
         "contrast_pairs": "Every ink a `widget_theme` document's roles draw on the fill each draws it on, as `{ role, ink, fill, ratio, need }`. A role with no fill is read on the `ground` token; `need` is 3 for large or bold text and 4.5 otherwise.",
         "edit": "Change a widget's value as the reader would, at the next tick, so it announces `value_changed`: a number for a slider or a number field, text for a text field, a dropdown's pick, a list's row or a tab, a colour for a swatch, a boolean for a fold. False for a disabled widget or a value its kind does not take.",
-        "fill_slot": "One child of `host`, the one at `slot`, filled as `fill_strip` fills each, made with any before it that are missing, or hidden for nil. The others are left as they are, so a list of hundreds of rows writes the few on screen and, as they scroll, the ones entering. True when the control's table differed from the last one written to it.",
-        "fill_strip": "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on_click` or `on_change` hears the reader's edit and `on_submit` hears Enter as they happen: the name of a `pub` method, called on the control's `target` node with the control's `data`, then the edit, then the control's node; a control naming one and no `target` is an error. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         "finish_loading": "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled.",
         "focus_down": "The same downwards, by `neighbour_down`.",
         "focus_left": "The same to the left, by `neighbour_left`.",
@@ -27033,7 +27027,7 @@
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
         "natural_size": "The width and height a `widget` node asks for before its container grows or shrinks it, as CSS's max-content, in design pixels: its content and padding, or what it or its role states, a container's from its children's. What a row of words weighs against its room. Zero until it has been laid out once; a hidden one keeps what it asked for when last shown.",
         "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
-        "patch_control": "What `patch` names written to the pooled control at `at`, child indices down from `host`, and remembered, so the next fill compares against it. For a value that follows the node: what the patch leaves out is not asked about, and a handler's name is a fill's to give. False where no control is there or nothing moved.",
+        "patch": "What `patch` names written onto a widget node and remembered, so the next `write` compares against it: for a value that follows the node, what it leaves out is not asked about. False where nothing moved.",
         "pixels_per_design": "How many of the window's own pixels a design pixel covers this frame: the UI scale, the display's scale and the reader's text size together. Divide `input::mouse_position()` by it for design pixels.",
         "request_repaint": "Run the frame and its UI pass under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead.",
         "save_pasted_image": "Write the image last pasted where no field took it, which the `image_pasted` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already.",
@@ -27049,7 +27043,8 @@
         "wants_pointer": "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window.",
         "widget_rect": "Where a `widget` node was last drawn, as `{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         "width_class": "How much width this screen has, as `ui::NARROW`, `ui::MEDIUM` or `ui::WIDE`. Read every frame: a rotation changes it. A run with no window answers `ui::WIDE`.",
-        "window_size": "The window's width and height, in design pixels; a headless run, and a script's `init` before the window opens, answer the `[window]` size the project states at the UI scale."
+        "window_size": "The window's width and height, in design pixels; a headless run, and a script's `init` before the window opens, answer the `[window]` size the project states at the UI scale.",
+        "write": "Write each control table onto the widget node in its place, the lists side by side and in one call however long: each key to the component that holds it, `visible` to the node, and only what moved since the last write, a key an earlier write named and this one leaves out put back to its shape's default. A control carrying `controls` is a row; its children are the caller's to write. What names who hears it, `on_click`, `on_change`, `on_submit`, `target` and `data`, is never written. True when an earlier write differed."
       },
       "editor": [],
       "functions": [
@@ -27061,8 +27056,6 @@
         "contrast",
         "contrast_pairs",
         "edit",
-        "fill_slot",
-        "fill_strip",
         "finish_loading",
         "focus_down",
         "focus_left",
@@ -27075,7 +27068,7 @@
         "height_class",
         "natural_size",
         "pasted_text",
-        "patch_control",
+        "patch",
         "pixels_per_design",
         "request_repaint",
         "save_pasted_image",
@@ -27091,7 +27084,8 @@
         "wants_pointer",
         "widget_rect",
         "width_class",
-        "window_size"
+        "window_size",
+        "write"
       ],
       "methods": {},
       "name": "ui",
@@ -27104,8 +27098,6 @@
         "contrast": "(str, str) -> float",
         "contrast_pairs": "(any, str) -> [ui::ContrastPair]",
         "edit": "(Node, any) -> bool",
-        "fill_slot": "(Node, int, ui::Control?) -> bool",
-        "fill_strip": "(str, [ui::Control]) -> bool",
         "finish_loading": "()",
         "focus_down": "()",
         "focus_left": "()",
@@ -27118,7 +27110,7 @@
         "height_class": "() -> str",
         "natural_size": "(Node) -> Vec2",
         "pasted_text": "() -> str",
-        "patch_control": "(Node, [int], ui::Control) -> bool",
+        "patch": "(Node, ui::Control) -> bool",
         "pixels_per_design": "() -> float",
         "request_repaint": "(ui::RepaintOptions?)",
         "save_pasted_image": "(str) -> bool",
@@ -27134,7 +27126,8 @@
         "wants_pointer": "() -> bool",
         "widget_rect": "(Node) -> ui::Rect?",
         "width_class": "() -> str",
-        "window_size": "() -> Vec2"
+        "window_size": "() -> Vec2",
+        "write": "([Node], [ui::Control]) -> bool"
       }
     },
     {

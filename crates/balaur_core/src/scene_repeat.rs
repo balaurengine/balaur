@@ -62,7 +62,21 @@ pub(crate) fn scene_repeat(eng: &Engine, args: &[Value]) -> Result<Value> {
         let at = if let Some(at) = spare {
             at
         } else {
-            let node = build(eng, host, item.scene)?;
+            let node = match build(eng, host, item.scene) {
+                Ok(node) => node,
+                Err(why) => {
+                    // What was built stays this host's, so a later call finds
+                    // it, and out of sight until one names it.
+                    for slot in slots.iter().filter(|slot| slot.key.is_empty()) {
+                        crate::scene::set_visible(eng, slot.node, false);
+                    }
+                    eng.resource::<Repeats>()
+                        .borrow_mut()
+                        .slots
+                        .insert(host, slots);
+                    return Err(why);
+                }
+            };
             slots.push(Slot {
                 scene: item.scene.to_owned(),
                 key: String::new(),
@@ -195,20 +209,26 @@ fn build(eng: &Engine, host: Entity, scene: &str) -> Result<Entity> {
         .get::<&crate::components::StableId>(host)
         .map_or_else(|_| host.to_bits().to_string(), |id| id.0.clone());
     let before = crate::scene::child_count(&eng.world(), host);
-    crate::project::instantiate_scene_file_as(eng, scene, host, format!("{owner}/{number}/"))?;
+    let built =
+        crate::project::instantiate_scene_file_as(eng, scene, host, format!("{owner}/{number}/"));
     let added: Vec<Entity> = eng
         .world()
         .get::<&Children>(host)
         .map(|c| c.0.iter().skip(before).copied().collect())
         .unwrap_or_default();
-    crate::scene::announce_added_since(eng, host, before);
-    match added.as_slice() {
-        [root] => Ok(*root),
-        _ => Err(anyhow!(
-            "a repeated scene has one root node; `{scene}` has {}",
-            added.len()
-        )),
+    if built.is_ok()
+        && let [root] = added.as_slice()
+    {
+        crate::scene::announce_added_since(eng, host, before);
+        return Ok(*root);
     }
+    // Built in part, or not one item: none of it is left under the host.
+    crate::scene::free_nodes(eng, &added);
+    built?;
+    Err(anyhow!(
+        "a repeated scene has one root node; `{scene}` has {}",
+        added.len()
+    ))
 }
 
 /// The items' nodes after the host's other children, in order, moving only

@@ -568,7 +568,7 @@ role = "sheet_dock"
 grow = 1
 
 # The right sheet in three: the header and the search the panel draws, the
-# rows the pool makes, and the footer that must stay under a long form.
+# rows the form makes, and the footer that must stay under a long form.
 # The dock's tab row: one control a tab, and the mark that closes it.
 [[nodes]]
 id = "right_head"
@@ -1223,6 +1223,92 @@ parent = "manager"
 kind = "row"
 role = "toolbar_manager"
 
+# The mark, the name, the version, and the way back to the open project.
+[[nodes]]
+id = "manager_mark"
+name = "Mark"
+parent = "manager_head"
+[nodes.widget]
+kind = "image"
+role = "layout_mark"
+
+[[nodes]]
+id = "manager_title"
+name = "Title"
+parent = "manager_head"
+[nodes.widget]
+kind = "label"
+role = "text_title"
+text = "Balaur"
+
+[[nodes]]
+id = "manager_version"
+name = "Version"
+parent = "manager_head"
+[nodes.widget]
+kind = "label"
+role = "text_caption"
+
+[[nodes]]
+id = "manager_spring"
+name = "Spring"
+parent = "manager_head"
+[nodes.widget]
+kind = "row"
+grow = 1
+
+[[nodes]]
+id = "manager_back"
+name = "Back"
+parent = "manager_head"
+visible = false
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "action_manager"
+tooltip = "Esc"
+
+# A pill per page, each named for it; a browser tab has Projects alone.
+[[nodes]]
+id = "manager_tab_projects"
+name = "projects"
+parent = "manager_tabs"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "tab_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_manager"
+text = "Projects"
+
+[[nodes]]
+id = "manager_tab_examples"
+name = "examples"
+parent = "manager_tabs"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "tab_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_manager"
+text = "Examples"
+
+[[nodes]]
+id = "manager_tab_forge"
+name = "forge"
+parent = "manager_tabs"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "tab_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_manager"
+text = "On Forge"
+
+[[nodes]]
+id = "manager_tab_engine"
+name = "engine"
+parent = "manager_tabs"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../..", value = "tab_picked" }] }
+[nodes.widget]
+kind = "button"
+role = "tab_manager"
+text = "Engine"
+
 # The page under the tabs: what the screen was told last, a job's bar, the
 # Projects tab's filter and commands, and the rows of whichever tab is up.
 [[nodes]]
@@ -1318,6 +1404,42 @@ axis = "vertical"
 id = "manager_page"
 name = "Page"
 parent = "manager_scroll"
+[nodes.widget]
+kind = "column"
+role = "list_doc"
+
+# The Projects tab's rows, one `scenes/items/project_row.toml` a project.
+[[nodes]]
+id = "manager_projects"
+name = "Projects"
+parent = "manager_page"
+[nodes.widget]
+kind = "column"
+role = "list_doc"
+
+# What a tab says above its cards: a copy under way, Forge being asked.
+[[nodes]]
+id = "manager_says"
+name = "Says"
+parent = "manager_page"
+[nodes.widget]
+kind = "column"
+role = "list_doc"
+
+# The Examples and On Forge tabs' cards, `scenes/items/card.toml`.
+[[nodes]]
+id = "manager_cards"
+name = "Cards"
+parent = "manager_page"
+[nodes.widget]
+kind = "grid"
+role = "layout_split"
+
+# The Engine tab's form, and what a tab says beside its rows.
+[[nodes]]
+id = "manager_rows"
+name = "Rows"
+parent = "manager_page"
 [nodes.widget]
 kind = "column"
 role = "list_doc"

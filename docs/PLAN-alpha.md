@@ -275,7 +275,7 @@ the library, the examples and Polyglot Pirates changed in the same commit.
    or a listener naming an event nothing announces. `PLAN-events.md` §6 holds
    the design. Built: the handler shape, the `call` row that climbs to
    its method, the widget's keys gone with every scene's turned into rows,
-   the pool keeping its specs' handler names, `pointer_click` for a widget's
+   `ui.write` keeping a control table's handler names, `pointer_click` for a widget's
    click, the `event` item, the check's warnings, the hooks page's
    listener-only events, and every name in `docs/NAMING.md`'s form.
 2. **Editor leftovers leave the kernel.** Built: presets are the editor's

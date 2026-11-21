@@ -153,7 +153,7 @@ fn states() -> any {
         "test:library": scene_checks::librarydemo,
         "test:rows": project_checks::row_views,
         "test:inspector_rows": panel_checks::inspector_rows,
-        "test:pool": panel_checks::pool_kinds,
+        "test:controls": panel_checks::control_kinds,
         "test:camera_document": viewport_checks::camera_document,
         "test:picture": selftest::picture,
         "test:warnings": panel_checks::warning_marks,

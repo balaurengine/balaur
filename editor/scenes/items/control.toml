@@ -1,0 +1,8 @@
+# One control of a form: a widget node `ui::write` makes whatever its table
+# says, a label, a button, a field. The form kit in scripts/form.bs fills them.
+
+[[nodes]]
+id = "control"
+name = "Control"
+[nodes.widget]
+kind = "label"

@@ -1,0 +1,14 @@
+# One key on a Timeline track, held down once the playhead has passed it: a
+# press seeks the clip to its time.
+
+[[nodes]]
+id = "mark"
+name = "Mark"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../../..", value = "key_pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "chip_quiet"
+text = ""
+absolute = true
+[nodes.widget_button]
+icon = "dot"

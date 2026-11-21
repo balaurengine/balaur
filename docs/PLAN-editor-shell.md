@@ -4,8 +4,9 @@ What is left before the editor's shell is built the way a game's UI is: a
 screen given by where a tree sits, look from the theme, and events authored in
 the scene. The `viewport` kind is built and the editor opens on itself, its
 edited copy kept in the stage. Its scenes take their look from roles, its
-commands are one table (`commands.bs`) the keys, palette and menu share, and
-its keys are a `shortcuts` table on one node.
+commands are one table (`commands.bs`) the keys, palette and menu share, its
+keys are a `shortcuts` table on one node, and what repeats, forms included, is
+item scenes through `scene::repeat`.
 
 ## Steps
 
@@ -23,12 +24,3 @@ its keys are a `shortcuts` table on one node.
    tables read one screen for the pass, the viewport over the played content
    (`arena.rs` `read_classes`, `room_of`). Read the viewport above each widget.
    Done when two viewports of different widths each pick their own class.
-4. **Item scenes in place of the pool.** `ui::fill_strip`, `fill_slot` and
-   `patch_control` build controls from tables a script writes, handlers
-   included. `scene::repeat(host, items)` is built. The bar, the status strip,
-   the rail, the chips, the brand menu, the docks' heads and tabs, the sheet's
-   head and sidebar, the picker, the imports toast and the recordings are
-   scenes; the picker and the sidebar are `list`s, "+N" a `menu`. Left, in
-   order: the start screen; composite items (fold head, lane, card, hook pill);
-   forms and the inspector; the kit and its plugins. Done when `pool.rs` and `pool.bs` are
-   gone and the inspector scrolls at the pool's cost or less.

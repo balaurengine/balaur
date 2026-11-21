@@ -6,7 +6,6 @@ use editor;
 use form;
 use icons;
 use inspector;
-use pool;
 use recipes;
 use util;
 use words::asset_kinds;
@@ -256,7 +255,7 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
             value: shown,
             step: spec[layout_fields::STEP],
             drag_speed: spec[layout_fields::STEP],
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_number_changed, REL: rel, fields::KEY: key, layout_fields::WHOLE: whole },
         }
     } else if kind_of_row == datatypes::BOOL {
@@ -265,7 +264,7 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
             text: "",
             tooltip: spec[fields::HELP],
             checked: effective.as_bool(),
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_flag_toggled, REL: rel, fields::KEY: key },
         }
     } else if kind_of_row == COUNT {
@@ -276,7 +275,7 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
             tooltip: spec[fields::HELP],
             text: "{count.as_int()}",
             options: spec[schema_fields::OPTIONS],
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_count_picked, REL: rel, fields::KEY: key, schema_fields::SPEC: spec },
         }
     } else {
@@ -286,7 +285,7 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
             tooltip: spec[fields::HELP],
             text: if effective.kind() == types::KIND_STRING { effective.as_str() } else { spec[FALLBACK].as_str() },
             options: spec[schema_fields::OPTIONS],
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_choice_picked, REL: rel, fields::KEY: key },
         }
     };
@@ -298,7 +297,7 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
             icon: icons::ui(command::RESET),
             role: roles::ICON_ACTION_FORM,
             tooltip: "Drop this key and follow the project again",
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: on_reset_clicked, REL: rel, fields::KEY: key },
         }
     } else {

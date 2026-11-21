@@ -9,6 +9,10 @@ use util;
 use words::layout_fields;
 use words::roles;
 
+const CHIPS: str = "Editor/InputView/Chips";
+
+const CHIP_SCENE: str = "scenes/items/key_chip.toml";
+
 /// What marks an action's name among the keys held: the panel's `ACTION`.
 pub const ACTION: str = "action:";
 
@@ -185,15 +189,15 @@ fn is_known_key(key: str, items: [str]) -> bool {
 /// Put a chip a name on the overlay's row: a key or a button held, an action
 /// pressed, each in the look it had.
 pub fn fill_chips(_state: editor::State, names: [any]) {
-    let out: [ui::Control] = [];
-    for name in names {
-        let action = name.as_str().starts_with(ACTION);
-        out.push(ui::Control {
-            kind: ui::WIDGET_BUTTON,
-            text: if action { name.as_str().slice(ACTION.len(), name.len()) } else { name },
-            role: if action { roles::CHIP_KEY_PRIMARY } else { roles::CHIP_KEY },
-            interactive: false,
-        });
+    let items: [scene::RepeatItem] = [];
+    for at in 0..names.len() {
+        items.push(scene::RepeatItem { key: "{at}", scene: CHIP_SCENE });
     }
-    ui::fill_strip("Editor/InputView/Chips", out);
+    let chips = scene::repeat(scene::root().get_node(CHIPS), items);
+    for at in 0..names.len() {
+        let name = names[at].as_str();
+        let action = name.starts_with(ACTION);
+        chips[at].widget.text = if action { name.slice(ACTION.len(), name.len()) } else { name };
+        chips[at].widget.role = if action { roles::CHIP_KEY_PRIMARY } else { roles::CHIP_KEY };
+    }
 }

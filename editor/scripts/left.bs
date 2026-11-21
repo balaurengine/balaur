@@ -498,7 +498,6 @@ pub fn rename_submitted(state: &mut editor::State, text: str) {
     apply_rename(state);
 }
 
-
 fn node_mark(state: editor::State) -> any {
     let found = model::selected_node(state);
     if found.is_valid() { model::node_icon(found).glyph } else { icons::ui(icons::SEARCH) }

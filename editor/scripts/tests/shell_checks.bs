@@ -8,6 +8,7 @@ use defs;
 use docks;
 use editor;
 use exporter;
+use form;
 use icons;
 use inputview;
 use kit;
@@ -304,7 +305,7 @@ pub fn font_sheet(state: editor::State) {
         filled.widget.width = stage["width"].as_float();
         filled.widget.height = stage["height"].as_float();
     }
-    ui::fill_strip(FONT_SHEET, controls);
+    form::strip(FONT_SHEET, controls);
 }
 
 fn heading(text: str) -> ui::Control {
@@ -792,7 +793,7 @@ pub fn sheet_close_step(state: &mut editor::State) {
     }
 }
 
-// Three frames: the pooled rows have to be made and drawn before one of them
+// Three frames: the form's rows have to be made and drawn before one of them
 // can be read back.
 const THEME_SETTLED: int = 3;
 

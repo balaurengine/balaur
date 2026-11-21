@@ -1,0 +1,10 @@
+# One second's rule straight down through the Timeline's lanes.
+
+[[nodes]]
+id = "rule"
+name = "Rule"
+[nodes.widget]
+kind = "row"
+role = "mark_tick"
+absolute = true
+interactive = false

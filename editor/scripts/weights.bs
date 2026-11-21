@@ -7,7 +7,6 @@ use form;
 use history;
 use model;
 use polygon;
-use pool;
 use rig;
 use signals;
 use util;
@@ -359,7 +358,7 @@ fn header(state: editor::State, listing: Table) -> [ui::Control] {
             text: util::leaf(path),
             tooltip: path,
             checked: active == bone_index,
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: pick_bone, layout_fields::AT: bone_index },
         }));
     }
@@ -382,7 +381,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> form::Row {
             text: "{at}",
             tooltip: "Show this vertex alone in the viewport",
             checked: hover,
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: show_vertex_alone, layout_fields::AT: at },
         }),
     ];
@@ -399,7 +398,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> form::Row {
             decimals: 2,
             min: 0.0,
             max: 1.0,
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: type_weight, panel_keys::BONE: bone_at, layout_fields::AT: at },
         }));
     }

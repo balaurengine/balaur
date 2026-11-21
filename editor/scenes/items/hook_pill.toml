@@ -1,0 +1,26 @@
+# One hook the open script declares: a lamp, lit for init and update, and its name.
+
+[[nodes]]
+id = "pill"
+name = "Pill"
+[nodes.widget]
+kind = "row"
+role = "sheet_hook"
+[nodes.widget_layout]
+align_items = "center"
+
+[[nodes]]
+id = "lamp"
+name = "Lamp"
+parent = "pill"
+[nodes.widget]
+kind = "row"
+role = "mark_lamp_secondary"
+
+[[nodes]]
+id = "name"
+name = "Name"
+parent = "pill"
+[nodes.widget]
+kind = "label"
+role = "text_code"

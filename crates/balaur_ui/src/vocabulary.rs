@@ -585,19 +585,19 @@ pub(crate) mod keys {
     pub(crate) const FADE_IN: &str = "fade_in";
 }
 
-/// What a pooled control's spec names beside the `widget` properties it
-/// carries, which `ui::fill_strip` and `ui::fill_slot` read.
-pub(crate) mod pool {
-    /// The component every pooled node carries.
+/// What a control table names beside the `widget` properties it carries,
+/// which `ui::write` reads.
+pub(crate) mod control {
+    /// The component every control node carries.
     pub(crate) const WIDGET: &str = "widget";
     /// A control's `visible`, written to its node rather than its widget.
     pub(crate) const VISIBLE: &str = "visible";
-    /// What a pooled control's handlers are handed first, before the edit.
+    /// What a control's handlers are handed first, before the edit.
     pub(crate) const DATA: &str = "data";
-    /// A spec's children: the spec is a group, one node holding them.
+    /// A control's children: the control is a group, one node holding them.
     pub(crate) const CONTROLS: &str = "controls";
     /// The method a control calls when it is clicked, changed and submitted:
-    /// kept by the pool, never written to the widget.
+    /// the hearer's, never written to the widget.
     pub(crate) const ON_CLICK: &str = "on_click";
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_SUBMIT: &str = "on_submit";

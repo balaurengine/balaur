@@ -277,7 +277,7 @@ fn a_truncated_label_a_hair_short_draws_its_whole_line() {
     );
 }
 
-// A pooled row has no script of its own, so its submit is reported the way a button reports its
+// A form's row has no script of its own, so its submit is reported the way a button reports its
 // click: true for one frame.
 #[test]
 fn a_field_reports_its_submit_for_one_frame() {

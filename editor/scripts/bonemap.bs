@@ -7,7 +7,6 @@ use fold;
 use form;
 use icons;
 use model;
-use pool;
 use rig;
 use signals;
 use util;
@@ -244,7 +243,7 @@ fn row(state: editor::State, paths: [str], name: str) -> [form::Row] {
     let open = state.bonemap.picking == name;
     let action = ui::Control {
         kind: ui::WIDGET_BUTTON,
-        on_click: "handle", target: pool::editor(),
+        on_click: "handle", target: form::editor(),
         data: { fields::FN: toggle_picker, project_fields::OPEN: open, fields::NAME: name },
     };
     let controls: [ui::Control] = [
@@ -257,7 +256,7 @@ fn row(state: editor::State, paths: [str], name: str) -> [form::Row] {
             text: "",
             icon: icons::ui(icons::CLOSE),
             tooltip: "Leave this row empty",
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: leave_row_empty, fields::NAME: name },
         });
     }
@@ -279,7 +278,7 @@ fn row(state: editor::State, paths: [str], name: str) -> [form::Row] {
                     text: path,
                     text_align: ui::ALIGN_START,
                     checked: path == picked,
-                    on_click: "handle", target: pool::editor(),
+                    on_click: "handle", target: form::editor(),
                     data: { fields::FN: pick_bone_path, fields::NAME: name, project_fields::PATH: path },
                 },
             ],

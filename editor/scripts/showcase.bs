@@ -366,7 +366,7 @@ fn centre_of(path: str) -> [float] {
 }
 
 // Where an inspector row's first control sits, by the label the form gave it:
-// the pool answers where it drew the row, so a section moving does not move
+// the form answers where it drew the row, so a section moving does not move
 // the pointer off it. Nothing before the form has drawn.
 fn form_spot(state: editor::State, label: str) -> [float] {
     let control = inspector::control_of(state, label);
@@ -920,8 +920,7 @@ fn shaders(state: &mut editor::State, sequence: Sequence) {
 // The copy and the preferences file are put back.
 const FORM: str = "Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm";
 
-
-// A form row's control, found by the row's label: the rows are pooled, so a
+// A form row's control, found by the row's label: the rows are a form's, so a
 // row's index moves with whatever the page shows above it.
 fn form_control(label: str, at: int) -> [float] {
     let host = scene::root().get_node(FORM);

@@ -2,7 +2,7 @@
 //! modules, so each command is an Editor method it calls by name: `kit_rows`,
 //! `kit_field` and the rest in editor.bs.
 
-// A command answers a row, and the pool writes it onto the dock's subtree. A control
+// A command answers a row, and the form kit writes it onto the dock's subtree. A control
 // with `on_click: "method"`, `target: node` gets `method(data, value)` on that node.
 
 use editor;
@@ -10,7 +10,6 @@ use fold;
 use form;
 use icons;
 use inspector;
-use pool;
 use settings;
 use signals;
 use util;
@@ -39,7 +38,7 @@ const FOLDER_DEPTH: int = 3;
 const TEXT_SHOWN: int = 4000;
 
 /// How far one level of a tree is indented, in spaces: a row's label is a
-/// node, and the pool gives every row the same label column.
+/// node, and the form gives every row the same label column.
 const INDENT: str = "  ";
 
 /// The label column every kit row keeps.
@@ -115,7 +114,7 @@ fn host_path(host: str, name: str) -> str {
 /// A row of controls on a named part of the host: `head`, `foot`, or the
 /// `body` that everything else means.
 pub fn bar(host: str, name: str, controls: [ui::Control]) {
-    ui::fill_strip(host_path(host, name), controls);
+    form::strip(host_path(host, name), controls);
 }
 
 /// Rows on a named part of the host: each `{ label, controls }`, as a table
@@ -131,7 +130,7 @@ pub fn rows(host: str, name: str, specs: [any]) {
 // A tab or a page button, which remembers itself picked per `id`.
 fn pick_button(state: &mut editor::State, id: str, name: str, role: str, on: bool) -> ui::Control {
     let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, text: name, role: role, checked: on };
-    pool::on(button, picked, { fields::KEY: "tab:" + id, fields::NAME: name })
+    form::on(button, picked, { fields::KEY: "tab:" + id, fields::NAME: name })
 }
 
 fn picked(state: &mut editor::State, data: any, _value: any) {
@@ -219,12 +218,12 @@ pub fn field(state: &mut editor::State, label: str, value: any, options: any) ->
     ];
     if masked {
         let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: if revealed { command::HIDE } else { "show" } };
-        controls.push(pool::on(button, field_toggled, { fields::KEY: key }));
+        controls.push(form::on(button, field_toggled, { fields::KEY: key }));
     }
     if option(options, command::COPY, false).as_bool() {
         let whole = option(options, "copy_text", text);
         let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: "copy" };
-        controls.push(pool::on(button, field_copied, { layout_fields::WHOLE: whole }));
+        controls.push(form::on(button, field_copied, { layout_fields::WHOLE: whole }));
     }
     form::Row { label: label, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
@@ -311,7 +310,7 @@ fn container(state: &mut editor::State, out: any, path: str, keys: [any], label:
     let count = if value.kind() == types::KIND_MAP { "{value.len()} keys" } else { "{value.len()} items" };
     let titled = label != "" || depth > 0;
     if titled {
-        let action = pool::on(ui::Control { kind: ui::WIDGET_BUTTON }, folded, { fields::KEY: key, project_fields::OPEN: open });
+        let action = form::on(ui::Control { kind: ui::WIDGET_BUTTON }, folded, { fields::KEY: key, project_fields::OPEN: open });
         let head = fold::head(open, "{label} · {count}", icons::ui(icons::ENTRY_LIST), "", depth, "", action);
         out[SPECS].push(form::Row { slot_role: roles::LAYOUT_FOLD, controls: [head] });
     }
@@ -346,7 +345,7 @@ fn with(keys: [any], key: any) -> [any] {
     out
 }
 
-// A row's own depth, as the spaces before its label: a pooled row's label is
+// A row's own depth, as the spaces before its label: a form row's label is
 // a node in a column of them, so the text is what steps right.
 fn indent(depth: int) -> str {
     util::repeat(INDENT, depth)
@@ -359,7 +358,7 @@ fn leaf(out: any, keys: [any], label: str, value: any, edit: bool, depth: int) {
         // The whole value and where it is written, not `out`: its specs hold
         // this control, and a map holding itself crosses to no engine.
         let whole: any = { fields::VALUE: out[fields::VALUE], project_fields::WRITE: out[project_fields::WRITE] };
-        pool::on_submit(field, typed, { fields::TEXT: text, OUT: whole, fields::KEYS: keys, fields::VALUE: value })
+        form::on_submit(field, typed, { fields::TEXT: text, OUT: whole, fields::KEYS: keys, fields::VALUE: value })
     } else {
         ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, truncate: true, text: text }
     };
@@ -432,7 +431,7 @@ pub fn files(state: &mut editor::State, id: str, options: any) -> [form::Row] {
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, truncate: true, text: short_path(root) },
-                pool::on(reveal_root, revealed, { project_fields::PATH: root }),
+                form::on(reveal_root, revealed, { project_fields::PATH: root }),
             ],
         },
     ];
@@ -472,14 +471,14 @@ fn folder(state: &mut editor::State, id: str, directory: str, rel: str, only: [s
 fn file_rows(state: &mut editor::State, id: str, path: str, rel: str, edit: bool, out: [form::Row]) {
     let key = "file:" + id;
     let open = memory(state)[key].as_bool();
-    let action = pool::on(ui::Control { kind: ui::WIDGET_BUTTON }, folded, { fields::KEY: key, project_fields::OPEN: open });
+    let action = form::on(ui::Control { kind: ui::WIDGET_BUTTON }, folded, { fields::KEY: key, project_fields::OPEN: open });
     let controls = [fold::head(open, rel, icons::ui(icons::SCRIPTFILE), "", 0, path, action)];
     let when = fs::modified_time(path);
     if when != nil {
         controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: ago(engine::unix_time() - when.unwrap()) });
     }
     let reveal: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: "reveal" };
-    controls.push(pool::on(reveal, revealed, { project_fields::PATH: path }));
+    controls.push(form::on(reveal, revealed, { project_fields::PATH: path }));
     out.push(form::Row { controls: controls, slot_role: roles::LAYOUT_ACTIONS });
     if open {
         document(state, id, path, edit, out);

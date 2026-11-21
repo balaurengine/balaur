@@ -46,7 +46,7 @@ pub struct Widget {
     /// the `color` component uses.
     pub text_color: [f32; 4],
     /// Whether anything hears this widget's `pointer_click`: a row on its
-    /// node, its script, a listener, or its pool spec. Not a property: kept
+    /// node, its script, a listener, or its control table. Not a property: kept
     /// by `input::follow_hearers`. A kind that draws nothing clickable
     /// senses a click only where this is set.
     pub hears_click: bool,

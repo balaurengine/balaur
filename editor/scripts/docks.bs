@@ -4,6 +4,7 @@
 use center;
 use defs;
 use editor;
+use form;
 use icons;
 use inspector;
 use layout;
@@ -443,13 +444,13 @@ fn show_panel(name: str) {
 }
 
 /// Fill a panel's strip of chips at `path`: `rows` is a list of controls a
-/// row, made into nodes by the pool.
+/// row, made into nodes by the form kit.
 pub fn toolbar(state: editor::State, path: str, rows: [[ui::Control]]) {
     let groups: [ui::Control] = [];
     for row in rows {
         groups.push(ui::Control { kind: ui::WIDGET_ROW, role: roles::TOOLBAR_DOCK, align_items: ui::ALIGN_CENTER, controls: row });
     }
-    ui::fill_strip(path, groups);
+    form::strip(path, groups);
 }
 
 fn node_owners() -> any {

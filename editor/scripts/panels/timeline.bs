@@ -48,6 +48,12 @@ impl Timeline {
         self.editor.unwrap().timeline_clip(node.name(), value);
     }
 
+    /// A mark on a lane pressed: what it stands for is its place.
+    pub fn key_pressed(_value: any, node: Node) {
+        self.editor.unwrap().timeline_key_pressed(node);
+        self.refill();
+    }
+
     pub fn pressed(_value: any, node: Node) {
         self.editor.unwrap().timeline_pressed(node.name());
     }

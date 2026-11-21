@@ -1,6 +1,6 @@
 //! The `ui` script module: what a script asks of the UI and tells it. Where
 //! a widget node drew, focus, the screen's classes, the scale, the theme, the
-//! clipboard, pacing and the pooled rows. Nothing here draws: a UI is
+//! clipboard, pacing and the control tables a form writes. Nothing here draws: a UI is
 //! `widget` nodes in a scene, and [`crate::widget`] draws them.
 
 use balaur_core::Engine;
@@ -144,7 +144,7 @@ pub const MODIFIERS: &[(&str, &str)] = &[
 /// plugin instead of panicking.
 pub(crate) fn install_ui_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
+        "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the control tables a form writes. Nothing here draws; a UI is `widget` nodes in a scene.",
     );
 
     for (name, value) in ANCHORS
@@ -161,7 +161,7 @@ pub(crate) fn install_ui_api(m: &mut Module<Engine>) {
     install_theme(m);
     crate::contrast::install(m);
     install_widget_layer(m);
-    crate::widget::pool::install_pool(m);
+    crate::widget::write::install(m);
     install_scale(m);
     install_classes(m);
     crate::pacing::install(m);

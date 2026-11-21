@@ -724,8 +724,8 @@ pub(crate) struct Owner {
 }
 
 /// Every component beside `widget` holding the row `key`: two where their
-/// kinds are apart, as a `scroll`'s and a `slider`'s `axis`. A pooled control
-/// asks for each row of its table, so the answer is looked up, not searched.
+/// kinds are apart, as a `scroll`'s and a `slider`'s `axis`. `ui.write` asks
+/// for each row of a control's table, so the answer is looked up, not searched.
 pub(crate) fn owners_of(key: &str) -> &'static [Owner] {
     static OWNERS: OnceLock<FxHashMap<&'static str, Vec<Owner>>> = OnceLock::new();
     OWNERS

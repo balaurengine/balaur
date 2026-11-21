@@ -5,7 +5,6 @@
 use editor;
 use form;
 use icons;
-use pool;
 use theme;
 use themeedit;
 use util;
@@ -220,7 +219,7 @@ fn save_button(state: editor::State) -> [ui::Control] {
             kind: ui::WIDGET_BUTTON,
             role: roles::ACTION_FORM_PRIMARY,
             text: "Save",
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: on_save_clicked },
         },
     ];
@@ -268,7 +267,7 @@ fn page_picker(state: editor::State) -> form::Row {
                 grow: 1,
                 text: state.themewin.page,
                 options: PAGES(),
-                on_change: "handle", target: pool::editor(),
+                on_change: "handle", target: form::editor(),
                 data: { fields::FN: on_page_picked },
             },
         ],
@@ -379,7 +378,7 @@ fn head_specs(state: editor::State) -> [form::Row] {
             text: name,
             options: theme::names(),
             tooltip: "The theme the editor uses",
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_theme_picked },
         },
     ];
@@ -390,7 +389,7 @@ fn head_specs(state: editor::State) -> [form::Row] {
             text: "based on " + theme::base_of(own),
             options: theme::BUNDLED(),
             tooltip: "The bundled theme every key this one leaves out comes from",
-            on_change: "handle", target: pool::editor(),
+            on_change: "handle", target: form::editor(),
             data: { fields::FN: on_base_picked },
         });
     }
@@ -400,7 +399,7 @@ fn head_specs(state: editor::State) -> [form::Row] {
         role: roles::ACTION_FORM_PRIMARY,
         text: "Duplicate",
         tooltip: "Copy this theme into your themes folder and use the copy",
-        on_click: "handle", target: pool::editor(),
+        on_click: "handle", target: form::editor(),
         data: { fields::FN: on_duplicate_clicked },
     });
     if mine && state.themewin.dirty {
@@ -409,7 +408,7 @@ fn head_specs(state: editor::State) -> [form::Row] {
             role: roles::ACTION_FORM,
             text: "Revert",
             tooltip: "Drop the edits since the last save",
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: on_revert_clicked },
         });
     }
@@ -419,7 +418,7 @@ fn head_specs(state: editor::State) -> [form::Row] {
             role: roles::ACTION_FORM_DANGER,
             text: "Delete",
             tooltip: "Remove this theme's folder and go back to its base",
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: on_delete_clicked },
         });
     }
@@ -433,7 +432,7 @@ fn head_specs(state: editor::State) -> [form::Row] {
                     grow: 1,
                     text: name,
                     tooltip: "Enter renames the folder",
-                    on_submit: "handle_submit", target: pool::editor(),
+                    on_submit: "handle_submit", target: form::editor(),
                     data: { project_fields::SUBMIT: on_name_submitted },
                 },
             ],
@@ -512,7 +511,7 @@ fn color_specs(state: editor::State, doc: any, out: [form::Row]) {
                     kind: ui::WIDGET_COLOR_PICKER,
                     picked_color: rgba_of(hex),
                     enabled: mine,
-                    on_change: "handle", target: pool::editor(),
+                    on_change: "handle", target: form::editor(),
                     data: { fields::FN: on_color_picked, fields::NAME: name },
                 },
                 ui::Control {
@@ -520,7 +519,7 @@ fn color_specs(state: editor::State, doc: any, out: [form::Row]) {
                     role: roles::INPUT_FORM,
                     text: hex,
                     enabled: mine,
-                    on_submit: "handle_submit", target: pool::editor(),
+                    on_submit: "handle_submit", target: form::editor(),
                     data: { project_fields::SUBMIT: on_hex_submitted, fields::NAME: name },
                 },
                 ui::Control {
@@ -570,7 +569,7 @@ fn size_specs(state: editor::State, doc: any, out: [form::Row]) {
                     max: 200.0,
                     drag_speed: 1.0,
                     enabled: mine,
-                    on_change: "handle", target: pool::editor(),
+                    on_change: "handle", target: form::editor(),
                     data: { fields::FN: on_size_changed, fields::NAME: name },
                 },
             ],
@@ -654,7 +653,7 @@ fn sample(state: editor::State, name: str, path: [str], table: any) -> ui::Contr
     if page == CONTROLS {
         return ui::Control { kind: ui::WIDGET_ROW, controls: in_states(name, path) };
     }
-    ui::Control { kind: ui::WIDGET_BUTTON, role: name, grow: 1, text: name, on_click: "handle", target: pool::editor(), data: { fields::FN: on_sample_clicked, project_fields::PATH: path } }
+    ui::Control { kind: ui::WIDGET_BUTTON, role: name, grow: 1, text: name, on_click: "handle", target: form::editor(), data: { fields::FN: on_sample_clicked, project_fields::PATH: path } }
 }
 
 /// A control role at rest, under the pointer, held, focused and off, each
@@ -668,7 +667,7 @@ fn in_states(name: str, path: [str]) -> [ui::Control] {
             width: SAMPLE_WIDTH,
             text: if held == HELD_NONE { REST } else { held },
             state: held,
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: on_sample_clicked, project_fields::PATH: path },
         });
     }
@@ -694,7 +693,7 @@ fn entry_specs(state: editor::State, doc: any, path: [str], out: [form::Row]) {
                 role: roles::CHIP,
                 checked: picked,
                 text: if picked { "editing" } else { EDIT },
-                on_click: "handle", target: pool::editor(),
+                on_click: "handle", target: form::editor(),
                 data: { fields::FN: on_edit_clicked, project_fields::PATH: path },
             },
         ],
@@ -718,7 +717,7 @@ fn state_chips(state: editor::State, table: any) -> [ui::Control] {
             role: roles::CHIP,
             checked: bare,
             text: "role",
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: on_role_chip_clicked },
         },
     ];
@@ -732,7 +731,7 @@ fn state_chips(state: editor::State, table: any) -> [ui::Control] {
             checked: on,
             text: if there { word } else { "+ " + word },
             tooltip: if there { "Edit the table this state uses" } else { "Nothing stated for this state yet" },
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: on_state_chip_clicked, WORD: word },
         });
     }
@@ -779,7 +778,7 @@ fn inspector_specs(state: editor::State, doc: any, path: [str], out: [form::Row]
                     grow: 1,
                     text: "add a key…",
                     options: missing,
-                    on_change: "handle", target: pool::editor(),
+                    on_change: "handle", target: form::editor(),
                     data: { fields::FN: on_key_added, layout_fields::AT: at },
                 },
             ],
@@ -819,7 +818,7 @@ fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, sta
             text: "",
             icon: icons::ui(icons::CLOSE),
             tooltip: "Back to the base theme's value",
-            on_click: "handle", target: pool::editor(),
+            on_click: "handle", target: form::editor(),
             data: { fields::FN: on_key_cleared, layout_fields::AT: at, fields::KEY: key },
         });
     }
@@ -874,7 +873,7 @@ fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, 
                 kind: ui::WIDGET_COLOR_PICKER,
                 picked_color: rgba_of((if is_hex(hex.as_str()) { hex.as_str() } else { "#000000" })),
                 enabled: mine,
-                on_change: "handle", target: pool::editor(),
+                on_change: "handle", target: form::editor(),
                 data: { fields::FN: on_key_color_picked, layout_fields::AT: at, fields::KEY: key },
             },
             ui::Control {
@@ -884,7 +883,7 @@ fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, 
                 text: "{value}",
                 options: options,
                 enabled: mine,
-                on_change: "handle", target: pool::editor(),
+                on_change: "handle", target: form::editor(),
                 data: { fields::FN: on_key_color_name_picked, layout_fields::AT: at, fields::KEY: key },
             },
         ];
@@ -899,7 +898,7 @@ fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, 
                 text: "{value}",
                 options: words,
                 enabled: mine,
-                on_change: "handle", target: pool::editor(),
+                on_change: "handle", target: form::editor(),
                 data: { fields::FN: on_key_word_picked, layout_fields::AT: at, fields::KEY: key },
             },
         ];
@@ -915,7 +914,7 @@ fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, 
                 max: 2000.0,
                 drag_speed: 1.0,
                 enabled: mine,
-                on_change: "handle", target: pool::editor(),
+                on_change: "handle", target: form::editor(),
                 data: { fields::FN: on_key_number_changed, layout_fields::AT: at, fields::KEY: key },
             },
         ];
@@ -927,7 +926,7 @@ fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, 
             grow: 1,
             text: "{value}",
             enabled: mine,
-            on_submit: "handle_submit", target: pool::editor(),
+            on_submit: "handle_submit", target: form::editor(),
             data: { project_fields::SUBMIT: on_key_text_submitted, layout_fields::AT: at, fields::KEY: key },
         },
     ];
@@ -1019,7 +1018,7 @@ fn problem_specs(state: editor::State, out: [form::Row]) {
                     kind: ui::WIDGET_BUTTON,
                     role: roles::CHIP,
                     text: EDIT,
-                    on_click: "handle", target: pool::editor(),
+                    on_click: "handle", target: form::editor(),
                     data: { fields::FN: on_alike_edit_clicked },
                 },
             ],
@@ -1043,7 +1042,7 @@ fn problem_specs(state: editor::State, out: [form::Row]) {
                     kind: ui::WIDGET_BUTTON,
                     role: roles::CHIP,
                     text: EDIT,
-                    on_click: "handle", target: pool::editor(),
+                    on_click: "handle", target: form::editor(),
                     data: { fields::FN: on_problem_edit_clicked, fields::NAME: name, TABLE: table },
                 },
             ],

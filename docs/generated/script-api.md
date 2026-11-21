@@ -56,7 +56,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 39 | 65 |
+| [`ui`](#ui) | 38 | 65 |
 | [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -1198,7 +1198,7 @@ The names of a value's type: what `kind()` answers on an `any`.
 
 ## `ui`
 
-What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.
+What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the control tables a form writes. Nothing here draws; a UI is `widget` nodes in a scene.
 
 | Function | Signature |
 | --- | --- |
@@ -1210,8 +1210,6 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `contrast` | `(str, str) -> float` |
 | `contrast_pairs` | `(any, str) -> [ui::ContrastPair]` |
 | `edit` | `(Node, any) -> bool` |
-| `fill_slot` | `(Node, int, ui::Control?) -> bool` |
-| `fill_strip` | `(str, [ui::Control]) -> bool` |
 | `finish_loading` | `()` |
 | `focus_down` | `()` |
 | `focus_left` | `()` |
@@ -1224,7 +1222,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `height_class` | `() -> str` |
 | `natural_size` | `(Node) -> Vec2` |
 | `pasted_text` | `() -> str` |
-| `patch_control` | `(Node, [int], ui::Control) -> bool` |
+| `patch` | `(Node, ui::Control) -> bool` |
 | `pixels_per_design` | `() -> float` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
 | `save_pasted_image` | `(str) -> bool` |
@@ -1241,6 +1239,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `widget_rect` | `(Node) -> ui::Rect?` |
 | `width_class` | `() -> str` |
 | `window_size` | `() -> Vec2` |
+| `write` | `([Node], [ui::Control]) -> bool` |
 
 **Constants** (65):
 

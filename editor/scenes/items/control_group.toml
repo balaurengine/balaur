@@ -1,0 +1,9 @@
+# One group of a form's controls: a row or a column `ui::write` lays out,
+# holding a `control.toml` or a group each. Apart from a single control so a
+# place that changes from one to the other gets a node of its own.
+
+[[nodes]]
+id = "group"
+name = "Group"
+[nodes.widget]
+kind = "row"

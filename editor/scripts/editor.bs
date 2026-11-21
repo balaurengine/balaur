@@ -307,7 +307,7 @@ pub class State {
     internal camera_check: selftest::CameraCheck?,
     internal pick_check: selftest::PickCheck?,
     internal picture_check: selftest::PictureCheck?,
-    internal pool_check: selftest::PoolCheck?,
+    internal controls_check: selftest::ControlsCheck?,
     internal form_check: panel_checks::FormCheck?,
     internal reselect: selftest::Reselect?,
     internal empty_note: selftest::EmptyNote?,
@@ -552,15 +552,15 @@ impl Editor {
     /// Lay the shell out again, for a module that changed what it holds.
     pub fn relayout_shell() { frame::relayout(self.state); }
 
-    /// A pooled control's edit, for the function its spec's data names: see
-    /// `pool::on`.
+    /// A form control's edit, for the function its spec's data names: see
+    /// `form::on`.
     pub fn handle(data: any, value: any, control: Node) {
         let handler: fn(&mut State, any, any) = data[fields::FN];
         handler(self.state, data, value);
         refill_panel(control);
     }
 
-    /// The same for Enter in a field: see `pool::on_submit`.
+    /// The same for Enter in a field: see `form::on_submit`.
     pub fn handle_submit(data: any, value: any, control: Node) {
         let handler: fn(&mut State, any, any) = data[project_fields::SUBMIT];
         handler(self.state, data, value);
@@ -819,6 +819,8 @@ impl Editor {
     pub fn lanes_pressed(name: str) { lanes::pressed(self.state, name); }
 
     pub fn lanes_seek(time: float) { lanes::seek(self.state, time); }
+    pub fn lane_mark_pressed(node: Node) { lanes::mark_pressed(self.state, node); }
+    pub fn timeline_key_pressed(node: Node) { timeline::key_pressed(self.state, node); }
 
     /// The Timeline tab: fill it, seek the scrubber, and its commands.
     pub fn timeline_fill() { timeline::fill(self.state); }
@@ -871,6 +873,10 @@ impl Editor {
     pub fn manager_filter(text: str) { manager::set_filter(self.state, text); }
 
     pub fn manager_pressed(name: str) { manager::pressed(self.state, name); }
+    pub fn manager_tab_picked(id: str) { manager::tab_picked(self.state, id); manager::told(self.state); }
+    pub fn manager_project_pressed(key: str) { manager::project_pressed(self.state, key); }
+    pub fn manager_project_forgotten(key: str) { manager::project_forgotten(self.state, key); }
+    pub fn manager_card_pressed(key: str) { manager::card_pressed(self.state, key); }
 
     /// Fill the sheet with whichever screen is up, and hear it shut.
     pub fn sheet_fill() { window::fill(self.state); }
@@ -1084,7 +1090,7 @@ impl Editor {
     pub fn tree_delete() { sceneedit::delete_selected(self.state); }
 }
 
-// A pooled control's handler has run: the panel it stands in, the nearest
+// A form control's handler has run: the panel it stands in, the nearest
 // script above it with a `refill`, shows what that moved.
 fn refill_panel(control: Node) {
     let at = control;

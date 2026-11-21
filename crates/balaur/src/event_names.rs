@@ -32,7 +32,7 @@ struct Project {
     /// Every string a script builds around values, as the text between them.
     patterns: Vec<Vec<String>>,
     /// Each `.toml` under the project, as text: a scene's `call` row, a
-    /// clip's method key and a pool's spec name a method there.
+    /// clip's method key and a control table name a method there.
     data: Vec<String>,
 }
 

@@ -36,6 +36,26 @@ impl Manager {
         self.editor.unwrap().manager_pressed(node.name());
     }
 
+    /// A page's pill, named for the page.
+    pub fn tab_picked(_value: any, node: Node) {
+        self.editor.unwrap().manager_tab_picked(node.name());
+    }
+
+    /// A project's name pressed, by its row.
+    pub fn project_pressed(_value: any, node: Node) {
+        self.editor.unwrap().manager_project_pressed(node.parent().parent().parent().name());
+    }
+
+    /// A project's forget mark pressed.
+    pub fn project_forgotten(_value: any, node: Node) {
+        self.editor.unwrap().manager_project_forgotten(node.parent().parent().name());
+    }
+
+    /// A card pressed, by its place.
+    pub fn card_pressed(_value: any, node: Node) {
+        self.editor.unwrap().manager_card_pressed(node.parent().name());
+    }
+
     pub fn refill() {
         self.editor.unwrap().manager_fill();
     }

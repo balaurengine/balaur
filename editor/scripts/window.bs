@@ -6,6 +6,7 @@ use disk;
 use editor;
 use exporter;
 use fonts;
+use form;
 use icons;
 use left;
 use manager;
@@ -161,7 +162,6 @@ pub fn head(title: str, actions: [ui::Control], close: ui::Control) -> [ui::Cont
 
 const CLOSE: str = "Close";
 
-
 /// The hosts a screen fills: its own column down the left, and the rows
 /// beside it. Opens the sheet for `id`, with `actions`, control specs, beside
 /// its close; `()` when another screen is up.
@@ -177,7 +177,7 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::
         filled.widget.height = box.height;
     }
     scene::root().get_node(SHEET + "/SheetBar/Title").widget.text = title;
-    ui::fill_strip(SHEET + "/SheetBar/Actions", actions);
+    form::strip(SHEET + "/SheetBar/Actions", actions);
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SIDE);
@@ -235,7 +235,6 @@ const SIDE: str = "Editor/Sheet/SheetBody/SheetSplit/SheetSide";
 const SEARCH: str = "Search";
 
 const PAGES: str = "Pages";
-
 
 const FORM: str = "Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm";
 

@@ -1263,7 +1263,7 @@ Source: `crates/balaur_ui/src/widget/input.rs`, `WidgetInputBuffer`.
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `record`, from a draw, `click`, `submit` or `edit` | `Some` | Adds to what waits, so two passes between ticks both count. |
-| `Some` | `apply_system` | `None` | Moves it into `WidgetInputSnapshot`, then settles edits, clicks and focus. `settle_clicks` announces `pointer_click` with the button for each click. Each event reaches the node's rows and `on_<event>` at once, its listeners at the pump, then a pooled control's handler. |
+| `Some` | `apply_system` | `None` | Moves it into `WidgetInputSnapshot`, then settles edits, clicks and focus. `settle_clicks` announces `pointer_click` with the button for each click. Each event reaches the node's rows and `on_<event>` at once, its listeners at the pump, then the handler its control table names. |
 
 Starts in `None`. Never ends.
 
@@ -1446,9 +1446,9 @@ Source: `crates/balaur_ui/src/widget/input.rs`, `follow_hearers` and `hears_clic
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `follow_hearers`, each tick and at the top of each pass, for a node whose hearers may have changed | as `hears_click` finds | True for a `pointer_click` row, the script's `on_pointer_click`, a listener or a waiter naming the node, an observer on it, or a pool spec's `on_click`. |
+| any | `follow_hearers`, each tick and at the top of each pass, for a node whose hearers may have changed | as `hears_click` finds | True for a `pointer_click` row, the script's `on_pointer_click`, a listener or a waiter naming the node, an observer on it, or the `on_click` its control table names. |
 
-Any of these may change a node's hearers: a `bindings` write or removal, a script attached, a listen or a stop, a waiter woken, its `widget` first built, or a pool handler given or taken.
+Any of these may change a node's hearers: a `bindings` write or removal, a script attached, a listen or a stop, a waiter woken, its `widget` first built, or a handler `ui.write` gives or takes.
 
 Starts false. Ends when the component is removed.
 

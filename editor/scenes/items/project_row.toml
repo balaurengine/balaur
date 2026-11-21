@@ -1,0 +1,101 @@
+# One project on the start screen, named for its folder's place in the list:
+# the engine's mark, the name a click opens and the folder under it, when it
+# was opened and with which engine, and the mark that forgets it.
+
+[[nodes]]
+id = "project"
+name = "Project"
+[nodes.widget]
+kind = "column"
+
+[[nodes]]
+id = "line"
+name = "Line"
+parent = "project"
+[nodes.widget]
+kind = "row"
+role = "layout_actions"
+[nodes.widget_layout]
+align_items = "center"
+
+# A project keeps its own icon, and none is open, so the row wears the editor's.
+[[nodes]]
+id = "plate"
+name = "Plate"
+parent = "line"
+[nodes.widget]
+kind = "panel"
+role = "sheet_logo"
+
+[[nodes]]
+id = "logo"
+name = "Logo"
+parent = "plate"
+[nodes.widget]
+kind = "image"
+role = "layout_mark"
+[nodes.widget_image]
+image = "assets/balaur-logo.png"
+
+[[nodes]]
+id = "text"
+name = "Text"
+parent = "line"
+[nodes.widget]
+kind = "column"
+grow = 1
+
+[[nodes]]
+id = "open"
+name = "Open"
+parent = "text"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../../../..", value = "project_pressed" }] }
+[nodes.widget]
+kind = "button"
+role = "item_list"
+
+[[nodes]]
+id = "path"
+name = "Path"
+parent = "text"
+[nodes.widget]
+kind = "label"
+role = "text_code_caption"
+[nodes.widget_text]
+truncate = true
+
+[[nodes]]
+id = "opened"
+name = "Opened"
+parent = "line"
+[nodes.widget]
+kind = "label"
+role = "text_code_caption"
+
+[[nodes]]
+id = "built"
+name = "Built"
+parent = "line"
+[nodes.widget]
+kind = "label"
+role = "text_code_caption"
+
+[[nodes]]
+id = "forget"
+name = "Forget"
+parent = "line"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../../../../../..", value = "project_forgotten" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_form_quiet"
+text = ""
+tooltip = "Forget this project"
+[nodes.widget_button]
+icon = "x-bold"
+
+[[nodes]]
+id = "rule"
+name = "Rule"
+parent = "project"
+[nodes.widget]
+kind = "separator"
