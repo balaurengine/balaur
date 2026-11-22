@@ -593,7 +593,7 @@ fn check_tools_draw_their_own_handles(state: &mut editor::State, index: int) {
         return;
     }
     selftest::check(moving[0] == 0 && moving[1] < select[1], "the move tool draws the box alone, no rings, corners or face handles ({moving} of {select})");
-    selftest::check(rotate[0] == select[0] && rotate[1] == moving[1] && rotate[1] < select[1],"the rotate tool draws the rings over the box alone ({rotate})");
+    selftest::check(rotate[0] == select[0] && rotate[1] == moving[1] && rotate[1] < select[1], "the rotate tool draws the rings over the box alone ({rotate})");
     selftest::check(scale[0] == 0 && scale[1] > moving[1], "the scale tool draws the corners and face handles, no rings ({scale})");
 }
 

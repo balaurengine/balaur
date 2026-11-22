@@ -50,9 +50,18 @@ case $platform in
 *) "$balaur" new "$work/project" --template viewer >/dev/null ;;
 esac
 ./scripts/with_icon.sh "$work/project"
+# The check states the identity it exports under: the example's own `[apple]`
+# and `[android]` tables go first, or the manifest would hold each twice.
+drop_table() { # drop_table <table>: [table] and [table.*] out of the manifest
+  awk -v table="$1" '
+    /^\[/ { skip = ($0 == "[" table "]" || index($0, "[" table ".") == 1) }
+    !skip' "$work/project/project.toml" >"$work/project/project.toml.next"
+  mv "$work/project/project.toml.next" "$work/project/project.toml"
+}
 # The capabilities an Apple game declares are export-side, so the check needs a
 # project that declares some.
 if [ "$base" = ios ] || [ "$base" = ios-sim ]; then
+  drop_table apple
   cat >>"$work/project/project.toml" <<'TOML'
 
 [apple]
@@ -74,6 +83,7 @@ apk=""
 if [ "$base" = android ]; then
   # An export invents no identity, and signs with the debug key only when
   # asked: CI has no release keystore, and what it proves installs anyway.
+  drop_table android
   cat >>"$work/project/project.toml" <<'TOML'
 
 [android]
