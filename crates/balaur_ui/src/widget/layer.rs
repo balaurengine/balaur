@@ -795,7 +795,11 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         .eng
         .try_resource::<crate::UiFocus>()
         .is_some_and(|focus| focus.borrow().focused == Some(at.arena[index].entity));
-    let (hovered, held) = pointer_state(ui, disabled);
+    // A widget the pointer passes through (`interactive = false`) is never
+    // hovered or held, so it wears no `hover` or `active` look either: a
+    // badge on a card stays the badge while the card answers the pointer.
+    let through = at.arena[index].widget.pointer_through;
+    let (hovered, held) = pointer_state(ui, disabled || through);
     if hovered {
         at.under.push(at.arena[index].entity);
     }

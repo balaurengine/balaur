@@ -829,6 +829,21 @@ fn a_node_s_offset_adds_to_its_hover_table_s() {
     );
 }
 
+// A widget the pointer passes through is never hovered, so it wears no
+// hover table: a badge on a card stays the badge under the pointer.
+#[test]
+fn a_widget_the_pointer_passes_through_keeps_its_rest_look() {
+    let (rest, plate) = hovered_plate(
+        "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\n[button.hover]\noffset = [0, -2]\n",
+        toml::toml! { interactive = false },
+        4,
+    );
+    assert!(
+        (plate.min.y - rest.min.y).abs() < 0.5,
+        "lifted though it takes no pointer: {plate:?} from {rest:?}"
+    );
+}
+
 // A hover table's `scale` grows over the transition, as its `offset` runs.
 #[test]
 fn a_transition_eases_a_hover_scale() {
