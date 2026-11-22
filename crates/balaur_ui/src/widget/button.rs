@@ -75,16 +75,18 @@ fn face_of(
     } else {
         0.0
     };
-    let icon = (!widget.loading && !widget.icon.is_empty())
-        .then(|| crate::widget::icons::Icons::of(at.eng, &look).glyph(&widget.icon))
-        .flatten()
-        .map(|glyph| {
-            let mark = egui::FontId::new(
-                crate::widget::text::icon_px(widget, &look.style, font.size),
-                look.icon.clone(),
-            );
-            Brush::of(ui).line_of(glyph, mark, Color32::PLACEHOLDER)
-        });
+    let icon = (!widget.loading
+        && !widget.icon.is_empty()
+        && crate::widget::text::shows_icon(&look.style))
+    .then(|| crate::widget::icons::Icons::of(at.eng, &look).glyph(&widget.icon))
+    .flatten()
+    .map(|glyph| {
+        let mark = egui::FontId::new(
+            crate::widget::text::icon_px(widget, &look.style, font.size),
+            look.icon.clone(),
+        );
+        Brush::of(ui).line_of(glyph, mark, Color32::PLACEHOLDER)
+    });
     let mark = icon
         .as_ref()
         .map_or(egui::Vec2::splat(spinner), |g| g.size());
@@ -106,7 +108,7 @@ fn face_of(
         } else {
             pic.x + mark.x + gap * before + tail_gap + tail.x
         };
-        let room = crate::widget::text::caption_room(widget, natural.size.x, width, taken);
+        let room = crate::widget::text::caption_room((widget, style), natural.size.x, width, taken);
         if room.is_some() {
             shaped = crate::widget::text::shaped_caption(ui, at, index, caption, font, room);
         }
@@ -621,6 +623,7 @@ pub(crate) fn button(
     // the square the measure gave it, as `measure::button_in` says.
     let one_glyph = caption.is_empty()
         && !widget.icon.is_empty()
+        && crate::widget::text::shows_icon(&base)
         && widget.source.is_empty()
         && widget.trailing.is_empty();
     let air = if one_glyph {

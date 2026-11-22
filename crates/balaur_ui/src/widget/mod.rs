@@ -10,6 +10,7 @@ pub(crate) mod beside_controls;
 #[cfg(test)]
 mod beside_tests;
 pub(crate) mod button;
+pub(crate) mod class_words;
 pub(crate) mod code;
 pub(crate) mod drag;
 pub(crate) mod ease;

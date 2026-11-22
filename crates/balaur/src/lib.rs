@@ -311,6 +311,11 @@ fn with_host<R>(
     f: impl FnOnce(&balaur_core::Engine, &balaur_script_bs::BsHost) -> Result<R>,
 ) -> Result<R> {
     let mut app = standard_app(AppConfig::export(project_root))?;
+    // What the manifest sets, which a scene may lean on: the class words
+    // `[ui] classes` declares, for one.
+    if let Some(manifest) = text_of(&project_root.join("project.toml")) {
+        balaur_core::settings::load(&app.engine, &manifest)?;
+    }
     balaur_plugin::load_all(&mut app, extra)?;
     let host =
         balaur_script_bs::BsHost::of(&app.engine).context("no script backend for the project")?;

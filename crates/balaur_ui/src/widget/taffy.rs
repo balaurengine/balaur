@@ -249,6 +249,8 @@ fn style_key(
     }
     is_root.hash(&mut hasher);
     folded.hash(&mut hasher);
+    fit_list(widget, style).is_empty().hash(&mut hasher);
+    style.truncate.hash(&mut hasher);
     for side in fills {
         match side {
             Side::Hug => 0_u8.hash(&mut hasher),
@@ -376,7 +378,30 @@ fn style_of(widget: &Widget, style: &crate::widget::theme::Style, shape: Shape) 
     box_into(&mut out, widget, shape.is_root);
     flex_into(&mut out, widget);
     grid_into(&mut out, widget);
+    // A fit container stays on one line: its words are what give way.
+    if !fit_list(widget, style).is_empty() {
+        out.flex_wrap = FlexWrap::NoWrap;
+    }
+    // A caption its theme cuts gives way in its row for the cut, as CSS's
+    // `min-width: 0` lets an ellipsis show.
+    if style.truncate == Some(true) && layout.shrink.get() < 0.0 {
+        out.flex_shrink = 1.0;
+        out.min_size.width = length(widget.min_width.max(0.0));
+    }
     out
+}
+
+/// The class words a container takes until what it holds fits: its own
+/// `fit`, else its theme's.
+pub(crate) fn fit_list<'a>(
+    widget: &'a Widget,
+    style: &'a crate::widget::theme::Style,
+) -> &'a [smol_str::SmolStr] {
+    if widget.layout.fit.is_empty() {
+        style.fit.as_deref().unwrap_or(&[])
+    } else {
+        &widget.layout.fit
+    }
 }
 
 /// What box the sizes measure, which way it runs, what it keeps for content
@@ -654,6 +679,13 @@ pub(crate) fn solve(
             egui::vec2(layout.location.x, layout.location.y)
         });
         gather(&held, arena, root, node, space.origin - corner, &mut rects);
+        if settle_fits(&held, arena, &rects, theme, &mut measure) {
+            // The words under a container moved: this pass drew it at the
+            // step before, so egui runs the pass again rather than show it.
+            ui.ctx().request_discard("a fit container moved a step");
+            // A host that runs a frame only when asked still runs this one.
+            ui.ctx().request_repaint();
+        }
         rects
     })
 }
@@ -931,6 +963,174 @@ fn gather(
     }
 }
 
+/// Settle every fit container this solve laid out on the step its room
+/// holds (`class_words::settle`). `true` when one moved.
+fn settle_fits(
+    held: &Held,
+    arena: &[Placed],
+    rects: &Rects,
+    theme: &Rc<WidgetTheme>,
+    measure: &mut Measure<'_>,
+) -> bool {
+    let mut moved = false;
+    for index in rects.keys() {
+        let placed = &arena[*index];
+        let bits = placed.entity.to_bits().get();
+        let Some(style) = placed.look.borrow().resting_style() else {
+            continue;
+        };
+        let list = fit_list(&placed.widget, &style);
+        if list.is_empty() {
+            crate::widget::class_words::forget(bits);
+            continue;
+        }
+        if !placed.widget.visible {
+            continue;
+        }
+        let Some(node) = [(bits, false), (bits, true)]
+            .iter()
+            .find_map(|key| held.nodes.get(key))
+            .map(|kept| kept.id)
+        else {
+            continue;
+        };
+        let (Ok(layout), Ok(own)) = (held.tree.layout(node), held.tree.style(node)) else {
+            continue;
+        };
+        let row = runs_across(own.flex_direction);
+        let room = along(layout.size, row) - sides(layout.padding, row) - sides(layout.border, row);
+        let gap = crate::widget::arrange::gap_of(&placed.widget, &style);
+        let need = content_need(
+            held,
+            arena,
+            (*index, node),
+            (row, axis(gap, row)),
+            theme,
+            measure,
+        );
+        let words = crate::widget::class_words::words_of(list);
+        moved |= crate::widget::class_words::settle(bits, &words, room, need);
+    }
+    moved
+}
+
+fn runs_across(direction: FlexDirection) -> bool {
+    matches!(direction, FlexDirection::Row | FlexDirection::RowReverse)
+}
+
+fn along(size: Size<f32>, row: bool) -> f32 {
+    if row { size.width } else { size.height }
+}
+
+fn axis(vector: egui::Vec2, row: bool) -> f32 {
+    if row { vector.x } else { vector.y }
+}
+
+fn sides(edges: Rect<f32>, row: bool) -> f32 {
+    if row {
+        edges.left + edges.right
+    } else {
+        edges.top + edges.bottom
+    }
+}
+
+/// What a container's children need along `row`'s axis on one line, with
+/// `gap` between each two: a child that keeps its size at what it was laid
+/// out at, and one that gives way (it grows, or shrinks for a cut) at what
+/// it holds, since the layout may have squeezed or stretched it.
+fn content_need(
+    held: &Held,
+    arena: &[Placed],
+    (index, node): (usize, NodeId),
+    (row, gap): (bool, f32),
+    theme: &Rc<WidgetTheme>,
+    measure: &mut Measure<'_>,
+) -> f32 {
+    let mut total = 0.0;
+    let mut count = 0_u16;
+    let laid = arena[index]
+        .children
+        .iter()
+        .filter(|child| !crate::widget::kinds::in_title_bar(arena, index, **child));
+    for (slot, child) in laid.enumerate() {
+        let Ok(kid) = held.tree.child_at_index(node, slot) else {
+            continue;
+        };
+        let (Ok(style), Ok(layout)) = (held.tree.style(kid), held.tree.layout(kid)) else {
+            continue;
+        };
+        if style.display == Display::None || style.position == Position::Absolute {
+            continue;
+        }
+        let gives = style.flex_grow > 0.0 || style.flex_shrink > 0.0;
+        let size = if gives {
+            natural(held, arena, (*child, kid), row, theme, measure)
+        } else {
+            along(layout.size, row)
+        };
+        let margin = if row {
+            layout.margin.left + layout.margin.right
+        } else {
+            layout.margin.top + layout.margin.bottom
+        };
+        total += size + margin;
+        count += 1;
+    }
+    total + gap * f32::from(count.saturating_sub(1))
+}
+
+/// What one widget holds along `row`'s axis, its padding and border in, at
+/// least its `min_width` (or height), and its stated size where it states one.
+fn natural(
+    held: &Held,
+    arena: &[Placed],
+    (index, node): (usize, NodeId),
+    row: bool,
+    theme: &Rc<WidgetTheme>,
+    measure: &mut Measure<'_>,
+) -> f32 {
+    let widget = &arena[index].widget;
+    let (stated, least) = if row {
+        (widget.width, widget.min_width)
+    } else {
+        (widget.height, widget.min_height)
+    };
+    if stated > 0.0 {
+        return stated;
+    }
+    let Ok(layout) = held.tree.layout(node) else {
+        return least;
+    };
+    let edge = sides(layout.padding, row) + sides(layout.border, row);
+    let inner = if held.tree.child_count(node) == 0 {
+        let at = crate::widget::arena::theme_at(measure.eng, arena, index, theme);
+        axis(measure.leaf(index, &at), row)
+    } else {
+        let same_way = held
+            .tree
+            .style(node)
+            .is_ok_and(|own| runs_across(own.flex_direction) == row);
+        if same_way {
+            let at = crate::widget::arena::theme_at(measure.eng, arena, index, theme);
+            let look = crate::widget::arena::look_of(arena, index, &at);
+            let gap = axis(crate::widget::arrange::gap_of(widget, &look.style), row);
+            content_need(held, arena, (index, node), (row, gap), theme, measure)
+        } else {
+            // Across its run: as much as its biggest child.
+            let mut most = 0.0_f32;
+            for slot in 0..held.tree.child_count(node) {
+                if let Ok(kid) = held.tree.child_at_index(node, slot)
+                    && let Ok(laid) = held.tree.layout(kid)
+                {
+                    most = most.max(along(laid.size, row));
+                }
+            }
+            most
+        }
+    };
+    (inner + edge).max(least)
+}
+
 /// Drop the nodes of widgets that are gone, so a session that opens and
 /// closes a thousand panels does not grow the tree forever.
 pub(crate) fn sweep(eng: &Engine) {
@@ -949,6 +1149,7 @@ pub(crate) fn sweep(eng: &Engine) {
             if let Some(kept) = held.nodes.remove(&key) {
                 let _ = held.tree.remove(kept.id);
             }
+            crate::widget::class_words::forget(key.0);
             crate::widget::arrange::forget_natural(key.0);
         }
     });

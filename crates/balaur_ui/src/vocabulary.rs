@@ -529,6 +529,15 @@ pub(crate) mod keys {
     pub(crate) const TEXT_COLOR: &str = "text_color";
     pub(crate) const TEXT_KEY: &str = "text_key";
     pub(crate) const TOOLTIP_KEY: &str = "tooltip_key";
+    /// The class words a widget puts in force for itself and what it lays
+    /// out, and the ones a container takes in order until what it holds fits.
+    pub(crate) const CLASSES: &str = "classes";
+    pub(crate) const FIT: &str = "fit";
+    /// A theme's say over a control's parts: its caption, its icon, and
+    /// whether a caption past its room is cut with an ellipsis.
+    pub(crate) const SHOW_TEXT: &str = "show_text";
+    pub(crate) const SHOW_ICON: &str = "show_icon";
+    pub(crate) const TRUNCATE: &str = "truncate";
     pub(crate) const THEME: &str = "theme";
     pub(crate) const TOOLTIP: &str = "tooltip";
     pub(crate) const CURSOR: &str = "cursor";

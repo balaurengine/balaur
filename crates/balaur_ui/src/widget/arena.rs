@@ -12,6 +12,7 @@ use balaur_core::hecs::Entity;
 use egui::Color32;
 use smol_str::SmolStr;
 
+use crate::widget::class_words::{self, Words};
 use crate::widget::node::{Widget, lays_out};
 use crate::widget::theme::{Style, WidgetTheme, face, icon_family, icon_font, styled, theme_of};
 
@@ -46,6 +47,9 @@ pub(crate) struct Placed {
     /// The arena index of the `viewport` that is this widget's screen, or
     /// `None` where the window is.
     pub(crate) screen: Option<usize>,
+    /// The class words in force at the widget: its screen's, with what it
+    /// and the widgets above it put in force.
+    pub(crate) words: Words,
 }
 
 /// A widget's resolved look: what to paint it with and what face to draw its
@@ -68,22 +72,22 @@ pub(crate) struct Look {
 #[derive(Clone)]
 pub(crate) struct Under {
     theme: Rc<WidgetTheme>,
-    classes: u32,
+    words: Words,
     families: u64,
 }
 
 impl Under {
-    fn now(theme: &Rc<WidgetTheme>) -> Self {
+    fn now(theme: &Rc<WidgetTheme>, words: Words) -> Self {
         Self {
             theme: Rc::clone(theme),
-            classes: crate::widget::theme::pass_classes_at(),
+            words,
             families: crate::theme::families_taken(),
         }
     }
 
-    fn holds(&self, theme: &Rc<WidgetTheme>) -> bool {
+    fn holds(&self, theme: &Rc<WidgetTheme>, words: Words) -> bool {
         Rc::ptr_eq(&self.theme, theme)
-            && self.classes == crate::widget::theme::pass_classes_at()
+            && self.words == words
             && self.families == crate::theme::families_taken()
     }
 }
@@ -96,6 +100,13 @@ pub(crate) struct Looks {
     resting: Option<Rc<Look>>,
     /// The look in each state the pointer or the widget has put it in so far.
     pub(crate) in_state: Vec<(crate::widget::theme::WidgetState, Rc<Look>)>,
+}
+
+impl Looks {
+    /// The style it was last drawn at rest with, where it has been.
+    pub(crate) fn resting_style(&self) -> Option<Rc<Style>> {
+        self.resting.as_ref().map(|look| Rc::clone(&look.style))
+    }
 }
 
 /// Whether the surface is on the side of every line the widget draws. A
@@ -137,11 +148,11 @@ pub(crate) fn theme_at(
 pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &Rc<WidgetTheme>) -> Rc<Look> {
     let placed = &arena[index];
     if let Some(held) = placed.look.borrow().resting.as_ref()
-        && held.under.holds(theme)
+        && held.under.holds(theme, placed.words)
     {
         return Rc::clone(held);
     }
-    let style = styled(theme, &placed.widget);
+    let style = styled(theme, &placed.widget, placed.words);
     let (ink, font) = face(theme, &style, (&placed.widget, placed.project));
     let made = Rc::new(Look {
         style,
@@ -150,7 +161,7 @@ pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &Rc<WidgetTheme>) -
         icon: icon_family(theme, placed.project),
         icon_font: icon_font(theme).into(),
         project: placed.project,
-        under: Under::now(theme),
+        under: Under::now(theme, placed.words),
     });
     *placed.look.borrow_mut() = Looks {
         resting: Some(Rc::clone(&made)),
@@ -216,6 +227,8 @@ pub(crate) fn stamp_now(eng: &Engine) -> (u64, u64) {
     // again, and no component was written to say so.
     pass_classes().hash(&mut hasher);
     crate::widget::screens::hash(eng, &mut hasher);
+    // A container's fit moved a step: the words under it are others.
+    class_words::generation().hash(&mut hasher);
     (balaur_core::scene::shape_revision(), hasher.finish())
 }
 
@@ -228,6 +241,7 @@ thread_local! {
 
 /// Read the screen once for the pass; everything after reads this.
 pub(crate) fn begin_classes(eng: &Engine) -> [&'static str; 3] {
+    class_words::declare_from(eng);
     crate::widget::screens::begin(eng);
     let now = read_classes(eng);
     CLASSES.with(|held| held.set(now));
@@ -305,7 +319,6 @@ fn patch(
     arena: &mut [Placed],
     index_of: &rustc_hash::FxHashMap<u64, usize>,
     dirty: &rustc_hash::FxHashSet<u64>,
-    classes: [&'static str; 3],
 ) -> Option<Vec<usize>> {
     let world = eng.world();
     let mut touched = Vec::with_capacity(dirty.len());
@@ -315,8 +328,12 @@ fn patch(
         // Gone from the world, or its component removed: either way the shape
         // of the forest is not what the arena says it is.
         let widget = world.get::<&Widget>(entity).ok()?;
-        let own = crate::widget::screens::classes(eng, arena, arena[index].screen, classes);
-        let widget = for_classes(eng, entity, &widget, &own);
+        // Words it puts in force changed: what it lays out answers others,
+        // and only the walk hands them down.
+        if widget.named_classes != arena[index].widget.named_classes {
+            return None;
+        }
+        let widget = for_classes(eng, entity, &widget, &arena[index].words.list());
         arena[index].draws_itself = draws_itself(&widget);
         arena[index].widget = widget;
         *arena[index].look.borrow_mut() = Looks::default();
@@ -324,6 +341,16 @@ fn patch(
     }
     Some(touched)
 }
+
+/// A node on the walk: it, the widget laying it out, whose faces, the
+/// viewport it draws in, and the words the widgets above it put in force.
+type Walked = (
+    Entity,
+    Option<usize>,
+    balaur_text::FontProject,
+    Option<usize>,
+    Words,
+);
 
 /// The widget forest, in scene-tree order.
 ///
@@ -350,14 +377,14 @@ fn forest(
     // apart from this project's.
     let content_scope = balaur_core::project::content_scope(eng)
         .filter(|_| balaur_text::content_apart(eng).is_some());
-    // (node, the widget laying it out, whose faces, the viewport it draws in)
-    let mut stack: Vec<(
-        Entity,
-        Option<usize>,
-        balaur_text::FontProject,
-        Option<usize>,
-    )> = vec![(eng.root(), None, balaur_text::FontProject::Host, None)];
-    while let Some((entity, owner, project, screen)) = stack.pop() {
+    let mut stack: Vec<Walked> = vec![(
+        eng.root(),
+        None,
+        balaur_text::FontProject::Host,
+        None,
+        Words::EMPTY,
+    )];
+    while let Some((entity, owner, project, screen, above)) = stack.pop() {
         let project = if content_scope == Some(entity) {
             balaur_text::FontProject::Content
         } else {
@@ -365,10 +392,16 @@ fn forest(
         };
         let mut next_owner = owner;
         let mut next_screen = screen;
+        let mut next_above = above;
         if let Ok(widget) = world.get::<&Widget>(entity) {
             let index = arena.len();
+            let passed = above
+                .with(class_words::words_of(&widget.named_classes))
+                .with(class_words::fit_words(entity.to_bits().get()));
             let own = crate::widget::screens::classes(eng, &arena, screen, classes);
-            let widget = for_classes(eng, entity, &widget, &own);
+            let words = passed.with(own);
+            next_above = passed;
+            let widget = for_classes(eng, entity, &widget, &words.list());
             let name = world
                 .get::<&balaur_core::scene::Name>(entity)
                 .map_or_else(|_| SmolStr::default(), |n| SmolStr::new(&n.0));
@@ -396,6 +429,7 @@ fn forest(
                 alpha: 1.0,
                 project,
                 screen,
+                words,
             });
             index_of.insert(entity.to_bits().get(), index);
             match owner {
@@ -406,7 +440,7 @@ fn forest(
         if let Ok(children) = world.get::<&Children>(entity) {
             // Pushed in reverse so the stack pops them in declaration order.
             for child in children.0.iter().rev() {
-                stack.push((*child, next_owner, project, next_screen));
+                stack.push((*child, next_owner, project, next_screen, next_above));
             }
         }
     }
@@ -448,7 +482,7 @@ pub(crate) fn begin(eng: &Engine, stamp: (u64, u64)) -> Begun {
             match if written.is_empty() {
                 Some(Vec::new())
             } else {
-                patch(eng, &mut arena, &index_of, &written, classes)
+                patch(eng, &mut arena, &index_of, &written)
             } {
                 Some(patched) => {
                     fresh = false;

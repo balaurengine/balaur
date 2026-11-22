@@ -370,6 +370,9 @@ pub(crate) struct WidgetProperties {
     /// A `[roles.<name>]` entry of the widget's theme, taken over its kind's own style; the one place a look is named rather than spelled
     #[property(group = "paint")]
     pub(crate) role: SmolStr,
+    /// Class words this widget puts in force for itself and everything it lays out, beside the screen's: the project's own, which `[ui] classes` declares. A theme's role answers one with a table of its name, as it answers `narrow`, and so does a widget's own
+    #[property(group = "paint")]
+    pub(crate) classes: Vec<SmolStr>,
     /// What is painted behind this widget, an `image`'s picture included, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own
     #[property(group = "paint")]
     pub(crate) fill: SmolStr,

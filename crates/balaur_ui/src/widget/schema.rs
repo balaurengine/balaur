@@ -16,6 +16,7 @@ use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
 use crate::vocabulary::{keys as k, words as w};
+use crate::widget::class_words;
 use crate::widget::node::{Bits, EguiOptions, Widget};
 use crate::widget::properties::{Edge, WidgetProperties};
 use crate::widget::text_look::TextLook;
@@ -50,19 +51,38 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
             ..derived
         },
     );
-    // A screen class's table, whose own keys `check_class_tables` refuses.
-    reg.accept_keys(WidgetProperties::NAME, |key, _| CLASS_KEYS.contains(&key));
+    // A class word's table, whose word and keys `check_class_tables` checks
+    // once the project's own words are read.
+    reg.accept_keys(WidgetProperties::NAME, |_, value| value.is_table());
 }
 
 /// A whole write: the properties through the derived `apply`, and the class
 /// tables beside them onto the [`Widget`] it built.
 fn apply(eng: &Engine, entity: Entity, params: &toml::Value, whole: &ApplyFn) -> Result<()> {
+    // The project's own words, before a table or a `classes` naming one is
+    // checked: a scene is applied before the first pass reads `[ui]`.
+    if names_words(params) {
+        class_words::declare_from(eng);
+    }
     check_class_tables(params)?;
     whole(eng, entity, params)?;
     if let Ok(mut widget) = eng.world().get::<&mut Widget>(entity) {
         widget.classes = classes_of(params);
     }
     Ok(())
+}
+
+/// Whether a write names a class word past the screen's: a table that is
+/// not a property's, or `classes`.
+fn names_words(params: &toml::Value) -> bool {
+    params.as_table().is_some_and(|table| {
+        table.iter().any(|(key, value)| {
+            key == k::CLASSES
+                || (value.is_table()
+                    && !WidgetProperties::NAMES.contains(&key.as_str())
+                    && !class_words::SCREEN.contains(&key.as_str()))
+        })
+    })
 }
 
 /// The properties as a table, and the class tables with them: they are not
@@ -160,9 +180,29 @@ fn check_class_tables(params: &toml::Value) -> Result<()> {
         .get(k::KIND)
         .and_then(toml::Value::as_str)
         .unwrap_or(w::LABEL);
+    // A table is a class word's, and a word is the screen's or the project's.
+    if let Some(table) = params.as_table() {
+        for (key, value) in table {
+            if value.is_table()
+                && !WidgetProperties::NAMES.contains(&key.as_str())
+                && class_words::word(key).is_none()
+            {
+                bail!(
+                    "widget: `{key}` is no class word: the screen's ({}) or one `[ui] classes` declares",
+                    class_words::SCREEN.join(", ")
+                );
+            }
+        }
+    }
+    let named = params.get(k::CLASSES).and_then(toml::Value::as_array);
+    for word in named.into_iter().flatten().filter_map(toml::Value::as_str) {
+        if class_words::word(word).is_none() {
+            bail!("widget: `classes` names `{word}`, which `[ui] classes` does not declare");
+        }
+    }
     for (word, table) in class_tables(params) {
         let Some(table) = table.as_table() else {
-            bail!("widget: `{word}` is a screen class and takes a table of properties");
+            bail!("widget: `{word}` is a class word and takes a table of properties");
         };
         for (key, value) in table {
             if key == k::KIND {
@@ -186,22 +226,10 @@ fn classes_of(params: &toml::Value) -> Option<ClassTables> {
     (!found.is_empty()).then(|| found.into())
 }
 
-/// Every class table this widget carries, in the order an override applies:
-/// the input class, then the height, then the width, later winning. A phone
-/// held upright answers `touch`, `tall` and `narrow`, in that order.
-pub(crate) const CLASS_KEYS: [&str; 7] = [
-    balaur_core::tags::TOUCH,
-    balaur_core::tags::POINTER,
-    balaur_core::facts::SHORT,
-    balaur_core::facts::TALL,
-    balaur_core::facts::NARROW,
-    balaur_core::facts::MEDIUM,
-    balaur_core::facts::WIDE,
-];
-
-/// The `[nodes.widget.<class>]` tables a widget states, in `CLASS_KEYS` order.
+/// The `[nodes.widget.<word>]` tables a widget states, in the order their
+/// words override: the screen's, then the project's own.
 fn class_tables(params: &toml::Value) -> impl Iterator<Item = (&'static str, &toml::Value)> {
-    CLASS_KEYS.into_iter().filter_map(move |word| {
+    class_words::all().into_iter().filter_map(move |word| {
         let table = params.get(word)?;
         table.as_table().map(|_| (word, table))
     })
@@ -422,6 +450,7 @@ cache_fields! {
         k::NEIGHBOUR_RIGHT => widget.neighbours[3] = asked.neighbour_right.clone();
         k::CURSOR => widget.cursor = asked.cursor.0.clone();
         k::CONTEXT => widget.context = asked.context.clone();
+        k::CLASSES => widget.named_classes.clone_from(&asked.classes);
     }
     whole [k::KIND, k::TEXT_STYLE] {
         widget.kind = asked.kind.0.clone();

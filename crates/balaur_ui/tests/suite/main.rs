@@ -20,6 +20,7 @@ mod widget_beside;
 mod widget_code;
 mod widget_controls;
 mod widget_events;
+mod widget_fit;
 mod widget_focus;
 mod widget_kinds;
 mod widget_layer;

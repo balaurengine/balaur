@@ -309,3 +309,36 @@ fn a_role_s_fill_of_none_is_transparent_and_its_dashed_outline_stays() {
         "`none` was reported as no colour: {warned:?}"
     );
 }
+
+#[test]
+fn a_project_word_s_table_folds_over_the_screen_s_and_its_own_nested_ones_last() {
+    use crate::widget::class_words::{Words, declare, word};
+    declare(&["tt_small".to_owned()]);
+    let small = word("tt_small").expect("declared");
+    let theme = parse(
+        &toml::from_str::<toml::Value>(
+            "type = \"widget_theme\"\n\n[roles.title]\nfont_size = 30\n\n[roles.title.wide]\nfont_size = 36\n\n[roles.title.tt_small]\nfont_size = 24\nshow_text = false\n\n[roles.title.tt_small.wide]\nfont_size = 30\n",
+        )
+        .unwrap(),
+    );
+    let narrow = Words::of([balaur_core::facts::NARROW, small]);
+    let wide = Words::of([balaur_core::facts::WIDE, small]);
+    assert_eq!(
+        theme.resolved_in("label", "title", narrow).font_size,
+        Some(24.0)
+    );
+    assert_eq!(
+        theme.resolved_in("label", "title", wide).font_size,
+        Some(30.0)
+    );
+    assert_eq!(
+        theme.resolved_in("label", "title", wide).show_text,
+        Some(false)
+    );
+    let plain = Words::of([balaur_core::facts::WIDE]);
+    assert_eq!(
+        theme.resolved_in("label", "title", plain).font_size,
+        Some(36.0)
+    );
+    assert_eq!(theme.resolved_in("label", "title", plain).show_text, None);
+}

@@ -47,6 +47,7 @@ use crate::vocabulary::states as st;
 use crate::vocabulary::tokens as t;
 use crate::vocabulary::weights;
 use crate::vocabulary::words as w;
+use crate::widget::class_words::Words;
 use crate::widget::node::{Widget, rgba_color};
 use crate::widget::paint::Brush;
 use egui::Color32;
@@ -187,10 +188,22 @@ pub struct Style {
     /// What replaces this style while the pointer is over the widget, and
     /// while it is held down. Each is a whole style over this one.
     pub hover: Option<Rc<Style>>,
-    /// The `[kind.<class>]` tables this entry carries, by class word. Folded
-    /// over the entry when the screen answers to one, so a theme states a
-    /// touch height beside the height it states for a cursor.
+    /// The `[kind.<word>]` tables this entry carries, by class word. Folded
+    /// over the entry, in the words' override order, while a word is in
+    /// force where the widget sits: the screen's, so a theme states a touch
+    /// height beside the height it states for a cursor, or one a container
+    /// puts in force.
     pub classes: Option<Rc<Vec<(SmolStr, Style)>>>,
+    /// The class words a container takes in order until what it holds fits
+    /// on one line, as a widget's `widget_layout.fit` says them.
+    pub fit: Option<Rc<[SmolStr]>>,
+    /// A control drawn without its caption, the caption then its tooltip and
+    /// still its name to a screen reader; or without its icon.
+    pub show_text: Option<bool>,
+    pub show_icon: Option<bool>,
+    /// A caption past its room cut with an ellipsis, as `widget_text`'s
+    /// `truncate`; one in a row gives way for it rather than overflow.
+    pub truncate: Option<bool>,
     pub active: Option<Rc<Style>>,
     /// What sits over this style while the widget is disabled, and while
     /// keyboard focus is on it, under whichever pointer table applies.
@@ -279,6 +292,10 @@ impl Style {
             weight: None,
             letter_spacing: None,
             text_transform: None,
+            fit: None,
+            show_text: None,
+            show_icon: None,
+            truncate: None,
             ..self.clone()
         }
     }
@@ -327,6 +344,10 @@ impl Style {
             round: self.round.or(base.round),
             hover: self.hover.clone().or_else(|| base.hover.clone()),
             classes: self.classes.clone().or_else(|| base.classes.clone()),
+            fit: self.fit.clone().or_else(|| base.fit.clone()),
+            show_text: self.show_text.or(base.show_text),
+            show_icon: self.show_icon.or(base.show_icon),
+            truncate: self.truncate.or(base.truncate),
             active: self.active.clone().or_else(|| base.active.clone()),
             disabled: self.disabled.clone().or_else(|| base.disabled.clone()),
             focus: self.focus.clone().or_else(|| base.focus.clone()),
@@ -368,7 +389,7 @@ pub struct WidgetTheme {
     /// `resolved` remembered: a kind and a role name the same style for as
     /// long as the theme lives, and working it out walked two maps and cloned
     /// a style for every widget on the screen, every frame.
-    settled: RefCell<rustc_hash::FxHashMap<(SmolStr, SmolStr), Rc<Style>>>,
+    settled: RefCell<rustc_hash::FxHashMap<(SmolStr, SmolStr, Words), Rc<Style>>>,
     /// The class generation `settled` was filled under. A new one empties it
     /// rather than keying beside it, so a rotation does not leave the last
     /// screen's styles in the map for the life of the theme.
@@ -393,17 +414,24 @@ impl WidgetTheme {
         self.kinds.get(sibling).cloned().unwrap_or_default()
     }
 
-    /// A kind's style with the named role over it. An unknown role is no
-    /// role: a theme that has not been given one yet still draws.
+    /// A kind's style with the named role over it, under the window's
+    /// classes. An unknown role is no role: a theme that has not been given
+    /// one yet still draws.
     #[must_use]
     pub fn resolved(&self, kind: &str, role: &str) -> Rc<Style> {
-        let (active, generation) = pass_classes();
+        self.resolved_in(kind, role, pass_words())
+    }
+
+    /// The same under the class words in force where a widget sits.
+    pub(crate) fn resolved_in(&self, kind: &str, role: &str, words: Words) -> Rc<Style> {
+        let generation = pass_classes_at();
         // The screen's classes are part of the answer, so a rotation empties
-        // what the last screen settled on rather than reading it back.
+        // what the last screen settled on rather than keeping it beside.
         if self.settled_at.replace(generation) != generation {
             self.settled.borrow_mut().clear();
         }
-        let key = (SmolStr::new(kind), SmolStr::new(role));
+        let active = words.list();
+        let key = (SmolStr::new(kind), SmolStr::new(role), words);
         if let Some(held) = self.settled.borrow().get(&key) {
             return Rc::clone(held);
         }
@@ -450,19 +478,25 @@ impl WidgetTheme {
     }
 }
 
-/// One style with every class table the screen answers to folded over it,
-/// broad to narrow. A style with no class table is returned as it stands.
-fn in_classes(style: &Style, active: &[SmolStr]) -> Style {
+/// One style with the table of every word in force folded over it, in the
+/// words' override order. A word's table may hold tables of other words in
+/// force, folded over it the same way: `[roles.title.small.wide]` is the
+/// title a size down on a wide screen. A style with no class table is
+/// returned as it stands.
+fn in_classes(style: &Style, active: &[&'static str]) -> Style {
     let Some(classes) = style.classes.as_ref() else {
         return style.clone();
     };
     let mut settled = style.clone();
-    for (word, over) in classes.iter() {
-        if active.iter().any(|held| held == word) {
-            settled = over.over(&settled);
+    for word in active {
+        if let Some((_, over)) = classes.iter().find(|(held, _)| held == word) {
+            settled = in_classes(over, active).over(&settled);
         }
     }
-    settled
+    Style {
+        classes: style.classes.clone(),
+        ..settled
+    }
 }
 
 /// `#rrggbb` or `#rrggbbaa`, the spelling the editor's theme already uses.
@@ -509,24 +543,22 @@ fn is_reserved(key: &str) -> bool {
     .contains(&key)
 }
 
-// The class words in force, and a number that changes when they do, so the
-// resolved-style cache answers for this pass's screen, not the last one's.
+// The window's class words, as a set and as words, and a number that changes
+// when they do, so the resolved-style cache answers for this pass's screen.
 thread_local! {
-    static PASS_CLASSES: RefCell<(Rc<[SmolStr]>, u32)> = RefCell::new((Rc::from([]), 0));
+    static PASS_CLASSES: RefCell<(Words, u32)> = const { RefCell::new((Words::EMPTY, 0)) };
 }
 
 /// Tell the theme which classes this pass answers to. Called once a pass,
 /// before anything is drawn.
-pub(crate) fn set_pass_classes(active: &[&str]) {
+pub(crate) fn set_pass_classes(active: &[&'static str]) {
+    let words = Words::of(active.iter().copied());
     PASS_CLASSES.with(|held| {
         let mut held = held.borrow_mut();
-        if held.0.len() == active.len() && held.0.iter().zip(active).all(|(a, b)| a == b) {
-            return;
+        if held.0 != words {
+            held.0 = words;
+            held.1 = held.1.wrapping_add(1);
         }
-        held.0 = active.iter().map(|word| SmolStr::new(*word)).collect();
-        held.1 = held.1.wrapping_add(1);
-        // Shared with every `resolved` call this pass, which was cloning a
-        // vector per widget before.
     });
 }
 
@@ -535,22 +567,14 @@ pub(crate) fn pass_classes_at() -> u32 {
     PASS_CLASSES.with(|held| held.borrow().1)
 }
 
-/// The classes in force and the number that stands for them.
-fn pass_classes() -> (Rc<[SmolStr]>, u32) {
-    PASS_CLASSES.with(|held| {
-        let held = held.borrow();
-        (Rc::clone(&held.0), held.1)
-    })
+/// The window's class words.
+pub(crate) fn pass_words() -> Words {
+    PASS_CLASSES.with(|held| held.borrow().0)
 }
 
 /// Whether a finger is what reaches this screen, as the pass settled it.
 pub(crate) fn pass_is_touch() -> bool {
-    PASS_CLASSES.with(|held| {
-        held.borrow()
-            .0
-            .iter()
-            .any(|word| word == balaur_core::tags::TOUCH)
-    })
+    pass_words().list().contains(&balaur_core::tags::TOUCH)
 }
 
 /// The wash a control takes under the pointer when its theme dresses no state
@@ -665,11 +689,7 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .map(|value| four_of(Some(value))),
         stroke_width: number(k::STROKE_WIDTH),
         dashed: body.get(k::DASHED).and_then(toml::Value::as_bool),
-        image: body
-            .get(k::IMAGE)
-            .and_then(toml::Value::as_str)
-            .filter(|path| !path.is_empty())
-            .map(SmolStr::new),
+        image: path_of(body, k::IMAGE),
         slice: four_of(body.get(k::SLICE)),
         text_color: colour(k::TEXT_COLOR),
         plate: colour(k::ICON_FILL),
@@ -700,11 +720,11 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .and_then(toml::Value::as_table)
             .map(|table| Rc::new(checked_style(table, tokens, what))),
         classes: class_styles(body, tokens, what),
-        arrow: body
-            .get(k::ARROW)
-            .and_then(toml::Value::as_str)
-            .filter(|path| !path.is_empty())
-            .map(SmolStr::new),
+        fit: words_of(body, k::FIT),
+        show_text: body.get(k::SHOW_TEXT).and_then(toml::Value::as_bool),
+        show_icon: body.get(k::SHOW_ICON).and_then(toml::Value::as_bool),
+        truncate: body.get(k::TRUNCATE).and_then(toml::Value::as_bool),
+        arrow: path_of(body, k::ARROW),
         body: body
             .get(k::BODY)
             .and_then(toml::Value::as_table)
@@ -726,6 +746,26 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         }),
         scale: number(k::SCALE).filter(|factor| *factor > 0.0),
     }
+}
+
+/// A project path a table names, none for an empty one.
+fn path_of(body: &toml::Table, key: &str) -> Option<SmolStr> {
+    body.get(key)
+        .and_then(toml::Value::as_str)
+        .filter(|path| !path.is_empty())
+        .map(SmolStr::new)
+}
+
+/// A list of words a table names, as `fit` does.
+fn words_of(body: &toml::Table, key: &str) -> Option<Rc<[SmolStr]>> {
+    let words = body.get(key)?.as_array()?;
+    Some(
+        words
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .map(SmolStr::new)
+            .collect(),
+    )
 }
 
 /// A table's `text_transform`, as CSS's; a word it is not warns.
@@ -765,17 +805,29 @@ fn checked_style(table: &toml::Table, tokens: &Tokens, what: &str) -> Style {
     }
 }
 
-/// The `[kind.<class>]` tables, in the order they override: the input class,
-/// then the height, then the width.
+/// The `[kind.<word>]` tables: every table an entry holds that is not one
+/// of its own (a state, `checked`, `body`, `gradient`) is a class word's. A
+/// theme is read before the project's own words are, so they are not checked
+/// here; the order they override in is the words', read as they are folded.
 fn class_styles(
     body: &toml::Table,
     tokens: &Tokens,
     what: &str,
 ) -> Option<Rc<Vec<(SmolStr, Style)>>> {
-    let found: Vec<(SmolStr, Style)> = crate::widget::schema::CLASS_KEYS
-        .into_iter()
-        .filter_map(|word| {
-            let table = body.get(word)?.as_table()?;
+    const OWN: [&str; 7] = [
+        st::HOVER,
+        st::ACTIVE,
+        st::DISABLED,
+        st::FOCUS,
+        k::CHECKED,
+        k::BODY,
+        crate::vocabulary::looks::GRADIENT,
+    ];
+    let found: Vec<(SmolStr, Style)> = body
+        .iter()
+        .filter(|(key, _)| !OWN.contains(&key.as_str()))
+        .filter_map(|(word, table)| {
+            let table = table.as_table()?;
             Some((SmolStr::new(word), style_of(table, tokens, what)))
         })
         .collect();
@@ -936,8 +988,8 @@ pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
     visuals.override_text_color = Some(ink);
 }
 
-pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
-    let settled = theme.resolved(&widget.kind, &widget.role);
+pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget, words: Words) -> Rc<Style> {
+    let settled = theme.resolved_in(&widget.kind, &widget.role, words);
     // The theme's own answer, shared, unless this widget overrides part of
     // it — which most do not, and a screen of widgets is mostly one of a few
     // styles repeated.

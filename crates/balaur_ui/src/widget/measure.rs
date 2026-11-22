@@ -8,9 +8,9 @@
 use crate::vocabulary::words as w;
 use crate::widget::arena::Placed;
 use crate::widget::arrange::padding_of;
-use crate::widget::layer::caption;
 use crate::widget::node::{Widget, lays_out};
 use crate::widget::paint::Brush;
+use crate::widget::text::caption;
 use crate::widget::theme::WidgetTheme;
 use balaur_core::Engine;
 use egui::vec2;
@@ -243,7 +243,7 @@ impl<'a> Measure<'a> {
         let look = crate::widget::arena::look_of(self.arena, index, theme);
         let slant = crate::widget::theme::slanted(&look.style, (widget, look.project));
         let face = (&look.font, look.ink, slant);
-        let caption = caption(self.eng, widget);
+        let caption = crate::widget::text::shown_caption(self.eng, widget, &look.style);
         match widget.kind.as_str() {
             w::CHECKBOX | w::SWITCH => {
                 let text = (!caption.is_empty()).then(|| {
@@ -657,18 +657,19 @@ impl<'a> Measure<'a> {
         let spinner = widget
             .loading
             .then(|| egui::Vec2::splat(crate::widget::text::icon_px(widget, style, font.size)));
-        let mark = (!widget.loading && !widget.icon.is_empty())
-            .then(|| crate::widget::icons::Icons::of(self.eng, &look).glyph(&widget.icon))
-            .flatten()
-            .map_or(spinner.unwrap_or(egui::Vec2::ZERO), |glyph| {
-                let face = egui::FontId::new(
-                    crate::widget::text::icon_px(widget, style, font.size),
-                    look.icon.clone(),
-                );
-                self.painter
-                    .line_of(glyph, face, egui::Color32::WHITE)
-                    .size()
-            });
+        let mark =
+            (!widget.loading && !widget.icon.is_empty() && crate::widget::text::shows_icon(style))
+                .then(|| crate::widget::icons::Icons::of(self.eng, &look).glyph(&widget.icon))
+                .flatten()
+                .map_or(spinner.unwrap_or(egui::Vec2::ZERO), |glyph| {
+                    let face = egui::FontId::new(
+                        crate::widget::text::icon_px(widget, style, font.size),
+                        look.icon.clone(),
+                    );
+                    self.painter
+                        .line_of(glyph, face, egui::Color32::WHITE)
+                        .size()
+                });
         let pic = self.picture(
             widget,
             style,
@@ -717,7 +718,9 @@ impl<'a> Measure<'a> {
                 pic.x + mark.x + gap * before + tail_gap + tail.x
             };
             let inside = if width > 0.0 { width - pad.x } else { 0.0 };
-            if let Some(room) = crate::widget::text::caption_room(widget, text.x, inside, taken) {
+            if let Some(room) =
+                crate::widget::text::caption_room((widget, style), text.x, inside, taken)
+            {
                 let caption = caption(self.eng, widget);
                 text = self.caption_in(index, &caption, widget, theme, room);
             }
@@ -868,7 +871,8 @@ impl<'a> Measure<'a> {
     }
 
     fn text(&self, index: usize, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let caption = caption(self.eng, widget);
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
+        let caption = crate::widget::text::shown_caption(self.eng, widget, &look.style);
         if caption.is_empty() {
             return egui::Vec2::ZERO;
         }

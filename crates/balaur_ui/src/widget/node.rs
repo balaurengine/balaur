@@ -245,6 +245,9 @@ pub struct Widget {
     pub deadzone: f32,
     /// A `[roles.<name>]` entry of the theme, taken over the kind's own style.
     pub role: SmolStr,
+    /// The class words its `classes` names, in force for it and what it
+    /// lays out.
+    pub(crate) named_classes: Vec<SmolStr>,
     /// Text shown after the pointer rests on the widget.
     pub tooltip: SmolStr,
     /// A localization key shown in place of `tooltip`.
@@ -341,6 +344,9 @@ pub(crate) struct Layout {
     pub(crate) areas: Vec<SmolStr>,
     pub(crate) row: SmolStr,
     pub(crate) column: SmolStr,
+    /// The class words a container takes in order until what it holds fits
+    /// on one line; empty takes its theme's.
+    pub(crate) fit: Vec<SmolStr>,
 }
 
 /// A float that hashes and compares by its bits, so a layout's fields can

@@ -157,6 +157,7 @@ being built, marked `done`, never back in the shipped one.
 | **Accessibility** — a screen reader on the web and Android to match desktop and iOS, captions, and colour-blind-safe defaults. | 0.6 | no plan |
 | **A controller-only shell** — directional focus between widgets, an on-screen keyboard, safe-area insets applied to layout, and button glyphs that follow the pad. | 0.8 | no plan |
 | **A layout that fits the screen** — width, height and touch classes that widgets, themes and settings answer to, over one scale that grows a control and its bar together. | 0.6 done | no plan |
+| **Rows that fit by giving up detail** — a project's own class words, put in force by a widget's `classes` or a container's measured `fit`. | 0.2 done | no plan |
 
 ## Rendering
 

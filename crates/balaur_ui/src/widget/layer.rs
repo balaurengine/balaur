@@ -20,7 +20,7 @@ use crate::widget::focus::{
     advance, focus_before, focus_moved, focus_stops, keyboard_move, keyboard_side, reachable,
     shortcuts,
 };
-use crate::widget::node::{UiFocus, Widget, WidgetLayerConfig};
+use crate::widget::node::{UiFocus, WidgetLayerConfig};
 use crate::widget::paint::Brush;
 use crate::widget::theme::{Pointer, Style, WidgetState, WidgetTheme, face, rich, theme_of};
 
@@ -788,13 +788,6 @@ pub(crate) fn draw_one(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// What a widget shows: its key, translated in the locale in force, or its
 /// literal text. Resolved every frame, which is why a locale switch shows on
 /// the next one without anything having to be told.
-pub(crate) fn caption(eng: &Engine, widget: &Widget) -> SmolStr {
-    if widget.text_key.is_empty() {
-        return widget.text.clone();
-    }
-    balaur_core::strings::plain(eng, &widget.text_key)
-}
-
 /// Everything a widget kind draws, with the theme already resolved.
 fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let disabled = at.arena[index].widget.disabled;
@@ -914,13 +907,15 @@ fn pointer_state(ui: &egui::Ui, disabled: bool) -> (bool, bool) {
 fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let widget = &placed.widget;
-    let caption = caption(at.eng, widget);
     let look = at.look(index);
+    let caption = crate::widget::text::shown_caption(at.eng, widget, &look.style);
     let (color, font) = (look.ink, look.font.clone());
-    let (tooltip, entity) = (
-        crate::widget::text::tooltip_of(at.eng, widget),
-        placed.entity,
-    );
+    // A caption the theme hides is the tooltip, where none is stated.
+    let mut tooltip = crate::widget::text::tooltip_of(at.eng, widget);
+    if tooltip.is_empty() && look.style.show_text == Some(false) {
+        tooltip = crate::widget::text::caption(at.eng, widget);
+    }
+    let entity = placed.entity;
     // The pointer over it: the node's own word, else the theme's, none off.
     let themed = look.style.cursor.as_deref();
     let cursor = match (widget.cursor.is_empty(), widget.disabled) {

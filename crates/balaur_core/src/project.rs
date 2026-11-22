@@ -220,6 +220,13 @@ fn setting_bool(eng: &Engine, path: &str, fallback: bool) -> bool {
         .unwrap_or(fallback)
 }
 
+fn setting_strings(eng: &Engine, path: &str) -> Vec<String> {
+    let value = crate::settings::get(eng, path);
+    let items = value.as_ref().and_then(toml::Value::as_array);
+    let words = items.into_iter().flatten().filter_map(toml::Value::as_str);
+    words.map(str::to_owned).collect()
+}
+
 fn setting_string(eng: &Engine, path: &str) -> String {
     crate::settings::get(eng, path)
         .as_ref()
@@ -251,6 +258,8 @@ pub struct UiSettings {
     pub system_text_size: bool,
     /// Where this project puts the lines between the screen classes.
     pub classes: crate::facts::ClassLines,
+    /// The project's own class words, in the order their tables override.
+    pub class_words: Vec<String>,
 }
 
 impl Default for UiSettings {
@@ -262,6 +271,7 @@ impl Default for UiSettings {
             scale: 1.0,
             system_text_size: true,
             classes: crate::facts::ClassLines::default(),
+            class_words: Vec::new(),
         }
     }
 }
@@ -294,6 +304,7 @@ impl UiSettings {
                     fallback.classes.short_below,
                 ),
             },
+            class_words: setting_strings(eng, "ui/classes"),
         }
     }
 }

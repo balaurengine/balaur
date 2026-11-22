@@ -43,6 +43,8 @@ pub(crate) struct WidgetLayout {
     /// How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one
     #[property(min = 0.0)]
     pub(crate) splitter_width: f32,
+    /// Class words, in order, that a `row` or a `column` puts in force one after another until what it holds fits on one line along its direction, the ones before kept: `["icon", "small", "name"]`. What it holds then answers each by its role's table of that name. Keeps it on one line, whatever `wrap_children` says. Empty takes its role's `fit`
+    pub(crate) fit: Vec<SmolStr>,
 }
 
 impl Beside for WidgetLayout {
@@ -61,6 +63,7 @@ impl Beside for WidgetLayout {
         direction => widget.layout.direction = held.direction.0.clone();
         reverse => widget.reverse = held.reverse;
         splitter_width => widget.handle = held.splitter_width;
+        fit => widget.layout.fit.clone_from(&held.fit);
     }
 }
 

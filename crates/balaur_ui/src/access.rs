@@ -259,7 +259,7 @@ fn node_of(eng: &Engine, widget: &Widget, scale: f64, entity: Entity) -> Node {
             y1: f64::from(rect.max.y) * scale,
         });
     }
-    let caption = crate::widget::layer::caption(eng, widget);
+    let caption = crate::widget::text::caption(eng, widget);
     let kind = widget.kind.as_str();
     match kind {
         // A field's text is what it holds; what it is called is elsewhere.

@@ -53,7 +53,7 @@ pub(crate) fn text_request<'a>(
         width,
         // A grown child was cut at its box above; `truncate` says end that
         // cut with an ellipsis rather than mid-glyph.
-        truncate: widget.truncate,
+        truncate: cuts(widget, style),
         align: match crate::widget::theme::text_align_of(style, widget) {
             w::CENTER => balaur_text::Align::Center,
             w::END => balaur_text::Align::End,
@@ -137,10 +137,21 @@ pub(crate) fn shaped_caption(
 /// The width a `wrap` or `truncate` caption is shaped in: what `width` leaves
 /// once `taken` (padding, picture, icon, trailing text and their gaps) is out.
 /// `None` when the caption fits on one line, or asks for neither.
-pub(crate) fn caption_room(widget: &Widget, natural: f32, width: f32, taken: f32) -> Option<f32> {
+pub(crate) fn caption_room(
+    (widget, style): (&Widget, &crate::widget::theme::Style),
+    natural: f32,
+    width: f32,
+    taken: f32,
+) -> Option<f32> {
     let room = width - taken;
-    ((widget.wrap || widget.truncate) && width > 0.0 && natural > room + 0.5)
+    ((widget.wrap || cuts(widget, style)) && width > 0.0 && natural > room + 0.5)
         .then_some(room.max(1.0))
+}
+
+/// Whether a caption past its room is cut with an ellipsis: its own
+/// `truncate`, or its theme's.
+pub(crate) fn cuts(widget: &Widget, style: &crate::widget::theme::Style) -> bool {
+    widget.truncate || style.truncate == Some(true)
 }
 
 /// What a line may run past its column before it is cut: a layout's sums
@@ -161,7 +172,7 @@ fn label_width(
     // (a language's name in a card two to a phone's row, 2026-10-20).
     let boxed = if widget.width > 0.0 {
         widget.width
-    } else if widget.grow > 0.0 || widget.truncate {
+    } else if widget.grow > 0.0 || cuts(widget, style) {
         assigned
     } else {
         0.0
@@ -176,7 +187,7 @@ fn label_width(
     // past its `SLACK`, as `caption_room` and `elided` allow.
     let width = if widget.wrap {
         Some(room.max(1.0))
-    } else if widget.truncate && stated > 0.0 {
+    } else if cuts(widget, style) && stated > 0.0 {
         Some(stated + SLACK)
     } else {
         None
@@ -295,7 +306,7 @@ fn elided(
     width: Option<f32>,
     (font, style): (&egui::FontId, &crate::widget::theme::Style),
 ) -> bool {
-    widget.truncate
+    cuts(widget, style)
         && widget.egui.show_tooltip_when_elided
         && width.is_some_and(|room| {
             let whole = text_request((widget, project), caption, None, font, style);
@@ -536,4 +547,29 @@ pub(crate) fn tooltip_of(eng: &balaur_core::Engine, widget: &Widget) -> smol_str
         return widget.tooltip.clone();
     }
     balaur_core::strings::plain(eng, &widget.tooltip_key)
+}
+
+/// What a widget's caption draws as: nothing where its theme shows its icon
+/// alone (`show_text = false`), the caption then being its tooltip.
+pub(crate) fn shown_caption(
+    eng: &balaur_core::Engine,
+    widget: &Widget,
+    style: &crate::widget::theme::Style,
+) -> smol_str::SmolStr {
+    if style.show_text == Some(false) {
+        return smol_str::SmolStr::default();
+    }
+    caption(eng, widget)
+}
+
+/// Whether a widget's theme draws its icon (`show_icon`, unset draws it).
+pub(crate) fn shows_icon(style: &crate::widget::theme::Style) -> bool {
+    style.show_icon != Some(false)
+}
+
+pub(crate) fn caption(eng: &balaur_core::Engine, widget: &Widget) -> smol_str::SmolStr {
+    if widget.text_key.is_empty() {
+        return widget.text.clone();
+    }
+    balaur_core::strings::plain(eng, &widget.text_key)
 }

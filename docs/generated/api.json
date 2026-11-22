@@ -7783,6 +7783,7 @@
       "border",
       "theme",
       "role",
+      "classes",
       "fill",
       "stroke",
       "text_color",
@@ -7906,7 +7907,8 @@
       "min_lines",
       "direction",
       "reverse",
-      "splitter_width"
+      "splitter_width",
+      "fit"
     ],
     "widget_list": [
       "grid_columns",
@@ -17609,6 +17611,16 @@
         "group": "layout",
         "type": "vec4"
       },
+      "classes": {
+        "default": [],
+        "description": "Class words this widget puts in force for itself and everything it lays out, beside the screen's: the project's own, which `[ui] classes` declares. A theme's role answers one with a table of its name, as it answers `narrow`, and so does a widget's own",
+        "group": "paint",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
+      },
       "constrain": {
         "default": false,
         "description": "Keep a `movable` root inside its surface while it is dragged",
@@ -18554,6 +18566,15 @@
           "right_to_left"
         ],
         "type": "enum"
+      },
+      "fit": {
+        "default": [],
+        "description": "Class words, in order, that a `row` or a `column` puts in force one after another until what it holds fits on one line along its direction, the ones before kept: `[\"icon\", \"small\", \"name\"]`. What it holds then answers each by its role's table of that name. Keeps it on one line, whatever `wrap_children` says. Empty takes its role's `fit`",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       },
       "gap": {
         "default": [
@@ -27734,6 +27755,21 @@
         "max": 8192.0,
         "min": 1.0,
         "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "ui/classes",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": [],
+        "help": "The project's own class words, beside the screen's (`touch`, `pointer`, `short`, `tall`, `narrow`, `medium`, `wide`), in the order their tables override: later wins. A widget's `classes` puts one in force for itself and what it lays out, a container's `fit` puts them in force by measuring, and a theme's role or a scene's widget answers one with a table of that name, as it answers `narrow`. A table named for a word declared nowhere is refused.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
       }
     },
     {

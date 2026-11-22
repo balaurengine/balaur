@@ -2502,7 +2502,7 @@ Announced from a node carrying `shortcuts`:
 
 ### `widget`
 
-`ui` · 60 properties
+`ui` · 61 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A click on one is its node's `pointer_click`, which a `bindings` row or its script's `on_pointer_click` answers; a `label`, a `panel` or an `image` senses a click only where one is heard.
 
@@ -2545,6 +2545,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>border</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The width of this widget&#x27;s outline on each side, left, top, right and bottom, in design pixels: the layout keeps it clear inside the edge as it keeps `padding`, and the `stroke` is painted in exactly that band. All zero leaves the stroke at the theme&#x27;s `stroke_width`, over the padding</td></tr>
 <tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
 <tr><td><code>role</code></td><td>string</td><td>—</td><td>A `[roles.&lt;name&gt;]` entry of the widget&#x27;s theme, taken over its kind&#x27;s own style; the one place a look is named rather than spelled</td></tr>
+<tr><td><code>classes</code></td><td>list of string</td><td><code>[]</code></td><td>Class words this widget puts in force for itself and everything it lays out, beside the screen&#x27;s: the project&#x27;s own, which `[ui] classes` declares. A theme&#x27;s role answers one with a table of its name, as it answers `narrow`, and so does a widget&#x27;s own</td></tr>
 <tr><td><code>fill</code></td><td>string</td><td>—</td><td>What is painted behind this widget, an `image`&#x27;s picture included, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
 <tr><td><code>stroke</code></td><td>string</td><td>—</td><td>The outline around this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
 <tr><td><code>text_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Text color; fully transparent takes the theme&#x27;s colour for this widget&#x27;s role or kind, and failing that a near-white</td></tr>
@@ -2800,7 +2801,7 @@ The rows an `image` reads: its picture, the part of it drawn and how it sits in 
 
 ### `widget_layout`
 
-`ui` · 9 properties
+`ui` · 10 properties
 
 The rows a container reads: how it lays out what is in it.
 
@@ -2816,6 +2817,7 @@ The rows a container reads: how it lays out what is in it.
 <tr><td><code>direction</code></td><td>enum</td><td><code>left_to_right</code></td><td>Which way a row and a grid&#x27;s columns run: `right_to_left` starts them at the right edge One of <code>left_to_right</code>, <code>right_to_left</code>.</td></tr>
 <tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Lay a `row` or a `column`&#x27;s children out from its far end</td></tr>
 <tr><td><code>splitter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
+<tr><td><code>fit</code></td><td>list of string</td><td><code>[]</code></td><td>Class words, in order, that a `row` or a `column` puts in force one after another until what it holds fits on one line along its direction, the ones before kept: `[&quot;icon&quot;, &quot;small&quot;, &quot;name&quot;]`. What it holds then answers each by its role&#x27;s table of that name. Keeps it on one line, whatever `wrap_children` says. Empty takes its role&#x27;s `fit`</td></tr>
 </tbody>
 </table>
 
