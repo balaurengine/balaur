@@ -1,0 +1,97 @@
+//! The project's files against the editor: listings that reach into
+//! subfolders, and an open scene written under it.
+
+use disk;
+use editor;
+use history;
+use model;
+use selftest;
+use shell;
+use util;
+use words::fields;
+use words::inspector_fields;
+
+const NESTED_SCENES: str = "scenes/selftest_nested";
+const NESTED_SCRIPTS: str = "scripts/selftest_nested";
+const NESTED_SCENE: str = "scenes/selftest_nested/deeper/inner.toml";
+const NESTED_SCRIPT: str = "scripts/selftest_nested/inner.bs";
+const HIDDEN_SCRIPT: str = "scripts/selftest_nested/.hidden/inner.bs";
+const PARENT: str = "parent";
+const OUTSIDE: str = "SelftestOutside";
+const OUTSIDE_AGAIN: str = "SelftestOutsideAgain";
+
+/// `--state test:nested_files`: a scene or a script in a subfolder is listed
+/// with the rest, by its path, and one in a dot folder is not.
+pub fn nested_files(state: &mut editor::State) {
+    let root = state.game_root + "/";
+    if !fs::exists(root + "scenes") || !fs::exists(root + "scripts") {
+        log::info("script: nested_files skip, the project has no scenes/ or scripts/");
+        return;
+    }
+    fs::create_directory(root + util::parent_directory(NESTED_SCENE));
+    fs::create_directory(root + util::parent_directory(HIDDEN_SCRIPT));
+    fs::write(root + NESTED_SCENE, "");
+    fs::write(root + NESTED_SCRIPT, "");
+    fs::write(root + HIDDEN_SCRIPT, "");
+    model::forget(state);
+    let scenes = disk::scene_files(state);
+    let scripts = shell::script_files(state);
+    selftest::check(scenes.len() > 1, "the project's own scenes are listed too");
+    selftest::check(util::contains(scenes, NESTED_SCENE), "a scene two folders down is listed by its path");
+    selftest::check(util::contains(scripts, NESTED_SCRIPT), "a script in a subfolder is listed by its path");
+    selftest::check(!util::contains(scripts, HIDDEN_SCRIPT), "and one in a dot folder is not");
+    fs::remove(root + NESTED_SCENES);
+    fs::remove(root + NESTED_SCRIPTS);
+    model::forget(state);
+    selftest::check(!util::contains(disk::scene_files(state), NESTED_SCENE), "a removed folder's scenes leave the list");
+    log::info("selftest nested files: done");
+}
+
+// The open scene's file with one more node under its first, as another tool
+// would write it.
+fn write_outside(state: editor::State, name: str) {
+    let doc = toml::parse(fs::read(state.scene_path).or(""));
+    let nodes = doc[inspector_fields::NODES];
+    nodes.push({ fields::ID: name.to_lower(), fields::NAME: name, PARENT: nodes[0][fields::ID] });
+    fs::write(state.scene_path, toml::encode(doc));
+}
+
+fn named(state: editor::State, name: str) -> bool {
+    for found in state.nodes {
+        if found.is_valid() && found.name() == name {
+            return true;
+        }
+    }
+    false
+}
+
+/// `--state test:scene_on_disk`: the watcher's word that the open scene's file
+/// changed reads it again when nothing is unsaved, keeps the edits when
+/// something is, and is nothing for the editor's own write.
+pub fn scene_on_disk(state: &mut editor::State) {
+    if state.scene_root == nil {
+        log::info("script: scene_on_disk skip, no scene is open");
+        return;
+    }
+    let before = fs::read(state.scene_path).or("");
+    let heard = [state.scene_path];
+    selftest::check(!named(state, OUTSIDE), "the control: the scene has no node of the test's yet");
+    write_outside(state, OUTSIDE);
+    disk::scene_heard(state, heard);
+    selftest::check(named(state, OUTSIDE), "a clean scene written by another tool is read again");
+    selftest::check(!history::dirty(state), "and is as saved");
+
+    let count = state.nodes.len();
+    model::write(state);
+    disk::scene_heard(state, heard);
+    selftest::check(state.nodes.len() == count, "the editor's own write reads nothing back");
+
+    history::record(state, "selftest edit");
+    write_outside(state, OUTSIDE_AGAIN);
+    selftest::expect_warning("changed on disk; the unsaved edits here stay");
+    disk::scene_heard(state, heard);
+    selftest::check(!named(state, OUTSIDE_AGAIN) && history::dirty(state), "a scene with edits keeps them over the file");
+
+    fs::write(state.scene_path, before);
+    log::info("selftest scene on disk: done");
+}

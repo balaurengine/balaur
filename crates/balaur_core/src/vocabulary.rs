@@ -47,6 +47,7 @@ pub(crate) mod words {
     }
 
     pub(crate) mod file_types {
+        pub(crate) const BIN: &str = "bin";
         pub(crate) const FLAC: &str = "flac";
         pub(crate) const FNT: &str = "fnt";
         pub(crate) const GLB: &str = "glb";
@@ -58,8 +59,10 @@ pub(crate) mod words {
         pub(crate) const OGG: &str = "ogg";
         pub(crate) const PNG: &str = "png";
         pub(crate) const SVG: &str = "svg";
+        pub(crate) const TOML: &str = "toml";
         pub(crate) const WAV: &str = "wav";
         pub(crate) const WEBP: &str = "webp";
+        pub(crate) const WESL: &str = "wesl";
     }
 
     pub(crate) mod locales {

@@ -36,6 +36,7 @@ const DEBUGGER: str = "debugger";
 const OUTPUT: str = "output";
 internal const RELOAD: str = "reload";
 const SCRIPTS: str = "scripts";
+const SCRIPT_FILE: str = ".bs";
 const SPLIT: str = "split";
 
 pub class DebugState {
@@ -522,16 +523,9 @@ pub fn attach_script(state: &mut editor::State) {
     set_script_path(state, "scripts/" + node.name().to_lower() + ".bs");
 }
 
-/// Every `.bs` under scripts/, for the inspector's picker.
+/// Every `.bs` under scripts/ and its subfolders, for the inspector's picker.
 pub fn script_files(state: &mut editor::State) -> [str] {
-    let files: [str] = [];
-    for file in model::list(state, SCRIPTS) {
-        if !file[project_fields::IS_DIR].as_bool() && file[fields::NAME].as_str().ends_with(".bs") {
-            files.push("scripts/" + file[fields::NAME].as_str());
-        }
-    }
-    files.sort();
-    files
+    disk::files_under(state, SCRIPTS, SCRIPT_FILE)
 }
 
 /// Take the script off the selected node. The file stays.

@@ -3,6 +3,7 @@
 
 use commands;
 use defs;
+use disk;
 use editor;
 use icons;
 use model;
@@ -80,7 +81,7 @@ fn lines(state: &mut editor::State) -> [Line] {
     }
     // One line per scene file, the way the channel views are one per
     // channel: a prefab is placed by name rather than through a picker.
-    for rel in model::scene_files(state) {
+    for rel in disk::scene_files(state) {
         if rel != state.scene_rel {
             list.push(line("Instantiate " + rel, icons::ui(icons::INSTANCE), run_instance, rel));
         }

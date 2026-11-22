@@ -354,6 +354,9 @@ pub class State {
     internal game_name: str = "",
     internal scene_rel: str = "",
     internal scene_path: str = "",
+    // The open scene's file as this editor last read or wrote it: anything
+    // else the watcher reports there was written by something else.
+    internal scene_disk: str = "",
     internal script_profiling: bool = false,
     internal history: history::History,
     internal import_texture: importer::Held,
@@ -940,14 +943,20 @@ impl Editor {
 
     /// Files changed under a folder the editor follows: the project's cached
     /// reads go, the Assets tab says what is there now, a script open in the
-    /// code sheet follows, and the recordings list is read again.
+    /// code sheet and the open scene follow, and the recordings list is read
+    /// again.
     pub fn on_files_changed(paths: any) {
         let named = util::list_or_empty(paths);
-        if model::heard(self.state, named) {
+        session::heard(self.state, named);
+        let game = disk::of_game(self.state, named);
+        if named.len() > 0 && game.len() == 0 {
+            return;
+        }
+        if model::heard(self.state, game) {
             signals::changed(self.state, changes::ASSETS);
         }
-        session::heard(self.state, named);
-        disk::heard(self.state, named);
+        disk::heard(self.state, game);
+        disk::scene_heard(self.state, game);
     }
 
     /// The replay moved: loaded, played, paused, sought, ran out or unloaded.

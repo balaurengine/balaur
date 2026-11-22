@@ -43,6 +43,9 @@ impl Aside {
 pub(super) struct Burst {
     keys: HashSet<String>,
     named: HashSet<String>,
+    /// Every other file a run derives something from, which the asset cache
+    /// and every consumer of its generation read again.
+    content: HashSet<String>,
     /// The watcher lost track: anything may have changed.
     rescan: bool,
     first: Option<Instant>,
@@ -60,6 +63,7 @@ impl BsHost {
             burst.named.insert(whole);
         }
         if extension != Some(EXTENSION) {
+            self.hear_content(burst, aside, path);
             return;
         }
         let key = if let Some(whole) = aside.and_then(|aside| aside.spell(path)) {
@@ -77,6 +81,42 @@ impl BsHost {
             return;
         };
         burst.keys.insert(key);
+    }
+
+    /// A file that is not a script, under the project or under a folder
+    /// followed for every file. One under a dot folder is a tool's: a
+    /// checkout's `.git` moves on every commit and nothing in a game reads it.
+    fn hear_content(&self, burst: &mut Burst, aside: Option<&Aside>, path: &Path) {
+        let (rel, key) = if let Some(aside) = aside {
+            if !aside.extensions.is_empty() {
+                return;
+            }
+            let Ok(rel) = path.strip_prefix(&aside.at) else {
+                return;
+            };
+            (rel, aside.spell(path))
+        } else if let Ok(rel) = path.strip_prefix(&self.inner.watch_root) {
+            (rel, Some(key_of(&rel.to_string_lossy())))
+        } else if let Some((rel, folder)) = self
+            .inner
+            .watch_mounts
+            .iter()
+            .find_map(|(at, folder)| Some((path.strip_prefix(at).ok()?, folder)))
+        {
+            (rel, Some(format!("{folder}/{}", key_of(&rel.to_string_lossy()))))
+        } else {
+            return;
+        };
+        let hidden = rel
+            .components()
+            .any(|part| part.as_os_str().to_string_lossy().starts_with('.'));
+        let Some(key) = key.filter(|_| !hidden) else {
+            return;
+        };
+        if aside.is_none() {
+            burst.named.insert(key.clone());
+        }
+        burst.content.insert(key);
     }
 
     #[allow(
@@ -137,6 +177,20 @@ impl BsHost {
         let Some(burst) = self.settled_burst() else {
             return vec![];
         };
+        if burst.rescan || !burst.content.is_empty() {
+            let mut content: Vec<String> = if burst.rescan {
+                vec![]
+            } else {
+                burst.content.into_iter().collect()
+            };
+            content.sort_unstable();
+            match content.as_slice() {
+                [] => tracing::info!("hot reloaded every file"),
+                [one] => tracing::info!("hot reloaded {one}"),
+                many => tracing::info!("hot reloaded {} files", many.len()),
+            }
+            balaur_core::assets::changed_on_disk(&self.inner.engine, &content);
+        }
         if burst.rescan || !burst.named.is_empty() {
             let mut paths: Vec<String> = if burst.rescan {
                 vec![]
@@ -144,13 +198,11 @@ impl BsHost {
                 burst.named.into_iter().collect()
             };
             paths.sort_unstable();
-            if !self.inner.watch_asides.borrow().is_empty() {
-                balaur_core::events::emit(
-                    &self.inner.engine,
-                    balaur_core::events::FILES_CHANGED,
-                    Value::List(paths.into_iter().map(Value::Str).collect()),
-                );
-            }
+            balaur_core::events::emit(
+                &self.inner.engine,
+                balaur_core::events::FILES_CHANGED,
+                Value::List(paths.into_iter().map(Value::Str).collect()),
+            );
         }
         let remembered = self.remembered_keys();
         let mut keys: Vec<String> = if burst.rescan {

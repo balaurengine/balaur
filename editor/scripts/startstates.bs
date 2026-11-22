@@ -26,6 +26,7 @@ use showcase;
 use signals;
 use statemachine;
 use suite;
+use tests::disk_checks;
 use tests::panel_checks;
 use tests::project_checks;
 use tests::scene_checks;
@@ -138,6 +139,8 @@ fn states() -> any {
         "test:tools": project_checks::tooling,
         "test:recordings": project_checks::sessions,
         "test:cached_reads": project_checks::cached_reads,
+        "test:nested_files": disk_checks::nested_files,
+        "test:scene_on_disk": disk_checks::scene_on_disk,
         "test:theme_switch": shell_checks::theme_switch,
         "test:theme_editing": shell_checks::theme_editing,
         "test:sheet_close": shell_checks::sheet_closing,

@@ -3,6 +3,7 @@
 use anim;
 use arrange;
 use defs;
+use disk;
 use editor;
 use icons;
 use lint;
@@ -20,7 +21,6 @@ use words::form_fields;
 use words::glyphs;
 use words::hooks;
 use words::layout_fields;
-use words::project_fields;
 use words::roles;
 use words::tabs;
 
@@ -152,12 +152,9 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
 
 fn secondary_scripts(state: &mut editor::State) -> Secondary {
     let rows: [Item] = [];
-    for file in model::list(state, SCRIPTS) {
-        let name = file[fields::NAME].as_str();
-        if !file[project_fields::IS_DIR].as_bool() && name.ends_with(".bs") {
-            let rel = "scripts/" + name;
-            rows.push(item(glyphs::CODE, name, "{model::line_count(state, rel)} L", rel, tabs::SCRIPT, -1, rel));
-        }
+    for rel in shell::script_files(state) {
+        let name = rel.slice(SCRIPTS.len() + 1, rel.len());
+        rows.push(item(glyphs::CODE, name, "{model::line_count(state, rel)} L", rel, tabs::SCRIPT, -1, rel));
     }
     Secondary { title: "Scripts", rows: rows }
 }
@@ -220,12 +217,9 @@ fn secondary_widgets(state: &mut editor::State) -> Secondary {
 
 fn secondary_scenes(state: &mut editor::State) -> Secondary {
     let rows: [Item] = [];
-    for file in model::list(state, SCENES) {
-        if !file[project_fields::IS_DIR].as_bool() {
-            let name = file[fields::NAME].as_str();
-            let rel = "scenes/" + name;
-            rows.push(item(glyphs::CUBE, name, if state.scene_rel == rel { OPEN } else { "" }, rel, tabs::SCENE, -1, rel));
-        }
+    for rel in disk::scene_files(state) {
+        let name = rel.slice(SCENES.len() + 1, rel.len());
+        rows.push(item(glyphs::CUBE, name, if state.scene_rel == rel { OPEN } else { "" }, rel, tabs::SCENE, -1, rel));
     }
     Secondary { title: "Scenes", rows: rows }
 }

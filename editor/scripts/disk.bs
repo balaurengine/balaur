@@ -1,10 +1,12 @@
-//! A code buffer against the file under it. What changes on disk while the
-//! editor is open is taken up where nothing is unsaved and asked about where
-//! something is, so neither side is written over without a word.
+//! The project's files against what the editor holds of them: the listings,
+//! the code buffers and the open scene. What changes on disk while the editor
+//! is open is taken up where nothing is unsaved and asked about or warned of
+//! where something is, so neither side is written over without a word.
 
 use center;
 use editor;
 use form;
+use history;
 use lint;
 use model;
 use session;
@@ -12,12 +14,15 @@ use shell;
 use signals;
 use util;
 use window;
+use words::fields;
 use words::project_fields;
 use words::roles;
 
 internal const SHEET: str = "disk_changed";
 const SCRIPT: str = ".bs";
 const SHADER: str = ".wesl";
+const SCENES: str = "scenes";
+const SCENE_FILE: str = ".toml";
 const LABEL_WIDTH: float = 0.0;
 // Rows on show before the list scrolls.
 const IN_VIEW: int = 10;
@@ -30,6 +35,88 @@ const LISTED: int = 200;
 pub fn follow(state: &mut editor::State) {
     if state.start_states == "" && state.game_root != "" {
         engine::watch(state.game_root, []);
+    }
+}
+
+/// Every file ending in `suffix` under `rel` and its subfolders but dot ones, sorted.
+pub fn files_under(state: &mut editor::State, rel: str, suffix: str) -> [str] {
+    let out: [str] = [];
+    for entry in model::list(state, rel) {
+        let name = util::map_or_empty(entry)[fields::NAME].as_str();
+        if name.starts_with(".") {
+            continue;
+        }
+        let path = rel + "/" + name;
+        if entry[project_fields::IS_DIR].as_bool() {
+            for inner in files_under(state, path, suffix) {
+                out.push(inner);
+            }
+        } else if name.ends_with(suffix) {
+            out.push(path);
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Every scene file under `scenes/` and its subfolders, which is what a prefab
+/// can be: a `.toml` there is a scene, anything else is an asset.
+pub fn scene_files(state: &mut editor::State) -> [str] {
+    files_under(state, SCENES, SCENE_FILE)
+}
+
+/// Of a burst `files_changed` named, the paths under the game: the editor's
+/// own project is followed too, and its files are the editor's, not the game's.
+pub fn of_game(state: editor::State, paths: [any]) -> [any] {
+    let base = state.game_root + "/";
+    let out: [any] = [];
+    for one in paths {
+        if state.game_root != "" && one.as_str().starts_with(base) {
+            out.push(one);
+        }
+    }
+    out
+}
+
+/// The open scene's file, or a scene it instances, changed under the editor.
+/// With nothing unsaved the file is read again; with edits they stay, and
+/// saving writes over it. A changed prefab is instanced again from what the
+/// editor holds, so the undo history stays.
+pub fn scene_heard(state: &mut editor::State, paths: [any]) {
+    if state.scene_root == nil || state.playing || state.scene_path == "" {
+        return;
+    }
+    let instanced: [str] = [];
+    for found in state.nodes {
+        if found.is_valid() && found.instance() != nil {
+            let source = found.instance().unwrap();
+            instanced.push(source);
+            instanced.push(state.game_root + "/" + source);
+        }
+    }
+    let own = paths.len() == 0;
+    let prefab = paths.len() == 0 && instanced.len() > 0;
+    for one in paths {
+        own = own || one.as_str() == state.scene_path;
+        prefab = prefab || util::contains(instanced, one.as_str());
+    }
+    if own && fs::exists(state.scene_path) {
+        let text = fs::read(state.scene_path).or("");
+        if text != state.scene_disk {
+            state.scene_disk = text;
+            if !history::dirty(state) {
+                state.scene_doc = util::map_or_empty(toml::parse(text));
+                model::build(state, text);
+                history::reset(state);
+                log::info("reloaded {state.scene_rel} from disk");
+                return;
+            }
+            log::warn("{state.scene_rel} changed on disk; the unsaved edits here stay, and saving writes over it");
+        }
+    }
+    if prefab {
+        model::build(state, model::scene_text(state));
+        log::info("instanced again what {state.scene_rel} instances");
     }
 }
 

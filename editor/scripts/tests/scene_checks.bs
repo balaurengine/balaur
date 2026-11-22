@@ -550,7 +550,7 @@ fn rows_in_file(state: editor::State) -> int {
 // Placing a prefab from the editor: the palette's command adds an instance node,
 // the engine builds the prefab under it, and undo takes the whole thing back.
 pub fn placing(state: &mut editor::State) {
-    let scenes = model::scene_files(state);
+    let scenes = disk::scene_files(state);
     let candidates: [str] = [];
     for rel in scenes {
         if rel != state.scene_rel {

@@ -1,6 +1,7 @@
 // The Inspector's rows: one drawer a datatype, and the handler that writes what
 // its control heard. A control's `data` names its line, which holds the rest.
 
+use disk;
 use editor;
 use fold;
 use fonts;
@@ -784,10 +785,8 @@ fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, val
 fn texture_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     let current = if value.kind() == types::KIND_STRING { value.as_str() } else { "" };
     let choices = ["none"];
-    for file in model::list(state, "art") {
-        if !file[project_fields::IS_DIR].as_bool() {
-            choices.push("art/" + file[fields::NAME].as_str());
-        }
+    for rel in disk::files_under(state, "art", "") {
+        choices.push(rel);
     }
     labelled(state, line, [
         ui::Control {

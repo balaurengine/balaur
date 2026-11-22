@@ -232,6 +232,53 @@ pub fn invalidate(eng: &Engine) {
     }
 }
 
+/// Files that changed on disk, as the watcher names them: each one's parse and
+/// every entry cut from it or kept under it are forgotten, and a strings file
+/// forgets the catalogues. The generation moves when one is a file the engine
+/// derives something from, so that is derived again; a file only a script
+/// reads is the script's to read again. An empty list is more than the
+/// watcher could name, so everything goes.
+pub fn changed_on_disk(eng: &Engine, paths: &[String]) {
+    use crate::vocabulary::words::{file_types, modules};
+    let catalogue = |path: &str| path.split('/').any(|part| part == modules::STRINGS);
+    if paths.is_empty() || paths.iter().any(|path| catalogue(path)) {
+        let _ = crate::strings::reload(eng);
+    }
+    let index = |path: &str| path == INDEX_PATH || path.ends_with(&format!("/{INDEX_PATH}"));
+    if paths.iter().any(|path| index(path)) {
+        let _ = reload(eng, INDEX_PATH);
+    }
+    let derived = |path: &str| {
+        let extension = std::path::Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default();
+        crate::import::kind_of(path).is_some()
+            || [file_types::BIN, file_types::TOML, file_types::WESL].contains(&extension)
+    };
+    let moved = paths.is_empty() || paths.iter().any(|path| derived(path));
+    let normal: Vec<String> = paths
+        .iter()
+        .filter_map(|path| crate::project::path_of(eng, path).ok())
+        .collect();
+    if let Ok(cache) = state(eng) {
+        let mut cache = cache.borrow_mut();
+        if paths.is_empty() {
+            cache.definitions.clear();
+            cache.parsed.clear();
+        }
+        let before = cache.generation;
+        for path in normal {
+            if let Ok(AssetRef::File(file)) = cache.resolve(&path) {
+                cache.forget_under(&file);
+            }
+        }
+        if moved && cache.generation == before {
+            cache.generation = cache.generation.wrapping_add(1);
+        }
+    }
+}
+
 impl AssetState {
     /// One textual reference as a cache key.
     ///

@@ -139,6 +139,8 @@ EXAMPLE_STATES=(
   test:undo test:rename test:autosave       # the history, renaming, writing
   test:disk_changed                         # a file changed under a code buffer
   test:cached_reads                         # a read kept until the watcher names its file
+  test:nested_files                         # scenes and scripts in subfolders are listed
+  test:scene_on_disk                        # the open scene follows its file, edits kept
   test:focus                                # the shell folds round the code
   test:fold                                 # a dock folded and opened keeps its tabs
   test:rig test:populate                    # a bone grown and keyed; a multimesh

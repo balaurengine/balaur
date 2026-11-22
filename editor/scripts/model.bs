@@ -33,7 +33,6 @@ const CHANGED: str = "changed";
 const KIND: str = "kind";
 const MULTIMESH2D: str = "multimesh2d";
 const MULTIMESH3D: str = "multimesh3d";
-internal const SCENES: str = "scenes";
 const EXPORTS: str = "exports";
 const HOOKS: str = "hooks";
 const LINES: str = "lines";
@@ -561,6 +560,7 @@ pub fn open_scene(state: &mut editor::State, rel: str) {
     state.scene_rel = rel;
     state.scene_path = state.game_root + "/" + rel;
     let text = must_read(state.scene_path);
+    state.scene_disk = text;
     // The file's other tables: its `[[assets]]`, which a tool writes and a
     // save writes back beside the nodes.
     state.scene_doc = util::map_or_empty(toml::parse(text));
@@ -1060,7 +1060,8 @@ pub fn write(state: &mut editor::State) {
         }
         state.assets_touched = false;
     }
-    fs::write(state.scene_path, toml::patch(text, written));
+    state.scene_disk = toml::patch(text, written);
+    fs::write(state.scene_path, state.scene_disk);
     forget(state, state.scene_rel);
     history::mark_saved(state);
 }
@@ -1161,21 +1162,6 @@ pub fn index_of_id(state: editor::State, id: str) -> int? {
         }
     }
     nil
-}
-
-// Every scene file under `scenes/`, which is what a prefab can be — the
-// convention the Assets dock already opens on: a `.toml` there is a scene,
-// anything else is an asset.
-pub fn scene_files(state: &mut editor::State) -> [str] {
-    let out: [str] = [];
-    // `fs::list` answers with `{ name, is_dir }`, not bare names.
-    for entry in list(state, SCENES) {
-        let name = util::map_or_empty(entry)[fields::NAME].as_str();
-        if name.ends_with(".toml") {
-            out.push("scenes/" + name);
-        }
-    }
-    out
 }
 
 // Run the game's scripts on the scene's nodes: what play does, the actual

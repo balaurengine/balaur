@@ -143,6 +143,122 @@ fn a_watched_directory_says_what_changed_and_reloads_its_scripts() {
 }
 
 #[test]
+fn a_script_in_a_subfolder_of_the_project_reloads_when_written() {
+    let project = tempfile::tempdir().unwrap();
+    let source = |version: u32| {
+        format!(
+            "pub class Player {{ node: Node, pub reloads: int }}\nimpl Player {{\n    pub fn on_hot_reload() {{ self.reloads = self.reloads + 1; }}\n    pub fn version() -> int {{ {version} }}\n}}\n"
+        )
+    };
+    let file = project.path().join("scripts/player/player.bs");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    std::fs::write(&file, source(0)).unwrap();
+    std::fs::write(
+        project.path().join("project.toml"),
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.path().join("main.toml"),
+        "[[nodes]]\nid = \"a\"\nname = \"A\"\nscript = { source = \"scripts/player/player.bs\" }\n",
+    )
+    .unwrap();
+    let mut app = balaur::standard_app(balaur::AppConfig::dev(
+        project.path().to_string_lossy().as_ref(),
+    ))
+    .unwrap();
+    app.load_project().unwrap();
+    let host = app.engine.script_host().unwrap();
+    let world = app.engine.world();
+    let node = balaur_core::ids::find(&world, app.engine.root(), "a").unwrap();
+    drop(world);
+    let node = balaur::node_id_of(node);
+    let reloads = || host.script_field(node, "reloads");
+    assert_eq!(
+        reloads(),
+        Some(balaur_script::Value::Int(0)),
+        "the script ran"
+    );
+
+    std::fs::write(&file, source(1)).unwrap();
+    let reloaded = until(&mut app, |_| {
+        !matches!(reloads(), Some(balaur_script::Value::Int(0)) | None)
+    });
+    assert!(reloaded, "scripts/player/player.bs was never reloaded");
+}
+
+#[test]
+fn any_file_saved_in_the_project_is_named_and_moves_the_asset_generation() {
+    let project = tempfile::tempdir().unwrap();
+    let mut app = watched_app(project.path());
+    let image = "art/heroes/hero.png";
+    let custom = "data/levels/one.level";
+    let hidden = ".tool/state.txt";
+    for rel in [image, custom, hidden] {
+        let at = project.path().join(rel);
+        std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+        std::fs::write(at, "0").unwrap();
+    }
+    let before = balaur_core::assets::generation(&app.engine);
+    let mut named: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let heard = |named: &std::collections::BTreeSet<String>| {
+        named.contains(image) && named.contains(custom)
+    };
+    // Again until heard: the watch may begin after the first writes.
+    let mut writes = 0;
+    until(&mut app, |app| {
+        for paths in said(app) {
+            named.extend(paths.into_iter().filter_map(|path| match path {
+                balaur_script::Value::Str(path) => Some(path),
+                _ => None,
+            }));
+        }
+        writes += 1;
+        if writes % 200 == 0 {
+            for rel in [image, custom, hidden] {
+                std::fs::write(project.path().join(rel), writes.to_string()).unwrap();
+            }
+        }
+        heard(&named)
+    });
+    assert!(heard(&named), "named only {named:?}");
+    assert!(
+        !named.iter().any(|path| path.starts_with('.')),
+        "a dot folder is a tool's: {named:?}"
+    );
+    assert_ne!(
+        balaur_core::assets::generation(&app.engine),
+        before,
+        "what was derived from a file is derived again"
+    );
+}
+
+#[test]
+fn a_toml_asset_saved_on_disk_is_read_again() {
+    let project = tempfile::tempdir().unwrap();
+    let file = project.path().join("materials/stone.toml");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let body = |roughness: f64| format!("type = \"material\"\nroughness = {roughness}\n");
+    std::fs::write(&file, body(0.25)).unwrap();
+    let mut app = watched_app(project.path());
+    let roughness = |app: &balaur::App| {
+        balaur_core::assets::definition(&app.engine, "materials/stone.toml")
+            .ok()
+            .and_then(|table| table.get("roughness").and_then(toml::Value::as_float))
+    };
+    assert_eq!(roughness(&app), Some(0.25), "the asset was read");
+    let mut writes = 0;
+    let read_again = until(&mut app, |app| {
+        writes += 1;
+        if writes % 200 == 1 {
+            std::fs::write(&file, body(0.75)).unwrap();
+        }
+        roughness(app) == Some(0.75)
+    });
+    assert!(read_again, "materials/stone.toml kept {:?}", roughness(&app));
+}
+
+#[test]
 fn ten_thousand_files_changed_at_once_arrive_in_a_handful_of_lists() {
     const FILES: usize = 10_000;
     let project = tempfile::tempdir().unwrap();
