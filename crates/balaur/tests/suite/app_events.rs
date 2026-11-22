@@ -124,6 +124,31 @@ fn the_device_s_changes_reach_every_script() {
     );
 }
 
+// The time an app spends in the background is not played: no fixed step
+// runs while it is away, and none is owed when it comes back.
+#[test]
+fn no_fixed_step_runs_while_the_app_is_away() {
+    let script = ear(r#"
+    pub fn fixed_update(dt: float) { tell("step"); }
+"#);
+    let (_dir, mut app) = app_with(&script);
+    app.tick(1.0 / 60.0);
+    let before = heard(&app);
+    assert!(before > 0, "a step runs in front");
+    balaur_core::facts::update_device(&app.engine, |device| device.suspended = true);
+    for _ in 0..30 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(heard(&app), before, "none while away");
+    balaur_core::facts::update_device(&app.engine, |device| device.suspended = false);
+    app.tick(1.0 / 60.0);
+    let after = heard(&app);
+    assert!(
+        after > before && after <= before + 2,
+        "a step or two on coming back, nothing owed: {before} then {after}"
+    );
+}
+
 #[test]
 fn a_setting_and_a_language_a_script_changes_are_heard_the_next_frame() {
     let script = ear(r#"

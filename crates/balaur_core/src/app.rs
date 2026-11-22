@@ -1087,7 +1087,8 @@ impl App {
     ///
     /// A game's own pause does not stop this: the step still runs, and each
     /// subsystem skips the nodes the pause holds, so an `always` subtree
-    /// keeps ticking. A debugger's freeze stops the whole stage.
+    /// keeps ticking. A debugger's freeze stops the whole stage, and so does
+    /// the device fact `suspended`.
     fn run_fixed_steps(&mut self, dt: f32) -> u32 {
         // A debugger pause holds the simulation: the time is dropped, not owed.
         // A paused replay keeps the part of a step its recording carried on.
@@ -1097,6 +1098,14 @@ impl App {
             }
             // A held frame draws the tick's own pose, so what the inspector
             // reports and what the viewport shows are the same place.
+            self.engine.set_frame_alpha(1.0);
+            return 0;
+        }
+        // An app sent to the background (a phone call, the home button, a
+        // hidden tab) does not go on playing: the time away is dropped, not
+        // owed, so it comes back where it left rather than a burst of steps.
+        if crate::facts::device(&self.engine).suspended {
+            self.accumulator = 0.0;
             self.engine.set_frame_alpha(1.0);
             return 0;
         }

@@ -78,8 +78,8 @@ pub(crate) fn freed_nodes(eng: &Engine, nodes: &[Entity]) {
 }
 
 /// A node's sound holds with its node: a game pause, a `process` mode, a
-/// debugger stop. Each voice goes back to what it asks for when the
-/// hold ends. A pause menu's click plays from a node that runs while paused.
+/// debugger stop, the app away in the background. Each voice goes back to
+/// what it asks for when the hold ends. A pause menu's click plays from a node that runs while paused.
 fn hold_sounds(eng: &Engine) {
     let Some(state) = eng.try_resource::<AudioState>() else {
         return;
@@ -88,6 +88,7 @@ fn hold_sounds(eng: &Engine) {
     let world = eng.world();
     let paused = balaur_core::process::pause(eng);
     let held = eng.frozen_root();
+    let away = state.is_away();
     let voices: Vec<(Entity, u64)> = state
         .nodes
         .iter()
@@ -95,7 +96,8 @@ fn hold_sounds(eng: &Engine) {
         .collect();
     for (entity, handle) in voices {
         let asked = world.get::<&Sound>(entity).is_ok_and(|sound| sound.paused);
-        let holds = !balaur_core::process::ticks(&world, entity, paused)
+        let holds = away
+            || !balaur_core::process::ticks(&world, entity, paused)
             || held.is_some_and(|root| balaur_core::scene::is_within(&world, entity, root));
         if state.is_paused(handle) != (asked || holds) {
             state.set_paused(handle, asked || holds);

@@ -100,6 +100,9 @@ pub struct AudioState {
     access: Access,
     /// Whether the window was in front when the device was last looked at.
     was_focused: bool,
+    /// While the app is in the background, the sounds it held then, to go
+    /// on where they were when it comes back; `None` in front.
+    held_away: Option<Vec<u64>>,
     /// The open the first touch of audio started off the frame, answered
     /// when a sound first needs the device: the platform's open is tens of
     /// milliseconds, too long for the frame a first sound plays in.
@@ -588,6 +591,41 @@ impl AudioState {
         }
     }
 
+    /// The app went to the background (`true`) or came back: every sound
+    /// playing is held while it is away, and only those go on again, so one
+    /// a script paused itself stays paused. A node's sound also holds while
+    /// away through its node's own hold (`sweep::hold_sounds`), which puts
+    /// it back to what its `sound` asks for after.
+    pub fn set_away(&mut self, away: bool) {
+        match (away, self.held_away.is_some()) {
+            (true, false) => {
+                let mut playing: Vec<u64> = self
+                    .routing
+                    .iter()
+                    .filter(|(_, routed)| !routed.paused)
+                    .map(|(handle, _)| *handle)
+                    .collect();
+                playing.sort_unstable();
+                for handle in &playing {
+                    self.set_paused(*handle, true);
+                }
+                self.held_away = Some(playing);
+            }
+            (false, true) => {
+                for handle in self.held_away.take().unwrap_or_default() {
+                    self.set_paused(handle, false);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Whether the app is away and its sounds held.
+    #[must_use]
+    pub fn is_away(&self) -> bool {
+        self.held_away.is_some()
+    }
+
     /// Whether a live handle is held.
     #[must_use]
     pub fn is_paused(&self, handle: u64) -> bool {
@@ -694,8 +732,9 @@ impl AudioState {
     pub(crate) fn retune(&mut self, handle: u64, sound: &Sound, buses: &Buses) {
         self.set_volume(handle, sound.volume, buses);
         self.set_pitch(handle, sound.pitch);
-        if self.is_paused(handle) != sound.paused {
-            self.set_paused(handle, sound.paused);
+        let paused = sound.paused || self.is_away();
+        if self.is_paused(handle) != paused {
+            self.set_paused(handle, paused);
         }
         let pan = sound.pan.clamp(-1.0, 1.0);
         if self.pan_of(handle) != Some(pan) {
@@ -956,6 +995,16 @@ fn open_device(output: &OutputSettings, routes: &[bus::Route]) -> Option<backend
     }
 }
 
+/// Hold every sound while the app is in the background, and let them go on
+/// when it comes back (the device fact `suspended`).
+fn away_system(eng: &Engine, _: f32) {
+    let away = balaur_core::facts::device(eng).suspended;
+    let state = eng.resource::<AudioState>();
+    if state.borrow().is_away() != away {
+        state.borrow_mut().set_away(away);
+    }
+}
+
 /// Open the device the first tick after the page has seen a gesture.
 fn open_on_activation_system(eng: &Engine, _: f32) {
     let waiting = eng.resource::<AudioState>().borrow().access == Access::AwaitingActivation;
@@ -1093,6 +1142,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
                 Access::Untried
             },
             was_focused: true,
+            held_away: None,
             opening: None,
             configured: false,
             output: OutputSettings::default(),
@@ -1116,6 +1166,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
         device::declare(reg);
 
         reg.add_system(Stage::First, open_on_activation_system);
+        reg.add_system(Stage::First, away_system);
         reg.add_system(Stage::PostUpdate, sweep::sweep_sounds_system);
         balaur_core::scene::on_freed(reg.engine(), sweep::freed_nodes);
         reg.add_system(Stage::FixedUpdate, count_down_system);

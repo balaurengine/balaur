@@ -1,7 +1,7 @@
 //! `audio::play_file`: a sound on a node of its own, through the bus and at
 //! the place it names, and gone once it plays out, a pause or not.
 
-use balaur_audio::{AudioPlugin, AudioState};
+use balaur_audio::{AudioPlugin, AudioState, Sound};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, AppConfig, node_id_of, scene};
@@ -138,4 +138,48 @@ fn a_play_option_the_sound_component_does_not_spell_does_not_compile() {
     let (_app, attached) = played(dir.path(), &source);
     let why = format!("{:#}", attached.unwrap_err());
     assert!(why.contains("volume"), "{why}");
+}
+
+// A phone call or the home button: every sound holds while the app is away
+// and goes on when it comes back, and one the game paused itself stays so.
+#[test]
+fn the_app_sent_away_holds_its_sounds_and_brings_them_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut app, attached) = played(dir.path(), PLAYS);
+    attached.unwrap();
+    app.tick(STEP);
+    app.tick(STEP);
+    let playing = voices(&app);
+    let handles: Vec<u64> = playing.iter().map(|(_, handle)| *handle).collect();
+    assert_eq!(handles.len(), 3);
+    app.engine
+        .world_mut()
+        .get::<&mut Sound>(playing[0].0)
+        .unwrap()
+        .paused = true;
+    app.tick(STEP);
+    assert!(
+        app.engine
+            .resource::<AudioState>()
+            .borrow()
+            .is_paused(handles[0])
+    );
+    balaur_core::facts::update_device(&app.engine, |device| device.suspended = true);
+    app.tick(STEP);
+    {
+        let state = app.engine.resource::<AudioState>();
+        let state = state.borrow();
+        assert!(state.is_away());
+        assert!(
+            handles.iter().all(|h| state.is_paused(*h)),
+            "every sound holds"
+        );
+    }
+    balaur_core::facts::update_device(&app.engine, |device| device.suspended = false);
+    app.tick(STEP);
+    let state = app.engine.resource::<AudioState>();
+    let state = state.borrow();
+    assert!(!state.is_away());
+    assert!(state.is_paused(handles[0]), "the game's own pause stands");
+    assert!(!state.is_paused(handles[1]) && !state.is_paused(handles[2]));
 }
