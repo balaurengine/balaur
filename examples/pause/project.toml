@@ -10,3 +10,15 @@ tick_hz = 60
 [window]
 width = 1920
 height = 1080
+
+# What a phone export names the game by and numbers it as: each is required
+# to export for iOS or Android.
+[apple]
+bundle_id = "org.balaurengine.pause"
+version = "0.1.0"
+build_number = "1"
+
+[android]
+application_id = "org.balaurengine.pause"
+version = "0.1.0"
+version_code = 1

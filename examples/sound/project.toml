@@ -14,3 +14,15 @@ height = 720
 [audio.buses]
 music = { volume_linear = 0.5 }
 effects = { volume_linear = 0.9 }
+
+# What a phone export names the game by and numbers it as: each is required
+# to export for iOS or Android.
+[apple]
+bundle_id = "org.balaurengine.sound"
+version = "0.1.0"
+build_number = "1"
+
+[android]
+application_id = "org.balaurengine.sound"
+version = "0.1.0"
+version_code = 1

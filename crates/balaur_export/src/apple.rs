@@ -536,6 +536,24 @@ mod tests {
         assert!(!text.contains("UIInterfaceOrientationPortrait"), "{text}");
     }
 
+    #[test]
+    fn every_example_exports_to_ios() {
+        let examples = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(&examples).unwrap() {
+            let project = entry.unwrap().path();
+            let Ok(text) = std::fs::read_to_string(project.join("project.toml")) else {
+                continue;
+            };
+            let manifest: toml::Table = toml::from_str(&text).unwrap();
+            AppleConfig::from_manifest(&manifest, &project)
+                .and_then(|config| config.check(Platform::Ios))
+                .unwrap_or_else(|err| panic!("{}: {err}", project.display()));
+            checked += 1;
+        }
+        assert!(checked > 0, "no example under {}", examples.display());
+    }
+
     // Nothing is invented: each key missing is refused by name, in the order
     // a project would fill them in.
     #[test]

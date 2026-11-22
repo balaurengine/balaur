@@ -49,14 +49,30 @@ set -- export . --target "$BALAUR_TARGET"
 
 if [ -d /cache ]; then
   version="${BALAUR_VERSION:-latest}"
-  runtime="/cache/runtimes/balaur/${version}/${BALAUR_TARGET}"
+  cached="/cache/runtimes/balaur/${version}"
 
-  [ -e "$runtime" ] || fail "no runtime at ${runtime}"
+  [ -e "${cached}/${BALAUR_TARGET}" ] || fail "no runtime at ${cached}/${BALAUR_TARGET}"
+
+  # Every template of the target that is mounted, under the name an export
+  # looks for, so `[export] runtime = "auto"` lands on the smallest the game
+  # fits and on the full one where that is all there is.
+  roots=/work/runtimes
+  mkdir -p "$roots" || fail "could not create ${roots}"
+  for name in "$BALAUR_TARGET" "${BALAUR_TARGET}-2d" "${BALAUR_TARGET}-3d" "${BALAUR_TARGET}-bare"; do
+    [ -e "${cached}/${name}" ] || continue
+    case "$name" in
+      ios) link=Balaur.app ;;
+      windows-*) link="balaur-runtime-${name}.exe" ;;
+      *) link="balaur-runtime-${name}" ;;
+    esac
+    ln -s "${cached}/${name}" "${roots}/${link}" || fail "could not link ${name}"
+    log "==> runtime ${cached}/${name}"
+  done
+  export BALAUR_RUNTIMES="$roots"
 
   # --no-download because a mounted /cache is a promise that everything needed
   # is already here; a sandbox with no network would otherwise hang trying.
-  set -- "$@" --runtime "$runtime" --no-download
-  log "==> runtime ${runtime}"
+  set -- "$@" --no-download
 else
   set -- "$@" --download
   log "==> runtime will be downloaded"

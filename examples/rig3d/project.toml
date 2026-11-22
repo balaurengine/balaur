@@ -1,3 +1,15 @@
 [application]
 name = "rig3d"
 main_scene = "scenes/main.toml"
+
+# What a phone export names the game by and numbers it as: each is required
+# to export for iOS or Android.
+[apple]
+bundle_id = "org.balaurengine.rig3d"
+version = "0.1.0"
+build_number = "1"
+
+[android]
+application_id = "org.balaurengine.rig3d"
+version = "0.1.0"
+version_code = 1

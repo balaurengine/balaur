@@ -4,3 +4,15 @@ main_scene = "scenes/main.toml"
 icon = "art/logo.png"
 icon_dark = "art/logo-dark.png"
 icon_monochrome = "art/logo-monochrome.png"
+
+# What a phone export names the game by and numbers it as: each is required
+# to export for iOS or Android.
+[apple]
+bundle_id = "org.balaurengine.shaders"
+version = "0.1.0"
+build_number = "1"
+
+[android]
+application_id = "org.balaurengine.shaders"
+version = "0.1.0"
+version_code = 1

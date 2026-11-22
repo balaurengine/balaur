@@ -52,7 +52,9 @@ docker run --rm --network=none \
 
 `/cache` holds `runtimes/balaur/<version>/<target>`, which is the
 `balaur-runtime-<target>` file (or the extracted `balaur-runtime-*` directory)
-from the matching release.
+from the matching release. Beside it may sit `<target>-2d`, `<target>-3d` and
+`<target>-bare`, the smaller templates, and `[export] runtime = "auto"` then
+puts the game on the smallest it fits. Without them it goes on the full one.
 
 ### The contract
 
