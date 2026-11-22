@@ -459,8 +459,10 @@ fn underline(
     for quad in &shaped.quads {
         let box_ = quad.rect.translate(origin.to_vec2());
         match (quad.link, run) {
+            // The same line: a descender's glyph reaches lower than its
+            // neighbours', so the run is one while the boxes overlap.
             (Some(link), Some((held, union)))
-                if held == link && (union.max.y - box_.max.y).abs() < 1.0 =>
+                if held == link && box_.min.y < union.max.y && box_.max.y > union.min.y =>
             {
                 run = Some((link, union.union(box_)));
             }
@@ -469,6 +471,12 @@ fn underline(
                     draw(held);
                 }
                 run = Some((link, box_));
+            }
+            // A glyph of no link right after one (the space between a
+            // link's two words, in a font that draws it) leaves the run
+            // open; one further on is other text, and closes it.
+            (None, Some((held, union))) if box_.min.x - union.max.x < union.height() * 0.5 => {
+                run = Some((held, union));
             }
             (None, held) => {
                 if let Some(held) = held {
