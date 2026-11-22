@@ -301,7 +301,9 @@ fn area_of(
     // that far, so a tap on a child lands; past it, this drags the
     // offset itself.
     let dragged = (dead > 0.0 && drags)
-        .then(|| crate::widget::scroll::deadzone_drag(ui, eng, entity, dead))
+        .then(|| {
+            crate::widget::scroll::deadzone_drag(ui, eng, entity, (dead, [sideways, downwards]))
+        })
         .flatten();
     if dead > 0.0 {
         area = area.scroll_source(egui::scroll_area::ScrollSource {

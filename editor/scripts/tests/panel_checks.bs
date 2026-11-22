@@ -816,3 +816,56 @@ fn rows_narrowed(state: editor::State, rows: any) {
     }
     selftest::check(named == rows.len(), "and every row it leaves is a match");
 }
+
+/// A search narrows the Inspector to the rows it names: a property's name
+/// leaves that property's row, not every row of the component holding it,
+/// and the component's own name leaves all of them.
+pub fn inspector_search(state: &mut editor::State) {
+    let rows = selection::all(state);
+    let pair = searchable_pair(state);
+    if pair == nil {
+        log::info("selftest inspector search: no component with two plain properties, skipped");
+        return;
+    }
+    let pair = pair.unwrap();
+    let component = pair[0];
+    let wanted = pair[1];
+    let other = pair[2];
+    inspector::fill(state, wanted);
+    let control = inspector::line_named(state, "{component}.{wanted}") != nil;
+    selftest::check(control, "searching '{wanted}' shows its row in {component}");
+    selftest::check(inspector::line_named(state, "{component}.{other}") == nil, "and leaves out {component}'s '{other}'");
+    inspector::fill(state, component);
+    selftest::check(inspector::line_named(state, "{component}.{other}") != nil, "searching '{component}' shows every row it has");
+    inspector::fill(state, "");
+    selection::set(state, rows);
+    log::info("selftest inspector search: done");
+}
+
+// A node, selected, and a component on it with two loose properties that a
+// search for one does not also find in the other or in the component's name.
+fn searchable_pair(state: &mut editor::State) -> [str]? {
+    for index in 0..state.nodes.len() {
+        if !model::node(state, index).is_valid() {
+            continue;
+        }
+        selection::only(state, index);
+        for component in inspector::node_components(state) {
+            let schema = model::schema(state, component);
+            let loose: [str] = [];
+            for key in util::keys_sorted(schema) {
+                if key != inspector::ENABLED && schema[key]["group"].as_str() == "" {
+                    loose.push(key);
+                }
+            }
+            for wanted in loose {
+                for other in loose {
+                    if wanted != other && !search::matches(wanted, component) && !search::matches(wanted, other + " " + other.replace("_", " ")) {
+                        return [component, wanted, other];
+                    }
+                }
+            }
+        }
+    }
+    nil
+}

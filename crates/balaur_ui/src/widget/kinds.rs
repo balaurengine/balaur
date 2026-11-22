@@ -252,7 +252,9 @@ pub(crate) fn menu(
         let response = crate::widget::button::button(ui, at, index, caption, font, color);
         let up = if inner {
             egui::containers::menu::SubMenu::new()
-                .show(ui, &response, |ui| popup_rows(ui, at, index))
+                .show(ui, &response, |ui| {
+                    crate::widget::popups::scrolled(ui, |ui| popup_rows(ui, at, index));
+                })
                 .is_some()
         } else if sheeted {
             sheet(ui, at, index, &response, |ui, at| {
@@ -264,7 +266,7 @@ pub(crate) fn menu(
             dropped(&response, widget, &fallbacks, ui, body.is_some())
                 .show(|ui| {
                     on_plate(ui, at.eng, body.as_deref(), None, |ui| {
-                        if rows_in(ui, at, index, fills) {
+                        if crate::widget::popups::scrolled(ui, |ui| rows_in(ui, at, index, fills)) {
                             ui.close();
                         }
                     });
@@ -302,7 +304,9 @@ pub(crate) fn menu(
     };
     let up = if inner {
         egui::containers::menu::SubMenu::new()
-            .show(ui, &response, rows)
+            .show(ui, &response, |ui| {
+                crate::widget::popups::scrolled(ui, rows);
+            })
             .is_some()
     } else if sheeted {
         sheet(ui, at, index, &response, |ui, _| {
@@ -315,7 +319,11 @@ pub(crate) fn menu(
         })
     } else {
         dropped(&response, widget, &fallbacks, ui, body.is_some())
-            .show(|ui| on_plate(ui, at.eng, body.as_deref(), None, &mut rows))
+            .show(|ui| {
+                on_plate(ui, at.eng, body.as_deref(), None, |ui| {
+                    crate::widget::popups::scrolled(ui, &mut rows);
+                });
+            })
             .is_some()
     };
     if up {
@@ -1121,7 +1129,7 @@ pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usiz
     popup.show(|ui| {
         let eng = at.eng;
         on_plate(ui, eng, body.as_deref(), None, |ui| {
-            popup_rows(ui, at, menu);
+            crate::widget::popups::scrolled(ui, |ui| popup_rows(ui, at, menu));
         });
     });
     at.theme = outer;

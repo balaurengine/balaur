@@ -99,13 +99,15 @@ const CLICK_SLOP: f32 = 6.0;
 ///
 /// A lift hands over to a fling: the list keeps the speed the finger had and
 /// slows to a stop. Godot's `ScrollContainer` does this, and a phone feels
-/// broken without it.
+/// broken without it. `axes` are the ones the area scrolls along: a finger
+/// moving across the other one moves nothing.
 pub(crate) fn deadzone_drag(
     ui: &egui::Ui,
     eng: &Engine,
     entity: Entity,
-    dead: f32,
+    (dead, axes): (f32, [bool; 2]),
 ) -> Option<egui::Vec2> {
+    let along = egui::vec2(f32::from(u8::from(axes[0])), f32::from(u8::from(axes[1])));
     let (down, origin, latest, dt) = ui.input(|i| {
         (
             i.pointer.primary_down(),
@@ -130,10 +132,15 @@ pub(crate) fn deadzone_drag(
     // A finger back on the list stops it where it is, which is what everyone
     // expects of a list still coasting.
     state.scroll_flings.remove(&key);
-    // A press a child took as its own drag (a slider, a board's letters) is
-    // never the list's: CSS's `touch-action: none`, Godot's control that
-    // handles the drag. Its own scrollbar's handle is one too.
-    if ui.ctx().dragged_id().is_some() {
+    // A drag a child took (a slider, the bar's handle) is never the list's;
+    // one a box round the list took, as egui's modal takes every drag, is.
+    let around = crate::widget::arrange::drawn_at(entity);
+    let taken = ui.ctx().dragged_id().is_some_and(|id| {
+        ui.ctx()
+            .read_response(id)
+            .is_none_or(|held| around.is_none_or(|list| !held.rect.contains_rect(list)))
+    });
+    if taken {
         state.scroll_drags.remove(&key);
         return None;
     }
@@ -158,12 +165,12 @@ pub(crate) fn deadzone_drag(
     if dt > 0.0 {
         // Half the new reading, half the old: enough smoothing that one bad
         // frame cannot throw the list across the screen.
-        let instant = (latest - drag.last) / dt;
+        let instant = (latest - drag.last) * along / dt;
         drag.velocity = (drag.velocity + instant) / 2.0;
     }
     drag.last = latest;
     let (start, base) = (drag.from, drag.base);
-    let travelled = latest - start;
+    let travelled = (latest - start) * along;
     if travelled.length() < dead {
         return None;
     }

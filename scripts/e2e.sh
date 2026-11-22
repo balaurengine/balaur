@@ -149,6 +149,7 @@ EXAMPLE_STATES=(
   test:assets test:picking test:camera      # the dock, an aimed pick, the mouse
   test:script_props test:composite_props    # exported script properties
   test:record_assets                        # a material edited under its row
+  test:inspector_search                     # a search leaves the rows it names
   test:system_fonts                         # an installed face copied in
   test:font_catalogue                       # a catalogue family fetched in
   test:instances test:placing test:selection  # prefabs, the selection set

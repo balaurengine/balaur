@@ -58,7 +58,10 @@ fn a_menu_opens_its_child_rows() {
         out.shapes
             .iter()
             .filter(|s| match &s.shape {
-                egui::epaint::Shape::Rect(r) => (r.rect.width() - 173.0).abs() < 1.0,
+                // A row's box: the column holding them is as wide, and taller.
+                egui::epaint::Shape::Rect(r) => {
+                    (r.rect.width() - 173.0).abs() < 1.0 && (r.rect.height() - 22.0).abs() < 1.0
+                }
                 _ => false,
             })
             .map(|s| match &s.shape {

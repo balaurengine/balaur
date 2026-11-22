@@ -126,6 +126,7 @@ fn states() -> any {
         "test:script_props": panel_checks::script_props,
         "test:composite_props": panel_checks::composite_props,
         "test:record_assets": panel_checks::record_assets,
+        "test:inspector_search": panel_checks::inspector_search,
         "test:system_fonts": project_checks::system_fonts,
         "test:font_catalogue": project_checks::font_catalogue,
         "test:script_paths": project_checks::script_paths,

@@ -11,6 +11,8 @@ use egui::{Rect, RectAlign, Vec2};
 thread_local! {
     /// The viewport the root being drawn sits in; none for one on the window.
     static SCREEN: Cell<Option<Rect>> = const { Cell::new(None) };
+    /// What the popup about to show hangs off, for `scrolled` to size it by.
+    static ANCHOR: Cell<Option<(Rect, f32)>> = const { Cell::new(None) };
 }
 
 /// Begin a root's drawing: what it draws is cut at `screen`, the viewport it
@@ -37,6 +39,7 @@ pub(crate) fn kept_inside<'a>(
     alternatives: &[RectAlign],
     gap: f32,
 ) -> egui::Popup<'a> {
+    ANCHOR.set(popup.get_anchor_rect().map(|anchor| (anchor, gap)));
     let size = popup.get_expected_size();
     sized_inside(popup, (asked, alternatives, gap), size)
 }
@@ -78,6 +81,31 @@ fn sized_inside<'a>(
         .at_position(rect.min - egui::vec2(0.0, gap))
         .align(RectAlign::BOTTOM_START)
         .align_alternatives(&[])
+}
+
+/// A popup's rows, scrolling past the larger room either side of what it hangs
+/// off, so it still opens beside that and reaches its last row in a short
+/// window. A submenu, which hangs off a row, scrolls at the screen's foot.
+pub(crate) fn scrolled<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let screen = SCREEN.get().unwrap_or_else(|| ui.ctx().viewport_rect());
+    let room = match ANCHOR.take() {
+        Some((anchor, gap)) => {
+            (screen.bottom() - anchor.bottom()).max(anchor.top() - screen.top()) - gap
+        }
+        None => screen.bottom() - ui.cursor().top(),
+    };
+    // The frame round the rows, top and bottom, as the popup last drew it.
+    let frame = ui
+        .ctx()
+        .memory(|m| m.area_rect(ui.layer_id().id))
+        .map_or(ui.spacing().menu_margin.sum().y, |area| {
+            2.0 * (ui.cursor().top() - area.top()).max(0.0)
+        });
+    let room = room - frame;
+    egui::ScrollArea::vertical()
+        .max_height(room.max(ui.spacing().interact_size.y))
+        .show(ui, add)
+        .inner
 }
 
 /// `rect` moved the least that puts it inside `screen`, its top left kept

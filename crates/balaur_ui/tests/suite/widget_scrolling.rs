@@ -136,6 +136,84 @@ fn the_mouse_stands_in_for_a_finger_when_the_project_says_so() {
 }
 
 #[test]
+fn a_finger_moving_across_a_vertical_list_moves_nothing_sideways() {
+    let (_dir, app) = app();
+    as_touchscreen(&app);
+    let (_holder, _first, sixth) = list(&app, toml::toml! { axis = "vertical" }.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let before = balaur_ui::widget_rect(sixth).unwrap().min;
+    pass(&app, &ctx, touch(pos2(100.0, 50.0), true));
+    for step in 1..=6 {
+        pass(
+            &app,
+            &ctx,
+            vec![egui::Event::PointerMoved(pos2(
+                100.0 - 12.0 * step as f32,
+                50.0,
+            ))],
+        );
+    }
+    pass(&app, &ctx, vec![]);
+    let held = balaur_ui::widget_rect(sixth).unwrap().min;
+    pass(&app, &ctx, touch(pos2(28.0, 50.0), false));
+    assert!(
+        (held.x - before.x).abs() < 0.5 && (held.y - before.y).abs() < 0.5,
+        "a sideways drag moved a vertical list: {before:?} -> {held:?}"
+    );
+}
+
+#[test]
+fn a_list_in_a_dialog_scrolls_under_a_finger() {
+    let (_dir, app) = app();
+    as_touchscreen(&app);
+    let dialog = add_widget(
+        &app,
+        &toml::toml! { kind = "dialog" x = 0.0 y = 0.0 width = 220.0 height = 160.0 widget_window = { open = true } }.into(),
+    );
+    let holder = add_child_widget(
+        &app,
+        dialog,
+        "scroll",
+        &toml::toml! { kind = "scroll" grow = 1 widget_layout = { gap = [0.0, 0.0] } widget_scroll = { axis = "vertical" } }.into(),
+    );
+    let mut sixth = holder;
+    for n in 0..30 {
+        let text = format!("line {n}");
+        let line = add_child_widget(
+            &app,
+            holder,
+            "line",
+            &toml::toml! { kind = "label" text = text }.into(),
+        );
+        if n == 5 {
+            sixth = line;
+        }
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    // The dialog sits where egui centres it, so the finger starts on the list.
+    let at = balaur_ui::widget_rect(holder).unwrap().center();
+    let before = balaur_ui::widget_rect(sixth).unwrap().min.y;
+    pass(&app, &ctx, touch(at, true));
+    for step in 1..=6 {
+        pass(
+            &app,
+            &ctx,
+            vec![egui::Event::PointerMoved(
+                at - egui::vec2(0.0, 12.0 * step as f32),
+            )],
+        );
+    }
+    pass(&app, &ctx, vec![]);
+    let moved = before - balaur_ui::widget_rect(sixth).unwrap().min.y;
+    assert!(
+        moved > 40.0,
+        "a finger's drag in a dialog did not scroll: {moved}"
+    );
+}
+
+#[test]
 fn a_child_that_takes_the_drag_keeps_it_from_the_scroll() {
     let (_dir, app) = app();
     as_touchscreen(&app);

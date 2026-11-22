@@ -329,14 +329,31 @@ fn section(state: &mut editor::State, name: str, schema: any, laid: any, removab
     if !open {
         return;
     }
+    let query = search::query(state, tabs::INSPECTOR);
+    // A query the component's name does not answer narrows it to its rows that do.
+    let narrow = query != "" && !search::matches(query, name);
     for property in util::list_or_empty(laid[LOOSE]) {
+        if narrow && !property_matches(query, property.as_str()) {
+            continue;
+        }
         shown.push(property.as_str());
         walk_property(state, name, property.as_str(), schema[property.as_str()]);
     }
-    let searching = search::query(state, tabs::INSPECTOR) != "";
     for group in util::list_or_empty(laid[GROUPS]) {
         let properties = util::list_or_empty(group[schema_fields::PROPERTIES]);
-        if !fold_line(state, name, group[fields::NAME].as_str(), properties.len(), searching) {
+        if narrow && !search::matches(query, group[fields::NAME].as_str()) {
+            let kept: [any] = [];
+            for property in properties {
+                if property_matches(query, property.as_str()) {
+                    kept.push(property);
+                }
+            }
+            properties = kept;
+        }
+        if properties.len() == 0 {
+            continue;
+        }
+        if !fold_line(state, name, group[fields::NAME].as_str(), properties.len(), query != "") {
             continue;
         }
         for property in properties {
@@ -344,6 +361,11 @@ fn section(state: &mut editor::State, name: str, schema: any, laid: any, removab
             walk_property(state, name, property.as_str(), schema[property.as_str()]);
         }
     }
+}
+
+// A property's key, and the label it reads as, against a query.
+fn property_matches(query: str, property: str) -> bool {
+    search::matches(query, property + " " + property.replace("_", " "))
 }
 
 // A section's head, which folds it, and whether it is open. Its key is its
