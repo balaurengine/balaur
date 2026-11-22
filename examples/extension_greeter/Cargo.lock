@@ -42,7 +42,9 @@ dependencies = [
  "hecs",
  "indexmap",
  "js-sys",
+ "libc",
  "libm",
+ "mach2",
  "memmap2",
  "mio",
  "rayon",
@@ -60,6 +62,7 @@ dependencies = [
  "tracing-subscriber",
  "web-sys",
  "web-time",
+ "windows-sys",
 ]
 
 [[package]]
@@ -421,6 +424,12 @@ name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+
+[[package]]
+name = "mach2"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dae608c151f68243f2b000364e1f7b186d9c29845f7d2d85bd31b9ad77ad552b"
 
 [[package]]
 name = "memchr"
