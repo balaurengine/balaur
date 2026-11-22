@@ -249,6 +249,8 @@ pub class State {
     // folded, and nothing but leaving focus reads it.
     internal focus: bool = false,
     internal focus_was: any,
+    // The dock given the whole body by its expand mark, or "".
+    internal expanded: str = "",
     internal layout: any,
     // Whether the centre is showing the viewport this frame, rather than
     // a document over it.
@@ -304,6 +306,7 @@ pub class State {
     // Where the Physics panel's pills drew this frame, for the selftest
     // that presses them.
     internal viewport_check: selftest::ViewportCheck?,
+    internal fold_check: selftest::FoldCheck?,
     internal camera_check: selftest::CameraCheck?,
     internal pick_check: selftest::PickCheck?,
     internal picture_check: selftest::PictureCheck?,
@@ -647,6 +650,7 @@ impl Editor {
     /// fills itself, for the dock to tell once it shows.
     pub fn dock_fill(side: str) -> str { docks::fill(self.state, side) }
     pub fn dock_folded(side: str) { docks::fold(self.state, side); }
+    pub fn dock_expanded(side: str) { docks::expand(self.state, side); }
     pub fn dock_tab_picked(side: str, id: str) { docks::tab_picked(self.state, side, id); }
     pub fn dock_tab_closed(id: str) { docks::close(self.state, id); }
     pub fn dock_more_picked(side: str, name: str) { docks::more_picked(self.state, side, name); }

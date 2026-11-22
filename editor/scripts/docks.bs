@@ -18,6 +18,7 @@ use util;
 use words::dock_fields;
 use words::fields;
 use words::geometry_fields;
+use words::glyphs;
 use words::layout_fields;
 use words::panel_keys;
 use words::project_fields;
@@ -35,6 +36,7 @@ const BONEMAP: str = "bonemap";
 const COST: str = "cost";
 const DEBUGGER: str = "debugger";
 const DOCS: str = "docs";
+const EXPAND: str = "Expand";
 const HIDE: str = "hide";
 const OUTLINE: str = "outline";
 const OUTPUT: str = "output";
@@ -121,6 +123,7 @@ pub fn apply_workspace(state: &mut editor::State, id: str) {
         want[side][dock_fields::SHUT] = state.docks[side][dock_fields::SHUT];
     }
     state.docks = want;
+    state.expanded = "";
     signals::docks(state);
     // A plugin's dock is in no workspace's set: it was adopted when the plugin
     // loaded, and a workspace must not unregister it.
@@ -628,6 +631,8 @@ fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
     if !row.is_valid() {
         return;
     }
+    // A fold hid it (`hide_tabs`); the dock opening again is what brings it back.
+    row.set_visible(true);
     let shown: [any] = shown_tabs(state, side);
     let items: [scene::RepeatItem] = [];
     for id in shown {
@@ -658,8 +663,22 @@ fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
 
 /// A dock's fold pressed: it shuts to its handle.
 pub fn fold(state: &mut editor::State, side: str) {
+    if state.expanded == side {
+        state.expanded = "";
+    }
     state.docks[side][dock_fields::SHUT] = true;
     signals::docks(state);
+}
+
+/// A dock's expand mark pressed: it takes the whole body, or gives it back.
+pub fn expand(state: &mut editor::State, side: str) {
+    state.expanded = if state.expanded == side { "" } else { side };
+    signals::docks(state);
+}
+
+/// Whether a dock gives way to another's expanding: open, but not drawn.
+pub fn crowded_out(state: editor::State, side: str) -> bool {
+    state.expanded != "" && state.expanded != side
 }
 
 /// A dock's tab picked: its panel shows.
@@ -682,8 +701,9 @@ pub fn more_picked(state: &mut editor::State, side: str, name: str) {
 /// leading run that fits, slid along until it reaches the active tab.
 pub fn shown_tabs(state: &mut editor::State, side: str) -> [any] {
     let dock = state.docks[side];
-    let fold = style::role_size_in_pixels(state, roles::ICON_ACTION_TAB_CARET, layout_fields::HEIGHT, 20.0);
-    let room = state.layout[side][layout_fields::WIDTH].as_float() - fold - HEAD_EDGE;
+    // The tail holds two marks of that size: expand and fold.
+    let marks = 2.0 * style::role_size_in_pixels(state, roles::ICON_ACTION_TAB_CARET, layout_fields::HEIGHT, 20.0);
+    let room = state.layout[side][layout_fields::WIDTH].as_float() - marks - HEAD_EDGE;
     let frame = tab_frame(state);
     if tabs_width(state, side, frame) <= room {
         return dock[dock_fields::TABS];
@@ -784,6 +804,11 @@ fn open_icon(side: str) -> str {
     }
 }
 
+/// Whether a dock's tab row is showing.
+pub fn tabs_showing(side: str) -> bool {
+    scene::root().get_node(head_of(side)).visible()
+}
+
 /// Whether a dock is down to its rail: folded away, or emptied of every tab.
 /// An emptied dock is not a blank sheet — it gives its width back.
 pub fn folded(state: editor::State, side: str) -> bool {
@@ -812,6 +837,10 @@ pub fn fill(state: &mut editor::State, side: str) -> str {
         return "";
     }
     tab_row(state, tokens, side, dock);
+    let mark = scene::root().get_node(tail_of(side) + "/" + EXPAND);
+    let expanded = state.expanded == side;
+    mark.widget_button.icon = if expanded { glyphs::CORNERS_IN } else { glyphs::CORNERS_OUT };
+    mark.widget.tooltip = if expanded { "Restore" } else { "Expand" };
     body(state, dock[dock_fields::ACTIVE].as_str());
     shown_panel(state, side, dock)
 }

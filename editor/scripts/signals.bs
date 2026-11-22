@@ -209,7 +209,7 @@ pub fn docks(state: &mut editor::State) {
     let key: any = [
         "{state.docks}", state.layout[dock_fields::LEFT][layout_fields::WIDTH], state.layout[dock_fields::RIGHT][layout_fields::WIDTH], state.layout[dock_fields::BOTTOM][layout_fields::WIDTH],
         state.workspace, state.compact, counts.errors + counts.warnings, state.registry.panels.len(),
-        session::loaded(state),
+        session::loaded(state), state.expanded,
     ];
     if key == state.docks_key {
         return;

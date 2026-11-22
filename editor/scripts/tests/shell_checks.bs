@@ -29,6 +29,8 @@ use window;
 use tests::viewport_checks;
 use words::command;
 use words::components;
+use words::layout_fields;
+use words::sides;
 use words::window_marks;
 
 const BRAND: str = "Editor/Shell/Head/HeadRow/Brand";
@@ -453,6 +455,62 @@ pub fn menu_panels(state: &mut editor::State) {
     shell::set_workspace(state, resting);
     selftest::check(titles == ["Scenes", "Scripts", "Collision", "Clips", "Widgets"], "the outline is named for what each workspace lists ({titles})");
     log::info("selftest menu panels: done");
+}
+
+/// A dock folded by its caret and opened again from its handle comes back
+/// with its tab row, and a dock's expand mark gives it the whole body and
+/// then gives it back. Layout reads back a frame late and eases, so each
+/// check waits out the ease.
+pub fn folding(state: &mut editor::State) {
+    state.fold_check = selftest::FoldCheck { stage: 0, bottom: 0.0, left: 0.0 };
+    selftest::stepping(state, "fold_check");
+}
+
+pub fn fold_step(state: &mut editor::State) {
+    if state.fold_check == nil {
+        return;
+    }
+    let fold_check = state.fold_check.unwrap();
+    fold_check.stage += 1;
+    let settled = 40;
+    if fold_check.stage == 1 {
+        for side in [sides::BOTTOM, sides::LEFT] {
+            docks::fold(state, side);
+        }
+    } else if fold_check.stage == 3 {
+        selftest::check(!docks::tabs_showing(sides::BOTTOM), "a folded dock hides its tab row");
+        for side in [sides::BOTTOM, sides::LEFT] {
+            docks::open_from_handle(state, side);
+        }
+    } else if fold_check.stage == settled {
+        for side in [sides::BOTTOM, sides::LEFT] {
+            selftest::check(!docks::folded(state, side) && docks::tabs_showing(side), "the {side} dock opened from its handle shows its tabs again");
+        }
+        fold_check.bottom = laid(state, sides::BOTTOM, layout_fields::HEIGHT);
+        fold_check.left = laid(state, sides::LEFT, layout_fields::WIDTH);
+        docks::expand(state, sides::BOTTOM);
+    } else if fold_check.stage == 2 * settled {
+        let tall = laid(state, sides::BOTTOM, layout_fields::HEIGHT);
+        selftest::check(tall > fold_check.bottom + 100.0 && laid(state, "upper", layout_fields::HEIGHT) == 0.0, "the bottom dock expanded takes the scene's height ({fold_check.bottom as int} to {tall as int})");
+        selftest::check(laid(state, sides::LEFT, layout_fields::WIDTH) == 0.0 && !docks::folded(state, sides::LEFT), "and the left dock gives way without folding");
+        docks::expand(state, sides::BOTTOM);
+        docks::expand(state, sides::LEFT);
+    } else if fold_check.stage == 3 * settled {
+        let wide = laid(state, sides::LEFT, layout_fields::WIDTH);
+        selftest::check(wide > state.screen_width * 0.8, "the left dock expanded takes the body's width ({wide as int} of {state.screen_width as int})");
+        docks::expand(state, sides::LEFT);
+    } else if fold_check.stage == 4 * settled {
+        state.fold_check = nil;
+        let bottom = laid(state, sides::BOTTOM, layout_fields::HEIGHT);
+        let left = laid(state, sides::LEFT, layout_fields::WIDTH);
+        selftest::check(math::abs(bottom - fold_check.bottom) < 1.0 && math::abs(left - fold_check.left) < 1.0, "and restored, both are back as they were ({bottom as int}, {left as int})");
+        log::info("selftest fold: done");
+    }
+}
+
+// A shell box's laid-out size, as `layout.bs` published it.
+fn laid(state: editor::State, box: str, key: str) -> float {
+    state.layout[box][key].as_float()
 }
 
 /// `--state test:focus`: focus folds the shell round the code, and leaving it

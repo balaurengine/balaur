@@ -489,6 +489,19 @@ role = "layout_dock"
 align_items = "center"
 
 [[nodes]]
+id = "left_expand"
+name = "Expand"
+parent = "left_tail"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "expand" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_tab_caret"
+text = ""
+tooltip = "Expand"
+[nodes.widget_button]
+icon = "corners-out"
+
+[[nodes]]
 id = "left_fold"
 name = "Fold"
 parent = "left_tail"
@@ -633,6 +646,19 @@ kind = "row"
 role = "layout_dock"
 [nodes.widget_layout]
 align_items = "center"
+
+[[nodes]]
+id = "right_expand"
+name = "Expand"
+parent = "right_tail"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "expand" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_tab_caret"
+text = ""
+tooltip = "Expand"
+[nodes.widget_button]
+icon = "corners-out"
 
 [[nodes]]
 id = "right_fold"
@@ -834,6 +860,19 @@ kind = "row"
 role = "layout_dock"
 [nodes.widget_layout]
 align_items = "center"
+
+[[nodes]]
+id = "bottom_expand"
+name = "Expand"
+parent = "bottom_tail"
+bindings = { rows = [{ event = "pointer_click", action = "call", target = "../../..", value = "expand" }] }
+[nodes.widget]
+kind = "button"
+role = "icon_action_tab_caret"
+text = ""
+tooltip = "Expand"
+[nodes.widget_button]
+icon = "corners-out"
 
 [[nodes]]
 id = "bottom_fold"

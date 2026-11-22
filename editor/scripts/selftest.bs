@@ -40,6 +40,13 @@ pub class ViewportCheck {
     internal stage: int,
 }
 
+/// `test:fold`'s frame count, and each dock's laid-out size at rest.
+pub class FoldCheck {
+    internal stage: int,
+    internal bottom: float,
+    internal left: float,
+}
+
 pub class Reselect {
     internal waited: int,
     internal stage: int,
@@ -293,6 +300,9 @@ fn step_one(state: &mut editor::State, name: str) -> bool {
         "viewport_check" => {
             viewport_checks::viewport_click_step(state);
         }
+        "fold_check" => {
+            shell_checks::fold_step(state);
+        }
         "reselect" => {
             viewport_checks::reselect_step(state);
         }
@@ -369,6 +379,7 @@ fn under_way(state: editor::State, name: str) -> bool {
     match name {
         "camera_check" => state.camera_check != nil,
         "viewport_check" => state.viewport_check != nil,
+        "fold_check" => state.fold_check != nil,
         "reselect" => state.reselect != nil,
         "start_check" => state.start_check != nil,
         "empty_note" => state.empty_note != nil,

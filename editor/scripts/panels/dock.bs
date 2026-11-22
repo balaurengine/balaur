@@ -51,6 +51,11 @@ impl Dock {
         self.editor.unwrap().dock_more_picked(self.side, value.as_str());
     }
 
+    /// The expand mark, which gives this dock the whole body, or gives it back.
+    pub fn expand(_value: any, _node: Node) {
+        self.editor.unwrap().dock_expanded(self.side);
+    }
+
     /// The fold, which shuts this dock to its handle.
     pub fn fold(_value: any, _node: Node) {
         self.editor.unwrap().dock_folded(self.side);

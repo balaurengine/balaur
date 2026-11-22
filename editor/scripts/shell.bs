@@ -199,6 +199,7 @@ pub fn toggle_focus(state: &mut editor::State) {
         return;
     }
     let was: any = { SPLIT: state.split };
+    state.expanded = "";
     for side in docks::sides() {
         was[side] = state.docks[side][dock_fields::SHUT];
         state.docks[side][dock_fields::SHUT] = true;

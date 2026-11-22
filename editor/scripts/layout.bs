@@ -473,10 +473,12 @@ pub fn compute(state: &mut editor::State) {
     let inspector_width = side_width(state, sides::RIGHT, screen_width, held(state, INSPECTOR_WIDTH, RIGHT_MIN, screen_width - STAGE_MIN - tree_width).as_float());
     let tall = if docks::bottom_tall(state).as_bool() { TALL_EXTRA } else { 0.0 };
     let body_height = held(state, DOCK_HEIGHT, BOTTOM_MIN, state.screen_height - layout_state[dock_fields::BAR][layout_fields::HEIGHT].as_float() - STAGE_MIN - tall - layout_state[STATUS_HEIGHT].as_float());
-    // Minimised, the dock is gone: its handle sits beside the zoom reading,
-    // the way each side dock's sits at the edge it folded towards.
-    let dock_height = if docks::folded(state, sides::BOTTOM) {
+    // Minimised, the dock is gone: its handle sits beside the zoom reading.
+    // Expanded, it takes the centre's whole height and the scene row goes.
+    let dock_height = if docks::folded(state, sides::BOTTOM) || docks::crowded_out(state, sides::BOTTOM) {
         0.0
+    } else if state.expanded == sides::BOTTOM {
+        state.screen_height - layout_state[dock_fields::BAR][layout_fields::HEIGHT].as_float() - 2.0 * gutter(state).as_float() - 2.0 * seam(state).as_float()
     } else {
         body_height.as_float() + tall + layout_state[STATUS_HEIGHT].as_float()
     };
@@ -489,11 +491,13 @@ pub fn compute(state: &mut editor::State) {
     // box left at zero width still takes the row's gap either side of it,
     // which is what stopped the centre reaching the window's own edge.
     for side in [LEFT, RIGHT, BOTTOM] {
-        show(state, side, !docks::folded(state, side));
+        show(state, side, !docks::folded(state, side) && !docks::crowded_out(state, side));
     }
-    // One sheet at a time: a side sheet takes the whole body and the centre
-    // goes, since a box left at zero width still takes the row's gap beside it.
-    show(state, CENTRE, !(docks::one_at_a_time(state) && docks::side_open(state)));
+    // One sheet at a time, or one expanded: a side sheet takes the whole body
+    // and the centre goes, since a zero-width box still takes the row's gap.
+    let side_expanded = state.expanded == sides::LEFT || state.expanded == sides::RIGHT;
+    show(state, CENTRE, !(docks::one_at_a_time(state) && docks::side_open(state)) && !side_expanded);
+    show(state, UPPERROW, state.expanded != sides::BOTTOM);
     size(state, sides::BOTTOM, HEIGHT, dock_height);
     size(state, RAILSLOT, WIDTH, rail_width);
     size(state, sides::RAIL, HEIGHT, center::rail_span(grid, grid.rows));
@@ -649,8 +653,11 @@ pub fn stage_room(state: editor::State) -> Room {
 /// 220 px column of it on a phone is a list of truncated words. The stage
 /// keeps a strip, so it is still there to go back to.
 fn side_width(state: editor::State, side: str, room: float, open_width: float) -> float {
-    if state.docks[side][dock_fields::TABS].len() == 0 || state.docks[side][dock_fields::SHUT].as_bool() {
+    if state.docks[side][dock_fields::TABS].len() == 0 || state.docks[side][dock_fields::SHUT].as_bool() || docks::crowded_out(state, side) {
         return 0.0;
+    }
+    if state.expanded == side {
+        return room - 2.0 * gutter(state).as_float();
     }
     // One sheet at a time takes the whole body: its own fold is the way back,
     // and a strip of stage beside it is dead space once nothing sits on it.

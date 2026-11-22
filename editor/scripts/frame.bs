@@ -210,7 +210,7 @@ internal fn widget_layer(state: editor::State) {
 /// that moved none of it, as a frame of play does, lays nothing out.
 fn layout_key(state: editor::State) -> any {
     [
-        state.workspace, state.doctab, state.split, state.focus, state.settings.compact, state.touchscreen,
+        state.workspace, state.doctab, state.split, state.focus, state.expanded, state.settings.compact, state.touchscreen,
         "{state.docks}", state.rail_shut, state.chrome_off, state.script_open, state.events_open,
         state.selected, state.shader_rel, ui::scale(), manager::showing(state),
     ]
