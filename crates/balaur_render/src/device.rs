@@ -284,6 +284,8 @@ mod web {
 
     const RESIZE: &str = "resize";
     const SCROLL: &str = "scroll";
+    /// The game's canvas, the one the web shell lays out.
+    const CANVAS: &str = "canvas";
 
     /// Hear the page move what [`super::Reading`] holds, once for the page:
     /// the window resizing turns it and moves the safe area, and the visual
@@ -309,6 +311,16 @@ mod web {
                 let _ =
                     viewport.add_event_listener_with_callback(name, moved.as_ref().unchecked_ref());
             }
+        }
+        // A page resizing the game's box moves no window, so the canvas is
+        // watched too: a resting loop would otherwise wait for the pointer.
+        if let Some(canvas) = window
+            .document()
+            .and_then(|document| document.query_selector(CANVAS).ok().flatten())
+            && let Ok(observer) = web_sys::ResizeObserver::new(moved.as_ref().unchecked_ref())
+        {
+            observer.observe(&canvas);
+            std::mem::forget(observer);
         }
         // Heard for the page's life, as kiss3d's own listeners are.
         moved.forget();
