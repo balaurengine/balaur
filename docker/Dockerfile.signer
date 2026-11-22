@@ -20,7 +20,7 @@ ARG RCODESIGN_VERSION=0.29.0
 ARG ANDROID_BUILD_TOOLS=35.0.0
 ARG ANDROID_CMDLINE_TOOLS=11076708
 
-# * osslsigncode  — Authenticode, the Windows story
+# * osslsigncode  — Authenticode from a .pfx (jsign, below, for Azure)
 # * python3       — reads the entitlements out of a .mobileprovision, which is
 #                   a CMS-wrapped plist; slicing that with sed is the kind of
 #                   thing that works until a profile has a nested dict. The
@@ -114,6 +114,19 @@ RUN set -eux; \
     ln -s /usr/local/lib/butler/butler /usr/local/bin/butler; \
     rm /tmp/butler.zip
 
+# jsign: Authenticode through Azure Trusted Signing, where the key stays in
+# Azure's HSM and there is no .pfx for osslsigncode to read. A JAR, so it
+# runs on the JDK apksigner already needs; pinned by the digest GitHub lists.
+ARG JSIGN_VERSION=7.6
+ARG JSIGN_SHA256=6cf58aa080e7ff82656f320cff8d4a3bff30408df8766806dcba3740dd839fa5
+RUN set -eux; \
+    curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors -o /usr/local/lib/jsign.jar \
+      "https://github.com/ebourg/jsign/releases/download/${JSIGN_VERSION}/jsign-${JSIGN_VERSION}.jar"; \
+    echo "${JSIGN_SHA256}  /usr/local/lib/jsign.jar" | sha256sum -c -; \
+    chmod a+r /usr/local/lib/jsign.jar; \
+    printf '#!/bin/sh\nexec java -jar /usr/local/lib/jsign.jar "$@"\n' >/usr/local/bin/jsign; \
+    chmod +x /usr/local/bin/jsign
+
 COPY sign.sh /usr/local/bin/balaur-sign
 COPY publish.sh /usr/local/bin/balaur-publish
 COPY publish_play.py /usr/local/bin/balaur-publish-play
@@ -126,6 +139,7 @@ RUN chmod +x /usr/local/bin/balaur-sign /usr/local/bin/balaur-publish /usr/local
     && rcodesign --version \
     && butler -V \
     && osslsigncode --version \
+    && jsign --help 2>&1 | grep -q TRUSTEDSIGNING \
     && apksigner version \
     && jarsigner -help 2>&1 | grep -q Usage \
     && zipalign 2>&1 | head -1 \

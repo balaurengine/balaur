@@ -81,20 +81,59 @@ macho() {
 
 case "$SIGN_TARGET" in
   windows-*)
-    need windows_certificate windows_password
+    # Two ways in, by what is mounted: Azure Trusted Signing (the key never
+    # leaves Azure; jsign sends each digest there) or a .pfx (osslsigncode).
+    if [ -s /creds/windows_trusted_client_secret ]; then
+      need windows_trusted_endpoint windows_trusted_account windows_trusted_profile \
+        windows_trusted_tenant_id windows_trusted_client_id windows_trusted_client_secret
 
-    set -- sign \
-      -pkcs12 /creds/windows_certificate \
-      -readpass /creds/windows_password \
-      -h sha256
+      # A client-credentials token for the signing API, kept on /work's tmpfs.
+      # The secret goes to curl as a file, never as an argument.
+      ( umask 077
+        curl -fsS --retry 3 -o /work/azure_token.json \
+          --data-urlencode grant_type=client_credentials \
+          --data-urlencode "client_id=$(read_cred windows_trusted_client_id)" \
+          --data-urlencode client_secret@/creds/windows_trusted_client_secret \
+          --data-urlencode scope=https://codesigning.azure.net/.default \
+          "https://login.microsoftonline.com/$(read_cred windows_trusted_tenant_id)/oauth2/v2.0/token" &&
+        python3 -c 'import json, sys; sys.stdout.write(json.load(open("/work/azure_token.json"))["access_token"])' \
+          >/work/azure_token
+      ) || fail "Azure gave no token for that tenant, client id and secret"
+      rm -f /work/azure_token.json
 
-    # Without a timestamp the signature dies with the certificate. Optional
-    # because it is the one part of Windows signing that needs the network.
-    if [ -s /creds/windows_timestamp_url ]; then
-      set -- "$@" -ts "$(read_cred windows_timestamp_url)"
-      log "==> timestamping via the configured authority"
+      TRUSTED_HOST=$(read_cred windows_trusted_endpoint | sed -E 's#^https?://##; s#/.*$##')
+      TRUSTED_ALIAS="$(read_cred windows_trusted_account)/$(read_cred windows_trusted_profile)"
+      log "==> signing through Azure Trusted Signing at ${TRUSTED_HOST}, timestamped by Microsoft"
+
+      sign_windows() {
+        cp "$1" "$2" &&
+          jsign --storetype TRUSTEDSIGNING --keystore "$TRUSTED_HOST" \
+            --storepass file:/work/azure_token --alias "$TRUSTED_ALIAS" \
+            --alg SHA-256 --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 \
+            "$2"
+      }
     else
-      log "==> no timestamp server set; the signature expires with the certificate"
+      need windows_certificate windows_password
+
+      # Without a timestamp the signature dies with the certificate. Optional
+      # because it is the one part of .pfx signing that needs the network.
+      WINDOWS_TS=""
+      if [ -s /creds/windows_timestamp_url ]; then
+        WINDOWS_TS=$(read_cred windows_timestamp_url)
+        log "==> timestamping via the configured authority"
+      else
+        log "==> no timestamp server set; the signature expires with the certificate"
+      fi
+
+      sign_windows() {
+        if [ -n "$WINDOWS_TS" ]; then
+          osslsigncode sign -pkcs12 /creds/windows_certificate \
+            -readpass /creds/windows_password -h sha256 -ts "$WINDOWS_TS" -in "$1" -out "$2"
+        else
+          osslsigncode sign -pkcs12 /creds/windows_certificate \
+            -readpass /creds/windows_password -h sha256 -in "$1" -out "$2"
+        fi
+      }
     fi
 
     case "$SIGN_ARTIFACT" in
@@ -102,16 +141,17 @@ case "$SIGN_TARGET" in
         unpack
         find /work/zip -type f \( -iname '*.exe' -o -iname '*.dll' \) | sort | while IFS= read -r file; do
           log "==> sign ${file#/work/zip/} for ${SIGN_TARGET}"
-          osslsigncode "$@" -in "$file" -out "${file}.signed" || exit 1
+          sign_windows "$file" "${file}.signed" || exit 1
           mv "${file}.signed" "$file" || exit 1
-        done || fail "osslsigncode failed"
+        done || fail "signing failed"
         repack
         ;;
       *)
         log "==> sign ${SIGN_ARTIFACT} for ${SIGN_TARGET}"
-        osslsigncode "$@" -in "$IN" -out "$OUT" || fail "osslsigncode failed"
+        sign_windows "$IN" "$OUT" || fail "signing failed"
         ;;
     esac
+    rm -f /work/azure_token
     ;;
 
   macos-universal)

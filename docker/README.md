@@ -184,6 +184,7 @@ The credential files, by target:
 |---|---|
 | `android` | `android_keystore`, `android_store_password`, `android_key_alias`, `android_key_password` |
 | `windows-*` | `windows_certificate`, `windows_password`, optionally `windows_timestamp_url` |
+| `windows-*`, Azure Trusted Signing | `windows_trusted_endpoint`, `windows_trusted_account`, `windows_trusted_profile`, `windows_trusted_tenant_id`, `windows_trusted_client_id`, `windows_trusted_client_secret` (used whenever the secret is mounted) |
 | `macos-universal` | `macos_certificate`, `macos_password` |
 | `ios` | `ios_certificate`, `ios_password`, `ios_provisioning_profile` |
 | notarisation | `apple_issuer_id`, `apple_key_id`, `apple_private_key` |
@@ -196,6 +197,7 @@ password.
 |---|---|---|
 | `android` | keystore, its two passwords, key alias; an `.apk` through `apksigner`, an `.aab` through `jarsigner` | no |
 | `windows-x64`, `windows-arm64` | `.pfx`/`.p12`, its password, optionally a timestamp URL | only with a timestamp URL |
+| `windows-x64`, `windows-arm64`, Azure | a Trusted Signing account, profile and endpoint, and an app registration's tenant, client id and secret; `jsign` signs through Azure | yes — Entra ID, the signing API and Microsoft's timestamp authority |
 | `macos-universal` | Developer ID `.p12` and its password | yes — rcodesign timestamps through Apple |
 | `ios` | Apple Distribution `.p12`, its password, a `.mobileprovision` | yes, same |
 
