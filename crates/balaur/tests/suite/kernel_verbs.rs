@@ -388,3 +388,32 @@ impl Probe {
     assert_eq!(tick(2) - tick(1), 1, "one step apart");
     assert_eq!(tick(599) - tick(1), 598 + 30, "the paused span holds them");
 }
+
+#[test]
+fn a_script_reads_the_machines_time_zone_at_an_instant() {
+    // A July and a January noon of 2026, UTC: the two sides of daylight saving.
+    let (_dir, app) = booted(
+        r"pub class Probe { node: Node, summer: int, winter: int, whole: int, now: int }
+impl Probe {
+    pub fn init() {
+        self.summer = engine::utc_offset(1784894400.0);
+        self.winter = engine::utc_offset(1768478400.0);
+        self.whole = engine::utc_offset(1784894400);
+        self.now = engine::utc_offset(engine::unix_time());
+    }
+}
+",
+        "",
+        &[],
+    );
+    for (name, at) in [("summer", 1_784_894_400.0), ("winter", 1_768_478_400.0)] {
+        let Some(Value::Int(seconds)) = field(&app, name) else {
+            panic!("{name} is {:?}", field(&app, name));
+        };
+        assert_eq!(seconds, balaur_core::facts::utc_offset(at), "{name}");
+        assert!(seconds.abs() <= 14 * 3600, "{name}: {seconds} s from UTC");
+        assert_eq!(seconds % 60, 0, "{name}: {seconds} s is no whole minute");
+    }
+    assert_eq!(field(&app, "whole"), field(&app, "summer"));
+    assert!(matches!(field(&app, "now"), Some(Value::Int(_))));
+}

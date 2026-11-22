@@ -136,6 +136,104 @@ pub fn reread(eng: &Engine) {
     eng.resource::<Facts>().borrow_mut().0 = None;
 }
 
+/// How far the machine's time zone is from UTC at `at` (seconds since 1970),
+/// in seconds east, daylight saving included: what the reader's own clock
+/// says of that instant. 0 where the platform says nothing. Read from the
+/// system on each call, never recorded: a replay answers as the machine it
+/// plays on does.
+#[must_use]
+pub fn utc_offset(at: f64) -> i64 {
+    zone::offset(at)
+}
+
+#[cfg(all(unix, not(target_family = "wasm")))]
+mod zone {
+    pub(super) fn offset(at: f64) -> i64 {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "whole seconds, in time_t's range"
+        )]
+        let instant = at.floor() as libc::time_t;
+        // SAFETY: an all-zero `tm` is a valid value of the plain C struct,
+        // and `localtime_r` writes into it alone, both live for the call.
+        let mut broken: libc::tm = unsafe { std::mem::zeroed() };
+        // SAFETY: both pointers are to live locals of the right types.
+        let out = unsafe { libc::localtime_r(&raw const instant, &raw mut broken) };
+        if out.is_null() {
+            return 0;
+        }
+        #[allow(
+            clippy::useless_conversion,
+            reason = "a c_long is 32 bits on some phones"
+        )]
+        i64::from(broken.tm_gmtoff)
+    }
+}
+
+#[cfg(windows)]
+mod zone {
+    use windows_sys::Win32::Foundation::{FILETIME, SYSTEMTIME};
+    use windows_sys::Win32::System::Time::{
+        FileTimeToSystemTime, SystemTimeToFileTime, SystemTimeToTzSpecificLocalTime,
+    };
+
+    /// Seconds from 1601, where a FILETIME counts from, to 1970.
+    const EPOCH_GAP: f64 = 11_644_473_600.0;
+    /// A FILETIME's ticks in a second.
+    const TICKS: i64 = 10_000_000;
+
+    pub(super) fn offset(at: f64) -> i64 {
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a time after 1601, in 100 ns ticks"
+        )]
+        let ticks = ((at.floor() + EPOCH_GAP) * 1e7) as u64;
+        #[allow(clippy::cast_possible_truncation, reason = "the FILETIME's two halves")]
+        let utc_file = FILETIME {
+            dwLowDateTime: ticks as u32,
+            dwHighDateTime: (ticks >> 32) as u32,
+        };
+        // SAFETY: plain C structs, all-zero valid; each call writes one of
+        // them through a pointer to a live local, and none outlives it.
+        let (mut utc, mut local, mut local_file): (SYSTEMTIME, SYSTEMTIME, FILETIME) =
+            unsafe { (std::mem::zeroed(), std::mem::zeroed(), std::mem::zeroed()) };
+        // SAFETY: as above; a null zone is the machine's own.
+        let done = unsafe {
+            FileTimeToSystemTime(&raw const utc_file, &raw mut utc) != 0
+                && SystemTimeToTzSpecificLocalTime(std::ptr::null(), &raw const utc, &raw mut local)
+                    != 0
+                && SystemTimeToFileTime(&raw const local, &raw mut local_file) != 0
+        };
+        if !done {
+            return 0;
+        }
+        let local_ticks =
+            (u64::from(local_file.dwHighDateTime) << 32) | u64::from(local_file.dwLowDateTime);
+        #[allow(clippy::cast_possible_wrap, reason = "ticks of a time in this era")]
+        let gap = local_ticks as i64 - ticks as i64;
+        gap / TICKS
+    }
+}
+
+#[cfg(target_family = "wasm")]
+mod zone {
+    pub(super) fn offset(at: f64) -> i64 {
+        let date = js_sys::Date::new(&js_sys::wasm_bindgen::JsValue::from_f64(at * 1000.0));
+        // Minutes west, as JavaScript counts them.
+        #[allow(clippy::cast_possible_truncation, reason = "whole minutes")]
+        let west = date.get_timezone_offset() as i64;
+        -west * 60
+    }
+}
+
+#[cfg(not(any(unix, windows, target_family = "wasm")))]
+mod zone {
+    pub(super) fn offset(_at: f64) -> i64 {
+        0
+    }
+}
+
 /// The wall clock as of the top of this tick, in seconds since the epoch.
 /// Read once per frame and recorded, never mid-tick.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]

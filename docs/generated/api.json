@@ -2059,6 +2059,10 @@
         "least": 1,
         "signature": "(str) -> str"
       },
+      "engine::utc_offset": {
+        "least": 1,
+        "signature": "(float) -> int"
+      },
       "engine::watch": {
         "least": 2,
         "signature": "(str, [str]) -> bool"
@@ -20524,6 +20528,7 @@
         "unix_time": "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw. A tool's own script, on a node outside the subtree `debugger::set_scope` names, reads the machine's clock, which a replay does not feed.",
         "user_data_directory": "A writable per-user directory for saves and settings, created on first call and named after the project. A game the editor plays answers with its own, the folder it has when run alone.",
         "user_data_directory_of": "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs.",
+        "utc_offset": "How far the player's time zone is from UTC at `at` (seconds since 1970), in seconds east, daylight saving included: `unix_time() + utc_offset(t)` is what their clock says of `t`. 0 where the platform says nothing. Read from the system, never recorded.",
         "watch": "Follow a directory outside the project the way a run follows the project: a script loaded from it hot reloads when its file changes, and with no `extensions` every other file reloads as the project's own content does. A script hears each burst of changes once with `events::listen(this.node, \"files_changed\")`, as `on_files_changed(paths)`, each path spelled from `directory` and with one of `extensions`, or any file when that is empty. A run hears its own project's files the same way, by project-relative path, every file but its scripts and those under a dot folder. An empty list is more than the watcher could name, so what is held has to be checked again. Answers false where nothing can be followed: a pack, a browser, a run with watching off. The directory has to be one `fs` may reach."
       },
       "editor": [],
@@ -20556,6 +20561,7 @@
         "unix_time",
         "user_data_directory",
         "user_data_directory_of",
+        "utc_offset",
         "watch"
       ],
       "methods": {},
@@ -20589,6 +20595,7 @@
         "unix_time": "() -> float",
         "user_data_directory": "() -> str",
         "user_data_directory_of": "(str) -> str",
+        "utc_offset": "(float) -> int",
         "watch": "(str, [str]) -> bool"
       }
     },

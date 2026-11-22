@@ -241,6 +241,16 @@ pub(crate) fn unix_time(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Num(crate::facts::unix_time(eng)))
 }
 
+pub(crate) fn utc_offset(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let at = match args.first() {
+        Some(Value::Num(at)) => *at,
+        #[allow(clippy::cast_precision_loss, reason = "seconds since 1970")]
+        Some(Value::Int(at)) => *at as f64,
+        _ => crate::facts::unix_time(eng),
+    };
+    Ok(Value::Int(crate::facts::utc_offset(at)))
+}
+
 pub(crate) fn strings_system_locale(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(crate::facts::platform(eng)
         .system_locale

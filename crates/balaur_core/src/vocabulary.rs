@@ -66,11 +66,16 @@ pub(crate) mod words {
     }
 
     pub(crate) mod locales {
+        pub(crate) const AR: &str = "ar";
         pub(crate) const BE: &str = "be";
         pub(crate) const BS: &str = "bs";
+        pub(crate) const CA: &str = "ca";
+        pub(crate) const CS: &str = "cs";
+        pub(crate) const ES: &str = "es";
         pub(crate) const FR: &str = "fr";
         pub(crate) const HR: &str = "hr";
         pub(crate) const ID: &str = "id";
+        pub(crate) const IT: &str = "it";
         pub(crate) const JA: &str = "ja";
         pub(crate) const KO: &str = "ko";
         pub(crate) const MO: &str = "mo";
@@ -80,6 +85,7 @@ pub(crate) mod words {
         pub(crate) const PT: &str = "pt";
         pub(crate) const RO: &str = "ro";
         pub(crate) const RU: &str = "ru";
+        pub(crate) const SK: &str = "sk";
         pub(crate) const SR: &str = "sr";
         pub(crate) const TH: &str = "th";
         pub(crate) const UK: &str = "uk";

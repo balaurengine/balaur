@@ -17,7 +17,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 3 | 0 |
-| [`engine`](#engine) | 29 | 0 |
+| [`engine`](#engine) | 30 | 0 |
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
@@ -306,6 +306,7 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | `unix_time` | `() -> float` |
 | `user_data_directory` | `() -> str` |
 | `user_data_directory_of` | `(str) -> str` |
+| `utc_offset` | `(float) -> int` |
 | `watch` | `(str, [str]) -> bool` |
 
 ## `events`

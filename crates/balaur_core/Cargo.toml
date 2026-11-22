@@ -90,4 +90,9 @@ libc = "0.2"
 mach2 = "0.6"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_Time"] }
+
+# The machine's time zone at an instant (`engine::utc_offset`): the C
+# library's `localtime_r` on every Unix, a phone's included.
+[target.'cfg(all(unix, not(target_family = "wasm")))'.dependencies]
+libc = "0.2"

@@ -20,6 +20,9 @@ use crate::engine::Engine;
 use crate::vocabulary::words;
 
 const FEW: &str = "few";
+const MANY: &str = "many";
+const TWO: &str = "two";
+const ZERO: &str = "zero";
 const ONE: &str = "one";
 const OTHER: &str = "other";
 
@@ -93,7 +96,8 @@ enum Entry {
     Plural(BTreeMap<String, String>),
 }
 
-/// Which plural category a count falls in, for the languages named here.
+/// Which plural category a count falls in, for the languages named here:
+/// CLDR's rule for a whole number, as `Intl.PluralRules` answers it.
 ///
 /// Not the whole CLDR table: that is a generated artefact of some size, and
 /// what a game needs is the handful of shapes its own translators write in.
@@ -101,6 +105,9 @@ enum Entry {
 /// most of the languages in the table.
 fn category(language: &str, n: i64) -> &'static str {
     let abs = n.unsigned_abs();
+    let (ten, hundred) = (abs % 10, abs % 100);
+    // A round million, in the languages that say "de"/"di" after one.
+    let million = abs != 0 && abs.is_multiple_of(1_000_000);
     match language {
         // One form for everything: no count changes the wording.
         words::locales::JA
@@ -109,37 +116,78 @@ fn category(language: &str, n: i64) -> &'static str {
         | words::locales::VI
         | words::locales::TH
         | words::locales::ID => OTHER,
+        // Arabic: 0, 1 and 2 each their own; 3-10 few, 11-99 many (by the
+        // last two digits).
+        words::locales::AR => match (abs, hundred) {
+            (0, _) => ZERO,
+            (1, _) => ONE,
+            (2, _) => TWO,
+            (_, 3..=10) => FEW,
+            (_, 11..=99) => MANY,
+            _ => OTHER,
+        },
         // Romanian: 1 is one; 0 and 2..=19 (and the same mod 100) are few.
         words::locales::RO | words::locales::MO => {
             if n == 1 {
                 ONE
-            } else if abs == 0 || (1..=19).contains(&(abs % 100)) {
+            } else if abs == 0 || (1..=19).contains(&hundred) {
                 FEW
             } else {
                 OTHER
             }
         }
-        // The Slavic shape: 1 but not 11; 2-4 but not 12-14; the rest many.
-        words::locales::RU
-        | words::locales::UK
-        | words::locales::BE
-        | words::locales::PL
-        | words::locales::HR
-        | words::locales::SR
-        | words::locales::BS => {
-            let (ten, hundred) = (abs % 10, abs % 100);
+        // East Slavic: 1 but not 11; 2-4 but not 12-14; the rest many.
+        words::locales::RU | words::locales::UK | words::locales::BE => {
             if ten == 1 && hundred != 11 {
                 ONE
             } else if (2..=4).contains(&ten) && !(12..=14).contains(&hundred) {
                 FEW
             } else {
-                "many"
+                MANY
             }
         }
-        // French counts 0 and 1 alike.
+        // Polish: 1 alone is one; 2-4 but not 12-14 few; the rest many.
+        words::locales::PL => {
+            if abs == 1 {
+                ONE
+            } else if (2..=4).contains(&ten) && !(12..=14).contains(&hundred) {
+                FEW
+            } else {
+                MANY
+            }
+        }
+        // South Slavic: as East Slavic, with the rest other.
+        words::locales::HR | words::locales::SR | words::locales::BS => {
+            if ten == 1 && hundred != 11 {
+                ONE
+            } else if (2..=4).contains(&ten) && !(12..=14).contains(&hundred) {
+                FEW
+            } else {
+                OTHER
+            }
+        }
+        // Czech and Slovak: 1 one, 2-4 few (many is for fractions).
+        words::locales::CS | words::locales::SK => match abs {
+            1 => ONE,
+            2..=4 => FEW,
+            _ => OTHER,
+        },
+        // French and Portuguese count 0 and 1 alike (`pt` is Brazil's rule,
+        // as CLDR's own `pt`).
         words::locales::FR | words::locales::PT => {
             if abs <= 1 {
                 ONE
+            } else if million {
+                MANY
+            } else {
+                OTHER
+            }
+        }
+        words::locales::ES | words::locales::IT | words::locales::CA => {
+            if n == 1 {
+                ONE
+            } else if million {
+                MANY
             } else {
                 OTHER
             }
@@ -429,4 +477,92 @@ pub fn reload(eng: &Engine) -> Result<()> {
         strings.plain.borrow_mut().clear();
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::category;
+
+    // Samples of each rule, as Node's
+    // `Intl.PluralRules` answers them.
+    #[test]
+    fn a_count_falls_in_the_category_cldr_gives_it() {
+        let cases: &[(&str, &[(i64, &str)])] = &[
+            (
+                "en",
+                &[(0, "other"), (1, "one"), (2, "other"), (21, "other")],
+            ),
+            (
+                "ar",
+                &[
+                    (0, "zero"),
+                    (1, "one"),
+                    (2, "two"),
+                    (3, "few"),
+                    (10, "few"),
+                    (11, "many"),
+                    (99, "many"),
+                    (100, "other"),
+                    (103, "few"),
+                ],
+            ),
+            (
+                "cs",
+                &[
+                    (0, "other"),
+                    (1, "one"),
+                    (2, "few"),
+                    (4, "few"),
+                    (5, "other"),
+                    (22, "other"),
+                ],
+            ),
+            (
+                "pl",
+                &[
+                    (1, "one"),
+                    (2, "few"),
+                    (5, "many"),
+                    (12, "many"),
+                    (21, "many"),
+                    (22, "few"),
+                ],
+            ),
+            (
+                "ru",
+                &[
+                    (1, "one"),
+                    (2, "few"),
+                    (5, "many"),
+                    (11, "many"),
+                    (21, "one"),
+                    (111, "many"),
+                ],
+            ),
+            ("hr", &[(1, "one"), (3, "few"), (5, "other"), (21, "one")]),
+            (
+                "ro",
+                &[
+                    (0, "few"),
+                    (1, "one"),
+                    (2, "few"),
+                    (19, "few"),
+                    (20, "other"),
+                    (101, "few"),
+                ],
+            ),
+            (
+                "fr",
+                &[(0, "one"), (1, "one"), (2, "other"), (1_000_000, "many")],
+            ),
+            ("pt", &[(0, "one"), (1, "one"), (2, "other")]),
+            ("es", &[(0, "other"), (1, "one"), (1_000_000, "many")]),
+            ("ja", &[(1, "other")]),
+        ];
+        for (language, counts) in cases {
+            for &(n, want) in *counts {
+                assert_eq!(category(language, n), want, "{language} {n}");
+            }
+        }
+    }
 }

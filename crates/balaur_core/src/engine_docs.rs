@@ -70,6 +70,7 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
         (words::TARGET, &[], "() -> Target", "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did."),
         (words::functions::DEVICE_ID, &[], "() -> string", "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session."),
         ("unix_time", &[], "() -> float", "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw. A tool's own script, on a node outside the subtree `debugger::set_scope` names, reads the machine's clock, which a replay does not feed."),
+        ("utc_offset", &[], "(at: float) -> int", "How far the player's time zone is from UTC at `at` (seconds since 1970), in seconds east, daylight saving included: `unix_time() + utc_offset(t)` is what their clock says of `t`. 0 where the platform says nothing. Read from the system, never recorded."),
         ("focused", &[], "() -> bool", "Whether the window is in front of the player this tick; every script's `on_focused_changed(bool)` is called when it changes. True with no window."),
         ("dark_mode", &[], "() -> bool", "Whether the system is in dark mode this tick; every script's `on_dark_mode_changed(bool)` is called when it changes. False where nothing says."),
     ]);
