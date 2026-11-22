@@ -15,6 +15,8 @@ use crate::config::{ExportConfig, secret_or};
 use crate::sign::{run, tool};
 use crate::vocabulary::words;
 
+mod permissions;
+
 const AAPT2: &str = "aapt2";
 const ANDROIDDEBUGKEY: &str = "androiddebugkey";
 const APKSIGNER: &str = "apksigner";
@@ -86,6 +88,11 @@ pub(crate) struct AndroidConfig {
     /// Where `bundletool.jar` is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and
     /// then beside the SDK; Google ships it on its own, not in the SDK.
     pub bundletool: String,
+    /// The permissions the manifest declares, each `INTERNET` for
+    /// `android.permission.INTERNET` or a whole dotted name. `INTERNET`
+    /// unless the game says otherwise: without it no socket opens, and a
+    /// game that never goes online writes `permissions = []`.
+    pub permissions: Vec<String>,
     /// `[window] orientation`, which Android settles in the manifest rather
     /// than at startup. Not a key of `[android]`: it is the same window
     /// setting every platform reads, taken from the same resolved document.
@@ -114,6 +121,7 @@ impl Default for AndroidConfig {
             keystore: String::new(),
             key: String::new(),
             bundletool: String::new(),
+            permissions: vec![permissions::INTERNET.to_string()],
             orientation: balaur::project::Orientation::Any,
             title: String::new(),
             debug_key: false,
@@ -237,6 +245,7 @@ impl AndroidConfig {
             &self.target_sdk.to_string(),
         )?;
         xml = set_attr(&xml, "android:label", &escape(label))?;
+        xml = permissions::declare(&xml, &self.permissions)?;
         Ok(match self.orientation {
             balaur::project::Orientation::Any => xml,
             held => set_or_add_attr(
@@ -857,7 +866,7 @@ mod tests {
 "#;
 
     /// The manifest scripts/package_runtime.sh stages.
-    const TEMPLATE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+    pub(super) const TEMPLATE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.balaur.template"
     android:versionCode="1"
@@ -869,7 +878,7 @@ mod tests {
 "#;
 
     /// Everything an export needs named, as a project declares it.
-    fn named() -> AndroidConfig {
+    pub(super) fn named() -> AndroidConfig {
         AndroidConfig {
             application_id: "com.studio.tide".into(),
             title: "Tide".into(),
@@ -907,6 +916,31 @@ mod tests {
         assert!(!xml.contains("org.balaur.template"), "{xml}");
         // The template's own floor, kept because the project named none.
         assert!(xml.contains(r#"android:minSdkVersion="26""#), "{xml}");
+    }
+
+    // An Android build reaches no server without INTERNET, so a game that
+    // says nothing has it; one that goes offline on purpose says so.
+    #[test]
+    fn the_manifest_declares_internet_unless_the_game_says_otherwise() {
+        let xml = named().manifest(TEMPLATE).unwrap();
+        assert!(
+            xml.contains(r#"<uses-permission android:name="android.permission.INTERNET" />"#),
+            "{xml}"
+        );
+        assert!(
+            xml.find("uses-permission").unwrap() < xml.find("<application").unwrap(),
+            "{xml}"
+        );
+        let offline = AndroidConfig {
+            permissions: Vec::new(),
+            ..named()
+        };
+        assert!(
+            !offline
+                .manifest(TEMPLATE)
+                .unwrap()
+                .contains("uses-permission")
+        );
     }
 
     #[test]

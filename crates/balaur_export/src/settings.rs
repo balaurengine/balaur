@@ -61,6 +61,7 @@ abis = { type = "flags", default = [], options = ["arm64-v8a", "armeabi-v7a", "x
 keystore = { type = "string", default = "", order = 8, help = "A project-relative keystore. Without one an export needs --sign debug, which installs on a device and ships nowhere." }
 key = { type = "string", default = "", order = 9, help = "Which key in that keystore signs." }
 bundletool = { type = "string", default = "", order = 10, help = "Where bundletool.jar is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and then beside the SDK; Google ships it on its own, not in the SDK." }
+permissions = { type = "list", of = { type = "string" }, default = ["INTERNET"], order = 11, help = "The permissions the manifest declares: INTERNET for android.permission.INTERNET, or a whole name. Without INTERNET no socket opens; a game that never goes online writes permissions = []." }
 "#,
         ),
     );

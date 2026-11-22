@@ -31116,6 +31116,23 @@
     },
     {
       "host": false,
+      "path": "android/permissions",
+      "scope": "project",
+      "spec": {
+        "default": [
+          "INTERNET"
+        ],
+        "help": "The permissions the manifest declares: INTERNET for android.permission.INTERNET, or a whole name. Without INTERNET no socket opens; a game that never goes online writes permissions = [].",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 11,
+        "type": "list"
+      }
+    },
+    {
+      "host": false,
       "path": "apple/bundle_id",
       "scope": "project",
       "spec": {

@@ -25,6 +25,7 @@ question as an old one is a second way to say it.
 <tr><td><code>keystore</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>A project-relative keystore. Without one an export needs --sign debug, which installs on a device and ships nowhere.</td></tr>
 <tr><td><code>key</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>Which key in that keystore signs.</td></tr>
 <tr><td><code>bundletool</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>Where bundletool.jar is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and then beside the SDK; Google ships it on its own, not in the SDK.</td></tr>
+<tr><td><code>permissions</code></td><td>list of string</td><td><code>[&quot;INTERNET&quot;]</code></td><td></td><td>The permissions the manifest declares: INTERNET for android.permission.INTERNET, or a whole name. Without INTERNET no socket opens; a game that never goes online writes permissions = [].</td></tr>
 </tbody>
 </table>
 
