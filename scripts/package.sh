@@ -8,6 +8,23 @@
 #   balaur-runtime-<target>  the runtime template: what a game gets fused onto
 # Usage: [VARIANT=2d|3d|bare|server] package.sh <target>   e.g. linux-x64, windows-arm64
 set -euo pipefail
+
+# A smoke test's folder: under target/, never in dist/, which is uploaded
+# whole.
+smoke_dir() {
+  mkdir -p target/smoke
+  mktemp -d "$(cd target/smoke && pwd)/run.XXXXXX"
+}
+
+# Remove it, asked again a few seconds: Windows holds an executable a
+# moment after it exits ("Device or resource busy").
+let_go() {
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    rm -rf "$1" 2>/dev/null && return 0
+    sleep 1
+  done
+  printf '::warning::%s was still busy; left in place\n' "$1"
+}
 cd "$(dirname "$0")/.."
 . scripts/features.sh
 variant=${VARIANT:-}
@@ -99,9 +116,7 @@ if [ -n "$variant" ]; then
   2d) example=examples/angrynerds ;;
   bare) example=examples/interface ;;
   esac
-  smoke="$dist/.smoke-$variant"
-  rm -rf "$smoke"
-  mkdir -p "$smoke"
+  smoke=$(smoke_dir)
   cp -R "$example" "$smoke/project"
   # The example names its runtime in `[export] runtime`; a server is a target.
   game_target=$target
@@ -120,7 +135,7 @@ if [ -n "$variant" ]; then
     printf '::error::the game exported onto the %s template logged a warning\n' "$variant"
     exit 1
   fi
-  rm -rf "$smoke"
+  let_go "$smoke"
   printf '%s ran clean on %s\n' "$example" "$out"
   exit 0
 fi
@@ -161,8 +176,7 @@ cp "$lib" "$bundle/"
 step "smoke: export a game with the template and run it"
 # The template is found next to the *executable*, not the working directory,
 # so this runs the staged binary in place and stays with absolute paths.
-smoke="$dist/.smoke"
-rm -rf "$smoke"
+smoke=$(smoke_dir)
 "$bundle/balaur$exe" new "$smoke/project" >/dev/null
 # With an icon, so a Windows game runs with the resources the export rewrote.
 ./scripts/with_icon.sh "$smoke/project"
@@ -187,7 +201,7 @@ if [ -n "${BALAUR_SIGNING_CHECK:-}" ]; then
   step "signing"
   ./scripts/signing_check.sh "$bundle/balaur$exe" "$target"
 fi
-rm -rf "$smoke"
+let_go "$smoke"
 
 # The editor only, and before the zip: a runtime template exists to have a
 # pack appended to it, and `balaur export` signs that result itself. Signing a
