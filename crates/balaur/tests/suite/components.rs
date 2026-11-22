@@ -632,6 +632,47 @@ fn a_one_property_write_leaves_the_rest() {
     );
 }
 
+// Four numbers side by side (`padding`, `margin`, `inset`) have no struct of
+// their own: a script writes and reads them as a list of floats.
+#[test]
+fn a_four_number_property_is_a_list_a_script_writes_and_reads() {
+    let (dir, app) = app_with_every_component();
+    run_script(
+        dir.path(),
+        &app,
+        r#"
+        pub class Checks { node: Node, done: int, failed: bool }
+
+        impl Checks {
+            pub fn init() {
+                let n = scene::root().add_child("Padded");
+                n.set_component("widget", { "kind": "row" });
+                n.widget.padding = [0.0, 0.0, 120.0, 0.0];
+                n.widget.inset = [-1.0, 4.0, 8.0, -1.0];
+
+                let padding = n.widget.padding;
+                self.check(padding.len() == 4, "four numbers read back");
+                self.check(padding[2] == 120.0 && padding[0] == 0.0, "padding written");
+                self.check(n.widget.inset[0] == -1.0 && n.widget.inset[2] == 8.0, "inset written");
+                self.check(n.widget.kind == "row", "kind survived the write");
+
+                if !self.failed {
+                    self.done = 1;
+                }
+            }
+
+            fn check(ok: bool, what: str) {
+                if !ok {
+                    self.failed = true;
+                    log::error("failed: {what}");
+                }
+            }
+        }
+        
+"#,
+    );
+}
+
 #[test]
 #[ignore = "needs engine: a .bs component read on a node without the component gives zeros, not the schema default"]
 fn a_handle_on_a_missing_component_reads_its_defaults() {

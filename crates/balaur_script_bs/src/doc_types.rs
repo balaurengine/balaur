@@ -71,6 +71,10 @@ pub(crate) fn schema_ty(t: &str) -> Option<Ty> {
         words::doc_types::STRING | words::doc_types::ENUM | words::doc_types::ASSET => Ty::Str,
         words::doc_types::VEC2 => Ty::Struct("Vec2".into()),
         words::doc_types::VEC3 => Ty::Struct("Vec3".into()),
+        // Four numbers with no struct of their own (a widget's `padding`,
+        // `margin` and `inset`, side by side): a list of floats, as a tuple
+        // of four reads.
+        words::doc_types::VEC4 => Ty::Array(Box::new(Ty::Float)),
         words::doc_types::COLOR => Ty::Struct("Color".into()),
         words::doc_types::NODE => Ty::Node,
         words::doc_types::LIST

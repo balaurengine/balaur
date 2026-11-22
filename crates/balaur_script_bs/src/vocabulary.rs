@@ -26,6 +26,7 @@ pub(crate) mod words {
         pub(crate) const VARIANT: &str = "variant";
         pub(crate) const VEC2: &str = "vec2";
         pub(crate) const VEC3: &str = "vec3";
+        pub(crate) const VEC4: &str = "vec4";
     }
 
     /// The engine's value types a script names as structs.

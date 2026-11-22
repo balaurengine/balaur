@@ -1134,3 +1134,62 @@ fn an_open_fold_s_body_rows_keep_their_places_beside_a_header_child() {
     );
     assert!(one.min.y > 0.0, "and the first under the header: {one:?}");
 }
+
+// A row narrowed after it was laid out, by its share or by the room its
+// padding keeps, lays its children out again in what is left: a heading
+// keeps clear of the bar laid over its end.
+#[test]
+fn a_row_narrowed_at_run_time_lays_its_children_out_again() {
+    let (_dir, app) = app();
+    let page = add_widget(
+        &app,
+        &toml::toml! { kind = "column" width = 400.0 height = 100.0 padding = 0.0 x = 0.0 y = 0.0 }
+            .into(),
+    );
+    let heading = add_child_widget(
+        &app,
+        page,
+        "heading",
+        &toml::toml! { kind = "row" width_percent = 100.0 padding = 0.0 widget_layout = { gap = [0.0, 0.0] } }
+            .into(),
+    );
+    let title = add_child_widget(
+        &app,
+        heading,
+        "title",
+        &toml::toml! { kind = "label" text = "" height = 10.0 grow = 1.0 }.into(),
+    );
+    let end = add_child_widget(&app, heading, "end", &block(40.0, 10.0));
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = |e| balaur_ui::widget_rect(e).expect("drew");
+    assert!(close(rect(end).max.x, 400.0), "before: {:?}", rect(end));
+
+    let narrower = toml::toml! { width_percent = 75.0 };
+    balaur::components::patch(&app.engine, heading, "widget", &narrower.into()).unwrap();
+    settle(&app, &ctx);
+    assert!(
+        close(rect(heading).width(), 300.0),
+        "the row: {:?}",
+        rect(heading)
+    );
+    assert!(
+        close(rect(end).max.x, 300.0),
+        "its end, by its share: {:?}",
+        rect(end)
+    );
+    assert!(
+        close(rect(title).max.x, 260.0),
+        "its title: {:?}",
+        rect(title)
+    );
+
+    let kept = toml::toml! { width_percent = 100.0 padding = [0.0, 0.0, 120.0, 0.0] };
+    balaur::components::patch(&app.engine, heading, "widget", &kept.into()).unwrap();
+    settle(&app, &ctx);
+    assert!(
+        close(rect(end).max.x, 280.0),
+        "its end, by its padding: {:?}",
+        rect(end)
+    );
+}
