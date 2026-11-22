@@ -160,6 +160,7 @@ pub(crate) fn create(path: &Path, template: Option<&str>, page: Option<(u32, u32
         }
     }
     keep_deps_out_of_git(path)?;
+    crate::engine_pin::pin_new(path)?;
     tracing::info!(
         "created project '{name}' from the `{template}` template at {}",
         path.display()
@@ -177,6 +178,21 @@ pub(crate) fn keep_deps_out_of_git(project: &Path) -> Result<()> {
         std::fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
     }
     Ok(())
+}
+
+/// `WIDTHxHEIGHT`, as every `--size` takes it.
+pub(crate) fn size_of(text: &str) -> Result<(u32, u32)> {
+    let (wide, tall) = text
+        .split_once(['x', 'X'])
+        .ok_or_else(|| anyhow::anyhow!("--size wants WIDTHxHEIGHT, as in 390x844: got {text}"))?;
+    let read = |part: &str, which: &str| {
+        part.trim()
+            .parse::<u32>()
+            .ok()
+            .filter(|n| *n > 0)
+            .ok_or_else(|| anyhow::anyhow!("--size {which} is not a size: {part}"))
+    };
+    Ok((read(wide, "width")?, read(tall, "height")?))
 }
 
 #[cfg(test)]

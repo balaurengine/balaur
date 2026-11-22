@@ -755,6 +755,7 @@ pub fn build_core_settings(eng: &Engine) {
             r#"
 name = { type = "string", host = true, default = "", order = 1, help = "The game's name, used for its window title and its data directory." }
 main_scene = { type = "string", host = true, default = "", order = 2, help = "The scene a run opens with." }
+engine = { type = "string", default = "", order = 3, help = "The Balaur build the project is made with, as `balaur --version` names it: a release (`v0.2.0-alpha.1`) or a nightly (`nightly-577592f`). Written when a project is made and by `balaur pin`; a run or an export on another build says so, and the Forge builds the project on it. Empty names none." }
 asset_source = { type = "enum", host = true, default = "embedded", options = ["embedded", "files", "embedded_then_files"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
 splash = { type = "string", host = true, default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
 splash_seconds = { type = "float", host = true, default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time, and the least it stays when a script is reporting a load through `ui.set_load_progress`." }

@@ -44,6 +44,7 @@ pub(crate) fn export_game(_: &ExportArgs) -> Result<()> {
 /// template may be fetched.
 #[cfg(feature = "editor")]
 pub(crate) fn export_game(args: &ExportArgs) -> Result<()> {
+    crate::engine_pin::say_if_other(&args.path);
     let download = args.download;
     let fetch = move |wanted: &str| crate::runtimes::obtain(wanted, download);
     #[cfg(not(target_family = "wasm"))]

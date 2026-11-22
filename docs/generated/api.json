@@ -27439,6 +27439,17 @@
       }
     },
     {
+      "host": false,
+      "path": "application/engine",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The Balaur build the project is made with, as `balaur --version` names it: a release (`v0.2.0-alpha.1`) or a nightly (`nightly-577592f`). Written when a project is made and by `balaur pin`; a run or an export on another build says so, and the Forge builds the project on it. Empty names none.",
+        "order": 3,
+        "type": "string"
+      }
+    },
+    {
       "host": true,
       "path": "application/asset_source",
       "scope": "project",

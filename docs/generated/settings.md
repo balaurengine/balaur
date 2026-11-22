@@ -56,6 +56,7 @@ question as an old one is a second way to say it.
 <tbody>
 <tr><td><code>name</code></td><td>string</td><td><code>&quot;&quot;</code></td><td>host</td><td>The game&#x27;s name, used for its window title and its data directory.</td></tr>
 <tr><td><code>main_scene</code></td><td>string</td><td><code>&quot;&quot;</code></td><td>host</td><td>The scene a run opens with.</td></tr>
+<tr><td><code>engine</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>The Balaur build the project is made with, as <code>balaur --version</code> names it: a release (<code>v0.2.0-alpha.1</code>) or a nightly (<code>nightly-577592f</code>). Written when a project is made and by <code>balaur pin</code>; a run or an export on another build says so, and the Forge builds the project on it. Empty names none.</td></tr>
 <tr><td><code>asset_source</code></td><td>enum</td><td><code>&quot;embedded&quot;</code></td><td>host, on restart</td><td>Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree.</td></tr>
 <tr><td><code>splash</code></td><td>string</td><td><code>&quot;&quot;</code></td><td>host, on restart</td><td>A project-relative picture shown over the first frames, on every target. Empty shows none.</td></tr>
 <tr><td><code>splash_seconds</code></td><td>float</td><td><code>1.5</code></td><td>host, on restart</td><td>How long the splash stays, in seconds of engine time, and the least it stays when a script is reporting a load through <code>ui.set_load_progress</code>.</td></tr>

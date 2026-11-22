@@ -158,6 +158,7 @@ being built, marked `done`, never back in the shipped one.
 | **A controller-only shell** — directional focus between widgets, an on-screen keyboard, safe-area insets applied to layout, and button glyphs that follow the pad. | 0.8 | no plan |
 | **A layout that fits the screen** — width, height and touch classes that widgets, themes and settings answer to, over one scale that grows a control and its bar together. | 0.6 done | no plan |
 | **Rows that fit by giving up detail** — a project's own class words, put in force by a widget's `classes` or a container's measured `fit`. | 0.2 done | no plan |
+| **A project names its engine** — `[application] engine` is the build it is made with, written by `balaur pin`; the Forge builds on it. | 0.2 done | no plan |
 
 ## Rendering
 

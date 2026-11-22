@@ -24,6 +24,7 @@ mod check;
 mod debugger;
 #[cfg(not(target_family = "wasm"))]
 mod deps_cmd;
+mod engine_pin;
 #[cfg(feature = "editor")]
 mod export_api;
 mod export_cmd;
@@ -78,6 +79,15 @@ enum Command {
         /// window the project opens at: `page` frames a picture of this size.
         #[arg(long, value_name = "WIDTHxHEIGHT")]
         size: Option<String>,
+    },
+    /// Name the Balaur build a project is made with (`[application] engine`):
+    /// this one, or `--engine`. The Forge builds the project on it.
+    Pin {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// A build's id rather than this one's: `v0.2.0-alpha.1`, `nightly-577592f`.
+        #[arg(long)]
+        engine: Option<String>,
     },
     /// Add another project as a dependency: `owner/name` on Forge, fetched
     /// into `deps/<alias>/` and pinned in `project.lock`, or a project folder
@@ -498,9 +508,10 @@ fn dispatch(command: Command) -> Result<()> {
             template,
             size,
         } => {
-            let page = size.as_deref().map(size_of).transpose()?;
+            let page = size.as_deref().map(new_project::size_of).transpose()?;
             new_project::create(&path, template.as_deref(), page)
         }
+        Command::Pin { path, engine } => engine_pin::pin(&path, engine.as_deref()),
         Command::Add {
             source,
             alias,
@@ -786,6 +797,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         .as_deref()
         .map(|text| offscreen_size(Some(text)))
         .transpose()?;
+    engine_pin::say_if_other(path);
     let mut config = AppConfig::dev(path.to_string_lossy().as_ref());
     config.script_args.clone_from(args);
     let mut app = balaur::timings::boot(ENGINE, || balaur::standard_app(config))?;
@@ -902,22 +914,7 @@ fn pretend_touchscreen(app: &balaur_core::App) {
 /// default where nothing asked. A size the shell cannot draw in is the
 /// caller's to choose: the point of the flag is to see what it does.
 fn offscreen_size(asked: Option<&str>) -> Result<(u32, u32)> {
-    asked.map_or(Ok(OFFSCREEN_SIZE), size_of)
-}
-
-/// `WIDTHxHEIGHT`, as every `--size` takes it.
-fn size_of(text: &str) -> Result<(u32, u32)> {
-    let (wide, tall) = text
-        .split_once(['x', 'X'])
-        .ok_or_else(|| anyhow::anyhow!("--size wants WIDTHxHEIGHT, as in 390x844: got {text}"))?;
-    let read = |part: &str, which: &str| {
-        part.trim()
-            .parse::<u32>()
-            .ok()
-            .filter(|n| *n > 0)
-            .ok_or_else(|| anyhow::anyhow!("--size {which} is not a size: {part}"))
-    };
-    Ok((read(wide, "width")?, read(tall, "height")?))
+    asked.map_or(Ok(OFFSCREEN_SIZE), new_project::size_of)
 }
 
 /// A canonical path the rest of the engine can join to with `/`.
