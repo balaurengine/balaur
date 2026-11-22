@@ -85,6 +85,7 @@ fi
 if [ -n "$variant" ]; then
   out="$dist/balaur-runtime-$target-$variant$exe"
   cp "$bin" "$out"
+  strip_template "$out"
   # An MSVC binary keeps its symbols in a .pdb, which nm cannot read.
   if [ -z "$exe" ]; then
     step "code by crate"
@@ -141,6 +142,8 @@ cp crates/balaur_plugin/include/balaur_extension.h "$bundle/include/"
 # appended, so there is nothing to build twice.
 cp "$bin" "$dist/balaur-runtime-$target$exe"
 cp "$bin" "$bundle/runtimes/balaur-runtime-$target$exe"
+strip_template "$dist/balaur-runtime-$target$exe"
+strip_template "$bundle/runtimes/balaur-runtime-$target$exe"
 
 step "the editor's scripts as native code"
 # Built as a game's are; opened beside the binary.

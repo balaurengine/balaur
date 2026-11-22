@@ -53,6 +53,20 @@ code_by_crate() {
   fi
 }
 
+# strip_template <file> [strip]: a runtime template without its symbol table,
+# which no game reads; read it for code by crate first. Apple's strip re-signs.
+strip_template() {
+  if [ -n "${2:-}" ]; then
+    "$2" "$1"
+  elif [[ $1 == *.exe ]]; then
+    : # MSVC keeps its symbols in the .pdb
+  elif [ "$(uname)" = Darwin ]; then
+    strip -x "$1"
+  else
+    strip "$1"
+  fi
+}
+
 # remap_flags as a `--config` value: joined to the flags `.cargo/config.toml`
 # gives a target, which RUSTFLAGS would replace.
 short_paths() {

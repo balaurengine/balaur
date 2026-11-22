@@ -278,7 +278,11 @@ LTO, so a game with physics would ship more bytes than the one binary does.
    and a sideways scroll as tall as what it holds, in `balaur_ui`.
 6. **Native.** The table, done: `native_crates.py` reads a template's
    symbols through `nm` for Linux, macOS, Android and iOS; an MSVC binary
-   keeps its symbols apart. A budget only after a release of numbers.
+   keeps its symbols apart. Then `strip_template` drops them from the
+   template, the editor binary keeping its own. On nightly 880045e's 3d
+   templates: linux-x64 71.5 to 60.9 MB, macos-universal 112.4 to 95.0 MB,
+   the iOS binary 42.0 to 35.5 MB, Android's arm64 library 56.2 to 44.8 MB.
+   A budget only after a release of numbers.
 7. **The export pack in pieces.** Done, for the web: `[export] later`
    names scenes, and the assets only they name go to `game.bpak.tail`,
    walked as `[export] strip` walks. The head lists the tail and those

@@ -51,6 +51,7 @@ ios | ios-sim)
   cp "target/$target/release/balaur" "$app/Balaur"
   chmod +x "$app/Balaur"
   code_by_crate native_crates.py "$app/Balaur" "balaur-runtime-$platform${variant:+-$variant}" "$dist"
+  strip_template "$app/Balaur"
   cat >"$app/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -130,6 +131,10 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
 
     mkdir -p "$skeleton/lib/$abi"
     cp "$lib" "$skeleton/lib/$abi/libmain.so"
+    # The host's strip reads its own ELF alone; the NDK's reads every ABI.
+    ndk_strip=$(compgen -G "${ANDROID_NDK_ROOT:-}/toolchains/llvm/prebuilt/*/bin/llvm-strip" | head -1 || true)
+    [ -n "$ndk_strip" ] || { printf '::error::no llvm-strip under ANDROID_NDK_ROOT\n'; exit 1; }
+    strip_template "$skeleton/lib/$abi/libmain.so" "$ndk_strip"
     if [ "$abi" = arm64-v8a ]; then
       # The host's nm reads its own ELF alone; the NDK's reads every ABI.
       ndk_nm=$(compgen -G "${ANDROID_NDK_ROOT:-}/toolchains/llvm/prebuilt/*/bin/llvm-nm" | head -1 || true)
