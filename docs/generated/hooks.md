@@ -78,7 +78,7 @@ said only while someone listens.
 <tbody>
 <tr><td><code>logged</code></td><td>the log&#x27;s running count</td><td>Lines were logged since the last frame.</td></tr>
 <tr><td><code>assets_reloaded</code></td><td>the asset cache&#x27;s generation</td><td>A file the asset cache holds was reloaded or declared stale.</td></tr>
-<tr><td><code>files_changed</code></td><td>the paths, as a list; empty when the watcher lost count</td><td>A burst of file writes under a directory <code>engine::watch</code> follows has ended.</td></tr>
+<tr><td><code>files_changed</code></td><td>the paths, as a list; empty when the watcher lost count</td><td>A burst of file writes under the project, or under a directory <code>engine::watch</code> follows, has ended.</td></tr>
 <tr><td><code>debugger_stopped</code></td><td>where a script is stopped</td><td>A script stopped, or stopped somewhere else.</td></tr>
 <tr><td><code>debugger_resumed</code></td><td>nil</td><td>The script the debugger last said was stopped went on.</td></tr>
 <tr><td><code>replay_state_changed</code></td><td>the state playback moved to, a <code>replay::STATE_*</code> constant</td><td>A recording was loaded, played, paused, sought, ran out or was unloaded.</td></tr>

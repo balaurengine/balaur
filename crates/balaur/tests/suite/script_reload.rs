@@ -255,7 +255,11 @@ fn a_toml_asset_saved_on_disk_is_read_again() {
         }
         roughness(app) == Some(0.75)
     });
-    assert!(read_again, "materials/stone.toml kept {:?}", roughness(&app));
+    assert!(
+        read_again,
+        "materials/stone.toml kept {:?}",
+        roughness(&app)
+    );
 }
 
 #[test]

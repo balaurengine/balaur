@@ -65,6 +65,14 @@ fn named(state: editor::State, name: str) -> bool {
     false
 }
 
+// What the editor does on the watcher's word: build again what it is handed.
+fn hear(state: &mut editor::State, paths: [any]) {
+    let reread = disk::scene_heard(state, paths);
+    if reread != nil {
+        disk::reread(state, reread.unwrap().text, reread.unwrap().fresh);
+    }
+}
+
 /// `--state test:scene_on_disk`: the watcher's word that the open scene's file
 /// changed reads it again when nothing is unsaved, keeps the edits when
 /// something is, and is nothing for the editor's own write.
@@ -77,20 +85,26 @@ pub fn scene_on_disk(state: &mut editor::State) {
     let heard = [state.scene_path];
     selftest::check(!named(state, OUTSIDE), "the control: the scene has no node of the test's yet");
     write_outside(state, OUTSIDE);
-    disk::scene_heard(state, heard);
+    hear(state, heard);
     selftest::check(named(state, OUTSIDE), "a clean scene written by another tool is read again");
     selftest::check(!history::dirty(state), "and is as saved");
 
     let count = state.nodes.len();
     model::write(state);
-    disk::scene_heard(state, heard);
+    hear(state, heard);
     selftest::check(state.nodes.len() == count, "the editor's own write reads nothing back");
 
     history::record(state, "selftest edit");
     write_outside(state, OUTSIDE_AGAIN);
     selftest::expect_warning("changed on disk; the unsaved edits here stay");
-    disk::scene_heard(state, heard);
+    hear(state, heard);
     selftest::check(!named(state, OUTSIDE_AGAIN) && history::dirty(state), "a scene with edits keeps them over the file");
+
+    let kept = state.nodes.len();
+    fs::write(state.scene_path, "[[nodes");
+    selftest::expect_warning("on disk is not TOML; the scene stays as it was");
+    hear(state, heard);
+    selftest::check(state.nodes.len() == kept, "a file left half written changes nothing here");
 
     fs::write(state.scene_path, before);
     log::info("selftest scene on disk: done");

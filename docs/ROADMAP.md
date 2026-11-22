@@ -96,6 +96,7 @@ being built, marked `done`, never back in the shipped one.
 | **Addons as modules** — a file directly under `addons/<name>/` is `<name>::<file>` in every script, and `balaur add` imports a Forge project whole into `deps/<alias>/`. | 0.2 done | [PLAN-dependencies.md](PLAN-dependencies.md) |
 | **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. | 0.7 | no plan |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it. | 0.6 | no plan |
+| **Custom file formats** — a reader for a file extension, in Rust or script, so `balaur_core` loads, hot reloads and ships it like a texture. | 0.5 | [PLAN-assets.md](PLAN-assets.md) |
 | **Scripts you can take** — fifteen small scripts with `exports()` in the library dock, dropped onto a node and edited in place. | 0.5 | [PLAN-authoring-without-code.md](PLAN-authoring-without-code.md) |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 0.5 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
 | **More importers** — Spine and DragonBones for 2D bone animation, layered PSD, and `.blend` read by calling Blender. | 1.1 | no plan |

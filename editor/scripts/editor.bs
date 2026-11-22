@@ -956,8 +956,15 @@ impl Editor {
             signals::changed(self.state, changes::ASSETS);
         }
         disk::heard(self.state, game);
-        disk::scene_heard(self.state, game);
+        let reread = disk::scene_heard(self.state, game);
+        if reread != nil {
+            self.node.call("scene_reread", reread.unwrap().text, reread.unwrap().fresh);
+        }
     }
+
+    /// The open scene built again from `text`, in a call of its own: a file
+    /// another tool left broken ends this call alone.
+    pub fn scene_reread(text: str, fresh: bool) { disk::reread(self.state, text, fresh); }
 
     /// The replay moved: loaded, played, paused, sought, ran out or unloaded.
     pub fn on_replay_state_changed(playback: str) { session::moved(self.state, playback); }

@@ -352,11 +352,23 @@ the node's own, and the root's children become the node's.
 - The new module replaces the old, and every instance of the file is carried
   across by field name, so state survives a save; a field the new struct
   dropped goes, one it added starts at its default.
-- Content reloads through the same watcher, sorted by extension exactly as
-  `Pack::build` does. A `.toml` asset was parsed, so the cache forgets it; a
-  texture, model, font, sound or `.wesl` is a source, so only the asset
-  generation moves and each consumer re-derives. Textures are keyed by path and
-  mtime, so saving one image re-decodes that image alone.
+- Content reloads through the same watcher, every file under the project but
+  its scripts and its dot folders, in any subfolder. Each saved file's parse is
+  forgotten with every entry cut from it, and a strings file forgets the
+  catalogues. `assets::changed_on_disk` holds it.
+- The asset generation moves when the file is one the engine derives from: a
+  texture, sound, font or model, a `.toml`, `.wesl` or `.bin`. Each consumer
+  re-derives. Textures are keyed by path and mtime, so saving one image
+  re-decodes that image alone.
+- A file only a game's script reads, `data/one.level`, moves nothing. The
+  burst names it in `files_changed`, and the script reads it again. Paths are
+  project-relative in a run, and spelled from the game's root in the editor.
+- The editor follows the open scene's file. With nothing unsaved it is read
+  again; unsaved edits stay, with a warning. A changed prefab is instanced
+  again from the editor's own text, which keeps undo.
+- The new text is built under a throwaway node first, in a call of its own
+  (`Editor.scene_reread`). A file that does not build logs why and ends that
+  call alone, with the open scene as it was.
 
 ### Scene switches
 

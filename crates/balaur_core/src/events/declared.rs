@@ -39,7 +39,7 @@ pub const MODULE_EVENT_SUFFIX: &str = "_event";
 pub const SAID: &[Said] = &[
     (LOGGED, "the log's running count", "Lines were logged since the last frame."),
     (ASSETS_RELOADED, "the asset cache's generation", "A file the asset cache holds was reloaded or declared stale."),
-    (FILES_CHANGED, "the paths, as a list; empty when the watcher lost count", "A burst of file writes under a directory `engine::watch` follows has ended."),
+    (FILES_CHANGED, "the paths, as a list; empty when the watcher lost count", "A burst of file writes under the project, or under a directory `engine::watch` follows, has ended."),
     (DEBUGGER_STOPPED, "where a script is stopped", "A script stopped, or stopped somewhere else."),
     (DEBUGGER_RESUMED, "nil", "The script the debugger last said was stopped went on."),
     (REPLAY_STATE_CHANGED, "the state playback moved to, a `replay::STATE_*` constant", "A recording was loaded, played, paused, sought, ran out or was unloaded."),

@@ -103,7 +103,10 @@ impl BsHost {
             .iter()
             .find_map(|(at, folder)| Some((path.strip_prefix(at).ok()?, folder)))
         {
-            (rel, Some(format!("{folder}/{}", key_of(&rel.to_string_lossy()))))
+            (
+                rel,
+                Some(format!("{folder}/{}", key_of(&rel.to_string_lossy()))),
+            )
         } else {
             return;
         };

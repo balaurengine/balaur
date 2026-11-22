@@ -23,6 +23,7 @@ const SCRIPT: str = ".bs";
 const SHADER: str = ".wesl";
 const SCENES: str = "scenes";
 const SCENE_FILE: str = ".toml";
+const TRIAL: str = "SceneTrial";
 const LABEL_WIDTH: float = 0.0;
 // Rows on show before the list scrolls.
 const IN_VIEW: int = 10;
@@ -78,13 +79,13 @@ pub fn of_game(state: editor::State, paths: [any]) -> [any] {
     out
 }
 
-/// The open scene's file, or a scene it instances, changed under the editor.
-/// With nothing unsaved the file is read again; with edits they stay, and
-/// saving writes over it. A changed prefab is instanced again from what the
-/// editor holds, so the undo history stays.
-pub fn scene_heard(state: &mut editor::State, paths: [any]) {
+/// The open scene's file, or a scene it instances, changed under the editor:
+/// the text to build it from again, else nil. With nothing unsaved that is the
+/// file; with edits they stay, and saving writes over it. A changed prefab is
+/// instanced again from what the editor holds, so the undo history stays.
+pub fn scene_heard(state: &mut editor::State, paths: [any]) -> Reread? {
     if state.scene_root == nil || state.playing || state.scene_path == "" {
-        return;
+        return nil;
     }
     let instanced: [str] = [];
     for found in state.nodes {
@@ -104,18 +105,38 @@ pub fn scene_heard(state: &mut editor::State, paths: [any]) {
         let text = fs::read(state.scene_path).or("");
         if text != state.scene_disk {
             state.scene_disk = text;
+            if toml::parse(text) == nil {
+                log::warn("{state.scene_rel} on disk is not TOML; the scene stays as it was");
+                return nil;
+            }
             if !history::dirty(state) {
-                state.scene_doc = util::map_or_empty(toml::parse(text));
-                model::build(state, text);
-                history::reset(state);
-                log::info("reloaded {state.scene_rel} from disk");
-                return;
+                return Reread { text: text, fresh: true };
             }
             log::warn("{state.scene_rel} changed on disk; the unsaved edits here stay, and saving writes over it");
         }
     }
-    if prefab {
-        model::build(state, model::scene_text(state));
+    if prefab { Reread { text: model::scene_text(state), fresh: false } } else { nil }
+}
+
+/// What the open scene is built from again, and whether that is its file as
+/// it now is, which starts the undo history over.
+pub struct Reread {
+    internal text: str,
+    internal fresh: bool,
+}
+
+/// Build the open scene from `text`, a trial build first: a document that
+/// does not build ends the call there, with the open scene as it was.
+pub fn reread(state: &mut editor::State, text: str, fresh: bool) {
+    let trial = scene::root().add_child(TRIAL);
+    scene::instantiate(text, trial, scene::InstantiateOptions { scripts: false, root: state.game_root });
+    trial.free();
+    model::build(state, text);
+    if fresh {
+        state.scene_doc = util::map_or_empty(toml::parse(text));
+        history::reset(state);
+        log::info("reloaded {state.scene_rel} from disk");
+    } else {
         log::info("instanced again what {state.scene_rel} instances");
     }
 }
