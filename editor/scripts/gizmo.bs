@@ -27,7 +27,7 @@ pub class GizmoState {
     key: [any],
     internal marquee: any,
     drawn: [any],
-    lines: [render::Line3d],
+    internal lines: [render::Line3d],
 }
 
 pub struct Camera {
@@ -143,7 +143,7 @@ pub fn state() -> GizmoState {
 // What the hover answers to: the pointer, the camera and the gizmo's own box.
 // Comparing them is cheap; `hit_test` behind them is the frame's dearest call.
 fn hover_key(state: editor::State, camera: Camera, geometry: Geometry3d?, pointer_x: float, pointer_y: float) -> [any] {
-    let out: [any] = [pointer_x, pointer_y, state.screen_width, state.screen_height, camera.dpi, camera.distance];
+    let out: [any] = [state.tool, pointer_x, pointer_y, state.screen_width, state.screen_height, camera.dpi, camera.distance];
     for value in camera.eye {
         out.push(value);
     }
@@ -589,11 +589,26 @@ fn reach(state: editor::State, drawn: float) -> float {
     if state.touchscreen { math::max(drawn, shell::TOUCH_TARGET / 2.0) } else { drawn }
 }
 
+/// Whether `tool` drags a gizmo part of `kind`: a transform tool takes only
+/// its own, and every other tool takes them all.
+internal fn offers(tool: str, kind: str) -> bool {
+    match tool {
+        tools::MOVE => kind == gizmo_parts::FACE,
+        tools::ROTATE => kind == gizmo_parts::RING,
+        tools::SCALE => kind == gizmo_parts::HANDLE || kind == FACERECT,
+        _ => true,
+    }
+}
+
 // What the cursor is over. Priority mirrors steadyum: the rotation ball
 // always wins over the face behind it, then the face-center scale rects,
 // then corner brackets, and finally the face surfaces (plane translate).
 fn hit_test(state: editor::State, camera: Camera, geometry: Geometry3d, pointer_x: float, pointer_y: float) -> Part? {
-    for axis in 0..3 {
+    let rings = offers(state.tool, gizmo_parts::RING);
+    let rects = offers(state.tool, FACERECT);
+    let handles = offers(state.tool, gizmo_parts::HANDLE);
+    let surfaces = offers(state.tool, gizmo_parts::FACE);
+    for axis in 0..(if rings { 3 } else { 0 }) {
         for step in 0..48 {
             if near(camera, ring_point(geometry, axis, step as float / 48.0), pointer_x, pointer_y, reach(state, 12.0)) {
                 return part(gizmo_parts::RING, nil, axis);
@@ -605,7 +620,7 @@ fn hit_test(state: editor::State, camera: Camera, geometry: Geometry3d, pointer_
     let all_faces = faces(geometry);
     for index in 0..all_faces.len() {
         let face = all_faces[index];
-        if face_front_facing(camera, geometry, face) {
+        if rects && face_front_facing(camera, geometry, face) {
             if quad_contains(camera, face_rect_points(geometry, face), pointer_x, pointer_y) || near(camera, face.position, pointer_x, pointer_y, reach(state, 16.0)) {
                 return part(FACERECT, index, face.axis, face.sign);
             }
@@ -613,7 +628,7 @@ fn hit_test(state: editor::State, camera: Camera, geometry: Geometry3d, pointer_
     }
     let all_corners = corners(geometry);
     for index in 0..all_corners.len() {
-        if near(camera, all_corners[index].point, pointer_x, pointer_y, reach(state, 18.0)) {
+        if handles && near(camera, all_corners[index].point, pointer_x, pointer_y, reach(state, 18.0)) {
             return part(gizmo_parts::HANDLE, index);
         }
     }
@@ -621,7 +636,7 @@ fn hit_test(state: editor::State, camera: Camera, geometry: Geometry3d, pointer_
     // camera; front faces tile the silhouette, so the hit is unambiguous.
     for index in 0..all_faces.len() {
         let face = all_faces[index];
-        if face_front_facing(camera, geometry, face) && quad_contains(camera, face.quad, pointer_x, pointer_y) {
+        if surfaces && face_front_facing(camera, geometry, face) && quad_contains(camera, face.quad, pointer_x, pointer_y) {
             return part(gizmo_parts::FACE, index, face.axis, face.sign);
         }
     }
@@ -697,14 +712,14 @@ pub fn draw(state: &mut editor::State) {
     let hot = viewport::hot_part(state);
     // The lines follow from the box, the hot part and the two colours, and
     // none of them moves while the pointer is still: replay the list.
-    let key = drawn_key(geometry, hot);
+    let key = drawn_key(state.tool, geometry, hot);
     if key == state.gizmo.drawn {
         render::draw_lines_3d(state.gizmo.lines);
         return;
     }
     let out: [render::Line3d] = [];
     draw_edges(out, geometry, hot);
-    let all_corners = corners(geometry);
+    let all_corners = if offers(state.tool, gizmo_parts::HANDLE) { corners(geometry) } else { [] };
     for index in 0..all_corners.len() {
         let corner = all_corners[index];
         let hot_handle = if hot != nil {
@@ -716,7 +731,7 @@ pub fn draw(state: &mut editor::State) {
         draw_handle_marker(out, geometry, corner.signs, geometry.marker, if hot_handle { viewport::hover_color() } else { viewport::orange() });
     }
     // Face-center scale rectangles (drag = scale along the face normal).
-    let all_faces = faces(geometry);
+    let all_faces = if offers(state.tool, FACERECT) { faces(geometry) } else { [] };
     for index in 0..all_faces.len() {
         let face = all_faces[index];
         let hot_rect = if hot != nil {
@@ -731,7 +746,7 @@ pub fn draw(state: &mut editor::State) {
             line(out, points[side], points[(side + 1) % 4], color, STROKE_WIDTH, false);
         }
     }
-    for axis in 0..3 {
+    for axis in 0..(if offers(state.tool, gizmo_parts::RING) { 3 } else { 0 }) {
         let hot_ring = if hot != nil {
             let part = hot.unwrap();
             part.kind == gizmo_parts::RING && part.axis == axis
@@ -786,8 +801,8 @@ fn draw_edges(out: [render::Line3d], geometry: Geometry3d, hot: Part?) {
 }
 
 // What the drawn lines follow from, as plain values so `==` compares them.
-fn drawn_key(geometry: Geometry3d, hot: Part?) -> [any] {
-    let out: [any] = [];
+fn drawn_key(tool: str, geometry: Geometry3d, hot: Part?) -> [any] {
+    let out: [any] = [tool];
     for value in geometry.center {
         out.push(value);
     }

@@ -289,10 +289,10 @@ fn hit_test(state: editor::State, geometry: Geometry, world_x: float, world_y: f
     let local = util::to_local(box_frame(geometry.center, geometry.angle), world_x, world_y);
     let local_x = local.x;
     let local_y = local.y;
-    if math::sqrt(local_x * local_x + local_y * local_y) <= geometry.ring {
+    if gizmo::offers(state.tool, gizmo_parts::RING) && math::sqrt(local_x * local_x + local_y * local_y) <= geometry.ring {
         return part(gizmo_parts::RING, []);
     }
-    for signs in handle_signs() {
+    for signs in (if gizmo::offers(state.tool, gizmo_parts::HANDLE) { handle_signs() } else { [] }) {
         let at = handle_local(geometry, signs);
         let handle_x = at.x;
         let handle_y = at.y;
@@ -300,7 +300,7 @@ fn hit_test(state: editor::State, geometry: Geometry, world_x: float, world_y: f
             return part(gizmo_parts::HANDLE, [signs[0], signs[1]]);
         }
     }
-    if math::abs(local_x) <= geometry.half_extents[0] && math::abs(local_y) <= geometry.half_extents[1] {
+    if gizmo::offers(state.tool, gizmo_parts::FACE) && math::abs(local_x) <= geometry.half_extents[0] && math::abs(local_y) <= geometry.half_extents[1] {
         return part(gizmo_parts::FACE, []);
     }
     nil
@@ -377,7 +377,7 @@ pub fn draw(state: editor::State) {
     for side in 0..4 {
         line(corners[side], corners[(side + 1) % 4], box_color, STROKE_WIDTH);
     }
-    for signs in handle_signs() {
+    for signs in (if gizmo::offers(state.tool, gizmo_parts::HANDLE) { handle_signs() } else { [] }) {
         let hot_handle = if hot != nil {
             let part = hot.unwrap();
             part.kind == gizmo_parts::HANDLE && part.signs[0] == signs[0] && part.signs[1] == signs[1]
@@ -387,6 +387,9 @@ pub fn draw(state: editor::State) {
         draw_handle_marker(geometry, signs, if hot_handle { viewport::hover_color() } else { viewport::orange() });
     }
     // Rotation circle, same stroke and colours as the frame.
+    if !gizmo::offers(state.tool, gizmo_parts::RING) {
+        return;
+    }
     let ring_color = if is_hot(hot, gizmo_parts::RING) { viewport::hover_color() } else { viewport::orange() };
     let previous = local_point(geometry, geometry.ring, 0.0);
     for step in 1..49 {

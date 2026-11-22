@@ -19,6 +19,7 @@ use shell;
 use statemachine;
 use util;
 use viewport;
+use words::tools;
 
 /// The mouse camera the editor drives, whatever tool is picked.
 ///
@@ -541,6 +542,7 @@ pub fn picking(state: &mut editor::State) {
         return;
     }
     let index = target.unwrap();
+    check_tools_draw_their_own_handles(state, index);
     let found = model::node(state, index);
     let position = found.transform.global_position();
     let name = model::node(state, index).name();
@@ -561,6 +563,38 @@ pub fn picking(state: &mut editor::State) {
     let aside = render::pick_ray_at(vec3(position.x + 10000.0, position.y, position.z + 200.0), vec3(0.0, 0.0, -1.0));
     selftest::check(aside == nil, "a ray beside the scene picks nothing");
     log::info("selftest picking: done");
+}
+
+// Each transform tool draws its own handles alone, and the select tool all of
+// them. The rotation rings are the only lines drawn over the scene.
+fn check_tools_draw_their_own_handles(state: &mut editor::State, index: int) {
+    let tool = state.tool;
+    let rows = selection::all(state);
+    selection::only(state, index);
+    let drawn: [[int]] = [];
+    for each in [tools::SELECT, tools::MOVE, tools::ROTATE, tools::SCALE] {
+        state.tool = each;
+        gizmo::draw(state);
+        let rings = 0;
+        for line in state.gizmo.lines {
+            if line.on_top.or(false) {
+                rings += 1;
+            }
+        }
+        drawn.push([rings, state.gizmo.lines.len() - rings]);
+    }
+    state.tool = tool;
+    selection::set(state, rows);
+    let select = drawn[0];
+    let moving = drawn[1];
+    let rotate = drawn[2];
+    let scale = drawn[3];
+    if !selftest::check(select[0] > 0 && select[1] > 0, "the select tool draws the gizmo's rings and its box ({select})") {
+        return;
+    }
+    selftest::check(moving[0] == 0 && moving[1] < select[1], "the move tool draws the box alone, no rings, corners or face handles ({moving} of {select})");
+    selftest::check(rotate[0] == select[0] && rotate[1] == moving[1] && rotate[1] < select[1],"the rotate tool draws the rings over the box alone ({rotate})");
+    selftest::check(scale[0] == 0 && scale[1] > moving[1], "the scale tool draws the corners and face handles, no rings ({scale})");
 }
 
 /// A sprite, which has no shape row, is picked over what it draws and grows
