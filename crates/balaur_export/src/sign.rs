@@ -322,7 +322,7 @@ fn absolute(path: &Path) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_ipa, installer_identity, nested_code, which};
+    use super::{installer_identity, nested_code, which};
 
     // `--output /out/game` writes the bundle as `game`, which is how Forge
     // exports; an ipa of it without `.app` is one no signer can find. Unix
@@ -330,6 +330,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn an_ipa_holds_a_dot_app_whatever_the_bundle_was_called() {
+        use super::build_ipa;
+
         let work = tempfile::tempdir().unwrap();
         let app = work.path().join("game");
         std::fs::create_dir_all(&app).unwrap();
