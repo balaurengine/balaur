@@ -11,7 +11,7 @@ use glamx::Vec3;
 use crate::lens::{Lens3d, Projection, lens_of};
 use crate::post::{drive_post, effects_of};
 use crate::{CameraConfig2d, CameraConfig3d};
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
 /// the `camera2d` schema states.
@@ -64,7 +64,7 @@ pub struct Camera3d {
     pub stereo_separation: f32,
     /// The layers this camera draws: a node whose `render_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub render_layers: Vec<Layer>,
+    pub render_layers: LayerSet,
 }
 
 /// The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, and the last `current` camera wins; the scene's `environment` lights it. Only its node moves it.

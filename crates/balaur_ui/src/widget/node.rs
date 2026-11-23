@@ -1,6 +1,8 @@
 //! The `widget` component and the resources the layer reads: what a scene
 //! file says about a widget, where the layer draws, and which widget has focus.
 
+use std::sync::Arc;
+
 use balaur_core::hecs::Entity;
 use egui::Color32;
 // A widget's words are short and cloned once a node a frame; inline they are
@@ -21,14 +23,45 @@ pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
 }
 
 /// What the widget layer reads of a `widget` component, built from its
-/// `WidgetProperties` each time they are written. `Default` is every field
-/// zeroed, which no scene means.
+/// `WidgetProperties` each time they are written: its [`WidgetFields`] behind
+/// an `Arc`, so a node's archetype move and the arena's copy share them, and a
+/// write copies them only while the arena still holds the ones before.
+#[derive(Clone, Debug, Default)]
+pub struct Widget(Arc<WidgetFields>);
+
+// The derive's inline check, for a component no derive writes.
+const _: () = assert!(
+    std::mem::size_of::<Widget>() <= balaur_core::components::derived::INLINE_LIMIT,
+    "`Widget` is over what it may take inline: every archetype move copies it"
+);
+
+impl std::ops::Deref for Widget {
+    type Target = WidgetFields;
+    fn deref(&self) -> &WidgetFields {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Widget {
+    fn deref_mut(&mut self) -> &mut WidgetFields {
+        Arc::make_mut(&mut self.0)
+    }
+}
+
+impl From<WidgetFields> for Widget {
+    fn from(fields: WidgetFields) -> Self {
+        Self(Arc::new(fields))
+    }
+}
+
+/// Every field of a [`Widget`]. `Default` is every field zeroed, which no
+/// scene means.
 #[derive(Clone, Debug, Default)]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "one flag per scene property, and a scene sets them independently"
 )]
-pub struct Widget {
+pub struct WidgetFields {
     pub kind: SmolStr,
     pub text: SmolStr,
     /// Whether it draws and takes clicks this pass: its node's `visible`,

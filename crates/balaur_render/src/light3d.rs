@@ -12,7 +12,7 @@ use balaur_plugin::Registry;
 use glamx::Vec3;
 
 use crate::vocabulary::{keys as k, words};
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 /// Which way a `light3d` throws light.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
@@ -58,7 +58,7 @@ pub struct Light3d {
     pub source_radius: f32,
     /// The light layers this light reaches: a node whose `light_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub light_layers: Vec<Layer>,
+    pub light_layers: LayerSet,
 }
 
 /// One light in world space, with everything a backend needs resolved.
@@ -119,7 +119,7 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight3d> {
             inner: light.inner_angle_degrees.clamp(0.0, 179.0),
             outer: light.outer_angle_degrees.clamp(0.0, 179.0),
             shadows: light.shadow_enabled,
-            layers: Layer::bits(&light.light_layers, true),
+            layers: light.light_layers.bits(true),
             source_radius: light.source_radius.max(0.0),
             kind: light.kind,
             enabled: visible,

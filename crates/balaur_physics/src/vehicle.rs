@@ -25,7 +25,7 @@ use crate::PhysicsState3d;
 use crate::properties::{ChassisAxis, ExcludeKind};
 use crate::vocabulary::{component as c, keys as k};
 use balaur_core::fixed_dt;
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 const SET_BRAKE: &str = "set_brake";
 const SET_ENGINE_FORCE: &str = "set_engine_force";
@@ -51,7 +51,7 @@ pub struct Vehicle3d {
     pub up_axis: ChassisAxis,
     /// The collision layers the wheels' rays hit; empty hits every layer
     #[property(flags, group = "filtering")]
-    pub collision_mask: Vec<Layer>,
+    pub collision_mask: LayerSet,
     /// Stop the wheels' rays at sensors; off, they pass through them
     #[property(group = "filtering")]
     pub hit_sensors: bool,
@@ -208,7 +208,7 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
     if wake && let Some(body) = state.world.bodies.get_mut(handle) {
         body.wake_up(true);
     }
-    let mask = Layer::bits(&chassis_settings.collision_mask, true);
+    let mask = chassis_settings.collision_mask.bits(true);
     let passes = crate::vocabulary::flags::filter_bits(
         chassis_settings
             .exclude_kinds

@@ -15,6 +15,7 @@ use crate::widget::beside_box::{
 use crate::widget::beside_controls::{
     WidgetButton, WidgetCheck, WidgetRows, WidgetShortcut, WidgetText,
 };
+use crate::widget::node::Widget;
 use crate::widget::properties::WidgetProperties;
 use crate::widget::schema::{changed_value, widget_of};
 
@@ -120,7 +121,7 @@ fn a_box_that_scrolls_reads_the_rows_defaults_until_its_node_states_them() {
         kind: crate::widget::properties::Kind::new(w::COLUMN),
         ..WidgetProperties::default()
     };
-    let bare = widget_of(&asked);
+    let bare = Widget::from(widget_of(&asked));
     let read = crate::widget::scroll::rows_of(&bare);
     assert!(
         matches!(read, Cow::Owned(_)),
@@ -137,6 +138,7 @@ fn a_box_that_scrolls_reads_the_rows_defaults_until_its_node_states_them() {
         ..WidgetScroll::default()
     }
     .put(&mut stated);
+    let stated = Widget::from(stated);
     let read = crate::widget::scroll::rows_of(&stated);
     assert!(matches!(read, Cow::Borrowed(_)) && !read.egui.wheel_scroll);
 }

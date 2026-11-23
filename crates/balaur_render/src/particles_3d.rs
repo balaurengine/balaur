@@ -11,7 +11,7 @@ use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
 use crate::particles::Emission;
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 /// A visual-only 3D emitter at the node, drawn as instances of one quad: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity` in world space. The live particles are renderer state the simulation never sees; a sprite sheet does not reach them, because a 3D instance carries no texture rectangle.
 #[derive(Component)]
@@ -80,10 +80,10 @@ pub struct Particles3d {
     pub cast_shadow: bool,
     /// The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub render_layers: Vec<Layer>,
+    pub render_layers: LayerSet,
     /// The light layers this is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub light_layers: Vec<Layer>,
+    pub light_layers: LayerSet,
     /// Whether shadows land on it; off lights it as if nothing stood between it and every light
     #[property(default = true, group = "shadows")]
     pub receive_shadows: bool,
@@ -189,8 +189,8 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
             asked.material.clone(),
             crate::Lighting3d::of(
                 asked.cast_shadow,
-                &asked.light_layers,
-                &asked.render_layers,
+                asked.light_layers,
+                asked.render_layers,
                 asked.receive_shadows,
                 asked.segmentation_id,
             ),

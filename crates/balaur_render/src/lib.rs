@@ -638,15 +638,15 @@ impl Lighting3d {
     /// The rows as a component holds them.
     pub(crate) fn of(
         cast_shadow: bool,
-        light_layers: &[balaur_core::layers::Layer],
-        render_layers: &[balaur_core::layers::Layer],
+        light_layers: balaur_core::layers::LayerSet,
+        render_layers: balaur_core::layers::LayerSet,
         receive_shadows: bool,
         segmentation_id: i64,
     ) -> Self {
         Self {
             shadows: cast_shadow,
-            layers: balaur_core::layers::Layer::bits(light_layers, true),
-            render_layers: balaur_core::layers::Layer::bits(render_layers, true),
+            layers: light_layers.bits(true),
+            render_layers: render_layers.bits(true),
             overlay: overlay::Overlay3d {
                 segmentation_id: u32::try_from(segmentation_id.max(0)).unwrap_or(u32::MAX),
                 receive_shadows,

@@ -23,7 +23,7 @@ use glamx::{EulerRot, Mat3, Mat4, Quat, Vec3};
 
 use crate::vocabulary::{keys as k, words};
 use crate::{Renderable2d, Renderable3d};
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 /// The asset type's name, and what a definition's `type` says.
 pub const MULTIMESH_ASSET_TYPE: &str = "multimesh";
@@ -54,10 +54,10 @@ pub struct MultiMesh3d {
     pub cast_shadow: bool,
     /// The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub render_layers: Vec<Layer>,
+    pub render_layers: LayerSet,
     /// The light layers this is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub light_layers: Vec<Layer>,
+    pub light_layers: LayerSet,
     /// Whether shadows land on it; off lights it as if nothing stood between it and every light
     #[property(default = true, group = "shadows")]
     pub receive_shadows: bool,
@@ -718,8 +718,8 @@ fn multimesh3d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
         entity,
         &crate::Lighting3d::of(
             asked.cast_shadow,
-            &asked.light_layers,
-            &asked.render_layers,
+            asked.light_layers,
+                asked.render_layers,
             asked.receive_shadows,
             asked.segmentation_id,
         ),

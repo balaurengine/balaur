@@ -17,8 +17,8 @@ use balaur_plugin::Registry;
 
 use crate::vocabulary::{keys as k, words as w};
 use crate::widget::class_words;
-use crate::widget::node::{Bits, EguiOptions, Widget};
-use crate::widget::properties::{Edge, WidgetProperties};
+use crate::widget::node::{Bits, EguiOptions, Widget, WidgetFields};
+use crate::widget::properties::{Edge, SharedProperties, WidgetProperties};
 use crate::widget::text_look::TextLook;
 
 /// The class tables a widget was written with, in the order they apply:
@@ -36,12 +36,12 @@ pub(crate) type ClassTables = Arc<[(&'static str, toml::map::Map<String, toml::V
 /// every write clears it, but it is in the schema so that `get`'s output
 /// round-trips and the inspector can see it.
 pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
-    let derived = ComponentDef::written_by::<WidgetProperties>(Some(written));
+    let derived = ComponentDef::written_by::<SharedProperties>(Some(written));
     let (whole, table) = (derived.apply, derived.get);
     // Writes `WidgetProperties`, and the `Widget` built from it with the
     // class tables beside.
     reg.register_component(
-        WidgetProperties::NAME,
+        <SharedProperties as Component>::NAME,
         ComponentDef {
             events: crate::widget::input::EVENTS,
             tags: &[balaur_core::components::tag::UI],
@@ -53,7 +53,9 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
     );
     // A class word's table, whose word and keys `check_class_tables` checks
     // once the project's own words are read.
-    reg.accept_keys(WidgetProperties::NAME, |_, value| value.is_table());
+    reg.accept_keys(<SharedProperties as Component>::NAME, |_, value| {
+        value.is_table()
+    });
 }
 
 /// A whole write: the properties through the derived `apply`, and the class
@@ -111,7 +113,7 @@ fn remove(eng: &Engine, entity: Entity) -> Result<()> {
     if balaur_core::components::freeing(entity) {
         return Ok(());
     }
-    let _ = eng.remove_one::<WidgetProperties>(entity);
+    let _ = eng.remove_one::<SharedProperties>(entity);
     let _ = eng.remove_one::<Widget>(entity);
     Ok(())
 }
@@ -137,7 +139,7 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
     {
         let world = eng.world();
         let (Ok(asked), Ok(mut widget)) = (
-            world.get::<&WidgetProperties>(entity),
+            world.get::<&SharedProperties>(entity),
             world.get::<&mut Widget>(entity),
         ) else {
             return false;
@@ -155,7 +157,7 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
 fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     let (mut next, fresh) = {
         let world = eng.world();
-        let Ok(asked) = world.get::<&WidgetProperties>(entity) else {
+        let Ok(asked) = world.get::<&SharedProperties>(entity) else {
             return Ok(());
         };
         let mut next = widget_of(&asked);
@@ -167,7 +169,7 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
         (next, held.is_none())
     };
     dress(eng, &mut next);
-    eng.insert_one(entity, next)
+    eng.insert_one(entity, Widget::from(next))
         .map_err(|_| anyhow!("node is dead"))?;
     crate::widget::arena::widget_changed(entity);
     // A row or a script may have been on the node before its widget was.
@@ -240,7 +242,7 @@ fn class_tables(params: &toml::Value) -> impl Iterator<Item = (&'static str, &to
 }
 
 /// Read the style a widget's `text_style` names into its text look.
-pub(crate) fn dress(eng: &Engine, widget: &mut Widget) {
+pub(crate) fn dress(eng: &Engine, widget: &mut WidgetFields) {
     if widget.text_look.text_style.is_empty() {
         return;
     }
@@ -288,7 +290,7 @@ pub(crate) fn for_classes(
     let mut merged: Option<WidgetProperties> = None;
     let mut beside: Vec<(&str, &toml::Value)> = Vec::new();
     let world = eng.world();
-    let held = || world.get::<&WidgetProperties>(entity).ok();
+    let held = || world.get::<&SharedProperties>(entity).ok();
     // Broad to narrow, so the narrowest class named wins the key.
     for (word, table) in tables.iter() {
         if !active.contains(word) {
@@ -320,15 +322,15 @@ pub(crate) fn for_classes(
     classed.classes.clone_from(&widget.classes);
     classed.hears_click = widget.hears_click;
     dress(eng, &mut classed);
-    Some(classed)
+    Some(Widget::from(classed))
 }
 
 /// A [`Widget`] built from the properties, its text style not yet read.
-pub(crate) fn widget_of(asked: &WidgetProperties) -> Widget {
-    let mut widget = Widget {
+pub(crate) fn widget_of(asked: &WidgetProperties) -> WidgetFields {
+    let mut widget = WidgetFields {
         visible: true,
         scale: 1.0,
-        ..Widget::default()
+        ..WidgetFields::default()
     };
     put_every(&mut widget, asked);
     widget
@@ -336,7 +338,7 @@ pub(crate) fn widget_of(asked: &WidgetProperties) -> Widget {
 
 /// The egui options of a widget, to write one: a copy where the arena still
 /// shares them.
-fn egui(widget: &mut Widget) -> &mut EguiOptions {
+fn egui(widget: &mut WidgetFields) -> &mut EguiOptions {
     Arc::make_mut(&mut widget.egui)
 }
 
@@ -352,7 +354,7 @@ fn edges(named: &[Edge]) -> [bool; 4] {
 /// Redo the fields of `widget` that `names` fill, each a property with a
 /// field of its own: the event pump writes a reader's edit onto the
 /// properties, and the widget follows them here.
-pub(crate) fn follow(widget: &mut Widget, asked: &WidgetProperties, names: &[&str]) {
+pub(crate) fn follow(widget: &mut WidgetFields, asked: &WidgetProperties, names: &[&str]) {
     for name in names {
         let alone = put_one(widget, asked, name);
         debug_assert!(alone, "`{name}` fills a field of its own");
@@ -373,12 +375,12 @@ macro_rules! cache_fields {
         alone { $($key:path => $write:expr;)* }
         whole [$($whole_key:path),* $(,)?] { $($whole:expr;)* }
     ) => {
-        fn put_every($widget: &mut Widget, $asked: &WidgetProperties) {
+        fn put_every($widget: &mut WidgetFields, $asked: &WidgetProperties) {
             $($write;)*
             $($whole;)*
         }
 
-        fn put_one($widget: &mut Widget, $asked: &WidgetProperties, name: &str) -> bool {
+        fn put_one($widget: &mut WidgetFields, $asked: &WidgetProperties, name: &str) -> bool {
             match name {
                 $($key => $write,)*
                 $($whole_key)|* => return false,
@@ -511,7 +513,7 @@ mod tests {
     use crate::widget::theme::Style;
 
     fn widget(params: &toml::Value) -> Widget {
-        widget_of(&from_table(params).expect("the table reads"))
+        widget_of(&from_table(params).expect("the table reads")).into()
     }
 
     // A widget that states no size reads as 0, which tells `face` to take the size its role or its

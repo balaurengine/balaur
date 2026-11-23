@@ -8,7 +8,7 @@
 use balaur_core::Engine;
 use balaur_core::components::derived::{Enum, Property, Record, Result, Variant, toml};
 use balaur_core::hecs::Entity;
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 /// The node a `node` property names, resolved from the node that holds it as
 /// `balaur_core::components::as_node` does: `None` for the empty default and
@@ -400,9 +400,9 @@ pub(crate) trait ColliderRows {
     fn enabled(&self) -> bool;
     fn sensor(&self) -> bool;
     /// The layers it is on, the layers it meets, and how the two are tested.
-    fn collision(&self) -> (&[Layer], &[Layer], LayerTest);
+    fn collision(&self) -> (LayerSet, LayerSet, LayerTest);
     /// The same three for whether a contact pushes.
-    fn solver(&self) -> (&[Layer], &[Layer], LayerTest);
+    fn solver(&self) -> (LayerSet, LayerSet, LayerTest);
     fn contact_pairs(&self) -> &[ContactPair];
     fn contact_force_threshold(&self) -> f32;
     fn collision_margin(&self) -> f32;
@@ -426,13 +426,13 @@ macro_rules! collider_rows {
             }
             fn collision(
                 &self,
-            ) -> (&[balaur_core::layers::Layer], &[balaur_core::layers::Layer], crate::properties::LayerTest) {
-                (&self.collision_layer, &self.collision_mask, self.collision_test)
+            ) -> (balaur_core::layers::LayerSet, balaur_core::layers::LayerSet, crate::properties::LayerTest) {
+                (self.collision_layer, self.collision_mask, self.collision_test)
             }
             fn solver(
                 &self,
-            ) -> (&[balaur_core::layers::Layer], &[balaur_core::layers::Layer], crate::properties::LayerTest) {
-                (&self.solver_layer, &self.solver_mask, self.solver_test)
+            ) -> (balaur_core::layers::LayerSet, balaur_core::layers::LayerSet, crate::properties::LayerTest) {
+                (self.solver_layer, self.solver_mask, self.solver_test)
             }
             fn contact_pairs(&self) -> &[crate::properties::ContactPair] {
                 &self.contact_pairs

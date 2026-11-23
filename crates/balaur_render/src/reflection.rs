@@ -19,7 +19,7 @@ use balaur_plugin::Registry;
 use glamx::Vec3;
 
 use crate::vocabulary::words;
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 /// A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.
 // The node's position places the box and its rotation turns it; `size` is in
@@ -46,7 +46,7 @@ pub struct ReflectionProbe {
     pub update_mode: ProbeUpdate,
     /// The layers a capture draws: the nodes whose `render_layers` share one. Leave moving nodes off it and let `ssr` reflect them; empty is every layer
     #[property(flags, group = "capture")]
-    pub capture_layers: Vec<Layer>,
+    pub capture_layers: LayerSet,
     /// The nearest distance a capture draws, in world units; with `capture_far` both above zero, else the camera's own planes
     #[property(min = 0.0, group = "capture")]
     pub capture_near: f32,
@@ -115,7 +115,7 @@ pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
             rotation: probe.image_rotation_degrees.to_radians(),
             image: probe.image.clone(),
             update: probe.update_mode,
-            capture_layers: Layer::bits(&probe.capture_layers, true),
+            capture_layers: probe.capture_layers.bits(true),
             clip_planes,
             enabled: visible,
         });

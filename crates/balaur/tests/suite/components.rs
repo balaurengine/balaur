@@ -749,3 +749,61 @@ fn a_keyed_read_answers_one_property() {
 "#,
     );
 }
+
+// Every registered component's inline size, largest first, and the ones a
+// node carries that no registry lists: what each archetype move copies.
+#[test]
+#[ignore = "a survey: `cargo test -p balaur --test suite component_sizes -- --ignored --nocapture`"]
+#[allow(clippy::print_stderr, reason = "the survey is what it prints")]
+fn component_sizes() {
+    use std::mem::size_of;
+    let (_dir, app) = app_with_every_component();
+    let registry = app
+        .engine
+        .resource::<balaur_core::components::ComponentRegistry>();
+    let mut sizes: Vec<(String, usize)> = registry
+        .borrow()
+        .iter()
+        .filter_map(|(name, def)| Some((name.to_string(), def.inline_bytes?)))
+        .collect();
+    sizes.extend([
+        ("(node) Widget".to_owned(), size_of::<balaur::ui::Widget>()),
+        (
+            "(node) Transform".to_owned(),
+            size_of::<balaur_core::scene::Transform>(),
+        ),
+        (
+            "(node) GlobalTransform".to_owned(),
+            size_of::<balaur_core::scene::GlobalTransform>(),
+        ),
+        (
+            "(node) Appearance".to_owned(),
+            size_of::<balaur_core::scene::Appearance>(),
+        ),
+        (
+            "(node) GlobalAppearance".to_owned(),
+            size_of::<balaur_core::scene::GlobalAppearance>(),
+        ),
+        (
+            "(node) Name".to_owned(),
+            size_of::<balaur_core::scene::Name>(),
+        ),
+        (
+            "(node) Children".to_owned(),
+            size_of::<balaur_core::scene::Children>(),
+        ),
+        (
+            "(node) NameIndex".to_owned(),
+            size_of::<balaur_core::scene::NameIndex>(),
+        ),
+        (
+            "(node) Attached".to_owned(),
+            size_of::<balaur_core::components::Attached>(),
+        ),
+    ]);
+    sizes.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    for (name, bytes) in &sizes {
+        eprintln!("{bytes:>6} {name}");
+    }
+    assert!(!sizes.is_empty());
+}

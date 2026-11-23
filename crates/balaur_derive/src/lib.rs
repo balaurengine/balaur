@@ -251,6 +251,8 @@ struct ComponentAttrs {
     after_write: Option<syn::Path>,
     /// `warnings = path`: what it says is off about it on a node.
     warnings: Option<syn::Path>,
+    /// `shared`: kept behind an `Arc` on the node, as a large one is.
+    shared: bool,
 }
 
 /// `#[component(name = "...", on_add = path, requires = [..], ..)]`, read.
@@ -263,6 +265,7 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
     let mut events = None;
     let mut after_write = None;
     let mut warnings = None;
+    let mut shared = false;
     for attr in &input.attrs {
         if !attr.path().is_ident("component") {
             continue;
@@ -293,6 +296,9 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
             } else if meta.path.is_ident("warnings") {
                 warnings = Some(meta.value()?.parse()?);
                 Ok(())
+            } else if meta.path.is_ident("shared") {
+                shared = true;
+                Ok(())
             } else if let Some(point) = LIFECYCLE_POINTS
                 .iter()
                 .find(|point| meta.path.is_ident(point))
@@ -302,7 +308,7 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
                 Ok(())
             } else {
                 Err(meta.error(
-                    "`component` takes `name`, `requires`, `tags`, `expects`, `events`, `after_write`, `warnings`, `on_add`, `on_insert`, `on_replace`, `on_remove` and `on_despawn`",
+                    "`component` takes `name`, `requires`, `tags`, `expects`, `events`, `after_write`, `warnings`, `shared`, `on_add`, `on_insert`, `on_replace`, `on_remove` and `on_despawn`",
                 ))
             }
         })?;
@@ -322,6 +328,7 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
         events,
         after_write,
         warnings,
+        shared,
     })
 }
 
@@ -441,8 +448,20 @@ fn component_impl(input: &DeriveInput, derived: &Tokens) -> syn::Result<Tokens> 
         events,
         after_write,
         warnings,
+        shared,
     } = component_attrs(input)?;
     let doc = doc_of(&input.attrs);
+    // A shared component is stored as `Shared<Self>`, the only form that is a
+    // component: one cannot be put on a node inline by mistake.
+    let (stored, trait_path) = if shared {
+        (
+            quote!(#derived::Shared<#ident #type_generics>),
+            quote!(#derived::SharedComponent),
+        )
+    } else {
+        (quote!(#ident #type_generics), quote!(#derived::Component))
+    };
+    let size_check = inline_check(input, derived, &name, &stored);
     let lifecycle = lifecycle_const(derived, &lifecycle);
     let requires = if requires.is_empty() {
         quote! {}
@@ -469,7 +488,7 @@ fn component_impl(input: &DeriveInput, derived: &Tokens) -> syn::Result<Tokens> 
         }
     });
     Ok(quote! {
-        impl #impl_generics #derived::Component for #ident #type_generics #where_clause {
+        impl #impl_generics #trait_path for #ident #type_generics #where_clause {
             const NAME: &'static str = #name;
             const DOC: &'static str = #doc;
             #requires
@@ -480,7 +499,27 @@ fn component_impl(input: &DeriveInput, derived: &Tokens) -> syn::Result<Tokens> 
             #warnings
             #lifecycle
         }
+        #size_check
     })
+}
+
+/// A build that fails where what a node stores of the component outgrows
+/// the inline limit: the component, or the `Shared` handle a large one is
+/// kept as. A generic one is checked where it is used.
+fn inline_check(input: &DeriveInput, derived: &Tokens, name: &str, stored: &Tokens) -> Tokens {
+    if !input.generics.params.is_empty() {
+        return quote! {};
+    }
+    let message = format!(
+        "component `{name}` is over what a node may hold inline: keep it behind an `Arc` with \
+         `#[component(shared)]`, or make its fields smaller"
+    );
+    quote! {
+        const _: () = ::core::assert!(
+            ::core::mem::size_of::<#stored>() <= #derived::INLINE_LIMIT,
+            #message
+        );
+    }
 }
 
 fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {

@@ -31,7 +31,8 @@ use crate::scalar::{self, Vector2};
 use crate::shared::beside::{self, Beside};
 use crate::shared::softbody::{self as cap, Family};
 use crate::vocabulary::{component as c, keys as k, words as w};
-use balaur_core::layers::Layer;
+use balaur_core::components::derived::RareList;
+use balaur_core::layers::LayerSet;
 
 const SOFTBODY_AREA: &str = "softbody_area";
 const SOFTBODY_REST_AREA: &str = "softbody_rest_area";
@@ -44,7 +45,11 @@ mod draw;
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, PartialEq, Component)]
-#[component(name = "softbody2d", on_remove = softbody2d_removed, after_write = after_write)]
+#[component(
+    name = "softbody2d",
+    on_remove = softbody2d_removed,
+    after_write = after_write,
+)]
 pub struct Softbody2d {
     /// How the body's particles and elements are laid out
     #[property(default = SoftKind2d::Grid)]
@@ -72,13 +77,13 @@ pub struct Softbody2d {
     pub mesh: String,
     /// Structural edges added between particles the layout left apart, each as long as its two particles stand at the start
     #[property(group = "shape")]
-    pub seams: Vec<ParticlePair>,
+    pub seams: RareList<ParticlePair>,
     /// The particles held where they are, by index: a cloth hangs from these, and `particle_count()` says how many there are to choose from
     #[property(group = "particles")]
     pub pinned_particles: Indices,
     /// Each particle's own mass, by index; empty spreads `mass` over them evenly
     #[property(group = "particles")]
-    pub masses: Vec<f32>,
+    pub masses: RareList<f32>,
     /// Air friction on the particles
     #[property(group = "particles", min = 0.0)]
     pub linear_damping: f32,
@@ -101,38 +106,38 @@ pub struct Softbody2d {
     #[property(default = Orientation::Auto, group = "collision")]
     pub orientation: Orientation,
     /// The layers this collider is on
-    #[property(flags, default = vec![Layer(1)], group = "filtering")]
-    pub collision_layer: Vec<Layer>,
+    #[property(flags, default = LayerSet::FIRST, group = "filtering")]
+    pub collision_layer: LayerSet,
     /// The layers it collides with; empty means every layer
     #[property(flags, group = "filtering")]
-    pub collision_mask: Vec<Layer>,
+    pub collision_mask: LayerSet,
     /// Layers for the solver alone: a pair can be detected but not resolved
-    #[property(flags, default = vec![Layer(1)], group = "filtering")]
-    pub solver_layer: Vec<Layer>,
+    #[property(flags, default = LayerSet::FIRST, group = "filtering")]
+    pub solver_layer: LayerSet,
     /// Which solver layers this one pushes against; empty means all of them
     #[property(flags, group = "filtering")]
-    pub solver_mask: Vec<Layer>,
+    pub solver_mask: LayerSet,
     /// Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default
-    #[property(flags, default = vec![ContactPair::DynamicDynamic, ContactPair::DynamicKinematic, ContactPair::DynamicStatic], group = "filtering")]
-    pub contact_pairs: Vec<ContactPair>,
+    #[property(flags, default = RareList::from(vec![ContactPair::DynamicDynamic, ContactPair::DynamicKinematic, ContactPair::DynamicStatic]), group = "filtering")]
+    pub contact_pairs: RareList<ContactPair>,
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,
     /// Parts of the body with a material of their own, each the particles it covers: `soft_material` for its edge spring and shape matching, empty keeping the body's; `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, and `pinned` to hold it still. Each is a `soft_frame` body joints may attach to
     #[property(group = "overrides")]
-    pub regions: Vec<SoftRegion>,
+    pub regions: RareList<SoftRegion>,
     /// Edges with a spring of their own, its frequency in hertz and its damping ratio, instead of the edge or bend rows', each named by the two particles it joins
     #[property(group = "overrides")]
-    pub edge_springs: Vec<EdgeSpring>,
+    pub edge_springs: RareList<EdgeSpring>,
     /// Which edges resist stretching only, so the body folds freely and never pushes itself open: none, all, or the tension_only_edges listed
     #[property(default = TensionOnly::None, group = "overrides")]
     pub tension_only: TensionOnly,
     /// The edges that resist stretching only when tension_only is listed, each named by the two particles it joins
     #[property(group = "overrides")]
-    pub tension_only_edges: Vec<ParticlePair>,
+    pub tension_only_edges: RareList<ParticlePair>,
     /// Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam
     #[property(group = "tearing")]
-    pub tear_resistance: Vec<EdgeTearResistance>,
+    pub tear_resistance: RareList<EdgeTearResistance>,
     /// The most edges that may tear in one step, which paces a crack; 0 is no limit
     #[property(group = "tearing", min = 0)]
     pub max_tears_per_step: i64,

@@ -61,8 +61,55 @@ pub fn options() -> String {
         .join(", ")
 }
 
-/// One of the 32 layers, by its number: what a derived component's layers
-/// row holds, as `#[property(flags)]` on a `Vec<Layer>`.
+/// The layers a node is on or a filter takes, layer 1 the lowest bit: what
+/// a derived component's layers row holds, written as the numbers' list. Four
+/// bytes on the node, where a list of them was twenty-four and an allocation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LayerSet(pub u32);
+
+impl LayerSet {
+    /// Layer 1 alone: where a membership starts.
+    pub const FIRST: Self = Self(1);
+
+    /// The bits set; none listed is every layer where `empty_is_all`, as a
+    /// filter means it, and layer 1 otherwise.
+    #[must_use]
+    pub const fn bits(self, empty_is_all: bool) -> u32 {
+        if self.0 != 0 {
+            self.0
+        } else if empty_is_all {
+            u32::MAX
+        } else {
+            1
+        }
+    }
+}
+
+impl crate::components::derived::Property for LayerSet {
+    fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
+        <Vec<Layer> as crate::components::derived::Property>::describe(spec);
+    }
+
+    fn to_value(&self) -> toml::Value {
+        toml::Value::Array(
+            (0..32)
+                .filter(|bit| self.0 & (1 << bit) != 0)
+                .map(|bit| toml::Value::String((bit + 1).to_string()))
+                .collect(),
+        )
+    }
+
+    fn from_value(value: &toml::Value) -> crate::components::derived::Result<Self> {
+        let layers = <Vec<Layer> as crate::components::derived::Property>::from_value(value)?;
+        Ok(Self(
+            layers
+                .iter()
+                .fold(0u32, |bits, layer| bits | 1 << (layer.0 - 1)),
+        ))
+    }
+}
+
+/// One of the 32 layers, by its number: what a [`LayerSet`] is read from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Layer(pub u8);
 

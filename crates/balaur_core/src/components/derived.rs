@@ -725,6 +725,113 @@ impl Property for glamx::Quat {
 
 /// A list, or with `flags` on the field a set of an enum's options: the
 /// options then belong to the property rather than to what it holds.
+/// A component kept behind an `Arc`, copied on write: what a large one is
+/// stored as (`#[component(shared)]`), so a node's archetype moves and the
+/// copies a system keeps share its fields. A scene, a schema and a script
+/// see the component itself.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Shared<C>(std::sync::Arc<C>);
+
+impl<C> std::ops::Deref for Shared<C> {
+    type Target = C;
+    fn deref(&self) -> &C {
+        &self.0
+    }
+}
+
+impl<C: Clone> std::ops::DerefMut for Shared<C> {
+    fn deref_mut(&mut self) -> &mut C {
+        std::sync::Arc::make_mut(&mut self.0)
+    }
+}
+
+/// What `#[component(shared)]` derives on a component kept as [`Shared`]:
+/// the same facts [`Component`] states, which `Shared` then states for it.
+pub trait SharedComponent: Fields + Clone + Send + Sync + 'static {
+    const NAME: &'static str;
+    const DOC: &'static str;
+    const LIFECYCLE: Lifecycle = Lifecycle::NONE;
+    const REQUIRES: &'static [&'static str] = &[];
+    const TAGS: &'static [&'static str] = &[];
+    const EXPECTS: &'static [&'static str] = &[];
+    const EVENTS: &'static [(&'static str, &'static str)] = &[];
+    const AFTER_WRITE: Option<AfterWriteFn> = None;
+    const WARNINGS: Option<WarningFn> = None;
+}
+
+impl<C: SharedComponent> Component for Shared<C> {
+    const NAME: &'static str = C::NAME;
+    const DOC: &'static str = C::DOC;
+    const LIFECYCLE: Lifecycle = C::LIFECYCLE;
+    const REQUIRES: &'static [&'static str] = C::REQUIRES;
+    const TAGS: &'static [&'static str] = C::TAGS;
+    const EXPECTS: &'static [&'static str] = C::EXPECTS;
+    const EVENTS: &'static [(&'static str, &'static str)] = C::EVENTS;
+    const AFTER_WRITE: Option<AfterWriteFn> = C::AFTER_WRITE;
+    const WARNINGS: Option<WarningFn> = C::WARNINGS;
+}
+
+impl<C: Fields + Clone> Fields for Shared<C> {
+    const NAMES: &'static [&'static str] = C::NAMES;
+    const BY_NAME: &'static [(&'static str, usize)] = C::BY_NAME;
+    fn specs() -> Vec<toml::Value> {
+        C::specs()
+    }
+    fn read(&self, index: usize) -> Option<toml::Value> {
+        self.0.read(index)
+    }
+    fn write(&mut self, index: usize, value: Given<'_>) -> Result<()> {
+        std::sync::Arc::make_mut(&mut self.0).write(index, value)
+    }
+    fn given(&self, index: usize) -> Option<Given<'_>> {
+        self.0.given(index)
+    }
+}
+
+/// A list a component holds that most nodes leave empty, behind a pointer:
+/// eight bytes on the node where a `Vec` is twenty-four. Read as a slice;
+/// a scene writes it as the list it is.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[allow(
+    clippy::box_collection,
+    reason = "a thin pointer: a boxed slice would be sixteen bytes on the node"
+)]
+pub struct RareList<T>(Option<Box<Vec<T>>>);
+
+impl<T> RareList<T> {
+    /// The list to change, made where it was empty.
+    pub fn to_mut(&mut self) -> &mut Vec<T> {
+        self.0.get_or_insert_with(Box::default)
+    }
+}
+
+impl<T> std::ops::Deref for RareList<T> {
+    type Target = [T];
+    fn deref(&self) -> &[T] {
+        self.0.as_deref().map_or(&[], Vec::as_slice)
+    }
+}
+
+impl<T> From<Vec<T>> for RareList<T> {
+    fn from(list: Vec<T>) -> Self {
+        Self((!list.is_empty()).then(|| Box::new(list)))
+    }
+}
+
+impl<T: Property> Property for RareList<T> {
+    fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
+        <Vec<T> as Property>::describe(spec);
+    }
+
+    fn to_value(&self) -> toml::Value {
+        toml::Value::Array(self.iter().map(Property::to_value).collect())
+    }
+
+    fn from_value(value: &toml::Value) -> Result<Self> {
+        <Vec<T> as Property>::from_value(value).map(Self::from)
+    }
+}
+
 impl<T: Property> Property for Vec<T> {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
         let mut held = toml::map::Map::new();
@@ -788,6 +895,11 @@ impl<T: Property> Property for indexmap::IndexMap<String, T> {
     }
 }
 
+/// The most a component may take inline on a node, in bytes: every
+/// archetype move copies all of a node's components, so a larger one is kept
+/// behind an `Arc` (`#[component(shared)]`, [`Shared`]).
+pub const INLINE_LIMIT: usize = 256;
+
 impl ComponentDef {
     /// The definition of a derived component, its `apply`, `get`, `remove`
     /// and the reads and writes of one property all from `C`.
@@ -813,6 +925,7 @@ impl ComponentDef {
             requires: C::REQUIRES,
             type_id: Some(std::any::TypeId::of::<C>()),
             ticks: Some(super::ticks::TickColumn::of::<C>()),
+            inline_bytes: Some(std::mem::size_of::<C>()),
             apply: Box::new(move |eng, entity, params| {
                 let next: C = from_table(params)?;
                 // What the node held, to put back if the hook refuses: the

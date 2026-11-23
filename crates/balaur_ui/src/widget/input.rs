@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 use crate::vocabulary::keys as k;
 use crate::vocabulary::words as w;
 use crate::widget::layer::Edit;
-use crate::widget::node::Widget;
-use crate::widget::properties::{Numeral, WidgetProperties};
+use crate::widget::node::{Widget, WidgetFields};
+use crate::widget::properties::{Numeral, SharedProperties, WidgetProperties};
 use crate::widget::schema::follow;
 
 /// How a frame names a widget: its stable id, and its entity bits for a tree
@@ -542,7 +542,7 @@ fn apply_system(eng: &Engine, _dt: f32) {
 fn settle_one(
     entity: Entity,
     asked: &mut WidgetProperties,
-    widget: &mut Widget,
+    widget: &mut WidgetFields,
     edit: &Edit,
     said: &mut Vec<(Entity, &'static str, Value)>,
 ) {
@@ -694,7 +694,7 @@ fn settle_edits(
         {
             let world = eng.world();
             let (Ok(mut asked), Ok(mut widget)) = (
-                world.get::<&mut WidgetProperties>(entity),
+                world.get::<&mut SharedProperties>(entity),
                 world.get::<&mut Widget>(entity),
             ) else {
                 continue;

@@ -28,10 +28,10 @@ use crate::widget::beside_box::{
 use crate::widget::beside_controls::{
     WidgetButton, WidgetCheck, WidgetRows, WidgetShortcut, WidgetText, look, tab_stops,
 };
-use crate::widget::node::{EguiOptions, Widget};
+use crate::widget::node::{EguiOptions, Widget, WidgetFields};
 use crate::widget::properties::{
     Alpha, Axis, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, LineBreak, NumberFormat, Numeral,
-    Placement, Scrollbar, SidePlacement, TextAlign, WidgetProperties,
+    Placement, Scrollbar, SharedProperties, SidePlacement, TextAlign, WidgetProperties,
 };
 
 /// A component beside `widget`, read by the kinds `reads` names.
@@ -48,11 +48,11 @@ pub(crate) trait Beside: Component + Clone {
     }
 
     /// The rows onto the widget the layer reads.
-    fn put(&self, widget: &mut Widget);
+    fn put(&self, widget: &mut WidgetFields);
 
     /// One row onto the widget, by its name, leaving the others; `false` for
     /// a name it does not hold.
-    fn put_row(&self, widget: &mut Widget, row: &str) -> bool;
+    fn put_row(&self, widget: &mut WidgetFields, row: &str) -> bool;
 
     /// Refuse what the types alone cannot judge.
     fn check(&self) -> Result<()> {
@@ -64,12 +64,12 @@ pub(crate) trait Beside: Component + Clone {
 /// filled: [`Beside::put`] whole, [`Beside::put_row`] the one a write changed.
 macro_rules! puts {
     ($held:ident, $widget:ident; $($row:ident => $write:expr;)*) => {
-        fn put(&self, $widget: &mut $crate::widget::node::Widget) {
+        fn put(&self, $widget: &mut $crate::widget::node::WidgetFields) {
             let $held = self;
             $($write;)*
         }
 
-        fn put_row(&self, $widget: &mut $crate::widget::node::Widget, row: &str) -> bool {
+        fn put_row(&self, $widget: &mut $crate::widget::node::WidgetFields, row: &str) -> bool {
             let $held = self;
             match row {
                 $(stringify!($row) => $write,)*
@@ -783,7 +783,7 @@ pub(crate) fn put_class_rows(
     entity: Entity,
     kind: &str,
     rows: &[(&str, &toml::Value)],
-    widget: &mut Widget,
+    widget: &mut WidgetFields,
 ) {
     macro_rules! class_each {
         ($world:expr, $entity:expr, $kind:expr, $rows:expr, $widget:expr; $($beside:ty),*) => {
@@ -798,7 +798,7 @@ fn class_rows_of<C: Beside>(
     entity: Entity,
     kind: &str,
     rows: &[(&str, &toml::Value)],
-    widget: &mut Widget,
+    widget: &mut WidgetFields,
 ) {
     if !C::reads(kind) {
         return;
@@ -828,7 +828,7 @@ pub(crate) fn put_all(
     world: &World,
     entity: Entity,
     asked: &WidgetProperties,
-    widget: &mut Widget,
+    widget: &mut WidgetFields,
 ) {
     macro_rules! put_each {
         ($world:expr, $entity:expr, $asked:expr, $widget:expr; $($beside:ty),*) => {
@@ -843,7 +843,7 @@ fn put_held<C: Beside>(
     world: &World,
     entity: Entity,
     asked: &WidgetProperties,
-    widget: &mut Widget,
+    widget: &mut WidgetFields,
 ) {
     if !C::reads(&asked.kind.0) {
         return;
@@ -914,7 +914,7 @@ fn register<C: Beside>(reg: &mut Registry<'_>) {
         C::NAME,
         ComponentDef {
             tags: &[balaur_core::components::tag::UI],
-            expects: &[<WidgetProperties as Component>::NAME],
+            expects: &[<SharedProperties as Component>::NAME],
             warnings: Some(Box::new(idle::<C>)),
             remove: Box::new(|eng, entity| {
                 // A node being freed takes its widget with it: no defaults
@@ -968,7 +968,7 @@ fn refresh<C: Beside>(eng: &Engine, entity: Entity, row: Option<&str>) {
 /// What is off about `C` on a widget whose kind reads none of its rows.
 fn idle<C: Beside>(eng: &Engine, entity: Entity) -> Vec<Warning> {
     let world = eng.world();
-    let Ok(asked) = world.get::<&WidgetProperties>(entity) else {
+    let Ok(asked) = world.get::<&SharedProperties>(entity) else {
         return Vec::new();
     };
     if C::reads(&asked.kind.0) {
@@ -983,7 +983,7 @@ fn idle<C: Beside>(eng: &Engine, entity: Entity) -> Vec<Warning> {
 
 /// The egui options of a widget, to write one: a copy where the arena still
 /// shares them.
-pub(crate) fn egui(widget: &mut Widget) -> &mut EguiOptions {
+pub(crate) fn egui(widget: &mut WidgetFields) -> &mut EguiOptions {
     Arc::make_mut(&mut widget.egui)
 }
 

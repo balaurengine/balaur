@@ -257,7 +257,7 @@ impl Property for Numeral {
 
 /// A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A click on one is its node's `pointer_click`, which a `bindings` row or its script's `on_pointer_click` answers; a `label`, a `panel` or an `image` senses a click only where one is heard.
 #[derive(Clone, Component)]
-#[component(name = "widget")]
+#[component(name = "widget", shared)]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "one flag per scene property, and a scene sets them independently"
@@ -446,3 +446,7 @@ pub(crate) struct WidgetProperties {
     #[property(group = "events")]
     pub(crate) context: SmolStr,
 }
+
+/// What a node holds of its `widget` component: the properties behind an
+/// `Arc`, which its archetype moves and the arena share.
+pub(crate) type SharedProperties = balaur_core::components::derived::Shared<WidgetProperties>;

@@ -47,7 +47,7 @@ pub use widget::input::{
     OPENED_EVENT, PASTED_EVENT, RESIZED_EVENT, SCROLLED_EVENT, SUBMITTED_EVENT,
     VALUE_CHANGED_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
 };
-pub use widget::node::{Move, UiFocus, Widget, WidgetLayerConfig};
+pub use widget::node::{Move, UiFocus, Widget, WidgetFields, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
 
 /// Where the layer last drew a widget, in design pixels, or `None` for one

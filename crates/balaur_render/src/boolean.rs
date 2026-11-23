@@ -19,7 +19,7 @@ use balaur_script::{Module, NodeId};
 use glamx::{Mat4, Vec2, Vec3};
 
 use crate::{PolygonMesh, Renderable2d, Renderable3d, Shape2d, Shape3d};
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 const BUILT_MESH: &str = "built_mesh";
 
@@ -77,10 +77,10 @@ pub struct Boolean3d {
     pub cast_shadow: bool,
     /// The layers the result is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub render_layers: Vec<Layer>,
+    pub render_layers: LayerSet,
     /// The light layers the result is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub light_layers: Vec<Layer>,
+    pub light_layers: LayerSet,
     /// Whether shadows land on it; off lights it as if nothing stood between it and every light
     #[property(default = true, group = "shadows")]
     pub receive_shadows: bool,
@@ -167,8 +167,8 @@ impl Combined3d {
             },
             lighting: crate::Lighting3d::of(
                 asked.cast_shadow,
-                &asked.light_layers,
-                &asked.render_layers,
+                asked.light_layers,
+                asked.render_layers,
                 asked.receive_shadows,
                 asked.segmentation_id,
             ),

@@ -9,7 +9,7 @@ use smol_str::SmolStr;
 
 use crate::vocabulary::words as w;
 use crate::widget::beside::{Beside, egui, puts};
-use crate::widget::node::Widget;
+use crate::widget::node::WidgetFields;
 use crate::widget::properties::{Item, LineBreak, Sense, TextAlign, TruncateAt};
 use crate::widget::text_look::{TextLook, color_of};
 
@@ -192,7 +192,7 @@ impl Beside for WidgetText {
 
 /// The text look of a widget, to write one: a copy where the arena still
 /// shares it.
-pub(crate) fn look(widget: &mut Widget) -> &mut TextLook {
+pub(crate) fn look(widget: &mut WidgetFields) -> &mut TextLook {
     Arc::make_mut(&mut widget.text_look)
 }
 

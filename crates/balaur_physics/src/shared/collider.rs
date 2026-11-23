@@ -75,14 +75,14 @@ macro_rules! functions {
         /// is every layer, and an empty set of layers is layer 1.
         pub(crate) fn groups_of(
             (layers, mask, test): (
-                &[balaur_core::layers::Layer],
-                &[balaur_core::layers::Layer],
+                balaur_core::layers::LayerSet,
+                balaur_core::layers::LayerSet,
                 crate::properties::LayerTest,
             ),
         ) -> InteractionGroups {
             InteractionGroups::new(
-                Group::from_bits_truncate(balaur_core::layers::Layer::bits(layers, false)),
-                Group::from_bits_truncate(balaur_core::layers::Layer::bits(mask, true)),
+                Group::from_bits_truncate(layers.bits(false)),
+                Group::from_bits_truncate(mask.bits(true)),
                 match test {
                     crate::properties::LayerTest::Either => InteractionTestMode::Or,
                     crate::properties::LayerTest::Both => InteractionTestMode::And,

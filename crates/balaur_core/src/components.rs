@@ -354,6 +354,9 @@ pub struct ComponentDef {
     pub type_id: Option<std::any::TypeId>,
     /// A derived component's tick column, which a tracked query writes.
     pub ticks: Option<ticks::TickColumn>,
+    /// What a derived component takes inline on a node, which every archetype
+    /// move copies whole ([`derived::INLINE_LIMIT`]); none for one by hand.
+    pub inline_bytes: Option<usize>,
 }
 
 impl ComponentDef {
@@ -382,6 +385,7 @@ impl ComponentDef {
             lifecycle: Lifecycle::NONE,
             type_id: None,
             ticks: None,
+            inline_bytes: None,
         }
     }
 }

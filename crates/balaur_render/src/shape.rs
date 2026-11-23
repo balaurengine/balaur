@@ -13,7 +13,7 @@ use crate::vocabulary::words;
 use crate::{
     Renderable2d, Renderable3d, Shape2d, Shape3d, set_color, set_polyline, set_shape, set_shape2d,
 };
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 /// What a `shape3d` draws, and the dimensions that primitive reads: the
 /// table the mesher builds from (`Solid::from_params`).
@@ -308,10 +308,10 @@ pub struct Primitive3d {
     pub cast_shadow: bool,
     /// The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub render_layers: Vec<Layer>,
+    pub render_layers: LayerSet,
     /// The light layers this is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub light_layers: Vec<Layer>,
+    pub light_layers: LayerSet,
     /// Whether shadows land on it; off lights it as if nothing stood between it and every light
     #[property(default = true, group = "shadows")]
     pub receive_shadows: bool,
@@ -416,8 +416,8 @@ fn shape3d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
             asked.material.clone(),
             crate::Lighting3d::of(
                 asked.cast_shadow,
-                &asked.light_layers,
-                &asked.render_layers,
+                asked.light_layers,
+                asked.render_layers,
                 asked.receive_shadows,
                 asked.segmentation_id,
             ),

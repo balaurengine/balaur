@@ -22,7 +22,7 @@ use crate::rapier2d::prelude::{ColliderBuilder as ColliderBuilder2, SharedShape}
 use crate::scalar::{self, Pose2, Real, Rotation2, Vector2};
 use crate::shared::beside::{self, Beside};
 use crate::vocabulary::component as c;
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 /// What each node's colliders were built from, so a map rebuilds only when
 /// its cells or its tileset moved.
@@ -47,20 +47,20 @@ pub struct TileCollision {
     #[property(asset = "physics_material")]
     pub physics_material: String,
     /// The layers this collider is on
-    #[property(flags, default = vec![Layer(1)], group = "filtering")]
-    pub collision_layer: Vec<Layer>,
+    #[property(flags, default = LayerSet::FIRST, group = "filtering")]
+    pub collision_layer: LayerSet,
     /// The layers it collides with; empty means every layer
     #[property(flags, group = "filtering")]
-    pub collision_mask: Vec<Layer>,
+    pub collision_mask: LayerSet,
     /// Whether a pair is tested when both colliders' layers accept the other, or when either does; two colliders that differ use both
     #[property(default = LayerTest::Both, group = "filtering")]
     pub collision_test: LayerTest,
     /// Layers for the solver alone: a pair can be detected but not resolved
-    #[property(flags, default = vec![Layer(1)], group = "filtering")]
-    pub solver_layer: Vec<Layer>,
+    #[property(flags, default = LayerSet::FIRST, group = "filtering")]
+    pub solver_layer: LayerSet,
     /// Which solver layers this one pushes against; empty means all of them
     #[property(flags, group = "filtering")]
-    pub solver_mask: Vec<Layer>,
+    pub solver_mask: LayerSet,
     /// The same choice for the solver layers
     #[property(default = LayerTest::Both, group = "filtering")]
     pub solver_test: LayerTest,

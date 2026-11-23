@@ -363,8 +363,8 @@ macro_rules! surface {
 
         /// The groups a layer row and its mask make; a soft body tests both.
         fn groups(
-            layers: &[balaur_core::layers::Layer],
-            mask: &[balaur_core::layers::Layer],
+            layers: balaur_core::layers::LayerSet,
+            mask: balaur_core::layers::LayerSet,
         ) -> crate::$rapier::prelude::InteractionGroups {
             $groups((layers, mask, crate::properties::LayerTest::Both))
         }
@@ -375,13 +375,13 @@ macro_rules! surface {
             material: &crate::material::PhysicsMaterial,
         ) -> crate::$rapier::prelude::ColliderBuilder {
             crate::$rapier::prelude::ColliderBuilder::ball(1.0)
-                .collision_groups(groups(&asked.collision_layer, &asked.collision_mask))
+                .collision_groups(groups(asked.collision_layer, asked.collision_mask))
                 .contact_force_event_threshold(asked.contact_force_threshold)
                 .friction(material.friction)
                 .restitution(material.restitution)
                 .friction_combine_rule(combine(&material.friction_combine))
                 .restitution_combine_rule(combine(&material.restitution_combine))
-                .solver_groups(groups(&asked.solver_layer, &asked.solver_mask))
+                .solver_groups(groups(asked.solver_layer, asked.solver_mask))
                 .active_collision_types($pairs(&asked.contact_pairs))
                 .sensor(asked.sensor)
         }
@@ -395,8 +395,8 @@ macro_rules! surface {
             collider.set_restitution(material.restitution);
             collider.set_friction_combine_rule(combine(&material.friction_combine));
             collider.set_restitution_combine_rule(combine(&material.restitution_combine));
-            collider.set_collision_groups(groups(&asked.collision_layer, &asked.collision_mask));
-            collider.set_solver_groups(groups(&asked.solver_layer, &asked.solver_mask));
+            collider.set_collision_groups(groups(asked.collision_layer, asked.collision_mask));
+            collider.set_solver_groups(groups(asked.solver_layer, asked.solver_mask));
             collider.set_active_collision_types($pairs(&asked.contact_pairs));
             collider.set_contact_force_event_threshold(asked.contact_force_threshold);
             collider.set_sensor(asked.sensor);

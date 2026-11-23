@@ -14,7 +14,7 @@ use balaur_script::Module;
 
 use crate::vocabulary::words;
 use crate::world_text::{Align, Layers3d, Shaping, SpaceOptions, TextRenderable, TextStyle};
-use balaur_core::layers::Layer;
+use balaur_core::layers::LayerSet;
 
 /// Upright, italic, or the upright face slanted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
@@ -179,10 +179,10 @@ pub struct Text3d {
     pub cast_shadow: bool,
     /// The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub render_layers: Vec<Layer>,
+    pub render_layers: LayerSet,
     /// The light layers this is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
     #[property(flags, group = "layers")]
-    pub light_layers: Vec<Layer>,
+    pub light_layers: LayerSet,
     /// Whether shadows land on it; off lights it as if nothing stood between it and every light
     #[property(default = true, group = "shadows")]
     pub receive_shadows: bool,
@@ -276,8 +276,8 @@ fn text3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
         };
         let lighting = crate::Lighting3d::of(
             asked.cast_shadow,
-            &asked.light_layers,
-            &asked.render_layers,
+            asked.light_layers,
+                asked.render_layers,
             asked.receive_shadows,
             asked.segmentation_id,
         );
