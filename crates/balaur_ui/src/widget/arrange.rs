@@ -603,8 +603,13 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     } else {
         egui::Layout::left_to_right(egui::Align::Center)
     };
+    // As tall as `horizontal` makes a row, so the page keeps the rest.
+    let row = vec2(
+        strip.available_size_before_wrap().x,
+        strip.spacing().interact_size.y,
+    );
     let chosen = strip
-        .with_layout(runs, |ui| {
+        .allocate_ui_with_layout(row, runs, |ui| {
             ui.spacing_mut().item_spacing = vec2(gap.x.max(4.0), 0.0);
             let mut chosen = None;
             for (slot, (_, name, label)) in pages.iter().enumerate() {

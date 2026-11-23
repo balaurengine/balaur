@@ -105,12 +105,12 @@ pub(crate) fn physical_align(word: &str, flip: bool) -> egui::Align {
 /// An egui alignment across, turned round where `flip` says: what a popup's
 /// side and a root's anchor become in a mirrored UI.
 pub(crate) fn flip_align2(align: egui::Align2, flip: bool) -> egui::Align2 {
-    if flip { align.flip_x() } else { align }
+    if flip { align.flipped_x() } else { align }
 }
 
 /// A popup's side, turned round where `flip` says.
 pub(crate) fn flip_side(side: egui::RectAlign, flip: bool) -> egui::RectAlign {
-    if flip { side.flip_x() } else { side }
+    if flip { side.flipped_x() } else { side }
 }
 
 /// A `text_align` word as the shaper takes it for a block's lines. Left to

@@ -180,6 +180,20 @@ impl Slide<'_> {
     }
 
     /// The pointer and the keys on the rail, then the rail and its handle.
+    /// The part of the rail that fills behind the handle at `centre`: from
+    /// the lowest value's end, the bottom, the left, or the right mirrored.
+    fn trail(&self, bar: Rect, centre: Pos2, corner: egui::CornerRadius) -> Rect {
+        let mut trail = bar;
+        if self.upright {
+            trail.min.y = centre.y - f32::from(corner.se);
+        } else if self.mirrored {
+            trail.min.x = centre.x - f32::from(corner.ne);
+        } else {
+            trail.max.x = centre.x + f32::from(corner.nw);
+        }
+        trail
+    }
+
     fn rail(&mut self, ui: &egui::Ui, response: &egui::Response) {
         let rect = response.rect;
         let along = self.travel(&rect);
@@ -245,16 +259,8 @@ impl Slide<'_> {
             .trailing_fill
             .unwrap_or_else(|| ui.visuals().slider_trailing_fill)
         {
-            let mut trail = bar;
-            if self.upright {
-                trail.min.y = centre.y - f32::from(corner.se);
-            } else if self.mirrored {
-                trail.min.x = centre.x - f32::from(corner.ne);
-            } else {
-                trail.max.x = centre.x + f32::from(corner.nw);
-            }
             painter.fill(
-                trail,
+                self.trail(bar, centre, corner),
                 corner,
                 self.paint.mark.unwrap_or(ui.visuals().selection.bg_fill),
             );

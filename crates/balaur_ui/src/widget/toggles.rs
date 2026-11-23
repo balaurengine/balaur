@@ -202,10 +202,10 @@ pub(crate) fn switch(
         .unwrap_or(crate::widget::theme::DEFAULT_INK);
     Brush::of(ui).fill(rect, height / 2.0, track);
     let inset = height / 2.0;
-    let x = if on != flip {
-        rect.max.x - inset
-    } else {
+    let x = if on == flip {
         rect.min.x + inset
+    } else {
+        rect.max.x - inset
     };
     Brush::of(ui).disc(pos2(x, rect.center().y), height * 0.34, knob);
     if let Some(text) = text {

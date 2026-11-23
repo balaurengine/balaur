@@ -487,13 +487,7 @@ fn paint_face(
     let across =
         |x: f32, width: f32| crate::widget::direction::placed_x(flip, x, width, inner.x_range());
     // An icon the theme says points a way, turned round where the face is.
-    let icon_at = |name: &str, at_pos: egui::Pos2, galley: &std::sync::Arc<egui::Galley>, tint| {
-        if flip && at.theme.mirrors_icon(name) {
-            painter.galley_mirrored(at_pos, galley, tint);
-        } else {
-            painter.galley(at_pos, std::sync::Arc::clone(galley), tint);
-        }
-    };
+    let turns = |name: &str| flip && at.theme.mirrors_icon(name);
     if style.stacked() {
         paint_stacked(&painter, at, face, inner, ink, style);
         return;
@@ -506,60 +500,39 @@ fn paint_face(
         _ => inner.center().x - face.size.x / 2.0,
     };
     let middle = inner.center().y;
+    // The trailing part and the chip end at the box's far edge where the
+    // face is against its start, else just past the caption.
+    let end = if left {
+        inner.max.x
+    } else {
+        at_x + face.size.x
+    };
     if let Some(trailing) = &face.trailing {
-        let x = if left {
-            inner.max.x - trailing.size().x
-        } else {
-            at_x + face.size.x - trailing.size().x
-        };
         let y = middle - trailing.size().y / 2.0;
-        let tint = if face.tail_mark {
-            style.icon_color.unwrap_or(ink)
+        let (tint, named) = if face.tail_mark {
+            (
+                style.icon_color.unwrap_or(ink),
+                widget.trailing_icon.as_str(),
+            )
         } else {
-            ink.gamma_multiply(0.55)
+            (ink.gamma_multiply(0.55), "")
         };
-        let named = if face.tail_mark {
-            widget.trailing_icon.as_str()
-        } else {
-            ""
-        };
-        icon_at(named, pos2(across(x, trailing.size().x), y), trailing, tint);
+        let x = across(end - trailing.size().x, trailing.size().x);
+        painter.icon(pos2(x, y), trailing, tint, turns(named));
     }
     if let Some(chip) = &face.chip {
-        let x = if left {
-            inner.max.x - chip.size.x
-        } else {
-            at_x + face.size.x - chip.size.x
-        };
-        chip.paint(
-            &painter,
-            pos2(across(x, chip.size.x), middle - chip.size.y / 2.0),
-            ink,
-        );
+        let x = across(end - chip.size.x, chip.size.x);
+        chip.paint(&painter, pos2(x, middle - chip.size.y / 2.0), ink);
     }
-    if let Some((texture, size)) = face.picture {
-        let disc = egui::Rect::from_min_size(
-            pos2(at_x, middle - size.y / 2.0 - face.plate),
-            size + egui::Vec2::splat(face.plate * 2.0),
+    if let Some(picture) = face.picture {
+        at_x += paint_picture(
+            &painter,
+            picture,
+            face,
+            (at_x, middle),
+            (inner, flip),
+            style,
         );
-        let disc = if flip {
-            crate::widget::direction::reflect(disc, inner)
-        } else {
-            disc
-        };
-        if let Some(plate) = style.plate {
-            painter.fill(disc, disc.height() / 2.0, plate);
-        }
-        let inner = egui::Rect::from_center_size(disc.center(), size);
-        // A theme that names an `icon_color` tints the picture with it, the
-        // way Godot's `icon_normal_color` dresses a button's icon.
-        painter.add(paint::picture(
-            texture,
-            inner,
-            egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            style.icon_color.unwrap_or(Color32::WHITE),
-        ));
-        at_x += disc.width() + face.gap;
     }
     if face.spinner > 0.0 {
         let rect = egui::Rect::from_min_size(
@@ -577,12 +550,8 @@ fn paint_face(
         // A glyph icon answers `icon_color` as a picture does, so a row that
         // tints its mark per component does not have to draw itself.
         let tint = style.icon_color.unwrap_or(ink);
-        icon_at(
-            &widget.icon,
-            pos2(across(at_x, icon.size().x), y),
-            icon,
-            tint,
-        );
+        let place = pos2(across(at_x, icon.size().x), y);
+        painter.icon(place, icon, tint, turns(&widget.icon));
         at_x += icon.size().x + face.gap;
     }
     if let Some((shaped, texture)) = &face.shaped {
@@ -606,6 +575,41 @@ fn paint_face(
             ink,
         );
     }
+}
+
+/// A face's picture on its round plate, the plate's left edge at `x`, the
+/// pair mirrored in `inner` where `flip` says: how far across it took, its
+/// gap to the caption with it.
+fn paint_picture(
+    painter: &Brush,
+    (texture, size): (egui::TextureId, egui::Vec2),
+    face: &Face,
+    (at_x, middle): (f32, f32),
+    (inner, flip): (egui::Rect, bool),
+    style: &Style,
+) -> f32 {
+    let disc = egui::Rect::from_min_size(
+        pos2(at_x, middle - size.y / 2.0 - face.plate),
+        size + egui::Vec2::splat(face.plate * 2.0),
+    );
+    let disc = if flip {
+        crate::widget::direction::reflect(disc, inner)
+    } else {
+        disc
+    };
+    if let Some(plate) = style.plate {
+        painter.fill(disc, disc.height() / 2.0, plate);
+    }
+    let inner = egui::Rect::from_center_size(disc.center(), size);
+    // A theme that names an `icon_color` tints the picture with it, the
+    // way Godot's `icon_normal_color` dresses a button's icon.
+    painter.add(paint::picture(
+        texture,
+        inner,
+        egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+        style.icon_color.unwrap_or(Color32::WHITE),
+    ));
+    disc.width() + face.gap
 }
 
 /// The corner a button is drawn with: what the theme says, else as round as

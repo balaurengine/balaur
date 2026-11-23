@@ -479,11 +479,25 @@ impl Brush {
         self.0.galley(at, galley, fallback);
     }
 
+    /// A glyph icon in `tint`, turned round about its middle where `turned`
+    /// says: one that points a way, in a mirrored UI.
+    pub(crate) fn icon(&self, at: Pos2, galley: &Arc<Galley>, tint: Color32, turned: bool) {
+        if turned {
+            self.galley_mirrored(at, galley, tint);
+        } else {
+            self.galley(at, Arc::clone(galley), tint);
+        }
+    }
+
     /// A galley turned round about its own middle, in `tint`: an icon that
     /// points a way, in a mirrored UI. egui draws a galley only as it was
     /// laid out, so its rows' glyph meshes are copied here mirrored, their
     /// texel UVs made the atlas's fractions as egui's tessellator makes them.
     pub(crate) fn galley_mirrored(&self, at: Pos2, galley: &Galley, tint: Color32) {
+        #[allow(
+            clippy::redundant_closure_for_method_calls,
+            reason = "the method's path takes one lifetime of the view, the call needs any"
+        )]
         let [width, height] = self.0.fonts(|fonts| fonts.font_image_size());
         #[allow(
             clippy::cast_precision_loss,
