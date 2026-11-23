@@ -28,13 +28,20 @@ use crate::scene::{self, Appearance, Tags};
 pub use crate::project_files::{AssetSource, ProjectFiles, path_of};
 mod instances;
 mod problems;
+mod scene_keys;
 mod scene_walks;
+mod script_order;
+mod stamps;
 
 use crate::vocabulary::keys;
 use crate::vocabulary::words;
 use instances::{apply_overrides, apply_own_keys, instance};
 pub use problems::{Problem, RowNames, problems, row_names};
+use scene_keys::{SceneKeys, scene_keys};
 pub(crate) use scene_walks::{instantiate_main_scene, preload_scene, unload_scene};
+use script_order::children_first;
+use stamps::held_stamp_of;
+pub(crate) use stamps::hold_stamps;
 
 /// The file that makes a directory a project.
 pub const MANIFEST: &str = "project.toml";
@@ -423,6 +430,10 @@ struct SceneDoc {
     variables: toml::Table,
     #[serde(default)]
     nodes: Vec<SceneNode>,
+    /// Every node's id, repaired where the file got one wrong: once per
+    /// parse, not once per instance of a prefab.
+    #[serde(skip)]
+    ids: std::cell::OnceCell<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -681,30 +692,10 @@ fn instantiate_doc(
     // A document's paths are the game's spelling by now, whichever script
     // asked for the scene; each script it attaches runs as its own file's.
     let _game = crate::dependencies::as_game(eng);
+    let before = scene::child_count(&eng.world(), base);
     build_doc(eng, doc, source, base, &mut build)?;
-    children_first(eng, base, &mut build.pending);
+    children_first(eng, base, before, &mut build.pending);
     attach_pending(eng, &build)
-}
-
-/// Reorder scripts waiting to attach so every child's comes before its
-/// parent's and siblings keep their order.
-///
-/// A child's `init` can only reach a parent that exists, which it does before
-/// any script runs; a parent's `init` reading a child's script state is the
-/// one that would find nothing, so children go first.
-fn children_first(eng: &Engine, base: Entity, pending: &mut [PendingScript]) {
-    fn walk(world: &hecs::World, node: Entity, order: &mut DetHashMap<Entity, usize>) {
-        if let Ok(children) = world.get::<&scene::Children>(node) {
-            for &child in &children.0 {
-                walk(world, child, order);
-            }
-        }
-        let next = order.len();
-        order.insert(node, next);
-    }
-    let mut order = DetHashMap::default();
-    walk(&eng.world(), base, &mut order);
-    pending.sort_by_key(|(entity, _, _)| order.get(entity).copied().unwrap_or(usize::MAX));
 }
 
 /// One scene being built, and everything a prefab inside it needs to know.
@@ -760,7 +751,7 @@ struct SceneFile {
 /// A scene file's text and document, parsed once while the file is unchanged.
 fn scene_doc(eng: &Engine, path: &str) -> Result<(std::rc::Rc<str>, std::rc::Rc<SceneDoc>)> {
     let key = path_of(eng, path)?;
-    let stamp = stamp_of(eng, &key);
+    let stamp = held_stamp_of(eng, &key);
     let files = eng.try_resource::<SceneFiles>().unwrap_or_else(|| {
         eng.insert_resource(SceneFiles::default());
         eng.resource::<SceneFiles>()
@@ -929,7 +920,7 @@ pub fn attach_scripts(eng: &Engine, root: Entity) -> Result<()> {
             })
             .collect()
     };
-    children_first(eng, root, &mut pending);
+    children_first(eng, root, 0, &mut pending);
     attach_named(eng, &pending)
 }
 
@@ -938,10 +929,12 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
         .try_resource::<SceneKeyRegistry>()
         .ok_or_else(|| anyhow!("scene key registry resource missing"))?;
     let registry = registry.borrow();
-    let handlers = &registry.0;
+    let handlers = &scene_keys(eng, &registry.0);
     let root = base;
     let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
-    let ids = repair_ids(&doc.nodes, !problems::checking(eng));
+    let ids = doc
+        .ids
+        .get_or_init(|| repair_ids(&doc.nodes, !problems::checking(eng)));
     // Taken once, by this document's root: a nested prefab asks afresh.
     let mut merge_into = build.merge_into.take();
     // The document's root, which a parent path may start from by name even

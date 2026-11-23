@@ -107,6 +107,10 @@ fn read(eng: &Engine, entity: Entity, table: &GetFn) -> Option<toml::Value> {
 )]
 fn remove(eng: &Engine, entity: Entity) -> Result<()> {
     crate::widget::arena::widget_changed(entity);
+    // A node being freed is despawned whole right after.
+    if balaur_core::components::freeing(entity) {
+        return Ok(());
+    }
     let _ = eng.remove_one::<WidgetProperties>(entity);
     let _ = eng.remove_one::<Widget>(entity);
     Ok(())

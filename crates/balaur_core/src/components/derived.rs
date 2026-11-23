@@ -852,6 +852,10 @@ impl ComponentDef {
                 })
             }),
             remove: Box::new(|eng, entity| {
+                // A node being freed is despawned whole right after.
+                if super::freeing(entity) {
+                    return Ok(());
+                }
                 // With its tick column in one move; alone where the node never
                 // had the column, as one put on around the registry.
                 let mut world = eng.world_mut();

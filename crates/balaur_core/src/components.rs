@@ -108,6 +108,7 @@ use crate::engine::Engine;
 mod accepts;
 mod attached;
 pub mod derived;
+mod freeing;
 mod property;
 mod schema;
 pub mod ticks;
@@ -123,6 +124,7 @@ pub use accepts::{AcceptsFn, refuse_unknown_keys, unknown_key};
 use attached::mark;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
 pub use derived::{Lifecycle, LifecycleFn};
+pub use freeing::freeing;
 pub use property::{
     PropertyPlace, answers_alone, given_placed, place_of, property, property_at, property_placed,
     set_property, set_property_at, set_property_placed,
@@ -1070,16 +1072,18 @@ pub fn remove_present(eng: &Engine, entity: Entity) {
         .collect();
     // Every `on_despawn` first, so each hears the node whole, then each
     // component's way off.
-    for (_, lifecycle) in &owed {
-        call(lifecycle.on_despawn, eng, entity);
-    }
-    for (name, lifecycle) in owed {
-        call(lifecycle.on_replace, eng, entity);
-        call(lifecycle.on_remove, eng, entity);
-        if let Err(why) = remove_hook(eng, entity, &name) {
-            tracing::error!(error = %why, component = %name, "removing a component from a freed node");
+    freeing::during(entity, || {
+        for (_, lifecycle) in &owed {
+            call(lifecycle.on_despawn, eng, entity);
         }
-    }
+        for (name, lifecycle) in owed {
+            call(lifecycle.on_replace, eng, entity);
+            call(lifecycle.on_remove, eng, entity);
+            if let Err(why) = remove_hook(eng, entity, &name) {
+                tracing::error!(error = %why, component = %name, "removing a component from a freed node");
+            }
+        }
+    });
 }
 
 /// A debug build's safety net for [`remove_present`]: the bits of components

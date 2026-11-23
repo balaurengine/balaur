@@ -233,6 +233,7 @@ fn switch_to(eng: &Engine, scene: &str, under: Entity) -> Result<()> {
     if !eng.world().contains(under) {
         return Err(anyhow!("the node it was to go under is gone"));
     }
+    let _stamps = crate::project::hold_stamps(eng);
     if let Some(left) = current(eng, Some(under)) {
         crate::scene::free_nodes(eng, &[left.root]);
     }

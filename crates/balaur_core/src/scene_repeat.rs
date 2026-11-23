@@ -37,6 +37,21 @@ struct Item<'a> {
 
 /// `scene.repeat(host, items)`: the node standing for each item, in order.
 pub(crate) fn scene_repeat(eng: &Engine, args: &[Value]) -> Result<Value> {
+    // Part files checked once, and every item's `init` held until all are
+    // built, named, placed and shown: the links re-pointed once, not per item.
+    let _stamps = crate::project::hold_stamps(eng);
+    let scripts = eng.script_host();
+    if let Some(scripts) = &scripts {
+        scripts.hold_inits();
+    }
+    let repeated = repeat(eng, args);
+    if let Some(scripts) = &scripts {
+        scripts.release_inits();
+    }
+    repeated
+}
+
+fn repeat(eng: &Engine, args: &[Value]) -> Result<Value> {
     let host = crate::engine_api::optional_node(args, 0)?
         .ok_or_else(|| anyhow!("repeat needs the node the items go under"))?;
     let items = items(args.get(1))?;

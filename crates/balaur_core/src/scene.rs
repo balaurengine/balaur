@@ -573,9 +573,12 @@ pub fn spawn_node_bare_with_id(
     parent: Entity,
     id: String,
 ) -> Entity {
+    // `Attached` from the start, as the node's first component would put it
+    // on: inserted after a widget it would move all of that again.
     let entity = world.spawn(node_bundle!(
         name,
         Parent(parent),
+        crate::components::Attached::default(),
         crate::components::StableId(id)
     ));
     attach(world, parent, name, entity);

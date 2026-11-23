@@ -917,6 +917,11 @@ fn register<C: Beside>(reg: &mut Registry<'_>) {
             expects: &[<WidgetProperties as Component>::NAME],
             warnings: Some(Box::new(idle::<C>)),
             remove: Box::new(|eng, entity| {
+                // A node being freed takes its widget with it: no defaults
+                // to put back on what is despawned right after.
+                if balaur_core::components::freeing(entity) {
+                    return Ok(());
+                }
                 let _ = eng.remove_one::<C>(entity);
                 refresh::<C>(eng, entity, None);
                 Ok(())

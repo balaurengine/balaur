@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow, bail};
 use balaur_script::Value;
 
 use crate::App;
-use crate::components::derived::{self, Component, Property, Record, Written};
+use crate::components::derived::{Component, Property, Record, Written};
 use crate::hecs::Entity;
 use crate::variables::{Variables, as_num};
 use crate::vocabulary::keys;
@@ -295,9 +295,24 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
         row.get(key)
             .and_then(toml::Value::as_str)
             .unwrap_or_default()
-            .to_string()
     };
-    let event = text("event");
+    binding_of(
+        [
+            text("event"),
+            text("when"),
+            text("action"),
+            text(words::TARGET),
+        ],
+        row.get(keys::VALUE),
+    )
+}
+
+/// A row from its `event`, `when`, `action` and `target`, and its `value`.
+fn binding_of(
+    [event, when_source, word, target]: [&str; 4],
+    value: Option<&toml::Value>,
+) -> Result<Binding> {
+    let event = event.to_string();
     if event.is_empty() {
         bail!("a binding names the event it answers: `event = \"pointer_click\"`");
     }
@@ -308,8 +323,7 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
             hooks::EMITTED
         );
     }
-    let word = text("action");
-    let action = Action::of(&word).ok_or_else(|| {
+    let action = Action::of(word).ok_or_else(|| {
         anyhow!(
             "no action `{word}`; the actions are {}",
             ACTIONS
@@ -319,16 +333,15 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
                 .join(", ")
         )
     })?;
-    let when_source = text("when");
     Ok(Binding {
         event,
-        when: parse_condition(&when_source)?,
-        when_source,
+        when: parse_condition(when_source)?,
+        when_source: when_source.to_string(),
         action,
-        target: text(words::TARGET),
+        target: target.to_string(),
         // The record fills a row that names no value with an empty string,
         // and a row that names none acts on nothing.
-        value: match row.get(keys::VALUE) {
+        value: match value {
             Some(toml::Value::String(s)) if s.is_empty() => Value::Nil,
             Some(held) => value_of(held),
             None => Value::Nil,
@@ -403,18 +416,23 @@ impl Property for RowValue {
 /// The rows parsed again: an event nothing emits, an action nothing knows or
 /// a condition that does not read refuses the write.
 fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
-    let table = {
+    // Read from the rows as they are held, not from them written out as a
+    // table again: the same fields, without a copy of each.
+    let rows = {
         let world = eng.world();
         let Ok(asked) = world.get::<&BindingRows>(entity) else {
             return Ok(());
         };
-        derived::to_table(&*asked)
-    };
-    let rows = match table.get(keys::ROWS) {
-        Some(toml::Value::Array(rows)) => {
-            rows.iter().map(parse_binding).collect::<Result<Vec<_>>>()?
-        }
-        _ => Vec::new(),
+        asked
+            .rows
+            .iter()
+            .map(|row| {
+                binding_of(
+                    [&row.event, &row.when, &row.action, &row.target],
+                    Some(&row.value.0),
+                )
+            })
+            .collect::<Result<Vec<_>>>()?
     };
     crate::events::hearers_may_have_changed(eng, entity);
     eng.world_mut()
@@ -424,7 +442,8 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
 
 /// What a removed `BindingRows` leaves behind, taken with it.
 fn binding_rows_removed(eng: &Engine, entity: Entity) {
-    {
+    // A node being freed is despawned whole right after.
+    if !crate::components::freeing(entity) {
         let mut world = eng.world_mut();
         let _ = world.remove_one::<BindingRows>(entity);
         let _ = world.remove_one::<Bindings>(entity);
