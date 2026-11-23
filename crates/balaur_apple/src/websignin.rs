@@ -37,12 +37,10 @@ define_class!(
 
     unsafe impl NSObjectProtocol for Anchor {}
 
-    // The one method is declared below without the protocol's types: they
-    // name the platform's own window class, and the framework only sends
-    // the selector.
-    unsafe impl ASWebAuthenticationPresentationContextProviding for Anchor {}
-
-    impl Anchor {
+    // The protocol's one required method, inside its block: registering the
+    // class checks it is there. It answers a bare object rather than the
+    // protocol's type, which names the platform's own window class.
+    unsafe impl ASWebAuthenticationPresentationContextProviding for Anchor {
         #[unsafe(method(presentationAnchorForWebAuthenticationSession:))]
         fn anchor(&self, _session: &ASWebAuthenticationSession) -> *mut AnyObject {
             key_window()
@@ -171,4 +169,17 @@ fn failed(report: &Sender<PlatformEvent>, request: u64, message: &str) {
         request,
         message: message.into(),
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use objc2::ClassType;
+
+    // Registering a class checks it implements its protocols' required
+    // methods; a sheet opened with one missing panics on the player's tap.
+    #[test]
+    fn the_anchor_class_registers_with_its_protocol_whole() {
+        let class = super::Anchor::class();
+        assert_eq!(class.name().to_str(), Ok("BalaurWebSignInAnchor"));
+    }
 }
