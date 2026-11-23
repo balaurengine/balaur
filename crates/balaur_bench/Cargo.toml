@@ -55,5 +55,9 @@ harness = false
 name = "multimesh"
 harness = false
 
+[[bench]]
+name = "rows"
+harness = false
+
 [lints]
 workspace = true
