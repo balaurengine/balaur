@@ -47,6 +47,7 @@ const NOTIFY: &str = "notify";
 const PLAYER: &str = "player";
 const PURCHASE: &str = "purchase";
 const REGISTER_FOR_PUSH: &str = "register_for_push";
+const REQUEST: &str = "request";
 const REQUEST_NOTIFICATIONS: &str = "request_notifications";
 const RESTORE_PURCHASES: &str = "restore_purchases";
 const SHOW_DASHBOARD: &str = "show_dashboard";
@@ -73,6 +74,8 @@ mod storekit;
 #[cfg(target_vendor = "apple")]
 mod ui;
 mod vocabulary;
+#[cfg(target_vendor = "apple")]
+mod websignin;
 
 #[cfg(target_vendor = "apple")]
 mod backend {
@@ -81,6 +84,7 @@ mod backend {
     pub(crate) use crate::icloud::watch_changes as watch_cloud;
     pub(crate) use crate::notify::cancel as cancel_notification;
     pub(crate) use crate::ui::access_point;
+    pub(crate) use crate::websignin::close as close_web_sign_in;
 
     /// Whether this build has the frameworks behind it.
     pub(crate) const AVAILABLE: bool = true;
@@ -133,6 +137,8 @@ mod backend {
     }
 
     pub(crate) const fn cancel_notification(_id: &str) {}
+
+    pub(crate) const fn close_web_sign_in() {}
 }
 
 /// Whether this build has Apple's frameworks behind it. False everywhere
@@ -318,6 +324,12 @@ pub enum AppleEvent {
         request: u64,
         call: String,
     },
+    /// A test's answer from its stand-in file (`balaur_platform::stand_ins`),
+    /// as the map the waiter receives.
+    StandIn {
+        request: u64,
+        answer: serde_json::Value,
+    },
 }
 
 impl AppleEvent {
@@ -331,7 +343,8 @@ impl AppleEvent {
             | Self::Notifications { request, .. }
             | Self::Scheduled { request, .. }
             | Self::Failed { request, .. }
-            | Self::Unsupported { request, .. } => *request,
+            | Self::Unsupported { request, .. }
+            | Self::StandIn { request, .. } => *request,
             // Nobody asked for these, so they carry the id no call is given.
             Self::NotificationOpened { .. }
             | Self::NotificationReceived { .. }
@@ -373,6 +386,10 @@ impl PlatformBackend for AppleBackend {
     fn discard(&mut self) {
         queue::discard_store();
     }
+
+    fn close_web_sign_in(&mut self) {
+        backend::close_web_sign_in();
+    }
 }
 
 /// What nobody asked for, carrying request 0: a notification tapped, a URL
@@ -396,6 +413,17 @@ impl AppleState {
             call.name().to_string(),
             Some(serde_json::json!({ "id": id, "call": call.name() })),
         );
+        if let Some(answer) = balaur_platform::stand_in(eng, APPLE, call.name()) {
+            self.io.start(eng, |report| {
+                if let Some(answer) = answer {
+                    let _ = report.send(AppleEvent::StandIn {
+                        request: id,
+                        answer,
+                    });
+                }
+            });
+            return;
+        }
         self.io
             .start(eng, |report| backend::apple_call(id, call, report));
     }
@@ -496,7 +524,7 @@ pub mod kind {
 }
 
 fn event_value(event: AppleEvent) -> Value {
-    let mut pairs = vec![("request".into(), id_value(event.request()))];
+    let mut pairs = vec![(REQUEST.into(), id_value(event.request()))];
     match event {
         AppleEvent::Identity {
             player,
@@ -572,6 +600,11 @@ fn event_value(event: AppleEvent) -> Value {
         AppleEvent::Store { payload, .. } => {
             if let Ok(Value::Map(fields)) = from_json(&payload) {
                 pairs.extend(fields);
+            }
+        }
+        AppleEvent::StandIn { answer, .. } => {
+            if let Ok(Value::Map(fields)) = from_json(&answer) {
+                pairs.extend(fields.into_iter().filter(|(key, _)| key != REQUEST));
             }
         }
         AppleEvent::Failed { message, .. } => {

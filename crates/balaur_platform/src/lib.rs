@@ -25,6 +25,12 @@
 //! ```
 //!
 //! Every event map carries a `kind`.
+//!
+//! A sign-in page, `web_sign_in`, is the OS's own sheet where the backend
+//! has one (Apple's `ASWebAuthenticationSession`), and `unsupported` where
+//! it does not, so a game opens the page in the browser there instead.
+//!
+//! A test answers any call from a file instead ([`stand_ins`]).
 
 use std::sync::mpsc::Sender;
 
@@ -39,17 +45,23 @@ const ALIAS: &str = "alias";
 const BACKEND: &str = "backend";
 const CALL: &str = "call";
 const CLOUD_READ: &str = "cloud_read";
+const CLOSE_WEB_SIGN_IN: &str = "close_web_sign_in";
 const CLOUD_WRITE: &str = "cloud_write";
 const ID: &str = "id";
 const KIND: &str = "kind";
 const PLATFORM: &str = "platform";
 const PLAYER: &str = "player";
 const PROGRESS: &str = "progress";
+const REQUEST: &str = "request";
 const SET_PRESENCE: &str = "set_presence";
 const SIGN_IN: &str = "sign_in";
 const SUBMIT_SCORE: &str = "submit_score";
 const UNLOCK: &str = "unlock";
+const URL: &str = "url";
+pub mod stand_ins;
 mod vocabulary;
+
+pub use stand_ins::{StandIns, set_stand_ins, stand_in};
 
 /// How many leaderboard entries `platform.scores` reads when the call names
 /// no `count`.
@@ -88,6 +100,13 @@ pub enum Call {
     SetPresence {
         text: String,
     },
+    /// A sign-in page in the OS's own sheet, over the game: a provider's
+    /// page the player signs in on. `scheme`, when given, is the custom
+    /// scheme the page ends on, whose URL the answer carries.
+    WebSignIn {
+        url: String,
+        scheme: Option<String>,
+    },
 }
 
 impl Call {
@@ -103,6 +122,7 @@ impl Call {
             Self::CloudRead { .. } => CLOUD_READ,
             Self::CloudWrite { .. } => CLOUD_WRITE,
             Self::SetPresence { .. } => SET_PRESENCE,
+            Self::WebSignIn { .. } => kind::WEB_SIGN_IN,
         }
     }
 
@@ -222,6 +242,21 @@ pub enum PlatformEvent {
         request: u64,
         call: String,
     },
+    /// A sign-in page ended on its scheme: the URL it ended on.
+    WebSignIn {
+        request: u64,
+        url: String,
+    },
+    /// A sign-in page was shut, by the player or by `close_web_sign_in`.
+    Cancelled {
+        request: u64,
+    },
+    /// A test's answer from its stand-in file ([`stand_ins`]), as the map
+    /// the waiter receives.
+    StandIn {
+        request: u64,
+        answer: serde_json::Value,
+    },
 }
 
 impl PlatformEvent {
@@ -233,7 +268,10 @@ impl PlatformEvent {
             | Self::Scores { request, .. }
             | Self::Read { request, .. }
             | Self::Failed { request, .. }
-            | Self::Unsupported { request, .. } => *request,
+            | Self::Unsupported { request, .. }
+            | Self::WebSignIn { request, .. }
+            | Self::Cancelled { request }
+            | Self::StandIn { request, .. } => *request,
         }
     }
 }
@@ -256,6 +294,10 @@ pub trait PlatformBackend {
     /// not reach the outside world on: a replay, or a re-simulation. What
     /// arrived meanwhile is not this run's to deliver.
     fn discard(&mut self) {}
+
+    /// Shut the sign-in page `web_sign_in` opened, if one is open. Its call
+    /// answers `cancelled`.
+    fn close_web_sign_in(&mut self) {}
 }
 
 /// The calls in flight, the channel every backend reports into, and the
@@ -312,6 +354,17 @@ impl PlatformState {
 
     fn issue(&mut self, eng: &Engine, id: u64, call: &Call) {
         let Self { io, backend, .. } = self;
+        if let Some(answer) = stand_in(eng, PLATFORM, call.name()) {
+            io.start(eng, |report| {
+                if let Some(answer) = answer {
+                    let _ = report.send(PlatformEvent::StandIn {
+                        request: id,
+                        answer,
+                    });
+                }
+            });
+            return;
+        }
         io.start(eng, |report| match backend {
             Some(backend) => backend.start(id, call, report),
             None => {
@@ -321,6 +374,17 @@ impl PlatformState {
                 });
             }
         });
+    }
+
+    /// Shut the open sign-in page. Never during a replay: the recording
+    /// says when it shut.
+    pub fn close_web_sign_in(&mut self, eng: &Engine) {
+        if balaur_core::replay::suppressed(eng) {
+            return;
+        }
+        if let Some(backend) = &mut self.backend {
+            backend.close_web_sign_in();
+        }
     }
 
     /// Issue every held write whose tick nothing can send the session back
@@ -424,6 +488,8 @@ pub mod kind {
     pub const SCORES: &str = "scores";
     pub const READ: &str = "read";
     pub const UNSUPPORTED: &str = "unsupported";
+    pub const WEB_SIGN_IN: &str = "web_sign_in";
+    pub const CANCELLED: &str = "cancelled";
     pub const ERROR: &str = balaur_core::handler::ERROR;
     pub const ALL: &[&str] = &[
         SIGNED_IN,
@@ -432,12 +498,14 @@ pub mod kind {
         SCORES,
         READ,
         UNSUPPORTED,
+        WEB_SIGN_IN,
+        CANCELLED,
         ERROR,
     ];
 }
 
 fn event_value(event: PlatformEvent) -> Value {
-    let mut pairs = vec![("request".into(), id_value(event.request()))];
+    let mut pairs = vec![(REQUEST.into(), id_value(event.request()))];
     match event {
         PlatformEvent::SignedIn { player, .. } => {
             pairs.push((KIND.into(), Value::Str(kind::SIGNED_IN.into())));
@@ -485,6 +553,18 @@ fn event_value(event: PlatformEvent) -> Value {
             pairs.push((KIND.into(), Value::Str(kind::UNSUPPORTED.into())));
             pairs.push((CALL.into(), Value::Str(call)));
         }
+        PlatformEvent::WebSignIn { url, .. } => {
+            pairs.push((KIND.into(), Value::Str(kind::WEB_SIGN_IN.into())));
+            pairs.push((URL.into(), Value::Str(url)));
+        }
+        PlatformEvent::Cancelled { .. } => {
+            pairs.push((KIND.into(), Value::Str(kind::CANCELLED.into())));
+        }
+        PlatformEvent::StandIn { answer, .. } => {
+            if let Ok(Value::Map(fields)) = balaur_core::engine_api::from_json(&answer) {
+                pairs.extend(fields.into_iter().filter(|(key, _)| key != REQUEST));
+            }
+        }
     }
     Value::Map(pairs)
 }
@@ -500,6 +580,7 @@ impl balaur_plugin::Plugin for PlatformPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(PlatformState::default());
         reg.insert_resource(PlatformSnapshot::default());
+        reg.insert_resource(StandIns::from_env()?);
         balaur_core::events::declare(
             reg.engine(),
             &[(
@@ -576,7 +657,7 @@ fn start_call(eng: &Engine, call: Call) -> Value {
 /// with a store, without one, and inside a replay.
 fn install_platform_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`.",
+        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`. A test answers calls from the file `BALAUR_STAND_INS` names.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.records(&[
@@ -663,6 +744,7 @@ fn install_platform_api(m: &mut Module<Engine>) {
     install_platform_achievements(m);
     install_platform_leaderboards(m);
     install_platform_cloud(m);
+    install_web_sign_in(m);
 }
 
 /// What a script can ask without waiting: which store is loaded, and who it
@@ -765,5 +847,46 @@ fn install_platform_cloud(m: &mut Module<Engine>) {
         let key = text(Some(&key), "a key")?;
         let value = text(Some(&value), "a value")?;
         Ok(start_call(eng, Call::CloudWrite { key, value }))
+    });
+}
+
+/// A provider's sign-in page in the OS's own sheet, and shutting it.
+fn install_web_sign_in(m: &mut Module<Engine>) {
+    m.records(&[(
+            "WebSignInOptions",
+            "{ scheme: string? }",
+            "The custom scheme a sign-in page ends on (`com.example.app` for `com.example.app:/done`): the sheet shuts there and its `web_sign_in` answer carries that URL as `url`.",
+    )]);
+    m.describe(&[
+        (
+            kind::WEB_SIGN_IN,
+            &[],
+            "(url: string, opts: WebSignInOptions?) -> int",
+            "Open a sign-in page in the OS's own sheet over the game, and return the id its answer carries: `web_sign_in` with the `url` it ended on when it reached `opts.scheme`, `cancelled` when shut, `unsupported` where the platform has no such sheet (open the page with `engine::open_url` there).",
+        ),
+        (
+            CLOSE_WEB_SIGN_IN,
+            &[],
+            "() -> nil",
+            "Shut the sign-in page `web_sign_in` opened, once the game has what it opened it for: its call answers `cancelled`.",
+        ),
+    ]);
+    m.function(
+        kind::WEB_SIGN_IN,
+        |eng: &Engine, (url, opts): (Value, Option<Value>)| {
+            let url = text(Some(&url), "a sign-in page's address")?;
+            let scheme = match opt(opts.as_ref(), "scheme") {
+                Some(Value::Str(scheme)) => Some(scheme.clone()),
+                Some(other) => return Err(anyhow!("`scheme` should be a string, got {other:?}")),
+                None => None,
+            };
+            Ok(start_call(eng, Call::WebSignIn { url, scheme }))
+        },
+    );
+    m.function(CLOSE_WEB_SIGN_IN, |eng: &Engine, ()| {
+        eng.resource::<PlatformState>()
+            .borrow_mut()
+            .close_web_sign_in(eng);
+        Ok(())
     });
 }

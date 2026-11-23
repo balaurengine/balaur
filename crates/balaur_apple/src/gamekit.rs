@@ -52,6 +52,9 @@ pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformE
                 call: call.name().to_string(),
             });
         }
+        Call::WebSignIn { url, scheme } => {
+            crate::websignin::open(request, url, scheme.as_deref(), report);
+        }
     }
 }
 

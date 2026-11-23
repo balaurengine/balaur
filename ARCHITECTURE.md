@@ -1400,6 +1400,16 @@ things are shared.
   unanswered selectors, from the first call that needs it. A URL the game was
   launched with is held by the window layer and handed to the Apple queue on
   the first frame, as an ordinary URL arrival.
+- **A sign-in page is a platform verb.** `platform.web_sign_in` shows a
+  provider's page in the OS's own sheet (`ASWebAuthenticationSession`, which
+  needs no URL scheme registered), answering the URL it ended on or
+  `cancelled`; `close_web_sign_in` shuts it once the game learned some other
+  way that the sign-in is done. Where there is no sheet it answers
+  `unsupported`, and the game opens the page with `engine.open_url`.
+- **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of
+  `"<module>.<call>"` to the answer its waiter receives (`null`: never
+  answers); such a call never reaches its backend, and its answer crosses the
+  same channel, so it is recorded like a store's (`stand_ins.rs`).
 - **Capabilities are export-side.** `[apple]` in `project.toml` names identifier,
   team, deployment target and capabilities; `balaur export` writes the
   `Info.plist` and `.entitlements` and refuses what the minimum OS cannot

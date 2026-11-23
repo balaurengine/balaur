@@ -7,3 +7,4 @@
 mod api;
 mod replay;
 mod script_api;
+mod web_sign_in;

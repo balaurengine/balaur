@@ -39,7 +39,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`physics2d`](#physics2d) | 13 | 106 |
 | [`physics3d`](#physics3d) | 13 | 113 |
 | [`picture`](#picture) | 1 | 0 |
-| [`platform`](#platform) | 10 | 7 |
+| [`platform`](#platform) | 12 | 9 |
 | [`project`](#project) | 15 | 0 |
 | [`quat`](#quat) | 8 | 0 |
 | [`random`](#random) | 6 | 0 |
@@ -845,11 +845,12 @@ Every function here is the editor's, called only from a script of the editor, or
 
 ## `platform`
 
-Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, "platform_event")`.
+Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, "platform_event")`. A test answers calls from the file `BALAUR_STAND_INS` names.
 
 | Function | Signature |
 | --- | --- |
 | `backend` | `() -> str` |
+| `close_web_sign_in` | `()` |
 | `cloud_read` | `(str) -> int` |
 | `cloud_write` | `(str, str) -> int` |
 | `player` | `() -> platform::Player?` |
@@ -859,11 +860,13 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `sign_in` | `() -> int` |
 | `submit_score` | `(str, int) -> int` |
 | `unlock` | `(str) -> int` |
+| `web_sign_in` | `(str, platform::WebSignInOptions?) -> int` |
 
-**Constants** (7):
+**Constants** (9):
 
 | Name | Value |
 | --- | --- |
+| `EVENT_CANCELLED` | `"cancelled"` |
 | `EVENT_DONE` | `"done"` |
 | `EVENT_ERROR` | `"error"` |
 | `EVENT_READ` | `"read"` |
@@ -871,6 +874,7 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `EVENT_SIGNED_IN` | `"signed_in"` |
 | `EVENT_SIGNED_OUT` | `"signed_out"` |
 | `EVENT_UNSUPPORTED` | `"unsupported"` |
+| `EVENT_WEB_SIGN_IN` | `"web_sign_in"` |
 
 ## `project`
 

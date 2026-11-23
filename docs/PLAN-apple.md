@@ -17,7 +17,8 @@ built.
    `crates/balaur_apple/src/gamekit.rs` a view controller, the sign-in is
    reported rather than shown. Done: a sign-in with no player signed in shows
    Apple's sheet and answers once the player finishes it.
-3. **Run against Apple's servers.** Game Center, iCloud and StoreKit, and the
+3. **Run against Apple's servers.** Game Center, iCloud, StoreKit, the
+   sign-in page (`platform.web_sign_in`), and the
    arrivals `notification_received`, `push_received`, `invite_accepted`,
    `match_requested` and `cloud_changed`, have only been compiled and tested
    through a canned backend. Done: each answers on a device signed with an

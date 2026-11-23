@@ -1543,6 +1543,7 @@
       "physics3d::TENSION_NONE": "none",
       "physics3d::TEST_BOTH": "both",
       "physics3d::TEST_EITHER": "either",
+      "platform::EVENT_CANCELLED": "cancelled",
       "platform::EVENT_DONE": "done",
       "platform::EVENT_ERROR": "error",
       "platform::EVENT_READ": "read",
@@ -1550,6 +1551,7 @@
       "platform::EVENT_SIGNED_IN": "signed_in",
       "platform::EVENT_SIGNED_OUT": "signed_out",
       "platform::EVENT_UNSUPPORTED": "unsupported",
+      "platform::EVENT_WEB_SIGN_IN": "web_sign_in",
       "render::ALIGN_CENTER": "center",
       "render::ALIGN_END": "end",
       "render::ALIGN_START": "start",
@@ -4115,6 +4117,10 @@
         "least": 0,
         "signature": "() -> str"
       },
+      "platform::close_web_sign_in": {
+        "least": 0,
+        "signature": "()"
+      },
       "platform::cloud_read": {
         "least": 1,
         "signature": "(str) -> int"
@@ -4150,6 +4156,10 @@
       "platform::unlock": {
         "least": 1,
         "signature": "(str) -> int"
+      },
+      "platform::web_sign_in": {
+        "least": 1,
+        "signature": "(str, platform::WebSignInOptions?) -> int"
       },
       "project::copy": {
         "least": 2,
@@ -5979,6 +5989,9 @@
         "period": "str?",
         "scope": "str?",
         "start": "int?"
+      },
+      "platform::WebSignInOptions": {
+        "scheme": "str?"
       },
       "project::Opened": {
         "error": "str?"
@@ -25689,6 +25702,10 @@
       "components": [],
       "constants": [
         {
+          "name": "EVENT_CANCELLED",
+          "value": "\"cancelled\""
+        },
+        {
           "name": "EVENT_DONE",
           "value": "\"done\""
         },
@@ -25715,11 +25732,16 @@
         {
           "name": "EVENT_UNSUPPORTED",
           "value": "\"unsupported\""
+        },
+        {
+          "name": "EVENT_WEB_SIGN_IN",
+          "value": "\"web_sign_in\""
         }
       ],
-      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`.",
+      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`. A test answers calls from the file `BALAUR_STAND_INS` names.",
       "docs": {
         "backend": "The name of the loaded store, or \"none\".",
+        "close_web_sign_in": "Shut the sign-in page `web_sign_in` opened, once the game has what it opened it for: its call answers `cancelled`.",
         "cloud_read": "Read a value the store syncs between the player's devices, and return the id whose `read` answer holds it as `value`: a string, or nil when the key holds nothing.",
         "cloud_write": "Write a value for the store to sync between the player's devices, and return the id its answer carries.",
         "player": "Who the store says is playing, or nil before a sign-in has landed.",
@@ -25728,11 +25750,13 @@
         "set_presence": "Say what the player is doing, where the store shows it, and return the id its answer carries.",
         "sign_in": "Ask the store who is playing, and return the id its answer carries. A later sign-out is the `platform_event` event.",
         "submit_score": "Post a score to a leaderboard, and return the id its answer carries.",
-        "unlock": "Award an achievement whole, and return the id its answer carries."
+        "unlock": "Award an achievement whole, and return the id its answer carries.",
+        "web_sign_in": "Open a sign-in page in the OS's own sheet over the game, and return the id its answer carries: `web_sign_in` with the `url` it ended on when it reached `opts.scheme`, `cancelled` when shut, `unsupported` where the platform has no such sheet (open the page with `engine::open_url` there)."
       },
       "editor": [],
       "functions": [
         "backend",
+        "close_web_sign_in",
         "cloud_read",
         "cloud_write",
         "player",
@@ -25741,12 +25765,14 @@
         "set_presence",
         "sign_in",
         "submit_score",
-        "unlock"
+        "unlock",
+        "web_sign_in"
       ],
       "methods": {},
       "name": "platform",
       "signatures": {
         "backend": "() -> str",
+        "close_web_sign_in": "()",
         "cloud_read": "(str) -> int",
         "cloud_write": "(str, str) -> int",
         "player": "() -> platform::Player?",
@@ -25755,7 +25781,8 @@
         "set_presence": "(str) -> int",
         "sign_in": "() -> int",
         "submit_score": "(str, int) -> int",
-        "unlock": "(str) -> int"
+        "unlock": "(str) -> int",
+        "web_sign_in": "(str, platform::WebSignInOptions?) -> int"
       }
     },
     {

@@ -51,6 +51,7 @@ objc2-authentication-services = { version = "0.3.2", default-features = false, f
     "ASAuthorizationOpenIDRequest",
     "ASAuthorizationAppleIDProvider",
     "ASAuthorizationAppleIDRequest",
+    "ASWebAuthenticationSession",
 ] }
 objc2-user-notifications = { version = "0.3.2", default-features = false, features = [
     "std",

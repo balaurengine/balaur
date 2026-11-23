@@ -30,7 +30,9 @@ declares `android:hasCode="false"`.
    `cloud_write`, refusing a newer file rather than overwriting it as `save`
    does, and friends on the same client.
 4. **Sign in with Google.** Credential Manager with the Google ID option, its
-   ID token verified by the same Gamend hook shape as step 2.
+   ID token verified by the same Gamend hook shape as step 2. Custom Tabs
+   behind `platform.web_sign_in`, which answers `unsupported` on Android until
+   then.
 5. **Play Billing.** Billing Library 8 or later: products, purchase,
    acknowledgement and restore, verified by a Gamend hook over the Play
    Developer API. Done: a license tester's purchase that survives a
