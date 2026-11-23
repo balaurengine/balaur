@@ -199,13 +199,24 @@ web)
   if [ -n "$threads" ]; then
     features="$features,parallel"
   fi
+  # Built for speed, but for the bare template, whose size has a budget below:
+  # `[profile.web-small]`, std and wasm-opt's passes for size with it.
+  profile=web
+  wasm_opt=-O3
+  web_std=stock
+  if [ "$variant" = bare ]; then
+    profile=web-small
+    wasm_opt=-Oz
+    web_std=size
+  fi
   # The symbols stay until the table below has charged the code to crates;
   # the shipped module is stripped after it.
-  export CARGO_PROFILE_WEB_STRIP=false
+  export CARGO_PROFILE_WEB_STRIP=false CARGO_PROFILE_WEB_SMALL_STRIP=false
   # std rebuilt for size: smaller sorting, formatting and hashing, and a slower
-  # sort on a large array. WEB_STD=stock keeps the std rustup ships.
+  # sort on a large array. WEB_STD=stock keeps the std rustup ships, and
+  # WEB_STD=size rebuilds it for any template.
   size_std=()
-  if [ "${WEB_STD:-size}" = size ]; then
+  if [ "${WEB_STD:-$web_std}" = size ]; then
     size_std=(-Z build-std-features=optimize_for_size)
   fi
   # wasm-bindgen's target: kiss3d declares its web dependencies under
@@ -229,22 +240,22 @@ web)
       flags="$flags -C link-arg=--export=$sym"
     done
     RUSTFLAGS="${RUSTFLAGS:-} $flags $(remap_flags)" \
-      cargo "+$toolchain" build --profile web --target "$target" -p balaur_cli \
+      cargo "+$toolchain" build --profile "$profile" --target "$target" -p balaur_cli \
       --no-default-features --features "$features" \
       -Z build-std=std,panic_abort ${size_std[@]+"${size_std[@]}"}
   elif [ ${#size_std[@]} -gt 0 ]; then
     # `-Z` on the pinned stable, so the template and the editor share one
     # compiler; std's sources are a component of it.
     rustup component add rust-src
-    RUSTC_BOOTSTRAP=1 cargo build --profile web --target "$target" -p balaur_cli \
+    RUSTC_BOOTSTRAP=1 cargo build --profile "$profile" --target "$target" -p balaur_cli \
       --no-default-features --features "$features" --config "$(short_paths)" \
       -Z build-std=std,panic_abort "${size_std[@]}"
   else
-    cargo build --profile web --target "$target" -p balaur_cli \
+    cargo build --profile "$profile" --target "$target" -p balaur_cli \
       --no-default-features --features "$features" --config "$(short_paths)"
   fi
 
-  wasm="target/$target/web/balaur.wasm"
+  wasm="target/$target/$profile/balaur.wasm"
   [ -f "$wasm" ] || { printf '::error::no %s\n' "$wasm"; exit 1; }
 
   # The CLI must match the wasm-bindgen the build linked against; read it off
@@ -258,17 +269,17 @@ web)
   fi
   wasm-bindgen --target web --no-typescript --keep-debug --out-dir "$dist" --out-name balaur "$wasm"
 
-  # -Oz after bindgen, never before: bindgen rewrites the module. Every
-  # --enable is a feature rustc emits for this target by default, and wasm-opt
-  # rejects input using one it was not told about, so the list tracks rustc.
+  # The profile's -O3 or -Oz after bindgen, never before: bindgen rewrites the
+  # module. Every --enable is a feature rustc emits for this target, and
+  # wasm-opt rejects input using one it was not told about.
   step "wasm-opt"
   enable=(--enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext
     --enable-mutable-globals --enable-reference-types ${threads:+--enable-threads})
   named="$dist/$name.named.wasm"
-  # std's DWARF goes in a run of its own: present while -Oz plans, it leaves
-  # the module 5% larger.
+  # std's DWARF goes in a run of its own: present while wasm-opt plans, it
+  # leaves the module 5% larger.
   wasm-opt --strip-dwarf -g "${enable[@]}" -o "$named" "$dist/balaur_bg.wasm"
-  wasm-opt -Oz -g "${enable[@]}" -o "$named" "$named"
+  wasm-opt "$wasm_opt" -g "${enable[@]}" -o "$named" "$named"
   wasm-opt --strip-debug "${enable[@]}" -o "$dist/balaur_bg.wasm" "$named"
 
   # The number that decides whether a browser can be asked to load this.

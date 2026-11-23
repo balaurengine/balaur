@@ -158,16 +158,20 @@ overflow-checks = false
 lto = "fat"
 codegen-units = 1
 
-# Every byte is a download the player waits for. Kept off `release` so a
-# native build pays nothing for a web trade. `panic = "abort"` is sound only
-# here: no browser has `dlopen`, so nothing can panic across the C ABI.
+# A web game's module, for speed: at "z" a screen of 2,000 nodes took seconds.
+# `panic = "abort"` is sound only here: no browser has `dlopen`.
 [profile.web]
 inherits = "release"
-opt-level = "z"
+opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# The bare web template, whose size has a budget (scripts/package_runtime.sh).
+[profile.web-small]
+inherits = "web"
+opt-level = "z"
 
 # Three forks. Cargo.lock pins each commit; to hack on one locally, use a
 # `paths` override in .cargo/config.toml rather than editing this.
