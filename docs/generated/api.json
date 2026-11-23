@@ -1552,6 +1552,8 @@
       "platform::EVENT_SIGNED_OUT": "signed_out",
       "platform::EVENT_UNSUPPORTED": "unsupported",
       "platform::EVENT_WEB_SIGN_IN": "web_sign_in",
+      "platform::PAGE_NONE": "none",
+      "platform::PAGE_OPEN": "open",
       "render::ALIGN_CENTER": "center",
       "render::ALIGN_END": "end",
       "render::ALIGN_START": "start",
@@ -4160,6 +4162,10 @@
       "platform::web_sign_in": {
         "least": 1,
         "signature": "(str, platform::WebSignInOptions?) -> int"
+      },
+      "platform::web_sign_in_state": {
+        "least": 0,
+        "signature": "() -> str"
       },
       "project::copy": {
         "least": 2,
@@ -25736,6 +25742,14 @@
         {
           "name": "EVENT_WEB_SIGN_IN",
           "value": "\"web_sign_in\""
+        },
+        {
+          "name": "PAGE_NONE",
+          "value": "\"none\""
+        },
+        {
+          "name": "PAGE_OPEN",
+          "value": "\"open\""
         }
       ],
       "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`. A test answers calls from the file `BALAUR_STAND_INS` names.",
@@ -25751,7 +25765,8 @@
         "sign_in": "Ask the store who is playing, and return the id its answer carries. A later sign-out is the `platform_event` event.",
         "submit_score": "Post a score to a leaderboard, and return the id its answer carries.",
         "unlock": "Award an achievement whole, and return the id its answer carries.",
-        "web_sign_in": "Open a sign-in page in the OS's own sheet over the game, and return the id its answer carries: `web_sign_in` with the `url` it ended on when it reached `opts.scheme`, `cancelled` when shut, `unsupported` where the platform has no such sheet (open the page with `engine::open_url` there)."
+        "web_sign_in": "Open a sign-in page in the OS's own sheet over the game, and return the id its answer carries: `web_sign_in` with the `url` it ended on when it reached `opts.scheme`, `cancelled` when shut, `unsupported` where the platform has no such sheet (open the page with `engine::open_url` there).",
+        "web_sign_in_state": "How the page `web_sign_in` opened last stands, without waiting: `PAGE_NONE` before any, `PAGE_OPEN` while it has not answered, else the `kind` it answered. A game polling a server meanwhile reads it to hear the player shut the page."
       },
       "editor": [],
       "functions": [
@@ -25766,7 +25781,8 @@
         "sign_in",
         "submit_score",
         "unlock",
-        "web_sign_in"
+        "web_sign_in",
+        "web_sign_in_state"
       ],
       "methods": {},
       "name": "platform",
@@ -25782,7 +25798,8 @@
         "sign_in": "() -> int",
         "submit_score": "(str, int) -> int",
         "unlock": "(str) -> int",
-        "web_sign_in": "(str, platform::WebSignInOptions?) -> int"
+        "web_sign_in": "(str, platform::WebSignInOptions?) -> int",
+        "web_sign_in_state": "() -> str"
       }
     },
     {

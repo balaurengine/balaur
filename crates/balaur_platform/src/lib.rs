@@ -58,6 +58,11 @@ const SIGN_IN: &str = "sign_in";
 const SUBMIT_SCORE: &str = "submit_score";
 const UNLOCK: &str = "unlock";
 const URL: &str = "url";
+const WEB_SIGN_IN_STATE: &str = "web_sign_in_state";
+/// What `web_sign_in_state` answers before any page was asked for.
+pub const PAGE_NONE: &str = "none";
+/// What it answers while the page asked for last has not answered.
+pub const PAGE_OPEN: &str = "open";
 pub mod stand_ins;
 mod vocabulary;
 
@@ -310,6 +315,9 @@ pub struct PlatformState {
     /// rolled back. See [`Call::writes`].
     pending: Vec<(u64, u64, Call)>,
     player: Option<Player>,
+    /// The sign-in page asked for last, and the `kind` it answered: empty
+    /// while it has not.
+    page: Option<(u64, String)>,
 }
 
 impl PlatformState {
@@ -331,6 +339,18 @@ impl PlatformState {
         self.player.as_ref()
     }
 
+    /// How the sign-in page asked for last stands: [`PAGE_NONE`] before
+    /// any, [`PAGE_OPEN`] while it has not answered, else the `kind` it
+    /// answered (`web_sign_in`, `cancelled`, `unsupported`, `error`).
+    #[must_use]
+    pub fn web_sign_in_state(&self) -> &str {
+        match &self.page {
+            None => PAGE_NONE,
+            Some((_, kind)) if kind.is_empty() => PAGE_OPEN,
+            Some((_, kind)) => kind,
+        }
+    }
+
     /// Start a call under `id`: an [`Engine::next_token`] value, so awaiting
     /// it cannot collide with another subsystem's ids.
     ///
@@ -344,6 +364,9 @@ impl PlatformState {
             call.name().to_string(),
             Some(serde_json::json!({ "id": id, "call": call.name() })),
         );
+        if matches!(call, Call::WebSignIn { .. }) {
+            self.page = Some((id, String::new()));
+        }
         let clock = balaur_core::rollback::clock(eng);
         if call.writes() && clock.tick >= clock.settled {
             self.pending.push((clock.tick, id, call));
@@ -460,6 +483,13 @@ fn pump_platform_system(eng: &Engine, _: f32) {
                 _ => false,
             };
             let value = event_value(event);
+            if let Some((page, kind)) = &mut state.page
+                && *page == request
+                && let Value::Map(pairs) = &value
+                && let Some((_, Value::Str(answered))) = pairs.iter().find(|(key, _)| key == KIND)
+            {
+                kind.clone_from(answered);
+            }
             snapshot.events.push(value.clone());
             if announcement {
                 player_changes.push(value.clone());
@@ -865,6 +895,12 @@ fn install_web_sign_in(m: &mut Module<Engine>) {
             "Open a sign-in page in the OS's own sheet over the game, and return the id its answer carries: `web_sign_in` with the `url` it ended on when it reached `opts.scheme`, `cancelled` when shut, `unsupported` where the platform has no such sheet (open the page with `engine::open_url` there).",
         ),
         (
+            WEB_SIGN_IN_STATE,
+            &[],
+            "() -> string",
+            "How the page `web_sign_in` opened last stands, without waiting: `PAGE_NONE` before any, `PAGE_OPEN` while it has not answered, else the `kind` it answered. A game polling a server meanwhile reads it to hear the player shut the page.",
+        ),
+        (
             CLOSE_WEB_SIGN_IN,
             &[],
             "() -> nil",
@@ -883,6 +919,16 @@ fn install_web_sign_in(m: &mut Module<Engine>) {
             Ok(start_call(eng, Call::WebSignIn { url, scheme }))
         },
     );
+    m.constant("PAGE_NONE", Value::Str(PAGE_NONE.into()));
+    m.constant("PAGE_OPEN", Value::Str(PAGE_OPEN.into()));
+    m.function(WEB_SIGN_IN_STATE, |eng: &Engine, ()| {
+        Ok(Value::Str(
+            eng.resource::<PlatformState>()
+                .borrow()
+                .web_sign_in_state()
+                .into(),
+        ))
+    });
     m.function(CLOSE_WEB_SIGN_IN, |eng: &Engine, ()| {
         eng.resource::<PlatformState>()
             .borrow_mut()

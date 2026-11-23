@@ -1404,7 +1404,8 @@ things are shared.
   provider's page in the OS's own sheet (`ASWebAuthenticationSession`, which
   needs no URL scheme registered), answering the URL it ended on or
   `cancelled`; `close_web_sign_in` shuts it once the game learned some other
-  way that the sign-in is done. Where there is no sheet it answers
+  way that the sign-in is done, and `web_sign_in_state` reads how it stands
+  without waiting, for a game that polls a server meanwhile. Where there is no sheet it answers
   `unsupported`, and the game opens the page with `engine.open_url`.
 - **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of
   `"<module>.<call>"` to the answer its waiter receives (`null`: never

@@ -132,6 +132,26 @@ fn a_page_shut_answers_cancelled_and_closing_reaches_the_sheet() {
     assert_eq!(closed.load(Ordering::SeqCst), 1);
 }
 
+fn page_state(app: &App) -> String {
+    let state = app.engine.resource::<PlatformState>();
+    state.borrow().web_sign_in_state().to_string()
+}
+
+// A game polling a server reads this between two questions to hear that the
+// player shut the page, since it cannot wait on the page and the server at once.
+#[test]
+fn the_page_asked_for_last_reads_open_until_it_answers() {
+    let (mut app, _) = app_with_sheet();
+    assert_eq!(page_state(&app), "none");
+    start(&app, 1, page(None));
+    assert_eq!(page_state(&app), "open");
+    app.tick(1.0 / 60.0);
+    assert_eq!(page_state(&app), "cancelled");
+    start(&app, 2, page(Some("com.example.app")));
+    app.tick(1.0 / 60.0);
+    assert_eq!(page_state(&app), "web_sign_in");
+}
+
 #[test]
 fn a_stand_in_answers_in_place_of_the_store_with_the_request_filled_in() {
     let (mut app, _) = app_with_sheet();
@@ -167,6 +187,7 @@ fn a_stand_in_of_null_never_answers_as_a_page_left_open_does() {
     app.tick(1.0 / 60.0);
     app.tick(1.0 / 60.0);
     assert!(events(&app).is_empty());
+    assert_eq!(page_state(&app), "open");
 }
 
 #[test]
@@ -189,10 +210,11 @@ impl Scenario {
         let r = await task::wait(platform::web_sign_in("https://provider.example/authorize", opts));
         platform::close_web_sign_in();
         let none = r["kind"] == platform::EVENT_UNSUPPORTED;
-        log::info("web-sign-in {r["kind"].text()} {none} {platform::EVENT_WEB_SIGN_IN} {platform::EVENT_CANCELLED}");
+        let state = platform::web_sign_in_state();
+        log::info("web-sign-in {r["kind"].text()} {none} {state} {platform::PAGE_OPEN} {platform::PAGE_NONE}");
     }
 }
 "#,
-        &["web-sign-in unsupported true web_sign_in cancelled"],
+        &["web-sign-in unsupported true unsupported open none"],
     );
 }

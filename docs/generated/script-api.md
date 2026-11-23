@@ -39,7 +39,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`physics2d`](#physics2d) | 13 | 106 |
 | [`physics3d`](#physics3d) | 13 | 113 |
 | [`picture`](#picture) | 1 | 0 |
-| [`platform`](#platform) | 12 | 9 |
+| [`platform`](#platform) | 13 | 11 |
 | [`project`](#project) | 15 | 0 |
 | [`quat`](#quat) | 8 | 0 |
 | [`random`](#random) | 6 | 0 |
@@ -861,8 +861,9 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `submit_score` | `(str, int) -> int` |
 | `unlock` | `(str) -> int` |
 | `web_sign_in` | `(str, platform::WebSignInOptions?) -> int` |
+| `web_sign_in_state` | `() -> str` |
 
-**Constants** (9):
+**Constants** (11):
 
 | Name | Value |
 | --- | --- |
@@ -875,6 +876,8 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `EVENT_SIGNED_OUT` | `"signed_out"` |
 | `EVENT_UNSUPPORTED` | `"unsupported"` |
 | `EVENT_WEB_SIGN_IN` | `"web_sign_in"` |
+| `PAGE_NONE` | `"none"` |
+| `PAGE_OPEN` | `"open"` |
 
 ## `project`
 
