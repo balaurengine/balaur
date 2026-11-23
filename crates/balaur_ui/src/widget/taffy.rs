@@ -404,21 +404,19 @@ pub(crate) fn fit_list<'a>(
     }
 }
 
-/// What box the sizes measure, which way it runs, what it keeps for content
-/// past its edge, and where an `absolute` child sits.
+/// What box the sizes measure, what it keeps for content past its edge, and
+/// where an `absolute` child sits. Taffy lays every node out left to right:
+/// a mirrored one is the mirror image of that, which [`gather`] draws, so
+/// its paddings, margins and insets swap sides with its children.
 fn box_into(out: &mut Style, widget: &Widget, is_root: bool) {
-    use crate::vocabulary::words::{direction, sizing};
+    use crate::vocabulary::words::sizing;
     let layout = &widget.layout;
     out.box_sizing = if layout.box_sizing == sizing::CONTENT {
         BoxSizing::ContentBox
     } else {
         BoxSizing::BorderBox
     };
-    out.direction = if layout.direction == direction::RIGHT_TO_LEFT {
-        Direction::Rtl
-    } else {
-        Direction::Ltr
-    };
+    out.direction = Direction::Ltr;
     out.overflow = taffy::geometry::Point {
         x: overflow_of(&layout.overflow),
         y: overflow_of(&layout.overflow),
@@ -673,12 +671,14 @@ pub(crate) fn solve(
             return Rects::default();
         }
         let mut rects = Rects::default();
-        // The root sits at the room's corner: taffy puts a right-to-left
-        // root at the far side of the space it was offered.
-        let corner = held.tree.layout(node).map_or(egui::Vec2::ZERO, |layout| {
-            egui::vec2(layout.location.x, layout.location.y)
+        // The root sits at the room's corner, whatever taffy says of where a
+        // root goes in the space it was offered.
+        let size = held.tree.layout(node).map_or(egui::Vec2::ZERO, |layout| {
+            egui::vec2(layout.size.width, layout.size.height)
         });
-        gather(&held, arena, root, node, space.origin - corner, &mut rects);
+        let whole = egui::Rect::from_min_size(space.origin, size);
+        let above = crate::widget::direction::mirrored_above(arena, root);
+        gather(&held, arena, (root, node), whole, above, &mut rects);
         if settle_fits(&held, arena, &rects, theme, &mut measure) {
             // The words under a container moved: this pass drew it at the
             // step before, so egui runs the pass again rather than show it.
@@ -934,21 +934,20 @@ fn same_children(tree: &TaffyTree<usize>, node: NodeId, kids: &[NodeId]) -> bool
 }
 
 /// Walk the solved tree, turning taffy's parent-relative boxes into the
-/// absolute rects the draw pins a `Ui` to.
+/// absolute rects the draw pins a `Ui` to. `rect` is where this widget
+/// goes; a mirrored one places its children as the mirror image of what
+/// taffy laid out left to right (`direction`), `above` saying whether what
+/// holds it is.
 fn gather(
     held: &Held,
     arena: &[Placed],
-    index: usize,
-    node: NodeId,
-    origin: egui::Pos2,
+    (index, node): (usize, NodeId),
+    rect: egui::Rect,
+    above: bool,
     out: &mut Rects,
 ) {
-    let Ok(layout) = held.tree.layout(node) else {
-        return;
-    };
-    let at = origin + egui::vec2(layout.location.x, layout.location.y);
-    let rect = egui::Rect::from_min_size(at, egui::vec2(layout.size.width, layout.size.height));
     out.insert(index, rect);
+    let flip = crate::widget::direction::mirrored_under(arena, index, above);
     // A child at a time rather than `children`, which clones its vector. A
     // child drawn in a title bar has no node here, so the slots skip it.
     let laid = arena[index]
@@ -959,7 +958,18 @@ fn gather(
         let Ok(kid) = held.tree.child_at_index(node, slot) else {
             continue;
         };
-        gather(held, arena, *child, kid, at, out);
+        let Ok(layout) = held.tree.layout(kid) else {
+            continue;
+        };
+        let size = egui::vec2(layout.size.width, layout.size.height);
+        let x = crate::widget::direction::placed_x(
+            flip,
+            rect.min.x + layout.location.x,
+            size.x,
+            rect.x_range(),
+        );
+        let at = egui::Rect::from_min_size(egui::pos2(x, rect.min.y + layout.location.y), size);
+        gather(held, arena, (*child, kid), at, flip, out);
     }
 }
 

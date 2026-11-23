@@ -342,3 +342,23 @@ fn a_project_word_s_table_folds_over_the_screen_s_and_its_own_nested_ones_last()
     );
     assert_eq!(theme.resolved_in("label", "title", plain).show_text, None);
 }
+
+#[test]
+fn a_theme_names_the_icons_a_mirrored_ui_turns_round() {
+    let theme = parse(
+        &toml::from_str::<toml::Value>(
+            "type = \"widget_theme\"\n\n[icons]\nmirrored = [\"chevron-right\", \"arrow-left\"]\n",
+        )
+        .unwrap(),
+    );
+    assert!(theme.mirrors_icon("chevron-right") && theme.mirrors_icon("arrow-left"));
+    assert!(
+        !theme.mirrors_icon("magnifying-glass"),
+        "a glyph it does not list keeps its way"
+    );
+    assert!(!theme.mirrors_icon(""), "no icon is none to turn");
+    assert!(
+        theme.style("icons").fill.is_none(),
+        "the table is no widget kind's"
+    );
+}

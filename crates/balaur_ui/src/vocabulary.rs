@@ -297,11 +297,13 @@ pub(crate) mod words {
         pub(crate) const ALL: &[&str] = &[BORDER, CONTENT];
     }
 
-    /// Which way text, a row and a grid's columns run.
+    /// Which way a subtree runs: `auto` takes its parent's, and the UI's at
+    /// a root, which is mirrored in a locale written right to left.
     pub(crate) mod direction {
+        pub(crate) const AUTO: &str = "auto";
         pub(crate) const LEFT_TO_RIGHT: &str = "left_to_right";
         pub(crate) const RIGHT_TO_LEFT: &str = "right_to_left";
-        pub(crate) const ALL: &[&str] = &[LEFT_TO_RIGHT, RIGHT_TO_LEFT];
+        pub(crate) const ALL: &[&str] = &[AUTO, LEFT_TO_RIGHT, RIGHT_TO_LEFT];
     }
 
     /// The layout `contain` flags.
@@ -455,6 +457,10 @@ pub(crate) mod keys {
     pub(crate) const GUTTER_COLOR: &str = "gutter_color";
     pub(crate) const HEIGHT: &str = "height";
     pub(crate) const ICON_COLOR: &str = "icon_color";
+    /// A theme's table of what its icon font's glyphs mean: `mirrored` names
+    /// the ones that point a way, turned round in a mirrored UI.
+    pub(crate) const ICONS: &str = "icons";
+    pub(crate) const MIRRORED: &str = "mirrored";
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const INSET: &str = "inset";
     pub(crate) const SYNTAX_COMMENT: &str = "syntax_comment";

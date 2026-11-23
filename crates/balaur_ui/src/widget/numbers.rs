@@ -93,6 +93,7 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         smart_aim: o.smart_aim,
         show_value: o.show_value,
         upright,
+        mirrored: !upright && crate::widget::direction::mirrored(at.arena, index),
         prefix: &prefix,
         suffix: &suffix,
         step: (widget.step > 0.0).then(|| f64::from(widget.step)),
@@ -344,7 +345,7 @@ pub(crate) fn drag_value(
 /// spinner while `animate` holds and it is short of full.
 fn paint_bar(
     ui: &egui::Ui,
-    outer: egui::Rect,
+    (outer, flip): (egui::Rect, bool),
     fraction: f32,
     style: &crate::widget::theme::Style,
     animate: bool,
@@ -368,6 +369,12 @@ fn paint_bar(
         outer.min,
         vec2((outer.width() * fraction).max(least), outer.height()),
     );
+    // Mirrored, it fills from the right, as a bar under `dir="rtl"` does.
+    let filled = if flip {
+        crate::widget::direction::reflect(filled, outer)
+    } else {
+        filled
+    };
     let shade = if animate {
         let time = ui.input(|i| i.time);
         egui::lerp(0.7..=1.0, libm::cos(time).abs()) as f32
@@ -393,7 +400,12 @@ fn paint_bar(
             .map(|i| {
                 let angle = egui::lerp(start..=end, f64::from(i) / 20.0);
                 let (sin, cos) = (libm::sin(angle), libm::cos(angle));
-                filled.right_center() + reach * vec2(cos as f32, sin as f32) + vec2(-half, 0.0)
+                let (tip, inward) = if flip {
+                    (filled.left_center(), half)
+                } else {
+                    (filled.right_center(), -half)
+                };
+                tip + reach * vec2(cos as f32, sin as f32) + vec2(inward, 0.0)
             })
             .collect();
         painter.add(paint::line(
@@ -505,7 +517,8 @@ pub(crate) fn progress(
         return;
     }
     let style = at.style(index);
-    paint_bar(ui, outer, fraction, &style, widget.egui.animate);
+    let flip = crate::widget::direction::mirrored(at.arena, index);
+    paint_bar(ui, (outer, flip), fraction, &style, widget.egui.animate);
     let Some(text) = shown else {
         return;
     };
@@ -522,6 +535,10 @@ pub(crate) fn progress(
     );
     let place = outer.left_center() - vec2(0.0, galley.size().y / 2.0)
         + vec2(ui.spacing().item_spacing.x, 0.0);
+    let place = egui::pos2(
+        crate::widget::direction::placed_x(flip, place.x, galley.size().x, outer.x_range()),
+        place.y,
+    );
     let visuals = ui.visuals();
     let ink = visuals
         .override_text_color

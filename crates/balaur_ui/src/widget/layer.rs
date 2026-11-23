@@ -285,6 +285,14 @@ fn draw_root(
     let bled = fills && area != painting.edge_to_edge;
     painting.surface = area;
     let (pos, align, mut assigned, order) = crate::widget::anchor::root_frame(widget, area);
+    // A mirrored UI anchors to the mirrored corner: `top_left` is the top
+    // right in Arabic, and `x` runs in from that edge.
+    let flip = crate::widget::direction::mirrored_above(placed, root);
+    let pos = egui::pos2(
+        crate::widget::direction::placed_x(flip, pos.x, 0.0, area.x_range()),
+        pos.y,
+    );
+    let align = crate::widget::direction::flip_align2(align, flip);
     // Folded, a window is as tall as its bar whatever height it states.
     if widget.kind == w::WINDOW && crate::widget::window::folded(entity, widget) {
         assigned.y = 0.0;
@@ -832,7 +840,8 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // Moved and scaled once drawn, children and all, so the layout and what
     // the pointer reaches stay where they were: CSS's `translate`, `scale`.
     let about = ui.max_rect().center();
-    brush.transform_since(mark, &look.style, &at.arena[index].widget, about);
+    let flip = crate::widget::direction::mirrored_above(at.arena, index);
+    brush.transform_since(mark, &look.style, (&at.arena[index].widget, flip), about);
     crate::widget::kinds::context_menu(ui, at, index);
     at.state = outer;
 }
@@ -1100,15 +1109,6 @@ pub(crate) fn sensor_id(
     node: impl std::hash::Hash + std::fmt::Debug,
 ) -> egui::Id {
     egui::Id::unique((word, node, ui.layer_id()))
-}
-
-/// Where text sits in the width the widget was given.
-pub(crate) fn across(align: &str) -> egui::Align {
-    match align {
-        w::CENTER => egui::Align::Center,
-        w::END => egui::Align::Max,
-        _ => egui::Align::Min,
-    }
 }
 
 /// A framed box that lays its children out, with the padding taken off in

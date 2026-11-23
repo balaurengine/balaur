@@ -28,6 +28,10 @@ radius = 6                       # radius_small and radius_large follow
 default = "fonts/Inter-Regular.ttf"  # a widget draws beside its caption, `heading` and `mono` egui's own
 heading = "fonts/Inter-Semibold.ttf"
 
+[icons]                          # what the icon font's glyphs mean
+mirrored = ["chevron-left", "chevron-right", "arrow-left", "arrow-right"]  # turned round in a UI
+                                 # mirrored for a language written right to left; the rest keep their way
+
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
 fill = "primary_fill"
 stroke = "border_default"

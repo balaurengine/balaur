@@ -35,8 +35,8 @@ pub(crate) struct WidgetLayout {
     /// How many lines a wrapping container divides its children between at least: `balance` evens them over this many, and any wrap shares a known cross size among them
     #[property(default = 1, min = 1)]
     pub(crate) min_lines: i64,
-    /// Which way a row and a grid's columns run: `right_to_left` starts them at the right edge
-    #[property(default = Direction::new(w::direction::LEFT_TO_RIGHT))]
+    /// Which way this subtree runs: `right_to_left` lays it out as its mirror image (a row and a grid's columns start at the right edge, `start` and `end` swap, and so do the left and right of a padding, a margin and an inset), `left_to_right` keeps it unmirrored inside a mirrored UI (a board of Latin letters in Arabic), and `auto` takes its parent's, which at a root is the locale's (`strings.right_to_left`)
+    #[property(default = Direction::new(w::direction::AUTO))]
     pub(crate) direction: Direction,
     /// Lay a `row` or a `column`'s children out from its far end
     pub(crate) reverse: bool,

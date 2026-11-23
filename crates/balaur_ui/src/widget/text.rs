@@ -18,7 +18,8 @@ pub(crate) fn label(
     style: &crate::widget::theme::Style,
 ) {
     let widget = &at.arena[index].widget;
-    let pad = crate::widget::arrange::padding_of(widget, style);
+    let flip = crate::widget::direction::mirrored(at.arena, index);
+    let pad = crate::widget::arrange::padding_of(widget, style).turned(flip);
     let mut inset = (pad.taken() != egui::Vec2::ZERO).then(|| {
         let rect = pad.inside(ui.max_rect());
         ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(*ui.layout()))
@@ -223,15 +224,22 @@ pub(crate) fn shaped_label(
     );
     let room = ui.available_width();
     let (width, column) = label_width(widget, style, at.assigned.x, room);
+    // Mirrored, `start` is the right edge of the box, a wrapped block's
+    // lines with it.
+    let flip = crate::widget::direction::mirrored(at.arena, index);
+    let side = crate::widget::direction::physical_align(&align, flip);
     let (shaped, texture) = {
         let mut state = state.borrow_mut();
-        let request = text_request((widget, project), caption, width, font, style);
+        let mut request = text_request((widget, project), caption, width, font, style);
+        if flip {
+            request.align = crate::widget::direction::shaped_align(&align, flip);
+        }
         (state.shape_for_egui(ui.ctx(), &request), state.texture())
     };
     let elided = !wrap && elided(ui, &state, (widget, project, caption), width, (font, style));
     // An aligned line takes the width it is aligned in; a wrapped block
     // already did, and aligned its own lines.
-    let take = if width.is_none() && align != w::START {
+    let take = if width.is_none() && side != egui::Align::Min {
         room.max(shaped.size.x)
     } else {
         shaped.size.x
@@ -252,9 +260,9 @@ pub(crate) fn shaped_label(
         ui.set_clip_rect(held.intersect(rect));
     }
     let slack = (take - shaped.size.x).max(0.0);
-    let shift = match align.as_str() {
-        w::CENTER if width.is_none() => slack / 2.0,
-        w::END if width.is_none() => slack,
+    let shift = match side {
+        egui::Align::Center if width.is_none() => slack / 2.0,
+        egui::Align::Max if width.is_none() => slack,
         _ => 0.0,
     };
     let origin = rect.min + vec2(shift, 0.0);

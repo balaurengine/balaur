@@ -343,6 +343,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             call: strings_system_locale,
         },
         EngineOp {
+            module: words::modules::STRINGS,
+            name: "right_to_left",
+            call: strings_right_to_left,
+        },
+        EngineOp {
             module: words::modules::SCENE,
             name: "tagged",
             call: scene_tagged,
@@ -934,6 +939,10 @@ fn strings_tr(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn strings_locale(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Str(crate::strings::locale(eng)))
+}
+
+fn strings_right_to_left(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Bool(crate::strings::right_to_left(eng)))
 }
 
 fn strings_set_locale(eng: &Engine, args: &[Value]) -> Result<Value> {

@@ -37,13 +37,26 @@ pub struct LocaleConfig {
     /// step, not a chain: two hops means two files to keep in mind, and the
     /// second one is always the language the game was written in.
     pub fallback: String,
+    /// The languages, or whole locales, written right to left: a UI in one
+    /// of them lays out mirrored (`balaur_ui`). `[locale] right_to_left`
+    /// replaces the list; [`RIGHT_TO_LEFT`] is what it starts as.
+    pub right_to_left: Vec<String>,
 }
+
+/// The languages written right to left, as BCP 47 spells them: Arabic,
+/// Sorani Kurdish, Dhivehi, Persian, Hebrew, Pashto, Sindhi, Uyghur, Urdu and
+/// Yiddish. The website's `@rtl_locales` is the four of these it ships.
+pub const RIGHT_TO_LEFT: &[&str] = &["ar", "ckb", "dv", "fa", "he", "ps", "sd", "ug", "ur", "yi"];
 
 impl Default for LocaleConfig {
     fn default() -> Self {
         Self {
             default: String::new(),
             fallback: "en".to_string(),
+            right_to_left: RIGHT_TO_LEFT
+                .iter()
+                .map(|code| (*code).to_string())
+                .collect(),
         }
     }
 }
@@ -58,9 +71,20 @@ impl LocaleConfig {
                 .and_then(|v| v.as_str().map(str::to_string))
                 .unwrap_or(or)
         };
+        let right_to_left = crate::settings::get(eng, "locale/right_to_left")
+            .and_then(|v| {
+                v.as_array().map(|codes| {
+                    codes
+                        .iter()
+                        .filter_map(|code| code.as_str().map(str::to_string))
+                        .collect()
+                })
+            })
+            .unwrap_or(fallback.right_to_left);
         Self {
             default: read("locale/initial", fallback.default),
             fallback: read("locale/fallback", fallback.fallback),
+            right_to_left,
         }
     }
 }
@@ -72,6 +96,8 @@ pub struct Strings {
     /// short enough to sit in the value rather than on the heap.
     current: smol_str::SmolStr,
     fallback: smol_str::SmolStr,
+    /// `[locale] right_to_left`, as read when the strings were made ready.
+    right_to_left: Vec<smol_str::SmolStr>,
     /// Locale name to its catalogue, read once and kept.
     loaded: RefCell<BTreeMap<String, Catalogue>>,
     /// What a key with nothing to fill in reads as now, for a caption asking
@@ -271,6 +297,11 @@ fn ensure_ready(eng: &Engine) {
     let mut strings = strings.borrow_mut();
     strings.current = start.as_str().into();
     strings.fallback = config.fallback.as_str().into();
+    strings.right_to_left = config
+        .right_to_left
+        .iter()
+        .map(|code| code.as_str().into())
+        .collect();
     strings.ready = true;
 }
 
@@ -314,6 +345,27 @@ pub fn closest(reported: &str, shipped: &[String]) -> Option<String> {
 pub fn locale(eng: &Engine) -> String {
     ensure_ready(eng);
     eng.resource::<Strings>().borrow().current.to_string()
+}
+
+/// Whether the locale in force is written right to left: its language, or the
+/// whole locale, is in `[locale] right_to_left`. A UI in one lays out mirrored.
+#[must_use]
+pub fn right_to_left(eng: &Engine) -> bool {
+    ensure_ready(eng);
+    let strings = eng.resource::<Strings>();
+    let strings = strings.borrow();
+    writes_right_to_left(&strings.current, &strings.right_to_left)
+}
+
+/// Whether `locale` is in `list`, whole or by its language: `ar_EG` is in a
+/// list that names `ar`.
+fn writes_right_to_left(locale: &str, list: &[smol_str::SmolStr]) -> bool {
+    let tag = locale.replace('-', "_").to_lowercase();
+    let language = language_of(&tag);
+    list.iter().any(|code| {
+        let code = code.replace('-', "_").to_lowercase();
+        code == tag || code == language
+    })
 }
 
 /// Switch locale. Takes effect on the next `tr`, which for a widget showing a
@@ -482,6 +534,27 @@ pub fn reload(eng: &Engine) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::category;
+
+    #[test]
+    fn a_locale_is_right_to_left_by_its_language_or_whole() {
+        let list: Vec<smol_str::SmolStr> =
+            super::RIGHT_TO_LEFT.iter().map(|c| (*c).into()).collect();
+        for locale in ["ar", "ar_EG", "ar-SA", "he", "fa_IR", "ur"] {
+            assert!(super::writes_right_to_left(locale, &list), "{locale}");
+        }
+        for locale in ["en", "ro", "pt_BR", "zh_TW", "arn"] {
+            assert!(!super::writes_right_to_left(locale, &list), "{locale}");
+        }
+        let one: Vec<smol_str::SmolStr> = vec!["pt_BR".into()];
+        assert!(
+            super::writes_right_to_left("pt-BR", &one),
+            "a whole locale names itself"
+        );
+        assert!(
+            !super::writes_right_to_left("pt", &one),
+            "and not its language"
+        );
+    }
 
     // Samples of each rule, as Node's
     // `Intl.PluralRules` answers them.

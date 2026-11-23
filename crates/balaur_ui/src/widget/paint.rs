@@ -385,13 +385,16 @@ impl Brush {
         &self,
         mark: Slot,
         style: &crate::widget::theme::Style,
-        widget: &crate::widget::node::Widget,
+        (widget, flip): (&crate::widget::node::Widget, bool),
         about: egui::Pos2,
     ) {
         // The node's own over its role's, as CSS's `translate` and `scale`
-        // over a `:hover` rule's: the two add, and the two multiply.
+        // over a `:hover` rule's: the two add, and the two multiply. A
+        // mirrored widget moves the other way across, so a sidebar that
+        // slides in from the start slides in from the right in Arabic.
         let [rx, ry] = style.offset.unwrap_or_default();
-        let shift = egui::vec2(rx + widget.offset[0], ry + widget.offset[1]);
+        let across = rx + widget.offset[0];
+        let shift = egui::vec2(if flip { -across } else { across }, ry + widget.offset[1]);
         if shift != egui::Vec2::ZERO {
             self.shift_since(mark, shift);
         }
@@ -474,6 +477,44 @@ impl Brush {
 
     pub(crate) fn galley(&self, at: Pos2, galley: Arc<Galley>, fallback: Color32) {
         self.0.galley(at, galley, fallback);
+    }
+
+    /// A galley turned round about its own middle, in `tint`: an icon that
+    /// points a way, in a mirrored UI. egui draws a galley only as it was
+    /// laid out, so its rows' glyph meshes are copied here mirrored, their
+    /// texel UVs made the atlas's fractions as egui's tessellator makes them.
+    pub(crate) fn galley_mirrored(&self, at: Pos2, galley: &Galley, tint: Color32) {
+        let [width, height] = self.0.fonts(|fonts| fonts.font_image_size());
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "an atlas a few thousand texels across"
+        )]
+        let texel = egui::vec2(1.0 / width.max(1) as f32, 1.0 / height.max(1) as f32);
+        let axis = 2.0 * at.x + galley.size().x;
+        let mut mesh = egui::epaint::Mesh::with_texture(TextureId::default());
+        for row in &galley.rows {
+            let visuals = &row.row.visuals;
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "a glyph mesh is far short of u32::MAX vertices"
+            )]
+            let base = mesh.vertices.len() as u32;
+            let offset = at.to_vec2() + row.pos.to_vec2();
+            mesh.vertices
+                .extend(visuals.mesh.vertices.iter().map(|vertex| {
+                    let pos = vertex.pos + offset;
+                    egui::epaint::Vertex {
+                        pos: egui::pos2(axis - pos.x, pos.y),
+                        uv: egui::pos2(vertex.uv.x * texel.x, vertex.uv.y * texel.y),
+                        color: tint,
+                    }
+                }));
+            mesh.indices
+                .extend(visuals.mesh.indices.iter().map(|index| base + index));
+        }
+        if !mesh.is_empty() {
+            self.0.add(egui::Shape::mesh(mesh));
+        }
     }
 
     /// A galley in one ink, whatever colour it was shaped in.

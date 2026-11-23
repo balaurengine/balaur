@@ -52,7 +52,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`script`](#script) | 13 | 0 |
 | [`settings`](#settings) | 10 | 0 |
 | [`skeleton`](#skeleton) | 1 | 0 |
-| [`strings`](#strings) | 5 | 0 |
+| [`strings`](#strings) | 6 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
@@ -1150,12 +1150,13 @@ Bones under a rig node, in the order a skin numbers joints in. A bone is any nod
 
 ## `strings`
 
-Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the starting locale and the fallback; a key neither has comes back as itself.
+Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the starting locale, the fallback and the locales written right to left (`right_to_left`); a key neither has comes back as itself.
 
 | Function | Signature |
 | --- | --- |
 | `locale` | `() -> str` |
 | `locales` | `() -> [str]` |
+| `right_to_left` | `() -> bool` |
 | `set_locale` | `(str)` |
 | `system_locale` | `() -> str?` |
 | `tr` | `(str, any) -> str` |

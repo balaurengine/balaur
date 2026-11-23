@@ -461,10 +461,13 @@ fn paint_stacked(
 
 /// The face in the rect the button took, inside its padding: centred, or
 /// against the edge a `text_align` of `start` or `end` names, with the
-/// trailing text on the far edge.
+/// trailing text on the far edge. Mirrored, it is laid out the same and
+/// drawn as its mirror image, each part's own drawing kept: the icon at the
+/// right of the caption, the trailing text at the left edge, and an icon the
+/// theme says points a way turned round.
 fn paint_face(
     ui: &egui::Ui,
-    at: &Painting<'_>,
+    (at, index): (&Painting<'_>, usize),
     face: &Face,
     rect: egui::Rect,
     ink: Color32,
@@ -478,7 +481,19 @@ fn paint_face(
     } else {
         Brush::of(ui)
     };
-    let inner = pad.inside(rect);
+    let flip = crate::widget::direction::mirrored(at.arena, index);
+    let widget = &at.arena[index].widget;
+    let inner = pad.turned(flip).inside(rect);
+    let across =
+        |x: f32, width: f32| crate::widget::direction::placed_x(flip, x, width, inner.x_range());
+    // An icon the theme says points a way, turned round where the face is.
+    let icon_at = |name: &str, at_pos: egui::Pos2, galley: &std::sync::Arc<egui::Galley>, tint| {
+        if flip && at.theme.mirrors_icon(name) {
+            painter.galley_mirrored(at_pos, galley, tint);
+        } else {
+            painter.galley(at_pos, std::sync::Arc::clone(galley), tint);
+        }
+    };
     if style.stacked() {
         paint_stacked(&painter, at, face, inner, ink, style);
         return;
@@ -503,7 +518,12 @@ fn paint_face(
         } else {
             ink.gamma_multiply(0.55)
         };
-        painter.galley(pos2(x, y), std::sync::Arc::clone(trailing), tint);
+        let named = if face.tail_mark {
+            widget.trailing_icon.as_str()
+        } else {
+            ""
+        };
+        icon_at(named, pos2(across(x, trailing.size().x), y), trailing, tint);
     }
     if let Some(chip) = &face.chip {
         let x = if left {
@@ -511,13 +531,22 @@ fn paint_face(
         } else {
             at_x + face.size.x - chip.size.x
         };
-        chip.paint(&painter, pos2(x, middle - chip.size.y / 2.0), ink);
+        chip.paint(
+            &painter,
+            pos2(across(x, chip.size.x), middle - chip.size.y / 2.0),
+            ink,
+        );
     }
     if let Some((texture, size)) = face.picture {
         let disc = egui::Rect::from_min_size(
             pos2(at_x, middle - size.y / 2.0 - face.plate),
             size + egui::Vec2::splat(face.plate * 2.0),
         );
+        let disc = if flip {
+            crate::widget::direction::reflect(disc, inner)
+        } else {
+            disc
+        };
         if let Some(plate) = style.plate {
             painter.fill(disc, disc.height() / 2.0, plate);
         }
@@ -530,11 +559,11 @@ fn paint_face(
             egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
             style.icon_color.unwrap_or(Color32::WHITE),
         ));
-        at_x = disc.max.x + face.gap;
+        at_x += disc.width() + face.gap;
     }
     if face.spinner > 0.0 {
         let rect = egui::Rect::from_min_size(
-            pos2(at_x, middle - face.spinner / 2.0),
+            pos2(across(at_x, face.spinner), middle - face.spinner / 2.0),
             vec2(face.spinner, face.spinner),
         );
         // The theme's `[spinner]` turns it, so one table sets both.
@@ -548,11 +577,16 @@ fn paint_face(
         // A glyph icon answers `icon_color` as a picture does, so a row that
         // tints its mark per component does not have to draw itself.
         let tint = style.icon_color.unwrap_or(ink);
-        painter.galley(pos2(at_x, y), std::sync::Arc::clone(icon), tint);
+        icon_at(
+            &widget.icon,
+            pos2(across(at_x, icon.size().x), y),
+            icon,
+            tint,
+        );
         at_x += icon.size().x + face.gap;
     }
     if let Some((shaped, texture)) = &face.shaped {
-        let origin = pos2(at_x, middle - shaped.size.y / 2.0);
+        let origin = pos2(across(at_x, shaped.size.x), middle - shaped.size.y / 2.0);
         painter.glyphs(
             *texture,
             shaped,
@@ -566,7 +600,11 @@ fn paint_face(
     }
     if let Some(plain) = &face.plain {
         let y = middle - plain.size().y / 2.0;
-        painter.galley(pos2(at_x, y), std::sync::Arc::clone(plain), ink);
+        painter.galley(
+            pos2(across(at_x, plain.size().x), y),
+            std::sync::Arc::clone(plain),
+            ink,
+        );
     }
 }
 
@@ -687,7 +725,7 @@ pub(crate) fn button(
     } else {
         style.text_color.unwrap_or(color)
     };
-    paint_face(ui, at, &face, response.rect, ink, &style, pad);
+    paint_face(ui, (at, index), &face, response.rect, ink, &style, pad);
     if response.clicked() {
         at.clicked.push(entity);
     }

@@ -284,6 +284,7 @@ impl DragNumber<'_> {
             max_chars: 0,
             submit: Some(egui::KeyboardShortcut::new(Modifiers::NONE, Key::Enter)),
             align: ui.layout().horizontal_align(),
+            mirrored: false,
             margin: crate::widget::arrange::Pad::of([pad.x, pad.y, pad.x, pad.y]),
             color: ui.visuals().text_color(),
             placeholder: None,

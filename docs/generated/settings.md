@@ -176,6 +176,7 @@ question as an old one is a second way to say it.
 <tbody>
 <tr><td><code>fallback</code></td><td>string</td><td><code>&quot;en&quot;</code></td><td></td><td>Where a key missing from the current locale is looked for next.</td></tr>
 <tr><td><code>initial</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>The locale a fresh run starts in. Empty starts in the system&#x27;s language where the project ships it, else in <code>fallback</code>.</td></tr>
+<tr><td><code>right_to_left</code></td><td>list of string</td><td><code>[&quot;ar&quot;, &quot;ckb&quot;, &quot;dv&quot;, &quot;fa&quot;, &quot;he&quot;, &quot;ps&quot;, &quot;sd&quot;, &quot;ug&quot;, &quot;ur&quot;, &quot;yi&quot;]</code></td><td></td><td>The languages, or whole locales like <code>pt_BR</code>, written right to left. A UI in one lays out mirrored: rows run from the right, start and end swap, and an icon the theme lists under <code>[icons] mirrored</code> turns round.</td></tr>
 </tbody>
 </table>
 

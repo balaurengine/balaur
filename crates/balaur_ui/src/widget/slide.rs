@@ -59,6 +59,9 @@ pub(crate) struct Slide<'a> {
     pub(crate) smart_aim: bool,
     pub(crate) show_value: bool,
     pub(crate) upright: bool,
+    /// The lowest value at the right and the rail filled from there: a
+    /// slider across in a mirrored UI.
+    pub(crate) mirrored: bool,
     pub(crate) prefix: &'a str,
     pub(crate) suffix: &'a str,
     pub(crate) step: Option<f64>,
@@ -124,6 +127,8 @@ impl Slide<'_> {
         if self.upright {
             // The largest value is at the top, the lowest y.
             rect.y_range().shrink(radius).flipped()
+        } else if self.mirrored {
+            rect.x_range().shrink(radius).flipped()
         } else {
             rect.x_range().shrink(radius)
         }
@@ -243,6 +248,8 @@ impl Slide<'_> {
             let mut trail = bar;
             if self.upright {
                 trail.min.y = centre.y - f32::from(corner.se);
+            } else if self.mirrored {
+                trail.min.x = centre.x - f32::from(corner.ne);
             } else {
                 trail.max.x = centre.x + f32::from(corner.nw);
             }

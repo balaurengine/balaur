@@ -23,12 +23,13 @@ pub(crate) fn check(
     let widget = &placed.widget;
     let label = rich(caption, font, color, slant, &widget.text_look);
     let metrics = crate::widget::sizing::Metrics::boxed(&at.look(index).style, ui.spacing());
+    let flip = crate::widget::direction::mirrored(at.arena, index);
     let response = tick_box(
         ui,
         label,
         (widget.checked, widget.egui.indeterminate),
         caption,
-        (!widget.radio_group.is_empty(), &metrics),
+        (!widget.radio_group.is_empty(), &metrics, flip),
     );
     if response.clicked() {
         at.clicked.push(placed.entity);
@@ -48,13 +49,14 @@ pub(crate) fn check(
 /// the box `icon_width` across, the tick `icon_width_inner`, the caption
 /// `icon_spacing` after it, and the box's look the state the pointer leaves.
 /// One in a radio group is `round`: a circle, and on, a dot inside a ring of
-/// the tick's colour, as daisyUI's radio.
+/// the tick's colour, as daisyUI's radio. Mirrored, the box is at the right
+/// and the caption before it.
 fn tick_box(
     ui: &mut egui::Ui,
     label: egui::RichText,
     (on, either): (bool, bool),
     caption: &str,
-    (round, metrics): (bool, &crate::widget::sizing::Metrics),
+    (round, metrics, flip): (bool, &crate::widget::sizing::Metrics, bool),
 ) -> egui::Response {
     let spacing = ui.spacing().clone();
     let side = metrics.mark;
@@ -84,6 +86,11 @@ fn tick_box(
         pos2(rect.left() + side / 2.0, rect.center().y),
         egui::Vec2::splat(side),
     );
+    let frame = if flip {
+        crate::widget::direction::reflect(frame, rect)
+    } else {
+        frame
+    };
     // The tick keeps egui's share of the box, whatever the box's size.
     let inner = side * spacing.icon_width_inner / spacing.icon_width.max(1.0);
     let mark = egui::Rect::from_center_size(frame.center(), egui::Vec2::splat(inner));
@@ -124,8 +131,9 @@ fn tick_box(
         );
     }
     if let Some(text) = text {
+        let x = rect.left() + side + metrics.gap;
         let at = pos2(
-            frame.right() + metrics.gap,
+            crate::widget::direction::placed_x(flip, x, text.size().x, rect.x_range()),
             rect.center().y - text.size().y / 2.0,
         );
         painter.galley(at, text, look.text_color());
@@ -168,10 +176,18 @@ pub(crate) fn switch(
         crate::widget::sizing::switch_size(&look.style, gap, text.as_ref().map(|text| text.size()));
     let height = track_size.y;
     let (whole, response) = ui.allocate_exact_size(size, Sense::click());
+    // Mirrored, the track is at the right, on is its left end, and the
+    // caption comes before it, as a phone's switch in Arabic.
+    let flip = crate::widget::direction::mirrored(at.arena, index);
     let rect = Rect::from_min_size(
         pos2(whole.min.x, whole.center().y - height / 2.0),
         track_size,
     );
+    let rect = if flip {
+        crate::widget::direction::reflect(rect, whole)
+    } else {
+        rect
+    };
     if response.clicked() {
         at.clicked.push(entity);
     }
@@ -186,14 +202,16 @@ pub(crate) fn switch(
         .unwrap_or(crate::widget::theme::DEFAULT_INK);
     Brush::of(ui).fill(rect, height / 2.0, track);
     let inset = height / 2.0;
-    let x = if on {
+    let x = if on != flip {
         rect.max.x - inset
     } else {
         rect.min.x + inset
     };
     Brush::of(ui).disc(pos2(x, rect.center().y), height * 0.34, knob);
     if let Some(text) = text {
-        let at = pos2(rect.right() + gap, whole.center().y - text.size().y / 2.0);
+        let x = whole.min.x + track_size.x + gap;
+        let x = crate::widget::direction::placed_x(flip, x, text.size().x, whole.x_range());
+        let at = pos2(x, whole.center().y - text.size().y / 2.0);
         Brush::of(ui).galley(at, text, color);
     }
 }

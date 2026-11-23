@@ -201,7 +201,7 @@ pub(crate) fn document_regex(m: &mut balaur_script::Module<Engine>) {
 
 pub(crate) fn document_strings(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
-        "Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the starting locale and the fallback; a key neither has comes back as itself.",
+        "Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the starting locale, the fallback and the locales written right to left (`right_to_left`); a key neither has comes back as itself.",
     );
     m.describe(&[
         ("tr", &[], "(key: string, args: table?) -> string", "The string for a key in the current locale. `{name}` in it is replaced by the argument called `name`, and an `n` argument also picks the plural form the locale's language calls for."),
@@ -209,6 +209,7 @@ pub(crate) fn document_strings(m: &mut balaur_script::Module<Engine>) {
         ("set_locale", &[], "(locale: string)", "Switch locale; the next `tr` answers in it, which for a widget showing a key is the next frame."),
         ("locales", &[], "() -> [string]", "Every locale the project ships a `strings/<locale>.toml` for, in name order."),
         ("system_locale", &[], "() -> string?", "The locale the operating system reports, like `en-US`, or nil when it says nothing; recorded with the session. A run starts in the shipped locale nearest it unless `[locale] initial` says."),
+        ("right_to_left", &[], "() -> bool", "Whether the locale in force is written right to left: its language is in `[locale] right_to_left`, which starts as Arabic, Sorani, Dhivehi, Persian, Hebrew, Pashto, Sindhi, Uyghur, Urdu and Yiddish. A UI in one lays out mirrored: rows run from the right, start and end swap, and an icon its theme lists under `[icons] mirrored` turns round."),
     ]);
 }
 

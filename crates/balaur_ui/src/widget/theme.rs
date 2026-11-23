@@ -386,6 +386,9 @@ pub struct WidgetTheme {
     sizes: BTreeMap<String, f32>,
     /// `[fonts]`: a font by the name a kind or a role writes for it.
     fonts: BTreeMap<String, String>,
+    /// `[icons] mirrored`: the glyphs that point a way, a chevron or an
+    /// arrow, which a mirrored UI draws turned round.
+    mirrored_icons: Vec<SmolStr>,
     /// `resolved` remembered: a kind and a role name the same style for as
     /// long as the theme lives, and working it out walked two maps and cloned
     /// a style for every widget on the screen, every frame.
@@ -397,6 +400,13 @@ pub struct WidgetTheme {
 }
 
 impl WidgetTheme {
+    /// Whether the glyph `name` points a way, so a mirrored UI turns it
+    /// round: `[icons] mirrored` lists it.
+    #[must_use]
+    pub fn mirrors_icon(&self, name: &str) -> bool {
+        !name.is_empty() && self.mirrored_icons.iter().any(|held| held == name)
+    }
+
     /// The style for a kind, or the empty one — which means "as before".
     #[must_use]
     pub fn style(&self, kind: &str) -> Style {
@@ -538,6 +548,7 @@ fn is_reserved(key: &str) -> bool {
         k::ROLES,
         k::SIZES,
         k::FONTS,
+        k::ICONS,
         k::BASE,
     ]
     .contains(&key)
@@ -875,6 +886,18 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
             fonts
                 .iter()
                 .filter_map(|(name, v)| Some((name.clone(), v.as_str()?.to_string())))
+                .collect()
+        })
+        .unwrap_or_default();
+    theme.mirrored_icons = table
+        .get(k::ICONS)
+        .and_then(toml::Value::as_table)
+        .and_then(|icons| icons.get(k::MIRRORED))
+        .and_then(toml::Value::as_array)
+        .map(|names| {
+            names
+                .iter()
+                .filter_map(|name| name.as_str().map(SmolStr::new))
                 .collect()
         })
         .unwrap_or_default();

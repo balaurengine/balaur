@@ -267,6 +267,9 @@ pub(crate) struct Typing<'a> {
     pub(crate) submit: Option<egui::KeyboardShortcut>,
     /// Where a single line sits across its box.
     pub(crate) align: egui::Align,
+    /// The icon and the prefix at the right and the suffix at the left, the
+    /// margin's sides swapped: a field in a mirrored UI.
+    pub(crate) mirrored: bool,
     pub(crate) margin: Pad,
     pub(crate) color: Color32,
     /// Shown while it is empty.
@@ -308,7 +311,11 @@ impl Typing<'_> {
         if let Some(suffix) = &self.suffix {
             inner.max.x -= suffix.size.x + AFFIX_GAP;
         }
-        inner
+        if self.mirrored {
+            crate::widget::direction::reflect(inner, rect)
+        } else {
+            inner
+        }
     }
 
     /// Where the text's top-left corner is drawn: a single line across its
@@ -509,18 +516,30 @@ impl Typing<'_> {
         let brush = Brush::of(ui);
         let ink = ui.visuals().text_color();
         let mut lead = rect.min.x + self.margin.left;
+        let across = |x: f32, width: f32| {
+            crate::widget::direction::placed_x(self.mirrored, x, width, rect.x_range())
+        };
         if let Some((icon, tint)) = &self.icon {
-            let at = pos2(lead, rect.center().y - icon.size().y / 2.0);
+            let at = pos2(
+                across(lead, icon.size().x),
+                rect.center().y - icon.size().y / 2.0,
+            );
             brush.galley(at, std::sync::Arc::clone(icon), *tint);
             lead += icon.size().x + AFFIX_GAP;
         }
         if let Some(prefix) = &self.prefix {
-            let at = pos2(lead, rect.center().y - prefix.size.y / 2.0);
+            let at = pos2(
+                across(lead, prefix.size.x),
+                rect.center().y - prefix.size.y / 2.0,
+            );
             brush.shaped(texture, prefix, at, ink);
         }
         if let Some(suffix) = &self.suffix {
             let at = pos2(
-                rect.max.x - self.margin.right - suffix.size.x,
+                across(
+                    rect.max.x - self.margin.right - suffix.size.x,
+                    suffix.size.x,
+                ),
                 rect.center().y - suffix.size.y / 2.0,
             );
             brush.shaped(texture, suffix, at, ink);

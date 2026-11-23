@@ -232,6 +232,20 @@ pub(crate) struct Pad {
 }
 
 impl Pad {
+    /// Its left and right swapped where `flip` says: a padding's start and
+    /// end in a mirrored UI.
+    pub(crate) const fn turned(self, flip: bool) -> Self {
+        if flip {
+            Self {
+                left: self.right,
+                right: self.left,
+                ..self
+            }
+        } else {
+            self
+        }
+    }
+
     pub(crate) const fn of([left, top, right, bottom]: [f32; 4]) -> Self {
         Self {
             left,
@@ -428,6 +442,15 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let ui = &mut inner_ui;
         hold_to(ui, inner);
         let area = area_of(ui, at.eng, entity, widget, inner);
+        // A mirrored strip starts at its right end, where its first child
+        // is, and stays there until the reader scrolls it, as a page under
+        // `dir="rtl"` does.
+        let sideways = crate::widget::taffy::scroll_axes(&widget.axis).0;
+        let area = if sideways && crate::widget::direction::mirrored(nodes, index) {
+            area.stick_to_right(true)
+        } else {
+            area
+        };
         let shown = area.show(ui, |ui| {
             // Solved on its own, with the scroll's axis free: the contents
             // take what they measure and the bar makes up the difference.
@@ -570,8 +593,14 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // the arena, so the button can leave its box under that page's entity.
     let heads: Vec<Entity> = pages.iter().map(|(i, _, _)| at.arena[*i].entity).collect();
     let mut strip = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+    // Mirrored, the first page's head is at the right.
+    let runs = if crate::widget::direction::mirrored(nodes, index) {
+        egui::Layout::right_to_left(egui::Align::Center)
+    } else {
+        egui::Layout::left_to_right(egui::Align::Center)
+    };
     let chosen = strip
-        .horizontal(|ui| {
+        .with_layout(runs, |ui| {
             ui.spacing_mut().item_spacing = vec2(gap.x.max(4.0), 0.0);
             let mut chosen = None;
             for (slot, (_, name, label)) in pages.iter().enumerate() {

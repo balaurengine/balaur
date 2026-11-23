@@ -586,6 +586,7 @@ pub(crate) fn code_editor(
         max_chars: 0,
         submit: None,
         align: egui::Align::Min,
+        mirrored: false,
         margin,
         color: colors.ident,
         placeholder: None,

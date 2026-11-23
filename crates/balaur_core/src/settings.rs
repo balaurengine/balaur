@@ -788,6 +788,7 @@ strict = { type = "bool", host = true, default = false, applies = "restart", hel
             r#"
 initial = { type = "string", default = "", help = "The locale a fresh run starts in. Empty starts in the system's language where the project ships it, else in `fallback`." }
 fallback = { type = "string", default = "en", help = "Where a key missing from the current locale is looked for next." }
+right_to_left = { type = "list", of = { type = "string" }, default = ["ar", "ckb", "dv", "fa", "he", "ps", "sd", "ug", "ur", "yi"], help = "The languages, or whole locales like `pt_BR`, written right to left. A UI in one lays out mirrored: rows run from the right, start and end swap, and an icon the theme lists under `[icons] mirrored` turns round." }
 "#,
         ),
     );

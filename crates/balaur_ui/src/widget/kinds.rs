@@ -56,7 +56,8 @@ pub(crate) fn dropdown(
     let width = Some(if want.x > 0.0 { want.x } else { natural.x });
     let button = ui
         .horizontal(|ui| {
-            let response = picker(ui, id, open, picked, (fold, width), &metrics);
+            let flip = crate::widget::direction::mirrored(at.arena, index);
+            let response = picker(ui, (id, open, flip), picked, (fold, width), &metrics);
             let enabled = ui.is_enabled();
             response.widget_info(|| {
                 let mut info = egui::WidgetInfo::new(egui::Role::ComboBox);
@@ -106,11 +107,11 @@ pub(crate) fn dropdown(
 /// A dropdown's button, sized and painted as egui's combo box: the picked
 /// text, a downward triangle at the far edge, at least `width` or the
 /// spacing's `combo_width` across, in the look the pointer leaves or the open
-/// look while the list shows.
+/// look while the list shows. Mirrored, the triangle is at the left and
+/// the text against the right.
 fn picker(
     ui: &mut egui::Ui,
-    id: egui::Id,
-    open: bool,
+    (id, open, flip): (egui::Id, bool, bool),
     picked: egui::RichText,
     (fold, width): (egui::TextWrapMode, Option<f32>),
     metrics: &crate::widget::sizing::Metrics,
@@ -156,7 +157,7 @@ fn picker(
                 egui::StrokeKind::Inside,
             ),
         );
-        let icon = egui::Align2::RIGHT_CENTER
+        let icon = crate::widget::direction::flip_align2(egui::Align2::RIGHT_CENTER, flip)
             .align_size_within_rect(mark, slot)
             .expand(look.expansion);
         let arrow = Rect::from_center_size(
@@ -168,7 +169,7 @@ fn picker(
             look.fg_stroke.color,
             Stroke::NONE,
         ));
-        let at = egui::Align2::LEFT_CENTER
+        let at = crate::widget::direction::flip_align2(egui::Align2::LEFT_CENTER, flip)
             .align_size_within_rect(galley.size(), slot)
             .min;
         Brush::of(ui).galley(at, galley, look.text_color());
@@ -237,7 +238,10 @@ pub(crate) fn menu(
     let placed = &nodes[index];
     let entity = placed.entity;
     let widget = &placed.widget;
-    let fallbacks = fallbacks_of(widget);
+    // A mirrored menu opens to the mirrored side: `below` hangs from the
+    // button's right edge in Arabic, as a dropdown under `dir="rtl"` does.
+    let flip = crate::widget::direction::mirrored(nodes, index);
+    let fallbacks = fallbacks_of(widget, flip);
     // A menu drawn inside an open menu is a submenu: egui opens it to the
     // side on hover, keeps one of them open at a time, and shuts it with the
     // menu it hangs off.
@@ -263,7 +267,7 @@ pub(crate) fn menu(
         } else {
             // A popup of a stated width is filled across, as a sheet is.
             let fills = widget.egui.popup_width > 0.0;
-            dropped(&response, widget, &fallbacks, ui, body.is_some())
+            dropped(&response, (widget, flip), &fallbacks, ui, body.is_some())
                 .show(|ui| {
                     on_plate(ui, at.eng, body.as_deref(), None, |ui| {
                         if crate::widget::popups::scrolled(ui, |ui| rows_in(ui, at, index, fills)) {
@@ -318,7 +322,7 @@ pub(crate) fn menu(
             shut
         })
     } else {
-        dropped(&response, widget, &fallbacks, ui, body.is_some())
+        dropped(&response, (widget, flip), &fallbacks, ui, body.is_some())
             .show(|ui| {
                 on_plate(ui, at.eng, body.as_deref(), None, |ui| {
                     crate::widget::popups::scrolled(ui, &mut rows);
@@ -345,9 +349,9 @@ fn closing(word: &str) -> egui::PopupCloseBehavior {
 
 /// The side a placement word names against the button, or `None` for the
 /// two that are no side: the pointer and the middle of the screen.
-fn side_of(placement: &str) -> Option<egui::RectAlign> {
+fn side_of(placement: &str, flip: bool) -> Option<egui::RectAlign> {
     use egui::RectAlign as R;
-    Some(match placement {
+    let side = match placement {
         w::BELOW => R::BOTTOM_START,
         w::BELOW_CENTER => R::BOTTOM,
         w::BELOW_END => R::BOTTOM_END,
@@ -361,16 +365,17 @@ fn side_of(placement: &str) -> Option<egui::RectAlign> {
         w::LEFT_CENTER => R::LEFT,
         w::LEFT_END => R::LEFT_END,
         _ => return None,
-    })
+    };
+    Some(crate::widget::direction::flip_side(side, flip))
 }
 
 /// The sides a menu's `placement_fallbacks` names, in order.
-fn fallbacks_of(widget: &Widget) -> Vec<egui::RectAlign> {
+fn fallbacks_of(widget: &Widget, flip: bool) -> Vec<egui::RectAlign> {
     widget
         .egui
         .placement_fallbacks
         .iter()
-        .filter_map(|word| side_of(word))
+        .filter_map(|word| side_of(word, flip))
         .collect()
 }
 
@@ -379,7 +384,7 @@ fn fallbacks_of(widget: &Widget) -> Vec<egui::RectAlign> {
 /// there is no room.
 fn dropped<'a>(
     response: &egui::Response,
-    widget: &Widget,
+    (widget, flip): (&Widget, bool),
     fallbacks: &'a [egui::RectAlign],
     ui: &egui::Ui,
     plated: bool,
@@ -403,13 +408,11 @@ fn dropped<'a>(
         popup = popup.align_alternatives(fallbacks);
     }
     let placement = widget.placement.as_str();
+    let start = crate::widget::direction::flip_side(egui::RectAlign::BOTTOM_START, flip);
     popup = match placement {
-        w::BELOW => crate::widget::popups::kept_inside(
-            popup,
-            egui::RectAlign::BOTTOM_START,
-            fallbacks,
-            o.popup_gap.max(0.0),
-        ),
+        w::BELOW => {
+            crate::widget::popups::kept_inside(popup, start, fallbacks, o.popup_gap.max(0.0))
+        }
         // Where the pointer was when the menu opened, not where it is now:
         // egui only remembers that for a popup told to open, so the click
         // says so itself rather than leaving it to the toggle.
@@ -421,7 +424,7 @@ fn dropped<'a>(
                 .then_some(egui::SetOpenCommand::Bool(!open));
             crate::widget::popups::kept_inside(
                 popup.at_pointer_fixed().open_memory(set),
-                egui::RectAlign::BOTTOM_START,
+                start,
                 fallbacks,
                 o.popup_gap.max(0.0),
             )
@@ -438,7 +441,7 @@ fn dropped<'a>(
             .align(egui::RectAlign::over_corner(egui::Align2::CENTER_CENTER))
             .align_alternatives(&[]),
         side => {
-            let asked = side_of(side).unwrap_or(egui::RectAlign::BOTTOM_START);
+            let asked = side_of(side, flip).unwrap_or(start);
             let gap = o.popup_gap.max(0.0);
             crate::widget::popups::kept_inside(popup.align(asked), asked, fallbacks, gap)
         }
@@ -888,6 +891,13 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         };
         let nodes = at.arena;
         let rect = anchored_in(area, &nodes[*child].widget, &at.style(*child), want);
+        // Mirrored, a child at the stack's start sits at its right, its
+        // padding swapped with it.
+        let rect = if crate::widget::direction::mirrored(nodes, index) {
+            crate::widget::direction::reflect(rect, outer)
+        } else {
+            rect
+        };
         // This kind placed the child, so taffy has not solved what is under
         // it: its subtree is solved against the box it was just given.
         let space = crate::widget::taffy::Room::fixed(rect);

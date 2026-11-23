@@ -174,6 +174,8 @@ pub(crate) fn edit(
         egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Enter),
         |(modifiers, key)| egui::KeyboardShortcut::new(modifiers, key),
     );
+    // Mirrored, the line starts at the right and the icon sits there.
+    let flip = crate::widget::direction::mirrored(at.arena, index);
     let typing = Typing {
         id: crate::widget::layer::sensor_id(ui, FIELD, entity),
         multiline,
@@ -185,10 +187,11 @@ pub(crate) fn edit(
         numeric: widget.numeric,
         max_chars: widget.max_length as usize,
         submit: Some(submit),
-        align: crate::widget::layer::across(crate::widget::theme::text_align_of(
-            &look.style,
-            widget,
-        )),
+        align: crate::widget::direction::physical_align(
+            crate::widget::theme::text_align_of(&look.style, widget),
+            flip,
+        ),
+        mirrored: flip,
         margin: margin_of(widget, &look.style),
         color,
         placeholder: face.shape(&placeholder_of(at.eng, widget), None),
