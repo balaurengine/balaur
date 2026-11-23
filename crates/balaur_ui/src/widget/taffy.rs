@@ -269,6 +269,13 @@ fn styled(
     fills: Fill,
 ) -> Style {
     let mut want = style_of(widget, style, shape);
+    // A menu's width, place and anchor are its button's: the rows it opens
+    // take only the room the popup or sheet hands them. A menu filling a
+    // 40-point corner box laid its rows out 40 wide, and they ran out of the
+    // popup and off the screen.
+    if shape.is_root && widget.kind == w::MENU {
+        rows_free(&mut want);
+    }
     // The subtree's own node takes the box it was handed, where it was handed
     // one: a container's child fills its rect, and only a root on a corner
     // sizes itself from what is inside it.
@@ -284,6 +291,17 @@ fn styled(
         Side::AtLeast(height) => want.min_size.height = length(height.max(widget.min_height)),
     }
     want
+}
+
+/// A menu's rows' box: nothing of the button's width or place. Its height
+/// was never in the way: the rows run down past it, and the popup takes
+/// theirs.
+fn rows_free(style: &mut Style) {
+    style.size.width = auto();
+    style.min_size.width = auto();
+    style.max_size.width = auto();
+    style.position = Position::Relative;
+    style.inset = Rect::auto();
 }
 
 /// One widget's `taffy::Style`.

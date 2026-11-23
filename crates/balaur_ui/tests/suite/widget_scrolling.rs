@@ -568,3 +568,99 @@ fn a_panel_that_scrolls_moves_what_it_holds_under_its_caption() {
         "the panel is no longer the 160 it states"
     );
 }
+
+// A scroll's padding is its contents' air, as CSS's is round an overflowing
+// box: what it holds is drawn and clipped out to the box's own edge, where
+// the bar runs, and scrolls through the air rather than vanishing at it.
+#[test]
+fn a_scroll_s_padding_scrolls_with_what_it_holds() {
+    let (_dir, app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 height = 300.0 padding = 0.0 widget_layout = { gap = [0.0, 0.0] } }.into(),
+    );
+    let held = add_child_widget(
+        &app,
+        column,
+        "held",
+        &toml::toml! { kind = "scroll" grow = 1.0 padding = 20.0 widget_scroll = { axis = "vertical" } widget_layout = { gap = [0.0, 0.0] } }.into(),
+    );
+    let mut first = held;
+    for n in 0..30 {
+        let text = format!("line {n}");
+        let line = add_child_widget(
+            &app,
+            held,
+            "line",
+            &toml::toml! { kind = "button" text = text height = 40.0 }.into(),
+        );
+        if n == 0 {
+            first = line;
+        }
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let box_ = balaur_ui::widget_rect(held).unwrap();
+    let line = balaur_ui::widget_rect(first).unwrap();
+    assert!(
+        (line.min.x - box_.min.x - 20.0).abs() < 1.0 && (line.min.y - box_.min.y - 20.0).abs() < 1.0,
+        "the first line stands at {:?}, not the padding inside the box at {:?}",
+        line.min,
+        box_.min
+    );
+    assert!(
+        (line.width() - (box_.width() - 40.0)).abs() < 1.0,
+        "a line is {} wide in a box {} wide with 20 either side",
+        line.width(),
+        box_.width()
+    );
+    let clip = out
+        .shapes
+        .iter()
+        .find(|s| matches!(&s.shape, egui::epaint::Shape::Rect(r) if (r.rect.width() - line.width()).abs() < 1.0))
+        .map(|s| s.clip_rect)
+        .expect("a line drew");
+    assert!(
+        (clip.min.y - box_.min.y).abs() < 1.0 && (clip.max.y - box_.max.y).abs() < 1.0,
+        "the lines are clipped to {clip:?}, inside the padding of the box at {box_:?}"
+    );
+}
+
+// Scrolled to its end, a padded scroll's last line stands its padding above
+// the box's foot: the far air scrolls in once, not twice and not never.
+#[test]
+fn a_padded_scroll_ends_its_padding_past_the_last_line() {
+    let (_dir, app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 height = 300.0 padding = 0.0 widget_layout = { gap = [0.0, 0.0] } }.into(),
+    );
+    let held = add_child_widget(
+        &app,
+        column,
+        "held",
+        &toml::toml! { kind = "scroll" grow = 1.0 padding = 20.0 widget_scroll = { axis = "vertical", scroll_offset = [0.0, 100000.0] } widget_layout = { gap = [0.0, 0.0] } }.into(),
+    );
+    let mut last = held;
+    for n in 0..30 {
+        let text = format!("line {n}");
+        last = add_child_widget(
+            &app,
+            held,
+            "line",
+            &toml::toml! { kind = "button" text = text height = 40.0 }.into(),
+        );
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let box_ = balaur_ui::widget_rect(held).unwrap();
+    let line = balaur_ui::widget_rect(last).unwrap();
+    assert!(
+        (box_.max.y - line.max.y - 20.0).abs() < 1.0,
+        "scrolled to its end, the last line ends at {}, the box at {}",
+        line.max.y,
+        box_.max.y
+    );
+}

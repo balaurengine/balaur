@@ -468,6 +468,40 @@ fn a_menu_opens_where_its_placement_says() {
     }
 }
 
+// A menu hung from the end of a button at the screen's edge opens as wide
+// as its rows, its end under the button's, all of it on the screen: it is
+// not measured in the sliver between the button and the edge.
+#[test]
+fn a_menu_below_the_end_of_a_button_at_the_edge_stays_on_the_screen() {
+    let (_dir, app) = app();
+    let params = toml::toml! {
+        kind = "menu" text = "Me" x = 590.0 y = 10.0 width = 40.0
+        widget_menu = { placement = "below_end" }
+    };
+    let host = add_widget(&app, &params.into());
+    let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
+    add_child_widget(&app, host, "R0", &row.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let button = root_rect(&ctx, host);
+    let at = button.center();
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    pass(&app, &ctx, vec![]);
+    let open = pass(&app, &ctx, vec![]);
+    let rows = rows_drawn(&open, 173.0).expect("the menu did not open");
+    assert!(
+        rows.max.x <= 640.5,
+        "the rows at {rows:?} run past the screen's edge at 640"
+    );
+    assert!(
+        (rows.max.x - button.max.x).abs() < 16.0,
+        "the rows end at {}, not under the button's end at {}",
+        rows.max.x,
+        button.max.x
+    );
+}
+
 // A menu inside a menu is a submenu: it opens to the side when the pointer
 // rests on its row, and the menu it hangs off stays up.
 #[test]

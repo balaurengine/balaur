@@ -427,21 +427,20 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         },
     );
     let style = at.style(index);
+    // The padding is the contents' air, as CSS's is round an overflowing
+    // box: the rows' solve keeps it inside the whole box, so it scrolls with
+    // them and the bar runs down the box's own edge rather than inside it.
     let pad = padding_of(widget, &style);
-    let inner = (size - pad.taken()).max(egui::Vec2::ZERO);
     // The frame is painted under the box once the box is known, carrying the
-    // look and no margin: `egui::Margin` is whole points, and the padding comes
-    // off in floats instead.
+    // look and no margin.
     let plate = Brush::of(ui).slot();
     {
         let frame_ui = &mut *ui;
-        // The padding comes off the box in floats; the frame itself carries
-        // none, so a scroll at a fractional scale keeps the size it was given.
         let held = frame_ui.max_rect();
-        let mut inner_ui = frame_ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(held)));
+        let mut inner_ui = frame_ui.new_child(egui::UiBuilder::new().max_rect(held));
         let ui = &mut inner_ui;
-        hold_to(ui, inner);
-        let area = area_of(ui, at.eng, entity, widget, inner);
+        hold_to(ui, size);
+        let area = area_of(ui, at.eng, entity, widget, size);
         // A mirrored strip starts at its right end, where its first child
         // is, and stays there until the reader scrolls it, as a page under
         // `dir="rtl"` does.
@@ -454,8 +453,9 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         let shown = area.show(ui, |ui| {
             // Solved on its own, with the scroll's axis free: the contents
             // take what they measure and the bar makes up the difference.
+            let origin = ui.max_rect().min;
             let room = crate::widget::taffy::Room::scrolling(
-                egui::Rect::from_min_size(ui.max_rect().min, vec2(inner.x, inner.y)),
+                egui::Rect::from_min_size(origin, size),
                 &widget.axis,
             );
             let solved = crate::widget::taffy::solve_subtree(
@@ -481,12 +481,16 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let held = std::mem::replace(&mut at.rects, solved);
             lay_out(ui, at, index, Axis::Column);
             at.rects = held;
+            // The far air is part of what scrolls: the last row ends a
+            // padding short of the box's end, not on it.
+            let end = ui.min_rect().max + vec2(pad.right, pad.bottom);
+            ui.allocate_rect(egui::Rect::from_min_max(origin, end), egui::Sense::hover());
         });
         // Reported when it moves, against where the last pass left it.
         crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.clamped_offset());
         // The frame, and the area above it, learn the box the child took;
         // a child ui reports nothing to its parent on its own.
-        let used = pad.around(inner_ui.min_rect());
+        let used = inner_ui.min_rect();
         frame_ui.allocate_rect(used, egui::Sense::hover());
         if style.paints() {
             Brush::of(frame_ui).set(
