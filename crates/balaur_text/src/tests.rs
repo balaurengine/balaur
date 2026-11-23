@@ -881,3 +881,21 @@ fn a_face_s_glyphs_are_found_by_their_names() {
     assert_eq!(code("no-such-icon"), None);
     assert_eq!(crate::GlyphNames::of(b"not a face").get("plus"), None);
 }
+
+// Arabic's letters join, and CSS lets a cursive script admit no gap between
+// them: a spaced label in Arabic keeps its words whole, where a Latin one
+// opens up.
+#[test]
+fn letter_spacing_leaves_joined_letters_together() {
+    let mut state = asking();
+    if !covered(&mut state, 'ع') {
+        return;
+    }
+    let mut width = |text: &str, spacing: f32| {
+        let mut request = Request::new(text, 20.0);
+        request.letter_spacing = spacing;
+        state.measure(&request).x
+    };
+    assert!((width("العربية", 3.0) - width("العربية", 0.0)).abs() < 0.01);
+    assert!(width("Arabic", 3.0) > width("Arabic", 0.0));
+}

@@ -604,7 +604,8 @@ fn a_scroll_s_padding_scrolls_with_what_it_holds() {
     let box_ = balaur_ui::widget_rect(held).unwrap();
     let line = balaur_ui::widget_rect(first).unwrap();
     assert!(
-        (line.min.x - box_.min.x - 20.0).abs() < 1.0 && (line.min.y - box_.min.y - 20.0).abs() < 1.0,
+        (line.min.x - box_.min.x - 20.0).abs() < 1.0
+            && (line.min.y - box_.min.y - 20.0).abs() < 1.0,
         "the first line stands at {:?}, not the padding inside the box at {:?}",
         line.min,
         box_.min
@@ -640,7 +641,7 @@ fn a_padded_scroll_ends_its_padding_past_the_last_line() {
         &app,
         column,
         "held",
-        &toml::toml! { kind = "scroll" grow = 1.0 padding = 20.0 widget_scroll = { axis = "vertical", scroll_offset = [0.0, 100000.0] } widget_layout = { gap = [0.0, 0.0] } }.into(),
+        &toml::toml! { kind = "scroll" grow = 1.0 padding = 20.0 widget_scroll = { axis = "vertical", scroll_offset = [0.0, 100_000.0] } widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let mut last = held;
     for n in 0..30 {

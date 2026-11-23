@@ -42,6 +42,37 @@ pub use options::{
 };
 use shape::{runs, shape_into, spans_of};
 
+/// The letter spacing `text` takes of the `asked`: none where its letters
+/// join. Arabic, Syriac, N'Ko, Mongolian and their kin are cursive, and CSS
+/// lets a cursive script admit no gap between its letters: spacing pulled
+/// between them would break each word into its isolated forms.
+#[must_use]
+pub fn letter_spacing_for(text: &str, asked: f32) -> f32 {
+    if asked != 0.0 && text.chars().any(joins) {
+        0.0
+    } else {
+        asked
+    }
+}
+
+/// Whether `c` is a letter of a script written joined.
+fn joins(c: char) -> bool {
+    matches!(
+        u32::from(c),
+        // Arabic, Syriac, Arabic Supplement; N'Ko; Mandaic, Syriac
+        // Supplement, Arabic Extended-B and -A; Mongolian; the Arabic
+        // presentation forms; Hanifi Rohingya; Adlam.
+        0x0600..=0x077F
+            | 0x07C0..=0x07FF
+            | 0x0840..=0x08FF
+            | 0x1800..=0x18AF
+            | 0xFB50..=0xFDFF
+            | 0xFE70..=0xFEFF
+            | 0x10D00..=0x10D3F
+            | 0x1E900..=0x1E95F
+    )
+}
+
 /// Sizes are rasterised in buckets a twelfth of a step apart, so a camera
 /// zooming continuously re-shapes a few times rather than every frame — and
 /// so two sizes a hair apart share their glyphs in the atlas.

@@ -74,8 +74,9 @@ impl TextLook {
         if d.strikethrough {
             text = text.strikethrough();
         }
-        if self.letter_spacing != 0.0 {
-            text = text.extra_letter_spacing(self.letter_spacing);
+        let spacing = balaur_text::letter_spacing_for(text.text(), self.letter_spacing);
+        if spacing != 0.0 {
+            text = text.extra_letter_spacing(spacing);
         }
         if self.line_height > 0.0 {
             text = text.line_height(Some(self.line_height * size));

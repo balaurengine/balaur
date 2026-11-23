@@ -116,8 +116,9 @@ fn base_attrs<'a>(request: &RequestRef<'a>, font: &'a LoadedFont, em: f32) -> At
     if !font.settings.features.is_empty() {
         base = base.font_features(font.settings.font_features());
     }
-    if request.letter_spacing != 0.0 {
-        base = base.letter_spacing(request.letter_spacing / em);
+    let spacing = crate::letter_spacing_for(request.text, request.letter_spacing);
+    if spacing != 0.0 {
+        base = base.letter_spacing(spacing / em);
     }
     let lines = &options.decoration;
     base = match lines.underline {
@@ -194,7 +195,7 @@ pub(crate) fn shape_into(
         font_scale,
         em,
         factor,
-        letter_spacing: request.letter_spacing,
+        letter_spacing: crate::letter_spacing_for(request.text, request.letter_spacing),
     };
     let (wrap, cut) = wrap_and_cut(request);
     let lay = |buffer: &mut Buffer, fonts: &mut FontSystem, pieces: &[Piece]| {
