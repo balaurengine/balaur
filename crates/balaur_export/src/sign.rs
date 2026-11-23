@@ -188,12 +188,20 @@ pub(crate) fn notarize(bundle: &Path) -> Result<()> {
 }
 
 /// An `.ipa`: the App Store's shape for an iOS build, which is the `.app`
-/// inside a `Payload` directory, zipped.
+/// inside a `Payload` directory, zipped. The entry is `<name>.app` even when
+/// `--output` named the bundle without the suffix: the App Store and every
+/// signer look for `Payload/*.app`.
 pub(crate) fn build_ipa(app: &Path, output: &Path) -> Result<PathBuf> {
     let name = app
         .file_name()
         .context("the exported .app has no name")?
-        .to_owned();
+        .to_string_lossy()
+        .into_owned();
+    let name = if name.ends_with(".app") {
+        name
+    } else {
+        format!("{name}.app")
+    };
     let staging = output.with_extension("ipa-staging");
     let payload = staging.join("Payload");
     let _ = std::fs::remove_dir_all(&staging);
@@ -315,7 +323,33 @@ fn absolute(path: &Path) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{installer_identity, nested_code, which};
+    use super::{build_ipa, installer_identity, nested_code, which};
+
+    // `--output /out/game` writes the bundle as `game`, which is how Forge
+    // exports; an ipa of it without `.app` is one no signer can find.
+    #[test]
+    fn an_ipa_holds_a_dot_app_whatever_the_bundle_was_called() {
+        let work = tempfile::tempdir().unwrap();
+        let app = work.path().join("game");
+        std::fs::create_dir_all(&app).unwrap();
+        std::fs::write(app.join("Info.plist"), "<plist/>").unwrap();
+
+        let ipa = build_ipa(&app, &app).unwrap();
+        assert_eq!(ipa, work.path().join("game.ipa"));
+
+        let listing = std::process::Command::new("unzip")
+            .arg("-Z1")
+            .arg(&ipa)
+            .output()
+            .unwrap();
+        let listing = String::from_utf8(listing.stdout).unwrap();
+        assert!(
+            listing
+                .lines()
+                .any(|line| line == "Payload/game.app/Info.plist"),
+            "{listing}"
+        );
+    }
 
     #[test]
     fn a_bundle_signs_what_it_contains_before_itself() {

@@ -83,7 +83,8 @@ printed on the way.
 
 | `BALAUR_TARGET` | Artifact |
 |---|---|
-| `linux-x64`, `linux-arm64`, `macos-universal` | `game`, or `game.zip` when anything sits beside it |
+| `linux-x64`, `linux-arm64` | `game`, or `game.zip` when anything sits beside it |
+| `macos-universal` | `game.zip` of `game.app`, unsigned (and `<name>.entitlements` beside it when the game needs any); with no `[apple] bundle_id`, `game` or `game.zip` as for Linux |
 | `windows-x64`, `windows-arm64` | `game.exe`, or `game.zip` when anything sits beside it |
 | `web` | `game.zip` |
 | `ios` | `game.ipa`, unsigned — see the signer image below |
@@ -112,8 +113,8 @@ with `BALAUR_LLVM` naming their directory. So an export builds the game's
 scripts as native code (`[export] native_scripts`, on by default): inside the
 `.ipa`'s `BalaurScripts.framework`, and in the `.apk`'s `lib/arm64-v8a` and
 `lib/x86_64`. A desktop export writes `libBalaurScripts.so`,
-`BalaurScripts.dll` or `libBalaurScripts.dylib` beside the executable, and
-the two go out together in `game.zip`.
+`BalaurScripts.dll` beside the executable, and the two go out together in
+`game.zip`; on macOS `libBalaurScripts.dylib` is inside `game.app`.
 
 ## Mount `/work` with a mode
 
@@ -202,8 +203,9 @@ password.
 | `ios` | Apple Distribution `.p12`, its password, a `.mobileprovision` | yes, same |
 
 A desktop `game.zip` is signed inside: every `.exe` and `.dll` for Windows,
-every Mach-O for macOS, and the zip is made again. The notary takes that zip
-as it is.
+the `.app` for macOS (its dylib with it, and the `.entitlements` beside it
+applied, then left out), and the zip is made again. A zip with no `.app` has
+each Mach-O signed where it lies.
 
 Egress buys an RFC 3161 timestamp and nothing else. Without one a signature
 stops verifying the day the certificate expires, rather than staying valid for
@@ -214,10 +216,10 @@ Passwords are passed as **file paths**, never as arguments. `ps` is readable by
 every process in a container, and an argv is the easiest place in the world to
 leak a certificate password.
 
-`SIGN_NOTARIZE=1` additionally submits a macOS build to Apple's notary and
-waits. A bare executable cannot be *stapled* — a ticket attaches to a bundle, a
-`.dmg` or a `.pkg` — so the approval is recorded on Apple's side and Gatekeeper
-finds it online. Ship a `.app` bundle if you want it stapled.
+`SIGN_NOTARIZE=1` additionally submits a macOS build to Apple's notary,
+waits, and staples the ticket into the `.app`, so Gatekeeper accepts it
+offline. A bare executable cannot be stapled: its approval stays on Apple's
+side and Gatekeeper finds it online.
 
 ### `/creds`: readable by uid 10001, and by nobody else
 

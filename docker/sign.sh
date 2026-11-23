@@ -38,9 +38,11 @@ mkdir -p /out || fail "cannot write to /out; mount it read-write"
 [ -w /work ] || fail "/work is not writable by uid $(id -u); mount it as --tmpfs /work:rw,exec,mode=1777"
 
 notarize_apple() {
-  # The notary takes an archive, not a loose executable, and a bare Mach-O has
-  # nowhere to keep a ticket — so this submits and waits, and never staples.
+  # The notary takes an archive or a bundle, not a loose executable. A .app
+  # keeps the ticket (pass "staple"); a bare Mach-O has nowhere to, and gets
+  # submitted and waited on only.
   asset="$1"
+  staple="${2:-}"
 
   need apple_issuer_id apple_key_id apple_private_key
 
@@ -52,8 +54,13 @@ notarize_apple() {
     /creds/apple_private_key >/dev/null || fail "could not encode the App Store Connect key"
 
   log "==> notarize (this waits on Apple, and can take minutes)"
-  rcodesign notary-submit --api-key-path /work/api-key.json --wait "$asset" \
-    || fail "notarization was refused"
+  if [ "$staple" = staple ]; then
+    rcodesign notary-submit --api-key-path /work/api-key.json --wait --staple "$asset" \
+      || fail "notarization was refused"
+  else
+    rcodesign notary-submit --api-key-path /work/api-key.json --wait "$asset" \
+      || fail "notarization was refused"
+  fi
 
   rm -f /work/api-key.json
 }
@@ -168,17 +175,32 @@ case "$SIGN_TARGET" in
       set -- "$@" --for-notarization
     fi
 
+    app=""
     case "$SIGN_ARTIFACT" in
       *.zip)
         unpack
-        find /work/zip -type f | sort | while IFS= read -r file; do
-          macho "$file" || continue
-          log "==> sign ${file#/work/zip/} for macOS"
-          rcodesign "$@" "$file" "${file}.signed" || exit 1
-          mv "${file}.signed" "$file" || exit 1
-          chmod +x "$file" || exit 1
-        done || fail "rcodesign failed"
-        repack
+        app="$(find /work/zip -mindepth 1 -maxdepth 1 -name '*.app' -type d | head -1)"
+        if [ -n "$app" ]; then
+          # A bundle: rcodesign signs what it contains (the scripts' dylib)
+          # before the bundle itself. The entitlements the export wrote beside
+          # it go into the signature, and not into what ships.
+          entitlements="$(find /work/zip -mindepth 1 -maxdepth 1 -name '*.entitlements' -type f | head -1)"
+          if [ -n "$entitlements" ]; then
+            set -- "$@" --entitlements-xml-file "$entitlements"
+          fi
+          log "==> sign $(basename "$app") for macOS"
+          rcodesign "$@" "$app" || fail "rcodesign failed"
+          [ -z "$entitlements" ] || rm -f "$entitlements"
+        else
+          find /work/zip -type f | sort | while IFS= read -r file; do
+            macho "$file" || continue
+            log "==> sign ${file#/work/zip/} for macOS"
+            rcodesign "$@" "$file" "${file}.signed" || exit 1
+            mv "${file}.signed" "$file" || exit 1
+            chmod +x "$file" || exit 1
+          done || fail "rcodesign failed"
+          repack
+        fi
         ;;
       *)
         log "==> sign ${SIGN_ARTIFACT} for macOS"
@@ -186,7 +208,15 @@ case "$SIGN_TARGET" in
         ;;
     esac
 
-    if [ "${SIGN_NOTARIZE:-0}" = "1" ]; then
+    if [ -n "$app" ]; then
+      # Notarized and stapled before it is zipped again, so the ticket ships
+      # inside the .app and Gatekeeper needs no network to accept it.
+      if [ "${SIGN_NOTARIZE:-0}" = "1" ]; then
+        notarize_apple "$app" staple
+        log "==> notarized and stapled $(basename "$app")"
+      fi
+      repack
+    elif [ "${SIGN_NOTARIZE:-0}" = "1" ]; then
       case "$SIGN_ARTIFACT" in
         *.zip) notarize_apple "$OUT" ;;
         *)

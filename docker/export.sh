@@ -81,10 +81,24 @@ fi
 # The last packaging step, where the platform has one. Both come out unsigned
 # or debug-signed; sign.sh signs them. An `.apk` needs the SDK, which is a
 # separate image tag.
+BUNDLE_OUTPUT="${OUTPUT}"
 case "$BALAUR_TARGET" in
   ios)
     set -- "$@" --bundle ipa
     log "==> will wrap as .ipa (unsigned; balaur-sign signs it)"
+    ;;
+  macos-*)
+    # A .app, not a bare executable: the scripts' dylib goes inside it, the
+    # signature seals both, and notarization has a bundle to staple to. A
+    # bundle needs `[apple] bundle_id`; a project without one keeps the flat
+    # executable it always had rather than a failed export.
+    if grep -Eq '^[[:space:]]*bundle_id[[:space:]]*=' "${WORK}/project.toml" 2>/dev/null; then
+      set -- "$@" --bundle app
+      BUNDLE_OUTPUT="${OUTPUT}.app"
+      log "==> will bundle as .app (unsigned; balaur-sign signs it)"
+    else
+      log "==> no [apple] bundle_id; exporting a flat executable, which cannot be stapled"
+    fi
     ;;
   android)
     if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}" ]; then
@@ -100,13 +114,25 @@ case "$BALAUR_TARGET" in
     ;;
 esac
 
-set -- "$@" --output "${OUT}/${OUTPUT}"
+set -- "$@" --output "${OUT}/${BUNDLE_OUTPUT}"
 
 # The command as it runs, so a failure can be reproduced from the log.
 log "==> export ${BALAUR_TARGET}"
 log "\$ balaur $*"
 cd "$WORK"
 balaur "$@" || fail "export failed"
+
+# A macOS bundle is one zip of the .app, with the entitlements the export
+# wrote beside it (if the game needs any) for the signer to apply and drop.
+if [ "$BUNDLE_OUTPUT" != "$OUTPUT" ]; then
+  [ -d "${OUT}/${BUNDLE_OUTPUT}" ] || fail "the export wrote no ${BUNDLE_OUTPUT}"
+  log "==> archive ${BUNDLE_OUTPUT}"
+  ( cd "$OUT" && zip -qry "/work/${OUTPUT}.zip" . ) || fail "could not archive ${BUNDLE_OUTPUT}"
+  find "$OUT" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  mv "/work/${OUTPUT}.zip" "${OUT}/${OUTPUT}.zip" || fail "could not write ${OUTPUT}.zip"
+  log "==> wrote ${OUTPUT}.zip"
+  exit 0
+fi
 
 # Exactly one artifact per run. The package asked for wins, the tree it was
 # made from goes, and so does an .apk a project's own keystore also made.
