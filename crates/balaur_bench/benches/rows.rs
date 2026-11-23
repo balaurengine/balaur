@@ -333,5 +333,42 @@ fn leave(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, rows, leave);
+/// The switch into the screen and the frame that first lays it out, which
+/// builds the widget arena for every node; the switch back, off the clock.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "this is the measurement, not simulation"
+)]
+fn first_frame(c: &mut Criterion) {
+    let mut group = c.benchmark_group("screen_rows_frame");
+    group.sample_size(10);
+    for scripted in [false, true] {
+        let count = 150usize;
+        let (_dir, mut app) = app(count, scripted);
+        balaur_ui::pass_without_window(&mut app, 1280.0, 800.0);
+        let frame = |app: &mut App, scene: &str| {
+            switch(app, scene);
+            app.tick(1.0 / 60.0);
+        };
+        frame(&mut app, "screen.toml");
+        frame(&mut app, "other.toml");
+        group.throughput(Throughput::Elements((count * ROW_NODES) as u64));
+        let name = if scripted { "scripted" } else { "plain" };
+        group.bench_with_input(BenchmarkId::new(name, count), &count, |b, _| {
+            b.iter_custom(|iters| {
+                let mut total = Duration::ZERO;
+                for _ in 0..iters {
+                    let start = Instant::now();
+                    frame(&mut app, "screen.toml");
+                    total += start.elapsed();
+                    frame(&mut app, "other.toml");
+                }
+                total
+            });
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(benches, rows, leave, first_frame);
 criterion_main!(benches);
