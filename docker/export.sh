@@ -88,10 +88,8 @@ case "$BALAUR_TARGET" in
     log "==> will wrap as .ipa (unsigned; balaur-sign signs it)"
     ;;
   macos-*)
-    # A .app, not a bare executable: the scripts' dylib goes inside it, the
-    # signature seals both, and notarization has a bundle to staple to. A
-    # bundle needs `[apple] bundle_id`; a project without one keeps the flat
-    # executable it always had rather than a failed export.
+    # A .app holds the scripts' dylib and takes a stapled ticket. It needs
+    # `[apple] bundle_id`; without one the export stays a flat executable.
     if grep -Eq '^[[:space:]]*bundle_id[[:space:]]*=' "${WORK}/project.toml" 2>/dev/null; then
       set -- "$@" --bundle app
       BUNDLE_OUTPUT="${OUTPUT}.app"

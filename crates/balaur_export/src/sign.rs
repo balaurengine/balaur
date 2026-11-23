@@ -197,11 +197,10 @@ pub(crate) fn build_ipa(app: &Path, output: &Path) -> Result<PathBuf> {
         .context("the exported .app has no name")?
         .to_string_lossy()
         .into_owned();
-    let name = if name.ends_with(".app") {
-        name
-    } else {
-        format!("{name}.app")
-    };
+    let bundled = Path::new(&name)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("app"));
+    let name = if bundled { name } else { format!("{name}.app") };
     let staging = output.with_extension("ipa-staging");
     let payload = staging.join("Payload");
     let _ = std::fs::remove_dir_all(&staging);
@@ -326,7 +325,9 @@ mod tests {
     use super::{build_ipa, installer_identity, nested_code, which};
 
     // `--output /out/game` writes the bundle as `game`, which is how Forge
-    // exports; an ipa of it without `.app` is one no signer can find.
+    // exports; an ipa of it without `.app` is one no signer can find. Unix
+    // only: Windows runners have no `zip`.
+    #[cfg(unix)]
     #[test]
     fn an_ipa_holds_a_dot_app_whatever_the_bundle_was_called() {
         let work = tempfile::tempdir().unwrap();
