@@ -59,6 +59,17 @@ pub const ALL: [&str; 14] = [
 /// `[build] tags`. Written into the pack's manifest, never by hand.
 pub const BUILT: &str = "build/tags";
 
+/// `sprites/hero.android.png` as `sprites/hero.png` and `android`: a file
+/// that stands in for another in the builds that answer to the tag. `None`
+/// when the file name's middle segment is no tag of [`ALL`] or `declared`.
+#[must_use]
+pub fn variant_of(path: &str, declared: &[String]) -> Option<(String, String)> {
+    let (stem, extension) = path.rsplit_once('.')?;
+    let (base, tag) = stem.rsplit_once('.')?;
+    let known = !tag.contains('/') && (ALL.contains(&tag) || declared.iter().any(|own| own == tag));
+    known.then(|| (format!("{base}.{extension}"), tag.to_string()))
+}
+
 /// Every tag a manifest names of its own, in the order it first names them:
 /// the base `[export] tags` and every override's.
 ///
@@ -164,6 +175,13 @@ impl Tags {
     #[must_use]
     pub fn has(&self, tag: &str) -> bool {
         self.0.iter().any(|held| held == tag)
+    }
+
+    /// How narrow `tag` is among these, larger narrower, or `None` when this
+    /// set does not hold it: which of two variants a build takes.
+    #[must_use]
+    pub fn rank(&self, tag: &str) -> Option<usize> {
+        self.0.iter().position(|held| held == tag)
     }
 
     /// Narrowest first, which is the order an override is looked for in.

@@ -271,7 +271,7 @@ fn a_pack_carries_each_script_compiled_for_its_target_and_the_project_unit() {
     project(dir.path(), SCRIPT);
     let key = format!("scripts/{}", SCRIPT.0);
     let native = balaur::build_pack(dir.path()).unwrap();
-    let browser = balaur::build_pack_for(dir.path(), false, &mut [], true).unwrap();
+    let browser = balaur::build_pack_for(dir.path(), false, &mut [], true, None).unwrap();
     assert_ne!(native.scripts[&key], SCRIPT.1.as_bytes());
     // A browser's unit counts its own fuel, which a native engine does for it.
     assert_ne!(native.scripts[&key], browser.scripts[&key]);

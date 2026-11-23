@@ -21,7 +21,7 @@ inputs:
   features:
     description: >-
       Cargo features for the editor and desktop runtime, replacing the
-      default `window,extensions` (`window,apple,extensions` on a Mac). See
+      default `window,apple,extensions`. See
       docs/generated/features.md for what each costs.
     required: false
     default: ""

@@ -275,14 +275,28 @@ fn bake_tags(pack: &mut balaur::Pack, own: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// Fold in the variants this target's tags pick. Before the pack is measured
-/// or stripped: a variant that lost is one this target was never going to carry.
-fn fold_variants(pack: &mut balaur::Pack, path: &Path, target: Option<&str>) -> Result<()> {
-    let source = config::manifest_text(path).unwrap_or_default();
-    let tags = config::tags_for(&source, target)?;
+/// The project's pack, of the scripts its target answers to, and what that
+/// is (the target's tags and the project's own), which picks its assets too.
+fn packed(
+    opts: &Options<'_>,
+    extra: balaur::ExtraPlugins<'_>,
+    web: bool,
+) -> Result<(balaur::Pack, balaur::packing::Variants)> {
+    let source = config::manifest_text(&opts.path).unwrap_or_default();
+    let tags = config::tags_for(&source, opts.target.as_deref())?;
     let declared =
         toml::from_str(&source).map_or_else(|_| Vec::new(), |doc| balaur::tags::declared_in(&doc));
-    let folded = variants::apply(pack, &tags, &declared);
+    let variants = balaur::packing::Variants { tags, declared };
+    let pack = balaur::build_pack_for(&opts.path, opts.keep_sources, extra, web, Some(&variants))?;
+    Ok((pack, variants))
+}
+
+/// Fold in the asset variants this target's tags pick. Before the pack is
+/// measured or stripped: a variant that lost is one this target was never
+/// going to carry. Its scripts were picked as the pack was built.
+fn fold_variants(pack: &mut balaur::Pack, picked: &balaur::packing::Variants) {
+    let (tags, declared) = (&picked.tags, &picked.declared);
+    let folded = variants::apply(pack, tags, declared);
     for why in &folded.warnings {
         tracing::warn!("{why}");
     }
@@ -293,7 +307,6 @@ fn fold_variants(pack: &mut balaur::Pack, path: &Path, target: Option<&str>) -> 
             folded.names.join(", ")
         );
     }
-    Ok(())
 }
 
 /// The runtime `target` puts this game on, once the game is known to run there.
@@ -400,7 +413,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let bundle = target.and_then(|t| Some((Bundle::for_target(t)?, t)));
     let mut extra = opts.plugins.map(|make| make()).unwrap_or_default();
     let web = matches!(bundle, Some((Bundle::Web, _)));
-    let mut pack = balaur::build_pack_for(&opts.path, opts.keep_sources, &mut extra, web)?;
+    let (mut pack, variants) = packed(opts, &mut extra, web)?;
     // One read, resolved for the target: `[override.android.export]` is
     // folded onto `[export]` before any of these three is parsed.
     let manifest = config::manifest_for(&opts.path, target)?;
@@ -414,7 +427,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         .transpose()?;
     let full = target.filter(|_| config.runtime == Runtime::Auto);
     let (title, icons) = presented(opts, &manifest)?;
-    fold_variants(&mut pack, &opts.path, target)?;
+    fold_variants(&mut pack, &variants);
     bake_tags(&mut pack, &config.tags)?;
     prepare(&mut pack, &config, &manifest)?;
     if opts.dry_run {

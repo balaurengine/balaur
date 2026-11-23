@@ -261,6 +261,45 @@ fn every_script_that_fails_to_compile_is_named_not_only_the_first() {
     assert!(err.contains("no good: b.txt"), "{err}");
 }
 
+/// Claims `.txt`, and fails a script that calls what only Apple's engine has,
+/// as an engine built without `apple` does.
+struct NoApple;
+
+impl ScriptCompiler for NoApple {
+    fn extensions(&self) -> &[&str] {
+        &["txt"]
+    }
+
+    fn compile(&self, rel: &str, source: &str) -> anyhow::Result<Vec<u8>> {
+        anyhow::ensure!(!source.contains("apple::"), "{rel}: no apple");
+        Ok(source.as_bytes().to_vec())
+    }
+}
+
+fn exported_for(dir: &std::path::Path, target: &str) -> anyhow::Result<Pack> {
+    let variants = balaur_project::packing::Variants {
+        tags: balaur_core::tags::Tags::for_target(target),
+        declared: Vec::new(),
+    };
+    balaur_project::packing::build_with(dir, &NoApple, false, &|_| false, Some(&variants))
+}
+
+// `billing.ios.txt` is `billing.txt` on iOS, and every other target neither
+// compiles nor ships it.
+#[test]
+fn a_script_variant_takes_its_files_place_only_where_the_target_answers_to_it() {
+    let dir = project();
+    std::fs::write(dir.path().join("billing.txt"), "sells nothing").unwrap();
+    std::fs::write(dir.path().join("billing.ios.txt"), "apple::buy").unwrap();
+
+    let linux = exported_for(dir.path(), "linux-x64").unwrap();
+    assert_eq!(linux.scripts["billing.txt"], b"sells nothing");
+    assert!(!linux.scripts.contains_key("billing.ios.txt"));
+
+    let ios = exported_for(dir.path(), "ios").unwrap_err().to_string();
+    assert!(ios.contains("billing.txt: no apple"), "{ios}");
+}
+
 #[test]
 fn a_project_without_a_manifest_is_an_error() {
     let dir = tempfile::tempdir().unwrap();

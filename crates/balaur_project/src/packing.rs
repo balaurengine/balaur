@@ -48,7 +48,48 @@ pub const LOADED_WHOLE: &[&str] = &["fonts/", ".balaur/"];
 /// a game pays only for what it uses of a large dependency. Its own
 /// `[export] include` globs keep what its scripts build.
 pub fn build(project_root: &Path, compiler: &dyn balaur_script::ScriptCompiler) -> Result<Pack> {
-    build_with(project_root, compiler, false, &|_| false)
+    build_with(project_root, compiler, false, &|_| false, None)
+}
+
+/// What an export's target answers to, which picks its scripts:
+/// `billing.ios.bs` is compiled as `billing.bs` for a build that answers to
+/// `ios`, and not at all for one that does not.
+pub struct Variants {
+    pub tags: balaur_core::tags::Tags,
+    /// The project's own tags ([`balaur_core::tags::declared_in`]).
+    pub declared: Vec<String>,
+}
+
+/// Each script this build compiles, by file, and the name it ships under:
+/// the narrowest variant the build answers to in place of the file it
+/// varies, and no variant it does not answer to.
+fn chosen_scripts(
+    files: &[String],
+    nested: &[String],
+    compiler: &dyn balaur_script::ScriptCompiler,
+    variants: &Variants,
+) -> BTreeMap<String, String> {
+    let scripts = files.iter().map(String::as_str).filter(|rel| {
+        let ext = Path::new(rel).extension().and_then(|e| e.to_str());
+        ext.is_some_and(|ext| compiler.extensions().contains(&ext)) && !in_nested(nested, rel)
+    });
+    // A plain file's rank is `None`, which is below every variant's.
+    let mut best: BTreeMap<String, (Option<usize>, String)> = BTreeMap::new();
+    for rel in scripts {
+        let (name, rank) = match balaur_core::tags::variant_of(rel, &variants.declared) {
+            Some((name, tag)) => match variants.tags.rank(&tag) {
+                Some(rank) => (name, Some(rank)),
+                None => continue,
+            },
+            None => (rel.to_string(), None),
+        };
+        if best.get(&name).is_none_or(|(held, _)| *held < rank) {
+            best.insert(name, (rank, rel.to_string()));
+        }
+    }
+    best.into_iter()
+        .map(|(name, (_, rel))| (rel, name))
+        .collect()
 }
 
 /// [`build`], with a say over what a script entry holds.
@@ -60,11 +101,15 @@ pub fn build(project_root: &Path, compiler: &dyn balaur_script::ScriptCompiler) 
 ///
 /// `editors` names the editor's plugins by path from the root, which no
 /// game's runtime runs: the pack leaves them out whatever `ignore` says.
+///
+/// `variants`, for an export, picks the scripts its target answers to
+/// ([`Variants`]); without it every script compiles under its own name.
 pub fn build_with(
     project_root: &Path,
     compiler: &dyn balaur_script::ScriptCompiler,
     keep_sources: bool,
     editors: &dyn Fn(&str) -> bool,
+    variants: Option<&Variants>,
 ) -> Result<Pack> {
     // Through the file backend, not `std::fs`: on a desktop that is the
     // disk, and in a browser it is the project the editor is editing, so
@@ -80,6 +125,7 @@ pub fn build_with(
     let (fs, mut files, shipped) = gathered(fs, project_root, &pack.manifest, &ignored)?;
     files.retain(|rel| !editors(rel));
     let nested = nested_roots(&files);
+    let chosen = variants.map(|variants| chosen_scripts(&files, &nested, compiler, variants));
     // Every script is compiled before the build fails, so one export
     // names every file that does not compile rather than the first.
     let mut failed: Vec<String> = Vec::new();
@@ -106,6 +152,13 @@ pub fn build_with(
                     pack.scripts.insert(rel, source.into_bytes());
                     continue;
                 }
+                let rel = match &chosen {
+                    Some(chosen) => match chosen.get(&rel) {
+                        Some(name) => name.clone(),
+                        None => continue,
+                    },
+                    None => rel,
+                };
                 if !shipped.is_empty() {
                     literals.extend(script_references(&rel, &source));
                 }

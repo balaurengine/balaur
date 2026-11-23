@@ -135,16 +135,18 @@ pub fn build_pack_using(
     keep_sources: bool,
     extra: ExtraPlugins<'_>,
 ) -> Result<Pack> {
-    build_pack_for(project_root, keep_sources, extra, false)
+    build_pack_for(project_root, keep_sources, extra, false, None)
 }
 
 /// [`build_pack_using`], its script units built for a browser, which count
-/// their own fuel, when `browser`.
+/// their own fuel, when `browser`, and for an export the scripts its target
+/// answers to (`variants`, [`balaur_project::packing::Variants`]).
 pub fn build_pack_for(
     project_root: &std::path::Path,
     keep_sources: bool,
     extra: ExtraPlugins<'_>,
     browser: bool,
+    variants: Option<&balaur_project::packing::Variants>,
 ) -> Result<Pack> {
     with_host(project_root, extra, |engine, host| {
         #[cfg(feature = "bs-backend")]
@@ -172,8 +174,13 @@ pub fn build_pack_for(
                 reason = "only a Balaur Script build adds the project's unit"
             )
         )]
-        let mut pack =
-            balaur_project::packing::build_with(project_root, host, keep_sources, &plugin)?;
+        let mut pack = balaur_project::packing::build_with(
+            project_root,
+            host,
+            keep_sources,
+            &plugin,
+            variants,
+        )?;
         // The unit every instance starts from, built as the scripts' units were.
         #[cfg(feature = "bs-backend")]
         if !keep_sources {

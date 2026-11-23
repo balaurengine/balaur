@@ -31,10 +31,10 @@ pub(crate) fn apply(pack: &mut Pack, tags: &Tags, declared: &[String]) -> Folded
     let mut chosen: Vec<(String, String, usize)> = Vec::new();
     let mut drop = Vec::new();
     for path in pack.assets.keys() {
-        let Some((canonical, tag)) = split_variant(path, declared) else {
+        let Some((canonical, tag)) = balaur::tags::variant_of(path, declared) else {
             continue;
         };
-        match rank(tags, &tag) {
+        match tags.rank(&tag) {
             // The narrowest tag wins, which is the order `Tags` holds.
             Some(rank) => chosen.push((canonical, path.clone(), rank)),
             None => drop.push(path.clone()),
@@ -103,20 +103,6 @@ fn image_size(bytes: &[u8]) -> Option<(u32, u32)> {
         .ok()?
         .into_dimensions()
         .ok()
-}
-
-/// `sprites/hero.android.png` as `sprites/hero.png` and `android`, or `None`
-/// when the middle segment is not a tag anything could answer to.
-fn split_variant(path: &str, declared: &[String]) -> Option<(String, String)> {
-    let (stem, extension) = path.rsplit_once('.')?;
-    let (base, tag) = stem.rsplit_once('.')?;
-    let known = balaur::tags::ALL.contains(&tag) || declared.iter().any(|own| own == tag);
-    known.then(|| (format!("{base}.{extension}"), tag.to_string()))
-}
-
-/// How narrow a tag this target holds is, or `None` when it holds none.
-fn rank(tags: &Tags, tag: &str) -> Option<usize> {
-    tags.0.iter().position(|held| held == tag)
 }
 
 #[cfg(test)]
