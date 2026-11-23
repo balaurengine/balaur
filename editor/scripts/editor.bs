@@ -556,6 +556,7 @@ impl Editor {
     pub fn on_resized(_box: any) { frame::relayout(self.state); }
 
     /// Lay the shell out again, for a module that changed what it holds.
+    // keep: plugin API, a plugin calls it by name through `editor().call`
     pub fn relayout_shell() { frame::relayout(self.state); }
 
     /// A form control's edit, for the function its spec's data names: see
@@ -725,6 +726,7 @@ impl Editor {
     pub fn game_root() -> str { self.state.game_root }
 
     /// The open scene's file; "" when none is open.
+    // keep: plugin API, a plugin calls it by name through `editor().call`
     pub fn open_scene_path() -> str { self.state.scene_path }
 
     /// The plugins the editor loaded, by file name.
@@ -736,6 +738,7 @@ impl Editor {
     pub fn open_scene(rel: str) { model::open_scene(self.state, rel); }
 
     /// A plugin property editor's control writing its value: `data.at` is
+    // keep: a plugin drawer's controls name it as `on_change` (drawers.bs)
     /// the `at` its `controls` method was handed.
     pub fn inspector_write(data: any, value: any, control: Node) {
         let at: inspector::AtTop = data[layout_fields::AT];
@@ -771,6 +774,7 @@ impl Editor {
 
     pub fn kit_changed() { kit::changed(self.state); }
 
+    // keep: plugin API, scripts/plugins/counter.bs calls it by name
     pub fn kit_open_dialog(id: str) { kit::open_dialog(self.state, id); }
 
     /// Have the plugin dock `id` fill its subtree, on a word its script heard.

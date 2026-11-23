@@ -24,6 +24,7 @@ mod prelude;
 mod reach;
 pub mod runtime;
 mod stored;
+mod unused;
 mod vocabulary;
 pub mod words;
 
@@ -31,6 +32,7 @@ pub use ast::{Pos, Ty};
 pub use modules::{EditorFiles, Find, Modules, Parsed};
 pub use names::{Event, NamedCall, Names, events, names};
 use rustc_hash::FxHashMap;
+pub use unused::{Exports, exports, unused_exports};
 
 /// What a module is known by outside the runtime: a compiled-module cache's
 /// file name, and the native build of it an export made. Two FNV-1a passes.
@@ -570,9 +572,16 @@ pub fn errors(src: &str, options: &Options) -> Vec<Error> {
 }
 
 /// What `src` should say otherwise, though it compiles: a trailing `nil` a
-/// call may leave out. Empty when it does not compile.
+/// call may leave out, and a private item or a `use` nothing in it names
+/// (`unused`). Empty when it does not compile.
 pub fn lints(src: &str, options: &Options) -> Vec<Error> {
-    front(src, options).map_or_else(|_| vec![], |(prog, _)| codegen::lints(&prog, options))
+    let Ok((prog, _)) = front(src, options) else {
+        return vec![];
+    };
+    let mut found = codegen::lints(&prog, options);
+    found.extend(unused::unused(src));
+    found.sort_by_key(|e| (e.pos.line, e.pos.col));
+    found
 }
 
 /// A name a script declares may not start with `__`: the runtime's exports

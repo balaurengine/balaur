@@ -61,7 +61,6 @@ internal const FLOPPY_DISK: str = "floppy-disk";
 internal const FOLDER: str = "folder";
 internal const FOLDER_OPEN: str = "folder-open";
 internal const FUNCTION: str = "function";
-internal const FUNNEL: str = "funnel";
 internal const FUNNEL_SIMPLE: str = "funnel-simple";
 internal const GEAR: str = "gear";
 internal const GLOBE: str = "globe";

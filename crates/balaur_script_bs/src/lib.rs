@@ -19,7 +19,9 @@ mod waits;
 
 pub use balaur_bs::analysis::{builtins, value_types};
 pub use balaur_bs::fmt;
-pub use balaur_bs::{HostApi, HostSignature, Literal, Names, Pos};
+pub use balaur_bs::{
+    Exports, HostApi, HostSignature, Literal, Names, Pos, exports, unused_exports,
+};
 pub use host::{BsHost, EXTENSION, PROJECT_UNIT};
 #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 pub use native::load_native;

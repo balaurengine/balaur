@@ -14,7 +14,6 @@ use menu;
 use model;
 use session;
 use shell;
-use theme;
 use util;
 use words::command;
 use words::dock_fields;
@@ -25,7 +24,6 @@ use words::panel_keys;
 use words::project_fields;
 use words::roles;
 use words::tabs;
-use words::theme_tokens;
 
 const DARK_CHROME: str = "dark_chrome";
 

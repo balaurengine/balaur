@@ -84,12 +84,13 @@ fn fits(pieces: &[String], text: &str) -> bool {
 
 /// Every file under `dir` whose extension is one of `extensions`, by its
 /// path from `root` and its text. A folder holding a manifest is another
-/// project's, and is left alone.
+/// project's, and is left alone unless `nested`.
 fn files_under(
     fs: &dyn balaur_core::files::FileBackend,
     dir: &Path,
     prefix: &str,
     extensions: &[&str],
+    nested: bool,
     out: &mut BTreeMap<String, String>,
 ) {
     let mut dirs = vec![(dir.to_path_buf(), prefix.to_string())];
@@ -103,7 +104,7 @@ fn files_under(
             };
             if is_dir {
                 if !name.starts_with('.')
-                    && fs.read(&path.join(balaur_core::project::MANIFEST)).is_err()
+                    && (nested || fs.read(&path.join(balaur_core::project::MANIFEST)).is_err())
                 {
                     dirs.push((path, rel));
                 }
@@ -119,18 +120,27 @@ fn files_under(
     }
 }
 
-/// The project's own files and each installed dependency's, by extension.
+/// The project's own files and each installed dependency's, by extension;
+/// with a project nested under it, `nested`, the editor's `library/`, say.
 fn project_files(
     engine: &balaur_core::Engine,
     project_root: &Path,
     extensions: &[&str],
+    nested: bool,
 ) -> BTreeMap<String, String> {
     let fs = balaur_core::files::backend(engine);
     let mut out = BTreeMap::new();
-    files_under(&*fs, project_root, "", extensions, &mut out);
+    files_under(&*fs, project_root, "", extensions, nested, &mut out);
     for dependency in balaur_core::dependencies::installed(engine) {
         let prefix = balaur_core::dependencies::folder(&dependency.alias);
-        files_under(&*fs, &dependency.root, &prefix, extensions, &mut out);
+        files_under(
+            &*fs,
+            &dependency.root,
+            &prefix,
+            extensions,
+            nested,
+            &mut out,
+        );
     }
     out
 }
@@ -206,8 +216,8 @@ pub(crate) fn findings(
     checked: &BTreeSet<String>,
 ) -> Vec<Finding> {
     use balaur_script::ScriptCompiler as _;
-    let scripts = project_files(engine, project_root, host.extensions());
-    let data = project_files(engine, project_root, &[TOML]);
+    let scripts = project_files(engine, project_root, host.extensions(), false);
+    let data = project_files(engine, project_root, &[TOML], false);
     let mut project = Project {
         engine: events::names(engine),
         modules: host.module_names(),
@@ -260,6 +270,35 @@ pub(crate) fn findings(
             found.push(Finding::warning(&scene, line, column, message));
         }
     }
+    found.sort_by(|a, b| (&a.file, a.line, a.column).cmp(&(&b.file, b.line, b.column)));
+    found
+}
+
+/// Each `pub` or `internal` function and constant of the scripts `checked`
+/// nothing in the project names: no script, its dependencies' included, no data
+/// file, a scene's `bindings` among them. A project nested under this one
+/// may call it too: the editor's `library/` plugins call the editor's kit
+/// by name.
+pub(crate) fn unused_exports(
+    engine: &balaur_core::Engine,
+    host: &BsHost,
+    project_root: &Path,
+    checked: &BTreeSet<String>,
+) -> Vec<Finding> {
+    use balaur_script::ScriptCompiler as _;
+    let scripts: Vec<(String, balaur_script_bs::Exports)> =
+        project_files(engine, project_root, host.extensions(), true)
+            .into_iter()
+            .filter_map(|(rel, source)| Some((rel, balaur_script_bs::exports(&source).ok()?)))
+            .collect();
+    let data: Vec<String> = project_files(engine, project_root, &[TOML], true)
+        .into_values()
+        .collect();
+    let mut found: Vec<Finding> = balaur_script_bs::unused_exports(&scripts, &data)
+        .into_iter()
+        .filter(|(rel, _)| checked.contains(rel))
+        .map(|(rel, e)| warning(&rel, e.pos, e.msg))
+        .collect();
     found.sort_by(|a, b| (&a.file, a.line, a.column).cmp(&(&b.file, b.line, b.column)));
     found
 }

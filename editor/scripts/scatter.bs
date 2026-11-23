@@ -11,10 +11,6 @@ pub const ROW: str = "row";
 pub const RING: str = "ring";
 pub const GRID: str = "grid";
 
-pub fn LAYOUTS() -> [str] {
-    [SURFACE, ROW, RING, GRID]
-}
-
 /// What a layout is asked for. `rotation` and `tilt` are how far each
 /// instance may turn about its up axis and lean off it, as a fraction of a
 /// half turn either way; `random_scale` how far its size may wander from

@@ -33,7 +33,7 @@ fn err<T>(pos: Pos, msg: impl Into<String>) -> Result<T, Error> {
     })
 }
 
-fn lex(src: &str, at: Pos) -> Result<Vec<(Tok, Pos)>, Error> {
+pub(crate) fn lex(src: &str, at: Pos) -> Result<Vec<(Tok, Pos)>, Error> {
     let b = src.as_bytes();
     let (mut i, mut line, mut col) = (0usize, at.line, at.col);
     let mut out = Vec::new();
@@ -215,7 +215,7 @@ fn nested_end(b: &[u8], at: usize) -> Option<usize> {
 }
 
 /// The `}` that closes the `{` at `s[open]`, past any string or brace inside.
-fn closing_brace(s: &str, open: usize) -> Option<usize> {
+pub(crate) fn closing_brace(s: &str, open: usize) -> Option<usize> {
     let b = s.as_bytes();
     let (mut depth, mut i) = (0u32, open);
     while i < b.len() {

@@ -6,7 +6,6 @@ use docks;
 use editor;
 use search;
 use signals;
-use util;
 use words::theme_tokens;
 
 const DOCS: str = "docs";

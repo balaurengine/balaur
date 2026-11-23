@@ -105,10 +105,10 @@ fn a_trailing_nil_a_call_may_leave_out_is_a_lint() {
 #[test]
 fn a_script_call_lints_as_an_engine_call_does() {
     const DECLARED: &str = "
-fn one(a: int?) {}
-fn two(a: int, b: int?) {}
-fn three(a: int, b: int?, c: any) {}
-fn held(a: int, b: &mut int?) {}
+pub fn one(a: int?) {}
+pub fn two(a: int, b: int?) {}
+pub fn three(a: int, b: int?, c: any) {}
+pub fn held(a: int, b: &mut int?) {}
 pub class C { n: int }
 impl C {
     pub fn m(a: int, b: int?) {}

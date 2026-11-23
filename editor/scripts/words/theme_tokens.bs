@@ -3,8 +3,6 @@
 internal const AXIS_X: str = "axis_x";
 internal const AXIS_Y: str = "axis_y";
 internal const AXIS_Z: str = "axis_z";
-internal const BG_CONTROL: str = "bg_control";
-internal const BORDER_DEFAULT: str = "border_default";
 internal const DANGER_TEXT: str = "danger_text";
 internal const GRID_MAJOR: str = "grid_major";
 internal const GRID_MINOR: str = "grid_minor";
@@ -15,7 +13,6 @@ internal const NODE_PHYSICS: str = "node_physics";
 internal const PRIMARY_BG: str = "primary_bg";
 internal const PRIMARY_TEXT: str = "primary_text";
 internal const SECONDARY_TEXT: str = "secondary_text";
-internal const SUCCESS_TEXT: str = "success_text";
 internal const TEXT_DEFAULT: str = "text_default";
 internal const TEXT_MUTED: str = "text_muted";
 internal const TEXT_SUBTLE: str = "text_subtle";

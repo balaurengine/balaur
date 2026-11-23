@@ -140,11 +140,6 @@ pub fn hud_height(state: editor::State) -> float {
     style::role_size_in_pixels(state, roles::HEADER_STAGE, HEIGHT, 30.0)
 }
 
-/// The pill either side of the zoom reading, and the axis row's own height.
-pub fn hud_step(state: editor::State) -> float {
-    style::role_size_in_pixels(state, roles::CHIP, HEIGHT, 20.0)
-}
-
 // The centre: the tool rail, then the viewport's chrome, the code pane or
 // the event bindings over the stage. The document tabs are the top bar's.
 

@@ -1,11 +1,9 @@
 // What the bottom dock's panels are built from: each tab is a scene with its
 // own script, and these are the views and commands it asks the Editor for.
 
-use anim;
 use defs;
 use dropin;
 use editor;
-use history;
 use icons;
 use importer;
 use model;
@@ -18,14 +16,12 @@ use viewport;
 use words::asset_kinds;
 use words::changes;
 use words::command;
-use words::dock_fields;
 use words::fields;
 use words::general;
 use words::glyphs;
 use words::layout_fields;
 use words::log_fields;
 use words::project_fields;
-use words::schema_fields;
 use words::statuses;
 use words::tabs;
 use words::theme_tokens;

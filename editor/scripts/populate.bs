@@ -11,7 +11,6 @@ use window;
 use words::components;
 use words::fields;
 use words::inspector_fields;
-use words::layout_fields;
 use words::project_fields;
 use words::roles;
 use words::tools;

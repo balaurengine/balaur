@@ -463,9 +463,10 @@ pub fn check_project_using(
     })
 }
 
-/// A handler, a listener or a row naming an event nothing announces, and an
-/// `emit` its script does not declare, over the scripts `checked` and every
-/// scene: each a warning on the line that spells the name.
+/// A handler, a listener or a row naming an event nothing announces, an
+/// `emit` its script does not declare, and a `pub` item nothing names, over
+/// the scripts `checked` and every scene: each a warning on the line that
+/// spells the name.
 #[cfg(all(feature = "bs-backend", feature = "compile"))]
 fn name_findings(
     engine: &balaur_core::Engine,
@@ -474,7 +475,14 @@ fn name_findings(
     checked: &std::collections::HashSet<String>,
 ) -> Vec<Finding> {
     let checked = checked.iter().cloned().collect();
-    event_names::findings(engine, host, project_root, &checked)
+    let mut found = event_names::findings(engine, host, project_root, &checked);
+    found.extend(event_names::unused_exports(
+        engine,
+        host,
+        project_root,
+        &checked,
+    ));
+    found
 }
 
 #[cfg(all(not(feature = "bs-backend"), feature = "compile"))]
