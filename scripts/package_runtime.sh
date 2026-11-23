@@ -33,7 +33,7 @@ ios | ios-sim)
   ios_min=15.0
   # A variant is a game template; the platform's own build is the whole CLI.
   if [ -n "$variant" ]; then
-    flags=(--no-default-features --features "window,apple,$(game_features "$variant")")
+    flags=(--no-default-features --features "window,$(game_features "$variant")")
   else
     flags=(--features "apple")
   fi

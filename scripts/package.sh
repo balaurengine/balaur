@@ -48,9 +48,10 @@ exe=""
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
-# `extensions` for the addon header a download carries; `apple` so any editor
-# compiles an iOS game's `apple.*` calls. BALAUR_FEATURES replaces the set.
-features=${BALAUR_FEATURES:-apple,extensions}
+# `extensions` for the addon header a download carries; the defaults hold
+# `apple`, so any editor compiles a game's `apple.*` calls. BALAUR_FEATURES
+# replaces the set.
+features=${BALAUR_FEATURES:-extensions}
 # A variant builds only balaur-runtime-<target>-<variant>, a game template
 # with no editor, and plays a game the BALAUR_EXPORTER editor exports onto it.
 defaults=()
@@ -60,9 +61,6 @@ if [ -n "$variant" ]; then
   server) features=${BALAUR_FEATURES:-$SERVER_FEATURES,extensions} ;;
   2d | 3d | bare)
     features=${BALAUR_FEATURES:-window,extensions,parallel,$(game_features "$variant")}
-    if [ "$target" = macos-universal ] && [ -z "${BALAUR_FEATURES:-}" ]; then
-      features="$features,apple"
-    fi
     ;;
   *) printf '::error::unknown variant %s (2d, 3d, bare or server)\n' "$variant"; exit 1 ;;
   esac

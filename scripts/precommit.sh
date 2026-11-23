@@ -133,8 +133,8 @@ host_stream() {
   return $bad
 }
 
-# The feature flags no default build compiles. `apple` needs a Mac; the
-# greeter is out of the workspace, so nothing else reaches it.
+# The feature flags no default build compiles. `apple`'s frameworks need a
+# Mac; the greeter is out of the workspace, so nothing else reaches it.
 features_stream() {
   side_env
   local bad=0

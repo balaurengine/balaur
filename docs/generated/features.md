@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,physics2d,physics3d,bs-web,bs-jit,window` and links 288 crates.
+`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,apple,physics2d,physics3d,bs-web,bs-jit,window` and links 289 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
@@ -18,7 +18,7 @@ atomics only that build has.
 
 | Feature | Default | Web runtime | What it is | Adds to a web build |
 | --- | --- | --- | --- | --- |
-| `apple` | off | off | `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off, a build drops GameKit and the objc2 bindings to it. `platform.*` is always there; with no store behind it every call answers `unsupported`. | `balaur_apple` |
+| `apple` | off | on | `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off, a build drops GameKit and the objc2 bindings to it. `platform.*` is always there; with no store behind it every call answers `unsupported`. | nothing |
 | `audio` | off | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | nothing |
 | `browser` | off | on | `browser.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | nothing |
 | `bs` | off | off | Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi, about 11 MB; not on the web or iOS), `bs-web` on the page's own engine. | nothing |
