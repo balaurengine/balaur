@@ -39,6 +39,7 @@ atomics only that build has.
 | `parallel` | off | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web runtime alone. | nothing |
 | `physics2d` | off | on | The 2D physics world: `physics2d.*` and its components. | nothing |
 | `physics3d` | off | on | The 3D physics world: `physics3d.*` and its components. | nothing |
+| `steam` | off | off | `platform.*` from Steam where its client runs the game. Off by default: Valve's library is linked, so a build with it ships `steam_api` beside it. | `balaur_steam` |
 | `vorbis` | off | on |  | nothing |
 | `wav` | off | on |  | nothing |
 | `webgl` | on | off | WebGL2 beside WebGPU in a browser, for a page without WebGPU. 1.0 MB of a web module, and nothing on any other target. | `glow`, `wgpu-core`, `wgpu-core-deps-wasm`, `wgpu-hal`, `wgpu-naga-bridge` |

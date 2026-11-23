@@ -35,6 +35,7 @@ graph TD
   balaur_render[balaur_render]
   balaur_script[balaur_script]
   balaur_script_bs[balaur_script_bs]
+  balaur_steam[balaur_steam]
   balaur_testkit[balaur_testkit]
   balaur_text[balaur_text]
   balaur_ui[balaur_ui]
@@ -59,6 +60,7 @@ graph TD
   balaur --> balaur_render
   balaur --> balaur_script
   balaur --> balaur_script_bs
+  balaur --> balaur_steam
   balaur --> balaur_ui
   balaur --> balaur_websocket
   balaur --> balaur_webtransport
@@ -140,6 +142,8 @@ graph TD
   balaur_script_bs --> balaur_bs
   balaur_script_bs --> balaur_core
   balaur_script_bs --> balaur_script
+  balaur_steam --> balaur_platform
+  balaur_steam --> balaur_plugin
   balaur_testkit --> balaur
   balaur_testkit --> balaur_core
   balaur_text --> balaur_core

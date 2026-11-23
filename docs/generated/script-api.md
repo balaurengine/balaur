@@ -39,7 +39,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`physics2d`](#physics2d) | 13 | 106 |
 | [`physics3d`](#physics3d) | 13 | 113 |
 | [`picture`](#picture) | 1 | 0 |
-| [`platform`](#platform) | 13 | 11 |
+| [`platform`](#platform) | 14 | 12 |
 | [`project`](#project) | 15 | 0 |
 | [`quat`](#quat) | 8 | 0 |
 | [`random`](#random) | 6 | 0 |
@@ -853,6 +853,7 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `close_web_sign_in` | `()` |
 | `cloud_read` | `(str) -> int` |
 | `cloud_write` | `(str, str) -> int` |
+| `identity` | `() -> int` |
 | `player` | `() -> platform::Player?` |
 | `progress` | `(str, float) -> int` |
 | `scores` | `(str, platform::ScoresOptions?) -> int` |
@@ -863,13 +864,14 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `web_sign_in` | `(str, platform::WebSignInOptions?) -> int` |
 | `web_sign_in_state` | `() -> str` |
 
-**Constants** (11):
+**Constants** (12):
 
 | Name | Value |
 | --- | --- |
 | `EVENT_CANCELLED` | `"cancelled"` |
 | `EVENT_DONE` | `"done"` |
 | `EVENT_ERROR` | `"error"` |
+| `EVENT_IDENTITY` | `"identity"` |
 | `EVENT_READ` | `"read"` |
 | `EVENT_SCORES` | `"scores"` |
 | `EVENT_SIGNED_IN` | `"signed_in"` |

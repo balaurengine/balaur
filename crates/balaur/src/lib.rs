@@ -87,6 +87,8 @@ macro_rules! modules {
 
 modules! {
     apple = "apple" => balaur_apple::ApplePlugin,
+    // After Apple's: a Mac game started by Steam answers as Steam.
+    steam = "steam" => balaur_steam::SteamPlugin,
     audio = "audio" => balaur_audio::AudioPlugin,
     http = "http" => balaur_http::HttpPlugin,
     multiplayer = "multiplayer" => balaur_multiplayer::MultiplayerPlugin,
@@ -785,7 +787,14 @@ fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plug
 
 /// The optional modules with no scene key of their own, so a build or a
 /// project without one still knows every key there is.
-pub const KEYLESS_MODULES: [&str; 5] = ["apple", "browser", "http", "multiplayer", "websocket"];
+pub const KEYLESS_MODULES: [&str; 6] = [
+    "apple",
+    "browser",
+    "http",
+    "multiplayer",
+    "steam",
+    "websocket",
+];
 
 /// Whether this build or this project leaves out what may own a scene key:
 /// sound, a physics world, or an extension it turned off by a name it cannot

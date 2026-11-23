@@ -16,7 +16,8 @@
 //! Each key is `<module>.<call>`. An answer is the map the call's waiter
 //! receives, `kind` and all; its `request` is filled in. `null` is an answer
 //! that never comes, as a sign-in page left open does. A call the file does
-//! not name goes to its backend as usual.
+//! not name goes to its backend as usual. `"platform.backend": "steam"` is
+//! the store `platform.backend()` names, so a test plays a store's build.
 //!
 //! An answer travels the backend's own channel, so it is recorded and a
 //! replay plays it back like any other.
@@ -48,9 +49,9 @@ impl StandIns {
             ));
         };
         for (call, answer) in &entries {
-            if !(answer.is_object() || answer.is_null()) {
+            if !(answer.is_object() || answer.is_null() || answer.is_string()) {
                 return Err(anyhow!(
-                    "the stand-in for {call} should be a map or null, got {answer}"
+                    "the stand-in for {call} should be a map, a name or null, got {answer}"
                 ));
             }
         }

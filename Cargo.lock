@@ -777,6 +777,7 @@ dependencies = [
  "balaur_render",
  "balaur_script",
  "balaur_script_bs",
+ "balaur_steam",
  "balaur_testkit",
  "balaur_ui",
  "balaur_websocket",
@@ -1301,6 +1302,19 @@ dependencies = [
  "notify",
  "smallvec",
  "smol_str 0.3.7",
+ "tracing",
+]
+
+[[package]]
+name = "balaur_steam"
+version = "0.2.0-alpha.1"
+dependencies = [
+ "anyhow",
+ "balaur_core",
+ "balaur_platform",
+ "balaur_plugin",
+ "serde_json",
+ "steamworks",
  "tracing",
 ]
 
@@ -7059,6 +7073,24 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "steamworks"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ff29921f6a7e8c85b0c971ec3c42002b9f535e3b8f4358cb22911d43709739a"
+dependencies = [
+ "bitflags 2.13.2",
+ "paste",
+ "steamworks-sys",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "steamworks-sys"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae139f051204a4af015d4f0ed3a1f7a51020d03a44c7cf249168c543d88131e9"
 
 [[package]]
 name = "strength_reduce"

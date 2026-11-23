@@ -193,7 +193,7 @@ fn a_stand_in_of_null_never_answers_as_a_page_left_open_does() {
 #[test]
 fn a_stand_in_file_that_is_not_answers_is_refused() {
     assert!(StandIns::parse("[]").is_err());
-    assert!(StandIns::parse(r#"{ "apple.sign_in": "leo" }"#).is_err());
+    assert!(StandIns::parse(r#"{ "apple.sign_in": 3 }"#).is_err());
     let stand_ins = StandIns::parse(r#"{ "apple.sign_in": { "kind": "signed_in" } }"#).unwrap();
     assert!(stand_ins.answer("apple", "sign_in").is_some());
     assert!(stand_ins.answer("platform", "sign_in").is_none());
@@ -217,4 +217,35 @@ impl Scenario {
 "#,
         &["web-sign-in unsupported true unsupported open none"],
     );
+}
+
+#[test]
+fn a_stand_in_names_the_store_a_test_plays_and_answers_its_proof() {
+    run_until(
+        r#"
+pub class Scenario { node: Node }
+impl Scenario {
+    pub async fn init() {
+        let proof = await task::wait(platform::identity());
+        log::info("identity {proof["kind"].text()} {proof["call"].text()} {platform::EVENT_IDENTITY}");
+    }
+}
+"#,
+        &["identity unsupported identity identity"],
+    );
+    let (mut app, _) = app_with_sheet();
+    let stand_ins = StandIns::parse(
+        r#"{ "platform.backend": "steam", "platform.identity": { "kind": "identity", "ticket": "test-steam:leo" } }"#,
+    )
+    .unwrap();
+    balaur_platform::set_stand_ins(&app.engine, stand_ins).unwrap();
+    assert_eq!(
+        balaur_platform::stand_in(&app.engine, "platform", "backend"),
+        Some(Some(serde_json::json!("steam")))
+    );
+    start(&app, 6, Call::Identity);
+    app.tick(1.0 / 60.0);
+    let event = &events(&app)[0];
+    assert_eq!(field(event, "kind"), Some(text("identity")));
+    assert_eq!(field(event, "ticket"), Some(text("test-steam:leo")));
 }

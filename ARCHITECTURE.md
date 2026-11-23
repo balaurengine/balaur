@@ -1407,6 +1407,11 @@ things are shared.
   way that the sign-in is done, and `web_sign_in_state` reads how it stands
   without waiting, for a game that polls a server meanwhile. Where there is no sheet it answers
   `unsupported`, and the game opens the page with `engine.open_url`.
+- **A store's proof of a player is a platform verb.** `platform.identity`
+  answers what a server checks with the store: Steam's Web API ticket, hex,
+  as `ticket`. `balaur_steam` fills `platform.*` only where the Steam client
+  runs the game, after Apple's, so a script never names a `steam` module and
+  runs on a build without it.
 - **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of
   `"<module>.<call>"` to the answer its waiter receives (`null`: never
   answers); such a call never reaches its backend, and its answer crosses the

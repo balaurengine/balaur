@@ -46,6 +46,7 @@ const BACKEND: &str = "backend";
 const CALL: &str = "call";
 const CLOUD_READ: &str = "cloud_read";
 const CLOSE_WEB_SIGN_IN: &str = "close_web_sign_in";
+const IDENTITY: &str = "identity";
 const CLOUD_WRITE: &str = "cloud_write";
 const ID: &str = "id";
 const KIND: &str = "kind";
@@ -112,6 +113,9 @@ pub enum Call {
         url: String,
         scheme: Option<String>,
     },
+    /// A proof of who is playing that a server checks with the store:
+    /// Steam's Web API ticket.
+    Identity,
 }
 
 impl Call {
@@ -128,6 +132,7 @@ impl Call {
             Self::CloudWrite { .. } => CLOUD_WRITE,
             Self::SetPresence { .. } => SET_PRESENCE,
             Self::WebSignIn { .. } => kind::WEB_SIGN_IN,
+            Self::Identity => IDENTITY,
         }
     }
 
@@ -262,6 +267,12 @@ pub enum PlatformEvent {
         request: u64,
         answer: serde_json::Value,
     },
+    /// A store's proof of who is playing, its fields as the store names
+    /// them: Steam's `ticket`, hex.
+    Identity {
+        request: u64,
+        proof: serde_json::Value,
+    },
 }
 
 impl PlatformEvent {
@@ -276,7 +287,8 @@ impl PlatformEvent {
             | Self::Unsupported { request, .. }
             | Self::WebSignIn { request, .. }
             | Self::Cancelled { request }
-            | Self::StandIn { request, .. } => *request,
+            | Self::StandIn { request, .. }
+            | Self::Identity { request, .. } => *request,
         }
     }
 }
@@ -520,6 +532,7 @@ pub mod kind {
     pub const UNSUPPORTED: &str = "unsupported";
     pub const WEB_SIGN_IN: &str = "web_sign_in";
     pub const CANCELLED: &str = "cancelled";
+    pub const IDENTITY: &str = super::IDENTITY;
     pub const ERROR: &str = balaur_core::handler::ERROR;
     pub const ALL: &[&str] = &[
         SIGNED_IN,
@@ -530,6 +543,7 @@ pub mod kind {
         UNSUPPORTED,
         WEB_SIGN_IN,
         CANCELLED,
+        IDENTITY,
         ERROR,
     ];
 }
@@ -593,6 +607,16 @@ fn event_value(event: PlatformEvent) -> Value {
         PlatformEvent::StandIn { answer, .. } => {
             if let Ok(Value::Map(fields)) = balaur_core::engine_api::from_json(&answer) {
                 pairs.extend(fields.into_iter().filter(|(key, _)| key != REQUEST));
+            }
+        }
+        PlatformEvent::Identity { proof, .. } => {
+            pairs.push((KIND.into(), Value::Str(IDENTITY.into())));
+            if let Ok(Value::Map(fields)) = balaur_core::engine_api::from_json(&proof) {
+                pairs.extend(
+                    fields
+                        .into_iter()
+                        .filter(|(key, _)| key != REQUEST && key != KIND),
+                );
             }
         }
     }
@@ -763,6 +787,12 @@ fn install_platform_api(m: &mut Module<Engine>) {
             "Write a value for the store to sync between the player's devices, and return the id its answer carries.",
         ),
         (
+            IDENTITY,
+            &[],
+            "() -> int",
+            "Ask the store for a proof of who is playing that a server checks with it, and return the id whose `identity` answer carries it: Steam's Web API ticket as `ticket`, hex, for `ISteamUserAuth/AuthenticateUserTicket`.",
+        ),
+        (
             SET_PRESENCE,
             &[],
             "(text: string) -> int",
@@ -781,6 +811,10 @@ fn install_platform_api(m: &mut Module<Engine>) {
 /// says is playing.
 fn install_platform_reads(m: &mut Module<Engine>) {
     m.function(BACKEND, |eng: &Engine, ()| {
+        // A test names the store it plays against (`"platform.backend"`).
+        if let Some(Some(serde_json::Value::String(named))) = stand_in(eng, PLATFORM, BACKEND) {
+            return Ok(Value::Str(named));
+        }
         Ok(Value::Str(
             eng.resource::<PlatformState>()
                 .borrow()
@@ -799,6 +833,9 @@ fn install_platform_reads(m: &mut Module<Engine>) {
 fn install_platform_session(m: &mut Module<Engine>) {
     m.function(SIGN_IN, |eng: &Engine, ()| {
         Ok(start_call(eng, Call::SignIn))
+    });
+    m.function(IDENTITY, |eng: &Engine, ()| {
+        Ok(start_call(eng, Call::Identity))
     });
     m.function(SET_PRESENCE, |eng: &Engine, presence: Value| {
         let text = text(Some(&presence), "what the player is doing")?;

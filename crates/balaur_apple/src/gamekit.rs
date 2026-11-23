@@ -45,8 +45,9 @@ pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformE
         Call::CloudRead { key } => crate::icloud::read(request, key, report),
         Call::CloudWrite { key, value } => crate::icloud::write(request, key, value, report),
         // Game Center has no presence, and answering `done` to a call that
-        // did nothing is worse than saying so.
-        Call::SetPresence { .. } => {
+        // did nothing is worse than saying so. Its proof of a player is
+        // `apple.identity`'s four items, not one the portable verb carries.
+        Call::SetPresence { .. } | Call::Identity => {
             let _ = report.send(PlatformEvent::Unsupported {
                 request,
                 call: call.name().to_string(),

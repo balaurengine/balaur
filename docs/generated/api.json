@@ -1546,6 +1546,7 @@
       "platform::EVENT_CANCELLED": "cancelled",
       "platform::EVENT_DONE": "done",
       "platform::EVENT_ERROR": "error",
+      "platform::EVENT_IDENTITY": "identity",
       "platform::EVENT_READ": "read",
       "platform::EVENT_SCORES": "scores",
       "platform::EVENT_SIGNED_IN": "signed_in",
@@ -4130,6 +4131,10 @@
       "platform::cloud_write": {
         "least": 2,
         "signature": "(str, str) -> int"
+      },
+      "platform::identity": {
+        "least": 0,
+        "signature": "() -> int"
       },
       "platform::player": {
         "least": 0,
@@ -25720,6 +25725,10 @@
           "value": "\"error\""
         },
         {
+          "name": "EVENT_IDENTITY",
+          "value": "\"identity\""
+        },
+        {
           "name": "EVENT_READ",
           "value": "\"read\""
         },
@@ -25758,6 +25767,7 @@
         "close_web_sign_in": "Shut the sign-in page `web_sign_in` opened, once the game has what it opened it for: its call answers `cancelled`.",
         "cloud_read": "Read a value the store syncs between the player's devices, and return the id whose `read` answer holds it as `value`: a string, or nil when the key holds nothing.",
         "cloud_write": "Write a value for the store to sync between the player's devices, and return the id its answer carries.",
+        "identity": "Ask the store for a proof of who is playing that a server checks with it, and return the id whose `identity` answer carries it: Steam's Web API ticket as `ticket`, hex, for `ISteamUserAuth/AuthenticateUserTicket`.",
         "player": "Who the store says is playing, or nil before a sign-in has landed.",
         "progress": "Report an achievement's completion, 0 to 100, and return the id its answer carries.",
         "scores": "Read a leaderboard's entries, and return the id whose `scores` answer holds them as `entries`, each a `Score`.",
@@ -25774,6 +25784,7 @@
         "close_web_sign_in",
         "cloud_read",
         "cloud_write",
+        "identity",
         "player",
         "progress",
         "scores",
@@ -25791,6 +25802,7 @@
         "close_web_sign_in": "()",
         "cloud_read": "(str) -> int",
         "cloud_write": "(str, str) -> int",
+        "identity": "() -> int",
         "player": "() -> platform::Player?",
         "progress": "(str, float) -> int",
         "scores": "(str, platform::ScoresOptions?) -> int",

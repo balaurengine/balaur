@@ -53,6 +53,9 @@ browser = ["dep:balaur_browser"]
 # a build drops GameKit and the objc2 bindings to it. `platform.*` is always
 # there; with no store behind it every call answers `unsupported`.
 apple = ["dep:balaur_apple"]
+# `platform.*` from Steam where its client runs the game. Off by default:
+# Valve's library is linked, so a build with it ships `steam_api` beside it.
+steam = ["dep:balaur_steam"]
 # SVG textures read in place. An export pack holds their rasters, so a game
 # template leaves it off.
 svg = ["balaur_asset/svg"]
@@ -102,6 +105,7 @@ balaur_multiplayer = { workspace = true, optional = true }
 balaur_browser = { workspace = true, optional = true }
 balaur_platform.workspace = true
 balaur_apple = { workspace = true, optional = true }
+balaur_steam = { workspace = true, optional = true }
 balaur_ui.workspace = true
 anyhow.workspace = true
 tracing.workspace = true

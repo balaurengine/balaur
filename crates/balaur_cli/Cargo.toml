@@ -82,6 +82,8 @@ browser = ["balaur/browser"]
 # `apple.*` and Apple's stores under `platform.*`: in every build, answering
 # `unsupported` off Apple, so a script naming `apple.*` runs everywhere.
 apple = ["balaur/apple"]
+# Steam behind `platform.*`, for a Steam build: it ships Valve's library.
+steam = ["balaur/steam"]
 
 [dependencies]
 balaur = { workspace = true, default-features = false }

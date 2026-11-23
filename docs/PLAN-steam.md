@@ -21,6 +21,14 @@ what only Steam has. A game can ship on Steam after step 4.
    `ISteamUser`, and a `GetAuthTicketForWebApi` ticket that a Gamend hook
    verifies with `ISteamUserAuth/AuthenticateUserTicket`. Done: a Gamend
    session whose player id came from Steam.
+   *Built 2026-11-23*, `crates/balaur_steam` behind the `steam` feature:
+   the client started in the plugin's `declare` (no
+   `RestartAppIfNecessary` yet), its callbacks run in the platform pump,
+   `platform.sign_in` answering the Steam id and persona name, and
+   `platform.identity` a Web API ticket with no identity, as core checks it.
+   Still to do from step 1: the export copying `steam_api` beside the
+   executable, and a run against a real client (only the no-client path is
+   tested).
 3. **Achievements and leaderboards.** `unlock`, `progress`, `submit_score`
    and `scores` over `ISteamUserStats`, each write held until its tick
    settles. Done: an achievement in the player's profile.
