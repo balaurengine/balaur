@@ -78,9 +78,9 @@ tab without one.
 
 ### Open questions
 
-6. **Replays and the yield.** Whether a yield lands in the same frame
+1. **Replays and the yield.** Whether a yield lands in the same frame
    depends on the machine's speed. A replay must record where each one
    landed, or a yield must count work rather than time.
-7. **The tab's files.** A tab's filesystem lives on its main thread, so
+2. **The tab's files.** A tab's filesystem lives on its main thread, so
    `fs::read` stays there; only the parse crosses. Measure the read on its
    own once step 1 is in.
