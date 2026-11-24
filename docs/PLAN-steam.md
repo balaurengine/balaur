@@ -104,6 +104,16 @@ what only Steam has. A game can ship on Steam after step 4.
     and timeline markers.
 12. **Shipping.** SteamPipe through `balaur deploy` (`docs/PLAN-deploy.md`),
     and the Deck Verified checklist with suspend and resume run on a Deck.
+13. **The rest of the API in scripts.** Every flat function is in the Rust
+    layer, and the 166 the `steam_*` modules leave out are in
+    `crates/balaur_steam/sdk/unmapped.md` with why. Each comes in by teaching
+    `scripts/gen_steam.py` its shape, never by a hand-written call:
+    networking message handles (`SteamNetworkingMessage_t **`, with step 8),
+    lists of pointers (matchmaking filters, `SteamParamStringArray_t`), the
+    server browser's C++ response objects, the fake UDP port, the structs
+    with no recorded layout (with the next SDK), and the game-server
+    interfaces, which need `SteamGameServer_Init` and a dedicated server
+    build. Done: `unmapped.md` lists only what has no script shape at all.
 
 CI proves what needs no client. Every desktop build compiles it, and a
 `--steam` export carries the redistributable and no `steam_appid.txt`.
@@ -118,7 +128,7 @@ Valve's functions and what it answers, and that a recording of those answers
 replays the same with no library loaded. Nothing yet has run against a real
 client.
 
-Not planned: the game-server interfaces (Gamend is the server), music
+Not planned: music
 control, the HTML surface, the DRM wrapper (it rewrites the executable a pack
 is appended to), VAC and Easy Anti-Cheat.
 
