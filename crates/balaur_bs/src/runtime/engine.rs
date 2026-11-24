@@ -186,6 +186,13 @@ pub(crate) trait ImportCtx {
     fn link(&mut self, key: &str, _unit: std::sync::Arc<crate::Compiled>) -> Result<usize, String> {
         Err(format!("{key}: this script is not built as units"))
     }
+    /// The module's memory and its allocator's state lent to `f` at once
+    /// ([`super::heap::Lent`]): a host handing back a large value takes and
+    /// writes its every block with no call a block. `false` where this
+    /// engine lends none, and `f` was not called.
+    fn lend_heap(&mut self, _f: &mut dyn FnMut(&mut super::heap::Lent<'_>)) -> bool {
+        false
+    }
     /// `size` bytes from the module's own allocator, for the host to fill:
     /// what a string or an array it hands back is written into.
     fn alloc(&mut self, size: usize) -> Result<usize, String> {

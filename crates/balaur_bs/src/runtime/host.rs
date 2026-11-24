@@ -387,6 +387,9 @@ pub(crate) fn encode_owned(
             smallvec::smallvec![Raw::I32(array_owned(ctx, meta, et, items.iter())? as i32)]
         }
         (Ty::Any, v) => {
+            if let Some(cell) = super::any_owned::any_owned(ctx, v)? {
+                return Ok(smallvec::smallvec![Raw::I32(cell as i32)]);
+            }
             let cell = super::values::any_cell(v, |part| {
                 let p = match part {
                     Part::Str(s) => str_owned(ctx, s)?,

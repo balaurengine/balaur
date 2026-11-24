@@ -53,6 +53,27 @@ pub(crate) fn take(memory: &mut [u8], bump: u32, size: usize) -> Option<(u32, u3
     Some((at + HEAD, bump))
 }
 
+/// The module's memory and its allocator's bump pointer and live count, lent
+/// together to a host taking and writing many blocks at once
+/// (`ImportCtx::lend_heap`): each block taken as [`take`] takes it, and the
+/// bump and the count handed back when the loan ends.
+pub(crate) struct Lent<'a> {
+    pub(crate) memory: &'a mut [u8],
+    pub(crate) bump: u32,
+    pub(crate) live: i32,
+}
+
+impl Lent<'_> {
+    /// A block of `size` bytes, counted as live; `None` where only the module
+    /// can serve it, as [`take`].
+    pub(crate) fn take(&mut self, size: usize) -> Option<u32> {
+        let (at, bump) = take(self.memory, self.bump, size)?;
+        self.bump = bump;
+        self.live = self.live.wrapping_add(1);
+        Some(at)
+    }
+}
+
 fn word(memory: &[u8], at: usize) -> Option<u32> {
     let bytes = memory.get(at..at + 4)?;
     Some(u32::from_le_bytes(bytes.try_into().ok()?))

@@ -5,6 +5,7 @@
 //! fields and hands them back, so a reload is a new instance plus a copy of
 //! each object's fields by name.
 
+mod any_owned;
 mod args;
 mod debugger;
 mod engine;

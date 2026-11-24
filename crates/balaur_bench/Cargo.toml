@@ -65,3 +65,7 @@ workspace = true
 [[bench]]
 name = "storage"
 harness = false
+
+[[bench]]
+name = "json"
+harness = false

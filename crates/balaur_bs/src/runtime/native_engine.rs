@@ -624,6 +624,34 @@ impl ImportCtx for View {
             }
         }
     }
+    fn lend_heap(&mut self, f: &mut dyn FnMut(&mut super::heap::Lent<'_>)) -> bool {
+        let (Some(bump), Some(live)) = (
+            self.global_slot(crate::words::BUMP),
+            self.global_slot(crate::words::LIVE),
+        ) else {
+            return false;
+        };
+        let (module, inst, _) = self.parts();
+        let mut len = 0u64;
+        // SAFETY: the instance and its global slots are live, and nothing
+        // runs in the module, which alone moves or grows its memory, while
+        // the loan lasts.
+        unsafe {
+            let base = (module.memory)(inst, &raw mut len);
+            if base.is_null() {
+                return false;
+            }
+            let mut lent = super::heap::Lent {
+                memory: std::slice::from_raw_parts_mut(base, len as usize),
+                bump: *bump as u32,
+                live: *live as u32 as i32,
+            };
+            f(&mut lent);
+            *bump = u64::from(lent.bump);
+            *live = u64::from(lent.live.cast_unsigned());
+        }
+        true
+    }
     fn global(&mut self, name: &str) -> Option<i32> {
         // SAFETY: a live global slot.
         self.global_slot(name).map(|g| unsafe { *g } as u32 as i32)

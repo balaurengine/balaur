@@ -202,6 +202,26 @@ impl ImportCtx for Ctx<'_, '_> {
     fn make(&mut self, unit: usize) -> Result<(), String> {
         unit_instance(&mut *self.0, unit).map(|_| ())
     }
+    fn lend_heap(&mut self, f: &mut dyn FnMut(&mut super::heap::Lent<'_>)) -> bool {
+        let (Some(heap), Some(mem)) = (self.0.data().heap, self.0.data().mem) else {
+            return false;
+        };
+        let (Val::I32(bump), Val::I32(live)) =
+            (heap.bump.get(&mut *self.0), heap.live.get(&mut *self.0))
+        else {
+            return false;
+        };
+        let mut lent = super::heap::Lent {
+            memory: mem.data_mut(&mut *self.0),
+            bump: bump.cast_unsigned(),
+            live,
+        };
+        f(&mut lent);
+        let (bump, live) = (lent.bump, lent.live);
+        let _ = heap.bump.set(&mut *self.0, Val::I32(bump.cast_signed()));
+        let _ = heap.live.set(&mut *self.0, Val::I32(live));
+        true
+    }
     fn alloc(&mut self, size: usize) -> Result<usize, String> {
         if let Some(heap) = self.0.data().heap
             && let Some(at) = heap.take(&mut *self.0, size)
