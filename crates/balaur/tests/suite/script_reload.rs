@@ -191,10 +191,14 @@ fn a_script_in_a_subfolder_of_the_project_reloads_when_written() {
 fn any_file_saved_in_the_project_is_named_and_moves_the_asset_generation() {
     let project = tempfile::tempdir().unwrap();
     let mut app = watched_app(project.path());
+    // The game's own data folder, here inside the project as a test's
+    // `_build` holds it: its log and saves are not edits.
+    balaur_core::engine_api::set_data_home(&app.engine, Some(project.path().join("home")));
     let image = "art/heroes/hero.png";
     let custom = "data/levels/one.level";
     let hidden = ".tool/state.txt";
-    for rel in [image, custom, hidden] {
+    let saved = "home/logs/run.log";
+    for rel in [image, custom, hidden, saved] {
         let at = project.path().join(rel);
         std::fs::create_dir_all(at.parent().unwrap()).unwrap();
         std::fs::write(at, "0").unwrap();
@@ -215,7 +219,7 @@ fn any_file_saved_in_the_project_is_named_and_moves_the_asset_generation() {
         }
         writes += 1;
         if writes % 200 == 0 {
-            for rel in [image, custom, hidden] {
+            for rel in [image, custom, hidden, saved] {
                 std::fs::write(project.path().join(rel), writes.to_string()).unwrap();
             }
         }
@@ -225,6 +229,10 @@ fn any_file_saved_in_the_project_is_named_and_moves_the_asset_generation() {
     assert!(
         !named.iter().any(|path| path.starts_with('.')),
         "a dot folder is a tool's: {named:?}"
+    );
+    assert!(
+        !named.iter().any(|path| path.starts_with("home/")),
+        "the game's data folder is its own: {named:?}"
     );
     assert_ne!(
         balaur_core::assets::generation(&app.engine),

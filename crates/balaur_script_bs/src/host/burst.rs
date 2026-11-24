@@ -131,14 +131,25 @@ impl BsHost {
         let asides = self.inner.watch_asides.borrow();
         let mut burst = self.inner.burst.borrow_mut();
         let mut heard = false;
+        let mut kept_out: Option<Vec<PathBuf>> = None;
         while let Ok(event) = events.try_recv() {
-            heard = true;
             let Ok(event) = event else {
+                heard = true;
                 burst.rescan = true;
                 continue;
             };
+            let out = kept_out.get_or_insert_with(|| self.kept_out());
+            let paths: Vec<&PathBuf> = event
+                .paths
+                .iter()
+                .filter(|path| !out.iter().any(|dir| path.starts_with(dir)))
+                .collect();
+            if paths.is_empty() && !event.need_rescan() {
+                continue;
+            }
+            heard = true;
             burst.rescan |= event.need_rescan();
-            for path in &event.paths {
+            for path in paths {
                 self.hear(&mut burst, &asides, path);
             }
         }
@@ -153,6 +164,19 @@ impl BsHost {
             return None;
         }
         Some(std::mem::take(&mut *burst))
+    }
+
+    /// The game's own user data folders, where its log and saves are written:
+    /// a project holding one (a test's `_build`) is not edited by the game.
+    fn kept_out(&self) -> Vec<PathBuf> {
+        let eng = &self.inner.engine;
+        [
+            balaur_core::engine_api::user_data_dir_of(eng),
+            balaur_core::engine_api::data_home(eng),
+        ]
+        .into_iter()
+        .map(|dir| dir.canonicalize().unwrap_or(dir))
+        .collect()
     }
 
     /// Every key something here was built from or has read, which is all an
