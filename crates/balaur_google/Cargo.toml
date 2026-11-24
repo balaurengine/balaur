@@ -1,0 +1,34 @@
+[package]
+name = "balaur_google"
+description = "Balaur Google services: Sign in with Google through Android's Credential Manager"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# Its tests are in `tests/`, driving the plugin as a game would.
+[lib]
+test = false
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+balaur_core.workspace = true
+balaur_platform.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
+
+# The Java shim in `java/`, which the Android template carries as its
+# `classes.dex` (scripts/package_runtime.sh), reached over JNI. Everywhere
+# else the crate still compiles and every call answers `unsupported`.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.22"
+ndk-context = "0.1"
+
+[dev-dependencies]
+toml.workspace = true
+
+[lints]
+workspace = true

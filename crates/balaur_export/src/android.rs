@@ -18,6 +18,8 @@ use crate::vocabulary::words;
 mod permissions;
 
 const AAPT2: &str = "aapt2";
+/// The template's Java: the shims `balaur_google` reaches over JNI.
+const DEX: &str = "classes.dex";
 const ANDROIDDEBUGKEY: &str = "androiddebugkey";
 const APKSIGNER: &str = "apksigner";
 const JARSIGNER: &str = "jarsigner";
@@ -652,6 +654,12 @@ fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
         zip.write_all(&body)?;
     }
     for (name, path) in payload_files(layout) {
+        // An APK keeps its dex at the root, a bundle's module under `dex/`.
+        let name = if name == DEX {
+            format!("dex/{DEX}")
+        } else {
+            name
+        };
         zip.start_file(&name, options)
             .with_context(|| format!("adding {name}"))?;
         zip.write_all(&std::fs::read(&path)?)?;
@@ -660,7 +668,8 @@ fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
     Ok(())
 }
 
-/// The native library and the pack, added to what aapt2 linked.
+/// The native library, the template's Java and the pack, added to what aapt2
+/// linked.
 ///
 /// A `.so` goes in uncompressed: the loader maps it out of the APK, and a
 /// deflated one has to be extracted to disk first.
@@ -691,9 +700,14 @@ fn add_payload(apk: &Path, layout: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Everything under `lib/` and `assets/`, in a stable order.
+/// The template's dex and everything under `lib/` and `assets/`, in a stable
+/// order. A template from before the dex has none.
 fn payload_files(layout: &Path) -> Vec<(String, PathBuf)> {
     let mut found = Vec::new();
+    let dex = layout.join(DEX);
+    if dex.is_file() {
+        found.push((DEX.to_string(), dex));
+    }
     for top in [words::android::LIB, words::bundle::ASSETS] {
         let mut dirs = vec![layout.join(top)];
         while let Some(dir) = dirs.pop() {
@@ -855,7 +869,7 @@ mod tests {
     android:versionCode="1"
     android:versionName="1.0">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
-  <application android:label="Balaur" android:hasCode="false">
+  <application android:label="Balaur" android:hasCode="true">
     <activity
         android:name="android.app.NativeActivity"
         android:exported="true"
@@ -872,7 +886,7 @@ mod tests {
     android:versionCode="1"
     android:versionName="1.0">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
-  <application android:label="Balaur" android:hasCode="false">
+  <application android:label="Balaur" android:hasCode="true">
   </application>
 </manifest>
 "#;
@@ -1067,6 +1081,7 @@ mod tests {
         std::fs::create_dir_all(layout.join("assets")).unwrap();
         std::fs::write(layout.join("lib/arm64-v8a/libmain.so"), b"so").unwrap();
         std::fs::write(layout.join("assets/game.bpak"), b"pack").unwrap();
+        std::fs::write(layout.join("classes.dex"), b"dex").unwrap();
 
         let module = dir.path().join("base.zip");
         super::write_module(&module, &linked, &layout).unwrap();
@@ -1081,6 +1096,7 @@ mod tests {
             names,
             [
                 "assets/game.bpak",
+                "dex/classes.dex",
                 "lib/arm64-v8a/libmain.so",
                 "manifest/AndroidManifest.xml",
                 "res/mipmap-anydpi-v26/icon.xml",
@@ -1112,7 +1128,7 @@ mod tests {
     }
 
     #[test]
-    fn the_payload_is_the_library_and_the_pack_in_a_stable_order() {
+    fn the_payload_is_the_dex_the_library_and_the_pack_in_a_stable_order() {
         let dir = tempfile::tempdir().unwrap();
         let layout = dir.path();
         std::fs::create_dir_all(layout.join("lib/arm64-v8a")).unwrap();
@@ -1120,9 +1136,17 @@ mod tests {
         std::fs::write(layout.join("lib/arm64-v8a/libmain.so"), b"so").unwrap();
         std::fs::write(layout.join("assets/game.bpak"), b"pack").unwrap();
         std::fs::write(layout.join("AndroidManifest.xml"), b"<manifest/>").unwrap();
+        std::fs::write(layout.join("classes.dex"), b"dex").unwrap();
 
         let names: Vec<String> = payload_files(layout).into_iter().map(|(n, _)| n).collect();
 
-        assert_eq!(names, ["assets/game.bpak", "lib/arm64-v8a/libmain.so"]);
+        assert_eq!(
+            names,
+            [
+                "assets/game.bpak",
+                "classes.dex",
+                "lib/arm64-v8a/libmain.so"
+            ]
+        );
     }
 }

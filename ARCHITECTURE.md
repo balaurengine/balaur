@@ -1412,6 +1412,16 @@ things are shared.
   as `ticket`. `balaur_steam` fills `platform.*` only where the Steam client
   runs the game, after Apple's, so a script never names a `steam` module and
   runs on a build without it.
+- **Android's Java is a fixed dex, no Gradle.** The template carries one
+  `classes.dex`, javac and d8 over `crates/balaur_google/java` against the
+  platform's `android.jar` (`package_runtime.sh`), with nothing from Maven. The
+  game's thread is a native one whose `FindClass` sees only the platform, so a
+  shim is loaded through the activity's class loader and its one native
+  method registered on it, answering a JSON map onto the call's channel.
+  `google.sign_in` is Credential Manager with the bundle keys Google's
+  `googleid` library writes, so Play services answers it with an id token for
+  `[google] server_client_id`; below Android 14, off Android or with no id it
+  answers `unsupported`.
 - **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of
   `"<module>.<call>"` to the answer its waiter receives (`null`: never
   answers); such a call never reaches its backend, and its answer crosses the

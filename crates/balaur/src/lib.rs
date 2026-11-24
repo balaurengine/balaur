@@ -89,6 +89,7 @@ modules! {
     apple = "apple" => balaur_apple::ApplePlugin,
     // After Apple's: a Mac game started by Steam answers as Steam.
     steam = "steam" => balaur_steam::SteamPlugin,
+    google = "google" => balaur_google::GooglePlugin,
     audio = "audio" => balaur_audio::AudioPlugin,
     http = "http" => balaur_http::HttpPlugin,
     multiplayer = "multiplayer" => balaur_multiplayer::MultiplayerPlugin,
@@ -787,9 +788,10 @@ fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plug
 
 /// The optional modules with no scene key of their own, so a build or a
 /// project without one still knows every key there is.
-pub const KEYLESS_MODULES: [&str; 6] = [
+pub const KEYLESS_MODULES: [&str; 7] = [
     "apple",
     "browser",
+    "google",
     "http",
     "multiplayer",
     "steam",

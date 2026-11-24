@@ -24,6 +24,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`fs`](#fs) | 10 | 0 |
 | [`geometry2d`](#geometry2d) | 11 | 0 |
 | [`geometry3d`](#geometry3d) | 7 | 0 |
+| [`google`](#google) | 1 | 4 |
 | [`hash`](#hash) | 2 | 0 |
 | [`http`](#http) | 2 | 5 |
 | [`import`](#import) | 6 | 0 |
@@ -396,6 +397,23 @@ Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean 
 | `pieces` | `(geometry3d::Mesh) -> [geometry3d::Mesh]` |
 | `split` | `(geometry3d::Mesh, geometry3d::Plane) -> [geometry3d::Mesh?]` |
 | `voxelize` | `(geometry3d::Mesh, geometry3d::VoxelizeOptions?) -> geometry3d::Voxels` |
+
+## `google`
+
+Google services: Sign in with Google on Android 14 and later, through the system's Credential Manager. A call answers `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant.
+
+| Function | Signature |
+| --- | --- |
+| `sign_in` | `() -> int` |
+
+**Constants** (4):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_CANCELLED` | `"cancelled"` |
+| `EVENT_ERROR` | `"error"` |
+| `EVENT_SIGNED_IN` | `"signed_in"` |
+| `EVENT_UNSUPPORTED` | `"unsupported"` |
 
 ## `hash`
 

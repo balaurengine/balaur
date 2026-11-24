@@ -23,6 +23,7 @@ graph TD
   balaur_derive[balaur_derive]
   balaur_export[balaur_export]
   balaur_geometry[balaur_geometry]
+  balaur_google[balaur_google]
   balaur_http[balaur_http]
   balaur_import[balaur_import]
   balaur_input[balaur_input]
@@ -49,6 +50,7 @@ graph TD
   balaur --> balaur_core
   balaur --> balaur_debug
   balaur --> balaur_geometry
+  balaur --> balaur_google
   balaur --> balaur_http
   balaur --> balaur_input
   balaur --> balaur_multiplayer
@@ -101,6 +103,10 @@ graph TD
   balaur_export --> balaur_text
   balaur_geometry --> balaur_core
   balaur_geometry --> balaur_script
+  balaur_google --> balaur_core
+  balaur_google --> balaur_platform
+  balaur_google --> balaur_plugin
+  balaur_google --> balaur_script
   balaur_http --> balaur_core
   balaur_http --> balaur_plugin
   balaur_http --> balaur_script

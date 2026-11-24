@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-866 packages listed here, some under licences that are not MIT.
+868 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -22,7 +22,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 
 | Licence | Packages |
 | --- | --- |
-| `MIT OR Apache-2.0` | 430 |
+| `MIT OR Apache-2.0` | 432 |
 | `MIT` | 166 |
 | `Apache-2.0 OR MIT` | 64 |
 | `Apache-2.0` | 28 |
@@ -675,6 +675,8 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [stable_deref_trait](https://github.com/storyyeller/stable_deref_trait) | 1.2.1 | `MIT OR Apache-2.0` |
 | [stacker](https://github.com/rust-lang/stacker) | 0.1.25 | `MIT OR Apache-2.0` |
 | [static_assertions](https://github.com/nvzqz/static-assertions-rs) | 1.1.0 | `MIT OR Apache-2.0` |
+| [steamworks](https://github.com/Noxime/steamworks-rs) | 0.13.1 | `MIT OR Apache-2.0` |
+| [steamworks-sys](https://github.com/Noxime/steamworks-rs) | 0.13.0 | `MIT OR Apache-2.0` |
 | [strength_reduce](http://github.com/ejmahler/strength_reduce) | 0.2.4 | `MIT OR Apache-2.0` |
 | [strict-num](https://github.com/RazrFalcon/strict-num) | 0.1.1 | `MIT` |
 | [string-interner](https://github.com/robbepop/string-interner) | 0.19.0 | `MIT OR Apache-2.0` |
@@ -937,7 +939,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 These packages ship no licence file in their published archive, so the
 SPDX expression in the table above is the whole of what their authors
 granted; where it names a licence, that licence's text appears below,
-reproduced from a crate that does ship it: accesskit, accesskit_atspi_common, accesskit_consumer, accesskit_ios, accesskit_macos, accesskit_unix, accesskit_windows, accesskit_winit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, clipboard-win, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gdt-cpus, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, winapi-i686-pc-windows-gnu, winapi-x86_64-pc-windows-gnu, zune-inflate.
+reproduced from a crate that does ship it: accesskit, accesskit_atspi_common, accesskit_consumer, accesskit_ios, accesskit_macos, accesskit_unix, accesskit_windows, accesskit_winit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, clipboard-win, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gdt-cpus, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rustls-platform-verifier-android, simd_helpers, spirv, steamworks-sys, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, winapi-i686-pc-windows-gnu, winapi-x86_64-pc-windows-gnu, zune-inflate.
 
 ### LICENSE-APACHE — 192 packages
 
@@ -1187,12 +1189,12 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### LICENSE — 45 packages
+### LICENSE — 46 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-approx 0.5.1, as-raw-xcb-connection 1.0.1, atspi 0.29.0, atspi-common 0.13.0, atspi-proxies 0.13.0, audioadapter 5.0.0, audioadapter-buffers 5.2.0, audioadapter-sample 5.2.0, beul 1.0.0, codespan-reporting 0.13.1, cpal 0.18.2, encoding_rs 0.8.42, flacenc 0.5.1, hecs 0.11.2, hound 3.5.1, imgref 1.12.3, kurbo 0.13.1, lru-slab 0.1.3, memfd 0.6.6, multiversion_no_op 1.0.0, mundy 0.2.3, nohash-hasher 0.2.0, polycool 0.4.0, quinn 0.11.12, quinn-proto 0.11.19, quinn-udp 0.5.16, raw-window-metal 1.1.0, rustls-platform-verifier 0.7.1, self_cell 1.3.0, serde_arrays 0.2.0, siphasher 1.0.4, spade 2.15.1, static_assertions 1.1.0, sys-locale 0.3.2, tinyvec 1.13.3, unicode-linebreak 0.1.5, ureq 3.5.0, ureq-proto 0.6.5, utf8_iter 1.0.4, wasm-bindgen-rayon 1.3.0, x11rb 0.13.2, x11rb-protocol 0.13.2, zeroize 1.9.1, zune-core 0.5.3, zune-jpeg 0.5.15
+approx 0.5.1, as-raw-xcb-connection 1.0.1, atspi 0.29.0, atspi-common 0.13.0, atspi-proxies 0.13.0, audioadapter 5.0.0, audioadapter-buffers 5.2.0, audioadapter-sample 5.2.0, beul 1.0.0, codespan-reporting 0.13.1, cpal 0.18.2, encoding_rs 0.8.42, flacenc 0.5.1, hecs 0.11.2, hound 3.5.1, imgref 1.12.3, kurbo 0.13.1, lru-slab 0.1.3, memfd 0.6.6, multiversion_no_op 1.0.0, mundy 0.2.3, nohash-hasher 0.2.0, polycool 0.4.0, quinn 0.11.12, quinn-proto 0.11.19, quinn-udp 0.5.16, raw-window-metal 1.1.0, rustls-platform-verifier 0.7.1, self_cell 1.3.0, serde_arrays 0.2.0, siphasher 1.0.4, spade 2.15.1, static_assertions 1.1.0, steamworks 0.13.1, sys-locale 0.3.2, tinyvec 1.13.3, unicode-linebreak 0.1.5, ureq 3.5.0, ureq-proto 0.6.5, utf8_iter 1.0.4, wasm-bindgen-rayon 1.3.0, x11rb 0.13.2, x11rb-protocol 0.13.2, zeroize 1.9.1, zune-core 0.5.3, zune-jpeg 0.5.15
 
 </details>
 
@@ -25118,6 +25120,37 @@ static_assertions 1.1.0
 MIT License
 
 Copyright (c) 2017 Nikolai Vazquez
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### LICENSE-MIT — 1 package
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+steamworks 0.13.1
+
+</details>
+
+```
+Copyright (c) 2018 Matthew Collins
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -3,8 +3,8 @@
 Play Games Services, Sign in with Google, Play Billing, Play Integrity and
 Play Asset Delivery on Android, as a backend behind the `platform` module and
 a `google` module beside it for what only Play has. The export already writes
-a signed APK and AAB; every service here is a Java library, and the template
-declares `android:hasCode="false"`.
+a signed APK and AAB, and the template carries one `classes.dex` of the Java
+shims in `crates/balaur_google/java` (step 1).
 
 ## Steps
 
@@ -19,6 +19,15 @@ declares `android:hasCode="false"`.
    Play capability keeps the aapt2 path and carries no dex. Done: one round
    trip from Java to a script handler, and a replay of it with no Play
    services present.
+   *Built 2026-11-24, without Gradle*: the one shim so far needs only the
+   platform, so `package_runtime.sh android` runs javac and d8 against
+   `android.jar` and stages `classes.dex`; the manifest says `hasCode="true"`,
+   and the export puts the dex at an APK's root and under a bundle's `dex/`.
+   `crates/balaur_google/src/android.rs` loads the shim through the
+   activity's class loader and registers its native `answer` on it, which
+   sends a JSON map onto the call's `ExternalIo` channel. Gradle waits for the
+   first service that needs a Maven library (Play Games, Billing). Still to
+   check: the round trip on a device or an emulator.
 2. **Play Games: player, achievements, leaderboards.** The v2 client with its
    automatic sign-in, `platform::sign_in`, `player`, `unlock`, `progress`,
    `submit_score` and `scores`, each write held until its tick settles.
@@ -33,6 +42,17 @@ declares `android:hasCode="false"`.
    ID token verified by the same Gamend hook shape as step 2. Custom Tabs
    behind `platform.web_sign_in`, which answers `unsupported` on Android until
    then.
+   *Sign-in built 2026-11-24*: `google.sign_in()` runs the system's own
+   Credential Manager (Android 14 and later) with the bundle keys googleid
+   1.2.1's `GetGoogleIdOption` writes, read off its classes, so no Google
+   library ships. The accounts already signed in to the app come first,
+   picked without a tap when there is one, then every account. It answers
+   `signed_in` with `token`, `email` and `name`, `cancelled`, `error`, or
+   `unsupported` off Android, below 14 or with no `[google]
+   server_client_id`, the server's web client id. No nonce: Gamend's
+   `tokeninfo` check reads none. A stand-in answers `google.sign_in` in a
+   test. Below Android 14 a game opens Google's page, since only androidx
+   reaches Play services' own sign-in there. Custom Tabs are still to do.
 5. **Play Billing.** Billing Library 8 or later: products, purchase,
    acknowledgement and restore, verified by a Gamend hook over the Play
    Developer API. Done: a license tester's purchase that survives a

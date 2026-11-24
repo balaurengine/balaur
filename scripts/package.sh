@@ -49,8 +49,8 @@ exe=""
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
 # `extensions` for the addon header a download carries; the defaults hold
-# `apple`, so any editor compiles a game's `apple.*` calls. BALAUR_FEATURES
-# replaces the set.
+# `apple` and `google`, so any editor compiles a game's `apple.*` and
+# `google.*` calls. BALAUR_FEATURES replaces the set.
 features=${BALAUR_FEATURES:-extensions}
 # A variant builds only balaur-runtime-<target>-<variant>, a game template
 # with no editor, and plays a game the BALAUR_EXPORTER editor exports onto it.

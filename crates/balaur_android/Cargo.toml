@@ -18,7 +18,7 @@ path = "src/lib.rs"
 # scripts/package_runtime.sh builds the template from scripts/features.sh's
 # GAME_FEATURES; the default mirrors it, so a plain build is the template.
 [features]
-default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "multiplayer", "browser", "apple", "physics2d", "physics3d", "bs", "bs-jit", "env-filter"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "multiplayer", "browser", "apple", "google", "physics2d", "physics3d", "bs", "bs-jit", "env-filter"]
 audio = ["balaur/audio"]
 flac = ["balaur/flac"]
 mp3 = ["balaur/mp3"]
@@ -32,6 +32,9 @@ multiplayer = ["balaur/multiplayer"]
 browser = ["balaur/browser"]
 # `apple.*`, every call answering `unsupported` here.
 apple = ["balaur/apple"]
+# `google.*`: Sign in with Google through Credential Manager, by the
+# template's `classes.dex`.
+google = ["balaur/google"]
 # Each physics world; a `2d` or `3d` template keeps one.
 physics2d = ["balaur/physics2d"]
 physics3d = ["balaur/physics3d"]

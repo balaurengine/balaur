@@ -40,6 +40,8 @@ struct SteamBackend {
 
 impl SteamBackend {
     fn new(client: Client) -> Self {
+        // Read only by `pump`, which the platform runs inside
+        // `ExternalIo::start`, so a replay never takes a ticket from it.
         let (sent, tickets): (Sender<Ticket>, Receiver<Ticket>) = channel();
         let on_ticket = client.register_callback(move |answer: TicketForWebApiResponse| {
             let ticket = match answer.result {

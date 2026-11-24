@@ -1,10 +1,11 @@
 # shellcheck shell=bash
 # The `balaur_cli` features a game template is built with, and the paths it
 # names, sourced by package.sh and package_runtime.sh. Each platform adds its
-# own features: `window`, `parallel`, `extensions`. `apple` is every
-# template's: off Apple it answers `unsupported`, as `browser` answers nil off
-# the web, so a game's one script runs on every template.
-GAME_FEATURES=audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,apple,physics2d,physics3d,bs,bs-jit,env-filter
+# own features: `window`, `parallel`, `extensions`. `apple` and `google` are
+# every template's: off Apple, or off Android, they answer `unsupported`, as
+# `browser` answers nil off the web, so a game's one script runs on every
+# template.
+GAME_FEATURES=audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,apple,google,physics2d,physics3d,bs,bs-jit,env-filter
 # The threaded web module needs `-Z build-std`, which only a nightly has. Named
 # by date: 2026-10-31's stopped compiling wesl 0.5.0 (a query cycle at async
 # drop), and an unnamed nightly takes every such day with it.
@@ -12,7 +13,7 @@ WEB_THREADS_TOOLCHAIN=${WEB_THREADS_TOOLCHAIN:-nightly-2026-10-30}
 
 # A dedicated server's: no window and no sound. Its scripts run, and the
 # script host is also what reads the pack's scenes.
-SERVER_FEATURES=http,websocket,webtransport,multiplayer,apple,physics2d,physics3d,parallel,bs,bs-jit,env-filter
+SERVER_FEATURES=http,websocket,webtransport,multiplayer,apple,google,physics2d,physics3d,parallel,bs,bs-jit,env-filter
 
 # GAME_FEATURES less what a `2d`, `3d` or `bare` variant leaves out: one
 # physics world, or both.

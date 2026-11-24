@@ -766,6 +766,7 @@ dependencies = [
  "balaur_core",
  "balaur_debug",
  "balaur_geometry",
+ "balaur_google",
  "balaur_http",
  "balaur_input",
  "balaur_multiplayer",
@@ -1076,6 +1077,23 @@ dependencies = [
  "meshopt-rs",
  "rustc-hash 2.1.3",
  "tempfile",
+ "toml",
+ "tracing",
+]
+
+[[package]]
+name = "balaur_google"
+version = "0.2.0-alpha.1"
+dependencies = [
+ "anyhow",
+ "balaur_core",
+ "balaur_platform",
+ "balaur_plugin",
+ "balaur_script",
+ "jni",
+ "ndk-context",
+ "serde",
+ "serde_json",
  "toml",
  "tracing",
 ]

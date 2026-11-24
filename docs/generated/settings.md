@@ -113,6 +113,15 @@ question as an old one is a second way to say it.
 </tbody>
 </table>
 
+## google
+
+<table>
+<thead><tr><th>key</th><th>type</th><th>default</th><th>notes</th><th>what it does</th></tr></thead>
+<tbody>
+<tr><td><code>server_client_id</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>The server&#x27;s web OAuth client id (<code>….apps.googleusercontent.com</code>), which an id token is issued for. Not a secret. Empty: <code>google.sign_in</code> answers <code>unsupported</code>.</td></tr>
+</tbody>
+</table>
+
 ## http
 
 <table>

@@ -1110,6 +1110,10 @@
       "debugger::STEP_INTO": "into",
       "debugger::STEP_OUT": "out",
       "debugger::STEP_OVER": "over",
+      "google::EVENT_CANCELLED": "cancelled",
+      "google::EVENT_ERROR": "error",
+      "google::EVENT_SIGNED_IN": "signed_in",
+      "google::EVENT_UNSUPPORTED": "unsupported",
       "http::EVENT_CANCELLED": "cancelled",
       "http::EVENT_ERROR": "error",
       "http::EVENT_PROGRESS": "progress",
@@ -2219,6 +2223,10 @@
       "geometry3d::voxelize": {
         "least": 1,
         "signature": "(geometry3d::Mesh, geometry3d::VoxelizeOptions?) -> geometry3d::Voxels"
+      },
+      "google::sign_in": {
+        "least": 0,
+        "signature": "() -> int"
       },
       "hash::sha256_file": {
         "least": 1,
@@ -20859,6 +20867,41 @@
     {
       "acts_on": {},
       "components": [],
+      "constants": [
+        {
+          "name": "EVENT_CANCELLED",
+          "value": "\"cancelled\""
+        },
+        {
+          "name": "EVENT_ERROR",
+          "value": "\"error\""
+        },
+        {
+          "name": "EVENT_SIGNED_IN",
+          "value": "\"signed_in\""
+        },
+        {
+          "name": "EVENT_UNSUPPORTED",
+          "value": "\"unsupported\""
+        }
+      ],
+      "doc": "Google services: Sign in with Google on Android 14 and later, through the system's Credential Manager. A call answers `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant.",
+      "docs": {
+        "sign_in": "Sign in with Google, and return the id the answer carries: `signed_in` with `token` (an id token for `[google] server_client_id`), `email` and `name`; `cancelled`; `unsupported` off Android, below Android 14 or with no client id; or `error`. The accounts already signed in to the app come first, without a tap when there is one."
+      },
+      "editor": [],
+      "functions": [
+        "sign_in"
+      ],
+      "methods": {},
+      "name": "google",
+      "signatures": {
+        "sign_in": "() -> int"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
       "constants": [],
       "doc": "SHA-256 content hashes of files and strings.",
       "docs": {
@@ -28329,6 +28372,16 @@
         "min": 0,
         "order": 5,
         "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "google/server_client_id",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The server's web OAuth client id (`\u2026.apps.googleusercontent.com`), which an id token is issued for. Not a secret. Empty: `google.sign_in` answers `unsupported`.",
+        "type": "string"
       }
     },
     {

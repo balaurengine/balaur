@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,apple,physics2d,physics3d,bs-web,bs-jit,window` and links 289 crates.
+`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,apple,google,physics2d,physics3d,bs-web,bs-jit,window` and links 290 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
@@ -30,6 +30,7 @@ atomics only that build has.
 | `env-filter` | off | off | `RUST_LOG` with tracing's full filter syntax, regex included. Off, plain `target=level` rows, and 0.23 MB less of a web module. | nothing |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `flac` | off | on | One feature per container `audio` decodes; a build without one plays none of that format. | nothing |
+| `google` | off | on | `google.*` for scripts: Sign in with Google through Android's Credential Manager. Always compiles; off Android every call answers `unsupported`. | nothing |
 | `headless` | on | off | Every default but the window: a tool that opens none, on a machine that may have no display. Its runs are headless. | nothing |
 | `http` | off | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | nothing |
 | `import` | off | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game runtime leaves it off: a game reads what an import and export wrote. | nothing |
