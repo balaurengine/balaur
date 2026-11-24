@@ -8,8 +8,9 @@
 //! none, and a script runs unchanged. It registers after Apple's, so a game
 //! started by Steam on a Mac answers as Steam.
 //!
-//! Achievements, boards, cloud saves and the export that ships Valve's
-//! library are `docs/PLAN-steam.md` steps 1 and 3 on.
+//! A Steam template ships Valve's library beside it, and the export copies it
+//! beside the game; achievements, boards and cloud saves are
+//! `docs/PLAN-steam.md` steps 3 on.
 
 use anyhow::Result;
 

@@ -249,6 +249,9 @@ enum Command {
         /// measurement.
         #[arg(long)]
         dry_run: bool,
+        /// A dev build: `[steam] app_id` in a `steam_appid.txt` beside the game.
+        #[arg(long)]
+        dev: bool,
     },
     /// Serve diagnostics over the Language Server Protocol on stdin/stdout,
     /// for an editor outside Balaur. The same checks `balaur check` runs.
@@ -579,6 +582,7 @@ fn dispatch(command: Command) -> Result<()> {
             notarize,
             provisioning_profile,
             dry_run,
+            dev,
         } => export_game(&ExportArgs {
             path,
             output,
@@ -592,6 +596,7 @@ fn dispatch(command: Command) -> Result<()> {
             notarize,
             provisioning_profile,
             dry_run,
+            dev,
         }),
         #[cfg(feature = "compile")]
         Command::Check { path, strict } => check::project(&path, strict),

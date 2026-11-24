@@ -31450,6 +31450,19 @@
         "order": 2,
         "type": "string"
       }
+    },
+    {
+      "host": false,
+      "path": "steam/app_id",
+      "scope": "project",
+      "spec": {
+        "default": 0,
+        "help": "The app id Steamworks gave the game; 0 is unset. A --dev export writes it to steam_appid.txt beside the game, so it starts without the Steam client; a release leaves it out, since the client names the app.",
+        "max": 4294967295,
+        "min": 0,
+        "order": 1,
+        "type": "int"
+      }
     }
   ],
   "types": [

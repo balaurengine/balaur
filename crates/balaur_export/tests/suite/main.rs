@@ -7,3 +7,4 @@
 mod icons;
 mod pack_size;
 mod runtime;
+mod steam;

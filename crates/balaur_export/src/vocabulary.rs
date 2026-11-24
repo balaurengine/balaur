@@ -55,6 +55,11 @@ pub(crate) mod words {
     pub(crate) mod sign {
         pub(crate) const SIGN: &str = "sign";
     }
+
+    pub(crate) mod steam {
+        pub(crate) const APP_ID_FILE: &str = "steam_appid.txt";
+        pub(crate) const STEAM: &str = "steam";
+    }
 }
 
 #[allow(dead_code, reason = "a word's only reader may sit behind a feature")]

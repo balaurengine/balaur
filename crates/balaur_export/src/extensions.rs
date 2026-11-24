@@ -45,7 +45,7 @@ pub(crate) fn ship_for(project: &Path, template: &[u8], exe: &Path) -> Result<Ve
 }
 
 /// The suffix of the libraries `executable` can load, read off its format.
-fn suffix_for(executable: &[u8]) -> Option<&'static str> {
+pub(crate) fn suffix_for(executable: &[u8]) -> Option<&'static str> {
     match executable.get(..4)? {
         [0x7f, b'E', b'L', b'F'] => Some(words::artifacts::SO),
         // Thin Mach-O, 32 and 64 bit, then a universal binary.

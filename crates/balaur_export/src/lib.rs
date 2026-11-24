@@ -28,6 +28,7 @@ pub mod recode;
 pub mod settings;
 mod sign;
 pub mod size;
+mod steam;
 mod textures;
 mod variants;
 mod vocabulary;
@@ -78,6 +79,9 @@ pub struct Options<'a> {
     pub aab: bool,
     /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
     pub pkg: bool,
+    /// A development build: `[steam] app_id` goes in a `steam_appid.txt`
+    /// beside the game, so it starts without the Steam client.
+    pub dev: bool,
     /// Where runtimes are looked for, most specific first.
     pub runtime_roots: Vec<PathBuf>,
     /// Modules to register before compiling, for a project whose scripts
@@ -421,7 +425,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let mut android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
     android.debug_key = opts.sign.as_deref() == Some("debug");
     let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
-    let windows_signing = config::WindowsConfig::from_manifest(&manifest, &opts.path)?;
+    let steam = steam::Steam::from_manifest(&manifest, &opts.path, opts.dev)?;
     let runtime_name = target
         .map(|t| runtime_name(t, config.runtime, &opts.path, &pack))
         .transpose()?;
@@ -493,6 +497,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &opts.path,
             icons.as_ref(),
             native.as_ref(),
+            &steam,
         )?;
         if opts.notarize || apple.notarize {
             sign::notarize(&app)?;
@@ -506,7 +511,8 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     export_desktop(
         opts,
         &config,
-        &windows_signing,
+        &manifest,
+        &steam,
         &pack,
         &name,
         runtime,
@@ -524,7 +530,8 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
 fn export_desktop(
     opts: &Options<'_>,
     config: &ExportConfig,
-    signing: &config::WindowsConfig,
+    manifest: &toml::Table,
+    steam: &steam::Steam,
     pack: &balaur::Pack,
     name: &str,
     runtime: Option<PathBuf>,
@@ -532,6 +539,7 @@ fn export_desktop(
     icons: Option<&icon::Icons>,
     native: Option<&native::Request>,
 ) -> Result<()> {
+    let mut signing = config::WindowsConfig::from_manifest(manifest, &opts.path)?;
     let Some(runtime) = runtime else {
         let output = opts
             .output
@@ -580,6 +588,8 @@ fn export_desktop(
     if let Some(icons) = icons.filter(|_| linux) {
         icons.write_linux(&output, name)?;
     }
+    let run_from = output.parent().unwrap_or_else(|| Path::new(""));
+    steam::ship_for(steam, &runtime, &bytes, &output, run_from)?;
     tracing::info!(
         "exported {} scripts, {} scenes onto {} -> {}",
         pack.scripts.len(),
@@ -599,7 +609,6 @@ fn export_desktop(
         (None, _) => {}
     }
     if windows && (opts.sign.is_some() || !signing.certificate.is_empty()) {
-        let mut signing = signing.clone();
         if let Some(named) = &opts.sign {
             signing.certificate.clone_from(named);
         }

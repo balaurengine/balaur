@@ -6,7 +6,7 @@
 #                            template so `balaur export --target ...` works
 #                            the moment it is unzipped
 #   balaur-runtime-<target>  the runtime template: what a game gets fused onto
-# Usage: [VARIANT=2d|3d|bare|server] package.sh <target>   e.g. linux-x64, windows-arm64
+# Usage: [VARIANT=2d|3d|bare|server|steam] package.sh <target>   e.g. linux-x64, windows-arm64
 set -euo pipefail
 
 # A smoke test's folder: under target/, never in dist/, which is uploaded
@@ -62,7 +62,17 @@ if [ -n "$variant" ]; then
   2d | 3d | bare)
     features=${BALAUR_FEATURES:-window,extensions,parallel,$(game_features "$variant")}
     ;;
-  *) printf '::error::unknown variant %s (2d, 3d, bare or server)\n' "$variant"; exit 1 ;;
+  # The full game set and Valve's library, which it loads from beside itself.
+  steam) features=${BALAUR_FEATURES:-window,extensions,parallel,$GAME_FEATURES,steam} ;;
+  *) printf '::error::unknown variant %s (2d, 3d, bare, server or steam)\n' "$variant"; exit 1 ;;
+  esac
+fi
+if [ "$variant" = steam ]; then
+  case "$target" in
+  linux-*) steam_api=libsteam_api.so ;;
+  macos-*) steam_api=libsteam_api.dylib ;;
+  windows-x64) steam_api=steam_api64.dll ;;
+  *) printf '::error::Valve ships no steam_api for %s\n' "$target"; exit 1 ;;
   esac
 fi
 
@@ -94,6 +104,15 @@ fi
 
 if [ -n "$variant" ]; then
   out="$dist/balaur-runtime-$target-$variant$exe"
+  if [ "$variant" = steam ]; then
+    # One directory, the template and the library an export copies beside the
+    # game: steamworks-sys leaves the one it linked in its build's out dir.
+    out="$dist/balaur-runtime-$target-steam/balaur-runtime-$target-steam$exe"
+    mkdir -p "${out%/*}"
+    linked=$(find target -path "*/release/build/steamworks-sys-*/out/$steam_api" | head -1)
+    [ -n "$linked" ] || { printf '::error::no %s under target/\n' "$steam_api"; exit 1; }
+    cp "$linked" "${out%/*}/"
+  fi
   cp "$bin" "$out"
   strip_template "$out"
   # An MSVC binary keeps its symbols in a .pdb, which nm cannot read.
@@ -130,6 +149,12 @@ if [ -n "$variant" ]; then
   fi
   let_go "$smoke"
   printf '%s ran clean on %s\n' "$example" "$out"
+  if [ "$variant" = steam ]; then
+    # Staged, not shipped: a release carries the tarball.
+    name=balaur-runtime-$target-steam
+    (cd "$dist" && tar -czf "$name.tar.gz" "$name")
+    rm -rf "${dist:?}/$name"
+  fi
   exit 0
 fi
 

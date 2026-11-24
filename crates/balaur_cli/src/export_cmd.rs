@@ -22,6 +22,7 @@ pub(crate) struct ExportArgs {
     pub(crate) notarize: bool,
     pub(crate) provisioning_profile: Option<PathBuf>,
     pub(crate) dry_run: bool,
+    pub(crate) dev: bool,
 }
 
 /// A package `export --bundle` makes beside the export.
@@ -71,6 +72,7 @@ pub(crate) fn export_game(args: &ExportArgs) -> Result<()> {
         aab: args.bundle.contains(&BundleKind::Aab),
         pkg: args.bundle.contains(&BundleKind::Pkg),
         dry_run: args.dry_run,
+        dev: args.dev,
         runtime_roots: balaur_export::default_roots(crate::runtimes::cache_dir()),
         plugins,
         obtain: if args.no_download { None } else { Some(&fetch) },

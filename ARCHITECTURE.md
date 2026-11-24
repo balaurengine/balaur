@@ -897,6 +897,11 @@ from a shared library at run time. Both implement `balaur_plugin::Plugin`
   library validation refuses a library from another team.
   `standalone::extensions_beside` names that place for exporter and runtime
   alike, and the template's own format picks `.so`, `.dylib` or `.dll`.
+- A template built with `steam` links Valve's `steam_api` and ships in a
+  directory with it. The export finds that import in the template and copies
+  the library beside the game's executable, in `Contents/MacOS` for a `.app`
+  (Valve's install name is `@loader_path`), signed with the game before the
+  bundle. The plain templates leave `steam` out, so no other game carries it.
 - A packed boot loads from there, never from the working directory, which is
   `/` for a `.app` Finder opened. `balaur play` loads from beside the export pack. A
   web, iOS or Android export warns and ships without them.

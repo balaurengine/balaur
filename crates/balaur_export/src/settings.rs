@@ -1,5 +1,5 @@
-//! The `[export]`, `[android]`, `[apple]` and `[windows]` tables, declared the way every
-//! other table in `project.toml` is.
+//! The `[export]`, `[android]`, `[apple]`, `[windows]` and `[steam]` tables,
+//! declared the way every other table in `project.toml` is.
 //!
 //! What this buys: the export sheet stops being a screen with its own
 //! configuration and becomes a button, since the settings screen already
@@ -97,6 +97,17 @@ ios_provisioning_profile = { type = "string", default = "", order = 13, help = "
             r#"
 certificate = { type = "string", default = "", order = 1, help = "A project-relative .pfx, or an Azure Trusted Signing metadata file when the key lives in a cloud HSM." }
 timestamp_url = { type = "string", default = "http://timestamp.digicert.com", order = 2, help = "The timestamp authority a Windows signature is countersigned by." }
+"#,
+        ),
+    );
+    define_group(
+        eng,
+        words::steam::STEAM,
+        Scope::Project,
+        &parse(
+            "settings.steam",
+            r#"
+app_id = { type = "int", default = 0, min = 0, max = 4294967295, order = 1, help = "The app id Steamworks gave the game; 0 is unset. A --dev export writes it to steam_appid.txt beside the game, so it starts without the Steam client; a release leaves it out, since the client names the app." }
 "#,
         ),
     );

@@ -12,11 +12,35 @@ what only Steam has. A game can ship on Steam after step 4.
    `SteamAPI_RestartAppIfNecessary` may exit the process.
    `SteamAPI_RunCallbacks` runs at `Stage::First` and feeds the `ExternalIo`
    channel, so every arrival is recorded and replays with no client. At
-   export, `[steam] app_id` copies the redistributable beside the executable
-   (on macOS into `Contents/Frameworks`, signed before the bundle), and only
-   a `--dev` export writes `steam_appid.txt`. Done: a game launched from the
-   Steam client reports its app id, language and whether it runs on a Deck;
-   with no client, every `platform` call answers `unsupported`.
+   export, a template that links `steam_api` gets the redistributable beside
+   the executable, and only a `--dev` export writes `[steam] app_id` to
+   `steam_appid.txt`. Done: a game launched from the Steam client reports its
+   app id, language and whether it runs on a Deck; with no client, every
+   `platform` call answers `unsupported`.
+   *Export built 2026-11-24.* The plain templates stay without `steam`: the
+   desktop template is the editor binary, and with the library linked every
+   desktop game and the editor itself would need Valve's file beside them to
+   start. A Steam game goes on a variant of its own, `VARIANT=steam
+   scripts/package.sh <target>` (linux-x64, linux-arm64, macos-universal,
+   windows-x64; Valve ships no Windows Arm library): the full game set plus
+   `steam`, in a directory with the library it linked. The export reads the template's imports for `libsteam_api.so`,
+   `libsteam_api.dylib` or `steam_api64.dll`, refuses one whose library is
+   not beside it, and copies it beside the game. On macOS that is
+   `Contents/MacOS`, not `Contents/Frameworks`: Valve's install name is
+   `@loader_path/libsteam_api.dylib`, and the template stays untouched, so the
+   library is re-signed with the game's identity there before the bundle. A
+   Linux build with `steam` links a `$ORIGIN` run path (`balaur_cli`'s
+   build script; a game with its own `main` adds the same). `[steam] app_id`
+   on a plain template warns that the game will never see the client, and a
+   `--dev` export writes the id beside the game, or beside the `.app` outside
+   its seal: Steam reads the file from the working directory. Tests export
+   onto fake templates; on a Mac with no Steam, a debug build with `steam`
+   (`otool -L`: `@loader_path/libsteam_api.dylib`) exported `hello` flat and
+   as a `.app` that passes `codesign --verify --strict --deep`, and both ran
+   and answered `unsupported`. Not yet verified: a steam template built and
+   run on Linux or Windows, a release `package.sh` run, `--dev` against a
+   running client, a notarized bundle with the library, and no CI job builds
+   the steam template yet.
 2. **Sign-in.** `platform::sign_in` and `platform::player` from
    `ISteamUser`, and a `GetAuthTicketForWebApi` ticket that a Gamend hook
    verifies with `ISteamUserAuth/AuthenticateUserTicket`. Done: a Gamend
@@ -26,9 +50,8 @@ what only Steam has. A game can ship on Steam after step 4.
    `RestartAppIfNecessary` yet), its callbacks run in the platform pump,
    `platform.sign_in` answering the Steam id and persona name, and
    `platform.identity` a Web API ticket with no identity, as core checks it.
-   Still to do from step 1: the export copying `steam_api` beside the
-   executable, and a run against a real client (only the no-client path is
-   tested).
+   Still to do from step 1: a run against a real client (only the no-client
+   path is tested).
 3. **Achievements and leaderboards.** `unlock`, `progress`, `submit_score`
    and `scores` over `ISteamUserStats`, each write held until its tick
    settles. Done: an achievement in the player's profile.

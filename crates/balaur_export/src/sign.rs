@@ -79,10 +79,16 @@ pub(crate) fn codesign(
 }
 
 /// Everything inside a bundle that carries its own signature: the frameworks
-/// and loadable libraries an extension or a store SDK puts there.
+/// and loadable libraries an extension or a store SDK puts there, and the
+/// `steam_api` beside the executable.
 fn nested_code(bundle: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
-    for dir in ["Contents/Frameworks", "Frameworks", "Contents/PlugIns"] {
+    for dir in [
+        "Contents/Frameworks",
+        "Frameworks",
+        "Contents/PlugIns",
+        "Contents/MacOS",
+    ] {
         let Ok(entries) = std::fs::read_dir(bundle.join(dir)) else {
             continue;
         };
@@ -358,7 +364,7 @@ mod tests {
     fn a_bundle_signs_what_it_contains_before_itself() {
         let work = tempfile::tempdir().unwrap();
         let app = work.path().join("Game.app");
-        for dir in ["Contents/Frameworks", "Contents/PlugIns"] {
+        for dir in ["Contents/Frameworks", "Contents/PlugIns", "Contents/MacOS"] {
             std::fs::create_dir_all(app.join(dir)).unwrap();
         }
         for file in [
@@ -366,6 +372,8 @@ mod tests {
             "Contents/Frameworks/a.dylib",
             "Contents/Frameworks/notes.txt",
             "Contents/PlugIns/one.bundle",
+            "Contents/MacOS/Game",
+            "Contents/MacOS/steam.dylib",
         ] {
             std::fs::write(app.join(file), []).unwrap();
         }
@@ -376,8 +384,14 @@ mod tests {
             .collect();
         assert_eq!(
             found,
-            ["Store.framework", "a.dylib", "b.dylib", "one.bundle"],
-            "sorted within a directory, and the frameworks before the plug-ins"
+            [
+                "Store.framework",
+                "a.dylib",
+                "b.dylib",
+                "one.bundle",
+                "steam.dylib"
+            ],
+            "sorted within a directory, the frameworks first, the executable not among them"
         );
         assert!(
             !found.iter().any(|name| name == "notes.txt"),

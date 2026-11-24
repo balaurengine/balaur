@@ -281,8 +281,8 @@ pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
 
 /// A macOS game as a signable `.app`: the runtime binary untouched, the
 /// pack a resource beside it (`standalone::own_pack` looks there inside a
-/// bundle), the extensions in `Contents/PlugIns`, and `codesign` run over
-/// the result.
+/// bundle), the extensions in `Contents/PlugIns`, a Steam template's library
+/// in `Contents/MacOS`, and `codesign` run over the result.
 #[allow(
     clippy::too_many_arguments,
     reason = "what to write, and what a Mac adds, as `export_bundle` takes them"
@@ -297,6 +297,7 @@ pub(crate) fn export_macos_app(
     project: &Path,
     icons: Option<&Icons>,
     native: Option<&crate::native::Request>,
+    steam: &crate::steam::Steam,
 ) -> Result<PathBuf> {
     let icons = crate::icon_or_mark(icons, words::native::MACOS)?;
     apple.check(Platform::Macos)?;
@@ -320,6 +321,10 @@ pub(crate) fn export_macos_app(
     balaur::standalone::write_executable(&executable, &bytes, runtime)?;
     // Before codesign, which signs nested code first and seals it into the bundle.
     crate::extensions::ship_for(project, &bytes, &executable)?;
+    // Beside the executable, as Valve's `@loader_path` install name says; its
+    // app id file goes beside the bundle, outside the seal.
+    let run_from = app.parent().unwrap_or_else(|| Path::new(""));
+    crate::steam::ship_for(steam, runtime, &bytes, &executable, run_from)?;
     let scripts_native = match native {
         Some(request) => {
             crate::native::build_desktop(&executable, words::targets::MACOS_UNIVERSAL, request)?

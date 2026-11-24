@@ -430,6 +430,15 @@ question as an old one is a second way to say it.
 </tbody>
 </table>
 
+## steam
+
+<table>
+<thead><tr><th>key</th><th>type</th><th>default</th><th>notes</th><th>what it does</th></tr></thead>
+<tbody>
+<tr><td><code>app_id</code></td><td>int</td><td><code>0</code></td><td></td><td>The app id Steamworks gave the game; 0 is unset. A --dev export writes it to steam_appid.txt beside the game, so it starts without the Steam client; a release leaves it out, since the client names the app.</td></tr>
+</tbody>
+</table>
+
 ## time
 
 <table>
