@@ -211,6 +211,38 @@ fn play_games_without_its_project_id_is_refused() {
 }
 
 #[test]
+fn firebase_messaging_without_its_google_services_file_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let refusal = |config: AndroidConfig| format!("{:#}", config.manifest(TEMPLATE).unwrap_err());
+    let push = AndroidConfig {
+        capabilities: vec![super::play::Capability::FirebaseMessaging],
+        project: dir.path().to_path_buf(),
+        ..named()
+    };
+    assert!(refusal(push.clone()).contains("google_services is not set"));
+    let missing = AndroidConfig {
+        google_services: "google-services.json".into(),
+        ..push.clone()
+    };
+    assert!(refusal(missing.clone()).contains("does not read"));
+    std::fs::write(
+        dir.path().join("google-services.json"),
+        r#"{ "project_info": { "project_number": "1", "project_id": "p" },
+             "client": [ { "client_info": { "mobilesdk_app_id": "1:1:android:a",
+               "android_client_info": { "package_name": "com.studio.other" } },
+               "api_key": [ { "current_key": "k" } ] } ] }"#,
+    )
+    .unwrap();
+    assert!(refusal(missing.clone()).contains("no app for application_id \"com.studio.tide\""));
+    let stray = AndroidConfig {
+        google_services: "google-services.json".into(),
+        project: dir.path().to_path_buf(),
+        ..named()
+    };
+    assert!(refusal(stray).contains("does not name firebase-messaging"));
+}
+
+#[test]
 fn a_misspelled_capability_is_refused_when_the_table_is_read() {
     let manifest: toml::Table =
         toml::from_str("[android]\ncapabilities = [\"play_games\"]\n").unwrap();

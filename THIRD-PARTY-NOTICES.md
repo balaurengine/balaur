@@ -951,8 +951,23 @@ ones their POMs name; the Google and Play ones are terms of use, linked.
 | androidx.concurrent:concurrent-futures | 1.1.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.core:core | 1.15.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.customview:customview | 1.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-android | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-core | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-core-android | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-core-jvm | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-core-okio | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-core-okio-jvm | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-preferences | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-preferences-android | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-preferences-core | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-preferences-core-jvm | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.datastore:datastore-preferences-external-protobuf | 1.1.7 | [BSD-3-Clause](https://opensource.org/licenses/BSD-3-Clause) |
+| androidx.datastore:datastore-preferences-proto | 1.1.7 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.documentfile:documentfile | 1.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.fragment:fragment | 1.1.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.interpolator:interpolator | 1.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.legacy:legacy-support-core-utils | 1.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.lifecycle:lifecycle-common | 2.6.2 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.lifecycle:lifecycle-livedata | 2.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.lifecycle:lifecycle-livedata-core | 2.3.1 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
@@ -960,6 +975,8 @@ ones their POMs name; the Google and Play ones are terms of use, linked.
 | androidx.lifecycle:lifecycle-viewmodel | 2.3.1 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.lifecycle:lifecycle-viewmodel-savedstate | 2.3.1 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.loader:loader | 1.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.localbroadcastmanager:localbroadcastmanager | 1.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| androidx.print:print | 1.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.profileinstaller:profileinstaller | 1.3.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.savedstate:savedstate | 1.1.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.startup:startup-runtime | 1.1.1 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
@@ -967,29 +984,53 @@ ones their POMs name; the Google and Play ones are terms of use, linked.
 | androidx.versionedparcelable:versionedparcelable | 1.1.1 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | androidx.viewpager:viewpager | 1.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | com.android.billingclient:billing | 9.1.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
-| com.google.android.datatransport:transport-api | 3.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
-| com.google.android.datatransport:transport-backend-cct | 3.1.8 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
-| com.google.android.datatransport:transport-runtime | 3.1.8 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
-| com.google.android.gms:play-services-base | 18.5.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
+| com.google.android.datatransport:transport-api | 5.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.android.datatransport:transport-backend-cct | 5.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.android.datatransport:transport-runtime | 5.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.android.gms:play-services-base | 18.9.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
 | com.google.android.gms:play-services-basement | 18.9.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
+| com.google.android.gms:play-services-cloud-messaging | 17.4.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
 | com.google.android.gms:play-services-games-v2 | 22.1.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
 | com.google.android.gms:play-services-location | 19.0.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
 | com.google.android.gms:play-services-places-placereport | 17.0.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
-| com.google.android.gms:play-services-tasks | 18.2.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
+| com.google.android.gms:play-services-stats | 17.0.2 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
+| com.google.android.gms:play-services-tasks | 18.4.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
 | com.google.android.play:core-common | 2.0.4 | [Play Core Software Development Kit Terms of Service](https://developer.android.com/guide/playcore/license) |
 | com.google.android.play:review | 2.0.2 | [Play Core Software Development Kit Terms of Service](https://developer.android.com/guide/playcore/license) |
-| com.google.firebase:firebase-encoders | 17.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
-| com.google.firebase:firebase-encoders-json | 18.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
-| com.google.firebase:firebase-encoders-proto | 16.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.errorprone:error_prone_annotations | 2.26.0 | [Apache 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-annotations | 18.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-common | 23.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-components | 20.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-datatransport | 21.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-encoders | 18.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-encoders-json | 19.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-encoders-proto | 17.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-iid-interop | 17.1.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
+| com.google.firebase:firebase-installations | 20.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-installations-interop | 18.0.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.google.firebase:firebase-measurement-connector | 19.0.0 | [Android Software Development Kit License](https://developer.android.com/studio/terms.html) |
+| com.google.firebase:firebase-messaging | 26.0.2 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | com.google.guava:listenablefuture | 1.0 | unstated |
+| com.squareup.okio:okio | 3.4.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| com.squareup.okio:okio-jvm | 3.4.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
 | javax.inject:javax.inject | 1 | unstated |
-| org.jetbrains.kotlin:kotlin-stdlib | 1.8.22 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
-| org.jetbrains.kotlin:kotlin-stdlib-common | 1.8.22 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
-| org.jetbrains.kotlin:kotlin-stdlib-jdk7 | 1.6.21 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
-| org.jetbrains.kotlin:kotlin-stdlib-jdk8 | 1.6.21 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlin:kotlin-android-extensions-runtime | 1.9.22 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlin:kotlin-parcelize-runtime | 1.9.22 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlin:kotlin-stdlib | 2.1.21 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlin:kotlin-stdlib-common | 1.9.22 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlin:kotlin-stdlib-jdk7 | 2.1.21 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlin:kotlin-stdlib-jdk8 | 2.1.21 | [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlinx:atomicfu | 0.17.0 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlinx:atomicfu-jvm | 0.17.0 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
 | org.jetbrains.kotlinx:kotlinx-coroutines-android | 1.6.4 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
-| org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm | 1.6.4 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
-| org.jetbrains:annotations | 13.0 | [The Apache Software License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlinx:kotlinx-coroutines-core | 1.7.3 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm | 1.10.2 | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlinx:kotlinx-coroutines-play-services | 1.10.2 | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlinx:kotlinx-serialization-core | 1.6.3 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlinx:kotlinx-serialization-core-jvm | 1.6.3 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlinx:kotlinx-serialization-protobuf | 1.6.3 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains.kotlinx:kotlinx-serialization-protobuf-jvm | 1.6.3 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
+| org.jetbrains:annotations | 23.0.0 | [The Apache Software License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
 
 ## Licence texts
 

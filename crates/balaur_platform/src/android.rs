@@ -8,7 +8,7 @@
 
 use std::ffi::c_void;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
 use std::sync::mpsc::Sender;
 use std::sync::{Mutex, PoisonError};
@@ -37,6 +37,17 @@ static ARRIVALS: Mutex<Vec<PlatformEvent>> = Mutex::new(Vec::new());
 /// capabilities = ["in-app-review"]`.
 pub(crate) const REVIEW: &str = "org.balaur.google.Review";
 
+/// Firebase Cloud Messaging, which a game's dex carries with `[android]
+/// capabilities = ["firebase-messaging"]`.
+pub(crate) const PUSH: &str = "org.balaur.google.Push";
+
+/// What `register_for_push` says when the export left Firebase out.
+const PUSH_MISSING: &str =
+    "push needs [android] capabilities = [\"firebase-messaging\"], which this export left out";
+
+/// Whether the push shim was told to hand its arrivals over, or found absent.
+static PUSH_LISTENING: AtomicBool = AtomicBool::new(false);
+
 /// A call to the OS, through the shim that makes it.
 pub(crate) fn start(request: u64, call: &DeviceCall, report: &Sender<PlatformEvent>) {
     // copy: the channel outlives this call, until the answer crosses it.
@@ -58,6 +69,18 @@ pub(crate) fn start(request: u64, call: &DeviceCall, report: &Sender<PlatformEve
                 |started| {
                     if !started {
                         crate::native::unsupported(request, call, report);
+                    }
+                },
+            )
+        }
+        DeviceCall::RegisterForPush => {
+            start_capability(PUSH, request, call.name(), &serde_json::json!({}), report).map(
+                |started| {
+                    if !started {
+                        let _ = report.send(PlatformEvent::PushFailed {
+                            request,
+                            message: PUSH_MISSING.into(),
+                        });
                     }
                 },
             )
@@ -118,6 +141,20 @@ extern "system" fn answer<'local>(
     })
     .resolve::<jni::errors::LogErrorAndDefault>();
 }
+
+/// Tell the push shim to hand over what arrived (a token, a push, the tap
+/// that launched the game), once the activity is there. A game whose dex
+/// has no shim is asked once.
+pub(crate) fn listen_for_push(report: &Sender<PlatformEvent>) {
+    if PUSH_LISTENING.load(Ordering::Acquire) {
+        return;
+    }
+    if start_capability(PUSH, 0, LISTEN, &serde_json::json!({}), report).is_ok() {
+        PUSH_LISTENING.store(true, Ordering::Release);
+    }
+}
+
+const LISTEN: &str = "listen";
 
 /// Move what arrived onto the channel.
 pub(crate) fn pump(report: &Sender<PlatformEvent>) {

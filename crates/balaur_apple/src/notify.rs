@@ -5,7 +5,8 @@
 //! The notification centre's delegate is ours to set — nothing else in the
 //! engine wants it — so taps need no proxying. What a tap carries is the
 //! identifier the game scheduled it under and the `data` it put in, kept as
-//! JSON text under one `userInfo` key; a push's `userInfo` is its payload.
+//! JSON text under one `userInfo` key. A push comes through the same
+//! delegate: its trigger says so, and its `data` is its payload less `aps`.
 
 use std::sync::mpsc::Sender;
 
@@ -169,11 +170,20 @@ define_class!(
             completion: &DynBlock<dyn Fn(usize)>,
         ) {
             let said = Said::of(notification);
-            crate::queue::push_device(PlatformEvent::NotificationReceived {
-                id: said.id,
-                title: said.title,
-                body: said.body,
-                data: said.data,
+            crate::queue::push_device(if said.push {
+                PlatformEvent::PushReceived {
+                    id: said.id,
+                    title: said.title,
+                    body: said.body,
+                    data: said.data,
+                }
+            } else {
+                PlatformEvent::NotificationReceived {
+                    id: said.id,
+                    title: said.title,
+                    body: said.body,
+                    data: said.data,
+                }
             });
             completion.call(((1 << 2) | (1 << 1),));
         }
@@ -187,12 +197,14 @@ impl Taps {
 }
 
 /// What a notification says: the identifier it was scheduled under, its
-/// title and body, and the `data` a game put in it or a push's `userInfo`.
+/// title and body, the `data` a game put in it or a push's payload, and
+/// whether a push brought it.
 struct Said {
     id: String,
     title: String,
     body: String,
     data: serde_json::Value,
+    push: bool,
 }
 
 impl Said {
@@ -204,6 +216,7 @@ impl Said {
             title: String::new(),
             body: String::new(),
             data: serde_json::Value::Null,
+            push: false,
         };
         let Some(notification) = (unsafe { notification.as_ref() }) else {
             return empty;
@@ -217,22 +230,32 @@ impl Said {
             return empty;
         };
         let info: *mut AnyObject = unsafe { msg_send![content, userInfo] };
+        let trigger: *mut AnyObject = unsafe { msg_send![request, trigger] };
+        let push = AnyClass::get(c"UNPushNotificationTrigger").is_some_and(|class| {
+            unsafe { trigger.as_ref() }
+                .is_some_and(|trigger| unsafe { msg_send![trigger, isKindOfClass: class] })
+        });
+        let info = crate::arrivals::json_of(info);
         Self {
             id: text(unsafe { msg_send![request, identifier] }),
             title: text(unsafe { msg_send![content, title] }),
             body: text(unsafe { msg_send![content, body] }),
-            data: data_of(crate::arrivals::json_of(info)),
+            data: if push {
+                crate::push::data_of(info)
+            } else {
+                data_of(&info)
+            },
+            push,
         }
     }
 }
 
-/// A local notification's `data`, from the JSON text under [`DATA`]; a
-/// push's whole `userInfo` otherwise.
-fn data_of(info: serde_json::Value) -> serde_json::Value {
-    match info.get(DATA).and_then(serde_json::Value::as_str) {
-        Some(text) => serde_json::from_str(text).unwrap_or(serde_json::Value::Null),
-        None => info,
-    }
+/// A local notification's `data`, from the JSON text under [`DATA`].
+fn data_of(info: &serde_json::Value) -> serde_json::Value {
+    info.get(DATA)
+        .and_then(serde_json::Value::as_str)
+        .and_then(|text| serde_json::from_str(text).ok())
+        .unwrap_or(serde_json::Value::Null)
 }
 
 thread_local! {

@@ -1,5 +1,5 @@
 //! Apple platform services as a Balaur plugin: Game Center and iCloud behind
-//! the portable `platform.*` verbs, notifications, the share sheet, the
+//! the portable `platform.*` verbs, notifications, push, the share sheet, the
 //! iPhone's motor and the review prompt behind its device seam (`device.rs`),
 //! and `apple.*` for what only Apple has.
 //!
@@ -35,7 +35,6 @@ use balaur_script::{Module, Value};
 const ACCESS_POINT: &str = "access_point";
 const APPLE: &str = "apple";
 const AVAILABLE_WORD: &str = "available";
-const DATA: &str = "data";
 const ERROR_WORD: &str = "error";
 const KIND: &str = "kind";
 const LISTEN_FOR_CLOUD_CHANGES: &str = "listen_for_cloud_changes";
@@ -43,7 +42,6 @@ const LISTEN_FOR_INVITES: &str = "listen_for_invites";
 const LISTEN_FOR_URLS: &str = "listen_for_urls";
 const NAME: &str = "name";
 const PLAYER: &str = "player";
-const REGISTER_FOR_PUSH: &str = "register_for_push";
 const REQUEST: &str = "request";
 const SHOW_DASHBOARD: &str = "show_dashboard";
 const SIGN_IN: &str = "sign_in";
@@ -62,6 +60,8 @@ mod gamekit;
 mod icloud;
 #[cfg(target_vendor = "apple")]
 mod notify;
+#[cfg(target_vendor = "apple")]
+mod push;
 mod queue;
 #[cfg(target_vendor = "apple")]
 mod signin;
@@ -75,7 +75,7 @@ mod websignin;
 
 #[cfg(target_vendor = "apple")]
 mod backend {
-    pub(crate) use crate::arrivals::{request_push_token, watch_urls};
+    pub(crate) use crate::arrivals::watch_urls;
     pub(crate) use crate::gamekit::{apple_call, platform_call, watch_invites};
     pub(crate) use crate::icloud::watch_changes as watch_cloud;
     pub(crate) use crate::ui::access_point;
@@ -112,10 +112,6 @@ mod backend {
     }
 
     pub(crate) const fn access_point(_active: bool, _location: isize) -> bool {
-        false
-    }
-
-    pub(crate) const fn request_push_token() -> bool {
         false
     }
 
@@ -200,12 +196,8 @@ pub enum AppleEvent {
     DashboardClosed {
         request: u64,
     },
-    /// A push reached the app itself, a silent one included: its payload.
-    /// Unsolicited, like everything below it.
-    PushReceived {
-        data: serde_json::Value,
-    },
-    /// The player accepted a Game Center invite, from `player`.
+    /// The player accepted a Game Center invite, from `player`. Unsolicited,
+    /// like everything below it.
     InviteAccepted {
         player: String,
         name: String,
@@ -218,13 +210,6 @@ pub enum AppleEvent {
     CloudChanged {
         reason: String,
         keys: Vec<String>,
-    },
-    /// The device's push token, as the hex a push server takes.
-    PushToken {
-        token: String,
-    },
-    PushFailed {
-        message: String,
     },
     /// A URL the game was asked to open while it was running.
     Url {
@@ -257,12 +242,9 @@ impl AppleEvent {
             | Self::Unsupported { request, .. }
             | Self::StandIn { request, .. } => *request,
             // Nobody asked for these, so they carry the id no call is given.
-            Self::PushReceived { .. }
-            | Self::InviteAccepted { .. }
+            Self::InviteAccepted { .. }
             | Self::MatchRequested { .. }
             | Self::CloudChanged { .. }
-            | Self::PushToken { .. }
-            | Self::PushFailed { .. }
             | Self::Url { .. } => 0,
         }
     }
@@ -301,9 +283,9 @@ impl PlatformBackend for AppleBackend {
     }
 }
 
-/// What nobody asked for, carrying request 0: a push, a URL opened, a push
-/// token, an invite, an iCloud change. Heard with `events::listen` as
-/// `on_apple_event`; a notification tapped and a transaction that landed
+/// What nobody asked for, carrying request 0: a URL opened, an invite, an
+/// iCloud change. Heard with `events::listen` as `on_apple_event`; a
+/// notification or a push, a push token and a transaction that landed
 /// elsewhere are `platform_event`.
 pub const ARRIVAL_EVENT: &str = "apple_event";
 
@@ -382,12 +364,9 @@ pub mod kind {
     pub const SIGNED_IN: &str = "signed_in";
     pub const CREDENTIAL_STATE: &str = "credential_state";
     pub const DASHBOARD_CLOSED: &str = "dashboard_closed";
-    pub const PUSH_RECEIVED: &str = "push_received";
     pub const INVITE_ACCEPTED: &str = "invite_accepted";
     pub const MATCH_REQUESTED: &str = "match_requested";
     pub const CLOUD_CHANGED: &str = "cloud_changed";
-    pub const PUSH_TOKEN: &str = "push_token";
-    pub const PUSH_FAILED: &str = "push_failed";
     pub const URL: &str = "url";
     pub const UNSUPPORTED: &str = "unsupported";
     pub const ERROR: &str = balaur_core::handler::ERROR;
@@ -396,12 +375,9 @@ pub mod kind {
         SIGNED_IN,
         CREDENTIAL_STATE,
         DASHBOARD_CLOSED,
-        PUSH_RECEIVED,
         INVITE_ACCEPTED,
         MATCH_REQUESTED,
         CLOUD_CHANGED,
-        PUSH_TOKEN,
-        PUSH_FAILED,
         URL,
         UNSUPPORTED,
         ERROR,
@@ -451,18 +427,9 @@ fn event_value(event: AppleEvent) -> Value {
         AppleEvent::DashboardClosed { .. } => {
             pairs.push((KIND.into(), Value::Str(kind::DASHBOARD_CLOSED.into())));
         }
-        arrival @ (AppleEvent::PushReceived { .. }
-        | AppleEvent::InviteAccepted { .. }
+        arrival @ (AppleEvent::InviteAccepted { .. }
         | AppleEvent::MatchRequested { .. }
         | AppleEvent::CloudChanged { .. }) => arrived(arrival, &mut pairs),
-        AppleEvent::PushToken { token } => {
-            pairs.push((KIND.into(), Value::Str(kind::PUSH_TOKEN.into())));
-            pairs.push((TOKEN.into(), Value::Str(token)));
-        }
-        AppleEvent::PushFailed { message } => {
-            pairs.push((KIND.into(), Value::Str(kind::PUSH_FAILED.into())));
-            pairs.push((ERROR_WORD.into(), Value::Str(message)));
-        }
         AppleEvent::Url { url } => {
             pairs.push((KIND.into(), Value::Str(kind::URL.into())));
             pairs.push((kind::URL.into(), Value::Str(url)));
@@ -521,7 +488,7 @@ impl balaur_plugin::Plugin for ApplePlugin {
             &[(
                 ARRIVAL_EVENT,
                 "what arrived, carrying request 0",
-                "Something nobody asked for arrived: a push, a URL opened, a push token, an invite, an iCloud change.",
+                "Something nobody asked for arrived: a URL opened, an invite, an iCloud change. A push and its token are `platform_event`.",
             )],
         );
         reg.add_system(Stage::First, pump_apple_system);
@@ -555,7 +522,7 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 /// has it.
 fn install_apple_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens, push. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a push and its payload, a URL opened, an invite, an iCloud change. Local notifications are `platform.notify`, and purchases `platform.purchase` and the rest.",
+        "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a URL opened, an invite, an iCloud change. Notifications are `platform.notify`, push `platform.register_for_push`, and purchases `platform.purchase` and the rest.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
@@ -598,7 +565,7 @@ fn install_apple_api(m: &mut Module<Engine>) {
         Ok(start_call(eng, &AppleCall::CredentialState { user }))
     });
     install_screens_api(m);
-    install_arrivals_api(m);
+    install_listen_for_api(m);
 }
 
 /// Game Center's own screens.
@@ -653,14 +620,10 @@ fn install_screens_api(m: &mut Module<Engine>) {
     );
 }
 
-/// What a push, an invite or an iCloud change carries. Split from
-/// [`event_value`] under `MAX_FN_LINES`.
+/// What an invite or an iCloud change carries. Split from [`event_value`]
+/// under `MAX_FN_LINES`.
 fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
     match event {
-        AppleEvent::PushReceived { data } => {
-            pairs.push((KIND.into(), Value::Str(kind::PUSH_RECEIVED.into())));
-            pairs.push((DATA.into(), from_json(&data).unwrap_or(Value::Nil)));
-        }
         AppleEvent::InviteAccepted { player, name } => {
             pairs.push((KIND.into(), Value::Str(kind::INVITE_ACCEPTED.into())));
             pairs.push((PLAYER.into(), Value::Str(player)));
@@ -679,21 +642,6 @@ fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
         }
         _ => {}
     }
-}
-
-/// Push and URLs: what arrives rather than answers, and what asks the device
-/// to start telling us something.
-fn install_arrivals_api(m: &mut Module<Engine>) {
-    m.describe(&[(
-        REGISTER_FOR_PUSH,
-        &[],
-        "() -> bool",
-        "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
-    )]);
-    m.function(REGISTER_FOR_PUSH, |_: &Engine, ()| {
-        Ok(Value::Bool(backend::request_push_token()))
-    });
-    install_listen_for_api(m);
 }
 
 /// The arrivals a game has to ask to hear, each installing what hears it.

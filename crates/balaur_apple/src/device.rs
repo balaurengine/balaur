@@ -39,6 +39,7 @@ impl DeviceBackend for AppleDevice {
             }
             DeviceCall::Share { text, file, .. } => share(request, text, file.as_deref(), report),
             DeviceCall::RequestReview if bundled => review(request, report),
+            DeviceCall::RegisterForPush if bundled => crate::push::register(request, report),
             other => {
                 let _ = report.send(PlatformEvent::Unsupported {
                     request,
@@ -80,7 +81,9 @@ pub(crate) fn provide(eng: &balaur_core::Engine) -> anyhow::Result<()> {
     provide(eng, Service::GameCenter, bundled)?;
     provide(eng, Service::AppleSignIn, bundled)?;
     provide(eng, Service::Notifications, bundled)?;
-    provide(eng, Service::Push, bundled)?;
+    provide(eng, Service::Push, |_| {
+        crate::gamekit::bundled() && crate::push::entitled()
+    })?;
     // The platform verbs reach iCloud and the sheet only while Apple's is the store.
     provide(eng, Service::Icloud, |eng| {
         crate::gamekit::bundled() && is_store(eng) && signed_in_to_icloud()

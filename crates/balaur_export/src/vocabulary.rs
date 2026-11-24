@@ -32,6 +32,8 @@ pub(crate) mod words {
     pub(crate) mod android {
         pub(crate) const LIB: &str = "lib";
         pub(crate) const RES: &str = "res";
+        /// The resource directory a string or a colour is declared in.
+        pub(crate) const VALUES: &str = "values";
     }
 
     pub(crate) mod bundle {

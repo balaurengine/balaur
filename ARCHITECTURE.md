@@ -1392,8 +1392,9 @@ things are shared.
   Steam started still notifies through Apple's centre. So `balaur_platform`
   holds a `DeviceBackend` beside the store's, which Apple's plugin fills on
   iOS and macOS and the crate's own Java shims fill on Android
-  (`native.rs`). Its calls are `platform.notify`, `request_notifications`
-  and `cancel_notification`, beside the store's verbs, and `device.*`:
+  (`native.rs`). Its calls are `platform.notify`, `request_notifications`,
+  `cancel_notification` and `register_for_push`, beside the store's verbs,
+  and `device.*`:
   `vibrate`, `haptic`, `share`, `request_review`. Their answers cross the
   store's channel, so they are recorded and stood in for alike; a tapped
   notification, or one shown in front, is `platform_event` under request 0.
@@ -1521,6 +1522,21 @@ things are shared.
   opens the store's sheet, so it is a write and waits for its tick to
   settle. Steam answers `unsupported`: its microtransactions are a Web API a
   server calls.
+- **A push token is shaped for the server that sends.**
+  `platform.register_for_push` belongs to the OS, not the store, so it sits
+  on the device seam: APNs through the application delegate on Apple, FCM through
+  `firebase-messaging`'s shim on Android. It answers `push_registered` with
+  `token`, `provider` and `platform` spelled as Gamend's `POST
+  /me/push_tokens` takes them (`PUSH_PROVIDER_*`, `PUSH_PLATFORM_*`), so a
+  game hands the answer over as it is. The token reaches neither OS's caller
+  directly: Apple's delegate and FCM's service hand it over, a call waiting
+  takes it, and one with none waiting is `push_token_changed`. A push in
+  front is `push_received`; a tap is `notification_opened`, the same arrival
+  a local notification's tap is, with the push's data, which on Android
+  comes off the intent that started the activity, since NativeActivity
+  forwards no new one. A build without the capability answers `push_failed`
+  naming it: the entitlement or the shim is missing, and saying so beats a
+  token that never comes.
 - **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of
   `"<module>.<call>"` to the answer its waiter receives (`null`: never
   answers); such a call never reaches its backend, and its answer crosses the

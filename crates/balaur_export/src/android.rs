@@ -15,6 +15,7 @@ use crate::config::{ExportConfig, secret_or};
 use crate::sign::{run, tool};
 use crate::vocabulary::words;
 
+mod firebase;
 mod permissions;
 pub(crate) mod play;
 mod schemes;
@@ -106,6 +107,10 @@ pub(crate) struct AndroidConfig {
     /// The Play Games project id (Play Console's Play Games Services
     /// configuration), which `play-games` needs in the manifest.
     pub games_project_id: String,
+    /// The project-relative `google-services.json` the Firebase console hands
+    /// out, which `firebase-messaging` needs: read whole, as Google's Gradle
+    /// plugin reads it, rather than four of its values copied by hand.
+    pub google_services: String,
     /// `[window] orientation`, which Android settles in the manifest rather
     /// than at startup. Not a key of `[android]`: it is the same window
     /// setting every platform reads, taken from the same resolved document.
@@ -118,6 +123,9 @@ pub(crate) struct AndroidConfig {
     /// no keystore was set.
     #[serde(skip)]
     pub(crate) debug_key: bool,
+    /// The project directory, which `google_services` is relative to.
+    #[serde(skip)]
+    pub(crate) project: PathBuf,
 }
 
 impl Default for AndroidConfig {
@@ -138,9 +146,11 @@ impl Default for AndroidConfig {
             schemes: Vec::new(),
             capabilities: Vec::new(),
             games_project_id: String::new(),
+            google_services: String::new(),
             orientation: balaur::project::Orientation::Any,
             title: String::new(),
             debug_key: false,
+            project: PathBuf::new(),
         }
     }
 }
@@ -152,6 +162,7 @@ impl AndroidConfig {
         Ok(Self {
             orientation: crate::config::orientation_of(manifest),
             title: crate::config::application_name(manifest),
+            project: project.to_path_buf(),
             ..crate::config::table_of(manifest, words::targets::ANDROID, project)?
         })
     }
@@ -304,7 +315,31 @@ impl AndroidConfig {
                 self.games_project_id
             );
         }
-        Ok(())
+        self.firebase().map(|_| ())
+    }
+
+    /// What Firebase starts from, when the game declares `firebase-messaging`.
+    ///
+    /// # Errors
+    /// When one of `firebase-messaging` and `google_services` is set without
+    /// the other, or the file does not hold this application id's app.
+    fn firebase(&self) -> Result<Option<firebase::Firebase>> {
+        let push = self
+            .capabilities
+            .contains(&play::Capability::FirebaseMessaging);
+        if !push {
+            anyhow::ensure!(
+                self.google_services.is_empty(),
+                "[android] google_services is set, and capabilities does not name firebase-messaging"
+            );
+            return Ok(None);
+        }
+        let Some(path) = ExportConfig::beside(&self.project, &self.google_services) else {
+            bail!(
+                "[android] capabilities names firebase-messaging, and google_services is not set:                  the google-services.json the Firebase console hands out for this app,                  e.g. google_services = \"google-services.json\""
+            );
+        };
+        firebase::read(&path, self.identifier()?).map(Some)
     }
 
     /// The layout keeps the Google libraries `capabilities` needs, and the
@@ -320,6 +355,9 @@ impl AndroidConfig {
         let games = self.capabilities.contains(&play::Capability::PlayGames);
         if games {
             play::write_project_id(layout, &self.games_project_id)?;
+        }
+        if let Some(values) = self.firebase()? {
+            firebase::write(layout, &values)?;
         }
         let xml = permissions::declare(xml, &entries.permissions)?;
         play::declare(

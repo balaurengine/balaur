@@ -38,6 +38,9 @@ pub(crate) enum Capability {
     /// StoreKit. It carries no entitlement of its own — what it declares is
     /// the deployment target StoreKit 2 exists on.
     InAppPurchase,
+    /// APNs, behind `platform.register_for_push`: `aps-environment`, which
+    /// macOS spells `com.apple.developer.aps-environment`.
+    PushNotifications,
 }
 
 impl Capability {
@@ -47,6 +50,7 @@ impl Capability {
             Self::GameCenter => "game-center",
             Self::IcloudKv => "icloud-kv",
             Self::InAppPurchase => "in-app-purchase",
+            Self::PushNotifications => "push-notifications",
         }
     }
 
@@ -62,6 +66,49 @@ impl Capability {
             (Self::IcloudKv, Platform::Macos) => (10, 7),
             (Self::InAppPurchase, Platform::Ios) => (15, 0),
             (Self::InAppPurchase, Platform::Macos) => (12, 0),
+            // UserNotifications, which shows a push in front and hears its tap.
+            (Self::PushNotifications, Platform::Ios) => (10, 0),
+            (Self::PushNotifications, Platform::Macos) => (10, 14),
+        }
+    }
+}
+
+/// Which APNs a signed build's pushes come from, as `aps-environment` names
+/// it: the identity's own kind says, as Xcode's provisioning profile does,
+/// since a development certificate signs only for the sandbox.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Build {
+    /// Signed by an `Apple Development`, `iPhone Developer` or `Mac
+    /// Developer` identity, ad hoc, or not at all: APNs' sandbox.
+    Development,
+    /// Any other identity: `Apple Distribution`, `Developer ID
+    /// Application`, `3rd Party Mac Developer Application`, or a hash.
+    Distribution,
+}
+
+impl Build {
+    /// What `identity`, the one an export signs with, is for.
+    pub(crate) fn of(identity: Option<&str>) -> Self {
+        const DEVELOPMENT: [&str; 4] = [
+            "Apple Development",
+            "iPhone Developer",
+            "Mac Developer",
+            "-",
+        ];
+        match identity {
+            None => Self::Development,
+            Some(name) if DEVELOPMENT.iter().any(|kind| name.starts_with(kind)) => {
+                Self::Development
+            }
+            Some(_) => Self::Distribution,
+        }
+    }
+
+    /// The value `aps-environment` takes.
+    const fn aps(self) -> &'static str {
+        match self {
+            Self::Development => "development",
+            Self::Distribution => "production",
         }
     }
 }
@@ -262,13 +309,20 @@ impl AppleConfig {
         }
     }
 
-    /// The entitlements this game's capabilities need, the exception a
+    /// The entitlements this game's capabilities need on `platform`, signed
+    /// for `build`, the exception a
     /// signed Mac build running its scripts on wasmtime needs (`jit`), which
     /// maps its code with `mprotect` and never `MAP_JIT`, and the two the
     /// Steam overlay needs under the hardened runtime (`steam`), which injects
     /// Valve's own library; or `None` when it declares none and there is
     /// nothing to sign against.
-    pub(crate) fn entitlements(&self, jit: bool, steam: bool) -> Option<String> {
+    pub(crate) fn entitlements(
+        &self,
+        platform: Platform,
+        build: Build,
+        jit: bool,
+        steam: bool,
+    ) -> Option<String> {
         let mut body = String::new();
         if jit {
             body.push_str(
@@ -301,6 +355,17 @@ impl AppleConfig {
                 // In-app purchase needs no entitlement; it is a capability
                 // here so the deployment target is checked against StoreKit.
                 Capability::InAppPurchase => {}
+                Capability::PushNotifications => {
+                    let key = match platform {
+                        Platform::Ios => "aps-environment",
+                        Platform::Macos => "com.apple.developer.aps-environment",
+                    };
+                    let _ = write!(
+                        body,
+                        "  <key>{key}</key>\n  <string>{}</string>\n",
+                        build.aps()
+                    );
+                }
             }
         }
         // A game whose only capability writes no key needs no file.
@@ -388,10 +453,12 @@ impl AppleConfig {
         &self,
         beside: &Path,
         name: &str,
+        platform: Platform,
+        build: Build,
         jit: bool,
         steam: bool,
     ) -> Result<Option<PathBuf>> {
-        let Some(text) = self.entitlements(jit, steam) else {
+        let Some(text) = self.entitlements(platform, build, jit, steam) else {
             return Ok(None);
         };
         let path = beside.with_file_name(format!("{name}.entitlements"));
@@ -482,7 +549,7 @@ fn escape(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppleConfig, Capability, Platform};
+    use super::{AppleConfig, Build, Capability, Platform};
 
     fn config(table: &str) -> AppleConfig {
         #[derive(serde::Deserialize)]
@@ -582,7 +649,11 @@ mod tests {
         named
             .check(Platform::Ios)
             .expect("a named game with no capabilities");
-        assert!(named.entitlements(false, false).is_none());
+        assert!(
+            named
+                .entitlements(Platform::Ios, Build::Development, false, false)
+                .is_none()
+        );
     }
 
     #[test]
@@ -643,7 +714,7 @@ mod tests {
         );
         config.check(Platform::Ios).expect("a complete table");
         let text = config
-            .entitlements(false, false)
+            .entitlements(Platform::Ios, Build::Development, false, false)
             .expect("three capabilities");
         assert!(text.contains("com.apple.developer.applesignin"), "{text}");
         assert!(text.contains("com.apple.developer.game-center"), "{text}");
@@ -695,7 +766,9 @@ mod tests {
         );
         config.check(Platform::Ios).expect("the default is 15.0");
         assert!(
-            config.entitlements(false, false).is_none(),
+            config
+                .entitlements(Platform::Ios, Build::Development, false, false)
+                .is_none(),
             "in-app purchase needs no entitlement of its own"
         );
     }
@@ -715,11 +788,98 @@ mod tests {
             Capability::GameCenter,
             Capability::IcloudKv,
             Capability::InAppPurchase,
+            Capability::PushNotifications,
         ] {
             let text = format!("capabilities = [\"{}\"]", capability.name());
             let read: toml::Table = toml::from_str(&text).unwrap();
             let parsed: Vec<Capability> = read["capabilities"].clone().try_into().unwrap();
             assert_eq!(parsed, [capability]);
         }
+    }
+
+    fn pushing() -> AppleConfig {
+        config(
+            "[apple]\nbundle_id = \"com.studio.game\"\nversion = \"1.0\"\nbuild_number = \"1\"\n\
+             capabilities = [\"push-notifications\"]\n",
+        )
+    }
+
+    #[test]
+    fn push_writes_aps_environment_for_the_build_its_identity_signs() {
+        let config = pushing();
+        config.check(Platform::Ios).expect("a complete table");
+        for (identity, aps) in [
+            (None, "development"),
+            (Some("Apple Development: Leo (AB12CD34EF)"), "development"),
+            (Some("iPhone Developer: Leo (AB12CD34EF)"), "development"),
+            (
+                Some("Apple Distribution: Studio (AB12CD34EF)"),
+                "production",
+            ),
+            (
+                Some("iPhone Distribution: Studio (AB12CD34EF)"),
+                "production",
+            ),
+        ] {
+            let text = config
+                .entitlements(Platform::Ios, Build::of(identity), false, false)
+                .expect("push writes an entitlement");
+            assert!(
+                text.contains(&format!(
+                    "<key>aps-environment</key>\n  <string>{aps}</string>"
+                )),
+                "{identity:?}: {text}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_mac_writes_push_under_its_own_key() {
+        let config = pushing();
+        config.check(Platform::Macos).expect("a complete table");
+        let release = config
+            .entitlements(
+                Platform::Macos,
+                Build::of(Some("Developer ID Application: Studio (AB12CD34EF)")),
+                false,
+                false,
+            )
+            .unwrap();
+        assert!(
+            release.contains(
+                "<key>com.apple.developer.aps-environment</key>\n  <string>production</string>"
+            ),
+            "{release}"
+        );
+        let ad_hoc = config
+            .entitlements(Platform::Macos, Build::of(Some("-")), false, false)
+            .unwrap();
+        assert!(ad_hoc.contains("<string>development</string>"), "{ad_hoc}");
+        assert!(!ad_hoc.contains("<key>aps-environment</key>"), "{ad_hoc}");
+    }
+
+    #[test]
+    fn push_below_the_os_that_shows_one_in_front_is_refused() {
+        let config = AppleConfig {
+            min_macos: "10.13".into(),
+            ..pushing()
+        };
+        let err = config.check(Platform::Macos).unwrap_err().to_string();
+        assert!(
+            err.contains("push-notifications") && err.contains("10.14"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_game_without_push_writes_no_aps_environment() {
+        let config = config(
+            "[apple]\nbundle_id = \"com.studio.game\"\nversion = \"1.0\"\nbuild_number = \"1\"\n\
+             capabilities = [\"game-center\"]\n",
+        );
+        let text = config
+            .entitlements(Platform::Ios, Build::Distribution, false, false)
+            .unwrap();
+        assert!(!text.contains("aps-environment"), "{text}");
     }
 }

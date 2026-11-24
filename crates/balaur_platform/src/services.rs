@@ -41,7 +41,7 @@ pub enum Service {
     WebSignIn,
     /// Local notifications, `platform.notify`.
     Notifications,
-    /// A push token, `apple.register_for_push`.
+    /// A push token, `platform.register_for_push`.
     Push,
     /// The store's purchases, `platform.purchase` and the rest: StoreKit, or
     /// Play Billing.

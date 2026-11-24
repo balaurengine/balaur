@@ -19,7 +19,7 @@ built.
    Apple's sheet and answers once the player finishes it.
 3. **Run against Apple's servers.** Game Center, iCloud, StoreKit, the
    sign-in page (`platform.web_sign_in`), and the
-   arrivals `push_received`, `invite_accepted`, `match_requested` and
+   arrivals `invite_accepted`, `match_requested` and
    `cloud_changed`, have only been compiled and tested through a canned
    backend. Done: each answers on a device signed with an Apple ID and a
    provisioning profile.
@@ -34,6 +34,29 @@ built.
    iCloud from `ubiquityIdentityToken`, purchases from `canMakePayments`.
    Done: a notification scheduled, tapped and heard, a file shared and a
    haptic felt on an iPhone.
+
+5. **Push from Gamend to a device.** `platform.register_for_push` asks
+   APNs through the application delegate (`push.rs`) and answers
+   `push_registered` with the hex `token`, `provider = "apns"` and
+   `platform = "ios"`, a Mac's too, since Gamend's push tokens have one Apple
+   platform. A token the OS hands over with no call waiting, and different from
+   the last, is `push_token_changed`. A push shown in front is
+   `push_received`, told apart from a local notification by its
+   `UNPushNotificationTrigger`, and a tap is `notification_opened` with the
+   payload less `aps` as `data`; a silent push reaches the delegate alone and
+   is `push_received` with no title. `[apple] capabilities =
+   ["push-notifications"]` writes `aps-environment` (macOS:
+   `com.apple.developer.aps-environment`): `development` for a build signed by
+   an `Apple Development`, `iPhone Developer` or `Mac Developer` identity, ad
+   hoc or not at all, `production` for any other. Without it the call answers
+   `push_failed` naming the capability: a Mac reads its own signature's
+   entitlement first, and iOS maps APNs' refusal, which names
+   `aps-environment`. Tested through a canned OS and the export's
+   entitlements only. Still to check: an APNs key in Gamend, a push sent to a
+   signed device, a tap that launches the game, which the notification
+   centre's delegate hears only when it is set before launch ends, and a Mac
+   build carrying the entitlement, which needs a provisioning profile the
+   export does not embed yet.
 
 ## Open questions
 

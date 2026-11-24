@@ -27,8 +27,9 @@ question as an old one is a second way to say it.
 <tr><td><code>bundletool</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>Where bundletool.jar is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and then beside the SDK; Google ships it on its own, not in the SDK.</td></tr>
 <tr><td><code>permissions</code></td><td>list of string</td><td><code>[&quot;INTERNET&quot;]</code></td><td></td><td>The permissions the manifest declares: INTERNET for android.permission.INTERNET, or a whole name. Without INTERNET no socket opens; a game that never goes online writes permissions = [].</td></tr>
 <tr><td><code>schemes</code></td><td>list of string</td><td><code>[]</code></td><td></td><td>The custom URL schemes that open the game, each an intent filter: the scheme a platform.web_sign_in page ends on (com.studio.game for com.studio.game:/done), which its Custom Tab answers with.</td></tr>
-<tr><td><code>capabilities</code></td><td>flags</td><td><code>[]</code></td><td></td><td>The Google services the game uses, each shipping its Google libraries: play-games for platform.* on Play Games, in-app-purchase for Play Billing, in-app-review for device.request_review. None named ships no Google library.</td></tr>
+<tr><td><code>capabilities</code></td><td>flags</td><td><code>[]</code></td><td></td><td>The Google services the game uses, each shipping its Google libraries: play-games for platform.* on Play Games, in-app-purchase for Play Billing, in-app-review for device.request_review, firebase-messaging for platform.register_for_push. None named ships no Google library.</td></tr>
 <tr><td><code>games_project_id</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>The Play Games project id Play Console shows under Play Games Services, all digits. Required with play-games.</td></tr>
+<tr><td><code>google_services</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>The project-relative google-services.json the Firebase console hands out, holding this application_id&#x27;s app. Required with firebase-messaging, whose project, app id, API key and sender id it writes as the string resources Firebase starts from.</td></tr>
 </tbody>
 </table>
 
@@ -45,7 +46,7 @@ question as an old one is a second way to say it.
 <tr><td><code>min_ios</code></td><td>string</td><td><code>&quot;15.0&quot;</code></td><td></td><td>MinimumOSVersion on iOS. A plist may not claim less than the binary was built for.</td></tr>
 <tr><td><code>min_macos</code></td><td>string</td><td><code>&quot;12.0&quot;</code></td><td></td><td>LSMinimumSystemVersion on macOS.</td></tr>
 <tr><td><code>category</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>LSApplicationCategoryType, macOS only.</td></tr>
-<tr><td><code>capabilities</code></td><td>flags</td><td><code>[]</code></td><td></td><td>What the bundle declares it uses. Each writes its own entitlement and its own minimum OS.</td></tr>
+<tr><td><code>capabilities</code></td><td>flags</td><td><code>[]</code></td><td></td><td>What the bundle declares it uses. Each writes its own entitlement and its own minimum OS. push-notifications writes aps-environment: development for a build signed by a development identity or none, production for a distribution one.</td></tr>
 <tr><td><code>macos_identity</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>Developer ID Application: … for a download, Apple Distribution: … for the Mac App Store. The password behind it is read from the environment, never from here.</td></tr>
 <tr><td><code>notarize</code></td><td>bool</td><td><code>false</code></td><td></td><td>Submit to Apple&#x27;s notary service after signing, and staple the ticket.</td></tr>
 <tr><td><code>ios_identity</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>The identity an iOS build is signed with.</td></tr>

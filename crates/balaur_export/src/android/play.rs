@@ -44,6 +44,9 @@ pub(crate) enum Capability {
     InAppPurchase,
     /// Play's review prompt behind `device.request_review`.
     InAppReview,
+    /// Firebase Cloud Messaging behind `platform.register_for_push`, which
+    /// needs `[android] google_services`.
+    FirebaseMessaging,
 }
 
 impl Capability {
@@ -53,6 +56,7 @@ impl Capability {
             Self::PlayGames => "play-games",
             Self::InAppPurchase => "in-app-purchase",
             Self::InAppReview => "in-app-review",
+            Self::FirebaseMessaging => "firebase-messaging",
         }
     }
 }
@@ -224,7 +228,9 @@ pub(crate) fn declare(
 
 /// The string resource Play Games' meta-data names, in the game's own `res/`.
 pub(crate) fn write_project_id(layout: &Path, games_project_id: &str) -> Result<PathBuf> {
-    let values = layout.join(RES).join("values");
+    let values = layout
+        .join(RES)
+        .join(crate::vocabulary::words::android::VALUES);
     std::fs::create_dir_all(&values)?;
     let path = values.join("play_games.xml");
     std::fs::write(

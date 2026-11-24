@@ -113,7 +113,36 @@ an export keeps for the `[android] capabilities` it declares (step 2).
 7. **Play Asset Delivery.** On-demand asset packs as an asset source, which
    needs the AAB. It waits for the roadmap's asset streaming rather than
    leading it.
-8. **The long tail.** In-app updates, the install referrer, Crashlytics with
+8. **Firebase Cloud Messaging.** `platform.register_for_push` on Android.
+   *Built 2026-11-24 on firebase-messaging 26.0.2*: `[android] capabilities
+   = ["firebase-messaging"]` keeps its 85 artifacts and `Push.java`, and
+   `[android] google_services` names the `google-services.json` the Firebase
+   console hands out, whose app for `application_id` the export writes as the
+   string resources `FirebaseInitProvider` starts from (`google_app_id`,
+   `gcm_defaultSenderId`, `google_api_key`, `project_id`), as the Gradle
+   plugin does; the export refuses either without the other, and a file with
+   no app for the id. The call answers `push_registered` with
+   `getToken()`'s token, `provider = "fcm"` and `platform = "android"`.
+   `Messaging`, a `FirebaseMessagingService` the shim's own manifest
+   declares, hears `onNewToken` (`push_token_changed`) and a message reaching
+   the app in front (`push_received`), its data decoded where Gamend wrote a
+   value as JSON. A notification shown while the game is in the background
+   reaches it on a tap through the launch intent's extras, read when the shim
+   first listens and on every activity resumed after, since FCM's tap
+   recreates NativeActivity. Showing one needs `platform.request_notifications`
+   on Android 13 and later. DataStore's native shared counter is left out:
+   Firebase opens its stores in one process. Checked: the shim compiles under
+   `-Werror`, the routing and the answers through stand-ins and a canned OS,
+   and the export's resources and refusals. An export with a stand-in engine
+   library installs on an Android 15 emulator, where Firebase starts on the
+   file's values and `Messaging` outranks Firebase's own service (priority 0
+   against -500). firebase-messaging 26 asks for Play services 26.12 or later,
+   which that image's 24.23 is not. Not run against a Firebase project: a real
+   round trip needs a project with
+   this app's id, its `google-services.json`, Gamend's service account, a
+   device or `google_apis_playstore` image signed in to Google, and the
+   engine's own library in the APK.
+9. **The long tail.** In-app updates, the install referrer, Crashlytics with
    the NDK reporter, and `google.call` for a Java library this plan does not
    name. In-app review is built: `device.request_review` runs Play's review
    flow where the export declares `in-app-review`, answering `done` whether
@@ -127,7 +156,7 @@ each capability's entries, and canned platform events replay to a
 bit-identical digest.
 
 Not planned: Play Feature Delivery, since the engine delivers assets late
-and not code. Nor are Firebase beyond Crashlytics, ads SDKs (a game's
+and not code. Nor are Firebase beyond Crashlytics and Cloud Messaging, ads SDKs (a game's
 data-policy decision) or Play Games v1. GameActivity waits for a window
 change that asks for it.
 
@@ -144,8 +173,10 @@ change that asks for it.
    export already reads, and is the next size cut.
 3. **Play App Signing rewrites the certificate** an OAuth client is bound
    to. Nothing in the engine can check it, so the manual names it.
-4. **Firebase Cloud Messaging** (phase 4) takes the same path: a
-   `push` capability whose root is `firebase-messaging`, resolved into the
-   same lock and staged by the same script. Its `google-services.json`
-   values become string resources the export writes, as
-   `games_project_id` does.
+4. **Firebase Cloud Messaging** settled: the capability is
+   `firebase-messaging`, its root resolved into the same lock and staged by
+   the same script (step 8), and its shim declares its own service in
+   `play/firebase-messaging/AndroidManifest.xml`, which `stage` merges as it
+   merges the libraries'. The export reads `google-services.json` whole
+   rather than four values copied by hand: one key, the file the console
+   hands out, and a wrong app's file refused by its package name.

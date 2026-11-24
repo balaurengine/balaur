@@ -8,6 +8,9 @@
     ],
     "in-app-review": [
       "com.google.android.play:review:2.0.2"
+    ],
+    "firebase-messaging": [
+      "com.google.firebase:firebase-messaging:26.0.2"
     ]
   },
   "artifacts": {
@@ -154,6 +157,202 @@
         "androidx.core:core:1.0.0"
       ]
     },
+    "androidx.datastore:datastore": {
+      "version": "1.1.7",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "bb93975325ddc6b94a9893f5434919a74fe7859bfb77459cff8dcd85232baa09",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.2.0",
+        "androidx.datastore:datastore-android:1.1.7",
+        "androidx.datastore:datastore-core-okio:1.1.7",
+        "androidx.datastore:datastore-core:1.1.7",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+      ]
+    },
+    "androidx.datastore:datastore-android": {
+      "version": "1.1.7",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "26c12c6417e7e4cfd36386aa8cc2b9839fe87a6792f820805827bde4d27f9e6e",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.2.0",
+        "androidx.datastore:datastore-core-okio:1.1.7",
+        "androidx.datastore:datastore-core:1.1.7",
+        "com.squareup.okio:okio-jvm:3.4.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3"
+      ]
+    },
+    "androidx.datastore:datastore-core": {
+      "version": "1.1.7",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "1033b479dbeac90932fc598155f0fe190cc116b9174182799c7dad291f4d5b9a",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.7.0",
+        "androidx.datastore:datastore-core-android:1.1.7",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:atomicfu:0.17.0",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+      ]
+    },
+    "androidx.datastore:datastore-core-android": {
+      "version": "1.1.7",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "adca1d7cde73406fcca2a0eeabac63459adc9d1fe201b79ba08711fa2e331984",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation-jvm:1.7.0",
+        "org.jetbrains.kotlin:kotlin-parcelize-runtime:1.9.22",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3"
+      ]
+    },
+    "androidx.datastore:datastore-core-jvm": {
+      "version": "1.1.7",
+      "packaging": "jar",
+      "repository": "google",
+      "sha256": "362cbad1f13874a22c7360a18eb995ca52a360379ba0ea5af1b1cf0df0319a2f",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation-jvm:1.7.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+      ]
+    },
+    "androidx.datastore:datastore-core-okio": {
+      "version": "1.1.7",
+      "packaging": "jar",
+      "repository": "google",
+      "sha256": "117beb462cad6a885864fe0296ed8cfee509da08d064c44d226efbd60538599b",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.datastore:datastore-core-okio-jvm:1.1.7",
+        "androidx.datastore:datastore-core:1.1.7",
+        "com.squareup.okio:okio:3.4.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:atomicfu:0.17.0",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+      ]
+    },
+    "androidx.datastore:datastore-core-okio-jvm": {
+      "version": "1.1.7",
+      "packaging": "jar",
+      "repository": "google",
+      "sha256": "291506b4fce398249793e327207635bd4df25181d9539808d7181a4abd0875f5",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.datastore:datastore-core-jvm:1.1.7",
+        "com.squareup.okio:okio-jvm:3.4.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+      ]
+    },
+    "androidx.datastore:datastore-preferences": {
+      "version": "1.1.7",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "777b4f448e970f464c30c2d46327c7d3e5c9856faa6413d4ec9d3c2d31c6d533",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.datastore:datastore-preferences-android:1.1.7",
+        "androidx.datastore:datastore-preferences-core:1.1.7",
+        "androidx.datastore:datastore:1.1.7",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+      ]
+    },
+    "androidx.datastore:datastore-preferences-android": {
+      "version": "1.1.7",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "1b3d703abc765b60517334b04c5b520e6e25168a2f2d73d5b0cd975d20054f8d",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.datastore:datastore-preferences-core:1.1.7",
+        "androidx.datastore:datastore:1.1.7",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3"
+      ]
+    },
+    "androidx.datastore:datastore-preferences-core": {
+      "version": "1.1.7",
+      "packaging": "jar",
+      "repository": "google",
+      "sha256": "808e118cd85af51e52d9dbf771fa80e0187ffed15168fcb26db73c75e7dbc103",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.datastore:datastore-core-okio:1.1.7",
+        "androidx.datastore:datastore-core:1.1.7",
+        "androidx.datastore:datastore-preferences-core-jvm:1.1.7",
+        "com.squareup.okio:okio:3.4.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22",
+        "org.jetbrains.kotlinx:kotlinx-serialization-core:1.6.3",
+        "org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.6.3"
+      ]
+    },
+    "androidx.datastore:datastore-preferences-core-jvm": {
+      "version": "1.1.7",
+      "packaging": "jar",
+      "repository": "google",
+      "sha256": "8817e03c8856d8cb530723abaaf3a588c18e7a12af8fb7a393fceef06e026d53",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.datastore:datastore-core-jvm:1.1.7",
+        "androidx.datastore:datastore-core-okio-jvm:1.1.7",
+        "androidx.datastore:datastore-preferences-proto:1.1.7",
+        "com.squareup.okio:okio-jvm:3.4.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
+      ]
+    },
+    "androidx.datastore:datastore-preferences-external-protobuf": {
+      "version": "1.1.7",
+      "packaging": "jar",
+      "repository": "google",
+      "sha256": "fcb3f373cf743426c85ebb0d3cc644aefaf26f39b7fa55bb90238d41b689eca7",
+      "license": "BSD-3-Clause",
+      "license_url": "https://opensource.org/licenses/BSD-3-Clause",
+      "dependencies": []
+    },
+    "androidx.datastore:datastore-preferences-proto": {
+      "version": "1.1.7",
+      "packaging": "jar",
+      "repository": "google",
+      "sha256": "63686a612f39b8ca603bebe3376d55fb6c9ee28a4a5173efa49c89cbcca8a127",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.datastore:datastore-preferences-external-protobuf:1.1.7"
+      ]
+    },
+    "androidx.documentfile:documentfile": {
+      "version": "1.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "865a061ef2fad16522f8433536b8d47208c46ff7c7745197dfa1eeb481869487",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.0.0"
+      ]
+    },
     "androidx.fragment:fragment": {
       "version": "1.1.0",
       "packaging": "aar",
@@ -180,6 +379,22 @@
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
         "androidx.annotation:annotation:1.0.0"
+      ]
+    },
+    "androidx.legacy:legacy-support-core-utils": {
+      "version": "1.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "a7edcf01d5b52b3034073027bc4775b78a4764bb6202bb91d61c829add8dd1c7",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.0.0",
+        "androidx.core:core:1.0.0",
+        "androidx.documentfile:documentfile:1.0.0",
+        "androidx.loader:loader:1.0.0",
+        "androidx.localbroadcastmanager:localbroadcastmanager:1.0.0",
+        "androidx.print:print:1.0.0"
       ]
     },
     "androidx.lifecycle:lifecycle-common": {
@@ -274,6 +489,28 @@
         "androidx.core:core:1.0.0",
         "androidx.lifecycle:lifecycle-livedata:2.0.0",
         "androidx.lifecycle:lifecycle-viewmodel:2.0.0"
+      ]
+    },
+    "androidx.localbroadcastmanager:localbroadcastmanager": {
+      "version": "1.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "e71c328ceef5c4a7d76f2d86df1b65d65fe2acf868b1a4efd84a3f34336186d8",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.0.0"
+      ]
+    },
+    "androidx.print:print": {
+      "version": "1.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "1d5c7f3135a1bba661fc373fd72e11eb0a4adbb3396787826dd8e4190d5d9edd",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.0.0"
       ]
     },
     "androidx.profileinstaller:profileinstaller": {
@@ -371,59 +608,60 @@
       ]
     },
     "com.google.android.datatransport:transport-api": {
-      "version": "3.0.0",
+      "version": "5.0.0",
       "packaging": "aar",
       "repository": "google",
-      "sha256": "4e6983c0703b357df6f1c6ceacb1b5dfc2c5006a789c799fec2298b2b5337466",
+      "sha256": "a42703ad653154bbf365731b91bce5e9313d75ebdc626f1f33d5be0393cf4124",
       "license": "The Apache Software License, Version 2.0",
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
-        "androidx.annotation:annotation:1.1.0"
+        "androidx.annotation:annotation:1.3.0"
       ]
     },
     "com.google.android.datatransport:transport-backend-cct": {
-      "version": "3.1.8",
+      "version": "5.0.0",
       "packaging": "aar",
       "repository": "google",
-      "sha256": "e17edd1ef7fd475c90baa4e39422332f27087d34bcb46cb48ce86af9a54a612e",
-      "license": "The Apache Software License, Version 2.0",
-      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
-      "dependencies": [
-        "androidx.annotation:annotation:1.1.0",
-        "com.google.android.datatransport:transport-api:3.0.0",
-        "com.google.android.datatransport:transport-runtime:3.1.8",
-        "com.google.firebase:firebase-encoders-json:18.0.0",
-        "com.google.firebase:firebase-encoders:17.0.0"
-      ]
-    },
-    "com.google.android.datatransport:transport-runtime": {
-      "version": "3.1.8",
-      "packaging": "aar",
-      "repository": "google",
-      "sha256": "cb9353ef1791ae17097d878ca711e25a9c32cec9042adc49b00cadfee1a7290b",
+      "sha256": "0213d2ad87cc1e3b717f6502681fe9c43273a5d9bb5353a5a21c8df404e32d37",
       "license": "The Apache Software License, Version 2.0",
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
         "androidx.annotation:annotation:1.3.0",
-        "com.google.android.datatransport:transport-api:3.0.0",
-        "com.google.firebase:firebase-encoders-proto:16.0.0",
-        "com.google.firebase:firebase-encoders:17.0.0",
-        "javax.inject:javax.inject:1"
+        "com.google.android.datatransport:transport-api:5.0.0",
+        "com.google.android.datatransport:transport-runtime:5.0.0",
+        "com.google.firebase:firebase-encoders-json:19.0.0",
+        "com.google.firebase:firebase-encoders:18.0.0"
+      ]
+    },
+    "com.google.android.datatransport:transport-runtime": {
+      "version": "5.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "88f7db549974ddb062d039c909d60955ae8f39c3b54d0fa97021274a948dad1c",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.3.0",
+        "com.google.android.datatransport:transport-api:5.0.0",
+        "com.google.firebase:firebase-encoders-proto:17.0.0",
+        "com.google.firebase:firebase-encoders:18.0.0",
+        "javax.inject:javax.inject:1",
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.21"
       ]
     },
     "com.google.android.gms:play-services-base": {
-      "version": "18.5.0",
+      "version": "18.9.0",
       "packaging": "aar",
       "repository": "google",
-      "sha256": "59a5c0c2da12311d75d965ce1f419498536b1a167fb28ff7dfc2dfd9cefa4157",
+      "sha256": "a071d2f2b09a81182db7b10fe62f5ce24ec8646529400ff1423f9be1178c2cb5",
       "license": "Android Software Development Kit License",
       "license_url": "https://developer.android.com/studio/terms.html",
       "dependencies": [
         "androidx.collection:collection:1.0.0",
-        "androidx.core:core:1.2.0",
-        "androidx.fragment:fragment:1.0.0",
-        "com.google.android.gms:play-services-basement:18.4.0",
-        "com.google.android.gms:play-services-tasks:18.2.0"
+        "androidx.core:core:1.9.0",
+        "androidx.fragment:fragment:1.1.0",
+        "com.google.android.gms:play-services-basement:18.9.0",
+        "com.google.android.gms:play-services-tasks:18.4.0"
       ]
     },
     "com.google.android.gms:play-services-basement": {
@@ -437,6 +675,19 @@
         "androidx.collection:collection:1.0.0",
         "androidx.core:core:1.2.0",
         "androidx.fragment:fragment:1.1.0"
+      ]
+    },
+    "com.google.android.gms:play-services-cloud-messaging": {
+      "version": "17.4.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "c525314ab50fb6bb915da1dab99ea71b45fdb2aeb5ea6b857e7b9562ebbb8c85",
+      "license": "Android Software Development Kit License",
+      "license_url": "https://developer.android.com/studio/terms.html",
+      "dependencies": [
+        "com.google.android.gms:play-services-base:18.9.0",
+        "com.google.android.gms:play-services-basement:18.9.0",
+        "com.google.android.gms:play-services-tasks:18.4.0"
       ]
     },
     "com.google.android.gms:play-services-games-v2": {
@@ -477,15 +728,27 @@
         "com.google.android.gms:play-services-basement:17.0.0"
       ]
     },
-    "com.google.android.gms:play-services-tasks": {
-      "version": "18.2.0",
+    "com.google.android.gms:play-services-stats": {
+      "version": "17.0.2",
       "packaging": "aar",
       "repository": "google",
-      "sha256": "7f2aaa8f502068eaf54356ca92aec04271d6e7c416c52c45c0d23440fcbd1654",
+      "sha256": "dd4314a53f49a378ec146103d36232b96c75454d29526336ccbdf132941764d3",
       "license": "Android Software Development Kit License",
       "license_url": "https://developer.android.com/studio/terms.html",
       "dependencies": [
-        "com.google.android.gms:play-services-basement:18.4.0"
+        "androidx.legacy:legacy-support-core-utils:1.0.0",
+        "com.google.android.gms:play-services-basement:18.0.0"
+      ]
+    },
+    "com.google.android.gms:play-services-tasks": {
+      "version": "18.4.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "e3f7666ca0532142ab7c0c3f4e2dbf34113d590c3542845ce03ce79ea6b83d29",
+      "license": "Android Software Development Kit License",
+      "license_url": "https://developer.android.com/studio/terms.html",
+      "dependencies": [
+        "com.google.android.gms:play-services-basement:18.8.0"
       ]
     },
     "com.google.android.play:core-common": {
@@ -510,39 +773,195 @@
         "com.google.android.play:core-common:2.0.4"
       ]
     },
-    "com.google.firebase:firebase-encoders": {
-      "version": "17.0.0",
+    "com.google.errorprone:error_prone_annotations": {
+      "version": "2.26.0",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "53cdfc0beb2d766fe03b78f0b11d020554cd419879d20380c38fa1dcf2ba1b50",
+      "license": "Apache 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": []
+    },
+    "com.google.firebase:firebase-annotations": {
+      "version": "18.0.0",
       "packaging": "jar",
       "repository": "google",
-      "sha256": "282a5a703f9b7eb56508dde97ea918e95d73318b157050f457f7a86dca750150",
+      "sha256": "cdb20e14f4f77463f6bb6d339cf95efe132a4196eb9592bf3c4dc83856e2670d",
       "license": "The Apache Software License, Version 2.0",
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
-        "androidx.annotation:annotation:1.1.0"
+        "javax.inject:javax.inject:1",
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.21"
+      ]
+    },
+    "com.google.firebase:firebase-common": {
+      "version": "23.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "f8595dd404aa37bb4a92824ffd7b0325428432079ce4908ea3f97af1c6b33f0f",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.8.1",
+        "androidx.concurrent:concurrent-futures:1.1.0",
+        "androidx.datastore:datastore-preferences:1.1.7",
+        "com.google.android.gms:play-services-basement:18.9.0",
+        "com.google.android.gms:play-services-tasks:18.4.0",
+        "com.google.firebase:firebase-annotations:17.0.0",
+        "com.google.firebase:firebase-components:19.0.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.21",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2"
+      ]
+    },
+    "com.google.firebase:firebase-components": {
+      "version": "20.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "1a39e0a88fe34ee4c911cb10da88488c487714692cbdfacac6015ddeffa0029b",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.8.1",
+        "com.google.errorprone:error_prone_annotations:2.26.0",
+        "com.google.firebase:firebase-annotations:17.0.0"
+      ]
+    },
+    "com.google.firebase:firebase-datatransport": {
+      "version": "21.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "72b3a3265676439b21331477653023274bce4f3fb94d8b32b6d1cb0ad335b2eb",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.8.1",
+        "com.google.android.datatransport:transport-api:5.0.0",
+        "com.google.android.datatransport:transport-backend-cct:5.0.0",
+        "com.google.android.datatransport:transport-runtime:5.0.0",
+        "com.google.firebase:firebase-common:23.0.0",
+        "com.google.firebase:firebase-components:20.0.0",
+        "javax.inject:javax.inject:1",
+        "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.21"
+      ]
+    },
+    "com.google.firebase:firebase-encoders": {
+      "version": "18.0.0",
+      "packaging": "jar",
+      "repository": "google",
+      "sha256": "2f2badbf47d46a3812084f535ad6df378392c6320376bcb846b98a8351ec0f48",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.8.1"
       ]
     },
     "com.google.firebase:firebase-encoders-json": {
-      "version": "18.0.0",
+      "version": "19.0.0",
       "packaging": "aar",
       "repository": "google",
-      "sha256": "80aece7e1ef58957ca2fc1957bc9208ec92a3a9528201331d3c63e3182570f97",
+      "sha256": "f72d65dfd4a6f3850ac93cacf720433adbe932179884455fa7c5dd5db5a475c4",
       "license": "The Apache Software License, Version 2.0",
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
-        "androidx.annotation:annotation:1.1.0",
-        "com.google.firebase:firebase-encoders:17.0.0"
+        "androidx.annotation:annotation:1.8.1",
+        "com.google.firebase:firebase-encoders:18.0.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.21"
       ]
     },
     "com.google.firebase:firebase-encoders-proto": {
-      "version": "16.0.0",
+      "version": "17.0.0",
       "packaging": "jar",
       "repository": "google",
-      "sha256": "293db96a0d1d43f033167881b638d8fde844e4e5495f5101cf52295765295e0e",
+      "sha256": "0ca5fbf8ecd57fca9bd31c652e0c308c708bfa7ed5abb5f13ea55f1a23ac426d",
       "license": "The Apache Software License, Version 2.0",
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
-        "androidx.annotation:annotation:1.1.0",
-        "com.google.firebase:firebase-encoders:17.0.0"
+        "androidx.annotation:annotation:1.3.0",
+        "com.google.firebase:firebase-encoders:18.0.0"
+      ]
+    },
+    "com.google.firebase:firebase-iid-interop": {
+      "version": "17.1.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "0b7c3721c84b62e70415307239ed4a7f998989084bf2833f90b9f5bea3095a05",
+      "license": "Android Software Development Kit License",
+      "license_url": "https://developer.android.com/studio/terms.html",
+      "dependencies": [
+        "com.google.android.gms:play-services-basement:17.0.0",
+        "com.google.android.gms:play-services-tasks:17.0.0"
+      ]
+    },
+    "com.google.firebase:firebase-installations": {
+      "version": "20.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "30b9c50a81e706bbe7fcac0f112a11cb151afd74f339b522631b8fd2b485e82e",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.datastore:datastore-preferences:1.1.7",
+        "com.google.android.gms:play-services-tasks:18.4.0",
+        "com.google.firebase:firebase-annotations:18.0.0",
+        "com.google.firebase:firebase-common:23.0.0",
+        "com.google.firebase:firebase-components:20.0.0",
+        "com.google.firebase:firebase-installations-interop:18.0.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.21"
+      ]
+    },
+    "com.google.firebase:firebase-installations-interop": {
+      "version": "18.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "fab7f3633204dd1c889a2ea419bfc1937e0e3766aae236a4b9d3c665d59765eb",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "com.google.android.gms:play-services-tasks:18.4.0",
+        "com.google.firebase:firebase-annotations:18.0.0"
+      ]
+    },
+    "com.google.firebase:firebase-measurement-connector": {
+      "version": "19.0.0",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "dba74d6bf94647ee397bf7afb2ab07f6fe8d13157e56785fa540a2a13ed82c99",
+      "license": "Android Software Development Kit License",
+      "license_url": "https://developer.android.com/studio/terms.html",
+      "dependencies": [
+        "com.google.android.gms:play-services-basement:17.0.0",
+        "com.google.firebase:firebase-annotations:16.0.0"
+      ]
+    },
+    "com.google.firebase:firebase-messaging": {
+      "version": "26.0.2",
+      "packaging": "aar",
+      "repository": "google",
+      "sha256": "5d5e60fe3415614efa85054c5216d31918102d54d6e98b2707a0a86b9a451497",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "androidx.annotation:annotation:1.8.1",
+        "com.google.android.datatransport:transport-api:5.0.0",
+        "com.google.android.datatransport:transport-backend-cct:5.0.0",
+        "com.google.android.datatransport:transport-runtime:5.0.0",
+        "com.google.android.gms:play-services-base:18.9.0",
+        "com.google.android.gms:play-services-basement:18.9.0",
+        "com.google.android.gms:play-services-cloud-messaging:17.4.0",
+        "com.google.android.gms:play-services-stats:17.0.2",
+        "com.google.android.gms:play-services-tasks:18.4.0",
+        "com.google.errorprone:error_prone_annotations:2.26.0",
+        "com.google.firebase:firebase-common:23.0.0",
+        "com.google.firebase:firebase-components:20.0.0",
+        "com.google.firebase:firebase-datatransport:21.0.0",
+        "com.google.firebase:firebase-encoders-json:19.0.0",
+        "com.google.firebase:firebase-encoders-proto:17.0.0",
+        "com.google.firebase:firebase-encoders:18.0.0",
+        "com.google.firebase:firebase-iid-interop:17.1.0",
+        "com.google.firebase:firebase-installations-interop:18.0.0",
+        "com.google.firebase:firebase-installations:20.0.0",
+        "com.google.firebase:firebase-measurement-connector:19.0.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.21"
       ]
     },
     "com.google.guava:listenablefuture": {
@@ -554,6 +973,29 @@
       "license_url": "",
       "dependencies": []
     },
+    "com.squareup.okio:okio": {
+      "version": "3.4.0",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "18780c5d229bd00895cf28b913c5a1e585dbf0aab8f410fc48392e1783abb442",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "com.squareup.okio:okio-jvm:3.4.0"
+      ]
+    },
+    "com.squareup.okio:okio-jvm": {
+      "version": "3.4.0",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "0139ec7a506dbbd54cad62291b019cb850534be097c8c66c1000d5fbe8edef3e",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "org.jetbrains.kotlin:kotlin-stdlib-common:1.8.0",
+        "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.0"
+      ]
+    },
     "javax.inject:javax.inject": {
       "version": "1",
       "packaging": "jar",
@@ -563,48 +1005,93 @@
       "license_url": "",
       "dependencies": []
     },
-    "org.jetbrains.kotlin:kotlin-stdlib": {
-      "version": "1.8.22",
+    "org.jetbrains.kotlin:kotlin-android-extensions-runtime": {
+      "version": "1.9.22",
       "packaging": "jar",
       "repository": "central",
-      "sha256": "03a5c3965cc37051128e64e46748e394b6bd4c97fa81c6de6fc72bfd44e3421b",
+      "sha256": "f00537c7023e604933f6a9563b1bb3b83e61fbfd2cc3d0e9900d616bab6862a4",
       "license": "The Apache License, Version 2.0",
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
-        "org.jetbrains.kotlin:kotlin-stdlib-common:1.8.22",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
+      ]
+    },
+    "org.jetbrains.kotlin:kotlin-parcelize-runtime": {
+      "version": "1.9.22",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "f0077f35ec828e148ac92d0c6aa141a732b5eb7a4a391679aeefa59fa9a1a5cc",
+      "license": "The Apache License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "org.jetbrains.kotlin:kotlin-android-extensions-runtime:1.9.22",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
+      ]
+    },
+    "org.jetbrains.kotlin:kotlin-stdlib": {
+      "version": "2.1.21",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "263bdc679e1f62012db7b091796279b6d71cf36f4797a98ff1ace05835f201c8",
+      "license": "The Apache License, Version 2.0",
+      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
         "org.jetbrains:annotations:13.0"
       ]
     },
     "org.jetbrains.kotlin:kotlin-stdlib-common": {
-      "version": "1.8.22",
+      "version": "1.9.22",
       "packaging": "jar",
       "repository": "central",
-      "sha256": "d0c2365e2437ef70f34586d50f055743f79716bcfe65e4bc7239cdd2669ef7c5",
+      "sha256": "60b53a3fc0ed19ff5568ad54372f102f51109b7480417e93c8f3418ae4f73188",
       "license": "The Apache License, Version 2.0",
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": []
     },
     "org.jetbrains.kotlin:kotlin-stdlib-jdk7": {
-      "version": "1.6.21",
+      "version": "2.1.21",
       "packaging": "jar",
       "repository": "central",
-      "sha256": "f1b0634dbb94172038463020bb2dd45ca26849f8ce29d625acb0f1569d11dbee",
+      "sha256": "966846172e1052cb5b34d7b34647a64799b33f6da816509f7825c56f55895234",
       "license": "The Apache License, Version 2.0",
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
-        "org.jetbrains.kotlin:kotlin-stdlib:1.6.21"
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.21"
       ]
     },
     "org.jetbrains.kotlin:kotlin-stdlib-jdk8": {
-      "version": "1.6.21",
+      "version": "2.1.21",
       "packaging": "jar",
       "repository": "central",
-      "sha256": "dab45489b47736d59fce44b80676f1947a9b6bcab10fd60e878a83bd82a6954c",
+      "sha256": "87b4f956de27401446227e474ac7a31acff0d0a8087160c54288c1e6f46a67e6",
       "license": "The Apache License, Version 2.0",
       "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
-        "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.6.21",
-        "org.jetbrains.kotlin:kotlin-stdlib:1.6.21"
+        "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.21",
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.21"
+      ]
+    },
+    "org.jetbrains.kotlinx:atomicfu": {
+      "version": "0.17.0",
+      "packaging": "pom",
+      "repository": "central",
+      "sha256": "608d71c997bf4c117f329955eb6049ef69625c5f87110cf20f3ed8487deb40d7",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "org.jetbrains.kotlinx:atomicfu-jvm:0.17.0"
+      ]
+    },
+    "org.jetbrains.kotlinx:atomicfu-jvm": {
+      "version": "0.17.0",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "adb64a642b142157227b5f5cdb6d1e004d73216df32acba1c6836134835a4b1f",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "org.jetbrains.kotlin:kotlin-stdlib-common:1.6.0",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.6.0"
       ]
     },
     "org.jetbrains.kotlinx:kotlinx-coroutines-android": {
@@ -619,25 +1106,96 @@
         "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.4"
       ]
     },
-    "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm": {
-      "version": "1.6.4",
-      "packaging": "jar",
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core": {
+      "version": "1.7.3",
+      "packaging": "pom",
       "repository": "central",
-      "sha256": "c24c8bb27bb320c4a93871501a7e5e0c61607638907b197aef675513d4c820be",
+      "sha256": "ed6eb0398717035e29f1c1d60a4e3ddbb89858f3db9e07b57ad759d374dae829",
       "license": "The Apache Software License, Version 2.0",
       "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": [
-        "org.jetbrains.kotlin:kotlin-stdlib-common:1.6.21",
-        "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.21"
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3"
+      ]
+    },
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm": {
+      "version": "1.10.2",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd",
+      "license": "Apache-2.0",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.0",
+        "org.jetbrains:annotations:23.0.0"
+      ]
+    },
+    "org.jetbrains.kotlinx:kotlinx-coroutines-play-services": {
+      "version": "1.10.2",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "a84469d683cffc4427270b7144c62047d2a71ece703e063a4880c8dcc42caf72",
+      "license": "Apache-2.0",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "com.google.android.gms:play-services-tasks:16.0.1",
+        "org.jetbrains.kotlin:kotlin-stdlib:2.1.0",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2"
+      ]
+    },
+    "org.jetbrains.kotlinx:kotlinx-serialization-core": {
+      "version": "1.6.3",
+      "packaging": "pom",
+      "repository": "central",
+      "sha256": "d2dbf6fc15364c8969d6aab6e3eccc75139953f2cc057b730e35267465b3b57e",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.6.3"
+      ]
+    },
+    "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm": {
+      "version": "1.6.3",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "29c821a8d4e25cbfe4f2ce96cdd4526f61f8f4e69a135f9612a34a81d93b65f1",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
+      ]
+    },
+    "org.jetbrains.kotlinx:kotlinx-serialization-protobuf": {
+      "version": "1.6.3",
+      "packaging": "pom",
+      "repository": "central",
+      "sha256": "ee347991a0815acaa16cd62d0a61d8e34da7ce83762f505a1d73d79142a3add1",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "org.jetbrains.kotlinx:kotlinx-serialization-protobuf-jvm:1.6.3"
+      ]
+    },
+    "org.jetbrains.kotlinx:kotlinx-serialization-protobuf-jvm": {
+      "version": "1.6.3",
+      "packaging": "jar",
+      "repository": "central",
+      "sha256": "94c6ecb14ef5503db65807caa3cb35bbfa175d1ca83c8ffaba32219f3b992597",
+      "license": "The Apache Software License, Version 2.0",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "dependencies": [
+        "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22",
+        "org.jetbrains.kotlin:kotlin-stdlib:1.9.22",
+        "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.6.3"
       ]
     },
     "org.jetbrains:annotations": {
-      "version": "13.0",
+      "version": "23.0.0",
       "packaging": "jar",
       "repository": "central",
-      "sha256": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478",
+      "sha256": "7b0f19724082cbfcbc66e5abea2b9bc92cf08a1ea11e191933ed43801eb3cd05",
       "license": "The Apache Software License, Version 2.0",
-      "license_url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
       "dependencies": []
     }
   }

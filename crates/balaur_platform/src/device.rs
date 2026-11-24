@@ -1,6 +1,6 @@
 //! What the OS lends a game, whichever store is loaded: local notifications
-//! (`platform.notify`), the motor, the share sheet and the review prompt
-//! (`device.*`).
+//! (`platform.notify`), a push token (`platform.register_for_push`), the
+//! motor, the share sheet and the review prompt (`device.*`).
 //!
 //! A second seam beside the store's, because these belong to the OS: a Mac
 //! game Steam started still notifies through Apple's centre. Apple's plugin
@@ -26,6 +26,7 @@ pub const DEVICE: &str = "device";
 const CANCEL_NOTIFICATION: &str = "cancel_notification";
 const HAPTIC: &str = "haptic";
 const NOTIFY: &str = "notify";
+const REGISTER_FOR_PUSH: &str = "register_for_push";
 const REQUEST_NOTIFICATIONS: &str = "request_notifications";
 const REQUEST_REVIEW: &str = "request_review";
 const SHARE: &str = "share";
@@ -53,6 +54,8 @@ pub enum DeviceCall {
     },
     /// The store's own prompt to rate the game, which the store may not show.
     RequestReview,
+    /// The device's push token: APNs' on Apple, FCM's on Android.
+    RegisterForPush,
 }
 
 impl DeviceCall {
@@ -64,6 +67,7 @@ impl DeviceCall {
             Self::Notify { .. } => NOTIFY,
             Self::Share { .. } => SHARE,
             Self::RequestReview => REQUEST_REVIEW,
+            Self::RegisterForPush => REGISTER_FOR_PUSH,
         }
     }
 
@@ -71,7 +75,9 @@ impl DeviceCall {
     #[must_use]
     pub const fn module(&self) -> &'static str {
         match self {
-            Self::RequestNotifications | Self::Notify { .. } => crate::PLATFORM,
+            Self::RequestNotifications | Self::Notify { .. } | Self::RegisterForPush => {
+                crate::PLATFORM
+            }
             Self::Share { .. } | Self::RequestReview => DEVICE,
         }
     }
@@ -202,8 +208,10 @@ fn text_opt(opts: Option<&Value>, key: &str) -> Result<String> {
     }
 }
 
-/// `platform.request_notifications`, `notify` and `cancel_notification`.
+/// `platform.request_notifications`, `notify` and `cancel_notification`, and
+/// `register_for_push`.
 pub(crate) fn install_notifications(m: &mut Module<Engine>) {
+    install_push(m);
     m.records(&[(
         "NotifyOptions",
         "{ title: string?, after: float?, id: string?, data: any? }",
@@ -272,6 +280,27 @@ pub(crate) fn install_notifications(m: &mut Module<Engine>) {
             .borrow_mut()
             .cancel_notification(eng, &id);
         Ok(())
+    });
+}
+
+/// `platform.register_for_push`, and the `PUSH_*` words its answer carries.
+fn install_push(m: &mut Module<Engine>) {
+    for (name, word) in [
+        ("PUSH_PROVIDER_APNS", words::push::APNS),
+        ("PUSH_PROVIDER_FCM", words::push::FCM),
+        ("PUSH_PLATFORM_IOS", words::push::IOS),
+        ("PUSH_PLATFORM_ANDROID", words::push::ANDROID),
+    ] {
+        m.constant(name, Value::Str(word.into()));
+    }
+    m.describe(&[(
+        REGISTER_FOR_PUSH,
+        &[],
+        "() -> int",
+        "Ask the OS for this device's push token, and return the id whose `push_registered` answer carries it as `token`, with `provider` (`PUSH_PROVIDER_APNS` or `PUSH_PROVIDER_FCM`) and `platform` (`PUSH_PLATFORM_IOS`, a Mac's too, or `PUSH_PLATFORM_ANDROID`): the three fields Gamend's `push_tokens::register_push_token` takes, so the answer is handed to it as it is. `push_failed` says why with `error`, naming the capability to add when the export left it out (`[apple] capabilities = [\"push-notifications\"]`, `[android] capabilities = [\"firebase-messaging\"]`); `unsupported` elsewhere. A token the OS replaces later is `push_token_changed` on `platform_event`, with the same fields. Showing a push needs `request_notifications` first, as a local notification does.",
+    )]);
+    m.function(REGISTER_FOR_PUSH, |eng: &Engine, ()| {
+        Ok(start_device(eng, DeviceCall::RegisterForPush))
     });
 }
 

@@ -280,6 +280,41 @@ pub struct Score {
     pub score: i64,
 }
 
+/// A device's push token as a push server registers it: Gamend's
+/// `POST /me/push_tokens` takes these three fields as they are.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PushToken {
+    /// APNs' device token in hex, or FCM's registration token.
+    pub token: String,
+    /// Who delivers to it: `apns` or `fcm`.
+    pub provider: String,
+    /// Where it was registered from: `ios` (a Mac's too, APNs having one
+    /// value for Apple) or `android`.
+    pub platform: String,
+}
+
+impl PushToken {
+    /// An APNs device token, hex.
+    #[must_use]
+    pub fn apns(token: String) -> Self {
+        Self {
+            token,
+            provider: words::push::APNS.into(),
+            platform: words::push::IOS.into(),
+        }
+    }
+
+    /// An FCM registration token.
+    #[must_use]
+    pub fn fcm(token: String) -> Self {
+        Self {
+            token,
+            provider: words::push::FCM.into(),
+            platform: words::push::ANDROID.into(),
+        }
+    }
+}
+
 /// What a backend reports back, crossing from wherever it runs into the
 /// frame loop.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -366,6 +401,29 @@ pub enum PlatformEvent {
         request: u64,
         target: String,
     },
+    /// The device's push token, for `register_for_push`.
+    PushRegistered {
+        request: u64,
+        token: PushToken,
+    },
+    /// The OS would not hand a push token over, or the build cannot ask.
+    PushFailed {
+        request: u64,
+        message: String,
+    },
+    /// The OS replaced the device's push token. Unsolicited: request 0.
+    PushTokenChanged {
+        token: PushToken,
+    },
+    /// A push reached the game while it was in front, or a silent one
+    /// reached it at all: the push's `id`, what its notification said, and
+    /// its `data`. Unsolicited: request 0.
+    PushReceived {
+        id: String,
+        title: String,
+        body: String,
+        data: serde_json::Value,
+    },
 }
 
 impl PlatformEvent {
@@ -384,8 +442,13 @@ impl PlatformEvent {
             | Self::Identity { request, .. }
             | Self::Notifications { request, .. }
             | Self::Scheduled { request, .. }
-            | Self::Shared { request, .. } => *request,
-            Self::NotificationOpened { .. } | Self::NotificationReceived { .. } => 0,
+            | Self::Shared { request, .. }
+            | Self::PushRegistered { request, .. }
+            | Self::PushFailed { request, .. } => *request,
+            Self::NotificationOpened { .. }
+            | Self::NotificationReceived { .. }
+            | Self::PushTokenChanged { .. }
+            | Self::PushReceived { .. } => 0,
         }
     }
 }
@@ -661,8 +724,9 @@ pub struct PlatformSnapshot {
 
 /// What changes or arrives with nobody asking, heard with `events::listen` as
 /// `on_platform_event`: who is playing, when the player signs out in the OS or
-/// signs in as someone else, a notification tapped or shown in front, and a
-/// purchase that landed with nobody asking.
+/// signs in as someone else, a notification or a push tapped or shown in
+/// front, a push token the OS replaced, and a purchase that landed with
+/// nobody asking.
 pub const ARRIVAL_EVENT: &str = "platform_event";
 
 /// The loaded store's name, or `"none"`: what a provider asks when a service
@@ -803,6 +867,10 @@ pub mod kind {
     pub const RESTORED: &str = "restored";
     pub const FINISHED: &str = "finished";
     pub const TRANSACTION: &str = "transaction";
+    pub const PUSH_REGISTERED: &str = "push_registered";
+    pub const PUSH_FAILED: &str = "push_failed";
+    pub const PUSH_TOKEN_CHANGED: &str = "push_token_changed";
+    pub const PUSH_RECEIVED: &str = "push_received";
     pub const ERROR: &str = balaur_core::handler::ERROR;
     pub const ALL: &[&str] = &[
         SIGNED_IN,
@@ -825,6 +893,10 @@ pub mod kind {
         RESTORED,
         FINISHED,
         TRANSACTION,
+        PUSH_REGISTERED,
+        PUSH_FAILED,
+        PUSH_TOKEN_CHANGED,
+        PUSH_RECEIVED,
         ERROR,
     ];
     /// What `device.*` answers.
@@ -942,6 +1014,45 @@ fn device_value(event: PlatformEvent, pairs: &mut Vec<(String, Value)>) {
             pairs.push((KIND.into(), Value::Str(kind::SHARED.into())));
             pairs.push((k::TARGET.into(), Value::Str(target)));
         }
+        push => push_value(push, pairs),
+    }
+}
+
+/// What a push answer or arrival carries: a token's three fields as Gamend
+/// takes them, or a push's own. Split from [`device_value`] under
+/// `MAX_FN_LINES`.
+fn push_value(event: PlatformEvent, pairs: &mut Vec<(String, Value)>) {
+    let token_fields = |pairs: &mut Vec<(String, Value)>, token: PushToken| {
+        pairs.push((k::TOKEN.into(), Value::Str(token.token)));
+        pairs.push((k::PROVIDER.into(), Value::Str(token.provider)));
+        pairs.push((k::PLATFORM.into(), Value::Str(token.platform)));
+    };
+    match event {
+        PlatformEvent::PushRegistered { token, .. } => {
+            pairs.push((KIND.into(), Value::Str(kind::PUSH_REGISTERED.into())));
+            token_fields(pairs, token);
+        }
+        PlatformEvent::PushTokenChanged { token } => {
+            pairs.push((KIND.into(), Value::Str(kind::PUSH_TOKEN_CHANGED.into())));
+            token_fields(pairs, token);
+        }
+        PlatformEvent::PushFailed { message, .. } => {
+            pairs.push((KIND.into(), Value::Str(kind::PUSH_FAILED.into())));
+            pairs.push((kind::ERROR.into(), Value::Str(message)));
+        }
+        PlatformEvent::PushReceived {
+            id,
+            title,
+            body,
+            data,
+        } => {
+            pairs.push((KIND.into(), Value::Str(kind::PUSH_RECEIVED.into())));
+            pairs.push((ID.into(), Value::Str(id)));
+            pairs.push((k::TITLE.into(), Value::Str(title)));
+            pairs.push((k::BODY.into(), Value::Str(body)));
+            let data = balaur_core::engine_api::from_json(&data).unwrap_or(Value::Nil);
+            pairs.push((k::DATA.into(), data));
+        }
         _ => {}
     }
 }
@@ -963,7 +1074,7 @@ impl balaur_plugin::Plugin for PlatformPlugin {
             &[(
                 ARRIVAL_EVENT,
                 "what arrived, carrying request 0",
-                "The player signed out in the OS or signed in as someone else, a notification was tapped or shown while the game was in front, or a purchase landed with nobody asking (`transaction`).",
+                "The player signed out in the OS or signed in as someone else, a notification or a push was tapped (`notification_opened`) or arrived while the game was in front (`notification_received`, `push_received`), the OS replaced the push token (`push_token_changed`), or a purchase landed with nobody asking (`transaction`).",
             )],
         );
         reg.add_system(Stage::First, pump_platform_system);

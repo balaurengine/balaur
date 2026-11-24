@@ -32,8 +32,11 @@ the background runs no fixed step and holds its sounds until it comes back
      It answers `shared` with the `target` picked, or `cancelled`.
    - `device.request_review()`: `SKStoreReviewController`. `unsupported` on
      Android until Play's in-app review library comes with Play Billing.
-   - `platform.notify`, `request_notifications`, `cancel_notification` and
-     `platform.is_available(SERVICE_*)` sit beside it (ARCHITECTURE.md).
+   - `platform.notify`, `request_notifications`, `cancel_notification`,
+     `register_for_push` and `platform.is_available(SERVICE_*)` sit beside it
+     (ARCHITECTURE.md). Push is APNs on Apple (`PLAN-apple.md` step 5) and FCM
+     on Android (`PLAN-google.md` step 8), its token answered in the fields
+     Gamend's `push_tokens` takes.
    Tested headless against a canned OS, stand-ins and a replay; the Java
    compiles under `-Werror` and dexes. Not run on a device. Still to do: the
    camera, geolocation and biometrics; `navigator.share` on a page; an exact

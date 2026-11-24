@@ -9,10 +9,13 @@ pub(crate) mod keys {
     pub(crate) const DATA: &str = "data";
     pub(crate) const FILE: &str = "file";
     pub(crate) const ID: &str = "id";
+    pub(crate) const PLATFORM: &str = "platform";
+    pub(crate) const PROVIDER: &str = "provider";
     pub(crate) const START: &str = "start";
     pub(crate) const TARGET: &str = "target";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TITLE: &str = "title";
+    pub(crate) const TOKEN: &str = "token";
 }
 
 #[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
@@ -31,6 +34,15 @@ pub(crate) mod words {
         pub(crate) const SELECTION: &str = "selection";
         pub(crate) const SUCCESS: &str = "success";
         pub(crate) const WARNING: &str = "warning";
+    }
+
+    /// Who delivers a push token's pushes and where it was registered from,
+    /// spelled as Gamend's `push_tokens` endpoint takes them.
+    pub(crate) mod push {
+        pub(crate) const APNS: &str = "apns";
+        pub(crate) const FCM: &str = "fcm";
+        pub(crate) const ANDROID: &str = "android";
+        pub(crate) const IOS: &str = "ios";
     }
 
     /// `platform.is_available`'s services, as the Java shim reads them too.

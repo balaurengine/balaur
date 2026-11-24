@@ -126,7 +126,7 @@ define_class!(
 
         #[unsafe(method(application:didRegisterForRemoteNotificationsWithDeviceToken:))]
         fn token(&self, app: *mut AnyObject, token: *mut NSData) {
-            crate::queue::push_apple(AppleEvent::PushToken { token: hex(token) });
+            crate::push::token(hex(token));
             self.forward_token(app, token);
         }
 
@@ -136,7 +136,7 @@ define_class!(
                 || "the OS refused to register for push".to_string(),
                 |error| error.localizedDescription().to_string(),
             );
-            crate::queue::push_apple(AppleEvent::PushFailed { message });
+            crate::push::failed(&message);
             self.forward_token_failure(app, error);
         }
 
@@ -149,7 +149,7 @@ define_class!(
             info: *mut AnyObject,
             done: &DynBlock<dyn Fn(usize)>,
         ) {
-            crate::queue::push_apple(AppleEvent::PushReceived { data: json_of(info) });
+            crate::push::received(json_of(info));
             // UIBackgroundFetchResultNewData.
             done.call((0,));
         }
@@ -157,7 +157,7 @@ define_class!(
         /// macOS: the same arrival, with nothing to answer.
         #[unsafe(method(application:didReceiveRemoteNotification:))]
         fn remote_on_mac(&self, _app: *mut AnyObject, info: *mut AnyObject) {
-            crate::queue::push_apple(AppleEvent::PushReceived { data: json_of(info) });
+            crate::push::received(json_of(info));
         }
 
         /// iOS: a URL the game was asked to open. True says it was handled,

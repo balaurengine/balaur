@@ -46,7 +46,7 @@ mod os {
     pub(super) use crate::android::start;
 
     /// Android's notifications, motor, share sheet and Custom Tab, and Play's
-    /// review prompt where the game's dex carries it.
+    /// review prompt and Firebase's push where the game's dex carries them.
     pub(super) fn provide(eng: &super::Engine) -> super::Result<()> {
         for service in crate::android::device::SERVICES {
             crate::provide(eng, service, move |_| {
@@ -55,6 +55,9 @@ mod os {
         }
         crate::provide(eng, crate::Service::Review, |_| {
             crate::android::capability_available(crate::android::REVIEW)
+        })?;
+        crate::provide(eng, crate::Service::Push, |_| {
+            crate::android::capability_available(crate::android::PUSH)
         })
     }
 }

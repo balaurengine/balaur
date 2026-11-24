@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the push shim declares itself; play_libraries.py stage merges it
+     with the libraries' entries for every set naming firebase-messaging. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <service
+        android:name="org.balaur.google.Messaging"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>

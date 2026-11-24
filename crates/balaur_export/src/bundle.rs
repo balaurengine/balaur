@@ -226,7 +226,17 @@ pub(crate) fn export_bundle(
             apple.info_plist(Platform::Ios, &executable, &icon_keys)?,
         )
         .with_context(|| format!("writing {}", plist.display()))?;
-        if let Some(path) = apple.write_entitlements(&output, name, false, false)? {
+        // The identity the project declares, which `--sign` may replace; the
+        // signing step writes this file again for the one it signs with.
+        let declared = (!apple.ios_identity.is_empty()).then_some(apple.ios_identity.as_str());
+        if let Some(path) = apple.write_entitlements(
+            &output,
+            name,
+            Platform::Ios,
+            crate::apple::Build::of(declared),
+            false,
+            false,
+        )? {
             tracing::info!(
                 "entitlements -> {} (codesign --entitlements {} --sign <identity> {})",
                 path.display(),
@@ -346,7 +356,14 @@ pub(crate) fn export_macos_app(
         app.join("Contents").join("Info.plist"),
         apple.info_plist(Platform::Macos, name, &icon_keys)?,
     )?;
-    let entitlements = apple.write_entitlements(&app, name, !scripts_native, steam.build)?;
+    let entitlements = apple.write_entitlements(
+        &app,
+        name,
+        Platform::Macos,
+        crate::apple::Build::of(sign),
+        !scripts_native,
+        steam.build,
+    )?;
     crate::sign::codesign(&app, sign, entitlements.as_deref(), true)?;
     if sign.is_some() {
         crate::sign::verify(&app)?;

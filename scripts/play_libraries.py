@@ -60,6 +60,10 @@ TOOLS = "http://schemas.android.com/tools"
 # The template's floor, `<uses-sdk android:minSdkVersion>` in package_runtime.sh.
 MIN_API = 26
 SCOPES = {"compile", "runtime", ""}
+# Native code a library carries that nothing in the template reaches, left out
+# rather than merged. DataStore's shared counter backs MultiProcessDataStore
+# alone, and Firebase opens its stores with `preferencesDataStore`, one process.
+UNREACHED_NATIVE = {"androidx.datastore:datastore-core-android"}
 ET.register_namespace("android", ANDROID)
 
 
@@ -302,15 +306,19 @@ def safe_names(archive: zipfile.ZipFile, path: Path) -> None:
 def unpack(key: str, archive_path: Path, into: Path) -> dict:
     """An AAR's jars, resources, manifest and R.txt, or a JAR as its classes."""
     into.mkdir(parents=True)
+    # A Kotlin multiplatform root is a POM alone, naming its `-jvm` artifact.
+    if archive_path.suffix == ".pom":
+        return {"jars": [], "res": None, "manifest": None, "r": None}
     if archive_path.suffix == ".jar":
         shutil.copy(archive_path, into / "classes.jar")
         return {"jars": [into / "classes.jar"], "res": None, "manifest": None, "r": None}
     with zipfile.ZipFile(archive_path) as archive:
         safe_names(archive, archive_path)
         names = archive.namelist()
-        if any(n.startswith("jni/") and not n.endswith("/") for n in names):
+        native = [n for n in names if n.startswith("jni/")]
+        if key not in UNREACHED_NATIVE and any(not n.endswith("/") for n in native):
             fail(f"{key} carries native code, which the template cannot merge yet")
-        archive.extractall(into)
+        archive.extractall(into, members=[n for n in names if n not in native])
     jars = [into / "classes.jar"] if (into / "classes.jar").is_file() else []
     jars += sorted((into / "libs").glob("*.jar"))
     res = into / "res"
@@ -385,14 +393,25 @@ def merged(elements: list[ET.Element]) -> list[ET.Element]:
     return out
 
 
-def subset_manifest(staged: dict, artifacts: list[str]) -> dict:
-    """The permissions and entries a set of artifacts adds to the manifest."""
-    top = merged([e for k in artifacts for e in staged[k]["manifest"]])
+def subset_manifest(staged: dict, artifacts: list[str], shims: list[dict]) -> dict:
+    """The permissions and entries a set of artifacts, and the shims of the
+    capabilities that need them, add to the manifest."""
+    entries = [staged[k] for k in artifacts] + shims
+    top = merged([e for entry in entries for e in entry["manifest"]])
     return {
         "permissions": [e.get(f"{{{ANDROID}}}name") for e in top if e.tag == "uses-permission"],
         "manifest": [serialize(e) for e in top if e.tag != "uses-permission"],
-        "application": [serialize(e) for e in merged([e for k in artifacts for e in staged[k]["application"]])],
+        "application": [serialize(e) for e in merged([e for entry in entries for e in entry["application"]])],
     }
+
+
+def shim_manifest(capability: str) -> dict:
+    """What a capability's shim declares itself (a service the OS starts), in
+    `play/<capability>/AndroidManifest.xml`, or nothing."""
+    path = SHIMS / capability / "AndroidManifest.xml"
+    if not path.is_file():
+        return {"manifest": [], "application": []}
+    return manifest_entries(f"the {capability} shim", path)
 
 
 def run(command: list, what: str) -> None:
@@ -513,11 +532,13 @@ def stage(lock: dict, downloads: Path, out: Path) -> None:
             index["capabilities"][capability] = record
         # Every set of capabilities a game can declare, each merged once.
         names = sorted(lock["roots"])
+        shims = {name: shim_manifest(name) for name in names}
         index["manifests"] = {}
         for size in range(1, len(names) + 1):
             for chosen in itertools.combinations(names, size):
                 needed = [k for k in order if any(k in closure(lock, lock["roots"][c]) for c in chosen)]
-                index["manifests"][",".join(chosen)] = subset_manifest(staged, needed)
+                index["manifests"][",".join(chosen)] = subset_manifest(
+                    staged, needed, [shims[c] for c in chosen])
         (out / "index.json").write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
     finally:
         shutil.rmtree(work, ignore_errors=True)

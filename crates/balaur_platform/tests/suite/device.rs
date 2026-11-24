@@ -12,7 +12,7 @@ use balaur_core::rollback::Clock;
 use balaur_core::{App, AppConfig};
 use balaur_platform::{
     DeviceBackend, DeviceCall, Haptic, PlatformEvent, PlatformPlugin, PlatformSnapshot,
-    PlatformState, Service, StandIns,
+    PlatformState, PushToken, Service, StandIns,
 };
 use balaur_script::Value;
 use balaur_testkit::run_until;
@@ -48,6 +48,10 @@ impl DeviceBackend for Canned {
             DeviceCall::RequestReview => PlatformEvent::Done {
                 request,
                 call: call.name().to_string(),
+            },
+            DeviceCall::RegisterForPush => PlatformEvent::PushRegistered {
+                request,
+                token: PushToken::fcm("fcm-token-1".into()),
             },
         };
         let _ = report.send(event);
@@ -475,5 +479,165 @@ impl Scenario {
 }
 "#,
         &["device-words haptics game_center error"],
+    );
+}
+
+#[test]
+fn a_push_token_answers_with_the_fields_gamend_registers() {
+    let (mut app, _) = app_with_os();
+    start(&app, 1, DeviceCall::RegisterForPush);
+    tick(&mut app);
+    let event = &events(&app)[0];
+    assert_eq!(field(event, "kind"), Some(text("push_registered")));
+    assert_eq!(field(event, "request"), Some(Value::Int(1)));
+    assert_eq!(field(event, "token"), Some(text("fcm-token-1")));
+    assert_eq!(field(event, "provider"), Some(text("fcm")));
+    assert_eq!(field(event, "platform"), Some(text("android")));
+}
+
+#[test]
+fn an_apns_token_is_registered_as_apples_provider_and_platform() {
+    let token = PushToken::apns("0a1b".into());
+    assert_eq!(
+        (token.provider.as_str(), token.platform.as_str()),
+        ("apns", "ios")
+    );
+}
+
+#[test]
+fn with_no_os_behind_it_a_push_token_answers_unsupported() {
+    let mut app = app();
+    start(&app, 1, DeviceCall::RegisterForPush);
+    tick(&mut app);
+    if cfg!(not(target_os = "android")) {
+        let event = &events(&app)[0];
+        assert_eq!(field(event, "kind"), Some(text("unsupported")));
+        assert_eq!(field(event, "call"), Some(text("register_for_push")));
+    }
+}
+
+#[test]
+fn a_stand_in_answers_a_push_token_in_place_of_the_os() {
+    let (mut app, _) = app_with_os();
+    let stand_ins = StandIns::parse(
+        r#"{ "platform.register_for_push": { "kind": "push_failed", "error": "no aps-environment" } }"#,
+    )
+    .unwrap();
+    balaur_platform::set_stand_ins(&app.engine, stand_ins).unwrap();
+    start(&app, 1, DeviceCall::RegisterForPush);
+    tick(&mut app);
+    let event = &events(&app)[0];
+    assert_eq!(field(event, "kind"), Some(text("push_failed")));
+    assert_eq!(field(event, "error"), Some(text("no aps-environment")));
+}
+
+/// A push session as the OS hands it over: a token replaced, a push shown
+/// in front, then one tapped, each unasked.
+fn push_arrivals() -> Vec<PlatformEvent> {
+    vec![
+        PlatformEvent::PushTokenChanged {
+            token: PushToken::apns("0a1b2c".into()),
+        },
+        PlatformEvent::PushReceived {
+            id: "m-1".into(),
+            title: "Your turn".into(),
+            body: "Ana moved".into(),
+            data: serde_json::json!({ "match": "m-42", "turn": 7 }),
+        },
+        PlatformEvent::NotificationOpened {
+            id: "m-1".into(),
+            data: serde_json::json!({ "match": "m-42", "turn": 7 }),
+        },
+    ]
+}
+
+#[test]
+fn a_push_and_a_replaced_token_arrive_unasked_with_what_they_carry() {
+    let (mut app, asked) = app_with_os();
+    asked.borrow_mut().arriving.extend(push_arrivals());
+    tick(&mut app);
+    let events = events(&app);
+    assert_eq!(field(&events[0], "kind"), Some(text("push_token_changed")));
+    assert_eq!(field(&events[0], "token"), Some(text("0a1b2c")));
+    assert_eq!(field(&events[0], "provider"), Some(text("apns")));
+    assert_eq!(field(&events[0], "request"), Some(Value::Int(0)));
+    assert_eq!(field(&events[1], "kind"), Some(text("push_received")));
+    assert_eq!(field(&events[1], "title"), Some(text("Your turn")));
+    let data = field(&events[1], "data").unwrap();
+    assert_eq!(field(&data, "turn"), Some(Value::Int(7)));
+    assert_eq!(field(&events[2], "kind"), Some(text("notification_opened")));
+    let data = field(&events[2], "data").unwrap();
+    assert_eq!(field(&data, "match"), Some(text("m-42")));
+}
+
+// What Push.java writes for a push in front and a launch by a tap.
+#[test]
+fn the_push_shims_arrivals_reach_a_listener_as_the_maps_it_wrote() {
+    let (mut app, asked) = app_with_os();
+    asked.borrow_mut().arriving.extend([
+        PlatformEvent::Answer {
+            request: 0,
+            answer: serde_json::json!({
+                "kind": "push_received", "id": "0:17", "title": "Your turn", "body": "",
+                "data": { "turn": 7 },
+            }),
+        },
+        PlatformEvent::Answer {
+            request: 0,
+            answer: serde_json::json!({
+                "kind": "push_token_changed", "token": "fcm-2", "provider": "fcm", "platform": "android",
+            }),
+        },
+    ]);
+    tick(&mut app);
+    let events = events(&app);
+    assert_eq!(field(&events[0], "kind"), Some(text("push_received")));
+    assert_eq!(field(&events[0], "request"), Some(Value::Int(0)));
+    assert_eq!(field(&events[1], "platform"), Some(text("android")));
+}
+
+// The token and the pushes are recorded with every other answer, so a replay
+// with no OS and no APNs behind it hears the same session.
+#[test]
+fn a_recorded_push_session_replays_with_no_os_behind_it() {
+    let (mut recorded, asked) = app_with_os();
+    start(&recorded, 1, DeviceCall::RegisterForPush);
+    asked.borrow_mut().arriving.extend(push_arrivals());
+    tick(&mut recorded);
+    let frame = replay::capture(&recorded.engine);
+    let heard = events(&recorded);
+
+    let mut played = app();
+    *played.engine.resource::<ReplayMode>().borrow_mut() = ReplayMode::Playing;
+    start(&played, 1, DeviceCall::RegisterForPush);
+    played.engine.resource::<ReplayFeed>().borrow_mut().0 = Some(frame);
+    tick(&mut played);
+    let kinds: Vec<Option<Value>> = heard.iter().map(|event| field(event, "kind")).collect();
+    assert_eq!(
+        kinds,
+        [
+            Some(text("push_registered")),
+            Some(text("push_token_changed")),
+            Some(text("push_received")),
+            Some(text("notification_opened")),
+        ]
+    );
+    assert_eq!(events(&played), heard, "the recording answers, not the OS");
+}
+
+#[test]
+fn a_script_hands_a_push_answer_on_as_gamend_takes_it() {
+    run_until(
+        r#"
+pub class Scenario { node: Node }
+impl Scenario {
+    pub async fn init() {
+        let push: bool = platform::is_available(platform::SERVICE_PUSH);
+        let token = await task::wait(platform::register_for_push());
+        log::info("push-answers {push} {token["kind"].text()} {platform::EVENT_PUSH_REGISTERED} {platform::EVENT_PUSH_TOKEN_CHANGED} {platform::PUSH_PROVIDER_APNS} {platform::PUSH_PROVIDER_FCM} {platform::PUSH_PLATFORM_IOS} {platform::PUSH_PLATFORM_ANDROID}");
+    }
+}
+"#,
+        &["push-answers false unsupported push_registered push_token_changed apns fcm ios android"],
     );
 }

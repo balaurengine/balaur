@@ -104,6 +104,7 @@ pub(crate) fn pump(report: &Sender<PlatformEvent>) {
     if !LISTENING.load(Ordering::Acquire) && listen().is_ok() {
         LISTENING.store(true, Ordering::Release);
     }
+    super::listen_for_push(report);
     super::pump(report);
 }
 

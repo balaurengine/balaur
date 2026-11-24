@@ -448,7 +448,8 @@ impl Icons {
             "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n    <color name=\"icon_background\">{ground}</color>\n</resources>\n"
         );
         write(
-            &res.join("values").join("icon_background.xml"),
+            &res.join(crate::vocabulary::words::android::VALUES)
+                .join("icon_background.xml"),
             colors.as_bytes(),
         )?;
         let mut xml = String::from(

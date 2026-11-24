@@ -1087,9 +1087,6 @@
       "apple::EVENT_IDENTITY": "identity",
       "apple::EVENT_INVITE_ACCEPTED": "invite_accepted",
       "apple::EVENT_MATCH_REQUESTED": "match_requested",
-      "apple::EVENT_PUSH_FAILED": "push_failed",
-      "apple::EVENT_PUSH_RECEIVED": "push_received",
-      "apple::EVENT_PUSH_TOKEN": "push_token",
       "apple::EVENT_SIGNED_IN": "signed_in",
       "apple::EVENT_UNSUPPORTED": "unsupported",
       "apple::EVENT_URL": "url",
@@ -1559,6 +1556,10 @@
       "platform::EVENT_PENDING": "pending",
       "platform::EVENT_PRODUCTS": "products",
       "platform::EVENT_PURCHASED": "purchased",
+      "platform::EVENT_PUSH_FAILED": "push_failed",
+      "platform::EVENT_PUSH_RECEIVED": "push_received",
+      "platform::EVENT_PUSH_REGISTERED": "push_registered",
+      "platform::EVENT_PUSH_TOKEN_CHANGED": "push_token_changed",
       "platform::EVENT_READ": "read",
       "platform::EVENT_RESTORED": "restored",
       "platform::EVENT_SCHEDULED": "scheduled",
@@ -1570,6 +1571,10 @@
       "platform::EVENT_WEB_SIGN_IN": "web_sign_in",
       "platform::PAGE_NONE": "none",
       "platform::PAGE_OPEN": "open",
+      "platform::PUSH_PLATFORM_ANDROID": "android",
+      "platform::PUSH_PLATFORM_IOS": "ios",
+      "platform::PUSH_PROVIDER_APNS": "apns",
+      "platform::PUSH_PROVIDER_FCM": "fcm",
       "platform::SERVICE_APPLE_SIGN_IN": "apple_sign_in",
       "platform::SERVICE_GAME_CENTER": "game_center",
       "platform::SERVICE_GOOGLE_SIGN_IN": "google_sign_in",
@@ -4200,10 +4205,6 @@
         "least": 0,
         "signature": "() -> bool"
       },
-      "apple::register_for_push": {
-        "least": 0,
-        "signature": "() -> bool"
-      },
       "apple::show_dashboard": {
         "least": 0,
         "signature": "(apple::ShowDashboardOptions?) -> int"
@@ -6627,6 +6628,10 @@
       "platform::purchase": {
         "least": 1,
         "signature": "(str) -> int"
+      },
+      "platform::register_for_push": {
+        "least": 0,
+        "signature": "() -> int"
       },
       "platform::request_notifications": {
         "least": 0,
@@ -27697,18 +27702,6 @@
           "value": "\"match_requested\""
         },
         {
-          "name": "EVENT_PUSH_FAILED",
-          "value": "\"push_failed\""
-        },
-        {
-          "name": "EVENT_PUSH_RECEIVED",
-          "value": "\"push_received\""
-        },
-        {
-          "name": "EVENT_PUSH_TOKEN",
-          "value": "\"push_token\""
-        },
-        {
           "name": "EVENT_SIGNED_IN",
           "value": "\"signed_in\""
         },
@@ -27721,7 +27714,7 @@
           "value": "\"url\""
         }
       ],
-      "doc": "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens, push. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a push and its payload, a URL opened, an invite, an iCloud change. Local notifications are `platform.notify`, and purchases `platform.purchase` and the rest.",
+      "doc": "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a URL opened, an invite, an iCloud change. Notifications are `platform.notify`, push `platform.register_for_push`, and purchases `platform.purchase` and the rest.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing.",
         "available": "Whether this build has Apple's frameworks behind it.",
@@ -27730,7 +27723,6 @@
         "listen_for_cloud_changes": "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
         "listen_for_invites": "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
         "listen_for_urls": "Hear about URLs the game is asked to open. A URL the game was launched with arrives the same way, once the engine is up.",
-        "register_for_push": "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
         "show_dashboard": "Open Game Center's dashboard over the game, and return the id its `dashboard_closed` answer carries.",
         "sign_in": "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`."
       },
@@ -27743,7 +27735,6 @@
         "listen_for_cloud_changes",
         "listen_for_invites",
         "listen_for_urls",
-        "register_for_push",
         "show_dashboard",
         "sign_in"
       ],
@@ -27757,7 +27748,6 @@
         "listen_for_cloud_changes": "() -> bool",
         "listen_for_invites": "() -> bool",
         "listen_for_urls": "() -> bool",
-        "register_for_push": "() -> bool",
         "show_dashboard": "(apple::ShowDashboardOptions?) -> int",
         "sign_in": "() -> int"
       }
@@ -33422,6 +33412,22 @@
           "value": "\"purchased\""
         },
         {
+          "name": "EVENT_PUSH_FAILED",
+          "value": "\"push_failed\""
+        },
+        {
+          "name": "EVENT_PUSH_RECEIVED",
+          "value": "\"push_received\""
+        },
+        {
+          "name": "EVENT_PUSH_REGISTERED",
+          "value": "\"push_registered\""
+        },
+        {
+          "name": "EVENT_PUSH_TOKEN_CHANGED",
+          "value": "\"push_token_changed\""
+        },
+        {
           "name": "EVENT_READ",
           "value": "\"read\""
         },
@@ -33464,6 +33470,22 @@
         {
           "name": "PAGE_OPEN",
           "value": "\"open\""
+        },
+        {
+          "name": "PUSH_PLATFORM_ANDROID",
+          "value": "\"android\""
+        },
+        {
+          "name": "PUSH_PLATFORM_IOS",
+          "value": "\"ios\""
+        },
+        {
+          "name": "PUSH_PROVIDER_APNS",
+          "value": "\"apns\""
+        },
+        {
+          "name": "PUSH_PROVIDER_FCM",
+          "value": "\"fcm\""
         },
         {
           "name": "SERVICE_APPLE_SIGN_IN",
@@ -33518,7 +33540,7 @@
           "value": "\"web_sign_in\""
         }
       ],
-      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, purchases, a sign-in page in the OS's own sheet, and local notifications. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `identity`, `web_sign_in`, `notifications`, `scheduled`, `products`, `purchased`, `pending`, `entitlements`, `restored`, `finished`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. What arrives unasked is the `platform_event` event, `events::listen(node, \"platform_event\")`: a sign-in or sign-out, a notification tapped (`notification_opened`) or shown in front (`notification_received`), and a purchase that landed with nobody asking (`transaction`). `is_available` says whether a service works here. A test answers calls from the file `BALAUR_STAND_INS` names.",
+      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, purchases, a sign-in page in the OS's own sheet, local notifications and push. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `identity`, `web_sign_in`, `notifications`, `scheduled`, `push_registered`, `push_failed`, `products`, `purchased`, `pending`, `entitlements`, `restored`, `finished`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. What arrives unasked is the `platform_event` event, `events::listen(node, \"platform_event\")`: a sign-in or sign-out, a notification or a push tapped (`notification_opened`), one shown in front (`notification_received`) or a push that reached the game in front (`push_received`), a push token the OS replaced (`push_token_changed`), and a purchase that landed with nobody asking (`transaction`). `is_available` says whether a service works here. A test answers calls from the file `BALAUR_STAND_INS` names.",
       "docs": {
         "backend": "The name of the loaded store, or \"none\".",
         "cancel_notification": "Drop a scheduled notification, and take a delivered one out of the shade.",
@@ -33534,6 +33556,7 @@
         "products": "Ask the store about a list of product ids, and return the id whose `products` answer holds what it knows, each a `Product`. An id the store does not know is left out.",
         "progress": "Report an achievement's completion, 0 to 100, and return the id its answer carries.",
         "purchase": "Buy a product in the store's own sheet, and return the id its answer carries: `purchased` with the `Transaction`'s fields, `cancelled` or `pending` with `product`, or `error`. A pending one lands later as `transaction` on `platform_event`.",
+        "register_for_push": "Ask the OS for this device's push token, and return the id whose `push_registered` answer carries it as `token`, with `provider` (`PUSH_PROVIDER_APNS` or `PUSH_PROVIDER_FCM`) and `platform` (`PUSH_PLATFORM_IOS`, a Mac's too, or `PUSH_PLATFORM_ANDROID`): the three fields Gamend's `push_tokens::register_push_token` takes, so the answer is handed to it as it is. `push_failed` says why with `error`, naming the capability to add when the export left it out (`[apple] capabilities = [\"push-notifications\"]`, `[android] capabilities = [\"firebase-messaging\"]`); `unsupported` elsewhere. A token the OS replaces later is `push_token_changed` on `platform_event`, with the same fields. Showing a push needs `request_notifications` first, as a local notification does.",
         "request_notifications": "Ask the player to allow notifications, and return the id whose `notifications` answer says what they said as `allowed`. On Android 13 and later this is the system's permission prompt.",
         "restore_purchases": "Ask the store to hand this player's purchases back, the button a review expects a game to have, and return the id its `restored` answer carries; read them with `entitlements` after.",
         "scores": "Read a leaderboard's entries, and return the id whose `scores` answer holds them as `entries`, each a `Score`.",
@@ -33560,6 +33583,7 @@
         "products",
         "progress",
         "purchase",
+        "register_for_push",
         "request_notifications",
         "restore_purchases",
         "scores",
@@ -33587,6 +33611,7 @@
         "products": "([str]) -> int",
         "progress": "(str, float) -> int",
         "purchase": "(str) -> int",
+        "register_for_push": "() -> int",
         "request_notifications": "() -> int",
         "restore_purchases": "() -> int",
         "scores": "(str, platform::ScoresOptions?) -> int",
@@ -47900,12 +47925,12 @@
     [
       "platform_event",
       "what arrived, carrying request 0",
-      "The player signed out in the OS or signed in as someone else, a notification was tapped or shown while the game was in front, or a purchase landed with nobody asking (`transaction`)."
+      "The player signed out in the OS or signed in as someone else, a notification or a push was tapped (`notification_opened`) or arrived while the game was in front (`notification_received`, `push_received`), the OS replaced the push token (`push_token_changed`), or a purchase landed with nobody asking (`transaction`)."
     ],
     [
       "apple_event",
       "what arrived, carrying request 0",
-      "Something nobody asked for arrived: a push, a URL opened, a push token, an invite, an iCloud change."
+      "Something nobody asked for arrived: a URL opened, an invite, an iCloud change. A push and its token are `platform_event`."
     ],
     [
       "browser_event",
@@ -51750,11 +51775,12 @@
       "scope": "project",
       "spec": {
         "default": [],
-        "help": "The Google services the game uses, each shipping its Google libraries: play-games for platform.* on Play Games, in-app-purchase for Play Billing, in-app-review for device.request_review. None named ships no Google library.",
+        "help": "The Google services the game uses, each shipping its Google libraries: play-games for platform.* on Play Games, in-app-purchase for Play Billing, in-app-review for device.request_review, firebase-messaging for platform.register_for_push. None named ships no Google library.",
         "options": [
           "play-games",
           "in-app-purchase",
-          "in-app-review"
+          "in-app-review",
+          "firebase-messaging"
         ],
         "order": 13,
         "type": "flags"
@@ -51768,6 +51794,17 @@
         "default": "",
         "help": "The Play Games project id Play Console shows under Play Games Services, all digits. Required with play-games.",
         "order": 14,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/google_services",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The project-relative google-services.json the Firebase console hands out, holding this application_id's app. Required with firebase-messaging, whose project, app id, API key and sender id it writes as the string resources Firebase starts from.",
+        "order": 15,
         "type": "string"
       }
     },
@@ -51865,12 +51902,13 @@
       "scope": "project",
       "spec": {
         "default": [],
-        "help": "What the bundle declares it uses. Each writes its own entitlement and its own minimum OS.",
+        "help": "What the bundle declares it uses. Each writes its own entitlement and its own minimum OS. push-notifications writes aps-environment: development for a build signed by a development identity or none, production for a distribution one.",
         "options": [
           "sign-in-with-apple",
           "game-center",
           "icloud-kv",
-          "in-app-purchase"
+          "in-app-purchase",
+          "push-notifications"
         ],
         "order": 9,
         "type": "flags"
