@@ -199,6 +199,8 @@ fn a_stand_in_file_that_is_not_answers_is_refused() {
     assert!(stand_ins.answer("platform", "sign_in").is_none());
 }
 
+// Apple has the sheet, which a test runner cannot show.
+#[cfg(not(target_vendor = "apple"))]
 #[test]
 fn a_script_opens_a_page_and_hears_there_is_no_sheet_here() {
     run_until(

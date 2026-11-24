@@ -268,14 +268,20 @@ LTO, so a game with physics would ship more bytes than the one binary does.
 4. **Data.** The tonemapping table, done. Left: the default face, if a game
    that ships its own can leave it.
 5. **The budget.** Done: `package_runtime.sh web` fails a push whose `bare`
-   template passes 10.6 MB. It was 10.4, the 10.38 above rounded up to a
+   template passes 10.8 MB. It was 10.4, the 10.38 above rounded up to a
    tenth, until 2026-11-15 took `bare` to 10.47: every state of a control
    eased from the theme, shadows as lists, icons by name, the spinner and
    the switch in `balaur_ui`, and script properties in the compiler. Then
    10.5, with 831 bytes to spare, until 2026-11-17 took `bare` to 10.50: a
    scroll under a finger decided by balaur (`[ui] scroll_deadzone`, the
    touch class or the mouse standing in for a finger, a child's own drag)
-   and a sideways scroll as tall as what it holds, in `balaur_ui`.
+   and a sideways scroll as tall as what it holds, in `balaur_ui`. Then
+   10.6 until 2026-11-24 took `bare` to 10.70: native sign-in on every
+   template (2026-11-23 to 24), each answering `unsupported` where its
+   system is missing, so one script runs everywhere: the OS's sign-in sheet
+   behind `platform.web_sign_in` (10.60 to 10.62), `apple.*` (to 10.67),
+   Steam behind `platform.*` and `platform.identity` (10.68), then
+   `google.*` and the frame work around it (10.70).
 6. **Native.** The table, done: `native_crates.py` reads a template's
    symbols through `nm` for Linux, macOS, Android and iOS; an MSVC binary
    keeps its symbols apart. Then `strip_template` drops them from the

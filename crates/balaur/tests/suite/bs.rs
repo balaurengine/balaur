@@ -1119,7 +1119,13 @@ fn the_editor_libraries_answer_a_script_that_uses_them() {
         std::fs::copy(&from, dir.path().join(format!("scripts/{lib}.bs"))).unwrap();
     }
     copy(&editor.join("words"), &dir.path().join("scripts/words"));
-    let found = balaur::check_project(dir.path()).unwrap();
+    // The libraries come without the editor that calls the rest of them, so
+    // what they share and nothing here names is only a warning.
+    let found: Vec<_> = balaur::check_project(dir.path())
+        .unwrap()
+        .into_iter()
+        .filter(|finding| finding.severity != "warning")
+        .collect();
     assert!(found.is_empty(), "{found:?}");
     let app = booted(dir.path());
     assert_eq!(

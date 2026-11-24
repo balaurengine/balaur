@@ -269,10 +269,8 @@ fn styled(
     fills: Fill,
 ) -> Style {
     let mut want = style_of(widget, style, shape);
-    // A menu's width, place and anchor are its button's: the rows it opens
-    // take only the room the popup or sheet hands them. A menu filling a
-    // 40-point corner box laid its rows out 40 wide, and they ran out of the
-    // popup and off the screen.
+    // A menu's box is its button's; the rows it opens take only the room the
+    // popup or sheet hands them, not the button's 40 points.
     if shape.is_root && widget.kind == w::MENU {
         rows_free(&mut want);
     }

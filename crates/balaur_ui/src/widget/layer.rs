@@ -310,7 +310,8 @@ fn draw_root(
     } else {
         (align.anchor_size(pos, assigned).min, Align2::LEFT_TOP)
     };
-    let layer = egui::LayerId::new(order, egui::Id::unique((BALAUR_WIDGET, entity)));
+    let area_id = egui::Id::unique((BALAUR_WIDGET, entity));
+    let layer = egui::LayerId::new(order, area_id);
     painting.root_layers.push(layer);
     let root_area = root_area(&placed[root], (pos, align, assigned, order), clip);
     let dragged_by_box = widget.egui.movable && widget.kind != w::WINDOW;
@@ -331,20 +332,13 @@ fn draw_root(
         }
         draw_one(ui, painting, root);
     };
-    // A root egui has never shown is handed the box the layout solved, so
-    // its first pass draws it; egui's own first pass only measures, and the
-    // rerun that then draws it ran every root's pass again.
-    let first_pass = ctx
-        .memory(|m| m.area_rect(egui::Id::unique((BALAUR_WIDGET, entity))))
-        .is_none()
-        && (modal
-            || !crate::widget::anchor::seed_area(
-                ctx,
-                painting.rects.get(&root),
-                layer,
-                (pos, align),
-                takes_pointer(&placed[root]),
-            ));
+    let first_pass = crate::widget::anchor::first_pass(
+        ctx,
+        (area_id, layer, (pos, align)),
+        modal,
+        painting.rects.get(&root),
+        takes_pointer(&placed[root]),
+    );
     let shown = if let (true, Some(screen)) = (modal, clip) {
         crate::widget::window::dialog_in(ctx, painting, (root, screen, layer), root_area, fill)
     } else if modal {
@@ -371,9 +365,7 @@ fn draw_root(
     painting.assigned = egui::Vec2::ZERO;
     // A root is placed by nobody, so it records its own rect, from egui's
     // memory: the response's rect can lag it by a frame.
-    let drawn = ctx
-        .memory(|m| m.area_rect(egui::Id::unique((BALAUR_WIDGET, entity))))
-        .unwrap_or(shown.rect);
+    let drawn = ctx.memory(|m| m.area_rect(area_id)).unwrap_or(shown.rect);
     record_rect(entity, drawn);
 }
 

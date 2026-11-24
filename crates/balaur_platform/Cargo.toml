@@ -20,7 +20,9 @@ anyhow.workspace = true
 [dev-dependencies]
 balaur_testkit.workspace = true
 tempfile = "3"
-balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
+# `apple` as every template has it, so a test reads the same store whether
+# the workspace or this crate alone is built.
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "apple"] }
 
 [lints]
 workspace = true

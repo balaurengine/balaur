@@ -388,10 +388,8 @@ impl Brush {
         (widget, flip): (&crate::widget::node::Widget, bool),
         about: egui::Pos2,
     ) {
-        // The node's own over its role's, as CSS's `translate` and `scale`
-        // over a `:hover` rule's: the two add, and the two multiply. A
-        // mirrored widget moves the other way across, so a sidebar that
-        // slides in from the start slides in from the right in Arabic.
+        // The node's own adds to its role's offset and multiplies its scale,
+        // as CSS's `translate` and `scale`; a mirrored widget moves the other way.
         let [rx, ry] = style.offset.unwrap_or_default();
         let across = rx + widget.offset[0];
         let shift = egui::vec2(if flip { -across } else { across }, ry + widget.offset[1]);

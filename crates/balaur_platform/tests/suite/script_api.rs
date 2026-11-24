@@ -1,10 +1,19 @@
 //! The platform bindings called the way a game calls them: from a script,
 //! through `balaur::standard_app` — the same wiring a shipped game boots.
 //!
-//! No store is loaded here, which is the case worth proving: a script written
-//! against `platform.*` has to keep running on a machine that has none.
+//! No store answers here, which is the case worth proving: a script written
+//! against `platform.*` has to keep running on a machine that has none. On a
+//! Mac the build carries Apple's, and a test binary, which has no bundle id,
+//! is one Game Center does not know.
 
 use balaur_testkit::run_until;
+
+/// What `platform.backend` names: Apple's store on Apple, none elsewhere.
+const STORE: &str = if cfg!(target_vendor = "apple") {
+    "apple"
+} else {
+    "none"
+};
 
 #[test]
 fn a_script_awaits_one_call_after_another() {
@@ -25,7 +34,7 @@ impl Scenario {
 }
 "#,
         &[
-            "platform-await none unsupported",
+            format!("platform-await {STORE} unsupported").as_str(),
             "platform-second unsupported unlock",
         ],
     );
@@ -44,7 +53,7 @@ impl Scenario {
     }
 }
 "#,
-        &["platform-empty none true"],
+        &[format!("platform-empty {STORE} true").as_str()],
     );
 }
 

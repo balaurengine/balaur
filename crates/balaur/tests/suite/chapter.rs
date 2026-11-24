@@ -79,9 +79,17 @@ fn every_example_that_uses_the_engine_compiles_against_it() {
         ),
     )
     .unwrap();
+    // An example is a fragment: what it shares, nothing else in the book
+    // calls, and the root only `use`s each library so it is built.
+    let unused = [
+        "is never reached",
+        "nothing in the project names it",
+        "is never read",
+    ];
     let found: Vec<String> = balaur::check_project(dir.path())
         .unwrap()
         .into_iter()
+        .filter(|one| !unused.iter().any(|said| one.message.contains(said)))
         .map(|one| {
             let page = origin
                 .get(&one.file)

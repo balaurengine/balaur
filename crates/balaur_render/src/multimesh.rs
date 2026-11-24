@@ -719,7 +719,7 @@ fn multimesh3d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
         &crate::Lighting3d::of(
             asked.cast_shadow,
             asked.light_layers,
-                asked.render_layers,
+            asked.render_layers,
             asked.receive_shadows,
             asked.segmentation_id,
         ),

@@ -142,10 +142,7 @@ fn listening_for_an_event_nothing_announces_is_a_warning_on_its_line() {
     let dir = project(&scene(""), &[("ball.bs", &listener("\"scorred\"", "LOST"))]);
     let at = one_warning(dir.path(), "nothing announces `scorred`");
     assert_eq!(at, "ball.bs:9:warning");
-    let dir = project(
-        &scene(""),
-        &[("ball.bs", &listener("\"scored\"", "\"gone\""))],
-    );
+    let dir = project(&scene(""), &[("ball.bs", &listener("LOST", "\"gone\""))]);
     let at = one_warning(dir.path(), "nothing announces `gone`");
     assert_eq!(at, "ball.bs:11:warning");
 }

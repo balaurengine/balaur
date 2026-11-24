@@ -332,7 +332,7 @@ web)
   rm "$named"
   # The bare template's ceiling: docs/PLAN-build-size.md's last measured
   # size rounded up to a tenth. A push past it moves both, and says why.
-  budget_mb=10.6
+  budget_mb=10.8
   if [ "$variant" = bare ] && [ "$(echo "$raw > $budget_mb * 1048576" | bc)" = 1 ]; then
     printf '::error::the bare web template is %.2f MB, over its %s MB budget; the table above says where the bytes went\n' \
       "$(echo "$raw/1048576" | bc -l)" "$budget_mb"

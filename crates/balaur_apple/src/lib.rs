@@ -661,7 +661,11 @@ impl balaur_plugin::Plugin for ApplePlugin {
         );
         reg.add_system(Stage::First, pump_apple_system);
         reg.add_replay_source(APPLE, capture, restore);
-        balaur_platform::set_backend(reg.engine(), Box::new(AppleBackend))?;
+        // Off Apple the stores are not there, and `platform.backend` says
+        // `none` as it does in a build without this plugin.
+        if backend::AVAILABLE {
+            balaur_platform::set_backend(reg.engine(), Box::new(AppleBackend))?;
+        }
         let mut m = reg.script_module(APPLE)?;
         install_apple_api(&mut m);
         Ok(())

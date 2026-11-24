@@ -277,7 +277,7 @@ fn text3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
         let lighting = crate::Lighting3d::of(
             asked.cast_shadow,
             asked.light_layers,
-                asked.render_layers,
+            asked.render_layers,
             asked.receive_shadows,
             asked.segmentation_id,
         );

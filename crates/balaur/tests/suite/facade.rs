@@ -174,8 +174,17 @@ fn every_plugin_loads_in_name_order() {
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
 
-    // `apple` is pulled up behind `platform` by its requirement; the rest sort.
-    let ordered: Vec<&String> = names.iter().filter(|n| *n != "apple").collect();
+    // Where the build has `apple`, `platform` is pulled up ahead of it, the
+    // first name that requires it, and `apple` loads straight after; the rest
+    // sort.
+    let at = |name: &str| names.iter().position(|n| n == name);
+    if let Some(apple) = at("apple") {
+        assert_eq!(at("platform"), Some(apple - 1), "{names:?}");
+    }
+    let ordered: Vec<&String> = names
+        .iter()
+        .filter(|n| !["apple", "platform"].contains(&n.as_str()))
+        .collect();
     let mut sorted = ordered.clone();
     sorted.sort();
     assert_eq!(ordered, sorted, "{names:?}");

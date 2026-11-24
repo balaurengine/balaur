@@ -157,10 +157,25 @@ fn wide(widget: &Widget, area: egui::Rect) -> Option<(egui::Pos2, Align2, egui::
     })
 }
 
+/// Whether this is the first pass of the root egui keeps as `id`, which it
+/// has never shown. One that is not a dialog is handed the box the layout
+/// solved, so its first pass draws it; egui's own first pass only measures,
+/// and the rerun that then draws it ran every root's pass again.
+pub(crate) fn first_pass(
+    ctx: &egui::Context,
+    (id, layer, at): (egui::Id, egui::LayerId, (egui::Pos2, Align2)),
+    dialog: bool,
+    rect: Option<&egui::Rect>,
+    interactable: bool,
+) -> bool {
+    ctx.memory(|m| m.area_rect(id)).is_none()
+        && (dialog || !seed_area(ctx, rect, layer, at, interactable))
+}
+
 /// Give egui the box the layout solved for a root it has never shown: with a
 /// size on record, egui skips the pass that would only measure it. `false`
 /// where the layout has no box for the root.
-pub(crate) fn seed_area(
+fn seed_area(
     ctx: &egui::Context,
     rect: Option<&egui::Rect>,
     layer: egui::LayerId,

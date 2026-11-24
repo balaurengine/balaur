@@ -17,7 +17,7 @@ use objc2::runtime::NSObject;
 use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
 use objc2::{AllocAnyThread, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_foundation::{
-    NSArray, NSError, NSNotification, NSNotificationCenter, NSRange, NSString, NSURL,
+    NSArray, NSBundle, NSError, NSNotification, NSNotificationCenter, NSRange, NSString, NSURL,
 };
 use objc2_game_kit::{
     GKAchievement, GKLeaderboard, GKLeaderboardEntry, GKLeaderboardPlayerScope,
@@ -27,6 +27,15 @@ use objc2_game_kit::{
 use crate::{AppleCall, AppleEvent};
 
 pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformEvent>) {
+    // Game Center and iCloud know a game by its bundle id; with none (a test
+    // binary, a run from the shell) GameKit fails. The sign-in sheet needs none.
+    if !matches!(call, Call::WebSignIn { .. }) && !bundled() {
+        let _ = report.send(PlatformEvent::Unsupported {
+            request,
+            call: call.name().to_string(),
+        });
+        return;
+    }
     match call {
         Call::SignIn => sign_in(request, report),
         Call::Unlock { achievement } => report_achievement(request, achievement, 100.0, report),
@@ -453,4 +462,10 @@ fn finished(request: u64, call: &'static str, error: *mut NSError) -> PlatformEv
 
 fn describe(error: &NSError) -> String {
     error.localizedDescription().to_string()
+}
+
+/// Whether this process runs from an app bundle with an identifier, which
+/// Game Center and iCloud need.
+fn bundled() -> bool {
+    NSBundle::mainBundle().bundleIdentifier().is_some()
 }

@@ -40,10 +40,15 @@ fn kinds(app: &App) -> Vec<String> {
 }
 
 #[test]
-fn the_plugin_takes_over_the_portable_verbs() {
+fn the_plugin_takes_over_the_portable_verbs_on_apple_alone() {
     let app = app();
     let state = app.engine.resource::<PlatformState>();
-    assert_eq!(state.borrow().backend_name(), "apple");
+    let store = if cfg!(target_vendor = "apple") {
+        "apple"
+    } else {
+        "none"
+    };
+    assert_eq!(state.borrow().backend_name(), store);
 }
 
 // Game Center has no presence, and answering `done` to a call that did
