@@ -71,6 +71,7 @@ puts the game on the smallest it fits. Without them it goes on the full one.
 | `BALAUR_VERSION` | which runtimes under `/cache` to use |
 | `BALAUR_OUTPUT` | artifact name in `/out`; defaults per target |
 | `BALAUR_ANDROID_PACKAGE` | `apk` (default) or `aab`, for `android` on the `-android` image |
+| `BALAUR_STEAM` | `1` for a Steam build of `linux-x64`, `linux-arm64`, `macos-universal` or `windows-x64`: the same export with the CLI's Steam flag, which copies Valve's `steam_api` beside the game; `0` (default) for every other build, which carries no Valve file |
 
 With `/cache` mounted the export is offline and the template must already be
 there. Without it, balaur downloads the one it needs — what an ordinary CI job
@@ -272,6 +273,7 @@ docker run --rm \
 | `itch` | `itch_api_key` | `butler` |
 | `play` | `play_service_account` | `balaur-publish-play` (python3 + openssl) |
 | `appstore` | `apple_issuer_id`, `apple_key_id`, `apple_private_key` | `balaur-publish-appstore` (python3 + openssl) |
+| `steam` | `steam_account`, `steam_config_vdf` | `steamcmd` |
 
 For itch, `PUBLISH_TARGET` is `user/game:channel`; butler reads the platform
 from the channel name. A `.zip` is pushed as itself, so a web build's
@@ -295,3 +297,17 @@ the file uploaded, then read the upload's state for `PUBLISH_WAIT_MINUTES`
 (default 5). `COMPLETE` is reported as processed, `FAILED` quotes Apple, and
 a build still processing when the wait closes is reported as accepted —
 Apple mails the outcome. Nothing is submitted for review.
+
+For Steam, `PUBLISH_TARGET` is `app:depot`, or `app:depot:branch`, and
+the caller puts the SteamPipe app build script beside the artifact as
+`/in/app_build.vdf`, with `ContentRoot` `/work/content` and `BuildOutput`
+`/work/steam-output`. The artifact is unpacked into `/work/content` as it
+was exported. The login is a builder account's name and the
+`config/config.vdf` steamcmd kept after that account passed Steam Guard
+once: restored under `/work/steamcmd/config` and `/work/Steam/config`, it
+lets `+login <account>` in with no password and no code, and
+`+@NoPromptForPassword 1` fails a stale one rather than waiting on a
+prompt. steamcmd is a 32-bit x86 program: the image carries the i386 C
+runtime, and on arm64 runs it under `qemu-i386` through steamcmd.sh's
+`DEBUGGER` hook. It updates itself on each run, into a copy in `/work`,
+since the root is read-only.

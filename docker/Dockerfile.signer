@@ -114,6 +114,26 @@ RUN set -eux; \
     ln -s /usr/local/lib/butler/butler /usr/local/bin/butler; \
     rm /tmp/butler.zip
 
+# steamcmd: Valve's SteamPipe uploader, a 32-bit x86 program and nothing
+# else, so it needs the i386 C runtime on either architecture. On arm64 it
+# runs under qemu-i386 (from qemu-user-static, installed above for
+# zipalign), which `balaur-publish` puts in front of the binary through
+# steamcmd.sh's own DEBUGGER hook, so its self-update (it replaces linux32/
+# whenever Valve has moved on) keeps working. The bootstrap only: it updates
+# itself into the copy `balaur-publish` makes in /work, the root being
+# read-only.
+RUN set -eux; \
+    dpkg --add-architecture i386; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends libc6:i386 libgcc-s1:i386 libstdc++6:i386; \
+    rm -rf /var/lib/apt/lists/*; \
+    mkdir -p /opt/steamcmd; \
+    curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors -o /tmp/steamcmd.tar.gz \
+      "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"; \
+    tar xzf /tmp/steamcmd.tar.gz -C /opt/steamcmd; \
+    rm /tmp/steamcmd.tar.gz; \
+    chmod -R a+rX /opt/steamcmd
+
 # jsign: Authenticode through Azure Trusted Signing, where the key stays in
 # Azure's HSM and there is no .pfx for osslsigncode to read. A JAR, so it
 # runs on the JDK apksigner already needs; pinned by the digest GitHub lists.
@@ -138,6 +158,8 @@ COPY publish_appstore.py /usr/local/bin/balaur-publish-appstore
 RUN chmod +x /usr/local/bin/balaur-sign /usr/local/bin/balaur-publish /usr/local/bin/balaur-publish-* \
     && rcodesign --version \
     && butler -V \
+    && test -x /opt/steamcmd/steamcmd.sh && test -x /opt/steamcmd/linux32/steamcmd \
+    && { [ "${TARGETARCH}" != arm64 ] || qemu-i386-static --version >/dev/null; } \
     && osslsigncode --version \
     && jsign --help 2>&1 | grep -q TRUSTEDSIGNING \
     && apksigner version \

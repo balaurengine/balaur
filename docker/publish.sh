@@ -3,9 +3,8 @@
 # same container and for the same reason: it holds a customer's credential
 # and runs none of their code.
 #
-#   /in /creds /work as sign.sh · PUBLISH_STORE (itch, play, appstore) ·
-#   PUBLISH_ARTIFACT · PUBLISH_TARGET (user/game:channel, package:track, or
-#   informational) · PUBLISH_VERSION, optional.
+#   /in /creds /work as sign.sh · PUBLISH_STORE · PUBLISH_ARTIFACT ·
+#   PUBLISH_TARGET · PUBLISH_VERSION, optional; Steam's /in/app_build.vdf.
 # docker/README.md has the contract. Exit status is the verdict.
 set -eu
 
@@ -60,6 +59,44 @@ case "$PUBLISH_STORE" in
     # the caller wrote on its row; the credentials are notarisation's.
     log "==> app store connect upload ${PUBLISH_ARTIFACT}"
     balaur-publish-appstore "$IN" /creds || fail "App Store Connect refused the upload"
+    ;;
+  steam)
+    need steam_account steam_config_vdf
+    [ -s /in/app_build.vdf ] || fail "no app_build.vdf beside the artifact"
+    account=$(tr -d '\r\n' </creds/steam_account)
+
+    # steamcmd updates itself where it is installed, and the root is
+    # read-only: it runs from a copy in /work.
+    cp -a /opt/steamcmd /work/steamcmd || fail "could not stage steamcmd"
+    # A 32-bit x86 program: on an Arm host, under qemu, through the hook
+    # steamcmd.sh runs its binary with.
+    case "$(uname -m)" in
+      aarch64|arm64) export DEBUGGER=qemu-i386-static ;;
+    esac
+
+    # The login a machine that passed Steam Guard once kept: restored where
+    # steamcmd reads it, so `+login <account>` needs no password and no code.
+    for dir in /work/steamcmd/config /work/Steam/config; do
+      mkdir -p "$dir" && cp /creds/steam_config_vdf "$dir/config.vdf" && chmod 600 "$dir/config.vdf" \
+        || fail "could not restore config.vdf"
+    done
+
+    # The depot's content is the export as it is: a zip unpacked, the
+    # executable at the root (or the .app), and anything else as one file.
+    mkdir -p /work/content /work/steam-output
+    case "$PUBLISH_ARTIFACT" in
+      *.zip) unzip -q "$IN" -d /work/content || fail "could not unpack ${PUBLISH_ARTIFACT}" ;;
+      *) cp "$IN" /work/content/ && chmod +x "/work/content/${PUBLISH_ARTIFACT}" ;;
+    esac
+
+    log "==> steamcmd run_app_build ${PUBLISH_ARTIFACT} -> ${PUBLISH_TARGET}"
+    # +@NoPromptForPassword: a config.vdf Steam no longer takes fails here
+    # rather than waiting on a prompt nobody will answer.
+    if ! /work/steamcmd/steamcmd.sh +@ShutdownOnFailedCommand 1 +@NoPromptForPassword 1 \
+      +login "$account" +run_app_build /in/app_build.vdf +quit; then
+      tail -n 20 /work/steamcmd/logs/stderr.txt 2>/dev/null || true
+      fail "Steam refused the upload; a login asking for Steam Guard needs a new config.vdf"
+    fi
     ;;
   *)
     fail "${PUBLISH_STORE} is not a store this container knows"

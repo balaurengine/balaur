@@ -1,7 +1,7 @@
 #!/bin/sh
 # Export the project at /src for one platform, into /out. docker/README.md has
 # the contract in full: /src /out /cache /work, and BALAUR_TARGET, _VERSION,
-# _OUTPUT, _ANDROID_PACKAGE. Exit status is the verdict.
+# _OUTPUT, _ANDROID_PACKAGE, _STEAM. Exit status is the verdict.
 set -eu
 
 log() { printf '%s\n' "$*"; }
@@ -12,6 +12,21 @@ PACKAGE="${BALAUR_ANDROID_PACKAGE:-apk}"
 case "$PACKAGE" in
   apk|aab) ;;
   *) fail "BALAUR_ANDROID_PACKAGE is apk or aab, not ${PACKAGE}" ;;
+esac
+
+# A Steam build: the same export with the CLI's Steam flag, which copies
+# Valve's steam_api beside the game. Every other build carries no Valve file.
+STEAM="${BALAUR_STEAM:-0}"
+STEAM_FLAG=--steam
+case "$STEAM" in
+  0) ;;
+  1)
+    case "$BALAUR_TARGET" in
+      linux-x64|linux-arm64|macos-universal|windows-x64) ;;
+      *) fail "Valve ships no steam_api for ${BALAUR_TARGET}" ;;
+    esac
+    ;;
+  *) fail "BALAUR_STEAM is 0 or 1, not ${STEAM}" ;;
 esac
 
 SRC=/src
@@ -111,6 +126,11 @@ case "$BALAUR_TARGET" in
     fi
     ;;
 esac
+
+if [ "$STEAM" = 1 ]; then
+  set -- "$@" "$STEAM_FLAG"
+  log "==> Steam build: Valve's steam_api goes beside the game"
+fi
 
 set -- "$@" --output "${OUT}/${BUNDLE_OUTPUT}"
 
