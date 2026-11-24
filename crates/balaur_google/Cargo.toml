@@ -25,7 +25,6 @@ balaur_script.workspace = true
 # else the crate still compiles and every call answers `unsupported`.
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.22"
-ndk-context = "0.1"
 
 [dev-dependencies]
 toml.workspace = true

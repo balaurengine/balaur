@@ -16,9 +16,11 @@ use crate::sign::{run, tool};
 use crate::vocabulary::words;
 
 mod permissions;
+mod schemes;
 
 const AAPT2: &str = "aapt2";
-/// The template's Java: the shims `balaur_google` reaches over JNI.
+/// The template's Java: the shims `balaur_google` and `balaur_platform` reach
+/// over JNI.
 const DEX: &str = "classes.dex";
 const ANDROIDDEBUGKEY: &str = "androiddebugkey";
 const APKSIGNER: &str = "apksigner";
@@ -95,6 +97,10 @@ pub(crate) struct AndroidConfig {
     /// unless the game says otherwise: without it no socket opens, and a
     /// game that never goes online writes `permissions = []`.
     pub permissions: Vec<String>,
+    /// The custom URL schemes that open the game, each an intent filter: the
+    /// scheme a `platform.web_sign_in` page ends on, which its Custom Tab
+    /// answers with.
+    pub schemes: Vec<String>,
     /// `[window] orientation`, which Android settles in the manifest rather
     /// than at startup. Not a key of `[android]`: it is the same window
     /// setting every platform reads, taken from the same resolved document.
@@ -124,6 +130,7 @@ impl Default for AndroidConfig {
             key: String::new(),
             bundletool: String::new(),
             permissions: vec![permissions::INTERNET.to_string()],
+            schemes: Vec::new(),
             orientation: balaur::project::Orientation::Any,
             title: String::new(),
             debug_key: false,
@@ -248,6 +255,7 @@ impl AndroidConfig {
         )?;
         xml = set_attr(&xml, "android:label", &escape(label))?;
         xml = permissions::declare(&xml, &self.permissions)?;
+        xml = schemes::declare(&xml, &self.schemes)?;
         Ok(match self.orientation {
             balaur::project::Orientation::Any => xml,
             held => set_or_add_attr(

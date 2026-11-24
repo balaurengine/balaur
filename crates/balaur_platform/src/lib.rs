@@ -27,8 +27,9 @@
 //! Every event map carries a `kind`.
 //!
 //! A sign-in page, `web_sign_in`, is the OS's own sheet where the backend
-//! has one (Apple's `ASWebAuthenticationSession`), and `unsupported` where
-//! it does not, so a game opens the page in the browser there instead.
+//! has one (Apple's `ASWebAuthenticationSession`), a Custom Tab on Android
+//! with no store loaded (`android/web_sign_in.rs`), and `unsupported`
+//! elsewhere, so a game opens the page in the browser there instead.
 //!
 //! A test answers any call from a file instead ([`stand_ins`]).
 
@@ -64,8 +65,13 @@ const WEB_SIGN_IN_STATE: &str = "web_sign_in_state";
 pub const PAGE_NONE: &str = "none";
 /// What it answers while the page asked for last has not answered.
 pub const PAGE_OPEN: &str = "open";
+#[cfg(target_os = "android")]
+mod android;
 pub mod stand_ins;
 mod vocabulary;
+
+#[cfg(target_os = "android")]
+pub use android::{keep_activity, shim, with_activity};
 
 pub use stand_ins::{StandIns, set_stand_ins, stand_in};
 
@@ -402,12 +408,7 @@ impl PlatformState {
         }
         io.start(eng, |report| match backend {
             Some(backend) => backend.start(id, call, report),
-            None => {
-                let _ = report.send(PlatformEvent::Unsupported {
-                    request: id,
-                    call: call.name().to_string(),
-                });
-            }
+            None => without_backend(id, call, report),
         });
     }
 
@@ -417,8 +418,12 @@ impl PlatformState {
         if balaur_core::replay::suppressed(eng) {
             return;
         }
-        if let Some(backend) = &mut self.backend {
-            backend.close_web_sign_in();
+        match &mut self.backend {
+            Some(backend) => backend.close_web_sign_in(),
+            #[cfg(target_os = "android")]
+            None => android::web_sign_in::close(),
+            #[cfg(not(target_os = "android"))]
+            None => {}
         }
     }
 
@@ -441,6 +446,20 @@ impl PlatformState {
             self.issue(eng, id, &call);
         }
     }
+}
+
+/// A call with no store loaded: a sign-in page in a Custom Tab on Android,
+/// and `unsupported` for everything else.
+fn without_backend(id: u64, call: &Call, report: &Sender<PlatformEvent>) {
+    #[cfg(target_os = "android")]
+    if let Call::WebSignIn { url, scheme } = call {
+        android::web_sign_in::open(id, url, scheme.as_deref(), report);
+        return;
+    }
+    let _ = report.send(PlatformEvent::Unsupported {
+        request: id,
+        call: call.name().to_string(),
+    });
 }
 
 /// This tick's arrivals, as the neutral values the handlers received.
@@ -922,14 +941,14 @@ fn install_web_sign_in(m: &mut Module<Engine>) {
     m.records(&[(
             "WebSignInOptions",
             "{ scheme: string? }",
-            "The custom scheme a sign-in page ends on (`com.example.app` for `com.example.app:/done`): the sheet shuts there and its `web_sign_in` answer carries that URL as `url`.",
+            "The custom scheme a sign-in page ends on (`com.example.app` for `com.example.app:/done`): the sheet shuts there and its `web_sign_in` answer carries that URL as `url`. On Android the export declares it in `[android] schemes`, the intent filter a Custom Tab's redirect lands on.",
     )]);
     m.describe(&[
         (
             kind::WEB_SIGN_IN,
             &[],
             "(url: string, opts: WebSignInOptions?) -> int",
-            "Open a sign-in page in the OS's own sheet over the game, and return the id its answer carries: `web_sign_in` with the `url` it ended on when it reached `opts.scheme`, `cancelled` when shut, `unsupported` where the platform has no such sheet (open the page with `engine::open_url` there).",
+            "Open a sign-in page in the OS's own sheet over the game (a Custom Tab on Android), and return the id its answer carries: `web_sign_in` with the `url` it ended on when it reached `opts.scheme`, `cancelled` when shut, `unsupported` where the platform has no such sheet (open the page with `engine::open_url` there).",
         ),
         (
             WEB_SIGN_IN_STATE,
@@ -941,7 +960,7 @@ fn install_web_sign_in(m: &mut Module<Engine>) {
             CLOSE_WEB_SIGN_IN,
             &[],
             "() -> nil",
-            "Shut the sign-in page `web_sign_in` opened, once the game has what it opened it for: its call answers `cancelled`.",
+            "Shut the sign-in page `web_sign_in` opened, once the game has what it opened it for: its call answers `cancelled`, and on Android the game comes back to the front over the tab.",
         ),
     ]);
     m.function(

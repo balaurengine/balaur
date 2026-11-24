@@ -26,6 +26,7 @@ question as an old one is a second way to say it.
 <tr><td><code>key</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>Which key in that keystore signs.</td></tr>
 <tr><td><code>bundletool</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>Where bundletool.jar is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and then beside the SDK; Google ships it on its own, not in the SDK.</td></tr>
 <tr><td><code>permissions</code></td><td>list of string</td><td><code>[&quot;INTERNET&quot;]</code></td><td></td><td>The permissions the manifest declares: INTERNET for android.permission.INTERNET, or a whole name. Without INTERNET no socket opens; a game that never goes online writes permissions = [].</td></tr>
+<tr><td><code>schemes</code></td><td>list of string</td><td><code>[]</code></td><td></td><td>The custom URL schemes that open the game, each an intent filter: the scheme a platform.web_sign_in page ends on (com.studio.game for com.studio.game:/done), which its Custom Tab answers with.</td></tr>
 </tbody>
 </table>
 

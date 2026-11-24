@@ -1410,7 +1410,8 @@ things are shared.
   needs no URL scheme registered), answering the URL it ended on or
   `cancelled`; `close_web_sign_in` shuts it once the game learned some other
   way that the sign-in is done, and `web_sign_in_state` reads how it stands
-  without waiting, for a game that polls a server meanwhile. Where there is no sheet it answers
+  without waiting, for a game that polls a server meanwhile. On Android with no
+  store loaded it is a Custom Tab (below). Where there is neither it answers
   `unsupported`, and the game opens the page with `engine.open_url`.
 - **A store's proof of a player is a platform verb.** `platform.identity`
   answers what a server checks with the store: Steam's Web API ticket, hex,
@@ -1418,13 +1419,24 @@ things are shared.
   runs the game, after Apple's, so a script never names a `steam` module and
   runs on a build without it.
 - **Android's Java is a fixed dex, no Gradle.** The template carries one
-  `classes.dex`, javac and d8 over `crates/balaur_google/java` against the
+  `classes.dex`, javac and d8 over every `crates/*/java` against the
   platform's `android.jar` (`package_runtime.sh`), with nothing from Maven. The
   game's thread is a native one whose `FindClass` sees only the platform, so a
   shim is loaded through the activity's class loader and its one native
-  method registered on it, answering a JSON map onto the call's channel. The
+  method registered on it, answering onto the call's channel
+  (`balaur_platform`'s `android.rs`, which `balaur_google` shares). The
   activity is the one android-activity keeps, handed over as the app is
   built: `ndk-context` holds the `Application`, which shows no sheet.
+  `platform.web_sign_in` is a Custom Tab with no AndroidX: a VIEW intent with
+  the protocol's session extra, in the default browser when it has Custom
+  Tabs, else the first that does, else a plain browser. An unseen activity,
+  `WebSignIn`, sits between the game and the tab, as AppAuth's does:
+  NativeActivity forwards no new intent, so the redirect lands on `Redirect`
+  (an intent filter each of `[android] schemes`, added at export), which
+  brings `WebSignIn` back with the URL and clears the tab; `WebSignIn`
+  resuming with none answers `cancelled`, and `close_web_sign_in` brings it
+  back the same way, shutting the tab. A link on those schemes with no page
+  open brings the game forward, which does not read it yet.
   `google.sign_in` is Credential Manager with the bundle keys Google's
   `googleid` library writes, so Play services answers it with an id token for
   `[google] server_client_id`; below Android 14, off Android, with no id or with

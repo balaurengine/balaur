@@ -1091,7 +1091,6 @@ dependencies = [
  "balaur_plugin",
  "balaur_script",
  "jni",
- "ndk-context",
  "serde",
  "serde_json",
  "toml",
@@ -1223,9 +1222,12 @@ dependencies = [
  "balaur_plugin",
  "balaur_script",
  "balaur_testkit",
+ "jni",
+ "ndk-context",
  "serde",
  "serde_json",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]

@@ -143,9 +143,9 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   done
 
   step "dex (the Java shims)"
-  # crates/balaur_google/java, reached over JNI: compiled against the
-  # platform's android.jar and dexed for the template's floor. Nothing in it
-  # comes from Maven: Credential Manager is the system's own.
+  # Every crate's java/ (Google's sign-in, the platform's sign-in page), reached
+  # over JNI: compiled against android.jar and dexed for the template's floor.
+  # Nothing comes from Maven: Credential Manager and Custom Tabs are the system's.
   sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}
   android_jar=$(compgen -G "$sdk/platforms/android-*/android.jar" | sort -V | tail -1 || true)
   d8=$(compgen -G "$sdk/build-tools/*/d8" | sort -V | tail -1 || true)
@@ -154,7 +154,7 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   classes=$(mktemp -d)
   # shellcheck disable=SC2046 # one path a source file, none with spaces
   javac --release 11 -Werror -Xlint:all -classpath "$android_jar" -d "$classes" \
-    $(find crates/balaur_google/java -name '*.java' | sort)
+    $(find crates/*/java -name '*.java' | sort)
   # shellcheck disable=SC2046 # one path a class file, none with spaces
   "$d8" --release --min-api 26 --lib "$android_jar" --output "$skeleton" \
     $(find "$classes" -name '*.class' | sort)
@@ -164,6 +164,7 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   step "stage (apk layout)"
   # `android.app.lib_name` is how NativeActivity finds the library, so it has
   # to stay in step with [lib] name in crates/balaur_android/Cargo.toml.
+  # The export adds an intent filter to Redirect for each of `[android] schemes`.
   cat >"$skeleton/AndroidManifest.xml" <<'MANIFEST'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -171,6 +172,16 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
     android:versionCode="1"
     android:versionName="1.0">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
+  <queries>
+    <intent>
+      <action android:name="android.support.customtabs.action.CustomTabsService" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.VIEW" />
+      <category android:name="android.intent.category.BROWSABLE" />
+      <data android:scheme="https" />
+    </intent>
+  </queries>
   <application android:label="Balaur" android:hasCode="true">
     <activity
         android:name="android.app.NativeActivity"
@@ -181,6 +192,16 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
+    </activity>
+    <activity
+        android:name="org.balaur.platform.WebSignIn"
+        android:exported="false"
+        android:launchMode="singleTask"
+        android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    <activity
+        android:name="org.balaur.platform.Redirect"
+        android:exported="true"
+        android:theme="@android:style/Theme.NoDisplay">
     </activity>
   </application>
 </manifest>

@@ -44,11 +44,6 @@ mod backend {
     pub(crate) use crate::android::sign_in;
 }
 
-/// Keep the Java `Activity` Credential Manager shows its sheet over; the
-/// facade hands it over as the app is built.
-#[cfg(target_os = "android")]
-pub use android::keep_activity;
-
 /// Everywhere else: no Credential Manager, so sign-in answers `unsupported`.
 #[cfg(not(target_os = "android"))]
 mod backend {
