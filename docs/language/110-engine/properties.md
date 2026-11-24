@@ -1,6 +1,6 @@
 ---
 title: Properties
-description: "Every pub field of a script is a property the inspector shows and a scene sets, whatever its type: how each kind is written, defaults, descriptions, and nodes and scripts as properties."
+description: "A script's pub fields are properties the inspector shows and a scene sets: how each kind is written, defaults, descriptions, nodes and scripts."
 image: /img/social/scripting.png
 sidebar_position: 2
 ---
