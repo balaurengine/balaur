@@ -14,8 +14,9 @@
 //! `task::wait` on a later tick, through [`ExternalIo`], so it is recorded and
 //! a replay plays it back.
 //!
-//! Anywhere but Android, below Android 14, or with no client id set, the call
-//! answers `unsupported` and a game opens Google's page instead. A test
+//! Anywhere but Android, below Android 14, with no client id set, or with no
+//! Google account on the device, the call answers `unsupported` and a game
+//! opens Google's page instead. A test
 //! answers it from its stand-in file, `"google.sign_in"`
 //! (`balaur_platform::stand_ins`).
 
@@ -42,6 +43,11 @@ mod android;
 mod backend {
     pub(crate) use crate::android::sign_in;
 }
+
+/// Keep the Java `Activity` Credential Manager shows its sheet over; the
+/// facade hands it over as the app is built.
+#[cfg(target_os = "android")]
+pub use android::keep_activity;
 
 /// Everywhere else: no Credential Manager, so sign-in answers `unsupported`.
 #[cfg(not(target_os = "android"))]
@@ -225,7 +231,7 @@ fn install_google_api(m: &mut Module<Engine>) {
         SIGN_IN,
         &[],
         "() -> int",
-        "Sign in with Google, and return the id the answer carries: `signed_in` with `token` (an id token for `[google] server_client_id`), `email` and `name`; `cancelled`; `unsupported` off Android, below Android 14 or with no client id; or `error`. The accounts already signed in to the app come first, without a tap when there is one.",
+        "Sign in with Google, and return the id the answer carries: `signed_in` with `token` (an id token for `[google] server_client_id`), `email` and `name`; `cancelled`; `unsupported` off Android, below Android 14, with no client id or with no Google account on the device; or `error`. The accounts already signed in to the app come first, without a tap when there is one.",
     )]);
     m.function(SIGN_IN, |eng: &Engine, ()| {
         let id = eng.next_token();

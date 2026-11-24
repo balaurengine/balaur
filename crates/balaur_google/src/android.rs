@@ -9,6 +9,7 @@
 //! the game on the channel the call started with.
 
 use std::ffi::c_void;
+use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Mutex, OnceLock, PoisonError};
 
@@ -22,6 +23,16 @@ use crate::GoogleEvent;
 /// Where an answer goes: the channel of the last call started, which every
 /// call shares.
 static REPORT: Mutex<Option<Sender<GoogleEvent>>> = Mutex::new(None);
+
+/// The Java `Activity` (`keep_activity`), which Credential Manager shows its
+/// sheet over. `ndk-context` holds the `Application`, which cannot.
+static ACTIVITY: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
+
+/// Keep the activity's JNI reference, which its owner keeps valid for the
+/// process.
+pub fn keep_activity(activity: *mut c_void) {
+    ACTIVITY.store(activity, Ordering::Release);
+}
 
 /// The shim, loaded and its native method registered once.
 static SHIM: OnceLock<Global<JClass<'static>>> = OnceLock::new();
@@ -39,15 +50,16 @@ pub(crate) fn sign_in(request: u64, server_client_id: &str, report: &Sender<Goog
 
 fn start(request: u64, server_client_id: &str) -> jni::errors::Result<()> {
     let context = ndk_context::android_context();
-    if context.vm().is_null() || context.context().is_null() {
+    let raw = ACTIVITY.load(Ordering::Acquire);
+    if context.vm().is_null() || raw.is_null() {
         return Err(jni::errors::Error::NullPtr("the activity"));
     }
     // Safety: ndk-context's VM pointer is the process's, checked non-null.
     let vm = unsafe { JavaVM::from_raw(context.vm().cast()) };
     vm.attach_current_thread(|env| {
-        // Safety: ndk-context holds a global reference to the activity,
-        // checked non-null; this wrapper never deletes it.
-        let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
+        // Safety: android-activity's global reference to the activity,
+        // checked non-null and kept for the process; this never deletes it.
+        let activity = unsafe { JObject::from_raw(env, raw.cast()) };
         let shim = shim(env, &activity)?;
         let client = env.new_string(server_client_id)?;
         env.call_static_method(

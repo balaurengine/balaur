@@ -54,7 +54,7 @@ public final class SignIn {
      */
     public static void start(final Activity activity, final long request, final String serverClientId) {
         if (Build.VERSION.SDK_INT < CREDENTIAL_MANAGER_API) {
-            send(request, kind(UNSUPPORTED));
+            send(request, unsupported("Credential Manager needs Android 14"));
             return;
         }
         activity.runOnUiThread(new Runnable() {
@@ -69,7 +69,7 @@ public final class SignIn {
             final boolean returning) {
         CredentialManager manager = activity.getSystemService(CredentialManager.class);
         if (manager == null) {
-            send(request, kind(UNSUPPORTED));
+            send(request, unsupported("no Credential Manager on this device"));
             return;
         }
         CredentialOption option = new CredentialOption.Builder(
@@ -90,8 +90,13 @@ public final class SignIn {
                     @Override
                     public void onError(GetCredentialException error) {
                         String type = error.getType();
-                        if (returning && GetCredentialException.TYPE_NO_CREDENTIAL.equals(type)) {
+                        boolean none = GetCredentialException.TYPE_NO_CREDENTIAL.equals(type);
+                        if (none && returning) {
                             ask(activity, request, serverClientId, false);
+                        } else if (none) {
+                            // No Google account on the device: Google's page
+                            // is where the player can sign in to one.
+                            send(request, unsupported("no Google account on this device"));
                         } else if (GetCredentialException.TYPE_USER_CANCELED.equals(type)) {
                             send(request, kind(CANCELLED));
                         } else {
@@ -145,6 +150,16 @@ public final class SignIn {
         JSONObject out = new JSONObject();
         try {
             out.put(KIND, kind);
+        } catch (JSONException e) {
+            // A string key and value never fail.
+        }
+        return out;
+    }
+
+    private static JSONObject unsupported(String why) {
+        JSONObject out = kind(UNSUPPORTED);
+        try {
+            out.put(ERROR, why);
         } catch (JSONException e) {
             // A string key and value never fail.
         }

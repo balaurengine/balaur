@@ -20887,7 +20887,7 @@
       ],
       "doc": "Google services: Sign in with Google on Android 14 and later, through the system's Credential Manager. A call answers `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant.",
       "docs": {
-        "sign_in": "Sign in with Google, and return the id the answer carries: `signed_in` with `token` (an id token for `[google] server_client_id`), `email` and `name`; `cancelled`; `unsupported` off Android, below Android 14 or with no client id; or `error`. The accounts already signed in to the app come first, without a tap when there is one."
+        "sign_in": "Sign in with Google, and return the id the answer carries: `signed_in` with `token` (an id token for `[google] server_client_id`), `email` and `name`; `cancelled`; `unsupported` off Android, below Android 14, with no client id or with no Google account on the device; or `error`. The accounts already signed in to the app come first, without a tap when there is one."
       },
       "editor": [],
       "functions": [

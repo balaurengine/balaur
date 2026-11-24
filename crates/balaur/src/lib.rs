@@ -717,6 +717,10 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     load_extensions(&mut app, &asked, &extensions)?;
     refuse_absent(&app, &asked)?;
     deliver_launch_url(&mut app);
+    #[cfg(all(feature = "google", feature = "window", target_os = "android"))]
+    if let Some(activity) = balaur_render::android_activity() {
+        balaur_google::keep_activity(activity);
+    }
     Ok(app)
 }
 

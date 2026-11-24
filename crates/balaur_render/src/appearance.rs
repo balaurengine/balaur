@@ -113,6 +113,17 @@ pub fn keep_android_app(app: &kiss3d::winit::platform::android::activity::Androi
     let _ = ANDROID_APP.set(app.clone());
 }
 
+/// The Java `Activity` the kept handle holds, as the raw JNI reference
+/// android-activity owns: valid while the handle is, which is the process.
+/// `ndk-context` holds the `Application` instead, which shows no UI.
+#[cfg(target_os = "android")]
+#[must_use]
+pub fn android_activity() -> Option<*mut std::ffi::c_void> {
+    ANDROID_APP
+        .get()
+        .map(kiss3d::winit::platform::android::activity::AndroidApp::activity_as_ptr)
+}
+
 /// The configuration android-activity keeps; a change to it arrives as
 /// winit's scale event, which asks again.
 #[cfg(target_os = "android")]

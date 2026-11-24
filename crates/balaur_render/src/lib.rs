@@ -156,7 +156,7 @@ mod debug_lines;
 #[cfg(feature = "window")]
 mod device;
 #[cfg(all(feature = "window", target_os = "android"))]
-pub use appearance::keep_android_app;
+pub use appearance::{android_activity, keep_android_app};
 #[cfg(feature = "window")]
 mod access;
 #[cfg(feature = "window")]

@@ -1417,11 +1417,13 @@ things are shared.
   platform's `android.jar` (`package_runtime.sh`), with nothing from Maven. The
   game's thread is a native one whose `FindClass` sees only the platform, so a
   shim is loaded through the activity's class loader and its one native
-  method registered on it, answering a JSON map onto the call's channel.
+  method registered on it, answering a JSON map onto the call's channel. The
+  activity is the one android-activity keeps, handed over as the app is
+  built: `ndk-context` holds the `Application`, which shows no sheet.
   `google.sign_in` is Credential Manager with the bundle keys Google's
   `googleid` library writes, so Play services answers it with an id token for
-  `[google] server_client_id`; below Android 14, off Android or with no id it
-  answers `unsupported`.
+  `[google] server_client_id`; below Android 14, off Android, with no id or with
+  no Google account on the device it answers `unsupported`.
 - **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of
   `"<module>.<call>"` to the answer its waiter receives (`null`: never
   answers); such a call never reaches its backend, and its answer crosses the

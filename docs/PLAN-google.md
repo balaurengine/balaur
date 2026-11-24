@@ -48,8 +48,9 @@ shims in `crates/balaur_google/java` (step 1).
    library ships. The accounts already signed in to the app come first,
    picked without a tap when there is one, then every account. It answers
    `signed_in` with `token`, `email` and `name`, `cancelled`, `error`, or
-   `unsupported` off Android, below 14 or with no `[google]
-   server_client_id`, the server's web client id. No nonce: Gamend's
+   `unsupported` off Android, below 14, with no `[google]
+   server_client_id` (the server's web client id) or with no Google account
+   on the device. No nonce: Gamend's
    `tokeninfo` check reads none. A stand-in answers `google.sign_in` in a
    test. Below Android 14 a game opens Google's page, since only androidx
    reaches Play services' own sign-in there. Custom Tabs are still to do.
