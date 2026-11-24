@@ -947,6 +947,39 @@ fn task_wait_hands_an_async_init_what_the_engine_answered() {
     assert_eq!(field(&app, "Asker", "name"), Some(Str("orc".into())));
 }
 
+const PARSER_BS: &str = r#"pub class Parser { node: Node, n: int, word: str, same: bool }
+
+impl Parser {
+    pub async fn init() {
+        let text = "{{\"words\": [{{\"word\": \"café\"}}, null], \"n\": 3}}";
+        let value = await task::wait(json::parse_async(text));
+        self.n = value["n"].as_int();
+        self.word = value["words"][0]["word"].as_str();
+        self.same = value == json::parse(text);
+    }
+}
+"#;
+
+#[test]
+fn json_parse_async_answers_task_wait_with_what_parse_gives_a_step_later() {
+    use balaur_script::Value::{Bool, Int, Str};
+    let dir = one_script("Parser", PARSER_BS);
+    let mut app = booted(dir.path());
+    assert_eq!(
+        field(&app, "Parser", "n"),
+        Some(Int(0)),
+        "parsed off the frame that asked"
+    );
+    ticked(&mut app, 2);
+    assert_eq!(field(&app, "Parser", "n"), Some(Int(3)));
+    assert_eq!(field(&app, "Parser", "word"), Some(Str("café".into())));
+    assert_eq!(
+        field(&app, "Parser", "same"),
+        Some(Bool(true)),
+        "the value parse gives"
+    );
+}
+
 const TOOLED_BS: &str = "pub class Tooled { node: Node, speed: float }
 impl Tooled {
     pub fn update(dt: float) {

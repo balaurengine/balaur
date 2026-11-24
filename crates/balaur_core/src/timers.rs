@@ -5,6 +5,8 @@
 //! way a request id is and woken with nil, which is what `task::wait` on an
 //! engine token expects.
 
+use std::sync::mpsc::Receiver;
+
 use serde::{Deserialize, Serialize};
 
 use crate::engine::Engine;
@@ -18,6 +20,20 @@ pub struct Timers {
     /// result, which cannot be delivered before its caller has parked.
     #[serde(skip)]
     results: Vec<(u64, balaur_script::Value)>,
+    /// Tokens to wake on the next step with what a worker answers
+    /// (`task::compute`), waited for there if it has not answered yet.
+    #[serde(skip)]
+    computing: Vec<(u64, Receiver<balaur_script::Value>)>,
+}
+
+/// Wake `token` on the next fixed step with the value `answer` brings,
+/// waiting for it there if the worker has not sent it: work off the frame
+/// that asked, whose caller resumes on the same step on every run.
+pub fn wake_with(eng: &Engine, token: u64, answer: Receiver<balaur_script::Value>) {
+    eng.resource::<Timers>()
+        .borrow_mut()
+        .computing
+        .push((token, answer));
 }
 
 pub fn wake_next_step(eng: &Engine, token: u64, payload: balaur_script::Value) {
@@ -69,7 +85,7 @@ pub(crate) fn pending(eng: &Engine) -> bool {
     eng.try_resource::<Timers>().is_some_and(|timers| {
         let timers = timers.borrow();
         let counting = !timers.frames.is_empty();
-        !timers.results.is_empty() || (counting && !eng.paused())
+        !timers.results.is_empty() || !timers.computing.is_empty() || (counting && !eng.paused())
     })
 }
 
@@ -77,7 +93,19 @@ pub(crate) fn step_timers_system(eng: &Engine, _: f32) {
     // An awaited call's result is owed to its caller, not timed: it is
     // delivered through a pause, or a script that awaited one inside an
     // `always` subtree never gets its answer.
-    let results = std::mem::take(&mut eng.resource::<Timers>().borrow_mut().results);
+    let (mut results, computing) = {
+        let timers = eng.resource::<Timers>();
+        let mut timers = timers.borrow_mut();
+        (
+            std::mem::take(&mut timers.results),
+            std::mem::take(&mut timers.computing),
+        )
+    };
+    // A worker's answer, waited for where it is not in yet; a worker gone
+    // without one answers nil.
+    for (token, answer) in computing {
+        results.push((token, answer.recv().unwrap_or(balaur_script::Value::Nil)));
+    }
     if let Some(host) = eng.script_host() {
         for (token, payload) in &results {
             host.wake(*token, payload);

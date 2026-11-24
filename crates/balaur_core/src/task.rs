@@ -161,6 +161,20 @@ pub fn compute<T: Send + 'static>(
     answered
 }
 
+/// `work` run off the frame ([`compute`]) for a script: the token it waits
+/// on with `task::wait`, woken with `work`'s answer on the next fixed step,
+/// which waits there for one not in yet. The shape of every heavy call's
+/// `_async` twin (`json.parse_async`): its caller resumes on the same step
+/// on every run, so a replay records nothing.
+pub fn off_frame(
+    eng: &crate::Engine,
+    work: impl FnOnce() -> balaur_script::Value + Send + 'static,
+) -> balaur_script::Value {
+    let token = eng.next_token();
+    crate::timers::wake_with(eng, token, compute(work));
+    crate::handler::id_value(token)
+}
+
 /// Advance every parked job by one slice, dropping the ones that finished.
 ///
 /// The app registers this at `Stage::First`. Nothing is ever parked on a

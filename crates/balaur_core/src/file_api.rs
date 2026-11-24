@@ -596,10 +596,19 @@ pub(crate) fn as_item(value: &toml::Value) -> toml_edit::Item {
 }
 
 pub(crate) fn json_parse(_: &Engine, args: &[Value]) -> Result<Value> {
-    match serde_json::from_str::<Parsed>(text(args, 0)?) {
-        Ok(Parsed(parsed)) => Ok(parsed),
-        Err(_) => Ok(Value::Nil),
-    }
+    Ok(parsed(text(args, 0)?))
+}
+
+/// `json.parse_async`: `parse` on a worker, its value answered to the token
+/// on the next fixed step (`task::off_frame`).
+pub(crate) fn json_parse_async(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let text = text(args, 0)?.to_owned();
+    Ok(crate::task::off_frame(eng, move || parsed(&text)))
+}
+
+// What `text` describes; nil where it does not parse.
+fn parsed(text: &str) -> Value {
+    serde_json::from_str::<Parsed>(text).map_or(Value::Nil, |Parsed(parsed)| parsed)
 }
 
 /// A JSON document read straight into script values, with no

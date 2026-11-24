@@ -29,7 +29,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`http`](#http) | 2 | 5 |
 | [`import`](#import) | 6 | 0 |
 | [`input`](#input) | 52 | 188 |
-| [`json`](#json) | 2 | 0 |
+| [`json`](#json) | 3 | 0 |
 | [`log`](#log) | 7 | 0 |
 | [`math`](#math) | 24 | 3 |
 | [`multimesh2d`](#multimesh2d) | 0 | 0 |
@@ -556,6 +556,7 @@ JSON text to and from script values. Its `null` keeps nil through a round trip.
 | --- | --- |
 | `encode` | `(any) -> str` |
 | `parse` | `(str) -> any` |
+| `parse_async` | `(str) -> int` |
 
 ## `log`
 

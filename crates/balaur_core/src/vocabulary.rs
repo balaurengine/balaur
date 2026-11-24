@@ -153,6 +153,7 @@ pub(crate) mod words {
         pub(crate) const LOAD: &str = "load";
         pub(crate) const LOCALE: &str = "locale";
         pub(crate) const PARSE: &str = "parse";
+        pub(crate) const PARSE_ASYNC: &str = "parse_async";
         pub(crate) const PAUSED: &str = "paused";
         pub(crate) const PRELOAD: &str = "preload";
         pub(crate) const QUIT: &str = "quit";

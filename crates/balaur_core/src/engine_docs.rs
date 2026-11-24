@@ -295,6 +295,7 @@ pub(crate) fn document_json(m: &mut balaur_script::Module<Engine>) {
     m.module_doc("JSON text to and from script values. Its `null` keeps nil through a round trip.");
     m.describe(&[
         (words::functions::PARSE, &[], "(text: string) -> any", "The value a JSON document describes; nil for text that does not parse, as for `null`."),
+        (words::functions::PARSE_ASYNC, &[], "(text: string) -> int", "`parse` off the frame: the text is parsed on a worker, and `task::wait` on the token answers its value on the next fixed step, waiting there for the worker where it has not finished: `let pack = await task::wait(json::parse_async(text));`."),
         (words::functions::ENCODE, &[], "(value: any) -> string", "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error."),
     ]);
 }

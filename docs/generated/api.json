@@ -2484,6 +2484,10 @@
         "least": 1,
         "signature": "(str) -> any"
       },
+      "json::parse_async": {
+        "least": 1,
+        "signature": "(str) -> int"
+      },
       "log::clear": {
         "least": 0,
         "signature": "()"
@@ -21933,18 +21937,21 @@
       "doc": "JSON text to and from script values. Its `null` keeps nil through a round trip.",
       "docs": {
         "encode": "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error.",
-        "parse": "The value a JSON document describes; nil for text that does not parse, as for `null`."
+        "parse": "The value a JSON document describes; nil for text that does not parse, as for `null`.",
+        "parse_async": "`parse` off the frame: the text is parsed on a worker, and `task::wait` on the token answers its value on the next fixed step, waiting there for the worker where it has not finished: `let pack = await task::wait(json::parse_async(text));`."
       },
       "editor": [],
       "functions": [
         "encode",
-        "parse"
+        "parse",
+        "parse_async"
       ],
       "methods": {},
       "name": "json",
       "signatures": {
         "encode": "(any) -> str",
-        "parse": "(str) -> any"
+        "parse": "(str) -> any",
+        "parse_async": "(str) -> int"
       }
     },
     {
