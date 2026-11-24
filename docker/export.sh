@@ -82,6 +82,14 @@ if [ -d /cache ]; then
     esac
     ln -s "${cached}/${name}" "${roots}/${link}" || fail "could not link ${name}"
     log "==> runtime ${cached}/${name}"
+    # A Steam build's export copies Valve's library from beside the template,
+    # named for it (balaur-runtime-linux-x64.libsteam_api.so).
+    if [ "$STEAM" = 1 ]; then
+      for lib in "${cached}/${name}".*steam_api*; do
+        [ -e "$lib" ] || continue
+        ln -s "$lib" "${roots}/balaur-runtime-${lib##*/}" || fail "could not link ${lib##*/}"
+      done
+    fi
   done
   export BALAUR_RUNTIMES="$roots"
 

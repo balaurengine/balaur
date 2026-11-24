@@ -71,7 +71,7 @@ puts the game on the smallest it fits. Without them it goes on the full one.
 | `BALAUR_VERSION` | which runtimes under `/cache` to use |
 | `BALAUR_OUTPUT` | artifact name in `/out`; defaults per target |
 | `BALAUR_ANDROID_PACKAGE` | `apk` (default) or `aab`, for `android` on the `-android` image |
-| `BALAUR_STEAM` | `1` for a Steam build of `linux-x64`, `linux-arm64`, `macos-universal` or `windows-x64`: the same export with the CLI's Steam flag, which copies Valve's `steam_api` beside the game; `0` (default) for every other build, which carries no Valve file |
+| `BALAUR_STEAM` | `1` for a Steam build of `linux-x64`, `linux-arm64`, `macos-universal` or `windows-x64`: the same export with the CLI's Steam flag, which copies Valve's `steam_api` beside the game, from `/cache`'s `<template>.<library>` beside each template (`linux-x64.libsteam_api.so`); `0` (default) for every other build, which carries no Valve file |
 
 With `/cache` mounted the export is offline and the template must already be
 there. Without it, balaur downloads the one it needs — what an ordinary CI job
