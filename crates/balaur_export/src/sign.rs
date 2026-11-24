@@ -79,8 +79,8 @@ pub(crate) fn codesign(
 }
 
 /// Everything inside a bundle that carries its own signature: the frameworks
-/// and loadable libraries an extension or a store SDK puts there, and the
-/// `steam_api` beside the executable.
+/// and loadable libraries an extension or a store SDK puts there, and a
+/// `--steam` export's `steam_api` beside the executable.
 fn nested_code(bundle: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     for dir in [

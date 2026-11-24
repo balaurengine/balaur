@@ -29,6 +29,7 @@ pub mod settings;
 mod sign;
 pub mod size;
 mod steam;
+pub use steam::{steam_api_beside, steam_api_name};
 mod textures;
 mod variants;
 mod vocabulary;
@@ -79,8 +80,13 @@ pub struct Options<'a> {
     pub aab: bool,
     /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
     pub pkg: bool,
-    /// A development build: `[steam] app_id` goes in a `steam_appid.txt`
-    /// beside the game, so it starts without the Steam client.
+    /// A Steam build: Valve's `steam_api` beside the game, from beside the
+    /// runtime, which needs `[steam] app_id`. Off, no Valve file ships,
+    /// whatever `[steam]` says: the same game goes to other stores.
+    pub steam: bool,
+    /// A development Steam build: `[steam] app_id` goes in a
+    /// `steam_appid.txt` beside the game, so it starts without the Steam
+    /// client. Needs `steam`.
     pub dev: bool,
     /// Where runtimes are looked for, most specific first.
     pub runtime_roots: Vec<PathBuf>,
@@ -425,7 +431,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let mut android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
     android.debug_key = opts.sign.as_deref() == Some("debug");
     let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
-    let steam = steam::Steam::from_manifest(&manifest, &opts.path, opts.dev)?;
+    let steam = steam::Steam::for_export(&manifest, opts, bundle.map(|(_, t)| t))?;
     let runtime_name = target
         .map(|t| runtime_name(t, config.runtime, &opts.path, &pack))
         .transpose()?;
@@ -589,7 +595,7 @@ fn export_desktop(
         icons.write_linux(&output, name)?;
     }
     let run_from = output.parent().unwrap_or_else(|| Path::new(""));
-    steam::ship_for(steam, &runtime, &bytes, &output, run_from)?;
+    steam::ship_for(steam, target, &runtime, &bytes, &output, run_from)?;
     tracing::info!(
         "exported {} scripts, {} scenes onto {} -> {}",
         pack.scripts.len(),
@@ -699,7 +705,7 @@ fn finish_bundle(
                     "signing an iOS build needs a provisioning profile: pass \
                      --provisioning-profile, or name one in [apple] ios_provisioning_profile"
                 );
-                let entitlements = apple.write_entitlements(written, name, false)?;
+                let entitlements = apple.write_entitlements(written, name, false, false)?;
                 sign::codesign(written, identity, entitlements.as_deref(), true)?;
                 sign::verify(written)?;
                 tracing::info!("signed {}", written.display());

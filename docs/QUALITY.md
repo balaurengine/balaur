@@ -146,6 +146,11 @@ Every exemption carries its reason inline, so it stops being cited as precedent.
 - `scripts/third_party_notices.py --check`. Licence checking is off in
   `deny.toml`, so `THIRD-PARTY-NOTICES.md` is the only record of what a built
   binary combines.
+- `scripts/gen_steam.py --check` regenerates `crates/balaur_steam/src/sdk/`
+  and `sdk/unmapped.md` from Valve's `steam_api.json`, and fails on any diff.
+  The generator itself fails when its packing rule and the recorded
+  `sdk/layouts.json` disagree, and `layout.rs` asserts the same per platform
+  at compile time.
 
 ## Determinism
 

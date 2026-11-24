@@ -53,9 +53,6 @@ browser = ["dep:balaur_browser"]
 # a build drops GameKit and the objc2 bindings to it. `platform.*` is always
 # there; with no store behind it every call answers `unsupported`.
 apple = ["dep:balaur_apple"]
-# `platform.*` from Steam where its client runs the game. Off by default:
-# Valve's library is linked, so a build with it ships `steam_api` beside it.
-steam = ["dep:balaur_steam"]
 # `google.*` for scripts: Sign in with Google through Android's Credential
 # Manager. Always compiles; off Android every call answers `unsupported`.
 google = ["dep:balaur_google"]
@@ -108,12 +105,17 @@ balaur_multiplayer = { workspace = true, optional = true }
 balaur_browser = { workspace = true, optional = true }
 balaur_platform.workspace = true
 balaur_apple = { workspace = true, optional = true }
-balaur_steam = { workspace = true, optional = true }
 balaur_google = { workspace = true, optional = true }
 balaur_ui.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 toml.workspace = true
+
+# `platform.*` from Steam and the `steam_*` script modules, on every desktop:
+# Valve's library is opened at run time from beside the game, so a build
+# without it beside, or a machine without Steam, starts all the same.
+[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
+balaur_steam.workspace = true
 
 [dev-dependencies]
 egui.workspace = true

@@ -96,6 +96,8 @@ mod fetch {
         download(&url, &path, &expected)?;
         tracing::info!("downloaded {name} -> {}", path.display());
         if !is_bundle(target) {
+            #[cfg(feature = "editor")]
+            steam_api(target, &tag, &path)?;
             return Ok(path);
         }
         let file = std::fs::File::open(&path)?;
@@ -104,6 +106,28 @@ mod fetch {
             .with_context(|| format!("unpacking {name} into {}", dir.display()))?;
         std::fs::remove_file(&path)?;
         Ok(dir)
+    }
+
+    /// Valve's `steam_api` for a desktop runtime, beside it under its name,
+    /// which `export --steam` copies beside the game. A release without one
+    /// (Windows on Arm) is left at that.
+    #[cfg(feature = "editor")]
+    fn steam_api(target: &str, tag: &str, runtime: &Path) -> Result<()> {
+        let Some(library) = balaur_export::steam_api_name(target) else {
+            return Ok(());
+        };
+        let path = balaur_export::steam_api_beside(runtime, library);
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let sums = format!("{RELEASE_BASE}/{tag}/SHA256SUMS");
+        let Ok(expected) = expected_sha256(&sums, &name) else {
+            return Ok(());
+        };
+        download(&format!("{RELEASE_BASE}/{tag}/{name}"), &path, &expected)?;
+        tracing::info!("downloaded {name} -> {}", path.display());
+        Ok(())
     }
 
     fn confirm(name: &str, url: &str, dir: &Path, assume_yes: bool) -> Result<()> {

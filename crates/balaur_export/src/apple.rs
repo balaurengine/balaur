@@ -262,15 +262,23 @@ impl AppleConfig {
         }
     }
 
-    /// The entitlements this game's capabilities need, and the exception a
+    /// The entitlements this game's capabilities need, the exception a
     /// signed Mac build running its scripts on wasmtime needs (`jit`), which
-    /// maps its code with `mprotect` and never `MAP_JIT`; or `None` when it
-    /// declares none and there is nothing to sign against.
-    pub(crate) fn entitlements(&self, jit: bool) -> Option<String> {
+    /// maps its code with `mprotect` and never `MAP_JIT`, and the two the
+    /// Steam overlay needs under the hardened runtime (`steam`), which injects
+    /// Valve's own library; or `None` when it declares none and there is
+    /// nothing to sign against.
+    pub(crate) fn entitlements(&self, jit: bool, steam: bool) -> Option<String> {
         let mut body = String::new();
         if jit {
             body.push_str(
                 "  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>\n  <true/>\n",
+            );
+        }
+        if steam {
+            body.push_str(
+                "  <key>com.apple.security.cs.disable-library-validation</key>\n  <true/>\n  \
+                 <key>com.apple.security.cs.allow-dyld-environment-variables</key>\n  <true/>\n",
             );
         }
         for capability in &self.capabilities {
@@ -381,8 +389,9 @@ impl AppleConfig {
         beside: &Path,
         name: &str,
         jit: bool,
+        steam: bool,
     ) -> Result<Option<PathBuf>> {
-        let Some(text) = self.entitlements(jit) else {
+        let Some(text) = self.entitlements(jit, steam) else {
             return Ok(None);
         };
         let path = beside.with_file_name(format!("{name}.entitlements"));
@@ -573,7 +582,7 @@ mod tests {
         named
             .check(Platform::Ios)
             .expect("a named game with no capabilities");
-        assert!(named.entitlements(false).is_none());
+        assert!(named.entitlements(false, false).is_none());
     }
 
     #[test]
@@ -633,7 +642,9 @@ mod tests {
              capabilities = [\"sign-in-with-apple\", \"game-center\", \"icloud-kv\"]\n",
         );
         config.check(Platform::Ios).expect("a complete table");
-        let text = config.entitlements(false).expect("three capabilities");
+        let text = config
+            .entitlements(false, false)
+            .expect("three capabilities");
         assert!(text.contains("com.apple.developer.applesignin"), "{text}");
         assert!(text.contains("com.apple.developer.game-center"), "{text}");
         assert!(
@@ -684,7 +695,7 @@ mod tests {
         );
         config.check(Platform::Ios).expect("the default is 15.0");
         assert!(
-            config.entitlements(false).is_none(),
+            config.entitlements(false, false).is_none(),
             "in-app purchase needs no entitlement of its own"
         );
     }

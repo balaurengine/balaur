@@ -1,0 +1,8114 @@
+{
+ "linux64": {
+  "ActiveBeaconsUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AddAppDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppID": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "AddUGCDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nChildPublishedFileId": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 20
+  },
+  "AppProofOfPurchaseKeyResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_cchKeyLength": 8,
+    "m_eResult": 0,
+    "m_nAppID": 4,
+    "m_rgchKey": 12
+   },
+   "size": 252
+  },
+  "AppResumingFromSuspend_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AssociateWithClanResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "AvailableBeaconLocationsUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AvatarImageLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_iImage": 8,
+    "m_iTall": 16,
+    "m_iWide": 12,
+    "m_steamID": 0
+   },
+   "size": 20
+  },
+  "BroadcastUploadStart_t": {
+   "align": 1,
+   "offsets": {
+    "m_bIsRTMP": 0
+   },
+   "size": 1
+  },
+  "BroadcastUploadStop_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "CallbackMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubParam": 16,
+    "m_hSteamUser": 0,
+    "m_iCallback": 4,
+    "m_pubParam": 8
+   },
+   "size": 20
+  },
+  "ChangeNumOpenSlotsCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "CheckFileSignature_t": {
+   "align": 4,
+   "offsets": {
+    "m_eCheckFileSignature": 0
+   },
+   "size": 4
+  },
+  "ClanOfficerListResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 12,
+    "m_cOfficers": 8,
+    "m_steamIDClan": 0
+   },
+   "size": 16
+  },
+  "ClientGameServerDeny_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSecure": 10,
+    "m_uAppID": 0,
+    "m_uReason": 12,
+    "m_unGameServerIP": 4,
+    "m_usGameServerPort": 8
+   },
+   "size": 16
+  },
+  "ComputeNewPlayerCompatibilityResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamIDCandidate": 16,
+    "m_eResult": 0
+   },
+   "size": 24
+  },
+  "CreateBeaconCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_ulBeaconID": 4
+   },
+   "size": 12
+  },
+  "CreateItemResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "DeleteItemResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "DlcInstalled_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 0
+   },
+   "size": 4
+  },
+  "DownloadClanActivityCountsResult_t": {
+   "align": 1,
+   "offsets": {
+    "m_bSuccess": 0
+   },
+   "size": 1
+  },
+  "DownloadItemResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 12,
+    "m_nPublishedFileId": 4,
+    "m_unAppID": 0
+   },
+   "size": 16
+  },
+  "DurationControl_t": {
+   "align": 4,
+   "offsets": {
+    "m_appid": 4,
+    "m_bApplicable": 8,
+    "m_csecsLast5h": 12,
+    "m_csecsRemaining": 28,
+    "m_csecsToday": 24,
+    "m_eResult": 0,
+    "m_notification": 20,
+    "m_progress": 16
+   },
+   "size": 32
+  },
+  "EncryptedAppTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "EquippedProfileItemsChanged_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamID": 0
+   },
+   "size": 8
+  },
+  "EquippedProfileItems_t": {
+   "align": 4,
+   "offsets": {
+    "m_bFromCache": 17,
+    "m_bHasAnimatedAvatar": 12,
+    "m_bHasAvatarFrame": 13,
+    "m_bHasMiniProfileBackground": 16,
+    "m_bHasProfileBackground": 15,
+    "m_bHasProfileModifier": 14,
+    "m_eResult": 0,
+    "m_steamID": 4
+   },
+   "size": 20
+  },
+  "FavoritesListAccountsUpdated_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "FavoritesListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAdd": 20,
+    "m_nAppID": 12,
+    "m_nConnPort": 8,
+    "m_nFlags": 16,
+    "m_nIP": 0,
+    "m_nQueryPort": 4,
+    "m_unAccountId": 24
+   },
+   "size": 28
+  },
+  "FileDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_FileSHA": 12,
+    "m_eResult": 0,
+    "m_ulFileSize": 4,
+    "m_unFlags": 32
+   },
+   "size": 36
+  },
+  "FilterTextDictionaryChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_eLanguage": 0
+   },
+   "size": 4
+  },
+  "FloatingGamepadTextInputDismissed_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "FriendGameInfo_t": {
+   "align": 4,
+   "offsets": {
+    "m_gameID": 0,
+    "m_steamIDLobby": 16,
+    "m_unGameIP": 8,
+    "m_usGamePort": 12,
+    "m_usQueryPort": 14
+   },
+   "size": 24
+  },
+  "FriendRichPresenceUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_steamIDFriend": 0
+   },
+   "size": 12
+  },
+  "FriendsEnumerateFollowingList_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 404,
+    "m_nTotalResultCount": 408,
+    "m_rgSteamID": 4
+   },
+   "size": 412
+  },
+  "FriendsGetFollowerCount_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nCount": 12,
+    "m_steamID": 4
+   },
+   "size": 16
+  },
+  "FriendsIsFollowing_t": {
+   "align": 4,
+   "offsets": {
+    "m_bIsFollowing": 12,
+    "m_eResult": 0,
+    "m_steamID": 4
+   },
+   "size": 16
+  },
+  "GSClientAchievementStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_bUnlocked": 136,
+    "m_pchAchievement": 8
+   },
+   "size": 140
+  },
+  "GSClientApprove_t": {
+   "align": 1,
+   "offsets": {
+    "m_OwnerSteamID": 8,
+    "m_SteamID": 0
+   },
+   "size": 16
+  },
+  "GSClientDeny_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_eDenyReason": 8,
+    "m_rgchOptionalText": 12
+   },
+   "size": 140
+  },
+  "GSClientGroupStatus_t": {
+   "align": 1,
+   "offsets": {
+    "m_SteamIDGroup": 8,
+    "m_SteamIDUser": 0,
+    "m_bMember": 16,
+    "m_bOfficer": 17
+   },
+   "size": 18
+  },
+  "GSClientKick_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_eDenyReason": 8
+   },
+   "size": 12
+  },
+  "GSGameplayStats_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nRank": 4,
+    "m_unTotalConnects": 8,
+    "m_unTotalMinutesPlayed": 12
+   },
+   "size": 16
+  },
+  "GSPolicyResponse_t": {
+   "align": 1,
+   "offsets": {
+    "m_bSecure": 0
+   },
+   "size": 1
+  },
+  "GSReputation_t": {
+   "align": 4,
+   "offsets": {
+    "m_bBanned": 8,
+    "m_eResult": 0,
+    "m_ulBannedGameID": 20,
+    "m_unBanExpires": 28,
+    "m_unBannedIP": 12,
+    "m_unReputationScore": 4,
+    "m_usBannedPort": 16
+   },
+   "size": 32
+  },
+  "GSStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_steamIDUser": 4
+   },
+   "size": 12
+  },
+  "GSStatsStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_steamIDUser": 4
+   },
+   "size": 12
+  },
+  "GSStatsUnloaded_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDUser": 0
+   },
+   "size": 8
+  },
+  "GameConnectedChatJoin_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 16
+  },
+  "GameConnectedChatLeave_t": {
+   "align": 1,
+   "offsets": {
+    "m_bDropped": 17,
+    "m_bKicked": 16,
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 18
+  },
+  "GameConnectedClanChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_iMessageID": 16,
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 20
+  },
+  "GameConnectedFriendChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_iMessageID": 8,
+    "m_steamIDUser": 0
+   },
+   "size": 12
+  },
+  "GameLobbyJoinRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDFriend": 8,
+    "m_steamIDLobby": 0
+   },
+   "size": 16
+  },
+  "GameOverlayActivated_t": {
+   "align": 4,
+   "offsets": {
+    "m_bActive": 0,
+    "m_bUserInitiated": 1,
+    "m_dwOverlayPID": 8,
+    "m_nAppID": 4
+   },
+   "size": 12
+  },
+  "GameRichPresenceJoinRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_rgchConnect": 8,
+    "m_steamIDFriend": 0
+   },
+   "size": 264
+  },
+  "GameServerChangeRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_rgchPassword": 64,
+    "m_rgchServer": 0
+   },
+   "size": 128
+  },
+  "GameWebCallback_t": {
+   "align": 1,
+   "offsets": {
+    "m_szURL": 0
+   },
+   "size": 256
+  },
+  "GamepadTextInputDismissed_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSubmitted": 0,
+    "m_unAppID": 8,
+    "m_unSubmittedText": 4
+   },
+   "size": 12
+  },
+  "GetAppDependenciesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nNumAppDependencies": 140,
+    "m_nPublishedFileId": 4,
+    "m_nTotalNumAppDependencies": 144,
+    "m_rgAppIDs": 12
+   },
+   "size": 148
+  },
+  "GetAuthSessionTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 4,
+    "m_hAuthTicket": 0
+   },
+   "size": 8
+  },
+  "GetOPFSettingsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_unVideoAppID": 4
+   },
+   "size": 8
+  },
+  "GetTicketForWebApiResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubTicket": 8,
+    "m_eResult": 4,
+    "m_hAuthTicket": 0,
+    "m_rgubTicket": 12
+   },
+   "size": 2572
+  },
+  "GetUserItemVoteResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bVoteSkipped": 14,
+    "m_bVotedDown": 13,
+    "m_bVotedUp": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "GetVideoURLResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_rgchURL": 8,
+    "m_unVideoAppID": 4
+   },
+   "size": 264
+  },
+  "GlobalAchievementPercentagesReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 12
+  },
+  "GlobalStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 12
+  },
+  "HTML_BrowserReady_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_BrowserRestarted_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0,
+    "unOldBrowserHandle": 4
+   },
+   "size": 8
+  },
+  "HTML_CanGoBackAndForward_t": {
+   "align": 4,
+   "offsets": {
+    "bCanGoBack": 4,
+    "bCanGoForward": 5,
+    "unBrowserHandle": 0
+   },
+   "size": 8
+  },
+  "HTML_ChangedTitle_t": {
+   "align": 4,
+   "offsets": {
+    "pchTitle": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_CloseBrowser_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_FileOpenDialog_t": {
+   "align": 4,
+   "offsets": {
+    "pchInitialFile": 12,
+    "pchTitle": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 20
+  },
+  "HTML_FinishedRequest_t": {
+   "align": 4,
+   "offsets": {
+    "pchPageTitle": 12,
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 20
+  },
+  "HTML_HideToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_HorizontalScroll_t": {
+   "align": 4,
+   "offsets": {
+    "bVisible": 16,
+    "flPageScale": 12,
+    "unBrowserHandle": 0,
+    "unPageSize": 20,
+    "unScrollCurrent": 8,
+    "unScrollMax": 4
+   },
+   "size": 24
+  },
+  "HTML_JSAlert_t": {
+   "align": 4,
+   "offsets": {
+    "pchMessage": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_JSConfirm_t": {
+   "align": 4,
+   "offsets": {
+    "pchMessage": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_LinkAtPosition_t": {
+   "align": 4,
+   "offsets": {
+    "bInput": 20,
+    "bLiveLink": 21,
+    "pchURL": 12,
+    "unBrowserHandle": 0,
+    "x": 4,
+    "y": 8
+   },
+   "size": 24
+  },
+  "HTML_NeedsPaint_t": {
+   "align": 4,
+   "offsets": {
+    "flPageScale": 44,
+    "pBGRA": 4,
+    "unBrowserHandle": 0,
+    "unPageSerial": 48,
+    "unScrollX": 36,
+    "unScrollY": 40,
+    "unTall": 16,
+    "unUpdateTall": 32,
+    "unUpdateWide": 28,
+    "unUpdateX": 20,
+    "unUpdateY": 24,
+    "unWide": 12
+   },
+   "size": 52
+  },
+  "HTML_NewWindow_t": {
+   "align": 4,
+   "offsets": {
+    "pchURL": 4,
+    "unBrowserHandle": 0,
+    "unTall": 24,
+    "unWide": 20,
+    "unX": 12,
+    "unY": 16
+   },
+   "size": 32
+  },
+  "HTML_OpenLinkInNewTab_t": {
+   "align": 4,
+   "offsets": {
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_SearchResults_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0,
+    "unCurrentMatch": 8,
+    "unResults": 4
+   },
+   "size": 12
+  },
+  "HTML_SetCursor_t": {
+   "align": 4,
+   "offsets": {
+    "eMouseCursor": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 8
+  },
+  "HTML_ShowToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "pchMsg": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_StartRequest_t": {
+   "align": 4,
+   "offsets": {
+    "bIsRedirect": 28,
+    "pchPostData": 20,
+    "pchTarget": 12,
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 32
+  },
+  "HTML_StatusText_t": {
+   "align": 4,
+   "offsets": {
+    "pchMsg": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_URLChanged_t": {
+   "align": 4,
+   "offsets": {
+    "bIsRedirect": 20,
+    "bNewNavigation": 32,
+    "pchPageTitle": 24,
+    "pchPostData": 12,
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 36
+  },
+  "HTML_UpdateToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "pchMsg": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_VerticalScroll_t": {
+   "align": 4,
+   "offsets": {
+    "bVisible": 16,
+    "flPageScale": 12,
+    "unBrowserHandle": 0,
+    "unPageSize": 20,
+    "unScrollCurrent": 8,
+    "unScrollMax": 4
+   },
+   "size": 24
+  },
+  "HTTPRequestCompleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_bRequestSuccessful": 12,
+    "m_eStatusCode": 16,
+    "m_hRequest": 0,
+    "m_ulContextValue": 4,
+    "m_unBodySize": 20
+   },
+   "size": 24
+  },
+  "HTTPRequestDataReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_cBytesReceived": 16,
+    "m_cOffset": 12,
+    "m_hRequest": 0,
+    "m_ulContextValue": 4
+   },
+   "size": 20
+  },
+  "HTTPRequestHeadersReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_hRequest": 0,
+    "m_ulContextValue": 4
+   },
+   "size": 12
+  },
+  "IPCFailure_t": {
+   "align": 1,
+   "offsets": {
+    "m_eFailureType": 0
+   },
+   "size": 1
+  },
+  "IPCountry_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "InputAnalogActionData_t": {
+   "align": 1,
+   "offsets": {
+    "bActive": 12,
+    "eMode": 0,
+    "x": 4,
+    "y": 8
+   },
+   "size": 13
+  },
+  "InputDigitalActionData_t": {
+   "align": 1,
+   "offsets": {
+    "bActive": 1,
+    "bState": 0
+   },
+   "size": 2
+  },
+  "InputMotionData_t": {
+   "align": 1,
+   "offsets": {
+    "posAccelX": 16,
+    "posAccelY": 20,
+    "posAccelZ": 24,
+    "rotQuatW": 12,
+    "rotQuatX": 0,
+    "rotQuatY": 4,
+    "rotQuatZ": 8,
+    "rotVelX": 28,
+    "rotVelY": 32,
+    "rotVelZ": 36
+   },
+   "size": 40
+  },
+  "ItemInstalled_t": {
+   "align": 4,
+   "offsets": {
+    "m_hLegacyContent": 12,
+    "m_nPublishedFileId": 4,
+    "m_unAppID": 0,
+    "m_unManifestID": 20
+   },
+   "size": 28
+  },
+  "JoinClanChatRoomCompletionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eChatRoomEnterResponse": 8,
+    "m_steamIDClanChat": 0
+   },
+   "size": 12
+  },
+  "JoinPartyCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamIDBeaconOwner": 12,
+    "m_eResult": 0,
+    "m_rgchConnectString": 20,
+    "m_ulBeaconID": 4
+   },
+   "size": 276
+  },
+  "LeaderboardEntry_t": {
+   "align": 4,
+   "offsets": {
+    "m_cDetails": 16,
+    "m_hUGC": 20,
+    "m_nGlobalRank": 8,
+    "m_nScore": 12,
+    "m_steamIDUser": 0
+   },
+   "size": 28
+  },
+  "LeaderboardFindResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bLeaderboardFound": 8,
+    "m_hSteamLeaderboard": 0
+   },
+   "size": 12
+  },
+  "LeaderboardScoreUploaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_bScoreChanged": 16,
+    "m_bSuccess": 0,
+    "m_hSteamLeaderboard": 4,
+    "m_nGlobalRankNew": 20,
+    "m_nGlobalRankPrevious": 24,
+    "m_nScore": 12
+   },
+   "size": 28
+  },
+  "LeaderboardScoresDownloaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_cEntryCount": 16,
+    "m_hSteamLeaderboard": 0,
+    "m_hSteamLeaderboardEntries": 8
+   },
+   "size": 20
+  },
+  "LeaderboardUGCSet_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hSteamLeaderboard": 4
+   },
+   "size": 12
+  },
+  "LicensesUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "LobbyChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_eChatEntryType": 16,
+    "m_iChatID": 20,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDUser": 8
+   },
+   "size": 24
+  },
+  "LobbyChatUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_rgfChatMemberStateChange": 24,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDMakingChange": 16,
+    "m_ulSteamIDUserChanged": 8
+   },
+   "size": 28
+  },
+  "LobbyCreated_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_ulSteamIDLobby": 4
+   },
+   "size": 12
+  },
+  "LobbyDataUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 16,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDMember": 8
+   },
+   "size": 20
+  },
+  "LobbyEnter_t": {
+   "align": 4,
+   "offsets": {
+    "m_EChatRoomEnterResponse": 16,
+    "m_bLocked": 12,
+    "m_rgfChatPermissions": 8,
+    "m_ulSteamIDLobby": 0
+   },
+   "size": 20
+  },
+  "LobbyGameCreated_t": {
+   "align": 4,
+   "offsets": {
+    "m_ulSteamIDGameServer": 8,
+    "m_ulSteamIDLobby": 0,
+    "m_unIP": 16,
+    "m_usPort": 20
+   },
+   "size": 24
+  },
+  "LobbyInvite_t": {
+   "align": 4,
+   "offsets": {
+    "m_ulGameID": 16,
+    "m_ulSteamIDLobby": 8,
+    "m_ulSteamIDUser": 0
+   },
+   "size": 24
+  },
+  "LobbyKicked_t": {
+   "align": 4,
+   "offsets": {
+    "m_bKickedDueToDisconnect": 16,
+    "m_ulSteamIDAdmin": 8,
+    "m_ulSteamIDLobby": 0
+   },
+   "size": 20
+  },
+  "LobbyMatchList_t": {
+   "align": 4,
+   "offsets": {
+    "m_nLobbiesMatching": 0
+   },
+   "size": 4
+  },
+  "LowBatteryPower_t": {
+   "align": 1,
+   "offsets": {
+    "m_nMinutesBatteryLeft": 0
+   },
+   "size": 1
+  },
+  "MarketEligibilityResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAllowed": 0,
+    "m_cdayNewDeviceCooldown": 16,
+    "m_eNotAllowedReason": 4,
+    "m_rtAllowedAtTime": 8
+   },
+   "size": 20
+  },
+  "MatchMakingKeyValuePair_t": {
+   "align": 1,
+   "offsets": {
+    "m_szKey": 0,
+    "m_szValue": 256
+   },
+   "size": 512
+  },
+  "MicroTxnAuthorizationResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAuthorized": 12,
+    "m_ulOrderID": 4,
+    "m_unAppID": 0
+   },
+   "size": 16
+  },
+  "NewUrlLaunchParameters_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "NumberOfCurrentPlayers_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 0,
+    "m_cPlayers": 4
+   },
+   "size": 8
+  },
+  "OverlayBrowserProtocolNavigation_t": {
+   "align": 1,
+   "offsets": {
+    "rgchURI": 0
+   },
+   "size": 1024
+  },
+  "P2PSessionConnectFail_t": {
+   "align": 1,
+   "offsets": {
+    "m_eP2PSessionError": 8,
+    "m_steamIDRemote": 0
+   },
+   "size": 9
+  },
+  "P2PSessionRequest_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDRemote": 0
+   },
+   "size": 8
+  },
+  "P2PSessionState_t": {
+   "align": 4,
+   "offsets": {
+    "m_bConnecting": 1,
+    "m_bConnectionActive": 0,
+    "m_bUsingRelay": 3,
+    "m_eP2PSessionError": 2,
+    "m_nBytesQueuedForSend": 4,
+    "m_nPacketsQueuedForSend": 8,
+    "m_nRemoteIP": 12,
+    "m_nRemotePort": 16
+   },
+   "size": 20
+  },
+  "PersonaStateChange_t": {
+   "align": 4,
+   "offsets": {
+    "m_nChangeFlags": 8,
+    "m_ulSteamID": 0
+   },
+   "size": 12
+  },
+  "PlaybackStatusHasChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "RemotePlayInputKey_t": {
+   "align": 4,
+   "offsets": {
+    "m_eScancode": 0,
+    "m_unKeycode": 8,
+    "m_unModifiers": 4
+   },
+   "size": 12
+  },
+  "RemotePlayInputMouseMotion_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAbsolute": 0,
+    "m_flNormalizedX": 4,
+    "m_flNormalizedY": 8,
+    "m_nDeltaX": 12,
+    "m_nDeltaY": 16
+   },
+   "size": 20
+  },
+  "RemotePlayInputMouseWheel_t": {
+   "align": 4,
+   "offsets": {
+    "m_eDirection": 0,
+    "m_flAmount": 4
+   },
+   "size": 8
+  },
+  "RemotePlayInput_t": {
+   "align": 4,
+   "offsets": {
+    "m_eType": 4,
+    "m_unSessionID": 0
+   },
+   "size": 64
+  },
+  "RemoteStorageDeletePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageDownloadUGCResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hFile": 4,
+    "m_nAppID": 12,
+    "m_nSizeInBytes": 16,
+    "m_pchFileName": 20,
+    "m_ulSteamIDOwner": 280
+   },
+   "size": 288
+  },
+  "RemoteStorageEnumeratePublishedFilesByUserActionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eAction": 4,
+    "m_eResult": 0,
+    "m_nResultsReturned": 8,
+    "m_nTotalResultCount": 12,
+    "m_rgPublishedFileId": 16,
+    "m_rgRTimeUpdated": 416
+   },
+   "size": 616
+  },
+  "RemoteStorageEnumerateUserPublishedFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12
+   },
+   "size": 412
+  },
+  "RemoteStorageEnumerateUserSharedWorkshopFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12
+   },
+   "size": 412
+  },
+  "RemoteStorageEnumerateUserSubscribedFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12,
+    "m_rgRTimeSubscribed": 412
+   },
+   "size": 612
+  },
+  "RemoteStorageEnumerateWorkshopFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppId": 612,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12,
+    "m_rgScore": 412,
+    "m_unStartIndex": 616
+   },
+   "size": 620
+  },
+  "RemoteStorageFileReadAsyncComplete_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubRead": 16,
+    "m_eResult": 8,
+    "m_hFileReadAsync": 0,
+    "m_nOffset": 12
+   },
+   "size": 20
+  },
+  "RemoteStorageFileShareResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hFile": 4,
+    "m_rgchFilename": 12
+   },
+   "size": 272
+  },
+  "RemoteStorageFileWriteAsyncComplete_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "RemoteStorageGetPublishedFileDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAcceptedForUse": 9744,
+    "m_bBanned": 8188,
+    "m_bTagsTruncated": 9214,
+    "m_eFileType": 9740,
+    "m_eResult": 0,
+    "m_eVisibility": 8184,
+    "m_hFile": 8152,
+    "m_hPreviewFile": 8160,
+    "m_nConsumerAppID": 16,
+    "m_nCreatorAppID": 12,
+    "m_nFileSize": 9476,
+    "m_nPreviewFileSize": 9480,
+    "m_nPublishedFileId": 4,
+    "m_pchFileName": 9215,
+    "m_rgchDescription": 149,
+    "m_rgchTags": 8189,
+    "m_rgchTitle": 20,
+    "m_rgchURL": 9484,
+    "m_rtimeCreated": 8176,
+    "m_rtimeUpdated": 8180,
+    "m_ulSteamIDOwner": 8168
+   },
+   "size": 9748
+  },
+  "RemoteStorageGetPublishedItemVoteDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_fScore": 24,
+    "m_nReports": 20,
+    "m_nVotesAgainst": 16,
+    "m_nVotesFor": 12,
+    "m_unPublishedFileId": 4
+   },
+   "size": 28
+  },
+  "RemoteStorageLocalFileChange_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "RemoteStoragePublishFileProgress_t": {
+   "align": 4,
+   "offsets": {
+    "m_bPreview": 8,
+    "m_dPercentFile": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoteStoragePublishedFileDeleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishedFileSubscribed_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishedFileUnsubscribed_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishedFileUpdated_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0,
+    "m_ulUnused": 12
+   },
+   "size": 20
+  },
+  "RemoteStorageSetUserPublishedFileActionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eAction": 12,
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoteStorageSubscribePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageUnsubscribePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageUpdatePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoteStorageUpdateUserPublishedItemVoteResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageUserVoteDetails_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_eVote": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoveAppDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppID": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoveUGCDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nChildPublishedFileId": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 20
+  },
+  "ReservationNotificationCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_steamIDJoiner": 8,
+    "m_ulBeaconID": 0
+   },
+   "size": 16
+  },
+  "ScreenshotReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 4,
+    "m_hLocal": 0
+   },
+   "size": 8
+  },
+  "ScreenshotRequested_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SetUserItemVoteResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bVoteUp": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "SocketStatusCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eSNetSocketState": 16,
+    "m_hListenSocket": 4,
+    "m_hSocket": 0,
+    "m_steamIDRemote": 8
+   },
+   "size": 20
+  },
+  "StartPlaytimeTrackingResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "SteamAPICallCompleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubParam": 12,
+    "m_hAsyncCall": 0,
+    "m_iCallback": 8
+   },
+   "size": 16
+  },
+  "SteamIPAddress_t": {
+   "align": 1,
+   "offsets": {
+    "m_eType": 16
+   },
+   "size": 20
+  },
+  "SteamInputActionEvent_t": {
+   "align": 1,
+   "offsets": {
+    "controllerHandle": 0,
+    "eEventType": 8
+   },
+   "size": 33
+  },
+  "SteamInputConfigurationLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_bUsesGamepadAPI": 29,
+    "m_bUsesSteamInputAPI": 28,
+    "m_ulDeviceHandle": 4,
+    "m_ulMappingCreator": 12,
+    "m_unAppID": 0,
+    "m_unMajorRevision": 20,
+    "m_unMinorRevision": 24
+   },
+   "size": 32
+  },
+  "SteamInputDeviceConnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_ulConnectedDeviceHandle": 0
+   },
+   "size": 8
+  },
+  "SteamInputDeviceDisconnected_t": {
+   "align": 4,
+   "offsets": {},
+   "size": 8
+  },
+  "SteamInputGamepadSlotChange_t": {
+   "align": 4,
+   "offsets": {
+    "m_eDeviceType": 12,
+    "m_nNewGamepadSlot": 20,
+    "m_nOldGamepadSlot": 16,
+    "m_ulDeviceHandle": 4,
+    "m_unAppID": 0
+   },
+   "size": 24
+  },
+  "SteamInventoryDefinitionUpdate_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamInventoryEligiblePromoItemDefIDs_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 16,
+    "m_numEligiblePromoItemDefs": 12,
+    "m_result": 0,
+    "m_steamID": 4
+   },
+   "size": 20
+  },
+  "SteamInventoryFullUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_handle": 0
+   },
+   "size": 4
+  },
+  "SteamInventoryRequestPricesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_result": 0,
+    "m_rgchCurrency": 4
+   },
+   "size": 8
+  },
+  "SteamInventoryResultReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_handle": 0,
+    "m_result": 4
+   },
+   "size": 8
+  },
+  "SteamInventoryStartPurchaseResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_result": 0,
+    "m_ulOrderID": 4,
+    "m_ulTransID": 12
+   },
+   "size": 20
+  },
+  "SteamItemDetails_t": {
+   "align": 4,
+   "offsets": {
+    "m_iDefinition": 8,
+    "m_itemId": 0,
+    "m_unFlags": 14,
+    "m_unQuantity": 12
+   },
+   "size": 16
+  },
+  "SteamNetAuthenticationStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_debugMsg": 4,
+    "m_eAvail": 0
+   },
+   "size": 260
+  },
+  "SteamNetConnectionInfo_t": {
+   "align": 4,
+   "offsets": {
+    "m__pad1": 166,
+    "m_addrRemote": 148,
+    "m_eEndReason": 180,
+    "m_eState": 176,
+    "m_hListenSocket": 144,
+    "m_idPOPRelay": 172,
+    "m_idPOPRemote": 168,
+    "m_identityRemote": 0,
+    "m_nFlags": 440,
+    "m_nUserData": 136,
+    "m_szConnectionDescription": 312,
+    "m_szEndDebug": 184,
+    "reserved": 444
+   },
+   "size": 696
+  },
+  "SteamNetConnectionRealTimeLaneStatus_t": {
+   "align": 4,
+   "offsets": {
+    "_reservePad1": 12,
+    "m_cbPendingReliable": 4,
+    "m_cbPendingUnreliable": 0,
+    "m_cbSentUnackedReliable": 8,
+    "m_usecQueueTime": 16,
+    "reserved": 24
+   },
+   "size": 64
+  },
+  "SteamNetConnectionRealTimeStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_cbPendingReliable": 40,
+    "m_cbPendingUnreliable": 36,
+    "m_cbSentUnackedReliable": 44,
+    "m_eState": 0,
+    "m_flConnectionQualityLocal": 8,
+    "m_flConnectionQualityRemote": 12,
+    "m_flInBytesPerSec": 28,
+    "m_flInPacketsPerSec": 24,
+    "m_flOutBytesPerSec": 20,
+    "m_flOutPacketsPerSec": 16,
+    "m_nPing": 4,
+    "m_nSendRateBytesPerSecond": 32,
+    "m_usecMaxJitter": 56,
+    "m_usecQueueTime": 48,
+    "reserved": 60
+   },
+   "size": 120
+  },
+  "SteamNetConnectionStatusChangedCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eOldState": 700,
+    "m_hConn": 0,
+    "m_info": 4
+   },
+   "size": 704
+  },
+  "SteamNetworkPingLocation_t": {
+   "align": 1,
+   "offsets": {
+    "m_data": 0
+   },
+   "size": 512
+  },
+  "SteamNetworkingConfigValue_t": {
+   "align": 8,
+   "offsets": {
+    "m_eDataType": 4,
+    "m_eValue": 0,
+    "m_val": 8
+   },
+   "size": 16
+  },
+  "SteamNetworkingIPAddr": {
+   "align": 1,
+   "offsets": {
+    "m_port": 16
+   },
+   "size": 18
+  },
+  "SteamNetworkingIdentity": {
+   "align": 1,
+   "offsets": {
+    "m_cbSize": 4,
+    "m_eType": 0
+   },
+   "size": 136
+  },
+  "SteamNetworkingMessage_t": {
+   "align": 8,
+   "offsets": {
+    "_pad1__": 210,
+    "m_cbSize": 8,
+    "m_conn": 12,
+    "m_identityPeer": 16,
+    "m_idxLane": 208,
+    "m_nChannel": 192,
+    "m_nConnUserData": 152,
+    "m_nFlags": 196,
+    "m_nMessageNumber": 168,
+    "m_nUserData": 200,
+    "m_pData": 0,
+    "m_pfnFreeData": 176,
+    "m_pfnRelease": 184,
+    "m_usecTimeReceived": 160
+   },
+   "size": 216
+  },
+  "SteamNetworkingMessagesSessionFailed_t": {
+   "align": 1,
+   "offsets": {
+    "m_info": 0
+   },
+   "size": 696
+  },
+  "SteamNetworkingMessagesSessionRequest_t": {
+   "align": 1,
+   "offsets": {
+    "m_identityRemote": 0
+   },
+   "size": 136
+  },
+  "SteamParamStringArray_t": {
+   "align": 4,
+   "offsets": {
+    "m_nNumStrings": 8,
+    "m_ppStrings": 0
+   },
+   "size": 12
+  },
+  "SteamParentalSettingsChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamPartyBeaconLocation_t": {
+   "align": 4,
+   "offsets": {
+    "m_eType": 0,
+    "m_ulLocationID": 4
+   },
+   "size": 12
+  },
+  "SteamRelayNetworkStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_debugMsg": 16,
+    "m_eAvail": 0,
+    "m_eAvailAnyRelay": 12,
+    "m_eAvailNetworkConfig": 8
+   },
+   "size": 272
+  },
+  "SteamRemotePlaySessionAvatarLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_iImage": 4,
+    "m_iTall": 12,
+    "m_iWide": 8,
+    "m_unSessionID": 0
+   },
+   "size": 16
+  },
+  "SteamRemotePlaySessionConnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_unSessionID": 0
+   },
+   "size": 4
+  },
+  "SteamRemotePlaySessionDisconnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_unSessionID": 0
+   },
+   "size": 4
+  },
+  "SteamRemotePlayTogetherGuestInvite_t": {
+   "align": 1,
+   "offsets": {
+    "m_szConnectURL": 0
+   },
+   "size": 1024
+  },
+  "SteamServerConnectFailure_t": {
+   "align": 4,
+   "offsets": {
+    "m_bStillRetrying": 4,
+    "m_eResult": 0
+   },
+   "size": 8
+  },
+  "SteamServersConnected_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamServersDisconnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "SteamShutdown_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamTimelineEventRecordingExists_t": {
+   "align": 4,
+   "offsets": {
+    "m_bRecordingExists": 8,
+    "m_ulEventID": 0
+   },
+   "size": 12
+  },
+  "SteamTimelineGamePhaseRecordingExists_t": {
+   "align": 4,
+   "offsets": {
+    "m_rgchPhaseID": 0,
+    "m_ulLongestClipMS": 72,
+    "m_ulRecordingMS": 64,
+    "m_unClipCount": 80,
+    "m_unScreenshotCount": 84
+   },
+   "size": 88
+  },
+  "SteamUGCDetails_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAcceptedForUse": 8181,
+    "m_bBanned": 8180,
+    "m_bTagsTruncated": 8182,
+    "m_eFileType": 12,
+    "m_eResult": 8,
+    "m_eVisibility": 8176,
+    "m_flScore": 9756,
+    "m_hFile": 9208,
+    "m_hPreviewFile": 9216,
+    "m_nConsumerAppID": 20,
+    "m_nCreatorAppID": 16,
+    "m_nFileSize": 9484,
+    "m_nPreviewFileSize": 9488,
+    "m_nPublishedFileId": 0,
+    "m_pchFileName": 9224,
+    "m_rgchDescription": 153,
+    "m_rgchTags": 8183,
+    "m_rgchTitle": 24,
+    "m_rgchURL": 9492,
+    "m_rtimeAddedToUserList": 8172,
+    "m_rtimeCreated": 8164,
+    "m_rtimeUpdated": 8168,
+    "m_ulSteamIDOwner": 8156,
+    "m_ulTotalFilesSize": 9764,
+    "m_unNumChildren": 9760,
+    "m_unVotesDown": 9752,
+    "m_unVotesUp": 9748
+   },
+   "size": 9772
+  },
+  "SteamUGCQueryCompleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 20,
+    "m_eResult": 8,
+    "m_handle": 0,
+    "m_rgchNextCursor": 21,
+    "m_unNumResultsReturned": 12,
+    "m_unTotalMatchingResults": 16
+   },
+   "size": 280
+  },
+  "SteamUGCRequestUGCDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 9772,
+    "m_details": 0
+   },
+   "size": 9776
+  },
+  "StopPlaytimeTrackingResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "StoreAuthURLResponse_t": {
+   "align": 1,
+   "offsets": {
+    "m_szURL": 0
+   },
+   "size": 512
+  },
+  "SubmitItemUpdateResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 16
+  },
+  "TimedTrialStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_bIsOffline": 4,
+    "m_unAppID": 0,
+    "m_unSecondsAllowed": 8,
+    "m_unSecondsPlayed": 12
+   },
+   "size": 16
+  },
+  "UnreadChatMessagesChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "UserAchievementIconFetched_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAchieved": 136,
+    "m_nGameID": 0,
+    "m_nIconHandle": 140,
+    "m_rgchAchievementName": 8
+   },
+   "size": 144
+  },
+  "UserAchievementStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_bGroupAchievement": 8,
+    "m_nCurProgress": 140,
+    "m_nGameID": 0,
+    "m_nMaxProgress": 144,
+    "m_rgchAchievementName": 9
+   },
+   "size": 148
+  },
+  "UserFavoriteItemsListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_bWasAddRequest": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "UserStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0,
+    "m_steamIDUser": 12
+   },
+   "size": 20
+  },
+  "UserStatsStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 12
+  },
+  "UserStatsUnloaded_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDUser": 0
+   },
+   "size": 8
+  },
+  "UserSubscribedItemsListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 0
+   },
+   "size": 4
+  },
+  "ValidateAuthTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_OwnerSteamID": 12,
+    "m_SteamID": 0,
+    "m_eAuthSessionResponse": 8
+   },
+   "size": 20
+  },
+  "VolumeHasChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_flNewVolume": 0
+   },
+   "size": 4
+  },
+  "WorkshopEULAStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAccepted": 16,
+    "m_bNeedsAction": 17,
+    "m_eResult": 0,
+    "m_nAppID": 4,
+    "m_rtAction": 12,
+    "m_unVersion": 8
+   },
+   "size": 20
+  },
+  "gameserveritem_t": {
+   "align": 4,
+   "offsets": {
+    "m_NetAdr": 0,
+    "m_bDoNotRefresh": 13,
+    "m_bHadSuccessfulResponse": 12,
+    "m_bPassword": 160,
+    "m_bSecure": 161,
+    "m_nAppID": 144,
+    "m_nBotPlayers": 156,
+    "m_nMaxPlayers": 152,
+    "m_nPing": 8,
+    "m_nPlayers": 148,
+    "m_nServerVersion": 168,
+    "m_steamID": 364,
+    "m_szGameDescription": 78,
+    "m_szGameDir": 14,
+    "m_szGameTags": 236,
+    "m_szMap": 46,
+    "m_szServerName": 172,
+    "m_ulTimeLastPlayed": 164
+   },
+   "size": 372
+  },
+  "servernetadr_t": {
+   "align": 4,
+   "offsets": {
+    "m_unIP": 4,
+    "m_usConnectionPort": 0,
+    "m_usQueryPort": 2
+   },
+   "size": 8
+  }
+ },
+ "linuxarm64": {
+  "ActiveBeaconsUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AddAppDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppID": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "AddUGCDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nChildPublishedFileId": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 20
+  },
+  "AppProofOfPurchaseKeyResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_cchKeyLength": 8,
+    "m_eResult": 0,
+    "m_nAppID": 4,
+    "m_rgchKey": 12
+   },
+   "size": 252
+  },
+  "AppResumingFromSuspend_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AssociateWithClanResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "AvailableBeaconLocationsUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AvatarImageLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_iImage": 8,
+    "m_iTall": 16,
+    "m_iWide": 12,
+    "m_steamID": 0
+   },
+   "size": 20
+  },
+  "BroadcastUploadStart_t": {
+   "align": 1,
+   "offsets": {
+    "m_bIsRTMP": 0
+   },
+   "size": 1
+  },
+  "BroadcastUploadStop_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "CallbackMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubParam": 16,
+    "m_hSteamUser": 0,
+    "m_iCallback": 4,
+    "m_pubParam": 8
+   },
+   "size": 20
+  },
+  "ChangeNumOpenSlotsCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "CheckFileSignature_t": {
+   "align": 4,
+   "offsets": {
+    "m_eCheckFileSignature": 0
+   },
+   "size": 4
+  },
+  "ClanOfficerListResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 12,
+    "m_cOfficers": 8,
+    "m_steamIDClan": 0
+   },
+   "size": 16
+  },
+  "ClientGameServerDeny_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSecure": 10,
+    "m_uAppID": 0,
+    "m_uReason": 12,
+    "m_unGameServerIP": 4,
+    "m_usGameServerPort": 8
+   },
+   "size": 16
+  },
+  "ComputeNewPlayerCompatibilityResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamIDCandidate": 16,
+    "m_eResult": 0
+   },
+   "size": 24
+  },
+  "CreateBeaconCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_ulBeaconID": 4
+   },
+   "size": 12
+  },
+  "CreateItemResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "DeleteItemResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "DlcInstalled_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 0
+   },
+   "size": 4
+  },
+  "DownloadClanActivityCountsResult_t": {
+   "align": 1,
+   "offsets": {
+    "m_bSuccess": 0
+   },
+   "size": 1
+  },
+  "DownloadItemResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 12,
+    "m_nPublishedFileId": 4,
+    "m_unAppID": 0
+   },
+   "size": 16
+  },
+  "DurationControl_t": {
+   "align": 4,
+   "offsets": {
+    "m_appid": 4,
+    "m_bApplicable": 8,
+    "m_csecsLast5h": 12,
+    "m_csecsRemaining": 28,
+    "m_csecsToday": 24,
+    "m_eResult": 0,
+    "m_notification": 20,
+    "m_progress": 16
+   },
+   "size": 32
+  },
+  "EncryptedAppTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "EquippedProfileItemsChanged_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamID": 0
+   },
+   "size": 8
+  },
+  "EquippedProfileItems_t": {
+   "align": 4,
+   "offsets": {
+    "m_bFromCache": 17,
+    "m_bHasAnimatedAvatar": 12,
+    "m_bHasAvatarFrame": 13,
+    "m_bHasMiniProfileBackground": 16,
+    "m_bHasProfileBackground": 15,
+    "m_bHasProfileModifier": 14,
+    "m_eResult": 0,
+    "m_steamID": 4
+   },
+   "size": 20
+  },
+  "FavoritesListAccountsUpdated_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "FavoritesListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAdd": 20,
+    "m_nAppID": 12,
+    "m_nConnPort": 8,
+    "m_nFlags": 16,
+    "m_nIP": 0,
+    "m_nQueryPort": 4,
+    "m_unAccountId": 24
+   },
+   "size": 28
+  },
+  "FileDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_FileSHA": 12,
+    "m_eResult": 0,
+    "m_ulFileSize": 4,
+    "m_unFlags": 32
+   },
+   "size": 36
+  },
+  "FilterTextDictionaryChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_eLanguage": 0
+   },
+   "size": 4
+  },
+  "FloatingGamepadTextInputDismissed_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "FriendGameInfo_t": {
+   "align": 4,
+   "offsets": {
+    "m_gameID": 0,
+    "m_steamIDLobby": 16,
+    "m_unGameIP": 8,
+    "m_usGamePort": 12,
+    "m_usQueryPort": 14
+   },
+   "size": 24
+  },
+  "FriendRichPresenceUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_steamIDFriend": 0
+   },
+   "size": 12
+  },
+  "FriendsEnumerateFollowingList_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 404,
+    "m_nTotalResultCount": 408,
+    "m_rgSteamID": 4
+   },
+   "size": 412
+  },
+  "FriendsGetFollowerCount_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nCount": 12,
+    "m_steamID": 4
+   },
+   "size": 16
+  },
+  "FriendsIsFollowing_t": {
+   "align": 4,
+   "offsets": {
+    "m_bIsFollowing": 12,
+    "m_eResult": 0,
+    "m_steamID": 4
+   },
+   "size": 16
+  },
+  "GSClientAchievementStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_bUnlocked": 136,
+    "m_pchAchievement": 8
+   },
+   "size": 140
+  },
+  "GSClientApprove_t": {
+   "align": 1,
+   "offsets": {
+    "m_OwnerSteamID": 8,
+    "m_SteamID": 0
+   },
+   "size": 16
+  },
+  "GSClientDeny_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_eDenyReason": 8,
+    "m_rgchOptionalText": 12
+   },
+   "size": 140
+  },
+  "GSClientGroupStatus_t": {
+   "align": 1,
+   "offsets": {
+    "m_SteamIDGroup": 8,
+    "m_SteamIDUser": 0,
+    "m_bMember": 16,
+    "m_bOfficer": 17
+   },
+   "size": 18
+  },
+  "GSClientKick_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_eDenyReason": 8
+   },
+   "size": 12
+  },
+  "GSGameplayStats_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nRank": 4,
+    "m_unTotalConnects": 8,
+    "m_unTotalMinutesPlayed": 12
+   },
+   "size": 16
+  },
+  "GSPolicyResponse_t": {
+   "align": 1,
+   "offsets": {
+    "m_bSecure": 0
+   },
+   "size": 1
+  },
+  "GSReputation_t": {
+   "align": 4,
+   "offsets": {
+    "m_bBanned": 8,
+    "m_eResult": 0,
+    "m_ulBannedGameID": 20,
+    "m_unBanExpires": 28,
+    "m_unBannedIP": 12,
+    "m_unReputationScore": 4,
+    "m_usBannedPort": 16
+   },
+   "size": 32
+  },
+  "GSStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_steamIDUser": 4
+   },
+   "size": 12
+  },
+  "GSStatsStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_steamIDUser": 4
+   },
+   "size": 12
+  },
+  "GSStatsUnloaded_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDUser": 0
+   },
+   "size": 8
+  },
+  "GameConnectedChatJoin_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 16
+  },
+  "GameConnectedChatLeave_t": {
+   "align": 1,
+   "offsets": {
+    "m_bDropped": 17,
+    "m_bKicked": 16,
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 18
+  },
+  "GameConnectedClanChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_iMessageID": 16,
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 20
+  },
+  "GameConnectedFriendChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_iMessageID": 8,
+    "m_steamIDUser": 0
+   },
+   "size": 12
+  },
+  "GameLobbyJoinRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDFriend": 8,
+    "m_steamIDLobby": 0
+   },
+   "size": 16
+  },
+  "GameOverlayActivated_t": {
+   "align": 4,
+   "offsets": {
+    "m_bActive": 0,
+    "m_bUserInitiated": 1,
+    "m_dwOverlayPID": 8,
+    "m_nAppID": 4
+   },
+   "size": 12
+  },
+  "GameRichPresenceJoinRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_rgchConnect": 8,
+    "m_steamIDFriend": 0
+   },
+   "size": 264
+  },
+  "GameServerChangeRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_rgchPassword": 64,
+    "m_rgchServer": 0
+   },
+   "size": 128
+  },
+  "GameWebCallback_t": {
+   "align": 1,
+   "offsets": {
+    "m_szURL": 0
+   },
+   "size": 256
+  },
+  "GamepadTextInputDismissed_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSubmitted": 0,
+    "m_unAppID": 8,
+    "m_unSubmittedText": 4
+   },
+   "size": 12
+  },
+  "GetAppDependenciesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nNumAppDependencies": 140,
+    "m_nPublishedFileId": 4,
+    "m_nTotalNumAppDependencies": 144,
+    "m_rgAppIDs": 12
+   },
+   "size": 148
+  },
+  "GetAuthSessionTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 4,
+    "m_hAuthTicket": 0
+   },
+   "size": 8
+  },
+  "GetOPFSettingsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_unVideoAppID": 4
+   },
+   "size": 8
+  },
+  "GetTicketForWebApiResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubTicket": 8,
+    "m_eResult": 4,
+    "m_hAuthTicket": 0,
+    "m_rgubTicket": 12
+   },
+   "size": 2572
+  },
+  "GetUserItemVoteResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bVoteSkipped": 14,
+    "m_bVotedDown": 13,
+    "m_bVotedUp": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "GetVideoURLResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_rgchURL": 8,
+    "m_unVideoAppID": 4
+   },
+   "size": 264
+  },
+  "GlobalAchievementPercentagesReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 12
+  },
+  "GlobalStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 12
+  },
+  "HTML_BrowserReady_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_BrowserRestarted_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0,
+    "unOldBrowserHandle": 4
+   },
+   "size": 8
+  },
+  "HTML_CanGoBackAndForward_t": {
+   "align": 4,
+   "offsets": {
+    "bCanGoBack": 4,
+    "bCanGoForward": 5,
+    "unBrowserHandle": 0
+   },
+   "size": 8
+  },
+  "HTML_ChangedTitle_t": {
+   "align": 4,
+   "offsets": {
+    "pchTitle": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_CloseBrowser_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_FileOpenDialog_t": {
+   "align": 4,
+   "offsets": {
+    "pchInitialFile": 12,
+    "pchTitle": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 20
+  },
+  "HTML_FinishedRequest_t": {
+   "align": 4,
+   "offsets": {
+    "pchPageTitle": 12,
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 20
+  },
+  "HTML_HideToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_HorizontalScroll_t": {
+   "align": 4,
+   "offsets": {
+    "bVisible": 16,
+    "flPageScale": 12,
+    "unBrowserHandle": 0,
+    "unPageSize": 20,
+    "unScrollCurrent": 8,
+    "unScrollMax": 4
+   },
+   "size": 24
+  },
+  "HTML_JSAlert_t": {
+   "align": 4,
+   "offsets": {
+    "pchMessage": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_JSConfirm_t": {
+   "align": 4,
+   "offsets": {
+    "pchMessage": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_LinkAtPosition_t": {
+   "align": 4,
+   "offsets": {
+    "bInput": 20,
+    "bLiveLink": 21,
+    "pchURL": 12,
+    "unBrowserHandle": 0,
+    "x": 4,
+    "y": 8
+   },
+   "size": 24
+  },
+  "HTML_NeedsPaint_t": {
+   "align": 4,
+   "offsets": {
+    "flPageScale": 44,
+    "pBGRA": 4,
+    "unBrowserHandle": 0,
+    "unPageSerial": 48,
+    "unScrollX": 36,
+    "unScrollY": 40,
+    "unTall": 16,
+    "unUpdateTall": 32,
+    "unUpdateWide": 28,
+    "unUpdateX": 20,
+    "unUpdateY": 24,
+    "unWide": 12
+   },
+   "size": 52
+  },
+  "HTML_NewWindow_t": {
+   "align": 4,
+   "offsets": {
+    "pchURL": 4,
+    "unBrowserHandle": 0,
+    "unTall": 24,
+    "unWide": 20,
+    "unX": 12,
+    "unY": 16
+   },
+   "size": 32
+  },
+  "HTML_OpenLinkInNewTab_t": {
+   "align": 4,
+   "offsets": {
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_SearchResults_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0,
+    "unCurrentMatch": 8,
+    "unResults": 4
+   },
+   "size": 12
+  },
+  "HTML_SetCursor_t": {
+   "align": 4,
+   "offsets": {
+    "eMouseCursor": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 8
+  },
+  "HTML_ShowToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "pchMsg": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_StartRequest_t": {
+   "align": 4,
+   "offsets": {
+    "bIsRedirect": 28,
+    "pchPostData": 20,
+    "pchTarget": 12,
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 32
+  },
+  "HTML_StatusText_t": {
+   "align": 4,
+   "offsets": {
+    "pchMsg": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_URLChanged_t": {
+   "align": 4,
+   "offsets": {
+    "bIsRedirect": 20,
+    "bNewNavigation": 32,
+    "pchPageTitle": 24,
+    "pchPostData": 12,
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 36
+  },
+  "HTML_UpdateToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "pchMsg": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_VerticalScroll_t": {
+   "align": 4,
+   "offsets": {
+    "bVisible": 16,
+    "flPageScale": 12,
+    "unBrowserHandle": 0,
+    "unPageSize": 20,
+    "unScrollCurrent": 8,
+    "unScrollMax": 4
+   },
+   "size": 24
+  },
+  "HTTPRequestCompleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_bRequestSuccessful": 12,
+    "m_eStatusCode": 16,
+    "m_hRequest": 0,
+    "m_ulContextValue": 4,
+    "m_unBodySize": 20
+   },
+   "size": 24
+  },
+  "HTTPRequestDataReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_cBytesReceived": 16,
+    "m_cOffset": 12,
+    "m_hRequest": 0,
+    "m_ulContextValue": 4
+   },
+   "size": 20
+  },
+  "HTTPRequestHeadersReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_hRequest": 0,
+    "m_ulContextValue": 4
+   },
+   "size": 12
+  },
+  "IPCFailure_t": {
+   "align": 1,
+   "offsets": {
+    "m_eFailureType": 0
+   },
+   "size": 1
+  },
+  "IPCountry_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "InputAnalogActionData_t": {
+   "align": 1,
+   "offsets": {
+    "bActive": 12,
+    "eMode": 0,
+    "x": 4,
+    "y": 8
+   },
+   "size": 13
+  },
+  "InputDigitalActionData_t": {
+   "align": 1,
+   "offsets": {
+    "bActive": 1,
+    "bState": 0
+   },
+   "size": 2
+  },
+  "InputMotionData_t": {
+   "align": 1,
+   "offsets": {
+    "posAccelX": 16,
+    "posAccelY": 20,
+    "posAccelZ": 24,
+    "rotQuatW": 12,
+    "rotQuatX": 0,
+    "rotQuatY": 4,
+    "rotQuatZ": 8,
+    "rotVelX": 28,
+    "rotVelY": 32,
+    "rotVelZ": 36
+   },
+   "size": 40
+  },
+  "ItemInstalled_t": {
+   "align": 4,
+   "offsets": {
+    "m_hLegacyContent": 12,
+    "m_nPublishedFileId": 4,
+    "m_unAppID": 0,
+    "m_unManifestID": 20
+   },
+   "size": 28
+  },
+  "JoinClanChatRoomCompletionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eChatRoomEnterResponse": 8,
+    "m_steamIDClanChat": 0
+   },
+   "size": 12
+  },
+  "JoinPartyCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamIDBeaconOwner": 12,
+    "m_eResult": 0,
+    "m_rgchConnectString": 20,
+    "m_ulBeaconID": 4
+   },
+   "size": 276
+  },
+  "LeaderboardEntry_t": {
+   "align": 4,
+   "offsets": {
+    "m_cDetails": 16,
+    "m_hUGC": 20,
+    "m_nGlobalRank": 8,
+    "m_nScore": 12,
+    "m_steamIDUser": 0
+   },
+   "size": 28
+  },
+  "LeaderboardFindResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bLeaderboardFound": 8,
+    "m_hSteamLeaderboard": 0
+   },
+   "size": 12
+  },
+  "LeaderboardScoreUploaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_bScoreChanged": 16,
+    "m_bSuccess": 0,
+    "m_hSteamLeaderboard": 4,
+    "m_nGlobalRankNew": 20,
+    "m_nGlobalRankPrevious": 24,
+    "m_nScore": 12
+   },
+   "size": 28
+  },
+  "LeaderboardScoresDownloaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_cEntryCount": 16,
+    "m_hSteamLeaderboard": 0,
+    "m_hSteamLeaderboardEntries": 8
+   },
+   "size": 20
+  },
+  "LeaderboardUGCSet_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hSteamLeaderboard": 4
+   },
+   "size": 12
+  },
+  "LicensesUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "LobbyChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_eChatEntryType": 16,
+    "m_iChatID": 20,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDUser": 8
+   },
+   "size": 24
+  },
+  "LobbyChatUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_rgfChatMemberStateChange": 24,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDMakingChange": 16,
+    "m_ulSteamIDUserChanged": 8
+   },
+   "size": 28
+  },
+  "LobbyCreated_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_ulSteamIDLobby": 4
+   },
+   "size": 12
+  },
+  "LobbyDataUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 16,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDMember": 8
+   },
+   "size": 20
+  },
+  "LobbyEnter_t": {
+   "align": 4,
+   "offsets": {
+    "m_EChatRoomEnterResponse": 16,
+    "m_bLocked": 12,
+    "m_rgfChatPermissions": 8,
+    "m_ulSteamIDLobby": 0
+   },
+   "size": 20
+  },
+  "LobbyGameCreated_t": {
+   "align": 4,
+   "offsets": {
+    "m_ulSteamIDGameServer": 8,
+    "m_ulSteamIDLobby": 0,
+    "m_unIP": 16,
+    "m_usPort": 20
+   },
+   "size": 24
+  },
+  "LobbyInvite_t": {
+   "align": 4,
+   "offsets": {
+    "m_ulGameID": 16,
+    "m_ulSteamIDLobby": 8,
+    "m_ulSteamIDUser": 0
+   },
+   "size": 24
+  },
+  "LobbyKicked_t": {
+   "align": 4,
+   "offsets": {
+    "m_bKickedDueToDisconnect": 16,
+    "m_ulSteamIDAdmin": 8,
+    "m_ulSteamIDLobby": 0
+   },
+   "size": 20
+  },
+  "LobbyMatchList_t": {
+   "align": 4,
+   "offsets": {
+    "m_nLobbiesMatching": 0
+   },
+   "size": 4
+  },
+  "LowBatteryPower_t": {
+   "align": 1,
+   "offsets": {
+    "m_nMinutesBatteryLeft": 0
+   },
+   "size": 1
+  },
+  "MarketEligibilityResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAllowed": 0,
+    "m_cdayNewDeviceCooldown": 16,
+    "m_eNotAllowedReason": 4,
+    "m_rtAllowedAtTime": 8
+   },
+   "size": 20
+  },
+  "MatchMakingKeyValuePair_t": {
+   "align": 1,
+   "offsets": {
+    "m_szKey": 0,
+    "m_szValue": 256
+   },
+   "size": 512
+  },
+  "MicroTxnAuthorizationResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAuthorized": 12,
+    "m_ulOrderID": 4,
+    "m_unAppID": 0
+   },
+   "size": 16
+  },
+  "NewUrlLaunchParameters_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "NumberOfCurrentPlayers_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 0,
+    "m_cPlayers": 4
+   },
+   "size": 8
+  },
+  "OverlayBrowserProtocolNavigation_t": {
+   "align": 1,
+   "offsets": {
+    "rgchURI": 0
+   },
+   "size": 1024
+  },
+  "P2PSessionConnectFail_t": {
+   "align": 1,
+   "offsets": {
+    "m_eP2PSessionError": 8,
+    "m_steamIDRemote": 0
+   },
+   "size": 9
+  },
+  "P2PSessionRequest_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDRemote": 0
+   },
+   "size": 8
+  },
+  "P2PSessionState_t": {
+   "align": 4,
+   "offsets": {
+    "m_bConnecting": 1,
+    "m_bConnectionActive": 0,
+    "m_bUsingRelay": 3,
+    "m_eP2PSessionError": 2,
+    "m_nBytesQueuedForSend": 4,
+    "m_nPacketsQueuedForSend": 8,
+    "m_nRemoteIP": 12,
+    "m_nRemotePort": 16
+   },
+   "size": 20
+  },
+  "PersonaStateChange_t": {
+   "align": 4,
+   "offsets": {
+    "m_nChangeFlags": 8,
+    "m_ulSteamID": 0
+   },
+   "size": 12
+  },
+  "PlaybackStatusHasChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "RemotePlayInputKey_t": {
+   "align": 4,
+   "offsets": {
+    "m_eScancode": 0,
+    "m_unKeycode": 8,
+    "m_unModifiers": 4
+   },
+   "size": 12
+  },
+  "RemotePlayInputMouseMotion_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAbsolute": 0,
+    "m_flNormalizedX": 4,
+    "m_flNormalizedY": 8,
+    "m_nDeltaX": 12,
+    "m_nDeltaY": 16
+   },
+   "size": 20
+  },
+  "RemotePlayInputMouseWheel_t": {
+   "align": 4,
+   "offsets": {
+    "m_eDirection": 0,
+    "m_flAmount": 4
+   },
+   "size": 8
+  },
+  "RemotePlayInput_t": {
+   "align": 4,
+   "offsets": {
+    "m_eType": 4,
+    "m_unSessionID": 0
+   },
+   "size": 64
+  },
+  "RemoteStorageDeletePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageDownloadUGCResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hFile": 4,
+    "m_nAppID": 12,
+    "m_nSizeInBytes": 16,
+    "m_pchFileName": 20,
+    "m_ulSteamIDOwner": 280
+   },
+   "size": 288
+  },
+  "RemoteStorageEnumeratePublishedFilesByUserActionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eAction": 4,
+    "m_eResult": 0,
+    "m_nResultsReturned": 8,
+    "m_nTotalResultCount": 12,
+    "m_rgPublishedFileId": 16,
+    "m_rgRTimeUpdated": 416
+   },
+   "size": 616
+  },
+  "RemoteStorageEnumerateUserPublishedFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12
+   },
+   "size": 412
+  },
+  "RemoteStorageEnumerateUserSharedWorkshopFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12
+   },
+   "size": 412
+  },
+  "RemoteStorageEnumerateUserSubscribedFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12,
+    "m_rgRTimeSubscribed": 412
+   },
+   "size": 612
+  },
+  "RemoteStorageEnumerateWorkshopFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppId": 612,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12,
+    "m_rgScore": 412,
+    "m_unStartIndex": 616
+   },
+   "size": 620
+  },
+  "RemoteStorageFileReadAsyncComplete_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubRead": 16,
+    "m_eResult": 8,
+    "m_hFileReadAsync": 0,
+    "m_nOffset": 12
+   },
+   "size": 20
+  },
+  "RemoteStorageFileShareResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hFile": 4,
+    "m_rgchFilename": 12
+   },
+   "size": 272
+  },
+  "RemoteStorageFileWriteAsyncComplete_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "RemoteStorageGetPublishedFileDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAcceptedForUse": 9744,
+    "m_bBanned": 8188,
+    "m_bTagsTruncated": 9214,
+    "m_eFileType": 9740,
+    "m_eResult": 0,
+    "m_eVisibility": 8184,
+    "m_hFile": 8152,
+    "m_hPreviewFile": 8160,
+    "m_nConsumerAppID": 16,
+    "m_nCreatorAppID": 12,
+    "m_nFileSize": 9476,
+    "m_nPreviewFileSize": 9480,
+    "m_nPublishedFileId": 4,
+    "m_pchFileName": 9215,
+    "m_rgchDescription": 149,
+    "m_rgchTags": 8189,
+    "m_rgchTitle": 20,
+    "m_rgchURL": 9484,
+    "m_rtimeCreated": 8176,
+    "m_rtimeUpdated": 8180,
+    "m_ulSteamIDOwner": 8168
+   },
+   "size": 9748
+  },
+  "RemoteStorageGetPublishedItemVoteDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_fScore": 24,
+    "m_nReports": 20,
+    "m_nVotesAgainst": 16,
+    "m_nVotesFor": 12,
+    "m_unPublishedFileId": 4
+   },
+   "size": 28
+  },
+  "RemoteStorageLocalFileChange_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "RemoteStoragePublishFileProgress_t": {
+   "align": 4,
+   "offsets": {
+    "m_bPreview": 8,
+    "m_dPercentFile": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoteStoragePublishedFileDeleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishedFileSubscribed_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishedFileUnsubscribed_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishedFileUpdated_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0,
+    "m_ulUnused": 12
+   },
+   "size": 20
+  },
+  "RemoteStorageSetUserPublishedFileActionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eAction": 12,
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoteStorageSubscribePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageUnsubscribePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageUpdatePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoteStorageUpdateUserPublishedItemVoteResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageUserVoteDetails_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_eVote": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoveAppDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppID": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoveUGCDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nChildPublishedFileId": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 20
+  },
+  "ReservationNotificationCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_steamIDJoiner": 8,
+    "m_ulBeaconID": 0
+   },
+   "size": 16
+  },
+  "ScreenshotReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 4,
+    "m_hLocal": 0
+   },
+   "size": 8
+  },
+  "ScreenshotRequested_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SetUserItemVoteResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bVoteUp": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "SocketStatusCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eSNetSocketState": 16,
+    "m_hListenSocket": 4,
+    "m_hSocket": 0,
+    "m_steamIDRemote": 8
+   },
+   "size": 20
+  },
+  "StartPlaytimeTrackingResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "SteamAPICallCompleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubParam": 12,
+    "m_hAsyncCall": 0,
+    "m_iCallback": 8
+   },
+   "size": 16
+  },
+  "SteamIPAddress_t": {
+   "align": 1,
+   "offsets": {
+    "m_eType": 16
+   },
+   "size": 20
+  },
+  "SteamInputActionEvent_t": {
+   "align": 1,
+   "offsets": {
+    "controllerHandle": 0,
+    "eEventType": 8
+   },
+   "size": 33
+  },
+  "SteamInputConfigurationLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_bUsesGamepadAPI": 29,
+    "m_bUsesSteamInputAPI": 28,
+    "m_ulDeviceHandle": 4,
+    "m_ulMappingCreator": 12,
+    "m_unAppID": 0,
+    "m_unMajorRevision": 20,
+    "m_unMinorRevision": 24
+   },
+   "size": 32
+  },
+  "SteamInputDeviceConnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_ulConnectedDeviceHandle": 0
+   },
+   "size": 8
+  },
+  "SteamInputDeviceDisconnected_t": {
+   "align": 4,
+   "offsets": {},
+   "size": 8
+  },
+  "SteamInputGamepadSlotChange_t": {
+   "align": 4,
+   "offsets": {
+    "m_eDeviceType": 12,
+    "m_nNewGamepadSlot": 20,
+    "m_nOldGamepadSlot": 16,
+    "m_ulDeviceHandle": 4,
+    "m_unAppID": 0
+   },
+   "size": 24
+  },
+  "SteamInventoryDefinitionUpdate_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamInventoryEligiblePromoItemDefIDs_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 16,
+    "m_numEligiblePromoItemDefs": 12,
+    "m_result": 0,
+    "m_steamID": 4
+   },
+   "size": 20
+  },
+  "SteamInventoryFullUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_handle": 0
+   },
+   "size": 4
+  },
+  "SteamInventoryRequestPricesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_result": 0,
+    "m_rgchCurrency": 4
+   },
+   "size": 8
+  },
+  "SteamInventoryResultReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_handle": 0,
+    "m_result": 4
+   },
+   "size": 8
+  },
+  "SteamInventoryStartPurchaseResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_result": 0,
+    "m_ulOrderID": 4,
+    "m_ulTransID": 12
+   },
+   "size": 20
+  },
+  "SteamItemDetails_t": {
+   "align": 4,
+   "offsets": {
+    "m_iDefinition": 8,
+    "m_itemId": 0,
+    "m_unFlags": 14,
+    "m_unQuantity": 12
+   },
+   "size": 16
+  },
+  "SteamNetAuthenticationStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_debugMsg": 4,
+    "m_eAvail": 0
+   },
+   "size": 260
+  },
+  "SteamNetConnectionInfo_t": {
+   "align": 4,
+   "offsets": {
+    "m__pad1": 166,
+    "m_addrRemote": 148,
+    "m_eEndReason": 180,
+    "m_eState": 176,
+    "m_hListenSocket": 144,
+    "m_idPOPRelay": 172,
+    "m_idPOPRemote": 168,
+    "m_identityRemote": 0,
+    "m_nFlags": 440,
+    "m_nUserData": 136,
+    "m_szConnectionDescription": 312,
+    "m_szEndDebug": 184,
+    "reserved": 444
+   },
+   "size": 696
+  },
+  "SteamNetConnectionRealTimeLaneStatus_t": {
+   "align": 4,
+   "offsets": {
+    "_reservePad1": 12,
+    "m_cbPendingReliable": 4,
+    "m_cbPendingUnreliable": 0,
+    "m_cbSentUnackedReliable": 8,
+    "m_usecQueueTime": 16,
+    "reserved": 24
+   },
+   "size": 64
+  },
+  "SteamNetConnectionRealTimeStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_cbPendingReliable": 40,
+    "m_cbPendingUnreliable": 36,
+    "m_cbSentUnackedReliable": 44,
+    "m_eState": 0,
+    "m_flConnectionQualityLocal": 8,
+    "m_flConnectionQualityRemote": 12,
+    "m_flInBytesPerSec": 28,
+    "m_flInPacketsPerSec": 24,
+    "m_flOutBytesPerSec": 20,
+    "m_flOutPacketsPerSec": 16,
+    "m_nPing": 4,
+    "m_nSendRateBytesPerSecond": 32,
+    "m_usecMaxJitter": 56,
+    "m_usecQueueTime": 48,
+    "reserved": 60
+   },
+   "size": 120
+  },
+  "SteamNetConnectionStatusChangedCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eOldState": 700,
+    "m_hConn": 0,
+    "m_info": 4
+   },
+   "size": 704
+  },
+  "SteamNetworkPingLocation_t": {
+   "align": 1,
+   "offsets": {
+    "m_data": 0
+   },
+   "size": 512
+  },
+  "SteamNetworkingConfigValue_t": {
+   "align": 8,
+   "offsets": {
+    "m_eDataType": 4,
+    "m_eValue": 0,
+    "m_val": 8
+   },
+   "size": 16
+  },
+  "SteamNetworkingIPAddr": {
+   "align": 1,
+   "offsets": {
+    "m_port": 16
+   },
+   "size": 18
+  },
+  "SteamNetworkingIdentity": {
+   "align": 1,
+   "offsets": {
+    "m_cbSize": 4,
+    "m_eType": 0
+   },
+   "size": 136
+  },
+  "SteamNetworkingMessage_t": {
+   "align": 8,
+   "offsets": {
+    "_pad1__": 210,
+    "m_cbSize": 8,
+    "m_conn": 12,
+    "m_identityPeer": 16,
+    "m_idxLane": 208,
+    "m_nChannel": 192,
+    "m_nConnUserData": 152,
+    "m_nFlags": 196,
+    "m_nMessageNumber": 168,
+    "m_nUserData": 200,
+    "m_pData": 0,
+    "m_pfnFreeData": 176,
+    "m_pfnRelease": 184,
+    "m_usecTimeReceived": 160
+   },
+   "size": 216
+  },
+  "SteamNetworkingMessagesSessionFailed_t": {
+   "align": 1,
+   "offsets": {
+    "m_info": 0
+   },
+   "size": 696
+  },
+  "SteamNetworkingMessagesSessionRequest_t": {
+   "align": 1,
+   "offsets": {
+    "m_identityRemote": 0
+   },
+   "size": 136
+  },
+  "SteamParamStringArray_t": {
+   "align": 4,
+   "offsets": {
+    "m_nNumStrings": 8,
+    "m_ppStrings": 0
+   },
+   "size": 12
+  },
+  "SteamParentalSettingsChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamPartyBeaconLocation_t": {
+   "align": 4,
+   "offsets": {
+    "m_eType": 0,
+    "m_ulLocationID": 4
+   },
+   "size": 12
+  },
+  "SteamRelayNetworkStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_debugMsg": 16,
+    "m_eAvail": 0,
+    "m_eAvailAnyRelay": 12,
+    "m_eAvailNetworkConfig": 8
+   },
+   "size": 272
+  },
+  "SteamRemotePlaySessionAvatarLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_iImage": 4,
+    "m_iTall": 12,
+    "m_iWide": 8,
+    "m_unSessionID": 0
+   },
+   "size": 16
+  },
+  "SteamRemotePlaySessionConnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_unSessionID": 0
+   },
+   "size": 4
+  },
+  "SteamRemotePlaySessionDisconnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_unSessionID": 0
+   },
+   "size": 4
+  },
+  "SteamRemotePlayTogetherGuestInvite_t": {
+   "align": 1,
+   "offsets": {
+    "m_szConnectURL": 0
+   },
+   "size": 1024
+  },
+  "SteamServerConnectFailure_t": {
+   "align": 4,
+   "offsets": {
+    "m_bStillRetrying": 4,
+    "m_eResult": 0
+   },
+   "size": 8
+  },
+  "SteamServersConnected_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamServersDisconnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "SteamShutdown_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamTimelineEventRecordingExists_t": {
+   "align": 4,
+   "offsets": {
+    "m_bRecordingExists": 8,
+    "m_ulEventID": 0
+   },
+   "size": 12
+  },
+  "SteamTimelineGamePhaseRecordingExists_t": {
+   "align": 4,
+   "offsets": {
+    "m_rgchPhaseID": 0,
+    "m_ulLongestClipMS": 72,
+    "m_ulRecordingMS": 64,
+    "m_unClipCount": 80,
+    "m_unScreenshotCount": 84
+   },
+   "size": 88
+  },
+  "SteamUGCDetails_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAcceptedForUse": 8181,
+    "m_bBanned": 8180,
+    "m_bTagsTruncated": 8182,
+    "m_eFileType": 12,
+    "m_eResult": 8,
+    "m_eVisibility": 8176,
+    "m_flScore": 9756,
+    "m_hFile": 9208,
+    "m_hPreviewFile": 9216,
+    "m_nConsumerAppID": 20,
+    "m_nCreatorAppID": 16,
+    "m_nFileSize": 9484,
+    "m_nPreviewFileSize": 9488,
+    "m_nPublishedFileId": 0,
+    "m_pchFileName": 9224,
+    "m_rgchDescription": 153,
+    "m_rgchTags": 8183,
+    "m_rgchTitle": 24,
+    "m_rgchURL": 9492,
+    "m_rtimeAddedToUserList": 8172,
+    "m_rtimeCreated": 8164,
+    "m_rtimeUpdated": 8168,
+    "m_ulSteamIDOwner": 8156,
+    "m_ulTotalFilesSize": 9764,
+    "m_unNumChildren": 9760,
+    "m_unVotesDown": 9752,
+    "m_unVotesUp": 9748
+   },
+   "size": 9772
+  },
+  "SteamUGCQueryCompleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 20,
+    "m_eResult": 8,
+    "m_handle": 0,
+    "m_rgchNextCursor": 21,
+    "m_unNumResultsReturned": 12,
+    "m_unTotalMatchingResults": 16
+   },
+   "size": 280
+  },
+  "SteamUGCRequestUGCDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 9772,
+    "m_details": 0
+   },
+   "size": 9776
+  },
+  "StopPlaytimeTrackingResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "StoreAuthURLResponse_t": {
+   "align": 1,
+   "offsets": {
+    "m_szURL": 0
+   },
+   "size": 512
+  },
+  "SubmitItemUpdateResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 16
+  },
+  "TimedTrialStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_bIsOffline": 4,
+    "m_unAppID": 0,
+    "m_unSecondsAllowed": 8,
+    "m_unSecondsPlayed": 12
+   },
+   "size": 16
+  },
+  "UnreadChatMessagesChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "UserAchievementIconFetched_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAchieved": 136,
+    "m_nGameID": 0,
+    "m_nIconHandle": 140,
+    "m_rgchAchievementName": 8
+   },
+   "size": 144
+  },
+  "UserAchievementStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_bGroupAchievement": 8,
+    "m_nCurProgress": 140,
+    "m_nGameID": 0,
+    "m_nMaxProgress": 144,
+    "m_rgchAchievementName": 9
+   },
+   "size": 148
+  },
+  "UserFavoriteItemsListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_bWasAddRequest": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "UserStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0,
+    "m_steamIDUser": 12
+   },
+   "size": 20
+  },
+  "UserStatsStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 12
+  },
+  "UserStatsUnloaded_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDUser": 0
+   },
+   "size": 8
+  },
+  "UserSubscribedItemsListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 0
+   },
+   "size": 4
+  },
+  "ValidateAuthTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_OwnerSteamID": 12,
+    "m_SteamID": 0,
+    "m_eAuthSessionResponse": 8
+   },
+   "size": 20
+  },
+  "VolumeHasChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_flNewVolume": 0
+   },
+   "size": 4
+  },
+  "WorkshopEULAStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAccepted": 16,
+    "m_bNeedsAction": 17,
+    "m_eResult": 0,
+    "m_nAppID": 4,
+    "m_rtAction": 12,
+    "m_unVersion": 8
+   },
+   "size": 20
+  },
+  "gameserveritem_t": {
+   "align": 4,
+   "offsets": {
+    "m_NetAdr": 0,
+    "m_bDoNotRefresh": 13,
+    "m_bHadSuccessfulResponse": 12,
+    "m_bPassword": 160,
+    "m_bSecure": 161,
+    "m_nAppID": 144,
+    "m_nBotPlayers": 156,
+    "m_nMaxPlayers": 152,
+    "m_nPing": 8,
+    "m_nPlayers": 148,
+    "m_nServerVersion": 168,
+    "m_steamID": 364,
+    "m_szGameDescription": 78,
+    "m_szGameDir": 14,
+    "m_szGameTags": 236,
+    "m_szMap": 46,
+    "m_szServerName": 172,
+    "m_ulTimeLastPlayed": 164
+   },
+   "size": 372
+  },
+  "servernetadr_t": {
+   "align": 4,
+   "offsets": {
+    "m_unIP": 4,
+    "m_usConnectionPort": 0,
+    "m_usQueryPort": 2
+   },
+   "size": 8
+  }
+ },
+ "macos": {
+  "ActiveBeaconsUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AddAppDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppID": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "AddUGCDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nChildPublishedFileId": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 20
+  },
+  "AppProofOfPurchaseKeyResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_cchKeyLength": 8,
+    "m_eResult": 0,
+    "m_nAppID": 4,
+    "m_rgchKey": 12
+   },
+   "size": 252
+  },
+  "AppResumingFromSuspend_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AssociateWithClanResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "AvailableBeaconLocationsUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AvatarImageLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_iImage": 8,
+    "m_iTall": 16,
+    "m_iWide": 12,
+    "m_steamID": 0
+   },
+   "size": 20
+  },
+  "BroadcastUploadStart_t": {
+   "align": 1,
+   "offsets": {
+    "m_bIsRTMP": 0
+   },
+   "size": 1
+  },
+  "BroadcastUploadStop_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "CallbackMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubParam": 16,
+    "m_hSteamUser": 0,
+    "m_iCallback": 4,
+    "m_pubParam": 8
+   },
+   "size": 20
+  },
+  "ChangeNumOpenSlotsCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "CheckFileSignature_t": {
+   "align": 4,
+   "offsets": {
+    "m_eCheckFileSignature": 0
+   },
+   "size": 4
+  },
+  "ClanOfficerListResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 12,
+    "m_cOfficers": 8,
+    "m_steamIDClan": 0
+   },
+   "size": 16
+  },
+  "ClientGameServerDeny_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSecure": 10,
+    "m_uAppID": 0,
+    "m_uReason": 12,
+    "m_unGameServerIP": 4,
+    "m_usGameServerPort": 8
+   },
+   "size": 16
+  },
+  "ComputeNewPlayerCompatibilityResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamIDCandidate": 16,
+    "m_eResult": 0
+   },
+   "size": 24
+  },
+  "CreateBeaconCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_ulBeaconID": 4
+   },
+   "size": 12
+  },
+  "CreateItemResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "DeleteItemResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "DlcInstalled_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 0
+   },
+   "size": 4
+  },
+  "DownloadClanActivityCountsResult_t": {
+   "align": 1,
+   "offsets": {
+    "m_bSuccess": 0
+   },
+   "size": 1
+  },
+  "DownloadItemResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 12,
+    "m_nPublishedFileId": 4,
+    "m_unAppID": 0
+   },
+   "size": 16
+  },
+  "DurationControl_t": {
+   "align": 4,
+   "offsets": {
+    "m_appid": 4,
+    "m_bApplicable": 8,
+    "m_csecsLast5h": 12,
+    "m_csecsRemaining": 28,
+    "m_csecsToday": 24,
+    "m_eResult": 0,
+    "m_notification": 20,
+    "m_progress": 16
+   },
+   "size": 32
+  },
+  "EncryptedAppTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "EquippedProfileItemsChanged_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamID": 0
+   },
+   "size": 8
+  },
+  "EquippedProfileItems_t": {
+   "align": 4,
+   "offsets": {
+    "m_bFromCache": 17,
+    "m_bHasAnimatedAvatar": 12,
+    "m_bHasAvatarFrame": 13,
+    "m_bHasMiniProfileBackground": 16,
+    "m_bHasProfileBackground": 15,
+    "m_bHasProfileModifier": 14,
+    "m_eResult": 0,
+    "m_steamID": 4
+   },
+   "size": 20
+  },
+  "FavoritesListAccountsUpdated_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "FavoritesListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAdd": 20,
+    "m_nAppID": 12,
+    "m_nConnPort": 8,
+    "m_nFlags": 16,
+    "m_nIP": 0,
+    "m_nQueryPort": 4,
+    "m_unAccountId": 24
+   },
+   "size": 28
+  },
+  "FileDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_FileSHA": 12,
+    "m_eResult": 0,
+    "m_ulFileSize": 4,
+    "m_unFlags": 32
+   },
+   "size": 36
+  },
+  "FilterTextDictionaryChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_eLanguage": 0
+   },
+   "size": 4
+  },
+  "FloatingGamepadTextInputDismissed_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "FriendGameInfo_t": {
+   "align": 4,
+   "offsets": {
+    "m_gameID": 0,
+    "m_steamIDLobby": 16,
+    "m_unGameIP": 8,
+    "m_usGamePort": 12,
+    "m_usQueryPort": 14
+   },
+   "size": 24
+  },
+  "FriendRichPresenceUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_steamIDFriend": 0
+   },
+   "size": 12
+  },
+  "FriendsEnumerateFollowingList_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 404,
+    "m_nTotalResultCount": 408,
+    "m_rgSteamID": 4
+   },
+   "size": 412
+  },
+  "FriendsGetFollowerCount_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nCount": 12,
+    "m_steamID": 4
+   },
+   "size": 16
+  },
+  "FriendsIsFollowing_t": {
+   "align": 4,
+   "offsets": {
+    "m_bIsFollowing": 12,
+    "m_eResult": 0,
+    "m_steamID": 4
+   },
+   "size": 16
+  },
+  "GSClientAchievementStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_bUnlocked": 136,
+    "m_pchAchievement": 8
+   },
+   "size": 140
+  },
+  "GSClientApprove_t": {
+   "align": 1,
+   "offsets": {
+    "m_OwnerSteamID": 8,
+    "m_SteamID": 0
+   },
+   "size": 16
+  },
+  "GSClientDeny_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_eDenyReason": 8,
+    "m_rgchOptionalText": 12
+   },
+   "size": 140
+  },
+  "GSClientGroupStatus_t": {
+   "align": 1,
+   "offsets": {
+    "m_SteamIDGroup": 8,
+    "m_SteamIDUser": 0,
+    "m_bMember": 16,
+    "m_bOfficer": 17
+   },
+   "size": 18
+  },
+  "GSClientKick_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_eDenyReason": 8
+   },
+   "size": 12
+  },
+  "GSGameplayStats_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nRank": 4,
+    "m_unTotalConnects": 8,
+    "m_unTotalMinutesPlayed": 12
+   },
+   "size": 16
+  },
+  "GSPolicyResponse_t": {
+   "align": 1,
+   "offsets": {
+    "m_bSecure": 0
+   },
+   "size": 1
+  },
+  "GSReputation_t": {
+   "align": 4,
+   "offsets": {
+    "m_bBanned": 8,
+    "m_eResult": 0,
+    "m_ulBannedGameID": 20,
+    "m_unBanExpires": 28,
+    "m_unBannedIP": 12,
+    "m_unReputationScore": 4,
+    "m_usBannedPort": 16
+   },
+   "size": 32
+  },
+  "GSStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_steamIDUser": 4
+   },
+   "size": 12
+  },
+  "GSStatsStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_steamIDUser": 4
+   },
+   "size": 12
+  },
+  "GSStatsUnloaded_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDUser": 0
+   },
+   "size": 8
+  },
+  "GameConnectedChatJoin_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 16
+  },
+  "GameConnectedChatLeave_t": {
+   "align": 1,
+   "offsets": {
+    "m_bDropped": 17,
+    "m_bKicked": 16,
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 18
+  },
+  "GameConnectedClanChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_iMessageID": 16,
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 20
+  },
+  "GameConnectedFriendChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_iMessageID": 8,
+    "m_steamIDUser": 0
+   },
+   "size": 12
+  },
+  "GameLobbyJoinRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDFriend": 8,
+    "m_steamIDLobby": 0
+   },
+   "size": 16
+  },
+  "GameOverlayActivated_t": {
+   "align": 4,
+   "offsets": {
+    "m_bActive": 0,
+    "m_bUserInitiated": 1,
+    "m_dwOverlayPID": 8,
+    "m_nAppID": 4
+   },
+   "size": 12
+  },
+  "GameRichPresenceJoinRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_rgchConnect": 8,
+    "m_steamIDFriend": 0
+   },
+   "size": 264
+  },
+  "GameServerChangeRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_rgchPassword": 64,
+    "m_rgchServer": 0
+   },
+   "size": 128
+  },
+  "GameWebCallback_t": {
+   "align": 1,
+   "offsets": {
+    "m_szURL": 0
+   },
+   "size": 256
+  },
+  "GamepadTextInputDismissed_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSubmitted": 0,
+    "m_unAppID": 8,
+    "m_unSubmittedText": 4
+   },
+   "size": 12
+  },
+  "GetAppDependenciesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nNumAppDependencies": 140,
+    "m_nPublishedFileId": 4,
+    "m_nTotalNumAppDependencies": 144,
+    "m_rgAppIDs": 12
+   },
+   "size": 148
+  },
+  "GetAuthSessionTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 4,
+    "m_hAuthTicket": 0
+   },
+   "size": 8
+  },
+  "GetOPFSettingsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_unVideoAppID": 4
+   },
+   "size": 8
+  },
+  "GetTicketForWebApiResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubTicket": 8,
+    "m_eResult": 4,
+    "m_hAuthTicket": 0,
+    "m_rgubTicket": 12
+   },
+   "size": 2572
+  },
+  "GetUserItemVoteResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bVoteSkipped": 14,
+    "m_bVotedDown": 13,
+    "m_bVotedUp": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "GetVideoURLResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_rgchURL": 8,
+    "m_unVideoAppID": 4
+   },
+   "size": 264
+  },
+  "GlobalAchievementPercentagesReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 12
+  },
+  "GlobalStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 12
+  },
+  "HTML_BrowserReady_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_BrowserRestarted_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0,
+    "unOldBrowserHandle": 4
+   },
+   "size": 8
+  },
+  "HTML_CanGoBackAndForward_t": {
+   "align": 4,
+   "offsets": {
+    "bCanGoBack": 4,
+    "bCanGoForward": 5,
+    "unBrowserHandle": 0
+   },
+   "size": 8
+  },
+  "HTML_ChangedTitle_t": {
+   "align": 4,
+   "offsets": {
+    "pchTitle": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_CloseBrowser_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_FileOpenDialog_t": {
+   "align": 4,
+   "offsets": {
+    "pchInitialFile": 12,
+    "pchTitle": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 20
+  },
+  "HTML_FinishedRequest_t": {
+   "align": 4,
+   "offsets": {
+    "pchPageTitle": 12,
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 20
+  },
+  "HTML_HideToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_HorizontalScroll_t": {
+   "align": 4,
+   "offsets": {
+    "bVisible": 16,
+    "flPageScale": 12,
+    "unBrowserHandle": 0,
+    "unPageSize": 20,
+    "unScrollCurrent": 8,
+    "unScrollMax": 4
+   },
+   "size": 24
+  },
+  "HTML_JSAlert_t": {
+   "align": 4,
+   "offsets": {
+    "pchMessage": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_JSConfirm_t": {
+   "align": 4,
+   "offsets": {
+    "pchMessage": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_LinkAtPosition_t": {
+   "align": 4,
+   "offsets": {
+    "bInput": 20,
+    "bLiveLink": 21,
+    "pchURL": 12,
+    "unBrowserHandle": 0,
+    "x": 4,
+    "y": 8
+   },
+   "size": 24
+  },
+  "HTML_NeedsPaint_t": {
+   "align": 4,
+   "offsets": {
+    "flPageScale": 44,
+    "pBGRA": 4,
+    "unBrowserHandle": 0,
+    "unPageSerial": 48,
+    "unScrollX": 36,
+    "unScrollY": 40,
+    "unTall": 16,
+    "unUpdateTall": 32,
+    "unUpdateWide": 28,
+    "unUpdateX": 20,
+    "unUpdateY": 24,
+    "unWide": 12
+   },
+   "size": 52
+  },
+  "HTML_NewWindow_t": {
+   "align": 4,
+   "offsets": {
+    "pchURL": 4,
+    "unBrowserHandle": 0,
+    "unTall": 24,
+    "unWide": 20,
+    "unX": 12,
+    "unY": 16
+   },
+   "size": 32
+  },
+  "HTML_OpenLinkInNewTab_t": {
+   "align": 4,
+   "offsets": {
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_SearchResults_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0,
+    "unCurrentMatch": 8,
+    "unResults": 4
+   },
+   "size": 12
+  },
+  "HTML_SetCursor_t": {
+   "align": 4,
+   "offsets": {
+    "eMouseCursor": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 8
+  },
+  "HTML_ShowToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "pchMsg": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_StartRequest_t": {
+   "align": 4,
+   "offsets": {
+    "bIsRedirect": 28,
+    "pchPostData": 20,
+    "pchTarget": 12,
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 32
+  },
+  "HTML_StatusText_t": {
+   "align": 4,
+   "offsets": {
+    "pchMsg": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_URLChanged_t": {
+   "align": 4,
+   "offsets": {
+    "bIsRedirect": 20,
+    "bNewNavigation": 32,
+    "pchPageTitle": 24,
+    "pchPostData": 12,
+    "pchURL": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 36
+  },
+  "HTML_UpdateToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "pchMsg": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 12
+  },
+  "HTML_VerticalScroll_t": {
+   "align": 4,
+   "offsets": {
+    "bVisible": 16,
+    "flPageScale": 12,
+    "unBrowserHandle": 0,
+    "unPageSize": 20,
+    "unScrollCurrent": 8,
+    "unScrollMax": 4
+   },
+   "size": 24
+  },
+  "HTTPRequestCompleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_bRequestSuccessful": 12,
+    "m_eStatusCode": 16,
+    "m_hRequest": 0,
+    "m_ulContextValue": 4,
+    "m_unBodySize": 20
+   },
+   "size": 24
+  },
+  "HTTPRequestDataReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_cBytesReceived": 16,
+    "m_cOffset": 12,
+    "m_hRequest": 0,
+    "m_ulContextValue": 4
+   },
+   "size": 20
+  },
+  "HTTPRequestHeadersReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_hRequest": 0,
+    "m_ulContextValue": 4
+   },
+   "size": 12
+  },
+  "IPCFailure_t": {
+   "align": 1,
+   "offsets": {
+    "m_eFailureType": 0
+   },
+   "size": 1
+  },
+  "IPCountry_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "InputAnalogActionData_t": {
+   "align": 1,
+   "offsets": {
+    "bActive": 12,
+    "eMode": 0,
+    "x": 4,
+    "y": 8
+   },
+   "size": 13
+  },
+  "InputDigitalActionData_t": {
+   "align": 1,
+   "offsets": {
+    "bActive": 1,
+    "bState": 0
+   },
+   "size": 2
+  },
+  "InputMotionData_t": {
+   "align": 1,
+   "offsets": {
+    "posAccelX": 16,
+    "posAccelY": 20,
+    "posAccelZ": 24,
+    "rotQuatW": 12,
+    "rotQuatX": 0,
+    "rotQuatY": 4,
+    "rotQuatZ": 8,
+    "rotVelX": 28,
+    "rotVelY": 32,
+    "rotVelZ": 36
+   },
+   "size": 40
+  },
+  "ItemInstalled_t": {
+   "align": 4,
+   "offsets": {
+    "m_hLegacyContent": 12,
+    "m_nPublishedFileId": 4,
+    "m_unAppID": 0,
+    "m_unManifestID": 20
+   },
+   "size": 28
+  },
+  "JoinClanChatRoomCompletionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eChatRoomEnterResponse": 8,
+    "m_steamIDClanChat": 0
+   },
+   "size": 12
+  },
+  "JoinPartyCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamIDBeaconOwner": 12,
+    "m_eResult": 0,
+    "m_rgchConnectString": 20,
+    "m_ulBeaconID": 4
+   },
+   "size": 276
+  },
+  "LeaderboardEntry_t": {
+   "align": 4,
+   "offsets": {
+    "m_cDetails": 16,
+    "m_hUGC": 20,
+    "m_nGlobalRank": 8,
+    "m_nScore": 12,
+    "m_steamIDUser": 0
+   },
+   "size": 28
+  },
+  "LeaderboardFindResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bLeaderboardFound": 8,
+    "m_hSteamLeaderboard": 0
+   },
+   "size": 12
+  },
+  "LeaderboardScoreUploaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_bScoreChanged": 16,
+    "m_bSuccess": 0,
+    "m_hSteamLeaderboard": 4,
+    "m_nGlobalRankNew": 20,
+    "m_nGlobalRankPrevious": 24,
+    "m_nScore": 12
+   },
+   "size": 28
+  },
+  "LeaderboardScoresDownloaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_cEntryCount": 16,
+    "m_hSteamLeaderboard": 0,
+    "m_hSteamLeaderboardEntries": 8
+   },
+   "size": 20
+  },
+  "LeaderboardUGCSet_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hSteamLeaderboard": 4
+   },
+   "size": 12
+  },
+  "LicensesUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "LobbyChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_eChatEntryType": 16,
+    "m_iChatID": 20,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDUser": 8
+   },
+   "size": 24
+  },
+  "LobbyChatUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_rgfChatMemberStateChange": 24,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDMakingChange": 16,
+    "m_ulSteamIDUserChanged": 8
+   },
+   "size": 28
+  },
+  "LobbyCreated_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_ulSteamIDLobby": 4
+   },
+   "size": 12
+  },
+  "LobbyDataUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 16,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDMember": 8
+   },
+   "size": 20
+  },
+  "LobbyEnter_t": {
+   "align": 4,
+   "offsets": {
+    "m_EChatRoomEnterResponse": 16,
+    "m_bLocked": 12,
+    "m_rgfChatPermissions": 8,
+    "m_ulSteamIDLobby": 0
+   },
+   "size": 20
+  },
+  "LobbyGameCreated_t": {
+   "align": 4,
+   "offsets": {
+    "m_ulSteamIDGameServer": 8,
+    "m_ulSteamIDLobby": 0,
+    "m_unIP": 16,
+    "m_usPort": 20
+   },
+   "size": 24
+  },
+  "LobbyInvite_t": {
+   "align": 4,
+   "offsets": {
+    "m_ulGameID": 16,
+    "m_ulSteamIDLobby": 8,
+    "m_ulSteamIDUser": 0
+   },
+   "size": 24
+  },
+  "LobbyKicked_t": {
+   "align": 4,
+   "offsets": {
+    "m_bKickedDueToDisconnect": 16,
+    "m_ulSteamIDAdmin": 8,
+    "m_ulSteamIDLobby": 0
+   },
+   "size": 20
+  },
+  "LobbyMatchList_t": {
+   "align": 4,
+   "offsets": {
+    "m_nLobbiesMatching": 0
+   },
+   "size": 4
+  },
+  "LowBatteryPower_t": {
+   "align": 1,
+   "offsets": {
+    "m_nMinutesBatteryLeft": 0
+   },
+   "size": 1
+  },
+  "MarketEligibilityResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAllowed": 0,
+    "m_cdayNewDeviceCooldown": 16,
+    "m_eNotAllowedReason": 4,
+    "m_rtAllowedAtTime": 8
+   },
+   "size": 20
+  },
+  "MatchMakingKeyValuePair_t": {
+   "align": 1,
+   "offsets": {
+    "m_szKey": 0,
+    "m_szValue": 256
+   },
+   "size": 512
+  },
+  "MicroTxnAuthorizationResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAuthorized": 12,
+    "m_ulOrderID": 4,
+    "m_unAppID": 0
+   },
+   "size": 16
+  },
+  "NewUrlLaunchParameters_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "NumberOfCurrentPlayers_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 0,
+    "m_cPlayers": 4
+   },
+   "size": 8
+  },
+  "OverlayBrowserProtocolNavigation_t": {
+   "align": 1,
+   "offsets": {
+    "rgchURI": 0
+   },
+   "size": 1024
+  },
+  "P2PSessionConnectFail_t": {
+   "align": 1,
+   "offsets": {
+    "m_eP2PSessionError": 8,
+    "m_steamIDRemote": 0
+   },
+   "size": 9
+  },
+  "P2PSessionRequest_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDRemote": 0
+   },
+   "size": 8
+  },
+  "P2PSessionState_t": {
+   "align": 4,
+   "offsets": {
+    "m_bConnecting": 1,
+    "m_bConnectionActive": 0,
+    "m_bUsingRelay": 3,
+    "m_eP2PSessionError": 2,
+    "m_nBytesQueuedForSend": 4,
+    "m_nPacketsQueuedForSend": 8,
+    "m_nRemoteIP": 12,
+    "m_nRemotePort": 16
+   },
+   "size": 20
+  },
+  "PersonaStateChange_t": {
+   "align": 4,
+   "offsets": {
+    "m_nChangeFlags": 8,
+    "m_ulSteamID": 0
+   },
+   "size": 12
+  },
+  "PlaybackStatusHasChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "RemotePlayInputKey_t": {
+   "align": 4,
+   "offsets": {
+    "m_eScancode": 0,
+    "m_unKeycode": 8,
+    "m_unModifiers": 4
+   },
+   "size": 12
+  },
+  "RemotePlayInputMouseMotion_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAbsolute": 0,
+    "m_flNormalizedX": 4,
+    "m_flNormalizedY": 8,
+    "m_nDeltaX": 12,
+    "m_nDeltaY": 16
+   },
+   "size": 20
+  },
+  "RemotePlayInputMouseWheel_t": {
+   "align": 4,
+   "offsets": {
+    "m_eDirection": 0,
+    "m_flAmount": 4
+   },
+   "size": 8
+  },
+  "RemotePlayInput_t": {
+   "align": 4,
+   "offsets": {
+    "m_eType": 4,
+    "m_unSessionID": 0
+   },
+   "size": 64
+  },
+  "RemoteStorageDeletePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageDownloadUGCResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hFile": 4,
+    "m_nAppID": 12,
+    "m_nSizeInBytes": 16,
+    "m_pchFileName": 20,
+    "m_ulSteamIDOwner": 280
+   },
+   "size": 288
+  },
+  "RemoteStorageEnumeratePublishedFilesByUserActionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eAction": 4,
+    "m_eResult": 0,
+    "m_nResultsReturned": 8,
+    "m_nTotalResultCount": 12,
+    "m_rgPublishedFileId": 16,
+    "m_rgRTimeUpdated": 416
+   },
+   "size": 616
+  },
+  "RemoteStorageEnumerateUserPublishedFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12
+   },
+   "size": 412
+  },
+  "RemoteStorageEnumerateUserSharedWorkshopFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12
+   },
+   "size": 412
+  },
+  "RemoteStorageEnumerateUserSubscribedFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12,
+    "m_rgRTimeSubscribed": 412
+   },
+   "size": 612
+  },
+  "RemoteStorageEnumerateWorkshopFilesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppId": 612,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 12,
+    "m_rgScore": 412,
+    "m_unStartIndex": 616
+   },
+   "size": 620
+  },
+  "RemoteStorageFileReadAsyncComplete_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubRead": 16,
+    "m_eResult": 8,
+    "m_hFileReadAsync": 0,
+    "m_nOffset": 12
+   },
+   "size": 20
+  },
+  "RemoteStorageFileShareResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hFile": 4,
+    "m_rgchFilename": 12
+   },
+   "size": 272
+  },
+  "RemoteStorageFileWriteAsyncComplete_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "RemoteStorageGetPublishedFileDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAcceptedForUse": 9744,
+    "m_bBanned": 8188,
+    "m_bTagsTruncated": 9214,
+    "m_eFileType": 9740,
+    "m_eResult": 0,
+    "m_eVisibility": 8184,
+    "m_hFile": 8152,
+    "m_hPreviewFile": 8160,
+    "m_nConsumerAppID": 16,
+    "m_nCreatorAppID": 12,
+    "m_nFileSize": 9476,
+    "m_nPreviewFileSize": 9480,
+    "m_nPublishedFileId": 4,
+    "m_pchFileName": 9215,
+    "m_rgchDescription": 149,
+    "m_rgchTags": 8189,
+    "m_rgchTitle": 20,
+    "m_rgchURL": 9484,
+    "m_rtimeCreated": 8176,
+    "m_rtimeUpdated": 8180,
+    "m_ulSteamIDOwner": 8168
+   },
+   "size": 9748
+  },
+  "RemoteStorageGetPublishedItemVoteDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_fScore": 24,
+    "m_nReports": 20,
+    "m_nVotesAgainst": 16,
+    "m_nVotesFor": 12,
+    "m_unPublishedFileId": 4
+   },
+   "size": 28
+  },
+  "RemoteStorageLocalFileChange_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "RemoteStoragePublishFileProgress_t": {
+   "align": 4,
+   "offsets": {
+    "m_bPreview": 8,
+    "m_dPercentFile": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoteStoragePublishedFileDeleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishedFileSubscribed_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishedFileUnsubscribed_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 12
+  },
+  "RemoteStoragePublishedFileUpdated_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0,
+    "m_ulUnused": 12
+   },
+   "size": 20
+  },
+  "RemoteStorageSetUserPublishedFileActionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eAction": 12,
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoteStorageSubscribePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageUnsubscribePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageUpdatePublishedFileResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoteStorageUpdateUserPublishedItemVoteResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 4
+   },
+   "size": 12
+  },
+  "RemoteStorageUserVoteDetails_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_eVote": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoveAppDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppID": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 16
+  },
+  "RemoveUGCDependencyResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nChildPublishedFileId": 12,
+    "m_nPublishedFileId": 4
+   },
+   "size": 20
+  },
+  "ReservationNotificationCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_steamIDJoiner": 8,
+    "m_ulBeaconID": 0
+   },
+   "size": 16
+  },
+  "ScreenshotReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 4,
+    "m_hLocal": 0
+   },
+   "size": 8
+  },
+  "ScreenshotRequested_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SetUserItemVoteResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bVoteUp": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "SocketStatusCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eSNetSocketState": 16,
+    "m_hListenSocket": 4,
+    "m_hSocket": 0,
+    "m_steamIDRemote": 8
+   },
+   "size": 20
+  },
+  "StartPlaytimeTrackingResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "SteamAPICallCompleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubParam": 12,
+    "m_hAsyncCall": 0,
+    "m_iCallback": 8
+   },
+   "size": 16
+  },
+  "SteamIPAddress_t": {
+   "align": 1,
+   "offsets": {
+    "m_eType": 16
+   },
+   "size": 20
+  },
+  "SteamInputActionEvent_t": {
+   "align": 1,
+   "offsets": {
+    "controllerHandle": 0,
+    "eEventType": 8
+   },
+   "size": 33
+  },
+  "SteamInputConfigurationLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_bUsesGamepadAPI": 29,
+    "m_bUsesSteamInputAPI": 28,
+    "m_ulDeviceHandle": 4,
+    "m_ulMappingCreator": 12,
+    "m_unAppID": 0,
+    "m_unMajorRevision": 20,
+    "m_unMinorRevision": 24
+   },
+   "size": 32
+  },
+  "SteamInputDeviceConnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_ulConnectedDeviceHandle": 0
+   },
+   "size": 8
+  },
+  "SteamInputDeviceDisconnected_t": {
+   "align": 4,
+   "offsets": {},
+   "size": 8
+  },
+  "SteamInputGamepadSlotChange_t": {
+   "align": 4,
+   "offsets": {
+    "m_eDeviceType": 12,
+    "m_nNewGamepadSlot": 20,
+    "m_nOldGamepadSlot": 16,
+    "m_ulDeviceHandle": 4,
+    "m_unAppID": 0
+   },
+   "size": 24
+  },
+  "SteamInventoryDefinitionUpdate_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamInventoryEligiblePromoItemDefIDs_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 16,
+    "m_numEligiblePromoItemDefs": 12,
+    "m_result": 0,
+    "m_steamID": 4
+   },
+   "size": 20
+  },
+  "SteamInventoryFullUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_handle": 0
+   },
+   "size": 4
+  },
+  "SteamInventoryRequestPricesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_result": 0,
+    "m_rgchCurrency": 4
+   },
+   "size": 8
+  },
+  "SteamInventoryResultReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_handle": 0,
+    "m_result": 4
+   },
+   "size": 8
+  },
+  "SteamInventoryStartPurchaseResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_result": 0,
+    "m_ulOrderID": 4,
+    "m_ulTransID": 12
+   },
+   "size": 20
+  },
+  "SteamItemDetails_t": {
+   "align": 4,
+   "offsets": {
+    "m_iDefinition": 8,
+    "m_itemId": 0,
+    "m_unFlags": 14,
+    "m_unQuantity": 12
+   },
+   "size": 16
+  },
+  "SteamNetAuthenticationStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_debugMsg": 4,
+    "m_eAvail": 0
+   },
+   "size": 260
+  },
+  "SteamNetConnectionInfo_t": {
+   "align": 4,
+   "offsets": {
+    "m__pad1": 166,
+    "m_addrRemote": 148,
+    "m_eEndReason": 180,
+    "m_eState": 176,
+    "m_hListenSocket": 144,
+    "m_idPOPRelay": 172,
+    "m_idPOPRemote": 168,
+    "m_identityRemote": 0,
+    "m_nFlags": 440,
+    "m_nUserData": 136,
+    "m_szConnectionDescription": 312,
+    "m_szEndDebug": 184,
+    "reserved": 444
+   },
+   "size": 696
+  },
+  "SteamNetConnectionRealTimeLaneStatus_t": {
+   "align": 4,
+   "offsets": {
+    "_reservePad1": 12,
+    "m_cbPendingReliable": 4,
+    "m_cbPendingUnreliable": 0,
+    "m_cbSentUnackedReliable": 8,
+    "m_usecQueueTime": 16,
+    "reserved": 24
+   },
+   "size": 64
+  },
+  "SteamNetConnectionRealTimeStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_cbPendingReliable": 40,
+    "m_cbPendingUnreliable": 36,
+    "m_cbSentUnackedReliable": 44,
+    "m_eState": 0,
+    "m_flConnectionQualityLocal": 8,
+    "m_flConnectionQualityRemote": 12,
+    "m_flInBytesPerSec": 28,
+    "m_flInPacketsPerSec": 24,
+    "m_flOutBytesPerSec": 20,
+    "m_flOutPacketsPerSec": 16,
+    "m_nPing": 4,
+    "m_nSendRateBytesPerSecond": 32,
+    "m_usecMaxJitter": 56,
+    "m_usecQueueTime": 48,
+    "reserved": 60
+   },
+   "size": 120
+  },
+  "SteamNetConnectionStatusChangedCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eOldState": 700,
+    "m_hConn": 0,
+    "m_info": 4
+   },
+   "size": 704
+  },
+  "SteamNetworkPingLocation_t": {
+   "align": 1,
+   "offsets": {
+    "m_data": 0
+   },
+   "size": 512
+  },
+  "SteamNetworkingConfigValue_t": {
+   "align": 8,
+   "offsets": {
+    "m_eDataType": 4,
+    "m_eValue": 0,
+    "m_val": 8
+   },
+   "size": 16
+  },
+  "SteamNetworkingIPAddr": {
+   "align": 1,
+   "offsets": {
+    "m_port": 16
+   },
+   "size": 18
+  },
+  "SteamNetworkingIdentity": {
+   "align": 1,
+   "offsets": {
+    "m_cbSize": 4,
+    "m_eType": 0
+   },
+   "size": 136
+  },
+  "SteamNetworkingMessage_t": {
+   "align": 8,
+   "offsets": {
+    "_pad1__": 210,
+    "m_cbSize": 8,
+    "m_conn": 12,
+    "m_identityPeer": 16,
+    "m_idxLane": 208,
+    "m_nChannel": 192,
+    "m_nConnUserData": 152,
+    "m_nFlags": 196,
+    "m_nMessageNumber": 168,
+    "m_nUserData": 200,
+    "m_pData": 0,
+    "m_pfnFreeData": 176,
+    "m_pfnRelease": 184,
+    "m_usecTimeReceived": 160
+   },
+   "size": 216
+  },
+  "SteamNetworkingMessagesSessionFailed_t": {
+   "align": 1,
+   "offsets": {
+    "m_info": 0
+   },
+   "size": 696
+  },
+  "SteamNetworkingMessagesSessionRequest_t": {
+   "align": 1,
+   "offsets": {
+    "m_identityRemote": 0
+   },
+   "size": 136
+  },
+  "SteamParamStringArray_t": {
+   "align": 4,
+   "offsets": {
+    "m_nNumStrings": 8,
+    "m_ppStrings": 0
+   },
+   "size": 12
+  },
+  "SteamParentalSettingsChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamPartyBeaconLocation_t": {
+   "align": 4,
+   "offsets": {
+    "m_eType": 0,
+    "m_ulLocationID": 4
+   },
+   "size": 12
+  },
+  "SteamRelayNetworkStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_debugMsg": 16,
+    "m_eAvail": 0,
+    "m_eAvailAnyRelay": 12,
+    "m_eAvailNetworkConfig": 8
+   },
+   "size": 272
+  },
+  "SteamRemotePlaySessionAvatarLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_iImage": 4,
+    "m_iTall": 12,
+    "m_iWide": 8,
+    "m_unSessionID": 0
+   },
+   "size": 16
+  },
+  "SteamRemotePlaySessionConnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_unSessionID": 0
+   },
+   "size": 4
+  },
+  "SteamRemotePlaySessionDisconnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_unSessionID": 0
+   },
+   "size": 4
+  },
+  "SteamRemotePlayTogetherGuestInvite_t": {
+   "align": 1,
+   "offsets": {
+    "m_szConnectURL": 0
+   },
+   "size": 1024
+  },
+  "SteamServerConnectFailure_t": {
+   "align": 4,
+   "offsets": {
+    "m_bStillRetrying": 4,
+    "m_eResult": 0
+   },
+   "size": 8
+  },
+  "SteamServersConnected_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamServersDisconnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "SteamShutdown_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamTimelineEventRecordingExists_t": {
+   "align": 4,
+   "offsets": {
+    "m_bRecordingExists": 8,
+    "m_ulEventID": 0
+   },
+   "size": 12
+  },
+  "SteamTimelineGamePhaseRecordingExists_t": {
+   "align": 4,
+   "offsets": {
+    "m_rgchPhaseID": 0,
+    "m_ulLongestClipMS": 72,
+    "m_ulRecordingMS": 64,
+    "m_unClipCount": 80,
+    "m_unScreenshotCount": 84
+   },
+   "size": 88
+  },
+  "SteamUGCDetails_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAcceptedForUse": 8181,
+    "m_bBanned": 8180,
+    "m_bTagsTruncated": 8182,
+    "m_eFileType": 12,
+    "m_eResult": 8,
+    "m_eVisibility": 8176,
+    "m_flScore": 9756,
+    "m_hFile": 9208,
+    "m_hPreviewFile": 9216,
+    "m_nConsumerAppID": 20,
+    "m_nCreatorAppID": 16,
+    "m_nFileSize": 9484,
+    "m_nPreviewFileSize": 9488,
+    "m_nPublishedFileId": 0,
+    "m_pchFileName": 9224,
+    "m_rgchDescription": 153,
+    "m_rgchTags": 8183,
+    "m_rgchTitle": 24,
+    "m_rgchURL": 9492,
+    "m_rtimeAddedToUserList": 8172,
+    "m_rtimeCreated": 8164,
+    "m_rtimeUpdated": 8168,
+    "m_ulSteamIDOwner": 8156,
+    "m_ulTotalFilesSize": 9764,
+    "m_unNumChildren": 9760,
+    "m_unVotesDown": 9752,
+    "m_unVotesUp": 9748
+   },
+   "size": 9772
+  },
+  "SteamUGCQueryCompleted_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 20,
+    "m_eResult": 8,
+    "m_handle": 0,
+    "m_rgchNextCursor": 21,
+    "m_unNumResultsReturned": 12,
+    "m_unTotalMatchingResults": 16
+   },
+   "size": 280
+  },
+  "SteamUGCRequestUGCDetailsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 9772,
+    "m_details": 0
+   },
+   "size": 9776
+  },
+  "StopPlaytimeTrackingResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "StoreAuthURLResponse_t": {
+   "align": 1,
+   "offsets": {
+    "m_szURL": 0
+   },
+   "size": 512
+  },
+  "SubmitItemUpdateResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 16
+  },
+  "TimedTrialStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_bIsOffline": 4,
+    "m_unAppID": 0,
+    "m_unSecondsAllowed": 8,
+    "m_unSecondsPlayed": 12
+   },
+   "size": 16
+  },
+  "UnreadChatMessagesChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "UserAchievementIconFetched_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAchieved": 136,
+    "m_nGameID": 0,
+    "m_nIconHandle": 140,
+    "m_rgchAchievementName": 8
+   },
+   "size": 144
+  },
+  "UserAchievementStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_bGroupAchievement": 8,
+    "m_nCurProgress": 140,
+    "m_nGameID": 0,
+    "m_nMaxProgress": 144,
+    "m_rgchAchievementName": 9
+   },
+   "size": 148
+  },
+  "UserFavoriteItemsListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_bWasAddRequest": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "UserStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0,
+    "m_steamIDUser": 12
+   },
+   "size": 20
+  },
+  "UserStatsStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 12
+  },
+  "UserStatsUnloaded_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDUser": 0
+   },
+   "size": 8
+  },
+  "UserSubscribedItemsListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 0
+   },
+   "size": 4
+  },
+  "ValidateAuthTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_OwnerSteamID": 12,
+    "m_SteamID": 0,
+    "m_eAuthSessionResponse": 8
+   },
+   "size": 20
+  },
+  "VolumeHasChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_flNewVolume": 0
+   },
+   "size": 4
+  },
+  "WorkshopEULAStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAccepted": 16,
+    "m_bNeedsAction": 17,
+    "m_eResult": 0,
+    "m_nAppID": 4,
+    "m_rtAction": 12,
+    "m_unVersion": 8
+   },
+   "size": 20
+  },
+  "gameserveritem_t": {
+   "align": 4,
+   "offsets": {
+    "m_NetAdr": 0,
+    "m_bDoNotRefresh": 13,
+    "m_bHadSuccessfulResponse": 12,
+    "m_bPassword": 160,
+    "m_bSecure": 161,
+    "m_nAppID": 144,
+    "m_nBotPlayers": 156,
+    "m_nMaxPlayers": 152,
+    "m_nPing": 8,
+    "m_nPlayers": 148,
+    "m_nServerVersion": 168,
+    "m_steamID": 364,
+    "m_szGameDescription": 78,
+    "m_szGameDir": 14,
+    "m_szGameTags": 236,
+    "m_szMap": 46,
+    "m_szServerName": 172,
+    "m_ulTimeLastPlayed": 164
+   },
+   "size": 372
+  },
+  "servernetadr_t": {
+   "align": 4,
+   "offsets": {
+    "m_unIP": 4,
+    "m_usConnectionPort": 0,
+    "m_usQueryPort": 2
+   },
+   "size": 8
+  }
+ },
+ "windows": {
+  "ActiveBeaconsUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AddAppDependencyResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppID": 16,
+    "m_nPublishedFileId": 8
+   },
+   "size": 24
+  },
+  "AddUGCDependencyResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nChildPublishedFileId": 16,
+    "m_nPublishedFileId": 8
+   },
+   "size": 24
+  },
+  "AppProofOfPurchaseKeyResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_cchKeyLength": 8,
+    "m_eResult": 0,
+    "m_nAppID": 4,
+    "m_rgchKey": 12
+   },
+   "size": 252
+  },
+  "AppResumingFromSuspend_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AssociateWithClanResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "AvailableBeaconLocationsUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "AvatarImageLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_iImage": 8,
+    "m_iTall": 16,
+    "m_iWide": 12,
+    "m_steamID": 0
+   },
+   "size": 20
+  },
+  "BroadcastUploadStart_t": {
+   "align": 1,
+   "offsets": {
+    "m_bIsRTMP": 0
+   },
+   "size": 1
+  },
+  "BroadcastUploadStop_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "CallbackMsg_t": {
+   "align": 8,
+   "offsets": {
+    "m_cubParam": 16,
+    "m_hSteamUser": 0,
+    "m_iCallback": 4,
+    "m_pubParam": 8
+   },
+   "size": 24
+  },
+  "ChangeNumOpenSlotsCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "CheckFileSignature_t": {
+   "align": 4,
+   "offsets": {
+    "m_eCheckFileSignature": 0
+   },
+   "size": 4
+  },
+  "ClanOfficerListResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 12,
+    "m_cOfficers": 8,
+    "m_steamIDClan": 0
+   },
+   "size": 16
+  },
+  "ClientGameServerDeny_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSecure": 10,
+    "m_uAppID": 0,
+    "m_uReason": 12,
+    "m_unGameServerIP": 4,
+    "m_usGameServerPort": 8
+   },
+   "size": 16
+  },
+  "ComputeNewPlayerCompatibilityResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamIDCandidate": 16,
+    "m_eResult": 0
+   },
+   "size": 24
+  },
+  "CreateBeaconCallback_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_ulBeaconID": 8
+   },
+   "size": 16
+  },
+  "CreateItemResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 24
+  },
+  "DeleteItemResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 16
+  },
+  "DlcInstalled_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 0
+   },
+   "size": 4
+  },
+  "DownloadClanActivityCountsResult_t": {
+   "align": 1,
+   "offsets": {
+    "m_bSuccess": 0
+   },
+   "size": 1
+  },
+  "DownloadItemResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 16,
+    "m_nPublishedFileId": 8,
+    "m_unAppID": 0
+   },
+   "size": 24
+  },
+  "DurationControl_t": {
+   "align": 4,
+   "offsets": {
+    "m_appid": 4,
+    "m_bApplicable": 8,
+    "m_csecsLast5h": 12,
+    "m_csecsRemaining": 28,
+    "m_csecsToday": 24,
+    "m_eResult": 0,
+    "m_notification": 20,
+    "m_progress": 16
+   },
+   "size": 32
+  },
+  "EncryptedAppTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "EquippedProfileItemsChanged_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamID": 0
+   },
+   "size": 8
+  },
+  "EquippedProfileItems_t": {
+   "align": 4,
+   "offsets": {
+    "m_bFromCache": 17,
+    "m_bHasAnimatedAvatar": 12,
+    "m_bHasAvatarFrame": 13,
+    "m_bHasMiniProfileBackground": 16,
+    "m_bHasProfileBackground": 15,
+    "m_bHasProfileModifier": 14,
+    "m_eResult": 0,
+    "m_steamID": 4
+   },
+   "size": 20
+  },
+  "FavoritesListAccountsUpdated_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "FavoritesListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAdd": 20,
+    "m_nAppID": 12,
+    "m_nConnPort": 8,
+    "m_nFlags": 16,
+    "m_nIP": 0,
+    "m_nQueryPort": 4,
+    "m_unAccountId": 24
+   },
+   "size": 28
+  },
+  "FileDetailsResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_FileSHA": 16,
+    "m_eResult": 0,
+    "m_ulFileSize": 8,
+    "m_unFlags": 36
+   },
+   "size": 40
+  },
+  "FilterTextDictionaryChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_eLanguage": 0
+   },
+   "size": 4
+  },
+  "FloatingGamepadTextInputDismissed_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "FriendGameInfo_t": {
+   "align": 4,
+   "offsets": {
+    "m_gameID": 0,
+    "m_steamIDLobby": 16,
+    "m_unGameIP": 8,
+    "m_usGamePort": 12,
+    "m_usQueryPort": 14
+   },
+   "size": 24
+  },
+  "FriendRichPresenceUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_steamIDFriend": 0
+   },
+   "size": 12
+  },
+  "FriendsEnumerateFollowingList_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 404,
+    "m_nTotalResultCount": 408,
+    "m_rgSteamID": 4
+   },
+   "size": 412
+  },
+  "FriendsGetFollowerCount_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nCount": 12,
+    "m_steamID": 4
+   },
+   "size": 16
+  },
+  "FriendsIsFollowing_t": {
+   "align": 4,
+   "offsets": {
+    "m_bIsFollowing": 12,
+    "m_eResult": 0,
+    "m_steamID": 4
+   },
+   "size": 16
+  },
+  "GSClientAchievementStatus_t": {
+   "align": 8,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_bUnlocked": 136,
+    "m_pchAchievement": 8
+   },
+   "size": 144
+  },
+  "GSClientApprove_t": {
+   "align": 1,
+   "offsets": {
+    "m_OwnerSteamID": 8,
+    "m_SteamID": 0
+   },
+   "size": 16
+  },
+  "GSClientDeny_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_eDenyReason": 8,
+    "m_rgchOptionalText": 12
+   },
+   "size": 140
+  },
+  "GSClientGroupStatus_t": {
+   "align": 1,
+   "offsets": {
+    "m_SteamIDGroup": 8,
+    "m_SteamIDUser": 0,
+    "m_bMember": 16,
+    "m_bOfficer": 17
+   },
+   "size": 18
+  },
+  "GSClientKick_t": {
+   "align": 4,
+   "offsets": {
+    "m_SteamID": 0,
+    "m_eDenyReason": 8
+   },
+   "size": 12
+  },
+  "GSGameplayStats_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nRank": 4,
+    "m_unTotalConnects": 8,
+    "m_unTotalMinutesPlayed": 12
+   },
+   "size": 16
+  },
+  "GSPolicyResponse_t": {
+   "align": 1,
+   "offsets": {
+    "m_bSecure": 0
+   },
+   "size": 1
+  },
+  "GSReputation_t": {
+   "align": 8,
+   "offsets": {
+    "m_bBanned": 8,
+    "m_eResult": 0,
+    "m_ulBannedGameID": 24,
+    "m_unBanExpires": 32,
+    "m_unBannedIP": 12,
+    "m_unReputationScore": 4,
+    "m_usBannedPort": 16
+   },
+   "size": 40
+  },
+  "GSStatsReceived_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_steamIDUser": 4
+   },
+   "size": 12
+  },
+  "GSStatsStored_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_steamIDUser": 4
+   },
+   "size": 12
+  },
+  "GSStatsUnloaded_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDUser": 0
+   },
+   "size": 8
+  },
+  "GameConnectedChatJoin_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 16
+  },
+  "GameConnectedChatLeave_t": {
+   "align": 1,
+   "offsets": {
+    "m_bDropped": 17,
+    "m_bKicked": 16,
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 18
+  },
+  "GameConnectedClanChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_iMessageID": 16,
+    "m_steamIDClanChat": 0,
+    "m_steamIDUser": 8
+   },
+   "size": 20
+  },
+  "GameConnectedFriendChatMsg_t": {
+   "align": 4,
+   "offsets": {
+    "m_iMessageID": 8,
+    "m_steamIDUser": 0
+   },
+   "size": 12
+  },
+  "GameLobbyJoinRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDFriend": 8,
+    "m_steamIDLobby": 0
+   },
+   "size": 16
+  },
+  "GameOverlayActivated_t": {
+   "align": 4,
+   "offsets": {
+    "m_bActive": 0,
+    "m_bUserInitiated": 1,
+    "m_dwOverlayPID": 8,
+    "m_nAppID": 4
+   },
+   "size": 12
+  },
+  "GameRichPresenceJoinRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_rgchConnect": 8,
+    "m_steamIDFriend": 0
+   },
+   "size": 264
+  },
+  "GameServerChangeRequested_t": {
+   "align": 1,
+   "offsets": {
+    "m_rgchPassword": 64,
+    "m_rgchServer": 0
+   },
+   "size": 128
+  },
+  "GameWebCallback_t": {
+   "align": 1,
+   "offsets": {
+    "m_szURL": 0
+   },
+   "size": 256
+  },
+  "GamepadTextInputDismissed_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSubmitted": 0,
+    "m_unAppID": 8,
+    "m_unSubmittedText": 4
+   },
+   "size": 12
+  },
+  "GetAppDependenciesResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nNumAppDependencies": 144,
+    "m_nPublishedFileId": 8,
+    "m_nTotalNumAppDependencies": 148,
+    "m_rgAppIDs": 16
+   },
+   "size": 152
+  },
+  "GetAuthSessionTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 4,
+    "m_hAuthTicket": 0
+   },
+   "size": 8
+  },
+  "GetOPFSettingsResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_unVideoAppID": 4
+   },
+   "size": 8
+  },
+  "GetTicketForWebApiResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_cubTicket": 8,
+    "m_eResult": 4,
+    "m_hAuthTicket": 0,
+    "m_rgubTicket": 12
+   },
+   "size": 2572
+  },
+  "GetUserItemVoteResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_bVoteSkipped": 14,
+    "m_bVotedDown": 13,
+    "m_bVotedUp": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "GetVideoURLResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0,
+    "m_rgchURL": 8,
+    "m_unVideoAppID": 4
+   },
+   "size": 264
+  },
+  "GlobalAchievementPercentagesReady_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 16
+  },
+  "GlobalStatsReceived_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 16
+  },
+  "HTML_BrowserReady_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_BrowserRestarted_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0,
+    "unOldBrowserHandle": 4
+   },
+   "size": 8
+  },
+  "HTML_CanGoBackAndForward_t": {
+   "align": 4,
+   "offsets": {
+    "bCanGoBack": 4,
+    "bCanGoForward": 5,
+    "unBrowserHandle": 0
+   },
+   "size": 8
+  },
+  "HTML_ChangedTitle_t": {
+   "align": 8,
+   "offsets": {
+    "pchTitle": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 16
+  },
+  "HTML_CloseBrowser_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_FileOpenDialog_t": {
+   "align": 8,
+   "offsets": {
+    "pchInitialFile": 16,
+    "pchTitle": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 24
+  },
+  "HTML_FinishedRequest_t": {
+   "align": 8,
+   "offsets": {
+    "pchPageTitle": 16,
+    "pchURL": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 24
+  },
+  "HTML_HideToolTip_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0
+   },
+   "size": 4
+  },
+  "HTML_HorizontalScroll_t": {
+   "align": 4,
+   "offsets": {
+    "bVisible": 16,
+    "flPageScale": 12,
+    "unBrowserHandle": 0,
+    "unPageSize": 20,
+    "unScrollCurrent": 8,
+    "unScrollMax": 4
+   },
+   "size": 24
+  },
+  "HTML_JSAlert_t": {
+   "align": 8,
+   "offsets": {
+    "pchMessage": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 16
+  },
+  "HTML_JSConfirm_t": {
+   "align": 8,
+   "offsets": {
+    "pchMessage": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 16
+  },
+  "HTML_LinkAtPosition_t": {
+   "align": 8,
+   "offsets": {
+    "bInput": 24,
+    "bLiveLink": 25,
+    "pchURL": 16,
+    "unBrowserHandle": 0,
+    "x": 4,
+    "y": 8
+   },
+   "size": 32
+  },
+  "HTML_NeedsPaint_t": {
+   "align": 8,
+   "offsets": {
+    "flPageScale": 48,
+    "pBGRA": 8,
+    "unBrowserHandle": 0,
+    "unPageSerial": 52,
+    "unScrollX": 40,
+    "unScrollY": 44,
+    "unTall": 20,
+    "unUpdateTall": 36,
+    "unUpdateWide": 32,
+    "unUpdateX": 24,
+    "unUpdateY": 28,
+    "unWide": 16
+   },
+   "size": 56
+  },
+  "HTML_NewWindow_t": {
+   "align": 8,
+   "offsets": {
+    "pchURL": 8,
+    "unBrowserHandle": 0,
+    "unTall": 28,
+    "unWide": 24,
+    "unX": 16,
+    "unY": 20
+   },
+   "size": 40
+  },
+  "HTML_OpenLinkInNewTab_t": {
+   "align": 8,
+   "offsets": {
+    "pchURL": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 16
+  },
+  "HTML_SearchResults_t": {
+   "align": 4,
+   "offsets": {
+    "unBrowserHandle": 0,
+    "unCurrentMatch": 8,
+    "unResults": 4
+   },
+   "size": 12
+  },
+  "HTML_SetCursor_t": {
+   "align": 4,
+   "offsets": {
+    "eMouseCursor": 4,
+    "unBrowserHandle": 0
+   },
+   "size": 8
+  },
+  "HTML_ShowToolTip_t": {
+   "align": 8,
+   "offsets": {
+    "pchMsg": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 16
+  },
+  "HTML_StartRequest_t": {
+   "align": 8,
+   "offsets": {
+    "bIsRedirect": 32,
+    "pchPostData": 24,
+    "pchTarget": 16,
+    "pchURL": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 40
+  },
+  "HTML_StatusText_t": {
+   "align": 8,
+   "offsets": {
+    "pchMsg": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 16
+  },
+  "HTML_URLChanged_t": {
+   "align": 8,
+   "offsets": {
+    "bIsRedirect": 24,
+    "bNewNavigation": 40,
+    "pchPageTitle": 32,
+    "pchPostData": 16,
+    "pchURL": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 48
+  },
+  "HTML_UpdateToolTip_t": {
+   "align": 8,
+   "offsets": {
+    "pchMsg": 8,
+    "unBrowserHandle": 0
+   },
+   "size": 16
+  },
+  "HTML_VerticalScroll_t": {
+   "align": 4,
+   "offsets": {
+    "bVisible": 16,
+    "flPageScale": 12,
+    "unBrowserHandle": 0,
+    "unPageSize": 20,
+    "unScrollCurrent": 8,
+    "unScrollMax": 4
+   },
+   "size": 24
+  },
+  "HTTPRequestCompleted_t": {
+   "align": 8,
+   "offsets": {
+    "m_bRequestSuccessful": 16,
+    "m_eStatusCode": 20,
+    "m_hRequest": 0,
+    "m_ulContextValue": 8,
+    "m_unBodySize": 24
+   },
+   "size": 32
+  },
+  "HTTPRequestDataReceived_t": {
+   "align": 8,
+   "offsets": {
+    "m_cBytesReceived": 20,
+    "m_cOffset": 16,
+    "m_hRequest": 0,
+    "m_ulContextValue": 8
+   },
+   "size": 24
+  },
+  "HTTPRequestHeadersReceived_t": {
+   "align": 8,
+   "offsets": {
+    "m_hRequest": 0,
+    "m_ulContextValue": 8
+   },
+   "size": 16
+  },
+  "IPCFailure_t": {
+   "align": 1,
+   "offsets": {
+    "m_eFailureType": 0
+   },
+   "size": 1
+  },
+  "IPCountry_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "InputAnalogActionData_t": {
+   "align": 1,
+   "offsets": {
+    "bActive": 12,
+    "eMode": 0,
+    "x": 4,
+    "y": 8
+   },
+   "size": 13
+  },
+  "InputDigitalActionData_t": {
+   "align": 1,
+   "offsets": {
+    "bActive": 1,
+    "bState": 0
+   },
+   "size": 2
+  },
+  "InputMotionData_t": {
+   "align": 1,
+   "offsets": {
+    "posAccelX": 16,
+    "posAccelY": 20,
+    "posAccelZ": 24,
+    "rotQuatW": 12,
+    "rotQuatX": 0,
+    "rotQuatY": 4,
+    "rotQuatZ": 8,
+    "rotVelX": 28,
+    "rotVelY": 32,
+    "rotVelZ": 36
+   },
+   "size": 40
+  },
+  "ItemInstalled_t": {
+   "align": 8,
+   "offsets": {
+    "m_hLegacyContent": 16,
+    "m_nPublishedFileId": 8,
+    "m_unAppID": 0,
+    "m_unManifestID": 24
+   },
+   "size": 32
+  },
+  "JoinClanChatRoomCompletionResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eChatRoomEnterResponse": 8,
+    "m_steamIDClanChat": 0
+   },
+   "size": 12
+  },
+  "JoinPartyCallback_t": {
+   "align": 8,
+   "offsets": {
+    "m_SteamIDBeaconOwner": 16,
+    "m_eResult": 0,
+    "m_rgchConnectString": 24,
+    "m_ulBeaconID": 8
+   },
+   "size": 280
+  },
+  "LeaderboardEntry_t": {
+   "align": 8,
+   "offsets": {
+    "m_cDetails": 16,
+    "m_hUGC": 24,
+    "m_nGlobalRank": 8,
+    "m_nScore": 12,
+    "m_steamIDUser": 0
+   },
+   "size": 32
+  },
+  "LeaderboardFindResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_bLeaderboardFound": 8,
+    "m_hSteamLeaderboard": 0
+   },
+   "size": 16
+  },
+  "LeaderboardScoreUploaded_t": {
+   "align": 8,
+   "offsets": {
+    "m_bScoreChanged": 20,
+    "m_bSuccess": 0,
+    "m_hSteamLeaderboard": 8,
+    "m_nGlobalRankNew": 24,
+    "m_nGlobalRankPrevious": 28,
+    "m_nScore": 16
+   },
+   "size": 32
+  },
+  "LeaderboardScoresDownloaded_t": {
+   "align": 8,
+   "offsets": {
+    "m_cEntryCount": 16,
+    "m_hSteamLeaderboard": 0,
+    "m_hSteamLeaderboardEntries": 8
+   },
+   "size": 24
+  },
+  "LeaderboardUGCSet_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hSteamLeaderboard": 8
+   },
+   "size": 16
+  },
+  "LicensesUpdated_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "LobbyChatMsg_t": {
+   "align": 8,
+   "offsets": {
+    "m_eChatEntryType": 16,
+    "m_iChatID": 20,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDUser": 8
+   },
+   "size": 24
+  },
+  "LobbyChatUpdate_t": {
+   "align": 8,
+   "offsets": {
+    "m_rgfChatMemberStateChange": 24,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDMakingChange": 16,
+    "m_ulSteamIDUserChanged": 8
+   },
+   "size": 32
+  },
+  "LobbyCreated_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_ulSteamIDLobby": 8
+   },
+   "size": 16
+  },
+  "LobbyDataUpdate_t": {
+   "align": 8,
+   "offsets": {
+    "m_bSuccess": 16,
+    "m_ulSteamIDLobby": 0,
+    "m_ulSteamIDMember": 8
+   },
+   "size": 24
+  },
+  "LobbyEnter_t": {
+   "align": 8,
+   "offsets": {
+    "m_EChatRoomEnterResponse": 16,
+    "m_bLocked": 12,
+    "m_rgfChatPermissions": 8,
+    "m_ulSteamIDLobby": 0
+   },
+   "size": 24
+  },
+  "LobbyGameCreated_t": {
+   "align": 8,
+   "offsets": {
+    "m_ulSteamIDGameServer": 8,
+    "m_ulSteamIDLobby": 0,
+    "m_unIP": 16,
+    "m_usPort": 20
+   },
+   "size": 24
+  },
+  "LobbyInvite_t": {
+   "align": 8,
+   "offsets": {
+    "m_ulGameID": 16,
+    "m_ulSteamIDLobby": 8,
+    "m_ulSteamIDUser": 0
+   },
+   "size": 24
+  },
+  "LobbyKicked_t": {
+   "align": 8,
+   "offsets": {
+    "m_bKickedDueToDisconnect": 16,
+    "m_ulSteamIDAdmin": 8,
+    "m_ulSteamIDLobby": 0
+   },
+   "size": 24
+  },
+  "LobbyMatchList_t": {
+   "align": 4,
+   "offsets": {
+    "m_nLobbiesMatching": 0
+   },
+   "size": 4
+  },
+  "LowBatteryPower_t": {
+   "align": 1,
+   "offsets": {
+    "m_nMinutesBatteryLeft": 0
+   },
+   "size": 1
+  },
+  "MarketEligibilityResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAllowed": 0,
+    "m_cdayNewDeviceCooldown": 16,
+    "m_eNotAllowedReason": 4,
+    "m_rtAllowedAtTime": 8
+   },
+   "size": 20
+  },
+  "MatchMakingKeyValuePair_t": {
+   "align": 1,
+   "offsets": {
+    "m_szKey": 0,
+    "m_szValue": 256
+   },
+   "size": 512
+  },
+  "MicroTxnAuthorizationResponse_t": {
+   "align": 8,
+   "offsets": {
+    "m_bAuthorized": 16,
+    "m_ulOrderID": 8,
+    "m_unAppID": 0
+   },
+   "size": 24
+  },
+  "NewUrlLaunchParameters_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "NumberOfCurrentPlayers_t": {
+   "align": 4,
+   "offsets": {
+    "m_bSuccess": 0,
+    "m_cPlayers": 4
+   },
+   "size": 8
+  },
+  "OverlayBrowserProtocolNavigation_t": {
+   "align": 1,
+   "offsets": {
+    "rgchURI": 0
+   },
+   "size": 1024
+  },
+  "P2PSessionConnectFail_t": {
+   "align": 1,
+   "offsets": {
+    "m_eP2PSessionError": 8,
+    "m_steamIDRemote": 0
+   },
+   "size": 9
+  },
+  "P2PSessionRequest_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDRemote": 0
+   },
+   "size": 8
+  },
+  "P2PSessionState_t": {
+   "align": 4,
+   "offsets": {
+    "m_bConnecting": 1,
+    "m_bConnectionActive": 0,
+    "m_bUsingRelay": 3,
+    "m_eP2PSessionError": 2,
+    "m_nBytesQueuedForSend": 4,
+    "m_nPacketsQueuedForSend": 8,
+    "m_nRemoteIP": 12,
+    "m_nRemotePort": 16
+   },
+   "size": 20
+  },
+  "PersonaStateChange_t": {
+   "align": 8,
+   "offsets": {
+    "m_nChangeFlags": 8,
+    "m_ulSteamID": 0
+   },
+   "size": 16
+  },
+  "PlaybackStatusHasChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "RemotePlayInputKey_t": {
+   "align": 4,
+   "offsets": {
+    "m_eScancode": 0,
+    "m_unKeycode": 8,
+    "m_unModifiers": 4
+   },
+   "size": 12
+  },
+  "RemotePlayInputMouseMotion_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAbsolute": 0,
+    "m_flNormalizedX": 4,
+    "m_flNormalizedY": 8,
+    "m_nDeltaX": 12,
+    "m_nDeltaY": 16
+   },
+   "size": 20
+  },
+  "RemotePlayInputMouseWheel_t": {
+   "align": 4,
+   "offsets": {
+    "m_eDirection": 0,
+    "m_flAmount": 4
+   },
+   "size": 8
+  },
+  "RemotePlayInput_t": {
+   "align": 4,
+   "offsets": {
+    "m_eType": 4,
+    "m_unSessionID": 0
+   },
+   "size": 64
+  },
+  "RemoteStorageDeletePublishedFileResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 16
+  },
+  "RemoteStorageDownloadUGCResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hFile": 8,
+    "m_nAppID": 16,
+    "m_nSizeInBytes": 20,
+    "m_pchFileName": 24,
+    "m_ulSteamIDOwner": 288
+   },
+   "size": 296
+  },
+  "RemoteStorageEnumeratePublishedFilesByUserActionResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eAction": 4,
+    "m_eResult": 0,
+    "m_nResultsReturned": 8,
+    "m_nTotalResultCount": 12,
+    "m_rgPublishedFileId": 16,
+    "m_rgRTimeUpdated": 416
+   },
+   "size": 616
+  },
+  "RemoteStorageEnumerateUserPublishedFilesResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 16
+   },
+   "size": 416
+  },
+  "RemoteStorageEnumerateUserSharedWorkshopFilesResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 16
+   },
+   "size": 416
+  },
+  "RemoteStorageEnumerateUserSubscribedFilesResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 16,
+    "m_rgRTimeSubscribed": 416
+   },
+   "size": 616
+  },
+  "RemoteStorageEnumerateWorkshopFilesResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppId": 616,
+    "m_nResultsReturned": 4,
+    "m_nTotalResultCount": 8,
+    "m_rgPublishedFileId": 16,
+    "m_rgScore": 416,
+    "m_unStartIndex": 620
+   },
+   "size": 624
+  },
+  "RemoteStorageFileReadAsyncComplete_t": {
+   "align": 8,
+   "offsets": {
+    "m_cubRead": 16,
+    "m_eResult": 8,
+    "m_hFileReadAsync": 0,
+    "m_nOffset": 12
+   },
+   "size": 24
+  },
+  "RemoteStorageFileShareResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_hFile": 8,
+    "m_rgchFilename": 16
+   },
+   "size": 280
+  },
+  "RemoteStorageFileWriteAsyncComplete_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "RemoteStorageGetPublishedFileDetailsResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_bAcceptedForUse": 9752,
+    "m_bBanned": 8196,
+    "m_bTagsTruncated": 9222,
+    "m_eFileType": 9748,
+    "m_eResult": 0,
+    "m_eVisibility": 8192,
+    "m_hFile": 8160,
+    "m_hPreviewFile": 8168,
+    "m_nConsumerAppID": 20,
+    "m_nCreatorAppID": 16,
+    "m_nFileSize": 9484,
+    "m_nPreviewFileSize": 9488,
+    "m_nPublishedFileId": 8,
+    "m_pchFileName": 9223,
+    "m_rgchDescription": 153,
+    "m_rgchTags": 8197,
+    "m_rgchTitle": 24,
+    "m_rgchURL": 9492,
+    "m_rtimeCreated": 8184,
+    "m_rtimeUpdated": 8188,
+    "m_ulSteamIDOwner": 8176
+   },
+   "size": 9760
+  },
+  "RemoteStorageGetPublishedItemVoteDetailsResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_fScore": 28,
+    "m_nReports": 24,
+    "m_nVotesAgainst": 20,
+    "m_nVotesFor": 16,
+    "m_unPublishedFileId": 8
+   },
+   "size": 32
+  },
+  "RemoteStorageLocalFileChange_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "RemoteStoragePublishFileProgress_t": {
+   "align": 8,
+   "offsets": {
+    "m_bPreview": 8,
+    "m_dPercentFile": 0
+   },
+   "size": 16
+  },
+  "RemoteStoragePublishFileResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 24
+  },
+  "RemoteStoragePublishedFileDeleted_t": {
+   "align": 8,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "RemoteStoragePublishedFileSubscribed_t": {
+   "align": 8,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "RemoteStoragePublishedFileUnsubscribed_t": {
+   "align": 8,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "RemoteStoragePublishedFileUpdated_t": {
+   "align": 8,
+   "offsets": {
+    "m_nAppID": 8,
+    "m_nPublishedFileId": 0,
+    "m_ulUnused": 16
+   },
+   "size": 24
+  },
+  "RemoteStorageSetUserPublishedFileActionResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eAction": 16,
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 24
+  },
+  "RemoteStorageSubscribePublishedFileResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 16
+  },
+  "RemoteStorageUnsubscribePublishedFileResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 16
+  },
+  "RemoteStorageUpdatePublishedFileResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 24
+  },
+  "RemoteStorageUpdateUserPublishedItemVoteResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 16
+  },
+  "RemoteStorageUserVoteDetails_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_eVote": 16,
+    "m_nPublishedFileId": 8
+   },
+   "size": 24
+  },
+  "RemoveAppDependencyResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nAppID": 16,
+    "m_nPublishedFileId": 8
+   },
+   "size": 24
+  },
+  "RemoveUGCDependencyResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nChildPublishedFileId": 16,
+    "m_nPublishedFileId": 8
+   },
+   "size": 24
+  },
+  "ReservationNotificationCallback_t": {
+   "align": 8,
+   "offsets": {
+    "m_steamIDJoiner": 8,
+    "m_ulBeaconID": 0
+   },
+   "size": 16
+  },
+  "ScreenshotReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 4,
+    "m_hLocal": 0
+   },
+   "size": 8
+  },
+  "ScreenshotRequested_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SetUserItemVoteResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_bVoteUp": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "SocketStatusCallback_t": {
+   "align": 4,
+   "offsets": {
+    "m_eSNetSocketState": 16,
+    "m_hListenSocket": 4,
+    "m_hSocket": 0,
+    "m_steamIDRemote": 8
+   },
+   "size": 20
+  },
+  "StartPlaytimeTrackingResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "SteamAPICallCompleted_t": {
+   "align": 8,
+   "offsets": {
+    "m_cubParam": 12,
+    "m_hAsyncCall": 0,
+    "m_iCallback": 8
+   },
+   "size": 16
+  },
+  "SteamIPAddress_t": {
+   "align": 1,
+   "offsets": {
+    "m_eType": 16
+   },
+   "size": 20
+  },
+  "SteamInputActionEvent_t": {
+   "align": 1,
+   "offsets": {
+    "controllerHandle": 0,
+    "eEventType": 8
+   },
+   "size": 33
+  },
+  "SteamInputConfigurationLoaded_t": {
+   "align": 8,
+   "offsets": {
+    "m_bUsesGamepadAPI": 33,
+    "m_bUsesSteamInputAPI": 32,
+    "m_ulDeviceHandle": 8,
+    "m_ulMappingCreator": 16,
+    "m_unAppID": 0,
+    "m_unMajorRevision": 24,
+    "m_unMinorRevision": 28
+   },
+   "size": 40
+  },
+  "SteamInputDeviceConnected_t": {
+   "align": 8,
+   "offsets": {
+    "m_ulConnectedDeviceHandle": 0
+   },
+   "size": 8
+  },
+  "SteamInputDeviceDisconnected_t": {
+   "align": 8,
+   "offsets": {},
+   "size": 8
+  },
+  "SteamInputGamepadSlotChange_t": {
+   "align": 8,
+   "offsets": {
+    "m_eDeviceType": 16,
+    "m_nNewGamepadSlot": 24,
+    "m_nOldGamepadSlot": 20,
+    "m_ulDeviceHandle": 8,
+    "m_unAppID": 0
+   },
+   "size": 32
+  },
+  "SteamInventoryDefinitionUpdate_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamInventoryEligiblePromoItemDefIDs_t": {
+   "align": 4,
+   "offsets": {
+    "m_bCachedData": 16,
+    "m_numEligiblePromoItemDefs": 12,
+    "m_result": 0,
+    "m_steamID": 4
+   },
+   "size": 20
+  },
+  "SteamInventoryFullUpdate_t": {
+   "align": 4,
+   "offsets": {
+    "m_handle": 0
+   },
+   "size": 4
+  },
+  "SteamInventoryRequestPricesResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_result": 0,
+    "m_rgchCurrency": 4
+   },
+   "size": 8
+  },
+  "SteamInventoryResultReady_t": {
+   "align": 4,
+   "offsets": {
+    "m_handle": 0,
+    "m_result": 4
+   },
+   "size": 8
+  },
+  "SteamInventoryStartPurchaseResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_result": 0,
+    "m_ulOrderID": 8,
+    "m_ulTransID": 16
+   },
+   "size": 24
+  },
+  "SteamItemDetails_t": {
+   "align": 8,
+   "offsets": {
+    "m_iDefinition": 8,
+    "m_itemId": 0,
+    "m_unFlags": 14,
+    "m_unQuantity": 12
+   },
+   "size": 16
+  },
+  "SteamNetAuthenticationStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_debugMsg": 4,
+    "m_eAvail": 0
+   },
+   "size": 260
+  },
+  "SteamNetConnectionInfo_t": {
+   "align": 8,
+   "offsets": {
+    "m__pad1": 166,
+    "m_addrRemote": 148,
+    "m_eEndReason": 180,
+    "m_eState": 176,
+    "m_hListenSocket": 144,
+    "m_idPOPRelay": 172,
+    "m_idPOPRemote": 168,
+    "m_identityRemote": 0,
+    "m_nFlags": 440,
+    "m_nUserData": 136,
+    "m_szConnectionDescription": 312,
+    "m_szEndDebug": 184,
+    "reserved": 444
+   },
+   "size": 696
+  },
+  "SteamNetConnectionRealTimeLaneStatus_t": {
+   "align": 8,
+   "offsets": {
+    "_reservePad1": 12,
+    "m_cbPendingReliable": 4,
+    "m_cbPendingUnreliable": 0,
+    "m_cbSentUnackedReliable": 8,
+    "m_usecQueueTime": 16,
+    "reserved": 24
+   },
+   "size": 64
+  },
+  "SteamNetConnectionRealTimeStatus_t": {
+   "align": 8,
+   "offsets": {
+    "m_cbPendingReliable": 40,
+    "m_cbPendingUnreliable": 36,
+    "m_cbSentUnackedReliable": 44,
+    "m_eState": 0,
+    "m_flConnectionQualityLocal": 8,
+    "m_flConnectionQualityRemote": 12,
+    "m_flInBytesPerSec": 28,
+    "m_flInPacketsPerSec": 24,
+    "m_flOutBytesPerSec": 20,
+    "m_flOutPacketsPerSec": 16,
+    "m_nPing": 4,
+    "m_nSendRateBytesPerSecond": 32,
+    "m_usecMaxJitter": 56,
+    "m_usecQueueTime": 48,
+    "reserved": 60
+   },
+   "size": 120
+  },
+  "SteamNetConnectionStatusChangedCallback_t": {
+   "align": 8,
+   "offsets": {
+    "m_eOldState": 704,
+    "m_hConn": 0,
+    "m_info": 8
+   },
+   "size": 712
+  },
+  "SteamNetworkPingLocation_t": {
+   "align": 1,
+   "offsets": {
+    "m_data": 0
+   },
+   "size": 512
+  },
+  "SteamNetworkingConfigValue_t": {
+   "align": 8,
+   "offsets": {
+    "m_eDataType": 4,
+    "m_eValue": 0,
+    "m_val": 8
+   },
+   "size": 16
+  },
+  "SteamNetworkingIPAddr": {
+   "align": 1,
+   "offsets": {
+    "m_port": 16
+   },
+   "size": 18
+  },
+  "SteamNetworkingIdentity": {
+   "align": 1,
+   "offsets": {
+    "m_cbSize": 4,
+    "m_eType": 0
+   },
+   "size": 136
+  },
+  "SteamNetworkingMessage_t": {
+   "align": 8,
+   "offsets": {
+    "_pad1__": 210,
+    "m_cbSize": 8,
+    "m_conn": 12,
+    "m_identityPeer": 16,
+    "m_idxLane": 208,
+    "m_nChannel": 192,
+    "m_nConnUserData": 152,
+    "m_nFlags": 196,
+    "m_nMessageNumber": 168,
+    "m_nUserData": 200,
+    "m_pData": 0,
+    "m_pfnFreeData": 176,
+    "m_pfnRelease": 184,
+    "m_usecTimeReceived": 160
+   },
+   "size": 216
+  },
+  "SteamNetworkingMessagesSessionFailed_t": {
+   "align": 1,
+   "offsets": {
+    "m_info": 0
+   },
+   "size": 696
+  },
+  "SteamNetworkingMessagesSessionRequest_t": {
+   "align": 1,
+   "offsets": {
+    "m_identityRemote": 0
+   },
+   "size": 136
+  },
+  "SteamParamStringArray_t": {
+   "align": 8,
+   "offsets": {
+    "m_nNumStrings": 8,
+    "m_ppStrings": 0
+   },
+   "size": 16
+  },
+  "SteamParentalSettingsChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamPartyBeaconLocation_t": {
+   "align": 8,
+   "offsets": {
+    "m_eType": 0,
+    "m_ulLocationID": 8
+   },
+   "size": 16
+  },
+  "SteamRelayNetworkStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_debugMsg": 16,
+    "m_eAvail": 0,
+    "m_eAvailAnyRelay": 12,
+    "m_eAvailNetworkConfig": 8
+   },
+   "size": 272
+  },
+  "SteamRemotePlaySessionAvatarLoaded_t": {
+   "align": 4,
+   "offsets": {
+    "m_iImage": 4,
+    "m_iTall": 12,
+    "m_iWide": 8,
+    "m_unSessionID": 0
+   },
+   "size": 16
+  },
+  "SteamRemotePlaySessionConnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_unSessionID": 0
+   },
+   "size": 4
+  },
+  "SteamRemotePlaySessionDisconnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_unSessionID": 0
+   },
+   "size": 4
+  },
+  "SteamRemotePlayTogetherGuestInvite_t": {
+   "align": 1,
+   "offsets": {
+    "m_szConnectURL": 0
+   },
+   "size": 1024
+  },
+  "SteamServerConnectFailure_t": {
+   "align": 4,
+   "offsets": {
+    "m_bStillRetrying": 4,
+    "m_eResult": 0
+   },
+   "size": 8
+  },
+  "SteamServersConnected_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamServersDisconnected_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "SteamShutdown_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "SteamTimelineEventRecordingExists_t": {
+   "align": 8,
+   "offsets": {
+    "m_bRecordingExists": 8,
+    "m_ulEventID": 0
+   },
+   "size": 16
+  },
+  "SteamTimelineGamePhaseRecordingExists_t": {
+   "align": 8,
+   "offsets": {
+    "m_rgchPhaseID": 0,
+    "m_ulLongestClipMS": 72,
+    "m_ulRecordingMS": 64,
+    "m_unClipCount": 80,
+    "m_unScreenshotCount": 84
+   },
+   "size": 88
+  },
+  "SteamUGCDetails_t": {
+   "align": 8,
+   "offsets": {
+    "m_bAcceptedForUse": 8185,
+    "m_bBanned": 8184,
+    "m_bTagsTruncated": 8186,
+    "m_eFileType": 12,
+    "m_eResult": 8,
+    "m_eVisibility": 8180,
+    "m_flScore": 9764,
+    "m_hFile": 9216,
+    "m_hPreviewFile": 9224,
+    "m_nConsumerAppID": 20,
+    "m_nCreatorAppID": 16,
+    "m_nFileSize": 9492,
+    "m_nPreviewFileSize": 9496,
+    "m_nPublishedFileId": 0,
+    "m_pchFileName": 9232,
+    "m_rgchDescription": 153,
+    "m_rgchTags": 8187,
+    "m_rgchTitle": 24,
+    "m_rgchURL": 9500,
+    "m_rtimeAddedToUserList": 8176,
+    "m_rtimeCreated": 8168,
+    "m_rtimeUpdated": 8172,
+    "m_ulSteamIDOwner": 8160,
+    "m_ulTotalFilesSize": 9776,
+    "m_unNumChildren": 9768,
+    "m_unVotesDown": 9760,
+    "m_unVotesUp": 9756
+   },
+   "size": 9784
+  },
+  "SteamUGCQueryCompleted_t": {
+   "align": 8,
+   "offsets": {
+    "m_bCachedData": 20,
+    "m_eResult": 8,
+    "m_handle": 0,
+    "m_rgchNextCursor": 21,
+    "m_unNumResultsReturned": 12,
+    "m_unTotalMatchingResults": 16
+   },
+   "size": 280
+  },
+  "SteamUGCRequestUGCDetailsResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_bCachedData": 9784,
+    "m_details": 0
+   },
+   "size": 9792
+  },
+  "StopPlaytimeTrackingResult_t": {
+   "align": 4,
+   "offsets": {
+    "m_eResult": 0
+   },
+   "size": 4
+  },
+  "StoreAuthURLResponse_t": {
+   "align": 1,
+   "offsets": {
+    "m_szURL": 0
+   },
+   "size": 512
+  },
+  "SubmitItemUpdateResult_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 0,
+    "m_nPublishedFileId": 8
+   },
+   "size": 16
+  },
+  "TimedTrialStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_bIsOffline": 4,
+    "m_unAppID": 0,
+    "m_unSecondsAllowed": 8,
+    "m_unSecondsPlayed": 12
+   },
+   "size": 16
+  },
+  "UnreadChatMessagesChanged_t": {
+   "align": 1,
+   "offsets": {},
+   "size": 1
+  },
+  "UserAchievementIconFetched_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAchieved": 136,
+    "m_nGameID": 0,
+    "m_nIconHandle": 140,
+    "m_rgchAchievementName": 8
+   },
+   "size": 144
+  },
+  "UserAchievementStored_t": {
+   "align": 8,
+   "offsets": {
+    "m_bGroupAchievement": 8,
+    "m_nCurProgress": 140,
+    "m_nGameID": 0,
+    "m_nMaxProgress": 144,
+    "m_rgchAchievementName": 9
+   },
+   "size": 152
+  },
+  "UserFavoriteItemsListChanged_t": {
+   "align": 8,
+   "offsets": {
+    "m_bWasAddRequest": 12,
+    "m_eResult": 8,
+    "m_nPublishedFileId": 0
+   },
+   "size": 16
+  },
+  "UserStatsReceived_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0,
+    "m_steamIDUser": 12
+   },
+   "size": 24
+  },
+  "UserStatsStored_t": {
+   "align": 8,
+   "offsets": {
+    "m_eResult": 8,
+    "m_nGameID": 0
+   },
+   "size": 16
+  },
+  "UserStatsUnloaded_t": {
+   "align": 1,
+   "offsets": {
+    "m_steamIDUser": 0
+   },
+   "size": 8
+  },
+  "UserSubscribedItemsListChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_nAppID": 0
+   },
+   "size": 4
+  },
+  "ValidateAuthTicketResponse_t": {
+   "align": 4,
+   "offsets": {
+    "m_OwnerSteamID": 12,
+    "m_SteamID": 0,
+    "m_eAuthSessionResponse": 8
+   },
+   "size": 20
+  },
+  "VolumeHasChanged_t": {
+   "align": 4,
+   "offsets": {
+    "m_flNewVolume": 0
+   },
+   "size": 4
+  },
+  "WorkshopEULAStatus_t": {
+   "align": 4,
+   "offsets": {
+    "m_bAccepted": 16,
+    "m_bNeedsAction": 17,
+    "m_eResult": 0,
+    "m_nAppID": 4,
+    "m_rtAction": 12,
+    "m_unVersion": 8
+   },
+   "size": 20
+  },
+  "gameserveritem_t": {
+   "align": 4,
+   "offsets": {
+    "m_NetAdr": 0,
+    "m_bDoNotRefresh": 13,
+    "m_bHadSuccessfulResponse": 12,
+    "m_bPassword": 160,
+    "m_bSecure": 161,
+    "m_nAppID": 144,
+    "m_nBotPlayers": 156,
+    "m_nMaxPlayers": 152,
+    "m_nPing": 8,
+    "m_nPlayers": 148,
+    "m_nServerVersion": 168,
+    "m_steamID": 364,
+    "m_szGameDescription": 78,
+    "m_szGameDir": 14,
+    "m_szGameTags": 236,
+    "m_szMap": 46,
+    "m_szServerName": 172,
+    "m_ulTimeLastPlayed": 164
+   },
+   "size": 372
+  },
+  "servernetadr_t": {
+   "align": 4,
+   "offsets": {
+    "m_unIP": 4,
+    "m_usConnectionPort": 0,
+    "m_usQueryPort": 2
+   },
+   "size": 8
+  }
+ }
+}

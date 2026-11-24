@@ -6,7 +6,7 @@
 #                            template so `balaur export --target ...` works
 #                            the moment it is unzipped
 #   balaur-runtime-<target>  the runtime template: what a game gets fused onto
-# Usage: [VARIANT=2d|3d|bare|server|steam] package.sh <target>   e.g. linux-x64, windows-arm64
+# Usage: [VARIANT=2d|3d|bare|server] package.sh <target>   e.g. linux-x64, windows-arm64
 set -euo pipefail
 
 # A smoke test's folder: under target/, never in dist/, which is uploaded
@@ -62,19 +62,25 @@ if [ -n "$variant" ]; then
   2d | 3d | bare)
     features=${BALAUR_FEATURES:-window,extensions,parallel,$(game_features "$variant")}
     ;;
-  # The full game set and Valve's library, which it loads from beside itself.
-  steam) features=${BALAUR_FEATURES:-window,extensions,parallel,$GAME_FEATURES,steam} ;;
-  *) printf '::error::unknown variant %s (2d, 3d, bare, server or steam)\n' "$variant"; exit 1 ;;
+  *) printf '::error::unknown variant %s (2d, 3d, bare or server)\n' "$variant"; exit 1 ;;
   esac
 fi
-if [ "$variant" = steam ]; then
-  case "$target" in
-  linux-*) steam_api=libsteam_api.so ;;
-  macos-*) steam_api=libsteam_api.dylib ;;
-  windows-x64) steam_api=steam_api64.dll ;;
-  *) printf '::error::Valve ships no steam_api for %s\n' "$target"; exit 1 ;;
-  esac
-fi
+# Valve's library for this target, vendored from its SDK, which a desktop
+# runtime opens from beside itself; none for Windows on Arm.
+steam_api=""
+case "$target" in
+linux-x64) steam_api=crates/balaur_steam/sdk/redistributable_bin/linux64/libsteam_api.so ;;
+linux-arm64) steam_api=crates/balaur_steam/sdk/redistributable_bin/linuxarm64/libsteam_api.so ;;
+macos-*) steam_api=crates/balaur_steam/sdk/redistributable_bin/osx/libsteam_api.dylib ;;
+windows-x64) steam_api=crates/balaur_steam/sdk/redistributable_bin/win64/steam_api64.dll ;;
+esac
+# stage_steam_api <runtime>: the library beside a runtime, named for it, as
+# `balaur_export::steam_api_beside` looks for it.
+stage_steam_api() {
+  [ -n "$steam_api" ] || return 0
+  local runtime=${1%.exe}
+  cp "$steam_api" "$runtime.${steam_api##*/}"
+}
 
 step "build (release${variant:+, $variant}: $features)"
 defaults+=(--config "$(short_paths)")
@@ -104,17 +110,10 @@ fi
 
 if [ -n "$variant" ]; then
   out="$dist/balaur-runtime-$target-$variant$exe"
-  if [ "$variant" = steam ]; then
-    # One directory, the template and the library an export copies beside the
-    # game: steamworks-sys leaves the one it linked in its build's out dir.
-    out="$dist/balaur-runtime-$target-steam/balaur-runtime-$target-steam$exe"
-    mkdir -p "${out%/*}"
-    linked=$(find target -path "*/release/build/steamworks-sys-*/out/$steam_api" | head -1)
-    [ -n "$linked" ] || { printf '::error::no %s under target/\n' "$steam_api"; exit 1; }
-    cp "$linked" "${out%/*}/"
-  fi
   cp "$bin" "$out"
   strip_template "$out"
+  # A dedicated server is no Steam game.
+  [ "$variant" = server ] || stage_steam_api "$out"
   # An MSVC binary keeps its symbols in a .pdb, which nm cannot read.
   if [ -z "$exe" ]; then
     step "code by crate"
@@ -149,12 +148,6 @@ if [ -n "$variant" ]; then
   fi
   let_go "$smoke"
   printf '%s ran clean on %s\n' "$example" "$out"
-  if [ "$variant" = steam ]; then
-    # Staged, not shipped: a release carries the tarball.
-    name=balaur-runtime-$target-steam
-    (cd "$dist" && tar -czf "$name.tar.gz" "$name")
-    rm -rf "${dist:?}/$name"
-  fi
   exit 0
 fi
 
@@ -177,6 +170,8 @@ cp "$bin" "$dist/balaur-runtime-$target$exe"
 cp "$bin" "$bundle/runtimes/balaur-runtime-$target$exe"
 strip_template "$dist/balaur-runtime-$target$exe"
 strip_template "$bundle/runtimes/balaur-runtime-$target$exe"
+stage_steam_api "$dist/balaur-runtime-$target$exe"
+stage_steam_api "$bundle/runtimes/balaur-runtime-$target$exe"
 
 step "the editor's scripts as native code"
 # Built as a game's are; opened beside the binary.
@@ -211,6 +206,29 @@ if grep -q 'ERROR' <<<"$out"; then
   exit 1
 fi
 printf 'exported game ran clean\n'
+
+if [ -n "$steam_api" ]; then
+  step "smoke: a --steam export carries Valve's library and still runs without Steam"
+  # No Steam client here, so SteamAPI_InitFlat refuses and the game goes on.
+  printf '\n[steam]\napp_id = 480\n' >>"$smoke/project/project.toml"
+  "$bundle/balaur$exe" export "$smoke/project" --target "$target" --steam \
+    -o "$smoke/steam/game$exe" >/dev/null
+  [ -f "$smoke/steam/${steam_api##*/}" ] || {
+    printf '::error::the --steam export has no %s beside the game\n' "${steam_api##*/}"
+    exit 1
+  }
+  out=$(BALAUR_FRAMES=60 "$smoke/steam/game$exe" 2>&1) || {
+    printf '%s\n' "$out" | tail -20
+    printf '::error::the --steam game did not run\n'
+    exit 1
+  }
+  if grep -q 'ERROR' <<<"$out"; then
+    grep 'ERROR' <<<"$out" | head -5
+    printf '::error::the --steam game logged errors\n'
+    exit 1
+  fi
+  printf -- '--steam game ran clean\n'
+fi
 
 # The signing paths, with a certificate the check makes and throws away. Only
 # where the engine's own workflow asks: a game building a custom engine wants

@@ -56,17 +56,17 @@ const UI_ACCEPT: &str = "ui_accept";
 const UI_NEXT: &str = "ui_next";
 const UI_PREVIOUS: &str = "ui_previous";
 
-/// Every optional module: the name it goes by, the cargo feature that
-/// switches it on, and the plugin it registers.
+/// Every optional module: the name it goes by, the build that has it (a
+/// cargo feature, or a target), and the plugin it registers.
 ///
 /// One line each. A module used to be the same fact written four times, and
 /// the three restatements are what went stale.
 macro_rules! modules {
-    ($($alias:ident = $feature:literal => $krate:ident::$plugin:ident),* $(,)?) => {
+    ($($alias:ident = ($when:meta) => $krate:ident::$plugin:ident),* $(,)?) => {
         $(
-            #[cfg(feature = $feature)]
+            #[cfg($when)]
             pub use $krate::$plugin;
-            #[cfg(feature = $feature)]
+            #[cfg($when)]
             pub use $krate as $alias;
         )*
 
@@ -77,7 +77,7 @@ macro_rules! modules {
         fn optional_modules() -> Vec<Box<dyn balaur_plugin::Plugin>> {
             let mut found: Vec<Box<dyn balaur_plugin::Plugin>> = Vec::new();
             $(
-                #[cfg(feature = $feature)]
+                #[cfg($when)]
                 found.push(Box::new($krate::$plugin::default()));
             )*
             found
@@ -86,15 +86,17 @@ macro_rules! modules {
 }
 
 modules! {
-    apple = "apple" => balaur_apple::ApplePlugin,
-    // After Apple's: a Mac game started by Steam answers as Steam.
-    steam = "steam" => balaur_steam::SteamPlugin,
-    google = "google" => balaur_google::GooglePlugin,
-    audio = "audio" => balaur_audio::AudioPlugin,
-    http = "http" => balaur_http::HttpPlugin,
-    multiplayer = "multiplayer" => balaur_multiplayer::MultiplayerPlugin,
-    browser = "browser" => balaur_browser::BrowserPlugin,
-    websocket = "websocket" => balaur_websocket::WebSocketPlugin,
+    apple = (feature = "apple") => balaur_apple::ApplePlugin,
+    // After Apple's: a Mac game started by Steam answers as Steam. Every
+    // desktop has it; the library is opened, not linked.
+    steam = (any(target_os = "windows", target_os = "macos", target_os = "linux"))
+        => balaur_steam::SteamPlugin,
+    google = (feature = "google") => balaur_google::GooglePlugin,
+    audio = (feature = "audio") => balaur_audio::AudioPlugin,
+    http = (feature = "http") => balaur_http::HttpPlugin,
+    multiplayer = (feature = "multiplayer") => balaur_multiplayer::MultiplayerPlugin,
+    browser = (feature = "browser") => balaur_browser::BrowserPlugin,
+    websocket = (feature = "websocket") => balaur_websocket::WebSocketPlugin,
 }
 
 /// The project's manifest, read the way `standard_app` needs it: before the

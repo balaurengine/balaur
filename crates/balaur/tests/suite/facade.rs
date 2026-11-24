@@ -206,6 +206,24 @@ fn the_engines_own_plugins_are_ordered_with_the_rest() {
 }
 
 #[test]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+fn every_desktop_build_loads_steam_and_without_its_library_platform_stays_as_it_was() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), SCRIPT);
+    let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
+    assert!(names.contains(&"steam".to_string()), "{names:?}");
+    let platform = app.engine.resource::<balaur::platform::PlatformState>();
+    assert_ne!(platform.borrow().backend_name(), "steam");
+    assert!(
+        !app.engine
+            .resource::<balaur::steam::SteamState>()
+            .borrow()
+            .is_loaded()
+    );
+}
+
+#[test]
 fn nothing_loads_before_what_it_requires() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path(), SCRIPT);

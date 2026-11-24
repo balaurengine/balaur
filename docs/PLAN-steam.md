@@ -6,52 +6,45 @@ what only Steam has. A game can ship on Steam after step 4.
 
 ## Steps
 
-1. **The client, initialised and pumped.** `crates/balaur_steam` over the
-   `steamworks` crate, a `steam` feature on the facade, and
-   `balaur_steam::init()` called from `main` before the window, since
-   `SteamAPI_RestartAppIfNecessary` may exit the process.
-   `SteamAPI_RunCallbacks` runs at `Stage::First` and feeds the `ExternalIo`
-   channel, so every arrival is recorded and replays with no client. At
-   export, a template that links `steam_api` gets the redistributable beside
-   the executable, and only a `--dev` export writes `[steam] app_id` to
-   `steam_appid.txt`. Done: a game launched from the Steam client reports its
-   app id, language and whether it runs on a Deck; with no client, every
-   `platform` call answers `unsupported`.
-   *Export built 2026-11-24.* The plain templates stay without `steam`: the
-   desktop template is the editor binary, and with the library linked every
-   desktop game and the editor itself would need Valve's file beside them to
-   start. A Steam game goes on a variant of its own, `VARIANT=steam
-   scripts/package.sh <target>` (linux-x64, linux-arm64, macos-universal,
-   windows-x64; Valve ships no Windows Arm library): the full game set plus
-   `steam`, in a directory with the library it linked. The export reads the template's imports for `libsteam_api.so`,
-   `libsteam_api.dylib` or `steam_api64.dll`, refuses one whose library is
-   not beside it, and copies it beside the game. On macOS that is
-   `Contents/MacOS`, not `Contents/Frameworks`: Valve's install name is
-   `@loader_path/libsteam_api.dylib`, and the template stays untouched, so the
-   library is re-signed with the game's identity there before the bundle. A
-   Linux build with `steam` links a `$ORIGIN` run path (`balaur_cli`'s
-   build script; a game with its own `main` adds the same). `[steam] app_id`
-   on a plain template warns that the game will never see the client, and a
-   `--dev` export writes the id beside the game, or beside the `.app` outside
-   its seal: Steam reads the file from the working directory. Tests export
-   onto fake templates; on a Mac with no Steam, a debug build with `steam`
-   (`otool -L`: `@loader_path/libsteam_api.dylib`) exported `hello` flat and
-   as a `.app` that passes `codesign --verify --strict --deep`, and both ran
-   and answered `unsupported`. Not yet verified: a steam template built and
-   run on Linux or Windows, a release `package.sh` run, `--dev` against a
-   running client, a notarized bundle with the library, and no CI job builds
-   the steam template yet.
+1. **The client, initialised and pumped.** `crates/balaur_steam` in every
+   desktop build, Valve's `steam_api` opened at run time from beside the
+   executable (`Contents/MacOS` in a `.app`). With no library there, or no
+   client running the game, `SteamAPI_InitFlat` is never reached or refuses,
+   the plugin logs at info, `platform.*` stays as it was and every `steam_*`
+   call answers nil. `SteamAPI_RestartAppIfNecessary` is never called.
+   Callbacks are Valve's manual dispatch, pumped at `Stage::First` through
+   `ExternalIo`, so every arrival is recorded and replays with no client.
+   `balaur export --steam` copies the target's library beside the game, from
+   beside the runtime where a release stages it as
+   `balaur-runtime-<target>.<library>`, and needs `[steam] app_id`; `--dev`,
+   which needs `--steam`, writes the id to `steam_appid.txt`. In a `.app` the
+   library is signed with the game before the bundle, and the bundle gets
+   `com.apple.security.cs.disable-library-validation` and
+   `allow-dyld-environment-variables` for the overlay. An export without
+   `--steam` ships no Valve file, whatever `[steam]` says. Done: a game
+   launched from the Steam client reports its app id, language and whether
+   it runs on a Deck; with no client, every `platform` call answers
+   `unsupported`.
+   *Built 2026-11-24.* Valve's whole flat API (SDK 1.64: 33 interfaces, 913
+   functions, 225 structs and callbacks) comes from the vendored
+   `sdk/steam_api.json` through `scripts/gen_steam.py` into
+   `src/sdk/`, with every struct's layout asserted per platform against
+   steamworks-sys's bindgen record (`sdk/layouts.json`). The script side is a
+   `steam_*` module per interface, Valve's names in snake case, 817 functions
+   mapped; what is not is `sdk/unmapped.md`, with why. Tests cover a build
+   with no library and the export on fake runtimes for Linux, Windows and a
+   macOS `.app`; `package.sh` exports a `--steam` game on each desktop CI
+   runner and runs it with Valve's real library and no client. Not yet
+   verified: a run against a real client, and a notarized bundle carrying the
+   library.
 2. **Sign-in.** `platform::sign_in` and `platform::player` from
    `ISteamUser`, and a `GetAuthTicketForWebApi` ticket that a Gamend hook
    verifies with `ISteamUserAuth/AuthenticateUserTicket`. Done: a Gamend
    session whose player id came from Steam.
-   *Built 2026-11-23*, `crates/balaur_steam` behind the `steam` feature:
-   the client started in the plugin's `declare` (no
-   `RestartAppIfNecessary` yet), its callbacks run in the platform pump,
-   `platform.sign_in` answering the Steam id and persona name, and
-   `platform.identity` a Web API ticket with no identity, as core checks it.
-   Still to do from step 1: a run against a real client (only the no-client
-   path is tested).
+   *Built 2026-11-23*: `platform.sign_in` answers the Steam id and persona
+   name, and `platform.identity` a Web API ticket with no identity, as core
+   checks it, delivered by `GetTicketForWebApiResponse_t`. Still to do: a run
+   against a real client (only the no-client path is tested).
 3. **Achievements and leaderboards.** `unlock`, `progress`, `submit_score`
    and `scores` over `ISteamUserStats`, each write held until its tick
    settles. Done: an achievement in the player's profile.
@@ -84,8 +77,8 @@ what only Steam has. A game can ship on Steam after step 4.
 12. **Shipping.** SteamPipe through `balaur deploy` (`docs/PLAN-deploy.md`),
     and the Deck Verified checklist with suspend and resume run on a Deck.
 
-CI proves what needs no client. The feature compiles on and off, and an
-export with `[steam]` carries the redistributable and no `steam_appid.txt`.
+CI proves what needs no client. Every desktop build compiles it, and a
+`--steam` export carries the redistributable and no `steam_appid.txt`.
 The macOS `.app` passes `codesign --verify --deep`, and canned Steam events
 replay to a bit-identical digest.
 
@@ -95,9 +88,8 @@ is appended to), VAC and Easy Anti-Cheat.
 
 ## Open questions
 
-1. **Does `steamworks-sys` build without the SDK present?** It decides
-   whether CI can compile the feature. Check before adding the dependency.
-2. **One platform backend at a time?** A build for two stores at once needs
+1. **One platform backend at a time?** A build for two stores at once needs
    `platform` to name which backend answers. Nothing has asked.
-3. **Where does `init` live for a game with its own `main`?** A documented
-   first line, unless `balaur::run` grows a hook that runs before the window.
+2. **`RestartAppIfNecessary` for a game that wants it.** It has to run
+   before `SteamAPI_InitFlat`, which the plugin calls as it loads, so a game
+   needing it calls it from its own `main` through `balaur_steam::sdk`.

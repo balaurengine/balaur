@@ -14,3 +14,4 @@ drift. Do not edit these by hand.
 - [script-api.md](script-api.md)
 - [script-types.md](script-types.md)
 - [settings.md](settings.md)
+- [steam-api.md](steam-api.md)

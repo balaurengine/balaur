@@ -9,19 +9,67 @@ use anyhow::Result;
     clippy::struct_excessive_bools,
     reason = "each is one command-line flag, and they are not exclusive"
 )]
+#[derive(clap::Args)]
 pub(crate) struct ExportArgs {
+    #[arg(default_value = ".")]
     pub(crate) path: PathBuf,
+    #[arg(short, long)]
     pub(crate) output: Option<PathBuf>,
+    /// Platform to build a standalone game for (e.g. `linux-x64`,
+    /// `macos-universal`, `web`), or a dedicated server
+    /// (`linux-x64-server`). `[export] runtime` picks a one-world
+    /// runtime for it.
+    #[arg(long)]
     pub(crate) target: Option<String>,
+    /// Runtime to append to, bypassing lookup.
+    #[arg(long)]
     pub(crate) runtime: Option<PathBuf>,
+    /// Download a missing runtime without asking.
+    #[arg(long, conflicts_with = "no_download")]
     pub(crate) download: bool,
+    /// Never download a missing runtime; fail instead.
+    #[arg(long)]
     pub(crate) no_download: bool,
+    /// Keep script sources in the export pack instead of bytecode: what an
+    /// editor showing the code wants. Only a build with the `compile`
+    /// feature runs such an export pack, which the web game template is not.
+    #[arg(long)]
     pub(crate) keep_sources: bool,
+    /// A package to make beside the export, repeatable: `app` (a macOS
+    /// bundle, the shape that can be code-signed), `pkg` (for the Mac App
+    /// Store), `ipa` (for App Store Connect), `apk` (installable, signed
+    /// with `[android] keystore` or Android's debug identity) or `aab`
+    /// (for Play; needs a JDK and `bundletool.jar`).
+    #[arg(long, value_enum)]
     pub(crate) bundle: Vec<BundleKind>,
+    /// Sign with this identity, overriding the platform's table: a
+    /// certificate name on Apple platforms, a certificate file on
+    /// Windows, `debug` on Android for its public debug key (installs on
+    /// a device, ships nowhere). On macOS it implies `--bundle app`,
+    /// since a flat binary cannot be signed.
+    #[arg(long)]
     pub(crate) sign: Option<String>,
+    /// Submit the signed macOS bundle to Apple's notary service and
+    /// staple the ticket. Reads BALAUR_APPLE_NOTARY_KEY, _KEY_ID and
+    /// _ISSUER_ID.
+    #[arg(long)]
     pub(crate) notarize: bool,
+    /// The `.mobileprovision` an iOS build is signed against.
+    #[arg(long, value_name = "FILE")]
     pub(crate) provisioning_profile: Option<PathBuf>,
+    /// Print what the export would weigh and write nothing. Every script
+    /// is still compiled, because a size nobody can produce is not a
+    /// measurement.
+    #[arg(long)]
     pub(crate) dry_run: bool,
+    /// A Steam build: Valve's `steam_api` beside the game, which needs
+    /// `[steam] app_id`. Without it a game ships no Valve file, whatever
+    /// `[steam]` says.
+    #[arg(long)]
+    pub(crate) steam: bool,
+    /// A dev Steam build: `[steam] app_id` in a `steam_appid.txt` beside
+    /// the game, so it starts without the Steam client.
+    #[arg(long, requires = "steam")]
     pub(crate) dev: bool,
 }
 
@@ -72,6 +120,7 @@ pub(crate) fn export_game(args: &ExportArgs) -> Result<()> {
         aab: args.bundle.contains(&BundleKind::Aab),
         pkg: args.bundle.contains(&BundleKind::Pkg),
         dry_run: args.dry_run,
+        steam: args.steam,
         dev: args.dev,
         runtime_roots: balaur_export::default_roots(crate::runtimes::cache_dir()),
         plugins,

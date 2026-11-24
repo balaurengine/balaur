@@ -225,7 +225,7 @@ pub(crate) fn export_bundle(
             apple.info_plist(Platform::Ios, &executable, &icon_keys)?,
         )
         .with_context(|| format!("writing {}", plist.display()))?;
-        if let Some(path) = apple.write_entitlements(&output, name, false)? {
+        if let Some(path) = apple.write_entitlements(&output, name, false, false)? {
             tracing::info!(
                 "entitlements -> {} (codesign --entitlements {} --sign <identity> {})",
                 path.display(),
@@ -281,8 +281,8 @@ pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
 
 /// A macOS game as a signable `.app`: the runtime binary untouched, the
 /// pack a resource beside it (`standalone::own_pack` looks there inside a
-/// bundle), the extensions in `Contents/PlugIns`, a Steam template's library
-/// in `Contents/MacOS`, and `codesign` run over the result.
+/// bundle), the extensions in `Contents/PlugIns`, a `--steam` export's
+/// `steam_api` in `Contents/MacOS`, and `codesign` run over the result.
 #[allow(
     clippy::too_many_arguments,
     reason = "what to write, and what a Mac adds, as `export_bundle` takes them"
@@ -324,7 +324,14 @@ pub(crate) fn export_macos_app(
     // Beside the executable, as Valve's `@loader_path` install name says; its
     // app id file goes beside the bundle, outside the seal.
     let run_from = app.parent().unwrap_or_else(|| Path::new(""));
-    crate::steam::ship_for(steam, runtime, &bytes, &executable, run_from)?;
+    crate::steam::ship_for(
+        steam,
+        Some(words::targets::MACOS_UNIVERSAL),
+        runtime,
+        &bytes,
+        &executable,
+        run_from,
+    )?;
     let scripts_native = match native {
         Some(request) => {
             crate::native::build_desktop(&executable, words::targets::MACOS_UNIVERSAL, request)?
@@ -338,7 +345,7 @@ pub(crate) fn export_macos_app(
         app.join("Contents").join("Info.plist"),
         apple.info_plist(Platform::Macos, name, &icon_keys)?,
     )?;
-    let entitlements = apple.write_entitlements(&app, name, !scripts_native)?;
+    let entitlements = apple.write_entitlements(&app, name, !scripts_native, steam.build)?;
     crate::sign::codesign(&app, sign, entitlements.as_deref(), true)?;
     if sign.is_some() {
         crate::sign::verify(&app)?;

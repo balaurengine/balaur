@@ -7,6 +7,8 @@ engine rather than the source, so derived constants are included and this
 cannot drift from what scripts actually see. A node's own operations are
 the `node` module's, called on the node: `self.node.add_tag("hit")`.
 
+Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `steam`, are on [their own page](steam-api.md).
+
 | Module | Functions | Constants |
 | --- | ---: | ---: |
 | [`animation`](#animation) | 5 | 79 |
@@ -53,6 +55,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`script`](#script) | 13 | 0 |
 | [`settings`](#settings) | 10 | 0 |
 | [`skeleton`](#skeleton) | 1 | 0 |
+| [`steam`](#steam) | 3 | 2440 |
 | [`strings`](#strings) | 6 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
@@ -1175,6 +1178,47 @@ Bones under a rig node, in the order a skin numbers joints in. A bone is any nod
 | Function | Signature |
 | --- | --- |
 | `bones` | `(Node) -> [Node]` |
+
+## `steam`
+
+Valve's Steamworks SDK 1.64, loaded from `steam_api` beside the game when one is there and the Steam client runs it. The `steam_*` modules hold each interface, Valve's method names in snake case (`SteamUser()->GetSteamID()` is `steam_user::get_steam_id()`), and answer nil without Steam. Valve's callbacks are the `steam_event` event, `events::listen(node, "steam_event")`, a map whose `kind` is an `EVENT_*` constant beside the callback's fields; Valve's enums and constants are here under their own names.
+
+| Function | Signature |
+| --- | --- |
+| `get_steam_install_path` | `() -> str?` |
+| `is_loaded` | `() -> bool` |
+| `is_steam_running` | `() -> bool?` |
+
+**Constants** (2440):
+
+| Name | Value |
+| --- | --- |
+| `AudioPlayback_Idle` | `3` |
+| `AudioPlayback_Paused` | `2` |
+| `AudioPlayback_Playing` | `1` |
+| `AudioPlayback_Undefined` | `0` |
+| `ESteamInputActionEventType_AnalogAction` | `1` |
+| `ESteamInputActionEventType_DigitalAction` | `0` |
+| `ESteamInputGlyphStyle_Dark` | `2` |
+| `ESteamInputGlyphStyle_Knockout` | `0` |
+| `ESteamInputGlyphStyle_Light` | `1` |
+| `ESteamInputGlyphStyle_NeutralColorABXY` | `16` |
+| `ESteamInputGlyphStyle_SolidABXY` | `32` |
+| `EVENT_ACTIVE_BEACONS_UPDATED` | `"active_beacons_updated"` |
+| `EVENT_ADD_APP_DEPENDENCY_RESULT` | `"add_app_dependency_result"` |
+| `EVENT_ADD_UGC_DEPENDENCY_RESULT` | `"add_ugc_dependency_result"` |
+| `EVENT_APP_PROOF_OF_PURCHASE_KEY_RESPONSE` | `"app_proof_of_purchase_key_response"` |
+| `EVENT_APP_RESUMING_FROM_SUSPEND` | `"app_resuming_from_suspend"` |
+| `EVENT_ASSOCIATE_WITH_CLAN_RESULT` | `"associate_with_clan_result"` |
+| `EVENT_AVAILABLE_BEACON_LOCATIONS_UPDATED` | `"available_beacon_locations_updated"` |
+| `EVENT_AVATAR_IMAGE_LOADED` | `"avatar_image_loaded"` |
+| `EVENT_BROADCAST_UPLOAD_START` | `"broadcast_upload_start"` |
+| `EVENT_BROADCAST_UPLOAD_STOP` | `"broadcast_upload_stop"` |
+| `EVENT_CHANGE_NUM_OPEN_SLOTS_CALLBACK` | `"change_num_open_slots_callback"` |
+| `EVENT_CHECK_FILE_SIGNATURE` | `"check_file_signature"` |
+| `EVENT_CLAN_OFFICER_LIST_RESPONSE` | `"clan_officer_list_response"` |
+
+…and 2416 more.
 
 ## `strings`
 

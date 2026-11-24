@@ -436,7 +436,7 @@ question as an old one is a second way to say it.
 <table>
 <thead><tr><th>key</th><th>type</th><th>default</th><th>notes</th><th>what it does</th></tr></thead>
 <tbody>
-<tr><td><code>app_id</code></td><td>int</td><td><code>0</code></td><td></td><td>The app id Steamworks gave the game; 0 is unset. A --dev export writes it to steam_appid.txt beside the game, so it starts without the Steam client; a release leaves it out, since the client names the app.</td></tr>
+<tr><td><code>app_id</code></td><td>int</td><td><code>0</code></td><td></td><td>The app id Steamworks gave the game; 0 is unset. <code>balaur export --steam</code>, which needs it, ships Valve&#x27;s steam_api beside the game; with --dev it also writes the id to steam_appid.txt, so the game starts without the Steam client. An export without --steam ships no Valve file.</td></tr>
 </tbody>
 </table>
 

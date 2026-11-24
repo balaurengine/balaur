@@ -150,6 +150,10 @@ jobs:
       # of what the tree ships and it must not go stale.
       - name: THIRD-PARTY-NOTICES.md is current
         run: python3 scripts/third_party_notices.py --check
+      # The Steam bindings are Valve's steam_api.json run through a generator,
+      # checked in; a hand edit or a generator change left unrun fails here.
+      - name: crates/balaur_steam/src/sdk is current
+        run: python3 scripts/gen_steam.py --check
 
   supply-chain:
     name: dependency advisories, bans and sources

@@ -220,13 +220,47 @@ def gen_features(crates):
     return body
 
 
+# Valve's Steamworks API, one module an interface and generated whole by
+# scripts/gen_steam.py: hundreds of functions, so a page of their own.
+STEAM_MODULE = re.compile(r"^steam_")
+
+
+def steam_modules(api):
+    return [m for m in api["modules"] if STEAM_MODULE.match(m["name"])]
+
+
 def gen_script_api(api):
+    own = [m for m in api["modules"] if not STEAM_MODULE.match(m["name"])]
+    steam = steam_modules(api)
     body = "# Script API\n\nEvery module, function and constant a script can reach. Read from a booted\nengine rather than the source, so derived constants are included and this\ncannot drift from what scripts actually see. A node's own operations are\nthe `node` module's, called on the node: `self.node.add_tag(\"hit\")`.\n\n"
+    if steam:
+        count = sum(len(module_functions(m)) for m in steam)
+        body += (f"Valve's Steamworks interfaces, {len(steam)} `steam_*` modules and {count} "
+                 "functions beside `steam`, are on [their own page](steam-api.md).\n\n")
     body += "| Module | Functions | Constants |\n| --- | ---: | ---: |\n"
-    for m in api["modules"]:
+    for m in own:
         body += f"| [`{m['name']}`](#{m['name']}) | {len(module_functions(m))} | {len(m['constants'])} |\n"
     body += "\n"
-    for m in api["modules"]:
+    return body + module_sections(own)
+
+
+def gen_steam_api(api):
+    steam = steam_modules(api)
+    body = ("# Steam API\n\nValve's Steamworks interfaces, one module each, Valve's method names in\n"
+            "snake case: `SteamUser()->GetSteamID()` is `steam_user::get_steam_id()`. Generated\n"
+            "from the SDK's `steam_api.json` by `scripts/gen_steam.py`; what it leaves out, and\n"
+            "why, is `crates/balaur_steam/sdk/unmapped.md`. The `steam` module, with Valve's\n"
+            "enums, constants and callback kinds, is in the [script API](script-api.md#steam).\n\n")
+    body += "| Module | Functions |\n| --- | ---: |\n"
+    for m in steam:
+        body += f"| [`{m['name']}`](#{m['name']}) | {len(module_functions(m))} |\n"
+    body += "\n"
+    return body + module_sections(steam)
+
+
+def module_sections(modules):
+    body = ""
+    for m in modules:
         body += f"## `{m['name']}`\n\n"
         if m.get("doc"):
             body += f"{m['doc']}\n\n"
@@ -801,6 +835,7 @@ def main():
     files = {
         "crate-graph.md": gen_graph(crates),
         "script-api.md": gen_script_api(api),
+        "steam-api.md": gen_steam_api(api),
         "script-types.md": gen_script_types(api),
         "hooks.md": gen_hooks(api),
         "components.md": gen_components(

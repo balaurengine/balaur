@@ -84,8 +84,6 @@ browser = ["balaur/browser"]
 apple = ["balaur/apple"]
 # `google.*`: Sign in with Google on Android, `unsupported` everywhere else.
 google = ["balaur/google"]
-# Steam behind `platform.*`, for a Steam build: it ships Valve's library.
-steam = ["balaur/steam"]
 
 [dependencies]
 balaur = { workspace = true, default-features = false }

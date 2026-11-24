@@ -108,7 +108,7 @@ timestamp_url = { type = "string", default = "http://timestamp.digicert.com", or
         &parse(
             "settings.steam",
             r#"
-app_id = { type = "int", default = 0, min = 0, max = 4294967295, order = 1, help = "The app id Steamworks gave the game; 0 is unset. A --dev export writes it to steam_appid.txt beside the game, so it starts without the Steam client; a release leaves it out, since the client names the app." }
+app_id = { type = "int", default = 0, min = 0, max = 4294967295, order = 1, help = "The app id Steamworks gave the game; 0 is unset. `balaur export --steam`, which needs it, ships Valve's steam_api beside the game; with --dev it also writes the id to steam_appid.txt, so the game starts without the Steam client. An export without --steam ships no Valve file." }
 "#,
         ),
     );

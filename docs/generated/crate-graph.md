@@ -148,8 +148,10 @@ graph TD
   balaur_script_bs --> balaur_bs
   balaur_script_bs --> balaur_core
   balaur_script_bs --> balaur_script
+  balaur_steam --> balaur_core
   balaur_steam --> balaur_platform
   balaur_steam --> balaur_plugin
+  balaur_steam --> balaur_script
   balaur_testkit --> balaur
   balaur_testkit --> balaur_core
   balaur_text --> balaur_core

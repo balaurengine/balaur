@@ -897,11 +897,13 @@ from a shared library at run time. Both implement `balaur_plugin::Plugin`
   library validation refuses a library from another team.
   `standalone::extensions_beside` names that place for exporter and runtime
   alike, and the template's own format picks `.so`, `.dylib` or `.dll`.
-- A template built with `steam` links Valve's `steam_api` and ships in a
-  directory with it. The export finds that import in the template and copies
-  the library beside the game's executable, in `Contents/MacOS` for a `.app`
-  (Valve's install name is `@loader_path`), signed with the game before the
-  bundle. The plain templates leave `steam` out, so no other game carries it.
+- Every desktop runtime opens Valve's `steam_api` at run time, from beside
+  its executable (`Contents/MacOS` in a `.app`), so one built without it
+  beside still starts. A release stages each runtime's library beside it as
+  `balaur-runtime-<target>.<library>`, and only `balaur export --steam`
+  copies it beside the game, signed with the game before the bundle, with the
+  two hardened-runtime entitlements the overlay needs. Any other export ships
+  no Valve file, so one game goes to Steam and to other stores.
 - A packed boot loads from there, never from the working directory, which is
   `/` for a `.app` Finder opened. `balaur play` loads from beside the export pack. A
   web, iOS or Android export warns and ships without them.
@@ -1416,8 +1418,20 @@ things are shared.
 - **A store's proof of a player is a platform verb.** `platform.identity`
   answers what a server checks with the store: Steam's Web API ticket, hex,
   as `ticket`. `balaur_steam` fills `platform.*` only where the Steam client
-  runs the game, after Apple's, so a script never names a `steam` module and
-  runs on a build without it.
+  runs the game, after Apple's, so a script that names only `platform.*`
+  runs on every store.
+- **Steam is Valve's own description, generated.** `scripts/gen_steam.py`
+  turns the SDK's `steam_api.json` into checked-in Rust: every flat function a
+  pointer looked up when the library opens, every struct with Valve's packing
+  (8 on Windows, 4 elsewhere) asserted at compile time against
+  steamworks-sys's bindgen record, and a `steam_*` script module per
+  interface. A call that answers at once is recorded per tick and a replay
+  answers from the recording; one that answers later returns a token its call
+  result wakes through `ExternalIo`, and Valve's callbacks are the
+  `steam_event` event. Dispatch is Valve's manual one, pumped at
+  `Stage::First`. What does not map is listed with why in
+  `crates/balaur_steam/sdk/unmapped.md`, and leaves that list when the
+  generator learns its shape, never by hand.
 - **Android's Java is a fixed dex, no Gradle.** The template carries one
   `classes.dex`, javac and d8 over every `crates/*/java` against the
   platform's `android.jar` (`package_runtime.sh`), with nothing from Maven. The

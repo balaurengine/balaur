@@ -1,26 +1,29 @@
 [package]
 name = "balaur_steam"
-description = "Balaur on Steam: who is playing, and the ticket a server checks with Steam"
+description = "Balaur on Steam: Valve's flat API loaded at run time, behind platform.* and the steam script modules"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[build-dependencies]
+balaur_cfg.workspace = true
+
 [dependencies]
 anyhow.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
+balaur_core.workspace = true
 balaur_platform.workspace = true
 balaur_plugin.workspace = true
+balaur_script.workspace = true
 
-# Valve's library, only where it builds: Windows, macOS and Linux. It links
-# `steam_api` dynamically, so a build with this crate ships the library
-# beside its executable; everywhere else the plugin leaves `platform.*` alone.
-[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
-steamworks = { version = "0.13.1", features = ["raw-bindings"] }
-
-[dev-dependencies]
-balaur_core.workspace = true
+# Valve's `steam_api` is opened at run time from beside the executable, so a
+# build without it, or a machine without Steam, still starts. A browser has no
+# dlopen.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+libloading = "0.9"
 
 [lints]
 workspace = true

@@ -3,3 +3,5 @@
 * text=auto eol=lf
 # Fuzz seeds are inputs byte for byte: an HTTP handshake keeps its CRLFs.
 fuzz/seeds/** -text
+# Valve's libraries, byte for byte.
+crates/balaur_steam/sdk/redistributable_bin/** binary

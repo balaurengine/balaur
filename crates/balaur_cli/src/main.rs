@@ -11,9 +11,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
-use export_cmd::BundleKind;
+use export_cmd::ExportArgs;
 #[cfg(not(target_arch = "wasm32"))]
-use export_cmd::{ExportArgs, export_game};
+use export_cmd::export_game;
 
 mod api_dump;
 #[cfg(not(target_arch = "wasm32"))]
@@ -197,62 +197,7 @@ enum Command {
     ///
     /// With `--target` or `--runtime` the export pack is carried inside a runtime
     /// binary instead, producing a game the player can just run.
-    Export {
-        #[arg(default_value = ".")]
-        path: PathBuf,
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-        /// Platform to build a standalone game for (e.g. `linux-x64`,
-        /// `macos-universal`, `web`), or a dedicated server
-        /// (`linux-x64-server`). `[export] runtime` picks a one-world
-        /// runtime for it.
-        #[arg(long)]
-        target: Option<String>,
-        /// Runtime to append to, bypassing lookup.
-        #[arg(long)]
-        runtime: Option<PathBuf>,
-        /// Download a missing runtime without asking.
-        #[arg(long, conflicts_with = "no_download")]
-        download: bool,
-        /// Never download a missing runtime; fail instead.
-        #[arg(long)]
-        no_download: bool,
-        /// Keep script sources in the export pack instead of bytecode: what an
-        /// editor showing the code wants. Only a build with the `compile`
-        /// feature runs such an export pack, which the web game template is not.
-        #[arg(long)]
-        keep_sources: bool,
-        /// A package to make beside the export, repeatable: `app` (a macOS
-        /// bundle, the shape that can be code-signed), `pkg` (for the Mac App
-        /// Store), `ipa` (for App Store Connect), `apk` (installable, signed
-        /// with `[android] keystore` or Android's debug identity) or `aab`
-        /// (for Play; needs a JDK and `bundletool.jar`).
-        #[arg(long, value_enum)]
-        bundle: Vec<BundleKind>,
-        /// Sign with this identity, overriding the platform's table: a
-        /// certificate name on Apple platforms, a certificate file on
-        /// Windows, `debug` on Android for its public debug key (installs on
-        /// a device, ships nowhere). On macOS it implies `--bundle app`,
-        /// since a flat binary cannot be signed.
-        #[arg(long)]
-        sign: Option<String>,
-        /// Submit the signed macOS bundle to Apple's notary service and
-        /// staple the ticket. Reads BALAUR_APPLE_NOTARY_KEY, _KEY_ID and
-        /// _ISSUER_ID.
-        #[arg(long)]
-        notarize: bool,
-        /// The `.mobileprovision` an iOS build is signed against.
-        #[arg(long, value_name = "FILE")]
-        provisioning_profile: Option<PathBuf>,
-        /// Print what the export would weigh and write nothing. Every script
-        /// is still compiled, because a size nobody can produce is not a
-        /// measurement.
-        #[arg(long)]
-        dry_run: bool,
-        /// A dev build: `[steam] app_id` in a `steam_appid.txt` beside the game.
-        #[arg(long)]
-        dev: bool,
-    },
+    Export(ExportArgs),
     /// Serve diagnostics over the Language Server Protocol on stdin/stdout,
     /// for an editor outside Balaur. The same checks `balaur check` runs.
     Lsp {
@@ -569,35 +514,7 @@ fn dispatch(command: Command) -> Result<()> {
             entries_at,
         } => replay_session(&file, verify, entries_at),
         Command::Edit(opts) => edit_project(&opts),
-        Command::Export {
-            path,
-            output,
-            target,
-            runtime,
-            download,
-            no_download,
-            keep_sources,
-            bundle,
-            sign,
-            notarize,
-            provisioning_profile,
-            dry_run,
-            dev,
-        } => export_game(&ExportArgs {
-            path,
-            output,
-            target,
-            runtime,
-            download,
-            no_download,
-            keep_sources,
-            bundle,
-            sign,
-            notarize,
-            provisioning_profile,
-            dry_run,
-            dev,
-        }),
+        Command::Export(args) => export_game(&args),
         #[cfg(feature = "compile")]
         Command::Check { path, strict } => check::project(&path, strict),
         Command::Test {

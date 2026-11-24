@@ -91,6 +91,7 @@ said only while someone listens.
 <tr><td><code>camera_moved</code></td><td>nil</td><td>The camera a frame was drawn with moved, or the window it was drawn into did.</td></tr>
 <tr><td><code>screenshot_saved</code></td><td>the path</td><td>A screenshot&#x27;s file was written.</td></tr>
 <tr><td><code>screenshot_failed</code></td><td><code>{ path, error }</code></td><td>A screenshot came to no file.</td></tr>
+<tr><td><code>steam_event</code></td><td>a Steam callback</td><td>Steam said something: the map&#x27;s <code>kind</code> is the callback&#x27;s name, a <code>steam::EVENT_*</code> constant, beside its fields.</td></tr>
 <tr><td><code>pasted</code></td><td>the text</td><td>Text was pasted where no field took it.</td></tr>
 <tr><td><code>image_pasted</code></td><td><code>{ width, height }</code>; <code>ui::save_pasted_image</code> writes it out</td><td>An image was pasted where no field took it.</td></tr>
 <tr><td><code>pointer_moved</code></td><td>where the pointer is in window pixels, <code>[x, y]</code></td><td>The pointer moved.</td></tr>
