@@ -8,6 +8,8 @@ use anyhow::{Context, Result, bail};
 const REDIRECT: &str = "android:name=\"org.balaur.platform.Redirect\"";
 const ACTIVITY_END: &str = "</activity>";
 const SCHEME: &str = "{scheme}";
+/// The web's own schemes, which a game's page never ends on.
+const WEB: [&str; 2] = ["http", "https"];
 /// One scheme's filter, as a browser's link to it is matched.
 const FILTER: &str = r#"      <intent-filter>
         <action android:name="android.intent.action.VIEW" />
@@ -53,7 +55,7 @@ fn check(scheme: &str) -> Result<()> {
              a letter first, then letters, digits, +, - or ., e.g. \"com.studio.game\""
         );
     }
-    if scheme == "http" || scheme == "https" {
+    if WEB.contains(&scheme) {
         bail!(
             "[android] schemes names {scheme:?}, the web's own: a page ends on a scheme of \
              the game's, e.g. \"com.studio.game\""
