@@ -713,6 +713,8 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
             .insert_resource(balaur_core::project::LacksKeyOwner);
     }
     balaur_plugin::load_all(&mut app, &mut standard_plugins(&asked)?)?;
+    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+    provide_steam(&app)?;
     drive_ui_focus(&mut app);
     interact::install(&mut app);
     #[cfg(feature = "extensions")]
@@ -724,6 +726,16 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
         balaur_platform::keep_activity(activity);
     }
     Ok(app)
+}
+
+/// `platform.is_available(SERVICE_STEAM)`: the fact `steam::is_loaded`
+/// reads, answered here because the platform crate cannot see Steam's.
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+fn provide_steam(app: &App) -> Result<()> {
+    balaur_platform::provide(&app.engine, balaur_platform::Service::Steam, |eng| {
+        eng.try_resource::<balaur_steam::SteamState>()
+            .is_some_and(|state| state.borrow().is_loaded())
+    })
 }
 
 /// Hand the engine the URL the app was launched with, if there was one.

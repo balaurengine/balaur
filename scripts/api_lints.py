@@ -499,6 +499,7 @@ ANY_FIELDS = {
     "animation::Step.from": BY_NAME,
     "animation::Step.to": BY_NAME,
     "debugger::Frame.locals": CALLERS_OWN,
+    "platform::NotifyOptions.data": CALLERS_OWN,
     "render::Param.value": BY_NAME,
     "replay::Event.data": FROM_OUTSIDE,
     "replay::Mark.values": FROM_OUTSIDE,

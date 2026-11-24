@@ -17,6 +17,10 @@ use crate::AppleEvent;
 
 static STORE: Mutex<Vec<PlatformEvent>> = Mutex::new(Vec::new());
 static APPLE: Mutex<Vec<AppleEvent>> = Mutex::new(Vec::new());
+/// A notification tapped or shown in front: the OS's, drained by the device
+/// seam whichever store is loaded.
+#[cfg(target_vendor = "apple")]
+static DEVICE: Mutex<Vec<PlatformEvent>> = Mutex::new(Vec::new());
 
 #[cfg(target_vendor = "apple")]
 pub(crate) fn push_store(event: PlatformEvent) {
@@ -29,6 +33,29 @@ pub(crate) fn push_store(event: PlatformEvent) {
 pub(crate) fn push_apple(event: AppleEvent) {
     if let Ok(mut queue) = APPLE.lock() {
         queue.push(event);
+    }
+}
+
+#[cfg(target_vendor = "apple")]
+pub(crate) fn push_device(event: PlatformEvent) {
+    if let Ok(mut queue) = DEVICE.lock() {
+        queue.push(event);
+    }
+}
+
+#[cfg(target_vendor = "apple")]
+pub(crate) fn drain_device(report: &Sender<PlatformEvent>) {
+    if let Ok(mut queue) = DEVICE.lock() {
+        for event in queue.drain(..) {
+            balaur_core::replay::report(report, event);
+        }
+    }
+}
+
+#[cfg(target_vendor = "apple")]
+pub(crate) fn discard_device() {
+    if let Ok(mut queue) = DEVICE.lock() {
+        queue.clear();
     }
 }
 

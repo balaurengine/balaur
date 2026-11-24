@@ -1,15 +1,17 @@
-//! Local notifications: asking for permission, scheduling one, the tap that
-//! brings a player back, and one that arrives while the game is in front.
+//! Local notifications, `platform.notify` on Apple: asking for permission,
+//! scheduling one, the tap that brings a player back, and one that arrives
+//! while the game is in front.
 //!
 //! The notification centre's delegate is ours to set — nothing else in the
 //! engine wants it — so taps need no proxying. What a tap carries is the
-//! identifier the game scheduled it under, which is all it needs to know
-//! which one was tapped.
+//! identifier the game scheduled it under and the `data` it put in, kept as
+//! JSON text under one `userInfo` key; a push's `userInfo` is its payload.
 
 use std::sync::mpsc::Sender;
 
 use block2::{DynBlock, RcBlock};
 use objc2::rc::Retained;
+use objc2::runtime::AnyClass;
 use objc2::runtime::{AnyObject, Bool, NSObject, NSObjectProtocol};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_foundation::{NSArray, NSError, NSString};
@@ -18,20 +20,23 @@ use objc2_user_notifications::{
     UNTimeIntervalNotificationTrigger, UNUserNotificationCenter,
 };
 
-use crate::AppleEvent;
+use balaur_platform::PlatformEvent;
+
+/// The `userInfo` key a local notification's `data` is kept under, as JSON.
+const DATA: &str = "balaur_data";
 
 /// Ask for permission to show notifications. The answer reaches the script
 /// whether the player said yes or no; nothing here asks twice.
-pub(crate) fn request_authorization(request: u64, report: &Sender<AppleEvent>) {
+pub(crate) fn request_authorization(request: u64, report: &Sender<PlatformEvent>) {
     let report = report.clone();
     let answered = RcBlock::new(move |allowed: Bool, error: *mut NSError| {
         let allowed = allowed.as_bool();
         let event = match unsafe { error.as_ref() } {
-            Some(error) if !allowed => AppleEvent::Failed {
+            Some(error) if !allowed => PlatformEvent::Failed {
                 request,
                 message: error.localizedDescription().to_string(),
             },
-            _ => AppleEvent::Notifications { request, allowed },
+            _ => PlatformEvent::Notifications { request, allowed },
         };
         let _ = report.send(event);
     });
@@ -42,18 +47,30 @@ pub(crate) fn request_authorization(request: u64, report: &Sender<AppleEvent>) {
         .requestAuthorizationWithOptions_completionHandler(options, &answered);
 }
 
-/// Schedule one notification, `after` seconds from now.
+/// Schedule one notification, `after` seconds from now, carrying `data`.
 pub(crate) fn schedule(
     request: u64,
     id: &str,
     title: &str,
     body: &str,
     after: f64,
-    report: &Sender<AppleEvent>,
+    data: &serde_json::Value,
+    report: &Sender<PlatformEvent>,
 ) {
     let content = UNMutableNotificationContent::new();
     content.setTitle(&NSString::from_str(title));
     content.setBody(&NSString::from_str(body));
+    if !data.is_null()
+        && let Some(dictionary) = AnyClass::get(c"NSDictionary")
+    {
+        let text = NSString::from_str(&data.to_string());
+        let key = NSString::from_str(DATA);
+        unsafe {
+            let info: *mut AnyObject =
+                msg_send![dictionary, dictionaryWithObject: &*text, forKey: &*key];
+            let _: () = msg_send![&content, setUserInfo: info];
+        }
+    }
     // Zero seconds is not a trigger UserNotifications accepts, and a
     // notification with no trigger fires immediately — which is what asking
     // for zero means.
@@ -71,11 +88,11 @@ pub(crate) fn schedule(
     let id = id.to_string();
     let done = RcBlock::new(move |error: *mut NSError| {
         let event = match unsafe { error.as_ref() } {
-            Some(error) => AppleEvent::Failed {
+            Some(error) => PlatformEvent::Failed {
                 request,
                 message: error.localizedDescription().to_string(),
             },
-            None => AppleEvent::Scheduled {
+            None => PlatformEvent::Scheduled {
                 request,
                 id: id.clone(),
             },
@@ -135,7 +152,7 @@ define_class!(
             let notification = unsafe { response.as_ref() }
                 .map_or(std::ptr::null_mut(), |response| unsafe { msg_send![response, notification] });
             let said = Said::of(notification);
-            crate::queue::push_apple(AppleEvent::NotificationOpened {
+            crate::queue::push_device(PlatformEvent::NotificationOpened {
                 id: said.id,
                 data: said.data,
             });
@@ -152,7 +169,7 @@ define_class!(
             completion: &DynBlock<dyn Fn(usize)>,
         ) {
             let said = Said::of(notification);
-            crate::queue::push_apple(AppleEvent::NotificationReceived {
+            crate::queue::push_device(PlatformEvent::NotificationReceived {
                 id: said.id,
                 title: said.title,
                 body: said.body,
@@ -170,7 +187,7 @@ impl Taps {
 }
 
 /// What a notification says: the identifier it was scheduled under, its
-/// title and body, and the `userInfo` its sender put in it.
+/// title and body, and the `data` a game put in it or a push's `userInfo`.
 struct Said {
     id: String,
     title: String,
@@ -204,8 +221,17 @@ impl Said {
             id: text(unsafe { msg_send![request, identifier] }),
             title: text(unsafe { msg_send![content, title] }),
             body: text(unsafe { msg_send![content, body] }),
-            data: crate::arrivals::json_of(info),
+            data: data_of(crate::arrivals::json_of(info)),
         }
+    }
+}
+
+/// A local notification's `data`, from the JSON text under [`DATA`]; a
+/// push's whole `userInfo` otherwise.
+fn data_of(info: serde_json::Value) -> serde_json::Value {
+    match info.get(DATA).and_then(serde_json::Value::as_str) {
+        Some(text) => serde_json::from_str(text).unwrap_or(serde_json::Value::Null),
+        None => info,
     }
 }
 

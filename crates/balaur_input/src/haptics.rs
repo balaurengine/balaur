@@ -25,7 +25,6 @@ const GAMEPAD_CAN_RUMBLE: &str = "gamepad_can_rumble";
 const GAMEPAD_RUMBLE: &str = "gamepad_rumble";
 const GAMEPAD_SET_LISTENER: &str = "gamepad_set_listener";
 const GAMEPAD_STOP_RUMBLE: &str = "gamepad_stop_rumble";
-const VIBRATE: &str = "vibrate";
 
 /// Where a placed rumble is at full strength and where it is gone, the same
 /// numbers a sound uses, so a rumble and its sound fade together.
@@ -205,7 +204,6 @@ pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
         (GAMEPAD_RUMBLE, &[], "(id: int, opts: RumbleOptions?) -> bool", "Rumble the pad. Options: `strong` and `weak`, the two motors at 0..1; `duration` in seconds; `delay` before it starts; `pulse` and `gap` to beat on and off; `attack`, `attack_level`, `fade` and `fade_level` to shape each pulse; `position` with `min_distance`, `max_distance`, `falloff` (`inverse`, `linear` or `exponential`) and `rolloff` to weaken it with distance from `gamepad_set_listener`. Returns whether the pad can rumble; a second rumble replaces the first."),
         (GAMEPAD_STOP_RUMBLE, &[], "", "Silence the pad now, without the `on_gamepad_rumble_finished` a rumble's natural end sends."),
         (GAMEPAD_SET_LISTENER, &[], "(id: int, position: Vec3)", "Where the pad's player is, for a rumble given a `position`; until set, a placed rumble plays at full strength."),
-        (VIBRATE, &[], "(seconds: float)", "Buzz the device for that many seconds: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."),
     ]);
     for falloff in w::FALLOFFS {
         m.constant(
@@ -213,10 +211,6 @@ pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
             Value::Str((*falloff).to_string()),
         );
     }
-    m.function(VIBRATE, |_: &Engine, seconds: f64| {
-        vibrate(millis(seconds));
-        Ok(())
-    });
     m.function(GAMEPAD_CAN_RUMBLE, |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let v = state.borrow().pad(id).is_some_and(Pad::can_rumble);
@@ -333,42 +327,8 @@ pub(crate) fn vec3(value: &Value) -> Option<[f32; 3]> {
     }
 }
 
-/// Whole milliseconds, which is what the motors take; a negative or NaN
-/// duration is none.
-fn millis(seconds: f64) -> u32 {
-    let ms = (seconds * 1000.0).round();
-    if ms.is_nan() || ms <= 0.0 {
-        0
-    } else if ms >= f64::from(u32::MAX) {
-        u32::MAX
-    } else {
-        ms as u32
-    }
-}
-
-/// The device's own motor. A page has `navigator.vibrate`; a desktop has
-/// nothing, and a phone's native hook is the export's to wire.
-#[cfg(target_family = "wasm")]
-fn vibrate(milliseconds: u32) {
-    if let Some(window) = web_sys::window() {
-        let _ = window.navigator().vibrate_with_duration(milliseconds);
-    }
-}
-
-#[cfg(not(target_family = "wasm"))]
-fn vibrate(milliseconds: u32) {
-    tracing::debug!(milliseconds, "vibrate: no motor on this platform");
-}
-
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn a_vibration_is_given_in_seconds() {
-        assert_eq!(super::millis(0.25), 250);
-        assert_eq!(super::millis(-1.0), 0);
-        assert_eq!(super::millis(f64::NAN), 0);
-    }
-
     // The level that reaches the motor is the rung's strength times its
     // gain: what a script asked for, at any strength gilrs would silence.
     #[cfg(not(target_family = "wasm"))]

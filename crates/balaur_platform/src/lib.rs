@@ -31,11 +31,16 @@
 //! with no store loaded (`android/web_sign_in.rs`), and `unsupported`
 //! elsewhere, so a game opens the page in the browser there instead.
 //!
+//! What the OS lends a game beside the store, whichever store is loaded,
+//! sits behind a second seam ([`device`]): local notifications here, and the
+//! motor, the share sheet and the review prompt as `device.*`. Whether any
+//! service works in this run is `is_available` ([`services`]).
+//!
 //! A test answers any call from a file instead ([`stand_ins`]).
 
 use std::sync::mpsc::Sender;
 
-use crate::vocabulary::words;
+use crate::vocabulary::{keys as k, words};
 use anyhow::{Result, anyhow};
 use balaur_core::handler::{id_value, opt};
 use balaur_core::replay::ExternalIo;
@@ -49,7 +54,7 @@ const CLOUD_READ: &str = "cloud_read";
 const CLOSE_WEB_SIGN_IN: &str = "close_web_sign_in";
 const IDENTITY: &str = "identity";
 const CLOUD_WRITE: &str = "cloud_write";
-const ID: &str = "id";
+const ID: &str = k::ID;
 const KIND: &str = "kind";
 const PLATFORM: &str = "platform";
 const PLAYER: &str = "player";
@@ -67,12 +72,19 @@ pub const PAGE_NONE: &str = "none";
 pub const PAGE_OPEN: &str = "open";
 #[cfg(target_os = "android")]
 mod android;
+pub mod device;
+mod native;
+pub mod services;
 pub mod stand_ins;
 mod vocabulary;
+#[cfg(target_family = "wasm")]
+mod web;
 
 #[cfg(target_os = "android")]
 pub use android::{keep_activity, shim, with_activity};
 
+pub use device::{DEVICE, DeviceBackend, DeviceCall, Haptic, set_device};
+pub use services::{Provider, Service, is_available, provide};
 pub use stand_ins::{StandIns, set_stand_ins, stand_in};
 
 /// How many leaderboard entries `platform.scores` reads when the call names
@@ -267,9 +279,9 @@ pub enum PlatformEvent {
     Cancelled {
         request: u64,
     },
-    /// A test's answer from its stand-in file ([`stand_ins`]), as the map
-    /// the waiter receives.
-    StandIn {
+    /// An answer already shaped as the map its waiter receives, `kind` and
+    /// all: a test's stand-in ([`stand_ins`]), or a Java shim's JSON.
+    Answer {
         request: u64,
         answer: serde_json::Value,
     },
@@ -278,6 +290,34 @@ pub enum PlatformEvent {
     Identity {
         request: u64,
         proof: serde_json::Value,
+    },
+    /// Whether the player allowed notifications.
+    Notifications {
+        request: u64,
+        allowed: bool,
+    },
+    /// A notification is on the schedule.
+    Scheduled {
+        request: u64,
+        id: String,
+    },
+    /// A notification was tapped, with what the game put in it. Unsolicited,
+    /// as the one below: request 0.
+    NotificationOpened {
+        id: String,
+        data: serde_json::Value,
+    },
+    /// A notification arrived while the game was in front, and was shown.
+    NotificationReceived {
+        id: String,
+        title: String,
+        body: String,
+        data: serde_json::Value,
+    },
+    /// The share sheet handed its items on: to `target` where the OS says.
+    Shared {
+        request: u64,
+        target: String,
     },
 }
 
@@ -293,8 +333,12 @@ impl PlatformEvent {
             | Self::Unsupported { request, .. }
             | Self::WebSignIn { request, .. }
             | Self::Cancelled { request }
-            | Self::StandIn { request, .. }
-            | Self::Identity { request, .. } => *request,
+            | Self::Answer { request, .. }
+            | Self::Identity { request, .. }
+            | Self::Notifications { request, .. }
+            | Self::Scheduled { request, .. }
+            | Self::Shared { request, .. } => *request,
+            Self::NotificationOpened { .. } | Self::NotificationReceived { .. } => 0,
         }
     }
 }
@@ -323,19 +367,65 @@ pub trait PlatformBackend {
     fn close_web_sign_in(&mut self) {}
 }
 
+/// A call to the store or to the OS, as it waits in `pending`.
+#[derive(Clone)]
+enum Outward {
+    Store(Call),
+    Device(DeviceCall),
+}
+
+impl Outward {
+    const fn name(&self) -> &'static str {
+        match self {
+            Self::Store(call) => call.name(),
+            Self::Device(call) => call.name(),
+        }
+    }
+
+    const fn module(&self) -> &'static str {
+        match self {
+            Self::Store(_) => PLATFORM,
+            Self::Device(call) => call.module(),
+        }
+    }
+
+    const fn writes(&self) -> bool {
+        match self {
+            Self::Store(call) => call.writes(),
+            Self::Device(call) => call.writes(),
+        }
+    }
+}
+
 /// The calls in flight, the channel every backend reports into, and the
 /// writes waiting for the tick that made them to become final.
-#[derive(Default)]
 pub struct PlatformState {
     io: ExternalIo<PlatformEvent>,
     backend: Option<Box<dyn PlatformBackend>>,
+    /// The OS's services: this crate's own until a plugin's replace them.
+    device: Box<dyn DeviceBackend>,
+    services: services::Services,
     /// `(tick, request, call)` for writes made on a tick that could still be
     /// rolled back. See [`Call::writes`].
-    pending: Vec<(u64, u64, Call)>,
+    pending: Vec<(u64, u64, Outward)>,
     player: Option<Player>,
     /// The sign-in page asked for last, and the `kind` it answered: empty
     /// while it has not.
     page: Option<(u64, String)>,
+}
+
+impl Default for PlatformState {
+    fn default() -> Self {
+        Self {
+            io: ExternalIo::default(),
+            backend: None,
+            device: Box::new(native::Native),
+            services: services::Services::default(),
+            pending: Vec::new(),
+            player: None,
+            page: None,
+        }
+    }
 }
 
 impl PlatformState {
@@ -348,7 +438,7 @@ impl PlatformState {
     /// The loaded backend's name, or `"none"`.
     #[must_use]
     pub fn backend_name(&self) -> &'static str {
-        self.backend.as_ref().map_or("none", |b| b.name())
+        self.backend.as_ref().map_or(NONE, |b| b.name())
     }
 
     /// Who the store said is playing, once a `sign_in` has landed.
@@ -376,15 +466,25 @@ impl PlatformState {
     /// in this state's own `pending` list until that tick is final; everything
     /// else goes out now.
     pub fn start(&mut self, eng: &Engine, id: u64, call: Call) {
+        if matches!(call, Call::WebSignIn { .. }) {
+            self.page = Some((id, String::new()));
+        }
+        self.begin(eng, id, Outward::Store(call));
+    }
+
+    /// Start a call to the OS under `id`, held as a store's write is when it
+    /// writes ([`DeviceCall::writes`]).
+    pub fn start_device(&mut self, eng: &Engine, id: u64, call: DeviceCall) {
+        self.begin(eng, id, Outward::Device(call));
+    }
+
+    fn begin(&mut self, eng: &Engine, id: u64, call: Outward) {
         balaur_core::replay::event(
             eng,
             "platform.call",
             call.name().to_string(),
             Some(serde_json::json!({ "id": id, "call": call.name() })),
         );
-        if matches!(call, Call::WebSignIn { .. }) {
-            self.page = Some((id, String::new()));
-        }
         let clock = balaur_core::rollback::clock(eng);
         if call.writes() && clock.tick >= clock.settled {
             self.pending.push((clock.tick, id, call));
@@ -393,12 +493,17 @@ impl PlatformState {
         self.issue(eng, id, &call);
     }
 
-    fn issue(&mut self, eng: &Engine, id: u64, call: &Call) {
-        let Self { io, backend, .. } = self;
-        if let Some(answer) = stand_in(eng, PLATFORM, call.name()) {
+    fn issue(&mut self, eng: &Engine, id: u64, call: &Outward) {
+        let Self {
+            io,
+            backend,
+            device,
+            ..
+        } = self;
+        if let Some(answer) = stand_in(eng, call.module(), call.name()) {
             io.start(eng, |report| {
                 if let Some(answer) = answer {
-                    let _ = report.send(PlatformEvent::StandIn {
+                    let _ = report.send(PlatformEvent::Answer {
                         request: id,
                         answer,
                     });
@@ -406,10 +511,34 @@ impl PlatformState {
             });
             return;
         }
-        io.start(eng, |report| match backend {
-            Some(backend) => backend.start(id, call, report),
-            None => without_backend(id, call, report),
+        io.start(eng, |report| match (call, backend) {
+            (Outward::Store(call), Some(backend)) => backend.start(id, call, report),
+            (Outward::Store(call), None) => without_backend(id, call, report),
+            (Outward::Device(call), _) => device.start(id, call, report),
         });
+    }
+
+    /// Drop a scheduled notification. Never during a replay: the recording
+    /// is not the device's schedule.
+    pub fn cancel_notification(&mut self, eng: &Engine, id: &str) {
+        if !balaur_core::replay::suppressed(eng) {
+            self.device.cancel_notification(id);
+        }
+    }
+
+    /// Buzz the motor. Output, as rumble is: never on a replayed or a
+    /// re-simulated tick, which would buzz twice.
+    pub fn vibrate(&mut self, eng: &Engine, seconds: f64) {
+        if !balaur_core::replay::suppressed(eng) {
+            self.device.vibrate(seconds);
+        }
+    }
+
+    /// One tap of feedback, held to what [`PlatformState::vibrate`] is.
+    pub fn haptic(&mut self, eng: &Engine, effect: Haptic) {
+        if !balaur_core::replay::suppressed(eng) {
+            self.device.haptic(effect);
+        }
     }
 
     /// Shut the open sign-in page. Never during a replay: the recording
@@ -434,7 +563,7 @@ impl PlatformState {
         if self.pending.is_empty() || balaur_core::replay::suppressed(eng) {
             return;
         }
-        let mut ready = Vec::new();
+        let mut ready: Vec<(u64, Outward)> = Vec::new();
         self.pending.retain(|(tick, id, call)| {
             let final_tick = *tick < settled;
             if final_tick {
@@ -471,17 +600,27 @@ pub struct PlatformSnapshot {
     pub events: Vec<Value>,
 }
 
-/// Who is playing, heard with `events::listen` as `on_platform_event`: the one
-/// answer that changes on its own, when the player signs out in the OS or signs
-/// in as someone else.
-pub const PLAYER_EVENT: &str = "platform_event";
+/// What changes or arrives with nobody asking, heard with `events::listen` as
+/// `on_platform_event`: who is playing, when the player signs out in the OS or
+/// signs in as someone else, and a notification tapped or shown in front.
+pub const ARRIVAL_EVENT: &str = "platform_event";
+
+/// The loaded store's name, or `"none"`: what a provider asks when a service
+/// is the store's.
+#[must_use]
+pub fn backend_name(eng: &Engine) -> &'static str {
+    eng.try_resource::<PlatformState>()
+        .map_or(NONE, |state| state.borrow().backend_name())
+}
+
+const NONE: &str = "none";
 
 /// Drain the backend's reports, record them in the frame's snapshot, then
 /// wake what awaits each, in arrival order throughout.
 fn pump_platform_system(eng: &Engine, _: f32) {
     let clock = balaur_core::rollback::clock(eng);
     let mut finished: Vec<(u64, Value)> = Vec::new();
-    let mut player_changes = Vec::new();
+    let mut arrivals = Vec::new();
     {
         let state = eng.resource::<PlatformState>();
         let snapshot = eng.resource::<PlatformSnapshot>();
@@ -492,16 +631,25 @@ fn pump_platform_system(eng: &Engine, _: f32) {
         state.pending.retain(|(tick, ..)| *tick < clock.tick);
         state.release(eng, clock.settled);
         {
-            let PlatformState { io, backend, .. } = &mut *state;
+            let PlatformState {
+                io,
+                backend,
+                device,
+                ..
+            } = &mut *state;
             if let Some(backend) = backend
                 && !io.start(eng, |report| backend.pump(report))
             {
                 backend.discard();
             }
+            if !io.start(eng, |report| device.pump(report)) {
+                device.discard();
+            }
         }
         snapshot.events.clear();
         for event in state.io.drain() {
             let request = event.request();
+            // Who is playing, and whatever arrived unasked under request 0.
             let announcement = match &event {
                 PlatformEvent::SignedIn { player, .. } => {
                     state.player = Some(player.clone());
@@ -511,7 +659,7 @@ fn pump_platform_system(eng: &Engine, _: f32) {
                     state.player = None;
                     true
                 }
-                _ => false,
+                _ => request == 0,
             };
             let value = event_value(event);
             if let Some((page, kind)) = &mut state.page
@@ -523,13 +671,13 @@ fn pump_platform_system(eng: &Engine, _: f32) {
             }
             snapshot.events.push(value.clone());
             if announcement {
-                player_changes.push(value.clone());
+                arrivals.push(value.clone());
             }
             finished.push((request, value));
         }
     }
-    for change in player_changes {
-        balaur_core::events::emit(eng, PLAYER_EVENT, change);
+    for arrival in arrivals {
+        balaur_core::events::emit(eng, ARRIVAL_EVENT, arrival);
     }
     balaur_core::handler::wake_all(eng, finished);
 }
@@ -552,6 +700,11 @@ pub mod kind {
     pub const WEB_SIGN_IN: &str = "web_sign_in";
     pub const CANCELLED: &str = "cancelled";
     pub const IDENTITY: &str = super::IDENTITY;
+    pub const NOTIFICATIONS: &str = "notifications";
+    pub const SCHEDULED: &str = "scheduled";
+    pub const NOTIFICATION_OPENED: &str = "notification_opened";
+    pub const NOTIFICATION_RECEIVED: &str = "notification_received";
+    pub const SHARED: &str = "shared";
     pub const ERROR: &str = balaur_core::handler::ERROR;
     pub const ALL: &[&str] = &[
         SIGNED_IN,
@@ -563,8 +716,14 @@ pub mod kind {
         WEB_SIGN_IN,
         CANCELLED,
         IDENTITY,
+        NOTIFICATIONS,
+        SCHEDULED,
+        NOTIFICATION_OPENED,
+        NOTIFICATION_RECEIVED,
         ERROR,
     ];
+    /// What `device.*` answers.
+    pub const DEVICE: &[&str] = &[SHARED, DONE, CANCELLED, UNSUPPORTED, ERROR];
 }
 
 fn event_value(event: PlatformEvent) -> Value {
@@ -623,7 +782,7 @@ fn event_value(event: PlatformEvent) -> Value {
         PlatformEvent::Cancelled { .. } => {
             pairs.push((KIND.into(), Value::Str(kind::CANCELLED.into())));
         }
-        PlatformEvent::StandIn { answer, .. } => {
+        PlatformEvent::Answer { answer, .. } => {
             if let Ok(Value::Map(fields)) = balaur_core::engine_api::from_json(&answer) {
                 pairs.extend(fields.into_iter().filter(|(key, _)| key != REQUEST));
             }
@@ -638,8 +797,48 @@ fn event_value(event: PlatformEvent) -> Value {
                 );
             }
         }
+        device => device_value(device, &mut pairs),
     }
     Value::Map(pairs)
+}
+
+/// What the OS's answers and arrivals carry. Split from [`event_value`]
+/// under `MAX_FN_LINES`.
+fn device_value(event: PlatformEvent, pairs: &mut Vec<(String, Value)>) {
+    let json =
+        |data: &serde_json::Value| balaur_core::engine_api::from_json(data).unwrap_or(Value::Nil);
+    match event {
+        PlatformEvent::Notifications { allowed, .. } => {
+            pairs.push((KIND.into(), Value::Str(kind::NOTIFICATIONS.into())));
+            pairs.push((k::ALLOWED.into(), Value::Bool(allowed)));
+        }
+        PlatformEvent::Scheduled { id, .. } => {
+            pairs.push((KIND.into(), Value::Str(kind::SCHEDULED.into())));
+            pairs.push((ID.into(), Value::Str(id)));
+        }
+        PlatformEvent::NotificationOpened { id, data } => {
+            pairs.push((KIND.into(), Value::Str(kind::NOTIFICATION_OPENED.into())));
+            pairs.push((ID.into(), Value::Str(id)));
+            pairs.push((k::DATA.into(), json(&data)));
+        }
+        PlatformEvent::NotificationReceived {
+            id,
+            title,
+            body,
+            data,
+        } => {
+            pairs.push((KIND.into(), Value::Str(kind::NOTIFICATION_RECEIVED.into())));
+            pairs.push((ID.into(), Value::Str(id)));
+            pairs.push((k::TITLE.into(), Value::Str(title)));
+            pairs.push((k::BODY.into(), Value::Str(body)));
+            pairs.push((k::DATA.into(), json(&data)));
+        }
+        PlatformEvent::Shared { target, .. } => {
+            pairs.push((KIND.into(), Value::Str(kind::SHARED.into())));
+            pairs.push((k::TARGET.into(), Value::Str(target)));
+        }
+        _ => {}
+    }
 }
 
 #[derive(Default)]
@@ -657,15 +856,19 @@ impl balaur_plugin::Plugin for PlatformPlugin {
         balaur_core::events::declare(
             reg.engine(),
             &[(
-                PLAYER_EVENT,
-                "who is playing now",
-                "The player signed out in the OS, or signed in as someone else.",
+                ARRIVAL_EVENT,
+                "what arrived, carrying request 0",
+                "The player signed out in the OS or signed in as someone else, or a notification was tapped or shown while the game was in front.",
             )],
         );
         reg.add_system(Stage::First, pump_platform_system);
         reg.add_replay_source(PLATFORM, capture, restore);
+        reg.add_replay_setup(services::SERVICES, services::capture, services::restore);
+        native::provide(reg.engine())?;
         let mut m = reg.script_module(PLATFORM)?;
         install_platform_api(&mut m);
+        let mut m = reg.script_module(DEVICE)?;
+        device::install_device(&mut m);
         Ok(())
     }
 }
@@ -730,7 +933,7 @@ fn start_call(eng: &Engine, call: Call) -> Value {
 /// with a store, without one, and inside a replay.
 fn install_platform_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`. A test answers calls from the file `BALAUR_STAND_INS` names.",
+        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet, and local notifications. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `notifications`, `scheduled`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. What arrives unasked is the `platform_event` event, `events::listen(node, \"platform_event\")`: a sign-in or sign-out, and a notification tapped (`notification_opened`) or shown in front (`notification_received`). `is_available` says whether a service works here. A test answers calls from the file `BALAUR_STAND_INS` names.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.records(&[
@@ -824,6 +1027,8 @@ fn install_platform_api(m: &mut Module<Engine>) {
     install_platform_leaderboards(m);
     install_platform_cloud(m);
     install_web_sign_in(m);
+    services::install(m);
+    device::install_notifications(m);
 }
 
 /// What a script can ask without waiting: which store is loaded, and who it

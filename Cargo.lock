@@ -1151,7 +1151,6 @@ dependencies = [
  "tempfile",
  "toml",
  "tracing",
- "web-sys",
 ]
 
 [[package]]
@@ -1223,11 +1222,13 @@ dependencies = [
  "balaur_script",
  "balaur_testkit",
  "jni",
+ "js-sys",
  "ndk-context",
  "serde",
  "serde_json",
  "tempfile",
  "tracing",
+ "web-sys",
 ]
 
 [[package]]

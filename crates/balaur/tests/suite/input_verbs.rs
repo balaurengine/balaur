@@ -118,8 +118,9 @@ fn a_vibration_with_no_motor_does_nothing_and_says_nothing() {
         r"pub class Probe { node: Node, done: int }
 impl Probe {
     pub fn init() {
-        input::vibrate(0.25);
-        input::vibrate(-1.0);
+        device::vibrate(0.25);
+        device::vibrate(-1.0);
+        device::haptic(device::HAPTIC_LIGHT);
         self.done = 1;
     }
 }

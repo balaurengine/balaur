@@ -7,10 +7,10 @@ use std::ffi::c_void;
 use std::sync::mpsc::Sender;
 use std::sync::{Mutex, OnceLock, PoisonError};
 
-use jni::objects::{JClass, JString, JValue};
+use jni::objects::{JClass, JObject, JString, JValue};
 use jni::refs::Global;
 use jni::sys::jlong;
-use jni::{EnvUnowned, NativeMethod, jni_sig, jni_str};
+use jni::{Env, EnvUnowned, NativeMethod, jni_sig, jni_str};
 
 use crate::GoogleEvent;
 
@@ -32,23 +32,45 @@ pub(crate) fn sign_in(request: u64, server_client_id: &str, report: &Sender<Goog
     }
 }
 
+/// Whether Credential Manager is on this device: Android 14 and later.
+pub(crate) fn available() -> bool {
+    balaur_platform::with_activity(|env, activity| {
+        let shim = load(env, activity)?;
+        env.call_static_method(
+            shim,
+            jni_str!("available"),
+            jni_sig!("(Landroid/app/Activity;)Z"),
+            &[JValue::Object(activity)],
+        )?
+        .z()
+    })
+    .unwrap_or(false)
+}
+
+fn load<'cache>(
+    env: &mut Env<'_>,
+    activity: &JObject<'_>,
+) -> jni::errors::Result<&'cache Global<JClass<'static>>> {
+    // Safety: `answer` takes the JNI environment, the class (a static
+    // method), a long and a string, as `(JLjava/lang/String;)V` says.
+    unsafe {
+        balaur_platform::shim(
+            env,
+            activity,
+            "org.balaur.google.SignIn",
+            &[NativeMethod::from_raw_parts(
+                jni_str!("answer"),
+                jni_str!("(JLjava/lang/String;)V"),
+                answer as *mut c_void,
+            )],
+            &SHIM,
+        )
+    }
+}
+
 fn start(request: u64, server_client_id: &str) -> jni::errors::Result<()> {
     balaur_platform::with_activity(|env, activity| {
-        // Safety: `answer` takes the JNI environment, the class (a static
-        // method), a long and a string, as `(JLjava/lang/String;)V` says.
-        let shim = unsafe {
-            balaur_platform::shim(
-                env,
-                activity,
-                "org.balaur.google.SignIn",
-                &[NativeMethod::from_raw_parts(
-                    jni_str!("answer"),
-                    jni_str!("(JLjava/lang/String;)V"),
-                    answer as *mut c_void,
-                )],
-                &SHIM,
-            )?
-        };
+        let shim = load(env, activity)?;
         let client = env.new_string(server_client_id)?;
         env.call_static_method(
             shim,

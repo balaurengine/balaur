@@ -1,5 +1,7 @@
 //! Apple platform services as a Balaur plugin: Game Center and iCloud behind
-//! the portable `platform.*` verbs, and `apple.*` for what only Apple has.
+//! the portable `platform.*` verbs, notifications, the share sheet, the
+//! iPhone's motor and the review prompt behind its device seam (`device.rs`),
+//! and `apple.*` for what only Apple has.
 //!
 //! Everything here is asynchronous and answers on a queue the engine does not
 //! own, so nothing here invents a mechanism: a call returns an id, the
@@ -33,33 +35,30 @@ use balaur_script::{Module, Value};
 const ACCESS_POINT: &str = "access_point";
 const APPLE: &str = "apple";
 const AVAILABLE_WORD: &str = "available";
-const CANCEL_NOTIFICATION: &str = "cancel_notification";
 const DATA: &str = "data";
 const ERROR_WORD: &str = "error";
 const FINISH_PURCHASE: &str = "finish_purchase";
-const ID: &str = "id";
 const KIND: &str = "kind";
 const LISTEN_FOR_CLOUD_CHANGES: &str = "listen_for_cloud_changes";
 const LISTEN_FOR_INVITES: &str = "listen_for_invites";
 const LISTEN_FOR_URLS: &str = "listen_for_urls";
 const NAME: &str = "name";
-const NOTIFY: &str = "notify";
 const PLAYER: &str = "player";
 const PURCHASE: &str = "purchase";
 const REGISTER_FOR_PUSH: &str = "register_for_push";
 const REQUEST: &str = "request";
-const REQUEST_NOTIFICATIONS: &str = "request_notifications";
 const RESTORE_PURCHASES: &str = "restore_purchases";
 const SHOW_DASHBOARD: &str = "show_dashboard";
 const SIGN_IN: &str = "sign_in";
 const STATE: &str = "state";
-const TITLE: &str = "title";
 const TOKEN: &str = "token";
 
 #[cfg(test)]
 mod arrival_tests;
 #[cfg(target_vendor = "apple")]
 mod arrivals;
+#[cfg(target_vendor = "apple")]
+mod device;
 #[cfg(target_vendor = "apple")]
 mod gamekit;
 #[cfg(target_vendor = "apple")]
@@ -82,7 +81,6 @@ mod backend {
     pub(crate) use crate::arrivals::{request_push_token, watch_urls};
     pub(crate) use crate::gamekit::{apple_call, platform_call, watch_invites};
     pub(crate) use crate::icloud::watch_changes as watch_cloud;
-    pub(crate) use crate::notify::cancel as cancel_notification;
     pub(crate) use crate::ui::access_point;
     pub(crate) use crate::websignin::close as close_web_sign_in;
 
@@ -136,8 +134,6 @@ mod backend {
         false
     }
 
-    pub(crate) const fn cancel_notification(_id: &str) {}
-
     pub(crate) const fn close_web_sign_in() {}
 }
 
@@ -161,15 +157,6 @@ pub enum AppleCall {
     Dashboard { state: isize },
     /// The App Store, through the Swift shim.
     Store(StoreCall),
-    /// Permission to show notifications at all.
-    RequestNotifications,
-    /// One local notification, `after` seconds from now.
-    Notify {
-        id: String,
-        title: String,
-        body: String,
-        after: f64,
-    },
 }
 
 /// What StoreKit is asked for. Everything it answers comes back as the JSON
@@ -217,8 +204,6 @@ impl AppleCall {
             Self::CredentialState { .. } => kind::CREDENTIAL_STATE,
             Self::Dashboard { .. } => SHOW_DASHBOARD,
             Self::Store(call) => call.name(),
-            Self::RequestNotifications => REQUEST_NOTIFICATIONS,
-            Self::Notify { .. } => NOTIFY,
         }
     }
 }
@@ -264,30 +249,8 @@ pub enum AppleEvent {
         request: u64,
         payload: serde_json::Value,
     },
-    /// Whether the player allowed notifications.
-    Notifications {
-        request: u64,
-        allowed: bool,
-    },
-    /// A notification is on the schedule.
-    Scheduled {
-        request: u64,
-        id: String,
-    },
-    /// A notification was tapped, with what its sender put in it.
-    /// Unsolicited, like everything below it.
-    NotificationOpened {
-        id: String,
-        data: serde_json::Value,
-    },
-    /// A notification arrived while the game was in front, and was shown.
-    NotificationReceived {
-        id: String,
-        title: String,
-        body: String,
-        data: serde_json::Value,
-    },
     /// A push reached the app itself, a silent one included: its payload.
+    /// Unsolicited, like everything below it.
     PushReceived {
         data: serde_json::Value,
     },
@@ -340,15 +303,11 @@ impl AppleEvent {
             | Self::CredentialState { request, .. }
             | Self::DashboardClosed { request }
             | Self::Store { request, .. }
-            | Self::Notifications { request, .. }
-            | Self::Scheduled { request, .. }
             | Self::Failed { request, .. }
             | Self::Unsupported { request, .. }
             | Self::StandIn { request, .. } => *request,
             // Nobody asked for these, so they carry the id no call is given.
-            Self::NotificationOpened { .. }
-            | Self::NotificationReceived { .. }
-            | Self::PushReceived { .. }
+            Self::PushReceived { .. }
             | Self::InviteAccepted { .. }
             | Self::MatchRequested { .. }
             | Self::CloudChanged { .. }
@@ -392,9 +351,10 @@ impl PlatformBackend for AppleBackend {
     }
 }
 
-/// What nobody asked for, carrying request 0: a notification tapped, a URL
-/// opened, a push token, a transaction that landed on another device. Heard
-/// with `events::listen` as `on_apple_event`.
+/// What nobody asked for, carrying request 0: a push, a URL opened, a push
+/// token, a transaction that landed on another device. Heard with
+/// `events::listen` as `on_apple_event`; a notification tapped is
+/// `platform_event`.
 pub const ARRIVAL_EVENT: &str = "apple_event";
 
 /// The `apple.*` calls in flight, and the channel the frameworks report into.
@@ -473,10 +433,6 @@ pub mod kind {
     pub const SIGNED_IN: &str = "signed_in";
     pub const CREDENTIAL_STATE: &str = "credential_state";
     pub const DASHBOARD_CLOSED: &str = "dashboard_closed";
-    pub const NOTIFICATIONS: &str = "notifications";
-    pub const SCHEDULED: &str = "scheduled";
-    pub const NOTIFICATION_OPENED: &str = "notification_opened";
-    pub const NOTIFICATION_RECEIVED: &str = "notification_received";
     pub const PUSH_RECEIVED: &str = "push_received";
     pub const INVITE_ACCEPTED: &str = "invite_accepted";
     pub const MATCH_REQUESTED: &str = "match_requested";
@@ -499,10 +455,6 @@ pub mod kind {
         SIGNED_IN,
         CREDENTIAL_STATE,
         DASHBOARD_CLOSED,
-        NOTIFICATIONS,
-        SCHEDULED,
-        NOTIFICATION_OPENED,
-        NOTIFICATION_RECEIVED,
         PUSH_RECEIVED,
         INVITE_ACCEPTED,
         MATCH_REQUESTED,
@@ -566,21 +518,7 @@ fn event_value(event: AppleEvent) -> Value {
         AppleEvent::DashboardClosed { .. } => {
             pairs.push((KIND.into(), Value::Str(kind::DASHBOARD_CLOSED.into())));
         }
-        AppleEvent::Notifications { allowed, .. } => {
-            pairs.push((KIND.into(), Value::Str(kind::NOTIFICATIONS.into())));
-            pairs.push(("allowed".into(), Value::Bool(allowed)));
-        }
-        AppleEvent::Scheduled { id, .. } => {
-            pairs.push((KIND.into(), Value::Str(kind::SCHEDULED.into())));
-            pairs.push((ID.into(), Value::Str(id)));
-        }
-        AppleEvent::NotificationOpened { id, data } => {
-            pairs.push((KIND.into(), Value::Str(kind::NOTIFICATION_OPENED.into())));
-            pairs.push((ID.into(), Value::Str(id)));
-            pairs.push((DATA.into(), from_json(&data).unwrap_or(Value::Nil)));
-        }
-        arrival @ (AppleEvent::NotificationReceived { .. }
-        | AppleEvent::PushReceived { .. }
+        arrival @ (AppleEvent::PushReceived { .. }
         | AppleEvent::InviteAccepted { .. }
         | AppleEvent::MatchRequested { .. }
         | AppleEvent::CloudChanged { .. }) => arrived(arrival, &mut pairs),
@@ -666,6 +604,12 @@ impl balaur_plugin::Plugin for ApplePlugin {
         if backend::AVAILABLE {
             balaur_platform::set_backend(reg.engine(), Box::new(AppleBackend))?;
         }
+        // Notifications and the rest are the OS's, whichever store is loaded.
+        #[cfg(target_vendor = "apple")]
+        {
+            balaur_platform::set_device(reg.engine(), Box::new(device::AppleDevice))?;
+            device::provide(reg.engine())?;
+        }
         let mut m = reg.script_module(APPLE)?;
         install_apple_api(&mut m);
         Ok(())
@@ -684,7 +628,7 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 /// has it.
 fn install_apple_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
+        "Apple services beyond `platform.*`: Game Center `identity`, purchases, push. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere. Local notifications are `platform.notify`.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
@@ -715,16 +659,16 @@ fn install_apple_api(m: &mut Module<Engine>) {
     ]);
     m.function(AVAILABLE_WORD, |_: &Engine, ()| Ok(Value::Bool(AVAILABLE)));
     m.function(kind::IDENTITY, |eng: &Engine, ()| {
-        Ok(start_call(eng, AppleCall::Identity))
+        Ok(start_call(eng, &AppleCall::Identity))
     });
     m.function(SIGN_IN, |eng: &Engine, ()| {
-        Ok(start_call(eng, AppleCall::SignIn))
+        Ok(start_call(eng, &AppleCall::SignIn))
     });
     m.function(kind::CREDENTIAL_STATE, |eng: &Engine, user: Value| {
         let Value::Str(user) = user else {
             return Err(anyhow!("the user id should be a string, got {user:?}"));
         };
-        Ok(start_call(eng, AppleCall::CredentialState { user }))
+        Ok(start_call(eng, &AppleCall::CredentialState { user }))
     });
     install_screens_api(m);
     install_store_api(m);
@@ -765,7 +709,7 @@ fn install_screens_api(m: &mut Module<Engine>) {
             Some(other) => return Err(anyhow!("`state` should be a string, got {other:?}")),
             None => DEFAULT_SCREEN,
         };
-        Ok(start_call(eng, AppleCall::Dashboard { state }))
+        Ok(start_call(eng, &AppleCall::Dashboard { state }))
     });
     m.function(
         ACCESS_POINT,
@@ -783,22 +727,10 @@ fn install_screens_api(m: &mut Module<Engine>) {
     );
 }
 
-/// What a notification, a push, an invite or an iCloud change carries.
-/// Split from [`event_value`] under `MAX_FN_LINES`.
+/// What a push, an invite or an iCloud change carries. Split from
+/// [`event_value`] under `MAX_FN_LINES`.
 fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
     match event {
-        AppleEvent::NotificationReceived {
-            id,
-            title,
-            body,
-            data,
-        } => {
-            pairs.push((KIND.into(), Value::Str(kind::NOTIFICATION_RECEIVED.into())));
-            pairs.push((ID.into(), Value::Str(id)));
-            pairs.push((TITLE.into(), Value::Str(title)));
-            pairs.push(("body".into(), Value::Str(body)));
-            pairs.push((DATA.into(), from_json(&data).unwrap_or(Value::Nil)));
-        }
         AppleEvent::PushReceived { data } => {
             pairs.push((KIND.into(), Value::Str(kind::PUSH_RECEIVED.into())));
             pairs.push((DATA.into(), from_json(&data).unwrap_or(Value::Nil)));
@@ -823,95 +755,15 @@ fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
     }
 }
 
-/// Notifications, push and URLs: everything that arrives rather than
-/// answers.
+/// Push and URLs: what arrives rather than answers, and what asks the device
+/// to start telling us something.
 fn install_arrivals_api(m: &mut Module<Engine>) {
-    m.records(&[(
-        "NotifyOptions",
-        "{ title: string?, after: float?, id: string? }",
-        "A local notification's `title`, how many seconds from now it shows (`after`) and the `id` to cancel or recognise it by.",
+    m.describe(&[(
+        REGISTER_FOR_PUSH,
+        &[],
+        "() -> bool",
+        "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
     )]);
-    m.describe(&[
-        (
-            REQUEST_NOTIFICATIONS,
-            &[],
-            "() -> int",
-            "Ask the player to allow notifications, and return the id whose `notifications` answer says what they said.",
-        ),
-        (
-            NOTIFY,
-            &[],
-            "(body: string, opts: NotifyOptions?) -> int",
-            "Schedule a local notification, and return the id its `scheduled` answer carries.",
-        ),
-        (
-            CANCEL_NOTIFICATION,
-            &[],
-            "(id: string)",
-            "Drop a scheduled notification, and take a delivered one out of the shade.",
-        ),
-        (
-            REGISTER_FOR_PUSH,
-            &[],
-            "() -> bool",
-            "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
-        ),
-    ]);
-    m.function(REQUEST_NOTIFICATIONS, |eng: &Engine, ()| {
-        Ok(start_call(eng, AppleCall::RequestNotifications))
-    });
-    m.function(
-        NOTIFY,
-        |eng: &Engine, (body, opts): (Value, Option<Value>)| {
-            let Value::Str(body) = body else {
-                return Err(anyhow!(
-                    "the notification text should be a string, got {body:?}"
-                ));
-            };
-            let opts_ref = opts.as_ref();
-            let title = match opt(opts_ref, TITLE) {
-                Some(Value::Str(title)) => title.clone(),
-                Some(other) => return Err(anyhow!("`title` should be a string, got {other:?}")),
-                None => String::new(),
-            };
-            let after = match opt(opts_ref, "after") {
-                Some(Value::Num(seconds)) => *seconds,
-                #[allow(clippy::cast_precision_loss, reason = "seconds from now")]
-                Some(Value::Int(seconds)) => *seconds as f64,
-                Some(other) => return Err(anyhow!("`after` should be a number, got {other:?}")),
-                None => 0.0,
-            };
-            // A generated id is the token this call was given, so two runs of
-            // the same session name the same notification.
-            let id = match opt(opts_ref, ID) {
-                Some(Value::Str(id)) => id.clone(),
-                Some(other) => return Err(anyhow!("`id` should be a string, got {other:?}")),
-                None => String::new(),
-            };
-            Ok(start_call(
-                eng,
-                AppleCall::Notify {
-                    id,
-                    title,
-                    body,
-                    after,
-                },
-            ))
-        },
-    );
-    install_device_arrivals_api(m);
-}
-
-/// The three that ask the device to start telling us something, rather than
-/// answering a question the script asked.
-fn install_device_arrivals_api(m: &mut Module<Engine>) {
-    m.function(CANCEL_NOTIFICATION, |_: &Engine, (id,): (Value,)| {
-        let Value::Str(id) = id else {
-            return Err(anyhow!("a notification id should be a string, got {id:?}"));
-        };
-        backend::cancel_notification(&id);
-        Ok(())
-    });
     m.function(REGISTER_FOR_PUSH, |_: &Engine, ()| {
         Ok(Value::Bool(backend::request_push_token()))
     });
@@ -1010,7 +862,7 @@ fn install_store_api(m: &mut Module<Engine>) {
             .collect::<Result<Vec<String>>>()?;
         Ok(start_call(
             eng,
-            AppleCall::Store(StoreCall::Products { ids }),
+            &AppleCall::Store(StoreCall::Products { ids }),
         ))
     });
     m.function(PURCHASE, |eng: &Engine, product: Value| {
@@ -1021,11 +873,11 @@ fn install_store_api(m: &mut Module<Engine>) {
         };
         Ok(start_call(
             eng,
-            AppleCall::Store(StoreCall::Purchase { product }),
+            &AppleCall::Store(StoreCall::Purchase { product }),
         ))
     });
     m.function(kind::ENTITLEMENTS, |eng: &Engine, ()| {
-        Ok(start_call(eng, AppleCall::Store(StoreCall::Entitlements)))
+        Ok(start_call(eng, &AppleCall::Store(StoreCall::Entitlements)))
     });
     install_store_ledger_api(m);
 }
@@ -1034,7 +886,7 @@ fn install_store_api(m: &mut Module<Engine>) {
 /// one: restoring on a new device, and closing a transaction out.
 fn install_store_ledger_api(m: &mut Module<Engine>) {
     m.function(RESTORE_PURCHASES, |eng: &Engine, ()| {
-        Ok(start_call(eng, AppleCall::Store(StoreCall::Restore)))
+        Ok(start_call(eng, &AppleCall::Store(StoreCall::Restore)))
     });
     m.function(FINISH_PURCHASE, |eng: &Engine, transaction: Value| {
         let Value::Str(transaction) = transaction else {
@@ -1044,7 +896,7 @@ fn install_store_ledger_api(m: &mut Module<Engine>) {
         };
         Ok(start_call(
             eng,
-            AppleCall::Store(StoreCall::Finish { transaction }),
+            &AppleCall::Store(StoreCall::Finish { transaction }),
         ))
     });
 }
@@ -1081,26 +933,10 @@ fn corner_of(name: &str) -> Result<isize> {
 }
 
 /// Start a call, and answer the id `task::wait` hears it on.
-fn start_call(eng: &Engine, call: AppleCall) -> Value {
+fn start_call(eng: &Engine, call: &AppleCall) -> Value {
     let id = eng.next_token();
-    // A notification the script did not name is named after the call, so two
-    // runs of the same session schedule the same identifier.
-    let call = match call {
-        AppleCall::Notify {
-            id: name,
-            title,
-            body,
-            after,
-        } if name.is_empty() => AppleCall::Notify {
-            id: format!("balaur-{id}"),
-            title,
-            body,
-            after,
-        },
-        call => call,
-    };
     let state = eng.resource::<AppleState>();
-    state.borrow_mut().start(eng, id, &call);
+    state.borrow_mut().start(eng, id, call);
     id_value(id)
 }
 

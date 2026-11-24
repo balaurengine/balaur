@@ -5,6 +5,7 @@
 //! its own process.
 
 mod api;
+mod device;
 mod replay;
 mod script_api;
 mod web_sign_in;

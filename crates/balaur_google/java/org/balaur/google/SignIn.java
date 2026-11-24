@@ -47,6 +47,12 @@ public final class SignIn {
     /** The answer for {@code request}, as JSON. Registered by balaur_google. */
     static native void answer(long request, String json);
 
+    /** Whether Credential Manager is here to ask: Android 14 and later. */
+    public static boolean available(Activity activity) {
+        return Build.VERSION.SDK_INT >= CREDENTIAL_MANAGER_API
+                && activity.getSystemService(CredentialManager.class) != null;
+    }
+
     /**
      * Ask Google for an id token for {@code serverClientId}: the accounts
      * already signed in to this app first, without a tap when there is one,

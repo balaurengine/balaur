@@ -17,6 +17,7 @@ use crate::vocabulary::words;
 
 mod permissions;
 mod schemes;
+mod shims;
 
 const AAPT2: &str = "aapt2";
 /// The template's Java: the shims `balaur_google` and `balaur_platform` reach
@@ -254,6 +255,7 @@ impl AndroidConfig {
             &self.target_sdk.to_string(),
         )?;
         xml = set_attr(&xml, "android:label", &escape(label))?;
+        xml = shims::name_files(&xml, id)?;
         xml = permissions::declare(&xml, &self.permissions)?;
         xml = schemes::declare(&xml, &self.schemes)?;
         Ok(match self.orientation {

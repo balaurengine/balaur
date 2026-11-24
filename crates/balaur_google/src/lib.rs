@@ -41,7 +41,7 @@ mod android;
 
 #[cfg(target_os = "android")]
 mod backend {
-    pub(crate) use crate::android::sign_in;
+    pub(crate) use crate::android::{available, sign_in};
 }
 
 /// Everywhere else: no Credential Manager, so sign-in answers `unsupported`.
@@ -53,6 +53,10 @@ mod backend {
 
     pub(crate) fn sign_in(request: u64, _server_client_id: &str, report: &Sender<GoogleEvent>) {
         let _ = report.send(GoogleEvent::unsupported(request, "this is not Android"));
+    }
+
+    pub(crate) const fn available() -> bool {
+        false
     }
 }
 
@@ -202,6 +206,12 @@ server_client_id = { type = "string", default = "", help = "The server's web OAu
 "#,
             ),
         );
+        // Credential Manager is there to ask, and a client id to ask it for.
+        balaur_platform::provide(
+            reg.engine(),
+            balaur_platform::Service::GoogleSignIn,
+            |eng| !server_client_id(eng).is_empty() && backend::available(),
+        )?;
         let mut m = reg.script_module(GOOGLE)?;
         install_google_api(&mut m);
         Ok(())

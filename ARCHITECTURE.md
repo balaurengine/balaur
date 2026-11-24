@@ -1387,6 +1387,25 @@ things are shared.
   module sits beside it, and a missing verb answers `unsupported` rather than
   pretending. `balaur_platform` owns the seam, one backend fills it, and with
   none every call still answers.
+- **What the OS lends is a second seam.** Notifications, the motor, the share
+  sheet and the review prompt belong to the OS, not the store: a Mac game
+  Steam started still notifies through Apple's centre. So `balaur_platform`
+  holds a `DeviceBackend` beside the store's, which Apple's plugin fills on
+  iOS and macOS and the crate's own Java shims fill on Android
+  (`native.rs`). Its calls are `platform.notify`, `request_notifications`
+  and `cancel_notification`, beside the store's verbs, and `device.*`:
+  `vibrate`, `haptic`, `share`, `request_review`. Their answers cross the
+  store's channel, so they are recorded and stood in for alike; a tapped
+  notification, or one shown in front, is `platform_event` under request 0.
+  The motor is output, never recorded and never run on a replayed tick, as
+  rumble is.
+- **`platform.is_available` is one check.** A service is a `SERVICE_*`
+  constant, and the plugin that reaches it answers through
+  `balaur_platform::provide`: Apple's from its bundle id and what the OS
+  says, Google's from its client id and Credential Manager, the facade's from
+  `SteamState::is_loaded`, the platform crate's own for Android and a page.
+  None answering is false. The answers are a replay setup source, pinned in
+  the header, so a replay takes the branch the recording took.
 - **Delivery is the engine's usual one**: an id out, the answer across a
   channel, `ExternalIo` landing it at `Stage::First` of a later tick: recorded,
   replayable with no store present, waking whoever awaits the id; who is playing
@@ -1460,6 +1479,15 @@ things are shared.
   resuming with none answers `cancelled`, and `close_web_sign_in` brings it
   back the same way, shutting the tab. A link on those schemes with no page
   open brings the game forward, which does not read it yet.
+  The device shims are unseen activities for the same reason: NativeActivity
+  forwards no permission result, activity result or new intent, so
+  `Permission` asks for POST_NOTIFICATIONS, `Share` hears the chooser shut
+  (`Chosen` hears what was picked), and `Opened` takes a notification's tap
+  and brings the game forward. `AlarmManager` holds the schedule, inexact,
+  and `Alarm` posts each one. A tap that started the process waits in the
+  shim until the game's first tick listens. A shared file goes out as a
+  content URI from `Files`, a read-only provider of the app's own files
+  whose authority the export names after the application id.
   `google.sign_in` is Credential Manager with the bundle keys Google's
   `googleid` library writes, so Play services answers it with an id token for
   `[google] server_client_id`; below Android 14, off Android, with no id or with

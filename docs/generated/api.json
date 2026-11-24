@@ -1090,9 +1090,6 @@
       "apple::EVENT_IDENTITY": "identity",
       "apple::EVENT_INVITE_ACCEPTED": "invite_accepted",
       "apple::EVENT_MATCH_REQUESTED": "match_requested",
-      "apple::EVENT_NOTIFICATIONS": "notifications",
-      "apple::EVENT_NOTIFICATION_OPENED": "notification_opened",
-      "apple::EVENT_NOTIFICATION_RECEIVED": "notification_received",
       "apple::EVENT_PENDING": "pending",
       "apple::EVENT_PRODUCTS": "products",
       "apple::EVENT_PURCHASED": "purchased",
@@ -1100,7 +1097,6 @@
       "apple::EVENT_PUSH_RECEIVED": "push_received",
       "apple::EVENT_PUSH_TOKEN": "push_token",
       "apple::EVENT_RESTORED": "restored",
-      "apple::EVENT_SCHEDULED": "scheduled",
       "apple::EVENT_SIGNED_IN": "signed_in",
       "apple::EVENT_TRANSACTION": "transaction",
       "apple::EVENT_UNSUPPORTED": "unsupported",
@@ -1110,6 +1106,18 @@
       "debugger::STEP_INTO": "into",
       "debugger::STEP_OUT": "out",
       "debugger::STEP_OVER": "over",
+      "device::EVENT_CANCELLED": "cancelled",
+      "device::EVENT_DONE": "done",
+      "device::EVENT_ERROR": "error",
+      "device::EVENT_SHARED": "shared",
+      "device::EVENT_UNSUPPORTED": "unsupported",
+      "device::HAPTIC_ERROR": "error",
+      "device::HAPTIC_HEAVY": "heavy",
+      "device::HAPTIC_LIGHT": "light",
+      "device::HAPTIC_MEDIUM": "medium",
+      "device::HAPTIC_SELECTION": "selection",
+      "device::HAPTIC_SUCCESS": "success",
+      "device::HAPTIC_WARNING": "warning",
       "google::EVENT_CANCELLED": "cancelled",
       "google::EVENT_ERROR": "error",
       "google::EVENT_SIGNED_IN": "signed_in",
@@ -1551,7 +1559,11 @@
       "platform::EVENT_DONE": "done",
       "platform::EVENT_ERROR": "error",
       "platform::EVENT_IDENTITY": "identity",
+      "platform::EVENT_NOTIFICATIONS": "notifications",
+      "platform::EVENT_NOTIFICATION_OPENED": "notification_opened",
+      "platform::EVENT_NOTIFICATION_RECEIVED": "notification_received",
       "platform::EVENT_READ": "read",
+      "platform::EVENT_SCHEDULED": "scheduled",
       "platform::EVENT_SCORES": "scores",
       "platform::EVENT_SIGNED_IN": "signed_in",
       "platform::EVENT_SIGNED_OUT": "signed_out",
@@ -1559,6 +1571,18 @@
       "platform::EVENT_WEB_SIGN_IN": "web_sign_in",
       "platform::PAGE_NONE": "none",
       "platform::PAGE_OPEN": "open",
+      "platform::SERVICE_APPLE_SIGN_IN": "apple_sign_in",
+      "platform::SERVICE_GAME_CENTER": "game_center",
+      "platform::SERVICE_GOOGLE_SIGN_IN": "google_sign_in",
+      "platform::SERVICE_HAPTICS": "haptics",
+      "platform::SERVICE_ICLOUD": "icloud",
+      "platform::SERVICE_NOTIFICATIONS": "notifications",
+      "platform::SERVICE_PURCHASES": "purchases",
+      "platform::SERVICE_PUSH": "push",
+      "platform::SERVICE_REVIEW": "review",
+      "platform::SERVICE_SHARE": "share",
+      "platform::SERVICE_STEAM": "steam",
+      "platform::SERVICE_WEB_SIGN_IN": "web_sign_in",
       "render::ALIGN_CENTER": "center",
       "render::ALIGN_END": "end",
       "render::ALIGN_START": "start",
@@ -4156,10 +4180,6 @@
         "least": 0,
         "signature": "() -> bool"
       },
-      "apple::cancel_notification": {
-        "least": 1,
-        "signature": "(str)"
-      },
       "apple::credential_state": {
         "least": 1,
         "signature": "(str) -> int"
@@ -4188,10 +4208,6 @@
         "least": 0,
         "signature": "() -> bool"
       },
-      "apple::notify": {
-        "least": 1,
-        "signature": "(str, apple::NotifyOptions?) -> int"
-      },
       "apple::products": {
         "least": 1,
         "signature": "([str]) -> int"
@@ -4203,10 +4219,6 @@
       "apple::register_for_push": {
         "least": 0,
         "signature": "() -> bool"
-      },
-      "apple::request_notifications": {
-        "least": 0,
-        "signature": "() -> int"
       },
       "apple::restore_purchases": {
         "least": 0,
@@ -4395,6 +4407,22 @@
       "dependency::of": {
         "least": 1,
         "signature": "(str) -> str?"
+      },
+      "device::haptic": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "device::request_review": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "device::share": {
+        "least": 1,
+        "signature": "(device::ShareOptions) -> int"
+      },
+      "device::vibrate": {
+        "least": 1,
+        "signature": "(float)"
       },
       "engine::args": {
         "least": 0,
@@ -4911,10 +4939,6 @@
       "input::typed": {
         "least": 0,
         "signature": "() -> str"
-      },
-      "input::vibrate": {
-        "least": 1,
-        "signature": "(float)"
       },
       "json::encode": {
         "least": 0,
@@ -6572,6 +6596,10 @@
         "least": 0,
         "signature": "() -> str"
       },
+      "platform::cancel_notification": {
+        "least": 1,
+        "signature": "(str)"
+      },
       "platform::close_web_sign_in": {
         "least": 0,
         "signature": "()"
@@ -6588,6 +6616,14 @@
         "least": 0,
         "signature": "() -> int"
       },
+      "platform::is_available": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "platform::notify": {
+        "least": 1,
+        "signature": "(str, platform::NotifyOptions?) -> int"
+      },
       "platform::player": {
         "least": 0,
         "signature": "() -> platform::Player?"
@@ -6595,6 +6631,10 @@
       "platform::progress": {
         "least": 2,
         "signature": "(str, float) -> int"
+      },
+      "platform::request_notifications": {
+        "least": 0,
+        "signature": "() -> int"
       },
       "platform::scores": {
         "least": 1,
@@ -10729,11 +10769,6 @@
       "apple::AccessPointOptions": {
         "location": "str?"
       },
-      "apple::NotifyOptions": {
-        "after": "float?",
-        "id": "str?",
-        "title": "str?"
-      },
       "apple::Product": {
         "description": "str",
         "display_price": "str",
@@ -10813,6 +10848,11 @@
         "project": "str",
         "rev": "str",
         "tag": "str"
+      },
+      "device::ShareOptions": {
+        "file": "str?",
+        "text": "str?",
+        "title": "str?"
       },
       "engine::FunctionCost": {
         "calls": "int",
@@ -11708,6 +11748,12 @@
       "physics::WorldTunings": {
         "physics2d": "physics::Tuning",
         "physics3d": "physics::Tuning"
+      },
+      "platform::NotifyOptions": {
+        "after": "float?",
+        "data": "any",
+        "id": "str?",
+        "title": "str?"
       },
       "platform::Player": {
         "alias": "str",
@@ -27660,18 +27706,6 @@
           "value": "\"match_requested\""
         },
         {
-          "name": "EVENT_NOTIFICATIONS",
-          "value": "\"notifications\""
-        },
-        {
-          "name": "EVENT_NOTIFICATION_OPENED",
-          "value": "\"notification_opened\""
-        },
-        {
-          "name": "EVENT_NOTIFICATION_RECEIVED",
-          "value": "\"notification_received\""
-        },
-        {
           "name": "EVENT_PENDING",
           "value": "\"pending\""
         },
@@ -27700,10 +27734,6 @@
           "value": "\"restored\""
         },
         {
-          "name": "EVENT_SCHEDULED",
-          "value": "\"scheduled\""
-        },
-        {
           "name": "EVENT_SIGNED_IN",
           "value": "\"signed_in\""
         },
@@ -27720,11 +27750,10 @@
           "value": "\"url\""
         }
       ],
-      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
+      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, push. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere. Local notifications are `platform.notify`.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing.",
         "available": "Whether this build has Apple's frameworks behind it.",
-        "cancel_notification": "Drop a scheduled notification, and take a delivered one out of the shade.",
         "credential_state": "Ask whether a saved Sign in with Apple account is still authorized, revoked, transferred or unknown, and return the id the answer carries.",
         "entitlements": "What this player currently owns: returns the id whose `entitlements` answer holds them as `items`, each a `Transaction`.",
         "finish_purchase": "Tell StoreKit a transaction is dealt with, and return the id its `finished` answer carries. One that is never finished comes back on every launch.",
@@ -27732,11 +27761,9 @@
         "listen_for_cloud_changes": "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
         "listen_for_invites": "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
         "listen_for_urls": "Hear about URLs the game is asked to open. A URL the game was launched with arrives the same way, once the engine is up.",
-        "notify": "Schedule a local notification, and return the id its `scheduled` answer carries.",
         "products": "Ask the App Store about a list of product ids, and return the id whose `products` answer holds what it knows, each a `Product`.",
         "purchase": "Buy a product, and return the id its answer carries: `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
         "register_for_push": "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
-        "request_notifications": "Ask the player to allow notifications, and return the id whose `notifications` answer says what they said.",
         "restore_purchases": "Ask the App Store to hand this device's purchases back, the button a review expects a game to have, and return the id its `restored` answer carries.",
         "show_dashboard": "Open Game Center's dashboard over the game, and return the id its `dashboard_closed` answer carries.",
         "sign_in": "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`."
@@ -27745,7 +27772,6 @@
       "functions": [
         "access_point",
         "available",
-        "cancel_notification",
         "credential_state",
         "entitlements",
         "finish_purchase",
@@ -27753,11 +27779,9 @@
         "listen_for_cloud_changes",
         "listen_for_invites",
         "listen_for_urls",
-        "notify",
         "products",
         "purchase",
         "register_for_push",
-        "request_notifications",
         "restore_purchases",
         "show_dashboard",
         "sign_in"
@@ -27767,7 +27791,6 @@
       "signatures": {
         "access_point": "(bool, apple::AccessPointOptions?) -> bool",
         "available": "() -> bool",
-        "cancel_notification": "(str)",
         "credential_state": "(str) -> int",
         "entitlements": "() -> int",
         "finish_purchase": "(str) -> int",
@@ -27775,11 +27798,9 @@
         "listen_for_cloud_changes": "() -> bool",
         "listen_for_invites": "() -> bool",
         "listen_for_urls": "() -> bool",
-        "notify": "(str, apple::NotifyOptions?) -> int",
         "products": "([str]) -> int",
         "purchase": "(str) -> int",
         "register_for_push": "() -> bool",
-        "request_notifications": "() -> int",
         "restore_purchases": "() -> int",
         "show_dashboard": "(apple::ShowDashboardOptions?) -> int",
         "sign_in": "() -> int"
@@ -28070,6 +28091,82 @@
         "make_local": "(str, str) -> [str]",
         "move_into": "([str], str) -> [str]",
         "of": "(str) -> str?"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [
+        {
+          "name": "EVENT_CANCELLED",
+          "value": "\"cancelled\""
+        },
+        {
+          "name": "EVENT_DONE",
+          "value": "\"done\""
+        },
+        {
+          "name": "EVENT_ERROR",
+          "value": "\"error\""
+        },
+        {
+          "name": "EVENT_SHARED",
+          "value": "\"shared\""
+        },
+        {
+          "name": "EVENT_UNSUPPORTED",
+          "value": "\"unsupported\""
+        },
+        {
+          "name": "HAPTIC_ERROR",
+          "value": "\"error\""
+        },
+        {
+          "name": "HAPTIC_HEAVY",
+          "value": "\"heavy\""
+        },
+        {
+          "name": "HAPTIC_LIGHT",
+          "value": "\"light\""
+        },
+        {
+          "name": "HAPTIC_MEDIUM",
+          "value": "\"medium\""
+        },
+        {
+          "name": "HAPTIC_SELECTION",
+          "value": "\"selection\""
+        },
+        {
+          "name": "HAPTIC_SUCCESS",
+          "value": "\"success\""
+        },
+        {
+          "name": "HAPTIC_WARNING",
+          "value": "\"warning\""
+        }
+      ],
+      "doc": "What a phone lends a game beyond the store: its motor, the share sheet and the store's review prompt. A call that answers does so through `task::wait` with a map whose `kind` is `shared`, `done`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. `platform::is_available` says which of them work here. A test answers `share` and `request_review` from the file `BALAUR_STAND_INS` names.",
+      "docs": {
+        "haptic": "One tap of feedback, named by a `HAPTIC_*` constant: iOS's feedback generators, Android's predefined effects, a short buzz on a page. Nothing on a desktop, and never recorded.",
+        "request_review": "Ask the store to show its prompt to rate the game, and return the id its `done` answer carries. The store decides whether it shows, and says nothing about what the player did. `unsupported` off iOS and macOS.",
+        "share": "Show the OS's share sheet over the game, and return the id its answer carries: `shared` with the `target` the player picked where the OS names it, `cancelled`, `error`, or `unsupported` where there is no sheet.",
+        "vibrate": "Buzz the device's motor for that many seconds: Android's vibrator, a page's `navigator.vibrate`, the iPhone's one system buzz whatever the length. Nothing on a desktop, and never recorded, like rumble."
+      },
+      "editor": [],
+      "functions": [
+        "haptic",
+        "request_review",
+        "share",
+        "vibrate"
+      ],
+      "methods": {},
+      "name": "device",
+      "signatures": {
+        "haptic": "(str)",
+        "request_review": "() -> int",
+        "share": "(device::ShareOptions) -> int",
+        "vibrate": "(float)"
       }
     },
     {
@@ -29376,8 +29473,7 @@
         "touches": "Every finger on the screen, oldest first, in the same pixels as `mouse_position`.",
         "touches_just_ended": "The ids of the fingers that lifted or were cancelled this frame.",
         "touches_just_started": "The ids of the fingers that touched down this frame.",
-        "typed": "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down.",
-        "vibrate": "Buzz the device for that many seconds: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."
+        "typed": "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down."
       },
       "editor": [],
       "functions": [
@@ -29431,8 +29527,7 @@
         "touches",
         "touches_just_ended",
         "touches_just_started",
-        "typed",
-        "vibrate"
+        "typed"
       ],
       "methods": {},
       "name": "input",
@@ -29487,8 +29582,7 @@
         "touches": "() -> [input::Touch]",
         "touches_just_ended": "() -> [int]",
         "touches_just_started": "() -> [int]",
-        "typed": "() -> str",
-        "vibrate": "(float)"
+        "typed": "() -> str"
       }
     },
     {
@@ -33340,8 +33434,24 @@
           "value": "\"identity\""
         },
         {
+          "name": "EVENT_NOTIFICATIONS",
+          "value": "\"notifications\""
+        },
+        {
+          "name": "EVENT_NOTIFICATION_OPENED",
+          "value": "\"notification_opened\""
+        },
+        {
+          "name": "EVENT_NOTIFICATION_RECEIVED",
+          "value": "\"notification_received\""
+        },
+        {
           "name": "EVENT_READ",
           "value": "\"read\""
+        },
+        {
+          "name": "EVENT_SCHEDULED",
+          "value": "\"scheduled\""
         },
         {
           "name": "EVENT_SCORES",
@@ -33370,17 +33480,69 @@
         {
           "name": "PAGE_OPEN",
           "value": "\"open\""
+        },
+        {
+          "name": "SERVICE_APPLE_SIGN_IN",
+          "value": "\"apple_sign_in\""
+        },
+        {
+          "name": "SERVICE_GAME_CENTER",
+          "value": "\"game_center\""
+        },
+        {
+          "name": "SERVICE_GOOGLE_SIGN_IN",
+          "value": "\"google_sign_in\""
+        },
+        {
+          "name": "SERVICE_HAPTICS",
+          "value": "\"haptics\""
+        },
+        {
+          "name": "SERVICE_ICLOUD",
+          "value": "\"icloud\""
+        },
+        {
+          "name": "SERVICE_NOTIFICATIONS",
+          "value": "\"notifications\""
+        },
+        {
+          "name": "SERVICE_PURCHASES",
+          "value": "\"purchases\""
+        },
+        {
+          "name": "SERVICE_PUSH",
+          "value": "\"push\""
+        },
+        {
+          "name": "SERVICE_REVIEW",
+          "value": "\"review\""
+        },
+        {
+          "name": "SERVICE_SHARE",
+          "value": "\"share\""
+        },
+        {
+          "name": "SERVICE_STEAM",
+          "value": "\"steam\""
+        },
+        {
+          "name": "SERVICE_WEB_SIGN_IN",
+          "value": "\"web_sign_in\""
         }
       ],
-      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`. A test answers calls from the file `BALAUR_STAND_INS` names.",
+      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet, and local notifications. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `notifications`, `scheduled`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. What arrives unasked is the `platform_event` event, `events::listen(node, \"platform_event\")`: a sign-in or sign-out, and a notification tapped (`notification_opened`) or shown in front (`notification_received`). `is_available` says whether a service works here. A test answers calls from the file `BALAUR_STAND_INS` names.",
       "docs": {
         "backend": "The name of the loaded store, or \"none\".",
+        "cancel_notification": "Drop a scheduled notification, and take a delivered one out of the shade.",
         "close_web_sign_in": "Shut the sign-in page `web_sign_in` opened, once the game has what it opened it for: its call answers `cancelled`, and on Android the game comes back to the front over the tab.",
         "cloud_read": "Read a value the store syncs between the player's devices, and return the id whose `read` answer holds it as `value`: a string, or nil when the key holds nothing.",
         "cloud_write": "Write a value for the store to sync between the player's devices, and return the id its answer carries.",
         "identity": "Ask the store for a proof of who is playing that a server checks with it, and return the id whose `identity` answer carries it: Steam's Web API ticket as `ticket`, hex, for `ISteamUserAuth/AuthenticateUserTicket`.",
+        "is_available": "Whether a service works on this device in this run, named by a `SERVICE_*` constant: the store or OS answers, a recording's answer in a replay, false where nothing reaches it.",
+        "notify": "Schedule a local notification, and return the id its `scheduled` answer carries. A tap brings the game forward and is the `platform_event` event, `notification_opened` with the `id` and `data`; one shown while the game is in front is `notification_received`.",
         "player": "Who the store says is playing, or nil before a sign-in has landed.",
         "progress": "Report an achievement's completion, 0 to 100, and return the id its answer carries.",
+        "request_notifications": "Ask the player to allow notifications, and return the id whose `notifications` answer says what they said as `allowed`. On Android 13 and later this is the system's permission prompt.",
         "scores": "Read a leaderboard's entries, and return the id whose `scores` answer holds them as `entries`, each a `Score`.",
         "set_presence": "Say what the player is doing, where the store shows it, and return the id its answer carries.",
         "sign_in": "Ask the store who is playing, and return the id its answer carries. A later sign-out is the `platform_event` event.",
@@ -33392,12 +33554,16 @@
       "editor": [],
       "functions": [
         "backend",
+        "cancel_notification",
         "close_web_sign_in",
         "cloud_read",
         "cloud_write",
         "identity",
+        "is_available",
+        "notify",
         "player",
         "progress",
+        "request_notifications",
         "scores",
         "set_presence",
         "sign_in",
@@ -33410,12 +33576,16 @@
       "name": "platform",
       "signatures": {
         "backend": "() -> str",
+        "cancel_notification": "(str)",
         "close_web_sign_in": "()",
         "cloud_read": "(str) -> int",
         "cloud_write": "(str, str) -> int",
         "identity": "() -> int",
+        "is_available": "(str) -> bool",
+        "notify": "(str, platform::NotifyOptions?) -> int",
         "player": "() -> platform::Player?",
         "progress": "(str, float) -> int",
+        "request_notifications": "() -> int",
         "scores": "(str, platform::ScoresOptions?) -> int",
         "set_presence": "(str) -> int",
         "sign_in": "() -> int",
@@ -47726,8 +47896,8 @@
     ],
     [
       "platform_event",
-      "who is playing now",
-      "The player signed out in the OS, or signed in as someone else."
+      "what arrived, carrying request 0",
+      "The player signed out in the OS or signed in as someone else, or a notification was tapped or shown while the game was in front."
     ],
     [
       "apple_event",

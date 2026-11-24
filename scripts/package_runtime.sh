@@ -143,9 +143,8 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   done
 
   step "dex (the Java shims)"
-  # Every crate's java/ (Google's sign-in, the platform's sign-in page), reached
-  # over JNI: compiled against android.jar and dexed for the template's floor.
-  # Nothing comes from Maven: Credential Manager and Custom Tabs are the system's.
+  # Every crate's java/, reached over JNI: compiled against android.jar and
+  # dexed for the template's floor. Nothing comes from Maven.
   sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}
   android_jar=$(compgen -G "$sdk/platforms/android-*/android.jar" | sort -V | tail -1 || true)
   d8=$(compgen -G "$sdk/build-tools/*/d8" | sort -V | tail -1 || true)
@@ -164,7 +163,7 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   step "stage (apk layout)"
   # `android.app.lib_name` is how NativeActivity finds the library, so it has
   # to stay in step with [lib] name in crates/balaur_android/Cargo.toml.
-  # The export adds an intent filter to Redirect for each of `[android] schemes`.
+  # The export adds Redirect's `[android] schemes` and names Files' authority.
   cat >"$skeleton/AndroidManifest.xml" <<'MANIFEST'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -172,6 +171,8 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
     android:versionCode="1"
     android:versionName="1.0">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
+  <uses-permission android:name="android.permission.VIBRATE" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <queries>
     <intent>
       <action android:name="android.support.customtabs.action.CustomTabsService" />
@@ -203,6 +204,29 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
         android:exported="true"
         android:theme="@android:style/Theme.NoDisplay">
     </activity>
+    <activity
+        android:name="org.balaur.platform.Permission"
+        android:exported="false"
+        android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    <activity
+        android:name="org.balaur.platform.Share"
+        android:exported="false"
+        android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    <activity
+        android:name="org.balaur.platform.Opened"
+        android:exported="false"
+        android:theme="@android:style/Theme.NoDisplay" />
+    <receiver
+        android:name="org.balaur.platform.Alarm"
+        android:exported="false" />
+    <receiver
+        android:name="org.balaur.platform.Chosen"
+        android:exported="false" />
+    <provider
+        android:name="org.balaur.platform.Files"
+        android:authorities="org.balaur.template.balaur.files"
+        android:exported="false"
+        android:grantUriPermissions="true" />
   </application>
 </manifest>
 MANIFEST

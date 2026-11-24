@@ -16,6 +16,7 @@ balaur_core.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
+tracing.workspace = true
 
 # The Java shims in `crates/*/java`, which the Android template carries as its
 # `classes.dex` (scripts/package_runtime.sh), reached over JNI; `android.rs`
@@ -23,7 +24,11 @@ anyhow.workspace = true
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.22"
 ndk-context = "0.1"
-tracing.workspace = true
+
+# A page's motor, `navigator.vibrate` (`device.vibrate`).
+[target.'cfg(target_family = "wasm")'.dependencies]
+web-sys = { version = "0.3.106", features = ["Navigator", "Window"] }
+js-sys = "0.3.106"
 
 [dev-dependencies]
 balaur_testkit.workspace = true

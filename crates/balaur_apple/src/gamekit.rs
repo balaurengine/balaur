@@ -77,19 +77,6 @@ pub(crate) fn apple_call(request: u64, call: &AppleCall, report: &Sender<AppleEv
         }
         AppleCall::Dashboard { state } => crate::ui::show_dashboard(request, *state, report),
         AppleCall::Store(call) => crate::storekit::call(request, call, report),
-        AppleCall::RequestNotifications => {
-            crate::notify::watch_taps();
-            crate::notify::request_authorization(request, report);
-        }
-        AppleCall::Notify {
-            id,
-            title,
-            body,
-            after,
-        } => {
-            crate::notify::watch_taps();
-            crate::notify::schedule(request, id, title, body, *after, report);
-        }
     }
 }
 
@@ -466,6 +453,6 @@ fn describe(error: &NSError) -> String {
 
 /// Whether this process runs from an app bundle with an identifier, which
 /// Game Center and iCloud need.
-fn bundled() -> bool {
+pub(crate) fn bundled() -> bool {
     NSBundle::mainBundle().bundleIdentifier().is_some()
 }

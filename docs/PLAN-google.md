@@ -53,7 +53,9 @@ shims in `crates/balaur_google/java` (step 1).
    on the device. No nonce: Gamend's
    `tokeninfo` check reads none. A stand-in answers `google.sign_in` in a
    test. Below Android 14 a game opens Google's page, since only androidx
-   reaches Play services' own sign-in there. Custom Tabs are still to do.
+   reaches Play services' own sign-in there; `platform.is_available(
+   SERVICE_GOOGLE_SIGN_IN)` says which, from the client id and Credential
+   Manager being on the device. Custom Tabs are built (ARCHITECTURE.md).
 5. **Play Billing.** Billing Library 8 or later: products, purchase,
    acknowledgement and restore, verified by a Gamend hook over the Play
    Developer API. Done: a license tester's purchase that survives a
@@ -63,7 +65,8 @@ shims in `crates/balaur_google/java` (step 1).
 7. **Play Asset Delivery.** On-demand asset packs as an asset source, which
    needs the AAB. It waits for the roadmap's asset streaming rather than
    leading it.
-8. **The long tail.** In-app review and updates, the install referrer,
+8. **The long tail.** In-app review (`device.request_review`, which answers
+   `unsupported` on Android until the library comes) and updates, the install referrer,
    Crashlytics with the NDK reporter, and `google.call` for a Java library
    this plan does not name.
 

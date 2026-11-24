@@ -12,12 +12,13 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | Module | Functions | Constants |
 | --- | ---: | ---: |
 | [`animation`](#animation) | 5 | 79 |
-| [`apple`](#apple) | 18 | 25 |
+| [`apple`](#apple) | 15 | 21 |
 | [`assets`](#assets) | 9 | 0 |
 | [`audio`](#audio) | 15 | 1 |
 | [`browser`](#browser) | 6 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
+| [`device`](#device) | 4 | 12 |
 | [`encoding`](#encoding) | 3 | 0 |
 | [`engine`](#engine) | 30 | 0 |
 | [`events`](#events) | 4 | 0 |
@@ -30,7 +31,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`hash`](#hash) | 2 | 0 |
 | [`http`](#http) | 2 | 5 |
 | [`import`](#import) | 6 | 0 |
-| [`input`](#input) | 52 | 188 |
+| [`input`](#input) | 51 | 188 |
 | [`json`](#json) | 3 | 0 |
 | [`log`](#log) | 7 | 0 |
 | [`math`](#math) | 24 | 3 |
@@ -42,7 +43,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`physics2d`](#physics2d) | 13 | 106 |
 | [`physics3d`](#physics3d) | 13 | 113 |
 | [`picture`](#picture) | 1 | 0 |
-| [`platform`](#platform) | 14 | 12 |
+| [`platform`](#platform) | 18 | 28 |
 | [`project`](#project) | 15 | 0 |
 | [`quat`](#quat) | 8 | 0 |
 | [`random`](#random) | 6 | 0 |
@@ -111,13 +112,12 @@ Called on a node's component: `animation`, `state_machine`. See [components](com
 
 ## `apple`
 
-Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, "apple_event")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.
+Apple services beyond `platform.*`: Game Center `identity`, purchases, push. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, "apple_event")`: a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere. Local notifications are `platform.notify`.
 
 | Function | Signature |
 | --- | --- |
 | `access_point` | `(bool, apple::AccessPointOptions?) -> bool` |
 | `available` | `() -> bool` |
-| `cancel_notification` | `(str)` |
 | `credential_state` | `(str) -> int` |
 | `entitlements` | `() -> int` |
 | `finish_purchase` | `(str) -> int` |
@@ -125,16 +125,14 @@ Apple services beyond `platform.*`: Game Center `identity`, purchases, notificat
 | `listen_for_cloud_changes` | `() -> bool` |
 | `listen_for_invites` | `() -> bool` |
 | `listen_for_urls` | `() -> bool` |
-| `notify` | `(str, apple::NotifyOptions?) -> int` |
 | `products` | `([str]) -> int` |
 | `purchase` | `(str) -> int` |
 | `register_for_push` | `() -> bool` |
-| `request_notifications` | `() -> int` |
 | `restore_purchases` | `() -> int` |
 | `show_dashboard` | `(apple::ShowDashboardOptions?) -> int` |
 | `sign_in` | `() -> int` |
 
-**Constants** (25):
+**Constants** (21):
 
 | Name | Value |
 | --- | --- |
@@ -148,9 +146,6 @@ Apple services beyond `platform.*`: Game Center `identity`, purchases, notificat
 | `EVENT_IDENTITY` | `"identity"` |
 | `EVENT_INVITE_ACCEPTED` | `"invite_accepted"` |
 | `EVENT_MATCH_REQUESTED` | `"match_requested"` |
-| `EVENT_NOTIFICATIONS` | `"notifications"` |
-| `EVENT_NOTIFICATION_OPENED` | `"notification_opened"` |
-| `EVENT_NOTIFICATION_RECEIVED` | `"notification_received"` |
 | `EVENT_PENDING` | `"pending"` |
 | `EVENT_PRODUCTS` | `"products"` |
 | `EVENT_PURCHASED` | `"purchased"` |
@@ -158,12 +153,10 @@ Apple services beyond `platform.*`: Game Center `identity`, purchases, notificat
 | `EVENT_PUSH_RECEIVED` | `"push_received"` |
 | `EVENT_PUSH_TOKEN` | `"push_token"` |
 | `EVENT_RESTORED` | `"restored"` |
-| `EVENT_SCHEDULED` | `"scheduled"` |
 | `EVENT_SIGNED_IN` | `"signed_in"` |
 | `EVENT_TRANSACTION` | `"transaction"` |
 | `EVENT_UNSUPPORTED` | `"unsupported"` |
-
-…and 1 more.
+| `EVENT_URL` | `"url"` |
 
 ## `assets`
 
@@ -265,6 +258,34 @@ The projects a game imports whole under `deps/<alias>/`, declared in `[dependenc
 | `of` | `(str) -> str?` |
 
 `add_path`, `install`, `make_local`, `move_into` are the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
+
+## `device`
+
+What a phone lends a game beyond the store: its motor, the share sheet and the store's review prompt. A call that answers does so through `task::wait` with a map whose `kind` is `shared`, `done`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. `platform::is_available` says which of them work here. A test answers `share` and `request_review` from the file `BALAUR_STAND_INS` names.
+
+| Function | Signature |
+| --- | --- |
+| `haptic` | `(str)` |
+| `request_review` | `() -> int` |
+| `share` | `(device::ShareOptions) -> int` |
+| `vibrate` | `(float)` |
+
+**Constants** (12):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_CANCELLED` | `"cancelled"` |
+| `EVENT_DONE` | `"done"` |
+| `EVENT_ERROR` | `"error"` |
+| `EVENT_SHARED` | `"shared"` |
+| `EVENT_UNSUPPORTED` | `"unsupported"` |
+| `HAPTIC_ERROR` | `"error"` |
+| `HAPTIC_HEAVY` | `"heavy"` |
+| `HAPTIC_LIGHT` | `"light"` |
+| `HAPTIC_MEDIUM` | `"medium"` |
+| `HAPTIC_SELECTION` | `"selection"` |
+| `HAPTIC_SUCCESS` | `"success"` |
+| `HAPTIC_WARNING` | `"warning"` |
 
 ## `encoding`
 
@@ -518,7 +539,6 @@ One frame of input: keyboard, mouse, touch screen and gamepads, plus what went d
 | `touches_just_ended` | `() -> [int]` |
 | `touches_just_started` | `() -> [int]` |
 | `typed` | `() -> str` |
-| `vibrate` | `(float)` |
 
 **Constants** (188):
 
@@ -867,17 +887,21 @@ Every function here is the editor's, called only from a script of the editor, or
 
 ## `platform`
 
-Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, "platform_event")`. A test answers calls from the file `BALAUR_STAND_INS` names.
+Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet, and local notifications. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `notifications`, `scheduled`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. What arrives unasked is the `platform_event` event, `events::listen(node, "platform_event")`: a sign-in or sign-out, and a notification tapped (`notification_opened`) or shown in front (`notification_received`). `is_available` says whether a service works here. A test answers calls from the file `BALAUR_STAND_INS` names.
 
 | Function | Signature |
 | --- | --- |
 | `backend` | `() -> str` |
+| `cancel_notification` | `(str)` |
 | `close_web_sign_in` | `()` |
 | `cloud_read` | `(str) -> int` |
 | `cloud_write` | `(str, str) -> int` |
 | `identity` | `() -> int` |
+| `is_available` | `(str) -> bool` |
+| `notify` | `(str, platform::NotifyOptions?) -> int` |
 | `player` | `() -> platform::Player?` |
 | `progress` | `(str, float) -> int` |
+| `request_notifications` | `() -> int` |
 | `scores` | `(str, platform::ScoresOptions?) -> int` |
 | `set_presence` | `(str) -> int` |
 | `sign_in` | `() -> int` |
@@ -886,7 +910,7 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `web_sign_in` | `(str, platform::WebSignInOptions?) -> int` |
 | `web_sign_in_state` | `() -> str` |
 
-**Constants** (12):
+**Constants** (28):
 
 | Name | Value |
 | --- | --- |
@@ -894,7 +918,11 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `EVENT_DONE` | `"done"` |
 | `EVENT_ERROR` | `"error"` |
 | `EVENT_IDENTITY` | `"identity"` |
+| `EVENT_NOTIFICATIONS` | `"notifications"` |
+| `EVENT_NOTIFICATION_OPENED` | `"notification_opened"` |
+| `EVENT_NOTIFICATION_RECEIVED` | `"notification_received"` |
 | `EVENT_READ` | `"read"` |
+| `EVENT_SCHEDULED` | `"scheduled"` |
 | `EVENT_SCORES` | `"scores"` |
 | `EVENT_SIGNED_IN` | `"signed_in"` |
 | `EVENT_SIGNED_OUT` | `"signed_out"` |
@@ -902,6 +930,16 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `EVENT_WEB_SIGN_IN` | `"web_sign_in"` |
 | `PAGE_NONE` | `"none"` |
 | `PAGE_OPEN` | `"open"` |
+| `SERVICE_APPLE_SIGN_IN` | `"apple_sign_in"` |
+| `SERVICE_GAME_CENTER` | `"game_center"` |
+| `SERVICE_GOOGLE_SIGN_IN` | `"google_sign_in"` |
+| `SERVICE_HAPTICS` | `"haptics"` |
+| `SERVICE_ICLOUD` | `"icloud"` |
+| `SERVICE_NOTIFICATIONS` | `"notifications"` |
+| `SERVICE_PURCHASES` | `"purchases"` |
+| `SERVICE_PUSH` | `"push"` |
+
+…and 4 more.
 
 ## `project`
 

@@ -15,17 +15,11 @@ fn field(value: &Value, key: &str) -> Value {
 
 #[test]
 fn an_arrival_reaches_a_script_with_its_kind_and_what_it_carries() {
-    let shown = event_value(AppleEvent::NotificationReceived {
-        id: "daily".into(),
-        title: "Chest".into(),
-        body: "Ready".into(),
+    let pushed = event_value(AppleEvent::PushReceived {
         data: serde_json::json!({ "chest": 3 }),
     });
-    assert_eq!(
-        field(&shown, "kind"),
-        Value::Str("notification_received".into())
-    );
-    assert_eq!(field(&field(&shown, "data"), "chest"), Value::Int(3));
+    assert_eq!(field(&pushed, "kind"), Value::Str("push_received".into()));
+    assert_eq!(field(&field(&pushed, "data"), "chest"), Value::Int(3));
     let asked = event_value(AppleEvent::MatchRequested {
         players: vec!["G:1".into(), "G:2".into()],
     });

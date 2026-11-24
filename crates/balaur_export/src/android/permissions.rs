@@ -8,7 +8,8 @@ pub(super) const INTERNET: &str = "INTERNET";
 const PERMISSION_PREFIX: &str = "android.permission.";
 
 /// `xml` with a `uses-permission` for each of `names`, before its
-/// `<application>`.
+/// `<application>`. One the template already declares for its own shims
+/// (VIBRATE, POST_NOTIFICATIONS) is declared once.
 ///
 /// # Errors
 /// When a name is not one Android could declare, or the template has no
@@ -17,6 +18,10 @@ pub(super) fn declare(xml: &str, names: &[String]) -> Result<String> {
     let mut lines = String::new();
     for name in names {
         let full = permission_name(name)?;
+        let declared = format!("<uses-permission android:name=\"{full}\"");
+        if xml.contains(&declared) || lines.contains(&declared) {
+            continue;
+        }
         lines.push_str("  <uses-permission android:name=\"");
         lines.push_str(&full);
         lines.push_str("\" />\n");
