@@ -14,7 +14,15 @@ pub const FILE: &str = if cfg!(target_os = "windows") {
 /// An open `steam_api`. Its symbols live as long as it does.
 pub struct Library {
     #[cfg(not(target_family = "wasm"))]
-    inner: libloading::Library,
+    inner: Inner,
+}
+
+#[cfg(not(target_family = "wasm"))]
+enum Inner {
+    Opened(libloading::Library),
+    /// A test's functions by symbol name, NUL and all, in place of Valve's.
+    #[cfg(test)]
+    Fake(std::collections::BTreeMap<&'static [u8], usize>),
 }
 
 impl Library {
@@ -26,7 +34,18 @@ impl Library {
     pub unsafe fn open(path: &Path) -> Result<Self, String> {
         // SAFETY: the caller names Valve's library.
         let inner = unsafe { libloading::Library::new(path) }.map_err(|e| e.to_string())?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: Inner::Opened(inner),
+        })
+    }
+
+    /// A library of a test's own functions, each under the symbol it stands
+    /// in for (`b"SteamAPI_InitFlat\0"`).
+    #[cfg(all(test, not(target_family = "wasm")))]
+    pub(crate) fn fake(symbols: std::collections::BTreeMap<&'static [u8], usize>) -> Self {
+        Self {
+            inner: Inner::Fake(symbols),
+        }
     }
 
     /// A browser has no dlopen.
@@ -44,8 +63,16 @@ impl Library {
     /// `T` is the symbol's own function pointer type.
     #[cfg(not(target_family = "wasm"))]
     pub(crate) unsafe fn sym<T: Copy>(&self, name: &[u8]) -> Option<T> {
-        // SAFETY: the caller spells the symbol's type.
-        unsafe { self.inner.get::<T>(name).ok().map(|symbol| *symbol) }
+        match &self.inner {
+            // SAFETY: the caller spells the symbol's type.
+            Inner::Opened(library) => unsafe { library.get::<T>(name).ok().map(|symbol| *symbol) },
+            #[cfg(test)]
+            Inner::Fake(symbols) => symbols.get(name).map(|&address| {
+                assert_eq!(size_of::<T>(), size_of::<usize>(), "a function pointer");
+                // SAFETY: the test put a function of the symbol's own type there.
+                unsafe { std::mem::transmute_copy::<usize, T>(&address) }
+            }),
+        }
     }
 
     /// # Safety

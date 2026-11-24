@@ -21,9 +21,13 @@ use balaur_script::{Module, Value};
 
 mod answers;
 mod client;
+#[cfg(all(test, not(target_family = "wasm")))]
+mod fake;
 pub mod library;
 mod marshal;
 mod platform;
+#[cfg(all(test, not(target_family = "wasm")))]
+mod platform_tests;
 pub mod sdk;
 
 pub use answers::{SteamSnapshot, SteamState};
@@ -77,19 +81,20 @@ impl balaur_plugin::Plugin for SteamPlugin {
             }
         }
         if let Some(steam) = client::Steam::start() {
-            let steam = Rc::new(steam);
-            let state = reg.engine().resource::<SteamState>();
-            let tickets = Rc::clone(&state.borrow().tickets);
-            state.borrow_mut().steam = Some(Rc::clone(&steam));
-            let backend = platform::SteamBackend {
-                steam,
-                tickets,
-                waiting: std::collections::VecDeque::new(),
-            };
-            balaur_platform::set_backend(reg.engine(), Box::new(backend))?;
+            install(reg.engine(), steam)?;
         }
         Ok(())
     }
+}
+
+/// A started client behind the `steam_*` modules and `platform.*`.
+fn install(eng: &Engine, steam: Steam) -> Result<()> {
+    let steam = Rc::new(steam);
+    let state = eng.resource::<SteamState>();
+    let inbox = Rc::clone(&state.borrow().inbox);
+    state.borrow_mut().steam = Some(Rc::clone(&steam));
+    let backend = platform::SteamBackend::new(steam, inbox);
+    balaur_platform::set_backend(eng, Box::new(backend))
 }
 
 /// What the `steam` module adds to Valve's own: whether Steam is here.

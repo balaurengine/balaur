@@ -1420,6 +1420,15 @@ things are shared.
   as `ticket`. `balaur_steam` fills `platform.*` only where the Steam client
   runs the game, after Apple's, so a script that names only `platform.*`
   runs on every store.
+- **Steam answers `platform.*` from its call results.** A call Steam answers
+  later hands its handle to an inbox the steam plugin's pump fills, beside the
+  callbacks the backend waits on (stats received, stats stored, a Web API
+  ticket), and the backend's pump answers the call when its result lands, as
+  a GameKit completion handler does: an unlock after `StoreStats`, a score
+  after `FindOrCreateLeaderboard` and `UploadLeaderboardScore`, a cloud write
+  after `FileWriteAsync`. Achievement calls wait for the player's stats, which
+  Steam fetches as the game starts. A test loads a fake library, test
+  functions under Valve's symbol names, through the same `Api::load`.
 - **Steam is Valve's own description, generated.** `scripts/gen_steam.py`
   turns the SDK's `steam_api.json` into checked-in Rust: every flat function a
   pointer looked up when the library opens, every struct with Valve's packing

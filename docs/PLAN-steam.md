@@ -43,18 +43,46 @@ what only Steam has. A game can ship on Steam after step 4.
    session whose player id came from Steam.
    *Built 2026-11-23*: `platform.sign_in` answers the Steam id and persona
    name, and `platform.identity` a Web API ticket with no identity, as core
-   checks it, delivered by `GetTicketForWebApiResponse_t`. Still to do: a run
-   against a real client (only the no-client path is tested).
+   checks it, delivered by `GetTicketForWebApiResponse_t`. Tested against a
+   fake `steam_api` (below). Still to do: a run against a real client.
 3. **Achievements and leaderboards.** `unlock`, `progress`, `submit_score`
    and `scores` over `ISteamUserStats`, each write held until its tick
    settles. Done: an achievement in the player's profile.
+   *Built 2026-11-24*: `unlock` is `SetAchievement` then `StoreStats`, and
+   answers `done` when `UserStatsStored_t` says the stats are stored.
+   `progress` under 100 is `IndicateAchievementProgress`, scaled to the
+   achievement's progress range where `GetAchievementProgressLimits` names
+   one: a note Steam shows and keeps nowhere, so a game whose progress lives
+   in a stat sets that stat through `steam_user_stats`. At 100 it unlocks.
+   Achievement calls wait for the player's stats. SDK 1.64 has no
+   `RequestCurrentStats`; Steam fetches them as the game starts and its
+   `UserStatsReceived_t` frees the calls, or a call made first asks
+   `RequestUserStats` for the player. `submit_score` is
+   `FindOrCreateLeaderboard` (descending, numeric, found once a board) then
+   `UploadLeaderboardScore` keeping the best, the score clamped to 32 bits.
+   `scores` is `FindLeaderboard`, `DownloadLeaderboardEntries` (global ranks
+   from `start`, or every friend cut to `start` and `count`) and
+   `GetDownloadedLeaderboardEntry`, with the persona name Steam knows for
+   each player; Steam keeps one table a board, so `period` changes nothing.
+   Each answers when its call result lands, through the manual dispatch.
+   Still to do: an achievement in a real profile.
 4. **Cloud saves.** Auto-Cloud first, a path pattern over what `save`
    writes, then `cloud_read` and `cloud_write` over `ISteamRemoteStorage` for
    a game that resolves its own conflicts. Done: a save made on one machine
    loads on another.
+   *Calls built 2026-11-24*: a key is a file in the game's Steam Cloud, read
+   with `FileReadAsync` and written with `FileWriteAsync`, whole. A key with
+   no file reads nil, an empty one `""`, and bytes that are not UTF-8 an
+   error. The last write wins, as in iCloud's key-value store; Steam syncs
+   as the game starts and stops, with its own dialog for a conflict between
+   two machines. Still to do: the Auto-Cloud pattern, and a save carried
+   between two machines.
 5. **Presence, the overlay and friends.** `platform::set_presence`, the
    overlay's opened and closed events so a game can pause, the invite dialog,
    and Deck and Big Picture detection from `ISteamUtils`.
+   *Presence built 2026-11-24*: `set_presence` is `SetRichPresence` of
+   `status`, the text the friends list shows with no localization file. The
+   rest of the step is still to do.
 6. **DLC and app state.** Installed DLC, build id, branch and launch
    parameters from `ISteamApps`.
 7. **Lobbies.** Create, join, leave, lobby data and chat over
@@ -81,6 +109,14 @@ CI proves what needs no client. Every desktop build compiles it, and a
 `--steam` export carries the redistributable and no `steam_appid.txt`.
 The macOS `.app` passes `codesign --verify --deep`, and canned Steam events
 replay to a bit-identical digest.
+
+The `platform.*` calls run in `balaur_steam`'s tests against a fake
+`steam_api`: test functions under Valve's symbol names, loaded through the
+same `Api::load` as the real library, which queue callbacks and call results
+for the manual dispatch as a client does. They check what each call asks
+Valve's functions and what it answers, and that a recording of those answers
+replays the same with no library loaded. Nothing yet has run against a real
+client.
 
 Not planned: the game-server interfaces (Gamend is the server), music
 control, the HTML surface, the DRM wrapper (it rewrites the executable a pack

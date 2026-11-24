@@ -14,8 +14,9 @@ use crate::marshal::read;
 use crate::sdk::api::Api;
 use crate::sdk::script::callback_value;
 use crate::sdk::types::{
-    CallbackMsg_t, GetTicketForWebApiResponse_t, HSteamPipe, SteamAPICall_t,
-    SteamAPICallCompleted_t, SteamErrMsg, k_EResultOK, k_ESteamAPIInitResult_OK, zeroed,
+    CallbackMsg_t, EResult, GetTicketForWebApiResponse_t, HSteamPipe, SteamAPICall_t,
+    SteamAPICallCompleted_t, SteamErrMsg, UserStatsReceived_t, UserStatsStored_t, k_EResultOK,
+    k_ESteamAPIInitResult_OK, zeroed,
 };
 
 pub(crate) const KIND: &str = "kind";
@@ -37,6 +38,38 @@ pub(crate) enum Arrival {
 
 /// A Web API ticket as its callback delivered it, for `platform.identity`.
 pub(crate) type Ticket = Result<Vec<u8>, String>;
+
+/// What the backend behind `platform.*` waits on, filled by the steam
+/// plugin's pump, which takes every callback, and read by the backend's.
+#[derive(Default)]
+pub(crate) struct Inbox {
+    /// The call results the backend started, by Steam's handle: the callback
+    /// id each answers with.
+    pub(crate) calls: BTreeMap<SteamAPICall_t, i32>,
+    /// What arrived for it, oldest first.
+    pub(crate) arrived: VecDeque<Heard>,
+}
+
+/// One thing Steam told the backend.
+pub(crate) enum Heard {
+    Ticket(Ticket),
+    /// `UserStatsReceived_t`: a player's stats and achievements are in, or
+    /// failed to come.
+    Stats {
+        user: u64,
+        result: EResult,
+    },
+    /// `UserStatsStored_t`, after a `StoreStats`.
+    Stored {
+        result: EResult,
+    },
+    /// A call result the backend started, its struct's bytes, or None when
+    /// Steam gave none.
+    Answer {
+        handle: SteamAPICall_t,
+        data: Option<Vec<u8>>,
+    },
+}
 
 /// The call results in flight: Steam's handle, and the token and callback id
 /// its answer goes to.
@@ -78,8 +111,16 @@ impl Steam {
         // SAFETY: a file named as Valve names its library, beside the game.
         let library = unsafe { Library::open(path) }?;
         // SAFETY: the same library.
-        let mut api = unsafe { Api::load(library) }
-            .map_err(|missing| format!("{} has no {missing}", path.display()))?;
+        unsafe { Self::start_with(library) }.map_err(|why| format!("{}: {why}", path.display()))
+    }
+
+    /// Start Steam through an open library.
+    ///
+    /// # Safety
+    /// `library` is Valve's `steam_api`, or a test's functions of its types.
+    pub(crate) unsafe fn start_with(library: Library) -> Result<Self, String> {
+        // SAFETY: the caller's promise.
+        let mut api = unsafe { Api::load(library) }.map_err(|missing| format!("no {missing}"))?;
         let mut message: SteamErrMsg = [0; 1024];
         // SAFETY: a buffer of the size Valve writes into.
         let result = unsafe { (api.globals.init_flat)(&raw mut message) };
@@ -105,24 +146,34 @@ impl Steam {
     }
 
     /// Take every callback Steam has queued, answering the call results in
-    /// `pending` and the Web API tickets `platform.identity` waits on.
+    /// `pending` and handing the backend what it waits on.
     pub(crate) fn dispatch(
         &self,
         pending: &mut Pending,
-        tickets: &RefCell<VecDeque<Ticket>>,
+        inbox: &RefCell<Inbox>,
         report: &Sender<Arrival>,
     ) {
         self.each_callback(|id, data| {
             if id == SteamAPICallCompleted_t::k_iCallback {
-                if let Some((request, answer)) = self.completed(data, pending) {
+                let Some(done) = read::<SteamAPICallCompleted_t>(data) else {
+                    return;
+                };
+                if let Some((request, answer)) = self.completed(&done, pending) {
                     let _ = report.send(Arrival::Answer { request, answer });
+                    return;
+                }
+                let mut inbox = inbox.borrow_mut();
+                if let Some(expected) = inbox.calls.remove(&{ done.m_hAsyncCall }) {
+                    let (data, got, failed) = self.result_of(&done, expected);
+                    inbox.arrived.push_back(Heard::Answer {
+                        handle: done.m_hAsyncCall,
+                        data: (got && !failed).then_some(data),
+                    });
                 }
                 return;
             }
-            if id == GetTicketForWebApiResponse_t::k_iCallback
-                && let Some(ticket) = read::<GetTicketForWebApiResponse_t>(data)
-            {
-                tickets.borrow_mut().push_back(ticket_of(&ticket));
+            if let Some(heard) = heard(id, data) {
+                inbox.borrow_mut().arrived.push_back(heard);
             }
             if let Some((kind, value)) = callback_value(id, data) {
                 let _ = report.send(Arrival::Event {
@@ -158,23 +209,13 @@ impl Steam {
 
     /// The answer to a call result Steam says is done, for the token it was
     /// asked under.
-    fn completed(&self, data: &[u8], pending: &mut Pending) -> Option<(u64, serde_json::Value)> {
-        let done = read::<SteamAPICallCompleted_t>(data)?;
-        let handle = done.m_hAsyncCall;
-        let (request, expected) = pending.remove(&handle)?;
-        let mut buffer = vec![0_u8; usize::try_from(done.m_cubParam).unwrap_or(0)];
-        let mut failed = false;
-        // SAFETY: a buffer of the size Steam said the result takes.
-        let got = unsafe {
-            (self.api.globals.manual_dispatch_get_api_call_result)(
-                self.pipe,
-                handle,
-                buffer.as_mut_ptr().cast(),
-                i32::try_from(buffer.len()).unwrap_or(0),
-                expected,
-                &raw mut failed,
-            )
-        };
+    fn completed(
+        &self,
+        done: &SteamAPICallCompleted_t,
+        pending: &mut Pending,
+    ) -> Option<(u64, serde_json::Value)> {
+        let (request, expected) = pending.remove(&{ done.m_hAsyncCall })?;
+        let (buffer, got, failed) = self.result_of(done, expected);
         let answer = match callback_value(expected, &buffer).filter(|_| got) {
             Some((kind, value)) => answer_json(kind, value, Some(failed)),
             None => failure(
@@ -183,6 +224,25 @@ impl Steam {
             ),
         };
         Some((request, answer))
+    }
+
+    /// A finished call result's struct, as bytes: whether Steam gave it, and
+    /// whether the call failed (`k_ESteamAPICallFailure*`).
+    fn result_of(&self, done: &SteamAPICallCompleted_t, expected: i32) -> (Vec<u8>, bool, bool) {
+        let mut buffer = vec![0_u8; usize::try_from(done.m_cubParam).unwrap_or(0)];
+        let mut failed = false;
+        // SAFETY: a buffer of the size Steam said the result takes.
+        let got = unsafe {
+            (self.api.globals.manual_dispatch_get_api_call_result)(
+                self.pipe,
+                done.m_hAsyncCall,
+                buffer.as_mut_ptr().cast(),
+                i32::try_from(buffer.len()).unwrap_or(0),
+                expected,
+                &raw mut failed,
+            )
+        };
+        (buffer, got, failed)
     }
 
     /// The Web API ticket `platform.identity` asks for: with no identity,
@@ -202,6 +262,26 @@ impl Drop for Steam {
     fn drop(&mut self) {
         // SAFETY: Steam started when this was built.
         unsafe { (self.api.globals.shutdown)() };
+    }
+}
+
+/// What a callback tells the backend, if it waits on that kind.
+fn heard(id: i32, data: &[u8]) -> Option<Heard> {
+    match id {
+        GetTicketForWebApiResponse_t::k_iCallback => read::<GetTicketForWebApiResponse_t>(data)
+            .map(|ticket| Heard::Ticket(ticket_of(&ticket))),
+        UserStatsReceived_t::k_iCallback => {
+            read::<UserStatsReceived_t>(data).map(|got| Heard::Stats {
+                user: { got.m_steamIDUser }.0,
+                result: got.m_eResult,
+            })
+        }
+        UserStatsStored_t::k_iCallback => {
+            read::<UserStatsStored_t>(data).map(|stored| Heard::Stored {
+                result: stored.m_eResult,
+            })
+        }
+        _ => None,
     }
 }
 

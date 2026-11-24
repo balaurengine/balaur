@@ -13,7 +13,7 @@ use balaur_core::handler::id_value;
 use balaur_core::replay::{self, ExternalIo};
 use balaur_script::Value;
 
-use crate::client::{Arrival, Pending, Steam, Ticket, UNSUPPORTED, failure};
+use crate::client::{Arrival, Inbox, Pending, Steam, UNSUPPORTED, failure};
 use crate::sdk::api::Api;
 use crate::sdk::types::SteamAPICall_t;
 
@@ -26,7 +26,8 @@ pub struct SteamState {
     pub(crate) steam: Option<Rc<Steam>>,
     pub(crate) io: ExternalIo<Arrival>,
     pub(crate) pending: Pending,
-    pub(crate) tickets: Rc<RefCell<VecDeque<Ticket>>>,
+    /// What the backend behind `platform.*` waits on.
+    pub(crate) inbox: Rc<RefCell<Inbox>>,
     answers: Answers,
 }
 
@@ -147,11 +148,11 @@ pub(crate) fn pump_steam_system(eng: &Engine, _: f32) {
             steam,
             io,
             pending,
-            tickets,
+            inbox,
             ..
         } = &mut *state;
         if let Some(steam) = steam
-            && !io.start(eng, |report| steam.dispatch(pending, tickets, report))
+            && !io.start(eng, |report| steam.dispatch(pending, inbox, report))
         {
             steam.discard();
         }
