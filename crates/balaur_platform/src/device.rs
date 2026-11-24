@@ -344,7 +344,7 @@ pub(crate) fn install_device(m: &mut Module<Engine>) {
             REQUEST_REVIEW,
             &[],
             "() -> int",
-            "Ask the store to show its prompt to rate the game, and return the id its `done` answer carries. The store decides whether it shows, and says nothing about what the player did. `unsupported` off iOS and macOS.",
+            "Ask the store to show its prompt to rate the game, and return the id its `done` answer carries. The store decides whether it shows, and says nothing about what the player did. On Android it is Play's review flow, in a build whose `[android] capabilities` has `in-app-review`; `unsupported` anywhere else.",
         ),
     ]);
     m.function(VIBRATE, |eng: &Engine, seconds: f64| {

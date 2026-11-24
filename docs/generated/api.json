@@ -28095,7 +28095,7 @@
       "doc": "What a phone lends a game beyond the store: its motor, the share sheet and the store's review prompt. A call that answers does so through `task::wait` with a map whose `kind` is `shared`, `done`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. `platform::is_available` says which of them work here. A test answers `share` and `request_review` from the file `BALAUR_STAND_INS` names.",
       "docs": {
         "haptic": "One tap of feedback, named by a `HAPTIC_*` constant: iOS's feedback generators, Android's predefined effects, a short buzz on a page. Nothing on a desktop, and never recorded.",
-        "request_review": "Ask the store to show its prompt to rate the game, and return the id its `done` answer carries. The store decides whether it shows, and says nothing about what the player did. `unsupported` off iOS and macOS.",
+        "request_review": "Ask the store to show its prompt to rate the game, and return the id its `done` answer carries. The store decides whether it shows, and says nothing about what the player did. On Android it is Play's review flow, in a build whose `[android] capabilities` has `in-app-review`; `unsupported` anywhere else.",
         "share": "Show the OS's share sheet over the game, and return the id its answer carries: `shared` with the `target` the player picked where the OS names it, `cancelled`, `error`, or `unsupported` where there is no sheet.",
         "vibrate": "Buzz the device's motor for that many seconds: Android's vibrator, a page's `navigator.vibrate`, the iPhone's one system buzz whatever the length. Nothing on a desktop, and never recorded, like rumble."
       },
