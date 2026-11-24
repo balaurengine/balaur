@@ -130,3 +130,28 @@ fn a_sign_in_page_with_nothing_to_show_it_over_answers_at_once() {
     };
     assert_eq!(kinds(&app), [expected]);
 }
+
+// Purchases are `platform.*` on Apple too: StoreKit sits behind the same
+// seam, and a binary with no bundle id is one the App Store does not know.
+#[test]
+fn a_purchase_goes_through_the_portable_verbs_and_says_so_without_a_bundle() {
+    let mut app = app();
+    let state = app.engine.resource::<PlatformState>();
+    state.borrow_mut().start(
+        &app.engine,
+        1,
+        Call::Purchase {
+            product: "gold".into(),
+        },
+    );
+    state.borrow_mut().start(
+        &app.engine,
+        2,
+        Call::Products {
+            ids: vec!["gold".into()],
+        },
+    );
+    drop(state);
+    app.tick(1.0 / 60.0);
+    assert_eq!(kinds(&app), ["unsupported", "unsupported"]);
+}

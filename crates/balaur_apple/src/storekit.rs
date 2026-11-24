@@ -1,18 +1,18 @@
-//! In-app purchases, over the Swift shim in `swift/`.
+//! In-app purchases behind `platform.products` and the rest, over the Swift
+//! shim in `swift/`.
 //!
 //! StoreKit 2 is Swift-only, so this half of the crate is not objc2 but a C
-//! ABI of two arguments: a request id out, a JSON object back. What the
-//! object holds is StoreKit's, unchanged, so a field the App Store adds
-//! reaches a script without anything here moving.
+//! ABI of two arguments: a request id out, a JSON object back, already in the
+//! shape `platform::Product` and `platform::Transaction` describe.
 //!
-//! A purchase is not finished when it lands. `apple.finish_purchase` is a
+//! A purchase is not finished when it lands. `platform.finish_purchase` is a
 //! call of its own, because the thing that decides a purchase counts is the
-//! server that verified its `jws` — and a transaction nobody finishes comes
+//! server that verified its `token` — and a transaction nobody finishes comes
 //! back on every launch, which is StoreKit's way of not losing one.
 
 use std::sync::mpsc::Sender;
 
-use crate::{AppleEvent, StoreCall};
+use balaur_platform::{Call, PlatformEvent};
 
 #[cfg(swift_shim)]
 use std::ffi::{CStr, CString, c_char};
@@ -48,23 +48,26 @@ pub(crate) extern "C" fn balaur_storekit_report(request: u64, json: *const c_cha
             return;
         }
     };
-    crate::queue::push_apple(AppleEvent::Store { request, payload });
+    crate::queue::push_store(PlatformEvent::Answer {
+        request,
+        answer: payload,
+    });
 }
 
 #[cfg(swift_shim)]
-pub(crate) fn call(request: u64, call: &StoreCall, report: &Sender<AppleEvent>) {
+pub(crate) fn call(request: u64, call: &Call, report: &Sender<PlatformEvent>) {
     // Transactions land without being asked for — another device, a renewal,
     // a parent approving a request — so the listener goes up on the first
     // call of any kind.
     unsafe { balaur_storekit_listen() };
     let fail = |message: &str| {
-        let _ = report.send(AppleEvent::Failed {
+        let _ = report.send(PlatformEvent::Failed {
             request,
             message: message.to_string(),
         });
     };
     match call {
-        StoreCall::Products { ids } => {
+        Call::Products { ids } => {
             let Ok(ids) = serde_json::to_string(ids).map(CString::new) else {
                 fail("those product ids do not encode");
                 return;
@@ -75,24 +78,31 @@ pub(crate) fn call(request: u64, call: &StoreCall, report: &Sender<AppleEvent>) 
             };
             unsafe { balaur_storekit_products(request, ids.as_ptr()) };
         }
-        StoreCall::Purchase { product } => match CString::new(product.as_str()) {
+        Call::Purchase { product } => match CString::new(product.as_str()) {
             Ok(product) => unsafe { balaur_storekit_purchase(request, product.as_ptr()) },
             Err(_) => fail("that product id has a NUL in it"),
         },
-        StoreCall::Entitlements => unsafe { balaur_storekit_entitlements(request) },
-        StoreCall::Restore => unsafe { balaur_storekit_restore(request) },
-        StoreCall::Finish { transaction } => match CString::new(transaction.as_str()) {
+        Call::Entitlements => unsafe { balaur_storekit_entitlements(request) },
+        Call::RestorePurchases => unsafe { balaur_storekit_restore(request) },
+        // StoreKit finishes a consumable as it finishes anything else.
+        Call::FinishPurchase { transaction, .. } => match CString::new(transaction.as_str()) {
             Ok(id) => unsafe { balaur_storekit_finish(request, id.as_ptr()) },
             Err(_) => fail("that transaction id has a NUL in it"),
         },
+        _ => {
+            let _ = report.send(PlatformEvent::Unsupported {
+                request,
+                call: call.name().to_string(),
+            });
+        }
     }
 }
 
 /// A build with no Swift toolchain behind it. Everything else in the crate
 /// works; purchases say what is missing rather than failing to link.
 #[cfg(not(swift_shim))]
-pub(crate) fn call(request: u64, call: &StoreCall, report: &Sender<AppleEvent>) {
-    let _ = report.send(AppleEvent::Failed {
+pub(crate) fn call(request: u64, call: &Call, report: &Sender<PlatformEvent>) {
+    let _ = report.send(PlatformEvent::Failed {
         request,
         message: format!(
             "{}: this build has no StoreKit — it was compiled with no Swift toolchain",

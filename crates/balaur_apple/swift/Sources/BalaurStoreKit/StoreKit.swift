@@ -4,7 +4,7 @@
 // moving.
 //
 // Nothing here decides whether a purchase counts. The signed transaction
-// (`jws`) is what a server checks, and a transaction stays unfinished until
+// (`token`, the JWS) is what a server checks, and a transaction stays unfinished until
 // the game says otherwise — which is why `finish` is a call of its own.
 import Foundation
 import StoreKit
@@ -32,7 +32,8 @@ private func describe(_ product: Product) -> [String: Any] {
         "description": product.description,
         "price": (product.price as NSDecimalNumber).doubleValue,
         "display_price": product.displayPrice,
-        "kind": String(describing: product.type),
+        "currency": product.priceFormatStyle.currencyCode,
+        "subscription": product.type == .autoRenewable || product.type == .nonRenewable,
     ]
 }
 
@@ -43,9 +44,8 @@ private func describe(_ transaction: Transaction, jws: String, verified: Bool) -
         "purchased_at": transaction.purchaseDate.timeIntervalSince1970,
         "quantity": transaction.purchasedQuantity,
         "revoked": transaction.revocationDate != nil,
-        "upgraded": transaction.isUpgraded,
         // What a server verifies. The device's own word is not proof.
-        "jws": jws,
+        "token": jws,
         "verified": verified,
     ]
 }

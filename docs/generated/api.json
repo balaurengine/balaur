@@ -1080,25 +1080,17 @@
       "animation::SWITCH_MODE_AT_END": "at_end",
       "animation::SWITCH_MODE_IMMEDIATE": "immediate",
       "animation::SWITCH_MODE_SYNC": "sync",
-      "apple::EVENT_CANCELLED": "cancelled",
       "apple::EVENT_CLOUD_CHANGED": "cloud_changed",
       "apple::EVENT_CREDENTIAL_STATE": "credential_state",
       "apple::EVENT_DASHBOARD_CLOSED": "dashboard_closed",
-      "apple::EVENT_ENTITLEMENTS": "entitlements",
       "apple::EVENT_ERROR": "error",
-      "apple::EVENT_FINISHED": "finished",
       "apple::EVENT_IDENTITY": "identity",
       "apple::EVENT_INVITE_ACCEPTED": "invite_accepted",
       "apple::EVENT_MATCH_REQUESTED": "match_requested",
-      "apple::EVENT_PENDING": "pending",
-      "apple::EVENT_PRODUCTS": "products",
-      "apple::EVENT_PURCHASED": "purchased",
       "apple::EVENT_PUSH_FAILED": "push_failed",
       "apple::EVENT_PUSH_RECEIVED": "push_received",
       "apple::EVENT_PUSH_TOKEN": "push_token",
-      "apple::EVENT_RESTORED": "restored",
       "apple::EVENT_SIGNED_IN": "signed_in",
-      "apple::EVENT_TRANSACTION": "transaction",
       "apple::EVENT_UNSUPPORTED": "unsupported",
       "apple::EVENT_URL": "url",
       "audio::EVENT_SOUND_FINISHED": "sound_finished",
@@ -1557,16 +1549,23 @@
       "physics3d::TEST_EITHER": "either",
       "platform::EVENT_CANCELLED": "cancelled",
       "platform::EVENT_DONE": "done",
+      "platform::EVENT_ENTITLEMENTS": "entitlements",
       "platform::EVENT_ERROR": "error",
+      "platform::EVENT_FINISHED": "finished",
       "platform::EVENT_IDENTITY": "identity",
       "platform::EVENT_NOTIFICATIONS": "notifications",
       "platform::EVENT_NOTIFICATION_OPENED": "notification_opened",
       "platform::EVENT_NOTIFICATION_RECEIVED": "notification_received",
+      "platform::EVENT_PENDING": "pending",
+      "platform::EVENT_PRODUCTS": "products",
+      "platform::EVENT_PURCHASED": "purchased",
       "platform::EVENT_READ": "read",
+      "platform::EVENT_RESTORED": "restored",
       "platform::EVENT_SCHEDULED": "scheduled",
       "platform::EVENT_SCORES": "scores",
       "platform::EVENT_SIGNED_IN": "signed_in",
       "platform::EVENT_SIGNED_OUT": "signed_out",
+      "platform::EVENT_TRANSACTION": "transaction",
       "platform::EVENT_UNSUPPORTED": "unsupported",
       "platform::EVENT_WEB_SIGN_IN": "web_sign_in",
       "platform::PAGE_NONE": "none",
@@ -1577,6 +1576,7 @@
       "platform::SERVICE_HAPTICS": "haptics",
       "platform::SERVICE_ICLOUD": "icloud",
       "platform::SERVICE_NOTIFICATIONS": "notifications",
+      "platform::SERVICE_PLAY_GAMES": "play_games",
       "platform::SERVICE_PURCHASES": "purchases",
       "platform::SERVICE_PUSH": "push",
       "platform::SERVICE_REVIEW": "review",
@@ -4184,14 +4184,6 @@
         "least": 1,
         "signature": "(str) -> int"
       },
-      "apple::entitlements": {
-        "least": 0,
-        "signature": "() -> int"
-      },
-      "apple::finish_purchase": {
-        "least": 1,
-        "signature": "(str) -> int"
-      },
       "apple::identity": {
         "least": 0,
         "signature": "() -> int"
@@ -4208,21 +4200,9 @@
         "least": 0,
         "signature": "() -> bool"
       },
-      "apple::products": {
-        "least": 1,
-        "signature": "([str]) -> int"
-      },
-      "apple::purchase": {
-        "least": 1,
-        "signature": "(str) -> int"
-      },
       "apple::register_for_push": {
         "least": 0,
         "signature": "() -> bool"
-      },
-      "apple::restore_purchases": {
-        "least": 0,
-        "signature": "() -> int"
       },
       "apple::show_dashboard": {
         "least": 0,
@@ -6612,6 +6592,14 @@
         "least": 2,
         "signature": "(str, str) -> int"
       },
+      "platform::entitlements": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "platform::finish_purchase": {
+        "least": 1,
+        "signature": "(str, platform::FinishPurchaseOptions?) -> int"
+      },
       "platform::identity": {
         "least": 0,
         "signature": "() -> int"
@@ -6628,11 +6616,23 @@
         "least": 0,
         "signature": "() -> platform::Player?"
       },
+      "platform::products": {
+        "least": 1,
+        "signature": "([str]) -> int"
+      },
       "platform::progress": {
         "least": 2,
         "signature": "(str, float) -> int"
       },
+      "platform::purchase": {
+        "least": 1,
+        "signature": "(str) -> int"
+      },
       "platform::request_notifications": {
+        "least": 0,
+        "signature": "() -> int"
+      },
+      "platform::restore_purchases": {
         "least": 0,
         "signature": "() -> int"
       },
@@ -10769,26 +10769,8 @@
       "apple::AccessPointOptions": {
         "location": "str?"
       },
-      "apple::Product": {
-        "description": "str",
-        "display_price": "str",
-        "id": "str",
-        "kind": "str",
-        "price": "float",
-        "title": "str"
-      },
       "apple::ShowDashboardOptions": {
         "state": "str?"
-      },
-      "apple::Transaction": {
-        "id": "str",
-        "jws": "str",
-        "product": "str",
-        "purchased_at": "float",
-        "quantity": "int",
-        "revoked": "bool",
-        "upgraded": "bool",
-        "verified": "bool"
       },
       "audio::BusEffects": {
         "auto_gain": "bool",
@@ -11749,6 +11731,9 @@
         "physics2d": "physics::Tuning",
         "physics3d": "physics::Tuning"
       },
+      "platform::FinishPurchaseOptions": {
+        "consume": "bool?"
+      },
       "platform::NotifyOptions": {
         "after": "float?",
         "data": "any",
@@ -11758,6 +11743,15 @@
       "platform::Player": {
         "alias": "str",
         "id": "str"
+      },
+      "platform::Product": {
+        "currency": "str",
+        "description": "str",
+        "display_price": "str",
+        "id": "str",
+        "price": "float",
+        "subscription": "bool",
+        "title": "str"
       },
       "platform::Score": {
         "alias": "str",
@@ -11770,6 +11764,15 @@
         "period": "str?",
         "scope": "str?",
         "start": "int?"
+      },
+      "platform::Transaction": {
+        "id": "str",
+        "product": "str",
+        "purchased_at": "float",
+        "quantity": "int",
+        "revoked": "bool",
+        "token": "str",
+        "verified": "bool"
       },
       "platform::WebSignInOptions": {
         "scheme": "str?"
@@ -27666,10 +27669,6 @@
       "components": [],
       "constants": [
         {
-          "name": "EVENT_CANCELLED",
-          "value": "\"cancelled\""
-        },
-        {
           "name": "EVENT_CLOUD_CHANGED",
           "value": "\"cloud_changed\""
         },
@@ -27682,16 +27681,8 @@
           "value": "\"dashboard_closed\""
         },
         {
-          "name": "EVENT_ENTITLEMENTS",
-          "value": "\"entitlements\""
-        },
-        {
           "name": "EVENT_ERROR",
           "value": "\"error\""
-        },
-        {
-          "name": "EVENT_FINISHED",
-          "value": "\"finished\""
         },
         {
           "name": "EVENT_IDENTITY",
@@ -27706,18 +27697,6 @@
           "value": "\"match_requested\""
         },
         {
-          "name": "EVENT_PENDING",
-          "value": "\"pending\""
-        },
-        {
-          "name": "EVENT_PRODUCTS",
-          "value": "\"products\""
-        },
-        {
-          "name": "EVENT_PURCHASED",
-          "value": "\"purchased\""
-        },
-        {
           "name": "EVENT_PUSH_FAILED",
           "value": "\"push_failed\""
         },
@@ -27730,16 +27709,8 @@
           "value": "\"push_token\""
         },
         {
-          "name": "EVENT_RESTORED",
-          "value": "\"restored\""
-        },
-        {
           "name": "EVENT_SIGNED_IN",
           "value": "\"signed_in\""
-        },
-        {
-          "name": "EVENT_TRANSACTION",
-          "value": "\"transaction\""
         },
         {
           "name": "EVENT_UNSUPPORTED",
@@ -27750,21 +27721,16 @@
           "value": "\"url\""
         }
       ],
-      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, push. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere. Local notifications are `platform.notify`.",
+      "doc": "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens, push. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a push and its payload, a URL opened, an invite, an iCloud change. Local notifications are `platform.notify`, and purchases `platform.purchase` and the rest.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing.",
         "available": "Whether this build has Apple's frameworks behind it.",
         "credential_state": "Ask whether a saved Sign in with Apple account is still authorized, revoked, transferred or unknown, and return the id the answer carries.",
-        "entitlements": "What this player currently owns: returns the id whose `entitlements` answer holds them as `items`, each a `Transaction`.",
-        "finish_purchase": "Tell StoreKit a transaction is dealt with, and return the id its `finished` answer carries. One that is never finished comes back on every launch.",
         "identity": "Fetch the items a server needs to verify this Game Center player, and return the id the answer carries.",
         "listen_for_cloud_changes": "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
         "listen_for_invites": "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
         "listen_for_urls": "Hear about URLs the game is asked to open. A URL the game was launched with arrives the same way, once the engine is up.",
-        "products": "Ask the App Store about a list of product ids, and return the id whose `products` answer holds what it knows, each a `Product`.",
-        "purchase": "Buy a product, and return the id its answer carries: `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
         "register_for_push": "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
-        "restore_purchases": "Ask the App Store to hand this device's purchases back, the button a review expects a game to have, and return the id its `restored` answer carries.",
         "show_dashboard": "Open Game Center's dashboard over the game, and return the id its `dashboard_closed` answer carries.",
         "sign_in": "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`."
       },
@@ -27773,16 +27739,11 @@
         "access_point",
         "available",
         "credential_state",
-        "entitlements",
-        "finish_purchase",
         "identity",
         "listen_for_cloud_changes",
         "listen_for_invites",
         "listen_for_urls",
-        "products",
-        "purchase",
         "register_for_push",
-        "restore_purchases",
         "show_dashboard",
         "sign_in"
       ],
@@ -27792,16 +27753,11 @@
         "access_point": "(bool, apple::AccessPointOptions?) -> bool",
         "available": "() -> bool",
         "credential_state": "(str) -> int",
-        "entitlements": "() -> int",
-        "finish_purchase": "(str) -> int",
         "identity": "() -> int",
         "listen_for_cloud_changes": "() -> bool",
         "listen_for_invites": "() -> bool",
         "listen_for_urls": "() -> bool",
-        "products": "([str]) -> int",
-        "purchase": "(str) -> int",
         "register_for_push": "() -> bool",
-        "restore_purchases": "() -> int",
         "show_dashboard": "(apple::ShowDashboardOptions?) -> int",
         "sign_in": "() -> int"
       }
@@ -33426,8 +33382,16 @@
           "value": "\"done\""
         },
         {
+          "name": "EVENT_ENTITLEMENTS",
+          "value": "\"entitlements\""
+        },
+        {
           "name": "EVENT_ERROR",
           "value": "\"error\""
+        },
+        {
+          "name": "EVENT_FINISHED",
+          "value": "\"finished\""
         },
         {
           "name": "EVENT_IDENTITY",
@@ -33446,8 +33410,24 @@
           "value": "\"notification_received\""
         },
         {
+          "name": "EVENT_PENDING",
+          "value": "\"pending\""
+        },
+        {
+          "name": "EVENT_PRODUCTS",
+          "value": "\"products\""
+        },
+        {
+          "name": "EVENT_PURCHASED",
+          "value": "\"purchased\""
+        },
+        {
           "name": "EVENT_READ",
           "value": "\"read\""
+        },
+        {
+          "name": "EVENT_RESTORED",
+          "value": "\"restored\""
         },
         {
           "name": "EVENT_SCHEDULED",
@@ -33464,6 +33444,10 @@
         {
           "name": "EVENT_SIGNED_OUT",
           "value": "\"signed_out\""
+        },
+        {
+          "name": "EVENT_TRANSACTION",
+          "value": "\"transaction\""
         },
         {
           "name": "EVENT_UNSUPPORTED",
@@ -33506,6 +33490,10 @@
           "value": "\"notifications\""
         },
         {
+          "name": "SERVICE_PLAY_GAMES",
+          "value": "\"play_games\""
+        },
+        {
           "name": "SERVICE_PURCHASES",
           "value": "\"purchases\""
         },
@@ -33530,19 +33518,24 @@
           "value": "\"web_sign_in\""
         }
       ],
-      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet, and local notifications. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `notifications`, `scheduled`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. What arrives unasked is the `platform_event` event, `events::listen(node, \"platform_event\")`: a sign-in or sign-out, and a notification tapped (`notification_opened`) or shown in front (`notification_received`). `is_available` says whether a service works here. A test answers calls from the file `BALAUR_STAND_INS` names.",
+      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, purchases, a sign-in page in the OS's own sheet, and local notifications. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `identity`, `web_sign_in`, `notifications`, `scheduled`, `products`, `purchased`, `pending`, `entitlements`, `restored`, `finished`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. What arrives unasked is the `platform_event` event, `events::listen(node, \"platform_event\")`: a sign-in or sign-out, a notification tapped (`notification_opened`) or shown in front (`notification_received`), and a purchase that landed with nobody asking (`transaction`). `is_available` says whether a service works here. A test answers calls from the file `BALAUR_STAND_INS` names.",
       "docs": {
         "backend": "The name of the loaded store, or \"none\".",
         "cancel_notification": "Drop a scheduled notification, and take a delivered one out of the shade.",
         "close_web_sign_in": "Shut the sign-in page `web_sign_in` opened, once the game has what it opened it for: its call answers `cancelled`, and on Android the game comes back to the front over the tab.",
-        "cloud_read": "Read a value the store syncs between the player's devices, and return the id whose `read` answer holds it as `value`: a string, or nil when the key holds nothing.",
-        "cloud_write": "Write a value for the store to sync between the player's devices, and return the id its answer carries.",
-        "identity": "Ask the store for a proof of who is playing that a server checks with it, and return the id whose `identity` answer carries it: Steam's Web API ticket as `ticket`, hex, for `ISteamUserAuth/AuthenticateUserTicket`.",
+        "cloud_read": "Read a value the store syncs between the player's devices, and return the id whose `read` answer holds it as `value`: a string, or nil when the key holds nothing. On Play Games it is a saved game named `key`, and a conflict between two devices' saves resolves to the one modified last.",
+        "cloud_write": "Write a value for the store to sync between the player's devices, and return the id its answer carries. On Play Games it is a saved game named `key` (letters, digits and `-._~`, up to 100), and a save another device made that Play has not reconciled with this one's is refused with `error`, never overwritten: read it, then write again.",
+        "entitlements": "What this player owns now: return the id whose `entitlements` answer holds them as `items`, each a `Transaction`.",
+        "finish_purchase": "Tell the store a purchase is dealt with, once a server has checked its `token`, and return the id its `finished` answer carries. One never finished comes back on every launch, and Play refunds one unacknowledged after three days.",
+        "identity": "Ask the store for a proof of who is playing that a server checks with it, and return the id whose `identity` answer carries it: Steam's Web API ticket as `ticket`, hex, for `ISteamUserAuth/AuthenticateUserTicket`; Play Games' one-time server code as `code`, for `[google] server_client_id`, which the server exchanges with Google.",
         "is_available": "Whether a service works on this device in this run, named by a `SERVICE_*` constant: the store or OS answers, a recording's answer in a replay, false where nothing reaches it.",
         "notify": "Schedule a local notification, and return the id its `scheduled` answer carries. A tap brings the game forward and is the `platform_event` event, `notification_opened` with the `id` and `data`; one shown while the game is in front is `notification_received`.",
         "player": "Who the store says is playing, or nil before a sign-in has landed.",
+        "products": "Ask the store about a list of product ids, and return the id whose `products` answer holds what it knows, each a `Product`. An id the store does not know is left out.",
         "progress": "Report an achievement's completion, 0 to 100, and return the id its answer carries.",
+        "purchase": "Buy a product in the store's own sheet, and return the id its answer carries: `purchased` with the `Transaction`'s fields, `cancelled` or `pending` with `product`, or `error`. A pending one lands later as `transaction` on `platform_event`.",
         "request_notifications": "Ask the player to allow notifications, and return the id whose `notifications` answer says what they said as `allowed`. On Android 13 and later this is the system's permission prompt.",
+        "restore_purchases": "Ask the store to hand this player's purchases back, the button a review expects a game to have, and return the id its `restored` answer carries; read them with `entitlements` after.",
         "scores": "Read a leaderboard's entries, and return the id whose `scores` answer holds them as `entries`, each a `Score`.",
         "set_presence": "Say what the player is doing, where the store shows it, and return the id its answer carries.",
         "sign_in": "Ask the store who is playing, and return the id its answer carries. A later sign-out is the `platform_event` event.",
@@ -33558,12 +33551,17 @@
         "close_web_sign_in",
         "cloud_read",
         "cloud_write",
+        "entitlements",
+        "finish_purchase",
         "identity",
         "is_available",
         "notify",
         "player",
+        "products",
         "progress",
+        "purchase",
         "request_notifications",
+        "restore_purchases",
         "scores",
         "set_presence",
         "sign_in",
@@ -33580,12 +33578,17 @@
         "close_web_sign_in": "()",
         "cloud_read": "(str) -> int",
         "cloud_write": "(str, str) -> int",
+        "entitlements": "() -> int",
+        "finish_purchase": "(str, platform::FinishPurchaseOptions?) -> int",
         "identity": "() -> int",
         "is_available": "(str) -> bool",
         "notify": "(str, platform::NotifyOptions?) -> int",
         "player": "() -> platform::Player?",
+        "products": "([str]) -> int",
         "progress": "(str, float) -> int",
+        "purchase": "(str) -> int",
         "request_notifications": "() -> int",
+        "restore_purchases": "() -> int",
         "scores": "(str, platform::ScoresOptions?) -> int",
         "set_presence": "(str) -> int",
         "sign_in": "() -> int",
@@ -47897,12 +47900,12 @@
     [
       "platform_event",
       "what arrived, carrying request 0",
-      "The player signed out in the OS or signed in as someone else, or a notification was tapped or shown while the game was in front."
+      "The player signed out in the OS or signed in as someone else, a notification was tapped or shown while the game was in front, or a purchase landed with nobody asking (`transaction`)."
     ],
     [
       "apple_event",
       "what arrived, carrying request 0",
-      "Something nobody asked for arrived: a notification tapped, a URL opened, a push token, a transaction from another device."
+      "Something nobody asked for arrived: a push, a URL opened, a push token, an invite, an iCloud change."
     ],
     [
       "browser_event",
@@ -51739,6 +51742,33 @@
         },
         "order": 12,
         "type": "list"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/capabilities",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "The Google services the game uses, each shipping its Google libraries: play-games for platform.* on Play Games, in-app-purchase for Play Billing, in-app-review for device.request_review. None named ships no Google library.",
+        "options": [
+          "play-games",
+          "in-app-purchase",
+          "in-app-review"
+        ],
+        "order": 13,
+        "type": "flags"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/games_project_id",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The Play Games project id Play Console shows under Play Games Services, all digits. Required with play-games.",
+        "order": 14,
+        "type": "string"
       }
     },
     {

@@ -157,6 +157,8 @@ precedent for the next.
 | The editor's node types (`RigidBody3D`, `MeshInstance2D`) | Godot 4's class names, shown as they are to Godot users; one table, `model::display_types` |
 | `scale`, four times | `node.transform.scale`, `ui.scale()`, a viewport's `scale_factor` and a 2D camera's `zoom` are four scopes, not one (N1) |
 | `node.add_child` and `scene.instantiate` | Not synonyms: one empty node against a whole scene file |
+| `platform.purchase`, not `apple.purchase` or `google.purchase` | Two stores sell the same things, so the verbs are the portable module's (B: one way to buy). A transaction's proof is `token` on every store, never StoreKit's `jws` |
+| `[android] capabilities` spelled as `[apple]`'s | Kebab-case, and the same word where the thing is the same: `in-app-purchase` on both; `play-games` beside `game-center` |
 | `platform.notify`, not `device.notify` | Notifications sit beside the store verbs a game reaches for on every platform, as Apple's did; `device` holds what a phone's hardware and sheets lend |
 | `steam_*` keeps Valve's names | Generated from Valve's `steam_api.json`: `SteamUser()->GetSteamID()` is `steam_user::get_steam_id()`, `get_`, plural modules and abbreviations kept, so Valve's documentation reads 1:1. A leading `B` on a bool reader is dropped |
 | `balaur_core`, `balaur_import`, `balaur_cli` words | N17 met in part: each keeps a `vocabulary.rs` for the words it compares, core keeps the rest in the module that owns them, and the importer spells the scene keys it writes |

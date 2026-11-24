@@ -53,6 +53,11 @@ pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformE
         } => scores(request, board, *count, *scope, *period, *start, report),
         Call::CloudRead { key } => crate::icloud::read(request, key, report),
         Call::CloudWrite { key, value } => crate::icloud::write(request, key, value, report),
+        Call::Products { .. }
+        | Call::Purchase { .. }
+        | Call::FinishPurchase { .. }
+        | Call::RestorePurchases
+        | Call::Entitlements => crate::storekit::call(request, call, report),
         // Game Center has no presence, and answering `done` to a call that
         // did nothing is worse than saying so. Its proof of a player is
         // `apple.identity`'s four items, not one the portable verb carries.
@@ -76,7 +81,6 @@ pub(crate) fn apple_call(request: u64, call: &AppleCall, report: &Sender<AppleEv
             crate::signin::credential_state(request, user, report);
         }
         AppleCall::Dashboard { state } => crate::ui::show_dashboard(request, *state, report),
-        AppleCall::Store(call) => crate::storekit::call(request, call, report),
     }
 }
 

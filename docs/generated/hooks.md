@@ -83,8 +83,8 @@ said only while someone listens.
 <tr><td><code>debugger_resumed</code></td><td>nil</td><td>The script the debugger last said was stopped went on.</td></tr>
 <tr><td><code>replay_state_changed</code></td><td>the state playback moved to, a <code>replay::STATE_*</code> constant</td><td>A recording was loaded, played, paused, sought, ran out or was unloaded.</td></tr>
 <tr><td><code>changed</code></td><td>a list of <code>{ node, kind, .. }</code> maps</td><td>A write changed the scene since the last frame; heard from a node, the entries under it alone.</td></tr>
-<tr><td><code>platform_event</code></td><td>what arrived, carrying request 0</td><td>The player signed out in the OS or signed in as someone else, or a notification was tapped or shown while the game was in front.</td></tr>
-<tr><td><code>apple_event</code></td><td>what arrived, carrying request 0</td><td>Something nobody asked for arrived: a notification tapped, a URL opened, a push token, a transaction from another device.</td></tr>
+<tr><td><code>platform_event</code></td><td>what arrived, carrying request 0</td><td>The player signed out in the OS or signed in as someone else, a notification was tapped or shown while the game was in front, or a purchase landed with nobody asking (<code>transaction</code>).</td></tr>
+<tr><td><code>apple_event</code></td><td>what arrived, carrying request 0</td><td>Something nobody asked for arrived: a push, a URL opened, a push token, an invite, an iCloud change.</td></tr>
 <tr><td><code>browser_event</code></td><td>the message, as the parent frame posted it</td><td>The page&#x27;s parent frame posted a message.</td></tr>
 <tr><td><code>http_progress</code></td><td>the progress, with the <code>request</code> it belongs to</td><td>A download or a long body moved on.</td></tr>
 <tr><td><code>multiplayer_event</code></td><td>a map whose <code>kind</code> is an <code>EVENT_*</code> constant</td><td>A match had something to say.</td></tr>

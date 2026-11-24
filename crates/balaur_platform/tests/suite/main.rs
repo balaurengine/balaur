@@ -6,6 +6,7 @@
 
 mod api;
 mod device;
+mod purchases;
 mod replay;
 mod script_api;
 mod web_sign_in;

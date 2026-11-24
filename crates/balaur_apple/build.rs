@@ -6,7 +6,7 @@
 //! itself depends on no Swift package, so this stays an offline build.
 //!
 //! A Mac with no Swift toolchain still builds the engine. It builds it
-//! without purchases, which `apple.purchase` then says out loud, because a
+//! without purchases, which `platform.purchase` then says out loud, because a
 //! link error naming a symbol nobody has heard of is a worse answer.
 
 fn main() {

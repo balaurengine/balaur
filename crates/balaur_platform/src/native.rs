@@ -45,14 +45,17 @@ mod os {
     pub(super) use crate::android::notifications::{cancel, discard, pump};
     pub(super) use crate::android::start;
 
-    /// Android's notifications, motor, share sheet and Custom Tab.
+    /// Android's notifications, motor, share sheet and Custom Tab, and Play's
+    /// review prompt where the game's dex carries it.
     pub(super) fn provide(eng: &super::Engine) -> super::Result<()> {
         for service in crate::android::device::SERVICES {
             crate::provide(eng, service, move |_| {
                 crate::android::device::available(service)
             })?;
         }
-        Ok(())
+        crate::provide(eng, crate::Service::Review, |_| {
+            crate::android::capability_available(crate::android::REVIEW)
+        })
     }
 }
 

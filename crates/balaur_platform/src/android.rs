@@ -33,8 +33,11 @@ static REPORT: Mutex<Option<Sender<PlatformEvent>>> = Mutex::new(None);
 /// the outside moves it, as Apple's queue does.
 static ARRIVALS: Mutex<Vec<PlatformEvent>> = Mutex::new(Vec::new());
 
-/// A call to the OS, through the shim that makes it. Play's review prompt
-/// needs Play's library, which no template carries yet.
+/// Play's review prompt, which a game's dex carries with `[android]
+/// capabilities = ["in-app-review"]`.
+pub(crate) const REVIEW: &str = "org.balaur.google.Review";
+
+/// A call to the OS, through the shim that makes it.
 pub(crate) fn start(request: u64, call: &DeviceCall, report: &Sender<PlatformEvent>) {
     // copy: the channel outlives this call, until the answer crosses it.
     *REPORT.lock().unwrap_or_else(PoisonError::into_inner) = Some(report.clone());
@@ -51,8 +54,13 @@ pub(crate) fn start(request: u64, call: &DeviceCall, report: &Sender<PlatformEve
             device::share(request, text, file.as_deref(), title)
         }
         DeviceCall::RequestReview => {
-            crate::native::unsupported(request, call, report);
-            Ok(())
+            start_capability(REVIEW, request, call.name(), &serde_json::json!({}), report).map(
+                |started| {
+                    if !started {
+                        crate::native::unsupported(request, call, report);
+                    }
+                },
+            )
         }
     };
     if let Err(err) = started {
@@ -199,4 +207,106 @@ pub unsafe fn shim<'cache>(
     unsafe { env.register_native_methods(&class, natives)? };
     let global = env.new_global_ref(class)?;
     Ok(cache.get_or_init(|| global))
+}
+
+/// The capability shims loaded so far, by class name. An export keeps a
+/// capability's shim only when `[android] capabilities` names it.
+static CAPABILITY_SHIMS: Mutex<Vec<(String, Global<JClass<'static>>)>> = Mutex::new(Vec::new());
+
+/// The capability shim `class`, loaded with the platform's `answer`
+/// registered on it, or `None` when this game's dex does not carry it.
+fn capability<'cache>(
+    env: &mut Env<'_>,
+    activity: &JObject<'_>,
+    class: &str,
+    held: &'cache mut Vec<(String, Global<JClass<'static>>)>,
+) -> jni::errors::Result<Option<&'cache Global<JClass<'static>>>> {
+    if let Some(at) = held.iter().position(|(name, _)| name == class) {
+        return Ok(Some(&held[at].1));
+    }
+    let cache = OnceLock::new();
+    // Safety: `answer_native` points at a function of its own signature.
+    let loaded = unsafe { shim(env, activity, class, &[answer_native()], &cache) };
+    match loaded {
+        Ok(_) => {}
+        Err(jni::errors::Error::JavaException) => {
+            // ClassNotFoundException: the export left this capability out.
+            env.exception_clear();
+            return Ok(None);
+        }
+        Err(err) => return Err(err),
+    }
+    let Some(global) = cache.into_inner() else {
+        return Ok(None);
+    };
+    held.push((class.to_string(), global));
+    Ok(held.last().map(|(_, global)| global))
+}
+
+/// Start `call` on the capability shim `class` (its static
+/// `start(Activity, long, String, String)`), answering through the platform's
+/// channel. False when the game's dex does not carry the shim.
+///
+/// # Errors
+/// When the activity is gone or a JNI call fails.
+pub fn start_capability(
+    class: &str,
+    request: u64,
+    call: &str,
+    args: &serde_json::Value,
+    report: &Sender<PlatformEvent>,
+) -> jni::errors::Result<bool> {
+    // copy: the channel outlives this call, until the answer crosses it.
+    *REPORT.lock().unwrap_or_else(PoisonError::into_inner) = Some(report.clone());
+    with_activity(|env, activity| {
+        let mut held = CAPABILITY_SHIMS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let Some(shim) = capability(env, activity, class, &mut held)? else {
+            return Ok(false);
+        };
+        let call = env.new_string(call)?;
+        let args = env.new_string(args.to_string())?;
+        let started = env.call_static_method(
+            shim,
+            jni_str!("start"),
+            jni_sig!("(Landroid/app/Activity;JLjava/lang/String;Ljava/lang/String;)V"),
+            &[
+                JValue::Object(activity),
+                JValue::Long(jlong::try_from(request).unwrap_or(jlong::MAX)),
+                JValue::Object(&call),
+                JValue::Object(&args),
+            ],
+        );
+        if started.is_err() {
+            env.exception_clear();
+        }
+        started.map(|_| true)
+    })
+}
+
+/// Whether the capability shim `class` is in this game's dex and says its
+/// service is here (its static `available(Activity)`).
+pub fn capability_available(class: &str) -> bool {
+    with_activity(|env, activity| {
+        let mut held = CAPABILITY_SHIMS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let Some(shim) = capability(env, activity, class, &mut held)? else {
+            return Ok(false);
+        };
+        let answered = env
+            .call_static_method(
+                shim,
+                jni_str!("available"),
+                jni_sig!("(Landroid/app/Activity;)Z"),
+                &[JValue::Object(activity)],
+            )
+            .and_then(jni::JValueOwned::z);
+        if answered.is_err() {
+            env.exception_clear();
+        }
+        answered
+    })
+    .unwrap_or(false)
 }

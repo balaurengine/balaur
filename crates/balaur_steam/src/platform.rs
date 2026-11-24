@@ -791,10 +791,15 @@ impl PlatformBackend for SteamBackend {
             Call::SetPresence { text } => {
                 send(report, self.set_presence(request, text, call.name()));
             }
-            // Steam has no sign-in sheet: the overlay's browser hands no
-            // redirect back, so the game opens the page itself. An identity
-            // lands here when this steam_api has no ISteamUser.
-            Call::WebSignIn { .. } | Call::Identity => send(
+            // No sheet (the overlay hands no redirect back), no ISteamUser for
+            // an identity, and purchases are a Web API call a server makes.
+            Call::WebSignIn { .. }
+            | Call::Identity
+            | Call::Products { .. }
+            | Call::Purchase { .. }
+            | Call::FinishPurchase { .. }
+            | Call::RestorePurchases
+            | Call::Entitlements => send(
                 report,
                 PlatformEvent::Unsupported {
                     request,

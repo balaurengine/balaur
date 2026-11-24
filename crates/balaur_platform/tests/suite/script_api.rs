@@ -92,3 +92,39 @@ impl Scenario {
         ],
     );
 }
+
+#[test]
+fn a_script_buys_through_the_portable_verbs_and_reads_their_records() {
+    run_until(
+        r#"
+pub class Scenario { node: Node }
+impl Scenario {
+    pub async fn init() {
+        let finish = platform::FinishPurchaseOptions { consume: true };
+        let products = await task::wait(platform::products(["gold"]));
+        let bought = await task::wait(platform::purchase("gold"));
+        let finished = await task::wait(platform::finish_purchase("t1", finish));
+        let restored = await task::wait(platform::restore_purchases());
+        let owned = await task::wait(platform::entitlements());
+        let said: [any] = [products, bought, finished, restored, owned];
+        for answer in said {
+            log::info("platform-buy {answer["call"].text()} {answer["kind"].text()}");
+        }
+        let rows: any = [{ "id": "t1", "product": "gold", "purchased_at": 1.0, "quantity": 1, "revoked": false, "token": "jws", "verified": true }];
+        let items: [platform::Transaction] = rows;
+        log::info("platform-owned {items[0].product} {items[0].token}");
+        log::info("platform-purchases {platform::is_available(platform::SERVICE_PURCHASES)}");
+    }
+}
+"#,
+        &[
+            "platform-buy products unsupported",
+            "platform-buy purchase unsupported",
+            "platform-buy finish_purchase unsupported",
+            "platform-buy restore_purchases unsupported",
+            "platform-buy entitlements unsupported",
+            "platform-owned gold jws",
+            "platform-purchases false",
+        ],
+    );
+}

@@ -1492,6 +1492,35 @@ things are shared.
   `googleid` library writes, so Play services answers it with an id token for
   `[google] server_client_id`; below Android 14, off Android, with no id or with
   no Google account on the device it answers `unsupported`.
+- **Google's libraries are pinned and picked, not built.** Play Games, Billing
+  and Play's review prompt need Google's AARs, so the template also carries
+  `play/`: every library the roots in `crates/balaur_google/play/libraries.json`
+  pull in, resolved from their POMs once (highest version wins, as Gradle's),
+  each file downloaded against its pinned SHA-256 and dexed on its own, so two
+  capabilities share a library's dex. Their resources are linked once at
+  template build to fix their ids (`play/ids.txt`), and their R classes are
+  generated from that link; an export links what it keeps with
+  `--stable-ids`, renamed to the game's package, so the prebuilt R classes
+  hold the ids the APK has. Each library's manifest entries are merged per
+  set of capabilities at template build, one element a name. An export keeps
+  what its `[android] capabilities` need as `classes2.dex` on (multidex is
+  native from API 21), and a game declaring none ships none of it. One
+  template carries every capability, adding 2.7 MB to its download, and an
+  export picks; a template per set of capabilities would be seven. A capability's shim
+  (`play/<capability>/`) is compiled against its libraries, loaded by name
+  through `balaur_platform::start_capability`, and answers through the
+  platform's own native `answer`; a class the export left out answers
+  `unsupported` naming the capability to add.
+- **One purchase API over every store.** `platform.products`, `purchase`,
+  `finish_purchase`, `restore_purchases` and `entitlements` answer in one
+  shape, `platform::Product` and `platform::Transaction`, which each store's
+  shim writes (StoreKit's Swift, Play's Java), so the Rust between them passes
+  a map through. A transaction's `token` is what a server verifies (the App
+  Store's JWS, Play's purchase token); `finish_purchase` waits for the game
+  to say so, since a store keeps an unfinished one coming back. A purchase
+  opens the store's sheet, so it is a write and waits for its tick to
+  settle. Steam answers `unsupported`: its microtransactions are a Web API a
+  server calls.
 - **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of
   `"<module>.<call>"` to the answer its waiter receives (`null`: never
   answers); such a call never reaches its backend, and its answer crosses the

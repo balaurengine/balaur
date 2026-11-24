@@ -28,6 +28,9 @@ pub enum Service {
     Steam,
     /// Game Center: `platform.sign_in` and the rest on Apple, `apple.identity`.
     GameCenter,
+    /// Play Games: `platform.sign_in`, achievements, leaderboards, saved
+    /// games and `identity` on Android.
+    PlayGames,
     /// iCloud's key-value store behind `platform.cloud_read` and `cloud_write`.
     Icloud,
     /// Sign in with Apple, `apple.sign_in`.
@@ -40,7 +43,8 @@ pub enum Service {
     Notifications,
     /// A push token, `apple.register_for_push`.
     Push,
-    /// The store's purchases, `apple.purchase`.
+    /// The store's purchases, `platform.purchase` and the rest: StoreKit, or
+    /// Play Billing.
     Purchases,
     /// The device's own motor, `device.vibrate` and `device.haptic`.
     Haptics,
@@ -51,9 +55,10 @@ pub enum Service {
 }
 
 impl Service {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Steam,
         Self::GameCenter,
+        Self::PlayGames,
         Self::Icloud,
         Self::AppleSignIn,
         Self::GoogleSignIn,
@@ -72,6 +77,7 @@ impl Service {
         match self {
             Self::Steam => services::STEAM,
             Self::GameCenter => services::GAME_CENTER,
+            Self::PlayGames => services::PLAY_GAMES,
             Self::Icloud => services::ICLOUD,
             Self::AppleSignIn => services::APPLE_SIGN_IN,
             Self::GoogleSignIn => services::GOOGLE_SIGN_IN,

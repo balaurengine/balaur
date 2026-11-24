@@ -37,6 +37,8 @@ built.
 
 ## Open questions
 
-- Should buying become portable? `apple.purchase` is Apple's own, because no
-  second store here implements purchases. Design the `platform` verb once Play
-  Billing or Steam's inventory exists beside it.
+- Buying is portable now: `platform.products`, `purchase`,
+  `finish_purchase`, `restore_purchases` and `entitlements` over StoreKit and
+  Play Billing, with Steam answering `unsupported`. A transaction's `token`
+  is StoreKit's JWS. Left open: whether `finish_purchase` should refuse a
+  transaction StoreKit could not verify, rather than leave that to the server.

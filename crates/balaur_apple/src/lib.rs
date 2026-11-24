@@ -37,17 +37,14 @@ const APPLE: &str = "apple";
 const AVAILABLE_WORD: &str = "available";
 const DATA: &str = "data";
 const ERROR_WORD: &str = "error";
-const FINISH_PURCHASE: &str = "finish_purchase";
 const KIND: &str = "kind";
 const LISTEN_FOR_CLOUD_CHANGES: &str = "listen_for_cloud_changes";
 const LISTEN_FOR_INVITES: &str = "listen_for_invites";
 const LISTEN_FOR_URLS: &str = "listen_for_urls";
 const NAME: &str = "name";
 const PLAYER: &str = "player";
-const PURCHASE: &str = "purchase";
 const REGISTER_FOR_PUSH: &str = "register_for_push";
 const REQUEST: &str = "request";
-const RESTORE_PURCHASES: &str = "restore_purchases";
 const SHOW_DASHBOARD: &str = "show_dashboard";
 const SIGN_IN: &str = "sign_in";
 const STATE: &str = "state";
@@ -155,44 +152,6 @@ pub enum AppleCall {
     CredentialState { user: String },
     /// Game Center's own dashboard, opening on one of its screens.
     Dashboard { state: isize },
-    /// The App Store, through the Swift shim.
-    Store(StoreCall),
-}
-
-/// What StoreKit is asked for. Everything it answers comes back as the JSON
-/// StoreKit itself describes a product or a transaction with.
-#[derive(Clone, Debug)]
-pub enum StoreCall {
-    Products {
-        ids: Vec<String>,
-    },
-    Purchase {
-        product: String,
-    },
-    /// What this player currently owns, each with the signed transaction a
-    /// server checks.
-    Entitlements,
-    /// Ask the App Store to hand the device's purchases back: the button an
-    /// App Store review requires a game to have.
-    Restore,
-    /// Tell StoreKit a transaction is dealt with. Until then it comes back
-    /// on every launch.
-    Finish {
-        transaction: String,
-    },
-}
-
-impl StoreCall {
-    #[must_use]
-    pub const fn name(&self) -> &'static str {
-        match self {
-            Self::Products { .. } => kind::PRODUCTS,
-            Self::Purchase { .. } => PURCHASE,
-            Self::Entitlements => kind::ENTITLEMENTS,
-            Self::Restore => RESTORE_PURCHASES,
-            Self::Finish { .. } => FINISH_PURCHASE,
-        }
-    }
 }
 
 impl AppleCall {
@@ -203,7 +162,6 @@ impl AppleCall {
             Self::SignIn => SIGN_IN,
             Self::CredentialState { .. } => kind::CREDENTIAL_STATE,
             Self::Dashboard { .. } => SHOW_DASHBOARD,
-            Self::Store(call) => call.name(),
         }
     }
 }
@@ -241,13 +199,6 @@ pub enum AppleEvent {
     /// The player closed Game Center's dashboard.
     DashboardClosed {
         request: u64,
-    },
-    /// StoreKit's own answer, as it described it: a `kind` of `products`,
-    /// `purchased`, `cancelled`, `pending`, `entitlements`, `restored`,
-    /// `finished` or `transaction`, and the fields that go with it.
-    Store {
-        request: u64,
-        payload: serde_json::Value,
     },
     /// A push reached the app itself, a silent one included: its payload.
     /// Unsolicited, like everything below it.
@@ -302,7 +253,6 @@ impl AppleEvent {
             | Self::SignedIn { request, .. }
             | Self::CredentialState { request, .. }
             | Self::DashboardClosed { request }
-            | Self::Store { request, .. }
             | Self::Failed { request, .. }
             | Self::Unsupported { request, .. }
             | Self::StandIn { request, .. } => *request,
@@ -352,9 +302,9 @@ impl PlatformBackend for AppleBackend {
 }
 
 /// What nobody asked for, carrying request 0: a push, a URL opened, a push
-/// token, a transaction that landed on another device. Heard with
-/// `events::listen` as `on_apple_event`; a notification tapped is
-/// `platform_event`.
+/// token, an invite, an iCloud change. Heard with `events::listen` as
+/// `on_apple_event`; a notification tapped and a transaction that landed
+/// elsewhere are `platform_event`.
 pub const ARRIVAL_EVENT: &str = "apple_event";
 
 /// The `apple.*` calls in flight, and the channel the frameworks report into.
@@ -403,8 +353,8 @@ fn pump_apple_system(eng: &Engine, _: f32) {
         let snapshot = eng.resource::<AppleSnapshot>();
         let mut state = state.borrow_mut();
         let mut snapshot = snapshot.borrow_mut();
-        // A transaction that landed on its own crosses here, or nowhere: a
-        // replay is answered by the file.
+        // What arrived on its own crosses here, or nowhere: a replay is
+        // answered by the file.
         if !state.io.start(eng, queue::drain_apple) {
             queue::discard_apple();
         }
@@ -427,7 +377,6 @@ fn pump_apple_system(eng: &Engine, _: f32) {
 }
 
 /// The `kind` each event map carries, and the `EVENT_*` constants of it.
-/// The StoreKit kinds come from the Swift shim, which spells the same words.
 pub mod kind {
     pub const IDENTITY: &str = "identity";
     pub const SIGNED_IN: &str = "signed_in";
@@ -441,14 +390,6 @@ pub mod kind {
     pub const PUSH_FAILED: &str = "push_failed";
     pub const URL: &str = "url";
     pub const UNSUPPORTED: &str = "unsupported";
-    pub const PRODUCTS: &str = "products";
-    pub const PURCHASED: &str = "purchased";
-    pub const CANCELLED: &str = "cancelled";
-    pub const PENDING: &str = "pending";
-    pub const ENTITLEMENTS: &str = "entitlements";
-    pub const RESTORED: &str = "restored";
-    pub const FINISHED: &str = "finished";
-    pub const TRANSACTION: &str = "transaction";
     pub const ERROR: &str = balaur_core::handler::ERROR;
     pub const ALL: &[&str] = &[
         IDENTITY,
@@ -463,14 +404,6 @@ pub mod kind {
         PUSH_FAILED,
         URL,
         UNSUPPORTED,
-        PRODUCTS,
-        PURCHASED,
-        CANCELLED,
-        PENDING,
-        ENTITLEMENTS,
-        RESTORED,
-        FINISHED,
-        TRANSACTION,
         ERROR,
     ];
 }
@@ -534,12 +467,6 @@ fn event_value(event: AppleEvent) -> Value {
             pairs.push((KIND.into(), Value::Str(kind::URL.into())));
             pairs.push((kind::URL.into(), Value::Str(url)));
         }
-        // StoreKit's own shape, unflattened: the `kind` is already in there.
-        AppleEvent::Store { payload, .. } => {
-            if let Ok(Value::Map(fields)) = from_json(&payload) {
-                pairs.extend(fields);
-            }
-        }
         AppleEvent::StandIn { answer, .. } => {
             if let Ok(Value::Map(fields)) = from_json(&answer) {
                 pairs.extend(fields.into_iter().filter(|(key, _)| key != REQUEST));
@@ -594,7 +521,7 @@ impl balaur_plugin::Plugin for ApplePlugin {
             &[(
                 ARRIVAL_EVENT,
                 "what arrived, carrying request 0",
-                "Something nobody asked for arrived: a notification tapped, a URL opened, a push token, a transaction from another device.",
+                "Something nobody asked for arrived: a push, a URL opened, a push token, an invite, an iCloud change.",
             )],
         );
         reg.add_system(Stage::First, pump_apple_system);
@@ -628,7 +555,7 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 /// has it.
 fn install_apple_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Apple services beyond `platform.*`: Game Center `identity`, purchases, push. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere. Local notifications are `platform.notify`.",
+        "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens, push. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a push and its payload, a URL opened, an invite, an iCloud change. Local notifications are `platform.notify`, and purchases `platform.purchase` and the rest.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
@@ -671,7 +598,6 @@ fn install_apple_api(m: &mut Module<Engine>) {
         Ok(start_call(eng, &AppleCall::CredentialState { user }))
     });
     install_screens_api(m);
-    install_store_api(m);
     install_arrivals_api(m);
 }
 
@@ -800,104 +726,6 @@ fn install_listen_for_api(m: &mut Module<Engine>) {
     });
     m.function(LISTEN_FOR_CLOUD_CHANGES, |_: &Engine, ()| {
         Ok(Value::Bool(backend::watch_cloud()))
-    });
-}
-
-/// The store's own calls, all of them one payload or none.
-fn install_store_api(m: &mut Module<Engine>) {
-    m.records(&[
-        (
-            "Product",
-            "{ id: string, title: string, description: string, price: float, display_price: string, kind: string }",
-            "One row of a `products` answer's `products`: `let rows: [apple::Product] = reply[\"products\"];`.",
-        ),
-        (
-            "Transaction",
-            "{ id: string, product: string, purchased_at: float, quantity: int, revoked: bool, upgraded: bool, jws: string, verified: bool }",
-            "A purchase the App Store holds: one row of an `entitlements` answer's `items`, and what a `purchased` answer or a `transaction` arrival carries. `jws` is what a server verifies.",
-        ),
-    ]);
-    m.describe(&[
-        (
-            kind::PRODUCTS,
-            &[],
-            "(ids: [string]) -> int",
-            "Ask the App Store about a list of product ids, and return the id whose `products` answer holds what it knows, each a `Product`.",
-        ),
-        (
-            PURCHASE,
-            &[],
-            "(product: string) -> int",
-            "Buy a product, and return the id its answer carries: `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
-        ),
-        (
-            kind::ENTITLEMENTS,
-            &[],
-            "() -> int",
-            "What this player currently owns: returns the id whose `entitlements` answer holds them as `items`, each a `Transaction`.",
-        ),
-        (
-            RESTORE_PURCHASES,
-            &[],
-            "() -> int",
-            "Ask the App Store to hand this device's purchases back, the button a review expects a game to have, and return the id its `restored` answer carries.",
-        ),
-        (
-            FINISH_PURCHASE,
-            &[],
-            "(transaction: string) -> int",
-            "Tell StoreKit a transaction is dealt with, and return the id its `finished` answer carries. One that is never finished comes back on every launch.",
-        ),
-    ]);
-    m.function(kind::PRODUCTS, |eng: &Engine, ids: Value| {
-        let Value::List(ids) = ids else {
-            return Err(anyhow!("the product ids should be a list, got {ids:?}"));
-        };
-        let ids = ids
-            .into_iter()
-            .map(|id| match id {
-                Value::Str(id) => Ok(id.clone()),
-                other => Err(anyhow!("a product id should be a string, got {other:?}")),
-            })
-            .collect::<Result<Vec<String>>>()?;
-        Ok(start_call(
-            eng,
-            &AppleCall::Store(StoreCall::Products { ids }),
-        ))
-    });
-    m.function(PURCHASE, |eng: &Engine, product: Value| {
-        let Value::Str(product) = product else {
-            return Err(anyhow!(
-                "the product id should be a string, got {product:?}"
-            ));
-        };
-        Ok(start_call(
-            eng,
-            &AppleCall::Store(StoreCall::Purchase { product }),
-        ))
-    });
-    m.function(kind::ENTITLEMENTS, |eng: &Engine, ()| {
-        Ok(start_call(eng, &AppleCall::Store(StoreCall::Entitlements)))
-    });
-    install_store_ledger_api(m);
-}
-
-/// What a game asks about purchases already made, rather than about making
-/// one: restoring on a new device, and closing a transaction out.
-fn install_store_ledger_api(m: &mut Module<Engine>) {
-    m.function(RESTORE_PURCHASES, |eng: &Engine, ()| {
-        Ok(start_call(eng, &AppleCall::Store(StoreCall::Restore)))
-    });
-    m.function(FINISH_PURCHASE, |eng: &Engine, transaction: Value| {
-        let Value::Str(transaction) = transaction else {
-            return Err(anyhow!(
-                "the transaction id should be a string, got {transaction:?}"
-            ));
-        };
-        Ok(start_call(
-            eng,
-            &AppleCall::Store(StoreCall::Finish { transaction }),
-        ))
     });
 }
 

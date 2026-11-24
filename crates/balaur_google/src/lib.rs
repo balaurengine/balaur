@@ -38,6 +38,7 @@ pub const SERVER_CLIENT_ID: &str = "google/server_client_id";
 
 #[cfg(target_os = "android")]
 mod android;
+pub mod play;
 
 #[cfg(target_os = "android")]
 mod backend {
@@ -153,6 +154,16 @@ pub struct GoogleSnapshot {
 }
 
 fn pump_google_system(eng: &Engine, _: f32) {
+    #[cfg(target_os = "android")]
+    {
+        let client = server_client_id(eng);
+        let mut held = play::android::SERVER_CLIENT_ID
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if *held != client {
+            *held = client;
+        }
+    }
     let finished: Vec<(u64, Value)> = eng
         .resource::<GoogleState>()
         .borrow_mut()
@@ -212,10 +223,35 @@ server_client_id = { type = "string", default = "", help = "The server's web OAu
             balaur_platform::Service::GoogleSignIn,
             |eng| !server_client_id(eng).is_empty() && backend::available(),
         )?;
+        play_backend(reg.engine())?;
         let mut m = reg.script_module(GOOGLE)?;
         install_google_api(&mut m);
         Ok(())
     }
+}
+
+/// Play behind `platform.*`, on Android alone: Play Games and Billing where
+/// the game's export carries them, each answering `is_available` by whether
+/// its shim is in the dex and its service on the device.
+#[cfg(target_os = "android")]
+fn play_backend(eng: &Engine) -> Result<()> {
+    use balaur_platform::{Service, capability_available, provide};
+    balaur_platform::set_backend(eng, Box::new(play::android::Play::new()))?;
+    provide(eng, Service::PlayGames, |_| {
+        capability_available(play::GAMES)
+    })?;
+    provide(eng, Service::Purchases, |_| {
+        capability_available(play::BILLING)
+    })
+}
+
+#[cfg(not(target_os = "android"))]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the shape Android's takes, which registers a backend"
+)]
+const fn play_backend(_eng: &Engine) -> Result<()> {
+    Ok(())
 }
 
 fn capture(eng: &Engine) -> serde_json::Value {

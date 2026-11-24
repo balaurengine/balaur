@@ -9,6 +9,7 @@ pub(crate) mod keys {
     pub(crate) const DATA: &str = "data";
     pub(crate) const FILE: &str = "file";
     pub(crate) const ID: &str = "id";
+    pub(crate) const START: &str = "start";
     pub(crate) const TARGET: &str = "target";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TITLE: &str = "title";
@@ -36,6 +37,7 @@ pub(crate) mod words {
     pub(crate) mod services {
         pub(crate) const STEAM: &str = "steam";
         pub(crate) const GAME_CENTER: &str = "game_center";
+        pub(crate) const PLAY_GAMES: &str = "play_games";
         pub(crate) const ICLOUD: &str = "icloud";
         pub(crate) const APPLE_SIGN_IN: &str = "apple_sign_in";
         pub(crate) const GOOGLE_SIGN_IN: &str = "google_sign_in";

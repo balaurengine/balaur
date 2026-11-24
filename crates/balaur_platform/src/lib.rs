@@ -45,7 +45,7 @@ use anyhow::{Result, anyhow};
 use balaur_core::handler::{id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{Engine, Stage};
-use balaur_script::{Module, Value};
+use balaur_script::Value;
 
 const ALIAS: &str = "alias";
 const BACKEND: &str = "backend";
@@ -74,6 +74,8 @@ pub const PAGE_OPEN: &str = "open";
 mod android;
 pub mod device;
 mod native;
+mod purchases;
+mod script_api;
 pub mod services;
 pub mod stand_ins;
 mod vocabulary;
@@ -81,7 +83,7 @@ mod vocabulary;
 mod web;
 
 #[cfg(target_os = "android")]
-pub use android::{keep_activity, shim, with_activity};
+pub use android::{capability_available, keep_activity, shim, start_capability, with_activity};
 
 pub use device::{DEVICE, DeviceBackend, DeviceCall, Haptic, set_device};
 pub use services::{Provider, Service, is_available, provide};
@@ -132,8 +134,27 @@ pub enum Call {
         scheme: Option<String>,
     },
     /// A proof of who is playing that a server checks with the store:
-    /// Steam's Web API ticket.
+    /// Steam's Web API ticket, Play Games' one-time server code.
     Identity,
+    /// What the store knows of these product ids.
+    Products {
+        ids: Vec<String>,
+    },
+    /// Buy one product, in the store's own sheet.
+    Purchase {
+        product: String,
+    },
+    /// Tell the store a purchase is dealt with: StoreKit finishes it, Play
+    /// acknowledges it, or consumes it so it can be bought again. Until then
+    /// it comes back on every launch, and Play refunds it after three days.
+    FinishPurchase {
+        transaction: String,
+        consume: bool,
+    },
+    /// Ask the store to hand this player's purchases back.
+    RestorePurchases,
+    /// What this player owns now.
+    Entitlements,
 }
 
 impl Call {
@@ -151,6 +172,11 @@ impl Call {
             Self::SetPresence { .. } => SET_PRESENCE,
             Self::WebSignIn { .. } => kind::WEB_SIGN_IN,
             Self::Identity => IDENTITY,
+            Self::Products { .. } => kind::PRODUCTS,
+            Self::Purchase { .. } => purchases::PURCHASE,
+            Self::FinishPurchase { .. } => purchases::FINISH_PURCHASE,
+            Self::RestorePurchases => purchases::RESTORE_PURCHASES,
+            Self::Entitlements => kind::ENTITLEMENTS,
         }
     }
 
@@ -168,6 +194,8 @@ impl Call {
                 | Self::SubmitScore { .. }
                 | Self::CloudWrite { .. }
                 | Self::SetPresence { .. }
+                | Self::Purchase { .. }
+                | Self::FinishPurchase { .. }
         )
     }
 }
@@ -191,6 +219,15 @@ pub enum Period {
 }
 
 impl Scope {
+    /// The word a script writes for it, which a Java shim reads.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Global => words::GLOBAL,
+            Self::Friends => words::FRIENDS,
+        }
+    }
+
     fn parse(text: &str) -> Result<Self> {
         match text {
             words::GLOBAL => Ok(Self::Global),
@@ -203,6 +240,16 @@ impl Scope {
 }
 
 impl Period {
+    /// The word a script writes for it, which a Java shim reads.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Today => words::TODAY,
+            Self::Week => words::WEEK,
+            Self::AllTime => words::ALL_TIME,
+        }
+    }
+
     fn parse(text: &str) -> Result<Self> {
         match text {
             words::TODAY => Ok(Self::Today),
@@ -352,6 +399,12 @@ pub trait PlatformBackend {
     /// Start one call. Everything it produces goes down `report`, at whatever
     /// later moment the store answers.
     fn start(&mut self, request: u64, call: &Call, report: &Sender<PlatformEvent>);
+
+    /// Whether this store answers `call`, or leaves it to what answers with
+    /// no store loaded: Play leaves a sign-in page to the Custom Tab.
+    fn serves(&self, _call: &Call) -> bool {
+        true
+    }
 
     /// Once per tick, for a backend whose SDK dispatches its own callbacks
     /// rather than pushing from a thread.
@@ -512,8 +565,10 @@ impl PlatformState {
             return;
         }
         io.start(eng, |report| match (call, backend) {
-            (Outward::Store(call), Some(backend)) => backend.start(id, call, report),
-            (Outward::Store(call), None) => without_backend(id, call, report),
+            (Outward::Store(call), Some(backend)) if backend.serves(call) => {
+                backend.start(id, call, report);
+            }
+            (Outward::Store(call), _) => without_backend(id, call, report),
             (Outward::Device(call), _) => device.start(id, call, report),
         });
     }
@@ -547,12 +602,16 @@ impl PlatformState {
         if balaur_core::replay::suppressed(eng) {
             return;
         }
+        let page = Call::WebSignIn {
+            url: String::new(),
+            scheme: None,
+        };
         match &mut self.backend {
-            Some(backend) => backend.close_web_sign_in(),
+            Some(backend) if backend.serves(&page) => backend.close_web_sign_in(),
             #[cfg(target_os = "android")]
-            None => android::web_sign_in::close(),
+            _ => android::web_sign_in::close(),
             #[cfg(not(target_os = "android"))]
-            None => {}
+            _ => {}
         }
     }
 
@@ -602,7 +661,8 @@ pub struct PlatformSnapshot {
 
 /// What changes or arrives with nobody asking, heard with `events::listen` as
 /// `on_platform_event`: who is playing, when the player signs out in the OS or
-/// signs in as someone else, and a notification tapped or shown in front.
+/// signs in as someone else, a notification tapped or shown in front, and a
+/// purchase that landed with nobody asking.
 pub const ARRIVAL_EVENT: &str = "platform_event";
 
 /// The loaded store's name, or `"none"`: what a provider asks when a service
@@ -659,6 +719,20 @@ fn pump_platform_system(eng: &Engine, _: f32) {
                     state.player = None;
                     true
                 }
+                // A Java shim's sign-in, or a stand-in's, says who as a map.
+                PlatformEvent::Answer { answer, .. } => {
+                    match answer.get(KIND).and_then(serde_json::Value::as_str) {
+                        Some(kind::SIGNED_IN) => {
+                            state.player = answered_player(answer);
+                            true
+                        }
+                        Some(kind::SIGNED_OUT) => {
+                            state.player = None;
+                            true
+                        }
+                        _ => request == 0,
+                    }
+                }
                 _ => request == 0,
             };
             let value = event_value(event);
@@ -680,6 +754,23 @@ fn pump_platform_system(eng: &Engine, _: f32) {
         balaur_core::events::emit(eng, ARRIVAL_EVENT, arrival);
     }
     balaur_core::handler::wake_all(eng, finished);
+}
+
+/// The player a `signed_in` map names, `player` or its own `id` and `alias`.
+fn answered_player(answer: &serde_json::Value) -> Option<Player> {
+    let who = answer
+        .get(PLAYER)
+        .filter(|p| p.is_object())
+        .unwrap_or(answer);
+    let field = |key: &str| {
+        who.get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    };
+    Some(Player {
+        id: field(ID)?,
+        alias: field(ALIAS).unwrap_or_default(),
+    })
 }
 
 fn player_value(player: &Player) -> Value {
@@ -705,6 +796,13 @@ pub mod kind {
     pub const NOTIFICATION_OPENED: &str = "notification_opened";
     pub const NOTIFICATION_RECEIVED: &str = "notification_received";
     pub const SHARED: &str = "shared";
+    pub const PRODUCTS: &str = "products";
+    pub const PURCHASED: &str = "purchased";
+    pub const PENDING: &str = "pending";
+    pub const ENTITLEMENTS: &str = "entitlements";
+    pub const RESTORED: &str = "restored";
+    pub const FINISHED: &str = "finished";
+    pub const TRANSACTION: &str = "transaction";
     pub const ERROR: &str = balaur_core::handler::ERROR;
     pub const ALL: &[&str] = &[
         SIGNED_IN,
@@ -720,6 +818,13 @@ pub mod kind {
         SCHEDULED,
         NOTIFICATION_OPENED,
         NOTIFICATION_RECEIVED,
+        PRODUCTS,
+        PURCHASED,
+        PENDING,
+        ENTITLEMENTS,
+        RESTORED,
+        FINISHED,
+        TRANSACTION,
         ERROR,
     ];
     /// What `device.*` answers.
@@ -858,7 +963,7 @@ impl balaur_plugin::Plugin for PlatformPlugin {
             &[(
                 ARRIVAL_EVENT,
                 "what arrived, carrying request 0",
-                "The player signed out in the OS or signed in as someone else, or a notification was tapped or shown while the game was in front.",
+                "The player signed out in the OS or signed in as someone else, a notification was tapped or shown while the game was in front, or a purchase landed with nobody asking (`transaction`).",
             )],
         );
         reg.add_system(Stage::First, pump_platform_system);
@@ -866,7 +971,7 @@ impl balaur_plugin::Plugin for PlatformPlugin {
         reg.add_replay_setup(services::SERVICES, services::capture, services::restore);
         native::provide(reg.engine())?;
         let mut m = reg.script_module(PLATFORM)?;
-        install_platform_api(&mut m);
+        script_api::install(&mut m);
         let mut m = reg.script_module(DEVICE)?;
         device::install_device(&mut m);
         Ok(())
@@ -897,7 +1002,7 @@ pub fn set_backend(eng: &Engine, backend: Box<dyn PlatformBackend>) -> Result<()
     Ok(())
 }
 
-fn text(value: Option<&Value>, what: &str) -> Result<String> {
+pub(crate) fn text(value: Option<&Value>, what: &str) -> Result<String> {
     match value {
         Some(Value::Str(text)) => Ok(text.clone()),
         other => Err(anyhow!("{what} should be a string, got {other:?}")),
@@ -922,278 +1027,9 @@ fn counted(opts: Option<&Value>, key: &str, fallback: u32) -> Result<u32> {
     }
 }
 
-fn start_call(eng: &Engine, call: Call) -> Value {
+pub(crate) fn start_call(eng: &Engine, call: Call) -> Value {
     let id = eng.next_token();
     let state = eng.resource::<PlatformState>();
     state.borrow_mut().start(eng, id, call);
     id_value(id)
-}
-
-/// `platform.*`. Declared against the backend seam, so the same script runs
-/// with a store, without one, and inside a replay.
-fn install_platform_api(m: &mut Module<Engine>) {
-    m.module_doc(
-        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves, a sign-in page in the OS's own sheet, and local notifications. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `web_sign_in`, `notifications`, `scheduled`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. What arrives unasked is the `platform_event` event, `events::listen(node, \"platform_event\")`: a sign-in or sign-out, and a notification tapped (`notification_opened`) or shown in front (`notification_received`). `is_available` says whether a service works here. A test answers calls from the file `BALAUR_STAND_INS` names.",
-    );
-    balaur_core::handler::install_event_kinds(m, kind::ALL);
-    m.records(&[
-        (
-            "Player",
-            "{ id: string, alias: string }",
-            "Who the store says is playing: its stable `id` on this platform, and the `alias` to show.",
-        ),
-        (
-            "Score",
-            "{ player: string, alias: string, rank: int, score: int }",
-            "One row of a leaderboard, as a `scores` answer's `entries` hold it: `let rows: [platform::Score] = reply[\"entries\"];`.",
-        ),
-        (
-            "ScoresOptions",
-            "{ count: int?, start: int?, scope: string?, period: string? }",
-            "Which entries `scores` reads: how many, the rank to read from (from 1), `scope` (\"global\" or \"friends\") and `period` (\"today\", \"week\" or \"all_time\").",
-        ),
-    ]);
-    m.describe(&[
-        (
-            BACKEND,
-            &[],
-            "() -> string",
-            "The name of the loaded store, or \"none\".",
-        ),
-        (
-            PLAYER,
-            &[],
-            "() -> Player?",
-            "Who the store says is playing, or nil before a sign-in has landed.",
-        ),
-        (
-            SIGN_IN,
-            &[],
-            "() -> int",
-            "Ask the store who is playing, and return the id its answer carries. A later sign-out is the `platform_event` event.",
-        ),
-        (
-            UNLOCK,
-            &[],
-            "(achievement: string) -> int",
-            "Award an achievement whole, and return the id its answer carries.",
-        ),
-        (
-            PROGRESS,
-            &[],
-            "(achievement: string, percent: float) -> int",
-            "Report an achievement's completion, 0 to 100, and return the id its answer carries.",
-        ),
-        (
-            SUBMIT_SCORE,
-            &[],
-            "(board: string, score: int) -> int",
-            "Post a score to a leaderboard, and return the id its answer carries.",
-        ),
-        (
-            kind::SCORES,
-            &[],
-            "(board: string, opts: ScoresOptions?) -> int",
-            "Read a leaderboard's entries, and return the id whose `scores` answer holds them as `entries`, each a `Score`.",
-        ),
-        (
-            CLOUD_READ,
-            &[],
-            "(key: string) -> int",
-            "Read a value the store syncs between the player's devices, and return the id whose `read` answer holds it as `value`: a string, or nil when the key holds nothing.",
-        ),
-        (
-            CLOUD_WRITE,
-            &[],
-            "(key: string, value: string) -> int",
-            "Write a value for the store to sync between the player's devices, and return the id its answer carries.",
-        ),
-        (
-            IDENTITY,
-            &[],
-            "() -> int",
-            "Ask the store for a proof of who is playing that a server checks with it, and return the id whose `identity` answer carries it: Steam's Web API ticket as `ticket`, hex, for `ISteamUserAuth/AuthenticateUserTicket`.",
-        ),
-        (
-            SET_PRESENCE,
-            &[],
-            "(text: string) -> int",
-            "Say what the player is doing, where the store shows it, and return the id its answer carries.",
-        ),
-    ]);
-    install_platform_reads(m);
-    install_platform_session(m);
-    install_platform_achievements(m);
-    install_platform_leaderboards(m);
-    install_platform_cloud(m);
-    install_web_sign_in(m);
-    services::install(m);
-    device::install_notifications(m);
-}
-
-/// What a script can ask without waiting: which store is loaded, and who it
-/// says is playing.
-fn install_platform_reads(m: &mut Module<Engine>) {
-    m.function(BACKEND, |eng: &Engine, ()| {
-        // A test names the store it plays against (`"platform.backend"`).
-        if let Some(Some(serde_json::Value::String(named))) = stand_in(eng, PLATFORM, BACKEND) {
-            return Ok(Value::Str(named));
-        }
-        Ok(Value::Str(
-            eng.resource::<PlatformState>()
-                .borrow()
-                .backend_name()
-                .into(),
-        ))
-    });
-    m.function(PLAYER, |eng: &Engine, ()| {
-        let state = eng.resource::<PlatformState>();
-        let state = state.borrow();
-        Ok(state.player().map_or(Value::Nil, player_value))
-    });
-}
-
-/// Signing in, and saying what the player is doing.
-fn install_platform_session(m: &mut Module<Engine>) {
-    m.function(SIGN_IN, |eng: &Engine, ()| {
-        Ok(start_call(eng, Call::SignIn))
-    });
-    m.function(IDENTITY, |eng: &Engine, ()| {
-        Ok(start_call(eng, Call::Identity))
-    });
-    m.function(SET_PRESENCE, |eng: &Engine, presence: Value| {
-        let text = text(Some(&presence), "what the player is doing")?;
-        Ok(start_call(eng, Call::SetPresence { text }))
-    });
-}
-
-fn install_platform_achievements(m: &mut Module<Engine>) {
-    m.function(UNLOCK, |eng: &Engine, achievement: Value| {
-        let achievement = text(Some(&achievement), "an achievement id")?;
-        Ok(start_call(eng, Call::Unlock { achievement }))
-    });
-    m.function(
-        PROGRESS,
-        |eng: &Engine, (achievement, percent): (Value, Value)| {
-            let achievement = text(Some(&achievement), "an achievement id")?;
-            let percent = number(Some(&percent), "a percentage")?;
-            Ok(start_call(
-                eng,
-                Call::Progress {
-                    achievement,
-                    percent,
-                },
-            ))
-        },
-    );
-}
-
-fn install_platform_leaderboards(m: &mut Module<Engine>) {
-    m.function(
-        SUBMIT_SCORE,
-        |eng: &Engine, (board, score): (Value, Value)| {
-            let board = text(Some(&board), "a leaderboard id")?;
-            #[allow(clippy::cast_possible_truncation, reason = "a leaderboard score")]
-            let score = number(Some(&score), "a score")? as i64;
-            Ok(start_call(eng, Call::SubmitScore { board, score }))
-        },
-    );
-    m.function(
-        kind::SCORES,
-        |eng: &Engine, (board, opts): (Value, Option<Value>)| {
-            let board = text(Some(&board), "a leaderboard id")?;
-            let opts = opts.as_ref();
-            let count = counted(opts, "count", DEFAULT_SCORES)?;
-            let start = counted(opts, "start", 1)?.max(1);
-            let scope = match opt(opts, "scope") {
-                Some(Value::Str(text)) => Scope::parse(text)?,
-                Some(other) => return Err(anyhow!("`scope` should be a string, got {other:?}")),
-                None => Scope::default(),
-            };
-            let period = match opt(opts, "period") {
-                Some(Value::Str(text)) => Period::parse(text)?,
-                Some(other) => return Err(anyhow!("`period` should be a string, got {other:?}")),
-                None => Period::default(),
-            };
-            Ok(start_call(
-                eng,
-                Call::Scores {
-                    board,
-                    count,
-                    scope,
-                    period,
-                    start,
-                },
-            ))
-        },
-    );
-}
-
-fn install_platform_cloud(m: &mut Module<Engine>) {
-    m.function(CLOUD_READ, |eng: &Engine, key: Value| {
-        let key = text(Some(&key), "a key")?;
-        Ok(start_call(eng, Call::CloudRead { key }))
-    });
-    m.function(CLOUD_WRITE, |eng: &Engine, (key, value): (Value, Value)| {
-        let key = text(Some(&key), "a key")?;
-        let value = text(Some(&value), "a value")?;
-        Ok(start_call(eng, Call::CloudWrite { key, value }))
-    });
-}
-
-/// A provider's sign-in page in the OS's own sheet, and shutting it.
-fn install_web_sign_in(m: &mut Module<Engine>) {
-    m.records(&[(
-            "WebSignInOptions",
-            "{ scheme: string? }",
-            "The custom scheme a sign-in page ends on (`com.example.app` for `com.example.app:/done`): the sheet shuts there and its `web_sign_in` answer carries that URL as `url`. On Android the export declares it in `[android] schemes`, the intent filter a Custom Tab's redirect lands on.",
-    )]);
-    m.describe(&[
-        (
-            kind::WEB_SIGN_IN,
-            &[],
-            "(url: string, opts: WebSignInOptions?) -> int",
-            "Open a sign-in page in the OS's own sheet over the game (a Custom Tab on Android), and return the id its answer carries: `web_sign_in` with the `url` it ended on when it reached `opts.scheme`, `cancelled` when shut, `unsupported` where the platform has no such sheet (open the page with `engine::open_url` there).",
-        ),
-        (
-            WEB_SIGN_IN_STATE,
-            &[],
-            "() -> string",
-            "How the page `web_sign_in` opened last stands, without waiting: `PAGE_NONE` before any, `PAGE_OPEN` while it has not answered, else the `kind` it answered. A game polling a server meanwhile reads it to hear the player shut the page.",
-        ),
-        (
-            CLOSE_WEB_SIGN_IN,
-            &[],
-            "() -> nil",
-            "Shut the sign-in page `web_sign_in` opened, once the game has what it opened it for: its call answers `cancelled`, and on Android the game comes back to the front over the tab.",
-        ),
-    ]);
-    m.function(
-        kind::WEB_SIGN_IN,
-        |eng: &Engine, (url, opts): (Value, Option<Value>)| {
-            let url = text(Some(&url), "a sign-in page's address")?;
-            let scheme = match opt(opts.as_ref(), "scheme") {
-                Some(Value::Str(scheme)) => Some(scheme.clone()),
-                Some(other) => return Err(anyhow!("`scheme` should be a string, got {other:?}")),
-                None => None,
-            };
-            Ok(start_call(eng, Call::WebSignIn { url, scheme }))
-        },
-    );
-    m.constant("PAGE_NONE", Value::Str(PAGE_NONE.into()));
-    m.constant("PAGE_OPEN", Value::Str(PAGE_OPEN.into()));
-    m.function(WEB_SIGN_IN_STATE, |eng: &Engine, ()| {
-        Ok(Value::Str(
-            eng.resource::<PlatformState>()
-                .borrow()
-                .web_sign_in_state()
-                .into(),
-        ))
-    });
-    m.function(CLOSE_WEB_SIGN_IN, |eng: &Engine, ()| {
-        eng.resource::<PlatformState>()
-            .borrow_mut()
-            .close_web_sign_in(eng);
-        Ok(())
-    });
 }
