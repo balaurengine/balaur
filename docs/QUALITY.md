@@ -151,6 +151,10 @@ Every exemption carries its reason inline, so it stops being cited as precedent.
   The generator itself fails when its packing rule and the recorded
   `sdk/layouts.json` disagree, and `layout.rs` asserts the same per platform
   at compile time.
+- `scripts/play_libraries.py --check` holds `crates/balaur_google/play/libraries.json`
+  to its roots: every artifact a locked POM needs is locked, at the highest
+  version asked for, and nothing else is. Building the template downloads each
+  file and fails on a SHA-256 the lock does not pin.
 
 ## Determinism
 

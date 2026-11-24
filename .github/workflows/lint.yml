@@ -154,6 +154,10 @@ jobs:
       # checked in; a hand edit or a generator change left unrun fails here.
       - name: crates/balaur_steam/src/sdk is current
         run: python3 scripts/gen_steam.py --check
+      # Google's Android libraries are pinned with their checksums; a root
+      # bumped without re-resolving, or a lock edited by hand, fails here.
+      - name: crates/balaur_google/play/libraries.json is current
+        run: python3 -I scripts/play_libraries.py --check
 
   supply-chain:
     name: dependency advisories, bans and sources

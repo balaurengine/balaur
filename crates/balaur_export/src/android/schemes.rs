@@ -67,7 +67,7 @@ fn check(scheme: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::super::AndroidConfig;
-    use super::super::tests::{TEMPLATE, named};
+    use super::super::test_config::{TEMPLATE, named};
 
     /// The manifest scripts/package_runtime.sh stages, its redirect activity
     /// with no filter of its own.

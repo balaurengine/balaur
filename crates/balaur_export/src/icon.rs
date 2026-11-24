@@ -416,7 +416,7 @@ impl Icons {
     /// adaptive background is the picture's corner when that is opaque, so a
     /// square icon's own ground fills the mask, and white otherwise.
     pub(crate) fn write_android(&self, layout: &Path) -> Result<()> {
-        let res = layout.join("res");
+        let res = layout.join(crate::vocabulary::words::android::RES);
         for (density, legacy) in [
             ("mdpi", 48),
             ("hdpi", 72),

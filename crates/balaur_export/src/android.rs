@@ -16,13 +16,11 @@ use crate::sign::{run, tool};
 use crate::vocabulary::words;
 
 mod permissions;
+pub(crate) mod play;
 mod schemes;
 mod shims;
 
 const AAPT2: &str = "aapt2";
-/// The template's Java: the shims `balaur_google` and `balaur_platform` reach
-/// over JNI.
-const DEX: &str = "classes.dex";
 const ANDROIDDEBUGKEY: &str = "androiddebugkey";
 const APKSIGNER: &str = "apksigner";
 const JARSIGNER: &str = "jarsigner";
@@ -102,6 +100,12 @@ pub(crate) struct AndroidConfig {
     /// scheme a `platform.web_sign_in` page ends on, which its Custom Tab
     /// answers with.
     pub schemes: Vec<String>,
+    /// The Google services the game uses, each keeping its libraries from
+    /// the template's `play/`. None named: no Google library ships.
+    pub capabilities: Vec<play::Capability>,
+    /// The Play Games project id (Play Console's Play Games Services
+    /// configuration), which `play-games` needs in the manifest.
+    pub games_project_id: String,
     /// `[window] orientation`, which Android settles in the manifest rather
     /// than at startup. Not a key of `[android]`: it is the same window
     /// setting every platform reads, taken from the same resolved document.
@@ -132,6 +136,8 @@ impl Default for AndroidConfig {
             bundletool: String::new(),
             permissions: vec![permissions::INTERNET.to_string()],
             schemes: Vec::new(),
+            capabilities: Vec::new(),
+            games_project_id: String::new(),
             orientation: balaur::project::Orientation::Any,
             title: String::new(),
             debug_key: false,
@@ -244,6 +250,7 @@ impl AndroidConfig {
                 self.target_sdk
             );
         }
+        self.check_capabilities()?;
         let label = self.label();
         let mut xml = set_attr(template, "package", id)?;
         xml = set_attr(&xml, "android:versionCode", &self.version_code.to_string())?;
@@ -270,6 +277,56 @@ impl AndroidConfig {
                 },
             ),
         })
+    }
+}
+
+impl AndroidConfig {
+    /// Refuse a capability whose configuration is missing: Play Games
+    /// without its project id answers nothing on a device.
+    fn check_capabilities(&self) -> Result<()> {
+        let games = self.capabilities.contains(&play::Capability::PlayGames);
+        if games && self.games_project_id.is_empty() {
+            bail!(
+                "[android] capabilities names play-games, and games_project_id is not set: \
+                 the project id Play Console shows under Play Games Services, \
+                 e.g. games_project_id = \"123456789012\""
+            );
+        }
+        if !self.games_project_id.is_empty() {
+            anyhow::ensure!(
+                games,
+                "[android] games_project_id is set, and capabilities does not name play-games"
+            );
+            anyhow::ensure!(
+                self.games_project_id.chars().all(|c| c.is_ascii_digit()),
+                "[android] games_project_id = \"{}\" is not a Play Games project id, \
+                 which is all digits",
+                self.games_project_id
+            );
+        }
+        Ok(())
+    }
+
+    /// The layout keeps the Google libraries `capabilities` needs, and the
+    /// manifest declares what they declare.
+    ///
+    /// # Errors
+    /// When a capability is declared and the template has no libraries.
+    pub(crate) fn libraries(&self, layout: &Path, xml: &str) -> Result<String> {
+        let id = self.identifier()?;
+        let Some(entries) = play::keep(layout, &self.capabilities, id)? else {
+            return Ok(xml.to_string());
+        };
+        let games = self.capabilities.contains(&play::Capability::PlayGames);
+        if games {
+            play::write_project_id(layout, &self.games_project_id)?;
+        }
+        let xml = permissions::declare(xml, &entries.permissions)?;
+        play::declare(
+            &xml,
+            &entries,
+            games.then_some(self.games_project_id.as_str()),
+        )
     }
 }
 
@@ -606,24 +663,43 @@ pub(crate) fn bundle(
     Ok(aab)
 }
 
-/// The layout's `res/`, compiled into the archive `aapt2 link` takes beside the
-/// manifest: nothing for a layout with no resources, as a game with no icon is.
-fn compile_resources(sdk: &Sdk, layout: &Path, work: &Path) -> Result<Vec<PathBuf>> {
-    let res = layout.join("res");
-    if !res.is_dir() {
-        return Ok(Vec::new());
+/// The layout's `res/` and the Google libraries' it kept, compiled into the
+/// arguments `aapt2 link` takes beside the manifest: nothing for a layout
+/// with no resources, as a game with no icon and no library is.
+///
+/// Every archive is an overlay, the libraries' in dependency order and the
+/// game's last, so a game's resource wins over a library's of the same name,
+/// and the libraries' ids are the ones their R classes were built with.
+fn compile_resources(sdk: &Sdk, layout: &Path, work: &Path) -> Result<Vec<std::ffi::OsString>> {
+    let mut dirs = play::resources(layout);
+    let res = layout.join(words::android::RES);
+    if res.is_dir() {
+        dirs.push(res);
     }
-    let compiled = work.join("res.zip");
-    run(
-        Command::new(sdk.program(AAPT2)?)
-            .arg("compile")
-            .arg("--dir")
-            .arg(&res)
-            .arg("-o")
-            .arg(&compiled),
-        "aapt2 compile",
-    )?;
-    Ok(vec![compiled])
+    let mut args: Vec<std::ffi::OsString> = Vec::new();
+    for (n, dir) in dirs.iter().enumerate() {
+        let compiled = work.join(format!("res{n:02}.zip"));
+        run(
+            Command::new(sdk.program(AAPT2)?)
+                .arg("compile")
+                .arg("--dir")
+                .arg(dir)
+                .arg("-o")
+                .arg(&compiled),
+            "aapt2 compile",
+        )?;
+        args.push("-R".into());
+        args.push(compiled.into());
+    }
+    if !args.is_empty() {
+        args.push("--auto-add-overlay".into());
+    }
+    let ids = layout.join(play::PLAY).join(play::IDS);
+    if ids.is_file() {
+        args.push("--stable-ids".into());
+        args.push(ids.into());
+    }
+    Ok(args)
 }
 
 /// The base module a bundle is made of: aapt2's protobuf manifest and resource
@@ -665,8 +741,8 @@ fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
     }
     for (name, path) in payload_files(layout) {
         // An APK keeps its dex at the root, a bundle's module under `dex/`.
-        let name = if name == DEX {
-            format!("dex/{DEX}")
+        let name = if is_dex(&name) {
+            format!("dex/{name}")
         } else {
             name
         };
@@ -710,13 +786,24 @@ fn add_payload(apk: &Path, layout: &Path) -> Result<()> {
     Ok(())
 }
 
-/// The template's dex and everything under `lib/` and `assets/`, in a stable
-/// order. A template from before the dex has none.
+/// `classes.dex`, or one numbered after it: `classes2.dex` and on.
+fn is_dex(name: &str) -> bool {
+    name.strip_prefix("classes")
+        .and_then(|rest| rest.strip_suffix(".dex"))
+        .is_some_and(|n| n.is_empty() || n.parse::<u32>().is_ok_and(|n| n >= 2))
+}
+
+/// The dex files at the layout's root and everything under `lib/` and
+/// `assets/`, in a stable order. A template from before the dex has none.
 fn payload_files(layout: &Path) -> Vec<(String, PathBuf)> {
     let mut found = Vec::new();
-    let dex = layout.join(DEX);
-    if dex.is_file() {
-        found.push((DEX.to_string(), dex));
+    if let Ok(entries) = std::fs::read_dir(layout) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if is_dex(&name) && entry.path().is_file() {
+                found.push((name, entry.path()));
+            }
+        }
     }
     for top in [words::android::LIB, words::bundle::ASSETS] {
         let mut dirs = vec![layout.join(top)];
@@ -824,339 +911,4 @@ fn debug_keystore() -> Result<PathBuf> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{Abi, AndroidConfig, payload_files, version_key};
-
-    /// A layout carrying every ABI the template ships.
-    fn layout(dir: &std::path::Path) -> &std::path::Path {
-        for abi in ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"] {
-            std::fs::create_dir_all(dir.join("lib").join(abi)).unwrap();
-            std::fs::write(dir.join("lib").join(abi).join("libmain.so"), b"so").unwrap();
-        }
-        dir
-    }
-
-    #[test]
-    fn a_project_that_names_no_abi_keeps_every_one() {
-        let dir = tempfile::tempdir().unwrap();
-        let layout = layout(dir.path());
-        AndroidConfig::default().prune(layout).unwrap();
-        assert_eq!(super::carried(&layout.join("lib")).len(), 4);
-    }
-
-    #[test]
-    fn the_abis_a_project_names_are_the_ones_that_survive() {
-        let dir = tempfile::tempdir().unwrap();
-        let layout = layout(dir.path());
-        let config = AndroidConfig {
-            abis: vec![Abi::Arm64V8a, Abi::X86_64],
-            ..Default::default()
-        };
-        config.prune(layout).unwrap();
-        assert_eq!(super::carried(&layout.join("lib")), ["arm64-v8a", "x86_64"]);
-    }
-
-    #[test]
-    fn an_abi_the_template_does_not_carry_names_the_ones_it_does() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(dir.path().join("lib/arm64-v8a")).unwrap();
-        let config = AndroidConfig {
-            abis: vec![Abi::X86],
-            ..Default::default()
-        };
-        let err = config
-            .prune(dir.path())
-            .expect_err("an ABI with no library")
-            .to_string();
-        assert!(err.contains("x86"), "{err}");
-        assert!(err.contains("arm64-v8a"), "{err}");
-    }
-
-    /// The manifest scripts/package_runtime.sh stages, activity and all.
-    const TEMPLATE_WITH_ACTIVITY: &str = r#"<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.balaur.template"
-    android:versionCode="1"
-    android:versionName="1.0">
-  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
-  <application android:label="Balaur" android:hasCode="true">
-    <activity
-        android:name="android.app.NativeActivity"
-        android:exported="true"
-        android:configChanges="orientation|keyboardHidden|screenSize">
-    </activity>
-  </application>
-</manifest>
-"#;
-
-    /// The manifest scripts/package_runtime.sh stages.
-    pub(super) const TEMPLATE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.balaur.template"
-    android:versionCode="1"
-    android:versionName="1.0">
-  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
-  <application android:label="Balaur" android:hasCode="true">
-  </application>
-</manifest>
-"#;
-
-    /// Everything an export needs named, as a project declares it.
-    pub(super) fn named() -> AndroidConfig {
-        AndroidConfig {
-            application_id: "com.studio.tide".into(),
-            title: "Tide".into(),
-            version: "1.0".into(),
-            version_code: 1,
-            ..AndroidConfig::default()
-        }
-    }
-
-    #[test]
-    fn an_orientation_reaches_the_activity() {
-        let config = AndroidConfig {
-            orientation: balaur::project::Orientation::Landscape,
-            ..named()
-        };
-        let xml = config.manifest(TEMPLATE_WITH_ACTIVITY).unwrap();
-        assert!(
-            xml.contains(r#"android:screenOrientation="landscape""#),
-            "{xml}"
-        );
-    }
-
-    // A game that names none writes the manifest it always did.
-    #[test]
-    fn no_orientation_leaves_the_manifest_alone() {
-        let xml = named().manifest(TEMPLATE_WITH_ACTIVITY).unwrap();
-        assert!(!xml.contains("screenOrientation"), "{xml}");
-    }
-
-    #[test]
-    fn the_label_is_the_application_name_unless_display_name_says_otherwise() {
-        let xml = named().manifest(TEMPLATE).unwrap();
-        assert!(xml.contains(r#"package="com.studio.tide""#), "{xml}");
-        assert!(xml.contains(r#"android:label="Tide""#), "{xml}");
-        assert!(!xml.contains("org.balaur.template"), "{xml}");
-        // The template's own floor, kept because the project named none.
-        assert!(xml.contains(r#"android:minSdkVersion="26""#), "{xml}");
-    }
-
-    // An Android build reaches no server without INTERNET, so a game that
-    // says nothing has it; one that goes offline on purpose says so.
-    #[test]
-    fn the_manifest_declares_internet_unless_the_game_says_otherwise() {
-        let xml = named().manifest(TEMPLATE).unwrap();
-        assert!(
-            xml.contains(r#"<uses-permission android:name="android.permission.INTERNET" />"#),
-            "{xml}"
-        );
-        assert!(
-            xml.find("uses-permission").unwrap() < xml.find("<application").unwrap(),
-            "{xml}"
-        );
-        let offline = AndroidConfig {
-            permissions: Vec::new(),
-            ..named()
-        };
-        assert!(
-            !offline
-                .manifest(TEMPLATE)
-                .unwrap()
-                .contains("uses-permission")
-        );
-    }
-
-    #[test]
-    fn every_example_exports_to_android() {
-        let examples = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
-        let mut checked = 0;
-        for entry in std::fs::read_dir(&examples).unwrap() {
-            let project = entry.unwrap().path();
-            let Ok(text) = std::fs::read_to_string(project.join("project.toml")) else {
-                continue;
-            };
-            let manifest: toml::Table = toml::from_str(&text).unwrap();
-            AndroidConfig::from_manifest(&manifest, &project)
-                .and_then(|config| config.manifest(TEMPLATE))
-                .unwrap_or_else(|err| panic!("{}: {err}", project.display()));
-            checked += 1;
-        }
-        assert!(checked > 0, "no example under {}", examples.display());
-    }
-
-    // Nothing is invented: each key missing is refused by name, in the order
-    // a project would fill them in.
-    #[test]
-    fn a_game_that_declares_nothing_is_refused_key_by_key() {
-        let refusal = |config: AndroidConfig| config.manifest(TEMPLATE).unwrap_err().to_string();
-        let no_name = AndroidConfig {
-            title: String::new(),
-            ..named()
-        };
-        assert!(refusal(no_name).contains("[application] name"));
-        let no_id = AndroidConfig {
-            application_id: String::new(),
-            ..named()
-        };
-        assert!(refusal(no_id).contains("application_id"));
-        let no_version = AndroidConfig {
-            version: String::new(),
-            ..named()
-        };
-        assert!(refusal(no_version).contains("version is not set"));
-        let no_code = AndroidConfig {
-            version_code: 0,
-            ..named()
-        };
-        assert!(refusal(no_code).contains("version_code"));
-    }
-
-    #[test]
-    fn no_keystore_signs_with_the_debug_key_only_when_asked() {
-        let dir = tempfile::tempdir().unwrap();
-        let err = super::keystore_for(dir.path(), &named())
-            .err()
-            .unwrap()
-            .to_string();
-        assert!(err.contains("--sign debug"), "{err}");
-    }
-
-    #[test]
-    fn the_project_names_the_id_the_version_and_the_label() {
-        let config = AndroidConfig {
-            application_id: "com.studio.tide".into(),
-            display_name: "Tide & Sand".into(),
-            version: "2.3".into(),
-            version_code: 17,
-            target_sdk: 34,
-            ..named()
-        };
-        let xml = config.manifest(TEMPLATE).unwrap();
-        assert!(xml.contains(r#"package="com.studio.tide""#), "{xml}");
-        assert!(xml.contains(r#"android:versionCode="17""#), "{xml}");
-        assert!(xml.contains(r#"android:versionName="2.3""#), "{xml}");
-        assert!(xml.contains(r#"android:targetSdkVersion="34""#), "{xml}");
-        // An ampersand in a label is not an entity waiting to happen.
-        assert!(xml.contains(r#"android:label="Tide &amp; Sand""#), "{xml}");
-    }
-
-    #[test]
-    fn an_id_play_would_refuse_is_refused_here() {
-        for id in ["tide", "com.2studio.tide", "com..tide"] {
-            let config = AndroidConfig {
-                application_id: id.into(),
-                ..named()
-            };
-            let err = config
-                .manifest(TEMPLATE)
-                .expect_err("an id Play would refuse")
-                .to_string();
-            assert!(err.contains(id), "{err}");
-        }
-    }
-
-    #[test]
-    fn a_min_sdk_under_the_library_it_would_load_is_refused() {
-        let config = AndroidConfig {
-            min_sdk: 21,
-            ..named()
-        };
-        let err = config
-            .manifest(TEMPLATE)
-            .expect_err("a floor under the template's")
-            .to_string();
-        assert!(err.contains("21") && err.contains("26"), "{err}");
-    }
-
-    #[test]
-    fn the_base_module_puts_aapt2s_output_where_bundletool_reads_it() {
-        let dir = tempfile::tempdir().unwrap();
-        let linked = dir.path().join("proto.apk");
-        {
-            let mut zip = zip::ZipWriter::new(std::fs::File::create(&linked).unwrap());
-            let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
-            for (name, body) in [
-                ("AndroidManifest.xml", &b"proto"[..]),
-                ("resources.pb", &b"table"[..]),
-                ("res/mipmap-anydpi-v26/icon.xml", &b"adaptive"[..]),
-            ] {
-                zip.start_file(name, options).unwrap();
-                std::io::Write::write_all(&mut zip, body).unwrap();
-            }
-            zip.finish().unwrap();
-        }
-        let layout = dir.path().join("layout");
-        std::fs::create_dir_all(layout.join("lib/arm64-v8a")).unwrap();
-        std::fs::create_dir_all(layout.join("assets")).unwrap();
-        std::fs::write(layout.join("lib/arm64-v8a/libmain.so"), b"so").unwrap();
-        std::fs::write(layout.join("assets/game.bpak"), b"pack").unwrap();
-        std::fs::write(layout.join("classes.dex"), b"dex").unwrap();
-
-        let module = dir.path().join("base.zip");
-        super::write_module(&module, &linked, &layout).unwrap();
-
-        let zip = zip::ZipArchive::new(std::fs::File::open(&module).unwrap()).unwrap();
-        let mut names: Vec<String> = zip
-            .file_names()
-            .map(|name| name.unwrap().into_owned())
-            .collect();
-        names.sort_unstable();
-        assert_eq!(
-            names,
-            [
-                "assets/game.bpak",
-                "dex/classes.dex",
-                "lib/arm64-v8a/libmain.so",
-                "manifest/AndroidManifest.xml",
-                "res/mipmap-anydpi-v26/icon.xml",
-                "resources.pb",
-            ]
-        );
-    }
-
-    #[test]
-    fn a_game_with_an_icon_names_it_on_its_application() {
-        let xml = super::name_icon(TEMPLATE);
-        assert!(xml.contains(r#"android:icon="@mipmap/icon""#), "{xml}");
-        assert_eq!(
-            super::name_icon(&xml),
-            xml,
-            "naming it twice changes nothing"
-        );
-    }
-
-    #[test]
-    fn build_tools_sort_by_version_and_not_by_string() {
-        let mut versions = [
-            version_key("9.0.0"),
-            version_key("34.0.0"),
-            version_key("10.0.1"),
-        ];
-        versions.sort();
-        assert_eq!(versions.last().unwrap(), &version_key("34.0.0"));
-    }
-
-    #[test]
-    fn the_payload_is_the_dex_the_library_and_the_pack_in_a_stable_order() {
-        let dir = tempfile::tempdir().unwrap();
-        let layout = dir.path();
-        std::fs::create_dir_all(layout.join("lib/arm64-v8a")).unwrap();
-        std::fs::create_dir_all(layout.join("assets")).unwrap();
-        std::fs::write(layout.join("lib/arm64-v8a/libmain.so"), b"so").unwrap();
-        std::fs::write(layout.join("assets/game.bpak"), b"pack").unwrap();
-        std::fs::write(layout.join("AndroidManifest.xml"), b"<manifest/>").unwrap();
-        std::fs::write(layout.join("classes.dex"), b"dex").unwrap();
-
-        let names: Vec<String> = payload_files(layout).into_iter().map(|(n, _)| n).collect();
-
-        assert_eq!(
-            names,
-            [
-                "assets/game.bpak",
-                "classes.dex",
-                "lib/arm64-v8a/libmain.so"
-            ]
-        );
-    }
-}
+mod test_config;

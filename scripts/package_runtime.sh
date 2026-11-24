@@ -160,6 +160,13 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   rm -rf "$classes"
   [ -f "$skeleton/classes.dex" ] || { printf '::error::d8 wrote no classes.dex\n'; exit 1; }
 
+  step "Google's libraries (play/)"
+  # Pinned in crates/balaur_google/play/libraries.json and checked against it,
+  # then dexed per library beside the capability shims; an export keeps what
+  # its `[android] capabilities` need (balaur_export's android/play.rs).
+  ANDROID_HOME=$sdk python3 -I scripts/play_libraries.py stage \
+    "${PLAY_LIBRARIES:-target/play-libraries}" "$skeleton/play"
+
   step "stage (apk layout)"
   # `android.app.lib_name` is how NativeActivity finds the library, so it has
   # to stay in step with [lib] name in crates/balaur_android/Cargo.toml.

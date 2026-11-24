@@ -1054,6 +1054,7 @@ dependencies = [
  "mkwebfont_hb-subset",
  "rubato",
  "serde",
+ "serde_json",
  "symphonia 0.6.1",
  "tempfile",
  "toml",

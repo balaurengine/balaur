@@ -110,6 +110,7 @@ files_stream() {
   step 'api lints' python3 scripts/api_lints.py --api-json docs/generated/api.json --fail-on-error || bad=1
   step 'third-party notices' python3 scripts/third_party_notices.py --check || bad=1
   step 'steam bindings' python3 scripts/gen_steam.py --check || bad=1
+  step 'play libraries' python3 -I scripts/play_libraries.py --check || bad=1
   return $bad
 }
 

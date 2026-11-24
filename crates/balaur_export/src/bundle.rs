@@ -176,6 +176,7 @@ pub(crate) fn export_bundle(
         let staged = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
         let mut xml = android.manifest(&staged)?;
+        xml = android.libraries(&output, &xml)?;
         if let Some(icons) = icons {
             icons.write_android(&output)?;
             xml = crate::android::name_icon(&xml);

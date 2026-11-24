@@ -31,6 +31,7 @@ pub(crate) mod words {
 
     pub(crate) mod android {
         pub(crate) const LIB: &str = "lib";
+        pub(crate) const RES: &str = "res";
     }
 
     pub(crate) mod bundle {

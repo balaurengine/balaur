@@ -21,7 +21,7 @@ pub(super) fn name_files(xml: &str, id: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::super::AndroidConfig;
-    use super::super::tests::named;
+    use super::super::test_config::named;
 
     /// The manifest scripts/package_runtime.sh writes, read from the script.
     fn staged_manifest() -> String {

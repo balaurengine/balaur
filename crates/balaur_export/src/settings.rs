@@ -63,6 +63,8 @@ key = { type = "string", default = "", order = 9, help = "Which key in that keys
 bundletool = { type = "string", default = "", order = 10, help = "Where bundletool.jar is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and then beside the SDK; Google ships it on its own, not in the SDK." }
 permissions = { type = "list", of = { type = "string" }, default = ["INTERNET"], order = 11, help = "The permissions the manifest declares: INTERNET for android.permission.INTERNET, or a whole name. Without INTERNET no socket opens; a game that never goes online writes permissions = []." }
 schemes = { type = "list", of = { type = "string" }, default = [], order = 12, help = "The custom URL schemes that open the game, each an intent filter: the scheme a platform.web_sign_in page ends on (com.studio.game for com.studio.game:/done), which its Custom Tab answers with." }
+capabilities = { type = "flags", default = [], options = ["play-games", "in-app-purchase", "in-app-review"], order = 13, help = "The Google services the game uses, each shipping its Google libraries: play-games for platform.* on Play Games, in-app-purchase for Play Billing, in-app-review for device.request_review. None named ships no Google library." }
+games_project_id = { type = "string", default = "", order = 14, help = "The Play Games project id Play Console shows under Play Games Services, all digits. Required with play-games." }
 "#,
         ),
     );

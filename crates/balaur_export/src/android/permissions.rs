@@ -74,7 +74,7 @@ fn permission_name(name: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::super::AndroidConfig;
-    use super::super::tests::{TEMPLATE, named};
+    use super::super::test_config::{TEMPLATE, named};
 
     #[test]
     fn a_permission_is_a_bare_constant_or_a_whole_name() {
