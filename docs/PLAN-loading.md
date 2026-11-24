@@ -46,3 +46,41 @@ is left is acceptable.
    browser stalls at creation or at first draw before changing anything.
 5. **Time outside the timer.** A first launch's process time runs seconds
    past `to first frame`, and nothing says where it goes.
+
+## Data a script reads
+
+A script's own loading freezes a frame too. Measured 2026-11-24 on Polyglot
+Pirates' word packs (release, macOS): `json::parse` of 2.7 MB is 12-20 ms
+of parse, 4-12 ms turning it into script values and 30-40 ms writing them
+into the script's heap (82-86 ms before `any_owned`), all inside the frame
+that called it. The app now splits its packs into files of at most 580 KB
+and reads one a frame (`await task::frames(1)` between them), which keeps
+every frame under 30 ms; a game should not have to. Scripts can already
+wait on a token (`http::request`, `events::next` with `task::wait`), and
+`task::compute` runs work with no files in it on a worker, or inline on a
+tab without one.
+
+1. **A parse off the frame.** `json::parse_async(text) -> int` answers a
+   token: the parse and the conversion run on `task::compute`, and the value
+   is written into the heap when `task::wait` resumes the task. A replay
+   records the answer as it does an HTTP reply. Ends with: a 2.7 MB parse
+   leaves only the heap write in the frame that resumes.
+2. **The heap write.** Measure what step 1 leaves. If it is still over a
+   frame's budget, either write a large answer a slice a frame before the
+   task resumes, or keep it on the host and hand the script a value that
+   reads into the heap only what it touches. Ends with: no frame over
+   16 ms for a 2.7 MB document.
+3. **A yield that keeps the pace.** `await task::yield()` resumes in the same
+   frame while it has time left, else on the next: a loop of rows or files
+   yields after each without tuning how many a frame (what the app's
+   `topics::paced` does by hand, from the last frame's length). Needs an
+   in-frame clock, which scripts lack (`engine::unix_time` is the frame's).
+
+### Open questions
+
+6. **Replays and the yield.** Whether a yield lands in the same frame
+   depends on the machine's speed. A replay must record where each one
+   landed, or a yield must count work rather than time.
+7. **The tab's files.** A tab's filesystem lives on its main thread, so
+   `fs::read` stays there; only the parse crosses. Measure the read on its
+   own once step 1 is in.
