@@ -961,7 +961,7 @@ impl Parser {
 "#;
 
 #[test]
-fn json_parse_async_answers_task_wait_with_what_parse_gives_a_step_later() {
+fn json_parse_async_answers_task_wait_with_what_parse_gives_once_it_is_done() {
     use balaur_script::Value::{Bool, Int, Str};
     let dir = one_script("Parser", PARSER_BS);
     let mut app = booted(dir.path());
@@ -970,7 +970,14 @@ fn json_parse_async_answers_task_wait_with_what_parse_gives_a_step_later() {
         Some(Int(0)),
         "parsed off the frame that asked"
     );
-    ticked(&mut app, 2);
+    // The answer comes on the first tick the worker is done by.
+    for _ in 0..500 {
+        if field(&app, "Parser", "n") == Some(Int(3)) {
+            break;
+        }
+        ticked(&mut app, 1);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
     assert_eq!(field(&app, "Parser", "n"), Some(Int(3)));
     assert_eq!(field(&app, "Parser", "word"), Some(Str("café".into())));
     assert_eq!(

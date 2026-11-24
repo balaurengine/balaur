@@ -600,7 +600,7 @@ pub(crate) fn json_parse(_: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 /// `json.parse_async`: `parse` on a worker, its value answered to the token
-/// on the next fixed step (`task::off_frame`).
+/// once it is done (`task::off_frame`).
 pub(crate) fn json_parse_async(eng: &Engine, args: &[Value]) -> Result<Value> {
     let text = text(args, 0)?.to_owned();
     Ok(crate::task::off_frame(eng, move || parsed(&text)))

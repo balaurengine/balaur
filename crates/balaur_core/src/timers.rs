@@ -4,8 +4,14 @@
 //! exactly and a rollback puts it back where it was. A token is minted the
 //! way a request id is and woken with nil, which is what `task::wait` on an
 //! engine token expects.
+//!
+//! A worker's answer (`task::off_frame`) wakes its token on the first tick
+//! it is in by, read at `Stage::First` as an HTTP reply is, and a recording
+//! keeps which tokens each tick woke; a replay waits on those. Under a
+//! rollback session, where peers keep no recording, the next tick takes it,
+//! waiting for the worker there.
 
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, TryRecvError};
 
 use serde::{Deserialize, Serialize};
 
@@ -20,15 +26,20 @@ pub struct Timers {
     /// result, which cannot be delivered before its caller has parked.
     #[serde(skip)]
     results: Vec<(u64, balaur_script::Value)>,
-    /// Tokens to wake on the next step with what a worker answers
-    /// (`task::compute`), waited for there if it has not answered yet.
+    /// Tokens to wake with what a worker answers (`task::compute`), in the
+    /// order they were asked for.
     #[serde(skip)]
     computing: Vec<(u64, Receiver<balaur_script::Value>)>,
+    /// The workers' tokens this tick woke, as a recording keeps them.
+    #[serde(skip)]
+    answered: Vec<u64>,
+    /// In a replay, the ones the recording's tick woke.
+    #[serde(skip)]
+    replayed: Vec<u64>,
 }
 
-/// Wake `token` on the next fixed step with the value `answer` brings,
-/// waiting for it there if the worker has not sent it: work off the frame
-/// that asked, whose caller resumes on the same step on every run.
+/// Wake `token` with the value `answer` brings, on the first tick it is in
+/// by (`collect_answers_system`).
 pub fn wake_with(eng: &Engine, token: u64, answer: Receiver<balaur_script::Value>) {
     eng.resource::<Timers>()
         .borrow_mut()
@@ -93,19 +104,7 @@ pub(crate) fn step_timers_system(eng: &Engine, _: f32) {
     // An awaited call's result is owed to its caller, not timed: it is
     // delivered through a pause, or a script that awaited one inside an
     // `always` subtree never gets its answer.
-    let (mut results, computing) = {
-        let timers = eng.resource::<Timers>();
-        let mut timers = timers.borrow_mut();
-        (
-            std::mem::take(&mut timers.results),
-            std::mem::take(&mut timers.computing),
-        )
-    };
-    // A worker's answer, waited for where it is not in yet; a worker gone
-    // without one answers nil.
-    for (token, answer) in computing {
-        results.push((token, answer.recv().unwrap_or(balaur_script::Value::Nil)));
-    }
+    let results = std::mem::take(&mut eng.resource::<Timers>().borrow_mut().results);
     if let Some(host) = eng.script_host() {
         for (token, payload) in &results {
             host.wake(*token, payload);
@@ -133,6 +132,53 @@ pub(crate) fn step_timers_system(eng: &Engine, _: f32) {
         for token in due {
             host.wake(token, &balaur_script::Value::Nil);
         }
+    }
+}
+
+/// The workers' answers this tick takes, owed to their callers on its fixed
+/// step: each one in by now; in a replay the ones the recording's tick took,
+/// waited for; under a rollback session every one, waited for, so each peer
+/// wakes it on the same tick. A worker gone without answering answers nil.
+pub(crate) fn collect_answers_system(eng: &Engine, _: f32) {
+    let playing = crate::replay::is_playing(eng);
+    let lockstep = crate::rollback::clock(eng).settled != u64::MAX;
+    let timers = eng.resource::<Timers>();
+    let mut timers = timers.borrow_mut();
+    timers.answered.clear();
+    let replayed = std::mem::take(&mut timers.replayed);
+    let mut waiting = Vec::new();
+    for (token, answer) in std::mem::take(&mut timers.computing) {
+        let value = if playing && !replayed.contains(&token) {
+            None
+        } else if playing || lockstep {
+            Some(answer.recv().unwrap_or(balaur_script::Value::Nil))
+        } else {
+            match answer.try_recv() {
+                Ok(value) => Some(value),
+                Err(TryRecvError::Empty) => None,
+                Err(TryRecvError::Disconnected) => Some(balaur_script::Value::Nil),
+            }
+        };
+        match value {
+            Some(value) => {
+                timers.answered.push(token);
+                timers.results.push((token, value));
+            }
+            None => waiting.push((token, answer)),
+        }
+    }
+    timers.computing = waiting;
+}
+
+/// The tokens this tick's workers answered, as a recording keeps them.
+pub(crate) fn capture_answers(eng: &Engine) -> serde_json::Value {
+    serde_json::to_value(&eng.resource::<Timers>().borrow().answered).unwrap_or_default()
+}
+
+/// A recorded tick's answered tokens, for `collect_answers_system` to wait on.
+pub(crate) fn restore_answers(eng: &Engine, value: &serde_json::Value) {
+    if let Ok(tokens) = Vec::<u64>::deserialize(value) {
+        eng.resource::<Timers>().borrow_mut().replayed = tokens;
     }
 }
 

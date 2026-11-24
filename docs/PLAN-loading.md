@@ -66,10 +66,11 @@ longer than a millisecond or two gets a twin off the frame.
   keep it.
 - **Pure work** (a parse, an encode, a hash, a decode) goes through
   `task::off_frame(eng, work)`: `work` runs on `task::compute`'s pool and its
-  answer wakes the token on the next fixed step, which waits there for one
-  not in yet. The caller resumes on the same step on every run, so a replay
-  or a rollback records nothing. Where the work takes longer than a step,
-  the step waits; the frame that asked never does.
+  answer wakes the token on the first tick it is in by, read at
+  `Stage::First` as an HTTP reply is. A recording keeps which tokens each
+  tick woke, and a replay waits on those, so it lands where it landed.
+  Under a rollback session, where peers keep no recording, the next tick
+  takes it, waiting for the worker there, so every peer wakes it together.
 - **The outside world** (a file the player can change, the network, a
   device) goes through `ExternalIo`: the answer enters on the tick it
   arrives and a replay records it, as `http` does.
@@ -78,9 +79,10 @@ longer than a millisecond or two gets a twin off the frame.
 
 ### Steps
 
-1. **The shape, and JSON.** `task::off_frame`, `timers::wake_with`, and
-   `json::parse_async`. Ends with: a 2.7 MB parse leaves only the heap
-   write in the frame that resumes.
+1. **The shape, and JSON.** Done 2026-11-24: `task::off_frame`,
+   `timers::wake_with`, `json::parse_async`, and a test that a replay lands
+   a parse on its recorded tick. A 2.7 MB parse leaves only the heap write
+   in the frame that resumes.
 2. **The rest of the pure calls.** `json::encode_async`, `toml::parse_async`,
    `toml::encode_async`, `toml::patch_async`, `hash::sha256_text_async`, and
    `regex::search_all_async` / `replace_async` over a long text. Each a line

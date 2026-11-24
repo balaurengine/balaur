@@ -353,6 +353,11 @@ pub fn register_facts(app: &mut App) {
     app.engine.insert_resource(crate::timers::Timers::default());
     app.engine.insert_resource(crate::facts::Device::default());
     app.add_replay_source(
+        "off_frame",
+        crate::timers::capture_answers,
+        crate::timers::restore_answers,
+    );
+    app.add_replay_source(
         crate::vocabulary::words::facts::DEVICE,
         crate::facts::capture_device,
         crate::facts::restore_device,
@@ -466,6 +471,7 @@ impl App {
         app.add_system(Stage::First, crate::facts::read_clock_system);
         app.add_system(Stage::First, crate::facts::announce_device_system);
         app.add_system(Stage::First, crate::process::announce_pause_system);
+        app.add_system(Stage::First, crate::timers::collect_answers_system);
         app.add_system(Stage::FixedUpdate, crate::timers::step_timers_system);
         app.add_system(Stage::FixedUpdate, crate::timer::step_system);
         crate::rest::add_core_probes(&app.engine);

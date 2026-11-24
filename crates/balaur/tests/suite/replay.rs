@@ -188,3 +188,56 @@ impl Runner {
         "this machine is light, and the replay's init read it"
     );
 }
+
+const PARSER: &str = "pub class Runner { node: Node }
+impl Runner {
+    pub async fn init() {
+        let text = fs::read(\"big.json\").unwrap();
+        let value = await task::wait(json::parse_async(text));
+        self.node.transform.position = vec3(value[\"items\"].len() * 1.0, 0.0, 0.0);
+    }
+}
+";
+
+// A parse off the frame answers on the tick its worker is done by, which a
+// recording keeps: played back on fast ticks, a parse recorded on slow ones
+// lands on the tick it landed on, not the first its worker allows.
+#[test]
+fn a_parse_off_the_frame_lands_on_its_recorded_tick_in_a_replay() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path());
+    std::fs::write(dir.path().join("scripts").join("runner.bs"), PARSER).unwrap();
+    let items: Vec<String> = (0..20_000)
+        .map(|i| format!("{{\"word\": \"word {i}\", \"facts\": {{\"n\": {i}}}}}"))
+        .collect();
+    std::fs::write(
+        dir.path().join("big.json"),
+        format!("{{\"items\": [{}]}}", items.join(",")),
+    )
+    .unwrap();
+
+    let mut app = booted(dir.path());
+    let mut recorded = Vec::new();
+    let mut landed = None;
+    for tick in 0..40 {
+        app.tick(DEFAULT_FIXED_DT);
+        if landed.is_none() && walked(&app) > 0.0 {
+            landed = Some(tick);
+        }
+        recorded.push((replay::capture(&app.engine), digest::digest(&app.engine).0));
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(landed.is_some(), "the parse never answered");
+
+    let mut app = booted(dir.path());
+    *app.engine.resource::<replay::ReplayMode>().borrow_mut() = replay::ReplayMode::Playing;
+    for (tick, (sources, digest)) in recorded.iter().enumerate() {
+        replay::restore(&app.engine, sources);
+        app.tick(DEFAULT_FIXED_DT);
+        assert_eq!(
+            digest::digest(&app.engine).0,
+            *digest,
+            "replay parted from the recording at tick {tick} (the parse landed at {landed:?})"
+        );
+    }
+}

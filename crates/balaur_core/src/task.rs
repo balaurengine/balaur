@@ -162,10 +162,9 @@ pub fn compute<T: Send + 'static>(
 }
 
 /// `work` run off the frame ([`compute`]) for a script: the token it waits
-/// on with `task::wait`, woken with `work`'s answer on the next fixed step,
-/// which waits there for one not in yet. The shape of every heavy call's
-/// `_async` twin (`json.parse_async`): its caller resumes on the same step
-/// on every run, so a replay records nothing.
+/// on with `task::wait`, woken with `work`'s answer on the first tick it is
+/// in by, which a recording keeps (`timers::collect_answers_system`). The
+/// shape of every heavy call's `_async` twin (`json.parse_async`).
 pub fn off_frame(
     eng: &crate::Engine,
     work: impl FnOnce() -> balaur_script::Value + Send + 'static,
