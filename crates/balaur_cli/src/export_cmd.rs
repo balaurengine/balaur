@@ -70,6 +70,18 @@ pub(crate) struct ExportArgs {
     /// `[steam]` says.
     #[arg(long)]
     pub(crate) steam: bool,
+    /// A Mac App Store build of `macos-universal`, as `--steam` is a Steam
+    /// one: sandboxed, signed with `--sign "Apple Distribution: …"` against
+    /// the Mac App Store profile (`--provisioning-profile`), and wrapped as
+    /// the signed `<output>.pkg` beside the `.app` that App Store Connect
+    /// takes. Needs `[apple] category` and `team_id`.
+    #[arg(long, conflicts_with_all = ["steam", "notarize"])]
+    pub(crate) app_store: bool,
+    /// The identity the `.pkg` is signed with, `3rd Party Mac Developer
+    /// Installer: …`; derived from an `Apple Distribution` `--sign` when
+    /// left out.
+    #[arg(long, value_name = "IDENTITY")]
+    pub(crate) installer_identity: Option<String>,
     /// A dev Steam build: `[steam] app_id` in a `steam_appid.txt` beside
     /// the game, so it starts without the Steam client.
     #[arg(long, requires = "steam")]
@@ -125,6 +137,8 @@ pub(crate) fn export_game(args: &ExportArgs) -> Result<()> {
         dry_run: args.dry_run,
         steam: args.steam,
         dev: args.dev,
+        app_store: args.app_store,
+        installer_identity: args.installer_identity.clone(),
         runtime_roots: balaur_export::default_roots(crate::runtimes::cache_dir()),
         plugins,
         obtain: if args.no_download { None } else { Some(&fetch) },

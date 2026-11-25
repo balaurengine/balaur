@@ -68,6 +68,17 @@ built.
    `apple-app-site-association` served) open the game, cold and running, on
    an iPhone and a Mac, each heard once.
 
+6. **Ship a Mac App Store build.** `--app-store` writes the sandboxed
+   entitlements, embeds the Mac App Store profile, signs without the
+   hardened runtime and makes the `.pkg`, and a Mac's signature decides
+   whether Game Center, Sign in with Apple and purchases answer. Tested with
+   a stand-in profile, the entitlements, the `productbuild` command and an
+   unsigned `.pkg`. Still to check: scripts on wasmtime in the sandbox
+   without the hardened runtime's JIT exception (native scripts need none),
+   and the build signed with an `Apple Distribution` identity. Done: a
+   `.pkg` App Store Connect accepts, installed from TestFlight, signs in
+   with Apple natively and buys a product in the sandbox.
+
 ## Open questions
 
 - Buying is portable now: `platform.products`, `purchase`,

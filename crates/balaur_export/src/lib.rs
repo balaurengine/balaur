@@ -84,6 +84,14 @@ pub struct Options<'a> {
     pub aab: bool,
     /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
     pub pkg: bool,
+    /// A Mac App Store build of the macOS target, as `steam` is a Steam
+    /// build of a desktop one: sandboxed, signed with an `Apple
+    /// Distribution` identity against a Mac App Store profile, no hardened
+    /// runtime, and wrapped as the signed `.pkg` App Store Connect takes.
+    pub app_store: bool,
+    /// The identity that `.pkg` is signed with, overriding `[apple]
+    /// macos_installer_identity`.
+    pub installer_identity: Option<String>,
     /// A Steam build: Valve's `steam_api` beside the game, from beside the
     /// runtime, which needs `[steam] app_id`. Off, no Valve file ships,
     /// whatever `[steam]` says: the same game goes to other stores.
@@ -438,7 +446,9 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // One read, resolved for the target: `[override.android.export]` is
     // folded onto `[export]` before any of these three is parsed.
     let manifest = config::manifest_for(&opts.path, target)?;
-    let apple = AppleConfig::from_manifest(&manifest, &opts.path)?;
+    let mut apple = AppleConfig::from_manifest(&manifest, &opts.path)?;
+    apple.app_store = opts.app_store;
+    store_build_allowed(opts, &apple)?;
     let mut android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
     android.debug_key = opts.sign.as_deref() == Some("debug");
     let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
@@ -496,40 +506,19 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // A macOS game that will be signed has to be a .app: appending to a flat
     // binary is exactly what a signature cannot cover. Authenticode is the
     // exception, and records where it put itself.
-    if opts.app || opts.pkg || (opts.sign.is_some() && !windows) {
+    if opts.app || opts.pkg || opts.app_store || (opts.sign.is_some() && !windows) {
         let runtime = runtime.context("--bundle app needs --target or --runtime")?;
-        if let Some(t) = target.filter(|t| !t.starts_with(words::native::MACOS)) {
-            anyhow::bail!("--bundle app builds a macOS bundle, but the target is {t}");
-        }
-        let identity = identity(opts.sign.as_deref(), &apple.macos_identity);
-        let bundle = format!("{name}.app");
-        let output = declared_output(opts, &config, words::targets::MACOS_UNIVERSAL, &bundle);
-        let profile = apple.profile_path(
-            apple::Platform::Macos,
-            &opts.path,
-            opts.provisioning_profile.as_deref(),
-        );
-        let app = export_macos_app(
-            &runtime,
-            &pack.encode(),
-            &name,
-            output,
-            identity,
+        return export_mac(
+            opts,
+            &config,
             &apple,
-            &opts.path,
+            &steam,
+            &pack,
+            &name,
+            &runtime,
             icons.as_ref(),
             native.as_ref(),
-            &steam,
-            profile.as_deref(),
-        )?;
-        if opts.notarize || apple.notarize {
-            sign::notarize(&app)?;
-        }
-        if opts.pkg {
-            let pkg = sign::build_pkg(&app, &app, identity)?;
-            tracing::info!("wrote {}", pkg.display());
-        }
-        return Ok(());
+        );
     }
     export_desktop(
         opts,
@@ -543,6 +532,102 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         icons.as_ref(),
         native.as_ref(),
     )
+}
+
+/// Refuse a Mac App Store build of anything but the macOS target, or one
+/// that is also another store's or a notarized download.
+fn store_build_allowed(opts: &Options<'_>, apple: &AppleConfig) -> Result<()> {
+    if !opts.app_store {
+        return Ok(());
+    }
+    let target = opts.target.as_deref();
+    anyhow::ensure!(
+        target.is_none_or(|t| t.starts_with(words::native::MACOS)),
+        "--app-store is a Mac App Store build of the macOS target, not of {}",
+        target.unwrap_or_default()
+    );
+    anyhow::ensure!(
+        !opts.steam,
+        "--app-store and --steam are two stores' builds: export each on its own"
+    );
+    anyhow::ensure!(
+        !opts.notarize && !apple.notarize,
+        "a Mac App Store build is reviewed, not notarized: drop --notarize (or [apple] \
+         notarize, under [override.macos-universal.apple] for the download alone)"
+    );
+    Ok(())
+}
+
+/// A macOS `.app`, signed, notarized and packaged as asked: the download, or
+/// with `--app-store` the store's build and its `.pkg`.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "what a Mac bundle is made of, as `export` resolved it"
+)]
+fn export_mac(
+    opts: &Options<'_>,
+    config: &ExportConfig,
+    apple: &AppleConfig,
+    steam: &steam::Steam,
+    pack: &balaur::Pack,
+    name: &str,
+    runtime: &Path,
+    icons: Option<&icon::Icons>,
+    native: Option<&native::Request>,
+) -> Result<()> {
+    let target = opts.target.as_deref();
+    if let Some(t) = target.filter(|t| !t.starts_with(words::native::MACOS)) {
+        anyhow::bail!("--bundle app builds a macOS bundle, but the target is {t}");
+    }
+    let identity = identity(opts.sign.as_deref(), &apple.macos_identity);
+    let bundle = format!("{name}.app");
+    let output = declared_output(opts, config, words::targets::MACOS_UNIVERSAL, &bundle);
+    let profile = apple.profile_path(
+        apple::Platform::Macos,
+        &opts.path,
+        opts.provisioning_profile.as_deref(),
+    );
+    if apple.app_store && profile.is_none() {
+        anyhow::bail!(
+            "a Mac App Store build needs the Mac App Store provisioning profile made for {}: \
+             pass --provisioning-profile, or name it in [apple] macos_provisioning_profile",
+            apple.bundle_id
+        );
+    }
+    // Resolved before anything is written, so a missing one fails first.
+    let packaged = opts.pkg || apple.app_store;
+    let installer = match identity.filter(|_| packaged) {
+        Some(application) => {
+            Some(apple.installer_identity(opts.installer_identity.as_deref(), application)?)
+        }
+        None => None,
+    };
+    let app = export_macos_app(
+        runtime,
+        &pack.encode(),
+        name,
+        output,
+        identity,
+        apple,
+        &opts.path,
+        icons,
+        native,
+        steam,
+        profile.as_deref(),
+    )?;
+    if opts.notarize || apple.notarize {
+        sign::notarize(&app)?;
+    }
+    if packaged && (installer.is_some() || cfg!(target_os = "macos")) {
+        if installer.is_none() {
+            tracing::warn!("an unsigned .pkg: App Store Connect takes one signed with --sign");
+        }
+        let pkg = sign::build_pkg(&app, &app, installer.as_deref())?;
+        tracing::info!("wrote {}", pkg.display());
+    } else if packaged {
+        tracing::warn!("no .pkg off a Mac: productbuild makes it, signed, where the identity is");
+    }
+    Ok(())
 }
 
 /// A `.bpak`, or the pack fused onto the flat executable a desktop runs.

@@ -37,6 +37,15 @@ pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformE
         });
         return;
     }
+    // A Mac signed for a download has neither Game Center nor the store's
+    // purchases: `unsupported`, so a game falls back to its own.
+    if !crate::entitlement::serves(call) {
+        let _ = report.send(PlatformEvent::Unsupported {
+            request,
+            call: call.name().to_string(),
+        });
+        return;
+    }
     match call {
         Call::SignIn => sign_in(request, report),
         Call::Unlock { achievement } => report_achievement(request, achievement, 100.0, report),

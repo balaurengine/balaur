@@ -78,7 +78,9 @@ impl DeviceBackend for AppleDevice {
 pub(crate) fn provide(eng: &balaur_core::Engine) -> anyhow::Result<()> {
     use balaur_platform::{Service, provide};
     let bundled = |_: &_| crate::gamekit::bundled();
-    provide(eng, Service::GameCenter, bundled)?;
+    provide(eng, Service::GameCenter, |_| {
+        crate::gamekit::bundled() && crate::entitlement::granted(crate::entitlement::GAME_CENTER)
+    })?;
     provide(eng, Service::AppleSignIn, |_| {
         crate::gamekit::bundled() && crate::entitlement::granted(crate::entitlement::APPLESIGNIN)
     })?;
@@ -91,8 +93,11 @@ pub(crate) fn provide(eng: &balaur_core::Engine) -> anyhow::Result<()> {
         crate::gamekit::bundled() && is_store(eng) && signed_in_to_icloud()
     })?;
     provide(eng, Service::WebSignIn, is_store)?;
+    // A Mac sells only through the Mac App Store's build, the sandboxed one.
     provide(eng, Service::Purchases, |_| {
-        crate::gamekit::bundled() && can_pay()
+        crate::gamekit::bundled()
+            && crate::entitlement::granted(crate::entitlement::APP_SANDBOX)
+            && can_pay()
     })?;
     provide(eng, Service::Haptics, |_| has_motor())?;
     provide(eng, Service::Share, |_| {

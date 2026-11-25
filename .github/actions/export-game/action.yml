@@ -55,6 +55,20 @@ inputs:
     description: The App Store Connect issuer id.
     required: false
     default: ""
+  app-store:
+    description: >-
+      Export macos-universal as the Mac App Store's build (`--app-store`): sandboxed, signed
+      with an "Apple Distribution" `macos-identity` against a Mac App Store
+      `macos-provisioning-profile`, and packaged as the signed `.pkg` App Store Connect takes.
+      `macos-certificate` then holds both the application and the installer identity.
+    required: false
+    default: "false"
+  macos-installer-identity:
+    description: >-
+      The identity the Mac App Store `.pkg` is signed with, e.g. "3rd Party Mac Developer
+      Installer: Studio"; derived from an "Apple Distribution" `macos-identity` when empty.
+    required: false
+    default: ""
   macos-provisioning-profile:
     description: >-
       Base64 of the Developer ID or Mac App Store `.provisionprofile` to
@@ -163,6 +177,8 @@ runs:
         DOWNLOAD: ${{ inputs.download }}
         SECRETS: ${{ steps.credentials.outputs.secrets }}
         MACOS_IDENTITY: ${{ inputs.macos-identity }}
+        APP_STORE: ${{ inputs.app-store }}
+        MACOS_INSTALLER: ${{ inputs.macos-installer-identity }}
         NOTARIZE: ${{ inputs.notarize }}
         IOS_IDENTITY: ${{ inputs.ios-identity }}
         IPA: ${{ inputs.ipa }}
@@ -184,7 +200,12 @@ runs:
             macos-universal)
               flags+=(--bundle app)
               [ -n "$MACOS_IDENTITY" ] && flags+=(--sign "$MACOS_IDENTITY")
-              [ "$NOTARIZE" = true ] && flags+=(--notarize)
+              if [ "$APP_STORE" = true ]; then
+                flags+=(--app-store)
+                [ -n "$MACOS_INSTALLER" ] && flags+=(--installer-identity "$MACOS_INSTALLER")
+              elif [ "$NOTARIZE" = true ]; then
+                flags+=(--notarize)
+              fi
               [ -f "$SECRETS/game.provisionprofile" ] &&
                 flags+=(--provisioning-profile "$SECRETS/game.provisionprofile")
               ;;

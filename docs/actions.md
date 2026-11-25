@@ -69,6 +69,7 @@ base64 -w0 release.jks                  # Linux
 | `linux-x64`, `linux-arm64` | nothing | any |
 | `windows-x64`, `windows-arm64` | `windows-certificate` and its password, or an Azure Trusted Signing metadata JSON for a cloud HSM | any; a non-Windows runner signs through `osslsigncode` |
 | `macos-universal` | `macos-certificate`, `macos-identity`, `macos-provisioning-profile` for a game with `[apple] capabilities` other than `in-app-purchase`, and the three `notary-*` inputs to notarize | macOS |
+| `macos-universal`, Mac App Store | `app-store: true`, `macos-certificate` holding the Apple Distribution and 3rd Party Mac Developer Installer identities, an Apple Distribution `macos-identity`, the Mac App Store `macos-provisioning-profile`, optionally `macos-installer-identity`; writes `<target>/<name>.pkg` beside the `.app` | macOS |
 | `ios` | `macos-certificate` holding the Apple Distribution `.p12`, `ios-identity`, `ios-provisioning-profile`; `ipa: true` for TestFlight | macOS |
 | `android` | `android-keystore`, `android-key` and the passwords; without them it is signed with Android's debug identity (`--sign debug`) and ships nowhere. `bundletool` as well for the AAB Play takes, which the SDK does not carry | any with the SDK and a JDK |
 | `web` | nothing; a browser trusts the origin | any |

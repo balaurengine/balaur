@@ -399,6 +399,49 @@ pub(crate) fn export_macos_app(
         app.join("Contents").join("Info.plist"),
         apple.info_plist(Platform::Macos, name, &icon_keys)?,
     )?;
+    sign_mac_app(
+        &app,
+        name,
+        sign,
+        apple,
+        profile,
+        granted.as_ref(),
+        !scripts_native,
+        steam.build,
+    )?;
+    tracing::info!(
+        "exported {} ({} signature)",
+        app.display(),
+        match sign {
+            Some(identity) => identity,
+            None if cfg!(target_os = "macos") => "ad-hoc",
+            None => "no",
+        }
+    );
+    Ok(app)
+}
+
+/// Embed the profile, write the entitlements beside the bundle and sign it:
+/// ad hoc with the hardened runtime's exceptions alone when no identity
+/// does, and without the hardened runtime for the Mac App Store.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "what one signature reads, as `export_macos_app` holds it"
+)]
+#[allow(
+    clippy::fn_params_excessive_bools,
+    reason = "two independent exceptions the hardened runtime is asked for"
+)]
+fn sign_mac_app(
+    app: &Path,
+    name: &str,
+    sign: Option<&str>,
+    apple: &AppleConfig,
+    profile: Option<&Path>,
+    granted: Option<&Profile>,
+    scripts_on_engine: bool,
+    steam: bool,
+) -> Result<()> {
     // Inside the bundle before codesign seals it, where macOS looks for it.
     if let Some(path) = profile {
         let embedded = app.join("Contents").join(EMBEDDED_MAC_PROFILE);
@@ -406,14 +449,14 @@ pub(crate) fn export_macos_app(
             .with_context(|| format!("copying the provisioning profile {}", path.display()))?;
     }
     let build = granted
-        .as_ref()
         .and_then(|granted| Build::granted(granted, Platform::Macos))
         .unwrap_or_else(|| Build::of(sign));
-    let jit = !scripts_native;
+    // The store's build runs without the hardened runtime, so asks for none
+    // of its exceptions.
+    let jit = scripts_on_engine && !apple.app_store;
     // Beside the bundle whatever signs it here: a signer that applies the
     // identity later reads the capabilities from it.
-    let entitlements =
-        apple.write_entitlements(&app, name, Platform::Macos, build, jit, steam.build)?;
+    let entitlements = apple.write_entitlements(app, name, Platform::Macos, build, jit, steam)?;
     let restricted = apple.restricted(Platform::Macos);
     let ad_hoc = sign.is_none() && !restricted.is_empty() && cfg!(target_os = "macos");
     if ad_hoc {
@@ -425,28 +468,19 @@ pub(crate) fn export_macos_app(
         );
     }
     let signed_with = if ad_hoc {
-        AppleConfig::write_ad_hoc_entitlements(&app, name, jit, steam.build)?
+        AppleConfig::write_ad_hoc_entitlements(app, name, jit, steam)?
     } else {
         entitlements
     };
-    let signed = crate::sign::codesign(&app, sign, signed_with.as_deref(), true);
+    let signed = crate::sign::codesign(app, sign, signed_with.as_deref(), !apple.app_store);
     if ad_hoc && let Some(path) = &signed_with {
         let _ = std::fs::remove_file(path);
     }
     signed?;
     if sign.is_some() {
-        crate::sign::verify(&app)?;
+        crate::sign::verify(app)?;
     }
-    tracing::info!(
-        "exported {} ({} signature)",
-        app.display(),
-        match sign {
-            Some(identity) => identity,
-            None if cfg!(target_os = "macos") => "ad-hoc",
-            None => "no",
-        }
-    );
-    Ok(app)
+    Ok(())
 }
 
 /// Find the bundle runtime for a mobile or web target.

@@ -106,7 +106,7 @@ pub(crate) fn request_push_token() -> bool {
 
 /// Put the proxy up as launch ends, so a link that launches the game reaches
 /// it. Called as the plugin declares, before the OS starts launching.
-pub(crate) fn install_at_launch() {
+pub(crate) fn watch_launch() {
     let name = launch_notification();
     let installing = RcBlock::new(|_: NonNull<NSNotification>| {
         install();

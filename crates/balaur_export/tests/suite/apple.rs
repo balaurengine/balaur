@@ -287,3 +287,111 @@ fn a_scheme_reaches_the_bundles_plist() {
         "{plist}"
     );
 }
+
+const STORE: &str = "category = \"public.app-category.education\"\n";
+
+fn export_store(
+    dir: &Path,
+    sign: Option<&str>,
+    profile: Option<PathBuf>,
+) -> anyhow::Result<PathBuf> {
+    let app = dir.join("out").join("t.app");
+    balaur_export::export(&Options {
+        path: dir.to_path_buf(),
+        output: Some(app.clone()),
+        target: Some("macos-universal".into()),
+        runtime: Some(mac_runtime(dir)),
+        app_store: true,
+        sign: sign.map(str::to_string),
+        provisioning_profile: profile,
+        ..Options::default()
+    })?;
+    Ok(app)
+}
+
+#[test]
+fn a_mac_app_store_build_is_refused_without_its_profile_or_its_category() {
+    let dir = project(STORE);
+    let why = format!("{:#}", export_store(dir.path(), None, None).unwrap_err());
+    assert!(why.contains("Mac App Store provisioning profile"), "{why}");
+    let uncategorized = project("");
+    let granted = profile(uncategorized.path(), &[]);
+    let why = format!(
+        "{:#}",
+        export_store(uncategorized.path(), None, Some(granted)).unwrap_err()
+    );
+    assert!(why.contains("[apple] category"), "{why}");
+}
+
+// An identity that names no installer of its own (a hash) has nothing to
+// sign the .pkg with, and fails before anything is signed.
+#[test]
+fn a_mac_app_store_build_is_refused_without_an_installer_identity() {
+    let dir = project(STORE);
+    let granted = profile(dir.path(), &[]);
+    let why = format!(
+        "{:#}",
+        export_store(dir.path(), Some("0123456789ABCDEF"), Some(granted)).unwrap_err()
+    );
+    assert!(why.contains("--installer-identity"), "{why}");
+}
+
+// With no identity on hand the build is still the store's: sandboxed, its
+// profile inside, the capabilities the profile grants beside it for a
+// signer, and on a Mac an unsigned .pkg beside the .app.
+#[test]
+fn a_mac_app_store_build_is_sandboxed_and_packaged() {
+    let dir = project(&format!(
+        "{STORE}capabilities = [\"sign-in-with-apple\", \"in-app-purchase\", \"push-notifications\"]\n"
+    ));
+    let granted = profile(
+        dir.path(),
+        &[
+            (
+                "com.apple.developer.applesignin",
+                "<array><string>Default</string></array>",
+            ),
+            (
+                "com.apple.developer.aps-environment",
+                "<string>production</string>",
+            ),
+        ],
+    );
+    let app = export_store(dir.path(), None, Some(granted)).unwrap();
+    assert!(app.join("Contents/embedded.provisionprofile").is_file());
+    let entitlements = std::fs::read_to_string(entitlements_in(dir.path())).unwrap();
+    for key in [
+        "com.apple.security.app-sandbox",
+        "com.apple.security.network.client",
+        "<string>AB12CD34EF.com.studio.t</string>",
+        "com.apple.developer.applesignin",
+        "<key>com.apple.developer.aps-environment</key>\n  <string>production</string>",
+    ] {
+        assert!(entitlements.contains(key), "{key}: {entitlements}");
+    }
+    assert!(
+        !entitlements.contains("com.apple.security.cs."),
+        "no hardened-runtime exception: {entitlements}"
+    );
+    let plist = std::fs::read_to_string(app.join("Contents/Info.plist")).unwrap();
+    assert!(
+        plist.contains(
+            "<key>LSApplicationCategoryType</key><string>public.app-category.education</string>"
+        ),
+        "{plist}"
+    );
+    if cfg!(target_os = "macos") {
+        assert!(dir.path().join("out/t.pkg").is_file());
+    }
+}
+
+#[test]
+fn a_mac_app_store_build_is_neither_notarized_nor_a_steam_one() {
+    let dir = project(&format!("{STORE}notarize = true\n"));
+    let granted = profile(dir.path(), &[]);
+    let why = format!(
+        "{:#}",
+        export_store(dir.path(), None, Some(granted)).unwrap_err()
+    );
+    assert!(why.contains("notarized"), "{why}");
+}

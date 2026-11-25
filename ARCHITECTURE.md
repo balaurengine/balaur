@@ -1552,6 +1552,26 @@ things are shared.
   one a tap handed the running game. A build without the capability answers `push_failed`
   naming it: the entitlement or the shim is missing, and saying so beats a
   token that never comes.
+- **A Mac has two builds: the download and the store's.** Apple grants Sign
+  in with Apple, Game Center and in-app purchase to a Mac App Store app
+  alone, and push to both. `balaur export --target macos-universal
+  --app-store` is the store's build of the same template, as `--steam` is
+  Steam's: sandboxed (`com.apple.security.app-sandbox`, with
+  `network.client` for a server), claiming `com.apple.application-identifier`
+  and `com.apple.developer.team-identifier` from `[apple] team_id`, signed
+  with an `Apple Distribution` identity against a Mac App Store profile,
+  with no hardened runtime and none of its exceptions, and wrapped by
+  `productbuild` as `<output>.pkg` beside the `.app`, signed with the
+  installer identity (`--installer-identity`, `[apple]
+  macos_installer_identity`, or the distribution identity's team's `3rd
+  Party Mac Developer Installer`). It needs `[apple] category`, which the
+  store requires, a profile, and an installer identity whenever it signs,
+  and refuses `--steam` and notarization. User data already lives in the
+  container the sandbox gives it, so no file entitlement is asked for. At
+  run time a Mac reads its own signature: Game Center's verbs answer
+  `unsupported` without Game Center's entitlement and the purchase verbs
+  without the sandbox, and `platform.is_available` says so, so a Developer
+  ID build falls back to a site's checkout and Apple's web sign-in.
 - **A link that opens the game is a platform arrival.** `[apple] schemes`
   writes `CFBundleURLTypes` and `[apple] associated_domains` the
   `com.apple.developer.associated-domains` entitlement (`applinks:host`),

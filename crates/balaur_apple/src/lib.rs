@@ -490,16 +490,11 @@ impl balaur_plugin::Plugin for ApplePlugin {
         {
             balaur_platform::set_device(reg.engine(), Box::new(device::AppleDevice))?;
             device::provide(reg.engine())?;
-            // A tap that launches the game reaches the notification centre's
-            // delegate only when it was set before launch ended, and plugins
-            // declare before UIApplicationMain (iOS) or NSApplication's run
-            // (macOS) is entered. The centre throws in a process with no
-            // bundle id: a test, a run from the shell.
+            // Before launch ends, so the tap or link that launched the game
+            // is heard; the notification centre throws with no bundle id.
             if gamekit::bundled() {
                 notify::watch_taps();
-                // And the application delegate's proxy, as launch ends, so a
-                // link that launches the game reaches it.
-                arrivals::install_at_launch();
+                arrivals::watch_launch();
             }
         }
         let mut m = reg.script_module(APPLE)?;

@@ -228,27 +228,26 @@ pub(crate) fn build_ipa(app: &Path, output: &Path) -> Result<PathBuf> {
 }
 
 /// An installer package, which is what the Mac App Store takes instead of a
-/// bundle. Signed with an installer identity, not the application's.
-pub(crate) fn build_pkg(app: &Path, output: &Path, identity: Option<&str>) -> Result<PathBuf> {
+/// bundle, installing into `/Applications`: `<output>.pkg`, signed with
+/// `installer`, an installer identity rather than the application's.
+pub(crate) fn build_pkg(app: &Path, output: &Path, installer: Option<&str>) -> Result<PathBuf> {
     if !cfg!(target_os = "macos") {
-        bail!("--bundle pkg runs productbuild, which needs macOS");
+        bail!("a .pkg is made by productbuild, which needs macOS");
     }
     let pkg = output.with_extension("pkg");
-    let mut command = Command::new(PRODUCTBUILD);
-    command.arg("--component").arg(app).arg("/Applications");
-    if let Some(identity) = identity {
-        command.arg("--sign").arg(installer_identity(identity));
-    }
-    run(command.arg(&pkg), PRODUCTBUILD)?;
+    run(&mut pkg_command(app, &pkg, installer), PRODUCTBUILD)?;
     Ok(pkg)
 }
 
-/// The Mac App Store wants the *installer* certificate, whose name differs
-/// from the application one by a word, so a project states one and gets both.
-fn installer_identity(application: &str) -> String {
-    application
-        .replace("Apple Distribution", "3rd Party Mac Developer Installer")
-        .replace("Developer ID Application", "Developer ID Installer")
+/// `productbuild --component <app> /Applications [--sign <installer>] <pkg>`.
+pub(crate) fn pkg_command(app: &Path, pkg: &Path, installer: Option<&str>) -> Command {
+    let mut command = Command::new(PRODUCTBUILD);
+    command.arg("--component").arg(app).arg("/Applications");
+    if let Some(installer) = installer {
+        command.arg("--sign").arg(installer);
+    }
+    command.arg(pkg);
+    command
 }
 
 /// Authenticode over a fused Windows executable.
@@ -328,7 +327,7 @@ fn absolute(path: &Path) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{installer_identity, nested_code, which};
+    use super::{nested_code, pkg_command, which};
 
     // `--output /out/game` writes the bundle as `game`, which is how Forge
     // exports; an ipa of it without `.app` is one no signer can find. Unix
@@ -399,16 +398,37 @@ mod tests {
         );
     }
 
+    // What App Store Connect takes: the bundle installed into /Applications,
+    // signed with the installer identity when there is one.
     #[test]
-    fn an_installer_identity_is_the_application_one_renamed() {
-        assert_eq!(
-            installer_identity("Apple Distribution: Studio (AB12CD34EF)"),
-            "3rd Party Mac Developer Installer: Studio (AB12CD34EF)"
+    fn a_pkg_installs_the_bundle_into_applications_signed_by_the_installer() {
+        let installer = "3rd Party Mac Developer Installer: Studio (AB12CD34EF)";
+        let command = pkg_command(
+            std::path::Path::new("out/t.app"),
+            std::path::Path::new("out/t.pkg"),
+            Some(installer),
         );
+        let args: Vec<_> = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
         assert_eq!(
-            installer_identity("Developer ID Application: Studio (AB12CD34EF)"),
-            "Developer ID Installer: Studio (AB12CD34EF)"
+            args,
+            [
+                "--component",
+                "out/t.app",
+                "/Applications",
+                "--sign",
+                installer,
+                "out/t.pkg"
+            ]
         );
+        let unsigned = pkg_command(
+            std::path::Path::new("t.app"),
+            std::path::Path::new("t.pkg"),
+            None,
+        );
+        assert!(!unsigned.get_args().any(|arg| arg == "--sign"));
     }
 
     #[test]

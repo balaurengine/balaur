@@ -185,10 +185,8 @@ case "$SIGN_TARGET" in
           # before the bundle itself. The entitlements the export wrote beside
           # it go into the signature, and not into what ships.
           entitlements="$(find /work/zip -mindepth 1 -maxdepth 1 -name '*.entitlements' -type f | head -1)"
-          # What only a provisioning profile grants (Sign in with Apple, push,
-          # Game Center, iCloud) needs the profile inside the bundle, or macOS
-          # kills the game at launch. The profile is also what says which APNs
-          # a build talks to, so its aps-environment replaces the export's.
+          # What only a profile grants needs it inside the bundle (ARCHITECTURE.md,
+          # "What only a profile grants"); its aps-environment is the one claimed.
           profile=""
           if [ -s /creds/macos_provisioning_profile ]; then
             cp /creds/macos_provisioning_profile "${app}/Contents/embedded.provisionprofile"
