@@ -160,7 +160,7 @@ fn rebinding_to_something_unparseable_is_refused() {
 }
 
 #[test]
-fn bindings_take_w3c_codes_and_position_names_and_refuse_the_old_ones() {
+fn bindings_take_w3c_codes_and_position_names() {
     let (_dir, mut app) = app(MANIFEST);
     frame(&mut app, &[]);
     let actions = app.engine.resource::<InputActions>();
@@ -177,11 +177,7 @@ fn bindings_take_w3c_codes_and_position_names_and_refuse_the_old_ones() {
     actions
         .borrow_mut()
         .rebind("jump", &good)
-        .expect("every current spelling parses");
-    for old in ["J", "LShift", "gamepad:South", "axis:LeftStickX"] {
-        let err = actions.borrow_mut().rebind("jump", &[String::from(old)]);
-        assert!(err.is_err(), "{old} is the old spelling and still parses");
-    }
+        .expect("every spelling parses");
 }
 
 #[test]

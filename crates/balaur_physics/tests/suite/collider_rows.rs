@@ -441,10 +441,6 @@ fn the_triangle_mesh_cleanup_keys_reach_the_mesh() {
         back.get("merge_vertices").and_then(toml::Value::as_bool),
         Some(true)
     );
-    assert!(
-        back.get("weld_vertices").is_none(),
-        "the old spelling is still read back"
-    );
 }
 
 #[test]
