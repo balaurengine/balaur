@@ -12,7 +12,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | Module | Functions | Constants |
 | --- | ---: | ---: |
 | [`animation`](#animation) | 5 | 79 |
-| [`apple`](#apple) | 9 | 10 |
+| [`apple`](#apple) | 8 | 9 |
 | [`assets`](#assets) | 9 | 0 |
 | [`audio`](#audio) | 15 | 1 |
 | [`browser`](#browser) | 6 | 0 |
@@ -43,7 +43,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`physics2d`](#physics2d) | 13 | 106 |
 | [`physics3d`](#physics3d) | 13 | 113 |
 | [`picture`](#picture) | 1 | 0 |
-| [`platform`](#platform) | 24 | 44 |
+| [`platform`](#platform) | 24 | 45 |
 | [`project`](#project) | 15 | 0 |
 | [`quat`](#quat) | 8 | 0 |
 | [`random`](#random) | 6 | 0 |
@@ -112,7 +112,7 @@ Called on a node's component: `animation`, `state_machine`. See [components](com
 
 ## `apple`
 
-Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, "apple_event")`: a URL opened, an invite, an iCloud change. Notifications are `platform.notify`, push `platform.register_for_push`, and purchases `platform.purchase` and the rest.
+Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, "apple_event")`: an invite, an iCloud change. A link that opened the game is `url_opened` on `platform_event`. Notifications are `platform.notify`, push `platform.register_for_push`, and purchases `platform.purchase` and the rest.
 
 | Function | Signature |
 | --- | --- |
@@ -122,11 +122,10 @@ Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, 
 | `identity` | `() -> int` |
 | `listen_for_cloud_changes` | `() -> bool` |
 | `listen_for_invites` | `() -> bool` |
-| `listen_for_urls` | `() -> bool` |
 | `show_dashboard` | `(apple::ShowDashboardOptions?) -> int` |
 | `sign_in` | `() -> int` |
 
-**Constants** (10):
+**Constants** (9):
 
 | Name | Value |
 | --- | --- |
@@ -139,7 +138,6 @@ Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, 
 | `EVENT_MATCH_REQUESTED` | `"match_requested"` |
 | `EVENT_SIGNED_IN` | `"signed_in"` |
 | `EVENT_UNSUPPORTED` | `"unsupported"` |
-| `EVENT_URL` | `"url"` |
 
 ## `assets`
 
@@ -899,7 +897,7 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `web_sign_in` | `(str, platform::WebSignInOptions?) -> int` |
 | `web_sign_in_state` | `() -> str` |
 
-**Constants** (44):
+**Constants** (45):
 
 | Name | Value |
 | --- | --- |
@@ -928,7 +926,7 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `EVENT_TRANSACTION` | `"transaction"` |
 | `EVENT_UNSUPPORTED` | `"unsupported"` |
 
-…and 20 more.
+…and 21 more.
 
 ## `project`
 

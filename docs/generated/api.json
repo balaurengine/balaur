@@ -1089,7 +1089,6 @@
       "apple::EVENT_MATCH_REQUESTED": "match_requested",
       "apple::EVENT_SIGNED_IN": "signed_in",
       "apple::EVENT_UNSUPPORTED": "unsupported",
-      "apple::EVENT_URL": "url",
       "audio::EVENT_SOUND_FINISHED": "sound_finished",
       "debugger::CONTINUE": "continue",
       "debugger::STEP_INTO": "into",
@@ -1568,6 +1567,7 @@
       "platform::EVENT_SIGNED_OUT": "signed_out",
       "platform::EVENT_TRANSACTION": "transaction",
       "platform::EVENT_UNSUPPORTED": "unsupported",
+      "platform::EVENT_URL_OPENED": "url_opened",
       "platform::EVENT_WEB_SIGN_IN": "web_sign_in",
       "platform::PAGE_NONE": "none",
       "platform::PAGE_OPEN": "open",
@@ -4198,10 +4198,6 @@
         "signature": "() -> bool"
       },
       "apple::listen_for_invites": {
-        "least": 0,
-        "signature": "() -> bool"
-      },
-      "apple::listen_for_urls": {
         "least": 0,
         "signature": "() -> bool"
       },
@@ -27708,13 +27704,9 @@
         {
           "name": "EVENT_UNSUPPORTED",
           "value": "\"unsupported\""
-        },
-        {
-          "name": "EVENT_URL",
-          "value": "\"url\""
         }
       ],
-      "doc": "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a URL opened, an invite, an iCloud change. Notifications are `platform.notify`, push `platform.register_for_push`, and purchases `platform.purchase` and the rest.",
+      "doc": "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: an invite, an iCloud change. A link that opened the game is `url_opened` on `platform_event`. Notifications are `platform.notify`, push `platform.register_for_push`, and purchases `platform.purchase` and the rest.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing.",
         "available": "Whether this build has Apple's frameworks behind it.",
@@ -27722,7 +27714,6 @@
         "identity": "Fetch the items a server needs to verify this Game Center player, and return the id the answer carries.",
         "listen_for_cloud_changes": "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
         "listen_for_invites": "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
-        "listen_for_urls": "Hear about URLs the game is asked to open. A URL the game was launched with arrives the same way, once the engine is up.",
         "show_dashboard": "Open Game Center's dashboard over the game, and return the id its `dashboard_closed` answer carries.",
         "sign_in": "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`."
       },
@@ -27734,7 +27725,6 @@
         "identity",
         "listen_for_cloud_changes",
         "listen_for_invites",
-        "listen_for_urls",
         "show_dashboard",
         "sign_in"
       ],
@@ -27747,7 +27737,6 @@
         "identity": "() -> int",
         "listen_for_cloud_changes": "() -> bool",
         "listen_for_invites": "() -> bool",
-        "listen_for_urls": "() -> bool",
         "show_dashboard": "(apple::ShowDashboardOptions?) -> int",
         "sign_in": "() -> int"
       }
@@ -33458,6 +33447,10 @@
         {
           "name": "EVENT_UNSUPPORTED",
           "value": "\"unsupported\""
+        },
+        {
+          "name": "EVENT_URL_OPENED",
+          "value": "\"url_opened\""
         },
         {
           "name": "EVENT_WEB_SIGN_IN",
@@ -47925,12 +47918,12 @@
     [
       "platform_event",
       "what arrived, carrying request 0",
-      "The player signed out in the OS or signed in as someone else, a notification or a push was tapped (`notification_opened`) or arrived while the game was in front (`notification_received`, `push_received`), the OS replaced the push token (`push_token_changed`), or a purchase landed with nobody asking (`transaction`)."
+      "The player signed out in the OS or signed in as someone else, a notification or a push was tapped (`notification_opened`) or arrived while the game was in front (`notification_received`, `push_received`), a link opened the game (`url_opened`, with its `url`; the one it was launched with too), the OS replaced the push token (`push_token_changed`), or a purchase landed with nobody asking (`transaction`)."
     ],
     [
       "apple_event",
       "what arrived, carrying request 0",
-      "Something nobody asked for arrived: a URL opened, an invite, an iCloud change. A push and its token are `platform_event`."
+      "Something nobody asked for arrived: an invite, an iCloud change. A link that opened the game, a push and its token are `platform_event`."
     ],
     [
       "browser_event",
@@ -51902,7 +51895,7 @@
       "scope": "project",
       "spec": {
         "default": "",
-        "help": "LSApplicationCategoryType, macOS only.",
+        "help": "LSApplicationCategoryType, macOS only, which the Mac App Store requires: e.g. public.app-category.education.",
         "order": 8,
         "type": "string"
       }
@@ -51938,12 +51931,34 @@
     },
     {
       "host": false,
+      "path": "apple/macos_installer_identity",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The identity a Mac App Store .pkg is signed with, 3rd Party Mac Developer Installer: \u2026. Empty derives it from an Apple Distribution macos_identity.",
+        "order": 17,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/macos_provisioning_profile",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "A project-relative .provisionprofile, the Developer ID or Mac App Store profile macos_identity goes with, embedded as Contents/embedded.provisionprofile. A signed Mac build needs one for sign-in-with-apple, game-center, icloud-kv or push-notifications; a capability the profile does not grant (a Developer ID profile has no Sign in with Apple) is left out of the Mac build, which answers unsupported for it.",
+        "order": 11,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
       "path": "apple/notarize",
       "scope": "project",
       "spec": {
         "default": false,
         "help": "Submit to Apple's notary service after signing, and staple the ticket.",
-        "order": 11,
+        "order": 12,
         "type": "bool"
       }
     },
@@ -51954,7 +51969,7 @@
       "spec": {
         "default": "",
         "help": "The identity an iOS build is signed with.",
-        "order": 12,
+        "order": 13,
         "type": "string"
       }
     },
@@ -51964,9 +51979,39 @@
       "scope": "project",
       "spec": {
         "default": "",
-        "help": "A project-relative .mobileprovision, copied into the bundle.",
-        "order": 13,
+        "help": "A project-relative .mobileprovision, copied into the bundle. The export refuses one that does not grant what the capabilities write.",
+        "order": 14,
         "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/schemes",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "The custom URL schemes that open the game, as CFBundleURLTypes on iOS and a Mac: a link on one arrives as url_opened on platform_event. Named by [android] schemes' rule: lowercase, a letter first, then letters, digits, +, - or ., and not http or https.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 15,
+        "type": "list"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/associated_domains",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "com.apple.developer.associated-domains, each as Apple writes it (applinks:game.studio.com): a universal link to one opens the game, arriving as url_opened. Granted by the provisioning profile only, which the export checks, and the domain serves apple-app-site-association naming the app.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 16,
+        "type": "list"
       }
     },
     {
