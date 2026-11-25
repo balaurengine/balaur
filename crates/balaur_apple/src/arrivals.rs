@@ -1,35 +1,88 @@
 //! What reaches a game through the application delegate and no other way:
-//! the push token, a push's payload, and a URL the game was opened with.
+//! the push token, a push's payload, and a link that opened the game.
 //!
 //! winit owns the real delegate, so this stands in front of it — answering
 //! the selectors it knows and forwarding the rest, which is what
-//! `forwardingTargetForSelector:` is for. It goes up only when a game asks
-//! for one of the two, because a delegate nobody needed is a lifecycle bug
-//! waiting for a device to find it.
+//! `forwardingTargetForSelector:` is for. It goes up as launch ends, in a
+//! bundled game, so a link that launches the game reaches it: on iOS once
+//! `UIApplicationDidFinishLaunchingNotification` is posted, on a Mac at
+//! `NSApplicationWillFinishLaunchingNotification`, before the Apple event
+//! carrying the URL is handled.
 //!
-//! A URL the game was *launched* with does not come this way: it reaches the
-//! delegate before the engine has booted, so the window layer holds it and
-//! hands it over once the engine is up. [`deliver_launch_url`] is that hand
-//! over, and a game reads it as the arrival it is.
+//! The URL an iOS game was *launched* with also reaches the window layer,
+//! which reads it from the launch options and hands it over once the engine
+//! is up ([`deliver_launch_url`]); UIKit may hand the same one to
+//! `application:openURL:options:` too, so the two are told apart here and a
+//! game hears it once, as `url_opened` on `platform_event`.
 
 use std::fmt::Write;
+use std::ptr::NonNull;
+use std::sync::Mutex;
 
-use block2::DynBlock;
+use balaur_platform::PlatformEvent;
+use block2::{DynBlock, RcBlock};
 use objc2::rc::Retained;
-use objc2::runtime::{AnyClass, AnyObject, NSObject, NSObjectProtocol, Sel};
+use objc2::runtime::{AnyClass, AnyObject, NSObject, NSObjectProtocol, ProtocolObject, Sel};
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send};
-use objc2_foundation::{NSArray, NSData, NSError, NSURL};
+use objc2_foundation::{
+    NSArray, NSData, NSError, NSNotification, NSNotificationCenter, NSString, NSURL,
+};
 
-use crate::AppleEvent;
+/// The links heard before the launch URL was handed over, and the launch URL
+/// once it was, each waiting for its twin from the other path.
+#[derive(Default)]
+struct Launch {
+    /// Whether the window layer has handed its launch URL over, or said it
+    /// had none.
+    handed: bool,
+    /// What the delegate heard before then.
+    early: Vec<String>,
+    /// The launch URL, until the delegate repeats it.
+    launched: Option<String>,
+}
 
-/// Deliver the URL the game was launched with, once the engine is up.
-///
-/// It arrives as an ordinary [`AppleEvent::Url`], because to a game there is
-/// no difference between being opened with a link and being handed one while
-/// it runs. The window layer holds it until here: the delegate is given it
-/// before this crate exists.
-pub(crate) fn deliver_launch_url(url: String) {
-    crate::queue::push_apple(AppleEvent::Url { url });
+static LAUNCH: Mutex<Launch> = Mutex::new(Launch {
+    handed: false,
+    early: Vec::new(),
+    launched: None,
+});
+
+/// Hand over the URL the game was launched with, `None` for none, once the
+/// engine is up. A link the delegate already delivered is not delivered again.
+pub(crate) fn deliver_launch_url(url: Option<String>) {
+    let deliver = LAUNCH.lock().map_or(true, |mut launch| {
+        launch.handed = true;
+        let early = std::mem::take(&mut launch.early);
+        match &url {
+            Some(url) if !early.contains(url) => {
+                launch.launched = Some(url.clone());
+                true
+            }
+            _ => false,
+        }
+    });
+    if let (true, Some(url)) = (deliver, url) {
+        crate::queue::push_device(PlatformEvent::UrlOpened { url });
+    }
+}
+
+/// A link the delegate heard: delivered, unless it repeats the launch URL
+/// the window layer already handed over.
+fn opened(url: String) {
+    let deliver = LAUNCH.lock().map_or(true, |mut launch| {
+        if !launch.handed {
+            launch.early.push(url.clone());
+            return true;
+        }
+        if launch.launched.as_ref() == Some(&url) {
+            launch.launched = None;
+            return false;
+        }
+        true
+    });
+    if deliver {
+        crate::queue::push_device(PlatformEvent::UrlOpened { url });
+    }
 }
 
 /// Ask the OS for a push token. The token itself arrives at the delegate,
@@ -51,9 +104,32 @@ pub(crate) fn request_push_token() -> bool {
     true
 }
 
-/// Hear about URLs the game is asked to open while it runs.
-pub(crate) fn watch_urls() -> bool {
-    install()
+/// Put the proxy up as launch ends, so a link that launches the game reaches
+/// it. Called as the plugin declares, before the OS starts launching.
+pub(crate) fn install_at_launch() {
+    let name = launch_notification();
+    let installing = RcBlock::new(|_: NonNull<NSNotification>| {
+        install();
+    });
+    let token = unsafe {
+        NSNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
+            Some(&name),
+            None,
+            None,
+            &installing,
+        )
+    };
+    OBSERVER.with_borrow_mut(|held| *held = Some(token));
+}
+
+/// The notification posted while the delegate is up and launch has not yet
+/// handed a link over.
+fn launch_notification() -> Retained<NSString> {
+    NSString::from_str(if cfg!(target_os = "macos") {
+        "NSApplicationWillFinishLaunchingNotification"
+    } else {
+        "UIApplicationDidFinishLaunchingNotification"
+    })
 }
 
 /// Put the proxy in front of whatever delegate the window layer set, once.
@@ -164,7 +240,7 @@ define_class!(
         /// and the other delegate's answer is kept when it has one.
         #[unsafe(method(application:openURL:options:))]
         fn open_url(&self, app: *mut AnyObject, url: *mut NSURL, options: *mut AnyObject) -> bool {
-            crate::queue::push_apple(AppleEvent::Url { url: text_of(url) });
+            opened(text_of(url));
             self.forward_url(app, url, options)
         }
 
@@ -174,12 +250,27 @@ define_class!(
             if let Some(list) = unsafe { urls.as_ref() } {
                 for at in 0..list.count() {
                     let url = list.objectAtIndex(at);
-                    crate::queue::push_apple(AppleEvent::Url {
-                        url: text_of(Retained::as_ptr(&url).cast_mut()),
-                    });
+                    opened(text_of(Retained::as_ptr(&url).cast_mut()));
                 }
             }
             self.forward_urls(app, urls);
+        }
+
+        /// Both platforms: a universal link, on one of `[apple]
+        /// associated_domains`, as an activity carrying the page's URL.
+        #[unsafe(method(application:continueUserActivity:restorationHandler:))]
+        fn continue_activity(
+            &self,
+            app: *mut AnyObject,
+            activity: *mut AnyObject,
+            restoration: *mut AnyObject,
+        ) -> bool {
+            let page: *mut NSURL = unsafe { activity.as_ref() }
+                .map_or(std::ptr::null_mut(), |activity| unsafe { msg_send![activity, webpageURL] });
+            if !page.is_null() {
+                opened(text_of(page));
+            }
+            self.forward_activity(app, activity, restoration)
         }
     }
 );
@@ -239,6 +330,26 @@ impl Proxy {
         }
     }
 
+    fn forward_activity(
+        &self,
+        app: *mut AnyObject,
+        activity: *mut AnyObject,
+        restoration: *mut AnyObject,
+    ) -> bool {
+        let selector = objc2::sel!(application:continueUserActivity:restorationHandler:);
+        if !self.forwards(selector) {
+            return true;
+        }
+        unsafe {
+            msg_send![
+                self.original(),
+                application: app,
+                continueUserActivity: activity,
+                restorationHandler: restoration,
+            ]
+        }
+    }
+
     fn forward_urls(&self, app: *mut AnyObject, urls: *mut NSArray<NSURL>) {
         let selector = objc2::sel!(application:openURLs:);
         if self.forwards(selector) {
@@ -294,4 +405,44 @@ thread_local! {
     static INSTALLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static PROXY: std::cell::RefCell<Option<Retained<Proxy>>> =
         const { std::cell::RefCell::new(None) };
+    /// The launch observer, kept so it can be named.
+    static OBSERVER: std::cell::RefCell<Option<Retained<ProtocolObject<dyn NSObjectProtocol>>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_platform::PlatformEvent;
+
+    use super::{deliver_launch_url, opened};
+
+    fn heard() -> Vec<String> {
+        let (report, heard) = std::sync::mpsc::channel();
+        crate::queue::drain_device(&report);
+        heard
+            .try_iter()
+            .filter_map(|event| match event {
+                PlatformEvent::UrlOpened { url } => Some(url),
+                _ => None,
+            })
+            .collect()
+    }
+
+    // The link a game is launched with reaches it by the launch options and,
+    // on iOS, by the delegate too: it is heard once, whichever comes first,
+    // and the same link opened again later is heard again.
+    #[test]
+    fn the_launch_link_is_heard_once_whichever_way_comes_first() {
+        opened("game://first".into());
+        deliver_launch_url(Some("game://first".into()));
+        assert_eq!(heard(), ["game://first"]);
+        opened("game://first".into());
+        assert_eq!(heard(), ["game://first"], "a second open is the player's");
+
+        super::LAUNCH.lock().unwrap().handed = false;
+        deliver_launch_url(Some("game://later".into()));
+        opened("game://later".into());
+        opened("game://later".into());
+        assert_eq!(heard(), ["game://later", "game://later"]);
+    }
 }

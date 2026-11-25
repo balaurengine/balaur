@@ -249,3 +249,41 @@ fn a_mac_build_under_its_binarys_minimum_is_refused() {
         "{why}"
     );
 }
+
+// Associated domains are granted by a profile alone, as a capability is: a
+// profile made before the App ID had them fails the export.
+#[test]
+fn associated_domains_need_a_profile_that_grants_them() {
+    let dir = project("associated_domains = [\"applinks:t.studio.com\"]\n");
+    let why = format!(
+        "{:#}",
+        export_mac(dir.path(), Some(IDENTITY), None).unwrap_err()
+    );
+    assert!(why.contains("associated_domains"), "{why}");
+    let granted = profile(dir.path(), &[]);
+    let why = format!("{:#}", export_ios(dir.path(), Some(granted)).unwrap_err());
+    assert!(
+        why.contains("associated_domains (com.apple.developer.associated-domains)"),
+        "{why}"
+    );
+    let granted = profile(
+        dir.path(),
+        &[(
+            "com.apple.developer.associated-domains",
+            "<string>*</string>",
+        )],
+    );
+    let app = export_ios(dir.path(), Some(granted)).unwrap();
+    assert!(app.join("embedded.mobileprovision").is_file());
+}
+
+#[test]
+fn a_scheme_reaches_the_bundles_plist() {
+    let dir = project("schemes = [\"com.studio.t\"]\n");
+    let app = export_ios(dir.path(), None).unwrap();
+    let plist = std::fs::read_to_string(app.join("Info.plist")).unwrap();
+    assert!(
+        plist.contains("<key>CFBundleURLSchemes</key><array><string>com.studio.t</string></array>"),
+        "{plist}"
+    );
+}

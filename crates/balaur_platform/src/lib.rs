@@ -411,6 +411,13 @@ pub enum PlatformEvent {
         request: u64,
         message: String,
     },
+    /// A link opened the game, or reached it while it ran: a URL on one of
+    /// its schemes, or a universal link on one of its associated domains.
+    /// The link it was launched with arrives the same way, once the engine
+    /// is up. Unsolicited: request 0.
+    UrlOpened {
+        url: String,
+    },
     /// The OS replaced the device's push token. Unsolicited: request 0.
     PushTokenChanged {
         token: PushToken,
@@ -447,6 +454,7 @@ impl PlatformEvent {
             | Self::PushFailed { request, .. } => *request,
             Self::NotificationOpened { .. }
             | Self::NotificationReceived { .. }
+            | Self::UrlOpened { .. }
             | Self::PushTokenChanged { .. }
             | Self::PushReceived { .. } => 0,
         }
@@ -725,8 +733,8 @@ pub struct PlatformSnapshot {
 /// What changes or arrives with nobody asking, heard with `events::listen` as
 /// `on_platform_event`: who is playing, when the player signs out in the OS or
 /// signs in as someone else, a notification or a push tapped or shown in
-/// front, a push token the OS replaced, and a purchase that landed with
-/// nobody asking.
+/// front, a link that opened the game, a push token the OS replaced, and a
+/// purchase that landed with nobody asking.
 pub const ARRIVAL_EVENT: &str = "platform_event";
 
 /// The loaded store's name, or `"none"`: what a provider asks when a service
@@ -860,6 +868,7 @@ pub mod kind {
     pub const NOTIFICATION_OPENED: &str = "notification_opened";
     pub const NOTIFICATION_RECEIVED: &str = "notification_received";
     pub const SHARED: &str = "shared";
+    pub const URL_OPENED: &str = "url_opened";
     pub const PRODUCTS: &str = "products";
     pub const PURCHASED: &str = "purchased";
     pub const PENDING: &str = "pending";
@@ -886,6 +895,7 @@ pub mod kind {
         SCHEDULED,
         NOTIFICATION_OPENED,
         NOTIFICATION_RECEIVED,
+        URL_OPENED,
         PRODUCTS,
         PURCHASED,
         PENDING,
@@ -1014,6 +1024,10 @@ fn device_value(event: PlatformEvent, pairs: &mut Vec<(String, Value)>) {
             pairs.push((KIND.into(), Value::Str(kind::SHARED.into())));
             pairs.push((k::TARGET.into(), Value::Str(target)));
         }
+        PlatformEvent::UrlOpened { url } => {
+            pairs.push((KIND.into(), Value::Str(kind::URL_OPENED.into())));
+            pairs.push((URL.into(), Value::Str(url)));
+        }
         push => push_value(push, pairs),
     }
 }
@@ -1074,7 +1088,7 @@ impl balaur_plugin::Plugin for PlatformPlugin {
             &[(
                 ARRIVAL_EVENT,
                 "what arrived, carrying request 0",
-                "The player signed out in the OS or signed in as someone else, a notification or a push was tapped (`notification_opened`) or arrived while the game was in front (`notification_received`, `push_received`), the OS replaced the push token (`push_token_changed`), or a purchase landed with nobody asking (`transaction`).",
+                "The player signed out in the OS or signed in as someone else, a notification or a push was tapped (`notification_opened`) or arrived while the game was in front (`notification_received`, `push_received`), a link opened the game (`url_opened`, with its `url`; the one it was launched with too), the OS replaced the push token (`push_token_changed`), or a purchase landed with nobody asking (`transaction`).",
             )],
         );
         reg.add_system(Stage::First, pump_platform_system);

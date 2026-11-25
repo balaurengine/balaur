@@ -753,9 +753,7 @@ fn deliver_launch_url(app: &mut App) {
             if std::mem::replace(&mut asked, true) {
                 return;
             }
-            if let Some(url) = balaur_render::take_launch_url() {
-                balaur_apple::deliver_launch_url(url);
-            }
+            balaur_apple::deliver_launch_url(balaur_render::take_launch_url());
         });
     }
     #[cfg(not(all(feature = "apple", feature = "window")))]

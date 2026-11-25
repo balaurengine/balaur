@@ -1552,6 +1552,20 @@ things are shared.
   one a tap handed the running game. A build without the capability answers `push_failed`
   naming it: the entitlement or the shim is missing, and saying so beats a
   token that never comes.
+- **A link that opens the game is a platform arrival.** `[apple] schemes`
+  writes `CFBundleURLTypes` and `[apple] associated_domains` the
+  `com.apple.developer.associated-domains` entitlement (`applinks:host`),
+  which a profile must grant as a capability's must. Either link reaches the
+  game as `url_opened` with its `url` on `platform_event`: the application
+  delegate's proxy goes up as launch ends (iOS's
+  `UIApplicationDidFinishLaunchingNotification`, a Mac's
+  `NSApplicationWillFinishLaunchingNotification`) and hears
+  `application:openURL:options:`, `application:openURLs:` and a universal
+  link's `continueUserActivity`. The iOS launch URL also comes from the
+  window layer's launch options, handed over on the first frame, and the two
+  are told apart so it is heard once. Android's `Redirect` activity takes the
+  same links into the game's activity; delivering them as `url_opened` is its
+  shim's to do.
 - **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of
   `"<module>.<call>"` to the answer its waiter receives (`null`: never
   answers); such a call never reaches its backend, and its answer crosses the

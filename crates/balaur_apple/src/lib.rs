@@ -39,7 +39,6 @@ const ERROR_WORD: &str = "error";
 const KIND: &str = "kind";
 const LISTEN_FOR_CLOUD_CHANGES: &str = "listen_for_cloud_changes";
 const LISTEN_FOR_INVITES: &str = "listen_for_invites";
-const LISTEN_FOR_URLS: &str = "listen_for_urls";
 const NAME: &str = "name";
 const PLAYER: &str = "player";
 const REQUEST: &str = "request";
@@ -47,6 +46,7 @@ const SHOW_DASHBOARD: &str = "show_dashboard";
 const SIGN_IN: &str = "sign_in";
 const STATE: &str = "state";
 const TOKEN: &str = "token";
+const URL: &str = "url";
 
 #[cfg(test)]
 mod arrival_tests;
@@ -77,7 +77,6 @@ mod websignin;
 
 #[cfg(target_vendor = "apple")]
 mod backend {
-    pub(crate) use crate::arrivals::watch_urls;
     pub(crate) use crate::gamekit::{apple_call, platform_call, watch_invites};
     pub(crate) use crate::icloud::watch_changes as watch_cloud;
     pub(crate) use crate::ui::access_point;
@@ -114,10 +113,6 @@ mod backend {
     }
 
     pub(crate) const fn access_point(_active: bool, _location: isize) -> bool {
-        false
-    }
-
-    pub(crate) const fn watch_urls() -> bool {
         false
     }
 
@@ -213,10 +208,6 @@ pub enum AppleEvent {
         reason: String,
         keys: Vec<String>,
     },
-    /// A URL the game was asked to open while it was running.
-    Url {
-        url: String,
-    },
     Failed {
         request: u64,
         message: String,
@@ -246,8 +237,7 @@ impl AppleEvent {
             // Nobody asked for these, so they carry the id no call is given.
             Self::InviteAccepted { .. }
             | Self::MatchRequested { .. }
-            | Self::CloudChanged { .. }
-            | Self::Url { .. } => 0,
+            | Self::CloudChanged { .. } => 0,
         }
     }
 }
@@ -285,10 +275,10 @@ impl PlatformBackend for AppleBackend {
     }
 }
 
-/// What nobody asked for, carrying request 0: a URL opened, an invite, an
-/// iCloud change. Heard with `events::listen` as `on_apple_event`; a
-/// notification or a push, a push token and a transaction that landed
-/// elsewhere are `platform_event`.
+/// What nobody asked for, carrying request 0: an invite, an iCloud change.
+/// Heard with `events::listen` as `on_apple_event`; a notification or a
+/// push, a link that opened the game, a push token and a transaction that
+/// landed elsewhere are `platform_event`.
 pub const ARRIVAL_EVENT: &str = "apple_event";
 
 /// The `apple.*` calls in flight, and the channel the frameworks report into.
@@ -369,7 +359,6 @@ pub mod kind {
     pub const INVITE_ACCEPTED: &str = "invite_accepted";
     pub const MATCH_REQUESTED: &str = "match_requested";
     pub const CLOUD_CHANGED: &str = "cloud_changed";
-    pub const URL: &str = "url";
     pub const UNSUPPORTED: &str = "unsupported";
     pub const ERROR: &str = balaur_core::handler::ERROR;
     pub const ALL: &[&str] = &[
@@ -380,7 +369,6 @@ pub mod kind {
         INVITE_ACCEPTED,
         MATCH_REQUESTED,
         CLOUD_CHANGED,
-        URL,
         UNSUPPORTED,
         ERROR,
     ];
@@ -399,7 +387,7 @@ fn event_value(event: AppleEvent) -> Value {
         } => {
             pairs.push((KIND.into(), Value::Str(kind::IDENTITY.into())));
             pairs.push((PLAYER.into(), Value::Str(player)));
-            pairs.push((kind::URL.into(), Value::Str(url)));
+            pairs.push((URL.into(), Value::Str(url)));
             pairs.push(("signature".into(), Value::Str(signature)));
             pairs.push(("salt".into(), Value::Str(salt)));
             pairs.push((
@@ -432,10 +420,6 @@ fn event_value(event: AppleEvent) -> Value {
         arrival @ (AppleEvent::InviteAccepted { .. }
         | AppleEvent::MatchRequested { .. }
         | AppleEvent::CloudChanged { .. }) => arrived(arrival, &mut pairs),
-        AppleEvent::Url { url } => {
-            pairs.push((KIND.into(), Value::Str(kind::URL.into())));
-            pairs.push((kind::URL.into(), Value::Str(url)));
-        }
         AppleEvent::StandIn { answer, .. } => {
             if let Ok(Value::Map(fields)) = from_json(&answer) {
                 pairs.extend(fields.into_iter().filter(|(key, _)| key != REQUEST));
@@ -453,22 +437,23 @@ fn event_value(event: AppleEvent) -> Value {
     Value::Map(pairs)
 }
 
-/// Deliver the URL the game was launched with, once the engine is up.
+/// Hand over the URL the game was launched with, `None` for none, once the
+/// engine is up.
 ///
 /// The window layer holds it, because the application delegate is handed it
-/// before this crate exists. A game reads it as an ordinary URL arrival:
-/// being opened with a link and being handed one mid-run are one
-/// [`ARRIVAL_EVENT`].
+/// before this crate exists. A game reads it as `url_opened` on
+/// `platform_event`, as a link handed over mid-run is; one the delegate
+/// heard too is heard once.
 ///
 /// Does nothing off Apple, so a caller needs no target of its own.
 #[cfg(target_vendor = "apple")]
-pub fn deliver_launch_url(url: String) {
+pub fn deliver_launch_url(url: Option<String>) {
     crate::arrivals::deliver_launch_url(url);
 }
 
-/// Deliver the URL the game was launched with. Nothing does off Apple.
+/// Hand over the URL the game was launched with. Nothing does off Apple.
 #[cfg(not(target_vendor = "apple"))]
-pub fn deliver_launch_url(_url: String) {}
+pub fn deliver_launch_url(_url: Option<String>) {}
 
 #[derive(Default)]
 pub struct ApplePlugin;
@@ -490,7 +475,7 @@ impl balaur_plugin::Plugin for ApplePlugin {
             &[(
                 ARRIVAL_EVENT,
                 "what arrived, carrying request 0",
-                "Something nobody asked for arrived: a URL opened, an invite, an iCloud change. A push and its token are `platform_event`.",
+                "Something nobody asked for arrived: an invite, an iCloud change. A link that opened the game, a push and its token are `platform_event`.",
             )],
         );
         reg.add_system(Stage::First, pump_apple_system);
@@ -512,6 +497,9 @@ impl balaur_plugin::Plugin for ApplePlugin {
             // bundle id: a test, a run from the shell.
             if gamekit::bundled() {
                 notify::watch_taps();
+                // And the application delegate's proxy, as launch ends, so a
+                // link that launches the game reaches it.
+                arrivals::install_at_launch();
             }
         }
         let mut m = reg.script_module(APPLE)?;
@@ -532,7 +520,7 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 /// has it.
 fn install_apple_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a URL opened, an invite, an iCloud change. Notifications are `platform.notify`, push `platform.register_for_push`, and purchases `platform.purchase` and the rest.",
+        "Apple services beyond `platform.*`: Game Center `identity`, Sign in with Apple, Game Center's screens. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: an invite, an iCloud change. A link that opened the game is `url_opened` on `platform_event`. Notifications are `platform.notify`, push `platform.register_for_push`, and purchases `platform.purchase` and the rest.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
@@ -658,12 +646,6 @@ fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
 fn install_listen_for_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            LISTEN_FOR_URLS,
-            &[],
-            "() -> bool",
-            "Hear about URLs the game is asked to open. A URL the game was launched with arrives the same way, once the engine is up.",
-        ),
-        (
             LISTEN_FOR_INVITES,
             &[],
             "() -> bool",
@@ -676,9 +658,6 @@ fn install_listen_for_api(m: &mut Module<Engine>) {
             "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
         ),
     ]);
-    m.function(LISTEN_FOR_URLS, |_: &Engine, ()| {
-        Ok(Value::Bool(backend::watch_urls()))
-    });
     m.function(LISTEN_FOR_INVITES, |_: &Engine, ()| {
         Ok(Value::Bool(backend::watch_invites()))
     });

@@ -59,6 +59,15 @@ built.
    signed against its profile, launches on a Mac, answers `unsupported` to
    `apple.sign_in`, registers for push and passes notarization.
 
+5. **Open the game from a link.** `[apple] schemes` and
+   `associated_domains` are written into the plist and the entitlements and
+   checked against the profile, and a link is `url_opened` on
+   `platform_event`, through the delegate's proxy put up as launch ends.
+   Tested through the export and a replay of the two launch paths. Done: a
+   custom-scheme link and a universal link (with the domain's
+   `apple-app-site-association` served) open the game, cold and running, on
+   an iPhone and a Mac, each heard once.
+
 ## Open questions
 
 - Buying is portable now: `platform.products`, `purchase`,

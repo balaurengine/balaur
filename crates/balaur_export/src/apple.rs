@@ -23,6 +23,22 @@ const ICLOUD_KV: &str = "com.apple.developer.ubiquity-kvstore-identifier";
 /// Push's, which iOS spells without the prefix a Mac's carries.
 const APS_IOS: &str = "aps-environment";
 const APS_MACOS: &str = "com.apple.developer.aps-environment";
+/// The domains a universal link or a saved password is matched against.
+const ASSOCIATED_DOMAINS: &str = "com.apple.developer.associated-domains";
+/// The `[apple]` key naming them, which a refusal names as it would a
+/// capability.
+const ASSOCIATED_DOMAINS_KEY: &str = "associated_domains";
+/// The services an associated domain is declared for, as Apple spells them.
+const DOMAIN_SERVICES: [&str; 4] = [
+    "applinks",
+    "webcredentials",
+    "activitycontinuation",
+    "appclips",
+];
+/// The web's own schemes, which never name the game.
+const WEB_SCHEMES: [&str; 2] = ["http", "https"];
+/// The plist key a project may write its URL types under itself.
+const URL_TYPES: &str = "CFBundleURLTypes";
 /// The values `aps-environment` takes.
 const APS_DEVELOPMENT: &str = "development";
 const APS_PRODUCTION: &str = "production";
@@ -173,6 +189,8 @@ pub(crate) enum PlistValue {
 /// team_id = "AB12CD34EF"
 /// min_ios = "15.0"
 /// capabilities = ["sign-in-with-apple", "game-center", "icloud-kv"]
+/// schemes = ["com.studio.game"]
+/// associated_domains = ["applinks:game.studio.com"]
 ///
 /// [apple.plist]
 /// ITSAppUsesNonExemptEncryption = false
@@ -199,6 +217,13 @@ pub(crate) struct AppleConfig {
     /// macOS only: `LSApplicationCategoryType`.
     pub category: String,
     pub capabilities: Vec<Capability>,
+    /// The custom URL schemes that open the game, as `CFBundleURLTypes`:
+    /// what `[android] schemes` is on Android, and the same rule for a name.
+    pub schemes: Vec<String>,
+    /// `com.apple.developer.associated-domains`, each as Apple writes it,
+    /// `applinks:game.studio.com`: the domains whose universal links open
+    /// the game. Granted by a provisioning profile only, as a capability is.
+    pub associated_domains: Vec<String>,
     /// `Developer ID Application: …` for a download, `Apple Distribution: …`
     /// for the Mac App Store.
     pub macos_identity: String,
@@ -242,6 +267,8 @@ impl Default for AppleConfig {
             min_macos: "12.0".into(),
             category: String::new(),
             capabilities: Vec::new(),
+            schemes: Vec::new(),
+            associated_domains: Vec::new(),
             macos_identity: String::new(),
             notarize: false,
             macos_provisioning_profile: String::new(),
@@ -315,6 +342,12 @@ impl AppleConfig {
             "[apple] build_number is not set: what App Store Connect orders uploads by, \
              e.g. build_number = \"1\""
         );
+        self.schemes
+            .iter()
+            .try_for_each(|scheme| check_scheme(scheme))?;
+        self.associated_domains
+            .iter()
+            .try_for_each(|domain| check_domain(domain))?;
         if self.capabilities.is_empty() {
             return Ok(());
         }
@@ -402,10 +435,15 @@ impl AppleConfig {
     /// Each capability on `platform` whose entitlement only a provisioning
     /// profile grants, with that entitlement.
     pub(crate) fn restricted(&self, platform: Platform) -> Vec<(&'static str, &'static str)> {
-        self.capabilities
+        let mut restricted: Vec<_> = self
+            .capabilities
             .iter()
             .filter_map(|capability| Some((capability.name(), capability.entitlement(platform)?)))
-            .collect()
+            .collect();
+        if !self.associated_domains.is_empty() {
+            restricted.push((ASSOCIATED_DOMAINS_KEY, ASSOCIATED_DOMAINS));
+        }
+        restricted
     }
 
     /// Refuse a profile that lacks an entitlement this game's capabilities
@@ -453,10 +491,11 @@ impl AppleConfig {
                     .is_some_and(|entitlement| !profile.grants(entitlement))
             })
             .collect();
-        if lacking.is_empty() {
+        let domains = self.associated_domains.is_empty() || profile.grants(ASSOCIATED_DOMAINS);
+        if lacking.is_empty() && domains {
             return self.clone();
         }
-        let names: Vec<String> = lacking
+        let mut names: Vec<String> = lacking
             .iter()
             .filter_map(|capability| {
                 Some(format!(
@@ -466,6 +505,9 @@ impl AppleConfig {
                 ))
             })
             .collect();
+        if !domains {
+            names.push(format!("{ASSOCIATED_DOMAINS_KEY} ({ASSOCIATED_DOMAINS})"));
+        }
         tracing::warn!(
             "the provisioning profile {} does not grant {}: this build leaves it out, and the \
              game answers unsupported for it here",
@@ -479,6 +521,11 @@ impl AppleConfig {
                 .copied()
                 .filter(|capability| !lacking.contains(capability))
                 .collect(),
+            associated_domains: if domains {
+                self.associated_domains.clone()
+            } else {
+                Vec::new()
+            },
             ..self.clone()
         }
     }
@@ -539,6 +586,13 @@ impl AppleConfig {
                 }
             }
             body.push('\n');
+        }
+        if !self.associated_domains.is_empty() {
+            let _ = writeln!(
+                body,
+                "  <key>{ASSOCIATED_DOMAINS}</key>\n  {}",
+                string_array(&self.associated_domains)
+            );
         }
         // A game whose only capability writes no key needs no file.
         if body.is_empty() {
@@ -606,6 +660,17 @@ impl AppleConfig {
                 }
             }
         }
+        // A project naming the key itself keeps its own, as it does the
+        // orientations.
+        if !self.schemes.is_empty() && !self.plist.contains_key(URL_TYPES) {
+            let _ = writeln!(
+                body,
+                "  <key>{URL_TYPES}</key>\n  <array><dict><key>CFBundleURLName</key><string>{}</string>\
+                 <key>CFBundleURLSchemes</key>{}</dict></array>",
+                escape(self.identifier()?),
+                string_array(&self.schemes)
+            );
+        }
         body.push_str(icon_keys);
         for (k, v) in &self.plist {
             let _ = write!(body, "  <key>{}</key>", escape(k));
@@ -657,6 +722,54 @@ impl AppleConfig {
         std::fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
         Ok(Some(path))
     }
+}
+
+/// A URL scheme `CFBundleURLTypes` may carry, by the rule `[android]
+/// schemes` holds to, so one list means the same on both: lowercase, a
+/// letter first, then letters, digits, `+`, `-` or `.`, and not the web's.
+fn check_scheme(scheme: &str) -> Result<()> {
+    let shaped = scheme.starts_with(|c: char| c.is_ascii_lowercase())
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "+-.".contains(c));
+    if !shaped || WEB_SCHEMES.contains(&scheme) {
+        bail!(
+            "[apple] schemes names {scheme:?}, which is not a scheme of the game's: lowercase, \
+             a letter first, then letters, digits, +, - or ., and not http or https, \
+             e.g. \"com.studio.game\""
+        );
+    }
+    Ok(())
+}
+
+/// An associated domain as Apple writes it: a service, a colon, a host, and
+/// at most a `?mode=` after it.
+fn check_domain(domain: &str) -> Result<()> {
+    let (service, rest) = domain.split_once(':').unwrap_or_default();
+    let host = rest.split_once('?').map_or(rest, |(host, _)| host);
+    let shaped = DOMAIN_SERVICES.contains(&service)
+        && !host.is_empty()
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-.*".contains(c));
+    if !shaped {
+        bail!(
+            "[apple] associated_domains names {domain:?}: a service ({}), a colon and a host, \
+             e.g. \"applinks:game.studio.com\"",
+            DOMAIN_SERVICES.join(", ")
+        );
+    }
+    Ok(())
+}
+
+/// A plist array of strings, on one line.
+fn string_array(items: &[String]) -> String {
+    let mut out = String::from("<array>");
+    for item in items {
+        let _ = write!(out, "<string>{}</string>", escape(item));
+    }
+    out.push_str("</array>");
+    out
 }
 
 /// The hardened runtime's exceptions a Mac build asks for: `jit` for scripts
@@ -1242,5 +1355,84 @@ mod tests {
                 .is_err(),
             "iOS stays strict"
         );
+    }
+
+    fn linked(extra: &str) -> AppleConfig {
+        config(&format!(
+            "[apple]\nbundle_id = \"com.studio.game\"\nversion = \"1.0\"\nbuild_number = \"1\"\n{extra}"
+        ))
+    }
+
+    #[test]
+    fn schemes_are_the_url_types_both_platforms_open_the_game_with() {
+        let config = linked("schemes = [\"com.studio.game\", \"tide\"]\n");
+        config.check(Platform::Ios).expect("two schemes");
+        for platform in [Platform::Ios, Platform::Macos] {
+            let text = config.info_plist(platform, "game", "").unwrap();
+            assert!(
+                text.contains(
+                    "<key>CFBundleURLTypes</key>\n  <array><dict><key>CFBundleURLName</key>\
+                     <string>com.studio.game</string><key>CFBundleURLSchemes</key><array>\
+                     <string>com.studio.game</string><string>tide</string></array></dict></array>"
+                ),
+                "{text}"
+            );
+        }
+        let none = linked("").info_plist(Platform::Ios, "game", "").unwrap();
+        assert!(!none.contains("CFBundleURLTypes"), "{none}");
+    }
+
+    #[test]
+    fn a_scheme_no_url_type_names_is_refused_by_androids_rule() {
+        for bad in ["Tide", "1tide", "ti de", "https", ""] {
+            let err = linked(&format!("schemes = [\"{bad}\"]\n"))
+                .check(Platform::Ios)
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("[apple] schemes"), "{bad}: {err}");
+        }
+    }
+
+    #[test]
+    fn associated_domains_are_an_entitlement_a_profile_must_grant() {
+        let config = linked(
+            "associated_domains = [\"applinks:game.studio.com\", \"webcredentials:studio.com?mode=developer\"]\n",
+        );
+        config.check(Platform::Macos).expect("two domains");
+        let text = config
+            .entitlements(Platform::Ios, Build::Development, false, false)
+            .expect("the domains write an entitlement");
+        assert!(
+            text.contains(
+                "<key>com.apple.developer.associated-domains</key>\n  <array>\
+                 <string>applinks:game.studio.com</string>\
+                 <string>webcredentials:studio.com?mode=developer</string></array>"
+            ),
+            "{text}"
+        );
+        assert_eq!(
+            config.restricted(Platform::Macos),
+            [(
+                "associated_domains",
+                "com.apple.developer.associated-domains"
+            )]
+        );
+        let err = config
+            .needs_profile(Platform::Macos)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("associated_domains"), "{err}");
+        for bad in [
+            "game.studio.com",
+            "links:game.studio.com",
+            "applinks:",
+            "applinks:https://x",
+        ] {
+            let err = linked(&format!("associated_domains = [\"{bad}\"]\n"))
+                .check(Platform::Ios)
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("[apple] associated_domains"), "{bad}: {err}");
+        }
     }
 }
