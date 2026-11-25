@@ -55,8 +55,9 @@ case "$PUBLISH_STORE" in
     ;;
   appstore)
     need apple_issuer_id apple_key_id apple_private_key
-    # The .ipa names its own app and versions, so PUBLISH_TARGET is only what
-    # the caller wrote on its row; the credentials are notarisation's.
+    # The .ipa, or a Mac App Store .pkg, names its own app and versions, so
+    # PUBLISH_TARGET is only what the caller wrote on its row; the
+    # credentials are notarisation's.
     log "==> app store connect upload ${PUBLISH_ARTIFACT}"
     balaur-publish-appstore "$IN" /creds || fail "App Store Connect refused the upload"
     ;;

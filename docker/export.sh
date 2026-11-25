@@ -1,7 +1,7 @@
 #!/bin/sh
 # Export the project at /src for one platform, into /out. docker/README.md has
 # the contract in full: /src /out /cache /work, and BALAUR_TARGET, _VERSION,
-# _OUTPUT, _ANDROID_PACKAGE, _STEAM. Exit status is the verdict.
+# _OUTPUT, _ANDROID_PACKAGE, _STEAM, _APP_STORE. Exit status is the verdict.
 set -eu
 
 log() { printf '%s\n' "$*"; }
@@ -27,6 +27,19 @@ case "$STEAM" in
     esac
     ;;
   *) fail "BALAUR_STEAM is 0 or 1, not ${STEAM}" ;;
+esac
+
+# A Mac App Store build: the same export with the CLI's --app-store, a .app
+# sandboxed with the store's entitlements beside it. Its .pkg is productbuild's,
+# which runs on macOS alone, so it is made after this, where the identity is.
+APP_STORE="${BALAUR_APP_STORE:-0}"
+case "$APP_STORE" in
+  0) ;;
+  1)
+    [ "$BALAUR_TARGET" = macos-universal ] || fail "a Mac App Store build is of macos-universal, not ${BALAUR_TARGET}"
+    [ "$STEAM" = 0 ] || fail "BALAUR_APP_STORE and BALAUR_STEAM are two stores' builds: export each on its own"
+    ;;
+  *) fail "BALAUR_APP_STORE is 0 or 1, not ${APP_STORE}" ;;
 esac
 
 SRC=/src
@@ -113,7 +126,11 @@ case "$BALAUR_TARGET" in
   macos-*)
     # A .app holds the scripts' dylib and takes a stapled ticket. It needs
     # `[apple] bundle_id`; without one the export stays a flat executable.
-    if grep -Eq '^[[:space:]]*bundle_id[[:space:]]*=' "${WORK}/project.toml" 2>/dev/null; then
+    if [ "$APP_STORE" = 1 ]; then
+      set -- "$@" --app-store
+      BUNDLE_OUTPUT="${OUTPUT}.app"
+      log "==> Mac App Store build: a sandboxed .app (unsigned; signed and packaged on macOS)"
+    elif grep -Eq '^[[:space:]]*bundle_id[[:space:]]*=' "${WORK}/project.toml" 2>/dev/null; then
       set -- "$@" --bundle app
       BUNDLE_OUTPUT="${OUTPUT}.app"
       log "==> will bundle as .app (unsigned; balaur-sign signs it)"

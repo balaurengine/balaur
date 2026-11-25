@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upload an iOS build to App Store Connect and read Apple's first verdict.
+"""Upload an iOS or Mac App Store build to App Store Connect and read Apple's first verdict.
 
 The App Store Connect build upload API, which since 2025 does what
 Transporter did: reserve a buildUpload, reserve a buildUploadFile, PUT the
@@ -9,8 +9,10 @@ token, so the image needs no Java and no Mac.
 
     balaur-publish-appstore ARTIFACT CREDS_DIR
 
-ARTIFACT is a signed .ipa; its Info.plist supplies the bundle id and both
-version strings, so nothing is typed twice. CREDS_DIR holds apple_issuer_id,
+ARTIFACT is a signed .ipa, whose Info.plist supplies the bundle id and both
+version strings, or the signed .pkg of a Mac App Store build, whose
+Distribution names the same three for the .app it installs (productbuild
+writes them there), so nothing is typed twice. CREDS_DIR holds apple_issuer_id,
 apple_key_id and apple_private_key (the .p8 as downloaded) — the three
 notarisation uses. The key is read by openssl in place and never copied.
 
@@ -23,6 +25,7 @@ verdict and Apple's own sentence is quoted on failure.
 import json
 import os
 import plistlib
+import struct
 import subprocess
 import sys
 import time
@@ -30,7 +33,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+import zlib
 from base64 import urlsafe_b64encode
+from xml.etree import ElementTree
 
 API = "https://api.appstoreconnect.apple.com/v1"
 AUDIENCE = "appstoreconnect-v1"
@@ -150,6 +155,69 @@ def describe(path):
         fail(f"Info.plist has no {missing.args[0]}")
 
 
+# A flat package is a xar archive: a 28-byte header, a zlib-compressed XML
+# table of contents, then the heap its files' offsets count from.
+XAR_MAGIC = b"xar!"
+XAR_HEADER = struct.Struct(">4sHHQQI")
+
+
+def xar_file(path, name):
+    """The bytes of one top-level file of a xar archive, or None."""
+    with open(path, "rb") as archive:
+        header = archive.read(XAR_HEADER.size)
+        if len(header) < XAR_HEADER.size:
+            return None
+        magic, size, _version, toc_length, _toc_plain, _checksum = XAR_HEADER.unpack(header)
+        if magic != XAR_MAGIC:
+            return None
+        archive.seek(size)
+        try:
+            toc = ElementTree.fromstring(zlib.decompress(archive.read(toc_length)))
+        except (zlib.error, ElementTree.ParseError):
+            return None
+        heap = size + toc_length
+        for entry in toc.iterfind("toc/file"):
+            data = entry.find("data")
+            if entry.findtext("name") != name or data is None:
+                continue
+            archive.seek(heap + int(data.findtext("offset")))
+            raw = archive.read(int(data.findtext("length")))
+            encoding = data.find("encoding")
+            style = encoding.get("style", "") if encoding is not None else ""
+            if style in ("application/x-gzip", "application/zlib"):
+                return zlib.decompress(raw)
+            if style in ("", "application/octet-stream"):
+                return raw
+            fail(f"the .pkg keeps {name} as {style}, which this script cannot read")
+    return None
+
+
+def describe_pkg(path):
+    """Bundle id and both version strings of the .app a Mac App Store .pkg installs."""
+    distribution = xar_file(path, "Distribution")
+    if distribution is None:
+        fail("the artifact is not a product .pkg this script can read: no Distribution in it")
+    try:
+        root = ElementTree.fromstring(distribution)
+    except ElementTree.ParseError:
+        fail("the .pkg's Distribution is not XML")
+    bundles = [b for b in root.iter("bundle") if b.get("path", "").endswith(".app")]
+    if len(bundles) != 1:
+        fail("the .pkg's Distribution names no single .app")
+    bundle = bundles[0]
+    try:
+        return bundle.attrib["id"], bundle.attrib["CFBundleShortVersionString"], bundle.attrib["CFBundleVersion"]
+    except KeyError as missing:
+        fail(f"the .pkg's Distribution has no {missing.args[0]} for {bundle.get('path')}")
+
+
+# What each artifact is to Apple's build upload API.
+KINDS = {
+    ".ipa": ("IOS", "com.apple.ipa", describe),
+    ".pkg": ("MAC_OS", "com.apple.pkg", describe_pkg),
+}
+
+
 def read_credential(creds, name):
     path = os.path.join(creds, name)
     if not os.path.isfile(path):
@@ -192,15 +260,20 @@ def main(argv):
     if len(argv) != 3:
         fail("usage: balaur-publish-appstore ARTIFACT CREDS_DIR")
     path, creds = argv[1:]
-    if not path.endswith(".ipa") or not os.path.isfile(path):
-        fail(f"{os.path.basename(path)} is not an .ipa; App Store Connect takes nothing else from here")
+    kind = KINDS.get(os.path.splitext(path)[1])
+    if kind is None or not os.path.isfile(path):
+        fail(
+            f"{os.path.basename(path)} is not an .ipa or a Mac App Store .pkg; "
+            "App Store Connect takes nothing else from here"
+        )
+    platform, uti, read_versions = kind
     issuer = read_credential(creds, "apple_issuer_id")
     key_id = read_credential(creds, "apple_key_id")
     key_path = os.path.join(creds, "apple_private_key")
     if not os.path.isfile(key_path):
         fail("missing credential: apple_private_key")
 
-    bundle_id, version, build = describe(path)
+    bundle_id, version, build = read_versions(path)
     session = Session(issuer, key_id, key_path)
     log(f"==> {bundle_id} {version} ({build}) with key {key_id}")
 
@@ -220,7 +293,7 @@ def main(argv):
                 "attributes": {
                     "cfBundleShortVersionString": version,
                     "cfBundleVersion": build,
-                    "platform": "IOS",
+                    "platform": platform,
                 },
                 "relationships": {"app": {"data": {"type": "apps", "id": app_id}}},
             }
@@ -237,7 +310,7 @@ def main(argv):
                     "fileName": os.path.basename(path),
                     "fileSize": size,
                     "assetType": "ASSET",
-                    "uti": "com.apple.ipa",
+                    "uti": uti,
                 },
                 "relationships": {"buildUpload": {"data": {"type": "buildUploads", "id": upload}}},
             }

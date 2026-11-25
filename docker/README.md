@@ -72,6 +72,7 @@ puts the game on the smallest it fits. Without them it goes on the full one.
 | `BALAUR_OUTPUT` | artifact name in `/out`; defaults per target |
 | `BALAUR_ANDROID_PACKAGE` | `apk` (default) or `aab`, for `android` on the `-android` image |
 | `BALAUR_STEAM` | `1` for a Steam build of `linux-x64`, `linux-arm64`, `macos-universal` or `windows-x64`: the same export with the CLI's Steam flag, which copies Valve's `steam_api` beside the game, from `/cache`'s `<template>.<library>` beside each template (`linux-x64.libsteam_api.so`); `0` (default) for every other build, which carries no Valve file |
+| `BALAUR_APP_STORE` | `1` for the Mac App Store's build of `macos-universal`: the same export with the CLI's `--app-store`, a sandboxed `.app` with the store's entitlements beside it, zipped like every `.app` this image makes. Its `.pkg` is `productbuild`'s, which runs only on macOS, so this image makes none. The export takes the Mac App Store profile from `[apple] macos_provisioning_profile` and refuses without one, signed or not; `0` (default) for every other build |
 
 With `/cache` mounted the export is offline and the template must already be
 there. Without it, balaur downloads the one it needs — what an ordinary CI job
@@ -294,7 +295,9 @@ release made by hand; Play refuses a new app's first upload through the API.
 
 For App Store Connect the credentials are notarisation's — the API key's
 issuer id, key id and `.p8` — and `PUBLISH_TARGET` is informational: the
-`.ipa`'s own Info.plist supplies the bundle id, version and build number.
+`.ipa`'s own Info.plist supplies the bundle id, version and build number,
+and a Mac App Store `.pkg`'s Distribution (productbuild writes the `.app`'s
+three there) does the same for an upload with platform `MAC_OS`.
 The run is Apple's build upload API: find the app by bundle id, reserve a
 `buildUpload` and a `buildUploadFile`, PUT the parts Apple asks for, mark
 the file uploaded, then read the upload's state for `PUBLISH_WAIT_MINUTES`
