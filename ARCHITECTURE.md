@@ -1491,7 +1491,11 @@ things are shared.
   POST_NOTIFICATIONS, `Share` hears the chooser shut (`Chosen` hears what
   was picked), and `Opened` takes a notification's tap and brings the game
   forward. A tap that clears one of them off the game answers as it goes, so
-  no call waits on an activity that is gone. `AlarmManager` holds the schedule, inexact,
+  no call waits on an activity that is gone. The chooser's pick is a
+  broadcast and its shutting an activity result, which Android orders
+  neither way, and the result often lands first: a pick answers `shared` the
+  moment it arrives, and a chooser shut with none waits two seconds for one
+  before answering `cancelled` (`ShareAnswer`, plain Java a JVM test runs). `AlarmManager` holds the schedule, inexact,
   and `Alarm` posts each one. A tap that started the process waits in the
   shim until the game's first tick listens. A shared file goes out as a
   content URI from `Files`, a read-only provider of the app's own files

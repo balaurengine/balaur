@@ -29,7 +29,9 @@ the background runs no fixed step and holds its sounds until it comes back
    - `device.share({ text, file, title })`: `ACTION_SEND` through the chooser,
      a file as a content URI from the shim's own read-only provider
      (`Files.java`); `UIActivityViewController`; `NSSharingServicePicker`.
-     It answers `shared` with the `target` picked, or `cancelled`.
+     It answers `shared` with the `target` picked, or `cancelled`. On
+     Android the pick can land after the chooser's result, so a shut chooser
+     waits two seconds for it before answering `cancelled`.
    - `device.request_review()`: `SKStoreReviewController`, and on Android
      Play's review flow in a build with the `in-app-review` capability
      (`PLAN-google.md` step 9).

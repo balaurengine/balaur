@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 
 import java.io.File;
 
@@ -19,12 +21,13 @@ import org.json.JSONObject;
  *
  * An unseen activity over the game, as {@link WebSignIn} is, because only an
  * activity hears the chooser shut. The chooser reports the app the player
- * picked to {@link Chosen} before it shuts; this answers {@code shared} with
- * it, or {@code cancelled} when none came. A file is handed over as a
- * content URI from {@link Files}, read-only.
+ * picked to {@link Chosen}, which may land before or after it shuts;
+ * {@link ShareAnswer} answers {@code shared} with it, or {@code cancelled}
+ * when none came. A file is handed over as a content URI from {@link Files},
+ * read-only.
  */
 public final class Share extends Activity {
-    private static final String REQUEST = "org.balaur.platform.request";
+    static final String REQUEST = "org.balaur.platform.request";
     private static final String TEXT = "org.balaur.platform.text";
     private static final String FILE = "org.balaur.platform.file";
     private static final String TITLE = "org.balaur.platform.title";
@@ -37,10 +40,27 @@ public final class Share extends Activity {
     private static final String CANCELLED = "cancelled";
     private static final String TARGET = "target";
 
-    /** The package the player picked from the open chooser. UI thread alone. */
-    static String chosen;
+    /** The open share's answer, from whichever of the chooser's reports settles it. */
+    static final ShareAnswer ANSWER = new ShareAnswer(new ShareAnswer.Answers() {
+        @Override
+        public void shared(long request, String target) {
+            JSONObject answer = Device.kind(SHARED);
+            try {
+                answer.put(TARGET, target);
+            } catch (JSONException e) {
+                // A string key and value never fail.
+            }
+            Device.answer(request, answer.toString());
+        }
+
+        @Override
+        public void cancelled(long request) {
+            Device.answer(request, Device.kind(CANCELLED).toString());
+        }
+    }, new Handler(Looper.getMainLooper())::postDelayed);
 
     private boolean launched;
+    private boolean shut;
 
     static Intent intent(Context game, long request, String text, String file, String title) {
         return new Intent(game, Share.class)
@@ -59,9 +79,9 @@ public final class Share extends Activity {
             return;
         }
         launched = true;
-        chosen = null;
         try {
             startActivityForResult(chooser(), CHOOSER);
+            ANSWER.opened(request());
         } catch (RuntimeException e) {
             Device.answer(request(), Device.failed(e.getMessage()).toString());
             finish();
@@ -71,17 +91,24 @@ public final class Share extends Activity {
     @Override
     protected void onActivityResult(int code, int result, Intent data) {
         super.onActivityResult(code, result, data);
-        JSONObject answer = Device.kind(chosen == null ? CANCELLED : SHARED);
-        if (chosen != null) {
-            try {
-                answer.put(TARGET, chosen);
-            } catch (JSONException e) {
-                // A string key and value never fail.
-            }
-        }
-        chosen = null;
-        Device.answer(request(), answer.toString());
+        shut();
         finish();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Cleared by a tap bringing the game forward, with no result.
+        if (isFinishing()) {
+            shut();
+        }
+    }
+
+    private void shut() {
+        if (!shut) {
+            shut = true;
+            ANSWER.shut(request());
+        }
     }
 
     @Override
@@ -119,7 +146,8 @@ public final class Share extends Activity {
         // The chooser fills the picked component in, so the intent is mutable.
         int flags = PendingIntent.FLAG_UPDATE_CURRENT
                 | (Build.VERSION.SDK_INT >= MUTABLE_FLAG_API ? PendingIntent.FLAG_MUTABLE : 0);
-        PendingIntent picked = PendingIntent.getBroadcast(this, 0, new Intent(this, Chosen.class), flags);
+        Intent chosen = new Intent(this, Chosen.class).putExtra(REQUEST, request());
+        PendingIntent picked = PendingIntent.getBroadcast(this, 0, chosen, flags);
         return Intent.createChooser(send, titled ? title : null, picked.getIntentSender());
     }
 }
