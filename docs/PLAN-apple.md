@@ -6,17 +6,16 @@ built.
 
 ## Steps
 
-1. **Present Game Center's sign-in sheet.** When GameKit hands
-   `crates/balaur_apple/src/gamekit.rs` a view controller, the sign-in is
-   reported rather than shown. Done: a sign-in with no player signed in shows
-   Apple's sheet and answers once the player finishes it.
-2. **Run against Apple's servers.** Game Center, iCloud, StoreKit, the
+1. **Run against Apple's servers.** Game Center, iCloud, StoreKit, the
    sign-in page (`platform.web_sign_in`), and the
    arrivals `invite_accepted`, `match_requested` and
    `cloud_changed`, have only been compiled and tested through a canned
-   backend. Done: each answers on a device signed with an Apple ID and a
-   provisioning profile.
-3. **Run the device seam on hardware.** Local notifications are
+   backend. Game Center's sign-in sheet goes up over the topmost view
+   controller (iOS) or the key window (a Mac) when GameKit hands one over,
+   and every `platform.sign_in` waiting hears the player's answer; that is
+   compiled, not seen. Done: each answers on a device signed with an Apple
+   ID and a provisioning profile, the sheet included.
+2. **Run the device seam on hardware.** Local notifications are
    `platform.notify` now, served by `crates/balaur_apple/src/notify.rs`
    through the device seam whichever store is loaded, and a tap or one shown
    in front is the `platform_event` event. The iPhone's feedback generators,
@@ -28,7 +27,7 @@ built.
    Done: a notification scheduled, tapped and heard, a file shared and a
    haptic felt on an iPhone.
 
-4. **Push from Gamend to a device.** `platform.register_for_push` asks
+3. **Push from Gamend to a device.** `platform.register_for_push` asks
    APNs through the application delegate (`push.rs`) and answers
    `push_registered` with the hex `token`, `provider = "apns"` and
    `platform = "ios"`, a Mac's too, since Gamend's push tokens have one Apple
@@ -45,11 +44,12 @@ built.
    `push_failed` naming the capability: a Mac reads its own signature's
    entitlement first, and iOS maps APNs' refusal, which names
    `aps-environment`. Tested through a canned OS and the export's
-   entitlements only. Still to check: an APNs key in Gamend, a push sent to a
-   signed device, a tap that launches the game, which the notification
-   centre's delegate hears only when it is set before launch ends, and a Mac
-   build carrying the entitlement.
-5. **Sign a Mac build against its profile.** The export embeds
+   entitlements only. The notification centre's delegate goes up as the
+   plugin declares, before `UIApplicationMain` or `NSApplication`'s run, so a
+   tap that launches the game is `notification_opened`. Still to check: an
+   APNs key in Gamend, a push sent to a signed device, a tap that launches
+   the game, and a Mac build carrying the entitlement.
+4. **Sign a Mac build against its profile.** The export embeds
    `Contents/embedded.provisionprofile` and leaves out a capability the
    profile does not grant, as a Developer ID profile grants no Sign in with
    Apple, and `docker/sign.sh` does the same with a mounted

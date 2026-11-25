@@ -15,6 +15,41 @@ use balaur_platform::PlatformEvent;
 
 use crate::AppleEvent;
 
+/// Calls waiting on an answer the OS gives once for all of them, wherever it
+/// lands: the push token the application delegate is handed, the sign-in
+/// GameKit's handler hears. Each call's channel waits here until then.
+#[cfg(any(target_vendor = "apple", test))]
+pub(crate) struct Waiters(Mutex<Vec<(u64, Sender<PlatformEvent>)>>);
+
+#[cfg(any(target_vendor = "apple", test))]
+impl Waiters {
+    pub(crate) const fn new() -> Self {
+        Self(Mutex::new(Vec::new()))
+    }
+
+    /// `request` waits for the next answer.
+    pub(crate) fn wait(&self, request: u64, report: &Sender<PlatformEvent>) {
+        if let Ok(mut waiting) = self.0.lock() {
+            // copy: the channel outlives this call, until the answer crosses it.
+            waiting.push((request, report.clone()));
+        }
+    }
+
+    /// Answer every call waiting, each with the event `answer` makes of its
+    /// request; false when none was.
+    pub(crate) fn answer(&self, answer: impl Fn(u64) -> PlatformEvent) -> bool {
+        let waiting = self
+            .0
+            .lock()
+            .map(|mut waiting| std::mem::take(&mut *waiting))
+            .unwrap_or_default();
+        for (request, report) in &waiting {
+            let _ = report.send(answer(*request));
+        }
+        !waiting.is_empty()
+    }
+}
+
 static STORE: Mutex<Vec<PlatformEvent>> = Mutex::new(Vec::new());
 static APPLE: Mutex<Vec<AppleEvent>> = Mutex::new(Vec::new());
 /// A notification tapped or shown in front: the OS's, drained by the device
@@ -86,5 +121,33 @@ pub(crate) fn discard_store() {
 pub(crate) fn discard_apple() {
     if let Ok(mut queue) = APPLE.lock() {
         queue.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_platform::PlatformEvent;
+
+    use super::Waiters;
+
+    // Two calls made before the OS answers both hear its one answer, and an
+    // answer with nobody waiting reaches nobody.
+    #[test]
+    fn every_call_waiting_hears_the_one_answer_once() {
+        let waiters = Waiters::new();
+        let (report, heard) = std::sync::mpsc::channel();
+        waiters.wait(3, &report);
+        waiters.wait(4, &report);
+        assert!(waiters.answer(|request| PlatformEvent::Cancelled { request }));
+        let answered: Vec<u64> = heard
+            .try_iter()
+            .map(|event| match event {
+                PlatformEvent::Cancelled { request } => request,
+                _ => 0,
+            })
+            .collect();
+        assert_eq!(answered, [3, 4]);
+        assert!(!waiters.answer(|request| PlatformEvent::Cancelled { request }));
+        assert!(heard.try_recv().is_err());
     }
 }

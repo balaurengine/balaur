@@ -119,6 +119,16 @@ struct Held {
 }
 
 pub(crate) fn sign_in(request: u64, report: &Sender<AppleEvent>) {
+    // A Mac signed against a Developer ID profile has no Sign in with Apple:
+    // `unsupported`, as everywhere native sign-in is missing, so the game
+    // falls back to Apple's web page rather than to an error.
+    if !crate::entitlement::granted(crate::entitlement::APPLESIGNIN) {
+        let _ = report.send(AppleEvent::Unsupported {
+            request,
+            call: crate::SIGN_IN.to_string(),
+        });
+        return;
+    }
     IN_FLIGHT.with_borrow_mut(|held| held.retain(|entry| !entry.done.get()));
     let Some(mtm) = MainThreadMarker::new() else {
         let _ = report.send(AppleEvent::Failed {

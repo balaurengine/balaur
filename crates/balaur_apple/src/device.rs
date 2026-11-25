@@ -79,7 +79,9 @@ pub(crate) fn provide(eng: &balaur_core::Engine) -> anyhow::Result<()> {
     use balaur_platform::{Service, provide};
     let bundled = |_: &_| crate::gamekit::bundled();
     provide(eng, Service::GameCenter, bundled)?;
-    provide(eng, Service::AppleSignIn, bundled)?;
+    provide(eng, Service::AppleSignIn, |_| {
+        crate::gamekit::bundled() && crate::entitlement::granted(crate::entitlement::APPLESIGNIN)
+    })?;
     provide(eng, Service::Notifications, bundled)?;
     provide(eng, Service::Push, |_| {
         crate::gamekit::bundled() && crate::push::entitled()

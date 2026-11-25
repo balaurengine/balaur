@@ -18,9 +18,10 @@ use crate::signin::key_window;
 
 /// Put a view controller Game Center handed over on screen.
 ///
-/// iOS presents it from the window's root controller; macOS goes through
-/// `GKDialogController`, which is what a GameKit view controller expects
-/// there. False means there was nowhere to put it.
+/// iOS presents it from the topmost controller over the window's root, since
+/// one already presenting refuses another; macOS goes through
+/// `GKDialogController` over the key window, which is what a GameKit view
+/// controller expects there. False means there was nowhere to put it.
 pub(crate) fn present(view_controller: *mut AnyObject) -> bool {
     if view_controller.is_null() {
         return false;
@@ -46,12 +47,19 @@ pub(crate) fn present(view_controller: *mut AnyObject) -> bool {
             return false;
         }
         unsafe {
-            let root: *mut AnyObject = msg_send![window, rootViewController];
-            if root.is_null() {
+            let mut top: *mut AnyObject = msg_send![window, rootViewController];
+            if top.is_null() {
                 return false;
             }
+            loop {
+                let above: *mut AnyObject = msg_send![top, presentedViewController];
+                if above.is_null() {
+                    break;
+                }
+                top = above;
+            }
             let _: () = msg_send![
-                root,
+                top,
                 presentViewController: view_controller,
                 animated: true,
                 completion: Option::<&block2::DynBlock<dyn Fn()>>::None,

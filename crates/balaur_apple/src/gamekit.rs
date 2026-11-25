@@ -24,6 +24,7 @@ use objc2_game_kit::{
     GKLeaderboardTimeScope, GKLocalPlayer, GKPlayerAuthenticationDidChangeNotificationName,
 };
 
+use crate::queue::Waiters;
 use crate::{AppleCall, AppleEvent};
 
 pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformEvent>) {
@@ -84,6 +85,15 @@ pub(crate) fn apple_call(request: u64, call: &AppleCall, report: &Sender<AppleEv
     }
 }
 
+/// The `sign_in` calls GameKit's handler has not answered. Setting a handler
+/// replaces the one before, so the answer the last one hears is every
+/// waiting call's.
+static SIGNING_IN: Waiters = Waiters::new();
+
+/// Sign the local player in. With nobody signed in, GameKit hands the handler
+/// its sign-in sheet, which goes up over the game: the root view controller's
+/// topmost on iOS, the key window on a Mac. The handler is called again once
+/// the player signs in or closes the sheet, and that is the answer.
 fn sign_in(request: u64, report: &Sender<PlatformEvent>) {
     watch_authentication();
     let player = unsafe { GKLocalPlayer::localPlayer() };
@@ -91,35 +101,28 @@ fn sign_in(request: u64, report: &Sender<PlatformEvent>) {
         let _ = report.send(signed_in(request, &player));
         return;
     }
-    let report = report.clone();
-    // GameKit hands the handler a view controller when it wants its sign-in
-    // sheet. Nothing presents one yet (docs/PLAN-apple.md step 2), so that
-    // case is reported rather than swallowed.
+    SIGNING_IN.wait(request, report);
     let handler = RcBlock::new(move |sheet: *mut AnyObject, error: *mut NSError| {
         let player = unsafe { GKLocalPlayer::localPlayer() };
-        let event = if unsafe { player.isAuthenticated() } {
-            signed_in(request, &player)
-        } else if let Some(error) = unsafe { error.as_ref() } {
-            PlatformEvent::Failed {
+        let failed = |message: String| {
+            move |request| PlatformEvent::Failed {
                 request,
-                message: describe(error),
-            }
-        } else if sheet.is_null() {
-            PlatformEvent::Failed {
-                request,
-                message: "Game Center has no signed-in player".into(),
-            }
-        } else if crate::ui::present(sheet) {
-            // The sheet is up; GameKit calls this handler again with the
-            // answer, so there is nothing to report yet.
-            return;
-        } else {
-            PlatformEvent::Failed {
-                request,
-                message: "no window to present Game Center's sign-in sheet over".into(),
+                message: message.clone(),
             }
         };
-        let _ = report.send(event);
+        if unsafe { player.isAuthenticated() } {
+            SIGNING_IN.answer(|request| signed_in(request, &player));
+        } else if let Some(error) = unsafe { error.as_ref() } {
+            SIGNING_IN.answer(failed(describe(error)));
+        } else if sheet.is_null() {
+            SIGNING_IN.answer(failed("Game Center has no signed-in player".into()));
+        } else if !crate::ui::present(sheet) {
+            SIGNING_IN.answer(failed(
+                "no window to present Game Center's sign-in sheet over".into(),
+            ));
+        }
+        // Otherwise the sheet is up, and the player's answer is GameKit's
+        // next call of this handler.
     });
     // Raw, because the typed binding takes the platform's own view-controller
     // type and so needs AppKit on macOS and UIKit on iOS; the block's ABI is

@@ -12,6 +12,8 @@ use std::sync::mpsc::Sender;
 
 use balaur_platform::{PlatformEvent, PushToken};
 
+use crate::queue::Waiters;
+
 /// What `register_for_push` says when the bundle was signed without the
 /// entitlement, whose name APNs' own error carries.
 pub(crate) const MISSING: &str = "push needs [apple] capabilities = [\"push-notifications\"]: \
@@ -20,9 +22,8 @@ pub(crate) const MISSING: &str = "push needs [apple] capabilities = [\"push-noti
 /// The entitlement APNs' refusal names when the bundle lacks it.
 const ENTITLEMENT: &str = "aps-environment";
 
-/// The `register_for_push` calls the OS has not answered, each with the
-/// channel its answer crosses.
-static WAITING: Mutex<Vec<(u64, Sender<PlatformEvent>)>> = Mutex::new(Vec::new());
+/// The `register_for_push` calls the OS has not answered.
+static WAITING: Waiters = Waiters::new();
 
 /// The token the OS handed over last.
 static LAST: Mutex<Option<String>> = Mutex::new(None);
@@ -36,10 +37,7 @@ pub(crate) fn register(request: u64, report: &Sender<PlatformEvent>) {
         });
         return;
     }
-    if let Ok(mut waiting) = WAITING.lock() {
-        // copy: the channel outlives this call, until the token crosses it.
-        waiting.push((request, report.clone()));
-    }
+    WAITING.wait(request, report);
     if !crate::arrivals::request_push_token() {
         failed("the application delegate is not up yet: ask again on a later tick");
     }
@@ -50,22 +48,13 @@ pub(crate) fn token(hex: String) {
     let changed = LAST.lock().map_or(true, |mut last| {
         last.replace(hex.clone()).as_deref() != Some(hex.as_str())
     });
-    let waiting = WAITING
-        .lock()
-        .map(|mut waiting| std::mem::take(&mut *waiting))
-        .unwrap_or_default();
-    if waiting.is_empty() {
-        if changed {
-            crate::queue::push_device(PlatformEvent::PushTokenChanged {
-                token: PushToken::apns(hex),
-            });
-        }
-        return;
-    }
-    for (request, report) in waiting {
-        let _ = report.send(PlatformEvent::PushRegistered {
-            request,
-            token: PushToken::apns(hex.clone()),
+    let asked = WAITING.answer(|request| PlatformEvent::PushRegistered {
+        request,
+        token: PushToken::apns(hex.clone()),
+    });
+    if !asked && changed {
+        crate::queue::push_device(PlatformEvent::PushTokenChanged {
+            token: PushToken::apns(hex),
         });
     }
 }
@@ -78,18 +67,12 @@ pub(crate) fn failed(message: &str) {
     } else {
         message.to_string()
     };
-    let waiting = WAITING
-        .lock()
-        .map(|mut waiting| std::mem::take(&mut *waiting))
-        .unwrap_or_default();
-    if waiting.is_empty() {
+    let asked = WAITING.answer(|request| PlatformEvent::PushFailed {
+        request,
+        message: message.clone(),
+    });
+    if !asked {
         tracing::warn!("push: the OS refused to register: {message}");
-    }
-    for (request, report) in waiting {
-        let _ = report.send(PlatformEvent::PushFailed {
-            request,
-            message: message.clone(),
-        });
     }
 }
 
@@ -126,51 +109,8 @@ const ALERT: &str = "alert";
 /// Whether this bundle was signed with the push entitlement. A Mac reads its
 /// own signature; iOS has no public call for that, so APNs' refusal, which
 /// names the entitlement, says it instead.
-#[cfg(target_os = "macos")]
 pub(crate) fn entitled() -> bool {
-    use std::ffi::c_void;
-
-    use objc2_foundation::NSString;
-
-    #[link(name = "Security", kind = "framework")]
-    unsafe extern "C" {
-        fn SecTaskCreateFromSelf(allocator: *const c_void) -> *mut c_void;
-        fn SecTaskCopyValueForEntitlement(
-            task: *mut c_void,
-            entitlement: *const c_void,
-            error: *mut *mut c_void,
-        ) -> *mut c_void;
-    }
-    #[link(name = "CoreFoundation", kind = "framework")]
-    unsafe extern "C" {
-        fn CFRelease(object: *const c_void);
-    }
-
-    let name = NSString::from_str("com.apple.developer.aps-environment");
-    // Safety: a task for this process, released below; the name is an
-    // NSString, toll-free bridged to the CFString the call reads.
-    unsafe {
-        let task = SecTaskCreateFromSelf(std::ptr::null());
-        if task.is_null() {
-            return false;
-        }
-        let value = SecTaskCopyValueForEntitlement(
-            task,
-            std::ptr::from_ref(&*name).cast(),
-            std::ptr::null_mut(),
-        );
-        CFRelease(task);
-        if value.is_null() {
-            return false;
-        }
-        CFRelease(value);
-        true
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-pub(crate) const fn entitled() -> bool {
-    true
+    crate::entitlement::granted(crate::entitlement::APS_MACOS)
 }
 
 #[cfg(test)]

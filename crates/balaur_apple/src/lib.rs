@@ -55,6 +55,8 @@ mod arrivals;
 #[cfg(target_vendor = "apple")]
 mod device;
 #[cfg(target_vendor = "apple")]
+mod entitlement;
+#[cfg(target_vendor = "apple")]
 mod gamekit;
 #[cfg(target_vendor = "apple")]
 mod icloud;
@@ -503,6 +505,14 @@ impl balaur_plugin::Plugin for ApplePlugin {
         {
             balaur_platform::set_device(reg.engine(), Box::new(device::AppleDevice))?;
             device::provide(reg.engine())?;
+            // A tap that launches the game reaches the notification centre's
+            // delegate only when it was set before launch ended, and plugins
+            // declare before UIApplicationMain (iOS) or NSApplication's run
+            // (macOS) is entered. The centre throws in a process with no
+            // bundle id: a test, a run from the shell.
+            if gamekit::bundled() {
+                notify::watch_taps();
+            }
         }
         let mut m = reg.script_module(APPLE)?;
         install_apple_api(&mut m);

@@ -3,7 +3,8 @@
 //! while the game is in front.
 //!
 //! The notification centre's delegate is ours to set — nothing else in the
-//! engine wants it — so taps need no proxying. What a tap carries is the
+//! engine wants it — so taps need no proxying. It goes up before launch ends,
+//! so the tap that launched the game is heard as `notification_opened`. What a tap carries is the
 //! identifier the game scheduled it under and the `data` it put in, kept as
 //! JSON text under one `userInfo` key. A push comes through the same
 //! delegate: its trigger says so, and its `data` is its payload less `aps`.
@@ -113,15 +114,17 @@ pub(crate) fn cancel(id: &str) {
 }
 
 /// Hear about taps, and show a notification that arrives while the game is
-/// in front rather than swallowing it. Installed on the first notification
-/// call, so a game that schedules none takes no delegate.
+/// in front rather than swallowing it. Installed as the plugin declares, on
+/// the main thread before the OS finishes launching the game: a tap that
+/// launched it is delivered to the delegate set by then, and to no other.
+/// The notification calls install it too, for a plugin declared elsewhere.
 pub(crate) fn watch_taps() {
-    if TAPS.replace(true) {
-        return;
-    }
     let Some(mtm) = MainThreadMarker::new() else {
         return;
     };
+    if TAPS.replace(true) {
+        return;
+    }
     let delegate = Taps::new(mtm);
     unsafe {
         let center = UNUserNotificationCenter::currentNotificationCenter();
