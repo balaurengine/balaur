@@ -1484,8 +1484,14 @@ things are shared.
   (an intent filter each of `[android] schemes`, added at export), which
   brings `WebSignIn` back with the URL and clears the tab; `WebSignIn`
   resuming with none answers `cancelled`, and `close_web_sign_in` brings it
-  back the same way, shutting the tab. A link on those schemes with no page
-  open brings the game forward, which does not read it yet.
+  back the same way, shutting the tab. A link on those schemes that ends no
+  open page goes to `Links` instead, never both, and brings the game
+  forward, starting it when it was not running: `Links` holds what lands
+  until the game listens on its first tick (`Arrivals`, plain Java a JVM
+  test runs, which `Notifications` holds its taps in too), so the launch
+  link arrives as one that lands while the game runs does, each once, as
+  `url_opened` on `platform_event`. A task reopened from Recents replays
+  the intent it began with, which `Redirect` passes over.
   The device shims are unseen activities because NativeActivity forwards no
   permission result or activity result: `Permission` asks for
   POST_NOTIFICATIONS, `Share` hears the chooser shut (`Chosen` hears what
@@ -1583,9 +1589,9 @@ things are shared.
   `application:openURL:options:`, `application:openURLs:` and a universal
   link's `continueUserActivity`. The iOS launch URL also comes from the
   window layer's launch options, handed over on the first frame, and the two
-  are told apart so it is heard once. Android's `Redirect` activity takes the
-  same links into the game's activity; delivering them as `url_opened` is its
-  shim's to do.
+  are told apart so it is heard once. On Android a link on one of
+  `[android] schemes` lands on `Redirect` and arrives the same way, the
+  launch link too, unless it ends an open `platform.web_sign_in` page.
 - **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of
   `"<module>.<call>"` to the answer its waiter receives (`null`: never
   answers); such a call never reaches its backend, and its answer crosses the

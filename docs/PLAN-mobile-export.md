@@ -40,6 +40,10 @@ the background runs no fixed step and holds its sounds until it comes back
      (ARCHITECTURE.md). Push is APNs on Apple (`PLAN-apple.md` step 5) and FCM
      on Android (`PLAN-google.md` step 8), its token answered in the fields
      Gamend's `push_tokens` takes.
+   - A link into the game is `url_opened` on `platform_event`, with its whole
+     `url`, on Apple (`PLAN-apple.md` step 5) and on Android: a link on one
+     of `[android] schemes` that ends no open sign-in page, the one that
+     started the game too, each heard once (`Redirect` and `Links`).
    - A notification's small icon on Android is `[android] notification_icon`,
      a square picture with transparency the export writes white from its
      alpha at each density, named to `Alarm` and to FCM in the manifest; a

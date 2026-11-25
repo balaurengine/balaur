@@ -5,6 +5,8 @@
 //! redirect reaches `org.balaur.platform.Redirect`, an intent filter of
 //! `[android] schemes`), or `cancelled` when the game's activity comes back
 //! with none. The answer crosses back on the channel the call started with.
+//! A link on those schemes that ends no page is a link into the game
+//! (`links.rs`), never also this page's answer.
 
 use std::ffi::c_void;
 use std::sync::mpsc::Sender;

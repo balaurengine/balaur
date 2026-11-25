@@ -437,6 +437,74 @@ fn a_recorded_share_and_tap_replay_with_no_os_behind_them() {
     assert_eq!(kinds(&played), heard, "the recording answers, not the OS");
 }
 
+// A link into the game arrives unasked with its whole URL, as Android's
+// Links shim and Apple's delegate hand it over.
+#[test]
+fn a_link_into_the_game_arrives_unasked_with_its_whole_url() {
+    let (mut app, asked) = app_with_os();
+    asked.borrow_mut().arriving.push(PlatformEvent::UrlOpened {
+        url: "com.studio.game://invite/42?from=ana".into(),
+    });
+    tick(&mut app);
+    let event = &events(&app)[0];
+    assert_eq!(field(event, "kind"), Some(text("url_opened")));
+    assert_eq!(field(event, "request"), Some(Value::Int(0)));
+    assert_eq!(
+        field(event, "url"),
+        Some(text("com.studio.game://invite/42?from=ana"))
+    );
+}
+
+// What Links.java writes for a link into the game.
+#[test]
+fn the_link_shims_arrival_reaches_a_listener_as_the_map_it_wrote() {
+    let (mut app, asked) = app_with_os();
+    asked.borrow_mut().arriving.push(PlatformEvent::Answer {
+        request: 0,
+        answer: serde_json::json!({ "kind": "url_opened", "url": "com.studio.game://invite/42" }),
+    });
+    tick(&mut app);
+    let event = &events(&app)[0];
+    assert_eq!(field(event, "kind"), Some(text("url_opened")));
+    assert_eq!(field(event, "request"), Some(Value::Int(0)));
+    assert_eq!(
+        field(event, "url"),
+        Some(text("com.studio.game://invite/42"))
+    );
+}
+
+// The link the game launched with and one while it runs are recorded with
+// every other arrival, so a replay with no OS behind it hears both, once.
+#[test]
+fn a_recorded_launch_link_and_running_link_replay_with_no_os_behind_them() {
+    let (mut recorded, asked) = app_with_os();
+    let mut frames = Vec::new();
+    for url in ["game://launch", "game://running"] {
+        asked
+            .borrow_mut()
+            .arriving
+            .push(PlatformEvent::UrlOpened { url: url.into() });
+        tick(&mut recorded);
+        frames.push(replay::capture(&recorded.engine));
+    }
+    let heard = |app: &App, into: &mut Vec<Option<Value>>| {
+        into.extend(events(app).iter().map(|event| field(event, "url")));
+    };
+    let mut played = app();
+    *played.engine.resource::<ReplayMode>().borrow_mut() = ReplayMode::Playing;
+    let mut replayed = Vec::new();
+    for frame in frames {
+        played.engine.resource::<ReplayFeed>().borrow_mut().0 = Some(frame);
+        tick(&mut played);
+        heard(&played, &mut replayed);
+    }
+    assert_eq!(
+        replayed,
+        [Some(text("game://launch")), Some(text("game://running"))],
+        "the recording answers, not the OS"
+    );
+}
+
 /// What a share answers with no window and no shim: Apple's backend has no
 /// window to show the sheet over in a test, and elsewhere there is no sheet.
 const SHARE: &str = if cfg!(target_vendor = "apple") {

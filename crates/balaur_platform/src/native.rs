@@ -42,8 +42,8 @@ impl DeviceBackend for Native {
 #[cfg(target_os = "android")]
 mod os {
     pub(super) use crate::android::device::{haptic, vibrate};
-    pub(super) use crate::android::notifications::{cancel, discard, pump};
-    pub(super) use crate::android::start;
+    pub(super) use crate::android::notifications::cancel;
+    pub(super) use crate::android::{discard, pump, start};
 
     /// Android's notifications, motor, share sheet and Custom Tab, and Play's
     /// review prompt and Firebase's push where the game's dex carries them.

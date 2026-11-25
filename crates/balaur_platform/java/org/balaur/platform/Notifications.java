@@ -13,9 +13,6 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -54,18 +51,16 @@ public final class Notifications {
     private static final String KEY_BODY = "body";
     private static final String KEY_DATA = "data";
 
-    /** Whether the game takes arrivals yet. */
-    private static boolean listening;
-    /** What arrived before it did. */
-    private static final List<String> waiting = new ArrayList<>();
+    /** What arrives unasked carries the request no call is given. */
+    private static final long ARRIVAL = 0;
+
+    /** Taps and notifications shown in front, until the game listens. */
+    private static final Arrivals arrivals = new Arrivals(json -> answer(ARRIVAL, json));
 
     private Notifications() {}
 
     /** A request's answer as JSON, or under request 0 an arrival. Registered by balaur_platform. */
     static native void answer(long request, String json);
-
-    /** What arrives unasked carries the request no call is given. */
-    private static final long ARRIVAL = 0;
 
     /** Ask for POST_NOTIFICATIONS from Android 13, else say whether the player left them on. */
     public static void request(final Activity game, final long request) {
@@ -123,13 +118,7 @@ public final class Notifications {
 
     /** Hand over what arrived, and everything that arrives from now on. */
     public static void listen(final Activity game) {
-        game.runOnUiThread(() -> {
-            listening = true;
-            for (String json : waiting) {
-                answer(ARRIVAL, json);
-            }
-            waiting.clear();
-        });
+        game.runOnUiThread(arrivals::listen);
     }
 
     static void allowed(long request, boolean allowed) {
@@ -182,11 +171,7 @@ public final class Notifications {
     }
 
     private static void arrive(String json) {
-        if (listening) {
-            answer(ARRIVAL, json);
-        } else {
-            waiting.add(json);
-        }
+        arrivals.arrive(json);
     }
 
     private static Object parsed(String data) {

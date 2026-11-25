@@ -15,6 +15,7 @@ use std::sync::{Mutex, PoisonError};
 
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::refs::Global;
+use jni::strings::JNIString;
 use jni::sys::jlong;
 use jni::{Env, EnvUnowned, JavaVM, NativeMethod, jni_sig, jni_str};
 
@@ -22,6 +23,7 @@ use crate::PlatformEvent;
 use crate::device::DeviceCall;
 
 pub(crate) mod device;
+mod links;
 pub(crate) mod notifications;
 pub(crate) mod web_sign_in;
 
@@ -156,8 +158,39 @@ pub(crate) fn listen_for_push(report: &Sender<PlatformEvent>) {
 
 const LISTEN: &str = "listen";
 
-/// Move what arrived onto the channel.
+/// Tell a shim to hand over what arrived (its static `listen(Activity)`),
+/// once the activity is there; `listening` keeps that it was told.
+fn listen_once(
+    listening: &AtomicBool,
+    load: impl FnOnce(
+        &mut Env<'_>,
+        &JObject<'_>,
+    ) -> jni::errors::Result<&'static Global<JClass<'static>>>,
+) {
+    if listening.load(Ordering::Acquire) {
+        return;
+    }
+    let listened = with_activity(|env, activity| {
+        let shim = load(env, activity)?;
+        env.call_static_method(
+            shim,
+            JNIString::new(LISTEN),
+            jni_sig!("(Landroid/app/Activity;)V"),
+            &[JValue::Object(activity)],
+        )?;
+        Ok(())
+    });
+    if listened.is_ok() {
+        listening.store(true, Ordering::Release);
+    }
+}
+
+/// Listen on every shim once the activity is there (a tap, a link, a push),
+/// then move what arrived onto the channel.
 pub(crate) fn pump(report: &Sender<PlatformEvent>) {
+    notifications::listen();
+    links::listen();
+    listen_for_push(report);
     let arrived = std::mem::take(&mut *ARRIVALS.lock().unwrap_or_else(PoisonError::into_inner));
     for event in arrived {
         balaur_core::replay::report(report, event);

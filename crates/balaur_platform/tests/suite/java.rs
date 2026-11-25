@@ -78,3 +78,13 @@ fn a_share_answers_its_pick_whether_it_lands_before_or_after_the_chooser_shuts()
         "org.balaur.platform.ShareAnswerTest",
     );
 }
+
+// A link or a tap that starts the process lands before the game listens: it
+// waits for the listen, what lands after goes straight on, and each once.
+#[test]
+fn an_arrival_waits_for_the_game_to_listen_and_is_handed_on_once() {
+    run_java(
+        &["Arrivals.java", "ArrivalsTest.java"],
+        "org.balaur.platform.ArrivalsTest",
+    );
+}

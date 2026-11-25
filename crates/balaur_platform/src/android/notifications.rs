@@ -8,15 +8,12 @@
 //! process arrives too, as an answer to request 0.
 
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Sender;
+use std::sync::atomic::AtomicBool;
 
 use jni::objects::{JClass, JObject, JValue};
 use jni::refs::Global;
 use jni::sys::jlong;
 use jni::{Env, jni_sig, jni_str};
-
-use crate::PlatformEvent;
 
 const CLASS: &str = "org.balaur.platform.Notifications";
 
@@ -99,28 +96,9 @@ pub(crate) fn cancel(id: &str) {
     }
 }
 
-/// Listen once the activity is there, then move what arrived onto the channel.
-pub(crate) fn pump(report: &Sender<PlatformEvent>) {
-    if !LISTENING.load(Ordering::Acquire) && listen().is_ok() {
-        LISTENING.store(true, Ordering::Release);
-    }
-    super::listen_for_push(report);
-    super::pump(report);
-}
-
-pub(crate) use super::discard;
-
-fn listen() -> jni::errors::Result<()> {
-    super::with_activity(|env, activity| {
-        let shim = load(env, activity)?;
-        env.call_static_method(
-            shim,
-            jni_str!("listen"),
-            jni_sig!("(Landroid/app/Activity;)V"),
-            &[JValue::Object(activity)],
-        )?;
-        Ok(())
-    })
+/// Tell the shim to hand over what arrived, once the activity is there.
+pub(crate) fn listen() {
+    super::listen_once(&LISTENING, load);
 }
 
 fn load<'cache>(
