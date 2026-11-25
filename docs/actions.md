@@ -56,7 +56,7 @@ name.
           notary-issuer: ${{ secrets.ASC_ISSUER_ID }}
 ```
 
-Every file-shaped secret (`.p12`, `.p8`, `.mobileprovision`, `.jks`, `.pfx`) is
+Every file-shaped secret (`.p12`, `.p8`, `.mobileprovision`, `.provisionprofile`, `.jks`, `.pfx`) is
 stored **base64-encoded**, because a GitHub secret holds text:
 
 ```bash
@@ -68,7 +68,7 @@ base64 -w0 release.jks                  # Linux
 | --- | --- | --- |
 | `linux-x64`, `linux-arm64` | nothing | any |
 | `windows-x64`, `windows-arm64` | `windows-certificate` and its password, or an Azure Trusted Signing metadata JSON for a cloud HSM | any; a non-Windows runner signs through `osslsigncode` |
-| `macos-universal` | `macos-certificate`, `macos-identity`, and the three `notary-*` inputs to notarize | macOS |
+| `macos-universal` | `macos-certificate`, `macos-identity`, `macos-provisioning-profile` for a game with `[apple] capabilities` other than `in-app-purchase`, and the three `notary-*` inputs to notarize | macOS |
 | `ios` | `macos-certificate` holding the Apple Distribution `.p12`, `ios-identity`, `ios-provisioning-profile`; `ipa: true` for TestFlight | macOS |
 | `android` | `android-keystore`, `android-key` and the passwords; without them it is signed with Android's debug identity (`--sign debug`) and ships nowhere. `bundletool` as well for the AAB Play takes, which the SDK does not carry | any with the SDK and a JDK |
 | `web` | nothing; a browser trusts the origin | any |

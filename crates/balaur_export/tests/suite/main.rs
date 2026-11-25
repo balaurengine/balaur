@@ -5,7 +5,9 @@
 //! its own process.
 
 mod android;
+mod apple;
 mod icons;
+mod mac;
 mod pack_size;
 mod runtime;
 mod steam;

@@ -55,6 +55,12 @@ inputs:
     description: The App Store Connect issuer id.
     required: false
     default: ""
+  macos-provisioning-profile:
+    description: >-
+      Base64 of the Developer ID or Mac App Store `.provisionprofile` to
+      embed, which a signed Mac build with `[apple] capabilities` needs.
+    required: false
+    default: ""
   ios-identity:
     description: >-
       The iOS signing identity, e.g. "Apple Distribution: Studio".
@@ -118,6 +124,7 @@ runs:
         MACOS_CERTIFICATE_PASSWORD: ${{ inputs.macos-certificate-password }}
         NOTARY_KEY: ${{ inputs.notary-key }}
         IOS_PROFILE: ${{ inputs.ios-provisioning-profile }}
+        MACOS_PROFILE: ${{ inputs.macos-provisioning-profile }}
         ANDROID_KEYSTORE: ${{ inputs.android-keystore }}
         WINDOWS_CERTIFICATE: ${{ inputs.windows-certificate }}
       run: |
@@ -129,6 +136,7 @@ runs:
         write() { [ -n "$2" ] && printf '%s' "$2" | base64 -d >"$secrets/$1" && echo "$1"; }
         write notary.p8 "$NOTARY_KEY" || true
         write game.mobileprovision "$IOS_PROFILE" || true
+        write game.provisionprofile "$MACOS_PROFILE" || true
         write release.jks "$ANDROID_KEYSTORE" || true
         write certificate.pfx "$WINDOWS_CERTIFICATE" || true
         if [ -n "$MACOS_CERTIFICATE" ] && [ "$RUNNER_OS" = macOS ]; then
@@ -177,6 +185,8 @@ runs:
               flags+=(--bundle app)
               [ -n "$MACOS_IDENTITY" ] && flags+=(--sign "$MACOS_IDENTITY")
               [ "$NOTARIZE" = true ] && flags+=(--notarize)
+              [ -f "$SECRETS/game.provisionprofile" ] &&
+                flags+=(--provisioning-profile "$SECRETS/game.provisionprofile")
               ;;
             ios)
               [ -n "$IOS_IDENTITY" ] && flags+=(--sign "$IOS_IDENTITY")

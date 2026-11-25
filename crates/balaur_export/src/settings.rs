@@ -87,9 +87,10 @@ min_macos = { type = "string", default = "12.0", order = 7, help = "LSMinimumSys
 category = { type = "string", default = "", order = 8, help = "LSApplicationCategoryType, macOS only." }
 capabilities = { type = "flags", default = [], options = ["sign-in-with-apple", "game-center", "icloud-kv", "in-app-purchase", "push-notifications"], order = 9, help = "What the bundle declares it uses. Each writes its own entitlement and its own minimum OS. push-notifications writes aps-environment: development for a build signed by a development identity or none, production for a distribution one." }
 macos_identity = { type = "string", default = "", order = 10, help = "Developer ID Application: … for a download, Apple Distribution: … for the Mac App Store. The password behind it is read from the environment, never from here." }
-notarize = { type = "bool", default = false, order = 11, help = "Submit to Apple's notary service after signing, and staple the ticket." }
-ios_identity = { type = "string", default = "", order = 12, help = "The identity an iOS build is signed with." }
-ios_provisioning_profile = { type = "string", default = "", order = 13, help = "A project-relative .mobileprovision, copied into the bundle." }
+macos_provisioning_profile = { type = "string", default = "", order = 11, help = "A project-relative .provisionprofile, the Developer ID or Mac App Store profile macos_identity goes with, embedded as Contents/embedded.provisionprofile. A signed Mac build needs one for sign-in-with-apple, game-center, icloud-kv or push-notifications; a capability the profile does not grant (a Developer ID profile has no Sign in with Apple) is left out of the Mac build, which answers unsupported for it." }
+notarize = { type = "bool", default = false, order = 12, help = "Submit to Apple's notary service after signing, and staple the ticket." }
+ios_identity = { type = "string", default = "", order = 13, help = "The identity an iOS build is signed with." }
+ios_provisioning_profile = { type = "string", default = "", order = 14, help = "A project-relative .mobileprovision, copied into the bundle. The export refuses one that does not grant what the capabilities write." }
 "#,
         ),
     );

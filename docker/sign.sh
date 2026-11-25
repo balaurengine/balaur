@@ -185,12 +185,51 @@ case "$SIGN_TARGET" in
           # before the bundle itself. The entitlements the export wrote beside
           # it go into the signature, and not into what ships.
           entitlements="$(find /work/zip -mindepth 1 -maxdepth 1 -name '*.entitlements' -type f | head -1)"
+          # What only a provisioning profile grants (Sign in with Apple, push,
+          # Game Center, iCloud) needs the profile inside the bundle, or macOS
+          # kills the game at launch. The profile is also what says which APNs
+          # a build talks to, so its aps-environment replaces the export's.
+          profile=""
+          if [ -s /creds/macos_provisioning_profile ]; then
+            cp /creds/macos_provisioning_profile "${app}/Contents/embedded.provisionprofile"
+            openssl smime -inform der -verify -noverify -in /creds/macos_provisioning_profile \
+              >/work/profile.plist 2>/dev/null || fail "could not read the provisioning profile"
+            profile=/work/profile.plist
+          fi
           if [ -n "$entitlements" ]; then
+            python3 -I - "$entitlements" "$profile" <<'PY' || exit 1
+import plistlib, sys
+path, profile = sys.argv[1], sys.argv[2]
+with open(path, "rb") as f:
+    claimed = plistlib.load(f)
+restricted = [k for k in claimed if k.startswith("com.apple.developer.") or k == "aps-environment"]
+if restricted and not profile:
+    sys.exit("error: the bundle claims " + ", ".join(restricted) + ", which only a provisioning "
+             "profile grants: add macos_provisioning_profile, the Developer ID profile made for "
+             "this bundle id")
+if profile:
+    with open(profile, "rb") as f:
+        granted = plistlib.load(f).get("Entitlements", {})
+    # A Developer ID profile grants less than its App ID has (Sign in with
+    # Apple is App Store only): what it lacks is left out, as the export does.
+    lacking = [k for k in restricted if k not in granted]
+    if lacking:
+        print("==> the provisioning profile does not grant " + ", ".join(lacking)
+              + ": left out, and the game answers unsupported for it", file=sys.stderr)
+    for key in lacking:
+        del claimed[key]
+    for key in [k for k in restricted if k in granted]:
+        if key.endswith("aps-environment") and isinstance(granted[key], str):
+            claimed[key] = granted[key]
+    with open(path, "wb") as f:
+        plistlib.dump(claimed, f)
+PY
             set -- "$@" --entitlements-xml-file "$entitlements"
           fi
           log "==> sign $(basename "$app") for macOS"
           rcodesign "$@" "$app" || fail "rcodesign failed"
           [ -z "$entitlements" ] || rm -f "$entitlements"
+          rm -f /work/profile.plist
         else
           find /work/zip -type f | sort | while IFS= read -r file; do
             macho "$file" || continue

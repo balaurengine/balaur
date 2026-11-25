@@ -1052,6 +1052,7 @@ dependencies = [
  "imagequant",
  "libm",
  "mkwebfont_hb-subset",
+ "roxmltree",
  "rubato",
  "serde",
  "serde_json",

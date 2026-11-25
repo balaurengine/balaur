@@ -9,10 +9,16 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::android::AndroidConfig;
-use crate::apple::{AppleConfig, Platform};
+use crate::apple::{AppleConfig, Build, Platform};
 use crate::icon::Icons;
+use crate::profile::Profile;
 use crate::roots_for_message;
 use crate::vocabulary::words;
+
+/// Where a Mac bundle carries its provisioning profile, under `Contents`.
+pub(crate) const EMBEDDED_MAC_PROFILE: &str = "embedded.provisionprofile";
+/// Where an iOS bundle carries its own, at its top.
+pub(crate) const EMBEDDED_IOS_PROFILE: &str = "embedded.mobileprovision";
 
 /// A platform whose game is a directory the OS launches, not a file it runs.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -152,6 +158,9 @@ pub(crate) fn export_bundle(
     };
     if kind == Bundle::Ios {
         apple.check(Platform::Ios)?;
+        if let Some(floor) = template_floor(&runtime.join("Info.plist")) {
+            apple.check_floor(Platform::Ios, floor)?;
+        }
     }
     let output = output.unwrap_or_else(|| match kind {
         Bundle::Ios => PathBuf::from(format!("{name}.app")),
@@ -254,8 +263,20 @@ pub(crate) fn export_bundle(
 /// about to replace: the executable file keeps the runtime's name, so the
 /// new plist has to name the same one.
 pub(crate) fn runtime_executable(plist: &Path) -> Option<String> {
+    plist_string(plist, "CFBundleExecutable")
+}
+
+/// The OS the template was built for, from its own plist's
+/// `MinimumOSVersion`, which `package_runtime.sh` writes from the target it
+/// builds with.
+fn template_floor(plist: &Path) -> Option<(u32, u32)> {
+    crate::apple::version_of(&plist_string(plist, "MinimumOSVersion")?)
+}
+
+/// The string under `key` in a template's flat plist.
+fn plist_string(plist: &Path, key: &str) -> Option<String> {
     let text = std::fs::read_to_string(plist).ok()?;
-    let after = text.split("<key>CFBundleExecutable</key>").nth(1)?;
+    let after = text.split(&format!("<key>{key}</key>")).nth(1)?;
     let open = after.find("<string>")? + "<string>".len();
     let close = after.find("</string>")?;
     Some(after[open..close].to_string())
@@ -310,9 +331,32 @@ pub(crate) fn export_macos_app(
     icons: Option<&Icons>,
     native: Option<&crate::native::Request>,
     steam: &crate::steam::Steam,
+    profile: Option<&Path>,
 ) -> Result<PathBuf> {
     let icons = crate::icon_or_mark(icons, words::native::MACOS)?;
     apple.check(Platform::Macos)?;
+    let bytes =
+        std::fs::read(runtime).with_context(|| format!("reading runtime {}", runtime.display()))?;
+    // A flat runtime has no plist to say what it was built for; its binary does.
+    if let Some(floor) = crate::macho::minimum_os(&bytes) {
+        apple.check_floor(Platform::Macos, floor)?;
+    }
+    // Read before anything is written: a signature with no profile fails the
+    // export rather than the first launch, and what a profile does not grant
+    // is left out of what the bundle claims.
+    let granted = profile.map(Profile::read).transpose()?;
+    let kept;
+    let apple = match (&granted, profile) {
+        (Some(granted), Some(path)) => {
+            kept = apple.granted_by(Platform::Macos, granted, path);
+            &kept
+        }
+        _ if sign.is_some() => {
+            apple.needs_profile(Platform::Macos)?;
+            apple
+        }
+        _ => apple,
+    };
     let app = output.unwrap_or_else(|| PathBuf::from(format!("{name}.app")));
     if let Some(dir) = app.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)?;
@@ -327,8 +371,6 @@ pub(crate) fn export_macos_app(
     )?;
     std::fs::create_dir_all(&macos_dir)?;
     std::fs::create_dir_all(&resources)?;
-    let bytes =
-        std::fs::read(runtime).with_context(|| format!("reading runtime {}", runtime.display()))?;
     let executable = macos_dir.join(name);
     balaur::standalone::write_executable(&executable, &bytes, runtime)?;
     // Before codesign, which signs nested code first and seals it into the bundle.
@@ -357,15 +399,41 @@ pub(crate) fn export_macos_app(
         app.join("Contents").join("Info.plist"),
         apple.info_plist(Platform::Macos, name, &icon_keys)?,
     )?;
-    let entitlements = apple.write_entitlements(
-        &app,
-        name,
-        Platform::Macos,
-        crate::apple::Build::of(sign),
-        !scripts_native,
-        steam.build,
-    )?;
-    crate::sign::codesign(&app, sign, entitlements.as_deref(), true)?;
+    // Inside the bundle before codesign seals it, where macOS looks for it.
+    if let Some(path) = profile {
+        let embedded = app.join("Contents").join(EMBEDDED_MAC_PROFILE);
+        std::fs::copy(path, &embedded)
+            .with_context(|| format!("copying the provisioning profile {}", path.display()))?;
+    }
+    let build = granted
+        .as_ref()
+        .and_then(|granted| Build::granted(granted, Platform::Macos))
+        .unwrap_or_else(|| Build::of(sign));
+    let jit = !scripts_native;
+    // Beside the bundle whatever signs it here: a signer that applies the
+    // identity later reads the capabilities from it.
+    let entitlements =
+        apple.write_entitlements(&app, name, Platform::Macos, build, jit, steam.build)?;
+    let restricted = apple.restricted(Platform::Macos);
+    let ad_hoc = sign.is_none() && !restricted.is_empty() && cfg!(target_os = "macos");
+    if ad_hoc {
+        let names: Vec<&str> = restricted.iter().map(|(name, _)| *name).collect();
+        tracing::warn!(
+            "an ad-hoc signature leaves out what only a provisioning profile grants: {} \
+             answer as unavailable until the bundle is signed with an identity and its profile",
+            names.join(", ")
+        );
+    }
+    let signed_with = if ad_hoc {
+        AppleConfig::write_ad_hoc_entitlements(&app, name, jit, steam.build)?
+    } else {
+        entitlements
+    };
+    let signed = crate::sign::codesign(&app, sign, signed_with.as_deref(), true);
+    if ad_hoc && let Some(path) = &signed_with {
+        let _ = std::fs::remove_file(path);
+    }
+    signed?;
     if sign.is_some() {
         crate::sign::verify(&app)?;
     }

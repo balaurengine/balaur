@@ -1559,8 +1559,30 @@ things are shared.
 - **Capabilities are export-side.** `[apple]` in `project.toml` names identifier,
   team, deployment target and capabilities; `balaur export` writes the
   `Info.plist` and `.entitlements` and refuses what the minimum OS cannot
-  satisfy. Frameworks link into Apple templates unconditionally, since a prebuilt
-  template cannot add one later.
+  satisfy, and a `min_ios` or `min_macos` under the template's own: the iOS
+  template's `MinimumOSVersion`, the macOS binary's `LC_BUILD_VERSION`, since
+  a flat runtime has no plist. Frameworks link into Apple templates
+  unconditionally, since a prebuilt template cannot add one later.
+- **What only a profile grants is checked against one.** Every capability but
+  `in-app-purchase` writes an entitlement Apple grants through a
+  provisioning profile alone, so a bundle embeds the one it is signed
+  against (`embedded.mobileprovision` on iOS,
+  `Contents/embedded.provisionprofile` on a Mac, from `--provisioning-profile`
+  or `[apple] ios_provisioning_profile` / `macos_provisioning_profile`). The
+  export reads the profile's plist out of its CMS envelope, without checking
+  Apple's signature, which the device does; its `aps-environment` is the one
+  the bundle claims. iOS refuses a profile that does not grant an
+  entitlement the capabilities write, naming the capability. A Mac leaves
+  such a capability out with a warning instead: a Developer ID profile
+  grants less than its App ID (no Sign in with Apple), and the game runs
+  without it, `apple.sign_in` answering `unsupported` there from the
+  signature's own entitlements, so a game falls back to Apple's web page. A
+  Mac build signed with an identity and no profile is refused; an ad-hoc
+  one, the dev build, signs with the hardened runtime's exceptions alone,
+  since macOS kills a process claiming an entitlement no profile grants, and
+  keeps the full `.entitlements` beside the bundle for a signer.
+  `docker/sign.sh` embeds a mounted `macos_provisioning_profile` and leaves
+  out what it lacks the same way.
 
 ## Timings
 

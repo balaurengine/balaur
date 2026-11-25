@@ -22,8 +22,10 @@ mod config;
 mod extensions;
 mod fits;
 mod icon;
+mod macho;
 mod native;
 pub mod preview;
+mod profile;
 pub mod recode;
 pub mod settings;
 mod sign;
@@ -69,7 +71,9 @@ pub struct Options<'a> {
     /// Submit the signed macOS bundle to Apple's notary service and staple
     /// the ticket, so a stranger's Mac opens it without a dialog.
     pub notarize: bool,
-    /// The `.mobileprovision` an iOS build is signed against.
+    /// The provisioning profile an Apple build is signed against: a
+    /// `.mobileprovision` for iOS, a `.provisionprofile` for a Mac. Overrides
+    /// `[apple] ios_provisioning_profile` and `macos_provisioning_profile`.
     pub provisioning_profile: Option<PathBuf>,
     /// Wrap the iOS `.app` as the `.ipa` App Store Connect takes.
     pub ipa: bool,
@@ -500,6 +504,11 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         let identity = identity(opts.sign.as_deref(), &apple.macos_identity);
         let bundle = format!("{name}.app");
         let output = declared_output(opts, &config, words::targets::MACOS_UNIVERSAL, &bundle);
+        let profile = apple.profile_path(
+            apple::Platform::Macos,
+            &opts.path,
+            opts.provisioning_profile.as_deref(),
+        );
         let app = export_macos_app(
             &runtime,
             &pack.encode(),
@@ -511,6 +520,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             icons.as_ref(),
             native.as_ref(),
             &steam,
+            profile.as_deref(),
         )?;
         if opts.notarize || apple.notarize {
             sign::notarize(&app)?;
@@ -696,27 +706,38 @@ fn finish_bundle(
         Bundle::Web => Ok(()),
         Bundle::Ios => {
             let identity = identity(opts.sign.as_deref(), &apple.ios_identity);
-            let profile = opts
-                .provisioning_profile
-                .clone()
-                .or_else(|| ExportConfig::beside(&opts.path, &apple.ios_provisioning_profile));
-            if let Some(profile) = &profile {
-                let embedded = written.join("embedded.mobileprovision");
-                std::fs::copy(profile, &embedded).with_context(|| {
-                    format!("copying the provisioning profile {}", profile.display())
-                })?;
-            }
+            let profile = apple.profile_path(
+                apple::Platform::Ios,
+                &opts.path,
+                opts.provisioning_profile.as_deref(),
+            );
+            let granted = match &profile {
+                Some(path) => {
+                    let granted = profile::Profile::read(path)?;
+                    apple.check_profile(apple::Platform::Ios, &granted, path)?;
+                    let embedded = written.join(bundle::EMBEDDED_IOS_PROFILE);
+                    std::fs::copy(path, &embedded).with_context(|| {
+                        format!("copying the provisioning profile {}", path.display())
+                    })?;
+                    Some(granted)
+                }
+                None => None,
+            };
             if identity.is_some() {
                 anyhow::ensure!(
                     profile.is_some(),
                     "signing an iOS build needs a provisioning profile: pass \
                      --provisioning-profile, or name one in [apple] ios_provisioning_profile"
                 );
+                let build = granted
+                    .as_ref()
+                    .and_then(|granted| apple::Build::granted(granted, apple::Platform::Ios))
+                    .unwrap_or_else(|| apple::Build::of(identity));
                 let entitlements = apple.write_entitlements(
                     written,
                     name,
                     apple::Platform::Ios,
-                    apple::Build::of(identity),
+                    build,
                     false,
                     false,
                 )?;

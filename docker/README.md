@@ -187,7 +187,7 @@ The credential files, by target:
 | `android` | `android_keystore`, `android_store_password`, `android_key_alias`, `android_key_password` |
 | `windows-*` | `windows_certificate`, `windows_password`, optionally `windows_timestamp_url` |
 | `windows-*`, Azure Trusted Signing | `windows_trusted_endpoint`, `windows_trusted_account`, `windows_trusted_profile`, `windows_trusted_tenant_id`, `windows_trusted_client_id`, `windows_trusted_client_secret` (used whenever the secret is mounted) |
-| `macos-universal` | `macos_certificate`, `macos_password` |
+| `macos-universal` | `macos_certificate`, `macos_password`, and `macos_provisioning_profile` when the bundle claims an entitlement only a profile grants |
 | `ios` | `ios_certificate`, `ios_password`, `ios_provisioning_profile` |
 | notarisation | `apple_issuer_id`, `apple_key_id`, `apple_private_key` |
 
@@ -200,12 +200,16 @@ password.
 | `android` | keystore, its two passwords, key alias; an `.apk` through `apksigner`, an `.aab` through `jarsigner` | no |
 | `windows-x64`, `windows-arm64` | `.pfx`/`.p12`, its password, optionally a timestamp URL | only with a timestamp URL |
 | `windows-x64`, `windows-arm64`, Azure | a Trusted Signing account, profile and endpoint, and an app registration's tenant, client id and secret; `jsign` signs through Azure | yes — Entra ID, the signing API and Microsoft's timestamp authority |
-| `macos-universal` | Developer ID `.p12` and its password | yes — rcodesign timestamps through Apple |
+| `macos-universal` | Developer ID `.p12` and its password; the Developer ID `.provisionprofile` for a game with `[apple] capabilities` other than `in-app-purchase` | yes — rcodesign timestamps through Apple |
 | `ios` | Apple Distribution `.p12`, its password, a `.mobileprovision` | yes, same |
 
 A desktop `game.zip` is signed inside: every `.exe` and `.dll` for Windows,
 the `.app` for macOS (its dylib with it, and the `.entitlements` beside it
-applied, then left out), and the zip is made again. A zip with no `.app` has
+applied, then left out), and the zip is made again. A mounted
+`macos_provisioning_profile` goes in as `Contents/embedded.provisionprofile`;
+the signer refuses an entitlement only a profile grants when none is mounted,
+leaves out one the profile lacks (a Developer ID profile has no Sign in with
+Apple), and takes `aps-environment` from the profile. A zip with no `.app` has
 each Mach-O signed where it lies.
 
 Egress buys an RFC 3161 timestamp and nothing else. Without one a signature

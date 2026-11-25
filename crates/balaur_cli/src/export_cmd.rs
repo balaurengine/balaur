@@ -54,7 +54,10 @@ pub(crate) struct ExportArgs {
     /// _ISSUER_ID.
     #[arg(long)]
     pub(crate) notarize: bool,
-    /// The `.mobileprovision` an iOS build is signed against.
+    /// The provisioning profile an Apple build is signed against: a
+    /// `.mobileprovision` for iOS, a `.provisionprofile` for a Mac, whose
+    /// capabilities need one to sign. Overrides `[apple]
+    /// ios_provisioning_profile` and `macos_provisioning_profile`.
     #[arg(long, value_name = "FILE")]
     pub(crate) provisioning_profile: Option<PathBuf>,
     /// Print what the export would weigh and write nothing. Every script

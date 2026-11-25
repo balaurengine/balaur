@@ -25,6 +25,8 @@ serde_json.workspace = true
 toml.workspace = true
 tracing.workspace = true
 zip = { version = "9", default-features = false, features = ["deflate"] }
+# A provisioning profile's plist, read for the entitlements it grants.
+roxmltree = "0.21"
 # A tool found on PATH as the shell finds it, `.exe` and PATHEXT included.
 which = "8"
 # The user's home and local data folders, where the Android SDK and its debug

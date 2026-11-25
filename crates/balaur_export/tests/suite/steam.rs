@@ -136,11 +136,7 @@ fn a_mac_app_carries_the_library_in_contents_macos_and_the_overlay_entitlements(
     // real Mach-O files; elsewhere the bundle stays unsigned.
     let sdk = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../balaur_steam/sdk/redistributable_bin/osx/libsteam_api.dylib");
-    if cfg!(target_os = "macos") {
-        std::fs::copy("/usr/bin/true", &path).unwrap();
-    } else {
-        std::fs::write(&path, [0xca, 0xfe, 0xba, 0xbe]).unwrap();
-    }
+    crate::mac::runtime(&path);
     std::fs::copy(
         &sdk,
         balaur_export::steam_api_beside(&path, "libsteam_api.dylib"),

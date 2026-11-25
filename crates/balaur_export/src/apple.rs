@@ -12,6 +12,21 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
+use crate::profile::Profile;
+
+/// The entitlements a capability writes. Each is one Apple grants only
+/// through a provisioning profile, so each is also what a profile is checked
+/// for.
+const APPLESIGNIN: &str = "com.apple.developer.applesignin";
+const GAME_CENTER: &str = "com.apple.developer.game-center";
+const ICLOUD_KV: &str = "com.apple.developer.ubiquity-kvstore-identifier";
+/// Push's, which iOS spells without the prefix a Mac's carries.
+const APS_IOS: &str = "aps-environment";
+const APS_MACOS: &str = "com.apple.developer.aps-environment";
+/// The values `aps-environment` takes.
+const APS_DEVELOPMENT: &str = "development";
+const APS_PRODUCTION: &str = "production";
+
 /// Which bundle a plist is being written for. The keys differ, and so do the
 /// version numbers a capability needs.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -51,6 +66,19 @@ impl Capability {
             Self::IcloudKv => "icloud-kv",
             Self::InAppPurchase => "in-app-purchase",
             Self::PushNotifications => "push-notifications",
+        }
+    }
+
+    /// The entitlement this capability writes on `platform`, which only a
+    /// provisioning profile grants; `None` for one that writes none.
+    const fn entitlement(self, platform: Platform) -> Option<&'static str> {
+        match (self, platform) {
+            (Self::Applesignin, _) => Some(APPLESIGNIN),
+            (Self::GameCenter, _) => Some(GAME_CENTER),
+            (Self::IcloudKv, _) => Some(ICLOUD_KV),
+            (Self::InAppPurchase, _) => None,
+            (Self::PushNotifications, Platform::Ios) => Some(APS_IOS),
+            (Self::PushNotifications, Platform::Macos) => Some(APS_MACOS),
         }
     }
 
@@ -104,11 +132,23 @@ impl Build {
         }
     }
 
+    /// What a provisioning profile says, which is what the bundle must
+    /// claim: its `aps-environment` is the one APNs and the OS both check.
+    /// `None` for a profile that grants no push.
+    pub(crate) fn granted(profile: &Profile, platform: Platform) -> Option<Self> {
+        let key = Capability::PushNotifications.entitlement(platform)?;
+        match profile.value(key)? {
+            APS_DEVELOPMENT => Some(Self::Development),
+            APS_PRODUCTION => Some(Self::Distribution),
+            _ => None,
+        }
+    }
+
     /// The value `aps-environment` takes.
     const fn aps(self) -> &'static str {
         match self {
-            Self::Development => "development",
-            Self::Distribution => "production",
+            Self::Development => APS_DEVELOPMENT,
+            Self::Distribution => APS_PRODUCTION,
         }
     }
 }
@@ -164,6 +204,11 @@ pub(crate) struct AppleConfig {
     pub macos_identity: String,
     /// Submit to Apple's notary service after signing, and staple the ticket.
     pub notarize: bool,
+    /// A project-relative `.provisionprofile`, embedded as
+    /// `Contents/embedded.provisionprofile`: the Developer ID or Mac App
+    /// Store profile `macos_identity` goes with. A signed Mac build whose
+    /// capabilities write an entitlement needs one.
+    pub macos_provisioning_profile: String,
     pub ios_identity: String,
     /// A project-relative `.mobileprovision`, copied into the bundle.
     pub ios_provisioning_profile: String,
@@ -199,6 +244,7 @@ impl Default for AppleConfig {
             capabilities: Vec::new(),
             macos_identity: String::new(),
             notarize: false,
+            macos_provisioning_profile: String::new(),
             ios_identity: String::new(),
             ios_provisioning_profile: String::new(),
             plist: BTreeMap::new(),
@@ -273,15 +319,7 @@ impl AppleConfig {
             return Ok(());
         }
         let declared = self.deployment(platform);
-        let version = parse_version(declared).with_context(|| {
-            format!(
-                "[apple] {} = \"{declared}\" is not a version",
-                match platform {
-                    Platform::Ios => "min_ios",
-                    Platform::Macos => "min_macos",
-                }
-            )
-        })?;
+        let version = self.declared_version(platform)?;
         for capability in &self.capabilities {
             let minimum = capability.minimum(platform);
             if version < minimum {
@@ -309,6 +347,164 @@ impl AppleConfig {
         }
     }
 
+    /// `min_ios` or `min_macos`, parsed.
+    fn declared_version(&self, platform: Platform) -> Result<(u32, u32)> {
+        let declared = self.deployment(platform);
+        parse_version(declared).with_context(|| {
+            format!(
+                "[apple] {} = \"{declared}\" is not a version",
+                deployment_key(platform)
+            )
+        })
+    }
+
+    /// Refuse a deployment target under `floor`, the OS the template was
+    /// built for: a plist claiming less lets the game install where its
+    /// binary does not start. `min_ios` is checked against the template's
+    /// own `MinimumOSVersion`, `min_macos` against its binary's.
+    pub(crate) fn check_floor(&self, platform: Platform, floor: (u32, u32)) -> Result<()> {
+        let version = self.declared_version(platform)?;
+        if version < floor {
+            bail!(
+                "[apple] {} = \"{}\" is under {}.{}, the {} this template was built for: \
+                 declare {}.{} or later",
+                deployment_key(platform),
+                self.deployment(platform),
+                floor.0,
+                floor.1,
+                match platform {
+                    Platform::Ios => "iOS",
+                    Platform::Macos => "macOS",
+                },
+                floor.0,
+                floor.1,
+            );
+        }
+        Ok(())
+    }
+
+    /// The provisioning profile `platform`'s build is signed against: the
+    /// one `--provisioning-profile` names, else the project's.
+    pub(crate) fn profile_path(
+        &self,
+        platform: Platform,
+        project: &Path,
+        flag: Option<&Path>,
+    ) -> Option<PathBuf> {
+        let declared = match platform {
+            Platform::Ios => &self.ios_provisioning_profile,
+            Platform::Macos => &self.macos_provisioning_profile,
+        };
+        flag.map(Path::to_path_buf)
+            .or_else(|| crate::config::ExportConfig::beside(project, declared))
+    }
+
+    /// Each capability on `platform` whose entitlement only a provisioning
+    /// profile grants, with that entitlement.
+    pub(crate) fn restricted(&self, platform: Platform) -> Vec<(&'static str, &'static str)> {
+        self.capabilities
+            .iter()
+            .filter_map(|capability| Some((capability.name(), capability.entitlement(platform)?)))
+            .collect()
+    }
+
+    /// Refuse a profile that lacks an entitlement this game's capabilities
+    /// write, naming the capability: a bundle claiming more than its profile
+    /// grants installs nowhere and launches nowhere. iOS holds to this; a Mac
+    /// leaves out what its profile lacks instead ([`Self::granted_by`]).
+    pub(crate) fn check_profile(
+        &self,
+        platform: Platform,
+        profile: &Profile,
+        path: &Path,
+    ) -> Result<()> {
+        let lacking: Vec<String> = self
+            .restricted(platform)
+            .into_iter()
+            .filter(|(_, entitlement)| !profile.grants(entitlement))
+            .map(|(capability, entitlement)| format!("{capability} ({entitlement})"))
+            .collect();
+        if lacking.is_empty() {
+            return Ok(());
+        }
+        bail!(
+            "the provisioning profile {} does not grant {}: add the capability to the App ID \
+             {} in the developer portal, then make the profile again and download it",
+            path.display(),
+            lacking.join(", "),
+            self.bundle_id,
+        )
+    }
+
+    /// What a Mac build signed against `profile` claims: the capabilities it
+    /// grants, each one it does not left out with a warning naming it. A
+    /// Developer ID profile grants less than its App ID has (Sign in with
+    /// Apple is App Store only), and a game that declares it for iOS still
+    /// runs on a Mac without it: the call answers `unsupported` there, read
+    /// off the signature, and the game falls back to Apple's web page.
+    pub(crate) fn granted_by(&self, platform: Platform, profile: &Profile, path: &Path) -> Self {
+        let lacking: Vec<Capability> = self
+            .capabilities
+            .iter()
+            .copied()
+            .filter(|capability| {
+                capability
+                    .entitlement(platform)
+                    .is_some_and(|entitlement| !profile.grants(entitlement))
+            })
+            .collect();
+        if lacking.is_empty() {
+            return self.clone();
+        }
+        let names: Vec<String> = lacking
+            .iter()
+            .filter_map(|capability| {
+                Some(format!(
+                    "{} ({})",
+                    capability.name(),
+                    capability.entitlement(platform)?
+                ))
+            })
+            .collect();
+        tracing::warn!(
+            "the provisioning profile {} does not grant {}: this build leaves it out, and the \
+             game answers unsupported for it here",
+            path.display(),
+            names.join(", ")
+        );
+        Self {
+            capabilities: self
+                .capabilities
+                .iter()
+                .copied()
+                .filter(|capability| !lacking.contains(capability))
+                .collect(),
+            ..self.clone()
+        }
+    }
+
+    /// Refuse to sign a Mac build whose capabilities write an entitlement
+    /// with no provisioning profile, naming each: macOS kills a process that
+    /// claims one no embedded profile grants.
+    pub(crate) fn needs_profile(&self, platform: Platform) -> Result<()> {
+        let restricted = self.restricted(platform);
+        if restricted.is_empty() {
+            return Ok(());
+        }
+        let names: Vec<&str> = restricted.iter().map(|(name, _)| *name).collect();
+        bail!(
+            "[apple] {} needs a provisioning profile to sign with on {}: pass \
+             --provisioning-profile, or name the profile made for {} in [apple] {}",
+            names.join(", "),
+            match platform {
+                Platform::Ios => "iOS",
+                Platform::Macos => "a Mac",
+            },
+            self.bundle_id,
+            profile_key(platform),
+        )
+    }
+
     /// The entitlements this game's capabilities need on `platform`, signed
     /// for `build`, the exception a
     /// signed Mac build running its scripts on wasmtime needs (`jit`), which
@@ -323,56 +519,52 @@ impl AppleConfig {
         jit: bool,
         steam: bool,
     ) -> Option<String> {
-        let mut body = String::new();
-        if jit {
-            body.push_str(
-                "  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>\n  <true/>\n",
-            );
-        }
-        if steam {
-            body.push_str(
-                "  <key>com.apple.security.cs.disable-library-validation</key>\n  <true/>\n  \
-                 <key>com.apple.security.cs.allow-dyld-environment-variables</key>\n  <true/>\n",
-            );
-        }
+        let mut body = exceptions(jit, steam);
         for capability in &self.capabilities {
-            match capability {
-                Capability::Applesignin => body.push_str(
-                    "  <key>com.apple.developer.applesignin</key>\n  \
-                     <array><string>Default</string></array>\n",
-                ),
-                Capability::GameCenter => {
-                    body.push_str("  <key>com.apple.developer.game-center</key>\n  <true/>\n");
-                }
-                Capability::IcloudKv => {
-                    let _ = write!(
-                        body,
-                        "  <key>com.apple.developer.ubiquity-kvstore-identifier</key>\n  \
-                         <string>{}.{}</string>\n",
-                        self.team_id, self.bundle_id
-                    );
-                }
+            let Some(key) = capability.entitlement(platform) else {
                 // In-app purchase needs no entitlement; it is a capability
                 // here so the deployment target is checked against StoreKit.
+                continue;
+            };
+            let _ = write!(body, "  <key>{key}</key>\n  ");
+            match capability {
+                Capability::Applesignin => body.push_str("<array><string>Default</string></array>"),
+                Capability::GameCenter => body.push_str("<true/>"),
+                Capability::IcloudKv => {
+                    let _ = write!(body, "<string>{}.{}</string>", self.team_id, self.bundle_id);
+                }
                 Capability::InAppPurchase => {}
                 Capability::PushNotifications => {
-                    let key = match platform {
-                        Platform::Ios => "aps-environment",
-                        Platform::Macos => "com.apple.developer.aps-environment",
-                    };
-                    let _ = write!(
-                        body,
-                        "  <key>{key}</key>\n  <string>{}</string>\n",
-                        build.aps()
-                    );
+                    let _ = write!(body, "<string>{}</string>", build.aps());
                 }
             }
+            body.push('\n');
         }
         // A game whose only capability writes no key needs no file.
         if body.is_empty() {
             return None;
         }
         Some(plist_document(&body))
+    }
+
+    /// What an ad-hoc signature may carry: the hardened runtime's exceptions
+    /// alone. A capability's entitlement is granted only by a profile, which
+    /// names the certificates it signs for, and an ad-hoc signature has none;
+    /// macOS kills a process claiming one at launch.
+    pub(crate) fn write_ad_hoc_entitlements(
+        beside: &Path,
+        name: &str,
+        jit: bool,
+        steam: bool,
+    ) -> Result<Option<PathBuf>> {
+        let body = exceptions(jit, steam);
+        if body.is_empty() {
+            return Ok(None);
+        }
+        let path = beside.with_file_name(format!("{name}.ad-hoc.entitlements"));
+        std::fs::write(&path, plist_document(&body))
+            .with_context(|| format!("writing {}", path.display()))?;
+        Ok(Some(path))
     }
 
     /// The `Info.plist` for a bundle, written whole rather than patched: the
@@ -467,6 +659,45 @@ impl AppleConfig {
     }
 }
 
+/// The hardened runtime's exceptions a Mac build asks for: `jit` for scripts
+/// on wasmtime, `steam` for the overlay Valve injects.
+fn exceptions(jit: bool, steam: bool) -> String {
+    let mut body = String::new();
+    if jit {
+        body.push_str(
+            "  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>\n  <true/>\n",
+        );
+    }
+    if steam {
+        body.push_str(
+            "  <key>com.apple.security.cs.disable-library-validation</key>\n  <true/>\n  \
+             <key>com.apple.security.cs.allow-dyld-environment-variables</key>\n  <true/>\n",
+        );
+    }
+    body
+}
+
+/// The `[apple]` key a platform's provisioning profile is named under.
+const fn profile_key(platform: Platform) -> &'static str {
+    match platform {
+        Platform::Ios => "ios_provisioning_profile",
+        Platform::Macos => "macos_provisioning_profile",
+    }
+}
+
+/// The `[apple]` key a platform's deployment target is declared under.
+const fn deployment_key(platform: Platform) -> &'static str {
+    match platform {
+        Platform::Ios => "min_ios",
+        Platform::Macos => "min_macos",
+    }
+}
+
+/// A plist's version string, as `check_floor` takes it.
+pub(crate) fn version_of(text: &str) -> Option<(u32, u32)> {
+    parse_version(text).ok()
+}
+
 /// `1`, `13.5` and `15.1.2` all parse; the third component never decides
 /// anything here, so it is dropped.
 fn parse_version(text: &str) -> Result<(u32, u32)> {
@@ -550,6 +781,8 @@ fn escape(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{AppleConfig, Build, Capability, Platform};
+    use crate::profile::Profile;
+    use crate::profile::tests::profile_granting;
 
     fn config(table: &str) -> AppleConfig {
         #[derive(serde::Deserialize)]
@@ -881,5 +1114,133 @@ mod tests {
             .entitlements(Platform::Ios, Build::Distribution, false, false)
             .unwrap();
         assert!(!text.contains("aps-environment"), "{text}");
+    }
+
+    // Each capability with an entitlement is one a profile must grant; in-app
+    // purchase writes none and needs nothing of a profile.
+    #[test]
+    fn what_a_profile_must_grant_is_what_the_capabilities_write() {
+        let asked = config(
+            "[apple]\nbundle_id = \"com.studio.game\"\n\
+             capabilities = [\"in-app-purchase\", \"game-center\", \"push-notifications\"]\n",
+        );
+        assert_eq!(
+            asked.restricted(Platform::Macos),
+            [
+                ("game-center", "com.apple.developer.game-center"),
+                ("push-notifications", "com.apple.developer.aps-environment"),
+            ]
+        );
+        assert_eq!(
+            asked.restricted(Platform::Ios)[1],
+            ("push-notifications", "aps-environment")
+        );
+        let err = asked
+            .needs_profile(Platform::Macos)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("game-center, push-notifications")
+                && err.contains("macos_provisioning_profile"),
+            "{err}"
+        );
+        let buying = config(
+            "[apple]\nbundle_id = \"com.studio.game\"\ncapabilities = [\"in-app-purchase\"]\n",
+        );
+        buying
+            .needs_profile(Platform::Macos)
+            .expect("StoreKit needs no profile");
+    }
+
+    #[test]
+    fn a_profile_is_checked_for_every_entitlement_and_names_the_ones_it_lacks() {
+        let config = config(
+            "[apple]\nbundle_id = \"com.studio.game\"\n\
+             capabilities = [\"sign-in-with-apple\", \"push-notifications\"]\n",
+        );
+        let path = std::path::Path::new("signing/game.provisionprofile");
+        let partial = Profile::parse(&profile_granting(
+            "    <key>com.apple.developer.applesignin</key><array><string>Default</string></array>\n",
+        ))
+        .unwrap();
+        let err = config
+            .check_profile(Platform::Macos, &partial, path)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("push-notifications (com.apple.developer.aps-environment)")
+                && err.contains("signing/game.provisionprofile")
+                && !err.contains("sign-in-with-apple"),
+            "{err}"
+        );
+        let whole = Profile::parse(&profile_granting(
+            "    <key>com.apple.developer.applesignin</key><array><string>Default</string></array>\n\
+             \x20   <key>com.apple.developer.aps-environment</key><string>development</string>\n",
+        ))
+        .unwrap();
+        config
+            .check_profile(Platform::Macos, &whole, path)
+            .expect("a profile granting both");
+        assert_eq!(
+            Build::granted(&whole, Platform::Macos),
+            Some(Build::Development)
+        );
+        assert_eq!(Build::granted(&whole, Platform::Ios), None);
+    }
+
+    // The template's floor is the one a plist may not go under, capability
+    // or none, as `[android] min_sdk` may not go under the template's.
+    #[test]
+    fn a_deployment_target_under_the_templates_is_refused() {
+        let low = config("[apple]\nbundle_id = \"com.studio.game\"\nmin_ios = \"14.0\"\n");
+        let err = low
+            .check_floor(Platform::Ios, (15, 0))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("min_ios = \"14.0\"") && err.contains("15.0"),
+            "{err}"
+        );
+        low.check_floor(Platform::Ios, (13, 0))
+            .expect("over a lower floor");
+        let mac = config("[apple]\nbundle_id = \"com.studio.game\"\nmin_macos = \"12.0\"\n");
+        mac.check_floor(Platform::Macos, (12, 0))
+            .expect("the floor itself");
+        let err = mac
+            .check_floor(Platform::Macos, (13, 1))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("min_macos") && err.contains("13.1"), "{err}");
+    }
+
+    // The Developer ID profile Apple makes for an App ID with Push, In-App
+    // Purchase and Sign in with Apple grants push alone: a Mac build keeps
+    // push and leaves Sign in with Apple out.
+    #[test]
+    fn a_mac_build_leaves_out_what_its_profile_does_not_grant() {
+        let declared = config(
+            "[apple]\nbundle_id = \"com.studio.game\"\n\
+             capabilities = [\"sign-in-with-apple\", \"in-app-purchase\", \"push-notifications\"]\n",
+        );
+        let developer_id = Profile::parse(&profile_granting(
+            "    <key>com.apple.developer.aps-environment</key><string>production</string>\n",
+        ))
+        .unwrap();
+        let path = std::path::Path::new("game.provisionprofile");
+        let kept = declared.granted_by(Platform::Macos, &developer_id, path);
+        assert_eq!(
+            kept.capabilities,
+            [Capability::InAppPurchase, Capability::PushNotifications]
+        );
+        let text = kept
+            .entitlements(Platform::Macos, Build::Distribution, false, false)
+            .unwrap();
+        assert!(!text.contains("applesignin"), "{text}");
+        assert!(
+            declared
+                .check_profile(Platform::Ios, &developer_id, path)
+                .is_err(),
+            "iOS stays strict"
+        );
     }
 }
