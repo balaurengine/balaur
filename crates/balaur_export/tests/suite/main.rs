@@ -4,6 +4,7 @@
 //! one binary per crate links it once, and nextest still gives each test
 //! its own process.
 
+mod android;
 mod icons;
 mod pack_size;
 mod runtime;

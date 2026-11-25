@@ -342,6 +342,26 @@ impl AndroidConfig {
         firebase::read(&path, self.identifier()?).map(Some)
     }
 
+    /// The project files this table names for the export alone to read,
+    /// which the game never does: their values reach the APK as resources.
+    fn consumed(&self) -> impl Iterator<Item = &str> {
+        [self.google_services.as_str()]
+            .into_iter()
+            .filter(|named| !named.is_empty())
+    }
+
+    /// `pack` without the files [`Self::consumed`] names: `google-services.json`
+    /// is JSON, which a pack otherwise ships as the game's data.
+    pub(crate) fn leave_out(&self, pack: &mut balaur::Pack) {
+        for named in self.consumed() {
+            let key = named.replace('\\', "/");
+            let key = key.trim_start_matches("./");
+            if pack.assets.remove(key).is_some() {
+                tracing::info!("[android] names {key}, which the export reads and the pack leaves out");
+            }
+        }
+    }
+
     /// The layout keeps the Google libraries `capabilities` needs, and the
     /// manifest declares what they declare.
     ///

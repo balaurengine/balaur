@@ -398,8 +398,15 @@ fn pieces(kind: Bundle, pack: &mut balaur::Pack, later: &[String]) -> (Vec<u8>, 
     (pack.encode(), tail.map(|tail| tail.encode()))
 }
 
-/// `pack` shrunk as `[export]` asks, logging what it weighs and what that saved.
-fn prepare(pack: &mut balaur::Pack, config: &ExportConfig, manifest: &toml::Table) -> Result<()> {
+/// `pack` shrunk as `[export]` asks, less the files `[android]` names for the
+/// export alone, logging what it weighs and what that saved.
+fn prepare(
+    pack: &mut balaur::Pack,
+    config: &ExportConfig,
+    manifest: &toml::Table,
+    android: &android::AndroidConfig,
+) -> Result<()> {
+    android.leave_out(pack);
     let summary = size::prepare_for(pack, config, manifest)?;
     tracing::info!("\n{}", balaur::packing::report_with(pack, &config.include));
     if summary.total_saved() > 0 {
@@ -439,7 +446,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let (title, icons) = presented(opts, &manifest)?;
     fold_variants(&mut pack, &variants);
     bake_tags(&mut pack, &config.tags)?;
-    prepare(&mut pack, &config, &manifest)?;
+    prepare(&mut pack, &config, &manifest, &android)?;
     if opts.dry_run {
         return Ok(());
     }

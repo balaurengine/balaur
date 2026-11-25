@@ -120,8 +120,9 @@ an export keeps for the `[android] capabilities` it declares (step 2).
    console hands out, whose app for `application_id` the export writes as the
    string resources `FirebaseInitProvider` starts from (`google_app_id`,
    `gcm_defaultSenderId`, `google_api_key`, `project_id`), as the Gradle
-   plugin does; the export refuses either without the other, and a file with
-   no app for the id. The call answers `push_registered` with
+   plugin does, and leaves the file out of the game's pack on every target;
+   the export refuses either without the other, and a file with no app for
+   the id. The call answers `push_registered` with
    `getToken()`'s token, `provider = "fcm"` and `platform = "android"`.
    `Messaging`, a `FirebaseMessagingService` the shim's own manifest
    declares, hears `onNewToken` (`push_token_changed`) and a message reaching

@@ -65,7 +65,7 @@ permissions = { type = "list", of = { type = "string" }, default = ["INTERNET"],
 schemes = { type = "list", of = { type = "string" }, default = [], order = 12, help = "The custom URL schemes that open the game, each an intent filter: the scheme a platform.web_sign_in page ends on (com.studio.game for com.studio.game:/done), which its Custom Tab answers with." }
 capabilities = { type = "flags", default = [], options = ["play-games", "in-app-purchase", "in-app-review", "firebase-messaging"], order = 13, help = "The Google services the game uses, each shipping its Google libraries: play-games for platform.* on Play Games, in-app-purchase for Play Billing, in-app-review for device.request_review, firebase-messaging for platform.register_for_push. None named ships no Google library." }
 games_project_id = { type = "string", default = "", order = 14, help = "The Play Games project id Play Console shows under Play Games Services, all digits. Required with play-games." }
-google_services = { type = "string", default = "", order = 15, help = "The project-relative google-services.json the Firebase console hands out, holding this application_id's app. Required with firebase-messaging, whose project, app id, API key and sender id it writes as the string resources Firebase starts from." }
+google_services = { type = "string", default = "", order = 15, help = "The project-relative google-services.json the Firebase console hands out, holding this application_id's app. Required with firebase-messaging, whose project, app id, API key and sender id it writes as the string resources Firebase starts from. The file itself stays out of the game's pack." }
 "#,
         ),
     );
