@@ -1002,8 +1002,8 @@ impl Editor {
         signals::bars(self.state);
     }
 
-    /// A script stopped, or stopped somewhere else: the engine's word, where
-    /// the editor used to ask it every frame.
+    /// A script stopped, or stopped somewhere else: the engine's word, so the
+    /// editor never asks it every frame.
     pub fn on_debugger_stopped(stop: any) { shell::stopped(self.state, stop); }
 
     /// The stopped script went on.

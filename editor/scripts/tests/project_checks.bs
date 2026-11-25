@@ -932,7 +932,7 @@ pub fn eventviews(state: &mut editor::State) {
     selftest::check(calls.contains("self.node.get_node(\"../Screen\").call(\"picked\", button, source);"), "and one naming a target calls it with the same");
     let call_problems = scene_checks::errors_in(calls);
     selftest::check(call_problems.len() == 0, "and compiles: {call_problems}");
-    // The control: the name the old conversion wrote is one the check refuses.
+    // The control: a handler name with a colon is one the check refuses.
     let refused = scene_checks::errors_in("fn on_emitted:died() {{}}\n");
     selftest::check(refused.len() > 0, "the check does refuse a name with a colon in it");
     let known = util::list_or_empty(scene::bindable_events());

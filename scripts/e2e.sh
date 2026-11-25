@@ -352,9 +352,9 @@ for ex in examples/*/; do
   step "$name: run" run "$ex" --headless --frames 120
   ok
 
-  # Two separate processes on purpose. A pack used to be written in hash order,
-  # which is stable within one process and different in the next, so exporting
-  # the same sources twice produced two different files.
+  # Two separate processes on purpose: a pack written in hash order is stable
+  # within one process and differs in the next, and only two processes
+  # exporting the same sources show it.
   printf '  export ... '
   step "$name: export" export "$ex" -o "$out_dir/$name.bpak"
   step "$name: re-export" export "$ex" -o "$out_dir/$name.again.bpak"

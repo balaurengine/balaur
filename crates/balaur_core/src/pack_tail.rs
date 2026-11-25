@@ -85,8 +85,8 @@ pub(crate) fn note(eng: &Engine, pack: Option<&Pack>) {
     }
 }
 
-/// At the start of a tick: a delivered tail's files join the pack's, and no
-/// scene waits any more.
+/// At the start of a tick: a delivered tail's files join the pack's, and the
+/// scenes waiting on them go on.
 pub(crate) fn arrive_system(eng: &Engine, _dt: f32) {
     let Some(tail) = DELIVERED.with(|slot| slot.borrow_mut().take()) else {
         return;

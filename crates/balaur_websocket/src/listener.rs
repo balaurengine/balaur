@@ -1,7 +1,7 @@
-//! Accepting connections, which is the half the engine never had.
+//! Accepting connections: the server half, so two engines meet without a
+//! server between them.
 //!
-//! Every socket until now was outbound, so two engines could not meet without
-//! a server between them. A [`WebsocketListener`] binds a port, does the
+//! A [`WebsocketListener`] binds a port, does the
 //! server side of the upgrade on a worker thread, and hands back a
 //! [`Connection`] per peer — the same type the client side produces, so a
 //! caller cannot tell which end it is on. A session wraps each in a

@@ -43,8 +43,8 @@ mod.${start}.catch((e) => console.error('smoke: start failed', e));
 
 // Somewhere to bring the GPU process up before any pack is judged. Chrome
 // answers the first requestAdapter with null and logs a stale instance while
-// SwiftShader settles, and that used to fail whichever pack happened to be
-// first -- angrynerds, which drew correctly the whole time.
+// SwiftShader settles, and without this that fails whichever pack comes
+// first, however correctly it draws.
 const warmup = `<!doctype html><html><body><script type="module">
 for (let i = 0; i < 40; i++) {
   const a = navigator.gpu ? await navigator.gpu.requestAdapter().catch(() => null) : null;

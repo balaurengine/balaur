@@ -2,11 +2,11 @@
 //!
 //! The 3D twin of [`crate::skinned_2d`]: joints and weights ride as vertex
 //! attributes, the joint palette rides in a uniform, and the vertex shader
-//! blends them — so a rig no longer rewrites the mesh's vertex buffers from
-//! the CPU every frame. `balaur_geometry::skeleton::joint_matrices_3d` still
-//! computes the palette; only its consumer changed.
+//! blends them — so a rig leaves the mesh's vertex buffers alone rather than
+//! rewriting them from the CPU every frame.
+//! `balaur_geometry::skeleton::joint_matrices_3d` computes the palette.
 //!
-//! The CPU path stays as the reference and is still what draws when a node
+//! The CPU path is the reference and is what draws when a node
 //! names a `material` asset or a channel view is on: those shaders draw
 //! against `package::mesh` and know nothing about a palette.
 //!

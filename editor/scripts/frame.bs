@@ -132,8 +132,8 @@ internal fn run(state: &mut editor::State, delta_time: float) {
             state.inspector_asked = util::wake_at(state.inspector_asked, state.inspector_after);
         }
     }
-    // After the frame's ticks, where a pass used to apply them: a state that
-    // starts a recording starts it on the tick its replay will.
+    // After the frame's ticks: a state that starts a recording starts it on
+    // the tick its replay will.
     if state.platform_read {
         apply_start_states(state);
     }

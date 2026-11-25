@@ -306,8 +306,8 @@ pub fn side_of(state: editor::State, id: str) -> str? {
     nil
 }
 
-/// Whether `id` is the panel its dock is showing. Replaces the old
-/// `state.dock == "..."`, which assumed everything lived at the bottom.
+/// Whether `id` is the panel its dock is showing, on whichever side the dock
+/// sits.
 pub fn showing(state: editor::State, id: str) -> bool {
     let holder = side_of(state, id);
     if holder != nil {

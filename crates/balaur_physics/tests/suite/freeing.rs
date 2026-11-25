@@ -18,8 +18,8 @@ fn app() -> App {
 }
 
 /// A node at `y` with a ball collider, and a body only when `body` says so:
-/// a collider without one is standalone world geometry, which is the case
-/// nothing used to remove.
+/// a collider without one is standalone world geometry, which a free removes
+/// too.
 fn spawn(app: &App, name: &str, id: &str, y: f32, body: bool) -> Entity {
     let root = app.engine.root();
     let e = scene::spawn_node(&mut app.engine.world_mut(), name, root);

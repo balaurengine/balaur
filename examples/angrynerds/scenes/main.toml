@@ -184,7 +184,7 @@ position = [7, 3.1, 0]
 mesh = "#table"
 color = [0.72, 0.53, 0.3, 1.0]
 
-# One concave body where two columns and a plank used to stand: the pieces
+# One concave body for the table's columns and plank: the pieces
 # overlap across their seams, so the bird cannot wedge itself under the top.
 [nodes.collider2d]
 shape = { kind = "convex_decomposition", mesh = "#table" }

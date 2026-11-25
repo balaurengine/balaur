@@ -98,7 +98,7 @@ fn specs(state: editor::State) -> [form::Row] {
     let out: [form::Row] = [
         form::note("Builds the project this editor is editing."),
         // The sheet builds; what it builds from is a settings page, so the
-        // sentence that used to name the table is the link to it.
+        // sentence naming the table is the link to it.
         form::Row {
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [

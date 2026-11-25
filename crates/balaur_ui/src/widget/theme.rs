@@ -3,8 +3,7 @@
 //! What a widget owns is its text and its geometry — what it says and where
 //! it sits. What a *theme* owns is how its kind looks: the fill behind it, the
 //! outline around it, how round the corners are, how much air is inside. Those
-//! are the values that were hardcoded until now, and the ones a game wants to
-//! change once rather than on every node.
+//! are the values a game wants to change once rather than on every node.
 //!
 //! ```toml
 //! type = "widget_theme"

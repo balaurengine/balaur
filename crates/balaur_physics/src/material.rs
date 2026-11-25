@@ -24,7 +24,7 @@ pub(crate) struct PhysicsMaterial {
     pub(crate) restitution_combine: String,
 }
 
-/// The asset's rows: the four a collider used to carry itself.
+/// The asset's rows: friction and restitution, and how each combines.
 fn schema() -> Rc<Schema> {
     let average = w::AVERAGE;
     let combine = v::options(w::COMBINE_RULES);

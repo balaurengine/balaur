@@ -873,8 +873,8 @@ pub(crate) fn set_sprite(
 /// The `color` property of a renderable component's params.
 ///
 /// A property rather than a component of its own: a tint has no meaning
-/// without something to tint, and as a separate component it was the only one
-/// that owned no storage and refused to apply on a bare node.
+/// without something to tint, and as a separate component it would own no
+/// storage and refuse to apply on a bare node.
 pub(crate) fn color_from_params(params: &toml::Value) -> [f32; 4] {
     let c = |i: usize, default: f64| {
         params

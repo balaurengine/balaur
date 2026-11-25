@@ -127,7 +127,7 @@ fn linear_is_one_straight_line_with_no_modes() {
         );
     }
     for moded in ["in_linear", "out_linear", "in_out_linear", "out_in_linear"] {
-        assert!(Easing::parse(moded).is_err(), "'{moded}' still parses");
+        assert!(Easing::parse(moded).is_err(), "'{moded}' parses");
     }
 }
 

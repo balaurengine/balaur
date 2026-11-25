@@ -1,6 +1,5 @@
-//! What moved from the engine's Rust into the language's prelude answers as
-//! the Rust did: each old function is kept here verbatim, and a script's
-//! call is held against it.
+//! The language's prelude answers as a Rust reference does: each reference
+//! function is kept here, and a script's call is held against it.
 
 use balaur::{AppConfig, standard_app};
 use balaur_core::glamx::Vec2;
@@ -64,8 +63,8 @@ impl Fixture {
     }
 }
 
-// The engine's geometry2d helpers before they moved, verbatim. They counted
-// in f32, and the script counts in f64.
+// The geometry2d helpers as Rust reference functions. They count in f32, and
+// the script counts in f64.
 mod native {
     use balaur_core::glamx::Vec2;
 
@@ -203,7 +202,7 @@ fn shapes() -> Vec<Vec<Vec2>> {
 }
 
 #[test]
-fn geometry2d_helpers_answer_as_the_engines_rust_did() {
+fn geometry2d_helpers_answer_as_the_rust_reference_does() {
     let fixture = Fixture::new(GEOMETRY);
     let mut checked = 0;
     for shape in shapes() {
@@ -330,7 +329,7 @@ impl Drift {
 // lands within a few f32 roundings of glam's; `to_euler` divides by the
 // pitch's cosine, which the inputs keep above 0.17.
 #[test]
-fn quat_answers_as_glam_did() {
+fn quat_answers_as_glam_does() {
     use balaur_core::glamx::{EulerRot, Quat, Vec3};
     const CLOSE: f64 = 2e-6;
     const EULER_CLOSE: f64 = 1e-5;

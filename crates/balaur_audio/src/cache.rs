@@ -1,7 +1,7 @@
 //! The bytes behind a sound path, kept between plays.
 //!
-//! Every `play` used to re-read the file from disk or the pack, so a footstep
-//! cost a read per step. The cache is bounded and holds the *encoded* bytes:
+//! Without it every `play` re-reads the file from disk or the pack, a read
+//! per footstep. The cache is bounded and holds the *encoded* bytes:
 //! rodio decodes per playback, and two overlapping plays of one file need two
 //! decoders anyway.
 

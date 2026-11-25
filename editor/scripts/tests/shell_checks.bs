@@ -37,7 +37,7 @@ const BRAND: str = "Editor/Shell/Head/HeadRow/Brand";
 const PICKER_LIST: str = "Editor/Picker/List";
 
 // The centre must be showing the viewport when no document is open: a stray
-// split used to leave a collapsed code pane over it in every workspace.
+// split would leave a collapsed code pane over it in every workspace.
 pub fn layout(state: &mut editor::State) {
     state.layout_demo = 0;
     selftest::stepping(state, "layout");

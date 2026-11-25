@@ -199,9 +199,9 @@ struct ImportState {
 
 /// One file's settings, resolved once.
 ///
-/// A sprite is attached to its texture on every frame that draws it, and each
-/// attach used to open the sidecar again; the answer only changes when a file
-/// is saved, which is what moves the asset generation.
+/// A sprite is attached to its texture on every frame that draws it, and the
+/// sidecar is read once rather than on each attach; the answer only changes
+/// when a file is saved, which is what moves the asset generation.
 #[must_use]
 pub fn resolved(eng: &Engine, path: &str) -> Rc<Resolved> {
     let generation = crate::assets::generation(eng);

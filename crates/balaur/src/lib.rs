@@ -59,8 +59,7 @@ const UI_PREVIOUS: &str = "ui_previous";
 /// Every optional module: the name it goes by, the build that has it (a
 /// cargo feature, or a target), and the plugin it registers.
 ///
-/// One line each. A module used to be the same fact written four times, and
-/// the three restatements are what went stale.
+/// One line each: the fact is written once, so no restatement goes stale.
 macro_rules! modules {
     ($($alias:ident = ($when:meta) => $krate:ident::$plugin:ident),* $(,)?) => {
         $(

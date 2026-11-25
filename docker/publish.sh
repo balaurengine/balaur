@@ -91,7 +91,7 @@ case "$PUBLISH_STORE" in
     esac
 
     log "==> steamcmd run_app_build ${PUBLISH_ARTIFACT} -> ${PUBLISH_TARGET}"
-    # +@NoPromptForPassword: a config.vdf Steam no longer takes fails here
+    # +@NoPromptForPassword: a config.vdf Steam refuses fails here
     # rather than waiting on a prompt nobody will answer.
     if ! /work/steamcmd/steamcmd.sh +@ShutdownOnFailedCommand 1 +@NoPromptForPassword 1 \
       +login "$account" +run_app_build /in/app_build.vdf +quit; then

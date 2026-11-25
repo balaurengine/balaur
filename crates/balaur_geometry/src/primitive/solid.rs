@@ -1,7 +1,6 @@
 //! The 3D meshers: parameters in, triangles out, no backend anywhere near.
 //!
-//! Six of these replace shapes a renderer used to build for itself. Building
-//! them here is what lets a collider, a picked ray and a headless test read
+//! Building the shapes here, rather than in a renderer, is what lets a collider, a picked ray and a headless test read
 //! the vertices the screen draws.
 
 use super::build::{Build, Facets, ProfilePoint, revolve};

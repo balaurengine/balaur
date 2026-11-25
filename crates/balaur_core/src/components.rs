@@ -599,9 +599,9 @@ fn scan_for_passes(spec: &toml::Value, found: &mut [bool; 3]) {
 /// Every registered component, in registration order, addressable by name.
 ///
 /// An [`crate::collections::DetHashMap`] rather than a `Vec`: a name resolves
-/// in one lookup where it used to be a scan, and the map iterates in insertion
-/// order, so registration order -- which is the scene key order, the editor's
-/// section order, and a component's bit in [`Attached`] -- is unchanged.
+/// in one lookup rather than a scan, and the map iterates in insertion order,
+/// so registration order -- which is the scene key order, the editor's section
+/// order, and a component's bit in [`Attached`] -- holds.
 /// [`Facts`] sits parallel to it, indexed the same way.
 #[derive(Default)]
 pub struct ComponentRegistry {
@@ -871,9 +871,9 @@ struct Resolved {
 
 /// Resolve `name` once.
 ///
-/// A write used to look the name up four times -- for the schema, for what was
-/// asked before, to apply, and to record -- and each one re-entered the
-/// resource map and the registry.
+/// A write needs the name four times -- for the schema, for what was asked
+/// before, to apply, and to record -- and one lookup keeps each from
+/// re-entering the resource map and the registry.
 fn resolve(eng: &Engine, name: &str) -> Result<Resolved> {
     let registry = eng
         .try_resource::<ComponentRegistry>()

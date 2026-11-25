@@ -73,8 +73,8 @@ pub(crate) struct Spring {
     pub(crate) damping: f32,
 }
 
-/// The asset's rows: the ones a soft body used to carry itself, the cells
-/// and springs first, then its volume, its yield and its tearing.
+/// The asset's rows: the cells and springs first, then a soft body's volume,
+/// its yield and its tearing.
 fn schema() -> Rc<Schema> {
     ComponentDef::parse_schema(
         k::SOFT_MATERIAL,

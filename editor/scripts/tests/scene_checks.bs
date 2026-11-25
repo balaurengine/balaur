@@ -408,7 +408,7 @@ pub fn undo(state: &mut editor::State) {
     let start = state.nodes.len();
     selftest::check(history::dirty(state) == false, "a freshly loaded scene is clean");
     selftest::check(history::can_undo(state) == false, "nothing to undo on load");
-    // Duplicate: the case that used to leave a node with no live node at all.
+    // Duplicate: every node in the document has a live node.
     for index in 0..state.nodes.len() {
         let node = model::node(state, index);
         if node.name() == "Bird" {

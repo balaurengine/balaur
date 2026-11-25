@@ -248,8 +248,8 @@ fn patching_the_sheet_fields_resizes_a_derived_sprite() {
     let app = app();
     let entity = node(&app);
     apply(&app, entity, "");
-    // The read is what used to write a resolved `size` into the
-    // component, which `patch` then overlaid as an explicit size.
+    // The read must not write a resolved `size` into the component,
+    // which `patch` would then overlay as an explicit size.
     let read_back = components::get(&app.engine, entity, "sprite").unwrap();
     assert_eq!(
         read_back["size"],

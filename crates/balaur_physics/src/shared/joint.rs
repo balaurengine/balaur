@@ -557,7 +557,7 @@ macro_rules! functions {
         /// not been spawned when this one was.
         ///
         /// A scene file names nodes in whatever order it likes, and a joint that
-        /// pointed forwards used to be silently inert. Retried once per step, over
+        /// points forwards waits here rather than lying inert. Retried once per step, over
         /// the few that are unresolved rather than over every joint.
         pub fn pending(state: &$State, world: &balaur_core::hecs::World) -> Vec<Entity> {
             let out: Vec<Entity> = state

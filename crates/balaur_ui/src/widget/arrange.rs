@@ -781,7 +781,7 @@ pub(crate) fn lay_out_within(
 
 /// The children themselves, each drawn into the rect the layout pass gave it.
 ///
-/// Nothing is divided here any more: `widget_taffy` solved the whole subtree
+/// Nothing is divided here: `widget_taffy` solved the whole subtree
 /// before the first pixel, so this walks the answers and pins a `Ui` to each.
 pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
     let placed = &at.arena[index];

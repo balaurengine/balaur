@@ -1,5 +1,4 @@
-// What every viewport tool needs and each one used to define for itself: the
-// selection palette, the world-per-pixel scale, and the three questions a
+// What every viewport tool needs, defined once: the selection palette, the world-per-pixel scale, and the three questions a
 // tool asks about the current drag.
 
 use defs;

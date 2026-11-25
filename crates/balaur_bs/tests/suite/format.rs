@@ -79,8 +79,8 @@ fn every_bs_file_in_the_repository_is_laid_out() {
 }
 
 fn collect(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-    // An error is said rather than skipped: a folder that could not be read
-    // under load used to read as one with fewer files.
+    // An error is said rather than skipped: skipped, a folder that could not
+    // be read under load would read as one with fewer files.
     let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
     for entry in entries {
         let path = entry

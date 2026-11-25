@@ -215,7 +215,7 @@ pub fn capture(max_level: LevelFilter) {
         .with_ansi(false)
         .with_writer(logcat::Logcat);
     // A browser has no stderr and no clock for the timestamp column —
-    // `SystemTime::now()` is where a wasm build used to die — so lines go to
+    // `SystemTime::now()` panics in a wasm build — so lines go to
     // the console, untimed and unstyled.
     #[cfg(target_arch = "wasm32")]
     let fmt = tracing_subscriber::fmt::layer()
