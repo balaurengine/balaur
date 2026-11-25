@@ -11,8 +11,8 @@ token, so the image needs no Java and no Mac.
 
 ARTIFACT is a signed .ipa, whose Info.plist supplies the bundle id and both
 version strings, or the signed .pkg of a Mac App Store build, whose
-Distribution names the same three for the .app it installs (productbuild
-writes them there), so nothing is typed twice. CREDS_DIR holds apple_issuer_id,
+Distribution names the same three for the .app it installs (balaur-pkg and
+productbuild write them there), so nothing is typed twice. CREDS_DIR holds apple_issuer_id,
 apple_key_id and apple_private_key (the .p8 as downloaded) — the three
 notarisation uses. The key is read by openssl in place and never copied.
 

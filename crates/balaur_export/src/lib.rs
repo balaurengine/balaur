@@ -587,10 +587,13 @@ fn export_mac(
         &opts.path,
         opts.provisioning_profile.as_deref(),
     );
-    if apple.app_store && profile.is_none() {
+    // Unsigned, the store's build is the sandboxed `.app` and its
+    // entitlements, as a Developer ID one is: a signer that holds the
+    // identity embeds the profile then, and packages the signed bundle.
+    if apple.app_store && identity.is_some() && profile.is_none() {
         anyhow::bail!(
-            "a Mac App Store build needs the Mac App Store provisioning profile made for {}: \
-             pass --provisioning-profile, or name it in [apple] macos_provisioning_profile",
+            "a signed Mac App Store build needs the Mac App Store provisioning profile made for \
+             {}: pass --provisioning-profile, or name it in [apple] macos_provisioning_profile",
             apple.bundle_id
         );
     }
@@ -625,7 +628,10 @@ fn export_mac(
         let pkg = sign::build_pkg(&app, &app, installer.as_deref())?;
         tracing::info!("wrote {}", pkg.display());
     } else if packaged {
-        tracing::warn!("no .pkg off a Mac: productbuild makes it, signed, where the identity is");
+        tracing::warn!(
+            "no .pkg off a Mac: productbuild makes it on a Mac, and balaur-sign (docker/) \
+             packages the .app it signs anywhere"
+        );
     }
     Ok(())
 }

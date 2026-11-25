@@ -101,6 +101,12 @@ jobs:
         if: failure() && steps.gamend.outcome == 'success'
         working-directory: ${{ steps.gamend.outputs.project }}
         run: tail -n 300 .gamend/tmp/log/erlang.log.*
+      # The signing image's Mac App Store packager, read back by hand
+      # everywhere and by macOS's own lsbom, pkgutil and installer on a Mac.
+      - name: The signer's .pkg writer
+        if: ${{ !cancelled() && runner.os != 'Windows' }}
+        shell: bash
+        run: python3 -I docker/pkg_test.py
       # Every script the editor, its library, the templates and the examples
       # hold, compiled with warnings as errors. Scripts compile the same on
       # every platform, so one runner is enough.

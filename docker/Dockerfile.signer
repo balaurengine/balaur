@@ -25,7 +25,9 @@ ARG ANDROID_CMDLINE_TOOLS=11076708
 #                   a CMS-wrapped plist; slicing that with sed is the kind of
 #                   thing that works until a profile has a nested dict. The
 #                   full interpreter, not python3-minimal: `plistlib` is in the
-#                   standard library that the minimal package leaves out
+#                   standard library that the minimal package leaves out. It
+#                   also runs balaur-pkg, which writes the Mac App Store's
+#                   flat package (xar, Bom, cpio payload) from that library
 # * openssl       — unwraps that CMS
 # * default-jdk   — apksigner is a JAR, and an .aab takes jarsigner's signature
 # * zip/unzip     — an .ipa is a zip, and signing one means opening it
@@ -148,6 +150,7 @@ RUN set -eux; \
     chmod +x /usr/local/bin/jsign
 
 COPY sign.sh /usr/local/bin/balaur-sign
+COPY pkg.py /usr/local/bin/balaur-pkg
 COPY publish.sh /usr/local/bin/balaur-publish
 COPY publish_play.py /usr/local/bin/balaur-publish-play
 COPY publish_appstore.py /usr/local/bin/balaur-publish-appstore
@@ -155,7 +158,7 @@ COPY publish_appstore.py /usr/local/bin/balaur-publish-appstore
 # Every tool actually runs, in the image that publishes it. `apt-get install`
 # succeeding says a package exists; it does not say a JAR has a JVM or that an
 # x86-64 binary has a loader. Both of those have been wrong here before.
-RUN chmod +x /usr/local/bin/balaur-sign /usr/local/bin/balaur-publish /usr/local/bin/balaur-publish-* \
+RUN chmod +x /usr/local/bin/balaur-sign /usr/local/bin/balaur-pkg /usr/local/bin/balaur-publish /usr/local/bin/balaur-publish-* \
     && rcodesign --version \
     && butler -V \
     && test -x /opt/steamcmd/steamcmd.sh && test -x /opt/steamcmd/linux32/steamcmd \
@@ -166,7 +169,8 @@ RUN chmod +x /usr/local/bin/balaur-sign /usr/local/bin/balaur-publish /usr/local
     && jarsigner -help 2>&1 | grep -q Usage \
     && zipalign 2>&1 | head -1 \
     && python3 -c 'import plistlib' \
-    && python3 -c 'import ast, glob; [ast.parse(open(f).read()) for f in glob.glob("/usr/local/bin/balaur-publish-*")]'
+    && python3 -c 'import ast, glob; [ast.parse(open(f).read()) for f in glob.glob("/usr/local/bin/balaur-publish-*") + ["/usr/local/bin/balaur-pkg"]]' \
+    && { balaur-pkg 2>&1 | grep -q usage; }
 
 # Never root, and never with a home worth writing to. Nothing in a signing run
 # should outlive it.

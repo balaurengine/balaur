@@ -73,11 +73,15 @@ built.
    hardened runtime and makes the `.pkg`, and a Mac's signature decides
    whether Game Center, Sign in with Apple and purchases answer. Tested with
    a stand-in profile, the entitlements, the `productbuild` command and an
-   unsigned `.pkg`. Still to check: scripts on wasmtime in the sandbox
-   without the hardened runtime's JIT exception (native scripts need none),
-   and the build signed with an `Apple Distribution` identity. Done: a
-   `.pkg` App Store Connect accepts, installed from TestFlight, signs in
-   with Apple natively and buys a product in the sandbox.
+   unsigned `.pkg`; off a Mac, the signing image signs the unsigned export
+   with rcodesign and packages it with `docker/pkg.py`, whose package
+   macOS's `pkgutil`, `lsbom` and `installer` read, and whose signatures by
+   a real Apple Distribution and Mac Installer identity `codesign` and
+   `pkgutil --check-signature` accept. Still to check: scripts on wasmtime
+   in the sandbox without the hardened runtime's JIT exception (native
+   scripts need none), and that signed build launched. Done: a `.pkg` App
+   Store Connect accepts, installed from TestFlight, signs in with Apple
+   natively and buys a product in the sandbox.
 
 ## Open questions
 

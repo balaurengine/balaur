@@ -72,7 +72,7 @@ puts the game on the smallest it fits. Without them it goes on the full one.
 | `BALAUR_OUTPUT` | artifact name in `/out`; defaults per target |
 | `BALAUR_ANDROID_PACKAGE` | `apk` (default) or `aab`, for `android` on the `-android` image |
 | `BALAUR_STEAM` | `1` for a Steam build of `linux-x64`, `linux-arm64`, `macos-universal` or `windows-x64`: the same export with the CLI's Steam flag, which copies Valve's `steam_api` beside the game, from `/cache`'s `<template>.<library>` beside each template (`linux-x64.libsteam_api.so`); `0` (default) for every other build, which carries no Valve file |
-| `BALAUR_APP_STORE` | `1` for the Mac App Store's build of `macos-universal`: the same export with the CLI's `--app-store`, a sandboxed `.app` with the store's entitlements beside it, zipped like every `.app` this image makes. Its `.pkg` is `productbuild`'s, which runs only on macOS, so this image makes none. The export takes the Mac App Store profile from `[apple] macos_provisioning_profile` and refuses without one, signed or not; `0` (default) for every other build |
+| `BALAUR_APP_STORE` | `1` for the Mac App Store's build of `macos-universal`: the same export with the CLI's `--app-store`, a sandboxed `.app` with the store's entitlements beside it, zipped like every `.app` this image makes. Unsigned, it needs no profile: the signing image embeds the Mac App Store profile, signs the `.app` and packages it as the `.pkg` (`SIGN_VARIANT=app-store`, below); `0` (default) for every other build |
 
 With `/cache` mounted the export is offline and the template must already be
 there. Without it, balaur downloads the one it needs — what an ordinary CI job
@@ -147,7 +147,7 @@ that says so, not after a whole export with `Permission denied` writing
 ## Signing and publishing: `ghcr.io/balaurengine/balaur-signer`
 
 A second image, built from `Dockerfile.signer`, holding `rcodesign`,
-`apksigner`/`zipalign` and `osslsigncode` — and **no engine**. That separation
+`apksigner`/`zipalign`, `osslsigncode` and `balaur-pkg` — and **no engine**. That separation
 is the point: this is the container that gets handed a signing key, and there
 is nothing in it that can run somebody's project.
 
@@ -179,7 +179,9 @@ docker run --rm \
 | `/creds` | one file per credential, read-only, named for the field, readable by uid 10001 — see below |
 | `/work` | scratch |
 
-`SIGN_TARGET` and `SIGN_ARTIFACT` are required; `SIGN_NOTARIZE=1` is below.
+`SIGN_TARGET` and `SIGN_ARTIFACT` are required; `SIGN_NOTARIZE=1` is below,
+and `SIGN_VARIANT=app-store` with `SIGN_TARGET=macos-universal` signs the Mac
+App Store's build into a `.pkg`.
 
 The credential files, by target:
 
@@ -189,6 +191,7 @@ The credential files, by target:
 | `windows-*` | `windows_certificate`, `windows_password`, optionally `windows_timestamp_url` |
 | `windows-*`, Azure Trusted Signing | `windows_trusted_endpoint`, `windows_trusted_account`, `windows_trusted_profile`, `windows_trusted_tenant_id`, `windows_trusted_client_id`, `windows_trusted_client_secret` (used whenever the secret is mounted) |
 | `macos-universal` | `macos_certificate`, `macos_password`, and `macos_provisioning_profile` when the bundle claims an entitlement only a profile grants |
+| `macos-universal`, `SIGN_VARIANT=app-store` | `ios_certificate` and `ios_password` (the Apple Distribution `.p12`, which signs iOS and the Mac), `macos_app_store_provisioning_profile`, `macos_installer_certificate`, `macos_installer_password` (the Mac Installer Distribution `.p12`) |
 | `ios` | `ios_certificate`, `ios_password`, `ios_provisioning_profile` |
 | notarisation | `apple_issuer_id`, `apple_key_id`, `apple_private_key` |
 
@@ -202,6 +205,7 @@ password.
 | `windows-x64`, `windows-arm64` | `.pfx`/`.p12`, its password, optionally a timestamp URL | only with a timestamp URL |
 | `windows-x64`, `windows-arm64`, Azure | a Trusted Signing account, profile and endpoint, and an app registration's tenant, client id and secret; `jsign` signs through Azure | yes — Entra ID, the signing API and Microsoft's timestamp authority |
 | `macos-universal` | Developer ID `.p12` and its password; the Developer ID `.provisionprofile` for a game with `[apple] capabilities` other than `in-app-purchase` | yes — rcodesign timestamps through Apple |
+| `macos-universal`, `SIGN_VARIANT=app-store` | Apple Distribution `.p12` and its password, the Mac App Store `.provisionprofile`, the Mac Installer Distribution `.p12` and its password | yes, same |
 | `ios` | Apple Distribution `.p12`, its password, a `.mobileprovision` | yes, same |
 
 A desktop `game.zip` is signed inside: every `.exe` and `.dll` for Windows,
@@ -212,6 +216,17 @@ the signer refuses an entitlement only a profile grants when none is mounted,
 leaves out one the profile lacks (a Developer ID profile has no Sign in with
 Apple), and takes `aps-environment` from the profile. A zip with no `.app` has
 each Mach-O signed where it lies.
+
+The Mac App Store's build (`SIGN_VARIANT=app-store`) takes the export's
+`game.zip` and writes `game.pkg`: the Mac App Store profile goes in as
+`Contents/embedded.provisionprofile`, the `.entitlements` are fitted to it
+as above (and the bundle's application and team identifiers must be the
+profile's), the `.app` is signed with the Apple Distribution identity and no
+hardened runtime, and `balaur-pkg` packages it for `/Applications`: a xar
+product archive holding a Distribution and one component (`PackageInfo`, a
+`Bom` and a gzip'd odc cpio `Payload`), as `productbuild --component` writes
+it, from Python's standard library. `rcodesign` signs that package with the
+Mac Installer identity. It is never notarized; the store reviews it.
 
 Egress buys an RFC 3161 timestamp and nothing else. Without one a signature
 stops verifying the day the certificate expires, rather than staying valid for
@@ -296,7 +311,7 @@ release made by hand; Play refuses a new app's first upload through the API.
 For App Store Connect the credentials are notarisation's — the API key's
 issuer id, key id and `.p8` — and `PUBLISH_TARGET` is informational: the
 `.ipa`'s own Info.plist supplies the bundle id, version and build number,
-and a Mac App Store `.pkg`'s Distribution (productbuild writes the `.app`'s
+and a Mac App Store `.pkg`'s Distribution (balaur-pkg and productbuild write the `.app`'s
 three there) does the same for an upload with platform `MAC_OS`.
 The run is Apple's build upload API: find the app by bundle id, reserve a
 `buildUpload` and a `buildUploadFile`, PUT the parts Apple asks for, mark

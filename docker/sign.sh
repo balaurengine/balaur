@@ -24,9 +24,23 @@ read_cred() { tr -d '\r\n' <"/creds/$1"; }
 
 : "${SIGN_TARGET:?SIGN_TARGET is required}"
 : "${SIGN_ARTIFACT:?SIGN_ARTIFACT is required}"
+# A store's build of a target: `app-store` for the Mac App Store's build of
+# macos-universal, which comes out as a .pkg. Empty for every other build.
+SIGN_VARIANT="${SIGN_VARIANT:-}"
 
 IN="/in/${SIGN_ARTIFACT}"
 OUT="/out/${SIGN_ARTIFACT}"
+case "${SIGN_TARGET}:${SIGN_VARIANT}" in
+  *:) ;;
+  macos-universal:app-store)
+    case "$SIGN_ARTIFACT" in
+      *.zip) OUT="/out/${SIGN_ARTIFACT%.zip}.pkg" ;;
+      *) fail "a Mac App Store build is the zip of its .app, not ${SIGN_ARTIFACT}" ;;
+    esac
+    [ "${SIGN_NOTARIZE:-0}" = "0" ] || fail "a Mac App Store build is reviewed, not notarized"
+    ;;
+  *) fail "${SIGN_TARGET} has no ${SIGN_VARIANT} build to sign" ;;
+esac
 
 [ -f "$IN" ] || fail "no artifact at ${IN}"
 [ -d /creds ] || fail "no credentials mounted at /creds"
@@ -78,6 +92,51 @@ repack() {
   rm -rf /work/zip
 }
 
+# Fit the entitlements $1 to the profile /creds/$2 (of kind $4), embedded in
+# the bundle $3: docker/README.md says what is refused, left out and taken.
+fit_entitlements() {
+  profile=""
+  if [ -n "$2" ]; then
+    cp "/creds/$2" "$3/Contents/embedded.provisionprofile"
+    openssl smime -inform der -verify -noverify -in "/creds/$2" \
+      >/work/profile.plist 2>/dev/null || fail "could not read the provisioning profile"
+    profile=/work/profile.plist
+  fi
+  python3 -I - "$1" "$profile" "$4" <<'PY' || exit 1
+import plistlib, sys
+path, profile, kind = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path, "rb") as f:
+    claimed = plistlib.load(f)
+restricted = [k for k in claimed if k.startswith("com.apple.developer.") or k == "aps-environment"]
+if restricted and not profile:
+    sys.exit("error: the bundle claims " + ", ".join(restricted) + ", which only a provisioning "
+             "profile grants: add macos_provisioning_profile, the " + kind + " profile made for "
+             "this bundle id")
+if profile:
+    with open(profile, "rb") as f:
+        granted = plistlib.load(f).get("Entitlements", {})
+    for key in ("com.apple.application-identifier", "com.apple.developer.team-identifier"):
+        want, have = granted.get(key), claimed.get(key)
+        if not isinstance(want, str) or not isinstance(have, str):
+            continue
+        if want != have and not (want.endswith("*") and have.startswith(want[:-1])):
+            sys.exit("error: the " + kind + " profile grants " + key + " " + want + ", and the "
+                     "bundle claims " + have + ": [apple] team_id and bundle_id are the profile's")
+    lacking = [k for k in restricted if k not in granted]
+    if lacking:
+        print("==> the provisioning profile does not grant " + ", ".join(lacking)
+              + ": left out, and the game answers unsupported for it", file=sys.stderr)
+    for key in lacking:
+        del claimed[key]
+    for key in [k for k in restricted if k in granted]:
+        if key.endswith("aps-environment") and isinstance(granted[key], str):
+            claimed[key] = granted[key]
+    with open(path, "wb") as f:
+        plistlib.dump(claimed, f)
+PY
+  rm -f /work/profile.plist
+}
+
 # Whether $1 is a Mach-O, thin or universal: what a macOS zip has to sign.
 macho() {
   case "$(head -c 4 "$1" | od -An -tx1 | tr -d ' \n')" in
@@ -86,7 +145,7 @@ macho() {
   esac
 }
 
-case "$SIGN_TARGET" in
+case "${SIGN_TARGET}:${SIGN_VARIANT}" in
   windows-*)
     # Two ways in, by what is mounted: Azure Trusted Signing (the key never
     # leaves Azure; jsign sends each digest there) or a .pfx (osslsigncode).
@@ -161,7 +220,38 @@ case "$SIGN_TARGET" in
     rm -f /work/azure_token
     ;;
 
-  macos-universal)
+  macos-universal:app-store)
+    # Apple Distribution and the store's profile, no hardened runtime, then
+    # balaur-pkg's .pkg signed with the Mac Installer identity (docker/README.md).
+    need ios_certificate ios_password macos_app_store_provisioning_profile \
+      macos_installer_certificate macos_installer_password
+
+    unpack
+    app="$(find /work/zip -mindepth 1 -maxdepth 1 -name '*.app' -type d | head -1)"
+    [ -n "$app" ] || fail "no .app inside ${SIGN_ARTIFACT}: export macos-universal with --app-store"
+    entitlements="$(find /work/zip -mindepth 1 -maxdepth 1 -name '*.entitlements' -type f | head -1)"
+    [ -n "$entitlements" ] || fail "no .entitlements beside $(basename "$app"): export it with --app-store"
+    fit_entitlements "$entitlements" macos_app_store_provisioning_profile "$app" "Mac App Store"
+
+    log "==> sign $(basename "$app") for the Mac App Store"
+    rcodesign sign \
+      --p12-file /creds/ios_certificate \
+      --p12-password-file /creds/ios_password \
+      --entitlements-xml-file "$entitlements" \
+      "$app" || fail "rcodesign failed"
+    rm -f "$entitlements"
+
+    rm -f /work/unsigned.pkg
+    balaur-pkg "$app" /work/unsigned.pkg || fail "could not package $(basename "$app")"
+    log "==> sign $(basename "$OUT") with the Mac Installer identity"
+    rcodesign sign \
+      --p12-file /creds/macos_installer_certificate \
+      --p12-password-file /creds/macos_installer_password \
+      /work/unsigned.pkg "$OUT" || fail "rcodesign failed on the .pkg"
+    rm -rf /work/zip /work/unsigned.pkg
+    ;;
+
+  macos-universal:)
     need macos_certificate macos_password
 
     set -- sign \
@@ -185,49 +275,17 @@ case "$SIGN_TARGET" in
           # before the bundle itself. The entitlements the export wrote beside
           # it go into the signature, and not into what ships.
           entitlements="$(find /work/zip -mindepth 1 -maxdepth 1 -name '*.entitlements' -type f | head -1)"
-          # What only a profile grants needs it inside the bundle (ARCHITECTURE.md,
-          # "What only a profile grants"); its aps-environment is the one claimed.
           profile=""
-          if [ -s /creds/macos_provisioning_profile ]; then
-            cp /creds/macos_provisioning_profile "${app}/Contents/embedded.provisionprofile"
-            openssl smime -inform der -verify -noverify -in /creds/macos_provisioning_profile \
-              >/work/profile.plist 2>/dev/null || fail "could not read the provisioning profile"
-            profile=/work/profile.plist
-          fi
+          [ ! -s /creds/macos_provisioning_profile ] || profile=macos_provisioning_profile
           if [ -n "$entitlements" ]; then
-            python3 -I - "$entitlements" "$profile" <<'PY' || exit 1
-import plistlib, sys
-path, profile = sys.argv[1], sys.argv[2]
-with open(path, "rb") as f:
-    claimed = plistlib.load(f)
-restricted = [k for k in claimed if k.startswith("com.apple.developer.") or k == "aps-environment"]
-if restricted and not profile:
-    sys.exit("error: the bundle claims " + ", ".join(restricted) + ", which only a provisioning "
-             "profile grants: add macos_provisioning_profile, the Developer ID profile made for "
-             "this bundle id")
-if profile:
-    with open(profile, "rb") as f:
-        granted = plistlib.load(f).get("Entitlements", {})
-    # A Developer ID profile grants less than its App ID has (Sign in with
-    # Apple is App Store only): what it lacks is left out, as the export does.
-    lacking = [k for k in restricted if k not in granted]
-    if lacking:
-        print("==> the provisioning profile does not grant " + ", ".join(lacking)
-              + ": left out, and the game answers unsupported for it", file=sys.stderr)
-    for key in lacking:
-        del claimed[key]
-    for key in [k for k in restricted if k in granted]:
-        if key.endswith("aps-environment") and isinstance(granted[key], str):
-            claimed[key] = granted[key]
-    with open(path, "wb") as f:
-        plistlib.dump(claimed, f)
-PY
+            fit_entitlements "$entitlements" "$profile" "$app" "Developer ID"
             set -- "$@" --entitlements-xml-file "$entitlements"
+          elif [ -n "$profile" ]; then
+            cp "/creds/${profile}" "${app}/Contents/embedded.provisionprofile"
           fi
           log "==> sign $(basename "$app") for macOS"
           rcodesign "$@" "$app" || fail "rcodesign failed"
           [ -z "$entitlements" ] || rm -f "$entitlements"
-          rm -f /work/profile.plist
         else
           find /work/zip -type f | sort | while IFS= read -r file; do
             macho "$file" || continue
@@ -267,7 +325,7 @@ PY
     fi
     ;;
 
-  ios)
+  ios:)
     need ios_certificate ios_password ios_provisioning_profile
 
     # An .ipa is a zip around Payload/<name>.app, and rcodesign signs bundles,
@@ -306,7 +364,7 @@ PY
     rm -rf /work/ipa /work/profile.plist /work/entitlements.plist
     ;;
 
-  android)
+  android:)
     need android_keystore android_store_password android_key_alias android_key_password
 
     case "$SIGN_ARTIFACT" in

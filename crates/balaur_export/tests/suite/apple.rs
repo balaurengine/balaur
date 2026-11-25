@@ -310,10 +310,15 @@ fn export_store(
     Ok(app)
 }
 
+const DISTRIBUTION: &str = "Apple Distribution: Studio (AB12CD34EF)";
+
 #[test]
-fn a_mac_app_store_build_is_refused_without_its_profile_or_its_category() {
+fn a_signed_mac_app_store_build_is_refused_without_its_profile_or_its_category() {
     let dir = project(STORE);
-    let why = format!("{:#}", export_store(dir.path(), None, None).unwrap_err());
+    let why = format!(
+        "{:#}",
+        export_store(dir.path(), Some(DISTRIBUTION), None).unwrap_err()
+    );
     assert!(why.contains("Mac App Store provisioning profile"), "{why}");
     let uncategorized = project("");
     let granted = profile(uncategorized.path(), &[]);
@@ -383,6 +388,55 @@ fn a_mac_app_store_build_is_sandboxed_and_packaged() {
     );
     if cfg!(target_os = "macos") {
         assert!(dir.path().join("out/t.pkg").is_file());
+    }
+}
+
+// Unsigned, the store's build needs no profile: the signer fits the
+// entitlements beside it to one, and docker/pkg.py packages the .app.
+#[test]
+fn an_unsigned_mac_app_store_build_needs_no_profile() {
+    let dir = project(&format!(
+        "{STORE}capabilities = [\"sign-in-with-apple\", \"game-center\"]\n"
+    ));
+    let app = export_store(dir.path(), None, None).unwrap();
+    assert!(!app.join("Contents/embedded.provisionprofile").exists());
+    let entitlements = std::fs::read_to_string(entitlements_in(dir.path())).unwrap();
+    for key in [
+        "com.apple.security.app-sandbox",
+        "<string>AB12CD34EF.com.studio.t</string>",
+        "com.apple.developer.applesignin",
+        "com.apple.developer.game-center",
+    ] {
+        assert!(entitlements.contains(key), "{key}: {entitlements}");
+    }
+    let Ok(python) = which::which("python3") else {
+        return;
+    };
+    let packager = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docker/pkg.py");
+    let pkg = dir.path().join("signer.pkg");
+    let status = std::process::Command::new(python)
+        .arg("-I")
+        .arg(&packager)
+        .arg(&app)
+        .arg(&pkg)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let head = std::fs::read(&pkg).unwrap();
+    assert_eq!(&head[..4], b"xar!");
+    if let Ok(pkgutil) = which::which("pkgutil") {
+        let listed = std::process::Command::new(pkgutil)
+            .arg("--payload-files")
+            .arg(&pkg)
+            .output()
+            .unwrap();
+        let listed = String::from_utf8_lossy(&listed.stdout);
+        assert!(
+            listed
+                .lines()
+                .any(|line| line.starts_with("./t.app/Contents/MacOS/")),
+            "{listed}"
+        );
     }
 }
 

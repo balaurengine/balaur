@@ -1571,8 +1571,13 @@ things are shared.
   installer identity (`--installer-identity`, `[apple]
   macos_installer_identity`, or the distribution identity's team's `3rd
   Party Mac Developer Installer`). It needs `[apple] category`, which the
-  store requires, a profile, and an installer identity whenever it signs,
-  and refuses `--steam` and notarization. User data already lives in the
+  store requires, a profile and an installer identity whenever it signs,
+  and refuses `--steam` and notarization. Unsigned it needs no profile and
+  is what the signing image takes, as a Developer ID export is: the
+  sandboxed `.app` with its entitlements beside it, which `docker/sign.sh`
+  signs with rcodesign against the Mac App Store profile and packages with
+  `docker/pkg.py`, the same flat package `productbuild` writes, made without
+  a Mac, then signs with the installer identity. User data already lives in the
   container the sandbox gives it, so no file entitlement is asked for. At
   run time a Mac reads its own signature: Game Center's verbs answer
   `unsupported` without Game Center's entitlement and the purchase verbs

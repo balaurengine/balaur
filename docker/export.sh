@@ -30,8 +30,8 @@ case "$STEAM" in
 esac
 
 # A Mac App Store build: the same export with the CLI's --app-store, a .app
-# sandboxed with the store's entitlements beside it. Its .pkg is productbuild's,
-# which runs on macOS alone, so it is made after this, where the identity is.
+# sandboxed with the store's entitlements beside it. balaur-sign signs it and
+# packages it as the .pkg the store takes, where the identities are.
 APP_STORE="${BALAUR_APP_STORE:-0}"
 case "$APP_STORE" in
   0) ;;
@@ -129,7 +129,7 @@ case "$BALAUR_TARGET" in
     if [ "$APP_STORE" = 1 ]; then
       set -- "$@" --app-store
       BUNDLE_OUTPUT="${OUTPUT}.app"
-      log "==> Mac App Store build: a sandboxed .app (unsigned; signed and packaged on macOS)"
+      log "==> Mac App Store build: a sandboxed .app (unsigned; balaur-sign signs and packages it)"
     elif grep -Eq '^[[:space:]]*bundle_id[[:space:]]*=' "${WORK}/project.toml" 2>/dev/null; then
       set -- "$@" --bundle app
       BUNDLE_OUTPUT="${OUTPUT}.app"

@@ -74,7 +74,9 @@ pub(crate) struct ExportArgs {
     /// one: sandboxed, signed with `--sign "Apple Distribution: …"` against
     /// the Mac App Store profile (`--provisioning-profile`), and wrapped as
     /// the signed `<output>.pkg` beside the `.app` that App Store Connect
-    /// takes. Needs `[apple] category` and `team_id`.
+    /// takes. Unsigned, it needs no profile: the `.app` and its entitlements
+    /// are what docker/'s signer signs and packages. Needs `[apple]
+    /// category` and `team_id`.
     #[arg(long, conflicts_with_all = ["steam", "notarize"])]
     pub(crate) app_store: bool,
     /// The identity the `.pkg` is signed with, `3rd Party Mac Developer
