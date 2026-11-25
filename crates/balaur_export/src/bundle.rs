@@ -177,6 +177,7 @@ pub(crate) fn export_bundle(
             .with_context(|| format!("reading {}", path.display()))?;
         let mut xml = android.manifest(&staged)?;
         xml = android.libraries(&output, &xml)?;
+        xml = android.notification_icon(&output, &xml)?;
         if let Some(icons) = icons {
             icons.write_android(&output)?;
             xml = crate::android::name_icon(&xml);

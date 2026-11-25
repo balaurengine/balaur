@@ -66,6 +66,7 @@ schemes = { type = "list", of = { type = "string" }, default = [], order = 12, h
 capabilities = { type = "flags", default = [], options = ["play-games", "in-app-purchase", "in-app-review", "firebase-messaging"], order = 13, help = "The Google services the game uses, each shipping its Google libraries: play-games for platform.* on Play Games, in-app-purchase for Play Billing, in-app-review for device.request_review, firebase-messaging for platform.register_for_push. None named ships no Google library." }
 games_project_id = { type = "string", default = "", order = 14, help = "The Play Games project id Play Console shows under Play Games Services, all digits. Required with play-games." }
 google_services = { type = "string", default = "", order = 15, help = "The project-relative google-services.json the Firebase console hands out, holding this application_id's app. Required with firebase-messaging, whose project, app id, API key and sender id it writes as the string resources Firebase starts from. The file itself stays out of the game's pack." }
+notification_icon = { type = "string", default = "", order = 16, help = "A project-relative square picture with transparency, the small icon Android draws in the status bar for the game's notifications, local and pushed. Only its alpha is read: the export writes it white at each density. Empty shows the system's reminder icon." }
 "#,
         ),
     );

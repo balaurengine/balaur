@@ -25,7 +25,10 @@ fn sources(names: &[&str]) -> Vec<PathBuf> {
 fn jdk(tool: &str) -> Option<PathBuf> {
     let home = std::env::var_os("JAVA_HOME")
         .map(|home| PathBuf::from(home).join("bin").join(tool))
-        .filter(|path| path.with_extension(std::env::consts::EXE_EXTENSION).is_file());
+        .filter(|path| {
+            path.with_extension(std::env::consts::EXE_EXTENSION)
+                .is_file()
+        });
     let found = home.unwrap_or_else(|| PathBuf::from(tool));
     Command::new(&found)
         .arg("-version")

@@ -1496,7 +1496,11 @@ things are shared.
   neither way, and the result often lands first: a pick answers `shared` the
   moment it arrives, and a chooser shut with none waits two seconds for one
   before answering `cancelled` (`ShareAnswer`, plain Java a JVM test runs). `AlarmManager` holds the schedule, inexact,
-  and `Alarm` posts each one. A tap that started the process waits in the
+  and `Alarm` posts each one, with the small icon the export wrote for
+  `[android] notification_icon` (a white silhouette, named in the
+  application's meta-data to `Alarm` and to FCM), else the system's
+  reminder, since an adaptive launcher icon as a small icon crashes
+  Android 8's status bar. A tap that started the process waits in the
   shim until the game's first tick listens. A shared file goes out as a
   content URI from `Files`, a read-only provider of the app's own files
   whose authority the export names after the application id.

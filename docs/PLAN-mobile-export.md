@@ -40,8 +40,11 @@ the background runs no fixed step and holds its sounds until it comes back
      (ARCHITECTURE.md). Push is APNs on Apple (`PLAN-apple.md` step 5) and FCM
      on Android (`PLAN-google.md` step 8), its token answered in the fields
      Gamend's `push_tokens` takes.
+   - A notification's small icon on Android is `[android] notification_icon`,
+     a square picture with transparency the export writes white from its
+     alpha at each density, named to `Alarm` and to FCM in the manifest; a
+     game naming none shows the system's reminder icon.
    Tested headless against a canned OS, stand-ins and a replay; the Java
    compiles under `-Werror` and dexes. Not run on a device. Still to do: the
    camera, geolocation and biometrics; `navigator.share` on a page; an exact
-   iPhone buzz through Core Haptics; a monochrome small icon for Android's
-   notifications, which show the system's reminder icon.
+   iPhone buzz through Core Haptics.

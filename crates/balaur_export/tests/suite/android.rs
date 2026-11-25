@@ -4,7 +4,7 @@
 use balaur_export::Options;
 
 #[test]
-fn the_google_services_file_stays_out_of_the_pack_and_the_games_own_json_ships() {
+fn the_google_services_file_stays_out_of_the_pack_and_the_games_own_files_ship() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
@@ -12,14 +12,18 @@ fn the_google_services_file_stays_out_of_the_pack_and_the_games_own_json_ships()
          google_services = \"./config/google-services.json\"\n",
     )
     .unwrap();
-    std::fs::create_dir_all(dir.path().join("config")).unwrap();
-    std::fs::write(
-        dir.path().join("config/google-services.json"),
-        r#"{ "project_info": {} }"#,
-    )
-    .unwrap();
-    std::fs::create_dir_all(dir.path().join("data")).unwrap();
-    std::fs::write(dir.path().join("data/levels.json"), "[1, 2]").unwrap();
+    for (file, bytes) in [
+        (
+            "config/google-services.json",
+            &br#"{ "project_info": {} }"#[..],
+        ),
+        ("art/ship.png", b"a png"),
+        ("data/levels.json", b"[1, 2]"),
+    ] {
+        let path = dir.path().join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, bytes).unwrap();
+    }
     let out = dir.path().join("t.bpak");
     balaur_export::export(&Options {
         path: dir.path().to_path_buf(),
@@ -28,10 +32,12 @@ fn the_google_services_file_stays_out_of_the_pack_and_the_games_own_json_ships()
     })
     .unwrap();
     let pack = balaur::Pack::decode(&std::fs::read(&out).unwrap()).unwrap();
-    assert!(pack.assets.contains_key("data/levels.json"), "{:?}", pack.assets.keys());
+    let keys: Vec<&String> = pack.assets.keys().collect();
+    for kept in ["data/levels.json", "art/ship.png"] {
+        assert!(pack.assets.contains_key(kept), "{kept}: {keys:?}");
+    }
     assert!(
         !pack.assets.contains_key("config/google-services.json"),
-        "{:?}",
-        pack.assets.keys()
+        "{keys:?}"
     );
 }

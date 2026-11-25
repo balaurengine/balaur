@@ -51803,8 +51803,19 @@
       "scope": "project",
       "spec": {
         "default": "",
-        "help": "The project-relative google-services.json the Firebase console hands out, holding this application_id's app. Required with firebase-messaging, whose project, app id, API key and sender id it writes as the string resources Firebase starts from.",
+        "help": "The project-relative google-services.json the Firebase console hands out, holding this application_id's app. Required with firebase-messaging, whose project, app id, API key and sender id it writes as the string resources Firebase starts from. The file itself stays out of the game's pack.",
         "order": 15,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/notification_icon",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "A project-relative square picture with transparency, the small icon Android draws in the status bar for the game's notifications, local and pushed. Only its alpha is read: the export writes it white at each density. Empty shows the system's reminder icon.",
+        "order": 16,
         "type": "string"
       }
     },

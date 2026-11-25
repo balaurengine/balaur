@@ -417,13 +417,7 @@ impl Icons {
     /// square icon's own ground fills the mask, and white otherwise.
     pub(crate) fn write_android(&self, layout: &Path) -> Result<()> {
         let res = layout.join(crate::vocabulary::words::android::RES);
-        for (density, legacy) in [
-            ("mdpi", 48),
-            ("hdpi", 72),
-            ("xhdpi", 96),
-            ("xxhdpi", 144),
-            ("xxxhdpi", 192),
-        ] {
+        for (density, legacy) in DENSITIES {
             let dir = res.join(format!("mipmap-{density}"));
             write(&dir.join("icon.png"), &png(&self.plain, legacy))?;
             let layer = legacy * 9 / 4;
@@ -466,8 +460,53 @@ impl Icons {
     }
 }
 
+/// Android's screen densities, each with a legacy launcher icon's side there.
+const DENSITIES: [(&str, u32); 5] = [
+    ("mdpi", 48),
+    ("hdpi", 72),
+    ("xhdpi", 96),
+    ("xxhdpi", 144),
+    ("xxxhdpi", 192),
+];
+
 /// The resource an Android manifest names its icon by.
 pub(crate) const ANDROID_ICON: &str = "@mipmap/icon";
+
+/// `[android] notification_icon`, the status bar's small icon: the picture's
+/// alpha in white at each density Android draws a 24 dp icon at. Android
+/// reads nothing else of a small icon, so the white is what a player sees.
+///
+/// # Errors
+/// A file that will not read, a picture that is not square, or one with no
+/// transparent pixel or no visible one, which would draw a square or nothing.
+pub(crate) fn write_notification_icon(project: &Path, path: &str, layout: &Path) -> Result<()> {
+    let named = || format!("[android] notification_icon = \"{path}\"");
+    let picture = picture(project, path).with_context(named)?;
+    let alpha = |pixel: &image::Rgba<u8>| pixel.0[3];
+    if picture.pixels().all(|p| alpha(p) == u8::MAX) {
+        bail!(
+            "{}: the picture has no transparency, and Android draws a small icon from its \
+             alpha alone, so it would show a white square",
+            named()
+        );
+    }
+    if picture.pixels().all(|p| alpha(p) == 0) {
+        bail!("{}: the picture is wholly transparent", named());
+    }
+    let silhouette = RgbaImage::from_fn(picture.width(), picture.height(), |x, y| {
+        image::Rgba([u8::MAX, u8::MAX, u8::MAX, alpha(picture.get_pixel(x, y))])
+    });
+    let res = layout.join(words::android::RES);
+    for (density, legacy) in DENSITIES {
+        // A status-bar icon is 24 dp, half a launcher icon's 48.
+        write(
+            &res.join(format!("drawable-{density}"))
+                .join(format!("{}.png", crate::android::NOTIFICATION_DRAWABLE)),
+            &png(&silhouette, legacy / 2),
+        )?;
+    }
+    Ok(())
+}
 
 /// The web app manifest a web export writes beside its page.
 const WEB_MANIFEST: &str = "manifest.webmanifest";

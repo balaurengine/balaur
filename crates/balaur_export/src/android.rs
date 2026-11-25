@@ -16,6 +16,8 @@ use crate::sign::{run, tool};
 use crate::vocabulary::words;
 
 mod firebase;
+mod notification;
+pub(crate) use notification::DRAWABLE as NOTIFICATION_DRAWABLE;
 mod permissions;
 pub(crate) mod play;
 mod schemes;
@@ -111,6 +113,10 @@ pub(crate) struct AndroidConfig {
     /// out, which `firebase-messaging` needs: read whole, as Google's Gradle
     /// plugin reads it, rather than four of its values copied by hand.
     pub google_services: String,
+    /// A project-relative picture with transparency, the small icon Android
+    /// draws in the status bar: written white from its alpha, since that is
+    /// all Android reads of one. Empty shows the system's reminder icon.
+    pub notification_icon: String,
     /// `[window] orientation`, which Android settles in the manifest rather
     /// than at startup. Not a key of `[android]`: it is the same window
     /// setting every platform reads, taken from the same resolved document.
@@ -147,6 +153,7 @@ impl Default for AndroidConfig {
             capabilities: Vec::new(),
             games_project_id: String::new(),
             google_services: String::new(),
+            notification_icon: String::new(),
             orientation: balaur::project::Orientation::Any,
             title: String::new(),
             debug_key: false,
@@ -351,15 +358,35 @@ impl AndroidConfig {
     }
 
     /// `pack` without the files [`Self::consumed`] names: `google-services.json`
-    /// is JSON, which a pack otherwise ships as the game's data.
+    /// is JSON, which a pack otherwise ships as the game's data. The
+    /// notification icon stays, as `[application] icon` does: a scene may
+    /// draw the same picture.
     pub(crate) fn leave_out(&self, pack: &mut balaur::Pack) {
         for named in self.consumed() {
             let key = named.replace('\\', "/");
             let key = key.trim_start_matches("./");
             if pack.assets.remove(key).is_some() {
-                tracing::info!("[android] names {key}, which the export reads and the pack leaves out");
+                tracing::info!(
+                    "[android] names {key}, which the export reads and the pack leaves out"
+                );
             }
         }
+    }
+
+    /// The status bar's small icon, when `notification_icon` names one: its
+    /// drawables in the layout, and the manifest naming them.
+    ///
+    /// # Errors
+    /// When the picture does not read, is not square, or has no transparency.
+    pub(crate) fn notification_icon(&self, layout: &Path, xml: &str) -> Result<String> {
+        if self.notification_icon.is_empty() {
+            return Ok(xml.to_string());
+        }
+        crate::icon::write_notification_icon(&self.project, &self.notification_icon, layout)?;
+        let push = self
+            .capabilities
+            .contains(&play::Capability::FirebaseMessaging);
+        notification::declare(xml, push)
     }
 
     /// The layout keeps the Google libraries `capabilities` needs, and the

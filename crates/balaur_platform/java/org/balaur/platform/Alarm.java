@@ -6,6 +6,8 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Bundle;
 
 /**
  * A scheduled notification coming due: posted on the game's channel, with a
@@ -13,6 +15,9 @@ import android.content.Intent;
  * also an arrival, as Apple's is.
  */
 public final class Alarm extends BroadcastReceiver {
+    /** The application meta-data the export names the small icon in. */
+    private static final String SMALL_ICON = "org.balaur.platform.notification_icon";
+
     @Override
     public void onReceive(Context context, Intent alarm) {
         post(context, alarm);
@@ -31,10 +36,8 @@ public final class Alarm extends BroadcastReceiver {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent open = PendingIntent.getActivity(context, 0, tap,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        // The system's own icon: an adaptive launcher icon as a small icon
-        // crashes Android 8's status bar.
         Notification shown = new Notification.Builder(context, Notifications.CHANNEL)
-                .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                .setSmallIcon(smallIcon(context))
                 .setContentTitle(title)
                 .setContentText(body)
                 .setContentIntent(open)
@@ -44,6 +47,24 @@ public final class Alarm extends BroadcastReceiver {
         if (inFront()) {
             Notifications.received(id, title, body, data);
         }
+    }
+
+    /**
+     * The white silhouette the export wrote for {@code [android] notification_icon},
+     * else the system's reminder: an adaptive launcher icon as a small icon
+     * crashes Android 8's status bar.
+     */
+    @SuppressWarnings("deprecation") // the ApplicationInfoFlags form needs API 33
+    static int smallIcon(Context context) {
+        int icon = 0;
+        try {
+            Bundle meta = context.getPackageManager()
+                    .getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA).metaData;
+            icon = meta == null ? 0 : meta.getInt(SMALL_ICON);
+        } catch (PackageManager.NameNotFoundException e) {
+            // The game's own package is always there.
+        }
+        return icon != 0 ? icon : android.R.drawable.ic_popup_reminder;
     }
 
     private static boolean inFront() {
