@@ -350,6 +350,13 @@ impl balaur_plugin::Plugin for UiPlugin {
     }
 }
 
+/// The passes a frame may take before it draws. A root's first only
+/// measures, and every step a fit container climbs (`widget::class_words`)
+/// asks for one more, so a heading draws its first frame on the step it
+/// fits rather than climbing over the frames after: room for a ladder of
+/// ten words.
+const FRAME_PASSES: usize = 12;
+
 /// Run one UI pass: apply pending theme changes, then let scripts draw.
 /// Called by a windowed backend once per frame with the frame's egui
 /// context. Does nothing when the `UiPlugin` is not installed.
@@ -446,9 +453,10 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             state.fonts_installed = true;
             state.fonts_taken_at = generation;
             // A host that reruns the pass draws this frame with the fonts
-            // bound; three passes, since a root's first pass only measures.
+            // bound, and every frame after settles before it draws.
             ctx.options_mut(|options| {
-                options.max_passes = std::num::NonZeroUsize::new(3).unwrap_or(options.max_passes);
+                options.max_passes =
+                    std::num::NonZeroUsize::new(FRAME_PASSES).unwrap_or(options.max_passes);
             });
             ctx.request_discard("fonts installed");
             drop(state);

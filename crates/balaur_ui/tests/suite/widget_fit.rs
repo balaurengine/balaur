@@ -329,3 +329,36 @@ fn a_table_named_for_a_word_no_project_declares_is_refused() {
     let named: toml::Value = toml::toml! { kind = "row" classes = ["wf_nowhere"] }.into();
     assert!(balaur::components::add(&app.engine, other, "widget", Some(&named)).is_err());
 }
+
+/// Three boxes of role `x`, 100 by 10, each word narrower; a fit row that
+/// climbs all three to fit 100.
+const LADDER: &str = "[roles.x]\nwidth = 100.0\nheight = 10.0\n\
+    [roles.x.wf_compact]\nwidth = 80.0\n\
+    [roles.x.wf_one]\nwidth = 60.0\n\
+    [roles.x.wf_two]\nwidth = 30.0\n\
+    [roles.bar]\nfit = [\"wf_compact\", \"wf_one\", \"wf_two\"]\n";
+
+#[test]
+fn a_fit_row_settles_every_step_before_its_frame_draws() {
+    let (_dir, app) = app_with(LADDER);
+    let (_page, _row, boxes) = bar_of(&app, 100.0, toml::Value::Float(0.0));
+    let ctx = egui::Context::default();
+    // The first frame installs the fonts.
+    pass(&app, &ctx, vec![]);
+    // One frame as a host runs it: egui reruns the pass while one asks.
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::pos2(0.0, 0.0),
+            egui::vec2(640.0, 480.0),
+        )),
+        ..Default::default()
+    };
+    let mut out = ctx.run_pass(input, |ctx| balaur_ui::run_pass(&app.engine, ctx));
+    // A renderer uploads these; unapplied, dropping them panics.
+    out.textures_delta.clear();
+    assert!(
+        close(rect(boxes[2]).width(), 30.0),
+        "the last word, in the frame that drew: {:?}",
+        rect(boxes[2])
+    );
+}
