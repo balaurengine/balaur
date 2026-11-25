@@ -53,18 +53,6 @@ impl Certificate {
         })
     }
 
-    /// A certificate and key already on disk, as DER.
-    ///
-    /// # Errors
-    /// When the key is not a form rustls accepts.
-    pub fn from_der(chain: Vec<Vec<u8>>, key: Vec<u8>) -> Result<Self> {
-        Ok(Self {
-            chain: chain.into_iter().map(CertificateDer::from).collect(),
-            key: PrivateKeyDer::try_from(key)
-                .map_err(|e| anyhow::anyhow!("the private key is unusable: {e}"))?,
-        })
-    }
-
     /// The SHA-256 of each certificate, which is what a client pins.
     #[must_use]
     pub fn hashes(&self) -> Vec<Vec<u8>> {

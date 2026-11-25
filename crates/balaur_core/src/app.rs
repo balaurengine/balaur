@@ -748,12 +748,6 @@ impl App {
         Ok(())
     }
 
-    /// How many systems `stage` runs.
-    #[must_use]
-    pub fn system_count(&self, stage: Stage) -> usize {
-        self.systems[stage as usize].len()
-    }
-
     /// The binding group a plugin registers into, creating it if needed. With
     /// no script backend the registrations go nowhere.
     pub fn script_module(&mut self, name: &str) -> Result<balaur_script::Module<Engine>> {

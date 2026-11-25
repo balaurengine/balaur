@@ -16,7 +16,7 @@ Forge already opens, saves and syncs from a tab (forge's
    and give the artifact back, and add the Deploy button over
    [PLAN-deploy.md](PLAN-deploy.md). Done when a tab exports a desktop build
    it did not compile itself.
-3. **A real directory.** A fourth `files::FileBackend` over the File System
+3. **A real directory.** A `files::FileBackend` over the File System
    Access API, so a checked-out repo is edited in place in Chromium. A folder
    opened today is read in and handed back as a zip. Done when a save in the
    tab changes the file on disk.

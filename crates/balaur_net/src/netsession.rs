@@ -492,11 +492,6 @@ impl NetSession {
         std::mem::take(&mut self.controls)
     }
 
-    /// Say something reliably to one link.
-    pub fn send_control(&mut self, link: usize, control: &Control) {
-        self.send_on(link, &Message::Control(control.clone()), Delivery::Reliable);
-    }
-
     /// Say something reliably to every link.
     pub fn broadcast_control(&mut self, control: &Control) {
         self.send(&Message::Control(control.clone()), Delivery::Reliable);

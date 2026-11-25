@@ -3,7 +3,7 @@
 //! has nothing to offer.
 //!
 //! A real sign-in, unlock or leaderboard needs an Apple ID, a provisioning
-//! profile and hardware, which is docs/PLAN-apple.md step 3.
+//! profile and hardware, which is docs/PLAN-apple.md step 1.
 
 use balaur_apple::ApplePlugin;
 use balaur_core::{App, AppConfig};

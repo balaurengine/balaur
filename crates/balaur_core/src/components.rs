@@ -244,11 +244,6 @@ pub fn as_flags(value: Option<&toml::Value>) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-/// Whether a `flags`-typed property holds `name`.
-pub fn has_flag(value: Option<&toml::Value>, name: &str) -> bool {
-    as_flags(value).contains(&name)
-}
-
 /// The node a `node`-typed property names, resolved relative to the node that
 /// carries the component (Godot's NodePath rules, via [`crate::scene::find_node`]).
 ///

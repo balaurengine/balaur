@@ -378,8 +378,6 @@ pub(crate) mod keys {
     pub(crate) const COUNTS: &str = "counts";
     pub(crate) const STEP: &str = "step";
     pub(crate) const ROTATION: &str = "rotation";
-    pub(crate) const TILT: &str = "tilt";
-    pub(crate) const RANDOM_SCALE: &str = "random_scale";
     pub(crate) const SURFACE: &str = "surface";
     /// What every drawn node shows beside its surface, and the node's own
     /// flags: the renderable keys of both dimensions.

@@ -180,9 +180,6 @@ impl Debugger {
         lines.sort_unstable();
         lines
     }
-    pub fn clear_breakpoints(&mut self) {
-        self.clear_breakpoints_in(0);
-    }
     /// No breakpoint in unit `unit`'s file.
     pub fn clear_breakpoints_in(&mut self, unit: usize) {
         if let Some(lines) = self.breakpoints.remove(&unit) {

@@ -1,15 +1,6 @@
-> **Status:** step 1 built on 2026-09-18. `crates/balaur_multiplayer` gives
-> scripts `multiplayer.*`: a host listens and takes slot 0, a joiner dials
-> it, the lobby fills, and every machine loads the match scene and starts
-> from the host's world. The host relays each player's inputs to the others
-> without stamping them, which is step 2's job. Two engines in one process
-> agree on every settled tick over a websocket and over QUIC
-> (`crates/balaur_multiplayer/tests/match.rs`), and `examples/multiplayer`
-> plays 900 ticks between two `balaur run` processes with no Rust written.
-> Written on 2026-09-05 from the Photon parity investigation as
-> `PLAN-sessions.md`. This is the engine half of `docs/PLAN-networking.md`
-> step 8; `docs/PLAN-gamend.md` is the server half, and `docs/PLAN-voice.md`
-> rides on the roster this plan defines.
+> **Status:** steps 1 to 7 to build. This is the engine half of
+> `docs/PLAN-networking.md` step 8; `docs/PLAN-gamend.md` is the server half,
+> and `docs/PLAN-voice.md` rides on the roster this plan defines.
 
 # Plan: multiplayer
 
@@ -40,19 +31,21 @@ Missing:
 
 - **Nobody orders inputs.** The host relays; each input still names its own
   tick. Late join, spectators and a server-side referee need an end that
-  stamps and keeps the history (steps 2 and 3).
-- **No headless server** (`balaur run --server`, step 3).
+  stamps and keeps the history (steps 1 and 2).
+- **No headless server** (`balaur run --server`, step 2).
 - **No replay of a recorded match.** A replay steps frames with `App::tick`
   and never reaches the frame driver, so a recording made in a match does
-  not play back as one.
+  not play back as one (step 7).
 - **`--frames` runs and `balaur play` skip the driver too.** Their loops call
   `App::tick` unpaced, which is right for a smoke test and wrong for a match;
   `examples/multiplayer` quits by itself under `-- auto` instead.
-- **Web builds leave `multiplayer` out.** A browser cannot listen, and joining
-  over a websocket from a tab waits on web export.
+- **A page cannot host, and no test joins from one.** A web build carries
+  the websocket and WebTransport clients and refuses `host`, since a browser
+  cannot listen. A browser joining a native host in a test is
+  `docs/PLAN-networking.md` step 13.
 - **JSON on the wire, one reliable channel.** The start snapshot rides the
-  reliable channel in front of everything behind it (step 5).
-- **Stats have no dock** (step 7).
+  reliable channel in front of everything behind it (step 4).
+- **Stats have no dock** (step 6).
 
 ## 1. Design
 
@@ -131,8 +124,8 @@ decides is where the links go and who stamps an input with its tick.
 
 | Topology | Who links to whom | Who orders inputs |
 | --- | --- | --- |
-| `host` | Every player to one player, who is also playing | Built as a relay: the host passes each input on as it came, and each still names its own tick. Step 2 makes the host stamp and rebroadcast |
-| `server` | Every player to a headless engine that is not a player | The server, which also simulates, verifies digests and holds the history (step 3) |
+| `host` | Every player to one player, who is also playing | Built as a relay: the host passes each input on as it came, and each still names its own tick. Step 1 makes the host stamp and rebroadcast |
+| `server` | Every player to a headless engine that is not a player | The server, which also simulates, verifies digests and holds the history (step 2) |
 
 `host` is Photon Fusion's Host mode; `server` is its Server mode and
 Quantum's custom server at once, because a headless Balaur is the same
@@ -141,14 +134,14 @@ scripts: the relay does the same job over one link each.
 
 **Roles answer for this machine.** `multiplayer::role()` is `ROLE_HOST`
 (the listening player) or `ROLE_CLIENT` (a player linked to a host), and
-nil when idle. `ROLE_SERVER` and `ROLE_SPECTATOR` come with steps 3 and 4.
+nil when idle. `ROLE_SERVER` and `ROLE_SPECTATOR` come with steps 2 and 3.
 
 **Server-ordered inputs.** Under `host` and `server`, a player sends "this is
 my input, as early as I could", and the ordering end answers with the tick it
 was assigned and rebroadcasts it to everyone. That settles three things the
 relay cannot: which of two disagreeing peers is right, how far ahead of the
 others a fast client may run, and where the whole input history lives,
-which is what a late joiner and a spectator replay from. Until then a
+which is what a late joiner and a spectator replay from. Under the relay a
 machine running more than two ticks ahead of the slowest peer, or near the
 edge of the snapshot ring, waits a frame.
 
@@ -162,14 +155,14 @@ only; a joiner's one link to the host speaks for every slot but its own.
   carries the slot and the roster, and `Refuse` the reason. A join that is
   not welcomed inside `multiplayer/timeout` fails with `EVENT_FAILED`. The
   lobby starts when `players` slots are filled, or when the host calls
-  `start`. Joining a running match is step 4.
+  `start`. Joining a running match is step 3.
 - *Leave.* A slot whose player left is absent: from the tick after its last
   input the match feeds it nil rather than predicting, and keeps the slot so
   ids and history stay stable. The host notices a closed link, a goodbye, or
   a link silent for `timeout`, and tells the others with the leaver's last
   inputs attached. A host leaving ends the match.
 - *Reconnect.* A link that closes keeps its slot for a grace period, and a
-  new link presenting the same token resumes it (step 4).
+  new link presenting the same token resumes it (step 3).
 - *Host migration.* When the host's link closes, the next roster member
   becomes the host and everyone re-links to it. Under lockstep every machine
   already holds the same state, so migration is a roster edit and new
@@ -246,8 +239,8 @@ timeout = 5.0                # seconds a join may take, or a link stay silent
 another version is refused. The reliable side gains a stream id:
 snapshots travel on their own stream, so a late joiner's world never queues
 in front of a digest. `Transport` grows `send_reliable_on(stream, bytes)`
-with `0` as today's channel; the websocket implementation multiplexes with a
-prefix, QUIC opens a stream.
+with `0` as the channel it has; the websocket implementation multiplexes
+with a prefix, QUIC opens a stream.
 
 **Determinism.** Inputs and absences enter through `PeerTraffic`, which is
 `ExternalIo`, so they are recorded and never sent during a re-simulated
@@ -260,8 +253,8 @@ the desync tick with a button that runs `replay --entries-at` on it. And
 "Play as two": the editor launches a second instance of the project with
 `balaur run --headless` (or `--offscreen`, to see both), joins it over
 loopback with the fault settings on, and shows both in the dock. Fusion's
-multi-peer mode does this inside one Unity process; two processes are
-honest about the boundary and reuse the CLI.
+multi-peer mode does this inside one Unity process; two processes
+keep the network boundary real and reuse the CLI.
 
 ## 2. The surface
 
@@ -270,25 +263,25 @@ each.
 
 | Feature | Decision |
 | --- | --- |
-| Host, join, leave from a script; events; the `[multiplayer]` table | Have, step 1 |
-| Player slot bound to a link, roster handshake | Have, step 1 |
-| A player leaving; absent slots played as nil | Have, step 1 |
-| Stats readable from a script | Have, step 1 |
+| Host, join, leave from a script; events; the `[multiplayer]` table | Have |
+| Player slot bound to a link, roster handshake | Have |
+| A player leaving; absent slots played as nil | Have |
+| Stats readable from a script | Have |
 | Journal bounds, unknown players and far ticks refused, join timeout | Have |
-| `max_datagram` read from the link a match negotiated | Step 5, with the wire format |
-| Host that stamps inputs | Step 2 |
-| Server role: a headless engine that orders inputs and simulates | Step 3 |
-| Server-ordered inputs and the input history | Step 3 |
-| Server-side digest verification, so a modified client is refused rather than trusted | Step 3. A lockstep game's only anti-cheat for state; hidden information stays impossible under lockstep (`docs/PLAN-networking.md` §4.1) |
-| Late join from a snapshot, for lockstep | Step 4. Replication's join in progress is `docs/PLAN-networking.md` step 9 on the same stream |
-| Reconnect with a grace period | Step 4 |
-| Spectators | Step 4 |
-| bincode with a version byte; a stream id on the reliable side | Step 5 |
-| Host migration | Step 6, lockstep first; replication's variant lands with `docs/PLAN-networking.md` step 9 |
-| Multiplayer dock; "Play as two" | Step 7 |
-| Replay of a recorded match | Step 8 |
+| `max_datagram` read from the link a match negotiated | Step 4, with the wire format |
+| Host that stamps inputs | Step 1 |
+| Server role: a headless engine that orders inputs and simulates | Step 2 |
+| Server-ordered inputs and the input history | Step 2 |
+| Server-side digest verification, so a modified client is refused rather than trusted | Step 2. A lockstep game's only anti-cheat for state; hidden information stays impossible under lockstep (`docs/PLAN-networking.md` §4.1) |
+| Late join from a snapshot, for lockstep | Step 3. Replication's join in progress is `docs/PLAN-networking.md` step 9 on the same stream |
+| Reconnect with a grace period | Step 3 |
+| Spectators | Step 3 |
+| bincode with a version byte; a stream id on the reliable side | Step 4 |
+| Host migration | Step 5, lockstep first; replication's variant lands with `docs/PLAN-networking.md` step 9 |
+| Multiplayer dock; "Play as two" | Step 6 |
+| Replay of a recorded match | Step 7 |
 | Bots | Have: `add_bot` on a host, played through `set_input_for`; behaviour trees and state machines are a game's, or a plugin's |
-| Offline mode | Have: a match of one player with no link is today's `Session` |
+| Offline mode | Have: a match of one player with no link is a plain `Session` |
 | Lag simulation | Have: `multiplayer/*` |
 | Encryption | Have: QUIC is TLS, and the websocket is `wss` |
 | Master client | Have as the host slot; under `server` there is none, and a game that wants one elects it in script from the roster |
@@ -296,8 +289,8 @@ each.
 | Gamend as the transport | Later, if a game wants it: the WebRTC relay (`docs/PLAN-gamend.md` step S5) behind `Transport`, or the game server Gamend launches (step S1) running `server` |
 | Event cache for late joiners | Not needed: a late joiner receives the snapshot and the inputs since, which is every event |
 | Interest groups on a relay | `docs/PLAN-networking.md` step 12 for replication; under lockstep every peer needs every input |
-| NAT traversal, a relay | `docs/PLAN-gamend.md` (a game server per lobby), `docs/PLAN-steam.md` step 8 (the Steam Datagram Relay), `docs/PLAN-networking.md` step 14 (WebRTC) |
-| A browser in a match | Blocked on `docs/PLAN-networking.md` step 13 and web export; the web templates leave `multiplayer` out until then |
+| NAT traversal, a relay | `docs/PLAN-gamend.md` (a game server per lobby), `docs/PLAN-steam.md` step 3 (the Steam Datagram Relay), `docs/PLAN-networking.md` step 14 (WebRTC) |
+| A browser in a match | A page dials a host and cannot be one; its test is `docs/PLAN-networking.md` step 13, and a match between browsers waits on step 14 (WebRTC) |
 | Deterministic pathfinding for a lockstep game | Not this plan; the roadmap's navigation row carries the constraint |
 
 ## 3. Steps
@@ -305,34 +298,26 @@ each.
 Two or three engines in one process on loopback, behind `transport::Faulty`,
 is the bar for every step.
 
-1. **A match from a script — built.** `crates/balaur_multiplayer`: the
-   module, `host` and `join` over both transports, the handshake with slots
-   bound to links, `start`, bots, `leave` and absent slots, events, `stats`,
-   the `[multiplayer]` table, and the start from the host's world. In core:
-   `FrameDriver`, `NetSession`'s bound links, relay and lead check,
-   `Session::set_absent`, the `local` digest tag, script fields that keep
-   their nodes across a snapshot, the `multiplayer/faults` settings and the
-   `multiplayer` replay source. Ends with: `examples/multiplayer` played
-   by two `balaur run` processes, and the match test over both transports.
-2. **Host.** The host stamps each input with the tick it will run on and
+1. **Host.** The host stamps each input with the tick it will run on and
    rebroadcasts it. `Hello` carries the joiner's `[time] tick_hz`, and a
-   host at another rate sends `Refuse`; today the two desync on the first
-   digest instead. Ends with: three players through one host, under loss.
-3. **Server.** `balaur run --server`: headless, no slot, ordering inputs,
+   host at another rate sends `Refuse`, where the two would desync on the
+   first digest. Ends with: three players through one host, under loss.
+2. **Server.** `balaur run --server`: headless, no slot, ordering inputs,
    simulating, keeping the input history, and comparing every client's
    digest to its own. A client whose digest differs is told and dropped.
    It prints its bound port and certificate hash on start, which is what
    `docs/PLAN-gamend.md` step S1 reads. Ends with: a server refereeing two
    clients, one of them modified.
-4. **Late join, reconnect, spectators.** The snapshot stream, the inputs
+3. **Late join, reconnect, spectators.** The snapshot stream, the inputs
    since, the grace period, the resume token. Ends with: a client killed
    mid-game restarts and is back at the live tick.
-5. **Wire format.** bincode behind a version byte, the stream id, the
+4. **Wire format.** bincode behind a version byte, the stream id, the
    datagram size read from the link, bytes per tick measured in
    `examples/benchmark`. Ends with: a number in `docs/BENCHMARKS.md`.
-6. **Host migration.** Ends with: the host killed, the game continues.
-7. **The editor.** The Multiplayer dock and "Play as two".
-8. **Recording a match.** A replay drives recorded frames through the frame
+5. **Host migration.** Ends with: the host killed, the game continues.
+6. **The editor.** The Multiplayer dock and "Play as two". Ends with: "Play
+   as two" started from the editor, both machines' links in the dock.
+7. **Recording a match.** A replay drives recorded frames through the frame
    driver, and a re-run tick records no frame of its own; the `--frames`
    and `balaur play` loops step through it too. Ends with: a match recorded
    on each machine replays to the same digests.
@@ -353,7 +338,7 @@ A source added later has to ask for the scope too; nothing makes it.
 
 Loopback with injected loss, delay and jitter, which is what makes the
 twelve-tick repeat necessary, so it is not a weak bar. Every step ends
-with a headless test of two or three engines, and step 3's adds a fourth
+with a headless test of two or three engines, and step 2's adds a fourth
 process. What CI cannot: NAT, a real route, a browser, a phone on a cellular
 link. Those wait for `docs/PLAN-gamend.md`'s game server on a real host.
 
@@ -362,7 +347,7 @@ link. Those wait for `docs/PLAN-gamend.md`'s game server on a real host.
 1. **A joining player's first tick.** A joiner starts at tick 1 a round
    trip after the host, and the lead check holds the host back until they
    are level. Whether the ordering end should instead hand a joiner a tick a
-   round trip ahead is step 2's to measure.
+   round trip ahead is step 1's to measure.
 2. **The absent input.** Nil today. A game with a "hold to block" input may
    want a value it declares in `[multiplayer]`.
 3. **Where the resume token comes from.** Minted by the ordering end, or a

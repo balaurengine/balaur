@@ -17,6 +17,6 @@ the node (`NODE_KEYS` in `crates/balaur_core/src/project.rs`), read into the
 
 ## Open questions
 
-1. **Whether it moves at all.** It breaks every scene file once more.
+1. **Whether it moves at all.** It changes every scene file.
    `NODE_KEYS` also holds `process` and `tags`, so a node keeps keys outside
    components either way. The owner decides before step 1.

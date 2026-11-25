@@ -2,9 +2,8 @@
 
 A value is looked at through a reference. It is copied only where the copy
 is the point. One `v.clone()` in a `map` copies every value of every map
-at every level of nesting, which makes handing a script a parsed 1.6 MB
-document cost 1.9 s. This plan is the rule, what holds it, and the
-copies a review of the whole engine found (2026-11-21), to be taken down.
+at every level of nesting. This plan is the rule, what holds it, and the
+copies a review of the whole engine found, to be taken down.
 
 ## The rule
 
@@ -41,8 +40,8 @@ Cheap handles are not copies in this sense: `Rc`, `Arc`, `SmolStr`,
   shapes below, each a finding unless the line above says `// copy:`.
   - **copy-per-item**: `.clone()`, `.to_vec()`, `.to_owned()` or
     `.to_string()` inside the closure of a `map`, `for_each`, `filter_map`
-    or `flat_map`, or `.cloned()` before a `collect` (the shape of the
-    1.9 s: a copy an item, of what the items were lent from).
+    or `flat_map`, or `.cloned()` before a `collect`: a copy an item, of
+    what the items were lent from.
   - **copy-to-iterate**: `for x in y.clone()`, `for x in y.to_vec()`.
   - **copy-to-borrow**: `&x.clone()`, `&x.to_vec()`, `&x.to_owned()`.
   - **copy-out-of-a-cell**: `.borrow().<...>.get(k).cloned()` and
@@ -52,128 +51,99 @@ Cheap handles are not copies in this sense: `Rc`, `Arc`, `SmolStr`,
   `&local`, which is a second copy where `local` is not read again.
   The lint cannot see a type, so a cheap handle cloned inside a closure is
   a finding too: `// copy: a handle`, or `.map(Rc::clone)`.
-  It starts from a baseline, `scripts/copy_lints.baseline`, the findings of
-  the day it was written: a finding not in the baseline fails, and so does
-  a baseline line that no longer matches, so the file only shrinks.
+  It holds a baseline, `scripts/copy_lints.baseline`: a finding not in the
+  baseline fails, and so does a baseline line that no longer matches, so the
+  file only shrinks.
 - clippy's `needless_pass_by_value`, `implicit_clone`,
   `unnecessary_to_owned`, `assigning_clones` and
   `large_types_passed_by_value`, on with `pedantic`. `redundant_clone` is
-  in `nursery`, which the workspace leaves off: step 1 turns it on by name
-  once what it finds is cleared.
-- Step 2's benches: a parse of a megabyte document handed to a script, and
-  a screen of form controls filled twice, so the two costs this plan
-  started from have a number a change is held against.
-
-## Done
-
-- `any_cell` hands out what a cell points at as borrowed parts (`Part`);
-  an array's items are encoded into one buffer and written once.
-- `json::parse` reads straight into script values (`Parsed`), no
-  `serde_json::Value` between.
-- An engine call's answer is moved into the script's value
-  (`from_neutral_owned`, `dynamic_owned`).
-- An awaited value is taken by the await that reads it, not cloned.
-- A call into a module shares its result kinds (`Rc<[Slot]>`) rather than
-  copying them.
-- A block for what the engine hands a script is taken by the engine as
-  the module's `__alloc` would take it, on the module's memory and its
-  allocator's globals, with no call into the module (`runtime::heap`, on
-  wasmtime and wasmi; the module still grows its memory). Same size class,
-  same free list or bump, so the heap ends block for block as the module's
-  own calls would leave it: `heap`'s tests hold the two to one sequence,
-  and `memory`'s that what the engine hands over is freed, reused and the
-  same on both engines. Modules export `__bump` beside `__live`.
-
-Measured on a quiet machine, debug engine, the 1.6 MB pack parsed for a
-script: 60 ms before the host-side allocator, 29 ms after (200,000 ints in
-a list: 68 ms to 37 ms). A time is taken on a quiet machine, or by the
-CPU the process spent: a load of about 300 inflates it tenfold.
+  in `nursery`, which the workspace leaves off: step 1 turns it on by name.
+- Benches in `crates/balaur_bench/benches/`: `json`, a megabyte document
+  read and handed to a script, and step 2's screen of form controls filled
+  twice, so the two costs this plan holds to have a number a change is held
+  against. A time is taken on a quiet machine, or by the CPU the process
+  spent: a load of about 300 inflates it tenfold.
 
 ## The review
 
-Three reviewers read the copy sites of every crate outside tests: about
-3,560 of them (`.clone()`, `.to_vec()`, `.to_owned()`, `.to_string()`,
-`.cloned()`). About 770 are cheap handles, about 2,000 are needed (an owned
-answer to a script, a stored name, an error's text, a move across threads,
-a snapshot that ends a borrow), and about **300 are avoidable**, listed
-here by where they run. `[V]` was verified by reading the function and its
-callers; `[I]` was inferred from the line. None is taken down until it is
-read again and, where it is hot, measured. Paths are under `crates/`.
+The copy sites of every crate outside tests number about 3,560
+(`.clone()`, `.to_vec()`, `.to_owned()`, `.to_string()`, `.cloned()`).
+About 770 are cheap handles, about 2,000 are needed (an owned answer to a
+script, a stored name, an error's text, a move across threads, a snapshot
+that ends a borrow), and about **300 are avoidable**, listed here by where
+they run. `[V]` was verified by reading the function and its callers; `[I]`
+was inferred from the line. None is taken down until it is read again and,
+where it is hot, measured. Paths are under `crates/`.
 
 ### Script boundary (`balaur_bs`, `balaur_script_bs`, `balaur_script`)
 
 A value crossing is built two or three times: module memory, the runtime's
 `Value` (L), the engine's `Value` (N). L is only ever between.
 
-1. **Done.** `balaur_script_bs/src/lib.rs:63`, `convert.rs`: an answer is
-   moved, not converted by reference.
-2. `convert.rs:44-51, 61, 66, 86, 320-324` (`to_neutral(&args.value(i))`),
+1. `convert.rs:44-51, 61, 66, 86, 320-324` (`to_neutral(&args.value(i))`),
    callers `lib.rs:111, 117, 127, 145, 196`, `balaur_script/src/value.rs:
    300`: every str, list, `any` and record argument, already decoded from
    the module in `Slots::read` (`balaur_bs/src/runtime/args.rs:116-139`),
    cloned again into N. Fix: take trees out of `Slots` by index, or decode
    straight to N. Short strings keep the pooled buffer. The first copy is
    needed (a binding may re-enter the module and memory may move).
-3. `balaur_bs/src/runtime/marshal.rs:47, 49, 51-54, 58`: a struct's field
+2. `balaur_bs/src/runtime/marshal.rs:47, 49, 51-54, 58`: a struct's field
    list and defaults `.to_vec()`, each field value cloned, once a level of
    nesting, for every `Vec2`, `Color` and record handed to a script. Fix:
    `Arc::clone(&self.meta)` and borrow; build a default only on a miss.
-4. `runtime/values.rs:306-330` (`str_bytes`, `array_header`, `cell_bytes`):
+3. `runtime/values.rs:306-330` (`str_bytes`, `array_header`, `cell_bytes`):
    a `Vec<u8>` per string, per array header and per cell, to prepend eight
    bytes. Fix: the header from the stack, the body written from the slice.
-5. **Done.** `runtime/host.rs:569, 618`: an awaited value is taken, not
-   cloned.
-6. `balaur_script_bs/src/host/tasks.rs:96`: a wake's payload converted by
+4. `balaur_script_bs/src/host/tasks.rs:96`: a wake's payload converted by
    reference; the last home to await it can be handed it. Two homes may
    await one token: the earlier ones still copy.
-7. `balaur_script_bs/src/host.rs:988-993`: a broadcast's arguments
+5. `balaur_script_bs/src/host.rs:988-993`: a broadcast's arguments
    converted N to L once an instance of the same script and method (the
    batch path at `:945` does it once). Fix: once a group. Encoding once in
    the module and retaining per handler would alias lists between
    handlers: safe only for `str`.
-8. `host.rs:1018, 1043, 1096`, `host/tasks.rs:176`, `host/engine_facing.rs:
+6. `host.rs:1018, 1043, 1096`, `host/tasks.rs:176`, `host/engine_facing.rs:
    362, 234`: `to_neutral(&v)` on an owned L just decoded. Fix:
    `into_neutral(v)`.
-9. `balaur_bs/src/runtime/mod.rs:507, 527-528, 655`, `stepping.rs:68`: an
+7. `balaur_bs/src/runtime/mod.rs:507, 527-528, 655`, `stepping.rs:68`: an
    object's class name `String` and its one-slot `Vec<Raw>` cloned for
    every call into a script, every batched instance a frame, every task
    poll. Fix: `Rc<str>` and `SmallVec<[Raw; 1]>`.
-10. `runtime/values.rs:245-259` (`read_any`, a map): its keys read as a
-    `Vec` of `String`, each turned into a `SmolStr`, then zipped into a
-    third `Vec`. Fix: read each key straight into the pair.
-11. `host/engine_facing.rs:41, 103, 113`, `runtime/mod.rs:389-393`: each
-    scene property of a scripted node copied five times on its way into
-    the module at attach.
-12. **Done.** `runtime/wasmtime_engine.rs:992`.
-13. `runtime/web_engine.rs:287-296`: in a browser every word read makes a
+8. `runtime/values.rs:245-259` (`read_any`, a map): its keys read as a
+   `Vec` of `String`, each turned into a `SmolStr`, then zipped into a
+   third `Vec`. Fix: read each key straight into the pair.
+9. `host/engine_facing.rs:41, 103, 113`, `runtime/mod.rs:389-393`: each
+   scene property of a scripted node copied five times on its way into
+   the module at attach.
+10. `runtime/web_engine.rs:287-296`: in a browser every word read makes a
     `Vec` and two JS views, every write copies twice. Fix: `read_into`
     over `subarray().copy_to`, one kept view remade when memory grows.
-14. `balaur_script_bs/src/lib.rs:171`, `balaur_script/src/value.rs:271`: a
+11. `balaur_script_bs/src/lib.rs:171`, `balaur_script/src/value.rs:271`: a
     text property read and every `String` parameter copied to a host
     `String` only to be copied again. Needs bindings that read to take
     `&str`, valid only until the binding re-enters the script.
-15. `runtime/host.rs:534-541` (`script_of`): two static names read out of
+12. `runtime/host.rs:534-541` (`script_of`): two static names read out of
     the module as `String`s for every `node.script`.
-16. `runtime/mod.rs:564, 667`, `stepping.rs:64`: `meta.function(key)
+13. `runtime/mod.rs:564, 667`, `stepping.rs:64`: `meta.function(key)
     .cloned()` (a `FnInfo` with a `Vec<Ty>`) for every call.
-17. `runtime/mod.rs:943`, `balaur_script_bs/src/host.rs:144`: a `Ty` cloned
+14. `runtime/mod.rs:943`, `balaur_script_bs/src/host.rs:144`: a `Ty` cloned
     for every get or set of a script's field.
-18. `balaur_script_bs/src/lib.rs:112, 119`: two `Value::Str` and a
+15. `balaur_script_bs/src/lib.rs:112, 119`: two `Value::Str` and a
     one-entry map built for a component property get or set that misses
     the placed path.
-19. `convert.rs:262` (`tagged`): an enum's fields cloned, then copied again
+16. `convert.rs:262` (`tagged`): an enum's fields cloned, then copied again
     by `record`.
-20. `runtime/marshal.rs:133, 218, 228`: field lists `.to_vec()` in
+17. `runtime/marshal.rs:133, 218, 228`: field lists `.to_vec()` in
     `default_of` and `release_flat`.
-21. `host/links.rs:114`: two `String`s a link, for every link, on every
+18. `host/links.rs:114`: two `String`s a link, for every link, on every
     attach. Fix: `Rc<str>`; the snapshot stays (a release can run a script
     that edits links).
-22. `host/profile.rs:46`: `entry(path.to_string())` on a hit.
-23. `balaur_script/src/value.rs:149, 161, 298`: N cloned an argument on the
+19. `host/profile.rs:46`: `entry(path.to_string())` on a hit.
+20. `balaur_script/src/value.rs:149, 161, 298`: N cloned an argument on the
     `&[Value]` path.
-24. `runtime/mod.rs:170, 175, 245`, `host/units.rs:290`: a whole `Meta`
+21. `runtime/mod.rs:170, 175, 245`, `host/units.rs:290`: a whole `Meta`
     and a whole `Compiled` cloned for each instance built and each reload.
-25. Compile time, not a frame's: `host.rs:524` (`api()` returns the whole
+22. Compile time, not a frame's: `host.rs:524` (`api()` returns the whole
     `HostApi` by clone, twice a compile), `balaur_bs/src/prelude.rs:118`
     and `codegen/mod.rs:584` (the prelude's whole tree, twice),
     `maps.rs:79`, `host.rs:487, 423`, `codegen/func.rs:181-220` (`for s in
@@ -185,16 +155,9 @@ str, array and `any` answer (`marshal.rs:169-202`); a `Vec<Raw>` an
 argument and a call (`marshal.rs:14`, `engine.rs:40`); one call into the
 module to count down each lent object (`mod.rs:495-510`); `Meta::fields`
 and `is_class` linear over every struct (`lib.rs:425-433`), run a value.
-
-**Measured, 2026-11-21, debug engine, wasmtime**, on a busy machine: an
-engine call that answers a bool cost 1.4 µs, a value written into a
-module 2.5 µs, where the module made 400,000 allocations of its own in
-14 ms: the call into the module's `__alloc` for each value was what a
-large answer paid. **Done**: `runtime::heap` takes the block from the
-engine's side (see Done). Left on this path: the browser's engine and a
-native build still call `__alloc` for each block (`web_engine.rs`,
-`native_engine.rs`), the second copies above, and a release engine's
-numbers.
+The browser's engine answers no `lend_heap`, so it calls the module's
+`__alloc` for each block it hands a script, where wasmtime, wasmi and a
+native build take the block from the engine's side (`runtime::heap`).
 
 ### Core (`balaur_core` and the crates it carries)
 
@@ -309,46 +272,41 @@ table is cloned a widget a frame (`Rc<Look>`, memoised by kind and role);
 the text cache hashes a borrowed request and a hit allocates nothing; the
 render mirror copies only dirty nodes.
 
-Written controls (`balaur_ui/src/widget/write.rs`, where the pool's routing
-and memo moved; the lines below are the pool's), for each control of each
-fill whether or not it changed, about seventy allocations for a spec of
-six keys:
+Written controls (`balaur_ui/src/widget/write.rs`), for each control of
+each fill whether or not it changed:
 
-1. `:163` (`merge`), `:130-143`: a map built from ten default keys, then
-   every key and value of the spec cloned deep.
-2. `:172`, `:372` (`as_value`): the whole table cloned again before it is
-   known to have changed.
-3. `:373`: the table last written cloned a third time.
-4. `:498`: the nested controls cloned, each already cloned by `merge`.
-5. `:469`: a fourth clone on the changed path.
-6. `:477` (`hidden`): a map built and cloned for each spare slot, hidden
-   already or not.
-7. `:334, 397, 199-270`: a `String` key a control, the kind cloned three
-   times.
+1. `write` by `merge`: a spec built from `shapeless`'s ten default keys,
+   then every key and value of the control cloned deep.
+2. `written` by `as_value`: the whole spec cloned again before it is known
+   to have changed.
+3. `written`: the table last written (`memo.asked`) cloned to compare.
+4. `written`: the new table cloned into the memo on the changed path.
+5. `Writer::write` and `listen`: the kind cloned twice, and each handler's
+   method name a `String` a write.
 
-Fix for all seven: compare the borrowed spec with what was written, inside
+Fix for all five: compare the borrowed spec with what was written, inside
 the memo's borrow; build owned data only for what differs; write after the
 borrow ends (a write can re-enter the writer).
 
 A widget read again (`balaur_ui/src/widget/`):
 
-8. `arena.rs:117` by `:315`: the whole `Widget` (about 1.8 KB, some fifty
+6. `arena.rs:117` by `:315`: the whole `Widget` (about 1.8 KB, some fifty
    `SmolStr`, nine `Vec`s) for each dirty widget a pass; and every pointer
    move, press and scroll frame marks one dirty (`input.rs:704`).
-9. `arena.rs:117` by `:363`: the same for every widget when any node is
+7. `arena.rs:117` by `:363`: the same for every widget when any node is
    added or freed anywhere. Fix for both: the heavy lists behind `Arc`,
    `Arc<Widget>` in the component and the arena, a dirty mark that says
    what kind of change it is.
-10. `scroll.rs:61` (`rows_of`): a full `Widget` clone **every frame** for
-    each scrolling row, column, grid and panel with no `axis`.
-11. `schema.rs:131-153`: the whole `Widget` rebuilt on a write of two or
-    more keys (core reports `Written::Whole`).
-12. `beside_controls.rs:109`, `beside.rs:151, 278, 669`: a list's items
+8. `scroll.rs:61` (`rows_of`): a full `Widget` clone **every frame** for
+   each scrolling row, column, grid and panel with no `axis`.
+9. `schema.rs:131-153`: the whole `Widget` rebuilt on a write of two or
+   more keys (core reports `Written::Whole`).
+10. `beside_controls.rs:109`, `beside.rs:151, 278, 669`: a list's items
     copied component to widget on every write. Fix: `Arc<[Item]>`.
 
 Every frame for each widget of its kind:
 
-13. `rows.rs:92` (a `BTreeSet<String>` of what is picked, a list, tree,
+11. `rows.rs:92` (a `BTreeSet<String>` of what is picked, a list, tree,
     table), `rows.rs:196, 204` (egui temp data cloned out), `icons.rs:41`
     (a `String` an icon glyph), `kinds.rs:278` (a menu's options),
     `table.rs:258` (two lowercased `String`s a comparison, in a sort run a
@@ -357,7 +315,7 @@ Every frame for each widget of its kind:
 
 An event or a keystroke:
 
-14. `input.rs:508` (the whole input snapshot every tick with an edit),
+12. `input.rs:508` (the whole input snapshot every tick with an edit),
     `input.rs:91` (a stable id `String` an edit), `input.rs:555-612` (a
     field's text twice a keystroke), `input.rs:338, 359`,
     `typing.rs:113, 154, 158` (every unchanged line of a text area),
@@ -365,17 +323,17 @@ An event or a keystroke:
 
 Render, animation, physics:
 
-15. `balaur_render/src/text_component.rs:556`, `world_text.rs:237, 698`,
+13. `balaur_render/src/text_component.rs:556`, `world_text.rs:237, 698`,
     `sync_2d.rs:513-540, 684`, `batch_2d.rs:65`, `batch_3d.rs:76, 198` (a
     key of two or three `String`s built to compare with the kept one, for
     each moving sprite), `kiss3d_backend.rs:907` `[I]`.
-16. `balaur_animation/src/system.rs:488-525` (a component and a property
+14. `balaur_animation/src/system.rs:488-525` (a component and a property
     name cloned into each patch, a track a step), `sampler.rs:299`,
     `machine.rs:663`.
-17. `balaur_physics/src/follow.rs:151`, `dim2/follow.rs:134`,
+15. `balaur_physics/src/follow.rs:151`, `dim2/follow.rs:134`,
     `vehicle.rs:155, 166`, `shared/character.rs:63`, `ragdoll.rs:147`
     `[I]`: a component cloned for each body a step.
-18. `balaur_geometry/src/mesh.rs:916-927, 994`, `triangulate.rs:84`,
+16. `balaur_geometry/src/mesh.rs:916-927, 994`, `triangulate.rs:84`,
     `balaur_text/src/atlas.rs:287`, `glyph.rs:53, 94`: once an asset.
 
 Recomputed every frame, where it could wait for its inputs:
@@ -412,23 +370,33 @@ Recomputed every frame, where it could wait for its inputs:
 
 ## Steps
 
-1. `scripts/copy_lints.py` and its baseline (429 findings on 2026-11-21),
-   in `precommit.sh --lints`: **done**, a new copy of a listed shape fails.
-   Left: `redundant_clone` on, its findings cleared.
-2. The two benches, in `crates/balaur_bench/benches/engine.rs`. Done when
-   both print a number, and step 3's and 4's changes are held against
-   them.
-3. Pooled controls (UI 1-7) and the widget re-read (UI 8-12, recomputed
-   2): what every screen of an app pays on each fill and each scroll.
-4. `scene::instantiate` by table, and an instance by path with overrides
+1. **`redundant_clone` on.** The workspace's lints turn clippy's
+   `redundant_clone` on by name, and what it finds is cleared or says
+   `// copy:`. Done: `scripts/precommit.sh` passes with it on.
+2. **The form-controls bench.** A bench in `crates/balaur_bench/benches/`
+   fills a screen of form controls twice through `ui.write`. Done: it
+   prints a number, and step 3's and 4's changes are held against it and
+   against `json`.
+3. **Written controls and the widget re-read.** UI 1-10 and recomputed 2:
+   what every screen of an app pays on each fill and each scroll. Done:
+   the form-controls bench's second fill allocates only for the keys that
+   moved, and a scroll frame clones no `Widget`.
+4. **`scene::instantiate` by table.** An instance by path with overrides
    (core 1, recomputed 1-6): what every list an app builds pays a row.
-5. The component write path (core 4-7, 10-12): what every node pays at
-   instantiate.
-6. The script boundary's second copies (2, 3, 8, 9, 10), the host-side
-   allocator on the browser's engine and a native build (done on wasmtime
-   and wasmi), and a release engine's numbers.
-7. Arrivals (core 2, 3) and events (core 9, 18).
-8. The rest, a crate at a time, the baseline shrinking to nothing.
+   Done: `instantiate` takes a table, no TOML text is built or parsed on
+   the way, and the `rows` bench is held against it.
+5. **The component write path.** Core 4-7 and 10-12: what every node pays
+   at instantiate. Done: each site borrows or shares, and its crate's tests
+   pass.
+6. **The script boundary's second copies.** Script boundary 1, 2, 6, 7
+   and 8, the host-side allocator on the browser's engine, and a release
+   engine's numbers. Done: an argument is decoded once, the browser's
+   engine answers `lend_heap`, and the `json` bench has a release number.
+7. **Arrivals and events.** Core 2, 3, 9 and 18. Done: an arrival is moved
+   unless a recording wants it, and a delivered payload is moved into the
+   arguments.
+8. **The rest, a crate at a time.** Done: `scripts/copy_lints.baseline` is
+   empty.
 
 Each step: read the site again, change it, run the crate's tests, and
 where it was hot, the bench before and after. Each copy turned into a

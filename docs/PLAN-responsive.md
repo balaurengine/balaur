@@ -17,7 +17,7 @@ folding are built, and every chord has a palette line; the shots are taken by `s
 3. **One layout pass for the docks and the chrome.** `layout::stage_room` in
    `editor/scripts/layout.bs` works out the room the docks leave before the
    layout runs, repeating its widths. Lay out the docks first, then the chrome
-   against what they left. Done when `stage_room` is gone and the layout
+   against what they left. Done when no `stage_room` is left and the layout
    assertions hold at every audited size.
 
 ## Open questions

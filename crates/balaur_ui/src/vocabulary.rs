@@ -406,7 +406,6 @@ pub(crate) mod words {
             ZOOM_OUT,
         ];
     }
-    pub(crate) const GET_NODE: &str = "get_node";
     pub(crate) const HIDDEN: &str = "hidden";
 
     pub(crate) mod general {

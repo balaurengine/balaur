@@ -26,10 +26,6 @@ pub const JOINS: &[&str] = &[ROUND, MITER, BEVEL];
 /// The caps a line may take, in the order the inspector offers them.
 pub const CAPS: &[&str] = &[ROUND, BUTT, SQUARE];
 
-/// How many colours a gradient steps through along a line, unless the line
-/// asks for another number.
-pub const GRADIENT_STEPS: u32 = 32;
-
 /// How two segments meet.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Join {

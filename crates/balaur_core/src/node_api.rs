@@ -826,17 +826,6 @@ pub fn checked_property_spec(spec: &Value) -> std::result::Result<Value, String>
     from_toml(&table).map_err(|e| e.to_string())
 }
 
-/// One value against the spec that governs it, for a caller holding a list's
-/// entries to what its first one said.
-///
-/// # Errors
-/// The reason the value is not what the spec declares.
-pub fn check_property_value(spec: &Value, value: &Value) -> std::result::Result<(), String> {
-    let spec = to_toml(spec).map_err(|e| e.to_string())?;
-    let value = to_toml(value).map_err(|e| e.to_string())?;
-    crate::components::validate_value(&spec, &value)
-}
-
 /// Component parameters travel as TOML, so a script table and a scene file
 /// describe a component the same way.
 pub fn to_toml(v: &Value) -> Result<toml::Value> {

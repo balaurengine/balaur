@@ -635,12 +635,6 @@ impl TileGrid {
         }))
     }
 
-    /// What the tile at a cell carries, for a game that reads it.
-    #[must_use]
-    pub fn data_at<'a>(&self, set: &'a TileSet, column: i32, row: i32) -> Option<&'a toml::Value> {
-        set.tile(self.cell(column, row)?)?.data.as_ref()
-    }
-
     /// Every cell whose tile draws its own collision polygons, with the centre
     /// of the cell in the node's own space and the turn the cell is drawn
     /// with — a mirrored slope has to collide mirrored.

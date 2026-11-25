@@ -98,9 +98,6 @@ pub mod words {
     pub const LEFT: &str = "left";
     pub const RIGHT: &str = "right";
     pub const JUSTIFY: &str = "justify";
-    /// Where lines sit in their block: start and end follow the text's
-    /// direction, left and right do not.
-    pub const TEXT_ALIGNS: &[&str] = &[START, CENTER, END, LEFT, RIGHT, JUSTIFY];
 
     pub const COMPLEX: &str = "complex";
     pub const SIMPLE: &str = "simple";

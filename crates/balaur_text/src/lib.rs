@@ -697,11 +697,6 @@ impl TextState {
         self.layouts.clear();
         Ok(())
     }
-
-    /// Whether a bitmap font is loaded under `name`.
-    pub fn has_bitmap_font(&self, name: &str) -> bool {
-        self.pages.contains_key(name)
-    }
 }
 
 /// [`place_once`], and again when that moved the atlas: a glyph that grows it

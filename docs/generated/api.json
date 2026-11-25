@@ -25747,7 +25747,7 @@
       },
       "overflow": {
         "default": "visible",
-        "description": "What becomes of content past this widget's box. A `row`, `column`, `grid` or `panel` that says `scroll` scrolls it, as CSS's `overflow: auto`: as large as what it holds, giving way where its container leaves it less (its `shrink` is 1 unless stated) and scrolling what no longer fits, by the rows of `widget_scroll`; it keeps `scrollbar_width` clear inside its edge. On any other kind, and for the other words, layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), and each kind clips as it draws",
+        "description": "What becomes of content past this widget's box. A `row`, `column`, `grid` or `panel` that says `scroll` scrolls it, as CSS's `overflow: auto`: as large as what it holds, giving way where its container leaves it less (its `shrink` is 1 unless stated) and scrolling what does not fit, by the rows of `widget_scroll`; it keeps `scrollbar_width` clear inside its edge. On any other kind, and for the other words, layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), and each kind clips as it draws",
         "options": [
           "visible",
           "clip",

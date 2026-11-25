@@ -15,17 +15,6 @@ use toml::Table;
 use crate::contrast::{AA, ratio, to_linear};
 use crate::vocabulary::{keys as k, tokens as t};
 
-/// The colours a theme states; everything else can be derived from them.
-pub const COLOR_SOURCES: &[&str] = &[
-    t::BACKGROUND,
-    t::FOREGROUND,
-    t::PRIMARY,
-    t::SECONDARY,
-    t::SUCCESS,
-    t::WARNING,
-    t::DANGER,
-];
-
 /// The sizes a theme states, and what each is when it does not: a game's
 /// sizes, which the editor's own themes state smaller.
 pub const SIZE_SOURCES: &[(&str, f64)] = &[

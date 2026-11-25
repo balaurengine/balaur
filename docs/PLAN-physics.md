@@ -1,8 +1,8 @@
 # Plan: fluids, gases and granular materials
 
 How each simulated material beyond rigid and soft bodies reaches a Balaur
-scene. The solvers are built in rapier; each material follows within one
-release of its solver landing there.
+scene. The solvers belong in rapier; each material follows within one release
+of its solver landing there.
 
 Each material is one component per dimension, registered by the physics plugin
 like the rigid ones. It steps on the fixed tick under `enhanced-determinism`,

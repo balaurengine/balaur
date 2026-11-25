@@ -4,7 +4,8 @@ A navmesh, paths over it, and agents that avoid each other. Navigation is
 simulation: every query runs on the fixed step in `f32` on `libm`, agents
 live in a `DetHashMap`, their state is in the snapshot and their positions
 are in the digest. A crate that differs between two platforms is written out
-in core with a test that runs it twice, as the triangulator was.
+in core with a test that runs it twice, as `balaur_geometry`'s
+triangulator is.
 
 ## Steps
 

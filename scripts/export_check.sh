@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Export a game with the template CI just built, and check the result is the
 # shape that platform installs or serves. Why it stops there:
-# docs/PLAN-mobile-export.md step 2.
+# docs/PLAN-mobile-export.md step 1.
 #
 # Usage: [BALAUR_EXPORTER=<editor>] export_check.sh <ios|ios-sim|android|web>[-2d|-3d|-bare]
 set -euo pipefail

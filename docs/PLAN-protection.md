@@ -15,18 +15,18 @@ matters is written by a server.
    `objcopy --only-keep-debug` on Linux. Done: `scripts/export_check.sh`
    fails a desktop template whose `nm --defined-only` prints a symbol, or a
    Windows download holding a `.pdb`.
-2. **The seal.** `BPAK\x03` in `crates/balaur_core/src/pack.rs` (today
-   `BPAK\x02`): the v2 body under ChaCha20-Poly1305 from the
-   `chacha20poly1305` crate, which builds for wasm32. The key is 32 random
-   bytes in a project-relative file, `[export] pack_key`, written by
+2. **The seal.** A sealed pack's own magic beside `BPAK\x03` in
+   `crates/balaur_core/src/pack.rs`: the plain body under ChaCha20-Poly1305
+   from the `chacha20poly1305` crate, which builds for wasm32. The key is 32
+   random bytes in a project-relative file, `[export] pack_key`, written by
    `balaur export --new-key`, which adds it to `.gitignore`. The nonce is the
    first twelve bytes of SHA-256 over key and body, so two exports stay
    byte-identical. The exporter writes the key ahead of the sealed pack.
-   `Pack::decode` reads v2 and v3, the web runtime opens a sealed pack, and
-   the editor's Export sheet gains a checkbox. Done: `strings game.bpak`
-   prints only the magic, a wrong key fails with a named error, an `.app`
-   holding a sealed pack passes `codesign --verify --deep`, and the matrix
-   diff still holds.
+   `Pack::decode` reads a plain and a sealed pack, the web runtime opens a
+   sealed pack, and the editor's Export sheet gains a checkbox. Done: `strings
+   game.bpak` prints only the magic, a wrong key fails with a named error, an
+   `.app` holding a sealed pack passes `codesign --verify --deep`, and the
+   matrix diff still holds.
 3. **The key in the template.** `option_env!("BALAUR_PACK_KEY")` in the
    runtime, and `--key-in-template` on the exporter writing no key, for a
    developer who builds their own template. Done: a sealed game whose key is

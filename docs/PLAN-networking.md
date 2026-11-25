@@ -51,8 +51,10 @@ engines on loopback in a headless CI run is the bar for 9 and 10.
     the replicated set, a send rate apart from the tick rate, and a cap that
     drops the least urgent deltas rather than growing a queue. Ends with: an
     observer is sent nothing outside its filter.
-13. WebTransport in the browser: the client is built and in the default web
-    build. Ends with: a browser joining a native host in a test.
+13. WebTransport in the browser: a headless browser test in which the web
+    build's client dials a native host that pins its certificate through
+    `serverCertificateHashes`. Ends with: a browser joining a native host in
+    a test.
 14. WebRTC data channels, only when a game needs browser peer-to-peer without
     a relay. Ends with: the loopback tests pass over it.
 

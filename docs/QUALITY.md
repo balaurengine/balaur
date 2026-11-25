@@ -124,7 +124,7 @@ that file is stale.
 | `any` | a function or field typed `any` with no reviewed reason (N25) |
 | `hook-name` | a hook the engine tells that does not start with `on_`, or one told a flag's new value that does not end in `_changed` (N22) |
 | `module-undocumented`, `function-undocumented`, `component-undocumented`, `asset-undocumented` | anything the generated reference could not describe |
-| `describes-nothing` | a doc entry for a function no longer registered |
+| `describes-nothing` | a doc entry for a function nothing registers |
 | `acts-on-unknown` | a function documented as acting on a component nobody registers |
 | `handle-method-property` | a handle method spelled as a property of its component (N26) |
 | `handle-method-twice` | two functions one handle would call by the same name (N26) |

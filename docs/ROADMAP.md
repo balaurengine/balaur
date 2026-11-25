@@ -190,7 +190,7 @@ being built, marked `done`, never back in the shipped one.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **The deterministic core** — a fixed 60 Hz step, a per-tick digest checked across operating systems, record, replay and rollback, and three transports behind one trait. | 0.1 done | no plan |
-| **WebTransport in the browser** — native QUIC datagrams, binary frames, stable ids and rollback are built, and the browser side is not. | 0.4 | [PLAN-networking.md#transports](PLAN-networking.md#transports) |
+| **WebTransport in the browser** — a page joins a native host over QUIC datagrams, with binary frames, stable ids and rollback. | 0.4 | [PLAN-networking.md#transports](PLAN-networking.md#transports) |
 | **Multiplayer from a script** — a `multiplayer` module to host, join and leave a match from a script, on a player's machine or a headless server. | 0.4 | [PLAN-multiplayer.md](PLAN-multiplayer.md) |
 | **Late join, reconnect and host migration** — under lockstep, out of the snapshot ring. | 0.4 | [PLAN-multiplayer.md#3-steps](PLAN-multiplayer.md#3-steps) |
 | **State replication and RPC** — deltas generated off the component registry, addressed by `StableId` rather than by path. | 0.4 | [PLAN-networking.md#steps](PLAN-networking.md#steps) |
@@ -242,12 +242,12 @@ waits for its tick to settle.
 | **What a phone lends a game** — the share sheet, the camera, geolocation, biometrics and the phone's own vibration, behind one `device` module. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **A web module that loads in parts** — a core under 8 MB every game fetches and a part per feature it uses, cut by `wasm-split`, with the export pack arriving in pieces. | 0.6 | [PLAN-build-size.md](PLAN-build-size.md) |
 | **A game on a small machine** — `linux-arm64` is an export target that has never run, so a Raspberry Pi wants the GL backend and a measured frame budget. | 0.8 | [PLAN-web-backends.md](PLAN-web-backends.md) |
-| **Suspend and resume** — hooks a script answers on a phone call or a console's suspend, sounds held and let go on, and a tick that pauses. | 0.6 done | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
+| **Suspend and resume** — hooks a script answers on a phone call or a console's suspend, sounds held and let go on, and a tick that pauses. | 0.6 done | no plan |
 | **Embedding on a page** — an npm runtime with a `<balaur-viewer>` element and a React wrapper, and a typed page API the page calls. | 0.6 | [PLAN-embed.md](PLAN-embed.md) |
 | **Sealed export packs and stripped binaries** — bytecode on the web too, and an export pack sealed with ChaCha20-Poly1305 under a project key, never a DRM wrapper. | 0.6 | [PLAN-protection.md](PLAN-protection.md) |
 | **Console export** — Switch, PlayStation and Xbox, each an NDA SDK that is not wgpu, winit or gilrs. | 0.8 | no plan |
 | **XR** — OpenXR on desktop and standalone headsets, WebXR in the browser, and ARKit and ARCore behind the same seam. | 0.8 | no plan |
-| **A progressive web app** — an offline manifest and a service worker around the shell `balaur export --target web` already writes. | (0.6) | [PLAN-embed.md](PLAN-embed.md) |
+| **A progressive web app** — a service worker around the shell and the manifest `balaur export --target web` already writes. | (0.6) | [PLAN-embed.md](PLAN-embed.md) |
 | **Signing, checked on every push** — `balaur export` signs on every target, proven with a certificate the runner makes rather than a secret it holds. | (0.2) done | no plan |
 | **Parallel system execution** — once profiling demands it, since the gameplay tick is serial by design. | (0.7) | no plan |
 

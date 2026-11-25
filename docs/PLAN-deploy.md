@@ -2,7 +2,9 @@
 
 `balaur deploy`, and a Deploy button in the editor: one command or one click
 from a project to a URL a player can open, or to a phone with the game on it.
-`docs/PLAN-release.md` ships the engine; this ships a game.
+`docs/PLAN-release.md` ships the engine; this ships a game. The signing
+image's `balaur-publish` (`docker/publish.sh`) uploads a signed artifact to
+itch, Play, App Store Connect and Steam; no `balaur` command calls it.
 
 ## Steps
 
@@ -71,3 +73,7 @@ game asks.
 4. Is a build-number bump part of a deploy? TestFlight and Play refuse a
    duplicate. A monotonic build number apart from the game's version, kept in
    the record of question 3, is the likely answer.
+5. Do steps 2, 5 and 6 run `balaur-publish`? It holds the itch, Play, App
+   Store Connect and Steam uploads already, in an image that runs none of the
+   game's code. Calling it needs a container runtime on the developer's
+   machine; calling `butler`, `steamcmd` and the two APIs directly does not.

@@ -1,9 +1,9 @@
 # Plan: richer particles
 
 What `particles2d` and `particles3d` (`crates/balaur_render/src/particles.rs`
-and `particles_3d.rs`) still lack. Both read one settings struct and one
-stepper, so each step lands in both dimensions at once. The live particles
-stay backend state, so a headless run digests as a windowed one.
+and `particles_3d.rs`) still lack. Each step lands in both dimensions at
+once. The live particles stay backend state, so a headless run digests as a
+windowed one.
 
 ## Steps
 

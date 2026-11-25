@@ -123,14 +123,6 @@ pub enum Fill {
     Surface,
 }
 
-/// How a concave 2D polygon is cut into convex pieces.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
-pub enum Decomposition2d {
-    Exact,
-    Vhacd,
-    Voxels,
-}
-
 /// How a 3D convex decomposition is cut.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum Decomposition3d {

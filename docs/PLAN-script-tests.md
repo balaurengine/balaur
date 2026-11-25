@@ -3,7 +3,7 @@
 The corpus, the random programs and the fuzzers hold the language to one
 answer on every engine; `docs/QUALITY.md` describes them. What is left are
 tests still written as Rust strings, cases the random programs do not
-generate, and two enum cases.
+generate, and an `await` inside a `match` value.
 
 ## Steps
 
@@ -19,7 +19,6 @@ generate, and two enum cases.
    in an `any` (`tests/suite/random/anys.rs` refuses a boxed `Shade`),
    `keys`, and a class. Done: the generator emits each, and the interpreter
    in `tests/suite/random/interp.rs` agrees with every engine.
-3. **Two enum cases.** An enum as a component property, reaching the
-   inspector as an `enum` property does when its variants carry nothing; and
-   a `match` value holding an `await`. Done: a corpus program or suite
-   test for each, on every engine.
+3. **A `match` value holding an `await`.** A `match` whose value is used,
+   `let x = match s { … }`, with an arm that awaits. Done: a corpus program or a
+   suite test for it, on every engine.

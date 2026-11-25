@@ -1,6 +1,6 @@
-//! Google services as a Balaur plugin: `google.*`. Today that is Sign in
-//! with Google on Android, through Android's own Credential Manager, with no
-//! Google library in the APK (`docs/PLAN-google.md` step 4).
+//! Google services as a Balaur plugin: `google.*`, which is Sign in with
+//! Google on Android, through Android's own Credential Manager, with no
+//! Google library in the APK. `docs/PLAN-google.md` holds what is left.
 //!
 //! ```bs
 //! let answer = await task::wait(google::sign_in());

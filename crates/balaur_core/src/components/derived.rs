@@ -798,13 +798,6 @@ impl<C: Fields + Clone> Fields for Shared<C> {
 )]
 pub struct RareList<T>(Option<Box<Vec<T>>>);
 
-impl<T> RareList<T> {
-    /// The list to change, made where it was empty.
-    pub fn to_mut(&mut self) -> &mut Vec<T> {
-        self.0.get_or_insert_with(Box::default)
-    }
-}
-
 impl<T> std::ops::Deref for RareList<T> {
     type Target = [T];
     fn deref(&self) -> &[T] {

@@ -140,10 +140,6 @@ impl Schedule {
         self.order = None;
     }
 
-    pub(crate) fn len(&self) -> usize {
-        self.systems.len()
-    }
-
     /// The order the systems run in, sorted now if a system was added since.
     ///
     /// # Errors

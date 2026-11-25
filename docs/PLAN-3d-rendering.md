@@ -35,7 +35,7 @@ probes and the finishing passes are built.
    occlusion and refraction read. Done when a `mask` surface discards there.
 7. **Layer folds in the inspector.** `editor/library/shaders/layers.wesl`
    brings each layer's knobs as `@if` features and `Params` fields;
-   `walk_material` in `editor/scripts/inspector.bs` lists them flat. Done
+   `walk_material` in `editor/scripts/inspectlines.bs` lists them flat. Done
    when each layer's knobs sit under a fold named for it.
 8. **Decals and volumetric fog.** A `decal` component projecting a texture
    onto the depth buffer, and a froxel march for fog a light shafts through.

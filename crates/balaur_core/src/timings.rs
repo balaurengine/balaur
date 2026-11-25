@@ -78,17 +78,6 @@ pub fn boot<T>(name: &str, body: impl FnOnce() -> T) -> T {
     out
 }
 
-/// Time `body` and file it under `name` only when it answers: a lookup that is
-/// a phase of the boot when it hits and noise when it misses.
-pub fn boot_hit<T>(name: &str, body: impl FnOnce() -> Option<T>) -> Option<T> {
-    let started = Instant::now();
-    let out = body();
-    if out.is_some() {
-        note_boot(name, started.elapsed());
-    }
-    out
-}
-
 /// A boot phase in progress, for work no closure can wrap: an awaited window,
 /// or anything else between two statements rather than inside one call.
 pub struct Phase(Instant);

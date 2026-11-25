@@ -451,24 +451,6 @@ pub const TEXTURE_ASSET_TYPE: &str = "texture";
 /// The type a text style definition declares.
 pub const TEXT_STYLE_ASSET_TYPE: &str = "text_style";
 
-/// The row a text names its style in, in `group`: the one spelling
-/// `text2d`, `text3d` and a widget all take.
-#[must_use]
-pub fn text_style_row_spec(group: &str) -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{TEXT_STYLE_ASSET_TYPE}", default = "", description = "How it is dressed past its font: line height and spacing, the lines drawn with the glyphs, an outline and a shadow. Empty draws it plain", group = "{group}" }}"#
-    )
-}
-
-/// The row a text names its font in, in `group`: the one spelling `text2d`,
-/// `text3d` and a widget all take.
-#[must_use]
-pub fn font_row_spec(group: &str) -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{FONT_ASSET_TYPE}", default = "", description = "The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme's default font", group = "{group}" }}"#
-    )
-}
-
 /// The key naming the file a texture or a font reads.
 pub const SOURCE: &str = "source";
 

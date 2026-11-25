@@ -1,175 +1,105 @@
-> **Status:** most of step 4 built on 2026-10-04: the web game template
-> leaves out the editor, the Balaur Script compiler, the WESL linker and egui's fonts; `physics2d`,
-> `physics3d` and each audio codec gate their code; a `-2d` and `-3d` template
-> of every target is built and exported in CI, and `[export] runtime` picks
-> one. The site's examples play on theirs. Size is `docs/PLAN-build-size.md`'s; steps 1–3, 5 and 6 not started. Written down on 2026-09-05. Web export exists:
-> `balaur export --target web` writes a page, the module and an export pack, and the
-> site runs every example and the editor on it. What Spline has and this
-> does not is the shape of the thing on someone else's page: an element to
-> drop in, a package to import, an API the page calls, and a download small
-> enough to load before the visitor scrolls past. The order is protocol
-> first, because the element and the package are both faces over it; then
-> size, because it decides whether anyone embeds at all; then the exports a
-> designer expects from an Export sheet.
-
 # Plan: embedding
 
-A runtime package on npm, a `<balaur-viewer>` element and a React wrapper, a
-typed page API over the existing message bridge, and image, video and glTF
-export from the editor. `docs/PLAN-deploy.md` puts the result at a URL,
-`docs/PLAN-interactivity.md` owns the variables the page sets, and
+`balaur export --target web` writes a page, the module, a web manifest and
+the export pack, and `balaur_browser` carries a recorded page bridge
+(`post_message`, `browser_event`, `visible`, `location`, `user_agent`). What
+is still to build is the shape of the thing on someone else's page: an
+element to drop in, a package to import, an API the page calls, an install
+that opens offline, and the exports a designer expects from an Export sheet.
+The protocol comes first, because the element and the package are both faces
+over it. `docs/PLAN-deploy.md` puts the result at a URL, and
 `docs/PLAN-build-size.md` owns what the module weighs.
 
-## 0. Where the tree is today
+## Steps
 
-Built, and not built for this:
+1. **Protocol.** The message kinds, the Rust handler, `[embed] allow`, the
+   `--embed` schema. Done: a page setting a variable and hearing it change
+   back, recorded and replayed.
+2. **Element and package.** `@balaurengine/runtime`, `<balaur-viewer>`,
+   sizing, lazy loading, a poster, a transparent canvas, and the `--pwa`
+   shell. Done: the site's examples page using the element in place of
+   `BalaurPlayer`.
+3. **React.** `@balaurengine/react`. Done: a Next.js page that loads a game
+   through `<BalaurViewer>` and hears `onReady`.
+4. **Exports.** Image, video and glTF from the Export sheet. Done: a glTF
+   written by the editor re-imports through `balaur import` to the same mesh
+   digest.
 
-| Have | Where |
-| --- | --- |
-| A web export: a shell page, `balaur.js`, `balaur_bg.wasm`, the export pack fetched beside them, a project's own `web/index.html` honoured | `balaur_export::bundle`, `crates/balaur_export/src/web/index.html` |
-| The module booted on a canvas, and the editor too | `balaur::boot_pack_on_canvas`, `boot_editor_on_canvas`, `crates/balaur_cli/src/web.rs` |
-| A page bridge, recorded and replayable: `post_message`, `listen`, `messages`, `visible`, `location`, `user_agent` | `balaur_browser` |
-| The site's loader and player, one stamped set of glue, module and export packs | `../forge/assets/js/host_hooks.js` (`BalaurPlayer`), `lib/forge/site/play.ex` |
-| The template built per push with a chosen feature set, its size measured raw, gzip and brotli | `scripts/package_runtime.sh web`, `WEB_FEATURES`, `docs/generated/features.md`, the site's `play-size.json` |
-| Export packs compiled for every target, the web included; sources only on request, and only a build with `compile` runs them | `balaur export --keep-sources`, the `compile` feature |
-| A game template apart from the editor's module: no export tooling, no editor entry points, no Balaur Script compiler, no WESL linker, no egui fonts | the `editor`, `compile` and `fallback-fonts` features, `scripts/package_play.sh` |
-| Every shader a game draws with linked at export into the export pack; kiss3d's own linked when it compiles | `balaur_render::prelinked`, `.balaur/shaders.toml.deflate`, kiss3d's `build.rs` |
-| Each physics world behind a feature, both on by default, and each audio codec | `physics2d`, `physics3d`, `flac`, `mp3`, `mp4`, `vorbis`, `wav` |
-| A template per world for every target, built, exported and run in CI | `scripts/export_check.sh`, `scripts/package.sh`, the `build-templates` job |
-| The project picks its runtime, and an export refuses one missing a physics world a scene or script uses | `[export] runtime`, `auto` by default, the Export sheet's Runtime choice, `balaur_export::fits` |
-| A dedicated server per desktop, a target of its own | `--target linux-x64-server` |
-| A runtime downloaded on first export, a bundle's unpacked | `balaur export --download`, the sheet's "download & export" |
-| The site's examples on the runtime their export picked | `scripts/package_play.sh`, `/play/web-2d/`, forge's `Forge.Site.Play.runtime/1` |
-| A nightly bundle the site pulls | `scripts/package_play.sh`, `balaur-play.tar.gz` |
-| Screenshots from any GPU run; frames to a video through ffmpeg | `render.screenshot`, `scripts/showcase.sh` |
-| Safe area, touches, the browser's keyboard height, keep-awake | `window.safe_area`, `input.touches`, `balaur_platform` |
-| Plugin requirements declared per project | `project.toml` `[plugins]` |
-
-Missing:
-
-- **An element.** The shell page owns the whole viewport; nothing sizes a
-  canvas to a box on someone else's page, lazy-loads it, or shows a poster.
-- **A package.** `balaur.js` is a file in a release tarball, not an npm
-  dependency.
-- **An API.** The bridge carries JSON both ways, and nothing on either side
-  agrees what the JSON means.
-- **WebGL2.** `hasWebGpu` gates the page; a browser without WebGPU gets a
-  message.
-- **A transparent canvas.** The backend clears opaque, so a scene cannot sit
-  over page content.
-- **Exports a designer expects.** No Image or Video in the Export sheet, no
-  glTF out.
-
-## 1. Design
+## Design
 
 **One protocol, defined once, in the engine.** The page API is a set of
-message kinds over the bridge that already exists, handled in Rust in
-`balaur_browser` so a game needs no script to be driven: `variable.set`,
-`variable.get`, `event.emit`, `node.patch`, `scene.switch`, `screenshot`, and
-the reverse `variable.changed`, `event`, `ready`, `error`. Every kind is a
-`browser.*` call a script could make, and every inbound message lands at
-`Stage::First` and is recorded, so a session driven from a page replays.
-What the page may do is declared, not assumed: `[embed] allow =
-["variables", "events"]` in `project.toml`, with `nodes` off by default,
-because a page that can patch any node is `eval` by another name.
+message kinds over the bridge `balaur_browser` carries, handled in Rust so a
+game needs no script to be driven: `variable.set`, `variable.get`,
+`event.emit`, `node.patch`, `scene.switch`, `screenshot`, and the reverse
+`variable.changed`, `event`, `ready`, `error`. Every kind is a `browser.*`
+call a script could make, and every inbound message lands at `Stage::First`
+and is recorded, so a session driven from a page replays. What the page may
+do is declared, not assumed: `[embed] allow = ["variables", "events"]` in
+`project.toml`, with `nodes` off by default, because a page that can patch
+any node is `eval` by another name.
 
 **`@balaurengine/runtime` is the glue, the module and a class.**
 `Balaur.load(packUrl, { canvas, runtime })` resolves to an `app` with `post`,
 `on`, `set`, `get`, `emit`, `node(path).patch(component, values)`,
 `screenshot()`, `pause()`, `resume()` and `destroy()`. Types are generated
 from the protocol's schema so the package and the engine cannot drift;
-`balaur api` grows an `--embed` section that is that schema.
+`balaur api` grows an `--embed` section that is that schema. It is published
+from the engine's release job beside `balaur-play.tar.gz`.
 
 **`<balaur-viewer>` is the element.** Attributes `src`, `runtime`, `poster`,
 `lazy`, `transparent`, `fit`, `pixel-ratio`, `focus`; events `ready`,
 `error`, `message`. It sizes the canvas to its own box through a
-`ResizeObserver`, and it claims
-the keyboard only when focused so a page keeps its scroll. `transparent`
-asks the backend for an alpha swapchain and a clear with alpha zero, and
-`set_background` learns an alpha. The exported shell grows a `--pwa` option
-beside it: a manifest and a service worker around the page, so a game
-installs to a home screen and opens offline from the cached module and export pack.
+`ResizeObserver`, and it claims the keyboard only when focused so a page
+keeps its scroll. `transparent` asks the backend for an alpha swapchain and a
+clear with alpha zero, and `render::set_background` learns an alpha. The
+exported shell grows a `--pwa` option beside it: a service worker around the
+page and its manifest, so a game installs to a home screen and opens offline
+from the cached module and export pack.
 
 **React is a wrapper and nothing more.** `@balaurengine/react` exports
 `<BalaurViewer>` with the same attributes as props and `onReady(app)`;
-Next.js is that with a dynamic import. Vue and Svelte take the element as it
-is.
+Next.js is that with a dynamic import. Vue, Svelte and Angular take the
+element as it is, with no package of their own.
 
 **An iframe is the same protocol across a frame.** A hosted URL from
 `docs/PLAN-deploy.md` embeds in Notion, Webflow, Framer and an `<iframe>`
-anywhere; `postMessage` to the frame reaches `on_browser_event` today, and the
-protocol above is what it carries.
-
-**The module fits the game.** `docs/PLAN-build-size.md` holds how: a
-template per physics world on a diet, and later a part per plugin beside
-it. The element fetches whatever the export listed.
-
-**WebGL2 is a tier, decided by measurement.** wgpu's `webgl` feature is on;
-what is not known is which of the fork's passes need compute — clustered
-lights, the environment mip chain, SSAO — and whether a rasterizer with those
-off is a picture worth shipping. Step 5 answers it with a build, and until
-then the gate stays.
+anywhere; `postMessage` to the frame reaches `on_browser_event`, and the
+protocol above is what it carries. It has no work of its own.
 
 **Exports are the Export sheet's, over the library.** Image:
 `render.screenshot` with a size and `transparent`. Video: an offscreen run
-capturing frames, muxed by ffmpeg when it is on the path — what
-`scripts/showcase.sh` does today — and by `MediaRecorder` in the browser
-editor; a bundled encoder is not planned. glTF: `gltf-json` writes the
-scene's meshes, materials, skins and clips as `.glb`, which is also how a
-boolean or a text mesh leaves the engine.
+capturing frames, muxed by ffmpeg when it is on the path, as
+`scripts/showcase.sh` does, and by `MediaRecorder` in the browser editor; a
+bundled encoder (`rav1e`, `openh264`) is not planned. glTF: `gltf-json`
+writes the scene's meshes, materials, skins and clips as `.glb`, which is
+also how a boolean or a text mesh leaves the engine. USDZ is not planned;
+Apple's `usdzconvert` over the glTF is the fallback.
 
-## 2. The surface
+Swift and Kotlin hosts are not this plan: the iOS and Android exports and
+`docs/PLAN-c-api.md` are where a native host embeds the runtime.
 
-| Piece | Decision |
-| --- | --- |
-| The protocol, `[embed] allow` | Step 1, `balaur_browser` |
-| `@balaurengine/runtime` | Step 2, published from the engine's release job beside `balaur-play.tar.gz` |
-| `<balaur-viewer>` | Step 2, in the runtime package |
-| `@balaurengine/react` | Step 3 |
-| Vue, Svelte, Angular packages | Not planned; the element is the integration |
-| Iframe embed: Notion, Webflow, Framer | `docs/PLAN-deploy.md`'s URL plus the protocol; no work of its own |
-| Template variants, features and the module's budget | `docs/PLAN-build-size.md` |
-| WebGL2 fallback | Step 5, measured; not promised |
-| Transparent canvas | Step 2, a backend alpha clear |
-| A progressive web app: manifest and service worker around the exported shell | Step 2, `balaur export --target web --pwa` |
-| Image export | Step 6 |
-| Video export | Step 6: ffmpeg on the path, `MediaRecorder` on the web. A bundled encoder (`rav1e`, `openh264`) is not planned |
-| glTF export | Step 6, `gltf-json` |
-| USDZ | Not planned; Apple's `usdzconvert` over the glTF is the fallback |
-| Swift and Kotlin snippets | Not this plan: the iOS and Android exports and `docs/PLAN-c-api.md` are where a native host embeds the runtime |
-| A cost panel: draw calls, triangles, textures, export pack size per asset, module size per feature | Step 6 exposes `render.stats`; `docs/PLAN-editor-ergonomics.md` draws it |
-
-## 3. Steps
-
-1. **Protocol.** The message kinds, the Rust handler, `[embed] allow`, the
-   `--embed` schema. Ends with: a page setting a variable and hearing it
-   change back, recorded and replayed.
-2. **Element and package.** The runtime package, the element, sizing, lazy,
-   poster, transparent, the `--pwa` shell. Ends with: the site's examples
-   page using the element instead of `Player`.
-3. **React.**
-4. **Size.** `docs/PLAN-build-size.md`.
-5. **WebGL2.** One build with the compute passes off; keep the tier or close
-   the question.
-6. **Exports.** Image, video, glTF, `render.stats`.
-
-## 4. What CI can prove, and what it cannot
+## What CI can prove, and what it cannot
 
 - The protocol round-trips headless: a recorded page session replays to the
   same digest.
 - The element loads under Playwright on the site's example page and reports
   `ready`.
-- A glTF written by step 6 re-imports through `balaur import` to the same
+- A glTF written by step 4 re-imports through `balaur import` to the same
   mesh digest.
-- What it cannot: Safari and Firefox, WebGL2 on a runner that has WebGPU,
-  and how the first paint feels on a phone over a slow link.
+- What it cannot: Safari and Firefox, and how the first paint feels on a
+  phone over a slow link.
 
-## 5. Open questions
+## Open questions
 
-1. **The npm scope.** `@balaurengine` matches the site; the packages are
+1. **Where the protocol lives.** `balaur_browser` carries the bridge and no
+   protocol, so a vendor SDK is a script module over `post_message` and
+   `on_browser_event`. Step 1 either makes the page API the one protocol
+   handled in Rust, or ships it as a script module with the runtime.
+2. **What `variable.set` sets.** The engine has no page-facing variables: a
+   variable is either a declared name a script owns or a node property path,
+   and `[embed] allow` has to say which.
+3. **The npm scope.** `@balaurengine` matches the site; the packages are
    settled above but the scope is not registered.
-2. **Who serves the module.** A CDN URL for `runtime` so the element works
-   with one script tag, or only the package. Both, probably, and the site's
-   stamped `/play/` is already the first.
-3. **`when` in bindings.** `docs/PLAN-interactivity.md` question 3 is this
-   question seen from the other side.
+4. **Who serves the module.** A CDN URL for `runtime` so the element works
+   with one script tag, or only the package. The site's stamped `/play/`
+   already serves one.

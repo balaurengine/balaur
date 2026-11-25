@@ -131,12 +131,6 @@ pub struct Task {
     unit: usize,
 }
 
-impl Task {
-    pub fn is_done(&self) -> bool {
-        self.done
-    }
-}
-
 struct Live<'a>(&'a dyn Wasm);
 
 impl Reader for Live<'_> {
@@ -317,12 +311,6 @@ impl Runtime {
                 h.resolved.insert(k, v);
             }
         }
-    }
-
-    /// The engine the next [`Runtime::reload`] instantiates on: a debugger
-    /// moves a file to one that can park a call.
-    pub fn set_engine(&mut self, engine: EngineKind) {
-        self.limits.engine = engine;
     }
 
     /// What a script awaiting the engine's `token` expects it to resolve to;

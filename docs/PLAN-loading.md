@@ -49,21 +49,20 @@ is left is acceptable.
 
 ## Heavy calls off the frame
 
-A script's own work freezes a frame too. Measured 2026-11-24 on Polyglot
-Pirates' word packs (release, macOS): `json::parse` of 2.7 MB is 12-20 ms
-of parse, 4-12 ms turning it into script values and 30-40 ms writing them
-into the script's heap (82-86 ms before `any_owned`), all inside the frame
-that called it. The app splits its packs into files of at most 580 KB and
-reads one a frame; a game should not have to. Every call that can take
-longer than a millisecond or two gets a twin off the frame.
+A script's own work freezes a frame too. On Polyglot Pirates' word packs
+(release, macOS), `json::parse` of 2.7 MB is 12-20 ms of parse, 4-12 ms
+turning it into script values and 30-40 ms writing them into the script's
+heap, all inside the frame that called it. `json::parse_async` runs the parse
+through `task::off_frame` and leaves only the heap write in the frame that
+resumes. Every other call that can take longer than a millisecond or two gets
+a twin of the same shape.
 
 ### One shape
 
 - **The name.** `<call>_async`, with the call's own arguments, answering an
   `int` token: `let pack = await task::wait(json::parse_async(text));`.
-  Calls that wait on the outside world already answer a token under their
-  own name (`http::request`, `websocket::connect`, `platform::sign_in`) and
-  keep it.
+  Calls that wait on the outside world answer a token under their own name
+  (`http::request`, `websocket::connect`, `platform::sign_in`) and keep it.
 - **Pure work** (a parse, an encode, a hash, a decode) goes through
   `task::off_frame(eng, work)`: `work` runs on `task::compute`'s pool and its
   answer wakes the token on the first tick it is in by, read at
@@ -79,16 +78,12 @@ longer than a millisecond or two gets a twin off the frame.
 
 ### Steps
 
-1. **The shape, and JSON.** Done 2026-11-24: `task::off_frame`,
-   `timers::wake_with`, `json::parse_async`, and a test that a replay lands
-   a parse on its recorded tick. A 2.7 MB parse leaves only the heap write
-   in the frame that resumes.
-2. **The rest of the pure calls.** `json::encode_async`, `toml::parse_async`,
+1. **The rest of the pure calls.** `json::encode_async`, `toml::parse_async`,
    `toml::encode_async`, `toml::patch_async`, `hash::sha256_text_async`, and
    `regex::search_all_async` / `replace_async` over a long text. Each a line
    on `off_frame`. Ends with: each twin's test that it answers what the sync
    call answers, a step later.
-3. **Files.** `fs::read_async`, `fs::write_async`, `fs::copy_async`,
+2. **Files.** `fs::read_async`, `fs::write_async`, `fs::copy_async`,
    `fs::list_async`, `hash::sha256_file_async`. The file backend lives on the
    main thread (a tab's filesystem, an export's packs): a backend lends a
    `Send` reader for a path it can (a desktop folder, a pack's bytes by
@@ -96,24 +91,26 @@ longer than a millisecond or two gets a twin off the frame.
    A file under the user directory is the outside world (`ExternalIo`); one
    in the project or its packs is pure. Ends with: a 2.7 MB `fs::read_async`
    and a save's `fs::write_async` off the frame, and their replays equal.
-4. **The heap write.** Measure what step 1 leaves. If it is still over a
-   frame's budget, either write a large answer a slice a frame before the
-   task resumes, or keep it on the host and hand the script a value that
-   reads into the heap only what it touches. Ends with: no frame over
-   16 ms for a 2.7 MB document.
-5. **Scenes.** `scene::instantiate_async` and `scene::repeat_async`: read
-   and parse the files on the pool (as `scene::preload` already does for
-   pictures), build the nodes a slice a frame, and answer the root or the
-   rows when the last is built. Ends with: a list of 150 rows opens without
-   a frame over 16 ms and without the app pacing it.
-6. **A yield that keeps the pace.** `await task::yield()` resumes in the same
+3. **The heap write.** Measure what `json::parse_async` leaves in the frame
+   that resumes. If it is still over a frame's budget, either write a large
+   answer a slice a frame before the task resumes, or keep it on the host and
+   hand the script a value that reads into the heap only what it touches.
+   Ends with: no frame over 16 ms for a 2.7 MB document.
+4. **Scenes.** `scene::instantiate_async` and `scene::repeat_async`: read
+   and parse the files on the pool (as `scene::preload` does for pictures),
+   build the nodes a slice a frame, and answer the root or the rows when the
+   last is built. Ends with: a list of 150 rows opens without a frame over
+   16 ms and without the app pacing it.
+5. **A yield that keeps the pace.** `await task::yield()` resumes in the same
    frame while it has time left, else on the next: a loop yields after each
    item without tuning how many a frame (what the app's `topics::paced`
    does by hand from the last frame's length). Needs an in-frame clock,
-   which scripts lack (`engine::unix_time` is the frame's).
-7. **A lint.** `balaur check` warns where a script calls a sync twin on
+   which scripts lack (`engine::unix_time` is the frame's). Ends with: a
+   loop of 150 items that yields after each, with no frame over 16 ms.
+6. **A lint.** `balaur check` warns where a script calls a sync twin on
    text or a file it cannot know is small, inside `init` or a handler, and
-   names the `_async` one.
+   names the `_async` one. Ends with: the warning on a test script, and none
+   on one that calls the `_async` twin.
 
 ### Open questions
 
