@@ -1,6 +1,7 @@
 //! What `[apple]` writes into a bundle beyond its plist: the provisioning
 //! profile a signed build embeds and is checked against.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use balaur_export::Options;
@@ -25,7 +26,7 @@ fn project(apple: &str) -> tempfile::TempDir {
 fn profile(dir: &Path, entitlements: &[(&str, &str)]) -> PathBuf {
     let mut granted = String::new();
     for (key, value) in entitlements {
-        granted.push_str(&format!("    <key>{key}</key>{value}\n"));
+        let _ = writeln!(granted, "    <key>{key}</key>{value}");
     }
     let plist = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -149,9 +150,9 @@ fn a_profile_short_of_a_capability_is_refused_on_ios_and_narrows_a_mac() {
 
 #[test]
 fn a_mac_bundle_embeds_its_profile_and_claims_the_push_environment_it_grants() {
-    let dir = project(&format!(
-        "capabilities = [\"push-notifications\"]\nmacos_provisioning_profile = \"t.provisionprofile\"\n"
-    ));
+    let dir = project(
+        "capabilities = [\"push-notifications\"]\nmacos_provisioning_profile = \"t.provisionprofile\"\n",
+    );
     profile(
         dir.path(),
         &[(

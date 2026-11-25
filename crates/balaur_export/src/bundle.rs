@@ -224,39 +224,51 @@ pub(crate) fn export_bundle(
         return Ok(output);
     }
     if kind == Bundle::Ios {
-        let plist = output.join("Info.plist");
-        let executable = runtime_executable(&plist).unwrap_or_else(|| "Balaur".to_string());
-        let simulator = crate::native::built_for_simulator(&output.join(&executable));
-        let icon_keys = match icons {
-            Some(icons) => icons.write_ios(&output, &apple.min_ios, simulator)?,
-            None => String::new(),
-        };
-        std::fs::write(
-            &plist,
-            apple.info_plist(Platform::Ios, &executable, &icon_keys)?,
-        )
-        .with_context(|| format!("writing {}", plist.display()))?;
-        // The identity the project declares, which `--sign` may replace; the
-        // signing step writes this file again for the one it signs with.
-        let declared = (!apple.ios_identity.is_empty()).then_some(apple.ios_identity.as_str());
-        if let Some(path) = apple.write_entitlements(
-            &output,
-            name,
-            Platform::Ios,
-            crate::apple::Build::of(declared),
-            false,
-            false,
-        )? {
-            tracing::info!(
-                "entitlements -> {} (codesign --entitlements {} --sign <identity> {})",
-                path.display(),
-                path.display(),
-                output.display()
-            );
-        }
+        write_ios_plist(&output, name, apple, icons)?;
     }
     tracing::info!("exported for {} -> {}", kind.platform(), output.display());
     Ok(output)
+}
+
+/// An iOS bundle's own `Info.plist` over the template's, and the
+/// entitlements beside it for the identity the project declares.
+fn write_ios_plist(
+    output: &Path,
+    name: &str,
+    apple: &AppleConfig,
+    icons: Option<&Icons>,
+) -> Result<()> {
+    let plist = output.join("Info.plist");
+    let executable = runtime_executable(&plist).unwrap_or_else(|| "Balaur".to_string());
+    let simulator = crate::native::built_for_simulator(&output.join(&executable));
+    let icon_keys = match icons {
+        Some(icons) => icons.write_ios(output, &apple.min_ios, simulator)?,
+        None => String::new(),
+    };
+    std::fs::write(
+        &plist,
+        apple.info_plist(Platform::Ios, &executable, &icon_keys)?,
+    )
+    .with_context(|| format!("writing {}", plist.display()))?;
+    // The identity the project declares, which `--sign` may replace; the
+    // signing step writes this file again for the one it signs with.
+    let declared = (!apple.ios_identity.is_empty()).then_some(apple.ios_identity.as_str());
+    if let Some(path) = apple.write_entitlements(
+        output,
+        name,
+        Platform::Ios,
+        crate::apple::Build::of(declared),
+        false,
+        false,
+    )? {
+        tracing::info!(
+            "entitlements -> {} (codesign --entitlements {} --sign <identity> {})",
+            path.display(),
+            path.display(),
+            output.display()
+        );
+    }
+    Ok(())
 }
 
 /// The binary inside the runtime bundle, read off the plist the exporter is
