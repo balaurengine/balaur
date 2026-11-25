@@ -192,8 +192,9 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   </queries>
   <application android:label="Balaur" android:hasCode="true">
     <activity
-        android:name="android.app.NativeActivity"
+        android:name="org.balaur.platform.Game"
         android:exported="true"
+        android:launchMode="singleTop"
         android:configChanges="orientation|keyboardHidden|screenSize">
       <meta-data android:name="android.app.lib_name" android:value="main" />
       <intent-filter>

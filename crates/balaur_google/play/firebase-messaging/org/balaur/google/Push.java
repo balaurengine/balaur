@@ -126,8 +126,8 @@ public final class Push {
         }
         waiting.clear();
         tapped(game.getIntent());
-        // NativeActivity forwards no new intent: a tap while the game is in
-        // the background recreates it with FCM's intent, which this reads.
+        // A tap while the game runs is a new intent to it (Game is single-top),
+        // which Game makes its own before it resumes.
         game.getApplication().registerActivityLifecycleCallbacks(new Taps());
     }
 
@@ -263,7 +263,7 @@ public final class Push {
         new Handler(Looper.getMainLooper()).post(body);
     }
 
-    /** Reads the intent of each activity that resumes: the recreated game a tap started. */
+    /** Reads the intent of each activity that resumes: the game a tap brought forward. */
     private static final class Taps implements Application.ActivityLifecycleCallbacks {
         @Override
         public void onActivityResumed(Activity activity) {

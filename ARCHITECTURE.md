@@ -1469,22 +1469,29 @@ things are shared.
   method registered on it, answering onto the call's channel
   (`balaur_platform`'s `android.rs`, which `balaur_google` shares). The
   activity is the one android-activity keeps, handed over as the app is
-  built: `ndk-context` holds the `Application`, which shows no sheet.
+  built: `ndk-context` holds the `Application`, which shows no sheet. It is
+  `Game`, NativeActivity declared `singleTop`, so a notification's tap or a
+  link reaching a running game is a new intent to it, never a second
+  activity under a live native library (FCM's tap carries `CLEAR_TOP` alone,
+  which recreates a standard activity). NativeActivity drops a new intent;
+  `Game` makes it the activity's own, which a shim reads as the activity
+  resumes, as it reads a cold start's.
   `platform.web_sign_in` is a Custom Tab with no AndroidX: a VIEW intent with
   the protocol's session extra, in the default browser when it has Custom
   Tabs, else the first that does, else a plain browser. An unseen activity,
-  `WebSignIn`, sits between the game and the tab, as AppAuth's does:
-  NativeActivity forwards no new intent, so the redirect lands on `Redirect`
+  `WebSignIn`, sits between the game and the tab, as AppAuth's does, and
+  hears the tab shut as it resumes. The redirect lands on `Redirect`
   (an intent filter each of `[android] schemes`, added at export), which
   brings `WebSignIn` back with the URL and clears the tab; `WebSignIn`
   resuming with none answers `cancelled`, and `close_web_sign_in` brings it
   back the same way, shutting the tab. A link on those schemes with no page
   open brings the game forward, which does not read it yet.
-  The device shims are unseen activities for the same reason: NativeActivity
-  forwards no permission result, activity result or new intent, so
-  `Permission` asks for POST_NOTIFICATIONS, `Share` hears the chooser shut
-  (`Chosen` hears what was picked), and `Opened` takes a notification's tap
-  and brings the game forward. `AlarmManager` holds the schedule, inexact,
+  The device shims are unseen activities because NativeActivity forwards no
+  permission result or activity result: `Permission` asks for
+  POST_NOTIFICATIONS, `Share` hears the chooser shut (`Chosen` hears what
+  was picked), and `Opened` takes a notification's tap and brings the game
+  forward. A tap that clears one of them off the game answers as it goes, so
+  no call waits on an activity that is gone. `AlarmManager` holds the schedule, inexact,
   and `Alarm` posts each one. A tap that started the process waits in the
   shim until the game's first tick listens. A shared file goes out as a
   content URI from `Files`, a read-only provider of the app's own files
@@ -1533,8 +1540,8 @@ things are shared.
   takes it, and one with none waiting is `push_token_changed`. A push in
   front is `push_received`; a tap is `notification_opened`, the same arrival
   a local notification's tap is, with the push's data, which on Android
-  comes off the intent that started the activity, since NativeActivity
-  forwards no new one. A build without the capability answers `push_failed`
+  comes off the intent `Game` resumes with: the launch intent, or the new
+  one a tap handed the running game. A build without the capability answers `push_failed`
   naming it: the entitlement or the shim is missing, and saying so beats a
   token that never comes.
 - **A test answers from a file.** `BALAUR_STAND_INS` names a JSON object of

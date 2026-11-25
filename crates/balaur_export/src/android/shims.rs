@@ -68,4 +68,32 @@ mod tests {
             assert_eq!(xml.matches(&line).count(), 1, "{permission}\n{xml}");
         }
     }
+
+    // A tap or a link reaches the running game as a new intent: the launcher
+    // activity is Game, single-top, and the orientation lands on it.
+    #[test]
+    fn the_staged_game_activity_is_single_top_and_the_launcher() {
+        let config = AndroidConfig {
+            orientation: balaur::project::Orientation::Portrait,
+            ..named()
+        };
+        let xml = config.manifest(&staged_manifest()).unwrap();
+        let game = xml
+            .find(
+                r#"<activity
+        android:screenOrientation="portrait"
+        android:name="org.balaur.platform.Game""#,
+            )
+            .unwrap_or_else(|| panic!("{xml}"));
+        let end = game + xml[game..].find("</activity>").unwrap();
+        let activity = &xml[game..end];
+        for line in [
+            r#"android:launchMode="singleTop""#,
+            r#"<meta-data android:name="android.app.lib_name" android:value="main" />"#,
+            r#"<category android:name="android.intent.category.LAUNCHER" />"#,
+        ] {
+            assert!(activity.contains(line), "{line}\n{activity}");
+        }
+        assert!(!xml.contains("android.app.NativeActivity"), "{xml}");
+    }
 }

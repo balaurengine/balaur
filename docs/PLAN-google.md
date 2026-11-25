@@ -128,8 +128,9 @@ an export keeps for the `[android] capabilities` it declares (step 2).
    the app in front (`push_received`), its data decoded where Gamend wrote a
    value as JSON. A notification shown while the game is in the background
    reaches it on a tap through the launch intent's extras, read when the shim
-   first listens and on every activity resumed after, since FCM's tap
-   recreates NativeActivity. Showing one needs `platform.request_notifications`
+   first listens and on every activity resumed after: FCM's tap is a new
+   intent to the running game, which the template's single-top `Game` makes
+   its own rather than being recreated. Showing one needs `platform.request_notifications`
    on Android 13 and later. DataStore's native shared counter is left out:
    Firebase opens its stores in one process. Checked: the shim compiles under
    `-Werror`, the routing and the answers through stand-ins and a canned OS,

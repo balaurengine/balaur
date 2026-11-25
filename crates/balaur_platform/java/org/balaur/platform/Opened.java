@@ -7,8 +7,9 @@ import android.os.Bundle;
 /**
  * Where a tapped notification lands: it hands {@link Notifications} what the
  * notification carried and brings the game forward, starting it when it was
- * not running. NativeActivity forwards no new intent, so the game hears the
- * tap from here.
+ * not running. A running {@link Game} takes the launch as a new intent, and
+ * what was over it (a sign-in page, the share sheet) is cleared, so a tap
+ * never starts a second game. The tap is heard here, before the game resumes.
  */
 public final class Opened extends Activity {
     @Override

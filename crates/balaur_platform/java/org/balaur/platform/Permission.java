@@ -13,6 +13,8 @@ import android.os.Bundle;
 public final class Permission extends Activity {
     private static final int ASKED = 1;
 
+    private boolean answered;
+
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -25,8 +27,22 @@ public final class Permission extends Activity {
     @Override
     public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
-        boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
-        Notifications.allowed(getIntent().getLongExtra(Notifications.REQUEST, -1), granted);
+        answer(results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED);
         finish();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Cleared by a tap bringing the game forward, with no result.
+        if (isFinishing() && !answered) {
+            answer(checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    == PackageManager.PERMISSION_GRANTED);
+        }
+    }
+
+    private void answer(boolean granted) {
+        answered = true;
+        Notifications.allowed(getIntent().getLongExtra(Notifications.REQUEST, -1), granted);
     }
 }
