@@ -50,36 +50,34 @@ In the order they get fixed.
    `audio::play_file`, its alert is a `panel` with `on_top`, and its Gamend
    and save addons are the library's. `balaur check --strict` is clean.
 2. **`examples/text` draws its 3D text wrong.** Built: the glyph atlas
-   doubles when it fills, and a quad placed before that kept its old
-   position in it. `balaur_text` places a block again when the atlas grew
-   under it, and `text3d` rebuilds a block built under a smaller atlas. Not
-   checked: a bitmap font's page region, which reads as the same fault.
-3. **`test:inspector_rows` depends on load.** Built: the test waited eight
-   frames, and under load those outlast the 0.3 seconds after which the
-   Inspector refills its whole form; it now waits on that deadline. The
-   deadline itself is §4's first item.
+   doubles when it fills, `balaur_text` places a block again when the atlas
+   grows under it, and `text3d` rebuilds a block built under a smaller
+   atlas. Not checked: a bitmap font's page region, which may hold the same
+   fault.
+3. **`test:inspector_rows` depends on load.** Built: the Inspector refills
+   its whole form 0.3 seconds after a change, and the test waits on that
+   deadline rather than on a count of frames, which load stretches past it.
+   The deadline itself is §4's first item.
 4. **`examples/interface` does not hold its memory.** Built: the Balaur
-   Script compiler never released a value it handed to the engine, on a
-   property write and on a `str?`, a struct or a class passed to a host
-   call. `interface` leaked 19 KB a frame through `widget_rows.items = items`
-   and now holds 18 MB from 6,000 frames to 48,000.
+   Script compiler releases a value it hands to the engine, on a property
+   write and on a `str?`, a struct or a class passed to a host call.
+   `interface` holds 18 MB from 6,000 frames to 48,000.
 5. **A self-test writes the user's own data.** Built: `BALAUR_DATA_DIR`
    names the per-user data folder of a run, and `scripts/e2e.sh`, `monkey.sh`
-   and `soak.sh` point it under `target/`. Before it, the states rewrote
-   `balaur-editor/editor.toml` under the real home folder.
+   and `soak.sh` point it under `target/`, so the states leave
+   `balaur-editor/editor.toml` under the real home folder alone.
 6. **A scene of widgets opens to an empty viewport.** Built: the Scene
    workspace draws the world and no widget, so a scene holding widgets and
    nothing of the 2D or 3D world opens in the UI workspace. `test:every_node`
    checks which rows make such a scene.
 7. **A run's picture is paler than its scene.** Built: the film is linear
-   light and no authored colour was decoded on its way in, so the resolve
-   encoded a value that was already encoded. `balaur_render::film` decodes
-   each one where the backend hands it to kiss3d, and a `#3c4753` shape is
-   `(60, 71, 83)` in a shot. The default `ambient_color` and the four scenes
-   that write one are the same light, written as a colour. Text is decoded
-   the same way. Not done: a shader's `[params]`, which are its own numbers;
-   and the fork's resolve, a 2.2 power where a sampler decodes by the sRGB
-   curve, so a texel of 60 is drawn 62.
+   light, and `balaur_render::film` decodes each authored colour where the
+   backend hands it to kiss3d, so the resolve encodes each value once and a
+   `#3c4753` shape is `(60, 71, 83)` in a shot. The default `ambient_color`
+   and the four scenes that write one are the same light, written as a
+   colour. Text is decoded the same way. Not done: a shader's `[params]`,
+   which are its own numbers; and the fork's resolve, a 2.2 power where a
+   sampler decodes by the sRGB curve, so a texel of 60 is drawn 62.
 8. **`balaur check` passes a scene it cannot load.** Built: `check` builds
    every scene file with the loader a run uses, its scripts held, and reports
    what the loader refuses as an error on the line that writes it, naming the
@@ -87,9 +85,9 @@ In the order they get fixed.
 9. **No gate compiles the library's addons.** Built: `check` compiles and
    lints every `.bs` file under `addons/` that no scene reached, an addon's
    `editor/` plugins included, and reports each under its own name.
-10. **`examples/benchmark` fails when the editor plays it.** Built: its
-    script found its cameras by a path from the root, and a scene the editor
-    plays sits under the editor's own. It reaches them from its own node.
+10. **`examples/benchmark` fails when the editor plays it.** Built: a scene
+    the editor plays sits under the editor's own, so its script reaches its
+    cameras from its own node rather than by a path from the root.
 11. **A game may call what only the editor has.** Built: a module the
     editor's binary declares is `editor_only()`, each function marked where it
     is declared; `dependency` keeps `list` and `of` unmarked. Only the
@@ -99,167 +97,137 @@ In the order they get fixed.
     and so does a `use` of an editor file or a scene attaching one. `balaur
     run` says "the engine has no `debugger::scope`", since a runtime declares
     none of the editor's names. An export leaves the editor's plugins out.
-    `check` compiles every script `ignore` keeps, attached or not, which found
-    the plugin dock hearing the save addon's `saved` by name; the addon's own
-    plugin does that now. The judgment costs 0.7 ms of a 300 ms warm boot.
-12. **Exporting the editor warns.** Built: the export linked the library's
-    materials against the editor's root, and the library is a project of its
-    own, so seven `WARN` lines named shaders under `editor/shaders/`. A
-    material inside a nested project is left to that project.
+    `check` compiles every script `ignore` keeps, attached or not, and the
+    save addon's `saved` is heard by the addon's own plugin. The judgment
+    costs 0.7 ms of a 300 ms warm boot.
+12. **Exporting the editor warns.** Built: the library is a project of its
+    own, and a material inside a nested project is left to that project, so
+    an export of the editor links none of the library's materials against
+    the editor's root and warns of no shader under `editor/shaders/`.
 13. **Nine self-test states ran nowhere.** Built: `scripts/e2e.sh` runs
     `test:tools`, `test:lint`, `test:palette`, `test:panels`, `test:imports`,
     `test:deselect`, `test:viewport_clicks`, `test:gestures` and
-    `test:state_machine`. Five checks had failed unseen: a completion carried
-    no doc line, hover answered nothing on a method's own name,
-    `test:imports` trapped, `test:gestures` read the 3D camera in a 2D scene,
-    and the dock's "add state machine" wrote a property nothing has.
+    `test:state_machine`, and every check in them passes: a completion
+    carries a doc line, hover answers on a method's own name, `test:imports`
+    runs to its end, `test:gestures` reads the 2D camera in a 2D scene, and
+    the dock's "add state machine" writes a property that exists.
     `test:manager` stays out: it passes only when the binary sits in cargo's
     build folder, and e2e runs a copy.
 14. **`balaur_cli`'s scene tests failed at random.** Built: they share the
-    process's log buffer, and one test's `clear` wiped the error another was
-    about to read. They hold one lock now.
-15. **A dock panel opened empty.** Built: a panel heard `docks_changed`
-    while still hidden and turned visible a frame later with nothing telling
-    it, so the State machine panel stayed empty until something else moved.
-    Each of the fifteen panels that fills on show now also refills from its
-    own node's `visibility_changed`. `test:state_machine` on `rig` caught it.
+    process's log buffer and hold one lock, so one test's `clear` cannot wipe
+    the error another is about to read.
+15. **A dock panel opened empty.** Built: each of the fifteen panels that
+    fills on show also refills from its own node's `visibility_changed`, so
+    a panel that hears `docks_changed` while still hidden fills when it turns
+    visible. `test:state_machine` on `rig` checks it.
 16. **A recorded session of `rig` did not replay.** Built: the frame a
     recording starts in is not recorded, and a replay holds the frame it
-    loads in, but the recording went on stepping the game through the rest
-    of its frame. `rig`'s state machine entered `wave` there, so every replay
-    ran one step behind from its first tick. `start_recording` now holds the
-    game until the next frame. A tween's handle came from a counter the
-    editor's docks share, so the tween `fall.bs` starts on tick 207 took 1
-    recorded and 3 replayed; a tool's tweens now count apart, and the header
-    restores the game's counter. `test:recordings` runs on every example the
-    states run on, where it ran on `angrynerds` alone.
-17. **`test:timings` compared two frames.** Built: the window's period was
-    noted after the frame advanced, so a script read one frame's stages
-    against the period of the frame before, and a slow frame failed the
-    check. The period is noted first now, and `TimingLog` pairs it with the
-    frame it measured.
+    loads in, so `start_recording` holds the game until the next frame. A
+    tool's tweens count apart from the game's, and the header restores the
+    game's counter, so the tween `fall.bs` starts on tick 207 takes the same
+    handle recorded and replayed. `test:recordings` runs on every example the
+    states run on.
+17. **`test:timings` compared two frames.** Built: the window's period is
+    noted before the frame advances, and `TimingLog` pairs it with the frame
+    it measured, so a script reads one frame's stages against that frame's
+    period.
 18. **A debug build can panic in a window that cannot present.** Built:
-    with the display asleep, the replay half of `test:recordings` hit egui's
-    check that an id keeps its layer, for the tooltip id `balaur-tip`, which
-    hashed the node and not the layer. A `menu`'s rows draw in each popup
-    that shows them, so a secondary click on a second widget naming the same
-    `context` hit it too. The sensors every node gets are keyed by layer now.
-    Fields, `code` nodes, seams and hints are keyed by layer too, and a field
-    moved to another root keeps its focus and caret; a selection, held in
-    memory and no widget, stays the node's.
-19. **A replay asked the machine for its audio device.** Built: a script
-    that branched on `audio::device_ready` took the other branch when
-    replayed on a machine with other speakers or none. The answers of
-    `device_ready` and `devices` are recorded now, `init`'s in the header,
-    and a replay answers from them.
+    egui checks that an id keeps its layer, so the sensors every node gets
+    are keyed by layer, the tooltip id `balaur-tip` and a `menu`'s rows in
+    each popup that shows them included. Fields, `code` nodes, seams and
+    hints are keyed by layer too, and a field moved to another root keeps its
+    focus and caret; a selection, held in memory and no widget, stays the
+    node's.
+19. **A replay asked the machine for its audio device.** Built: the answers
+    of `device_ready` and `devices` are recorded, `init`'s in the header, and
+    a replay answers from them, so a script that branches on
+    `audio::device_ready` takes the same branch on a machine with other
+    speakers or none.
 20. **A replay reads `cmd` in a binding as its own machine does.** Built:
-    a Mac recording replayed on Linux answered `input::action_*` for
-    `cmd+KeyZ` as Ctrl. The header's setup carries whether `cmd` is ⌘,
-    amended in the frame a recording opens, and a playing replay's bindings
-    read that whatever the browser backend reports.
+    the header's setup carries whether `cmd` is ⌘, amended in the frame a
+    recording opens, and a playing replay's bindings read that whatever the
+    browser backend reports, so a Mac recording replayed on Linux answers
+    `input::action_*` for `cmd+KeyZ` as ⌘.
 21. **A replay's `init` read another dark mode.** Built: `balaur run` seeds
-    `DeviceFacts::dark_mode` before `init`, while `balaur replay` begins
-    playing first, so `update_device` was ignored and `init` read the
-    default. The device facts are in the header's setup now, amended by a
-    report in the frame the recording opens in, and a replay restores them
+    `DeviceFacts::dark_mode` before `init`, and `balaur replay` begins
+    playing first, so the device facts are in the header's setup, amended by
+    a report in the frame the recording opens in, and a replay restores them
     before `init`.
 22. **An `internal async fn` could not be called from another file.**
-    Built: the call compiled and failed at run time with "no `inner$start`
-    for scripts/other.bs". A unit gave the units that call it an async
-    function's `$start` and `$poll` only when it was `pub`; an `internal`
-    one's go to its package now, as a plain function's did.
-23. **A platform could tick at its own rate.** Built: `[time] tick_hz` was
-    read through `settings::get`, so `[override.android.time] tick_hz = 30`
-    stepped a phone at 30 while its recordings and matches assumed one rate.
-    Loading refuses an override of a setting whose spec says `overridable =
-    false`, as `tick_hz` does, and the rate is read from the base value.
+    Built: a unit gives the units that call it an async function's `$start`
+    and `$poll` when it is `pub` or `internal`, an `internal` one's going to
+    its package as a plain function's do.
+23. **A platform could tick at its own rate.** Built: loading refuses an
+    override of a setting whose spec says `overridable = false`, as
+    `[time] tick_hz` does, and the rate is read from the base value, so a
+    phone steps at the rate its recordings and matches assume.
 24. **A game the editor plays read the editor's files.** Built: its scripts
-    are keyed from the game's root, but `fs` resolved a relative path against
-    the editor's, so `fs::read("scenes/flat.toml")` answered nil and
-    `scene::source` was kept for it. A script keyed inside a root the host
+    are keyed from the game's root, and a script keyed inside a root the host
     added reads, writes and lists under that root, or its dependency's
-    folder; the editor's own scripts are keyed relative and keep its root.
-    `scene::source` is gone.
-25. **A replay took the project's tick rate.** Built: `balaur replay` began
-    the session, restoring the header's rate, and then loading the project
-    set `[time] tick_hz` over it, so a project edited since the recording
-    replayed at the new rate. A replay keeps the header's rate, and a
-    recording opened before the project loads, as `balaur run --record`
-    opens one, takes the rate the project sets into its header.
-26. **`task::seconds` woke a step late.** Built: it subtracted each step's
-    `dt` from an `f32`, so 226 of the 599 whole-step waits up to 10 seconds
-    woke one step late, 4/60 taking 5 steps. A wait is counted in steps now,
+    folder, so `fs::read("scenes/flat.toml")` reads the game's file. The
+    editor's own scripts are keyed relative and keep its root.
+25. **A replay took the project's tick rate.** Built: a replay keeps the
+    header's rate when the project loads after it, and a recording opened
+    before the project loads, as `balaur run --record` opens one, takes the
+    rate the project sets into its header.
+26. **`task::seconds` woke a step late.** Built: a wait is counted in steps,
     `ceil(seconds * tick_hz)` with a product within 1e-6 of a whole step
-    taken as that step, so a pause holds it as it holds `task::frames`. A
-    recording made before replays such a wait a step sooner.
-27. **Two file-watcher tests failed in a full suite run.** Built:
+    taken as that step, so 4/60 takes 4 steps and a pause holds it as it
+    holds `task::frames`.
+27. **Two file-watcher tests failed in a full suite run.** Built: macOS
+    starts about 512 FSEvents streams a process and a new one past them hears
+    nothing, so an `App` takes its script host out of the engine as it drops,
+    and the host's stream goes with it.
     `script_reload::a_watched_directory_says_what_changed_and_reloads_its_scripts`
     and `ten_thousand_files_changed_at_once_arrive_in_a_handful_of_lists`
-    heard nothing for over a minute in 1 of 8 parallel suite runs, and in 7
-    of 8 beside a docs build. Load was not the cause: macOS starts about 512
-    FSEvents streams a process, a new one past them hears nothing, and every
-    dropped `App` kept its script host and its stream, since the host and the
-    engine held each other. An `App` now takes its host out of the engine as
-    it drops. The tests write once and wait for the event itself, capped at a
-    minute of ticks, where they wrote again on a timer.
+    write once and wait for the event itself, capped at a minute of ticks.
 28. **A replayed tick lost the snapshot's one-frame fields.** Built: the
-    per-tick restore replaced the whole `InputSnapshot` and reset `begun`, so
-    the tick began the frame again. That cleared `just_pressed`,
-    `just_released`, mouse delta, scroll, typed text, dropped files and touch
-    starts and ends, and `input::key_just_pressed` answered false on every
-    replayed tick. The restore counts the frame as begun now, and keeps the
-    machine's own fields: the command key, pointer emulation and whether a
-    script read a focus key.
-29. **Clicks drawn during a replay landed after it.** Built: nothing took
-    the draw's widget report while a recording played, so every click it saw
-    then reached the first live tick after `replay::unload`. A replayed tick
-    drops that report now; a re-simulated one still leaves it to the live
-    tick after it. The editor's own widgets were replayed too, so its Session
-    dock's pause and step did nothing while a session played. Only the
-    subtree `debugger.set_scope` names takes the recording's widget input
-    now, every other widget takes the draw's, and `test:recordings` clicks
-    both buttons. A pause then dropped the part of a step the recording had
-    carried, so a windowed replay parted from it on the tick after it
-    resumed; a replay's own pause keeps that part now.
-30. **A `Node` field took no path from a scene.** Built: `target =
-    "../Enemy"` in `[nodes.script.props]` left a `pub target: Node` field
-    with no node and said nothing, though the manual says it takes a path.
-    A path in a `Node` or `[Node]` field is read from the scripted node as
-    `node.get_node` reads one when the props are applied, and a path naming
-    nothing warns with the field and the path. A snapshot restore runs the
-    respawned nodes' scripts once every node is back, so a path to a node
-    respawned after its own resolves and warns of nothing.
+    per-tick restore counts the frame as begun and keeps the machine's own
+    fields, the command key, pointer emulation and whether a script read a
+    focus key, so `just_pressed`, `just_released`, mouse delta, scroll, typed
+    text, dropped files and touch starts and ends hold through a replayed
+    tick, and `input::key_just_pressed` answers as recorded.
+29. **Clicks drawn during a replay landed after it.** Built: a replayed tick
+    drops the draw's widget report; a re-simulated one leaves it to the live
+    tick after it. Only the subtree `debugger.set_scope` names takes the
+    recording's widget input, and every other widget takes the draw's, so the
+    Session dock's pause and step work while a session plays, and
+    `test:recordings` clicks both buttons. A replay's own pause keeps the
+    part of a step the recording carried, so a windowed replay keeps to it on
+    the tick after it resumes.
+30. **A `Node` field took no path from a scene.** Built: a path in a `Node`
+    or `[Node]` field, as `target = "../Enemy"` in `[nodes.script.props]`,
+    is read from the scripted node as `node.get_node` reads one when the
+    props are applied, and a path naming nothing warns with the field and the
+    path. A snapshot restore runs the respawned nodes' scripts once every
+    node is back, so a path to a node respawned after its own resolves and
+    warns of nothing.
 31. **A windowed replay parted from its recording after a resume.** Built:
-    the animation player keeps a fixed-step remainder of its own and dropped
-    it under any hold, where since defect 29 the app keeps its own through a
-    paused replay's. So on the tick after a resume a clip, as hello's platform
-    is, stepped on another frame than its recording's. A window's frames are
-    rarely whole steps and an offscreen run's always are, which is why only
-    windowed runs parted. The app, the playhead and the jiggle springs all ask
-    `Engine::hold_keeps_remainder` now.
+    the app, the animation player's playhead and the jiggle springs all ask
+    `Engine::hold_keeps_remainder`, so each keeps its fixed-step remainder
+    through a paused replay, and a clip, as hello's platform is, steps on its
+    recording's frame after a resume. A window's frames are rarely whole
+    steps and an offscreen run's always are, so only a windowed run shows it.
 32. **Four editor states failed only in a window.** Built. A frame whose
-    surface handed out no texture, as a sleeping display's does, returned
-    before egui's pass ended. Every later
-    frame ran its widgets inside that one pass: laid out by it, deaf to input
-    since, its fonts never bound, which failed `test:viewport_clicks`. kiss3d
-    now runs such a frame through all but the GPU's work and the present, and
-    spends the two-second wait for a first surface once. `BALAUR_NO_PRESENT=1`
-    runs a window that way. The other three were their tests: a compact
-    window's dock fold is 20 wide where `test:layout` wanted more,
-    `test:gestures` fed fingers in points where touches are physical pixels,
-    and `test:inspector_rows` clicked a row below the fold of a short window.
+    surface hands out no texture, as a sleeping display's does, runs through
+    all but the GPU's work and the present, so egui's pass ends and
+    `test:viewport_clicks` passes; kiss3d spends the two-second wait for a
+    first surface once. `BALAUR_NO_PRESENT=1` runs a window that way. The
+    other three states fit any window: `test:layout` takes a compact window's
+    20-wide dock fold, `test:gestures` feeds fingers in physical pixels, as
+    touches are, and `test:inspector_rows` clicks a row above the fold of a
+    short window.
 33. **The editor's clock stood still while a recording was loaded.** Built:
     `facts::read_clock_system` stops reading the machine while a replay is
-    loaded, so the editor's own deadlines, a lint sweep or a refill, waited
-    for unload. The machine's clock is read every tick into `MachineClock`,
+    loaded, so the machine's clock is read every tick into `MachineClock`,
     never recorded, and `engine::unix_time` answers it to a script on a node
     outside `debugger::set_scope`'s subtree, as tweens and rest probes tell a
-    tool from its game. The game still reads its recorded time.
-34. **A held game froze the editor's own animation.** Built:
-    `advance_system` returned for every clip, tween and machine under a
-    debugger stop or a paused replay. Only those inside `frozen_root` hold
-    now. Those outside step on `held_accumulator`, so the game's remainder
-    stays as defect 31 keeps it.
+    tool from its game. The editor's own deadlines, a lint sweep or a
+    refill, run on it, and the game reads its recorded time.
+34. **A held game froze the editor's own animation.** Built: under a
+    debugger stop or a paused replay, `advance_system` holds only the clips,
+    tweens and machines inside `frozen_root`. Those outside step on
+    `held_accumulator`, so the game's remainder stays as defect 31 keeps it.
 
 ## 3. The API
 
@@ -269,12 +237,12 @@ the library, the examples and Polyglot Pirates changed in the same commit.
 1. **One way to hear an event.** A script hears an event in its
    `on_<name>(payload, source)` method: its own node's unasked, another
    node's after `events::listen`. A scene sends one to a script with a
-   binding row. The widget's `on_click = "method"` keys go, `click` becomes
-   `pointer_click`, and the names take `docs/NAMING.md`'s forms. A script
+   binding row, a widget's click is `pointer_click`, and the names take
+   `docs/NAMING.md`'s forms. A script
    declares the events its node sends, and `balaur check` warns on a handler
    or a listener naming an event nothing announces. `PLAN-events.md` §6 holds
    the design. Built: the handler shape, the `call` row that climbs to
-   its method, the widget's keys gone with every scene's turned into rows,
+   its method, every scene's handlers as rows,
    `ui.write` keeping a control table's handler names, `pointer_click` for a widget's
    click, the `event` item, the check's warnings, the hooks page's
    listener-only events, and every name in `docs/NAMING.md`'s form.
@@ -284,7 +252,7 @@ the library, the examples and Polyglot Pirates changed in the same commit.
    `add_path`, `make_local` and `move_into` are `balaur_cli`'s, beside
    `project` and `forge`. `balaur::ToolsPlugin` holds `debugger` and the
    `script::` tool verbs, which the editor's binary registers and no game's
-   runtime does, and `script::store` is gone.
+   runtime does.
 3. **The demo plugin leaves the editor.** Built: the Counter dock's plugin
    is `scripts/plugins/counter.bs`, which `scripts/e2e.sh` copies into the
    project it runs `test:plugin_docks` on.
@@ -297,33 +265,29 @@ the library, the examples and Polyglot Pirates changed in the same commit.
 5. **Vectors in, vectors out.** Built: a function that takes a point, an
    offset, a size, a direction or a velocity takes a `Vec2` or a `Vec3`, and
    one that takes a colour takes a `Color`: `set_linear_velocity(Vec2)`,
-   `node.set_tint(Color)`, every `render::draw_*`. An answer that was a flat
-   list is a record of vectors: a collider's `aabb()` holds `min` and `max`,
+   `node.set_tint(Color)`, every `render::draw_*`. An answer of several
+   numbers is a record of vectors: a collider's `aabb()` holds `min` and `max`,
    `render::mouse_ray()` an `origin` and a `direction`, `camera_pose()` an
    `eye` and a `target`, `camera_2d()` a `center` and a `zoom`, and a
    character's move the offset it `applied`.
 6. **`camera3d` aims by its node's rotation,** as `light3d` does. Built:
-   the `look_at` and `up` properties are gone, and `transform.look_at(point)`
-   turns any node to face a world point. `focus_distance` is how far ahead an
+   `transform.look_at(point)` turns any node to face a world point. `focus_distance` is how far ahead an
    orthographic frame with no height is sized and a stereo pair converges.
 7. **3D immediate shapes say so.** Built: `draw_box_3d`, `draw_sphere_3d`,
    `draw_capsule_3d` and `draw_lines_3d`, beside `draw_rect_2d`.
    `draw_box_3d` takes the box's whole `size`, as `draw_rect_2d` does, and
    `draw_lines_3d` a list of `Line3d` records.
-8. **Fed input is a setter beside its reader.** Built: `input::feed_mouse`
-   is `set_mouse_position`, and the family follows: `set_mouse_down`,
-   `set_key_down`, `set_scroll_delta`, `set_action_value`, `set_touch` and
-   `set_gamepad`, each taking a `Vec2` where it took two floats.
-9. **Dead surface goes.** Built for what an event already says:
-   `scene::added_since`, `changed_since` and `removed_since` with
-   `engine::change_tick` (the `changed` event), `input::dropped_files`
-   (`files_dropped`) and `settings::revision` (`on_setting_changed`). Built
-   too for what nothing called: `multimesh2d.set_instance_region`, which drew
-   nothing, and `render::set_shader_probe` with the `shader_probe` that read
-   its answer. Kept, each the only reach a script has: the
-   `ui::focus_*` verbs and `engine::environment`. The focus verbs have no
-   test. `node.set_property`, a second spelling of `patch_component`, is
-   gone; `node.component.x = v` compiles to the property's own binding.
+8. **Fed input is a setter beside its reader.** Built:
+   `set_mouse_position`, `set_mouse_down`, `set_key_down`,
+   `set_scroll_delta`, `set_action_value`, `set_touch` and `set_gamepad`,
+   each taking a `Vec2` for a point.
+9. **No surface repeats an event.** Built: a script hears the `changed`,
+   `files_dropped` and `on_setting_changed` events, and the API holds no
+   reader that answers the same, nor a call nothing makes. Kept, each the
+   only reach a script has: the `ui::focus_*` verbs and
+   `engine::environment`. The focus verbs have no test.
+   `node.component.x = v` compiles to the property's own binding, and
+   `patch_component` is the one spelling of a partial write.
 10. **An example plays sound.** Built: `examples/sound` loops a positional
     hum, rings a bell from a `timer` and counts its `sound_finished`, and
     plays a thud with `audio::play_file` when a ball lands. `scripts/make_sounds.py`
@@ -333,8 +297,8 @@ the library, the examples and Polyglot Pirates changed in the same commit.
     words (Godot, then Unity, then a domain's standard, then plain English),
     one word for one meaning, one shape per kind of thing, and a name that
     says what the call site cannot. An event names what happened, in the past
-    tense, and input keeps Unity's pairs. The names that came from a backend
-    took the reader's word: `point_size`, `stereo_separation`, `tab_size`,
+    tense, and input keeps Unity's pairs. Where a backend has a word of its
+    own, the reader's word wins: `point_size`, `stereo_separation`, `tab_size`,
     `specular_shininess`, `normal_scale`, `torn`, and a character's `exclude`.
 
 ## 4. What still polls
@@ -348,17 +312,17 @@ frame to see whether it moved.
    counts, a clip or a tween plays, a body is awake, particles live or a
    sound is due to end. The editor's autosave, lint sweep, Inspector refill
    and import list each ask `util::wake_at` for one frame at their deadline.
-   After one edit an untouched editor draws 7 frames in 6 s, not 18 to 24,
-   and 2 frames in 2 s while an import list comes down, not 120. A
+   After one edit an untouched editor draws 7 frames in 6 s, and 2 frames
+   in 2 s while an import list comes down. A
    `task::seconds` wait holds the loop awake while it counts, so none uses one.
 2. **The editor's file cache.** Built: `model.bs` keeps a read and a listing
    until `files_changed` names the file, and the editor's own writes forget
    theirs, so nothing re-reads on a timer.
 3. **The recordings list.** Built: `session.bs` lists the folder again when
    `files_changed` names a file in it, and follows playback through the
-   `replay_state_changed` event instead of reading `replay::state` each frame.
-   A replay paused or run out asks for no frame: one loaded and paused drew
-   19 frames in 12 s, all of them its opening, not 716.
+   `replay_state_changed` event. A replay paused or run out asks for no
+   frame: one loaded and paused draws 19 frames in 12 s, all of them its
+   opening.
 4. **Transforms and the scene mirror.** Built: `scene::sync_globals` places
    only the subtrees under a stamped `transform`, an attach, a restyle or a
    blend, and the mirror redraws only the renderables those and the change
@@ -397,8 +361,8 @@ frame to see whether it moved.
    a link, a native file dialog and an export are held back in such a run.
 3. **Pictures.** Built: `scripts/pictures.py` runs each example offscreen at
    a fixed tick and compares its 200th frame with the PNG in
-   `scripts/pictures/`, on the Mac the release is cut on. Defect 2 passes
-   every other gate. A shader's `time()` reads `engine::time()`, so
+   `scripts/pictures/`, on the Mac the release is cut on. A fault like
+   defect 2's passes every other gate. A shader's `time()` reads `engine::time()`, so
    `shaders` draws the same frame each run too.
 4. **The first app.** Built: `scripts/e2e.sh` checks and runs
    `../polyglot-pirates-app` when it is there, and the app's own
@@ -416,7 +380,7 @@ frame to see whether it moved.
 Polyglot Pirates is seven scenes of a design mock in
 `../polyglot-pirates-app`. It grows one feature of the website at a time.
 
-1. It compiles again (defect 1) and names the engine commit it builds on.
+1. It compiles (defect 1) and names the engine commit it builds on.
 2. Each feature lands with a smoke scene of its own, as `round_smoke` is.
 3. A thing the app needs and the engine lacks becomes a roadmap row, never a
    workaround in the app.

@@ -16,7 +16,7 @@ built.
    compiled, not seen. Done: each answers on a device signed with an Apple
    ID and a provisioning profile, the sheet included.
 2. **Run the device seam on hardware.** Local notifications are
-   `platform.notify` now, served by `crates/balaur_apple/src/notify.rs`
+   `platform.notify`, served by `crates/balaur_apple/src/notify.rs`
    through the device seam whichever store is loaded, and a tap or one shown
    in front is the `platform_event` event. The iPhone's feedback generators,
    the share sheet (`UIActivityViewController`, `NSSharingServicePicker`) and
@@ -81,7 +81,7 @@ built.
 
 ## Open questions
 
-- Buying is portable now: `platform.products`, `purchase`,
+- Buying is portable: `platform.products`, `purchase`,
   `finish_purchase`, `restore_purchases` and `entitlements` over StoreKit and
   Play Billing, with Steam answering `unsupported`. A transaction's `token`
   is StoreKit's JWS. Left open: whether `finish_purchase` should refuse a

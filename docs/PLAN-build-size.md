@@ -142,12 +142,11 @@ first with `[plugins] audio = false` ran in headless Chrome on each shape.
   4.52 MB brotli: code 13.30, data 3.63. The sort copies fall from 1.32 MB
   to 0.18 and the GL backend to nothing, and all three games run. The two
   builds were not of one commit, so 2.87 is close and not exact.
-- **Half the sort code is two functions.** `to_table` and
-  `describe_record` in `balaur_core::components::derived` each collected
-  into a map, and a map collected from an iterator carries its own sort:
-  one copy per component struct, 0.60 MB of the 1.32. Both now build
-  through one function that is not generic, and no sort copy is left for
-  either.
+- **Half the sort code is two functions.** A map collected from an
+  iterator carries its own sort, one copy per component struct: 0.60 MB of
+  the 1.32 for `to_table` and `describe_record` in
+  `balaur_core::components::derived`. Both build through one function that
+  is not generic, and neither carries a sort copy.
 - **The `bare` template is 14.75 MB raw and 4.09 MB brotli.** Built with
   the table builder, and from a later tree than the 19.93. `interface`,
   `text` and `shaders` ran on it in headless Chrome. It still links
@@ -162,10 +161,9 @@ first with `[plugins] audio = false` ran in headless Chrome on each shape.
 - **`Module::function`'s untyped half out of line saved 14.6 KB.** The
   `declare` functions are not made of registration calls, and the change
   was not kept.
-- **They are made of component schemas.** `RenderPlugin::declare` made
-  1048 map inserts, each a key built from a string, because the derive
-  wrote each `#[property]` key as code. Each field's keys are now a static
-  table one function, `derived::field_spec`, reads: 0.10 MB off `bare`,
+- **They are made of component schemas.** Each field's `#[property]`
+  keys are a static table one function, `derived::field_spec`, reads,
+  rather than a map insert a key built from a string: 0.10 MB off `bare`,
   which is 13.36 MB raw and 3.77 MB brotli, and the four games ran again.
 - **A pack carries units, and a template no compiler: 0.49 MB.** `bare` is
   12.87 MB raw and 3.64 MB brotli. A pack grows by its units: `interface`
@@ -268,20 +266,11 @@ LTO, so a game with physics would ship more bytes than the one binary does.
 4. **Data.** The tonemapping table, done. Left: the default face, if a game
    that ships its own can leave it.
 5. **The budget.** Done: `package_runtime.sh web` fails a push whose `bare`
-   template passes 10.8 MB. It was 10.4, the 10.38 above rounded up to a
-   tenth, until 2026-11-15 took `bare` to 10.47: every state of a control
-   eased from the theme, shadows as lists, icons by name, the spinner and
-   the switch in `balaur_ui`, and script properties in the compiler. Then
-   10.5, with 831 bytes to spare, until 2026-11-17 took `bare` to 10.50: a
-   scroll under a finger decided by balaur (`[ui] scroll_deadzone`, the
-   touch class or the mouse standing in for a finger, a child's own drag)
-   and a sideways scroll as tall as what it holds, in `balaur_ui`. Then
-   10.6 until 2026-11-24 took `bare` to 10.70: native sign-in on every
-   template (2026-11-23 to 24), each answering `unsupported` where its
-   system is missing, so one script runs everywhere: the OS's sign-in sheet
-   behind `platform.web_sign_in` (10.60 to 10.62), `apple.*` (to 10.67),
-   Steam behind `platform.*` and `platform.identity` (10.68), then
-   `google.*` and the frame work around it (10.70).
+   template passes 10.8 MB. `bare` is 10.70 MB, with native sign-in on
+   every template, each answering `unsupported` where its system is missing
+   so one script runs everywhere: the OS's sign-in sheet behind
+   `platform.web_sign_in`, `apple.*`, Steam behind `platform.*` and
+   `platform.identity`, and `google.*`.
 6. **Native.** The table, done: `native_crates.py` reads a template's
    symbols through `nm` for Linux, macOS, Android and iOS; an MSVC binary
    keeps its symbols apart. Then `strip_template` drops them from the

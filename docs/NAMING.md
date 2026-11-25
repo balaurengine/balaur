@@ -153,7 +153,7 @@ precedent for the next.
 | `node.get_node`, `node.get_component` | Keep `get_` (N7): without it they read `node.node(path)` and `node.component(name)` beside `node.component_names()` |
 | `render.camera_pose` | Reads what the backend applied for a `camera3d`, not what was asked; its doc line says so (N8) |
 | `widget.x`, `widget.y` | Offsets from one of five anchor corners, not a position vector |
-| `render` as one module | Revisited at 58 functions, when the window's eight moved to `window`. Revisit past about 70 |
+| `render` as one module | 58 functions, the window's eight in `window` beside it. Revisit past about 70 |
 | The editor's node types (`RigidBody3D`, `MeshInstance2D`) | Godot 4's class names, shown as they are to Godot users; one table, `model::display_types` |
 | `scale`, four times | `node.transform.scale`, `ui.scale()`, a viewport's `scale_factor` and a 2D camera's `zoom` are four scopes, not one (N1) |
 | `node.add_child` and `scene.instantiate` | Not synonyms: one empty node against a whole scene file |

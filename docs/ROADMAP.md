@@ -90,7 +90,7 @@ being built, marked `done`, never back in the shipped one.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Rune scripting** — the first language, replaced by Balaur Script: a `math` module, hot reload, a DAP debugger and a self-documenting API. | 0.1 done | no plan |
+| **Balaur Script** — a `math` module, hot reload, a DAP debugger and a self-documenting API. | 0.1 done | no plan |
 | **Scenes, assets and export packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary export packs. | 0.1 done | no plan |
 | **A bad call caught before it runs** — `balaur check` reads the scene beside the script and resolves a component's method against the table the run time uses. | 0.2 done | [PLAN-script-analysis.md](PLAN-script-analysis.md) |
 | **Addons as modules** — a file directly under `addons/<name>/` is `<name>::<file>` in every script, and `balaur add` imports a Forge project whole into `deps/<alias>/`. | 0.2 done | [PLAN-dependencies.md](PLAN-dependencies.md) |

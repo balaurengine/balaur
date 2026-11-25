@@ -22,7 +22,7 @@ the background runs no fixed step and holds its sounds until it comes back
    *First part built 2026-11-24*, behind `balaur_platform`'s device seam
    (`device.rs`), which Apple's plugin fills on iOS and macOS and the Java
    shims in `crates/balaur_platform/java` on Android:
-   - `device.vibrate(seconds)`, which replaces `input.vibrate`: Android's
+   - `device.vibrate(seconds)`: Android's
      `Vibrator`, a page's `navigator.vibrate`, the iPhone's one system buzz.
      `device.haptic(HAPTIC_*)`: UIKit's feedback generators, Android's
      predefined effects (a short buzz below Android 10). Output, never recorded.

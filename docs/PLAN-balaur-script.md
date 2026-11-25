@@ -29,7 +29,7 @@ is native code proven on two more targets, two editor tools, and what an
 
 ## Open questions
 
-- **What an engine call can cost.** The target was about 50 instructions a
+- **What an engine call can cost.** The target is about 50 instructions a
   call and 150 a property write, but wasmtime's own call into a host
   function that does nothing is 144 to 171 here. Set the targets from that
   floor, or keep more of the hot calls inside the module.

@@ -43,7 +43,7 @@ browser, where the build has no dynamic linker.
 5. **The Rust guest crate.** `balaur_extension`, holding the `#[repr(C)]`
    types moved out of `balaur_plugin::capi`, which re-exports them, and a
    macro writing the four exports and the imports. Built natively against the
-   C ABI, a Rust extension no longer needs the host's exact rustc. Done:
+   C ABI, a Rust extension does not need the host's exact rustc. Done:
    `examples/extension_greeter` ported to it, as a project with a scene.
 6. **The native host.** On the runtimes Balaur Script already ships: wasmi in
    every build, wasmtime under `bs-jit`. A call past its budget ends as an

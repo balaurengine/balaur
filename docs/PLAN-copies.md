@@ -1,9 +1,9 @@
 # Plan: copies
 
 A value is looked at through a reference. It is copied only where the copy
-is the point. Handing a script a parsed 1.6 MB document took 1.9 s because
-every map copied all its values to list them, at every level of nesting:
-one `v.clone()` in a `map`. This plan is the rule, what holds it, and the
+is the point. One `v.clone()` in a `map` copies every value of every map
+at every level of nesting, which makes handing a script a parsed 1.6 MB
+document cost 1.9 s. This plan is the rule, what holds it, and the
 copies a review of the whole engine found (2026-11-21), to be taken down.
 
 ## The rule
@@ -73,7 +73,8 @@ Cheap handles are not copies in this sense: `Rc`, `Arc`, `SmolStr`,
 - An engine call's answer is moved into the script's value
   (`from_neutral_owned`, `dynamic_owned`).
 - An awaited value is taken by the await that reads it, not cloned.
-- A call into a module no longer copies its result kinds (`Rc<[Slot]>`).
+- A call into a module shares its result kinds (`Rc<[Slot]>`) rather than
+  copying them.
 - A block for what the engine hands a script is taken by the engine as
   the module's `__alloc` would take it, on the module's memory and its
   allocator's globals, with no call into the module (`runtime::heap`, on
@@ -81,14 +82,12 @@ Cheap handles are not copies in this sense: `Rc`, `Arc`, `SmolStr`,
   same free list or bump, so the heap ends block for block as the module's
   own calls would leave it: `heap`'s tests hold the two to one sequence,
   and `memory`'s that what the engine hands over is freed, reused and the
-  same on both engines. Modules now export `__bump` beside `__live`.
+  same on both engines. Modules export `__bump` beside `__live`.
 
 Measured on a quiet machine, debug engine, the 1.6 MB pack parsed for a
 script: 60 ms before the host-side allocator, 29 ms after (200,000 ints in
-a list: 68 ms to 37 ms). An earlier figure of 1,932 ms then 700 ms was
-taken while the machine ran other builds at a load of about 300, which
-inflated it tenfold: a time is taken on a quiet machine, or by the CPU
-the process spent.
+a list: 68 ms to 37 ms). A time is taken on a quiet machine, or by the
+CPU the process spent: a load of about 300 inflates it tenfold.
 
 ## The review
 
@@ -106,8 +105,8 @@ read again and, where it is hot, measured. Paths are under `crates/`.
 A value crossing is built two or three times: module memory, the runtime's
 `Value` (L), the engine's `Value` (N). L is only ever between.
 
-1. **Done.** `balaur_script_bs/src/lib.rs:63`, `convert.rs`: an answer
-   converted by reference, then dropped.
+1. **Done.** `balaur_script_bs/src/lib.rs:63`, `convert.rs`: an answer is
+   moved, not converted by reference.
 2. `convert.rs:44-51, 61, 66, 86, 320-324` (`to_neutral(&args.value(i))`),
    callers `lib.rs:111, 117, 127, 145, 196`, `balaur_script/src/value.rs:
    300`: every str, list, `any` and record argument, already decoded from
@@ -122,7 +121,8 @@ A value crossing is built two or three times: module memory, the runtime's
 4. `runtime/values.rs:306-330` (`str_bytes`, `array_header`, `cell_bytes`):
    a `Vec<u8>` per string, per array header and per cell, to prepend eight
    bytes. Fix: the header from the stack, the body written from the slice.
-5. **Done.** `runtime/host.rs:569, 618`: an awaited value cloned.
+5. **Done.** `runtime/host.rs:569, 618`: an awaited value is taken, not
+   cloned.
 6. `balaur_script_bs/src/host/tasks.rs:96`: a wake's payload converted by
    reference; the last home to await it can be handed it. Two homes may
    await one token: the earlier ones still copy.

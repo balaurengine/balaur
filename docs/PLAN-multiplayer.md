@@ -107,9 +107,9 @@ tick decides from belongs to the tick: `rollback::input`, and
 | --- | --- |
 | The script module | `multiplayer::host`, `join`, `leave`, ... |
 | The project table | `[multiplayer]` in `project.toml` |
-| The editor's fault settings | `multiplayer/faults`, `delay`, `jitter`, `loss`, moved from `netcode/*`; a setting's scope is its own, so one category holds the project's keys and the person's |
+| The editor's fault settings | `multiplayer/faults`, `delay`, `jitter`, `loss`; a setting's scope is its own, so one category holds the project's keys and the person's |
 | The script event | `multiplayer_event`, heard as `on_multiplayer_event` |
-| The recording source | `multiplayer`, renamed from `session` |
+| The recording source | `multiplayer` |
 | The dock | Multiplayer |
 | The thing itself, in prose, docs and the editor | a *match* |
 
@@ -123,7 +123,7 @@ The Rust types keep their names: `NetSession`, `rollback::Session` and
 | `net` | Beside `http` and `websocket` it reads as a socket library |
 | `room` | Photon's word; a second name for what Gamend calls a lobby |
 | `lobby` | Gamend's, and a lobby is who is waiting, not the running game |
-| `match` | A Rune keyword, so it cannot name a module |
+| `match` | A Balaur Script keyword, so it cannot name a module |
 
 **One match, two topologies.** Every machine in a match runs the same
 `Session`: the same tick, the same journal, the same ring. What a topology
@@ -136,8 +136,8 @@ decides is where the links go and who stamps an input with its tick.
 
 `host` is Photon Fusion's Host mode; `server` is its Server mode and
 Quantum's custom server at once, because a headless Balaur is the same
-simulation. A mesh of every player to every other was the tests' shape and
-is not built for scripts: the relay does the same job over one link each.
+simulation. A mesh of every player to every other is not built for
+scripts: the relay does the same job over one link each.
 
 **Roles answer for this machine.** `multiplayer::role()` is `ROLE_HOST`
 (the listening player) or `ROLE_CLIENT` (a player linked to a host), and
@@ -182,32 +182,40 @@ only; a joiner's one link to the host speaks for every slot but its own.
 **The script surface.** `multiplayer` beside `rollback`: `multiplayer` owns
 who is in and how they are reached, `rollback` owns what they pressed.
 
-```rune
-pub fn host(this) {
-    // Listen, then hand the address out however the game likes.
-    let at = multiplayer::host(#{ transport: multiplayer::TRANSPORT_WEBTRANSPORT });
-    log::info(`${at["url"]} ${at["cert_hash"]}`);
-}
+```bs
+pub struct Keys { x: float }
 
-pub fn join(this, url, hash) {
-    multiplayer::join(url, #{ cert_hash: hash, name: "Guest" });
-}
+pub class Match { node: Node }
 
-pub fn fixed_update(this, dt) {
-    multiplayer::set_input(#{ x: input::action_value("move_x") });
-    let me = rollback::input(multiplayer::local_player());
-}
+impl Match {
+    pub fn host() {
+        // Listen, then hand the address out however the game likes.
+        let at = multiplayer::host(multiplayer::HostOptions { transport: multiplayer::TRANSPORT_WEBTRANSPORT });
+        let url = at.url;
+        log::info("{url}");
+    }
 
-pub fn on_multiplayer_event(this, e) {
-    if e["kind"] == multiplayer::EVENT_DESYNC {
-        log::error(`the machines disagree from tick ${e["tick"]}`);
+    pub fn join(url: str, hash: str) {
+        multiplayer::join(url, multiplayer::JoinOptions { cert_hash: hash, name: "Guest" });
+    }
+
+    pub fn fixed_update(dt: float) {
+        multiplayer::set_input(Keys { x: input::action_value("move_x") });
+        let me = rollback::input(multiplayer::local_player().or(0));
+    }
+
+    pub fn on_multiplayer_event(e: any) {
+        if e["kind"] == multiplayer::EVENT_DESYNC {
+            let tick = e["tick"];
+            log::error("the machines disagree from tick {tick}");
+        }
     }
 }
 ```
 
 | Call | Answers |
 | --- | --- |
-| `multiplayer::host(options)` | Listens and takes slot 0; returns `#{ url, cert_hash, transport }`, the hash only for a self-signed QUIC listener. `options` override the `[multiplayer]` table and add `name` and `token` |
+| `multiplayer::host(options)` | Listens and takes slot 0; returns `{ url, cert_hash, transport }`, the hash only for a self-signed QUIC listener. `options` override the `[multiplayer]` table and add `name` and `token` |
 | `multiplayer::join(url, options)` | Dials a `ws://`, `wss://` or `https://` host; `options` carry `cert_hash`, `name`, `token` and `timeout` |
 | `multiplayer::start()`, `add_bot(name)` | On a host: start with whoever is in; a slot the host's own script plays |
 | `multiplayer::leave()` | Say goodbye and go idle |
@@ -295,7 +303,7 @@ each.
 ## 3. Steps
 
 Two or three engines in one process on loopback, behind `transport::Faulty`,
-is the bar for every step, as it was for the lockstep tests.
+is the bar for every step.
 
 1. **A match from a script — built.** `crates/balaur_multiplayer`: the
    module, `host` and `join` over both transports, the handshake with slots
@@ -303,8 +311,8 @@ is the bar for every step, as it was for the lockstep tests.
    the `[multiplayer]` table, and the start from the host's world. In core:
    `FrameDriver`, `NetSession`'s bound links, relay and lead check,
    `Session::set_absent`, the `local` digest tag, script fields that keep
-   their nodes across a snapshot, and the `netcode/*` settings and the
-   `session` replay source renamed. Ends with: `examples/multiplayer` played
+   their nodes across a snapshot, the `multiplayer/faults` settings and the
+   `multiplayer` replay source. Ends with: `examples/multiplayer` played
    by two `balaur run` processes, and the match test over both transports.
 2. **Host.** The host stamps each input with the tick it will run on and
    rebroadcasts it. `Hello` carries the joiner's `[time] tick_hz`, and a
@@ -329,25 +337,22 @@ is the bar for every step, as it was for the lockstep tests.
    and `balaur play` loops step through it too. Ends with: a match recorded
    on each machine replays to the same digests.
 
-## 3b. What a digest covers, and why a session in the editor once could not
+## 3b. What a digest covers
 
 `digest::entries` narrows its node walk to `eng.debug_scope()`, so inside an
 editor the game is the subtree checked and the editor's own nodes are not.
-The sources a plugin registers did not know that, and animation and physics
-reported every node in the world.
-
-So `test:recordings` never verified: the game reproduced exactly, every shared
-label matching, and the replay carried one extra entry, a tween on the
-editor's own bottom dock, which animates when play opens the Output dock.
-`digest::scope_of` hands a source the same scope. Fixed 2026-09-07. A
-subtree tagged `local` is left out of the same scope.
+`digest::scope_of` hands a source a plugin registers the same scope, so
+animation and physics report the game's nodes alone, and a tween on the
+editor's own docks is no entry of the game's: `test:recordings` verifies a
+session played in the editor. A subtree tagged `local` is left out of the
+same scope.
 
 A source added later has to ask for the scope too; nothing makes it.
 
 ## 4. What CI can prove
 
-Loopback with injected loss, delay and jitter, which is where the twelve-tick
-repeat was found to be necessary, so it is not a weak bar. Every step ends
+Loopback with injected loss, delay and jitter, which is what makes the
+twelve-tick repeat necessary, so it is not a weak bar. Every step ends
 with a headless test of two or three engines, and step 3's adds a fourth
 process. What CI cannot: NAT, a real route, a browser, a phone on a cellular
 link. Those wait for `docs/PLAN-gamend.md`'s game server on a real host.

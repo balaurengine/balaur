@@ -13,7 +13,7 @@ the node (`NODE_KEYS` in `crates/balaur_core/src/project.rs`), read into the
    readers are untouched. Done when `NODE_KEYS` lists none of the four.
 2. **Every scene file.** The four keys move under the component's table in
    every `.toml` under `examples/`, `editor/` and the crates' fixtures, in one
-   pass, with no alias for the old keys.
+   pass.
 
 ## Open questions
 

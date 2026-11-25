@@ -1,5 +1,5 @@
 > **Status:** most of step 4 built on 2026-10-04: the web game template
-> leaves out the editor, the Rune compiler, the WESL linker and egui's fonts; `physics2d`,
+> leaves out the editor, the Balaur Script compiler, the WESL linker and egui's fonts; `physics2d`,
 > `physics3d` and each audio codec gate their code; a `-2d` and `-3d` template
 > of every target is built and exported in CI, and `[export] runtime` picks
 > one. The site's examples play on theirs. Size is `docs/PLAN-build-size.md`'s; steps 1–3, 5 and 6 not started. Written down on 2026-09-05. Web export exists:
@@ -32,7 +32,7 @@ Built, and not built for this:
 | The site's loader and player, one stamped set of glue, module and export packs | `../forge/assets/js/host_hooks.js` (`BalaurPlayer`), `lib/forge/site/play.ex` |
 | The template built per push with a chosen feature set, its size measured raw, gzip and brotli | `scripts/package_runtime.sh web`, `WEB_FEATURES`, `docs/generated/features.md`, the site's `play-size.json` |
 | Export packs compiled for every target, the web included; sources only on request, and only a build with `compile` runs them | `balaur export --keep-sources`, the `compile` feature |
-| A game template apart from the editor's module: no export tooling, no editor entry points, no Rune compiler, no WESL linker, no egui fonts | the `editor`, `compile` and `fallback-fonts` features, `scripts/package_play.sh` |
+| A game template apart from the editor's module: no export tooling, no editor entry points, no Balaur Script compiler, no WESL linker, no egui fonts | the `editor`, `compile` and `fallback-fonts` features, `scripts/package_play.sh` |
 | Every shader a game draws with linked at export into the export pack; kiss3d's own linked when it compiles | `balaur_render::prelinked`, `.balaur/shaders.toml.deflate`, kiss3d's `build.rs` |
 | Each physics world behind a feature, both on by default, and each audio codec | `physics2d`, `physics3d`, `flac`, `mp3`, `mp4`, `vorbis`, `wav` |
 | A template per world for every target, built, exported and run in CI | `scripts/export_check.sh`, `scripts/package.sh`, the `build-templates` job |
@@ -83,7 +83,7 @@ from the protocol's schema so the package and the engine cannot drift;
 **`<balaur-viewer>` is the element.** Attributes `src`, `runtime`, `poster`,
 `lazy`, `transparent`, `fit`, `pixel-ratio`, `focus`; events `ready`,
 `error`, `message`. It sizes the canvas to its own box through a
-`ResizeObserver`, which replaces the shell page's `100vw` rule, and it claims
+`ResizeObserver`, and it claims
 the keyboard only when focused so a page keeps its scroll. `transparent`
 asks the backend for an alpha swapchain and a clear with alpha zero, and
 `set_background` learns an alpha. The exported shell grows a `--pwa` option
