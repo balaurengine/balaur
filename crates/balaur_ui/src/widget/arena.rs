@@ -540,17 +540,19 @@ fn shown_by_tree(eng: &Engine, placed: &mut [Placed], fresh: bool, touched: &mut
     // Each widget with a line, against the room it is laid out in: the
     // nearest container that states a size or grows, where that container
     // drew last pass, or the screen for a root and where none does.
-    let roomed: Vec<bool> = placed
+    // A room not laid out yet (a tree built this tick) is read as the screen,
+    // and a widget so read is shown or hidden against it only for this pass.
+    let (roomed, laid): (Vec<bool>, Vec<bool>) = placed
         .iter()
         .enumerate()
         .map(|(index, one)| {
             if !has_lines(&one.widget) {
-                return true;
+                return (true, true);
             }
-            let [w, h] = room_of(placed, index, [width, height]);
-            fits(&one.widget, w, h)
+            let ([w, h], laid) = room_of(placed, index, [width, height]);
+            (fits(&one.widget, w, h), laid)
         })
-        .collect();
+        .unzip();
     let world = eng.world();
     let mut fold = |index: usize, one: &mut Placed| {
         let authored = one.draws_itself && roomed[index];
@@ -569,6 +571,9 @@ fn shown_by_tree(eng: &Engine, placed: &mut [Placed], fresh: bool, touched: &mut
         // without marking the slot for the layout pass.
         one.alpha = alpha;
         let visible = authored && shown;
+        if shown && !laid[index] {
+            LINES_UNLAID.set(true);
+        }
         if one.widget.visible != visible {
             one.widget.visible = visible;
             if !fresh && !touched.contains(&index) {
@@ -605,7 +610,9 @@ fn has_lines(widget: &Widget) -> bool {
 
 /// The room a widget's lines are read against, in design pixels: its nearest
 /// sized container, else its screen, the viewport it sits in or `window`.
-fn room_of(placed: &[Placed], index: usize, window: [f32; 2]) -> [f32; 2] {
+/// `false` with it where that container has not been laid out yet, and the
+/// screen stood in for it.
+fn room_of(placed: &[Placed], index: usize, window: [f32; 2]) -> ([f32; 2], bool) {
     let surface = crate::widget::screens::room(placed, placed[index].screen, window);
     let mut up = placed[index].parent;
     while let Some(at) = up {
@@ -614,12 +621,26 @@ fn room_of(placed: &[Placed], index: usize, window: [f32; 2]) -> [f32; 2] {
         // A root that states a size is a room like any other; one that hugs
         // its contents is the screen's, and so is a line above every root.
         if w.width > 0.0 || w.height > 0.0 || (w.grow > 0.0 && one.parent.is_some()) {
-            return crate::widget::arrange::drawn_at(one.entity)
-                .map_or(surface, |rect| [rect.width(), rect.height()]);
+            return crate::widget::arrange::drawn_at(one.entity).map_or((surface, false), |rect| {
+                ([rect.width(), rect.height()], true)
+            });
         }
         up = one.parent;
     }
-    surface
+    (surface, true)
+}
+
+thread_local! {
+    /// Whether this pass read a shown widget's line against a room not laid
+    /// out yet: the pass is run again with the room in place, so the guess
+    /// never draws.
+    static LINES_UNLAID: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether a line was read against the screen in place of its room since
+/// last asked (`LINES_UNLAID`); asking clears it.
+pub(crate) fn take_lines_unlaid() -> bool {
+    LINES_UNLAID.replace(false)
 }
 
 /// The rect a viewport is a screen of, from `drawn`: `None` while it is hidden

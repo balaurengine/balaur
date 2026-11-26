@@ -362,6 +362,9 @@ fn draw_root(
     if first_pass {
         ctx.request_discard("a widget root's first pass");
     }
+    if crate::widget::arena::take_lines_unlaid() {
+        ctx.request_discard("a line read before its room was laid out");
+    }
     painting.assigned = egui::Vec2::ZERO;
     // A root is placed by nobody, so it records its own rect, from egui's
     // memory: the response's rect can lag it by a frame.
