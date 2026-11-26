@@ -537,11 +537,8 @@ fn shown_by_tree(eng: &Engine, placed: &mut [Placed], fresh: bool, touched: &mut
     let surface = (width as i32, height as i32);
     let resized = SURFACE.with(|seen| seen.replace(surface)) != surface;
     let reread = touched.clone();
-    // Each widget with a line, against the room it is laid out in: the
-    // nearest container that states a size or grows, where that container
-    // drew last pass, or the screen for a root and where none does.
-    // A room not laid out yet (a tree built this tick) is read as the screen,
-    // and a widget so read is shown or hidden against it only for this pass.
+    // Each widget with a line, against its room (`room_of`); a room not laid
+    // out yet is the screen's for this pass alone (`LINES_UNLAID`).
     let (roomed, laid): (Vec<bool>, Vec<bool>) = placed
         .iter()
         .enumerate()

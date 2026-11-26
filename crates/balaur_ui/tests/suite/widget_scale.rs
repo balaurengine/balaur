@@ -623,3 +623,61 @@ mod classes {
         );
     }
 }
+
+// A line read in the pass a tree is built in, before the room it reads is
+// laid out, is read again before that frame shows: a name too wide for the
+// room a bar leaves it never draws, not even on the page's first frame.
+#[test]
+fn a_line_in_a_tree_built_this_tick_holds_on_its_first_frame() {
+    let (_dir, app) = app();
+    let ctx = egui::Context::default();
+    let frame = |ctx: &egui::Context| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::pos2(0.0, 0.0),
+                egui::vec2(640.0, 480.0),
+            )),
+            ..Default::default()
+        };
+        // A renderer uploads these; unapplied, dropping them panics.
+        ctx.run_pass(input, |ctx| balaur_ui::run_pass(&app.engine, ctx))
+            .textures_delta
+            .clear();
+    };
+    // The fonts' frame, before any tree.
+    frame(&ctx);
+    let bar = add_widget(
+        &app,
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 300.0 height = 40.0 padding = 0.0 widget_layout = { gap = [0.0, 0.0] } }
+            .into(),
+    );
+    let brand = add_child_widget(
+        &app,
+        bar,
+        "Brand",
+        &toml::toml! { kind = "row" grow = 1.0 padding = 0.0 }.into(),
+    );
+    let name = add_child_widget(
+        &app,
+        brand,
+        "Name",
+        &toml::toml! { kind = "label" text = "Polyglot Pirates" hide_narrower = 128.0 }.into(),
+    );
+    add_child_widget(
+        &app,
+        bar,
+        "End",
+        &toml::toml! { kind = "label" text = "" width = 250.0 height = 10.0 }.into(),
+    );
+    frame(&ctx);
+    assert!(
+        balaur_ui::widget_rect(brand).is_some_and(|rect| rect.width() < 128.0),
+        "control: the room the bar leaves is under the line: {:?}",
+        balaur_ui::widget_rect(brand)
+    );
+    assert!(
+        balaur_ui::widget_rect(name).is_none_or(|rect| rect.width() == 0.0),
+        "the name drew on the tree's first frame: {:?}",
+        balaur_ui::widget_rect(name)
+    );
+}
