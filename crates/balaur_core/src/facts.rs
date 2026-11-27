@@ -501,9 +501,9 @@ impl DeviceFacts {
 pub struct Device {
     pub now: DeviceFacts,
     pub was: DeviceFacts,
-    /// What a test said the system's reduce-motion setting is, held over
-    /// whatever the platform reports.
-    reduced_motion_held: Option<bool>,
+    /// What a test said the device is, written over whatever the platform
+    /// reports: a run that reads the same on every machine.
+    held: Option<DevicePatch>,
     /// Hooks for every script, queued by [`notice`] for the next frame.
     notices: Vec<(&'static str, balaur_script::Value)>,
 }
@@ -539,16 +539,25 @@ pub fn prefers_reduced_motion(eng: &Engine) -> bool {
         .is_some_and(|d| d.borrow().now.reduced_motion)
 }
 
-/// Answer `prefers_reduced_motion` with `reduced` from now on, whatever the
-/// platform says: what a test's stand-in names, so a run reads the same on
-/// every machine.
-pub fn hold_reduced_motion(eng: &Engine, reduced: bool) {
+/// What a hold writes over the device's facts.
+pub type DevicePatch = std::rc::Rc<dyn Fn(&mut DeviceFacts)>;
+
+/// Write what `patch` writes over every report the platform makes from now
+/// on, and over this tick's facts at once; `None` lets the platform answer
+/// again. What a test's stand-ins name.
+pub fn hold_device(eng: &Engine, patch: Option<DevicePatch>) {
     if let Some(device) = eng.try_resource::<Device>() {
         let mut device = device.borrow_mut();
-        device.reduced_motion_held = Some(reduced);
-        device.now.reduced_motion = reduced;
+        if let Some(patch) = &patch {
+            patch(&mut device.now);
+        }
+        device.held = patch;
     }
 }
+
+/// The name a test's stand-in gives the reduce-motion setting under, and
+/// the script call that reads it.
+pub const PREFERS_REDUCED_MOTION: &str = "prefers_reduced_motion";
 
 /// The device facts as of this tick.
 pub fn device(eng: &Engine) -> DeviceFacts {
@@ -569,8 +578,8 @@ pub fn update_device(eng: &Engine, change: impl FnOnce(&mut DeviceFacts)) {
     {
         let mut device = device.borrow_mut();
         change(&mut device.now);
-        if let Some(held) = device.reduced_motion_held {
-            device.now.reduced_motion = held;
+        if let Some(held) = device.held.clone() {
+            held(&mut device.now);
         }
     }
     // The frame a recording opens in is not recorded, and `init` reads there.

@@ -157,7 +157,7 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: words::modules::ENGINE,
-            name: "prefers_reduced_motion",
+            name: crate::facts::PREFERS_REDUCED_MOTION,
             call: prefers_reduced_motion,
         },
         EngineOp {

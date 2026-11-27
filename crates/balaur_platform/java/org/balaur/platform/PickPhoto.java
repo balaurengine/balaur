@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -47,6 +49,8 @@ public final class PickPhoto extends Activity {
     private static final int PICK_IMAGES_API = 33;
     private static final int JPEG_QUALITY = 95;
     private static final int BUFFER_BYTES = 64 * 1024;
+    /** The longest side a HEIF is decoded at: far past an upload, well short of memory. */
+    private static final int MAX_DECODED_SIDE = 4096;
 
     private boolean launched;
     private boolean answered;
@@ -83,7 +87,17 @@ public final class PickPhoto extends Activity {
     protected void onActivityResult(int code, int result, Intent data) {
         super.onActivityResult(code, result, data);
         Uri picked = result == RESULT_OK && data != null ? data.getData() : null;
-        answer(picked == null ? Device.kind(CANCELLED).toString() : copied(picked));
+        if (picked == null) {
+            answer(Device.kind(CANCELLED).toString());
+        } else {
+            // Copied off the UI thread: a photo is megabytes, a HEIF decoded too.
+            answered = true;
+            long request = getIntent().getLongExtra(REQUEST, -1);
+            ContentResolver resolver = getContentResolver();
+            File file = new File(getCacheDir(), "balaur-picked-" + request);
+            new Thread(() -> Device.answer(request, copiedOrWhy(resolver, picked, file)), "balaur-pick-photo")
+                    .start();
+        }
         finish();
     }
 
@@ -109,11 +123,19 @@ public final class PickPhoto extends Activity {
         }
     }
 
+    /** {@link #copied}, or why it failed: anything thrown on this thread would end the app. */
+    private static String copiedOrWhy(ContentResolver resolver, Uri picked, File file) {
+        try {
+            return copied(resolver, picked, file);
+        } catch (RuntimeException | OutOfMemoryError e) {
+            file.delete();
+            return Device.failed(String.valueOf(e.getMessage())).toString();
+        }
+    }
+
     /** The picture in the cache, as the answer naming it, or why it is not. */
-    private String copied(Uri picked) {
-        ContentResolver resolver = getContentResolver();
+    private static String copied(ContentResolver resolver, Uri picked, File file) {
         String type = resolver.getType(picked);
-        File file = new File(getCacheDir(), "balaur-picked-" + getIntent().getLongExtra(REQUEST, -1));
         try {
             if (HEIC.equals(type) || HEIF.equals(type)) {
                 writeJpeg(resolver, picked, file);
@@ -121,7 +143,8 @@ public final class PickPhoto extends Activity {
             } else {
                 copy(resolver, picked, file);
             }
-        } catch (IOException | SecurityException e) {
+        } catch (IOException e) {
+            file.delete();
             return Device.failed(e.getMessage()).toString();
         }
         JSONObject answer = Device.kind(PICKED);
@@ -148,13 +171,47 @@ public final class PickPhoto extends Activity {
         }
     }
 
+    /** How far the EXIF orientation turns the picture; a mirrored one is left as it is. */
+    private static int degrees(ExifInterface exif) {
+        switch (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+            case ExifInterface.ORIENTATION_ROTATE_90:
+                return 90;
+            case ExifInterface.ORIENTATION_ROTATE_180:
+                return 180;
+            case ExifInterface.ORIENTATION_ROTATE_270:
+                return 270;
+            default:
+                return 0;
+        }
+    }
+
+    /** A HEIF as a JPEG, decoded at a bounded size and turned upright, as its EXIF says. */
     private static void writeJpeg(ContentResolver resolver, Uri picked, File file) throws IOException {
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        try (InputStream in = resolver.openInputStream(picked)) {
+            BitmapFactory.decodeStream(in, null, bounds);
+        }
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = 1;
+        while (Math.max(bounds.outWidth, bounds.outHeight) / options.inSampleSize > MAX_DECODED_SIDE) {
+            options.inSampleSize *= 2;
+        }
         Bitmap bitmap;
         try (InputStream in = resolver.openInputStream(picked)) {
-            bitmap = BitmapFactory.decodeStream(in);
+            bitmap = BitmapFactory.decodeStream(in, null, options);
         }
         if (bitmap == null) {
             throw new IOException("the picture could not be decoded");
+        }
+        int degrees;
+        try (InputStream in = resolver.openInputStream(picked)) {
+            degrees = in == null ? 0 : degrees(new ExifInterface(in));
+        }
+        if (degrees != 0) {
+            Matrix turn = new Matrix();
+            turn.postRotate(degrees);
+            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), turn, true);
         }
         try (OutputStream out = new FileOutputStream(file)) {
             bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out);

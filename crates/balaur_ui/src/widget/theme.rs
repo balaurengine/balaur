@@ -750,8 +750,8 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         letter_spacing: number(k::LETTER_SPACING),
         text_transform: case_of(body, what),
         transition: number(k::TRANSITION).filter(|seconds| *seconds > 0.0),
-        offset: body.get(k::OFFSET).map(pair_of),
-        scale: body.get(k::SCALE).map(pair_of),
+        offset: body.get(k::OFFSET).and_then(pair_of),
+        scale: body.get(k::SCALE).and_then(pair_of),
     }
 }
 
@@ -937,10 +937,10 @@ pub(crate) fn four_of(value: Option<&toml::Value>) -> [f32; 4] {
     out
 }
 
-/// `[x, y]` of a list, 0 for a number it lacks.
-fn pair_of(value: &toml::Value) -> [f32; 2] {
+/// `[x, y]` of a list of two, none for a number or a list of another length.
+fn pair_of(value: &toml::Value) -> Option<[f32; 2]> {
     let [x, y, ..] = four_of(Some(value));
-    [x, y]
+    (value.as_array()?.len() == 2).then_some([x, y])
 }
 
 pub(crate) const ASSET_TYPE: &str = "widget_theme";

@@ -431,12 +431,10 @@ fn a_picked_picture_answers_its_bytes_and_a_stand_in_answers_in_place_of_the_os(
     assert_eq!(field(&named[0], "kind"), Some(text("picked")));
     assert_eq!(
         field(&named[0], "bytes"),
-        Some(Value::List(vec![
-            Value::Int(1),
-            Value::Int(2),
-            Value::Int(255)
-        ]))
+        Some(Value::Bytes(vec![1, 2, 255])),
+        "a stand-in's bytes reach the script as the OS's do"
     );
+    assert_eq!(field(&named[0], "type"), Some(text("image/jpeg")));
 }
 
 // The OS's answers and arrivals are recorded with the store's, so a replay

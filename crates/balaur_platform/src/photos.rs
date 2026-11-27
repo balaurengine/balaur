@@ -33,14 +33,15 @@ pub fn media_type(path: &Path) -> &'static str {
         .map_or(ANY, |(_, media)| media)
 }
 
-/// The answer for a picture read from `path`, or why it could not be read.
+/// The answer for a picture of `media_type` read from `path`, or why it
+/// could not be read.
 #[must_use]
-pub fn picked_file(request: u64, path: &Path) -> PlatformEvent {
+pub fn picked_file(request: u64, path: &Path, media_type: &str) -> PlatformEvent {
     match std::fs::read(path) {
         Ok(bytes) => PlatformEvent::Picked {
             request,
             bytes,
-            media_type: media_type(path).to_string(),
+            media_type: media_type.to_string(),
         },
         Err(err) => PlatformEvent::Failed {
             request,
@@ -53,7 +54,7 @@ pub fn picked_file(request: u64, path: &Path) -> PlatformEvent {
 /// which on a Mac is the main one AppKit opens a sheet from, and waited for
 /// on a thread of its own, so the frame goes on while the player looks.
 #[cfg(not(any(target_family = "wasm", target_os = "ios", target_os = "android")))]
-pub fn pick_from_files(request: u64, report: &std::sync::mpsc::Sender<PlatformEvent>) {
+pub(crate) fn pick_from_files(request: u64, report: &std::sync::mpsc::Sender<PlatformEvent>) {
     let asked = rfd::AsyncFileDialog::new()
         .add_filter("Pictures", &PICTURES.map(|(extension, _)| extension))
         .pick_file();
@@ -62,7 +63,7 @@ pub fn pick_from_files(request: u64, report: &std::sync::mpsc::Sender<PlatformEv
         .name("balaur-pick-photo".into())
         .spawn(move || {
             let event = match pollster::block_on(asked) {
-                Some(file) => picked_file(request, file.path()),
+                Some(file) => picked_file(request, file.path(), media_type(file.path())),
                 None => PlatformEvent::Cancelled { request },
             };
             balaur_core::replay::report(&report, event);

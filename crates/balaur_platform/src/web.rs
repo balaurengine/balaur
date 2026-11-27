@@ -64,7 +64,8 @@ pub(crate) fn pick_photo(request: u64, report: &std::sync::mpsc::Sender<crate::P
                 return;
             }
             let Some(file) = input.files().and_then(|files| files.get(0)) else {
-                let _ = report.send(PlatformEvent::Cancelled { request });
+                balaur_core::replay::report(&report, PlatformEvent::Cancelled { request });
+                balaur_core::wake::wake();
                 return;
             };
             let report = report.clone();
@@ -89,7 +90,7 @@ pub(crate) fn pick_photo(request: u64, report: &std::sync::mpsc::Sender<crate::P
         let (report, answered) = (report.clone(), Rc::clone(&answered));
         Closure::<dyn FnMut()>::new(move || {
             if !answered.replace(true) {
-                let _ = report.send(PlatformEvent::Cancelled { request });
+                balaur_core::replay::report(&report, PlatformEvent::Cancelled { request });
                 balaur_core::wake::wake();
             }
         })

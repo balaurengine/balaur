@@ -215,10 +215,7 @@ pub enum FedPointer {
 /// One event a script fed, held until the next frame begins.
 enum Fed {
     Key(String, bool),
-    Mouse(f32, f32),
-    Scroll(f32, f32),
-    Button(usize, bool),
-    Touch(u64, f32, f32, TouchPhase),
+    Pointer(FedPointer),
 }
 
 impl InputSnapshot {
@@ -243,10 +240,7 @@ impl InputSnapshot {
                     self.key_event(&key, down);
                     continue;
                 }
-                Fed::Mouse(x, y) => FedPointer::Moved(x, y),
-                Fed::Scroll(x, y) => FedPointer::Scroll(x, y),
-                Fed::Button(button, down) => FedPointer::Button(button, down),
-                Fed::Touch(id, x, y, phase) => FedPointer::Touch(id, x, y, phase),
+                Fed::Pointer(pointer) => pointer,
             };
             match pointer {
                 FedPointer::Moved(x, y) => self.set_mouse_pos(x, y),
@@ -964,14 +958,14 @@ fn install_feed_api(m: &mut Module<Engine>) {
         let (x, y) = vec2_of("a mouse position", &position)?;
         eng.resource::<InputSnapshot>()
             .borrow_mut()
-            .feed(Fed::Mouse(x, y));
+            .feed(Fed::Pointer(FedPointer::Moved(x, y)));
         Ok(())
     });
     m.function(SET_SCROLL_DELTA, |eng: &Engine, (delta,): (Value,)| {
         let (x, y) = vec2_of("a scroll delta", &delta)?;
         eng.resource::<InputSnapshot>()
             .borrow_mut()
-            .feed(Fed::Scroll(x, y));
+            .feed(Fed::Pointer(FedPointer::Scroll(x, y)));
         Ok(())
     });
     m.function(
@@ -979,7 +973,7 @@ fn install_feed_api(m: &mut Module<Engine>) {
         |eng: &Engine, (button, down): (usize, bool)| {
             eng.resource::<InputSnapshot>()
                 .borrow_mut()
-                .feed(Fed::Button(button, down));
+                .feed(Fed::Pointer(FedPointer::Button(button, down)));
             Ok(())
         },
     );
@@ -998,7 +992,12 @@ fn install_feed_api(m: &mut Module<Engine>) {
             };
             eng.resource::<InputSnapshot>()
                 .borrow_mut()
-                .feed(Fed::Touch(id.cast_unsigned(), x, y, phase));
+                .feed(Fed::Pointer(FedPointer::Touch(
+                    id.cast_unsigned(),
+                    x,
+                    y,
+                    phase,
+                )));
             Ok(())
         },
     );
@@ -1107,7 +1106,7 @@ mod tests {
     #[test]
     fn a_fed_press_is_next_frame_s_edge_and_stays_down_after_it() {
         let mut input = InputSnapshot::default();
-        input.feed(Fed::Button(0, true));
+        input.feed(Fed::Pointer(FedPointer::Button(0, true)));
         assert!(!input.mouse_just_pressed(0), "not this frame's");
         input.begin_frame();
         assert!(input.mouse_just_pressed(0));

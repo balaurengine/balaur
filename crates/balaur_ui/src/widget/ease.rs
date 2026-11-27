@@ -285,21 +285,16 @@ impl Style {
             to.shadows.as_deref().unwrap_or_default(),
             t,
         );
-        let offset = match (self.offset, to.offset) {
-            (None, None) => None,
-            (from, into) => {
-                let ([ax, ay], [bx, by]) = (from.unwrap_or_default(), into.unwrap_or_default());
-                Some([ax + (bx - ax) * t, ay + (by - ay) * t])
-            }
+        // `offset` and `scale` run between the two, an unset one from its
+        // rest: no move, and its own size.
+        let pair = |from: Option<[f32; 2]>, into: Option<[f32; 2]>, rest: [f32; 2]| {
+            (from.is_some() || into.is_some()).then(|| {
+                let ([ax, ay], [bx, by]) = (from.unwrap_or(rest), into.unwrap_or(rest));
+                [ax + (bx - ax) * t, ay + (by - ay) * t]
+            })
         };
-        // Unset is its size, `[1, 1]`; each axis runs on its own.
-        let scale = match (self.scale, to.scale) {
-            (None, None) => None,
-            (from, into) => {
-                let ([ax, ay], [bx, by]) = (from.unwrap_or([1.0, 1.0]), into.unwrap_or([1.0, 1.0]));
-                Some([ax + (bx - ax) * t, ay + (by - ay) * t])
-            }
-        };
+        let offset = pair(self.offset, to.offset, [0.0, 0.0]);
+        let scale = pair(self.scale, to.scale, [1.0, 1.0]);
         Self {
             fill: paint(self.fill, to.fill),
             stroke: paint(self.stroke, to.stroke),

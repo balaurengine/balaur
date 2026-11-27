@@ -31,6 +31,9 @@ public final class Secrets {
     private static final int NONCE_BYTES = 12;
     private static final int TAG_BITS = 128;
 
+    /** The Keystore's key, once looked up: every lookup is a call to the keystore daemon. */
+    private static SecretKey sealing;
+
     private Secrets() {}
 
     public static boolean set(Context context, String key, String value) {
@@ -83,7 +86,14 @@ public final class Secrets {
     }
 
     /** The Keystore's key, made the first time a value is sealed. */
-    private static SecretKey sealingKey() throws GeneralSecurityException, IOException {
+    private static synchronized SecretKey sealingKey() throws GeneralSecurityException, IOException {
+        if (sealing == null) {
+            sealing = lookedUp();
+        }
+        return sealing;
+    }
+
+    private static SecretKey lookedUp() throws GeneralSecurityException, IOException {
         KeyStore store = KeyStore.getInstance(KEYSTORE);
         store.load(null);
         KeyStore.Entry entry = store.getEntry(ALIAS, null);

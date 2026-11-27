@@ -4,14 +4,8 @@
 //! dark mode in `appearance.rs`), a page's media query. Android's Remove
 //! animations is read by the platform crate, which holds the JNI.
 
-use std::sync::atomic::{AtomicU8, Ordering};
-
-const UNHEARD: u8 = 0;
-const NO_PREFERENCE: u8 = 1;
-const REDUCE: u8 = 2;
-
-/// What the platform last announced, or [`UNHEARD`] before it has.
-static HEARD: AtomicU8 = AtomicU8::new(UNHEARD);
+/// Whether the system asks for reduced motion, as the platform last announced it.
+static REDUCE: crate::appearance::Heard = crate::appearance::Heard::new();
 
 /// The platform announced the setting: kept as the answer from now on, and
 /// the device facts read again. Any thread.
@@ -20,21 +14,20 @@ static HEARD: AtomicU8 = AtomicU8::new(UNHEARD);
     allow(dead_code, reason = "only a subscription or a listener announces it")
 )]
 pub(crate) fn hear(reduce: bool) {
-    HEARD.store(
-        if reduce { REDUCE } else { NO_PREFERENCE },
-        Ordering::Relaxed,
-    );
+    REDUCE.hear(reduce);
     crate::device::moved();
+}
+
+/// What `mundy` first answered, kept unless an announcement came first.
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) fn first(reduce: bool) {
+    REDUCE.first(reduce);
 }
 
 /// The setting as of now: `None` where this crate cannot ask, so the fact
 /// is left to whoever can.
 pub(crate) fn reduced() -> Option<bool> {
-    match HEARD.load(Ordering::Relaxed) {
-        REDUCE => Some(true),
-        NO_PREFERENCE => Some(false),
-        _ => asked(),
-    }
+    REDUCE.get().or_else(asked)
 }
 
 #[cfg(target_os = "macos")]
@@ -65,26 +58,8 @@ fn asked() -> Option<bool> {
 /// heard rather than asked.
 #[cfg(target_family = "wasm")]
 fn asked() -> Option<bool> {
-    use wasm_bindgen::JsCast;
-    use wasm_bindgen::closure::Closure;
-    const REDUCE_QUERY: &str = "(prefers-reduced-motion: reduce)";
-    const CHANGE: &str = "change";
-    let list = web_sys::window().and_then(|w| w.match_media(REDUCE_QUERY).ok().flatten())?;
-    let changed = {
-        let list = list.clone();
-        Closure::<dyn FnMut()>::new(move || {
-            hear(list.matches());
-            balaur_core::wake::wake();
-        })
-    };
-    let _ = list.add_event_listener_with_callback(CHANGE, changed.as_ref().unchecked_ref());
-    // Heard for the page's life: only the first ask gets here, the rest are heard.
-    changed.forget();
-    let reduce = list.matches();
-    HEARD.store(
-        if reduce { REDUCE } else { NO_PREFERENCE },
-        Ordering::Relaxed,
-    );
+    let reduce = crate::appearance::listen_media("(prefers-reduced-motion: reduce)", hear)?;
+    REDUCE.hear(reduce);
     Some(reduce)
 }
 
@@ -93,10 +68,7 @@ fn asked() -> Option<bool> {
 #[cfg(any(target_os = "linux", windows))]
 fn asked() -> Option<bool> {
     crate::appearance::watch();
-    match HEARD.load(Ordering::Relaxed) {
-        REDUCE => Some(true),
-        _ => Some(false),
-    }
+    Some(REDUCE.get() == Some(true))
 }
 
 #[cfg(not(any(
@@ -108,11 +80,4 @@ fn asked() -> Option<bool> {
 )))]
 const fn asked() -> Option<bool> {
     None
-}
-
-/// What `mundy` first answered, kept unless an announcement came first.
-#[cfg(any(target_os = "linux", windows))]
-pub(crate) fn first(reduce: bool) {
-    let first = if reduce { REDUCE } else { NO_PREFERENCE };
-    let _ = HEARD.compare_exchange(UNHEARD, first, Ordering::Relaxed, Ordering::Relaxed);
 }

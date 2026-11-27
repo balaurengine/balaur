@@ -6,27 +6,79 @@
 
 use std::sync::atomic::{AtomicU8, Ordering};
 
-const UNHEARD: u8 = 0;
-const LIGHT: u8 = 1;
-const DARK: u8 = 2;
+/// A yes or no a platform announces, kept from its first word on, readable
+/// from any thread: whether the system is dark, whether it asks for less motion.
+pub(crate) struct Heard(AtomicU8);
 
-/// What the platform last announced, or [`UNHEARD`] before it has.
-static HEARD: AtomicU8 = AtomicU8::new(UNHEARD);
+const UNHEARD: u8 = 0;
+const NO: u8 = 1;
+const YES: u8 = 2;
+
+impl Heard {
+    pub(crate) const fn new() -> Self {
+        Self(AtomicU8::new(UNHEARD))
+    }
+
+    pub(crate) fn hear(&self, yes: bool) {
+        self.0.store(if yes { YES } else { NO }, Ordering::Relaxed);
+    }
+
+    /// `yes`, unless the platform announced something first.
+    #[cfg_attr(
+        not(any(target_os = "linux", windows)),
+        allow(dead_code, reason = "only a subscription waits for a first answer")
+    )]
+    pub(crate) fn first(&self, yes: bool) {
+        let word = if yes { YES } else { NO };
+        let _ = self
+            .0
+            .compare_exchange(UNHEARD, word, Ordering::Relaxed, Ordering::Relaxed);
+    }
+
+    /// The last word, or `None` before any.
+    pub(crate) fn get(&self) -> Option<bool> {
+        match self.0.load(Ordering::Relaxed) {
+            YES => Some(true),
+            NO => Some(false),
+            _ => None,
+        }
+    }
+}
+
+/// A page's answer to a media query, with a listener that hands every
+/// change after to `heard` and wakes the loop.
+#[cfg(target_family = "wasm")]
+pub(crate) fn listen_media(query: &str, heard: fn(bool)) -> Option<bool> {
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen::closure::Closure;
+    const CHANGE: &str = "change";
+    let list = web_sys::window().and_then(|w| w.match_media(query).ok().flatten())?;
+    let changed = {
+        let list = list.clone();
+        Closure::<dyn FnMut()>::new(move || {
+            heard(list.matches());
+            balaur_core::wake::wake();
+        })
+    };
+    let _ = list.add_event_listener_with_callback(CHANGE, changed.as_ref().unchecked_ref());
+    // Heard for the page's life: only the first ask gets here, the rest are heard.
+    changed.forget();
+    Some(list.matches())
+}
+
+/// Whether the system is dark, as the platform last announced it.
+static DARK: Heard = Heard::new();
 
 /// The platform announced its appearance: kept as the answer from now on,
 /// and the device facts read again. Any thread.
 pub(crate) fn hear(dark: bool) {
-    HEARD.store(if dark { DARK } else { LIGHT }, Ordering::Relaxed);
+    DARK.hear(dark);
     crate::device::moved();
 }
 
 /// True where the system says dark; false where it says light or nothing.
 pub(crate) fn is_dark() -> bool {
-    match HEARD.load(Ordering::Relaxed) {
-        DARK => true,
-        LIGHT => false,
-        _ => asked(),
-    }
+    DARK.get().unwrap_or_else(asked)
 }
 
 #[cfg(target_os = "macos")]
@@ -53,26 +105,8 @@ fn asked() -> bool {
 /// heard rather than asked.
 #[cfg(target_family = "wasm")]
 fn asked() -> bool {
-    use wasm_bindgen::JsCast;
-    use wasm_bindgen::closure::Closure;
-    const DARK_QUERY: &str = "(prefers-color-scheme: dark)";
-    const CHANGE: &str = "change";
-    let Some(list) = web_sys::window().and_then(|w| w.match_media(DARK_QUERY).ok().flatten())
-    else {
-        return false;
-    };
-    let changed = {
-        let list = list.clone();
-        Closure::<dyn FnMut()>::new(move || {
-            hear(list.matches());
-            balaur_core::wake::wake();
-        })
-    };
-    let _ = list.add_event_listener_with_callback(CHANGE, changed.as_ref().unchecked_ref());
-    // Heard for the page's life: only the first ask gets here, the rest are heard.
-    changed.forget();
-    let dark = list.matches();
-    HEARD.store(if dark { DARK } else { LIGHT }, Ordering::Relaxed);
+    let dark = listen_media("(prefers-color-scheme: dark)", hear).unwrap_or(false);
+    DARK.hear(dark);
     dark
 }
 
@@ -139,7 +173,7 @@ fn asked() -> bool {
 #[cfg(any(target_os = "linux", windows))]
 fn asked() -> bool {
     watch();
-    HEARD.load(Ordering::Relaxed) == DARK
+    DARK.get() == Some(true)
 }
 
 /// Subscribe to the desktop's look and its animation switch once, so every
@@ -156,12 +190,7 @@ pub(crate) fn watch() {
         // frame is not drawn light; the subscription hears every change after.
         let first =
             mundy::Preferences::once_blocking(interest, std::time::Duration::from_millis(250));
-        let look = if first.as_ref().is_some_and(dark) {
-            DARK
-        } else {
-            LIGHT
-        };
-        let _ = HEARD.compare_exchange(UNHEARD, look, Ordering::Relaxed, Ordering::Relaxed);
+        DARK.first(first.as_ref().is_some_and(dark));
         crate::motion::first(first.is_some_and(|prefs| prefs.reduced_motion.is_reduce()));
         mundy::Preferences::subscribe(interest, move |prefs| {
             hear(dark(&prefs));

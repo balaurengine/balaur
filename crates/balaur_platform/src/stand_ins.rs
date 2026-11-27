@@ -94,19 +94,30 @@ impl StandIns {
 const REDUCE: &str = "reduce";
 const NO_PREFERENCE: &str = "no-preference";
 
-/// The reduce-motion setting `stand_ins` names, if it names one.
+/// The module the reduce-motion call is in, which its stand-in is keyed by.
+const ENGINE: &str = "engine";
+
+/// What `stand_ins` holds the device to, if they name any of it: the
+/// reduce-motion setting.
 ///
 /// # Errors
-/// For a name other than `reduce` or `no-preference`.
-pub(crate) fn reduced_motion(stand_ins: &StandIns) -> Result<Option<bool>> {
-    match stand_ins.answer("engine", "prefers_reduced_motion") {
-        None | Some(None) => Ok(None),
-        Some(Some(serde_json::Value::String(word))) if word == REDUCE => Ok(Some(true)),
-        Some(Some(serde_json::Value::String(word))) if word == NO_PREFERENCE => Ok(Some(false)),
-        Some(Some(other)) => Err(anyhow!(
-            "engine.prefers_reduced_motion names \"{REDUCE}\" or \"{NO_PREFERENCE}\", got {other}"
-        )),
-    }
+/// For a reduce-motion word other than `reduce` or `no-preference`.
+pub(crate) fn held_device(stand_ins: &StandIns) -> Result<Option<balaur_core::facts::DevicePatch>> {
+    let reduced = match stand_ins.answer(ENGINE, balaur_core::facts::PREFERS_REDUCED_MOTION) {
+        None | Some(None) => return Ok(None),
+        Some(Some(serde_json::Value::String(word))) if word == REDUCE => true,
+        Some(Some(serde_json::Value::String(word))) if word == NO_PREFERENCE => false,
+        Some(Some(other)) => {
+            return Err(anyhow!(
+                "engine.prefers_reduced_motion names \"{REDUCE}\" or \"{NO_PREFERENCE}\", got {other}"
+            ));
+        }
+    };
+    Ok(Some(std::rc::Rc::new(
+        move |facts: &mut balaur_core::facts::DeviceFacts| {
+            facts.reduced_motion = reduced;
+        },
+    )))
 }
 
 /// This run's stand-in for `module.call`, as [`StandIns::answer`] gives it.
@@ -126,9 +137,7 @@ pub fn set_stand_ins(eng: &Engine, stand_ins: StandIns) -> Result<()> {
     let held = eng
         .try_resource::<StandIns>()
         .ok_or_else(|| anyhow!("the platform plugin has to be loaded first"))?;
-    if let Some(reduced) = reduced_motion(&stand_ins)? {
-        balaur_core::facts::hold_reduced_motion(eng, reduced);
-    }
+    balaur_core::facts::hold_device(eng, held_device(&stand_ins)?);
     *held.borrow_mut() = stand_ins;
     Ok(())
 }

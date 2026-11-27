@@ -127,7 +127,7 @@ fn perform(
     let mut response = match call.method.as_str() {
         "GET" => prepared(agent.get(&call.url), call)?.call()?,
         // ureq sends a DELETE body only when forced to.
-        "DELETE" => match call.body.as_deref() {
+        "DELETE" => match call.body {
             Some(_) => send(
                 prepared(agent.delete(&call.url).force_send_body(), call)?,
                 call,
@@ -181,7 +181,7 @@ fn send(
     call: &HttpCall,
     events: &Sender<HttpEvent>,
 ) -> Result<ureq::http::Response<ureq::Body>> {
-    let body = call.body.as_deref().unwrap_or_default();
+    let body = call.body.as_ref().map_or(&[][..], crate::Body::bytes);
     if (body.len() as u64) < PROGRESS_STEP {
         return Ok(builder.send(body)?);
     }

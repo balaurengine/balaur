@@ -856,6 +856,18 @@ fn a_transition_eases_a_hover_scale() {
     assert!((late.width() - 200.0).abs() < 1.0, "and arrives: {late:?}");
 }
 
+// A scale is `[x, y]`: a bare number is no scale, and the plate keeps its size.
+#[test]
+fn a_scale_written_as_one_number_is_dropped() {
+    let theme =
+        "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\n[button.hover]\nscale = 2.0\n";
+    let (rest, plate) = hovered_plate(theme, toml::Table::new(), 4);
+    assert!(
+        (plate.width() - rest.width()).abs() < 1.5,
+        "{plate:?} from {rest:?}"
+    );
+}
+
 // A hover table's `scale = [x, y]` runs each axis on its own: wider over the
 // transition while its height stays.
 #[test]

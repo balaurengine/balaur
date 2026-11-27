@@ -147,32 +147,16 @@ extern "system" fn answer<'local>(
 }
 
 /// A shim's answer as its waiter receives it: a picture `PickPhoto` left in
-/// the cache is read and deleted, and answered as its bytes.
+/// the cache is read, deleted and answered as its bytes. Called on the
+/// shim's thread, which for a picture is a worker's.
 fn picked(request: u64, answer: serde_json::Value) -> PlatformEvent {
-    let path = answer
-        .get(crate::vocabulary::keys::PATH)
-        .and_then(serde_json::Value::as_str);
-    let is_picked =
-        answer.get("kind").and_then(serde_json::Value::as_str) == Some(crate::kind::PICKED);
-    let (true, Some(path)) = (is_picked, path) else {
-        return PlatformEvent::Answer { request, answer };
+    use crate::vocabulary::keys as k;
+    let text = |key| answer.get(key).and_then(serde_json::Value::as_str);
+    let (Some(crate::kind::PICKED), Some(path)) = (text(crate::KIND), text(k::PATH)) else {
+        return PlatformEvent::from_answer(request, answer);
     };
     let path = std::path::Path::new(path);
-    let event = match std::fs::read(path) {
-        Ok(bytes) => PlatformEvent::Picked {
-            request,
-            bytes,
-            media_type: answer
-                .get(crate::vocabulary::keys::TYPE)
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-        },
-        Err(err) => PlatformEvent::Failed {
-            request,
-            message: format!("reading the picked picture: {err}"),
-        },
-    };
+    let event = crate::photos::picked_file(request, path, text(k::TYPE).unwrap_or_default());
     let _ = std::fs::remove_file(path);
     event
 }

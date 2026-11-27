@@ -1,26 +1,15 @@
-//! `device.pick_photo` on Apple: iOS's `PHPickerViewController`, which needs
-//! no permission to read the photo library, asked for a JPEG so a HEIC photo
-//! arrives as one `image::encode` reads; a Mac's file dialog, the platform
+//! `device.pick_photo` on iOS: `PHPickerViewController`, which needs no
+//! permission to read the photo library, asked for a JPEG so a HEIC photo
+//! arrives as one `image::encode` reads. A Mac's file dialog is the platform
 //! crate's own.
 
 /// Whether a picker is here to show.
 pub(crate) fn available() -> bool {
-    if cfg!(target_os = "ios") {
-        objc2::runtime::AnyClass::get(c"PHPickerViewController").is_some()
-    } else {
-        true
-    }
+    objc2::runtime::AnyClass::get(c"PHPickerViewController").is_some()
 }
 
-#[cfg(target_os = "macos")]
-pub(crate) fn pick(request: u64, report: &std::sync::mpsc::Sender<balaur_platform::PlatformEvent>) {
-    balaur_platform::photos::pick_from_files(request, report);
-}
-
-#[cfg(target_os = "ios")]
 pub(crate) use ios::pick;
 
-#[cfg(target_os = "ios")]
 mod ios {
     use std::cell::{Cell, RefCell};
     use std::rc::Rc;
@@ -36,15 +25,29 @@ mod ios {
     #[link(name = "PhotosUI", kind = "framework")]
     unsafe extern "C" {}
 
-    /// The uniform type the picker is asked to hand a photo over as.
-    const JPEG_TYPE: &str = "public.jpeg";
-    const JPEG: &str = "image/jpeg";
+    /// The uniform types a picture is handed over as, with their media
+    /// types: its own where `image.encode` reads it, else a JPEG, which the
+    /// picker makes of anything in its compatible mode.
+    const KEPT: [(&str, &str); 3] = [
+        ("public.png", "image/png"),
+        ("com.compuserve.gif", "image/gif"),
+        ("org.webmproject.webp", "image/webp"),
+    ];
+    const JPEG: (&str, &str) = ("public.jpeg", "image/jpeg");
+    /// `PHPickerConfigurationAssetRepresentationModeCompatible`: a HEIC photo
+    /// is transcoded rather than handed over as it is.
+    const COMPATIBLE: isize = 2;
 
+    /// Answered through the replay's channel, which wakes a loop asleep
+    /// between inputs.
     fn failed(request: u64, message: &str, report: &Sender<PlatformEvent>) {
-        let _ = report.send(PlatformEvent::Failed {
-            request,
-            message: message.to_string(),
-        });
+        balaur_core::replay::report(
+            report,
+            PlatformEvent::Failed {
+                request,
+                message: message.to_string(),
+            },
+        );
     }
 
     /// Show the picker for one photo over the game.
@@ -66,6 +69,8 @@ mod ios {
             let configuration = Retained::from_raw(configuration);
             configuration.and_then(|configuration| {
                 let _: () = msg_send![&configuration, setSelectionLimit: 1isize];
+                let _: () =
+                    msg_send![&configuration, setPreferredAssetRepresentationMode: COMPATIBLE];
                 let images: *mut AnyObject = msg_send![filter, imagesFilter];
                 let _: () = msg_send![&configuration, setFilter: images];
                 let allocated: *mut AnyObject = msg_send![controller, alloc];
@@ -101,8 +106,19 @@ mod ios {
         });
     }
 
-    /// Read the picked photo as a JPEG, off the main thread, and answer.
+    /// Read the picked photo in a type `image.encode` reads, off the main
+    /// thread, and answer.
     fn load(provider: *mut AnyObject, request: u64, report: Sender<PlatformEvent>) {
+        let (kind, media_type) = KEPT
+            .into_iter()
+            .find(|(kind, _)| {
+                let kind = NSString::from_str(kind);
+                // Safety: an NSItemProvider, asked a yes or no.
+                let has: objc2::runtime::Bool =
+                    unsafe { msg_send![provider, hasItemConformingToTypeIdentifier: &*kind] };
+                has.as_bool()
+            })
+            .unwrap_or(JPEG);
         let answer = report.clone();
         let loaded = RcBlock::new(move |data: *mut NSData, error: *mut NSError| {
             // Safety: the provider hands over a valid NSData or NSError, or nil.
@@ -110,7 +126,7 @@ mod ios {
                 (Some(data), _) => PlatformEvent::Picked {
                     request,
                     bytes: data.to_vec(),
-                    media_type: JPEG.to_string(),
+                    media_type: media_type.to_string(),
                 },
                 (None, Some(error)) => PlatformEvent::Failed {
                     request,
@@ -123,7 +139,7 @@ mod ios {
             };
             balaur_core::replay::report(&answer, event);
         });
-        let kind = NSString::from_str(JPEG_TYPE);
+        let kind = NSString::from_str(kind);
         // Safety: an NSItemProvider the picker handed over, which copies the block.
         let progress: *mut AnyObject = unsafe {
             msg_send![provider, loadDataRepresentationForTypeIdentifier: &*kind, completionHandler: &*loaded]
@@ -168,7 +184,7 @@ mod ios {
                     ];
                     let count: usize = if results.is_null() { 0 } else { msg_send![results, count] };
                     if count == 0 {
-                        let _ = report.send(PlatformEvent::Cancelled { request: *request });
+                        balaur_core::replay::report(report, PlatformEvent::Cancelled { request: *request });
                         return;
                     }
                     let first: *mut AnyObject = msg_send![results, objectAtIndex: 0usize];

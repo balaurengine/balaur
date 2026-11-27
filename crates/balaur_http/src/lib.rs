@@ -79,15 +79,33 @@ pub struct HttpCall {
     pub method: String,
     pub url: String,
     pub headers: Vec<(String, String)>,
-    /// What goes out after the headers: a script's `body` as UTF-8, or its
-    /// `body_bytes` as they are.
-    pub body: Option<Vec<u8>>,
+    /// What goes out after the headers.
+    pub body: Option<Body>,
     /// Seconds for the whole request; `None` takes the project default.
     pub timeout: Option<f64>,
     /// Write a 2xx body here instead of handing it back, streamed as it
     /// arrives with a progress event per chunk. Absolute: the script API
     /// resolves it under the user directory.
     pub save_to: Option<std::path::PathBuf>,
+}
+
+/// A request's body: a script's `body` text, or its `body_bytes` as they are.
+/// Text stays text where the transport tells the two apart: a browser's fetch
+/// labels a string `text/plain` when the call names no content type.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Body {
+    Text(String),
+    Bytes(Vec<u8>),
+}
+
+impl Body {
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        match self {
+            Self::Text(text) => text.as_bytes(),
+            Self::Bytes(bytes) => bytes,
+        }
+    }
 }
 
 /// Project-wide defaults, the `[http]` table of `project.toml`:
@@ -472,9 +490,11 @@ fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {
                 "`body` and `body_bytes` are both a request's body; give one"
             ));
         }
-        (Some(Value::Str(text)), None) => Some(text.as_bytes().to_vec()),
+        (Some(Value::Str(text)), None) => Some(Body::Text(text.clone())),
         (Some(other), None) => return Err(anyhow!("body should be a string, got {other:?}")),
-        (None, Some(bytes)) => Some(bytes_of(bytes).map_err(|err| anyhow!("`body_bytes`: {err}"))?),
+        (None, Some(bytes)) => Some(Body::Bytes(
+            bytes_of(bytes).map_err(|err| anyhow!("`body_bytes`: {err}"))?,
+        )),
         (None, None) => None,
     };
     let headers = headers_of(opts)?;
@@ -635,7 +655,7 @@ mod tests {
             Value::List(vec![Value::Int(0), Value::Int(255), Value::Int(128)]),
         )]);
         let call = call_of("http://localhost", Some(&bytes)).unwrap();
-        assert_eq!(call.body, Some(vec![0, 255, 128]));
+        assert_eq!(call.body, Some(Body::Bytes(vec![0, 255, 128])));
     }
 
     #[test]

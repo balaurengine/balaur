@@ -422,6 +422,15 @@ impl Brush {
             });
             return;
         }
+        if factor.min_elem() <= 0.0 {
+            ctx.graphics_mut(|g| {
+                let list = g.entry(layer);
+                for at in mark.0.0..list.next_idx().0 {
+                    list.reset_shape(egui::layers::ShapeIdx(at));
+                }
+            });
+            return;
+        }
         // Read before the paint list is held: each takes the context's lock,
         // as `graphics_mut` does.
         #[allow(
@@ -637,9 +646,13 @@ impl Stretch {
             &mut clipped.transform_after_tessellation,
             egui::emath::TSTransform::IDENTITY,
         );
-        if self.factor.min_elem() <= 0.0 || !after.is_valid() {
+        if !after.is_valid() {
             return;
         }
+        // Nothing outside the clip is laid into triangles, as egui culls; the
+        // clip is in the space the move after tessellation reaches.
+        self.tessellator
+            .set_clip_rect(after.inverse() * clipped.clip_rect);
         clipped.clip_rect = self.rect(clipped.clip_rect);
         let mut out = Vec::new();
         self.leaves(shape, after, &mut out);

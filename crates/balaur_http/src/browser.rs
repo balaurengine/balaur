@@ -20,7 +20,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{AbortSignal, Headers, Request, RequestCredentials, RequestInit, Response};
 
-use crate::{HttpCall, HttpEvent};
+use crate::{Body, HttpCall, HttpEvent};
 
 /// The default when a call names no timeout, matching `HttpConfig`.
 const DEFAULT_TIMEOUT: f64 = 10.0;
@@ -51,8 +51,12 @@ async fn send(call: HttpCall, events: &Sender<HttpEvent>) -> Result<HttpEvent, S
     // Fetch has no timeout of its own; an abort signal is how one is spelled.
     let seconds = call.timeout.unwrap_or(DEFAULT_TIMEOUT);
     init.set_signal(Some(&AbortSignal::timeout_with_f64(seconds * 1000.0)));
-    if let Some(body) = &call.body {
-        init.set_body_opt_u8_array(Some(&js_sys::Uint8Array::from(body.as_slice())));
+    match &call.body {
+        Some(Body::Text(text)) => init.set_body(&JsValue::from_str(text)),
+        Some(Body::Bytes(bytes)) => {
+            init.set_body_opt_u8_array(Some(&js_sys::Uint8Array::from(bytes.as_slice())));
+        }
+        None => {}
     }
     let headers = Headers::new().map_err(describe)?;
     for (name, value) in &call.headers {

@@ -137,6 +137,12 @@ mod os {
     }
 }
 
+/// What this crate reaches itself for `call`, for an OS's plugin to fall back
+/// on for a call it does not take: a desktop's file dialog, a page's input.
+pub fn start_natively(request: u64, call: &DeviceCall, report: &Sender<PlatformEvent>) {
+    os::start(request, call, report);
+}
+
 /// A call nothing here can make.
 pub(crate) fn unsupported(request: u64, call: &DeviceCall, report: &Sender<PlatformEvent>) {
     let _ = report.send(PlatformEvent::Unsupported {

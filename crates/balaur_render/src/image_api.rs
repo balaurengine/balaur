@@ -3,6 +3,7 @@
 //! picked goes through before it is uploaded as an avatar.
 
 use anyhow::{Result, anyhow};
+use balaur_asset::pixels::MAX_SIDE;
 use balaur_core::Engine;
 use balaur_core::handler::{bytes_of, opt};
 use balaur_script::{Module, Value};
@@ -20,11 +21,14 @@ const QUALITY: &str = "quality";
 const PNG: &str = "png";
 const JPEG: &str = "jpeg";
 const WEBP: &str = "webp";
+const FORMATS: [(&str, Format); 3] = [
+    (PNG, Format::Png),
+    (JPEG, Format::Jpeg),
+    (WEBP, Format::Webp),
+];
 
 /// What a call left out: a JPEG at nine tenths, as a browser's canvas writes one.
 const DEFAULT_QUALITY: f64 = 0.9;
-/// The longest side a call may ask for, past any screen or upload.
-const MAX_SIDE: u32 = 16_384;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Format {
@@ -45,9 +49,11 @@ struct Asked {
 fn asked(opts: Option<&Value>) -> Result<Asked> {
     let format = match opt(opts, FORMAT) {
         None => Format::Jpeg,
-        Some(Value::Str(word)) if word == PNG => Format::Png,
-        Some(Value::Str(word)) if word == JPEG => Format::Jpeg,
-        Some(Value::Str(word)) if word == WEBP => Format::Webp,
+        Some(Value::Str(word)) => FORMATS
+            .iter()
+            .find(|(name, _)| name == word)
+            .map(|(_, format)| *format)
+            .ok_or_else(|| anyhow!("`format` is an image::FORMAT_* constant, got {word:?}"))?,
         Some(other) => {
             return Err(anyhow!(
                 "`format` is an image::FORMAT_* constant, got {other:?}"
@@ -102,20 +108,22 @@ fn encoded(bytes: &[u8], asked: Asked) -> image::ImageResult<Vec<u8>> {
         .orientation()
         .unwrap_or(image::metadata::Orientation::NoTransforms);
     let mut picture = image::DynamicImage::from_decoder(decoder)?;
-    picture.apply_orientation(orientation);
+    // Shrunk before it is turned: the box is square, so the turn fits it as
+    // well, and turning the small picture copies far less.
     if let Some(side) = asked.max_side
         && picture.width().max(picture.height()) > side
     {
-        picture = picture.resize(side, side, image::imageops::FilterType::Lanczos3);
+        picture = picture.resize(side, side, image::imageops::FilterType::CatmullRom);
     }
+    picture.apply_orientation(orientation);
     let mut out = Vec::new();
     match asked.format {
         Format::Png => picture.write_with_encoder(image::codecs::png::PngEncoder::new(&mut out))?,
         // JPEG has no alpha: a transparent pixel is written as its colour.
-        Format::Jpeg => image::DynamicImage::ImageRgb8(picture.to_rgb8()).write_with_encoder(
+        Format::Jpeg => image::DynamicImage::ImageRgb8(picture.into_rgb8()).write_with_encoder(
             image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, asked.quality),
         )?,
-        Format::Webp => image::DynamicImage::ImageRgba8(picture.to_rgba8())
+        Format::Webp => image::DynamicImage::ImageRgba8(picture.into_rgba8())
             .write_with_encoder(image::codecs::webp::WebPEncoder::new_lossless(&mut out))?,
     }
     Ok(out)
@@ -124,6 +132,14 @@ fn encoded(bytes: &[u8], asked: Asked) -> image::ImageResult<Vec<u8>> {
 /// What a script receives: the bytes, or nil for bytes that are no picture.
 fn answer(bytes: &[u8], asked: Asked) -> Value {
     encoded(bytes, asked).map_or(Value::Nil, Value::Bytes)
+}
+
+/// The bytes a script handed over, moved out where they already are bytes.
+fn owned_bytes(value: Value) -> Result<Vec<u8>> {
+    match value {
+        Value::Bytes(bytes) => Ok(bytes),
+        other => bytes_of(&other),
+    }
 }
 
 pub(crate) fn install(m: &mut Module<Engine>) {
@@ -160,14 +176,14 @@ pub(crate) fn install(m: &mut Module<Engine>) {
         ENCODE,
         |_: &Engine, (bytes, opts): (Value, Option<Value>)| {
             let asked = asked(opts.as_ref())?;
-            Ok(answer(&bytes_of(&bytes)?, asked))
+            Ok(answer(&owned_bytes(bytes)?, asked))
         },
     );
     m.function(
         ENCODE_ASYNC,
         |eng: &Engine, (bytes, opts): (Value, Option<Value>)| {
             let asked = asked(opts.as_ref())?;
-            let bytes = bytes_of(&bytes)?;
+            let bytes = owned_bytes(bytes)?;
             Ok(balaur_core::task::off_frame(eng, move || {
                 answer(&bytes, asked)
             }))

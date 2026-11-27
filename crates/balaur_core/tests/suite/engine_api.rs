@@ -755,7 +755,8 @@ fn the_device_facts_default_and_take_a_backends_report() {
 }
 
 // The reduce-motion setting is false where nothing says, the platform's
-// report once one comes, and what a test held whatever the platform says.
+// report once one comes, and what a test held whatever the platform says
+// until the hold is let go.
 #[test]
 fn reduced_motion_takes_the_platforms_report_unless_a_test_holds_it() {
     let dir = tempfile::tempdir().unwrap();
@@ -764,7 +765,14 @@ fn reduced_motion_takes_the_platforms_report_unless_a_test_holds_it() {
     assert_eq!(asked(), Value::Bool(false));
     balaur_core::facts::update_device(&app.engine, |facts| facts.reduced_motion = true);
     assert_eq!(asked(), Value::Bool(true));
-    balaur_core::facts::hold_reduced_motion(&app.engine, false);
+    balaur_core::facts::hold_device(
+        &app.engine,
+        Some(std::rc::Rc::new(
+            |facts: &mut balaur_core::facts::DeviceFacts| {
+                facts.reduced_motion = false;
+            },
+        )),
+    );
     assert_eq!(asked(), Value::Bool(false));
     balaur_core::facts::update_device(&app.engine, |facts| facts.reduced_motion = true);
     assert_eq!(

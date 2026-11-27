@@ -62,7 +62,7 @@ mod gamekit;
 mod icloud;
 #[cfg(target_vendor = "apple")]
 mod notify;
-#[cfg(target_vendor = "apple")]
+#[cfg(target_os = "ios")]
 mod photos;
 #[cfg(target_vendor = "apple")]
 mod push;

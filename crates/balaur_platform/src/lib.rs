@@ -88,6 +88,7 @@ mod web;
 pub use android::{capability_available, keep_activity, shim, start_capability, with_activity};
 
 pub use device::{DEVICE, DeviceBackend, DeviceCall, Haptic, set_device};
+pub use native::start_natively;
 pub use services::{Provider, Service, is_available, provide};
 pub use stand_ins::{StandIns, set_stand_ins, stand_in};
 
@@ -443,6 +444,34 @@ pub enum PlatformEvent {
 }
 
 impl PlatformEvent {
+    /// A map shaped as its waiter receives it, from a stand-in or a shim: a
+    /// `picked` answer's `bytes` list is bytes, as the OS's picker answers.
+    #[must_use]
+    pub fn from_answer(request: u64, answer: serde_json::Value) -> Self {
+        let picked = answer.get(KIND).and_then(serde_json::Value::as_str) == Some(kind::PICKED);
+        let bytes = answer
+            .get(k::BYTES)
+            .and_then(serde_json::Value::as_array)
+            .and_then(|items| {
+                items
+                    .iter()
+                    .map(|item| item.as_u64().and_then(|byte| u8::try_from(byte).ok()))
+                    .collect::<Option<Vec<u8>>>()
+            });
+        match bytes.filter(|_| picked) {
+            Some(bytes) => Self::Picked {
+                request,
+                bytes,
+                media_type: answer
+                    .get(k::TYPE)
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+            },
+            None => Self::Answer { request, answer },
+        }
+    }
+
     const fn request(&self) -> u64 {
         match self {
             Self::SignedIn { request, .. }
@@ -637,10 +666,7 @@ impl PlatformState {
         if let Some(answer) = stand_in(eng, call.module(), call.name()) {
             io.start(eng, |report| {
                 if let Some(answer) = answer {
-                    let _ = report.send(PlatformEvent::Answer {
-                        request: id,
-                        answer,
-                    });
+                    let _ = report.send(PlatformEvent::from_answer(id, answer));
                 }
             });
             return;
@@ -1101,11 +1127,8 @@ impl balaur_plugin::Plugin for PlatformPlugin {
         reg.insert_resource(PlatformState::default());
         reg.insert_resource(PlatformSnapshot::default());
         let stand_ins = StandIns::from_env()?;
-        let reduced_motion = stand_ins::reduced_motion(&stand_ins)?;
+        balaur_core::facts::hold_device(reg.engine(), stand_ins::held_device(&stand_ins)?);
         reg.insert_resource(stand_ins);
-        if let Some(reduced) = reduced_motion {
-            balaur_core::facts::hold_reduced_motion(reg.engine(), reduced);
-        }
         balaur_core::events::declare(
             reg.engine(),
             &[(

@@ -97,11 +97,12 @@ impl egui::Plugin for FedInput {
             .and_then(|viewport| viewport.native_pixels_per_point)
             .unwrap_or(1.0);
         let per_point = ctx.zoom_factor() * native;
+        let points = |x: f32, y: f32| egui::pos2(x / per_point, y / per_point);
         let modifiers = ctx.input(|i| i.modifiers);
         for one in fed {
             match one {
                 FedPointer::Moved(x, y) => {
-                    let pos = egui::pos2(x / per_point, y / per_point);
+                    let pos = points(x, y);
                     self.pointer = Some(pos);
                     input.events.push(egui::Event::PointerMoved(pos));
                 }
@@ -119,8 +120,7 @@ impl egui::Plugin for FedInput {
                     }
                 }
                 FedPointer::Touch(id, x, y, phase) => {
-                    let pos = egui::pos2(x / per_point, y / per_point);
-                    self.touch(id, pos, phase, &mut input.events);
+                    self.touch(id, points(x, y), phase, &mut input.events);
                 }
                 FedPointer::Scroll(dx, dy) => input.events.push(egui::Event::MouseWheel {
                     unit: egui::MouseWheelUnit::Point,

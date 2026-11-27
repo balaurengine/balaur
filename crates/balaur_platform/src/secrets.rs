@@ -31,6 +31,14 @@ pub mod backends {
     pub const SECRET_SERVICE: &str = "secret_service";
     pub const LOCAL_STORAGE: &str = "local_storage";
     pub const FILE: &str = "file";
+    pub const ALL: [&str; 6] = [
+        KEYCHAIN,
+        KEYSTORE,
+        CREDENTIAL_MANAGER,
+        SECRET_SERVICE,
+        LOCAL_STORAGE,
+        FILE,
+    ];
 }
 
 /// The file the file store keeps, under the user directory.
@@ -42,14 +50,64 @@ struct Place {
     key: String,
 }
 
-/// The store this run keeps secrets in: the stand-in's file, else the OS's.
-fn backend(eng: &Engine) -> &'static str {
-    if let Some(Some(serde_json::Value::String(named))) = crate::stand_in(eng, SECRETS, BACKEND)
-        && named == backends::FILE
-    {
-        return backends::FILE;
+impl Place {
+    /// One name for both, where a store keys by a single string.
+    #[cfg_attr(
+        not(any(target_os = "android", target_family = "wasm")),
+        allow(dead_code, reason = "Android's and a page's stores key by one string")
+    )]
+    fn item(&self) -> String {
+        format!("{}.{}", self.service, self.key)
     }
-    os::name()
+}
+
+/// Where this run keeps its secrets: the file a stand-in names, or the OS's
+/// own store, which on a Linux with no `secret-tool` is that file too.
+enum Store {
+    File(PathBuf),
+    Os,
+}
+
+impl Store {
+    fn of(eng: &Engine) -> Self {
+        let named = matches!(
+            crate::stand_in(eng, SECRETS, BACKEND),
+            Some(Some(serde_json::Value::String(named))) if named == backends::FILE
+        );
+        if named || os::name() == backends::FILE {
+            Self::File(balaur_core::engine_api::data_home(eng).join(FILE_NAME))
+        } else {
+            Self::Os
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        match self {
+            Self::File(_) => backends::FILE,
+            Self::Os => os::name(),
+        }
+    }
+
+    fn set(&self, place: &Place, value: &str) -> Result<()> {
+        match self {
+            Self::File(path) => file::set(path, place, value),
+            Self::Os => os::set(place, value),
+        }
+    }
+
+    fn get(&self, place: &Place) -> Result<Option<String>> {
+        match self {
+            Self::File(path) => file::get(path, place),
+            Self::Os => os::get(place),
+        }
+    }
+
+    fn remove(&self, place: &Place) -> Result<bool> {
+        match self {
+            Self::File(path) => file::remove(path, place),
+            Self::Os => os::remove(place),
+        }
+    }
 }
 
 fn place(eng: &Engine, key: &str) -> Result<Place> {
@@ -66,24 +124,16 @@ fn place(eng: &Engine, key: &str) -> Result<Place> {
     })
 }
 
-fn file_of(eng: &Engine) -> PathBuf {
-    balaur_core::engine_api::data_home(eng).join(FILE_NAME)
-}
-
 /// `secrets.*`.
 pub fn install(m: &mut Module<Engine>) {
     m.module_doc(
         "A small secret kept by the OS, by key: a session's refresh token. Apple's Keychain, an Android Keystore key sealing each value, the Windows Credential Manager, the Secret Service on Linux (`secret-tool`), else a file under the user directory only this user may read. A page keeps it in `localStorage`, which any script on the page can read: not secure. Read and written in the call, and never recorded. A test keeps them in that file with `\"secrets.backend\": \"file\"` in the file `BALAUR_STAND_INS` names.",
     );
-    for (name, word) in [
-        ("BACKEND_KEYCHAIN", backends::KEYCHAIN),
-        ("BACKEND_KEYSTORE", backends::KEYSTORE),
-        ("BACKEND_CREDENTIAL_MANAGER", backends::CREDENTIAL_MANAGER),
-        ("BACKEND_SECRET_SERVICE", backends::SECRET_SERVICE),
-        ("BACKEND_LOCAL_STORAGE", backends::LOCAL_STORAGE),
-        ("BACKEND_FILE", backends::FILE),
-    ] {
-        m.constant(name, Value::Str(word.into()));
+    for word in backends::ALL {
+        m.constant(
+            &format!("BACKEND_{}", word.to_ascii_uppercase()),
+            Value::Str(word.into()),
+        );
     }
     m.describe(&[
         (
@@ -112,14 +162,11 @@ pub fn install(m: &mut Module<Engine>) {
         ),
     ]);
     m.function(BACKEND, |eng: &Engine, ()| {
-        Ok(Value::Str(backend(eng).into()))
+        Ok(Value::Str(Store::of(eng).name().into()))
     });
     m.function(SET, |eng: &Engine, (key, value): (String, String)| {
         let place = place(eng, &key)?;
-        let kept = match backend(eng) {
-            backends::FILE => file::set(&file_of(eng), &place, &value),
-            _ => os::set(eng, &place, &value),
-        };
+        let kept = Store::of(eng).set(&place, &value);
         Ok(Value::Bool(match kept {
             Ok(()) => true,
             Err(err) => {
@@ -130,10 +177,7 @@ pub fn install(m: &mut Module<Engine>) {
     });
     m.function(GET, |eng: &Engine, key: String| {
         let place = place(eng, &key)?;
-        let held = match backend(eng) {
-            backends::FILE => file::get(&file_of(eng), &place),
-            _ => os::get(eng, &place),
-        };
+        let held = Store::of(eng).get(&place);
         Ok(match held {
             Ok(held) => held.map_or(Value::Nil, Value::Str),
             Err(err) => {
@@ -144,10 +188,7 @@ pub fn install(m: &mut Module<Engine>) {
     });
     m.function(REMOVE, |eng: &Engine, key: String| {
         let place = place(eng, &key)?;
-        let removed = match backend(eng) {
-            backends::FILE => file::remove(&file_of(eng), &place),
-            _ => os::remove(eng, &place),
-        };
+        let removed = Store::of(eng).remove(&place);
         Ok(Value::Bool(removed.unwrap_or_else(|err| {
             tracing::warn!("secrets: removing {key}: {err:#}");
             false
@@ -168,17 +209,23 @@ mod file {
         }
     }
 
+    /// Written beside the file and moved over it, so a write cut short never
+    /// leaves a file the next read refuses.
     fn write(path: &Path, held: &BTreeMap<String, String>) -> Result<()> {
         use std::io::Write;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
+        let partial = path.with_extension("part");
         let mut options = std::fs::OpenOptions::new();
         options.write(true).create(true).truncate(true);
         #[cfg(unix)]
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        let mut file = options.open(path)?;
+        let mut file = options.open(&partial)?;
         file.write_all(serde_json::to_string_pretty(held)?.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&partial, path)?;
         Ok(())
     }
 
@@ -205,7 +252,7 @@ mod file {
 /// Apple's Keychain: one generic password per key, under the game's service.
 #[cfg(target_vendor = "apple")]
 mod os {
-    use super::{Engine, Place, Result, backends};
+    use super::{Place, Result, backends};
     use anyhow::anyhow;
     use std::ffi::c_void;
 
@@ -325,7 +372,7 @@ mod os {
         anyhow!("the keychain refused to {what} (OSStatus {status})")
     }
 
-    pub(super) fn set(_eng: &Engine, place: &Place, value: &str) -> Result<()> {
+    pub(super) fn set(place: &Place, value: &str) -> Result<()> {
         // Safety: a query built above, read by the call.
         let removed = unsafe { SecItemDelete(query(place, &[]).0) };
         if removed != SUCCESS && removed != NOT_FOUND {
@@ -360,7 +407,7 @@ mod os {
         }
     }
 
-    pub(super) fn get(_eng: &Engine, place: &Place) -> Result<Option<String>> {
+    pub(super) fn get(place: &Place) -> Result<Option<String>> {
         // Safety: immutable framework constants.
         let asked = unsafe {
             query(
@@ -389,7 +436,7 @@ mod os {
         Ok(Some(String::from_utf8(bytes)?))
     }
 
-    pub(super) fn remove(_eng: &Engine, place: &Place) -> Result<bool> {
+    pub(super) fn remove(place: &Place) -> Result<bool> {
         // Safety: a query built above, read by the call.
         match unsafe { SecItemDelete(query(place, &[]).0) } {
             SUCCESS => Ok(true),
@@ -403,31 +450,26 @@ mod os {
 /// app's private preferences: `org.balaur.platform.Secrets`.
 #[cfg(target_os = "android")]
 mod os {
-    use super::{Engine, Place, Result, backends};
+    use super::{Place, Result, backends};
 
     pub(super) const fn name() -> &'static str {
         backends::KEYSTORE
     }
 
-    /// The preference a secret is kept under.
-    fn item(place: &Place) -> String {
-        format!("{}.{}", place.service, place.key)
-    }
-
-    pub(super) fn set(_eng: &Engine, place: &Place, value: &str) -> Result<()> {
+    pub(super) fn set(place: &Place, value: &str) -> Result<()> {
         anyhow::ensure!(
-            crate::android::secrets::set(&item(place), value)?,
+            crate::android::secrets::set(&place.item(), value)?,
             "the keystore refused it"
         );
         Ok(())
     }
 
-    pub(super) fn get(_eng: &Engine, place: &Place) -> Result<Option<String>> {
-        Ok(crate::android::secrets::get(&item(place))?)
+    pub(super) fn get(place: &Place) -> Result<Option<String>> {
+        Ok(crate::android::secrets::get(&place.item())?)
     }
 
-    pub(super) fn remove(_eng: &Engine, place: &Place) -> Result<bool> {
-        Ok(crate::android::secrets::remove(&item(place))?)
+    pub(super) fn remove(place: &Place) -> Result<bool> {
+        Ok(crate::android::secrets::remove(&place.item())?)
     }
 }
 
@@ -435,7 +477,7 @@ mod os {
 /// after the game and the key.
 #[cfg(windows)]
 mod os {
-    use super::{Engine, Place, Result, backends};
+    use super::{Place, Result, backends};
     use anyhow::anyhow;
     use windows_sys::Win32::Foundation::{ERROR_NOT_FOUND, GetLastError};
     use windows_sys::Win32::Security::Credentials::{
@@ -455,7 +497,7 @@ mod os {
         wide(&format!("{}/{}", place.service, place.key))
     }
 
-    pub(super) fn set(_eng: &Engine, place: &Place, value: &str) -> Result<()> {
+    pub(super) fn set(place: &Place, value: &str) -> Result<()> {
         let mut target = target(place);
         let mut user = wide(&place.key);
         let mut blob = value.as_bytes().to_vec();
@@ -478,7 +520,7 @@ mod os {
         Ok(())
     }
 
-    pub(super) fn get(_eng: &Engine, place: &Place) -> Result<Option<String>> {
+    pub(super) fn get(place: &Place) -> Result<Option<String>> {
         let target = target(place);
         let mut found: *mut CREDENTIALW = std::ptr::null_mut();
         // Safety: a NUL-terminated name, and a slot the call fills.
@@ -505,7 +547,7 @@ mod os {
         Ok(Some(String::from_utf8(bytes)?))
     }
 
-    pub(super) fn remove(_eng: &Engine, place: &Place) -> Result<bool> {
+    pub(super) fn remove(place: &Place) -> Result<bool> {
         let target = target(place);
         // Safety: a NUL-terminated name.
         if unsafe { CredDeleteW(target.as_ptr(), CRED_TYPE_GENERIC, 0) } == 0 {
@@ -524,7 +566,7 @@ mod os {
 /// installed; else `name` answers the file store, said once in the log.
 #[cfg(all(unix, not(any(target_vendor = "apple", target_os = "android"))))]
 mod os {
-    use super::{Engine, Place, Result, backends};
+    use super::{Place, Result, backends};
     use anyhow::anyhow;
     use std::io::Write;
     use std::process::{Command, Stdio};
@@ -532,22 +574,27 @@ mod os {
 
     const TOOL: &str = "secret-tool";
 
-    /// Whether `secret-tool` runs here, asked once.
+    /// Whether `secret-tool` is on the `PATH` and a Secret Service answers
+    /// it, found out once: a lookup of a key nobody keeps says nothing on
+    /// stderr where the service runs, and why not where it does not.
     fn has_tool() -> bool {
         static HAS: OnceLock<bool> = OnceLock::new();
         *HAS.get_or_init(|| {
-            let found = Command::new(TOOL)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .is_ok();
-            if !found {
+            let on_path = std::env::var_os("PATH").is_some_and(|path| {
+                std::env::split_paths(&path).any(|folder| folder.join(TOOL).is_file())
+            });
+            let answers = on_path
+                && Command::new(TOOL)
+                    .args(["lookup", "service", "balaur.probe", "account", "probe"])
+                    .stdin(Stdio::null())
+                    .output()
+                    .is_ok_and(|out| out.stderr.is_empty());
+            if !answers {
                 tracing::info!(
-                    "secrets: no {TOOL} (libsecret) here, so secrets are kept in a file under the user directory that only this user may read"
+                    "secrets: no Secret Service through {TOOL} here, so secrets are kept in a file under the user directory that only this user may read"
                 );
             }
-            found
+            answers
         })
     }
 
@@ -567,7 +614,7 @@ mod os {
             .arg(&place.key)
     }
 
-    pub(super) fn set(_eng: &Engine, place: &Place, value: &str) -> Result<()> {
+    pub(super) fn set(place: &Place, value: &str) -> Result<()> {
         let mut command = Command::new(TOOL);
         command
             .arg("store")
@@ -589,7 +636,7 @@ mod os {
         Ok(())
     }
 
-    pub(super) fn get(_eng: &Engine, place: &Place) -> Result<Option<String>> {
+    pub(super) fn get(place: &Place) -> Result<Option<String>> {
         let mut command = Command::new(TOOL);
         command.arg("lookup");
         let out = attributes(&mut command, place)
@@ -609,8 +656,8 @@ mod os {
         Ok(Some(String::from_utf8(out.stdout)?))
     }
 
-    pub(super) fn remove(eng: &Engine, place: &Place) -> Result<bool> {
-        let held = get(eng, place)?.is_some();
+    pub(super) fn remove(place: &Place) -> Result<bool> {
+        let held = get(place)?.is_some();
         let mut command = Command::new(TOOL);
         command.arg("clear");
         let out = attributes(&mut command, place)
@@ -628,7 +675,7 @@ mod os {
 /// A page: `localStorage`, which any script on the page reads.
 #[cfg(target_family = "wasm")]
 mod os {
-    use super::{Engine, Place, Result, backends};
+    use super::{Place, Result, backends};
     use anyhow::anyhow;
 
     pub(super) const fn name() -> &'static str {
@@ -641,25 +688,21 @@ mod os {
             .ok_or_else(|| anyhow!("this page has no localStorage"))
     }
 
-    fn item(place: &Place) -> String {
-        format!("{}.{}", place.service, place.key)
-    }
-
-    pub(super) fn set(_eng: &Engine, place: &Place, value: &str) -> Result<()> {
+    pub(super) fn set(place: &Place, value: &str) -> Result<()> {
         storage()?
-            .set_item(&item(place), value)
+            .set_item(&place.item(), value)
             .map_err(|_| anyhow!("localStorage refused it"))
     }
 
-    pub(super) fn get(_eng: &Engine, place: &Place) -> Result<Option<String>> {
+    pub(super) fn get(place: &Place) -> Result<Option<String>> {
         storage()?
-            .get_item(&item(place))
+            .get_item(&place.item())
             .map_err(|_| anyhow!("localStorage could not be read"))
     }
 
-    pub(super) fn remove(_eng: &Engine, place: &Place) -> Result<bool> {
+    pub(super) fn remove(place: &Place) -> Result<bool> {
         let storage = storage()?;
-        let item = item(place);
+        let item = place.item();
         let held = storage.get_item(&item).ok().flatten().is_some();
         storage
             .remove_item(&item)
