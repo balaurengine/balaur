@@ -39,6 +39,9 @@ pub(crate) struct EngineInner {
     /// subsystem's awaitable ids share a namespace and a wake can never
     /// resume the wrong task.
     pub(crate) tokens: Cell<u64>,
+    /// The node whose script asked for each token not yet woken, keyed by
+    /// token: an answer nothing awaits yet is kept for that node.
+    pub(crate) owners: RefCell<crate::collections::DetHashMap<u64, u64>>,
     /// Bumped each time the app drops its fixed-step remainder at a session
     /// boundary; see [`Engine::step_restarts`].
     pub(crate) step_restarts: Cell<u64>,
@@ -86,6 +89,7 @@ impl Engine {
                 quit: Cell::new(false),
                 exit_code: Cell::new(0),
                 tokens: Cell::new(1),
+                owners: RefCell::default(),
                 step_restarts: Cell::new(0),
                 debug_scope: Cell::new(None),
                 frozen: Cell::new(false),
@@ -205,10 +209,35 @@ impl Engine {
     /// A fresh engine-wide id for anything a script can wait on — an http
     /// request, a connection, a backend call. One counter for every
     /// subsystem, so a `ScriptHost::wake` token names exactly one operation.
+    /// Asked from a node's script, the token is that node's
+    /// ([`Engine::take_token_owner`]).
     pub fn next_token(&self) -> u64 {
+        let id = self.mint_token();
+        if let Some(node) = crate::dependencies::calling_node_id(self) {
+            self.inner.owners.borrow_mut().insert(id, node);
+        }
+        id
+    }
+
+    /// A token with no owner: one its own wait parks on as it is made.
+    pub(crate) fn mint_token(&self) -> u64 {
         let id = self.inner.tokens.get();
         self.inner.tokens.set(id + 1);
         id
+    }
+
+    /// The node whose script asked for `token`, let go of as it is woken.
+    /// `None` for a token no script asked for, or one already woken.
+    pub fn take_token_owner(&self, token: u64) -> Option<u64> {
+        self.inner.owners.borrow_mut().swap_remove(&token)
+    }
+
+    /// Let go of every token `node` asked for: the node is gone.
+    pub fn release_tokens_of(&self, node: u64) {
+        self.inner
+            .owners
+            .borrow_mut()
+            .retain(|_, owner| *owner != node);
     }
 
     /// What [`Engine::next_token`] will hand out next.

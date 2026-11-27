@@ -582,9 +582,13 @@ pub fn calling(eng: &Engine, script: &str, node: u64) -> Turn {
 /// The node whose script is calling into the engine right now, if one is.
 #[must_use]
 pub fn calling_node(eng: &Engine) -> Option<crate::hecs::Entity> {
+    crate::entity_of(balaur_script::NodeId(calling_node_id(eng)?)).ok()
+}
+
+/// The same, as the id a script host keys the node by.
+pub(crate) fn calling_node_id(eng: &Engine) -> Option<u64> {
     let calling = eng.try_resource::<Calling>()?;
-    let node = calling.borrow().0.last()?.1?;
-    crate::entity_of(balaur_script::NodeId(node)).ok()
+    calling.borrow().0.last()?.1
 }
 
 /// The project a played game's script lies in, or its dependency's folder:

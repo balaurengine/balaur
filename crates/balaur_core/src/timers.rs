@@ -56,7 +56,7 @@ pub fn wake_next_step(eng: &Engine, token: u64, payload: balaur_script::Value) {
 
 /// A token woken after `count` fixed steps; zero wakes on the next.
 pub fn after_frames(eng: &Engine, count: u32) -> u64 {
-    let token = eng.next_token();
+    let token = eng.mint_token();
     eng.resource::<Timers>()
         .borrow_mut()
         .frames

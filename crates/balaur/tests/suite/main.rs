@@ -25,6 +25,7 @@ mod gamend;
 mod gamepad;
 mod input_verbs;
 mod interactivity;
+mod kept_answers;
 mod kernel_verbs;
 mod library_rigs;
 mod local_nodes;

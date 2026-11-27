@@ -405,6 +405,7 @@ stateDiagram-v2
     first_poll --> waiting: reached an await
     first_poll --> done: returned without one
     waiting --> woken: token woken
+    waiting --> woken: an answer kept for its token
     woken --> waiting: next await
     woken --> done: returned
     waiting --> cancelled: node freed, file reloaded
@@ -424,6 +425,8 @@ stateDiagram-v2
 | `stopped` | Taken out of the list and held by the debugger's stop with its object. |
 | `done` | Returned. A caller awaiting it through `call_async` is woken on the next step. |
 | `cancelled` | Dropped: its node was freed, or its file reloaded, which logs a warning. |
+
+A token woken while no task awaits it keeps its answer in the host's `unclaimed`, for the node whose script asked for it (`Engine::next_token` notes the node). A task that then parks on that token is woken with it at once. The node being freed lets go of what was kept for it, as do more than `KEPT_PER_NODE` (256) answers kept for one node, oldest first.
 
 `run_tasks` runs from every `update` and from each wake. A wait from `task::frames` or `task::seconds` counts fixed steps, and stops counting in a paused game.
 

@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
-use tasks::{Pending, WaitingStart};
+use tasks::{Pending, Unclaimed, WaitingStart};
 
 mod burst;
 mod debug;
@@ -211,6 +211,8 @@ struct Inner {
     tasks: RefCell<Vec<Pending>>,
     /// Async methods asked of an instance busy in the call that asked.
     waiting_starts: RefCell<Vec<WaitingStart>>,
+    /// Answers woken before anything awaited them, by token.
+    unclaimed: RefCell<balaur_core::collections::DetHashMap<u64, Unclaimed>>,
     /// Files built with probes, their instance on an engine that can hold a
     /// call at a line.
     debugging: RefCell<HashSet<String>>,
@@ -361,6 +363,7 @@ impl BsHost {
                 called: RefCell::default(),
                 tasks: RefCell::default(),
                 waiting_starts: RefCell::default(),
+                unclaimed: RefCell::default(),
                 debugging: RefCell::default(),
                 breaks: RefCell::default(),
                 stopped: RefCell::new(None),

@@ -37,7 +37,10 @@ impl Door {
 | `task::wait(token)` | when an engine call finishes, with its result as an `any` |
 | another script `async fn` | when it returns, with its value |
 
-An engine call that takes time answers with a token, and `task::wait` waits for it.
+An engine call that takes time answers with a token, and `task::wait` waits for it. The
+answer is kept until something waits on its token, so a script may start twenty requests and
+then wait on each in turn. An answer nothing has waited on is let go of when the node whose
+script asked for it is freed.
 
 ```bs
 // scripts/fetch.bs

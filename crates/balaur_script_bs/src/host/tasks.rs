@@ -7,6 +7,26 @@ use anyhow::{Result, anyhow};
 use balaur_bs::runtime::{Object, RunError, Runtime, Step, Task, Value as L};
 use balaur_script::{NodeId, Value};
 
+/// An answer woken before anything awaited its token, kept for the node
+/// whose script asked for it until a wait takes it or the node is freed.
+pub(super) struct Unclaimed {
+    owner: u64,
+    payload: Value,
+}
+
+/// The answers kept for one node at most; past it the oldest is let go of,
+/// so a node that never waits on what it asks for holds a bounded few.
+const KEPT_PER_NODE: usize = 256;
+
+/// Wakes the task of `rt` awaiting `token` with `payload`; false when none does.
+fn wake_in(rt: &mut Runtime, token: u64, payload: &Value) -> bool {
+    let Some(ty) = rt.awaits(token) else {
+        return false;
+    };
+    let payload = from_neutral(payload, &ty, rt.meta());
+    rt.wake(token, payload)
+}
+
 /// A method suspended on the engine.
 pub(super) struct Pending {
     pub(super) node: u64,
@@ -85,21 +105,64 @@ impl BsHost {
     }
 
     /// Hands `payload` to the instance awaiting `token`, then runs on what can.
+    /// An answer nothing awaits yet is kept for the node that asked for it,
+    /// and a wait on its token takes it (`claim`).
     pub(super) fn deliver(&self, token: u64, payload: &Value) {
         self.run_waiting_starts();
+        let owner = self.inner.engine.take_token_owner(token);
         let mut woke = false;
         for home in self.homes() {
-            let Ok(mut rt) = home.rt.try_borrow_mut() else {
-                continue;
-            };
-            if let Some(ty) = rt.awaits(token) {
-                let payload = from_neutral(payload, &ty, rt.meta());
-                woke |= rt.wake(token, payload);
+            if let Ok(mut rt) = home.rt.try_borrow_mut() {
+                woke |= wake_in(&mut rt, token, payload);
             }
         }
         if woke {
             self.run_tasks();
+        } else if let Some(owner) = owner {
+            let mut unclaimed = self.inner.unclaimed.borrow_mut();
+            if unclaimed
+                .values()
+                .filter(|kept| kept.owner == owner)
+                .count()
+                >= KEPT_PER_NODE
+            {
+                let oldest = unclaimed.iter().find(|(_, kept)| kept.owner == owner);
+                if let Some(&oldest) = oldest.map(|(token, _)| token) {
+                    unclaimed.shift_remove(&oldest);
+                }
+            }
+            unclaimed.insert(
+                token,
+                Unclaimed {
+                    owner,
+                    payload: payload.clone(),
+                },
+            );
         }
+    }
+
+    /// Wakes `task` with the answer kept for the token it now awaits; true
+    /// when there was one.
+    fn claim(&self, rt: &mut Runtime, task: &Task) -> bool {
+        if self.inner.unclaimed.borrow().is_empty() {
+            return false;
+        }
+        let Some(token) = rt.awaited_token(task) else {
+            return false;
+        };
+        let Some(kept) = self.inner.unclaimed.borrow_mut().shift_remove(&token) else {
+            return false;
+        };
+        wake_in(rt, token, &kept.payload)
+    }
+
+    /// Lets go of every answer kept for `node`, and of the tokens it asked for.
+    pub(super) fn release(&self, node: u64) {
+        self.inner
+            .unclaimed
+            .borrow_mut()
+            .retain(|_, kept| kept.owner != node);
+        self.inner.engine.release_tokens_of(node);
     }
 
     /// Polls every parked task; one that finishes answers its caller. A
@@ -158,7 +221,11 @@ impl BsHost {
         *inst.lent.borrow_mut() = rt.share(&obj);
         let before = rt.steps();
         let steppable = rt.steppable() && !self.is_held();
-        let step = poll(rt, steppable, &mut p.task, &mut obj);
+        let mut step = poll(rt, steppable, &mut p.task, &mut obj);
+        // An answer that came before the task awaited it was kept.
+        while matches!(step, Ok(Step::Waiting)) && self.claim(rt, &p.task) {
+            step = poll(rt, steppable, &mut p.task, &mut obj);
+        }
         self.charge(&p.path, before, rt.steps());
         let step = match step {
             Ok(Step::Paused(paused)) => {

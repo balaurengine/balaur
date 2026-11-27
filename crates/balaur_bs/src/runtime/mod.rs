@@ -323,6 +323,17 @@ impl Runtime {
             .map(|(_, ty)| ty.clone())
     }
 
+    /// The engine token `task` is parked on, when it awaits one.
+    pub fn awaited_token(&self, task: &Task) -> Option<u64> {
+        let handle = task.waiting?;
+        self.host
+            .borrow()
+            .tokens
+            .iter()
+            .find(|(_, (awaiting, _))| *awaiting == handle)
+            .map(|(token, _)| *token)
+    }
+
     /// Resolves the engine's `token` to `value`: the task awaiting it runs on
     /// at its next [`Runtime::poll`]. False when nothing here awaits it.
     pub fn wake(&mut self, token: u64, value: Value) -> bool {

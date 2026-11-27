@@ -12,7 +12,8 @@ use std::net::TcpListener;
 use balaur_testkit::run_until;
 
 /// Serve one canned HTTP/1.1 response on a fresh port, returning the url.
-fn serve_one(response: &'static str) -> String {
+fn serve_one(response: impl Into<String>) -> String {
+    let response = response.into();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     std::thread::spawn(move || {
@@ -212,4 +213,49 @@ impl Scenario {{
 "#
     );
     run_until(&source, &["first 200 raven", "second 200 rhino"]);
+}
+
+#[test]
+fn answers_that_came_before_anything_waited_are_kept_until_waited_on() {
+    let urls: Vec<String> = (0..20)
+        .map(|i| {
+            let reply =
+                format!("HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{i:02}");
+            serve_one(reply)
+        })
+        .collect();
+    let list = urls
+        .iter()
+        .map(|url| format!("\"{url}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let source = format!(
+        r#"
+pub class Scenario {{ node: Node }}
+impl Scenario {{
+    pub async fn init() {{
+        let urls = [{list}];
+        let ids: [int] = [];
+        for url in urls {{
+            ids.push(http::request(url));
+        }}
+        while http::in_flight() > 0 {{
+            await task::frames(1);
+        }}
+        let bodies = "";
+        for id in ids {{
+            let r = await task::wait(id);
+            let body = r["body"].as_str();
+            bodies = "{{bodies}}{{body}}";
+        }}
+        log::info("kept {{bodies}}");
+    }}
+}}
+"#
+    );
+    let all = (0..20).fold(String::new(), |mut all, i| {
+        let _ = write!(all, "{i:02}");
+        all
+    });
+    run_until(&source, &[&format!("kept {all}")]);
 }

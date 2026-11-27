@@ -33,7 +33,7 @@ pub(crate) fn docs() -> impl Iterator<Item = (String, &'static str)> {
     [
         (SECONDS, "Park an async method for a span of simulation time, woken on fixed step `ceil(seconds * tick_hz)`, so 4/60 at 60 Hz is 4 steps; the wall clock never enters it."),
         (FRAMES, "Park an async method for a number of fixed steps; counted on the tick, so a replay waits exactly as long."),
-        (WAIT, "Park an async method until the engine wakes the token a binding gave it, and answer what it woke with."),
+        (WAIT, "Park an async method until the engine wakes the token a binding gave it, and answer what it woke with. An answer that came first is kept until a wait takes it, or the node that asked for it is freed."),
     ]
     .into_iter()
     .map(|(name, doc)| (format!("{MODULE}::{name}"), doc))

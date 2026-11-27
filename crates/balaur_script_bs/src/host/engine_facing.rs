@@ -186,6 +186,7 @@ impl ScriptHost<Engine> for BsHost {
             report(r);
         }
         self.cancel(node.0);
+        self.release(node.0);
         self.inner
             .instances
             .borrow_mut()
