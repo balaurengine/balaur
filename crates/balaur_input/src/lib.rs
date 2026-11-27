@@ -168,6 +168,11 @@ pub struct InputSnapshot {
     /// dispatch a press run at the top of one.
     #[serde(skip)]
     fed: Vec<Fed>,
+    /// The pointer and finger events `fed` delivered this frame, for the UI
+    /// to hand its widgets. Skipped: a replay's widgets hear the widget input
+    /// the UI recorded.
+    #[serde(skip)]
+    fed_pointer: Vec<FedPointer>,
     /// A script has read one of [`FOCUS_KEYS`], which makes those keys the
     /// game's rather than the widgets'.
     #[serde(skip)]
@@ -197,6 +202,16 @@ enum MousePlace {
     Held,
 }
 
+/// One pointer or finger event a script fed, as this frame delivered it, in
+/// window pixels as `mouse_position` is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FedPointer {
+    Moved(f32, f32),
+    Button(usize, bool),
+    Touch(u64, f32, f32, TouchPhase),
+    Scroll(f32, f32),
+}
+
 /// One event a script fed, held until the next frame begins.
 enum Fed {
     Key(String, bool),
@@ -221,15 +236,32 @@ impl InputSnapshot {
         self.dropped_files.clear();
         self.typed.clear();
         self.begun = true;
+        self.fed_pointer.clear();
         for fed in std::mem::take(&mut self.fed) {
-            match fed {
-                Fed::Key(key, down) => self.key_event(&key, down),
-                Fed::Mouse(x, y) => self.set_mouse_pos(x, y),
-                Fed::Scroll(x, y) => self.add_scroll(x, y),
-                Fed::Button(button, down) => self.mouse_button_event(button, down),
-                Fed::Touch(id, x, y, phase) => self.touch_event(id, x, y, phase),
+            let pointer = match fed {
+                Fed::Key(key, down) => {
+                    self.key_event(&key, down);
+                    continue;
+                }
+                Fed::Mouse(x, y) => FedPointer::Moved(x, y),
+                Fed::Scroll(x, y) => FedPointer::Scroll(x, y),
+                Fed::Button(button, down) => FedPointer::Button(button, down),
+                Fed::Touch(id, x, y, phase) => FedPointer::Touch(id, x, y, phase),
+            };
+            match pointer {
+                FedPointer::Moved(x, y) => self.set_mouse_pos(x, y),
+                FedPointer::Scroll(x, y) => self.add_scroll(x, y),
+                FedPointer::Button(button, down) => self.mouse_button_event(button, down),
+                FedPointer::Touch(id, x, y, phase) => self.touch_event(id, x, y, phase),
             }
+            self.fed_pointer.push(pointer);
         }
+    }
+
+    /// The pointer and finger events scripts fed that this frame delivered,
+    /// in the order fed; empty on a frame no script fed one.
+    pub fn fed_pointer(&self) -> &[FedPointer] {
+        &self.fed_pointer
     }
 
     /// Begin the frame unless a backend already did: a headless run has no
@@ -911,14 +943,15 @@ fn vec2_of(what: &str, value: &Value) -> anyhow::Result<(f32, f32)> {
 /// `input.set_*`: the window backend's feeders, for a script that stands in
 /// for a person: a showcase, a test, an automation client. A fed event is
 /// the next frame's, delivered when it begins, so the systems that dispatch
-/// a press at the top of a tick see it exactly like an OS event.
+/// a press at the top of a tick see it exactly like an OS event, and the UI
+/// hands the pointer and finger ones to egui through [`InputSnapshot::fed_pointer`].
 fn install_feed_api(m: &mut Module<Engine>) {
     m.describe(&[
         (SET_KEY_DOWN, &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite call."),
-        (SET_MOUSE_POSITION, &[], "(position: Vec2)", "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame."),
-        (SET_SCROLL_DELTA, &[], "(delta: Vec2)", "Turn the wheel as if the window had reported it, from next frame; adds to that frame's `scroll_delta`."),
-        (SET_MOUSE_DOWN, &[], "(button: int, down: bool)", "Press or release a `MOUSE_BUTTON_*` button as if the window had reported it, from next frame."),
-        (SET_TOUCH, &[], "(id: int, position: Vec2, phase: string)", "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`."),
+        (SET_MOUSE_POSITION, &[], "(position: Vec2)", "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame, and widgets answer it in that frame's UI pass."),
+        (SET_SCROLL_DELTA, &[], "(delta: Vec2)", "Turn the wheel as if the window had reported it, from next frame; adds to that frame's `scroll_delta`, and a `scroll` under the cursor moves in that frame's UI pass."),
+        (SET_MOUSE_DOWN, &[], "(button: int, down: bool)", "Press or release a `MOUSE_BUTTON_*` button as if the window had reported it, from next frame; the widget under the cursor answers it in that frame's UI pass."),
+        (SET_TOUCH, &[], "(id: int, position: Vec2, phase: string)", "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`. Widgets answer it in the next frame's UI pass as they do a real finger: the first one down drives the pointer, so it presses, drags and long-presses."),
     ]);
     m.function(SET_KEY_DOWN, |eng: &Engine, (key, down): (String, bool)| {
         check_key(&key);

@@ -292,12 +292,12 @@ impl Style {
                 Some([ax + (bx - ax) * t, ay + (by - ay) * t])
             }
         };
-        // Unset is its size, 1.
+        // Unset is its size, `[1, 1]`; each axis runs on its own.
         let scale = match (self.scale, to.scale) {
             (None, None) => None,
             (from, into) => {
-                let (a, b) = (from.unwrap_or(1.0), into.unwrap_or(1.0));
-                Some(a + (b - a) * t)
+                let ([ax, ay], [bx, by]) = (from.unwrap_or([1.0, 1.0]), into.unwrap_or([1.0, 1.0]));
+                Some([ax + (bx - ax) * t, ay + (by - ay) * t])
             }
         };
         Self {

@@ -136,7 +136,7 @@ fn shapeless() -> Spec {
         (k::TOOLTIP_KEY.into(), Value::text("")),
         (k::TEXT.into(), Value::text("")),
         (k::OFFSET.into(), both(0)),
-        (k::SCALE.into(), Value::Int(1)),
+        (k::SCALE.into(), both(1)),
     ])
 }
 
@@ -581,7 +581,7 @@ const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?,
     visible: bool?, enabled: bool?, interactive: bool?, focusable: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
     absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, loading: bool?, \
     options: [string]?, items: [Item]?, value: any, text_color: string?, picked_color: Color?, padding: Sides?, inset: Sides?, margin: Sides?, gap: Vec2?, \
-    offset: Vec2?, scale: float? }";
+    offset: Vec2?, scale: Vec2? }";
 
 /// `ui.write` and `ui.patch`, and the records a control table is.
 pub(crate) fn install(m: &mut Module<Engine>) {

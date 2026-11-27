@@ -380,7 +380,8 @@ impl Brush {
 
     /// What was drawn since `mark`, moved by its role's `offset` and its
     /// node's, then scaled by the two `scale`s about `about`, the widget's
-    /// middle. A scale of 0 draws nothing: a tween shrinks it out.
+    /// middle, each axis on its own. An axis of 0 draws nothing: a tween
+    /// shrinks it out, or turns a card to its edge.
     pub(crate) fn transform_since(
         &self,
         mark: Slot,
@@ -396,23 +397,50 @@ impl Brush {
         if shift != egui::Vec2::ZERO {
             self.shift_since(mark, shift);
         }
-        let factor = style.scale.unwrap_or(1.0) * widget.scale;
+        let [sx, sy] = style.scale.unwrap_or([1.0, 1.0]);
+        let factor = egui::vec2(sx * widget.scale[0], sy * widget.scale[1]);
         self.scale_since(mark, about + shift, factor);
     }
 
-    /// What was drawn since `mark`, `factor` times its size about `about`.
-    pub(crate) fn scale_since(&self, mark: Slot, about: egui::Pos2, factor: f32) {
-        if (factor - 1.0).abs() <= f32::EPSILON {
+    /// What was drawn since `mark`, `factor` times its size about `about`,
+    /// across and down. An axis below 0, or not a number, is 0.
+    pub(crate) fn scale_since(&self, mark: Slot, about: egui::Pos2, factor: egui::Vec2) {
+        let factor = factor.max(egui::Vec2::ZERO);
+        if (factor - egui::Vec2::splat(1.0)).abs().max_elem() <= f32::EPSILON {
             return;
         }
         let layer = self.0.layer_id();
-        let to = egui::emath::TSTransform::from_translation(about.to_vec2());
-        let from = egui::emath::TSTransform::from_translation(-about.to_vec2());
-        let by = to * egui::emath::TSTransform::from_scaling(factor) * from;
-        self.0.ctx().graphics_mut(|g| {
+        let ctx = self.0.ctx();
+        if (factor.x - factor.y).abs() <= f32::EPSILON {
+            let to = egui::emath::TSTransform::from_translation(about.to_vec2());
+            let from = egui::emath::TSTransform::from_translation(-about.to_vec2());
+            let by = to * egui::emath::TSTransform::from_scaling(factor.x) * from;
+            ctx.graphics_mut(|g| {
+                let list = g.entry(layer);
+                let end = list.next_idx();
+                list.transform_range(mark.0, end, by);
+            });
+            return;
+        }
+        // Read before the paint list is held: each takes the context's lock,
+        // as `graphics_mut` does.
+        let mut stretch = Stretch {
+            about,
+            factor,
+            tessellator: egui::epaint::Tessellator::new(
+                ctx.pixels_per_point(),
+                ctx.tessellation_options(|options| *options),
+                ctx.fonts(|fonts| fonts.font_image_size()),
+                Vec::new(),
+            ),
+        };
+        ctx.graphics_mut(|g| {
             let list = g.entry(layer);
-            let end = list.next_idx();
-            list.transform_range(mark.0, end, by);
+            for at in mark.0.0..list.next_idx().0 {
+                list.mutate_shape(egui::layers::ShapeIdx(at), |clipped| {
+                    stretch.apply(clipped);
+                });
+            }
         });
     }
 
@@ -575,6 +603,87 @@ impl Brush {
     pub(crate) fn job(&self, job: egui::text::LayoutJob) -> Arc<Galley> {
         crate::theme::asked_of_egui(&job.text);
         self.0.layout_job(job)
+    }
+}
+
+/// A stretch of shapes about a point by two factors that differ. egui moves
+/// a shape by one factor only, so each is laid into triangles where it is,
+/// on the pixel grid, and the triangles are stretched.
+struct Stretch {
+    about: Pos2,
+    factor: egui::Vec2,
+    tessellator: egui::epaint::Tessellator,
+}
+
+impl Stretch {
+    fn point(&self, at: Pos2) -> Pos2 {
+        self.about + (at - self.about) * self.factor
+    }
+
+    fn rect(&self, rect: Rect) -> Rect {
+        Rect::from_two_pos(self.point(rect.min), self.point(rect.max))
+    }
+
+    fn apply(&mut self, clipped: &mut egui::epaint::ClippedShape) {
+        let shape = std::mem::replace(&mut clipped.shape, egui::Shape::Noop);
+        // A move egui would make after laying the shape into triangles is
+        // made first: the triangles are placed before they are stretched.
+        let after = std::mem::replace(
+            &mut clipped.transform_after_tessellation,
+            egui::emath::TSTransform::IDENTITY,
+        );
+        if self.factor.min_elem() <= 0.0 || !after.is_valid() {
+            return;
+        }
+        clipped.clip_rect = self.rect(clipped.clip_rect);
+        let mut out = Vec::new();
+        self.leaves(shape, after, &mut out);
+        clipped.shape = if out.len() == 1 {
+            out.swap_remove(0)
+        } else {
+            egui::Shape::Vec(out)
+        };
+    }
+
+    /// `shape` stretched, one mesh a leaf: a group may mix textures, an image
+    /// beside text, and one mesh draws from one.
+    fn leaves(
+        &mut self,
+        shape: egui::Shape,
+        after: egui::emath::TSTransform,
+        out: &mut Vec<egui::Shape>,
+    ) {
+        match shape {
+            egui::Shape::Noop => {}
+            egui::Shape::Vec(shapes) => {
+                for shape in shapes {
+                    self.leaves(shape, after, out);
+                }
+            }
+            egui::Shape::Callback(mut callback) => {
+                callback.rect = self.rect(after * callback.rect);
+                out.push(egui::Shape::Callback(callback));
+            }
+            egui::Shape::Mesh(mesh) => {
+                let mut mesh = Arc::unwrap_or_clone(mesh);
+                self.stretch(&mut mesh, after);
+                out.push(egui::Shape::mesh(mesh));
+            }
+            shape => {
+                let mut mesh = egui::Mesh::with_texture(shape.texture_id());
+                self.tessellator.tessellate_shape(shape, &mut mesh);
+                if !mesh.is_empty() {
+                    self.stretch(&mut mesh, after);
+                    out.push(egui::Shape::mesh(mesh));
+                }
+            }
+        }
+    }
+
+    fn stretch(&self, mesh: &mut egui::Mesh, after: egui::emath::TSTransform) {
+        for vertex in &mut mesh.vertices {
+            vertex.pos = self.point(after * vertex.pos);
+        }
     }
 }
 

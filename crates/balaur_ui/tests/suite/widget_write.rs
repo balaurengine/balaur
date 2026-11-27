@@ -206,7 +206,7 @@ impl Root {
     pub fn update(dt: float) {
         self.frames += 1;
         let control: ui::Control = if self.frames < 3 {
-            ui::Control { kind: \"number_field\", value: 0.5, min: 0.01, max: 2.0, prefix: \"px\", tooltip_key: \"back\", scale: 1.05 }
+            ui::Control { kind: \"number_field\", value: 0.5, min: 0.01, max: 2.0, prefix: \"px\", tooltip_key: \"back\", scale: vec2(1.05, 1.05) }
         } else {
             ui::Control { kind: \"number_field\", value: -24.0, tooltip: \"Start\" }
         };
@@ -238,9 +238,16 @@ impl Root {
         Some(toml::Value::String(String::new())),
         "and the key that would win over its words"
     );
-    let scale = prop(&app, field, "widget", "scale")
-        .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)));
-    assert_eq!(scale, Some(1.0), "drawn at its size");
+    let scale: Option<Vec<f64>> = prop(&app, field, "widget", "scale").and_then(|v| {
+        v.as_array()?
+            .iter()
+            .map(|axis| {
+                axis.as_float()
+                    .or_else(|| axis.as_integer().map(|i| i as f64))
+            })
+            .collect()
+    });
+    assert_eq!(scale, Some(vec![1.0, 1.0]), "drawn at its size");
 }
 
 /// A label written, then its text patched twice, then a write asking for

@@ -332,6 +332,35 @@ pub fn rects(out: &egui::FullOutput) -> Vec<(egui::Rect, egui::Color32)> {
     painted
 }
 
+/// Where each shape filled with `color` was drawn, nested shapes included:
+/// a rectangle's box, or the box of a mesh's vertices in that colour, where a
+/// stretch laid it into triangles; feathering keeps those half a pixel in.
+pub fn painted(out: &egui::FullOutput, color: egui::Color32) -> Vec<egui::Rect> {
+    fn walk(shape: &egui::Shape, color: egui::Color32, into: &mut Vec<egui::Rect>) {
+        match shape {
+            egui::epaint::Shape::Rect(rect) if rect.fill == color => into.push(rect.rect),
+            egui::epaint::Shape::Mesh(mesh) if mesh.texture_id == egui::TextureId::default() => {
+                let mut bounds = egui::Rect::NOTHING;
+                for vertex in mesh.vertices.iter().filter(|vertex| vertex.color == color) {
+                    bounds.extend_with(vertex.pos);
+                }
+                if bounds.is_positive() {
+                    into.push(bounds);
+                }
+            }
+            egui::epaint::Shape::Vec(inner) => {
+                inner.iter().for_each(|one| walk(one, color, into));
+            }
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    for clipped in &out.shapes {
+        walk(&clipped.shape, color, &mut found);
+    }
+    found
+}
+
 /// The edge colour of every rectangle a pass painted, nested shapes
 /// included, with its rectangle: outlines and focus rings.
 pub fn strokes(out: &egui::FullOutput) -> Vec<(egui::Rect, egui::Color32)> {

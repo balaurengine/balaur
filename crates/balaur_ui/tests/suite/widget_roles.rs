@@ -806,10 +806,9 @@ fn hovered_plate(source: &str, extra: toml::Table, frames: usize) -> (egui::Rect
     for _ in 1..frames {
         out = pass(&app, &ctx, vec![]);
     }
-    let plate = rects(&out)
+    let plate = painted(&out, egui::Color32::from_rgb(0, 0, 0))
         .into_iter()
-        .find(|(_, fill)| *fill == egui::Color32::from_rgb(0, 0, 0))
-        .map(|(rect, _)| rect)
+        .next()
         .expect("the plate");
     (rest, plate)
 }
@@ -847,7 +846,7 @@ fn a_widget_the_pointer_passes_through_keeps_its_rest_look() {
 // A hover table's `scale` grows over the transition, as its `offset` runs.
 #[test]
 fn a_transition_eases_a_hover_scale() {
-    let theme = "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\ntransition = 0.2\n[button.hover]\nscale = 2.0\n";
+    let theme = "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\ntransition = 0.2\n[button.hover]\nscale = [2.0, 2.0]\n";
     let (_, early) = hovered_plate(theme, toml::Table::new(), 1);
     assert!(
         early.width() > 100.5 && early.width() < 199.5,
@@ -855,4 +854,27 @@ fn a_transition_eases_a_hover_scale() {
     );
     let (_, late) = hovered_plate(theme, toml::Table::new(), 40);
     assert!((late.width() - 200.0).abs() < 1.0, "and arrives: {late:?}");
+}
+
+// A hover table's `scale = [x, y]` runs each axis on its own: wider over the
+// transition while its height stays.
+#[test]
+fn a_transition_eases_a_hover_scale_axis_by_axis() {
+    let theme = "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\ntransition = 0.2\n[button.hover]\nscale = [2.0, 1.0]\n";
+    let (rest, early) = hovered_plate(theme, toml::Table::new(), 1);
+    assert!(
+        early.width() > 100.5 && early.width() < 198.5,
+        "wider on its way a frame in: {early:?}"
+    );
+    assert!(
+        (early.height() - rest.height()).abs() < 1.5,
+        "as tall as it was: {early:?} from {rest:?}"
+    );
+    let (_, late) = hovered_plate(theme, toml::Table::new(), 40);
+    // A stretched fill's opaque edge sits half a pixel inside, doubled.
+    assert!((late.width() - 200.0).abs() < 2.5, "and arrives: {late:?}");
+    assert!(
+        (late.center() - rest.center()).length() < 1.0,
+        "about its middle: {late:?} from {rest:?}"
+    );
 }

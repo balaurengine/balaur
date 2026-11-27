@@ -906,7 +906,7 @@ stateDiagram-v2
 
 Starts in Absent. Never ends.
 
-Refused or ignored: `Start` on a finger already down and `Move` on an unknown one do nothing. `End` on an unknown one still lands in `touches_ended`. `input.set_touch` lands on the next frame.
+Refused or ignored: `Start` on a finger already down and `Move` on an unknown one do nothing. `End` on an unknown one still lands in `touches_ended`. `input.set_touch` lands on the next frame. A fed finger, mouse move, button or wheel turn reaches the widgets in that frame's UI pass, through `InputSnapshot::fed_pointer` and `balaur_ui`'s egui plugin.
 
 ### Emulated pointer
 

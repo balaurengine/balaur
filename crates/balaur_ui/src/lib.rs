@@ -16,6 +16,7 @@ mod bridge;
 mod chord;
 mod clipboard;
 pub mod contrast;
+mod fed;
 mod images;
 mod loading;
 mod pacing;
@@ -312,6 +313,11 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(AccessTree::default());
         reg.insert_resource(routing::UiHits::default());
         reg.insert_resource(routing::PointerRoute::default());
+        reg.insert_resource(fed::FedQueue::default());
+        // After every `First` system, so the frame has begun and delivered what
+        // scripts fed, and before any pass: the headless one is a `Render`
+        // system, the window's runs after the tick.
+        reg.add_system(balaur_core::Stage::PreUpdate, fed::queue_system);
         balaur_text::glyph::install(reg);
         balaur_text::fonts::read_system_fonts_ahead(reg);
         balaur_text::font::register_font_asset(reg);
@@ -365,6 +371,7 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
     // outside the simulation, so it reads a clock the digest never sees.
     #[allow(clippy::disallowed_methods)]
     let started = balaur_core::time::Instant::now();
+    fed::hand_to(eng, ctx);
     pass(eng, ctx);
     pacing::note_pass(eng, started.elapsed());
 }

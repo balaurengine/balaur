@@ -329,7 +329,7 @@ pub(crate) fn for_classes(
 pub(crate) fn widget_of(asked: &WidgetProperties) -> WidgetFields {
     let mut widget = WidgetFields {
         visible: true,
-        scale: 1.0,
+        scale: [1.0, 1.0],
         ..WidgetFields::default()
     };
     put_every(&mut widget, asked);

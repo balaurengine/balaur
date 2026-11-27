@@ -206,7 +206,7 @@ fn a_menu_button_holds_its_room_in_a_row() {
 }
 
 /// The rows of a hidden menu, with their width, if any were drawn.
-fn rows_drawn(out: &egui::FullOutput, width: f32) -> Option<egui::Rect> {
+pub(crate) fn rows_drawn(out: &egui::FullOutput, width: f32) -> Option<egui::Rect> {
     out.shapes.iter().find_map(|s| match &s.shape {
         egui::epaint::Shape::Rect(r) if (r.rect.width() - width).abs() < 1.0 => Some(r.rect),
         _ => None,
@@ -214,7 +214,7 @@ fn rows_drawn(out: &egui::FullOutput, width: f32) -> Option<egui::Rect> {
 }
 
 /// A button naming a hidden menu as its `context`, and that menu's row.
-fn context_scene(app: &balaur_core::App, kind: &str) -> Entity {
+pub(crate) fn context_scene(app: &balaur_core::App, kind: &str) -> Entity {
     let target = toml::toml! {
         kind = kind text = "Target" x = 10.0 y = 10.0 width = 120.0 height = 40.0 context = "cm"
     };

@@ -15,7 +15,7 @@ fn set(app: &App, path: &str, value: toml::Value) {
 
 /// A 200 x 100 scroll of thirty lines, a button first; its `widget_scroll`
 /// as given. Answers the scroll, the button and the sixth line.
-fn list(app: &App, scroll: toml::Value) -> (Entity, Entity, Entity) {
+pub(crate) fn list(app: &App, scroll: toml::Value) -> (Entity, Entity, Entity) {
     let mut params = toml::toml! { kind = "scroll" x = 0.0 y = 0.0 width = 200.0 height = 100.0 widget_layout = { gap = [0.0, 0.0] } };
     params.insert("widget_scroll".into(), scroll);
     let holder = add_widget(app, &params.into());
@@ -67,7 +67,7 @@ fn drag_up(
     before - after
 }
 
-fn as_touchscreen(app: &App) {
+pub(crate) fn as_touchscreen(app: &App) {
     let mut platform = balaur_core::facts::platform(&app.engine);
     platform.touchscreen = true;
     app.engine

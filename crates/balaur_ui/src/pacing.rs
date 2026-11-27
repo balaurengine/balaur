@@ -181,6 +181,7 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool) -> bool {
     if !(pacing.lazy && pacing.honoured) {
         return true;
     }
+    let input_seen = input_seen || crate::fed::waiting(eng);
     hear_egui(&mut pacing, ctx);
     hold_caret(&mut pacing, ctx, input_seen);
     let logs = balaur_core::logbuf::total();

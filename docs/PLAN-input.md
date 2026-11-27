@@ -21,6 +21,11 @@ Six rules every backend holds:
 6. No device call on the tick. A backend reads on its own thread and the tick
    takes its newest reading.
 
+A finger, move, button or wheel turn a script feeds (`input.set_touch`,
+`set_mouse_position`, `set_mouse_down`, `set_scroll_delta`) lands in the
+snapshot on the next frame and reaches the widgets in that frame's UI pass, as
+the window's own input does. A fed key reaches the snapshot only.
+
 The gamepad contract is the engine's, so a second backend (SDL3, Steam Input,
 a browser's Gamepad API) reads the same. A backend only reports changes and
 holds two motor levels. `gamepad.rs`, `pad_thread.rs` and `rumble.rs` enforce

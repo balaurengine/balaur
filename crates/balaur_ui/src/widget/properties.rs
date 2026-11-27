@@ -334,9 +334,9 @@ pub(crate) struct WidgetProperties {
     /// How far the widget and what it holds are drawn from where the layout put them, `[x, y]` in design pixels, as CSS's `translate`: what sits beside it never moves. Added to its role's own, in whatever state it is in; a tween moves it, as a bar sliding away
     #[property(default = [0.0, 0.0], group = "placement")]
     pub(crate) offset: [f32; 2],
-    /// How many times its size the widget and what it holds are drawn, about its middle, as CSS's `scale`: the layout and what sits beside it stay. Times its role's own, in whatever state it is in; a tween pops a count with it, and 0 draws nothing
-    #[property(default = 1.0, min = 0.0, group = "placement")]
-    pub(crate) scale: f32,
+    /// How many times its width and its height the widget and what it holds are drawn, `[x, y]` about its middle, as CSS's `scale: x y`: the layout and what sits beside it stay. Times its role's own, axis by axis, in whatever state it is in; a tween pops a count with it, and `[0, 1]` draws nothing wide, a card turned to its edge
+    #[property(default = [1.0, 1.0], min = 0.0, group = "placement")]
+    pub(crate) scale: [f32; 2],
     /// The edges this root keeps clear of what a notch, a status bar or a home bar covers. A `fill` root's own colour still reaches the edge, and one with no children is a backdrop and reaches it whole
     #[property(flags, default = vec![Edge::new(w::LEFT), Edge::new(w::TOP), Edge::new(w::RIGHT), Edge::new(w::BOTTOM)], group = "placement")]
     pub(crate) safe_area: Vec<Edge>,

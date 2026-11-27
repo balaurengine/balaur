@@ -225,19 +225,19 @@ pub struct Style {
     pub shadows: Option<Rc<[Shadow]>>,
     /// Seconds a change of state eases over, as CSS's `transition`: the
     /// pointer's two, focus, `checked` and `disabled`, each from where it is.
-    /// Colours, the shadow and `offset` run between the tables, everything
-    /// else steps at halfway. Unset steps at once. Read on a kind or a role,
-    /// never inside one of its state tables.
+    /// Colours, the shadow, `offset` and `scale` run between the tables,
+    /// everything else steps at halfway. Unset steps at once. Read on a kind
+    /// or a role, never inside one of its state tables.
     pub transition: Option<f32>,
     /// How far the widget and what it holds are drawn from where the layout
     /// put them, `[x, y]` in design pixels, as CSS's `translate`: a card
     /// lifted under the pointer. What sits beside it never moves, and the
     /// move is rounded to whole pixels of the screen, so text stays sharp.
     pub offset: Option<[f32; 2]>,
-    /// How many times its size the widget and what it holds are drawn,
-    /// about its middle, as CSS's `scale`: a count's pop. The layout and what
-    /// sits beside it never move.
-    pub scale: Option<f32>,
+    /// How many times its width and its height the widget and what it holds
+    /// are drawn, `[x, y]` about its middle, as CSS's `scale: x y`: a count's
+    /// pop. The layout and what sits beside it never move.
+    pub scale: Option<[f32; 2]>,
 }
 
 /// One of `shadows = [{ y = 2, blur = 8, spread = 0, color = "#00000040" }]`,
@@ -750,11 +750,8 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         letter_spacing: number(k::LETTER_SPACING),
         text_transform: case_of(body, what),
         transition: number(k::TRANSITION).filter(|seconds| *seconds > 0.0),
-        offset: body.get(k::OFFSET).map(|value| {
-            let [x, y, ..] = four_of(Some(value));
-            [x, y]
-        }),
-        scale: number(k::SCALE).filter(|factor| *factor > 0.0),
+        offset: body.get(k::OFFSET).map(pair_of),
+        scale: body.get(k::SCALE).map(pair_of),
     }
 }
 
@@ -938,6 +935,12 @@ pub(crate) fn four_of(value: Option<&toml::Value>) -> [f32; 4] {
         }
     }
     out
+}
+
+/// `[x, y]` of a list, 0 for a number it lacks.
+fn pair_of(value: &toml::Value) -> [f32; 2] {
+    let [x, y, ..] = four_of(Some(value));
+    [x, y]
 }
 
 pub(crate) const ASSET_TYPE: &str = "widget_theme";

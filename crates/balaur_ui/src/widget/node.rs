@@ -269,9 +269,10 @@ pub struct WidgetFields {
     pub inset: [f32; 4],
     /// Drawn this far from its place, `[x, y]`, added to its role's `offset`.
     pub offset: [f32; 2],
-    /// Drawn this many times its size about its middle, times its role's
-    /// `scale`; 0 draws nothing.
-    pub scale: f32,
+    /// Drawn this many times its width and its height, `[x, y]`, about its
+    /// middle, times its role's `scale` axis by axis; an axis of 0 draws
+    /// nothing.
+    pub scale: [f32; 2],
     /// The nine-patch borders of an `image`, in the picture's own pixels.
     pub slice: [f32; 4],
     /// How far a finger drags a `scroll` before it scrolls, in design pixels.
