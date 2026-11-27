@@ -54,12 +54,14 @@ fn backend(eng: &Engine) -> &'static str {
 
 fn place(eng: &Engine, key: &str) -> Result<Place> {
     anyhow::ensure!(!key.is_empty(), "a secret's key is not empty");
-    let game = eng
+    let service = eng
         .try_resource::<balaur_core::project::ProjectManifest>()
-        .map(|m| m.borrow().name.clone())
-        .unwrap_or_default();
+        .map_or_else(
+            || "balaur.".to_string(),
+            |m| format!("balaur.{}", m.borrow().name),
+        );
     Ok(Place {
-        service: format!("balaur.{game}"),
+        service,
         key: key.to_string(),
     })
 }

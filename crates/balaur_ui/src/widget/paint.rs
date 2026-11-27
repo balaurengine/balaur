@@ -424,13 +424,18 @@ impl Brush {
         }
         // Read before the paint list is held: each takes the context's lock,
         // as `graphics_mut` does.
+        #[allow(
+            clippy::redundant_closure_for_method_calls,
+            reason = "the method by name is not general over the view's lifetime"
+        )]
+        let atlas = ctx.fonts(|fonts| fonts.font_image_size());
         let mut stretch = Stretch {
             about,
             factor,
             tessellator: egui::epaint::Tessellator::new(
                 ctx.pixels_per_point(),
                 ctx.tessellation_options(|options| *options),
-                ctx.fonts(|fonts| fonts.font_image_size()),
+                atlas,
                 Vec::new(),
             ),
         };

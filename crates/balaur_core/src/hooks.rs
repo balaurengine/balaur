@@ -147,6 +147,7 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (ON_PAUSED_CHANGED, "(paused)", "The game paused or resumed, told to every script, a paused one too."),
     (ON_FOCUSED_CHANGED, "(focused)", "The window came to the front or left it, told to every script."),
     (ON_DARK_MODE_CHANGED, "(dark)", "The system switched dark mode, told to every script."),
+    (ON_PREFERS_REDUCED_MOTION_CHANGED, "(reduced)", "The player turned the system's reduce-motion setting on or off, told to every script."),
     (ON_QUIT_REQUESTED, "()", "The window was asked to close; every script hears it, then the app goes."),
     (ON_SUSPENDED_CHANGED, "(suspended)", "The game went to the background or came back: a hidden tab, a minimised or covered window, an app sent back; told to every script."),
     (ON_LOW_MEMORY, "()", "The system is short of memory, on iOS and Android; told to every script."),

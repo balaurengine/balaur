@@ -996,7 +996,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn, one table per kind. `[colors]`, `[sizes]` and `[fonts]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them\nbackground = \"#151f2a\"           # dark or light follows from it; `dark = true` overrides\nforeground = \"#e6e9ee\"\nprimary = \"#4287cc\"              # also secondary, success, warning, danger\ncontrast = 0.05                  # how far apart the surfaces step\nrow_selected = \"#2f6fb0\"         # a picked row of a `list`, `tree` or `table`\nrow_selected_text = \"#ffffff\"    # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_active` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\ntable_header = \"#ffffff08\"       # a table's header plate\ntable_rule = \"#00000000\"         # the lines down its columns, hidden here\ntree_guide = \"#8a8a8a8c\"         # the lines down a tree's indent\n\n[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive\nfont_size = 16                   # font_size_small, font_size_large and font_size_title follow\nradius = 6                       # radius_small and radius_large follow\n\n[fonts]                          # fonts by name; `default` is every text naming none, `icon` the glyphs\ndefault = \"fonts/Inter-Regular.ttf\"  # a widget draws beside its caption, `heading` and `mono` egui's own\nheading = \"fonts/Inter-Semibold.ttf\"\n\n[icons]                          # what the icon font's glyphs mean\nmirrored = [\"chevron-left\", \"chevron-right\", \"arrow-left\", \"arrow-right\"]  # turned round in a UI\n                                 # mirrored for a language written right to left; the rest keep their way\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"primary_fill\"\nstroke = \"border_default\"\nstroke_width = 1.0\ncorner_radius = \"radius_large\"   # a number, a size's name, or \"full\" for a pill\npadding = 8.0                    # or per side, [left, top, right, bottom]\ngap = 4.0\nfont_size = \"font_size_large\"\ntext_color = \"text_on_primary\"\nicon_color = \"text_on_primary\"\nfont = \"heading\"                 # a name [fonts] gives a font, or a font itself\nfont_weight = 700\ntext_align = \"center\"            # start, center or end\ncursor = \"hand\"                  # the pointer over it, a cursor word; a node's own wins\ntransition = 0.2                 # seconds every state eases over, as CSS's transition; here, never in a state table\n\n[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with\n                                 # keyboard focus, [button.disabled] while off, [button.checked] while on\nfill = \"primary_fill_hover\"\n\n[button.active]\noffset = [0, 0.5]                # drawn this far from its place, as CSS's translate; the layout stays\n\n[button.focus]                   # with the pointer's table over it when both apply, as on the web\noutline = \"primary\"              # the ring outside the edge, as CSS's outline; the edge stays\noutline_width = 2                # its width, and outline_offset its gap from the edge, 2 and 2 unset\n\n[spinner]                        # three quarters of a ring, turning, in the text's colour\nheight = 24                      # its side; a widget's own height wins\nduration = 0.75                  # seconds a turn takes; stroke_width is the ring's, an eighth of the side unset\n                                 # a `loading` button's spinner is this table's too\n\n[switch]\nheight = 18                      # the track; width is 1.75 of it unset\n\n[roles.tab]\nflex_direction = \"column\"        # the caption under the icon, as a tab bar's; `row` unset\nicon_size = 24                   # the icon apart from the caption's size; a widget's own wins\n\n[roles.bar]\nstroke = \"border_default\"\nborder = [0, 1, 0, 0]            # the sides the edge is drawn on, left, top, right, bottom: here the top alone\n\n[list]\nrow_height = \"control_height\"    # a row's pitch, a tree's and a table's too; a widget's own wins\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"bg_control\"\nstroke = \"border_default\"\ncorner_radius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[fold]                           # the header; [fold.checked] while open\narrow = \"art/folded.png\"         # the header's arrow picture; the \u25b8 and \u25be glyphs where none\n\n[fold.body]                      # the frame around what an open fold shows\nfill = \"bg_panel\"\npadding = 8.0\n\n[dialog]\nbackdrop = \"#0000004c\"           # what it dims the screen with, a sheet's too, as the web's ::backdrop\n\n[menu.body]                      # the frame round what a menu opens, its shadows too: a dropdown, a sheet,\n                                 # a context menu; egui's popup where none, and on a submenu\nfill = \"bg_panel\"\npadding = 8.0\n\n[menu.narrow.body]               # a phone's, whole in its place: the sheet `[narrow] placement = \"sheet\"` opens\nfill = \"bg_panel\"                # its foot square on the screen's\npadding = 12.0\n\n[roles.card]                     # any table may carry a gradient and a shadow\ngradient = { kind = \"linear\", stops = [\"primary_fill\", \"bg_panel\"], angle = 90 }  # in place of fill; 0 runs left to right\n# kind = \"radial\" with center = [0.5, 0.5] and radius = 0.5 runs out from the middle; at = [0, 0.3, 1] places three stops\nshadows = [                      # blurred boxes under it, the first on top; [] for none\n  { y = 2, blur = 8, spread = 0, color = \"#00000040\" },              # x too; a negative spread is smaller\n  { inset = true, y = 0.5, spread = 0.5, color = \"#ffffff0f\" },      # inset: inside the edge, over the fill\n]\n\n[roles.eyebrow]                  # a small heading over a section\nletter_spacing = 2.4             # extra space between glyphs, design pixels, as CSS's letter-spacing\ntext_transform = \"uppercase\"     # uppercase, lowercase, capitalize or none, as CSS's text-transform\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"danger_fill\"\ntext_color = \"text_on_danger\"\n```"
+      "doc": "How each widget kind is drawn, one table per kind. `[colors]`, `[sizes]` and `[fonts]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them\nbackground = \"#151f2a\"           # dark or light follows from it; `dark = true` overrides\nforeground = \"#e6e9ee\"\nprimary = \"#4287cc\"              # also secondary, success, warning, danger\ncontrast = 0.05                  # how far apart the surfaces step\nrow_selected = \"#2f6fb0\"         # a picked row of a `list`, `tree` or `table`\nrow_selected_text = \"#ffffff\"    # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_active` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\ntable_header = \"#ffffff08\"       # a table's header plate\ntable_rule = \"#00000000\"         # the lines down its columns, hidden here\ntree_guide = \"#8a8a8a8c\"         # the lines down a tree's indent\n\n[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive\nfont_size = 16                   # font_size_small, font_size_large and font_size_title follow\nradius = 6                       # radius_small and radius_large follow\n\n[fonts]                          # fonts by name; `default` is every text naming none, `icon` the glyphs\ndefault = \"fonts/Inter-Regular.ttf\"  # a widget draws beside its caption, `heading` and `mono` egui's own\nheading = \"fonts/Inter-Semibold.ttf\"\n\n[icons]                          # what the icon font's glyphs mean\nmirrored = [\"chevron-left\", \"chevron-right\", \"arrow-left\", \"arrow-right\"]  # turned round in a UI\n                                 # mirrored for a language written right to left; the rest keep their way\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"primary_fill\"\nstroke = \"border_default\"\nstroke_width = 1.0\ncorner_radius = \"radius_large\"   # a number, a size's name, or \"full\" for a pill\npadding = 8.0                    # or per side, [left, top, right, bottom]\ngap = 4.0\nfont_size = \"font_size_large\"\ntext_color = \"text_on_primary\"\nicon_color = \"text_on_primary\"\nfont = \"heading\"                 # a name [fonts] gives a font, or a font itself\nfont_weight = 700\ntext_align = \"center\"            # start, center or end\ncursor = \"hand\"                  # the pointer over it, a cursor word; a node's own wins\ntransition = 0.2                 # seconds every state eases over, as CSS's transition; here, never in a state table\n\n[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with\n                                 # keyboard focus, [button.disabled] while off, [button.checked] while on\nfill = \"primary_fill_hover\"\n\n[button.active]\noffset = [0, 0.5]                # drawn this far from its place, as CSS's translate; the layout stays\nscale = [0.98, 0.98]             # drawn this many times its width and height about its middle, as CSS's scale\n\n[button.focus]                   # with the pointer's table over it when both apply, as on the web\noutline = \"primary\"              # the ring outside the edge, as CSS's outline; the edge stays\noutline_width = 2                # its width, and outline_offset its gap from the edge, 2 and 2 unset\n\n[spinner]                        # three quarters of a ring, turning, in the text's colour\nheight = 24                      # its side; a widget's own height wins\nduration = 0.75                  # seconds a turn takes; stroke_width is the ring's, an eighth of the side unset\n                                 # a `loading` button's spinner is this table's too\n\n[switch]\nheight = 18                      # the track; width is 1.75 of it unset\n\n[roles.tab]\nflex_direction = \"column\"        # the caption under the icon, as a tab bar's; `row` unset\nicon_size = 24                   # the icon apart from the caption's size; a widget's own wins\n\n[roles.bar]\nstroke = \"border_default\"\nborder = [0, 1, 0, 0]            # the sides the edge is drawn on, left, top, right, bottom: here the top alone\n\n[list]\nrow_height = \"control_height\"    # a row's pitch, a tree's and a table's too; a widget's own wins\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"bg_control\"\nstroke = \"border_default\"\ncorner_radius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[fold]                           # the header; [fold.checked] while open\narrow = \"art/folded.png\"         # the header's arrow picture; the \u25b8 and \u25be glyphs where none\n\n[fold.body]                      # the frame around what an open fold shows\nfill = \"bg_panel\"\npadding = 8.0\n\n[dialog]\nbackdrop = \"#0000004c\"           # what it dims the screen with, a sheet's too, as the web's ::backdrop\n\n[menu.body]                      # the frame round what a menu opens, its shadows too: a dropdown, a sheet,\n                                 # a context menu; egui's popup where none, and on a submenu\nfill = \"bg_panel\"\npadding = 8.0\n\n[menu.narrow.body]               # a phone's, whole in its place: the sheet `[narrow] placement = \"sheet\"` opens\nfill = \"bg_panel\"                # its foot square on the screen's\npadding = 12.0\n\n[roles.card]                     # any table may carry a gradient and a shadow\ngradient = { kind = \"linear\", stops = [\"primary_fill\", \"bg_panel\"], angle = 90 }  # in place of fill; 0 runs left to right\n# kind = \"radial\" with center = [0.5, 0.5] and radius = 0.5 runs out from the middle; at = [0, 0.3, 1] places three stops\nshadows = [                      # blurred boxes under it, the first on top; [] for none\n  { y = 2, blur = 8, spread = 0, color = \"#00000040\" },              # x too; a negative spread is smaller\n  { inset = true, y = 0.5, spread = 0.5, color = \"#ffffff0f\" },      # inset: inside the edge, over the fill\n]\n\n[roles.eyebrow]                  # a small heading over a section\nletter_spacing = 2.4             # extra space between glyphs, design pixels, as CSS's letter-spacing\ntext_transform = \"uppercase\"     # uppercase, lowercase, capitalize or none, as CSS's text-transform\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"danger_fill\"\ntext_color = \"text_on_danger\"\n```"
     }
   },
   "bs": {
@@ -1097,6 +1097,7 @@
       "device::EVENT_CANCELLED": "cancelled",
       "device::EVENT_DONE": "done",
       "device::EVENT_ERROR": "error",
+      "device::EVENT_PICKED": "picked",
       "device::EVENT_SHARED": "shared",
       "device::EVENT_UNSUPPORTED": "unsupported",
       "device::HAPTIC_ERROR": "error",
@@ -1115,6 +1116,9 @@
       "http::EVENT_PROGRESS": "progress",
       "http::EVENT_RESPONSE": "response",
       "http::EVENT_UPLOAD": "upload",
+      "image::FORMAT_JPEG": "jpeg",
+      "image::FORMAT_PNG": "png",
+      "image::FORMAT_WEBP": "webp",
       "input::GAMEPAD_AXIS_LEFT_TRIGGER": "left_trigger",
       "input::GAMEPAD_AXIS_LEFT_X": "left_x",
       "input::GAMEPAD_AXIS_LEFT_Y": "left_y",
@@ -1581,6 +1585,7 @@
       "platform::SERVICE_HAPTICS": "haptics",
       "platform::SERVICE_ICLOUD": "icloud",
       "platform::SERVICE_NOTIFICATIONS": "notifications",
+      "platform::SERVICE_PHOTO_PICKER": "photo_picker",
       "platform::SERVICE_PLAY_GAMES": "play_games",
       "platform::SERVICE_PURCHASES": "purchases",
       "platform::SERVICE_PUSH": "push",
@@ -1633,6 +1638,12 @@
       "replay::STATE_PLAYING": "playing",
       "replay::STATE_SEEKING": "seeking",
       "replay::STATE_STOPPED": "stopped",
+      "secrets::BACKEND_CREDENTIAL_MANAGER": "credential_manager",
+      "secrets::BACKEND_FILE": "file",
+      "secrets::BACKEND_KEYCHAIN": "keychain",
+      "secrets::BACKEND_KEYSTORE": "keystore",
+      "secrets::BACKEND_LOCAL_STORAGE": "local_storage",
+      "secrets::BACKEND_SECRET_SERVICE": "secret_service",
       "steam::AudioPlayback_Idle": 3,
       "steam::AudioPlayback_Paused": 2,
       "steam::AudioPlayback_Playing": 1,
@@ -4389,6 +4400,10 @@
         "least": 1,
         "signature": "(str)"
       },
+      "device::pick_photo": {
+        "least": 0,
+        "signature": "() -> int"
+      },
       "device::request_review": {
         "least": 0,
         "signature": "() -> int"
@@ -4444,6 +4459,10 @@
       "engine::plugins": {
         "least": 0,
         "signature": "() -> [str]"
+      },
+      "engine::prefers_reduced_motion": {
+        "least": 0,
+        "signature": "() -> bool"
       },
       "engine::quit": {
         "least": 0,
@@ -4685,9 +4704,21 @@
         "least": 1,
         "signature": "(int) -> bool"
       },
+      "http::in_flight": {
+        "least": 0,
+        "signature": "() -> int"
+      },
       "http::request": {
         "least": 1,
         "signature": "(str, http::RequestOptions?) -> int"
+      },
+      "image::encode": {
+        "least": 1,
+        "signature": "([int], image::EncodeOptions?) -> [int]?"
+      },
+      "image::encode_async": {
+        "least": 1,
+        "signature": "([int], image::EncodeOptions?) -> int"
       },
       "import::cancel": {
         "least": 0,
@@ -7160,6 +7191,22 @@
       "script::symbols": {
         "least": 2,
         "signature": "(str, str) -> [script::Symbol]"
+      },
+      "secrets::backend": {
+        "least": 0,
+        "signature": "() -> str"
+      },
+      "secrets::get": {
+        "least": 1,
+        "signature": "(str) -> str?"
+      },
+      "secrets::remove": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
+      "secrets::set": {
+        "least": 2,
+        "signature": "(str, str) -> bool"
       },
       "settings::all": {
         "least": 0,
@@ -10685,6 +10732,10 @@
         "least": 2,
         "signature": "(Node?, str, websocket::ConnectOptions?) -> int"
       },
+      "websocket::in_flight": {
+        "least": 0,
+        "signature": "() -> int"
+      },
       "websocket::send_bytes": {
         "least": 2,
         "signature": "(int, [int]) -> bool"
@@ -10946,10 +10997,16 @@
       },
       "http::RequestOptions": {
         "body": "str?",
+        "body_bytes": "[int]?",
         "headers": "[http::Header]?",
         "method": "str?",
         "save_to": "str?",
         "timeout_seconds": "float?"
+      },
+      "image::EncodeOptions": {
+        "format": "str?",
+        "max_side_pixels": "int?",
+        "quality": "float?"
       },
       "import::Imported": {
         "error": "str?",
@@ -13966,7 +14023,7 @@
         "prefix": "str?",
         "role": "str?",
         "row_height": "float?",
-        "scale": "float?",
+        "scale": "Vec2?",
         "secret": "bool?",
         "state": "str?",
         "step": "float?",
@@ -25625,11 +25682,14 @@
         "type": "flags"
       },
       "scale": {
-        "default": 1.0,
-        "description": "How many times its size the widget and what it holds are drawn, about its middle, as CSS's `scale`: the layout and what sits beside it stay. Times its role's own, in whatever state it is in; a tween pops a count with it, and 0 draws nothing",
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "How many times its width and its height the widget and what it holds are drawn, `[x, y]` about its middle, as CSS's `scale: x y`: the layout and what sits beside it stay. Times its role's own, axis by axis, in whatever state it is in; a tween pops a count with it, and `[0, 1]` draws nothing wide, a card turned to its edge",
         "group": "placement",
         "min": 0.0,
-        "type": "float"
+        "type": "vec2"
       },
       "shrink": {
         "default": -1.0,
@@ -28049,6 +28109,10 @@
           "value": "\"error\""
         },
         {
+          "name": "EVENT_PICKED",
+          "value": "\"picked\""
+        },
+        {
           "name": "EVENT_SHARED",
           "value": "\"shared\""
         },
@@ -28085,9 +28149,10 @@
           "value": "\"warning\""
         }
       ],
-      "doc": "What a phone lends a game beyond the store: its motor, the share sheet and the store's review prompt. A call that answers does so through `task::wait` with a map whose `kind` is `shared`, `done`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. `platform::is_available` says which of them work here. A test answers `share` and `request_review` from the file `BALAUR_STAND_INS` names.",
+      "doc": "What a phone lends a game beyond the store: its motor, the share sheet, the photo picker and the store's review prompt. A call that answers does so through `task::wait` with a map whose `kind` is `shared`, `picked`, `done`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. `platform::is_available` says which of them work here. A test answers `share`, `pick_photo` and `request_review` from the file `BALAUR_STAND_INS` names.",
       "docs": {
         "haptic": "One tap of feedback, named by a `HAPTIC_*` constant: iOS's feedback generators, Android's predefined effects, a short buzz on a page. Nothing on a desktop, and never recorded.",
+        "pick_photo": "Show the OS's picker of one picture over the game, and return the id its answer carries: `picked` with the file's `bytes` (`[int]`) and its media `type` (`image/jpeg`, `image/png`), `cancelled` when shut with none, `error`, or `unsupported` where there is no picker. iOS's photo picker answers a JPEG; Android's photo picker, a Mac's, Windows' or Linux's file dialog (PNG, JPEG, WebP, GIF, BMP) and a page's file input the file as it is. `image::encode_async` makes it small enough to upload.",
         "request_review": "Ask the store to show its prompt to rate the game, and return the id its `done` answer carries. The store decides whether it shows, and says nothing about what the player did. On Android it is Play's review flow, in a build whose `[android] capabilities` has `in-app-review`; `unsupported` anywhere else.",
         "share": "Show the OS's share sheet over the game, and return the id its answer carries: `shared` with the `target` the player picked where the OS names it, `cancelled`, `error`, or `unsupported` where there is no sheet.",
         "vibrate": "Buzz the device's motor for that many seconds: Android's vibrator, a page's `navigator.vibrate`, the iPhone's one system buzz whatever the length. Nothing on a desktop, and never recorded, like rumble."
@@ -28095,6 +28160,7 @@
       "editor": [],
       "functions": [
         "haptic",
+        "pick_photo",
         "request_review",
         "share",
         "vibrate"
@@ -28103,6 +28169,7 @@
       "name": "device",
       "signatures": {
         "haptic": "(str)",
+        "pick_photo": "() -> int",
         "request_review": "() -> int",
         "share": "(device::ShareOptions) -> int",
         "vibrate": "(float)"
@@ -28149,6 +28216,7 @@
         "paused": "Whether the game is paused.",
         "plugin_version": "The version of one loaded plugin, or nil when it did not load: how a game shipped without `http` says so rather than call into a module that is not there.",
         "plugins": "Every plugin this build loaded, named, in load order.",
+        "prefers_reduced_motion": "Whether the player asked the system to reduce motion this tick, as CSS's `prefers-reduced-motion: reduce`: macOS's and iOS's Reduce Motion, Android's Remove animations, Windows' Show animations off, GNOME's animations off, a browser's media query. Every script's `on_prefers_reduced_motion_changed(bool)` is called when it changes. False where nothing says; a test names it in the file `BALAUR_STAND_INS` names, `\"engine.prefers_reduced_motion\": \"reduce\"` or `\"no-preference\"`.",
         "quit": "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out.",
         "reload_scripts": "Recompile scripts by their project-relative keys in one build, however many there are, for a tool editing files outside the watched root; answers what kept them from compiling, empty when they did.",
         "reveal": "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`.",
@@ -28182,6 +28250,7 @@
         "paused",
         "plugin_version",
         "plugins",
+        "prefers_reduced_motion",
         "quit",
         "reload_scripts",
         "reveal",
@@ -28216,6 +28285,7 @@
         "paused": "() -> bool",
         "plugin_version": "(str) -> str?",
         "plugins": "() -> [str]",
+        "prefers_reduced_motion": "() -> bool",
         "quit": "(int?)",
         "reload_scripts": "([str]) -> str",
         "reveal": "(str)",
@@ -28546,21 +28616,58 @@
           "value": "\"upload\""
         }
       ],
-      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
+      "doc": "HTTP requests off the frame: `method`, `headers`, `body` or `body_bytes`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
       "docs": {
         "cancel": "Stop waiting on a request: its reply is dropped, a download stops writing, and any await hears `kind` `cancelled` next frame. False when it had already finished.",
+        "in_flight": "How many requests started here have an answer, `cancelled` included, still to be delivered; 0 means every one has woken its waiter, so a test's end waits with `while http::in_flight() > 0 { await task::frames(1); }`.",
         "request": "Start an HTTP request and return the id `task::wait` answers its reply on. With `save_to` the body is written under the user directory and the reply says where in `path`."
       },
       "editor": [],
       "functions": [
         "cancel",
+        "in_flight",
         "request"
       ],
       "methods": {},
       "name": "http",
       "signatures": {
         "cancel": "(int) -> bool",
+        "in_flight": "() -> int",
         "request": "(str, http::RequestOptions?) -> int"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [
+        {
+          "name": "FORMAT_JPEG",
+          "value": "\"jpeg\""
+        },
+        {
+          "name": "FORMAT_PNG",
+          "value": "\"png\""
+        },
+        {
+          "name": "FORMAT_WEBP",
+          "value": "\"webp\""
+        }
+      ],
+      "doc": "A picture's bytes, PNG, JPEG, WebP, GIF or BMP, decoded, turned upright as its EXIF orientation says, fitted inside `max_side_pixels` and written again: what a photo from `device::pick_photo` goes through before an upload. `encode_async` does the work off the frame.",
+      "docs": {
+        "encode": "The picture `bytes` hold, written as `opts` asks, or nil where they are no picture this reads. A photo takes tens of milliseconds: call `encode_async` from a frame that has to stay smooth.",
+        "encode_async": "`encode` on a worker: the id `task::wait` answers the bytes on, or nil, once it is done."
+      },
+      "editor": [],
+      "functions": [
+        "encode",
+        "encode_async"
+      ],
+      "methods": {},
+      "name": "image",
+      "signatures": {
+        "encode": "([int], image::EncodeOptions?) -> [int]?",
+        "encode_async": "([int], image::EncodeOptions?) -> int"
       }
     },
     {
@@ -29404,10 +29511,10 @@
         "set_action_value": "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one.",
         "set_gamepad": "Report a pad as if a backend had, from next frame. A pad fed anything connects; `connected: false` unplugs it.",
         "set_key_down": "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite call.",
-        "set_mouse_down": "Press or release a `MOUSE_BUTTON_*` button as if the window had reported it, from next frame.",
-        "set_mouse_position": "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame.",
-        "set_scroll_delta": "Turn the wheel as if the window had reported it, from next frame; adds to that frame's `scroll_delta`.",
-        "set_touch": "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`.",
+        "set_mouse_down": "Press or release a `MOUSE_BUTTON_*` button as if the window had reported it, from next frame; the widget under the cursor answers it in that frame's UI pass.",
+        "set_mouse_position": "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame, and widgets answer it in that frame's UI pass.",
+        "set_scroll_delta": "Turn the wheel as if the window had reported it, from next frame; adds to that frame's `scroll_delta`, and a `scroll` under the cursor moves in that frame's UI pass.",
+        "set_touch": "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`. Widgets answer it in the next frame's UI pass as they do a real finger: the first one down drives the pointer, so it presses, drags and long-presses.",
         "swipe": "A finger that travelled far enough before it lifted. Reported on the frame it lifted and never again; nil otherwise.",
         "touches": "Every finger on the screen, oldest first, in the same pixels as `mouse_position`.",
         "touches_just_ended": "The ids of the fingers that lifted or were cancelled this frame.",
@@ -33509,6 +33616,10 @@
           "value": "\"notifications\""
         },
         {
+          "name": "SERVICE_PHOTO_PICKER",
+          "value": "\"photo_picker\""
+        },
+        {
           "name": "SERVICE_PLAY_GAMES",
           "value": "\"play_games\""
         },
@@ -34457,6 +34568,58 @@
         "replace": "(str, str, str, str) -> [script::Edit]",
         "signature": "(str, str, int, int) -> script::Signature?",
         "symbols": "(str, str) -> [script::Symbol]"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [
+        {
+          "name": "BACKEND_CREDENTIAL_MANAGER",
+          "value": "\"credential_manager\""
+        },
+        {
+          "name": "BACKEND_FILE",
+          "value": "\"file\""
+        },
+        {
+          "name": "BACKEND_KEYCHAIN",
+          "value": "\"keychain\""
+        },
+        {
+          "name": "BACKEND_KEYSTORE",
+          "value": "\"keystore\""
+        },
+        {
+          "name": "BACKEND_LOCAL_STORAGE",
+          "value": "\"local_storage\""
+        },
+        {
+          "name": "BACKEND_SECRET_SERVICE",
+          "value": "\"secret_service\""
+        }
+      ],
+      "doc": "A small secret kept by the OS, by key: a session's refresh token. Apple's Keychain, an Android Keystore key sealing each value, the Windows Credential Manager, the Secret Service on Linux (`secret-tool`), else a file under the user directory only this user may read. A page keeps it in `localStorage`, which any script on the page can read: not secure. Read and written in the call, and never recorded. A test keeps them in that file with `\"secrets.backend\": \"file\"` in the file `BALAUR_STAND_INS` names.",
+      "docs": {
+        "backend": "Where this run keeps its secrets, a `BACKEND_*` constant.",
+        "get": "What `key` holds, or nil where it holds nothing or the store cannot be read.",
+        "remove": "Forget what `key` holds. False where it held nothing.",
+        "set": "Keep `value` under `key`, over what it held. False where the store refused, with the reason logged."
+      },
+      "editor": [],
+      "functions": [
+        "backend",
+        "get",
+        "remove",
+        "set"
+      ],
+      "methods": {},
+      "name": "secrets",
+      "signatures": {
+        "backend": "() -> str",
+        "get": "(str) -> str?",
+        "remove": "(str) -> bool",
+        "set": "(str, str) -> bool"
       }
     },
     {
@@ -47793,6 +47956,7 @@
       "docs": {
         "close": "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone.",
         "connect": "Open a connection and return the id `send_text`, `send_bytes` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`. With no node, only a `task.wait` hears it.",
+        "in_flight": "How many sockets `connect` asked for still have their `open` or `error` to deliver; 0 means every one has woken its waiter, so a test's end waits with `while websocket::in_flight() > 0 { await task::frames(1); }`.",
         "send_bytes": "Queue a binary frame on the connection; false when it is already gone.",
         "send_text": "Queue a text frame on the connection; false when it is already gone.",
         "state": "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."
@@ -47801,6 +47965,7 @@
       "functions": [
         "close",
         "connect",
+        "in_flight",
         "send_bytes",
         "send_text",
         "state"
@@ -47810,6 +47975,7 @@
       "signatures": {
         "close": "(int) -> bool",
         "connect": "(Node?, str, websocket::ConnectOptions?) -> int",
+        "in_flight": "() -> int",
         "send_bytes": "(int, [int]) -> bool",
         "send_text": "(int, str) -> bool",
         "state": "(int) -> str"

@@ -18,9 +18,9 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`browser`](#browser) | 6 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
-| [`device`](#device) | 4 | 12 |
+| [`device`](#device) | 5 | 13 |
 | [`encoding`](#encoding) | 3 | 0 |
-| [`engine`](#engine) | 30 | 0 |
+| [`engine`](#engine) | 31 | 0 |
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
@@ -29,7 +29,8 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`geometry3d`](#geometry3d) | 7 | 0 |
 | [`google`](#google) | 1 | 4 |
 | [`hash`](#hash) | 2 | 0 |
-| [`http`](#http) | 2 | 5 |
+| [`http`](#http) | 3 | 5 |
+| [`image`](#image) | 2 | 3 |
 | [`import`](#import) | 6 | 0 |
 | [`input`](#input) | 51 | 188 |
 | [`json`](#json) | 3 | 0 |
@@ -43,7 +44,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`physics2d`](#physics2d) | 13 | 106 |
 | [`physics3d`](#physics3d) | 13 | 113 |
 | [`picture`](#picture) | 1 | 0 |
-| [`platform`](#platform) | 24 | 45 |
+| [`platform`](#platform) | 24 | 46 |
 | [`project`](#project) | 15 | 0 |
 | [`quat`](#quat) | 8 | 0 |
 | [`random`](#random) | 6 | 0 |
@@ -54,6 +55,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`rollback`](#rollback) | 2 | 0 |
 | [`scene`](#scene) | 26 | 0 |
 | [`script`](#script) | 13 | 0 |
+| [`secrets`](#secrets) | 4 | 6 |
 | [`settings`](#settings) | 10 | 0 |
 | [`skeleton`](#skeleton) | 1 | 0 |
 | [`steam`](#steam) | 3 | 2440 |
@@ -62,7 +64,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
 | [`ui`](#ui) | 38 | 65 |
-| [`websocket`](#websocket) | 5 | 9 |
+| [`websocket`](#websocket) | 6 | 9 |
 | [`window`](#window) | 7 | 0 |
 
 ## `animation`
@@ -242,22 +244,24 @@ The projects a game imports whole under `deps/<alias>/`, declared in `[dependenc
 
 ## `device`
 
-What a phone lends a game beyond the store: its motor, the share sheet and the store's review prompt. A call that answers does so through `task::wait` with a map whose `kind` is `shared`, `done`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. `platform::is_available` says which of them work here. A test answers `share` and `request_review` from the file `BALAUR_STAND_INS` names.
+What a phone lends a game beyond the store: its motor, the share sheet, the photo picker and the store's review prompt. A call that answers does so through `task::wait` with a map whose `kind` is `shared`, `picked`, `done`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. `platform::is_available` says which of them work here. A test answers `share`, `pick_photo` and `request_review` from the file `BALAUR_STAND_INS` names.
 
 | Function | Signature |
 | --- | --- |
 | `haptic` | `(str)` |
+| `pick_photo` | `() -> int` |
 | `request_review` | `() -> int` |
 | `share` | `(device::ShareOptions) -> int` |
 | `vibrate` | `(float)` |
 
-**Constants** (12):
+**Constants** (13):
 
 | Name | Value |
 | --- | --- |
 | `EVENT_CANCELLED` | `"cancelled"` |
 | `EVENT_DONE` | `"done"` |
 | `EVENT_ERROR` | `"error"` |
+| `EVENT_PICKED` | `"picked"` |
 | `EVENT_SHARED` | `"shared"` |
 | `EVENT_UNSUPPORTED` | `"unsupported"` |
 | `HAPTIC_ERROR` | `"error"` |
@@ -295,6 +299,7 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | `paused` | `() -> bool` |
 | `plugin_version` | `(str) -> str?` |
 | `plugins` | `() -> [str]` |
+| `prefers_reduced_motion` | `() -> bool` |
 | `quit` | `(int?)` |
 | `reload_scripts` | `([str]) -> str` |
 | `reveal` | `(str)` |
@@ -431,11 +436,12 @@ SHA-256 content hashes of files and strings.
 
 ## `http`
 
-HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.
+HTTP requests off the frame: `method`, `headers`, `body` or `body_bytes`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.
 
 | Function | Signature |
 | --- | --- |
 | `cancel` | `(int) -> bool` |
+| `in_flight` | `() -> int` |
 | `request` | `(str, http::RequestOptions?) -> int` |
 
 **Constants** (5):
@@ -447,6 +453,23 @@ HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and 
 | `EVENT_PROGRESS` | `"progress"` |
 | `EVENT_RESPONSE` | `"response"` |
 | `EVENT_UPLOAD` | `"upload"` |
+
+## `image`
+
+A picture's bytes, PNG, JPEG, WebP, GIF or BMP, decoded, turned upright as its EXIF orientation says, fitted inside `max_side_pixels` and written again: what a photo from `device::pick_photo` goes through before an upload. `encode_async` does the work off the frame.
+
+| Function | Signature |
+| --- | --- |
+| `encode` | `([int], image::EncodeOptions?) -> [int]?` |
+| `encode_async` | `([int], image::EncodeOptions?) -> int` |
+
+**Constants** (3):
+
+| Name | Value |
+| --- | --- |
+| `FORMAT_JPEG` | `"jpeg"` |
+| `FORMAT_PNG` | `"png"` |
+| `FORMAT_WEBP` | `"webp"` |
 
 ## `import`
 
@@ -897,7 +920,7 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `web_sign_in` | `(str, platform::WebSignInOptions?) -> int` |
 | `web_sign_in_state` | `() -> str` |
 
-**Constants** (45):
+**Constants** (46):
 
 | Name | Value |
 | --- | --- |
@@ -926,7 +949,7 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 | `EVENT_TRANSACTION` | `"transaction"` |
 | `EVENT_UNSUPPORTED` | `"unsupported"` |
 
-…and 21 more.
+…and 22 more.
 
 ## `project`
 
@@ -1180,6 +1203,28 @@ What a tool asks about a script file. The editor and `balaur check` have it; a g
 
 Every function here is the editor's, called only from a script of the editor, or one under a game's or an addon's `editor/` folder. A game's runtime does not have them, and `balaur check` refuses a call from any other file.
 
+## `secrets`
+
+A small secret kept by the OS, by key: a session's refresh token. Apple's Keychain, an Android Keystore key sealing each value, the Windows Credential Manager, the Secret Service on Linux (`secret-tool`), else a file under the user directory only this user may read. A page keeps it in `localStorage`, which any script on the page can read: not secure. Read and written in the call, and never recorded. A test keeps them in that file with `"secrets.backend": "file"` in the file `BALAUR_STAND_INS` names.
+
+| Function | Signature |
+| --- | --- |
+| `backend` | `() -> str` |
+| `get` | `(str) -> str?` |
+| `remove` | `(str) -> bool` |
+| `set` | `(str, str) -> bool` |
+
+**Constants** (6):
+
+| Name | Value |
+| --- | --- |
+| `BACKEND_CREDENTIAL_MANAGER` | `"credential_manager"` |
+| `BACKEND_FILE` | `"file"` |
+| `BACKEND_KEYCHAIN` | `"keychain"` |
+| `BACKEND_KEYSTORE` | `"keystore"` |
+| `BACKEND_LOCAL_STORAGE` | `"local_storage"` |
+| `BACKEND_SECRET_SERVICE` | `"secret_service"` |
+
 ## `settings`
 
 Every setting the engine, its plugins and the game declare, by path: `physics/solver_iterations` is `[physics] solver_iterations` in `project.toml`. `define` adds your own; `[override.<platform>]` tables answer per platform.
@@ -1380,6 +1425,7 @@ A long-lived socket for text or binary frames. Events reach the node's `on_webso
 | --- | --- |
 | `close` | `(int) -> bool` |
 | `connect` | `(Node?, str, websocket::ConnectOptions?) -> int` |
+| `in_flight` | `() -> int` |
 | `send_bytes` | `(int, [int]) -> bool` |
 | `send_text` | `(int, str) -> bool` |
 | `state` | `(int) -> str` |

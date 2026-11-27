@@ -38,12 +38,20 @@ pub(crate) fn reduced() -> Option<bool> {
 }
 
 #[cfg(target_os = "macos")]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the shape of the systems that cannot always ask"
+)]
 fn asked() -> Option<bool> {
     let workspace = objc2_app_kit::NSWorkspace::sharedWorkspace();
     Some(workspace.accessibilityDisplayShouldReduceMotion())
 }
 
 #[cfg(target_os = "ios")]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the shape of the systems that cannot always ask"
+)]
 fn asked() -> Option<bool> {
     #[link(name = "UIKit", kind = "framework")]
     unsafe extern "C" {

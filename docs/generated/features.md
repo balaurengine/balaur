@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,apple,google,physics2d,physics3d,bs-web,bs-jit,window` and links 290 crates.
+`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,multiplayer,browser,apple,google,physics2d,physics3d,bs-web,bs-jit,window` and links 293 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
@@ -57,7 +57,7 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 | --- | --- | --- |
 | `egui` | 0.37.0 | none |
 | `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgpu`, `wgsl` |
-| `image` | 0.25.10 | `bmp`, `exr`, `hdr`, `jpeg`, `png`, `tga`, `webp` |
+| `image` | 0.25.10 | `bmp`, `exr`, `gif`, `hdr`, `jpeg`, `png`, `tga`, `webp` |
 | `rodio` | 0.23.0 | `cpal`, `dither`, `experimental`, `flac`, `mp3`, `mp4`, `noise`, `playback`, `rand`, `rand_distr`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |
 | `rapier3d` | 0.36.1 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `fem`, `serde-serialize`, `std` |
 | `parry3d` | 0.31.1 | `alloc`, `dim3`, `downcast-rs`, `ena`, `enhanced-determinism`, `f32`, `hashbrown`, `indexmap`, `required-features`, `rstar`, `serde`, `serde-serialize`, `serde_arrays`, `slab`, `smallvec`, `spade`, `std` |

@@ -349,7 +349,9 @@ pub fn painted(out: &egui::FullOutput, color: egui::Color32) -> Vec<egui::Rect> 
                 }
             }
             egui::epaint::Shape::Vec(inner) => {
-                inner.iter().for_each(|one| walk(one, color, into));
+                for one in inner {
+                    walk(one, color, into);
+                }
             }
             _ => {}
         }

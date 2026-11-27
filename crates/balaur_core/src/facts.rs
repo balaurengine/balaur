@@ -332,6 +332,10 @@ pub(crate) fn read_clock_system(eng: &Engine, _: f32) {
 /// refresh rate. Read once per frame by the backend and recorded, so a
 /// replay sees what the original did.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is one fact the platform reports, and none follows from another"
+)]
 pub struct DeviceFacts {
     pub focused: bool,
     pub dark_mode: bool,
