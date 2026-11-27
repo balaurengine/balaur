@@ -1,5 +1,6 @@
 //! What reaches a game through the application delegate and no other way:
-//! the push token, a push's payload, and a link that opened the game.
+//! the push token, a push's payload, a link that opened the game, and, on a
+//! Mac, the OS asking it to quit.
 //!
 //! winit owns the real delegate. On a Mac its event loop casts the
 //! application's delegate back to its own class on every event and aborts
@@ -184,6 +185,15 @@ fn shared_application() -> Option<&'static AnyObject> {
     }
 }
 
+/// Whether the OS asked the game to quit since the engine last looked: only
+/// a Mac asks by the delegate.
+pub(crate) fn quit_asked() -> bool {
+    #[cfg(target_os = "macos")]
+    return mac::quit_asked();
+    #[cfg(not(target_os = "macos"))]
+    false
+}
+
 /// A device token the OS handed over.
 fn heard_token(token: *mut NSData) {
     crate::push::token(hex(token));
@@ -215,6 +225,7 @@ fn heard_activity(activity: *mut AnyObject) {
 #[cfg(target_os = "macos")]
 mod mac {
     use std::ffi::CString;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     use objc2::encode::Encode;
     use objc2::runtime::{AnyClass, AnyObject, Bool, Imp, Sel};
@@ -230,6 +241,8 @@ mod mac {
     /// A delegate method taking the application and one object, or an Apple
     /// event handler taking the event and its reply.
     type Takes = unsafe extern "C-unwind" fn(*mut AnyObject, Sel, *mut AnyObject, *mut AnyObject);
+    /// `applicationShouldTerminate:`, answering an `NSApplicationTerminateReply`.
+    type Terminates = unsafe extern "C-unwind" fn(*mut AnyObject, Sel, *mut AnyObject) -> usize;
     /// `application:continueUserActivity:restorationHandler:`.
     type Continues = unsafe extern "C-unwind" fn(
         *mut AnyObject,
@@ -249,8 +262,13 @@ mod mac {
         let answers = Bool::ENCODING.to_string();
         // SAFETY: each function has the arguments and return its encoding
         // names, which are the selector's in NSApplicationDelegate.
-        let methods: [(Sel, Imp, String); 5] = unsafe {
+        let methods: [(Sel, Imp, String); 6] = unsafe {
             [
+                (
+                    sel!(applicationShouldTerminate:),
+                    std::mem::transmute::<Terminates, Imp>(should_terminate),
+                    format!("{}@:@", usize::ENCODING),
+                ),
                 (
                     sel!(application:didRegisterForRemoteNotificationsWithDeviceToken:),
                     std::mem::transmute::<Takes, Imp>(token),
@@ -303,6 +321,29 @@ mod mac {
                 andEventID: GET_URL,
             ];
         }
+    }
+
+    /// Whether the OS asked the game to quit since the engine last looked.
+    static QUIT_ASKED: AtomicBool = AtomicBool::new(false);
+
+    /// The OS asking the game to quit, once: Quit in the menu or the Dock,
+    /// Cmd+Q, a logout. The engine is asked to stop instead, and the game
+    /// ends as a closed window ends it, its window and GPU context dropped
+    /// first. AppKit's own way out exits the process from inside the event
+    /// loop, where the GPU context, a thread-local, is dropped after the
+    /// storage it reaches for is gone, and the exit aborts.
+    pub(super) fn quit_asked() -> bool {
+        QUIT_ASKED.swap(false, Ordering::Relaxed)
+    }
+
+    /// `NSTerminateCancel`: the engine's loop ends the game, not AppKit.
+    unsafe extern "C-unwind" fn should_terminate(
+        _: *mut AnyObject,
+        _: Sel,
+        _: *mut AnyObject,
+    ) -> usize {
+        QUIT_ASKED.store(true, Ordering::Relaxed);
+        0
     }
 
     unsafe extern "C-unwind" fn token(

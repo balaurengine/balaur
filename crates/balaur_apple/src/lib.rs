@@ -320,6 +320,10 @@ pub struct AppleSnapshot {
 }
 
 fn pump_apple_system(eng: &Engine, _: f32) {
+    #[cfg(target_vendor = "apple")]
+    if arrivals::quit_asked() {
+        eng.request_quit();
+    }
     let mut finished: Vec<(u64, Value)> = Vec::new();
     let mut arrivals = Vec::new();
     {
