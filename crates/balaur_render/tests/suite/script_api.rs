@@ -845,3 +845,21 @@ log::info("terrain {painted} {bare} {past} tiled {self.node.tilemap.cell(1, 1) >
         "{lines:#?}"
     );
 }
+
+#[test]
+fn a_theme_colour_is_read_by_its_name_in_the_theme_in_force() {
+    run_clean(
+        r##"
+        ui::set_theme({ "colors": { "km": "#0D74CE" } });
+        let km = ui::theme_color("km");
+        if km == nil {
+            log::error("the theme's km colour read as nil");
+        } else if math::abs(km.unwrap().b - 0.807843) > 0.01 || math::abs(km.unwrap().r - 0.05098) > 0.01 {
+            log::error("km read as another colour");
+        }
+        if ui::theme_color("a_name_no_theme_has") != nil {
+            log::error("a name the theme lacks read as a colour");
+        }
+        "##,
+    );
+}

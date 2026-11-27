@@ -11,6 +11,9 @@ pub(crate) mod words {
     pub(crate) const ROW: &str = "row";
     pub(crate) const STACK: &str = "stack";
     pub(crate) const VIEWPORT: &str = "viewport";
+    /// What a `camera2d` naming this widget as its `view` sees, drawn in the
+    /// widget's box.
+    pub(crate) const VIEW: &str = "view";
     pub(crate) const COLUMN: &str = "column";
     pub(crate) const SCROLL: &str = "scroll";
     pub(crate) const TEXT_AREA: &str = "text_area";
@@ -67,6 +70,7 @@ pub(crate) mod words {
         CODE,
         STACK,
         VIEWPORT,
+        VIEW,
     ];
 
     pub(crate) const CONTAIN: &str = "contain";

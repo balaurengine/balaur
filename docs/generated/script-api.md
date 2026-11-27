@@ -63,7 +63,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 38 | 65 |
+| [`ui`](#ui) | 39 | 66 |
 | [`websocket`](#websocket) | 6 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -1379,6 +1379,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `set_theme` | `(any)` |
 | `tab_rect` | `(Node) -> ui::Rect?` |
 | `takes_pointer_at` | `(Vec2) -> bool` |
+| `theme_color` | `(str) -> Color?` |
 | `wants_keyboard` | `() -> bool` |
 | `wants_pointer` | `() -> bool` |
 | `widget_rect` | `(Node) -> ui::Rect?` |
@@ -1386,7 +1387,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `window_size` | `() -> Vec2` |
 | `write` | `([Node], [ui::Control]) -> bool` |
 
-**Constants** (65):
+**Constants** (66):
 
 | Name | Value |
 | --- | --- |
@@ -1415,7 +1416,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `FONT_STYLE_NORMAL` | `"normal"` |
 | `FONT_STYLE_OBLIQUE` | `"oblique"` |
 
-…and 41 more.
+…and 42 more.
 
 ## `websocket`
 

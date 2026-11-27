@@ -32,6 +32,7 @@ const SET_CLIPBOARD: &str = "set_clipboard";
 const SET_FOCUS: &str = "set_focus";
 const SET_SCALE: &str = "set_scale";
 const SET_THEME: &str = "set_theme";
+const THEME_COLOR: &str = "theme_color";
 const TAB_RECT: &str = "tab_rect";
 const TAKES_POINTER_AT: &str = "takes_pointer_at";
 const WANTS_KEYBOARD: &str = "wants_keyboard";
@@ -94,6 +95,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_CODE", w::CODE),
     ("WIDGET_STACK", w::STACK),
     ("WIDGET_VIEWPORT", w::VIEWPORT),
+    ("WIDGET_VIEW", w::VIEW),
 ];
 
 /// Where a container puts its children, and where text sits in its width.
@@ -185,6 +187,12 @@ fn install_theme(m: &mut Module<Engine>) {
             "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         ),
         (
+            THEME_COLOR,
+            &[],
+            "(name: str) -> Color?",
+            "The colour the theme in force files under `name` in its `[colors]`, or a `#rrggbb` itself: for a script drawing in 2D in the theme's colours, read again when the system turns dark or light. Nil for a name the theme has no colour by.",
+        ),
+        (
             GLYPH,
             &[],
             "(name: str) -> str",
@@ -215,6 +223,17 @@ fn install_theme(m: &mut Module<Engine>) {
                 under: balaur_core::project::content_root(eng),
             });
         Ok(())
+    });
+    m.function(THEME_COLOR, |eng: &Engine, name: String| {
+        let theme = crate::widget::theme::theme_of(
+            eng,
+            &theme::for_widgets(eng),
+            &std::rc::Rc::new(crate::widget::theme::WidgetTheme::default()),
+        );
+        Ok(theme.token(&name).map_or(Value::Nil, |colour| {
+            let [r, g, b, a] = colour.to_srgba_unmultiplied();
+            Value::Color([r, g, b, a].map(|c| f32::from(c) / 255.0))
+        }))
     });
     m.function(GLYPH, |eng: &Engine, name: String| {
         let theme = crate::widget::theme::theme_of(

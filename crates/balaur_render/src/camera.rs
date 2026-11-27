@@ -88,6 +88,9 @@ pub struct Camera2d {
     /// Count `pixels_per_unit` in logical pixels, multiplied by the display's scale; off counts physical pixels, for pixel art that should land on the screen's own grid
     #[property(default = true)]
     pub hidpi: bool,
+    /// A `view` widget to draw into, by its node's path from this one: the camera then draws there, across the widget's box where the layout puts it and under what is laid over it, and not across the window; empty draws the window
+    #[property(node)]
+    pub view: String,
 }
 
 /// Runs in `SceneSync` after transform propagation, so the view follows the
@@ -131,6 +134,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             }
             if let Ok(cam) = world.get::<&Camera2d>(entity)
                 && cam.current
+                && cam.view.is_empty()
             {
                 post = Some(cam.effects.clone());
                 let zoom = cam.pixels_per_unit.max(MIN_ZOOM_2D);
@@ -139,6 +143,14 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                 view.1 = Some((global.position, global.rotation * glamx::Vec3::X));
             }
         }
+        // Every 2D camera draws into a view: the window draws no 2D of its own.
+        let mut any = false;
+        let mut all_views = true;
+        for cam in &mut world.query::<&Camera2d>() {
+            any = true;
+            all_views &= !cam.view.is_empty();
+        }
+        eng.resource::<CameraConfig2d>().borrow_mut().views_only = any && all_views;
         (spatial, flat, post, winners, view.0.or(view.1))
     };
     if let Some((position, right)) = view {

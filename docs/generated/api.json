@@ -4152,6 +4152,7 @@
       "ui::WIDGET_TEXT_AREA": "text_area",
       "ui::WIDGET_TEXT_FIELD": "text_field",
       "ui::WIDGET_TREE": "tree",
+      "ui::WIDGET_VIEW": "view",
       "ui::WIDGET_VIEWPORT": "viewport",
       "ui::WIDGET_WINDOW": "window",
       "ui::WIDTH_MEDIUM": "medium",
@@ -10700,6 +10701,10 @@
         "least": 1,
         "signature": "(Vec2) -> bool"
       },
+      "ui::theme_color": {
+        "least": 1,
+        "signature": "(str) -> Color?"
+      },
       "ui::wants_keyboard": {
         "least": 0,
         "signature": "() -> bool"
@@ -14637,7 +14642,8 @@
       "current",
       "pixels_per_unit",
       "effects",
-      "hidpi"
+      "hidpi",
+      "view"
     ],
     "camera3d": [
       "current",
@@ -17063,6 +17069,11 @@
         "description": "Zoom in logical pixels per world unit",
         "min": 0.01,
         "type": "float"
+      },
+      "view": {
+        "default": "",
+        "description": "A `view` widget to draw into, by its node's path from this one: the camera then draws there, across the widget's box where the layout puts it and under what is laid over it, and not across the window; empty draws the window",
+        "type": "node"
       }
     },
     "camera3d": {
@@ -25560,7 +25571,8 @@
           "separator",
           "code",
           "stack",
-          "viewport"
+          "viewport",
+          "view"
         ],
         "type": "enum"
       },
@@ -47785,6 +47797,10 @@
           "value": "\"tree\""
         },
         {
+          "name": "WIDGET_VIEW",
+          "value": "\"view\""
+        },
+        {
           "name": "WIDGET_VIEWPORT",
           "value": "\"viewport\""
         },
@@ -47839,6 +47855,7 @@
         "set_theme": "Put a theme in force over `[ui] theme` and `theme_dark`, for every widget and egui's own controls: a `widget_theme` file's path, or a theme document, with source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources. A root's own `theme` still dresses its subtree with that one, and nil goes back to the project's.",
         "tab_rect": "Where a `tabs` page's own button in the strip was last drawn, as `{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         "takes_pointer_at": "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on.",
+        "theme_color": "The colour the theme in force files under `name` in its `[colors]`, or a `#rrggbb` itself: for a script drawing in 2D in the theme's colours, read again when the system turns dark or light. Nil for a name the theme has no colour by.",
         "wants_keyboard": "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone.",
         "wants_pointer": "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window.",
         "widget_rect": "Where a `widget` node was last drawn, as `{ x, y, width, height }` in design pixels; empty until it has drawn once.",
@@ -47880,6 +47897,7 @@
         "set_theme",
         "tab_rect",
         "takes_pointer_at",
+        "theme_color",
         "wants_keyboard",
         "wants_pointer",
         "widget_rect",
@@ -47922,6 +47940,7 @@
         "set_theme": "(any)",
         "tab_rect": "(Node) -> ui::Rect?",
         "takes_pointer_at": "(Vec2) -> bool",
+        "theme_color": "(str) -> Color?",
         "wants_keyboard": "() -> bool",
         "wants_pointer": "() -> bool",
         "widget_rect": "(Node) -> ui::Rect?",

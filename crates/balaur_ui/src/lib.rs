@@ -51,6 +51,28 @@ pub use widget::input::{
 pub use widget::node::{Move, UiFocus, Widget, WidgetFields, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
 
+/// Hand a `view` widget the texture its camera renders into, or take it away
+/// with `None`: the renderer's, each frame it renders the view.
+pub fn set_view_texture(
+    eng: &Engine,
+    entity: balaur_core::hecs::Entity,
+    texture: Option<egui::TextureId>,
+) {
+    if eng.try_resource::<widget::view::ViewTextures>().is_none() {
+        eng.insert_resource(widget::view::ViewTextures::default());
+    }
+    let views = eng.resource::<widget::view::ViewTextures>();
+    let mut views = views.borrow_mut();
+    match texture {
+        Some(texture) => {
+            views.0.insert(entity, texture);
+        }
+        None => {
+            views.0.remove(&entity);
+        }
+    }
+}
+
 /// Where the layer last drew a widget, in design pixels, or `None` for one
 /// it did not draw last frame. What `ui.widget_rect` answers a script.
 #[must_use]

@@ -46,3 +46,5 @@ mod sprite;
 mod surfaces;
 mod text;
 mod tilemap;
+#[cfg(feature = "window")]
+mod view_widget;

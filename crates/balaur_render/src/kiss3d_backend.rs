@@ -105,6 +105,8 @@ struct Frontend {
     camera_2d: crate::kiss3d_camera::Flat,
     scene: SceneNode3d,
     scene_2d: SceneNode2d,
+    /// The 2D cameras drawing into `view` widgets, and their surfaces.
+    views: crate::view::Views,
     slots: HashMap<Entity, Slot>,
     slots_2d: HashMap<Entity, Slot2d>,
     batches_2d: crate::sync_2d::Batches,
@@ -163,6 +165,7 @@ impl Frontend {
             camera_2d,
             scene,
             scene_2d: SceneNode2d::empty(),
+            views: crate::view::Views::default(),
             slots: HashMap::new(),
             slots_2d: HashMap::new(),
             batches_2d: crate::sync_2d::Batches::default(),
@@ -509,10 +512,11 @@ pub async fn run_windowed_async(
         if !f.step(&mut app, &mut window, dt) {
             break;
         }
+        f.views.render(&app, &mut window, &mut f.scene_2d).await;
         // The 2D pass is a full-screen load and store of the film whether or
         // not anything draws into it, and the renderer skips it for a scene
-        // that is not there.
-        let draws_2d = !f.scene_2d.data().children().is_empty();
+        // that is not there or that only views draw.
+        let draws_2d = !f.scene_2d.data().children().is_empty() && !views_only(&app);
         let open = window
             .render_chains(
                 Some(&mut f.scene),
@@ -646,9 +650,10 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
                 break;
             }
             in_flight.wait();
+            f.views.render(&app, &mut window, &mut f.scene_2d).await;
             // After the step, as the windowed loop draws: a capture of frame
             // N is then step N's shell rather than step N-1's.
-            let draws_2d = !f.scene_2d.data().children().is_empty();
+            let draws_2d = !f.scene_2d.data().children().is_empty() && !views_only(&app);
             let open = window
                 .render_chains(
                     Some(&mut f.scene),
@@ -672,6 +677,13 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
         }
     });
     Ok(())
+}
+
+/// Whether every 2D camera draws into a view widget.
+fn views_only(app: &App) -> bool {
+    app.engine
+        .try_resource::<crate::CameraConfig2d>()
+        .is_some_and(|config| config.borrow().views_only)
 }
 
 fn apply_clear_color(app: &App, window: &mut Window) {

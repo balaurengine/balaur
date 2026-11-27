@@ -48,5 +48,6 @@ pub(crate) mod theme;
 mod theme_files;
 pub(crate) mod toggles;
 pub(crate) mod typing;
+pub(crate) mod view;
 pub(crate) mod window;
 pub(crate) mod write;

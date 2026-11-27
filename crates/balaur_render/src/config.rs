@@ -121,6 +121,9 @@ pub struct CameraConfig2d {
     /// counts logical pixels; off it counts physical ones.
     pub hidpi: bool,
     pub changed: bool,
+    /// Whether every 2D camera draws into a `view` widget, so the window's
+    /// own 2D pass has nothing to draw.
+    pub views_only: bool,
 }
 
 impl Default for CameraConfig2d {
@@ -133,6 +136,7 @@ impl Default for CameraConfig2d {
             // Asserted at boot, as [`CameraConfig3d`] is: a scene writing the
             // schema's own default of 60 raises no change and is never applied.
             changed: true,
+            views_only: false,
         }
     }
 }

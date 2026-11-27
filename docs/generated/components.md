@@ -213,7 +213,7 @@ What snaps the node's `joint2d`: past either, it breaks and calls on_joint_break
 
 ### `camera2d`
 
-`2d` · `render` · 4 properties
+`2d` · `render` · 5 properties
 
 The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, and the last `current` camera wins; the scene's `environment` lights it. Only its node moves it.
 
@@ -224,6 +224,7 @@ The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it,
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>60.0</code></td><td>Zoom in logical pixels per world unit At least 0.01.</td></tr>
 <tr><td><code>effects</code></td><td>asset · <code>camera_effects</code></td><td>—</td><td>The passes the frame resolves through and how each is tuned; empty draws the frame as it is</td></tr>
 <tr><td><code>hidpi</code></td><td>bool</td><td><code>true</code></td><td>Count `pixels_per_unit` in logical pixels, multiplied by the display&#x27;s scale; off counts physical pixels, for pixel art that should land on the screen&#x27;s own grid</td></tr>
+<tr><td><code>view</code></td><td>node</td><td>—</td><td>A `view` widget to draw into, by its node&#x27;s path from this one: the camera then draws there, across the widget&#x27;s box where the layout puts it and under what is laid over it, and not across the window; empty draws the window</td></tr>
 </tbody>
 </table>
 
@@ -2509,7 +2510,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>spinner</code>, <code>grid</code>, <code>fold</code>, <code>dialog</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>, <code>viewport</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>spinner</code>, <code>grid</code>, <code>fold</code>, <code>dialog</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>, <code>viewport</code>, <code>view</code>.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td>—</td><td>Label or button caption</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Off, the widget is greyed out and swallows its clicks</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Corner, edge or middle the offset is measured from: of the screen for a root (the window, or the `viewport` it sits in), of the parent&#x27;s box inside a `stack`; `fill` takes the whole of it less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>, <code>fill_top</code>, <code>fill_bottom</code>, <code>fill_left</code>, <code>fill_right</code>, <code>fill_across</code>, <code>fill_down</code>.</td></tr>

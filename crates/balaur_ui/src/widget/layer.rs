@@ -976,6 +976,13 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let size = solved_of(&at.arena[index].widget, &at.style(index), at.assigned);
             ui.allocate_exact_size(size, egui::Sense::hover());
         }
+        // A camera's picture, rendered into its own texture before the
+        // frame is presented, across the box the layout gives it.
+        w::VIEW => {
+            let size = solved_of(&at.arena[index].widget, &at.style(index), at.assigned);
+            let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+            crate::widget::view::paint(at.eng, ui, at.arena[index].entity, rect);
+        }
         w::FOLD => crate::widget::kinds::fold(ui, at, index, &caption, &font, color),
         // A picture from the project, sized by what it states or by itself.
         w::IMAGE => crate::widget::picture::image(ui, at, index),
