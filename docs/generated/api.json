@@ -15553,6 +15553,7 @@
     "widget_child": [
       "row",
       "column",
+      "justify_self",
       "title_bar",
       "keep_open"
     ],
@@ -25261,7 +25262,7 @@
       },
       "align_self": {
         "default": "auto",
-        "description": "Where this child sits across its container's direction; `auto` takes the container's `align_items`",
+        "description": "Where this child sits across its container's direction, and in a `grid` down its cell; `auto` takes the container's `align_items`",
         "group": "placement",
         "options": [
           "auto",
@@ -25822,7 +25823,7 @@
       },
       "safe_align": {
         "default": false,
-        "description": "Where `align_items`, `align_self`, `align_content` or `justify` would push a child past its container's start, put it at the start instead, so the start stays in view",
+        "description": "Where `align_items`, `align_self`, `justify_self`, `align_content` or `justify` would push a child past its container's start, put it at the start instead, so the start stays in view",
         "type": "bool"
       },
       "scrollbar_width": {
@@ -25917,6 +25918,19 @@
         "default": "",
         "description": "On a `grid`'s child: the columns it covers, in the words `row` takes",
         "type": "string"
+      },
+      "justify_self": {
+        "default": "auto",
+        "description": "On a `grid`'s child: where it sits in its cell from start to end along its row, as CSS's `justify-self`: `start`, `center` or `end` keep its own width there (a number's label at the cell's end), `stretch` makes it as wide as the cell, `baseline` is `start` along a row, and `auto` stretches a child of no stated width and keeps a sized one, an `image` or one with an `aspect_ratio` at the start, as CSS's `normal`. A `row` or a `column` reads none of it",
+        "options": [
+          "auto",
+          "start",
+          "center",
+          "end",
+          "stretch",
+          "baseline"
+        ],
+        "type": "enum"
       },
       "keep_open": {
         "default": false,

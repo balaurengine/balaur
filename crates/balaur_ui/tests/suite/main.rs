@@ -17,6 +17,7 @@ mod shortcuts;
 mod splash;
 mod widget_anchor;
 mod widget_beside;
+mod widget_cells;
 mod widget_code;
 mod widget_controls;
 mod widget_direction;

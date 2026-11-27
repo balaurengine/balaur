@@ -10,7 +10,8 @@ use crate::widget::beside::{Beside, puts};
 use crate::widget::grid;
 use crate::widget::node::lays_out;
 use crate::widget::properties::{
-    Containment, ContentAlign, Direction, Flow, ItemAlign, Justify, Overflow, Sizing, Wrapping,
+    Containment, ContentAlign, Direction, Flow, ItemAlign, Justify, Overflow, SelfAlign, Sizing,
+    Wrapping,
 };
 
 /// The rows a container reads: how it lays out what is in it.
@@ -83,7 +84,7 @@ pub(crate) struct WidgetBox {
     /// Containment: `layout` or `paint` makes the box lay out on its own, and `layout` also gives it no baseline for a parent's `baseline` alignment
     #[property(flags)]
     pub(crate) contain: Vec<Containment>,
-    /// Where `align_items`, `align_self`, `align_content` or `justify` would push a child past its container's start, put it at the start instead, so the start stays in view
+    /// Where `align_items`, `align_self`, `justify_self`, `align_content` or `justify` would push a child past its container's start, put it at the start instead, so the start stays in view
     pub(crate) safe_align: bool,
 }
 
@@ -174,6 +175,9 @@ pub(crate) struct WidgetChild {
     pub(crate) row: SmolStr,
     /// On a `grid`'s child: the columns it covers, in the words `row` takes
     pub(crate) column: SmolStr,
+    /// On a `grid`'s child: where it sits in its cell from start to end along its row, as CSS's `justify-self`: `start`, `center` or `end` keep its own width there (a number's label at the cell's end), `stretch` makes it as wide as the cell, `baseline` is `start` along a row, and `auto` stretches a child of no stated width and keeps a sized one, an `image` or one with an `aspect_ratio` at the start, as CSS's `normal`. A `row` or a `column` reads none of it
+    #[property(default = SelfAlign::new(w::AUTO))]
+    pub(crate) justify_self: SelfAlign,
     /// On a `fold`'s child: drawn in the fold's header after its arrow and caption, as Godot's title bar control is. On a `menu`'s row: its sheet's head, a title and a close, left out where the menu drops down
     pub(crate) title_bar: bool,
     /// On a `menu`'s row: leave the menu open when clicked, as a toggle does; any other row closes it
@@ -194,6 +198,7 @@ impl Beside for WidgetChild {
     puts! { held, widget;
         row => widget.layout.row = held.row.clone();
         column => widget.layout.column = held.column.clone();
+        justify_self => widget.layout.justify_self = held.justify_self.0.clone();
         title_bar => widget.title_bar = held.title_bar;
         keep_open => widget.keep_open = held.keep_open;
     }

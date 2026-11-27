@@ -104,7 +104,7 @@ fn safety(safe: bool, positional: bool) -> taffy::style::AlignmentSafety {
     }
 }
 
-/// An `align_items` or `align_self` word; `None` for `auto`.
+/// An `align_items`, `align_self` or `justify_self` word; `None` for `auto`.
 fn align_of(word: &str, safe: bool) -> Option<AlignItems> {
     use taffy::style::AlignItemsKeyword as K;
     let keyword = match word {
@@ -379,6 +379,7 @@ fn style_of(widget: &Widget, style: &crate::widget::theme::Style, shape: Shape) 
             .filter(|_| container)
             .unwrap_or(AlignItems::NORMAL),
         align_self: align_of(&layout.align_self, safe),
+        justify_self: align_of(&layout.justify_self, safe),
         align_content: if container {
             content_of(&layout.align_content, safe)
         } else {

@@ -322,7 +322,7 @@ pub(crate) struct WidgetProperties {
     /// The size this child starts from along its container's direction, before `grow` and `shrink`, in design pixels; below zero is 0 for one that grows and its own size otherwise
     #[property(default = -1.0, group = "placement")]
     pub(crate) basis: f32,
-    /// Where this child sits across its container's direction; `auto` takes the container's `align_items`
+    /// Where this child sits across its container's direction, and in a `grid` down its cell; `auto` takes the container's `align_items`
     #[property(default = SelfAlign::new(w::AUTO), group = "placement")]
     pub(crate) align_self: SelfAlign,
     /// Take this child out of its container's run and place it by `inset` against the container's box inside its border, drawn in its turn among its siblings; a root ignores it

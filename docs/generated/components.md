@@ -2529,7 +2529,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>grow</code></td><td>float</td><td><code>0.0</code></td><td>Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for At least 0.0.</td></tr>
 <tr><td><code>shrink</code></td><td>float</td><td><code>-1.0</code></td><td>Share of the shortfall this child gives up when its container is too small along its direction; below zero is 1 for one that grows and 0 otherwise</td></tr>
 <tr><td><code>basis</code></td><td>float</td><td><code>-1.0</code></td><td>The size this child starts from along its container&#x27;s direction, before `grow` and `shrink`, in design pixels; below zero is 0 for one that grows and its own size otherwise</td></tr>
-<tr><td><code>align_self</code></td><td>enum</td><td><code>auto</code></td><td>Where this child sits across its container&#x27;s direction; `auto` takes the container&#x27;s `align_items` One of <code>auto</code>, <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
+<tr><td><code>align_self</code></td><td>enum</td><td><code>auto</code></td><td>Where this child sits across its container&#x27;s direction, and in a `grid` down its cell; `auto` takes the container&#x27;s `align_items` One of <code>auto</code>, <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
 <tr><td><code>absolute</code></td><td>bool</td><td><code>false</code></td><td>Take this child out of its container&#x27;s run and place it by `inset` against the container&#x27;s box inside its border, drawn in its turn among its siblings; a root ignores it</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, and how far an `absolute` child sits in from each edge of its container inside its border, where a side below zero is left free; in design pixels</td></tr>
 <tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How far the widget and what it holds are drawn from where the layout put them, `[x, y]` in design pixels, as CSS&#x27;s `translate`: what sits beside it never moves. Added to its role&#x27;s own, in whatever state it is in; a tween moves it, as a bar sliding away</td></tr>
@@ -2613,7 +2613,7 @@ The rarer words about a box, which any kind may carry: what its size measures, w
 <tr><td><code>overflow</code></td><td>enum</td><td><code>visible</code></td><td>What becomes of content past this widget&#x27;s box. A `row`, `column`, `grid` or `panel` that says `scroll` scrolls it, as CSS&#x27;s `overflow: auto`: as large as what it holds, giving way where its container leaves it less (its `shrink` is 1 unless stated) and scrolling what does not fit, by the rows of `widget_scroll`; it keeps `scrollbar_width` clear inside its edge. On any other kind, and for the other words, layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), and each kind clips as it draws One of <code>visible</code>, <code>clip</code>, <code>hidden</code>, <code>scroll</code>.</td></tr>
 <tr><td><code>scrollbar_width</code></td><td>float</td><td><code>0.0</code></td><td>The room a box with `overflow = &quot;scroll&quot;` keeps clear inside its edge for a bar, in design pixels At least 0.0.</td></tr>
 <tr><td><code>contain</code></td><td>flags</td><td><code>[]</code></td><td>Containment: `layout` or `paint` makes the box lay out on its own, and `layout` also gives it no baseline for a parent&#x27;s `baseline` alignment One of <code>layout</code>, <code>paint</code>.</td></tr>
-<tr><td><code>safe_align</code></td><td>bool</td><td><code>false</code></td><td>Where `align_items`, `align_self`, `align_content` or `justify` would push a child past its container&#x27;s start, put it at the start instead, so the start stays in view</td></tr>
+<tr><td><code>safe_align</code></td><td>bool</td><td><code>false</code></td><td>Where `align_items`, `align_self`, `justify_self`, `align_content` or `justify` would push a child past its container&#x27;s start, put it at the start instead, so the start stays in view</td></tr>
 </tbody>
 </table>
 
@@ -2657,7 +2657,7 @@ The rows a `checkbox`, `switch` or `button` reads: whether it is on, and what a 
 
 ### `widget_child`
 
-`ui` · 4 properties
+`ui` · 5 properties
 
 What a child says to the parent it sits in, whatever its own kind: a `grid`'s cell, a `fold`'s header, a `menu`'s row.
 
@@ -2666,6 +2666,7 @@ What a child says to the parent it sits in, whatever its own kind: a `grid`'s ce
 <tbody>
 <tr><td><code>row</code></td><td>string</td><td>—</td><td>On a `grid`&#x27;s child: the rows it covers, as a line counted from 1 (`2`, or from the end below zero), a first and last line (`1 / 3`), a span (`span 2`, `2 / span 2`), or the name of one of the grid&#x27;s `areas`. Empty puts it in the next free cell</td></tr>
 <tr><td><code>column</code></td><td>string</td><td>—</td><td>On a `grid`&#x27;s child: the columns it covers, in the words `row` takes</td></tr>
+<tr><td><code>justify_self</code></td><td>enum</td><td><code>auto</code></td><td>On a `grid`&#x27;s child: where it sits in its cell from start to end along its row, as CSS&#x27;s `justify-self`: `start`, `center` or `end` keep its own width there (a number&#x27;s label at the cell&#x27;s end), `stretch` makes it as wide as the cell, `baseline` is `start` along a row, and `auto` stretches a child of no stated width and keeps a sized one, an `image` or one with an `aspect_ratio` at the start, as CSS&#x27;s `normal`. A `row` or a `column` reads none of it One of <code>auto</code>, <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
 <tr><td><code>title_bar</code></td><td>bool</td><td><code>false</code></td><td>On a `fold`&#x27;s child: drawn in the fold&#x27;s header after its arrow and caption, as Godot&#x27;s title bar control is. On a `menu`&#x27;s row: its sheet&#x27;s head, a title and a close, left out where the menu drops down</td></tr>
 <tr><td><code>keep_open</code></td><td>bool</td><td><code>false</code></td><td>On a `menu`&#x27;s row: leave the menu open when clicked, as a toggle does; any other row closes it</td></tr>
 </tbody>

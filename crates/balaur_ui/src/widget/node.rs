@@ -359,6 +359,7 @@ pub(crate) struct Layout {
     /// Layout containment, then paint containment.
     pub(crate) contain: [bool; 2],
     pub(crate) align_self: SmolStr,
+    pub(crate) justify_self: SmolStr,
     pub(crate) align_content: SmolStr,
     pub(crate) safe_align: bool,
     /// A share of the parent's box, in percent; zero leaves `width` and
