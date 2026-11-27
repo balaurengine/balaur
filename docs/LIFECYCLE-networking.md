@@ -434,7 +434,7 @@ Starts in `None`. Never ends.
 
 ### Script socket status
 
-`WebsocketState` holds this for each socket a script opened, and `websocket.state(id)` answers it. Source: `crates/balaur_websocket/src/lib.rs`, `WebsocketState.status` and `mod state`.
+`WebsocketState` holds this for each socket a script opened, and `websocket.state(id)` answers it. Source: `crates/balaur_websocket/src/lib.rs`, `WebsocketState.status`, `WebsocketState.in_flight` and `mod state`.
 
 ```mermaid
 stateDiagram-v2
@@ -469,6 +469,8 @@ stateDiagram-v2
 `Open` and a final event can drain in one pump. Handlers run after the drain, so a handler hearing `open` can read `closed` from `websocket.state`.
 
 Starts in `CONNECTING`. Ends in `CLOSED`.
+
+`websocket::in_flight()` counts the rows of `WebsocketState.in_flight`: `connect` adds one, and the pump removes it when it drains that socket's `Open`, `Failed` or `Closed`. 0 means every socket's first answer was delivered.
 
 Refused or ignored: `send_text`, `send_bytes` and `close` answer false once `sockets` has no row, which is every socket during a replay. `close` still marks that row `CLOSING`. `send` is not refused while connecting. The browser backend calls `ws.send_*` and ignores the result. A payload that is not a string or bytes returns an error. An event for a removed id finds no handler and still enters `WebsocketSnapshot`.
 
@@ -769,7 +771,9 @@ stateDiagram-v2
 
 Starts in `in_flight`. Ends in no table.
 
-Refused or ignored: `cancel` answers false once the id left `in_flight`. A timeout out of range or a bad option type returns an error at the call. An HTTP 4xx or 5xx is a `Response`. The browser backend ignores the flag and only drops the reply.
+`http::in_flight()` counts the rows of `in_flight` plus those of `cancelled_now`: every request whose answer, `cancelled` included, is still to be delivered. 0 means every waiter woke.
+
+Refused or ignored: `cancel` answers false once the id left `in_flight`. A timeout out of range, a bad option type, `body` beside `body_bytes`, or a `body_bytes` item outside 0 to 255 returns an error at the call. An HTTP 4xx or 5xx is a `Response`. The browser backend ignores the flag and only drops the reply.
 
 Held by a pause or a `process` mode: `pump_http_system` reads none of them. A task awaiting the id stays suspended until its node can tick.
 

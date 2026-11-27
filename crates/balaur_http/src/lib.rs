@@ -14,14 +14,16 @@
 //! never from an I/O thread.
 
 use anyhow::{Result, anyhow};
-use balaur_core::handler::{headers_of, id_value, opt};
+use balaur_core::handler::{bytes_of, headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Module, Value};
 
 const BODY: &str = "body";
+const BODY_BYTES: &str = "body_bytes";
 const CANCEL: &str = "cancel";
 const HTTP: &str = "http";
+const IN_FLIGHT: &str = "in_flight";
 const KIND: &str = "kind";
 const REQUEST: &str = "request";
 const TOTAL: &str = "total";
@@ -77,7 +79,9 @@ pub struct HttpCall {
     pub method: String,
     pub url: String,
     pub headers: Vec<(String, String)>,
-    pub body: Option<String>,
+    /// What goes out after the headers: a script's `body` as UTF-8, or its
+    /// `body_bytes` as they are.
+    pub body: Option<Vec<u8>>,
     /// Seconds for the whole request; `None` takes the project default.
     pub timeout: Option<f64>,
     /// Write a 2xx body here instead of handing it back, streamed as it
@@ -236,6 +240,13 @@ impl HttpState {
         self.cancelled.insert(request);
         self.cancelled_now.push(request);
         true
+    }
+
+    /// The requests whose answer is still to be delivered: queued, running,
+    /// or cancelled with its `cancelled` answer not yet woken.
+    #[must_use]
+    pub fn in_flight(&self) -> usize {
+        self.in_flight.len() + self.cancelled_now.len()
     }
 }
 
@@ -455,10 +466,16 @@ fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {
         Some(other) => return Err(anyhow!("method should be a string, got {other:?}")),
         None => "GET".into(),
     };
-    let body = match opt(opts, BODY) {
-        Some(Value::Str(b)) => Some(b.clone()),
-        Some(other) => return Err(anyhow!("body should be a string, got {other:?}")),
-        None => None,
+    let body = match (opt(opts, BODY), opt(opts, BODY_BYTES)) {
+        (Some(_), Some(_)) => {
+            return Err(anyhow!(
+                "`body` and `body_bytes` are both a request's body; give one"
+            ));
+        }
+        (Some(Value::Str(text)), None) => Some(text.as_bytes().to_vec()),
+        (Some(other), None) => return Err(anyhow!("body should be a string, got {other:?}")),
+        (None, Some(bytes)) => Some(bytes_of(bytes).map_err(|err| anyhow!("`body_bytes`: {err}"))?),
+        (None, None) => None,
     };
     let headers = headers_of(opts)?;
     let timeout = match opt(opts, "timeout_seconds") {
@@ -518,7 +535,7 @@ fn save_path_of(eng: &Engine, opts: Option<&Value>) -> Result<Option<std::path::
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
 fn install_http_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
+        "HTTP requests off the frame: `method`, `headers`, `body` or `body_bytes`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.records(&[
@@ -529,14 +546,19 @@ fn install_http_api(m: &mut Module<Engine>) {
         ),
         (
             "RequestOptions",
-            "{ method: string?, headers: [Header]?, body: string?, timeout_seconds: float?, save_to: string? }",
-            "One request: its `method` and `headers`, its `body`, how long it may take, and the file under the user directory a download is written to.",
+            "{ method: string?, headers: [Header]?, body: string?, body_bytes: [int]?, timeout_seconds: float?, save_to: string? }",
+            "One request: its `method` and `headers`, its body as text in `body` or as bytes in `body_bytes` (never both), how long it may take, and the file under the user directory a download is written to.",
         ),
     ]);
     m.describe(&[
         (REQUEST, &[], "(url: string, opts: RequestOptions?) -> int", "Start an HTTP request and return the id `task::wait` answers its reply on. With `save_to` the body is written under the user directory and the reply says where in `path`."),
         (CANCEL, &[], "(request: int) -> bool", "Stop waiting on a request: its reply is dropped, a download stops writing, and any await hears `kind` `cancelled` next frame. False when it had already finished."),
+        (IN_FLIGHT, &[], "() -> int", "How many requests started here have an answer, `cancelled` included, still to be delivered; 0 means every one has woken its waiter, so a test's end waits with `while http::in_flight() > 0 { await task::frames(1); }`."),
     ]);
+    m.function(IN_FLIGHT, |eng: &Engine, ()| {
+        let count = eng.resource::<HttpState>().borrow().in_flight();
+        Ok(Value::Int(i64::try_from(count).unwrap_or(i64::MAX)))
+    });
     m.function(CANCEL, |eng: &Engine, request: i64| {
         let state = eng.resource::<HttpState>();
         let cancelled = u64::try_from(request).is_ok_and(|id| state.borrow_mut().cancel(id));
@@ -584,6 +606,36 @@ mod tests {
     fn a_timeout_that_is_not_a_number_is_refused() {
         let refused = call_of("http://localhost", Some(&timed(Value::Str("soon".into()))));
         assert!(refused.is_err_and(|err| err.to_string().contains("number of seconds")));
+    }
+
+    #[test]
+    fn a_body_and_body_bytes_together_are_refused() {
+        let both = Value::Map(vec![
+            (BODY.into(), Value::Str("text".into())),
+            (BODY_BYTES.into(), Value::List(vec![Value::Int(1)])),
+        ]);
+        let refused = call_of("http://localhost", Some(&both));
+        assert!(refused.is_err_and(|err| err.to_string().contains("give one")));
+    }
+
+    #[test]
+    fn body_bytes_past_a_byte_are_refused() {
+        let past = Value::Map(vec![(
+            BODY_BYTES.into(),
+            Value::List(vec![Value::Int(0), Value::Int(256)]),
+        )]);
+        let refused = call_of("http://localhost", Some(&past));
+        assert!(refused.is_err_and(|err| err.to_string().contains("256 is not a byte")));
+    }
+
+    #[test]
+    fn body_bytes_become_the_call_body_byte_for_byte() {
+        let bytes = Value::Map(vec![(
+            BODY_BYTES.into(),
+            Value::List(vec![Value::Int(0), Value::Int(255), Value::Int(128)]),
+        )]);
+        let call = call_of("http://localhost", Some(&bytes)).unwrap();
+        assert_eq!(call.body, Some(vec![0, 255, 128]));
     }
 
     #[test]

@@ -52,7 +52,7 @@ async fn send(call: HttpCall, events: &Sender<HttpEvent>) -> Result<HttpEvent, S
     let seconds = call.timeout.unwrap_or(DEFAULT_TIMEOUT);
     init.set_signal(Some(&AbortSignal::timeout_with_f64(seconds * 1000.0)));
     if let Some(body) = &call.body {
-        init.set_body(&JsValue::from_str(body));
+        init.set_body_opt_u8_array(Some(&js_sys::Uint8Array::from(body.as_slice())));
     }
     let headers = Headers::new().map_err(describe)?;
     for (name, value) in &call.headers {

@@ -297,7 +297,7 @@ fn a_long_body_reports_going_out_before_the_reply() {
     let id = app.engine.next_token();
     let mut call = get_call(&format!("http://{addr}"));
     call.method = "POST".into();
-    call.body = Some("x".repeat(600 * 1024));
+    call.body = Some(vec![b'x'; 600 * 1024]);
     {
         let state = app.engine.resource::<HttpState>();
         state.borrow_mut().request(&app.engine, id, call);

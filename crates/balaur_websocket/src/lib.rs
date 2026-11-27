@@ -18,11 +18,12 @@ use anyhow::{Result, anyhow};
 use balaur_core::handler::{Handler, handler_of, headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::wake::Commands;
-use balaur_core::{DetHashMap, Engine, Stage};
+use balaur_core::{DetHashMap, DetHashSet, Engine, Stage};
 use balaur_script::{Module, Value};
 
 const CLOSE: &str = "close";
 const CONNECT: &str = "connect";
+const IN_FLIGHT: &str = "in_flight";
 const KIND: &str = "kind";
 const REASON: &str = "reason";
 const SEND_BYTES: &str = "send_bytes";
@@ -212,6 +213,9 @@ pub struct WebsocketState {
     /// Where each connection is, from the events a replay reproduces rather
     /// than from the worker channels a replay never opens.
     status: DetHashMap<u64, &'static str>,
+    /// Each socket `connect` asked for whose `open` or `error` has not been
+    /// delivered.
+    in_flight: DetHashSet<u64>,
 }
 
 impl WebsocketState {
@@ -230,6 +234,7 @@ impl WebsocketState {
             self.handlers.insert(id, handler);
         }
         self.status.insert(id, state::CONNECTING);
+        self.in_flight.insert(id);
         balaur_core::replay::event(
             eng,
             "websocket.connect",
@@ -290,6 +295,13 @@ impl WebsocketState {
     pub fn state(&self, socket: u64) -> &'static str {
         self.status.get(&socket).copied().unwrap_or(state::CLOSED)
     }
+
+    /// How many sockets still have their first answer, `open` or `error`, to
+    /// deliver.
+    #[must_use]
+    pub fn in_flight(&self) -> usize {
+        self.in_flight.len()
+    }
 }
 
 /// This tick's events, as the neutral values the handlers received. Cleared
@@ -329,9 +341,11 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
                 SocketEvent::Closed { socket, .. } | SocketEvent::Failed { socket, .. } => {
                     state.sockets.shift_remove(socket);
                     state.status.shift_remove(socket);
+                    state.in_flight.shift_remove(socket);
                     state.handlers.shift_remove(socket)
                 }
                 SocketEvent::Open { socket } => {
+                    state.in_flight.shift_remove(socket);
                     // A socket closed while it dialed is still on its way out.
                     if let Some(status) = state
                         .status
@@ -518,6 +532,7 @@ fn install_websocket_api(m: &mut Module<Engine>) {
         (SEND_BYTES, &[], "(socket: int, data: bytes) -> bool", "Queue a binary frame on the connection; false when it is already gone."),
         (CLOSE, &[], "(socket: int) -> bool", "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone."),
         (STATE, &[], "(socket: int) -> string", "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."),
+        (IN_FLIGHT, &[], "() -> int", "How many sockets `connect` asked for still have their `open` or `error` to deliver; 0 means every one has woken its waiter, so a test's end waits with `while websocket::in_flight() > 0 { await task::frames(1); }`."),
     ]);
     for word in state::ALL {
         m.constant(
@@ -551,6 +566,10 @@ fn install_websocket_api(m: &mut Module<Engine>) {
         let state = eng.resource::<WebsocketState>();
         let closed = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().close(id));
         Ok(Value::Bool(closed))
+    });
+    m.function(IN_FLIGHT, |eng: &Engine, ()| {
+        let count = eng.resource::<WebsocketState>().borrow().in_flight();
+        Ok(Value::Int(i64::try_from(count).unwrap_or(i64::MAX)))
     });
     m.function(STATE, |eng: &Engine, socket: i64| {
         let state = eng.resource::<WebsocketState>();

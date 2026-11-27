@@ -5,6 +5,7 @@
 //! in a single script — booting an app dominates the cost, so scenarios share
 //! one.
 
+use std::fmt::Write as _;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
@@ -61,6 +62,111 @@ fn echo_body() -> String {
         let _ = stream.write_all(reply.as_bytes());
     });
     format!("http://{addr}")
+}
+
+/// Serve one request and answer with the `content-type` it carried and its
+/// body's bytes in hex, so bytes no string holds still read back exactly.
+fn echo_body_bytes() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        let Ok((mut stream, _)) = listener.accept() else {
+            return;
+        };
+        let mut seen = Vec::new();
+        let mut chunk = [0u8; 4096];
+        let (head, body): (String, Vec<u8>) = loop {
+            let n = stream.read(&mut chunk).unwrap_or(0);
+            seen.extend_from_slice(&chunk[..n]);
+            let Some(end) = seen.windows(4).position(|w| w == b"\r\n\r\n") else {
+                if n == 0 {
+                    return;
+                }
+                continue;
+            };
+            let head = String::from_utf8_lossy(&seen[..end]).into_owned();
+            let length = header(&head, "content-length")
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(0);
+            if n == 0 || seen.len() >= end + 4 + length {
+                let body = seen[end + 4..].iter().take(length).copied().collect();
+                break (head, body);
+            }
+        };
+        let mut hex = String::new();
+        for byte in &body {
+            let _ = write!(hex, "{byte:02x}");
+        }
+        let content_type = header(&head, "content-type").unwrap_or_default();
+        let answer = format!("{content_type} {hex}");
+        let reply = format!(
+            "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{answer}",
+            answer.len()
+        );
+        let _ = stream.write_all(reply.as_bytes());
+    });
+    format!("http://{addr}")
+}
+
+/// The value of the header `name` in a request's head, any case.
+fn header(head: &str, name: &str) -> Option<String> {
+    head.lines()
+        .filter_map(|line| line.split_once(':'))
+        .find(|(key, _)| key.trim().eq_ignore_ascii_case(name))
+        .map(|(_, value)| value.trim().to_string())
+}
+
+#[test]
+fn a_put_carries_body_bytes_as_they_are_with_its_content_type() {
+    let url = echo_body_bytes();
+    let source = format!(
+        r#"
+pub class Scenario {{ node: Node }}
+impl Scenario {{
+    pub async fn init() {{
+        let headers = [http::Header {{ name: "Content-Type", value: "image/jpeg" }}];
+        let options = http::RequestOptions {{ method: "PUT", headers: headers, body_bytes: [0, 255, 128, 74] }};
+        let r = await task::wait(http::request("{url}", options));
+        let status = r["status"];
+        let body = r["body"];
+        log::info("put-bytes {{status}} {{body}}");
+    }}
+}}
+"#
+    );
+    run_until(&source, &["put-bytes 200 image/jpeg 00ff804a"]);
+}
+
+// The count is read in the call that starts a request: its answer lands at
+// a later frame's pump, so 1 holds whenever the server answers.
+#[test]
+fn in_flight_counts_a_request_until_its_answer_is_woken() {
+    let ok = "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok";
+    let answered = serve_one(ok);
+    let cancelled = serve_one(ok);
+    let source = format!(
+        r#"
+pub class Scenario {{ node: Node }}
+impl Scenario {{
+    pub async fn init() {{
+        let before = http::in_flight();
+        let request = http::request("{answered}");
+        let out = http::in_flight();
+        let r = await task::wait(request);
+        let status = r["status"];
+        let after = http::in_flight();
+        let dropped = http::request("{cancelled}");
+        http::cancel(dropped);
+        let untold = http::in_flight();
+        let c = await task::wait(dropped);
+        let kind = c["kind"];
+        let told = http::in_flight();
+        log::info("in-flight {{before}} {{out}} {{status}} {{after}} {{untold}} {{kind}} {{told}}");
+    }}
+}}
+"#
+    );
+    run_until(&source, &["in-flight 0 1 200 0 1 cancelled 0"]);
 }
 
 #[test]

@@ -181,13 +181,13 @@ fn send(
     call: &HttpCall,
     events: &Sender<HttpEvent>,
 ) -> Result<ureq::http::Response<ureq::Body>> {
-    let body = call.body.as_deref().unwrap_or("");
+    let body = call.body.as_deref().unwrap_or_default();
     if (body.len() as u64) < PROGRESS_STEP {
         return Ok(builder.send(body)?);
     }
     let reader = Outgoing {
         request: call.id,
-        body: body.as_bytes().to_vec(),
+        body: body.to_vec(),
         at: 0,
         reported: 0,
         events: events.clone(),

@@ -121,3 +121,30 @@ impl Scenario {{
     );
     run_until(&source, &["awaited open", "refused error"]);
 }
+
+// The count is read in the call that dials: `open` lands at a later frame's
+// pump, so 1 holds however fast the server answers.
+#[test]
+fn in_flight_counts_a_socket_until_its_open_is_woken() {
+    let echo = serve_echo();
+    let source = format!(
+        r#"
+pub class Scenario {{ node: Node }}
+impl Scenario {{
+    pub async fn init() {{
+        let before = websocket::in_flight();
+        let socket = websocket::connect(self.node, "{echo}");
+        let dialing = websocket::in_flight();
+        let opened = await task::wait(socket);
+        let kind = opened["kind"];
+        let after = websocket::in_flight();
+        log::info("sockets {{before}} {{dialing}} {{kind}} {{after}}");
+        websocket::close(socket);
+    }}
+
+    pub fn on_websocket_event(e: any) {{}}
+}}
+"#
+    );
+    run_until(&source, &["sockets 0 1 open 0"]);
+}

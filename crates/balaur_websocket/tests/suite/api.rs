@@ -159,6 +159,31 @@ fn an_unreachable_websocket_reports_an_error_event() {
 }
 
 #[test]
+fn a_socket_that_fails_to_open_leaves_none_in_flight() {
+    let port = {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_websocket(dir.path());
+    {
+        let state = app.engine.resource::<WebsocketState>();
+        let id = app.engine.next_token();
+        state.borrow_mut().connect(
+            &app.engine,
+            id,
+            &format!("ws://127.0.0.1:{port}"),
+            SocketOptions::default(),
+            None,
+        );
+        assert_eq!(state.borrow().in_flight(), 1, "dialing");
+    }
+    wait_for(&mut app, |snapshot| socket_event(snapshot, "error"));
+    let state = app.engine.resource::<WebsocketState>();
+    assert_eq!(state.borrow().in_flight(), 0, "its error was delivered");
+}
+
+#[test]
 fn a_refused_websocket_reports_the_http_status_in_its_error_event() {
     use std::io::{Read, Write};
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
