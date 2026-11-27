@@ -1,0 +1,4 @@
+enum Shape { Circle, Square }
+enum Shape { Dot }
+
+// error: 2:6: `Shape` is defined twice

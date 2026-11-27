@@ -1,0 +1,4 @@
+const LIMIT: int = 1;
+const LIMIT: int = 2;
+
+// error: 2:7: `LIMIT` is defined twice

@@ -1,0 +1,4 @@
+struct Spot { x: int }
+class Spot { y: int }
+
+// error: 2:7: `Spot` is defined twice

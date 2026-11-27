@@ -26,6 +26,16 @@ pub(crate) const PUNCT: [&str; 46] = [
     "&", "|", "^", "~", "+", "-", "*", "/", "%", "=", "<", ">", "!", "?",
 ];
 
+/// Note where a struct, a class, an enum or a const is declared: a name a
+/// file declares twice is refused, as a function defined twice is.
+fn declare(prog: &mut Program, name: &str, at: Pos) -> Result<(), Error> {
+    if prog.decls.iter().any(|(declared, _)| declared == name) {
+        return err(at, format!("`{name}` is defined twice"));
+    }
+    prog.decls.push((name.to_string(), at));
+    Ok(())
+}
+
 fn err<T>(pos: Pos, msg: impl Into<String>) -> Result<T, Error> {
     Err(Error {
         pos,
@@ -385,7 +395,7 @@ impl Parser {
             if class {
                 prog.classes.push(name.clone());
             }
-            prog.decls.push((name.clone(), at));
+            declare(prog, &name, at)?;
             keep(prog, &name);
             let fields = self.fields()?;
             prog.structs.push((name, fields));
@@ -417,7 +427,7 @@ impl Parser {
         } else if self.eat_kw("const") {
             let at = self.pos();
             let name = self.ident()?;
-            prog.decls.push((name.clone(), at));
+            declare(prog, &name, at)?;
             keep(prog, &name);
             if self.eat(":") {
                 self.ty()?;
@@ -503,7 +513,7 @@ impl Parser {
     fn enum_decl(&mut self, prog: &mut Program) -> Result<(), Error> {
         let pos = self.pos();
         let name = self.ident()?;
-        prog.decls.push((name.clone(), pos));
+        declare(prog, &name, pos)?;
         self.want("{")?;
         let mut variants = Vec::new();
         while !self.eat("}") {
