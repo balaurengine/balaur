@@ -240,7 +240,7 @@ mod windowed {
         premultiply: bool,
         on_surface: bool,
     ) -> Option<Arc<Texture>> {
-        let plan = planned(eng, reference, premultiply, on_surface)?;
+        let plan = planned(eng, reference, premultiply, on_surface, SAY)?;
         if let Some(cached) = TextureManager::get_global_manager(|tm| tm.get(&plan.name)) {
             return Some(cached);
         }
@@ -298,13 +298,20 @@ mod windowed {
         }
     }
 
+    /// Whether `planned` says a reference that does not resolve: the draw
+    /// does, once a frame it names it; a readiness check asked as often
+    /// leaves it to the draw.
+    const SAY: bool = true;
+    const QUIET: bool = false;
+
     /// The name `reference` uploads under, and what it is read with; `None`
-    /// for an empty one, or one that does not resolve, which is said.
+    /// for an empty one, or one that does not resolve, which `say` says.
     fn planned(
         eng: &Engine,
         reference: &str,
         premultiply: bool,
         on_surface: bool,
+        say: bool,
     ) -> Option<Planned> {
         if reference.is_empty() {
             return None;
@@ -315,7 +322,9 @@ mod windowed {
         let source = match balaur_asset::texture_asset::source(eng, reference) {
             Ok(source) => source,
             Err(err) => {
-                tracing::error!("texture '{reference}': {err:#}");
+                if say {
+                    tracing::error!("texture '{reference}': {err:#}");
+                }
                 return None;
             }
         };
@@ -416,7 +425,7 @@ mod windowed {
         let Some(reference) = texture_of(value) else {
             return true;
         };
-        let Some(plan) = planned(eng, reference, PREMULTIPLY_HONOURED, false) else {
+        let Some(plan) = planned(eng, reference, PREMULTIPLY_HONOURED, false, QUIET) else {
             return true;
         };
         TextureManager::get_global_manager(|tm| tm.get(&plan.name)).is_some()
@@ -443,7 +452,7 @@ mod windowed {
             preloads.queued.drain(..take).collect()
         };
         for reference in queued {
-            let Some(plan) = planned(eng, &reference, PREMULTIPLY_HONOURED, false) else {
+            let Some(plan) = planned(eng, &reference, PREMULTIPLY_HONOURED, false, QUIET) else {
                 continue;
             };
             let known = TextureManager::get_global_manager(|tm| tm.get(&plan.name)).is_some()
