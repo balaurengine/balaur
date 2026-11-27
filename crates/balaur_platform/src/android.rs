@@ -25,6 +25,7 @@ use crate::device::DeviceCall;
 pub(crate) mod device;
 mod links;
 pub(crate) mod notifications;
+pub(crate) mod secrets;
 pub(crate) mod web_sign_in;
 
 /// Where the device shims' answers go: the platform's channel, which every
@@ -66,6 +67,7 @@ pub(crate) fn start(request: u64, call: &DeviceCall, report: &Sender<PlatformEve
         DeviceCall::Share { text, file, title } => {
             device::share(request, text, file.as_deref(), title)
         }
+        DeviceCall::PickPhoto => device::pick_photo(request),
         DeviceCall::RequestReview => {
             start_capability(REVIEW, request, call.name(), &serde_json::json!({}), report).map(
                 |started| {
@@ -125,7 +127,7 @@ extern "system" fn answer<'local>(
                 request,
                 message: format!("the shim's answer: {err}"),
             },
-            |answer| PlatformEvent::Answer { request, answer },
+            |answer| picked(request, answer),
         );
         if request == 0 {
             ARRIVALS
@@ -142,6 +144,37 @@ extern "system" fn answer<'local>(
         Ok(())
     })
     .resolve::<jni::errors::LogErrorAndDefault>();
+}
+
+/// A shim's answer as its waiter receives it: a picture `PickPhoto` left in
+/// the cache is read and deleted, and answered as its bytes.
+fn picked(request: u64, answer: serde_json::Value) -> PlatformEvent {
+    let path = answer
+        .get(crate::vocabulary::keys::PATH)
+        .and_then(serde_json::Value::as_str);
+    let is_picked =
+        answer.get("kind").and_then(serde_json::Value::as_str) == Some(crate::kind::PICKED);
+    let (true, Some(path)) = (is_picked, path) else {
+        return PlatformEvent::Answer { request, answer };
+    };
+    let path = std::path::Path::new(path);
+    let event = match std::fs::read(path) {
+        Ok(bytes) => PlatformEvent::Picked {
+            request,
+            bytes,
+            media_type: answer
+                .get(crate::vocabulary::keys::TYPE)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        },
+        Err(err) => PlatformEvent::Failed {
+            request,
+            message: format!("reading the picked picture: {err}"),
+        },
+    };
+    let _ = std::fs::remove_file(path);
+    event
 }
 
 /// Tell the push shim to hand over what arrived (a token, a push, the tap

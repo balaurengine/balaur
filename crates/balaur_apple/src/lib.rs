@@ -63,6 +63,8 @@ mod icloud;
 #[cfg(target_vendor = "apple")]
 mod notify;
 #[cfg(target_vendor = "apple")]
+mod photos;
+#[cfg(target_vendor = "apple")]
 mod push;
 mod queue;
 #[cfg(target_vendor = "apple")]

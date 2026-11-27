@@ -335,6 +335,10 @@ pub(crate) fn read_clock_system(eng: &Engine, _: f32) {
 pub struct DeviceFacts {
     pub focused: bool,
     pub dark_mode: bool,
+    /// Whether the player asked the system to reduce motion, as CSS's
+    /// `prefers-reduced-motion: reduce` reads it.
+    #[serde(default)]
+    pub reduced_motion: bool,
     /// Left, top, right and bottom insets in pixels: what a notch or a home
     /// bar covers. Zero on a desktop.
     pub safe_area: [f32; 4],
@@ -447,6 +451,7 @@ impl Default for DeviceFacts {
         Self {
             focused: true,
             dark_mode: false,
+            reduced_motion: false,
             safe_area: [0.0; 4],
             refresh_rate: 60.0,
             screen_size: [0.0; 2],
@@ -492,6 +497,9 @@ impl DeviceFacts {
 pub struct Device {
     pub now: DeviceFacts,
     pub was: DeviceFacts,
+    /// What a test said the system's reduce-motion setting is, held over
+    /// whatever the platform reports.
+    reduced_motion_held: Option<bool>,
     /// Hooks for every script, queued by [`notice`] for the next frame.
     notices: Vec<(&'static str, balaur_script::Value)>,
 }
@@ -520,6 +528,24 @@ pub fn dark_mode(eng: &Engine) -> bool {
         .is_some_and(|d| d.borrow().now.dark_mode)
 }
 
+/// Whether the system asks for reduced motion as of this tick.
+#[must_use]
+pub fn prefers_reduced_motion(eng: &Engine) -> bool {
+    eng.try_resource::<Device>()
+        .is_some_and(|d| d.borrow().now.reduced_motion)
+}
+
+/// Answer `prefers_reduced_motion` with `reduced` from now on, whatever the
+/// platform says: what a test's stand-in names, so a run reads the same on
+/// every machine.
+pub fn hold_reduced_motion(eng: &Engine, reduced: bool) {
+    if let Some(device) = eng.try_resource::<Device>() {
+        let mut device = device.borrow_mut();
+        device.reduced_motion_held = Some(reduced);
+        device.now.reduced_motion = reduced;
+    }
+}
+
 /// The device facts as of this tick.
 pub fn device(eng: &Engine) -> DeviceFacts {
     eng.try_resource::<Device>()
@@ -536,7 +562,13 @@ pub fn update_device(eng: &Engine, change: impl FnOnce(&mut DeviceFacts)) {
     let Some(device) = eng.try_resource::<Device>() else {
         return;
     };
-    change(&mut device.borrow_mut().now);
+    {
+        let mut device = device.borrow_mut();
+        change(&mut device.now);
+        if let Some(held) = device.reduced_motion_held {
+            device.now.reduced_motion = held;
+        }
+    }
     // The frame a recording opens in is not recorded, and `init` reads there.
     if crate::replay::opened_this_tick(eng) {
         crate::replay::amend_setup(eng, words::facts::DEVICE, capture_device(eng));
@@ -567,13 +599,21 @@ pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
     };
     let said = {
         let mut device = device.borrow_mut();
-        let Device { now, was, notices } = &mut *device;
+        let Device {
+            now, was, notices, ..
+        } = &mut *device;
         let mut said: Vec<(&'static str, Value)> = Vec::new();
         if now.focused != was.focused {
             said.push((h::ON_FOCUSED_CHANGED, Value::Bool(now.focused)));
         }
         if now.dark_mode != was.dark_mode {
             said.push((h::ON_DARK_MODE_CHANGED, Value::Bool(now.dark_mode)));
+        }
+        if now.reduced_motion != was.reduced_motion {
+            said.push((
+                h::ON_PREFERS_REDUCED_MOTION_CHANGED,
+                Value::Bool(now.reduced_motion),
+            ));
         }
         if now.suspended != was.suspended {
             said.push((h::ON_SUSPENDED_CHANGED, Value::Bool(now.suspended)));

@@ -659,6 +659,9 @@ pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
 pub fn seed_device(app: &App) {
     balaur_core::facts::update_device(&app.engine, |facts| {
         facts.dark_mode = render::dark_mode();
+        if let Some(reduced) = render::prefers_reduced_motion() {
+            facts.reduced_motion = reduced;
+        }
     });
 }
 

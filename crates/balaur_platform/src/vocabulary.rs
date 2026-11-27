@@ -6,9 +6,11 @@ pub(crate) mod keys {
     pub(crate) const AFTER: &str = "after";
     pub(crate) const ALLOWED: &str = "allowed";
     pub(crate) const BODY: &str = "body";
+    pub(crate) const BYTES: &str = "bytes";
     pub(crate) const DATA: &str = "data";
     pub(crate) const FILE: &str = "file";
     pub(crate) const ID: &str = "id";
+    pub(crate) const PATH: &str = "path";
     pub(crate) const PLATFORM: &str = "platform";
     pub(crate) const PROVIDER: &str = "provider";
     pub(crate) const START: &str = "start";
@@ -16,6 +18,7 @@ pub(crate) mod keys {
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TITLE: &str = "title";
     pub(crate) const TOKEN: &str = "token";
+    pub(crate) const TYPE: &str = "type";
 }
 
 #[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
@@ -57,6 +60,7 @@ pub(crate) mod words {
         pub(crate) const PURCHASES: &str = "purchases";
         pub(crate) const HAPTICS: &str = "haptics";
         pub(crate) const SHARE: &str = "share";
+        pub(crate) const PHOTO_PICKER: &str = "photo_picker";
         pub(crate) const REVIEW: &str = "review";
     }
 }

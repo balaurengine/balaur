@@ -19,9 +19,11 @@ built.
    `platform.notify`, served by `crates/balaur_apple/src/notify.rs`
    through the device seam whichever store is loaded, and a tap or one shown
    in front is the `platform_event` event. The iPhone's feedback generators,
-   the share sheet (`UIActivityViewController`, `NSSharingServicePicker`) and
-   `SKStoreReviewController` (`device.rs`) are compiled for iOS and macOS and
-   tested through a canned OS only. `platform.is_available` answers Game
+   the share sheet (`UIActivityViewController`, `NSSharingServicePicker`),
+   `SKStoreReviewController` (`device.rs`), the photo picker
+   (`PHPickerViewController`, `photos.rs`) and the Keychain behind
+   `secrets.*` are compiled for iOS and macOS and tested through a canned OS
+   only. `platform.is_available` answers Game
    Center, Sign in with Apple, notifications and push from the bundle id,
    iCloud from `ubiquityIdentityToken`, purchases from `canMakePayments`.
    Done: a notification scheduled, tapped and heard, a file shared and a

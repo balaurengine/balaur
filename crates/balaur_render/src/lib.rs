@@ -155,6 +155,9 @@ mod builtin_material;
 mod debug_lines;
 #[cfg(feature = "window")]
 mod device;
+mod image_api;
+#[cfg(feature = "window")]
+mod motion;
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use appearance::{android_activity, keep_android_app};
 #[cfg(feature = "window")]
@@ -423,6 +426,21 @@ pub fn dark_mode() -> bool {
 #[must_use]
 pub const fn dark_mode() -> bool {
     false
+}
+
+/// Whether the system asks for reduced motion, asked of the platform before
+/// a project loads, as [`dark_mode`] is. `None` where this crate cannot ask:
+/// Android's setting is the platform crate's to read.
+#[cfg(feature = "window")]
+#[must_use]
+pub fn prefers_reduced_motion() -> Option<bool> {
+    motion::reduced()
+}
+
+#[cfg(not(feature = "window"))]
+#[must_use]
+pub const fn prefers_reduced_motion() -> Option<bool> {
+    None
 }
 
 /// A grid of equally sized frames packed into one texture.
@@ -962,6 +980,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         );
         insert_render_resources(reg);
         balaur_core::events::declare(reg.engine(), SAID);
+        image_api::install(&mut reg.script_module(image_api::IMAGE)?);
         let mut m = reg.script_module(words::general::RENDER)?;
         m.module_doc(
             "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",

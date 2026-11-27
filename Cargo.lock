@@ -1226,11 +1226,16 @@ dependencies = [
  "jni",
  "js-sys",
  "ndk-context",
+ "pollster 1.0.1",
+ "rfd",
  "serde",
  "serde_json",
  "tempfile",
  "tracing",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

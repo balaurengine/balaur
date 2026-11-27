@@ -61,6 +61,7 @@ PLURAL_ALLOW = {
     "strings": "a keyed store of many things: one translation per key per locale",
     "events": "a keyed store of many things: subscribers by event name",
     "types": "a keyed store of many things: one word per kind of value",
+    "secrets": "a keyed store of many things: one secret per key, kept by the OS",
 }
 
 # Singular words that happen to end in `s`. D2 lists every module besides

@@ -15,8 +15,12 @@ the background runs no fixed step and holds its sounds until it comes back
    and the keyboard height are tested headless only. Done: an exported game
    draws, plays sound and answers touch on one iPhone and one Android phone.
 2. **What a phone lends a game.** The `device` module
-   (`crates/balaur_platform/src/device.rs`) holds the motor, the share sheet
-   and the review prompt. Still to add behind it: the camera, geolocation and
-   biometrics, `navigator.share` on a page, and an exact iPhone buzz through
-   Core Haptics. Done: a game on a phone reads its position, and a page
+   (`crates/balaur_platform/src/device.rs`) holds the motor, the share sheet,
+   the photo picker (`pick_photo`, with `image.encode` to shrink it) and the
+   review prompt; `secrets.*` keeps a token in the Keychain or behind an
+   Android Keystore key. The picker and the secrets are tested through
+   stand-ins and the file store only. Still to add behind it: the camera,
+   geolocation and biometrics, `navigator.share` on a page, and an exact
+   iPhone buzz through Core Haptics. Done: a game on a phone reads its
+   position, picks a photo and keeps a secret across a restart, and a page
    shares a file.

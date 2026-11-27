@@ -135,33 +135,41 @@ fn asked() -> bool {
 }
 
 /// The desktop's own setting as `mundy` reads it: the XDG portal's
-/// `color-scheme` on Linux, the Settings app's choice on Windows. Subscribed
-/// once, so every change after is heard rather than asked.
+/// `color-scheme` on Linux, the Settings app's choice on Windows.
 #[cfg(any(target_os = "linux", windows))]
 fn asked() -> bool {
+    watch();
+    HEARD.load(Ordering::Relaxed) == DARK
+}
+
+/// Subscribe to the desktop's look and its animation switch once, so every
+/// change after is heard rather than asked: `mundy` reads both from the XDG
+/// portal on Linux and the Settings app on Windows.
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) fn watch() {
     use std::sync::OnceLock;
     static WATCH: OnceLock<mundy::Subscription> = OnceLock::new();
+    let interest = mundy::Interest::ColorScheme | mundy::Interest::ReducedMotion;
     let dark = |prefs: &mundy::Preferences| prefs.color_scheme == mundy::ColorScheme::Dark;
     WATCH.get_or_init(|| {
         // The first answer waited for, bounded, so a dark desktop's first
         // frame is not drawn light; the subscription hears every change after.
-        let first = mundy::Preferences::once_blocking(
-            mundy::Interest::ColorScheme,
-            std::time::Duration::from_millis(250),
-        );
-        let first = if first.as_ref().is_some_and(dark) {
+        let first =
+            mundy::Preferences::once_blocking(interest, std::time::Duration::from_millis(250));
+        let look = if first.as_ref().is_some_and(dark) {
             DARK
         } else {
             LIGHT
         };
-        let _ = HEARD.compare_exchange(UNHEARD, first, Ordering::Relaxed, Ordering::Relaxed);
-        mundy::Preferences::subscribe(mundy::Interest::ColorScheme, move |prefs| {
+        let _ = HEARD.compare_exchange(UNHEARD, look, Ordering::Relaxed, Ordering::Relaxed);
+        crate::motion::first(first.is_some_and(|prefs| prefs.reduced_motion.is_reduce()));
+        mundy::Preferences::subscribe(interest, move |prefs| {
             hear(dark(&prefs));
+            crate::motion::hear(prefs.reduced_motion.is_reduce());
             // A loop asleep between inputs draws the new look only once woken.
             balaur_core::wake::wake();
         })
     });
-    HEARD.load(Ordering::Relaxed) == DARK
 }
 
 #[cfg(not(any(

@@ -56,8 +56,8 @@ A reader who has learned one name can then guess the next: `shape2d` from
 `body2d`, `mouse_down` from `key_down`.
 
 - A module is the noun for what it owns, singular unless it is a keyed store.
-  The five plurals are `assets`, `settings`, `strings`, `events` and `types`
-  [D2].
+  The six plurals are `assets`, `settings`, `strings`, `events`, `types`
+  and `secrets` [D2].
 - The dimension is a lowercase `2d` or `3d` at the end, on both of a pair:
   `body2d` and `body3d`. A name with no twin stays plain (`sprite`) [D5, N5].
 - A reader is named for what it answers, with no `get_`, and `is_` only for a

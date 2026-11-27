@@ -19,6 +19,9 @@ pub const ON_FOCUSED_CHANGED: &str = "on_focused_changed";
 /// Called on every script, a paused one too, when the system turns dark mode
 /// on or off.
 pub const ON_DARK_MODE_CHANGED: &str = "on_dark_mode_changed";
+/// Called on every script, a paused one too, when the system's setting to
+/// reduce motion is turned on or off, with whether it is on now.
+pub const ON_PREFERS_REDUCED_MOTION_CHANGED: &str = "on_prefers_reduced_motion_changed";
 /// Called on every script, a paused one too, when the window is asked to
 /// close, before it does.
 pub const ON_QUIT_REQUESTED: &str = "on_quit_requested";

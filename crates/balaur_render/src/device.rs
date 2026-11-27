@@ -1,6 +1,7 @@
 //! What the window and the display say, published to the engine once per
-//! frame as recorded input: focus, dark mode, the safe area and the display's
-//! refresh rate. Each platform answers what it can; the rest keeps the default.
+//! frame as recorded input: focus, dark mode, reduced motion, the safe area
+//! and the display's refresh rate. Each platform answers what it can; the
+//! rest keeps the default.
 //!
 //! Dark mode, the safe area, the keyboard and the text scale are asked of the
 //! platform only once it says they moved ([`moved`]): a resize, a scale or
@@ -39,6 +40,8 @@ pub(crate) fn hear(event: &kiss3d::event::WindowEvent) {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct Reading {
     pub(crate) dark_mode: bool,
+    /// `None` where this crate cannot ask the platform.
+    pub(crate) reduced_motion: Option<bool>,
     pub(crate) safe_area: [f32; 4],
     pub(crate) keyboard_height: f32,
     pub(crate) text_scale: f32,
@@ -50,6 +53,7 @@ impl Reading {
         web::listen();
         Self {
             dark_mode: crate::appearance::is_dark(),
+            reduced_motion: crate::motion::reduced(),
             safe_area: safe_area(window),
             keyboard_height: keyboard_height(window),
             text_scale: window.text_scale().max(f32::EPSILON),
@@ -77,6 +81,7 @@ fn unheard(window: &kiss3d::window::Window, reading: &mut Reading) {
     #[cfg(target_os = "ios")]
     {
         reading.dark_mode = crate::appearance::is_dark();
+        reading.reduced_motion = crate::motion::reduced();
         reading.safe_area = safe_area(window);
         reading.keyboard_height = keyboard_height(window);
     }
@@ -153,6 +158,7 @@ impl Probe {
         let refresh_rate = self.display_rate.or_else(|| self.refresh_rate());
         let Reading {
             dark_mode,
+            reduced_motion,
             safe_area,
             keyboard_height: keyboard,
             text_scale,
@@ -164,6 +170,9 @@ impl Probe {
         let game_area = game_area(app, ui_scale);
         balaur_core::facts::update_device(&app.engine, |facts| {
             facts.dark_mode = dark_mode;
+            if let Some(reduced) = reduced_motion {
+                facts.reduced_motion = reduced;
+            }
             facts.safe_area = safe_area;
             facts.screen_size = screen_size;
             facts.ui_scale = ui_scale;

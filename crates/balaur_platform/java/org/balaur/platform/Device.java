@@ -26,6 +26,7 @@ public final class Device {
     // The words balaur_platform's vocabulary spells.
     private static final String HAPTICS = "haptics";
     private static final String SHARE = "share";
+    private static final String PHOTO_PICKER = "photo_picker";
     private static final String NOTIFICATIONS = "notifications";
     private static final String WEB_SIGN_IN = "web_sign_in";
     private static final String LIGHT = "light";
@@ -53,6 +54,7 @@ public final class Device {
                 Vibrator vibrator = vibrator(game);
                 return vibrator != null && vibrator.hasVibrator();
             case SHARE:
+            case PHOTO_PICKER:
                 return true;
             case NOTIFICATIONS:
                 return game.getSystemService(NotificationManager.class) != null;
@@ -84,6 +86,17 @@ public final class Device {
                 game.startActivity(Share.intent(game, request, text, file, title));
             } catch (ActivityNotFoundException e) {
                 answer(request, failed("the template's manifest has no Share activity").toString());
+            }
+        });
+    }
+
+    /** The system's photo picker over the game; {@link PickPhoto} answers once it shuts. */
+    public static void pickPhoto(final Activity game, final long request) {
+        game.runOnUiThread(() -> {
+            try {
+                game.startActivity(PickPhoto.intent(game, request));
+            } catch (ActivityNotFoundException e) {
+                answer(request, failed("the template's manifest has no PickPhoto activity").toString());
             }
         });
     }

@@ -754,6 +754,26 @@ fn the_device_facts_default_and_take_a_backends_report() {
     assert!((balaur_core::facts::device(&app.engine).safe_area[1] - 44.0).abs() < f32::EPSILON);
 }
 
+// The reduce-motion setting is false where nothing says, the platform's
+// report once one comes, and what a test held whatever the platform says.
+#[test]
+fn reduced_motion_takes_the_platforms_report_unless_a_test_holds_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let asked = || call(&app.engine, "engine", "prefers_reduced_motion", &[]).unwrap();
+    assert_eq!(asked(), Value::Bool(false));
+    balaur_core::facts::update_device(&app.engine, |facts| facts.reduced_motion = true);
+    assert_eq!(asked(), Value::Bool(true));
+    balaur_core::facts::hold_reduced_motion(&app.engine, false);
+    assert_eq!(asked(), Value::Bool(false));
+    balaur_core::facts::update_device(&app.engine, |facts| facts.reduced_motion = true);
+    assert_eq!(
+        asked(),
+        Value::Bool(false),
+        "the platform overrode the held answer"
+    );
+}
+
 // A harness that failed says so to the shell: `quit(code)` is what the
 // process exits with, and a bare `quit()` is a clean exit.
 #[test]

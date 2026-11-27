@@ -26,6 +26,7 @@ pub const DEVICE: &str = "device";
 const CANCEL_NOTIFICATION: &str = "cancel_notification";
 const HAPTIC: &str = "haptic";
 const NOTIFY: &str = "notify";
+const PICK_PHOTO: &str = "pick_photo";
 const REGISTER_FOR_PUSH: &str = "register_for_push";
 const REQUEST_NOTIFICATIONS: &str = "request_notifications";
 const REQUEST_REVIEW: &str = "request_review";
@@ -54,6 +55,9 @@ pub enum DeviceCall {
     },
     /// The store's own prompt to rate the game, which the store may not show.
     RequestReview,
+    /// The OS's picker over the game, for one picture from the player's
+    /// photos or files.
+    PickPhoto,
     /// The device's push token: APNs' on Apple, FCM's on Android.
     RegisterForPush,
 }
@@ -67,6 +71,7 @@ impl DeviceCall {
             Self::Notify { .. } => NOTIFY,
             Self::Share { .. } => SHARE,
             Self::RequestReview => REQUEST_REVIEW,
+            Self::PickPhoto => PICK_PHOTO,
             Self::RegisterForPush => REGISTER_FOR_PUSH,
         }
     }
@@ -78,7 +83,7 @@ impl DeviceCall {
             Self::RequestNotifications | Self::Notify { .. } | Self::RegisterForPush => {
                 crate::PLATFORM
             }
-            Self::Share { .. } | Self::RequestReview => DEVICE,
+            Self::Share { .. } | Self::RequestReview | Self::PickPhoto => DEVICE,
         }
     }
 
@@ -304,10 +309,11 @@ fn install_push(m: &mut Module<Engine>) {
     });
 }
 
-/// `device.*`: the motor, the share sheet and the review prompt.
+/// `device.*`: the motor, the share sheet, the photo picker and the review
+/// prompt.
 pub(crate) fn install_device(m: &mut Module<Engine>) {
     m.module_doc(
-        "What a phone lends a game beyond the store: its motor, the share sheet and the store's review prompt. A call that answers does so through `task::wait` with a map whose `kind` is `shared`, `done`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. `platform::is_available` says which of them work here. A test answers `share` and `request_review` from the file `BALAUR_STAND_INS` names.",
+        "What a phone lends a game beyond the store: its motor, the share sheet, the photo picker and the store's review prompt. A call that answers does so through `task::wait` with a map whose `kind` is `shared`, `picked`, `done`, `cancelled`, `error` or `unsupported`, each an `EVENT_*` constant. `platform::is_available` says which of them work here. A test answers `share`, `pick_photo` and `request_review` from the file `BALAUR_STAND_INS` names.",
     );
     balaur_core::handler::install_event_kinds(m, kind::DEVICE);
     for haptic in Haptic::ALL {
@@ -339,6 +345,12 @@ pub(crate) fn install_device(m: &mut Module<Engine>) {
             &[],
             "(opts: ShareOptions) -> int",
             "Show the OS's share sheet over the game, and return the id its answer carries: `shared` with the `target` the player picked where the OS names it, `cancelled`, `error`, or `unsupported` where there is no sheet.",
+        ),
+        (
+            PICK_PHOTO,
+            &[],
+            "() -> int",
+            "Show the OS's picker of one picture over the game, and return the id its answer carries: `picked` with the file's `bytes` (`[int]`) and its media `type` (`image/jpeg`, `image/png`), `cancelled` when shut with none, `error`, or `unsupported` where there is no picker. iOS's photo picker answers a JPEG; Android's photo picker, a Mac's, Windows' or Linux's file dialog (PNG, JPEG, WebP, GIF, BMP) and a page's file input the file as it is. `image::encode_async` makes it small enough to upload.",
         ),
         (
             REQUEST_REVIEW,
@@ -386,5 +398,8 @@ pub(crate) fn install_device(m: &mut Module<Engine>) {
     });
     m.function(REQUEST_REVIEW, |eng: &Engine, ()| {
         Ok(start_device(eng, DeviceCall::RequestReview))
+    });
+    m.function(PICK_PHOTO, |eng: &Engine, ()| {
+        Ok(start_device(eng, DeviceCall::PickPhoto))
     });
 }

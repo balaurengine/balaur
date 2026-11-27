@@ -50,12 +50,14 @@ pub enum Service {
     Haptics,
     /// The OS's share sheet, `device.share`.
     Share,
+    /// The OS's picker of one picture, `device.pick_photo`.
+    PhotoPicker,
     /// The store's review prompt, `device.request_review`.
     Review,
 }
 
 impl Service {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Steam,
         Self::GameCenter,
         Self::PlayGames,
@@ -68,6 +70,7 @@ impl Service {
         Self::Purchases,
         Self::Haptics,
         Self::Share,
+        Self::PhotoPicker,
         Self::Review,
     ];
 
@@ -87,6 +90,7 @@ impl Service {
             Self::Purchases => services::PURCHASES,
             Self::Haptics => services::HAPTICS,
             Self::Share => services::SHARE,
+            Self::PhotoPicker => services::PHOTO_PICKER,
             Self::Review => services::REVIEW,
         }
     }

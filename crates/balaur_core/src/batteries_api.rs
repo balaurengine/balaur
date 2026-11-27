@@ -237,6 +237,10 @@ pub(crate) fn dark_mode(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Bool(crate::facts::dark_mode(eng)))
 }
 
+pub(crate) fn prefers_reduced_motion(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Bool(crate::facts::prefers_reduced_motion(eng)))
+}
+
 pub(crate) fn unix_time(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Num(crate::facts::unix_time(eng)))
 }

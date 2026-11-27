@@ -10,4 +10,5 @@ mod java;
 mod purchases;
 mod replay;
 mod script_api;
+mod secrets;
 mod web_sign_in;

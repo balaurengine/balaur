@@ -49,6 +49,11 @@ impl DeviceBackend for Canned {
                 request,
                 call: call.name().to_string(),
             },
+            DeviceCall::PickPhoto => PlatformEvent::Picked {
+                request,
+                bytes: vec![0x89, b'P', b'N', b'G'],
+                media_type: "image/png".into(),
+            },
             DeviceCall::RegisterForPush => PlatformEvent::PushRegistered {
                 request,
                 token: PushToken::fcm("fcm-token-1".into()),
@@ -130,7 +135,22 @@ fn tick(app: &mut App) {
 #[test]
 fn with_nothing_answering_for_it_no_service_is_available() {
     let app = app();
-    for service in Service::ALL {
+    // A desktop's file dialog is this crate's own.
+    let desktop = cfg!(not(any(
+        target_os = "android",
+        target_family = "wasm",
+        target_os = "ios"
+    )));
+    if desktop {
+        assert!(balaur_platform::is_available(
+            &app.engine,
+            Service::PhotoPicker
+        ));
+    }
+    for service in Service::ALL
+        .into_iter()
+        .filter(|s| *s != Service::PhotoPicker)
+    {
         if cfg!(not(any(target_os = "android", target_family = "wasm"))) {
             assert!(
                 !balaur_platform::is_available(&app.engine, service),
@@ -383,6 +403,39 @@ fn a_stand_in_answers_a_share_and_a_notification_in_place_of_the_os() {
         field(&events[3], "kind"),
         Some(text("scheduled")),
         "a call the file does not name reaches the OS"
+    );
+}
+
+// A picked picture reaches its waiter as its bytes and media type, and a
+// stand-in answers the picker with the bytes a test names.
+#[test]
+fn a_picked_picture_answers_its_bytes_and_a_stand_in_answers_in_place_of_the_os() {
+    let (mut app, _) = app_with_os();
+    start(&app, 1, DeviceCall::PickPhoto);
+    tick(&mut app);
+    let picked = events(&app);
+    assert_eq!(field(&picked[0], "kind"), Some(text("picked")));
+    assert_eq!(
+        field(&picked[0], "bytes"),
+        Some(Value::Bytes(vec![0x89, b'P', b'N', b'G']))
+    );
+    assert_eq!(field(&picked[0], "type"), Some(text("image/png")));
+    let stand_ins = StandIns::parse(
+        r#"{ "device.pick_photo": { "kind": "picked", "bytes": [1, 2, 255], "type": "image/jpeg" } }"#,
+    )
+    .unwrap();
+    balaur_platform::set_stand_ins(&app.engine, stand_ins).unwrap();
+    start(&app, 2, DeviceCall::PickPhoto);
+    tick(&mut app);
+    let named = events(&app);
+    assert_eq!(field(&named[0], "kind"), Some(text("picked")));
+    assert_eq!(
+        field(&named[0], "bytes"),
+        Some(Value::List(vec![
+            Value::Int(1),
+            Value::Int(2),
+            Value::Int(255)
+        ]))
     );
 }
 

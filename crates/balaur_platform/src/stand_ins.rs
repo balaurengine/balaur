@@ -17,7 +17,11 @@
 //! receives, `kind` and all; its `request` is filled in. `null` is an answer
 //! that never comes, as a sign-in page left open does. A call the file does
 //! not name goes to its backend as usual. `"platform.backend": "steam"` is
-//! the store `platform.backend()` names, so a test plays a store's build.
+//! the store `platform.backend()` names, so a test plays a store's build;
+//! `"engine.prefers_reduced_motion": "reduce"` (or `"no-preference"`, CSS's
+//! two words) is the system's reduce-motion setting, whatever the machine
+//! says; `"secrets.backend": "file"` keeps `secrets.*` in a file under the
+//! user directory rather than the OS's keychain.
 //!
 //! An answer travels the backend's own channel, so it is recorded and a
 //! replay plays it back like any other.
@@ -86,6 +90,25 @@ impl StandIns {
     }
 }
 
+/// CSS's words for the reduce-motion setting, as a stand-in names it.
+const REDUCE: &str = "reduce";
+const NO_PREFERENCE: &str = "no-preference";
+
+/// The reduce-motion setting `stand_ins` names, if it names one.
+///
+/// # Errors
+/// For a name other than `reduce` or `no-preference`.
+pub(crate) fn reduced_motion(stand_ins: &StandIns) -> Result<Option<bool>> {
+    match stand_ins.answer("engine", "prefers_reduced_motion") {
+        None | Some(None) => Ok(None),
+        Some(Some(serde_json::Value::String(word))) if word == REDUCE => Ok(Some(true)),
+        Some(Some(serde_json::Value::String(word))) if word == NO_PREFERENCE => Ok(Some(false)),
+        Some(Some(other)) => Err(anyhow!(
+            "engine.prefers_reduced_motion names \"{REDUCE}\" or \"{NO_PREFERENCE}\", got {other}"
+        )),
+    }
+}
+
 /// This run's stand-in for `module.call`, as [`StandIns::answer`] gives it.
 /// `None` on an engine without the platform plugin.
 #[must_use]
@@ -103,6 +126,9 @@ pub fn set_stand_ins(eng: &Engine, stand_ins: StandIns) -> Result<()> {
     let held = eng
         .try_resource::<StandIns>()
         .ok_or_else(|| anyhow!("the platform plugin has to be loaded first"))?;
+    if let Some(reduced) = reduced_motion(&stand_ins)? {
+        balaur_core::facts::hold_reduced_motion(eng, reduced);
+    }
     *held.borrow_mut() = stand_ins;
     Ok(())
 }

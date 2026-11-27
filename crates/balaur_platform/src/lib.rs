@@ -74,8 +74,10 @@ pub const PAGE_OPEN: &str = "open";
 mod android;
 pub mod device;
 mod native;
+pub mod photos;
 mod purchases;
 mod script_api;
+pub mod secrets;
 pub mod services;
 pub mod stand_ins;
 mod vocabulary;
@@ -401,6 +403,13 @@ pub enum PlatformEvent {
         request: u64,
         target: String,
     },
+    /// The picture the player picked, as the file's bytes and their media
+    /// type: `image/jpeg`, `image/png`.
+    Picked {
+        request: u64,
+        bytes: Vec<u8>,
+        media_type: String,
+    },
     /// The device's push token, for `register_for_push`.
     PushRegistered {
         request: u64,
@@ -450,6 +459,7 @@ impl PlatformEvent {
             | Self::Notifications { request, .. }
             | Self::Scheduled { request, .. }
             | Self::Shared { request, .. }
+            | Self::Picked { request, .. }
             | Self::PushRegistered { request, .. }
             | Self::PushFailed { request, .. } => *request,
             Self::NotificationOpened { .. }
@@ -868,6 +878,7 @@ pub mod kind {
     pub const NOTIFICATION_OPENED: &str = "notification_opened";
     pub const NOTIFICATION_RECEIVED: &str = "notification_received";
     pub const SHARED: &str = "shared";
+    pub const PICKED: &str = "picked";
     pub const URL_OPENED: &str = "url_opened";
     pub const PRODUCTS: &str = "products";
     pub const PURCHASED: &str = "purchased";
@@ -910,7 +921,7 @@ pub mod kind {
         ERROR,
     ];
     /// What `device.*` answers.
-    pub const DEVICE: &[&str] = &[SHARED, DONE, CANCELLED, UNSUPPORTED, ERROR];
+    pub const DEVICE: &[&str] = &[SHARED, PICKED, DONE, CANCELLED, UNSUPPORTED, ERROR];
 }
 
 fn event_value(event: PlatformEvent) -> Value {
@@ -1024,6 +1035,13 @@ fn device_value(event: PlatformEvent, pairs: &mut Vec<(String, Value)>) {
             pairs.push((KIND.into(), Value::Str(kind::SHARED.into())));
             pairs.push((k::TARGET.into(), Value::Str(target)));
         }
+        PlatformEvent::Picked {
+            bytes, media_type, ..
+        } => {
+            pairs.push((KIND.into(), Value::Str(kind::PICKED.into())));
+            pairs.push((k::BYTES.into(), Value::Bytes(bytes)));
+            pairs.push((k::TYPE.into(), Value::Str(media_type)));
+        }
         PlatformEvent::UrlOpened { url } => {
             pairs.push((KIND.into(), Value::Str(kind::URL_OPENED.into())));
             pairs.push((URL.into(), Value::Str(url)));
@@ -1082,7 +1100,12 @@ impl balaur_plugin::Plugin for PlatformPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(PlatformState::default());
         reg.insert_resource(PlatformSnapshot::default());
-        reg.insert_resource(StandIns::from_env()?);
+        let stand_ins = StandIns::from_env()?;
+        let reduced_motion = stand_ins::reduced_motion(&stand_ins)?;
+        reg.insert_resource(stand_ins);
+        if let Some(reduced) = reduced_motion {
+            balaur_core::facts::hold_reduced_motion(reg.engine(), reduced);
+        }
         balaur_core::events::declare(
             reg.engine(),
             &[(
@@ -1092,6 +1115,8 @@ impl balaur_plugin::Plugin for PlatformPlugin {
             )],
         );
         reg.add_system(Stage::First, pump_platform_system);
+        #[cfg(target_os = "android")]
+        reg.add_system(Stage::First, android::device::follow_reduced_motion_system);
         reg.add_replay_source(PLATFORM, capture, restore);
         reg.add_replay_setup(services::SERVICES, services::capture, services::restore);
         native::provide(reg.engine())?;
@@ -1099,6 +1124,8 @@ impl balaur_plugin::Plugin for PlatformPlugin {
         script_api::install(&mut m);
         let mut m = reg.script_module(DEVICE)?;
         device::install_device(&mut m);
+        let mut m = reg.script_module(secrets::SECRETS)?;
+        secrets::install(&mut m);
         Ok(())
     }
 }

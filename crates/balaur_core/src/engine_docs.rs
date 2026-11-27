@@ -73,6 +73,7 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
         ("utc_offset", &[], "(at: float) -> int", "How far the player's time zone is from UTC at `at` (seconds since 1970), in seconds east, daylight saving included: `unix_time() + utc_offset(t)` is what their clock says of `t`. 0 where the platform says nothing. Read from the system, never recorded."),
         ("focused", &[], "() -> bool", "Whether the window is in front of the player this tick; every script's `on_focused_changed(bool)` is called when it changes. True with no window."),
         ("dark_mode", &[], "() -> bool", "Whether the system is in dark mode this tick; every script's `on_dark_mode_changed(bool)` is called when it changes. False where nothing says."),
+        ("prefers_reduced_motion", &[], "() -> bool", "Whether the player asked the system to reduce motion this tick, as CSS's `prefers-reduced-motion: reduce`: macOS's and iOS's Reduce Motion, Android's Remove animations, Windows' Show animations off, GNOME's animations off, a browser's media query. Every script's `on_prefers_reduced_motion_changed(bool)` is called when it changes. False where nothing says; a test names it in the file `BALAUR_STAND_INS` names, `\"engine.prefers_reduced_motion\": \"reduce\"` or `\"no-preference\"`."),
     ]);
 }
 

@@ -25,10 +25,23 @@ tracing.workspace = true
 jni = "0.22"
 ndk-context = "0.1"
 
-# A page's motor, `navigator.vibrate` (`device.vibrate`).
+# A page's motor, `navigator.vibrate` (`device.vibrate`), its file input
+# (`device.pick_photo`) and `localStorage` (`secrets.*`).
 [target.'cfg(target_family = "wasm")'.dependencies]
-web-sys = { version = "0.3.106", features = ["Navigator", "Window"] }
+web-sys = { version = "0.3.106", features = ["Blob", "Document", "Element", "EventTarget", "File", "FileList", "HtmlElement", "HtmlInputElement", "Navigator", "Storage", "Window"] }
 js-sys = "0.3.106"
+wasm-bindgen = "0.2.129"
+wasm-bindgen-futures = "0.4.79"
+
+# `device.pick_photo` on a desktop: the system's file dialog, waited for on
+# a thread of its own.
+[target.'cfg(not(any(target_family = "wasm", target_os = "ios", target_os = "android")))'.dependencies]
+rfd = "0.17"
+pollster = "1"
+
+# `secrets.*` in the Credential Manager.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
 
 [dev-dependencies]
 balaur_testkit.workspace = true

@@ -221,6 +221,10 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
         android:exported="false"
         android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     <activity
+        android:name="org.balaur.platform.PickPhoto"
+        android:exported="false"
+        android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    <activity
         android:name="org.balaur.platform.Opened"
         android:exported="false"
         android:theme="@android:style/Theme.NoDisplay" />

@@ -1,6 +1,6 @@
 //! What Apple lends a game beside its store, behind `balaur_platform`'s device
 //! seam: local notifications (`notify.rs`), the iPhone's motor, the share
-//! sheet and the App Store's review prompt.
+//! sheet, the photo picker (`photos.rs`) and the App Store's review prompt.
 //!
 //! By message rather than through typed bindings, as `ui.rs` is: UIKit's
 //! classes are iOS's alone and AppKit's macOS's, and one raw path reads both.
@@ -39,6 +39,7 @@ impl DeviceBackend for AppleDevice {
             }
             DeviceCall::Share { text, file, .. } => share(request, text, file.as_deref(), report),
             DeviceCall::RequestReview if bundled => review(request, report),
+            DeviceCall::PickPhoto => crate::photos::pick(request, report),
             DeviceCall::RegisterForPush if bundled => crate::push::register(request, report),
             other => {
                 let _ = report.send(PlatformEvent::Unsupported {
@@ -108,6 +109,7 @@ pub(crate) fn provide(eng: &balaur_core::Engine) -> anyhow::Result<()> {
         })
         .is_some()
     })?;
+    provide(eng, Service::PhotoPicker, |_| crate::photos::available())?;
     provide(eng, Service::Review, |_| can_review())
 }
 

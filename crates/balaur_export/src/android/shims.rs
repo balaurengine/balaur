@@ -50,6 +50,7 @@ mod tests {
             r#"android:name="org.balaur.platform.Opened""#,
             r#"android:name="org.balaur.platform.Permission""#,
             r#"android:name="org.balaur.platform.Share""#,
+            r#"android:name="org.balaur.platform.PickPhoto""#,
             r#"android:name="org.balaur.platform.Files""#,
         ] {
             assert_eq!(xml.matches(component).count(), 1, "{component}\n{xml}");

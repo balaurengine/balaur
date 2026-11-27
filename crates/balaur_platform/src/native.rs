@@ -1,6 +1,6 @@
 //! The OS services this crate reaches itself, where no OS plugin took the
-//! seam: Android's through the Java shims (`android/`), a page's motor, and
-//! `unsupported` everywhere else.
+//! seam: Android's through the Java shims (`android/`), a page's motor and
+//! file input, a desktop's file dialog, and `unsupported` everywhere else.
 
 use std::sync::mpsc::Sender;
 
@@ -69,8 +69,19 @@ mod os {
     use crate::PlatformEvent;
     use crate::device::Haptic;
 
-    pub(super) use super::unsupported as start;
     pub(super) use crate::web::vibrate;
+
+    /// A picture through the page's file input; everything else is not a page's.
+    pub(super) fn start(
+        request: u64,
+        call: &crate::device::DeviceCall,
+        report: &Sender<PlatformEvent>,
+    ) {
+        match call {
+            crate::device::DeviceCall::PickPhoto => crate::web::pick_photo(request, report),
+            other => super::unsupported(request, other, report),
+        }
+    }
 
     pub(super) const fn cancel(_id: &str) {}
 
@@ -82,21 +93,29 @@ mod os {
 
     pub(super) const fn discard() {}
 
-    /// A page's motor, where the browser has one.
+    /// A page's motor, where the browser has one, and its file input.
     pub(super) fn provide(eng: &super::Engine) -> super::Result<()> {
-        crate::provide(eng, crate::Service::Haptics, |_| crate::web::can_vibrate())
+        crate::provide(eng, crate::Service::Haptics, |_| crate::web::can_vibrate())?;
+        crate::provide(eng, crate::Service::PhotoPicker, |_| true)
     }
 }
 
-/// A desktop: no motor, no sheet, nothing scheduled.
+/// A desktop: no motor, no sheet, nothing scheduled; a picture through the
+/// system's file dialog.
 #[cfg(not(any(target_os = "android", target_family = "wasm")))]
 mod os {
     use std::sync::mpsc::Sender;
 
     use crate::PlatformEvent;
-    use crate::device::Haptic;
+    use crate::device::{DeviceCall, Haptic};
 
-    pub(super) use super::unsupported as start;
+    pub(super) fn start(request: u64, call: &DeviceCall, report: &Sender<PlatformEvent>) {
+        match call {
+            #[cfg(not(target_os = "ios"))]
+            DeviceCall::PickPhoto => crate::photos::pick_from_files(request, report),
+            other => super::unsupported(request, other, report),
+        }
+    }
 
     pub(super) const fn cancel(_id: &str) {}
 
@@ -110,12 +129,11 @@ mod os {
 
     pub(super) const fn discard() {}
 
-    #[allow(
-        clippy::unnecessary_wraps,
-        reason = "the shape Android's and a page's take, which register providers"
-    )]
-    pub(super) const fn provide(_eng: &super::Engine) -> super::Result<()> {
-        Ok(())
+    /// The file dialog, on a desktop.
+    pub(super) fn provide(eng: &super::Engine) -> super::Result<()> {
+        crate::provide(eng, crate::Service::PhotoPicker, |_| {
+            cfg!(not(target_os = "ios"))
+        })
     }
 }
 
