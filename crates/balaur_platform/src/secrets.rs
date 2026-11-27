@@ -573,6 +573,9 @@ mod os {
     use std::sync::OnceLock;
 
     const TOOL: &str = "secret-tool";
+    const LOOKUP: &str = "lookup";
+    const SERVICE: &str = "service";
+    const ACCOUNT: &str = "account";
 
     /// Whether `secret-tool` is on the `PATH` and a Secret Service answers
     /// it, found out once: a lookup of a key nobody keeps says nothing on
@@ -585,7 +588,7 @@ mod os {
             });
             let answers = on_path
                 && Command::new(TOOL)
-                    .args(["lookup", "service", "balaur.probe", "account", "probe"])
+                    .args([LOOKUP, SERVICE, "balaur.probe", ACCOUNT, "probe"])
                     .stdin(Stdio::null())
                     .output()
                     .is_ok_and(|out| out.stderr.is_empty());
@@ -608,9 +611,9 @@ mod os {
 
     fn attributes<'a>(command: &'a mut Command, place: &Place) -> &'a mut Command {
         command
-            .arg("service")
+            .arg(SERVICE)
             .arg(&place.service)
-            .arg("account")
+            .arg(ACCOUNT)
             .arg(&place.key)
     }
 
@@ -638,7 +641,7 @@ mod os {
 
     pub(super) fn get(place: &Place) -> Result<Option<String>> {
         let mut command = Command::new(TOOL);
-        command.arg("lookup");
+        command.arg(LOOKUP);
         let out = attributes(&mut command, place)
             .stdin(Stdio::null())
             .output()?;

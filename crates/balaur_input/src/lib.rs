@@ -1106,7 +1106,7 @@ mod tests {
     #[test]
     fn a_fed_press_is_next_frame_s_edge_and_stays_down_after_it() {
         let mut input = InputSnapshot::default();
-        input.feed(Fed::Pointer(FedPointer::Button(0, true)));
+        input.feed(Fed::Pointer(crate::FedPointer::Button(0, true)));
         assert!(!input.mouse_just_pressed(0), "not this frame's");
         input.begin_frame();
         assert!(input.mouse_just_pressed(0));

@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use crate::PlatformEvent;
+use crate::vocabulary::keys;
 
 /// Each picture a file dialog offers, by extension, with its media type:
 /// what `image::encode` reads.
@@ -70,5 +71,36 @@ pub(crate) fn pick_from_files(request: u64, report: &std::sync::mpsc::Sender<Pla
         });
     if let Err(err) = spawned {
         tracing::warn!("device: pick_photo: {err}");
+    }
+}
+
+impl PlatformEvent {
+    /// A map shaped as its waiter receives it, from a stand-in or a shim: a
+    /// `picked` answer's `bytes` list is bytes, as the OS's picker answers.
+    #[must_use]
+    pub fn from_answer(request: u64, answer: serde_json::Value) -> Self {
+        let picked = answer.get(crate::KIND).and_then(serde_json::Value::as_str)
+            == Some(crate::kind::PICKED);
+        let bytes = answer
+            .get(keys::BYTES)
+            .and_then(serde_json::Value::as_array)
+            .and_then(|items| {
+                items
+                    .iter()
+                    .map(|item| item.as_u64().and_then(|byte| u8::try_from(byte).ok()))
+                    .collect::<Option<Vec<u8>>>()
+            });
+        match bytes.filter(|_| picked) {
+            Some(bytes) => Self::Picked {
+                request,
+                bytes,
+                media_type: answer
+                    .get(keys::TYPE)
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+            },
+            None => Self::Answer { request, answer },
+        }
     }
 }

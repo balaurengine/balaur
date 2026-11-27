@@ -33,6 +33,7 @@ the component in [components.md](./components.md).
 <tr><td><code>on_paused_changed(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>
 <tr><td><code>on_focused_changed(focused)</code></td><td>The window came to the front or left it, told to every script.</td></tr>
 <tr><td><code>on_dark_mode_changed(dark)</code></td><td>The system switched dark mode, told to every script.</td></tr>
+<tr><td><code>on_prefers_reduced_motion_changed(reduced)</code></td><td>The player turned the system&#x27;s reduce-motion setting on or off, told to every script.</td></tr>
 <tr><td><code>on_quit_requested()</code></td><td>The window was asked to close; every script hears it, then the app goes.</td></tr>
 <tr><td><code>on_suspended_changed(suspended)</code></td><td>The game went to the background or came back: a hidden tab, a minimised or covered window, an app sent back; told to every script.</td></tr>
 <tr><td><code>on_low_memory()</code></td><td>The system is short of memory, on iOS and Android; told to every script.</td></tr>

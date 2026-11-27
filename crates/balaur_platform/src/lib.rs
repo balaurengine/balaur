@@ -444,34 +444,6 @@ pub enum PlatformEvent {
 }
 
 impl PlatformEvent {
-    /// A map shaped as its waiter receives it, from a stand-in or a shim: a
-    /// `picked` answer's `bytes` list is bytes, as the OS's picker answers.
-    #[must_use]
-    pub fn from_answer(request: u64, answer: serde_json::Value) -> Self {
-        let picked = answer.get(KIND).and_then(serde_json::Value::as_str) == Some(kind::PICKED);
-        let bytes = answer
-            .get(k::BYTES)
-            .and_then(serde_json::Value::as_array)
-            .and_then(|items| {
-                items
-                    .iter()
-                    .map(|item| item.as_u64().and_then(|byte| u8::try_from(byte).ok()))
-                    .collect::<Option<Vec<u8>>>()
-            });
-        match bytes.filter(|_| picked) {
-            Some(bytes) => Self::Picked {
-                request,
-                bytes,
-                media_type: answer
-                    .get(k::TYPE)
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
-            },
-            None => Self::Answer { request, answer },
-        }
-    }
-
     const fn request(&self) -> u64 {
         match self {
             Self::SignedIn { request, .. }

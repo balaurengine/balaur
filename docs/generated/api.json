@@ -27200,6 +27200,11 @@
       "The system switched dark mode, told to every script."
     ],
     [
+      "on_prefers_reduced_motion_changed",
+      "(reduced)",
+      "The player turned the system's reduce-motion setting on or off, told to every script."
+    ],
+    [
       "on_quit_requested",
       "()",
       "The window was asked to close; every script hears it, then the app goes."
