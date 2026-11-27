@@ -228,7 +228,10 @@ fn register_machine_component(reg: &mut Registry<'_>) {
 /// The playhead takes what the node now asks, and the `autoplay` clip starts.
 ///
 /// Re-writing the component must not restart a running clip, and a clip that
-/// will not load only warns — one bad reference must not kill the scene.
+/// will not load only warns — one bad reference must not kill the scene. An
+/// `autoplay` written anew replaces the clip its old value started (an
+/// instance's override of its prefab's, say); a clip something else started
+/// keeps running.
 #[allow(
     clippy::unnecessary_wraps,
     reason = "an after-write hook may refuse a write; this one never does"
@@ -242,18 +245,20 @@ fn animation_written(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
     else {
         return Ok(());
     };
-    let running = {
+    let (running, replaced) = {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();
         let playback = state.players.entry(entity).or_default();
         playback.library.clone_from(&asked.library);
         playback.root_node.clone_from(&asked.root_node);
-        playback.autoplay.clone_from(&asked.autoplay);
+        let before = std::mem::replace(&mut playback.autoplay, asked.autoplay.clone());
         playback.speed_scale = asked.speed_scale;
-        playback.active()
+        let replaced =
+            before != asked.autoplay && !before.is_empty() && playback.clip_name == before;
+        (playback.active(), replaced)
     };
     if !asked.autoplay.is_empty()
-        && !running
+        && (!running || replaced)
         && let Err(why) = play(eng, entity, &asked.autoplay)
     {
         tracing::warn!("autoplay '{}': {why:#}", asked.autoplay);

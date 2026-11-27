@@ -152,6 +152,54 @@ autoplay = "idle"
     );
 }
 
+// An instance's override of its prefab's `autoplay` plays the override's
+// clip: the prefab's started as it was built, and the override replaces it.
+#[test]
+fn an_autoplay_written_anew_replaces_the_clip_the_old_one_started() {
+    let mut app = app();
+    let source = r#"
+[[nodes]]
+name = "Box"
+
+[nodes.animation]
+library = "animations/hero.toml"
+autoplay = "idle"
+"#;
+    let root = app.engine.root();
+    project::instantiate_scene(&app.engine, source, root, false).unwrap();
+    let entity = scene::find_node(&app.engine.world(), root, "Box").unwrap();
+    let patch: toml::Value = toml::from_str(r#"autoplay = "spin""#).unwrap();
+    components::patch(&app.engine, entity, "animation", &patch).unwrap();
+    tick(&mut app, 2);
+    assert_eq!(
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
+        Some("spin")
+    );
+}
+
+#[test]
+fn an_autoplay_written_anew_leaves_a_clip_a_script_started() {
+    let mut app = app();
+    let source = r#"
+[[nodes]]
+name = "Box"
+
+[nodes.animation]
+library = "animations/hero.toml"
+"#;
+    let root = app.engine.root();
+    project::instantiate_scene(&app.engine, source, root, false).unwrap();
+    let entity = scene::find_node(&app.engine.world(), root, "Box").unwrap();
+    balaur_animation::play(&app.engine, entity, "idle").unwrap();
+    let patch: toml::Value = toml::from_str(r#"autoplay = "spin""#).unwrap();
+    components::patch(&app.engine, entity, "animation", &patch).unwrap();
+    tick(&mut app, 2);
+    assert_eq!(
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
+        Some("idle")
+    );
+}
+
 // `Ghost`'s key is one nothing handles, so the log is heard saying so.
 #[test]
 fn a_saved_animation_node_no_longer_warns_that_nothing_handles_it() {
