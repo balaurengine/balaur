@@ -300,8 +300,9 @@ impl Around {
 pub(crate) struct Batches {
     runs: Vec<LiveRun>,
     heads: HashMap<Entity, usize>,
-    /// Whether the objects were built again since the order was last laid
-    /// out, which is what makes the cached order stale.
+    /// Whether a run or a node's own slot was built again since the order
+    /// was last laid out: kiss3d puts a new object last, so the cached
+    /// order no longer says where each one draws.
     recut: bool,
     /// The tree's shape the order was last worked out at, and each drawing
     /// node's place in it.
@@ -713,6 +714,10 @@ pub(crate) fn sync_2d(
                 &mut batches.live,
             );
             batches.order_again |= built;
+            // A slot built again is a new object at the end of the scene's
+            // children, wherever its node stands in the tree: the order is
+            // laid out whole, as for a run cut again.
+            batches.recut |= built && slots.contains_key(&entity);
         }
         flush(batches, slots, None);
         return;
@@ -745,7 +750,7 @@ pub(crate) fn sync_2d(
         };
         seen.insert(entity);
         let place = (entity, &*renderable, &*global);
-        sync_one_2d(
+        let built = sync_one_2d(
             &frame,
             scene,
             slots,
@@ -754,6 +759,7 @@ pub(crate) fn sync_2d(
             place,
             &mut batches.live,
         );
+        batches.recut |= built && slots.contains_key(&entity);
     }
     flush(batches, slots, Some(&seen));
 }

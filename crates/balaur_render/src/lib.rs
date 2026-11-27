@@ -1001,6 +1001,9 @@ impl balaur_plugin::Plugin for RenderPlugin {
         shape::register_line2d_component(reg);
         sprite::register_sprite_component(reg);
         polygon::register_polygon_component(reg);
+        // Each 2D picture a preloaded scene names, decoded off the frame.
+        #[cfg(feature = "window")]
+        texture::warm_2d_textures(reg);
         camera::register_camera_components(reg);
         light::register_light2d_component(reg);
         light3d::register_light3d_component(reg);

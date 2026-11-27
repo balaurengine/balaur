@@ -31,9 +31,13 @@ mod multimesh;
 #[cfg(feature = "window")]
 mod no_present;
 mod notifier;
+#[cfg(feature = "window")]
+mod order_rebuild;
 mod particles;
 mod picking;
 mod polygon;
+#[cfg(feature = "window")]
+mod preload_textures;
 mod reflection;
 mod rest;
 mod script_api;

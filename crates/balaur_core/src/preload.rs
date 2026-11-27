@@ -37,6 +37,49 @@ pub struct Warming {
 #[derive(Default)]
 pub struct Preloaders(DetHashMap<SmolStr, Vec<Warming>>);
 
+/// Whether what one component's value names is ready to draw: its picture
+/// decoded and on the GPU, say. Asked by [`ready`].
+pub type ReadyFn = fn(&Engine, &toml::Value) -> bool;
+
+/// Each component's readiness checks, by the scene key it is written under.
+#[derive(Default)]
+pub struct ReadyChecks(DetHashMap<SmolStr, Vec<ReadyFn>>);
+
+/// Have `component`'s values answer [`ready`] through `check`. A component
+/// with none is ready once its scene is read.
+pub fn on_ready(eng: &Engine, component: &str, check: ReadyFn) {
+    if eng.try_resource::<ReadyChecks>().is_none() {
+        eng.insert_resource(ReadyChecks::default());
+    }
+    eng.resource::<ReadyChecks>()
+        .borrow_mut()
+        .0
+        .entry(component.into())
+        .or_default()
+        .push(check);
+}
+
+/// Whether the scene at `path` and every prefab under it are read and
+/// everything their components name is ready: what a screen waits on before
+/// it shows a scene [`scene`] readied, so its first frame draws it whole
+/// with nothing decoded on it.
+///
+/// # Errors
+/// If a file does not read or a document does not parse.
+pub fn ready(eng: &Engine, path: &str) -> Result<bool> {
+    crate::project::scene_ready(eng, path)
+}
+
+/// Whether one scene key's value is ready, by its component's checks.
+pub(crate) fn value_ready(eng: &Engine, key: &str, value: &toml::Value) -> bool {
+    let checks = eng
+        .try_resource::<ReadyChecks>()
+        // copy: a check asks the engine, which must not hold this borrow meanwhile.
+        .and_then(|checks| checks.borrow().0.get(key).cloned())
+        .unwrap_or_default();
+    checks.iter().all(|check| check(eng, value))
+}
+
 /// Hand `component`'s values in every scene preloaded or unloaded to `warming`.
 pub fn on_component(eng: &Engine, component: &str, warming: Warming) {
     if eng.try_resource::<Preloaders>().is_none() {

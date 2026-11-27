@@ -442,3 +442,27 @@ fn unload_hands_what_preload_handed_to_the_same_plugin() {
         "the second unload finds nothing cached to let go of"
     );
 }
+
+thread_local! {
+    static UPLOADED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[test]
+fn a_preloaded_scene_is_ready_once_every_component_it_names_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), "\n[nodes.warmed]\nnamed = \"picture\"\n");
+    let app = booted(dir.path());
+    balaur_core::preload::on_ready(&app.engine, "warmed", |_, _| UPLOADED.get());
+    balaur_core::preload::scene(&app.engine, "b.toml").unwrap();
+    assert!(
+        !balaur_core::preload::ready(&app.engine, "b.toml").unwrap(),
+        "ready while its picture is on its way"
+    );
+    UPLOADED.set(true);
+    assert!(balaur_core::preload::ready(&app.engine, "b.toml").unwrap());
+    assert!(
+        balaur_core::preload::ready(&app.engine, "c.toml").unwrap(),
+        "a scene naming nothing to wait for is ready once read"
+    );
+    assert!(balaur_core::preload::ready(&app.engine, "nope.toml").is_err());
+}

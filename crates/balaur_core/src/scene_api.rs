@@ -131,6 +131,12 @@ pub(crate) fn scene_preload(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+/// `scene.preloaded(path)` — whether the scene and its prefabs are read and
+/// everything they name is ready to draw.
+pub(crate) fn scene_preloaded(eng: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(Value::Bool(crate::preload::ready(eng, text(args, 0)?)?))
+}
+
 /// `scene.unload(path)` — what `preload` or a pack warmed, let go.
 pub(crate) fn scene_unload(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::preload::unload(eng, text(args, 0)?);

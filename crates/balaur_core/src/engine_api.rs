@@ -247,6 +247,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: words::modules::SCENE,
+            name: words::functions::PRELOADED,
+            call: crate::scene_api::scene_preloaded,
+        },
+        EngineOp {
+            module: words::modules::SCENE,
             name: words::functions::UNLOAD,
             call: crate::scene_api::scene_unload,
         },

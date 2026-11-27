@@ -293,6 +293,9 @@ impl Frontend {
         // where its own tick put them, the first frame from the scene's.
         apply_camera(app, &mut self.camera, window);
         apply_camera_2d(app, &mut self.camera_2d, window);
+        // After the tick, which may have preloaded a scene: its pictures start
+        // on a worker now, and those decoded go up before anything draws.
+        crate::texture::settle_preloads(&app.engine);
         boot_cost::report_shader_builds(app, self.frame);
         // Read once for the whole frame: three syncs ask, and each would
         // otherwise see the reload and hide it from the next.

@@ -38,7 +38,7 @@ use crate::vocabulary::words;
 use instances::{apply_overrides, apply_own_keys, instance};
 pub use problems::{Problem, RowNames, problems, row_names};
 use scene_keys::{SceneKeys, scene_keys};
-pub(crate) use scene_walks::{instantiate_main_scene, preload_scene, unload_scene};
+pub(crate) use scene_walks::{instantiate_main_scene, preload_scene, scene_ready, unload_scene};
 use script_order::children_first;
 use stamps::held_stamp_of;
 pub(crate) use stamps::hold_stamps;

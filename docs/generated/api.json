@@ -7057,6 +7057,10 @@
         "least": 1,
         "signature": "(str)"
       },
+      "scene::preloaded": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
       "scene::repeat": {
         "least": 2,
         "signature": "(Node, [scene::RepeatItem]) -> [Node]"
@@ -34313,6 +34317,7 @@
         "keep_changes": "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged.",
         "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
         "preload": "Ready a scene before a switch to it: its file and every prefab under it read and parsed now, and the pictures they name decoding on a worker thread. No node is built and nothing in the world changes, so a replay that never preloaded builds the same world. An error when a file does not read or parse, said now rather than at the switch.",
+        "preloaded": "Whether a scene `preload` readied is ready to show: its file and every prefab under it read, and every picture they name decoded and on the GPU, so its first frame draws it whole with nothing decoded on that frame. Ask it after `preload` until it answers true, a frame or a `task::frames` apart. An error when a file does not read or parse.",
         "repeat": "One instance of each item's scene file under `host`, in the items' order after the host's other children, and the instance's root for each. An instance is kept from call to call: the same key keeps its node, a new key takes a spare of the same scene, and an instance no item asks for is hidden, not freed, so a list asked for every pass builds only when it grows. Each root is named for its item's `key`, so a binding row handing over the node says which item it is; a spare is named `spare0`, `spare1` and on. An instance's stable ids are the file's under `<host id>/<n>/`, as a prefab instance's are. A scene file with more than one root is an error, as are two items sharing a key and a key that is empty or holds a `/`.",
         "root": "The tree's root node.",
         "set_variable": "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing.",
@@ -34341,6 +34346,7 @@
         "keep_changes",
         "node_by_id",
         "preload",
+        "preloaded",
         "repeat",
         "root",
         "set_variable",
@@ -34370,6 +34376,7 @@
         "keep_changes": "(Node?)",
         "node_by_id": "(str, Node?) -> Node",
         "preload": "(str)",
+        "preloaded": "(str) -> bool",
         "repeat": "(Node, [scene::RepeatItem]) -> [Node]",
         "root": "() -> Node",
         "set_variable": "(str, any)",

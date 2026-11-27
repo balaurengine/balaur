@@ -52,7 +52,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`render`](#render) | 38 | 41 |
 | [`replay`](#replay) | 16 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
-| [`scene`](#scene) | 25 | 0 |
+| [`scene`](#scene) | 26 | 0 |
 | [`script`](#script) | 13 | 0 |
 | [`settings`](#settings) | 10 | 0 |
 | [`skeleton`](#skeleton) | 1 | 0 |
@@ -1144,6 +1144,7 @@ The node tree: its root, lookup by path and instancing, plus the component vocab
 | `keep_changes` | `(Node?)` |
 | `node_by_id` | `(str, Node?) -> Node` |
 | `preload` | `(str)` |
+| `preloaded` | `(str) -> bool` |
 | `repeat` | `(Node, [scene::RepeatItem]) -> [Node]` |
 | `root` | `() -> Node` |
 | `set_variable` | `(str, any)` |

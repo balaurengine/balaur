@@ -240,6 +240,72 @@ mod windowed {
         premultiply: bool,
         on_surface: bool,
     ) -> Option<Arc<Texture>> {
+        let plan = planned(eng, reference, premultiply, on_surface)?;
+        if let Some(cached) = TextureManager::get_global_manager(|tm| tm.get(&plan.name)) {
+            return Some(cached);
+        }
+        let files = eng.resource::<balaur_core::project::ProjectFiles>();
+        // Bytes rather than a path: a packed game carries its textures inside
+        // the pack, with nothing beside it on disk.
+        let bytes = match files.borrow().read(&plan.path) {
+            Ok(bytes) => bytes,
+            // A frame is not the place to abort: say which asset is missing
+            // and keep drawing the rest of the scene.
+            Err(err) => {
+                tracing::error!("{err:#}");
+                return None;
+            }
+        };
+        // Built on the miss rather than on every attach, which is also what
+        // keeps the two warnings in `sampling` to one a texture.
+        let (asked, alpha) = plan.sampling();
+        match balaur_asset::pixels::decode(&bytes, &plan.settings, alpha) {
+            Ok(pixels) => Some(plan.upload(pixels, asked)),
+            Err(why) => {
+                tracing::error!("decoding the image {}: {why}", plan.path);
+                None
+            }
+        }
+    }
+
+    /// What an upload of one reference is named and read with.
+    struct Planned {
+        /// The upload's name in kiss3d's cache ([`super::upload_name`]).
+        name: String,
+        path: String,
+        settings: toml::Table,
+        premultiply: bool,
+        mips: bool,
+    }
+
+    impl Planned {
+        fn sampling(&self) -> (TextureSampling, balaur_asset::pixels::Alpha) {
+            let mut asked = sampling(&self.path, &self.settings, self.premultiply);
+            asked.mipmaps |= self.mips;
+            let alpha = if asked.premultiply {
+                balaur_asset::pixels::Alpha::Premultiplied
+            } else {
+                balaur_asset::pixels::Alpha::Straight
+            };
+            (asked, alpha)
+        }
+
+        fn upload(&self, pixels: image::RgbaImage, asked: TextureSampling) -> Arc<Texture> {
+            let image = image::DynamicImage::ImageRgba8(pixels);
+            TextureManager::get_global_manager(|tm| {
+                tm.add_image_sampled(image.clone(), &self.name, asked)
+            })
+        }
+    }
+
+    /// The name `reference` uploads under, and what it is read with; `None`
+    /// for an empty one, or one that does not resolve, which is said.
+    fn planned(
+        eng: &Engine,
+        reference: &str,
+        premultiply: bool,
+        on_surface: bool,
+    ) -> Option<Planned> {
         if reference.is_empty() {
             return None;
         }
@@ -258,47 +324,178 @@ mod windowed {
             on_surface && balaur_core::import::texture::mips_on_a_surface(&settings.settings);
         let stamp = super::upload_stamp(&settings.stamp, premultiply, mips);
         let name = super::upload_name(path, files.borrow().mtime(path), &stamp);
-        if let Some(cached) = TextureManager::get_global_manager(|tm| tm.get(&name)) {
-            return Some(cached);
+        Some(Planned {
+            name,
+            path: path.to_string(),
+            settings: settings.settings.clone(),
+            premultiply,
+            mips,
+        })
+    }
+
+    /// The 2D components whose `texture` a preloaded scene readies: each
+    /// draws through [`attach_texture_2d`].
+    const TEXTURED_2D: [&str; 4] = ["sprite", "polygon", "shape2d", "particles2d"];
+    const TEXTURE: &str = "texture";
+    /// The files read and the pictures uploaded a frame: each a millisecond
+    /// or two for a strip's art, so a frame keeps its budget.
+    const READS_A_FRAME: usize = 8;
+    const UPLOADS_A_FRAME: usize = 4;
+    /// What `balaur_core::rest` calls the decodes and uploads on their way.
+    const PRELOADING: &str = "textures";
+
+    /// Pictures a preloaded scene names, on their way to the GPU before a
+    /// frame draws them (`balaur_core::preload`): read on the frame, decoded
+    /// on a worker, uploaded under the name a draw looks for, so the first
+    /// frame that draws one finds it there.
+    #[derive(Default)]
+    pub(crate) struct Preloads {
+        queued: std::collections::VecDeque<String>,
+        decoding: Vec<Decoding>,
+    }
+
+    struct Decoding {
+        plan: Planned,
+        asked: TextureSampling,
+        answer: std::sync::mpsc::Receiver<Result<image::RgbaImage, String>>,
+    }
+
+    /// Each 2D picture a preloaded scene names, readied ahead of its scene,
+    /// and asked after by `scene::preloaded`.
+    pub(crate) fn warm_2d_textures(reg: &mut balaur_plugin::Registry<'_>) {
+        reg.insert_resource(Preloads::default());
+        let eng = reg.engine();
+        for component in TEXTURED_2D {
+            balaur_core::preload::on_component(
+                eng,
+                component,
+                balaur_core::preload::Warming {
+                    preload: preload_2d,
+                    unload: unload_2d,
+                },
+            );
+            balaur_core::preload::on_ready(eng, component, ready_2d);
         }
-        // Bytes rather than a path: a packed game carries its textures inside
-        // the pack, with nothing beside it on disk.
-        let bytes = match files.borrow().read(path) {
-            Ok(bytes) => bytes,
-            // A frame is not the place to abort: say which asset is missing
-            // and keep drawing the rest of the scene.
-            Err(err) => {
-                tracing::error!("{err:#}");
-                return None;
-            }
+        balaur_core::rest::add_probe(eng, PRELOADING, preloading);
+    }
+
+    fn texture_of(value: &toml::Value) -> Option<&str> {
+        value
+            .get(TEXTURE)
+            .and_then(toml::Value::as_str)
+            .filter(|reference| !reference.is_empty())
+    }
+
+    fn preload_2d(eng: &Engine, value: &toml::Value) {
+        if let Some(reference) = texture_of(value)
+            && let Some(preloads) = eng.try_resource::<Preloads>()
+        {
+            preloads
+                .borrow_mut()
+                .queued
+                .push_back(reference.to_string());
+        }
+    }
+
+    /// A picture not started yet is not started; one on its GPU stays, as
+    /// every uploaded picture does (kiss3d's cache never lets go).
+    fn unload_2d(eng: &Engine, value: &toml::Value) {
+        if let Some(reference) = texture_of(value)
+            && let Some(preloads) = eng.try_resource::<Preloads>()
+        {
+            preloads
+                .borrow_mut()
+                .queued
+                .retain(|queued| queued != reference);
+        }
+    }
+
+    /// Whether the picture a value names is on the GPU: one naming none, or
+    /// one that does not resolve, has nothing to wait for.
+    fn ready_2d(eng: &Engine, value: &toml::Value) -> bool {
+        let Some(reference) = texture_of(value) else {
+            return true;
         };
-        // Built on the miss rather than on every attach, which is also what
-        // keeps the two warnings in `sampling` to one a texture.
-        let mut asked = sampling(path, &settings.settings, premultiply);
-        asked.mipmaps |= mips;
-        let alpha = if asked.premultiply {
-            balaur_asset::pixels::Alpha::Premultiplied
-        } else {
-            balaur_asset::pixels::Alpha::Straight
+        let Some(plan) = planned(eng, reference, PREMULTIPLY_HONOURED, false) else {
+            return true;
         };
-        match balaur_asset::pixels::decode(&bytes, &settings.settings, alpha) {
-            Ok(pixels) => {
-                let image = image::DynamicImage::ImageRgba8(pixels);
-                Some(TextureManager::get_global_manager(|tm| {
-                    tm.add_image_sampled(image.clone(), &name, asked)
-                }))
+        TextureManager::get_global_manager(|tm| tm.get(&plan.name)).is_some()
+    }
+
+    fn preloading(eng: &Engine) -> bool {
+        eng.try_resource::<Preloads>().is_some_and(|preloads| {
+            let preloads = preloads.borrow();
+            !preloads.queued.is_empty() || !preloads.decoding.is_empty()
+        })
+    }
+
+    /// Once a frame: a few queued pictures read and started on a worker, and
+    /// a few decoded ones uploaded, so a scene's pictures spread over frames
+    /// rather than make one long. A picture that does not read or decode is
+    /// left for the draw that names it to report.
+    pub(crate) fn settle_preloads(eng: &Engine) {
+        let Some(preloads) = eng.try_resource::<Preloads>() else {
+            return;
+        };
+        let queued: Vec<String> = {
+            let mut preloads = preloads.borrow_mut();
+            let take = preloads.queued.len().min(READS_A_FRAME);
+            preloads.queued.drain(..take).collect()
+        };
+        for reference in queued {
+            let Some(plan) = planned(eng, &reference, PREMULTIPLY_HONOURED, false) else {
+                continue;
+            };
+            let known = TextureManager::get_global_manager(|tm| tm.get(&plan.name)).is_some()
+                || preloads
+                    .borrow()
+                    .decoding
+                    .iter()
+                    .any(|decoding| decoding.plan.name == plan.name);
+            if known {
+                continue;
             }
-            Err(why) => {
-                tracing::error!("decoding the image {path}: {why}");
-                None
+            let files = eng.resource::<balaur_core::project::ProjectFiles>();
+            let Ok(bytes) = files.borrow().read(&plan.path) else {
+                continue;
+            };
+            let (asked, alpha) = plan.sampling();
+            let settings = plan.settings.clone();
+            let answer = balaur_core::task::compute(move || {
+                balaur_asset::pixels::decode(&bytes, &settings, alpha)
+                    .map_err(|why| why.to_string())
+            });
+            preloads.borrow_mut().decoding.push(Decoding {
+                plan,
+                asked,
+                answer,
+            });
+        }
+        let decoding = std::mem::take(&mut preloads.borrow_mut().decoding);
+        let mut waiting = Vec::with_capacity(decoding.len());
+        let mut uploads = 0;
+        for decoding in decoding {
+            if uploads == UPLOADS_A_FRAME {
+                waiting.push(decoding);
+                continue;
+            }
+            match decoding.answer.try_recv() {
+                Ok(Ok(pixels)) => {
+                    decoding.plan.upload(pixels, decoding.asked);
+                    uploads += 1;
+                }
+                Ok(Err(_)) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+                Err(std::sync::mpsc::TryRecvError::Empty) => waiting.push(decoding),
             }
         }
+        preloads.borrow_mut().decoding.extend(waiting);
     }
 }
 
 #[cfg(feature = "window")]
 pub(crate) use windowed::{
-    PREMULTIPLY_DROPPED, attach_texture_2d, attach_texture_3d, upload, upload_for_surface,
+    PREMULTIPLY_DROPPED, attach_texture_2d, attach_texture_3d, settle_preloads, upload,
+    upload_for_surface, warm_2d_textures,
 };
 
 #[cfg(test)]

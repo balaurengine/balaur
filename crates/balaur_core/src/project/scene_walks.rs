@@ -37,6 +37,40 @@ fn preload_walk(eng: &Engine, path: &str, seen: &mut Vec<String>) -> Result<()> 
     Ok(())
 }
 
+/// Whether the scene at `path` and every prefab under it have each component
+/// value ready ([`crate::preload::ready`]). Reads a file not read yet.
+pub(crate) fn scene_ready(eng: &Engine, path: &str) -> Result<bool> {
+    let mut seen = Vec::new();
+    ready_walk(eng, path, &mut seen)
+}
+
+fn ready_walk(eng: &Engine, path: &str, seen: &mut Vec<String>) -> Result<bool> {
+    if seen.iter().any(|done| done == path) {
+        return Ok(true);
+    }
+    seen.push(path.to_string());
+    let (_, doc) = scene_doc(eng, path)?;
+    for node in &doc.nodes {
+        let own = node.extra.iter();
+        let overridden = node
+            .overrides
+            .values()
+            .filter_map(toml::Value::as_table)
+            .flat_map(|keys| keys.iter());
+        for (key, value) in own.chain(overridden) {
+            if !crate::preload::value_ready(eng, key, value) {
+                return Ok(false);
+            }
+        }
+        if let Some(prefab) = &node.instance
+            && !ready_walk(eng, prefab, seen)?
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Let go of the parsed text of the scene at `path` and every prefab under it
 /// that is cached, each component value handed to its unloaders. A file no one
 /// has read has nothing to let go of.

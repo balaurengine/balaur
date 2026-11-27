@@ -156,6 +156,7 @@ pub(crate) mod words {
         pub(crate) const PARSE_ASYNC: &str = "parse_async";
         pub(crate) const PAUSED: &str = "paused";
         pub(crate) const PRELOAD: &str = "preload";
+        pub(crate) const PRELOADED: &str = "preloaded";
         pub(crate) const QUIT: &str = "quit";
         pub(crate) const READ: &str = "read";
         pub(crate) const REMOVE: &str = "remove";
