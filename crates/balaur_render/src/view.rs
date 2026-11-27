@@ -65,9 +65,15 @@ struct Surface {
     size: (u32, u32),
 }
 
-/// Every camera drawing into a view, by its node.
+/// Every camera drawing into a view, by its node, and the textures let go
+/// last frame. A texture is freed a frame after it is let go: the widget
+/// layer built this frame's shapes with the one it was told before, and
+/// egui paints them after the views render.
 #[derive(Default)]
-pub(crate) struct Views(HashMap<Entity, Surface>);
+pub(crate) struct Views {
+    held: HashMap<Entity, Surface>,
+    retired: Vec<egui::TextureId>,
+}
 
 /// A camera that draws into a view: its node, the widget, where it looks
 /// and its zoom in logical pixels a unit and whether that counts the
@@ -111,16 +117,19 @@ impl Views {
         window: &mut Window,
         scene_2d: &mut SceneNode2d,
     ) {
+        for texture in self.retired.drain(..) {
+            window.unregister_egui_texture(texture);
+        }
         let wanted = wanted(app);
         let gone: Vec<Entity> = self
-            .0
+            .held
             .keys()
             .filter(|camera| !wanted.iter().any(|w| w.camera == **camera))
             .copied()
             .collect();
         for camera in gone {
-            if let Some(old) = self.0.remove(&camera) {
-                window.unregister_egui_texture(old.texture);
+            if let Some(old) = self.held.remove(&camera) {
+                self.retired.push(old.texture);
                 balaur_ui::set_view_texture(&app.engine, old.widget, None);
             }
         }
@@ -134,13 +143,13 @@ impl Views {
                 )
             });
             let Some(size) = size.filter(|(w, h)| *w > 0 && *h > 0) else {
-                if let Some(old) = self.0.remove(&want.camera) {
-                    window.unregister_egui_texture(old.texture);
+                if let Some(old) = self.held.remove(&want.camera) {
+                    self.retired.push(old.texture);
                     balaur_ui::set_view_texture(&app.engine, old.widget, None);
                 }
                 continue;
             };
-            let held = match self.0.entry(want.camera) {
+            let held = match self.held.entry(want.camera) {
                 std::collections::hash_map::Entry::Occupied(held) => held.into_mut(),
                 std::collections::hash_map::Entry::Vacant(free) => {
                     let mut surface = OffscreenSurface::new(size.0, size.1).await;
@@ -157,7 +166,7 @@ impl Views {
             };
             if held.size != size {
                 held.surface.resize(size.0, size.1);
-                window.unregister_egui_texture(held.texture);
+                self.retired.push(held.texture);
                 held.texture =
                     window.register_egui_texture(&held.surface.output_view(), wgpu_filter());
                 held.size = size;

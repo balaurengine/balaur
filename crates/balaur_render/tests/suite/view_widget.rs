@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use balaur::{AppConfig, standard_app};
-use balaur_core::Stage;
+use balaur_core::{Stage, components, scene};
 
 use crate::film::gpu_present;
 
@@ -54,6 +54,12 @@ shape = { kind = "rectangle", size = [1.0, 1.0] }
 const SIDE: u32 = 320;
 
 fn shot() -> image::RgbaImage {
+    shot_resized(None)
+}
+
+/// The window at the sixth frame; with `resized`, the view made taller at
+/// that frame, so its surface is made again the frame it is pictured.
+fn shot_resized(resized: Option<f64>) -> image::RgbaImage {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
@@ -67,6 +73,16 @@ fn shot() -> image::RgbaImage {
     let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
     let frame = Rc::new(RefCell::new(0u64));
+    if let Some(height) = resized {
+        let frame = frame.clone();
+        app.add_system(Stage::Update, move |eng, _| {
+            if *frame.borrow() == 5 {
+                let view = scene::find_node(&eng.world(), eng.root(), "Root/View").unwrap();
+                let tall = toml::Value::Float(height);
+                components::set_property(eng, view, "widget", "height", &tall).unwrap();
+            }
+        });
+    }
     let path = dir.path().join("view.png");
     {
         let path = path.clone();
@@ -126,5 +142,19 @@ fn a_camera_draws_into_the_view_widget_it_names() {
         (x1 - x0) as f32 >= 17.0 && (x1 - x0) as f32 <= 22.0,
         "not a unit at 20 pixels: {}",
         x1 - x0
+    );
+}
+
+#[test]
+fn a_view_resized_still_draws_the_frame_it_is_resized() {
+    if !gpu_present() {
+        return;
+    }
+    // The frame's shapes were made with the surface before; freed under them,
+    // the view showed nothing that frame (egui: "Missing texture").
+    let picture = shot_resized(Some(100.0));
+    assert!(
+        picture.enumerate_pixels().any(|(_, _, p)| red(*p)),
+        "the view drew nothing the frame it was resized"
     );
 }
