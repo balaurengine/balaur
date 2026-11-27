@@ -1,9 +1,13 @@
 //! What reaches a game through the application delegate and no other way:
 //! the push token, a push's payload, and a link that opened the game.
 //!
-//! winit owns the real delegate, so this stands in front of it — answering
-//! the selectors it knows and forwarding the rest, which is what
-//! `forwardingTargetForSelector:` is for. It goes up as launch ends, in a
+//! winit owns the real delegate. On a Mac its event loop casts the
+//! application's delegate back to its own class on every event and aborts
+//! the game when it is another object, so there the selectors below are
+//! methods added to the delegate's own class ([`mac`]). On iOS winit never
+//! reads the delegate back, and a proxy stands in front of it, answering the
+//! selectors it knows and forwarding the rest, which is what
+//! `forwardingTargetForSelector:` is for. Either goes up as launch ends, in a
 //! bundled game, so a link that launches the game reaches it: on iOS once
 //! `UIApplicationDidFinishLaunchingNotification` is posted, on a Mac at
 //! `NSApplicationWillFinishLaunchingNotification`, before the Apple event
@@ -20,13 +24,17 @@ use std::ptr::NonNull;
 use std::sync::Mutex;
 
 use balaur_platform::PlatformEvent;
-use block2::{DynBlock, RcBlock};
+#[cfg(not(target_os = "macos"))]
+use block2::DynBlock;
+use block2::RcBlock;
 use objc2::rc::Retained;
-use objc2::runtime::{AnyClass, AnyObject, NSObject, NSObjectProtocol, ProtocolObject, Sel};
-use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send};
-use objc2_foundation::{
-    NSArray, NSData, NSError, NSNotification, NSNotificationCenter, NSString, NSURL,
-};
+use objc2::runtime::{AnyClass, AnyObject, NSObjectProtocol, ProtocolObject};
+#[cfg(not(target_os = "macos"))]
+use objc2::runtime::{NSObject, Sel};
+#[cfg(not(target_os = "macos"))]
+use objc2::{DefinedClass, MainThreadOnly, Message, define_class};
+use objc2::{MainThreadMarker, msg_send};
+use objc2_foundation::{NSData, NSError, NSNotification, NSNotificationCenter, NSString, NSURL};
 
 /// The links heard before the launch URL was handed over, and the launch URL
 /// once it was, each waiting for its twin from the other path.
@@ -104,7 +112,7 @@ pub(crate) fn request_push_token() -> bool {
     true
 }
 
-/// Put the proxy up as launch ends, so a link that launches the game reaches
+/// Put the arrivals up as launch ends, so a link that launches the game reaches
 /// it. Called as the plugin declares, before the OS starts launching.
 pub(crate) fn watch_launch() {
     let name = launch_notification();
@@ -132,7 +140,7 @@ fn launch_notification() -> Retained<NSString> {
     })
 }
 
-/// Put the proxy in front of whatever delegate the window layer set, once.
+/// Put the arrivals in place on whatever delegate the window layer set, once.
 fn install() -> bool {
     if INSTALLED.get() {
         return true;
@@ -143,17 +151,22 @@ fn install() -> bool {
     let Some(app) = shared_application() else {
         return false;
     };
-    let original: *mut AnyObject = unsafe { msg_send![app, delegate] };
-    let Some(original) = (unsafe { original.as_ref() }) else {
+    let delegate: *mut AnyObject = unsafe { msg_send![app, delegate] };
+    let Some(delegate) = (unsafe { delegate.as_ref() }) else {
         // No delegate yet means the window layer has not finished starting;
         // the caller can ask again on a later tick.
         return false;
     };
-    let proxy = Proxy::new(mtm, Original(original.retain()));
-    unsafe {
-        let _: () = msg_send![app, setDelegate: &*proxy];
+    #[cfg(target_os = "macos")]
+    mac::graft(mtm, delegate);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let proxy = Proxy::new(mtm, Original(delegate.retain()));
+        unsafe {
+            let _: () = msg_send![app, setDelegate: &*proxy];
+        }
+        PROXY.with_borrow_mut(|held| *held = Some(proxy));
     }
-    PROXY.with_borrow_mut(|held| *held = Some(proxy));
     INSTALLED.set(true);
     true
 }
@@ -171,9 +184,194 @@ fn shared_application() -> Option<&'static AnyObject> {
     }
 }
 
-/// The delegate this one stands in front of.
+/// A device token the OS handed over.
+fn heard_token(token: *mut NSData) {
+    crate::push::token(hex(token));
+}
+
+/// The OS's refusal to register for push.
+fn heard_token_failure(error: *mut NSError) {
+    let message = unsafe { error.as_ref() }.map_or_else(
+        || "the OS refused to register for push".to_string(),
+        |error| error.localizedDescription().to_string(),
+    );
+    crate::push::failed(&message);
+}
+
+/// A universal link, on one of `[apple] associated_domains`, as an activity
+/// carrying the page's URL.
+fn heard_activity(activity: *mut AnyObject) {
+    let page: *mut NSURL = unsafe { activity.as_ref() }
+        .map_or(std::ptr::null_mut(), |activity| unsafe {
+            msg_send![activity, webpageURL]
+        });
+    if !page.is_null() {
+        opened(text_of(page));
+    }
+}
+
+/// The arrivals on a Mac: methods of winit's delegate class, so the
+/// delegate stays the object winit set.
+#[cfg(target_os = "macos")]
+mod mac {
+    use std::ffi::CString;
+
+    use objc2::encode::Encode;
+    use objc2::runtime::{AnyClass, AnyObject, Bool, Imp, Sel};
+    use objc2::{MainThreadMarker, ffi, msg_send, sel};
+    use objc2_foundation::NSString;
+
+    /// The Apple event a link arrives as, `kInternetEventClass` and
+    /// `kAEGetURL` both.
+    const GET_URL: u32 = u32::from_be_bytes(*b"GURL");
+    /// `keyDirectObject`, the event's URL.
+    const DIRECT_OBJECT: u32 = u32::from_be_bytes(*b"----");
+
+    /// A delegate method taking the application and one object, or an Apple
+    /// event handler taking the event and its reply.
+    type Takes = unsafe extern "C-unwind" fn(*mut AnyObject, Sel, *mut AnyObject, *mut AnyObject);
+    /// `application:continueUserActivity:restorationHandler:`.
+    type Continues = unsafe extern "C-unwind" fn(
+        *mut AnyObject,
+        Sel,
+        *mut AnyObject,
+        *mut AnyObject,
+        *mut AnyObject,
+    ) -> Bool;
+
+    /// Add each arrival to the delegate's class. winit's class answers none
+    /// of them; one it answers is left as it is, and said. A link arrives as
+    /// the `GURL` Apple event, which AppKit does not hand to an
+    /// `application:openURLs:` added to a delegate already set, so the
+    /// delegate's own method is made the event's handler.
+    pub(super) fn graft(_mtm: MainThreadMarker, delegate: &AnyObject) {
+        let class: *mut AnyClass = std::ptr::from_ref(delegate.class()).cast_mut();
+        let answers = Bool::ENCODING.to_string();
+        // SAFETY: each function has the arguments and return its encoding
+        // names, which are the selector's in NSApplicationDelegate.
+        let methods: [(Sel, Imp, String); 5] = unsafe {
+            [
+                (
+                    sel!(application:didRegisterForRemoteNotificationsWithDeviceToken:),
+                    std::mem::transmute::<Takes, Imp>(token),
+                    "v@:@@".into(),
+                ),
+                (
+                    sel!(application:didFailToRegisterForRemoteNotificationsWithError:),
+                    std::mem::transmute::<Takes, Imp>(token_failed),
+                    "v@:@@".into(),
+                ),
+                (
+                    sel!(application:didReceiveRemoteNotification:),
+                    std::mem::transmute::<Takes, Imp>(remote),
+                    "v@:@@".into(),
+                ),
+                (
+                    sel!(handleGetURLEvent:withReplyEvent:),
+                    std::mem::transmute::<Takes, Imp>(get_url),
+                    "v@:@@".into(),
+                ),
+                (
+                    sel!(application:continueUserActivity:restorationHandler:),
+                    std::mem::transmute::<Continues, Imp>(continue_activity),
+                    format!("{answers}@:@@@?"),
+                ),
+            ]
+        };
+        for (selector, imp, types) in methods {
+            let types = CString::new(types).expect("an encoding has no NUL");
+            // SAFETY: the class is a registered one, and the method's
+            // encoding is its function's.
+            let added = unsafe { ffi::class_addMethod(class, selector, imp, types.as_ptr()) };
+            if !added.as_bool() {
+                tracing::warn!(
+                    "the application delegate answers {} itself: what arrives by it is not heard",
+                    selector.name().to_string_lossy()
+                );
+            }
+        }
+        let Some(events) = AnyClass::get(c"NSAppleEventManager") else {
+            return;
+        };
+        unsafe {
+            let events: *mut AnyObject = msg_send![events, sharedAppleEventManager];
+            let _: () = msg_send![
+                events,
+                setEventHandler: delegate,
+                andSelector: sel!(handleGetURLEvent:withReplyEvent:),
+                forEventClass: GET_URL,
+                andEventID: GET_URL,
+            ];
+        }
+    }
+
+    unsafe extern "C-unwind" fn token(
+        _: *mut AnyObject,
+        _: Sel,
+        _: *mut AnyObject,
+        token: *mut AnyObject,
+    ) {
+        super::heard_token(token.cast());
+    }
+
+    unsafe extern "C-unwind" fn token_failed(
+        _: *mut AnyObject,
+        _: Sel,
+        _: *mut AnyObject,
+        error: *mut AnyObject,
+    ) {
+        super::heard_token_failure(error.cast());
+    }
+
+    /// A push that reached the game itself.
+    unsafe extern "C-unwind" fn remote(
+        _: *mut AnyObject,
+        _: Sel,
+        _: *mut AnyObject,
+        info: *mut AnyObject,
+    ) {
+        crate::push::received(super::json_of(info));
+    }
+
+    /// A link the game was asked to open.
+    unsafe extern "C-unwind" fn get_url(
+        _: *mut AnyObject,
+        _: Sel,
+        event: *mut AnyObject,
+        _: *mut AnyObject,
+    ) {
+        let Some(event) = (unsafe { event.as_ref() }) else {
+            return;
+        };
+        let url: *mut AnyObject =
+            unsafe { msg_send![event, paramDescriptorForKeyword: DIRECT_OBJECT] };
+        let text: *mut NSString = unsafe { url.as_ref() }
+            .map_or(std::ptr::null_mut(), |url| unsafe {
+                msg_send![url, stringValue]
+            });
+        if let Some(text) = unsafe { text.as_ref() } {
+            super::opened(text.to_string());
+        }
+    }
+
+    /// A universal link: true says it was handled.
+    unsafe extern "C-unwind" fn continue_activity(
+        _: *mut AnyObject,
+        _: Sel,
+        _: *mut AnyObject,
+        activity: *mut AnyObject,
+        _: *mut AnyObject,
+    ) -> Bool {
+        super::heard_activity(activity);
+        Bool::YES
+    }
+}
+
+/// The delegate the iOS proxy stands in front of.
+#[cfg(not(target_os = "macos"))]
 struct Original(Retained<AnyObject>);
 
+#[cfg(not(target_os = "macos"))]
 define_class!(
     // SAFETY: NSObject has no subclassing requirements, and this class does
     // not implement Drop.
@@ -202,21 +400,17 @@ define_class!(
 
         #[unsafe(method(application:didRegisterForRemoteNotificationsWithDeviceToken:))]
         fn token(&self, app: *mut AnyObject, token: *mut NSData) {
-            crate::push::token(hex(token));
+            heard_token(token);
             self.forward_token(app, token);
         }
 
         #[unsafe(method(application:didFailToRegisterForRemoteNotificationsWithError:))]
         fn token_failed(&self, app: *mut AnyObject, error: *mut NSError) {
-            let message = unsafe { error.as_ref() }.map_or_else(
-                || "the OS refused to register for push".to_string(),
-                |error| error.localizedDescription().to_string(),
-            );
-            crate::push::failed(&message);
+            heard_token_failure(error);
             self.forward_token_failure(app, error);
         }
 
-        /// iOS: a push that reached the app itself, a silent one included.
+        /// A push that reached the app itself, a silent one included.
         /// Answered here alone: the system waits on exactly one call of `done`.
         #[unsafe(method(application:didReceiveRemoteNotification:fetchCompletionHandler:))]
         fn remote(
@@ -230,34 +424,14 @@ define_class!(
             done.call((0,));
         }
 
-        /// macOS: the same arrival, with nothing to answer.
-        #[unsafe(method(application:didReceiveRemoteNotification:))]
-        fn remote_on_mac(&self, _app: *mut AnyObject, info: *mut AnyObject) {
-            crate::push::received(json_of(info));
-        }
-
-        /// iOS: a URL the game was asked to open. True says it was handled,
-        /// and the other delegate's answer is kept when it has one.
+        /// A URL the game was asked to open. True says it was handled, and
+        /// the other delegate's answer is kept when it has one.
         #[unsafe(method(application:openURL:options:))]
         fn open_url(&self, app: *mut AnyObject, url: *mut NSURL, options: *mut AnyObject) -> bool {
             opened(text_of(url));
             self.forward_url(app, url, options)
         }
 
-        /// macOS: the same arrival, plural and returning nothing.
-        #[unsafe(method(application:openURLs:))]
-        fn open_urls(&self, app: *mut AnyObject, urls: *mut NSArray<NSURL>) {
-            if let Some(list) = unsafe { urls.as_ref() } {
-                for at in 0..list.count() {
-                    let url = list.objectAtIndex(at);
-                    opened(text_of(Retained::as_ptr(&url).cast_mut()));
-                }
-            }
-            self.forward_urls(app, urls);
-        }
-
-        /// Both platforms: a universal link, on one of `[apple]
-        /// associated_domains`, as an activity carrying the page's URL.
         #[unsafe(method(application:continueUserActivity:restorationHandler:))]
         fn continue_activity(
             &self,
@@ -265,16 +439,13 @@ define_class!(
             activity: *mut AnyObject,
             restoration: *mut AnyObject,
         ) -> bool {
-            let page: *mut NSURL = unsafe { activity.as_ref() }
-                .map_or(std::ptr::null_mut(), |activity| unsafe { msg_send![activity, webpageURL] });
-            if !page.is_null() {
-                opened(text_of(page));
-            }
+            heard_activity(activity);
             self.forward_activity(app, activity, restoration)
         }
     }
 );
 
+#[cfg(not(target_os = "macos"))]
 impl Proxy {
     fn new(mtm: MainThreadMarker, original: Original) -> Retained<Self> {
         let this = Self::alloc(mtm).set_ivars(original);
@@ -349,15 +520,6 @@ impl Proxy {
             ]
         }
     }
-
-    fn forward_urls(&self, app: *mut AnyObject, urls: *mut NSArray<NSURL>) {
-        let selector = objc2::sel!(application:openURLs:);
-        if self.forwards(selector) {
-            unsafe {
-                let _: () = msg_send![self.original(), application: app, openURLs: urls];
-            }
-        }
-    }
 }
 
 /// A Foundation dictionary as the JSON a script reads: what a push or a
@@ -403,6 +565,7 @@ fn text_of(url: *mut NSURL) -> String {
 
 thread_local! {
     static INSTALLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    #[cfg(not(target_os = "macos"))]
     static PROXY: std::cell::RefCell<Option<Retained<Proxy>>> =
         const { std::cell::RefCell::new(None) };
     /// The launch observer, kept so it can be named.
