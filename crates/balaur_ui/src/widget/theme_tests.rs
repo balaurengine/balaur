@@ -120,7 +120,14 @@ fn a_transition_is_read_on_the_kind_and_not_inside_a_state_table() {
     assert_eq!(
         hovered.transition,
         Some(0.2),
-        "a state table's own is dropped, with a warning naming where it goes"
+        "a state table's own is dropped"
+    );
+    let said = warnings_of(text);
+    assert!(
+        said.iter()
+            .any(|line| line.contains("[button.hover] `transition`")
+                && line.contains("a place on [button] itself")),
+        "and said, naming where it goes: {said:#?}"
     );
 }
 
@@ -361,4 +368,50 @@ fn a_theme_names_the_icons_a_mirrored_ui_turns_round() {
         theme.style("icons").fill.is_none(),
         "the table is no widget kind's"
     );
+}
+
+/// What the theme reader drops of `doc`, one line a value.
+fn warnings_of(doc: &str) -> Vec<String> {
+    super::dropped_theme_values(
+        &toml::from_str::<toml::Value>(doc).expect("a test's theme is TOML"),
+    )
+}
+
+// A value the reader would drop is said with its table, key, value and the
+// words the key takes: a role's `text_align = "right"` cannot sit unseen.
+#[test]
+fn a_theme_value_the_reader_drops_is_said_with_its_table_key_and_words() {
+    let warned = warnings_of(
+        "type = \"widget_theme\"\n\n[button.hover]\ncursor = \"finger\"\nfill = 12\n\n[roles.amount]\ntext_align = \"right\"\nscale = 2.0\nfil = \"#ffffff\"\nshadows = [{ y = 2 }]\n",
+    );
+    let said = |table: &str, key: &str, takes: &str| {
+        warned
+            .iter()
+            .any(|line| line.contains(&format!("[{table}] `{key}`")) && line.contains(takes))
+    };
+    assert!(
+        said(
+            "roles.amount",
+            "text_align",
+            "one of `start`, `center`, `end`"
+        ),
+        "{warned:#?}"
+    );
+    assert!(said("roles.amount", "scale", "two numbers"), "{warned:#?}");
+    assert!(
+        said("roles.amount", "fil", "no theme table reads this key"),
+        "{warned:#?}"
+    );
+    assert!(said("roles.amount", "shadows", "a `color`"), "{warned:#?}");
+    assert!(said("button.hover", "cursor", "`hand`"), "{warned:#?}");
+    assert!(said("button.hover", "fill", "a colour"), "{warned:#?}");
+    assert_eq!(warned.len(), 6, "one line a value: {warned:#?}");
+}
+
+#[test]
+fn a_theme_whose_every_value_reads_says_nothing() {
+    let warned = warnings_of(
+        "type = \"widget_theme\"\n\n[colors]\nprimary = \"#4287cc\"\n\n[sizes]\nradius = 6\n\n[button]\nfill = \"primary_fill\"\ncorner_radius = \"full\"\npadding = [4, 2, 4, 2]\ntext_align = \"end\"\ncursor = \"hand\"\ntext_transform = \"uppercase\"\nfit = [\"narrow\"]\n\n[button.active]\nscale = [0.98, 0.98]\n\n[button.narrow]\ngap = \"radius\"\n\n[roles.card]\ngradient = { kind = \"radial\", stops = [\"#000000\", \"#ffffff\"], center = [0.5, 0.5] }\nshadows = [{ y = 2, blur = 8, color = \"#00000040\" }]\n",
+    );
+    assert!(warned.is_empty(), "{warned:#?}");
 }

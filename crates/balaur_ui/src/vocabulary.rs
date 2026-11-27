@@ -132,6 +132,8 @@ pub(crate) mod words {
     pub(crate) const EDGES: &[&str] = &[LEFT, TOP, RIGHT, BOTTOM];
     /// Where text sits in its width.
     pub(crate) const ALIGNS: &[&str] = &[START, CENTER, END];
+    /// Which way a theme lays a caption and its icon, as a tab's under it.
+    pub(crate) const FLEX_DIRECTIONS: &[&str] = &[ROW, COLUMN];
     /// A child as wide (or tall) as its container across the container's
     /// direction.
     pub(crate) const STRETCH: &str = "stretch";
@@ -734,6 +736,7 @@ pub(crate) mod looks {
     pub(crate) const SHADOWS: &str = "shadows";
     /// `linear`, the default, or `radial`.
     pub(crate) const KIND: &str = "kind";
+    pub(crate) const LINEAR: &str = "linear";
     pub(crate) const RADIAL: &str = "radial";
     /// The colours, first to last.
     pub(crate) const STOPS: &str = "stops";

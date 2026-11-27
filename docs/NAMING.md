@@ -95,7 +95,7 @@ Where a name appears decides what changing it breaks.
 | --- | --- | --- |
 | `script-api` | Module and function names scripts call | Breaks existing projects, at `balaur export` |
 | `scene-file` | Component keys, property names, enum options | Breaks existing `.toml` scenes and the inspector generated from the same schemas |
-| `theme` | Colour and size tokens, theme keys, state tables and role names | Breaks a person's own theme file: an unknown key is dropped without a word |
+| `theme` | Colour and size tokens, theme keys, state tables and role names | Breaks a person's own theme file: an unknown key, or a value of the wrong shape, is dropped with a warning naming the file, the table and what the key takes |
 | `settings-path` | Keys under `project.toml`, `editor.toml` and the settings registry | A stale key is read as unset, so the setting falls back |
 | `cli` | Commands, flags and environment variables | Breaks scripts and CI jobs that call `balaur` |
 | `on-disk` | Files and folders the engine writes | Leaves old files behind; there is no migration before 1.0 |

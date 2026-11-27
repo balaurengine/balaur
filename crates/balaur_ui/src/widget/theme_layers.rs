@@ -9,14 +9,14 @@ use super::{Gradient, GradientShape, Shadow, Tokens, color};
 use crate::vocabulary::looks as lk;
 
 /// A table's `gradient`: its stops, two at least, and which way it runs.
-pub(super) fn gradient_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Option<Rc<Gradient>> {
+pub(super) fn gradient_of(body: &toml::Table, tokens: &Tokens) -> Option<Rc<Gradient>> {
     let table = body.get(lk::GRADIENT)?.as_table()?;
     let number = |value: &toml::Value| balaur_core::components::as_f64(value).map(|v| v as f32);
     let colours: Vec<Color32> = table
         .get(lk::STOPS)?
         .as_array()?
         .iter()
-        .filter_map(|v| color(v, what, &tokens.colors))
+        .filter_map(|v| color(v, &tokens.colors))
         .collect();
     if colours.len() < 2 {
         return None;
@@ -55,7 +55,7 @@ pub(super) fn gradient_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Op
 /// A table's `shadows`, each its colour, and offsets,
 /// blur and spread, 0 when left out. An empty list is no shadow, which a
 /// state table states to take its entry's away.
-pub(super) fn shadows_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Option<Rc<[Shadow]>> {
+pub(super) fn shadows_of(body: &toml::Table, tokens: &Tokens) -> Option<Rc<[Shadow]>> {
     let one = |table: &toml::Table| {
         let number = |key: &str| {
             table
@@ -70,22 +70,16 @@ pub(super) fn shadows_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Opt
             spread: number(lk::SPREAD),
             color: table
                 .get(lk::COLOR)
-                .and_then(|v| color(v, what, &tokens.colors))?,
+                .and_then(|v| color(v, &tokens.colors))?,
             inset: table
                 .get(lk::INSET)
                 .and_then(toml::Value::as_bool)
                 .unwrap_or(false),
         })
     };
-    let value = body.get(lk::SHADOWS)?;
-    let Some(items) = value.as_array() else {
-        tracing::warn!(
-            "widget theme: {what}'s `shadows` is a list, `shadows = [{{ y = 2, blur = 8, color = \"#00000040\" }}]`"
-        );
-        return None;
-    };
     Some(
-        items
+        body.get(lk::SHADOWS)?
+            .as_array()?
             .iter()
             .filter_map(toml::Value::as_table)
             .filter_map(one)

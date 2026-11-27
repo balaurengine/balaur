@@ -890,3 +890,34 @@ fn a_transition_eases_a_hover_scale_axis_by_axis() {
         "about its middle: {late:?} from {rest:?}"
     );
 }
+
+#[test]
+fn a_theme_file_s_dropped_value_names_the_file() {
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/ledger.toml"),
+        "type = \"widget_theme\"\n\n[roles.amount]\ntext_align = \"right\"\n",
+    )
+    .unwrap();
+    add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "12.50" role = "amount" theme = "themes/ledger.toml" }
+            .into(),
+    );
+    settle(&app, &egui::Context::default());
+    let warned: Vec<String> = balaur_core::logbuf::heard()
+        .into_iter()
+        .filter(|e| e.level == "warn")
+        .map(|e| e.message)
+        .collect();
+    assert!(
+        warned
+            .iter()
+            .any(|line| line.contains("'themes/ledger.toml'")
+                && line.contains("[roles.amount] `text_align` = \"right\"")),
+        "{warned:#?}"
+    );
+}

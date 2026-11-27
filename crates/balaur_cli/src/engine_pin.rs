@@ -33,12 +33,26 @@ fn write(path: &Path, engine: &str) -> Result<()> {
     let text =
         std::fs::read_to_string(&file).with_context(|| format!("reading {}", file.display()))?;
     let mut document: toml_edit::DocumentMut = text.parse().context("parsing project.toml")?;
-    document
+    let application = document
         .entry(APPLICATION)
         .or_insert_with(toml_edit::table)
         .as_table_mut()
-        .context("[application] in project.toml is not a table")?
-        .insert(ENGINE, toml_edit::value(engine));
+        .context("[application] in project.toml is not a table")?;
+    // The value alone is replaced: the comment above the key, the spacing
+    // round it and one after it stay as the file has them.
+    match application
+        .get_mut(ENGINE)
+        .and_then(toml_edit::Item::as_value_mut)
+    {
+        Some(held) => {
+            let decor = held.decor().clone();
+            *held = engine.into();
+            *held.decor_mut() = decor;
+        }
+        None => {
+            application.insert(ENGINE, toml_edit::value(engine));
+        }
+    }
     std::fs::write(&file, document.to_string())
         .with_context(|| format!("writing {}", file.display()))
 }
@@ -86,6 +100,16 @@ mod tests {
         assert!(text.contains("width = 390"), "{text}");
         pin(dir.path(), Some("v0.2.0-alpha.1")).unwrap();
         assert_eq!(named(dir.path()).as_deref(), Some("v0.2.0-alpha.1"));
+    }
+
+    #[test]
+    fn a_pin_keeps_the_comments_and_layout_round_the_engine() {
+        let dir = tempfile::tempdir().unwrap();
+        let before = "[application]\nname = \"game\"\n# The Balaur build the game is made with\n# (`balaur pin`): the Forge builds on it.\nengine   =   \"nightly-9818040\"   # kept too\n\n# the window\n[window]\nwidth = 390\n";
+        std::fs::write(dir.path().join(MANIFEST), before).unwrap();
+        pin(dir.path(), Some("nightly-cac507c")).unwrap();
+        let after = std::fs::read_to_string(dir.path().join(MANIFEST)).unwrap();
+        assert_eq!(after, before.replace("nightly-9818040", "nightly-cac507c"));
     }
 
     #[test]

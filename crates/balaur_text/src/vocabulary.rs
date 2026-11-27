@@ -73,6 +73,8 @@ pub mod words {
     pub const UPPERCASE: &str = "uppercase";
     pub const LOWERCASE: &str = "lowercase";
     pub const CAPITALIZE: &str = "capitalize";
+    /// Every `text_transform` word.
+    pub const CASES: &[&str] = &[NONE, UPPERCASE, LOWERCASE, CAPITALIZE];
     /// Upright, an italic face, or the upright face slanted.
     pub const FONT_STYLES: &[&str] = &[NORMAL, ITALIC, OBLIQUE];
 

@@ -50,6 +50,7 @@ pub use widget::input::{
 };
 pub use widget::node::{Move, UiFocus, Widget, WidgetFields, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
+pub use widget::theme::dropped_theme_values;
 
 /// Hand a `view` widget the texture its camera renders into, or take it away
 /// with `None`: the renderer's, each frame it renders the view.

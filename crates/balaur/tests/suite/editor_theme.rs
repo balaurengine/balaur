@@ -237,3 +237,27 @@ fn balaur_s_saying_colours_stand_apart_for_every_vision() {
     }
     assert!(failing.is_empty(), "{}", failing.join("\n"));
 }
+
+// Every theme balaur ships reads whole, nothing in it dropped: each editor
+// half laid on the shared roles, as the editor wears it, and each example's.
+#[test]
+fn every_theme_balaur_ships_reads_without_a_dropped_value() {
+    let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+    let mut docs = themes();
+    for example in ["interface/themes/panel.toml", "hello/themes/menu.toml"] {
+        let text = std::fs::read_to_string(examples.join(example)).unwrap();
+        docs.push((
+            example.to_string(),
+            toml::from_str::<toml::Value>(&text).unwrap(),
+        ));
+    }
+    let dropped: Vec<String> = docs
+        .iter()
+        .flat_map(|(name, doc)| {
+            balaur_ui::dropped_theme_values(doc)
+                .into_iter()
+                .map(move |line| format!("{name}: {line}"))
+        })
+        .collect();
+    assert!(dropped.is_empty(), "{dropped:#?}");
+}

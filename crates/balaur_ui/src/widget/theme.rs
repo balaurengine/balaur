@@ -524,18 +524,13 @@ fn parse_color(text: &str) -> Option<Color32> {
     }
 }
 
-/// A colour that does not parse is reported and dropped rather than being
-/// silently black: a theme is authored by hand, and a typo should say so.
-fn color(value: &toml::Value, what: &str, colors: &BTreeMap<String, Color32>) -> Option<Color32> {
+/// A colour, or none for a value that is not one, which `check` says.
+fn color(value: &toml::Value, colors: &BTreeMap<String, Color32>) -> Option<Color32> {
     let text = value.as_str()?;
     if text == w::NONE {
         return Some(Color32::TRANSPARENT);
     }
-    let parsed = parse_color(text).or_else(|| colors.get(text).copied());
-    if parsed.is_none() {
-        tracing::warn!("widget theme: '{text}' is not a colour or a token for {what}");
-    }
-    parsed
+    parse_color(text).or_else(|| colors.get(text).copied())
 }
 
 /// The tables that name something other than a widget kind.
@@ -548,6 +543,8 @@ fn is_reserved(key: &str) -> bool {
         k::SIZES,
         k::FONTS,
         k::ICONS,
+        k::HUES,
+        k::MIXES,
         k::BASE,
     ]
     .contains(&key)
@@ -656,31 +653,29 @@ pub(crate) struct Tokens {
     pub(crate) fonts: BTreeMap<String, String>,
 }
 
-/// One `[kind]` or `[roles.name]` table as a style, with its state tables
-/// read as styles over it.
-fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
-    // A number is written as one, or as the name of a size the theme states.
-    let number = |key: &str| {
-        let value = body.get(key)?;
+impl Tokens {
+    /// A number, written as one or as the name of a size the theme states.
+    fn number(&self, value: &toml::Value) -> Option<f32> {
         balaur_core::components::as_f64(value)
             .map(|v| v as f32)
-            .or_else(|| tokens.sizes.get(value.as_str()?).copied())
-    };
+            .or_else(|| self.sizes.get(value.as_str()?).copied())
+    }
+}
+
+/// One `[kind]` or `[roles.name]` table as a style, with its state tables
+/// read as styles over it.
+fn style_of(body: &toml::Table, tokens: &Tokens) -> Style {
+    let number = |key: &str| tokens.number(body.get(key)?);
     let nested = |key: &str| {
         body.get(key).and_then(toml::Value::as_table).map(|table| {
-            if table.contains_key(k::TRANSITION) {
-                tracing::warn!(
-                    "widget theme: {what}'s `{key}` table states a `transition`; it goes on {what} itself, which eases every state"
-                );
-            }
-            let style = style_of(table, tokens, what).paint_only();
+            let style = style_of(table, tokens).paint_only();
             Rc::new(Style {
                 transition: None,
                 ..style
             })
         })
     };
-    let colour = |key: &str| body.get(key).and_then(|v| color(v, what, &tokens.colors));
+    let colour = |key: &str| body.get(key).and_then(|v| color(v, &tokens.colors));
     let pill = body.get(k::CORNER_RADIUS).and_then(toml::Value::as_str) == Some(w::FULL);
     Style {
         fill: colour(k::FILL),
@@ -728,8 +723,8 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         checked: body
             .get(k::CHECKED)
             .and_then(toml::Value::as_table)
-            .map(|table| Rc::new(checked_style(table, tokens, what))),
-        classes: class_styles(body, tokens, what),
+            .map(|table| Rc::new(checked_style(table, tokens))),
+        classes: class_styles(body, tokens),
         fit: words_of(body, k::FIT),
         show_text: body.get(k::SHOW_TEXT).and_then(toml::Value::as_bool),
         show_icon: body.get(k::SHOW_ICON).and_then(toml::Value::as_bool),
@@ -738,17 +733,17 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         body: body
             .get(k::BODY)
             .and_then(toml::Value::as_table)
-            .map(|table| Rc::new(style_of(table, tokens, what))),
+            .map(|table| Rc::new(style_of(table, tokens))),
         // The sides a role's edge is drawn on, as the node's own `border`
         // states them: a bar's hairline on its top alone.
         border: body
             .get(k::BORDER)
             .filter(|sides| sides.is_array())
             .map(|sides| four_of(Some(sides))),
-        gradient: gradient_of(body, tokens, what),
-        shadows: shadows_of(body, tokens, what),
+        gradient: gradient_of(body, tokens),
+        shadows: shadows_of(body, tokens),
         letter_spacing: number(k::LETTER_SPACING),
-        text_transform: case_of(body, what),
+        text_transform: case_of(body),
         transition: number(k::TRANSITION).filter(|seconds| *seconds > 0.0),
         offset: body.get(k::OFFSET).and_then(pair_of),
         scale: body.get(k::SCALE).and_then(pair_of),
@@ -775,7 +770,6 @@ fn words_of(body: &toml::Table, key: &str) -> Option<Rc<[SmolStr]>> {
     )
 }
 
-/// A table's `text_transform`, as CSS's; a word it is not warns.
 /// A key whose value is one word, as `text_align` and `cursor` are; none
 /// for an empty one.
 fn word(body: &toml::Table, key: &str) -> Option<SmolStr> {
@@ -785,25 +779,13 @@ fn word(body: &toml::Table, key: &str) -> Option<SmolStr> {
         .map(SmolStr::new)
 }
 
-fn case_of(body: &toml::Table, what: &str) -> Option<balaur_text::Case> {
-    let word = body.get(k::TEXT_TRANSFORM)?.as_str()?;
-    let case = balaur_text::Case::of(word);
-    if case.is_none() {
-        tracing::warn!(
-            "widget theme: {what}'s `text_transform` is uppercase, lowercase, capitalize or none, not '{word}'"
-        );
-    }
-    case
+fn case_of(body: &toml::Table) -> Option<balaur_text::Case> {
+    balaur_text::Case::of(body.get(k::TEXT_TRANSFORM)?.as_str()?)
 }
 
 /// A `checked` table: paint over the entry, with its own pointer tables.
-fn checked_style(table: &toml::Table, tokens: &Tokens, what: &str) -> Style {
-    if table.contains_key(k::TRANSITION) {
-        tracing::warn!(
-            "widget theme: {what}'s `checked` table states a `transition`; it goes on {what} itself, which eases every state"
-        );
-    }
-    let full = style_of(table, tokens, what);
+fn checked_style(table: &toml::Table, tokens: &Tokens) -> Style {
+    let full = style_of(table, tokens);
     Style {
         hover: full.hover.clone(),
         active: full.active.clone(),
@@ -816,26 +798,13 @@ fn checked_style(table: &toml::Table, tokens: &Tokens, what: &str) -> Style {
 /// of its own (a state, `checked`, `body`, `gradient`) is a class word's. A
 /// theme is read before the project's own words are, so they are not checked
 /// here; the order they override in is the words', read as they are folded.
-fn class_styles(
-    body: &toml::Table,
-    tokens: &Tokens,
-    what: &str,
-) -> Option<Rc<Vec<(SmolStr, Style)>>> {
-    const OWN: [&str; 7] = [
-        st::HOVER,
-        st::ACTIVE,
-        st::DISABLED,
-        st::FOCUS,
-        k::CHECKED,
-        k::BODY,
-        crate::vocabulary::looks::GRADIENT,
-    ];
+fn class_styles(body: &toml::Table, tokens: &Tokens) -> Option<Rc<Vec<(SmolStr, Style)>>> {
     let found: Vec<(SmolStr, Style)> = body
         .iter()
-        .filter(|(key, _)| !OWN.contains(&key.as_str()))
+        .filter(|(key, _)| !check::is_own(key))
         .filter_map(|(word, table)| {
             let table = table.as_table()?;
-            Some((SmolStr::new(word), style_of(table, tokens, what)))
+            Some((SmolStr::new(word), style_of(table, tokens)))
         })
         .collect();
     (!found.is_empty()).then(|| Rc::new(found))
@@ -848,12 +817,28 @@ fn class_styles(
 /// how something looks and a game that would not start over a bad colour is
 /// worse than one that starts plain.
 pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
+    let (theme, dropped) = read(value);
+    let file = balaur_core::assets::parsing().map_or_else(String::new, |file| format!(" '{file}'"));
+    for line in dropped {
+        tracing::warn!("widget theme{file}: {line}");
+    }
+    theme
+}
+
+/// What a theme document says that its reader drops, one line a value: a
+/// wrong shape, a word outside its list, a key no table reads.
+#[must_use]
+pub fn dropped_theme_values(value: &toml::Value) -> Vec<String> {
+    read(value).1
+}
+
+fn read(written: &toml::Value) -> (WidgetTheme, Vec<String>) {
     let mut theme = WidgetTheme::default();
     // The seven source colours and four sizes become every token first, so a
     // table naming `bg_panel` or `radius_large` finds it.
-    let value = crate::palette::complete(value);
+    let value = crate::palette::complete(written);
     let Some(table) = value.as_table() else {
-        return theme;
+        return (theme, Vec::new());
     };
     if let Some(colors) = table.get(k::COLORS).and_then(toml::Value::as_table) {
         for (name, value) in colors {
@@ -902,6 +887,7 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
         sizes,
         fonts: theme.fonts.clone(),
     };
+    let dropped = check::dropped(table, written.as_table().unwrap_or(table), &tokens);
     for (kind, body) in table {
         if is_reserved(kind) {
             continue;
@@ -909,21 +895,17 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
         let Some(body) = body.as_table() else {
             continue;
         };
-        theme
-            .kinds
-            .insert(kind.clone(), style_of(body, &tokens, kind));
+        theme.kinds.insert(kind.clone(), style_of(body, &tokens));
     }
     if let Some(roles) = table.get(k::ROLES).and_then(toml::Value::as_table) {
         for (name, body) in roles {
             let Some(body) = body.as_table() else {
                 continue;
             };
-            theme
-                .roles
-                .insert(name.clone(), style_of(body, &tokens, name));
+            theme.roles.insert(name.clone(), style_of(body, &tokens));
         }
     }
-    theme
+    (theme, dropped)
 }
 
 /// Four numbers, or zeros for anything else.
@@ -1190,6 +1172,9 @@ pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
 #[path = "theme_doc.rs"]
 mod doc;
 pub(crate) use doc::ASSET_DOC;
+
+#[path = "theme_check.rs"]
+mod check;
 
 #[path = "theme_layers.rs"]
 mod layers;

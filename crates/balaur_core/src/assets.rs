@@ -863,10 +863,40 @@ fn parse(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Rc<dyn Any>> {
             registry.names().join(", ")
         )
     })?;
+    let _parsing = Parsing::of(reference);
     if let Some(check) = registry.check(&type_name) {
         check(&body).with_context(|| format!("parsing asset '{reference}'"))?;
     }
     parser(&body).with_context(|| format!("parsing asset '{reference}'"))
+}
+
+thread_local! {
+    static PARSING: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The asset being parsed on this thread, while its parser runs.
+struct Parsing;
+
+impl Parsing {
+    fn of(reference: &str) -> Self {
+        PARSING.with_borrow_mut(|held| held.push(reference.to_string()));
+        Self
+    }
+}
+
+impl Drop for Parsing {
+    fn drop(&mut self) {
+        PARSING.with_borrow_mut(|held| {
+            held.pop();
+        });
+    }
+}
+
+/// The asset whose parser is running on this thread, for a parser that
+/// warns about a value to name the file it is in; none outside a parse.
+#[must_use]
+pub fn parsing() -> Option<String> {
+    PARSING.with_borrow(|held| held.last().cloned())
 }
 
 /// A record asset's definition as its parser takes it: every property it
