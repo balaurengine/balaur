@@ -74,7 +74,7 @@ states = { walk = "", run = "run_cycle" }
 from = "idle"
 to = "move"                      # entering a nested machine enters its start
 blend_time = 0.2                 # seconds
-ease = "in_out_sine"             # the curve the blend follows; linear by default
+ease = "in_out_sine"             # the curve the blend follows, or a cubic-bezier(...); linear by default
 advance_mode = "auto"            # disabled, enabled (fires on state_machine.travel) or auto
 switch_mode = "immediate"        # immediate, sync (keeps the playhead) or at_end
 condition = "moving"             # turned on by animation.set_condition

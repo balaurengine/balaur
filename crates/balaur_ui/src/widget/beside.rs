@@ -575,7 +575,7 @@ impl Beside for WidgetScroll {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_image")]
 pub(crate) struct WidgetImage {
-    /// The project-relative picture an `image` draws
+    /// The project-relative picture an `image` draws, or the name `ui::picture` gave one made from bytes
     pub(crate) image: SmolStr,
     /// Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture
     #[property(default = [0.0, 0.0, 0.0, 0.0])]

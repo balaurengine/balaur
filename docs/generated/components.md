@@ -2630,7 +2630,7 @@ The rows a `button` or `menu` reads: what its face holds beside its caption, and
 <tr><td><code>icon</code></td><td>string</td><td>—</td><td>The name of a glyph in the theme&#x27;s icon font, `plus`, drawn before `text`; a name the font lacks warns and draws none</td></tr>
 <tr><td><code>icon_color</code></td><td>string</td><td>—</td><td>What that glyph is tinted with, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the role&#x27;s own</td></tr>
 <tr><td><code>icon_size</code></td><td>float</td><td><code>-1.0</code></td><td>That glyph&#x27;s size in design pixels; below zero takes the caption&#x27;s</td></tr>
-<tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative picture drawn before the caption at the icon&#x27;s size: `icon_size`, else the caption&#x27;s height</td></tr>
+<tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative picture drawn before the caption at the icon&#x27;s size: `icon_size`, else the caption&#x27;s height; or the name `ui::picture` gave one made from bytes</td></tr>
 <tr><td><code>face_gap</code></td><td>float</td><td><code>-1.0</code></td><td>The space between its picture, icon and caption, in design pixels; below zero takes the theme&#x27;s own, else half the font size</td></tr>
 <tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text drawn against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
 <tr><td><code>trailing_icon</code></td><td>string</td><td>—</td><td>The name of a glyph in the theme&#x27;s icon font drawn after `text`, at the icon&#x27;s size and in its ink: `gap` from the caption, or against the far edge where the caption starts at its start (`text_align = &quot;start&quot;`), as a picker&#x27;s `chevron-down`. It takes `trailing`&#x27;s place. On a button and a menu whose rows are nodes; a menu of `options` has none</td></tr>
@@ -2790,7 +2790,7 @@ The rows an `image` reads: its picture, the part of it drawn and how it sits in 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative picture an `image` draws</td></tr>
+<tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative picture an `image` draws, or the name `ui::picture` gave one made from bytes</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
 <tr><td><code>tint</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What an `image` is multiplied by; white draws it as it is</td></tr>
 <tr><td><code>fit</code></td><td>enum</td><td>—</td><td>How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead One of <code></code>, <code>contain</code>, <code>cover</code>, <code>fill</code>, <code>none</code>.</td></tr>

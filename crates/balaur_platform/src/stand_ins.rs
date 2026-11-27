@@ -20,8 +20,10 @@
 //! the store `platform.backend()` names, so a test plays a store's build;
 //! `"engine.prefers_reduced_motion": "reduce"` (or `"no-preference"`, CSS's
 //! two words) is the system's reduce-motion setting, whatever the machine
-//! says; `"secrets.backend": "file"` keeps `secrets.*` in a file under the
-//! user directory rather than the OS's keychain.
+//! says; `"engine.time_zone": "Europe/Madrid"` is the time zone
+//! `engine::time_zone()` answers; `"secrets.backend": "file"` keeps
+//! `secrets.*` in a file under the user directory rather than the OS's
+//! keychain.
 //!
 //! An answer travels the backend's own channel, so it is recorded and a
 //! replay plays it back like any other.
@@ -94,7 +96,8 @@ impl StandIns {
 const REDUCE: &str = "reduce";
 const NO_PREFERENCE: &str = "no-preference";
 
-/// The module the reduce-motion call is in, which its stand-in is keyed by.
+/// The module the reduce-motion and time zone calls are in, which their
+/// stand-ins are keyed by.
 const ENGINE: &str = "engine";
 
 /// What `stand_ins` holds the device to, if they name any of it: the
@@ -102,7 +105,7 @@ const ENGINE: &str = "engine";
 ///
 /// # Errors
 /// For a reduce-motion word other than `reduce` or `no-preference`.
-pub(crate) fn held_device(stand_ins: &StandIns) -> Result<Option<balaur_core::facts::DevicePatch>> {
+fn held_device(stand_ins: &StandIns) -> Result<Option<balaur_core::facts::DevicePatch>> {
     let reduced = match stand_ins.answer(ENGINE, balaur_core::facts::PREFERS_REDUCED_MOTION) {
         None | Some(None) => return Ok(None),
         Some(Some(serde_json::Value::String(word))) if word == REDUCE => true,
@@ -118,6 +121,32 @@ pub(crate) fn held_device(stand_ins: &StandIns) -> Result<Option<balaur_core::fa
             facts.reduced_motion = reduced;
         },
     )))
+}
+
+/// The time zone `stand_ins` name, if they name one.
+///
+/// # Errors
+/// For a zone that is no name.
+fn held_time_zone(stand_ins: &StandIns) -> Result<Option<String>> {
+    match stand_ins.answer(ENGINE, balaur_core::facts::TIME_ZONE) {
+        None | Some(None) => Ok(None),
+        Some(Some(serde_json::Value::String(zone))) if !zone.is_empty() => Ok(Some(zone)),
+        Some(Some(other)) => Err(anyhow!(
+            "engine.time_zone names a zone, as \"Europe/Madrid\", got {other}"
+        )),
+    }
+}
+
+/// Hold the engine to what `stand_ins` name of the device and the clock.
+///
+/// # Errors
+/// For a reduce-motion word or a time zone that does not read.
+pub(crate) fn hold(eng: &Engine, stand_ins: &StandIns) -> Result<()> {
+    let device = held_device(stand_ins)?;
+    let zone = held_time_zone(stand_ins)?;
+    balaur_core::facts::hold_device(eng, device);
+    balaur_core::facts::hold_time_zone(eng, zone);
+    Ok(())
 }
 
 /// This run's stand-in for `module.call`, as [`StandIns::answer`] gives it.
@@ -137,7 +166,7 @@ pub fn set_stand_ins(eng: &Engine, stand_ins: StandIns) -> Result<()> {
     let held = eng
         .try_resource::<StandIns>()
         .ok_or_else(|| anyhow!("the platform plugin has to be loaded first"))?;
-    balaur_core::facts::hold_device(eng, held_device(&stand_ins)?);
+    hold(eng, &stand_ins)?;
     *held.borrow_mut() = stand_ins;
     Ok(())
 }

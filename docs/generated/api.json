@@ -2,7 +2,7 @@
   "asset_types": {
     "animation_library": {
       "directory": "animations",
-      "doc": "A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`.\n\n```toml\ntype = \"animation_library\"\n\n[clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol\nlength = 4.0             # seconds; left out, the clip ends at its last key\nloop_mode = \"pingpong\"   # none, linear or pingpong\n\n[[clips.patrol.tracks]]\ntarget = \"\"              # node path relative to the playing node; empty is that node\nproperty = \"position\"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>\ninterpolation = \"linear\" # step, linear or cubic\nkeys = [\n  { time = 0.0, value = [-2.5, 0.25, -2.0] },\n  { time = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n\n[[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script\nkeys = [{ time = 2.0, call = \"on_halfway\" }]\n```"
+      "doc": "A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`. A key's `ease` is a named curve or CSS's `cubic-bezier(x1, y1, x2, y2)`.\n\n```toml\ntype = \"animation_library\"\n\n[clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol\nlength = 4.0             # seconds; left out, the clip ends at its last key\nloop_mode = \"pingpong\"   # none, linear or pingpong\n\n[[clips.patrol.tracks]]\ntarget = \"\"              # node path relative to the playing node; empty is that node\nproperty = \"position\"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>\ninterpolation = \"linear\" # step, linear or cubic\nkeys = [\n  { time = 0.0, value = [-2.5, 0.25, -2.0] },\n  { time = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n\n[[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script\nkeys = [{ time = 2.0, call = \"on_halfway\" }]\n```"
     },
     "bone_map": {
       "directory": "animations",
@@ -862,7 +862,7 @@
     },
     "state_machine": {
       "directory": "animations",
-      "doc": "Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `blend_time`, `ease` or `blend_curve`, `advance_mode`, `switch_mode`, `condition`, `check`, `priority`, `reset` and `break_loop_at_end`. A transition to `end` stops the machine until a travel or a jump.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]                         # state = clip in the player's library; \"\" is the state's own name\nidle = \"idle\"\n\n[states.move]                    # a nested machine: its states are move/walk and move/run\nstart = \"walk\"\nstates = { walk = \"\", run = \"run_cycle\" }\n\n[[transitions]]\nfrom = \"idle\"\nto = \"move\"                      # entering a nested machine enters its start\nblend_time = 0.2                 # seconds\nease = \"in_out_sine\"             # the curve the blend follows; linear by default\nadvance_mode = \"auto\"            # disabled, enabled (fires on state_machine.travel) or auto\nswitch_mode = \"immediate\"        # immediate, sync (keeps the playhead) or at_end\ncondition = \"moving\"             # turned on by animation.set_condition\ncheck = \"can_move\"               # a script method that has to answer true, asked each frame\npriority = 1                     # lower wins among auto transitions and on travel\nreset = true                     # false resumes where the state was last left\nbreak_loop_at_end = false        # true holds a looping clip's end while it blends out\n\n[[transitions]]\nfrom = \"move\"                    # leaves from any state inside the nested machine\nto = \"end\"\nblend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease\n```"
+      "doc": "Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `blend_time`, `ease` or `blend_curve`, `advance_mode`, `switch_mode`, `condition`, `check`, `priority`, `reset` and `break_loop_at_end`. A transition to `end` stops the machine until a travel or a jump.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]                         # state = clip in the player's library; \"\" is the state's own name\nidle = \"idle\"\n\n[states.move]                    # a nested machine: its states are move/walk and move/run\nstart = \"walk\"\nstates = { walk = \"\", run = \"run_cycle\" }\n\n[[transitions]]\nfrom = \"idle\"\nto = \"move\"                      # entering a nested machine enters its start\nblend_time = 0.2                 # seconds\nease = \"in_out_sine\"             # the curve the blend follows, or a cubic-bezier(...); linear by default\nadvance_mode = \"auto\"            # disabled, enabled (fires on state_machine.travel) or auto\nswitch_mode = \"immediate\"        # immediate, sync (keeps the playhead) or at_end\ncondition = \"moving\"             # turned on by animation.set_condition\ncheck = \"can_move\"               # a script method that has to answer true, asked each frame\npriority = 1                     # lower wins among auto transitions and on travel\nreset = true                     # false resumes where the state was last left\nbreak_loop_at_end = false        # true holds a looping clip's end while it blends out\n\n[[transitions]]\nfrom = \"move\"                    # leaves from any state inside the nested machine\nto = \"end\"\nblend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease\n```"
     },
     "text_style": {
       "directory": "text_styles",
@@ -4516,6 +4516,10 @@
       "engine::time_scale": {
         "least": 0,
         "signature": "() -> float"
+      },
+      "engine::time_zone": {
+        "least": 0,
+        "signature": "() -> str?"
       },
       "engine::timings": {
         "least": 0,
@@ -10637,6 +10641,10 @@
         "least": 0,
         "signature": "() -> Node"
       },
+      "ui::free_picture": {
+        "least": 1,
+        "signature": "(str) -> bool"
+      },
       "ui::glyph": {
         "least": 1,
         "signature": "(str) -> str"
@@ -10656,6 +10664,14 @@
       "ui::patch": {
         "least": 2,
         "signature": "(Node, ui::Control) -> bool"
+      },
+      "ui::picture": {
+        "least": 1,
+        "signature": "([int], ui::PictureOptions?) -> str?"
+      },
+      "ui::picture_async": {
+        "least": 1,
+        "signature": "([int], ui::PictureOptions?) -> int"
       },
       "ui::pixels_per_design": {
         "least": 0,
@@ -14064,6 +14080,9 @@
       "ui::Mark": {
         "icon": "str",
         "name": "str"
+      },
+      "ui::PictureOptions": {
+        "max_side_pixels": "int?"
       },
       "ui::Rect": {
         "height": "float",
@@ -25868,7 +25887,7 @@
       },
       "image": {
         "default": "",
-        "description": "The project-relative picture drawn before the caption at the icon's size: `icon_size`, else the caption's height",
+        "description": "The project-relative picture drawn before the caption at the icon's size: `icon_size`, else the caption's height; or the name `ui::picture` gave one made from bytes",
         "type": "string"
       },
       "loading": {
@@ -26242,7 +26261,7 @@
       },
       "image": {
         "default": "",
-        "description": "The project-relative picture an `image` draws",
+        "description": "The project-relative picture an `image` draws, or the name `ui::picture` gave one made from bytes",
         "type": "string"
       },
       "region": {
@@ -27654,8 +27673,8 @@
         "add_clip": "Give this node a clip of its own under that name, shaped like a scene file's.",
         "current_clip": "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.",
         "current_state": "The state the machine is in, or nil before it has entered one.",
-        "ease": "The named curve at `t`, from 0 to 1: what a tween's `ease` does to its progress, for a number a script moves itself.",
-        "ease_names": "Every curve an `ease` takes, by name: the bare `linear`, then eleven transitions in four modes each.",
+        "ease": "The curve `name` spells at `t`, from 0 to 1: what a tween's `ease` does to its progress, for a number a script moves itself. A name is an `EASE_*` constant or CSS's `cubic-bezier(x1, y1, x2, y2)`, solved as a browser solves it.",
+        "ease_names": "Every named curve an `ease` takes: the bare `linear`, then eleven transitions in four modes each. An `ease` takes CSS's `cubic-bezier(x1, y1, x2, y2)` besides.",
         "is_playing": "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.",
         "is_tween_running": "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip.",
         "jump": "Cut the state machine to the named state on the next step, with no fade.",
@@ -28261,6 +28280,7 @@
         "tick_hz": "How many fixed steps a second this run takes, from `[time] tick_hz`. 60 unless the project says otherwise.",
         "time": "Seconds of engine time since the app started, accumulated as a float.",
         "time_scale": "What time is being multiplied by; 1.0 is real time.",
+        "time_zone": "The player's time zone by its IANA name, as `Europe/Madrid`: what a server that keeps a zone by name is sent. macOS's and iOS's system zone, Android's setting, Windows' zone as CLDR names it, a Linux's `TZ` or `/etc/localtime`, a page's `Intl` zone. Nil where the platform names none. Read from the system on each call, never recorded, and no hook says it changed: read it when it is needed. A test names it in the file `BALAUR_STAND_INS` names, `\"engine.time_zone\": \"Europe/Madrid\"`.",
         "timings": "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it.",
         "unix_time": "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw. A tool's own script, on a node outside the subtree `debugger::set_scope` names, reads the machine's clock, which a replay does not feed.",
         "user_data_directory": "A writable per-user directory for saves and settings, created on first call and named after the project. A game the editor plays answers with its own, the folder it has when run alone.",
@@ -28295,6 +28315,7 @@
         "tick_hz",
         "time",
         "time_scale",
+        "time_zone",
         "timings",
         "unix_time",
         "user_data_directory",
@@ -28330,6 +28351,7 @@
         "tick_hz": "() -> int",
         "time": "() -> float",
         "time_scale": "() -> float",
+        "time_zone": "() -> str?",
         "timings": "() -> engine::Timings?",
         "unix_time": "() -> float",
         "user_data_directory": "() -> str",
@@ -47839,11 +47861,14 @@
         "focus_right": "The same to the right, by `neighbour_right`.",
         "focus_up": "Move focus to the nearest widget above, as the up arrow does: the one the focused widget names in `neighbour_up`, else by where the widgets were drawn, round to the bottom past the top. What a stick or a d-pad's action calls.",
         "focused_widget": "The widget node focus is on, or nil.",
+        "free_picture": "Let the picture `picture` named go, its texture with it; a widget still naming it draws its `alt_text`. False for a name no picture has.",
         "glyph": "The character the icon font of the theme in force draws the glyph called `name` with, in the running project's own faces (the editor's, in the editor): for text that carries an icon among its words. Empty when the font has no glyph by that name. A widget's `icon`, a row's and a mark's take the name itself.",
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
         "natural_size": "The width and height a `widget` node asks for before its container grows or shrinks it, as CSS's max-content, in design pixels: its content and padding, or what it or its role states, a container's from its children's. What a row of words weighs against its room. Zero until it has been laid out once; a hidden one keeps what it asked for when last shown.",
         "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
         "patch": "What `patch` names written onto a widget node and remembered, so the next `write` compares against it: for a value that follows the node, what it leaves out is not asked about. False where nothing moved.",
+        "picture": "A picture from the bytes a script holds, PNG, JPEG, WebP, GIF or BMP, turned upright as its EXIF orientation says: the name an `image`'s `image` or a button's `image` draws it by, `picture:<n>`, held until `free_picture` lets it go. Nil for bytes that are no picture. What shows a photo from `device::pick_photo` before it is uploaded. A photo takes tens of milliseconds: call `picture_async` from a frame that has to stay smooth.",
+        "picture_async": "`picture` decoded on a worker: the id `task::wait` answers the picture's name on, or nil, once it is done. The picture is held from then on, waited on or not.",
         "pixels_per_design": "How many of the window's own pixels a design pixel covers this frame: the UI scale, the display's scale and the reader's text size together. Divide `input::mouse_position()` by it for design pixels.",
         "request_repaint": "Run the frame and its UI pass under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead.",
         "save_pasted_image": "Write the image last pasted where no field took it, which the `image_pasted` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already.",
@@ -47881,11 +47906,14 @@
         "focus_right",
         "focus_up",
         "focused_widget",
+        "free_picture",
         "glyph",
         "height_class",
         "natural_size",
         "pasted_text",
         "patch",
+        "picture",
+        "picture_async",
         "pixels_per_design",
         "request_repaint",
         "save_pasted_image",
@@ -47924,11 +47952,14 @@
         "focus_right": "()",
         "focus_up": "()",
         "focused_widget": "() -> Node",
+        "free_picture": "(str) -> bool",
         "glyph": "(str) -> str",
         "height_class": "() -> str",
         "natural_size": "(Node) -> Vec2",
         "pasted_text": "() -> str",
         "patch": "(Node, ui::Control) -> bool",
+        "picture": "([int], ui::PictureOptions?) -> str?",
+        "picture_async": "([int], ui::PictureOptions?) -> int",
         "pixels_per_design": "() -> float",
         "request_repaint": "(ui::RepaintOptions?)",
         "save_pasted_image": "(str) -> bool",

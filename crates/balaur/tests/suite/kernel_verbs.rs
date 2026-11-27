@@ -390,6 +390,25 @@ impl Probe {
 }
 
 #[test]
+fn a_script_reads_the_time_zone_a_test_holds_by_its_name() {
+    let (_dir, app) = booted_with(
+        SCENE,
+        r#"pub class Probe { node: Node, zone: str }
+impl Probe {
+    pub fn init() {
+        let zone = engine::time_zone();
+        self.zone = if zone == nil { "none" } else { zone.unwrap() };
+    }
+}
+"#,
+        "",
+        &[],
+        |app| balaur_core::facts::hold_time_zone(&app.engine, Some("Europe/Madrid".into())),
+    );
+    assert_eq!(field(&app, "zone"), Some(Value::text("Europe/Madrid")));
+}
+
+#[test]
 fn a_script_reads_the_machines_time_zone_at_an_instant() {
     // A July and a January noon of 2026, UTC: the two sides of daylight saving.
     let (_dir, app) = booted(

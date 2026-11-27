@@ -1,5 +1,6 @@
 //! `secrets.*` against the file store a test names, and the reduce-motion
-//! setting a test holds: what a game's suite runs on every machine alike.
+//! setting and the time zone a test holds: what a game's suite runs on
+//! every machine alike.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -92,6 +93,33 @@ fn a_stand_in_holds_the_reduce_motion_setting_whatever_the_platform_says() {
     let (app, _home) = app_with(r#"{ "engine.prefers_reduced_motion": "no-preference" }"#);
     balaur_core::facts::update_device(&app.engine, |facts| facts.reduced_motion = true);
     assert!(!balaur_core::facts::prefers_reduced_motion(&app.engine));
+}
+
+#[test]
+fn a_stand_in_holds_the_time_zone_until_the_stand_ins_are_replaced() {
+    let (app, _home) = app_with(r#"{ "engine.time_zone": "Europe/Madrid" }"#);
+    assert_eq!(
+        balaur_core::facts::time_zone(&app.engine).as_deref(),
+        Some("Europe/Madrid")
+    );
+    balaur_platform::set_stand_ins(&app.engine, StandIns::default()).unwrap();
+    assert_eq!(
+        balaur_core::facts::time_zone(&app.engine),
+        balaur_core::time_zone::name()
+    );
+}
+
+#[test]
+fn a_time_zone_stand_in_that_is_no_name_is_refused() {
+    let (app, _home) = app_with("{}");
+    for bad in [
+        r#"{ "engine.time_zone": "" }"#,
+        r#"{ "engine.time_zone": { "zone": "UTC" } }"#,
+    ] {
+        let refused =
+            balaur_platform::set_stand_ins(&app.engine, StandIns::parse(bad).unwrap()).unwrap_err();
+        assert!(refused.to_string().contains("Europe/Madrid"), "{refused}");
+    }
 }
 
 #[test]

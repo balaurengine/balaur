@@ -53,7 +53,7 @@ fn a_clip_reads_its_length_loop_mode_and_tracks() {
     assert_eq!(track.interpolation, Interpolation::Step);
     assert_eq!(track.keys.len(), 2);
     assert_eq!(
-        track.keys[1].ease.map(Easing::name),
+        track.keys[1].ease.map(Easing::name).as_deref(),
         Some("out_back"),
         "a key's curve is resolved at parse and remembers its own name"
     );

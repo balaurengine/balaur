@@ -65,6 +65,32 @@ pub fn decode(bytes: &[u8], settings: &toml::Table, alpha: Alpha) -> Result<Rgba
     Ok(image)
 }
 
+/// A photo's bytes decoded, fitted inside `max_side` on its longest side
+/// with its proportions kept (never grown), and turned upright as its EXIF
+/// orientation says: the picture as whoever took it sees it.
+///
+/// # Errors
+/// If the bytes are no image this build reads.
+pub fn upright(bytes: &[u8], max_side: Option<u32>) -> image::ImageResult<image::DynamicImage> {
+    use image::ImageDecoder;
+    let mut decoder = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()?
+        .into_decoder()?;
+    let orientation = decoder
+        .orientation()
+        .unwrap_or(image::metadata::Orientation::NoTransforms);
+    let mut picture = image::DynamicImage::from_decoder(decoder)?;
+    // Shrunk before it is turned: the box is square, so the turn fits it as
+    // well, and turning the small picture copies far less.
+    if let Some(side) = max_side
+        && picture.width().max(picture.height()) > side
+    {
+        picture = picture.resize(side, side, image::imageops::FilterType::CatmullRom);
+    }
+    picture.apply_orientation(orientation);
+    Ok(picture)
+}
+
 /// Apply the texel settings to pixels already decoded.
 pub fn prepare(image: &mut RgbaImage, texels: &Texels, alpha: Alpha) {
     if texels.flip_green {

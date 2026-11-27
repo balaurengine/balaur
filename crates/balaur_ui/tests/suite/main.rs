@@ -13,6 +13,7 @@ mod glyph_mesh;
 mod glyphs;
 mod pacing;
 mod pass;
+mod pictures;
 mod shortcuts;
 mod splash;
 mod widget_anchor;

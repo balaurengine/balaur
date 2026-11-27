@@ -6,7 +6,7 @@
 //!    `App::register_asset_type`. Core never learns what a clip is; a clip is
 //!    shared by every node that names it, and immutable once parsed.
 //! 2. [`ease`] — eleven transitions in four modes, on `libm`, with Godot's
-//!    names and Godot's shapes.
+//!    names and Godot's shapes, and CSS's `cubic-bezier`.
 //! 3. [`sampler`] — `(clip, time) -> pose`, pure, so a crossfade composes
 //!    samples without the data model changing under them.
 //! 4. [`player`] — one `Playback` per node: the playhead, the queue, the
@@ -85,7 +85,7 @@ const ANIMATIONS: &str = "animations";
 pub struct AnimationPlugin;
 
 /// What a definition table holds, for the generated reference.
-const LIBRARY_ASSET_DOC: &str = r#"A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`.
+const LIBRARY_ASSET_DOC: &str = r#"A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`. A key's `ease` is a named curve or CSS's `cubic-bezier(x1, y1, x2, y2)`.
 
 ```toml
 type = "animation_library"

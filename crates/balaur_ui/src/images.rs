@@ -7,7 +7,8 @@ use egui::{pos2, vec2};
 use crate::UiState;
 use crate::vocabulary::keys;
 
-/// A project image as an egui texture, cached by path.
+/// A project image as an egui texture, cached by path, or a picture a script
+/// made from bytes, by its name.
 ///
 /// # Errors
 /// When the file cannot be read or is not an image this build decodes.
@@ -16,6 +17,9 @@ pub(crate) fn texture_of(
     ctx: &egui::Context,
     path: &str,
 ) -> anyhow::Result<egui::TextureHandle> {
+    if crate::pictures::is_picture(path) {
+        return crate::pictures::texture(eng, ctx, path);
+    }
     let state = eng.resource::<UiState>();
     let cached = {
         let mut held = state.borrow_mut();
@@ -204,6 +208,9 @@ fn upload(
 /// The size a picture measures as: the pixels it was drawn at, which are the
 /// file's own unless a smaller copy shipped in its place.
 pub(crate) fn native_size(eng: &Engine, path: &str, texture: &egui::TextureHandle) -> egui::Vec2 {
+    if crate::pictures::is_picture(path) {
+        return texture.size_vec2();
+    }
     let source = balaur_asset::texture_asset::source(eng, path).map(|found| found.path);
     balaur_core::import::drawn_size(eng, source.as_deref().unwrap_or(path))
         .map_or_else(|| texture.size_vec2(), |(w, h)| vec2(w as f32, h as f32))

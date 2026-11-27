@@ -301,7 +301,7 @@ fn fade_frame(fade: &crate::player::Fade) -> FadeFrame {
         speed: fade.speed,
         elapsed: fade.elapsed,
         duration: fade.duration,
-        ease: fade.ease.name().to_string(),
+        ease: fade.ease.name().into_owned(),
         curve: fade
             .curve
             .as_ref()
@@ -606,7 +606,7 @@ fn clip_frame(clip: &Clip) -> ClipFrame {
                         time: key.time,
                         value: key.value.to_array(),
                         call: key.call.clone(),
-                        ease: key.ease.map(|ease| ease.name().to_string()),
+                        ease: key.ease.map(|ease| ease.name().into_owned()),
                     })
                     .collect(),
             })

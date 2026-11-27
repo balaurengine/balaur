@@ -166,3 +166,120 @@ fn back_and_elastic_overshoot_where_quad_does_not() {
     assert!(over(back), "out_back is supposed to overshoot");
     assert!(over(elastic), "out_elastic is supposed to overshoot");
 }
+
+// CSS's curves at five points, against the curve solved to the last bit:
+// `ease`, `ease-in`, `ease-out`, `ease-in-out`, and the two a site moves by.
+#[test]
+fn a_css_curve_moves_as_a_browser_moves_it() {
+    let at: [f32; 5] = [0.1, 0.25, 0.5, 0.75, 0.9];
+    for (curve, want) in [
+        (
+            "cubic-bezier(0.25, 0.1, 0.25, 1)",
+            [
+                0.094_796_306,
+                0.408_510_591,
+                0.802_403_388,
+                0.960_458_978,
+                0.994_316_477,
+            ],
+        ),
+        (
+            "cubic-bezier(0.42, 0, 1, 1)",
+            [
+                0.017_026_61,
+                0.093_464_651,
+                0.315_356_813,
+                0.621_861_869,
+                0.839_427_846,
+            ],
+        ),
+        (
+            "cubic-bezier(0, 0, 0.58, 1)",
+            [
+                0.160_572_154,
+                0.378_138_131,
+                0.684_643_187,
+                0.906_535_349,
+                0.982_973_39,
+            ],
+        ),
+        (
+            "cubic-bezier(0.42, 0, 0.58, 1)",
+            [
+                0.019_722_454,
+                0.129_161_931,
+                0.5,
+                0.870_838_069,
+                0.980_277_546,
+            ],
+        ),
+        (
+            "cubic-bezier(0.2, 0.7, 0.2, 1)",
+            [
+                0.359_122_765,
+                0.727_373_396,
+                0.929_578_821,
+                0.987_468_037,
+                0.998_286_622,
+            ],
+        ),
+        (
+            "cubic-bezier(0.3, 1.4, 0.5, 1)",
+            [
+                0.414_424_326,
+                0.826_193_523,
+                1.048_828_113,
+                1.027_279_461,
+                1.005_054_134,
+            ],
+        ),
+    ] {
+        let eased = Easing::parse(curve).unwrap();
+        for (u, want) in at.iter().zip(want) {
+            let got = f64::from(eased.apply(*u));
+            assert!(
+                (got - want).abs() < 1e-6,
+                "{curve} at {u}: {got}, not {want}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_css_curve_lands_on_its_ends_and_runs_on_straight_past_them() {
+    let ease = Easing::parse("cubic-bezier(0.25, 0.1, 0.25, 1)").unwrap();
+    assert!(lands_exactly_on(ease.apply(0.0), 0.0));
+    assert!(lands_exactly_on(ease.apply(1.0), 1.0));
+    // It leaves along y1 / x1 = 0.4 and arrives flat.
+    assert!(
+        (ease.apply(-0.5) + 0.2).abs() < 1e-6,
+        "{}",
+        ease.apply(-0.5)
+    );
+    assert!(lands_exactly_on(ease.apply(1.5), 1.0));
+    let straight = Easing::parse("cubic-bezier(0.3, 0.3, 0.6, 0.6)").unwrap();
+    assert!(lands_exactly_on(straight.apply(0.37), 0.37));
+}
+
+#[test]
+fn a_css_curve_keeps_the_name_css_writes_it_with() {
+    let curve = Easing::parse(" Cubic-Bezier(.2,0.7,  0.2 , 1.0)").unwrap();
+    assert_eq!(curve.name(), "cubic-bezier(0.2, 0.7, 0.2, 1)");
+    assert_eq!(Easing::parse(&curve.name()).unwrap(), curve);
+    assert_eq!(curve.transition(), Transition::CubicBezier);
+    assert_eq!(curve.mode(), Mode::In);
+}
+
+#[test]
+fn a_css_curve_css_would_refuse_is_refused() {
+    for bad in [
+        "cubic-bezier(1.2, 0, 0.5, 1)",
+        "cubic-bezier(0.2, 0, -0.1, 1)",
+        "cubic-bezier(0.2, 0, 1)",
+        "cubic-bezier(0.2, 0, 0.5, 1, 1)",
+        "cubic-bezier(a, 0, 0.5, 1)",
+        "cubic-bezier(0.2, 0, 0.5, 1",
+    ] {
+        assert!(Easing::parse(bad).is_err(), "{bad}");
+    }
+}

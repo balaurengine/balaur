@@ -635,6 +635,25 @@ fn an_eased_step_is_not_where_a_straight_one_would_be() {
 }
 
 #[test]
+fn a_step_eased_by_a_css_curve_is_where_a_browser_puts_it() {
+    let mut app = app();
+    let eased = spawn(&app, "Eased");
+    start(
+        &app,
+        eased,
+        "[[steps]]\nproperty = \"position\"\nto = [0.0, 10.0, 0.0]\nduration = 0.5\nease = \"cubic-bezier(0.25, 0.1, 0.25, 1)\"\n",
+    );
+    tick(&mut app, 15);
+    near(
+        height(&app, eased),
+        8.024_034,
+        "CSS's ease is 0.8024 of the way at half the time",
+    );
+    tick(&mut app, 20);
+    near(height(&app, eased), 10.0, "it arrives");
+}
+
+#[test]
 fn a_step_that_says_nothing_is_rejected() {
     let app = app();
     let entity = spawn(&app, "Box");

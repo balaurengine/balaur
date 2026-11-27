@@ -20,7 +20,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`dependency`](#dependency) | 6 | 0 |
 | [`device`](#device) | 5 | 13 |
 | [`encoding`](#encoding) | 3 | 0 |
-| [`engine`](#engine) | 31 | 0 |
+| [`engine`](#engine) | 32 | 0 |
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
@@ -63,7 +63,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 39 | 66 |
+| [`ui`](#ui) | 42 | 66 |
 | [`websocket`](#websocket) | 6 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -313,6 +313,7 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | `tick_hz` | `() -> int` |
 | `time` | `() -> float` |
 | `time_scale` | `() -> float` |
+| `time_zone` | `() -> str?` |
 | `timings` | `() -> engine::Timings?` |
 | `unix_time` | `() -> float` |
 | `user_data_directory` | `() -> str` |
@@ -1363,11 +1364,14 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `focus_right` | `()` |
 | `focus_up` | `()` |
 | `focused_widget` | `() -> Node` |
+| `free_picture` | `(str) -> bool` |
 | `glyph` | `(str) -> str` |
 | `height_class` | `() -> str` |
 | `natural_size` | `(Node) -> Vec2` |
 | `pasted_text` | `() -> str` |
 | `patch` | `(Node, ui::Control) -> bool` |
+| `picture` | `([int], ui::PictureOptions?) -> str?` |
+| `picture_async` | `([int], ui::PictureOptions?) -> int` |
 | `pixels_per_design` | `() -> float` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
 | `save_pasted_image` | `(str) -> bool` |

@@ -86,6 +86,37 @@ pub fn headers_of(opts: Option<&Value>) -> Result<Vec<(String, String)>> {
     }
 }
 
+/// A size in whole pixels out of a script options table, 1 to `most`, or
+/// `None` where the table leaves `key` out or nil.
+///
+/// # Errors
+/// When the value is no whole number, or outside 1 to `most`.
+pub fn side_pixels(opts: Option<&Value>, key: &str, most: u32) -> Result<Option<u32>> {
+    match opt(opts, key) {
+        None | Some(Value::Nil) => Ok(None),
+        Some(Value::Int(side)) => u32::try_from(*side)
+            .ok()
+            .filter(|side| (1..=most).contains(side))
+            .map(Some)
+            .ok_or_else(|| anyhow!("`{key}` is 1 to {most}, got {side}")),
+        Some(other) => Err(anyhow!(
+            "`{key}` is a whole number of pixels, got {other:?}"
+        )),
+    }
+}
+
+/// The bytes a script handed over, moved out where they already are bytes:
+/// [`bytes_of`] for a value the caller owns.
+///
+/// # Errors
+/// As [`bytes_of`].
+pub fn into_bytes(value: Value) -> Result<Vec<u8>> {
+    match value {
+        Value::Bytes(bytes) => Ok(bytes),
+        other => bytes_of(&other),
+    }
+}
+
 /// The bytes a script's `[int]` holds, each one 0 to 255.
 ///
 /// # Errors

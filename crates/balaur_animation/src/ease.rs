@@ -1,10 +1,15 @@
-//! Easing: eleven transitions in four modes, and the names Godot gives them.
+//! Easing: eleven transitions in four modes, and the names Godot gives them,
+//! and CSS's `cubic-bezier`.
 //!
 //! A curve is named `<mode>_<transition>` — `in_quad`, `out_back`,
 //! `in_out_elastic` — with mode one of `in`, `out`, `in_out`, `out_in` and
 //! transition one of the eleven curved ones below. A straight line is `linear`
 //! alone, because all four of its modes are the same line. The shapes are Godot's,
 //! so a curve ported from a Godot project moves the same way here.
+//!
+//! A curve may also be spelled as CSS spells one, `cubic-bezier(0.2, 0.7, 0.2, 1)`,
+//! and moves as a browser moves it: the progress is the curve's `x`, solved
+//! for its parameter, and the eased value its `y` there.
 //!
 //! Every transcendental is `libm`'s. `f32::sin`, `f32::powf` and `f32::exp2`
 //! route to the platform's libm and differ between operating systems, which
@@ -34,6 +39,8 @@ pub enum Transition {
     Elastic,
     Bounce,
     Spring,
+    /// CSS's `cubic-bezier`, whose mode is `In`: the curve as written.
+    CubicBezier,
 }
 
 /// Which end of a segment the transition shapes.
@@ -118,68 +125,100 @@ const TRANSITIONS: [Transition; 11] = [
 
 const MODES: [Mode; 4] = [Mode::In, Mode::Out, Mode::InOut, Mode::OutIn];
 
-/// One named easing curve.
+/// One easing curve: a named one, or a CSS `cubic-bezier`.
 ///
-/// Held as an index into the crate-private name table so that it is `Copy`,
-/// comparable, and still knows the name it was authored with — which is what
-/// lets a clip carrying easing round-trip back to the document it came from.
-/// [`names`] is that table, in the same order.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Easing(u8);
+/// A named curve is held as an index into the crate-private name table so
+/// that it is `Copy`, comparable, and still knows the name it was authored
+/// with — which is what lets a clip carrying easing round-trip back to the
+/// document it came from. [`names`] is that table, in the same order.
+#[derive(Clone, Copy, PartialEq)]
+pub struct Easing(Curve);
+
+#[derive(Clone, Copy, PartialEq)]
+enum Curve {
+    Named(u8),
+    Bezier(CubicBezier),
+}
 
 impl std::fmt::Debug for Easing {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.name())
+        f.write_str(&self.name())
     }
 }
 
+/// What a CSS curve is spelled inside.
+const BEZIER_OPEN: &str = "cubic-bezier(";
+const BEZIER_CLOSE: &str = ")";
+
 impl Easing {
     /// The straight line: what a segment with no `ease` already does.
-    pub const LINEAR: Self = Self(0);
+    pub const LINEAR: Self = Self(Curve::Named(0));
 
-    /// The curve `name` spells.
+    /// The curve `name` spells: a named one, or `cubic-bezier(x1, y1, x2, y2)`.
     ///
     /// # Errors
     /// If no curve has that name. The message lists the vocabulary, because
     /// the wrong half of the name is usually the mode.
     pub fn parse(name: &str) -> Result<Self> {
+        let spelled = name.trim();
+        // CSS's function names are the same in any case.
+        let opens = spelled
+            .get(..BEZIER_OPEN.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(BEZIER_OPEN));
+        if let Some(inside) = opens
+            .then(|| &spelled[BEZIER_OPEN.len()..])
+            .and_then(|rest| rest.strip_suffix(BEZIER_CLOSE))
+        {
+            return CubicBezier::parse(inside)
+                .map(|curve| Self(Curve::Bezier(curve)))
+                .map_err(|why| anyhow!("`ease = \"{name}\"`: {why}"));
+        }
         NAMES
             .iter()
-            .position(|known| *known == name)
+            .position(|known| *known == spelled)
             .and_then(|index| u8::try_from(index).ok())
-            .map(Self)
+            .map(|index| Self(Curve::Named(index)))
             .ok_or_else(|| {
                 anyhow!(
                     "`ease = \"{name}\"` is not a curve; a curve is <mode>_<transition> with \
                      mode one of \"in\", \"out\", \"in_out\", \"out_in\" and transition one of \
                      \"sine\", \"quad\", \"cubic\", \"quart\", \"quint\", \"expo\", \
-                     \"circ\", \"back\", \"elastic\", \"bounce\", \"spring\" — or plain \"linear\""
+                     \"circ\", \"back\", \"elastic\", \"bounce\", \"spring\" — or plain \"linear\", \
+                     or CSS's \"cubic-bezier(x1, y1, x2, y2)\""
                 )
             })
     }
 
-    /// The name this curve was spelled with.
+    /// The name this curve was spelled with; a CSS curve's as CSS writes it,
+    /// `cubic-bezier(0.2, 0.7, 0.2, 1)`.
     #[must_use]
-    pub const fn name(self) -> &'static str {
-        NAMES[self.0 as usize]
+    pub fn name(self) -> std::borrow::Cow<'static, str> {
+        match self.0 {
+            Curve::Named(index) => NAMES[index as usize].into(),
+            Curve::Bezier(curve) => {
+                let [x1, y1, x2, y2] = curve.points;
+                format!("{BEZIER_OPEN}{x1}, {y1}, {x2}, {y2}{BEZIER_CLOSE}").into()
+            }
+        }
     }
 
     /// The shape half of the name.
     #[must_use]
     pub const fn transition(self) -> Transition {
-        match self.0.checked_sub(1) {
-            Some(index) => TRANSITIONS[(index / 4) as usize],
-            None => Transition::Linear,
+        match self.0 {
+            Curve::Named(0) => Transition::Linear,
+            Curve::Named(index) => TRANSITIONS[((index - 1) / 4) as usize],
+            Curve::Bezier(_) => Transition::CubicBezier,
         }
     }
 
     /// The mode half of the name. Bare `linear` is `In`, which for a straight
-    /// line is every other mode as well.
+    /// line is every other mode as well, and so is a CSS curve.
     #[must_use]
     pub const fn mode(self) -> Mode {
-        match self.0.checked_sub(1) {
-            Some(index) => MODES[(index % 4) as usize],
-            None => Mode::In,
+        match self.0 {
+            Curve::Named(0) | Curve::Bezier(_) => Mode::In,
+            Curve::Named(index) => MODES[((index - 1) % 4) as usize],
         }
     }
 
@@ -187,6 +226,9 @@ impl Easing {
     /// curve has shaped it.
     #[must_use]
     pub fn apply(self, u: f32) -> f32 {
+        if let Curve::Bezier(curve) = self.0 {
+            return curve.apply(u);
+        }
         let which = self.transition();
         match self.mode() {
             Mode::In => shape(which, false, u),
@@ -210,6 +252,126 @@ impl Easing {
             }
         }
     }
+}
+
+/// CSS's `cubic-bezier(x1, y1, x2, y2)`: the curve from `(0, 0)` to `(1, 1)`
+/// pulled toward its two control points, solved as Chromium solves it.
+#[derive(Clone, Copy, PartialEq)]
+struct CubicBezier {
+    points: [f32; 4],
+}
+
+/// How near the curve's `x` has to come to the progress: Chromium's.
+const BEZIER_EPSILON: f64 = 1e-7;
+/// Newton's steps before bisection takes over, and bisection's.
+const NEWTON_STEPS: usize = 4;
+const BISECTION_STEPS: usize = 64;
+
+impl CubicBezier {
+    /// `x1, y1, x2, y2`, each `x` from 0 to 1 as CSS requires.
+    fn parse(inside: &str) -> Result<Self> {
+        let numbers: Vec<f32> = inside
+            .split(',')
+            .map(|part| part.trim().parse::<f32>().ok().filter(|n| n.is_finite()))
+            .collect::<Option<_>>()
+            .ok_or_else(|| anyhow!("a cubic-bezier takes four numbers"))?;
+        let Ok(points) = <[f32; 4]>::try_from(numbers) else {
+            return Err(anyhow!("a cubic-bezier takes four numbers, x1, y1, x2, y2"));
+        };
+        if !(0.0..=1.0).contains(&points[0]) || !(0.0..=1.0).contains(&points[2]) {
+            return Err(anyhow!("a cubic-bezier's x1 and x2 are 0 to 1"));
+        }
+        Ok(Self { points })
+    }
+
+    /// The curve's `y` where its `x` is `u`. Outside 0 to 1 it runs on
+    /// straight, along the curve's slope at that end, as CSS's does.
+    fn apply(self, u: f32) -> f32 {
+        let [x1, y1, x2, y2] = self.points.map(f64::from);
+        let x = f64::from(u);
+        #[allow(clippy::float_cmp, reason = "a straight line exactly")]
+        if x1 == y1 && x2 == y2 {
+            return u;
+        }
+        #[allow(clippy::cast_possible_truncation, reason = "back to the curve's f32")]
+        let eased = if x <= 0.0 {
+            start_slope([x1, y1, x2, y2]) * x
+        } else if x >= 1.0 {
+            1.0 + end_slope([x1, y1, x2, y2]) * (x - 1.0)
+        } else {
+            sample(cubic(y1, y2), solve(x, cubic(x1, x2)))
+        };
+        eased as f32
+    }
+}
+
+/// The coefficients `[a, b, c]` of one axis of the curve, `((a t + b) t + c) t`,
+/// from its two control points' values on it.
+fn cubic(p1: f64, p2: f64) -> [f64; 3] {
+    let c = 3.0 * p1;
+    let b = 3.0 * (p2 - p1) - c;
+    [1.0 - c - b, b, c]
+}
+
+/// One axis of the curve at the parameter `t`.
+fn sample([a, b, c]: [f64; 3], t: f64) -> f64 {
+    ((a * t + b) * t + c) * t
+}
+
+/// The parameter at which the curve `((a t + b) t + c) t` reaches `x`:
+/// Newton's method from `x`, then bisection where it stalls.
+fn solve(x: f64, axis: [f64; 3]) -> f64 {
+    let [a, b, c] = axis;
+    let at = |t: f64| sample(axis, t);
+    let slope = |t: f64| (3.0 * a * t + 2.0 * b) * t + c;
+    let mut t = x;
+    for _ in 0..NEWTON_STEPS {
+        let off = at(t) - x;
+        if off.abs() < BEZIER_EPSILON {
+            return t;
+        }
+        let d = slope(t);
+        if d.abs() < 1e-6 {
+            break;
+        }
+        t -= off / d;
+    }
+    let (mut low, mut high) = (0.0, 1.0);
+    t = x;
+    for _ in 0..BISECTION_STEPS {
+        let off = at(t) - x;
+        if off.abs() < BEZIER_EPSILON {
+            break;
+        }
+        if off < 0.0 {
+            low = t;
+        } else {
+            high = t;
+        }
+        t = f64::midpoint(low, high);
+    }
+    t
+}
+
+/// The slope a curve leaves `(0, 0)` along, from the first control point
+/// that is not on it.
+#[allow(clippy::float_cmp, reason = "a control point on the corner exactly")]
+fn start_slope([x1, y1, x2, y2]: [f64; 4]) -> f64 {
+    if x1 > 0.0 {
+        y1 / x1
+    } else if y1 == 0.0 && x2 > 0.0 {
+        y2 / x2
+    } else if y1 == 0.0 && y2 == 0.0 {
+        1.0
+    } else {
+        0.0
+    }
+}
+
+/// The slope a curve reaches `(1, 1)` along: the start's of the curve turned
+/// end for end.
+fn end_slope([x1, y1, x2, y2]: [f64; 4]) -> f64 {
+    start_slope([1.0 - x2, 1.0 - y2, 1.0 - x1, 1.0 - y1])
 }
 
 /// A curve drawn as points, for a shape no named curve has: Godot's `Curve`
@@ -292,7 +454,7 @@ pub fn names() -> Vec<&'static str> {
 fn shape(which: Transition, wide: bool, u: f32) -> f32 {
     const PI: f32 = std::f32::consts::PI;
     match which {
-        Transition::Linear => u,
+        Transition::Linear | Transition::CubicBezier => u,
         Transition::Sine => 1.0 - libm::cosf(u * PI * 0.5),
         Transition::Quad => u * u,
         Transition::Cubic => u * u * u,

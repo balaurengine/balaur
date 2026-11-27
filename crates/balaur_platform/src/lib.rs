@@ -1099,7 +1099,7 @@ impl balaur_plugin::Plugin for PlatformPlugin {
         reg.insert_resource(PlatformState::default());
         reg.insert_resource(PlatformSnapshot::default());
         let stand_ins = StandIns::from_env()?;
-        balaur_core::facts::hold_device(reg.engine(), stand_ins::held_device(&stand_ins)?);
+        stand_ins::hold(reg.engine(), &stand_ins)?;
         reg.insert_resource(stand_ins);
         balaur_core::events::declare(
             reg.engine(),

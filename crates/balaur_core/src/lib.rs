@@ -77,6 +77,7 @@ pub mod system_param;
 pub mod tags;
 pub mod task;
 pub mod time;
+pub mod time_zone;
 pub mod timer;
 pub mod timers;
 pub mod timings;

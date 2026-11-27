@@ -162,6 +162,7 @@ pub(crate) fn install_ui_api(m: &mut Module<Engine>) {
     }
     install_theme(m);
     crate::contrast::install(m);
+    crate::pictures::install(m);
     install_widget_layer(m);
     crate::widget::write::install(m);
     install_scale(m);

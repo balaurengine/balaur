@@ -255,6 +255,10 @@ pub(crate) fn utc_offset(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Int(crate::facts::utc_offset(at)))
 }
 
+pub(crate) fn time_zone(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(crate::facts::time_zone(eng).map_or(Value::Nil, Value::text))
+}
+
 pub(crate) fn strings_system_locale(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(crate::facts::platform(eng)
         .system_locale

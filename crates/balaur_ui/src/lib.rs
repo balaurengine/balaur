@@ -21,6 +21,7 @@ mod images;
 mod loading;
 mod pacing;
 pub mod palette;
+mod pictures;
 mod routing;
 mod splash;
 mod theme;
@@ -330,6 +331,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(UiConfig::default());
         reg.insert_resource(UiProject::default());
         reg.insert_resource(UiState::default());
+        reg.insert_resource(pictures::Pictures::default());
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
         reg.insert_resource(UiFocus::default());

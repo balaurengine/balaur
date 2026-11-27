@@ -5,7 +5,7 @@
 use anyhow::{Result, anyhow};
 use balaur_asset::pixels::MAX_SIDE;
 use balaur_core::Engine;
-use balaur_core::handler::{bytes_of, opt};
+use balaur_core::handler::{into_bytes, opt, side_pixels};
 use balaur_script::{Module, Value};
 
 /// The script module.
@@ -48,7 +48,7 @@ struct Asked {
 
 fn asked(opts: Option<&Value>) -> Result<Asked> {
     let format = match opt(opts, FORMAT) {
-        None => Format::Jpeg,
+        None | Some(Value::Nil) => Format::Jpeg,
         Some(Value::Str(word)) => FORMATS
             .iter()
             .find(|(name, _)| name == word)
@@ -60,22 +60,9 @@ fn asked(opts: Option<&Value>) -> Result<Asked> {
             ));
         }
     };
-    let max_side = match opt(opts, MAX_SIDE_PIXELS) {
-        None => None,
-        Some(Value::Int(side)) => Some(
-            u32::try_from(*side)
-                .ok()
-                .filter(|side| (1..=MAX_SIDE).contains(side))
-                .ok_or_else(|| anyhow!("`max_side_pixels` is 1 to {MAX_SIDE}, got {side}"))?,
-        ),
-        Some(other) => {
-            return Err(anyhow!(
-                "`max_side_pixels` is a whole number of pixels, got {other:?}"
-            ));
-        }
-    };
+    let max_side = side_pixels(opts, MAX_SIDE_PIXELS, MAX_SIDE)?;
     let quality = match opt(opts, QUALITY) {
-        None => DEFAULT_QUALITY,
+        None | Some(Value::Nil) => DEFAULT_QUALITY,
         Some(Value::Num(quality)) => *quality,
         #[allow(clippy::cast_precision_loss, reason = "0 or 1")]
         Some(Value::Int(quality)) => *quality as f64,
@@ -100,22 +87,7 @@ fn asked(opts: Option<&Value>) -> Result<Asked> {
 /// `bytes` decoded, turned as its EXIF orientation says, fitted inside
 /// `max_side` on its longest side and written in `format`.
 fn encoded(bytes: &[u8], asked: Asked) -> image::ImageResult<Vec<u8>> {
-    use image::ImageDecoder;
-    let mut decoder = image::ImageReader::new(std::io::Cursor::new(bytes))
-        .with_guessed_format()?
-        .into_decoder()?;
-    let orientation = decoder
-        .orientation()
-        .unwrap_or(image::metadata::Orientation::NoTransforms);
-    let mut picture = image::DynamicImage::from_decoder(decoder)?;
-    // Shrunk before it is turned: the box is square, so the turn fits it as
-    // well, and turning the small picture copies far less.
-    if let Some(side) = asked.max_side
-        && picture.width().max(picture.height()) > side
-    {
-        picture = picture.resize(side, side, image::imageops::FilterType::CatmullRom);
-    }
-    picture.apply_orientation(orientation);
+    let picture = balaur_asset::pixels::upright(bytes, asked.max_side)?;
     let mut out = Vec::new();
     match asked.format {
         Format::Png => picture.write_with_encoder(image::codecs::png::PngEncoder::new(&mut out))?,
@@ -132,14 +104,6 @@ fn encoded(bytes: &[u8], asked: Asked) -> image::ImageResult<Vec<u8>> {
 /// What a script receives: the bytes, or nil for bytes that are no picture.
 fn answer(bytes: &[u8], asked: Asked) -> Value {
     encoded(bytes, asked).map_or(Value::Nil, Value::Bytes)
-}
-
-/// The bytes a script handed over, moved out where they already are bytes.
-fn owned_bytes(value: Value) -> Result<Vec<u8>> {
-    match value {
-        Value::Bytes(bytes) => Ok(bytes),
-        other => bytes_of(&other),
-    }
 }
 
 pub(crate) fn install(m: &mut Module<Engine>) {
@@ -176,14 +140,14 @@ pub(crate) fn install(m: &mut Module<Engine>) {
         ENCODE,
         |_: &Engine, (bytes, opts): (Value, Option<Value>)| {
             let asked = asked(opts.as_ref())?;
-            Ok(answer(&owned_bytes(bytes)?, asked))
+            Ok(answer(&into_bytes(bytes)?, asked))
         },
     );
     m.function(
         ENCODE_ASYNC,
         |eng: &Engine, (bytes, opts): (Value, Option<Value>)| {
             let asked = asked(opts.as_ref())?;
-            let bytes = owned_bytes(bytes)?;
+            let bytes = into_bytes(bytes)?;
             Ok(balaur_core::task::off_frame(eng, move || {
                 answer(&bytes, asked)
             }))

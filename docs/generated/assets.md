@@ -50,7 +50,7 @@ it, and what a definition table holds.
 
 Files: `animations/`. Used by: `animation.library`.
 
-A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`.
+A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`. A key's `ease` is a named curve or CSS's `cubic-bezier(x1, y1, x2, y2)`.
 
 ```toml
 type = "animation_library"
@@ -498,7 +498,7 @@ states = { walk = "", run = "run_cycle" }
 from = "idle"
 to = "move"                      # entering a nested machine enters its start
 blend_time = 0.2                 # seconds
-ease = "in_out_sine"             # the curve the blend follows; linear by default
+ease = "in_out_sine"             # the curve the blend follows, or a cubic-bezier(...); linear by default
 advance_mode = "auto"            # disabled, enabled (fires on state_machine.travel) or auto
 switch_mode = "immediate"        # immediate, sync (keeps the playhead) or at_end
 condition = "moving"             # turned on by animation.set_condition

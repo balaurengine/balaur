@@ -47,13 +47,13 @@ pub fn install_animation_api(m: &mut Module<Engine>) {
             EASE_NAMES,
             &[],
             "() -> [string]",
-            "Every curve an `ease` takes, by name: the bare `linear`, then eleven transitions in four modes each.",
+            "Every named curve an `ease` takes: the bare `linear`, then eleven transitions in four modes each. An `ease` takes CSS's `cubic-bezier(x1, y1, x2, y2)` besides.",
         ),
         (
             EASE,
             &[],
             "(name: string, t: float) -> float",
-            "The named curve at `t`, from 0 to 1: what a tween's `ease` does to its progress, for a number a script moves itself.",
+            "The curve `name` spells at `t`, from 0 to 1: what a tween's `ease` does to its progress, for a number a script moves itself. A name is an `EASE_*` constant or CSS's `cubic-bezier(x1, y1, x2, y2)`, solved as a browser solves it.",
         ),
     ]);
     m.function(EASE, |_: &Engine, (name, t): (String, f32)| {

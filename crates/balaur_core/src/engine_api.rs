@@ -16,7 +16,7 @@ use crate::batteries_api::{
     assets_rename, assets_save, assets_schema, dark_mode, device_id, environment, focused,
     hash_sha256_file, hash_sha256_text, log_clear, log_error, log_file, log_info, log_print,
     log_since, log_warn, platform, prefers_reduced_motion, rng_int, rng_random, rng_range,
-    rng_seed, scene_tagged, strings_system_locale, unix_time, utc_offset,
+    rng_seed, scene_tagged, strings_system_locale, time_zone, unix_time, utc_offset,
 };
 use crate::engine::Engine;
 use crate::file_api::{
@@ -144,6 +144,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: words::modules::ENGINE,
             name: "utc_offset",
             call: utc_offset,
+        },
+        EngineOp {
+            module: words::modules::ENGINE,
+            name: crate::facts::TIME_ZONE,
+            call: time_zone,
         },
         EngineOp {
             module: words::modules::ENGINE,
