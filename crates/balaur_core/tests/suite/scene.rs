@@ -610,6 +610,83 @@ fn a_skewed_parent_places_its_child_by_the_full_matrix() {
     assert!(close(got, expected), "got {got:?}\nwanted {expected:?}");
 }
 
+/// A, B and C posed as given, `(angle, skew, scale, position)` each, and
+/// synced: C's world matrix beside the product of the three Godot draws.
+fn chain_2d(poses: [(f32, f32, [f32; 2], [f32; 2]); 3]) -> (glamx::Mat3, glamx::Mat3) {
+    let (engine, a, b, c) = tree();
+    let mut expected = glamx::Mat3::IDENTITY;
+    {
+        let world = engine.world();
+        for (node, (angle, skew, scale, at)) in [a, b, c].into_iter().zip(poses) {
+            let mut t = world.get::<&mut scene::Transform>(node).unwrap();
+            t.position = glamx::Vec3::new(at[0], at[1], 0.0);
+            t.rotation = glamx::Quat::from_rotation_z(angle);
+            t.scale = glamx::Vec3::new(scale[0], scale[1], 1.0);
+            t.skew = skew;
+            expected *= godot_2d(angle, skew, scale[0], scale[1], at);
+        }
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let got = engine
+        .world()
+        .get::<&scene::GlobalTransform>(c)
+        .unwrap()
+        .affine_2d();
+    (got, expected)
+}
+
+// A rig mirrored to face the other way is its mirror image: a bone turned
+// under an x scale of -1 turns the other way on screen, as Godot's does.
+#[test]
+fn a_mirrored_parent_places_its_turned_children_by_the_full_matrix() {
+    let (got, expected) = chain_2d([
+        (0.2, 0.0, [-1.0, 1.0], [1.0, -2.0]),
+        (0.5, 0.0, [1.0, 1.0], [0.5, 0.25]),
+        (-0.4, 0.0, [1.0, 1.0], [0.3, 0.6]),
+    ]);
+    assert!(close(got, expected), "got {got:?}\nwanted {expected:?}");
+}
+
+// A squashed parent shears a turned child, as Godot's does: the octopus's
+// tentacles under its squashed head.
+#[test]
+fn a_squashed_parent_shears_its_turned_child() {
+    let (got, expected) = chain_2d([
+        (0.0, 0.0, [1.0, 0.4], [0.0, 0.0]),
+        (0.7, 0.0, [1.0, 1.0], [1.0, 1.0]),
+        (0.3, 0.0, [1.2, 0.8], [0.5, 0.0]),
+    ]);
+    assert!(close(got, expected), "got {got:?}\nwanted {expected:?}");
+}
+
+#[test]
+fn reparenting_under_a_mirrored_parent_keeps_the_world_pose() {
+    let (engine, a, b, c) = tree();
+    {
+        let world = engine.world();
+        let mut parent = world.get::<&mut scene::Transform>(a).unwrap();
+        parent.rotation = glamx::Quat::from_rotation_z(0.4);
+        parent.scale = glamx::Vec3::new(-1.0, 1.0, 1.0);
+        drop(parent);
+        let mut child = world.get::<&mut scene::Transform>(b).unwrap();
+        child.rotation = glamx::Quat::from_rotation_z(0.9);
+        child.position = glamx::Vec3::new(2.0, 0.5, 0.0);
+        drop(child);
+        world.get::<&mut scene::Transform>(c).unwrap().rotation =
+            glamx::Quat::from_rotation_z(-0.3);
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let before = scene::composed_global(&engine.world(), c).affine_2d();
+    scene::reparent(&mut engine.world_mut(), c, a).unwrap();
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let after = engine
+        .world()
+        .get::<&scene::GlobalTransform>(c)
+        .unwrap()
+        .affine_2d();
+    assert!(close(before, after), "moved from {before:?}\nto {after:?}");
+}
+
 #[test]
 fn reparenting_under_a_skewed_parent_keeps_the_world_pose() {
     let (engine, a, _, c) = tree();

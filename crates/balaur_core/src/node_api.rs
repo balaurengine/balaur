@@ -448,14 +448,15 @@ fn floats(v: Vec3) -> toml::Value {
 
 /// The `position` a child turned by `rotation` takes to sit at `point` under
 /// `above`: the inverse of where `GlobalTransform::mul` places one. An axis a
-/// zero scale flattens has no answer and comes back non-finite.
+/// zero scale flattens has no answer and comes back non-finite; the others
+/// are still solved, axis by axis.
 fn local_position(above: &GlobalTransform, point: Vec3, rotation: Quat) -> Vec3 {
     let from = point - above.position;
-    if above.skew == 0.0 || !scene::flat(above.rotation) || !scene::flat(rotation) {
-        return (above.rotation.inverse() * from) / above.scale;
-    }
     let angle = scene::z_angle(above.rotation);
     let basis = scene::linear_2d(angle, above.skew, above.scale.x, above.scale.y);
+    if !scene::composes_by_matrix(above, rotation, 0.0) || basis.determinant() == 0.0 {
+        return (above.rotation.inverse() * from) / above.scale;
+    }
     let at = basis.inverse() * from.truncate();
     Vec3::new(at.x, at.y, from.z / above.scale.z)
 }

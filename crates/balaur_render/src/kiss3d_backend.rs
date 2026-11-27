@@ -266,8 +266,6 @@ impl Frontend {
     /// the scene graph, draw the overlays. Answers whether to keep going.
     fn step(&mut self, app: &mut App, window: &mut Window, dt: f32) -> bool {
         crate::shader_clock::set(&app.engine);
-        apply_camera(app, &mut self.camera, window);
-        apply_camera_2d(app, &mut self.camera_2d, window);
         crate::app_icon::apply_app_icon(app, window, self.on_screen, self.frame);
         apply_window_config(app, window);
         self.present.apply(app, window);
@@ -279,7 +277,8 @@ impl Frontend {
             .sync(app, window.canvas().surface_format(), self.asset_generation);
         crate::post_material::feed_gi(&mut self.post, app);
         let input_seen = crate::kiss3d_input::pump_input(app, window);
-        // After the input: the picking ray goes through this frame's pointer.
+        // After the input: the picking ray goes through this frame's pointer,
+        // from the camera last drawn, the one the pointer was aimed through.
         publish_camera(app, &self.camera, window);
         publish_camera_2d(app, &self.camera_2d, window);
         // After the input, which is what says a fact moved.
@@ -290,6 +289,10 @@ impl Frontend {
         // last measured holds the previous tick's stages, and nothing later.
         report_render_cost(app, window);
         app.advance(dt);
+        // After the tick, which moved the cameras: a frame is drawn from
+        // where its own tick put them, the first frame from the scene's.
+        apply_camera(app, &mut self.camera, window);
+        apply_camera_2d(app, &mut self.camera_2d, window);
         boot_cost::report_shader_builds(app, self.frame);
         // Read once for the whole frame: three syncs ask, and each would
         // otherwise see the reload and hide it from the next.

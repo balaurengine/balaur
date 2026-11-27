@@ -18,6 +18,8 @@ mod aseprite;
 mod boolean;
 mod camera;
 #[cfg(feature = "window")]
+mod camera_frame;
+#[cfg(feature = "window")]
 mod film;
 mod light;
 mod material;

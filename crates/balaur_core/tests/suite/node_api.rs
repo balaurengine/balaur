@@ -468,6 +468,26 @@ fn set_global_position_lands_on_the_point_under_a_sheared_parent() {
 }
 
 #[test]
+fn set_global_position_lands_on_the_point_under_a_mirrored_parent() {
+    let mut app = app();
+    let child = under_a_2d_parent(&mut app, [-1.0, 1.0, 1.0], 0.0);
+    set_transform(&app.engine, &child, "rotation_euler", [0.0, 0.0, 0.6]);
+    app.tick(0.0);
+    let point = Vec3::new(-3.0, 4.0, 0.0);
+    call(
+        &app.engine,
+        "set_global_position",
+        &[child.clone(), Value::Vec3(point.to_array())],
+    )
+    .unwrap();
+    app.tick(0.0);
+    assert_near(
+        world_position(&app.engine, &child).to_array(),
+        point.to_array(),
+    );
+}
+
+#[test]
 fn set_global_position_keeps_the_axis_a_zero_scale_flattens() {
     let mut app = app();
     let child = under_a_2d_parent(&mut app, [2.0, 0.0, 1.0], 0.0);

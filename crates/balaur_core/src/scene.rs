@@ -377,8 +377,10 @@ impl Default for GlobalAppearance {
 
 /// World-space transform, brought up to date by the scene sync after the
 /// update stages ([`sync_globals`]).
-/// Composition ignores shear (scale is combined component-wise), matching the
-/// usual game engine convention.
+/// A child composes by adding rotations and multiplying scales per axis, the
+/// usual engine rule, wherever that is exact; a 2D child under a shear or a
+/// parent whose two scales differ composes as Godot's `Transform2D` does, by
+/// the full matrix ([`composes_by_matrix`]).
 #[derive(Clone, Copy)]
 pub struct GlobalTransform {
     pub position: Vec3,
@@ -418,8 +420,7 @@ impl GlobalTransform {
     }
 
     pub(crate) fn mul(&self, local: &Transform) -> Self {
-        if (self.skew == 0.0 && local.skew == 0.0) || !flat(self.rotation) || !flat(local.rotation)
-        {
+        if !composes_by_matrix(self, local.rotation, local.skew) {
             return Self {
                 position: self.position + self.rotation * (local.position * self.scale),
                 rotation: self.rotation * local.rotation,
@@ -427,8 +428,8 @@ impl GlobalTransform {
                 skew: 0.0,
             };
         }
-        // A shear anywhere above makes the basis a general 2D matrix, so it
-        // is composed as one and taken back apart.
+        // A shear, a mirror or a squash above makes the basis a general 2D
+        // matrix, so it is composed as one and taken back apart.
         let parent = linear_2d(
             z_angle(self.rotation),
             self.skew,
@@ -454,6 +455,23 @@ impl GlobalTransform {
             skew,
         }
     }
+}
+
+/// Whether a 2D child is placed under `parent` only by the full matrix: a
+/// shear on either side, or a parent whose x and y scales differ (a mirror on
+/// one axis, a squash). Under those, adding the angles and multiplying the
+/// scales turns a child's axes away from where the parent's basis carries
+/// them: a mirrored rig's bones bend the wrong way, a squashed one's do not
+/// shear. Under a uniform scale the two rules agree, and a 3D rotation keeps
+/// the per-axis one.
+#[allow(
+    clippy::float_cmp,
+    reason = "any difference at all leaves the per-axis rule inexact"
+)]
+pub(crate) fn composes_by_matrix(parent: &GlobalTransform, rotation: Quat, skew: f32) -> bool {
+    flat(parent.rotation)
+        && flat(rotation)
+        && (parent.skew != 0.0 || skew != 0.0 || parent.scale.x != parent.scale.y)
 }
 
 /// Whether a rotation turns about z alone, as a 2D node's does.
@@ -886,8 +904,11 @@ pub fn reparent(world: &mut World, entity: Entity, new_parent: Entity) -> anyhow
         ),
         skew: 0.0,
     };
-    // A shear on either side is only undone exactly through the matrices.
-    let local = if parent_global.skew != 0.0 || child_global.skew != 0.0 {
+    // A shear, a mirror or a squash is only undone exactly through the
+    // matrices, and a flattened parent not at all.
+    let local = if composes_by_matrix(&parent_global, child_global.rotation, child_global.skew)
+        && parent_global.affine_2d().determinant() != 0.0
+    {
         sheared_local(&parent_global, &child_global, local.position.z)
     } else {
         local
