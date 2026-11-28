@@ -48,7 +48,7 @@ ios | ios-sim)
   app="$dist/Balaur.app"
   rm -rf "$app"
   mkdir -p "$app"
-  cp "target/$target/release/balaur" "$app/Balaur"
+  cp "${CARGO_TARGET_DIR:-target}/$target/release/balaur" "$app/Balaur"
   chmod +x "$app/Balaur"
   code_by_crate native_crates.py "$app/Balaur" "balaur-runtime-$platform${variant:+-$variant}" "$dist"
   strip_template "$app/Balaur"
@@ -111,7 +111,7 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
     # dlopens libmain.so and calls android_main. See crates/balaur_android.
     cargo build --release -p balaur_android --no-default-features \
       --features "$features" --target "$target" --config "$(short_paths)"
-    lib="target/$target/release/libmain.so"
+    lib="${CARGO_TARGET_DIR:-target}/$target/release/libmain.so"
     [ -f "$lib" ] || { printf '::error::no library at %s\n' "$lib"; exit 1; }
 
     # Android 15 maps a 64-bit library on 16 KB pages and Play rejects one
@@ -331,7 +331,7 @@ web)
       --no-default-features --features "$features" --config "$(short_paths)"
   fi
 
-  wasm="target/$target/$profile/balaur.wasm"
+  wasm="${CARGO_TARGET_DIR:-target}/$target/$profile/balaur.wasm"
   [ -f "$wasm" ] || { printf '::error::no %s\n' "$wasm"; exit 1; }
 
   # The CLI must match the wasm-bindgen the build linked against; read it off

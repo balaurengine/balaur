@@ -146,6 +146,8 @@ web-sys = { version = "0.3.106", features = [
     # The start screen opens a project by loading the page again with its id
     # kept beside it (src/project_web.rs).
     "Location",
+    # A pack's URL fixed against the page it was opened from (src/web.rs).
+    "Url",
     "Response",
     "Storage",
     # A project the editor keeps, in IndexedDB: bytes rather than text, and a

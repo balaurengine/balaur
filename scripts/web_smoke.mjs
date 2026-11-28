@@ -7,6 +7,12 @@
 // Usage: web_smoke.mjs <play-dir>   (balaur.js, balaur_bg.wasm, *.bpak)
 //   A directory with no editor.bpak boots its games alone: an export over
 //   the game template, whose packs are compiled.
+// Usage: web_smoke.mjs <export-dir> (a web export: index.html beside them)
+//   Boots the export through its own page, served from a folder of the host
+//   (/game/) as a static host may serve it, and holds it to the runtime's
+//   `balaur-ready`: the game's first frame on the canvas. Fails on what the
+//   page logs above INFO, an exception, a failed request, or no first frame
+//   within SMOKE_SECONDS (default 60 here).
 //   CHROME   the browser binary; found on PATH or in /Applications otherwise
 //   SMOKE_SECONDS  how long each pack runs, default 8
 //   SMOKE_SHOTS    a directory to write each pack's last frame to, as <name>.png
@@ -17,7 +23,13 @@ import os from 'node:os';
 import path from 'node:path';
 
 const dir = path.resolve(process.argv[2] ?? 'dist/play');
-const seconds = Number(process.env.SMOKE_SECONDS ?? 8);
+// An export's folder holds its own page; a play directory holds only packs.
+const exported = fs.existsSync(path.join(dir, 'index.html'));
+const seconds = Number(process.env.SMOKE_SECONDS ?? (exported ? 60 : 8));
+// Where an export's page is served from: a folder, as a host may put it.
+const FOLDER = '/game/';
+// How long an export runs past its first frame before it is judged.
+const SETTLE_MS = 3000;
 const fail = (message) => {
   console.log(`::error::${message}`);
   process.exit(1);
@@ -27,8 +39,10 @@ const packs = fs.readdirSync(dir).filter((f) => f.endsWith('.bpak')).map((f) => 
 const games = packs.filter((p) => p !== 'editor');
 if (games.length === 0) fail(`${dir} holds no game to boot`);
 // Each game on its own, then the editor over one of them, the way the site opens both.
-const cases = games.map((p) => ({ name: p, start: `start('c', '/${p}.bpak')` }));
-if (packs.includes('editor')) {
+const cases = exported
+  ? [{ name: path.basename(dir), page: FOLDER }]
+  : games.map((p) => ({ name: p, start: `start('c', '/${p}.bpak')` }));
+if (!exported && packs.includes('editor')) {
   cases.push({ name: 'editor', start: `start_editor('c', '/editor.bpak', '/hello.bpak')` });
 }
 
@@ -55,13 +69,23 @@ document.title = 'warm';
 </script></body></html>`;
 
 let current = '';
-const types = { '.js': 'text/javascript', '.wasm': 'application/wasm' };
+const types = { '.js': 'text/javascript', '.wasm': 'application/wasm', '.html': 'text/html',
+  '.png': 'image/png', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json' };
 const server = http.createServer((q, s) => {
   const url = new URL(q.url, 'http://x');
   if (url.pathname === '/') {
     s.setHeader('Content-Type', 'text/html');
     s.end(current ? page(current) : warmup);
     return;
+  }
+  // An export's files are its folder's, and its page the folder's own.
+  if (exported) {
+    if (!url.pathname.startsWith(FOLDER)) {
+      s.statusCode = 404;
+      s.end();
+      return;
+    }
+    url.pathname = '/' + (url.pathname.slice(FOLDER.length) || 'index.html');
   }
   // Resolved under `dir`, not flattened to its basename: balaur.js imports
   // wasm-bindgen's `snippets/<crate>-<hash>/inline0.js`, and a basename turns
@@ -152,12 +176,28 @@ ws.addEventListener('message', (e) => {
 await send('Runtime.enable');
 await send('Log.enable');
 await send('Page.enable');
+// A request that failed or answered an error: a file the page looked for
+// where it is not, as one resolved against a moved address is.
+await send('Network.enable');
+ws.addEventListener('message', (e) => {
+  const m = JSON.parse(e.data);
+  if (m.method === 'Network.loadingFailed' && !m.params.canceled) {
+    heard.push(`request failed: ${m.params.errorText}`);
+  } else if (m.method === 'Network.responseReceived' && m.params.response.status >= 400
+      && !m.params.response.url.endsWith('/favicon.ico')) {
+    heard.push(`HTTP ${m.params.response.status}: ${m.params.response.url}`);
+  }
+});
+// The runtime's word that the first frame is on the canvas, kept for asking.
+await send('Page.addScriptToEvaluateOnNewDocument', {
+  source: "addEventListener('balaur-ready', () => { window.__balaurReady = true; }, { once: true });",
+});
 
 // Distinct colours in a grid of samples: one colour is a frame that never drew.
 // Through `toDataURL`: a WebGPU canvas hands `drawImage` nothing between frames.
 const colours = `(async () => {
   const shot = new Image();
-  shot.src = document.getElementById('c').toDataURL('image/png');
+  shot.src = document.querySelector('canvas').toDataURL('image/png');
   await shot.decode();
   const flat = document.createElement('canvas');
   flat.width = 64; flat.height = 36;
@@ -182,22 +222,48 @@ for (let i = 0; i < 40; i++) {
 heard = [];
 
 for (const c of cases) {
-  current = c.start;
+  current = c.start ?? '';
   heard = [];
-  await send('Page.navigate', { url: `${origin}/` });
-  await sleep(seconds * 1000);
-  const drawn = (await send('Runtime.evaluate', { expression: colours, awaitPromise: true, returnByValue: true }))
-    ?.result?.value ?? 0;
+  await send('Page.navigate', { url: `${origin}${c.page ?? '/'}` });
+  let drawn = 0;
+  if (c.page) {
+    let ready = false;
+    for (let waited = 0; waited < seconds * 1000 && !ready; waited += 250) {
+      await sleep(250);
+      ready = (await send('Runtime.evaluate', { expression: 'window.__balaurReady === true', returnByValue: true }))
+        ?.result?.value === true;
+    }
+    // A while past the first frame, for what comes after it: a pack's tail,
+    // a pipeline built later. Then the canvas has to hold more than one colour.
+    if (ready) {
+      await sleep(SETTLE_MS);
+      drawn = (await send('Runtime.evaluate', { expression: colours, awaitPromise: true, returnByValue: true }))
+        ?.result?.value ?? 0;
+    }
+  } else {
+    await sleep(seconds * 1000);
+    drawn = (await send('Runtime.evaluate', { expression: colours, awaitPromise: true, returnByValue: true }))
+      ?.result?.value ?? 0;
+  }
   if (process.env.SMOKE_SHOTS) {
     const url = (await send('Runtime.evaluate', {
-      expression: "document.getElementById('c').toDataURL('image/png')",
+      expression: "document.querySelector('canvas').toDataURL('image/png')",
       returnByValue: true,
     }))?.result?.value ?? '';
     fs.mkdirSync(process.env.SMOKE_SHOTS, { recursive: true });
     fs.writeFileSync(path.join(process.env.SMOKE_SHOTS, `${c.name}.png`), Buffer.from(url.split(',')[1] ?? '', 'base64'));
   }
   const problems = [...new Set(heard)];
-  if (drawn < 2) problems.push(`the canvas is one flat colour after ${seconds} s: nothing drew`);
+  if (drawn === 1 && c.page) {
+    problems.push(`the canvas is one flat colour ${SETTLE_MS / 1000} s after its first frame: nothing drew`);
+  } else if (drawn < 2 && c.page) {
+    // What the page shows over its canvas: a loading line, or the error it caught.
+    const shown = (await send('Runtime.evaluate', { expression: 'document.body.innerText', returnByValue: true }))
+      ?.result?.value ?? '';
+    problems.push(`no balaur-ready within ${seconds} s: the page shows "${shown.trim().slice(0, 200)}"`);
+  } else if (drawn < 2) {
+    problems.push(`the canvas is one flat colour after ${seconds} s: nothing drew`);
+  }
   console.log(`  ${c.name.padEnd(12)} ${problems.length ? 'FAILED' : 'ok'}`);
   for (const p of problems.slice(0, 8)) console.log(`      ${p.split('\n').slice(0, 6).join('\n      ')}`);
   if (problems.length) failures.push(c.name);

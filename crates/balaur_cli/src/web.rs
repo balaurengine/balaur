@@ -34,7 +34,8 @@ fn on_load() {
 )]
 pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
     drawable()?;
-    let bytes = fetch_bytes(&pack_url).await?;
+    let fetched_from = on_this_page(&pack_url);
+    let bytes = fetch_bytes(&fetched_from).await?;
     // The pack's URL names the game on this origin: the user directory an
     // earlier visit kept under it comes back before the first scene loads.
     let fs = crate::web_store::ProjectFs::open(&format!("game:{pack_url}"), Path::new(USER_DATA))
@@ -45,7 +46,7 @@ pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
     drop(bytes);
     // The rest of a pack in pieces arrives while the game runs.
     if let Some(tail) = balaur::pack_tail::Tail::of(&pack) {
-        let url = beside(&pack_url, &tail.file);
+        let url = beside(&fetched_from, &tail.file);
         wasm_bindgen_futures::spawn_local(async move {
             let fetched = fetch_bytes(&url).await.map_err(|e| format!("{e:?}"));
             match fetched
@@ -79,6 +80,16 @@ fn drawable() -> Result<(), JsValue> {
         ));
     }
     Ok(())
+}
+
+/// `url` against the page as it was when the game started: a game that moves
+/// the address (`browser::replace_location`) fetches its pack's tail from
+/// where the page was opened, not from where it moved to.
+fn on_this_page(url: &str) -> String {
+    web_sys::window()
+        .and_then(|window| window.location().href().ok())
+        .and_then(|page| web_sys::Url::new_with_base(url, &page).ok())
+        .map_or_else(|| url.to_string(), |resolved| resolved.href())
 }
 
 /// `file` in the directory of the URL `of` names.
