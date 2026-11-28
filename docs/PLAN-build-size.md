@@ -5,8 +5,9 @@
 
 A web game downloads the engine before its first frame. The target is a
 template under 8 MB raw and 2 MB brotli for a game with no physics; the
-`bare` web template is 10.70 MB raw, under a 10.8 MB budget a push fails
-over. What is left moves toward it on every target: a sweep of `balaur_core`
+`bare` web template is 11.00 MB raw, under an 11.1 MB budget a push fails
+over: the widget layer's turns, eased shadows, field menus and view
+pointer, and the whole-file writes, took it past 10.8. What is left moves toward it on every target: a sweep of `balaur_core`
 for what a shipped game never calls, and the default face. Parts, which only
 the web could take, are held, §2. `docs/PLAN-embed.md` puts the module on a
 page, and `docs/PLAN-web-backends.md` decides which GPU API it draws with.
