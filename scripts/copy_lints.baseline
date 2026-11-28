@@ -406,7 +406,7 @@ crates/balaur_ui/src/widget/arrange.rs	copy-per-item	page.name.clone()
 crates/balaur_ui/src/widget/arrange.rs	copy-per-item	page.name.clone()
 crates/balaur_ui/src/widget/arrange.rs	copy-per-item	page.widget.text.clone()
 crates/balaur_ui/src/widget/beside.rs	copy-per-item	held.placement_fallbacks.iter().map(|side| side.0.clone()).collect();
-crates/balaur_ui/src/widget/button.rs	copy-per-item	look.icon.clone(),
+crates/balaur_ui/src/widget/button.rs	copy-per-item	let mark = egui::FontId::new(px, look.icon.clone());
 crates/balaur_ui/src/widget/drag.rs	copy-per-item	rich = rich.text_style(number.clone());
 crates/balaur_ui/src/widget/input.rs	copy-out-of-a-cell	return kept.borrow().clone();
 crates/balaur_ui/src/widget/input.rs	copy-per-item	.map(|part| Value::Str(part.clone()))

@@ -660,28 +660,24 @@ impl<'a> Measure<'a> {
     ) -> egui::Vec2 {
         let look = crate::widget::arena::look_of(self.arena, index, theme);
         let (style, font) = (&look.style, look.font.clone());
+        let pad = padding_of(widget, style).taken();
+        // The width inside the padding, which an icon's share is of: none
+        // where no width settled.
+        let inside = (width - pad.x).max(0.0);
+        let icon = crate::widget::text::icon_px(widget, style, font.size, inside);
         let mut text = self.text(index, widget, theme);
-        let spinner = widget
-            .loading
-            .then(|| egui::Vec2::splat(crate::widget::text::icon_px(widget, style, font.size)));
+        let spinner = widget.loading.then(|| egui::Vec2::splat(icon));
         let mark =
             (!widget.loading && !widget.icon.is_empty() && crate::widget::text::shows_icon(style))
                 .then(|| crate::widget::icons::Icons::of(self.eng, &look).glyph(&widget.icon))
                 .flatten()
                 .map_or(spinner.unwrap_or(egui::Vec2::ZERO), |glyph| {
-                    let face = egui::FontId::new(
-                        crate::widget::text::icon_px(widget, style, font.size),
-                        look.icon.clone(),
-                    );
+                    let face = egui::FontId::new(icon, look.icon.clone());
                     self.painter
                         .line_of(glyph, face, egui::Color32::WHITE)
                         .size()
                 });
-        let pic = self.picture(
-            widget,
-            style,
-            crate::widget::text::icon_px(widget, style, font.size),
-        );
+        let pic = self.picture(widget, style, icon);
         // The trailing part worn as a chip, else a glyph in the icon font,
         // else trailing text.
         let icons = crate::widget::icons::Icons::of(self.eng, &look);
@@ -693,10 +689,7 @@ impl<'a> Measure<'a> {
         let tail = if let Some(chip) = &chip {
             chip.size
         } else if let Some(glyph) = tail_glyph {
-            let face = egui::FontId::new(
-                crate::widget::text::icon_px(widget, style, font.size),
-                look.icon.clone(),
-            );
+            let face = egui::FontId::new(icon, look.icon.clone());
             self.painter
                 .line_of(glyph, face, egui::Color32::WHITE)
                 .size()
@@ -713,7 +706,6 @@ impl<'a> Measure<'a> {
         };
         // The draw's arithmetic: a gap between each pair of parts that are
         // there, and before the trailing part its own.
-        let pad = padding_of(widget, style).taken();
         let gap = crate::widget::button::gap_of(widget, style, font.size);
         let tail_gap = crate::widget::button::tail_gap_of(tail.x, tail_mark, gap, font.size);
         if text.x > 0.0 {
@@ -724,7 +716,6 @@ impl<'a> Measure<'a> {
             } else {
                 pic.x + mark.x + gap * before + tail_gap + tail.x
             };
-            let inside = if width > 0.0 { width - pad.x } else { 0.0 };
             if let Some(room) =
                 crate::widget::text::caption_room((widget, style), text.x, inside, taken)
             {
@@ -754,8 +745,8 @@ impl<'a> Measure<'a> {
         sized
     }
 
-    /// A button's picture at its icon's size (`icon_size`, else the
-    /// caption's height), with the disc a role may put under it.
+    /// A button's picture at its icon's size (`icon_size` or its share,
+    /// else the caption's height), with the disc a role may put under it.
     fn picture(
         &self,
         widget: &Widget,
@@ -979,40 +970,54 @@ impl<'a> Measure<'a> {
         let arena = self.arena;
         let widget = &arena[index].widget;
         let kind = widget.kind.as_str();
-        let capped = kind == w::SCROLL && {
-            let at = crate::widget::arena::theme_at(self.eng, arena, index, theme);
-            self.most(index, &at).y > 0.0
+        // A button may hold a part a share of its width sizes.
+        let parted = !widget.icon.is_empty()
+            || !widget.trailing_icon.is_empty()
+            || !widget.source.is_empty()
+            || widget.loading;
+        let may = match kind {
+            w::SCROLL => true,
+            w::BUTTON => widget.wrap || (parted && widget.icon_size < 0.0),
+            w::LABEL => widget.wrap,
+            _ => false,
         };
-        if !widget.visible
-            || !(capped || (widget.wrap && matches!(kind, w::LABEL | w::BUTTON)))
-            || width <= 0.0
-        {
+        if !may || !widget.visible || width <= 0.0 {
             return None;
         }
         let key = (index, width.to_bits());
         if let Some(size) = self.wraps.get(&key) {
             return Some(*size);
         }
-        if capped {
+        let at = crate::widget::arena::theme_at(self.eng, arena, index, theme);
+        if kind == w::SCROLL && self.most(index, &at).y > 0.0 {
             let size = self.capped_at(index, width, theme);
             self.wraps.insert(key, size);
             return Some(size);
         }
-        let caption = caption(self.eng, widget);
-        if caption.is_empty() {
+        // A button whose icon is a share of its width is as tall as that.
+        let shares = kind == w::BUTTON
+            && parted
+            && crate::widget::text::icon_shared(
+                widget,
+                &crate::widget::arena::look_of(arena, index, &at).style,
+            );
+        if !(shares || (widget.wrap && matches!(kind, w::LABEL | w::BUTTON))) {
             return None;
         }
-        let theme = crate::widget::arena::theme_at(self.eng, arena, index, theme);
-        let inset = self.inset(index, &theme);
+        let inset = self.inset(index, &at);
         let size = if kind == w::BUTTON {
-            let boxed = self.button_in(index, widget, &theme, width);
+            let boxed = self.button_in(index, widget, &at, width);
             vec2(width, boxed.y) - inset
         } else {
+            let caption = caption(self.eng, widget);
+            if caption.is_empty() {
+                return None;
+            }
             self.galley_in(
                 index,
                 &caption,
                 widget,
-                &theme,
+                &at,
                 Some((width - inset.x).max(1.0)),
             )
         };

@@ -277,3 +277,82 @@ fn a_checked_role_s_outline_rings_the_checked_widget_alone() {
         "an unchecked one is not"
     );
 }
+
+// A role's `icon_size = "50%"` draws the glyph at half the width inside the
+// padding, as CSS's `w-1/2` sizes a tile's icon: a tile twice as wide draws
+// it twice as big, and the tile is as tall as the glyph it holds.
+#[test]
+fn an_icon_size_as_a_share_follows_the_width_it_is_given() {
+    let (dir, app) = app_with_editor_fonts();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/tile.toml"),
+        "type = \"widget_theme\"\n\n[fonts]\nicon = \"fonts/Phosphor.ttf\"\n\n[roles.tile]\nicon_size = \"50%\"\npadding = 10\n",
+    )
+    .unwrap();
+    let icon = "\u{e1dc}";
+    let tile = |(x, y): (f32, f32), width: f32, parts: toml::Table| {
+        let column = add_widget(
+            &app,
+            &toml::toml! { kind = "column" theme = "themes/tile.toml" x = x y = y width = width widget_layout = { align_items = "stretch" } }
+                .into(),
+        );
+        crate::support::add_child_widget(
+            &app,
+            column,
+            "Tile",
+            &{
+                let mut button = toml::toml! { kind = "button" role = "tile" text = "" };
+                button.extend(parts);
+                button
+            }
+            .into(),
+        )
+    };
+    let narrow = tile(
+        (0.0, 0.0),
+        100.0,
+        toml::toml! { widget_button = { icon = "cursor" } },
+    );
+    let wide = tile(
+        (0.0, 200.0),
+        200.0,
+        toml::toml! { widget_button = { icon = "cursor" } },
+    );
+    // A trailing glyph takes the share too, and the box is as tall.
+    let trailing = tile(
+        (300.0, 0.0),
+        200.0,
+        toml::toml! { text = "go" widget_button = { trailing_icon = "cursor" } },
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let mut sizes: Vec<f32> = out
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) if text.galley.text() == icon => {
+                Some(text.galley.job.sections[0].format.font_id.size)
+            }
+            _ => None,
+        })
+        .collect();
+    sizes.sort_by(f32::total_cmp);
+    assert_eq!(sizes.len(), 3, "every glyph drew: {sizes:?}");
+    assert!(
+        (sizes[0] - 40.0).abs() < 0.5
+            && (sizes[1] - 90.0).abs() < 0.5
+            && (sizes[2] - 90.0).abs() < 0.5,
+        "half of 80 and of 180: {sizes:?}"
+    );
+    let boxed = |node| balaur_ui::widget_rect(node).expect("it drew");
+    assert!(
+        boxed(narrow).height() >= 40.0 + 20.0 - 0.5
+            && boxed(wide).height() >= 90.0 + 20.0 - 0.5
+            && boxed(trailing).height() >= 90.0 + 20.0 - 0.5,
+        "as tall as the glyph and its padding: {:?} {:?}",
+        boxed(narrow),
+        boxed(wide)
+    );
+}

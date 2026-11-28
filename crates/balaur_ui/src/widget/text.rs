@@ -75,18 +75,46 @@ pub(crate) fn text_request<'a>(
     }
 }
 
-/// The size a widget's icon glyph draws at: its own, its role's, or the
-/// caption's.
+/// A control's icon's size: design pixels, or a share of the width inside
+/// its padding, `"50%"`, as CSS's `w-1/2` sizes a tile's icon by the tile, a
+/// glyph of half its tile in a grid whose columns size it. A share is
+/// measured at the width the layout settles on, and at the caption's size in
+/// a box that hugs what it holds, then drawn at its share of the box that
+/// gave, as CSS resolves a percentage against a box sized by its content. A
+/// button's own icons take it; a `trailing_role` chip is as wide as its
+/// words, so a share there takes the words' size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum IconSize {
+    Px(f32),
+    Share(f32),
+}
+
+/// The size a widget's icon glyph draws at: its own, its role's, its role's
+/// share of `room`, the width inside its padding where the layout gave one,
+/// or the caption's.
 pub(crate) fn icon_px(
     widget: &crate::widget::node::Widget,
     style: &crate::widget::theme::Style,
     caption: f32,
+    room: f32,
 ) -> f32 {
     if widget.icon_size >= 0.0 {
-        widget.icon_size
-    } else {
-        style.icon_size.unwrap_or(caption)
+        return widget.icon_size;
     }
+    match style.icon_size {
+        Some(IconSize::Px(px)) => px,
+        Some(IconSize::Share(share)) if room > 0.0 => share * room,
+        _ => caption,
+    }
+}
+
+/// Whether a widget's icon is a share of its width: its own size unstated
+/// and its role's a share.
+pub(crate) fn icon_shared(
+    widget: &crate::widget::node::Widget,
+    style: &crate::widget::theme::Style,
+) -> bool {
+    widget.icon_size < 0.0 && matches!(style.icon_size, Some(IconSize::Share(_)))
 }
 
 /// What a button's caption asks the shaper for: one line, or, given the

@@ -20,6 +20,8 @@ enum Shape {
     Number,
     /// A number, a size's name or `full`.
     Radius,
+    /// A number, a size's name or a share of the box, `"50%"`.
+    Size,
     /// A number, a size's name or four numbers.
     Padding,
     Bool,
@@ -36,6 +38,18 @@ enum Shape {
     Shadows,
 }
 
+/// A share written `"50%"`, as a part of one: `None` for anything else, or
+/// for nothing or less.
+pub(crate) fn share_of(value: &toml::Value) -> Option<f32> {
+    let percent: f32 = value
+        .as_str()?
+        .strip_suffix(w::track::PERCENT)?
+        .trim()
+        .parse()
+        .ok()?;
+    (percent.is_finite() && percent > 0.0).then_some(percent / 100.0)
+}
+
 /// Every key a theme's style table reads, and its shape.
 const KEYS: &[(&str, Shape)] = &[
     (k::FILL, Shape::Color),
@@ -50,7 +64,7 @@ const KEYS: &[(&str, Shape)] = &[
     (k::DURATION, Shape::Number),
     (k::ROW_HEIGHT, Shape::Number),
     (k::STROKE_WIDTH, Shape::Number),
-    (k::ICON_SIZE, Shape::Number),
+    (k::ICON_SIZE, Shape::Size),
     (k::FONT_SIZE, Shape::Number),
     (k::FONT_WEIGHT, Shape::Number),
     (k::HEIGHT, Shape::Number),
@@ -306,6 +320,10 @@ fn refused(shape: Shape, value: &toml::Value, tokens: &Tokens) -> Option<String>
         Shape::Radius => (
             tokens.number(value).is_some() || value.as_str() == Some(w::FULL),
             "a number, a size `[sizes]` names, or `full`",
+        ),
+        Shape::Size => (
+            tokens.number(value).is_some() || share_of(value).is_some(),
+            "a number, a size `[sizes]` names, or a share of the box as `\"50%\"`",
         ),
         Shape::Padding => (
             tokens.number(value).is_some() || numbers(value, 4),

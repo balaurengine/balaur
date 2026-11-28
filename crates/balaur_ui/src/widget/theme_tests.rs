@@ -284,7 +284,7 @@ fn a_role_stacks_its_face_sizes_its_icon_and_names_its_edge_s_sides() {
     );
     let tab = theme.resolved("button", "tab");
     assert!(tab.stacked());
-    assert_eq!(tab.icon_size, Some(24.0));
+    assert_eq!(tab.icon_size, Some(super::IconSize::Px(24.0)));
     assert!(!theme.resolved("button", "").stacked(), "a row unset");
     assert_eq!(
         theme.resolved("row", "bar").border,

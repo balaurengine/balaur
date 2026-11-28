@@ -33,6 +33,7 @@
 //! script makes and the nodes a scene holds.
 
 pub(crate) use crate::widget::gradient::{Gradient, GradientShape};
+pub(crate) use crate::widget::text::IconSize;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -146,9 +147,9 @@ pub struct Style {
     /// A control's picture, icon and caption side by side (`row`, unset) or
     /// stacked with the caption under them (`column`), as a tab bar's tabs.
     pub direction: Option<SmolStr>,
-    /// A control's icon's size in design pixels, apart from its caption's: a
-    /// tab's 24 over its 10 words. A widget's own `icon_size` wins.
-    pub icon_size: Option<f32>,
+    /// A control's icon's size apart from its caption's: a tab's 24 over its
+    /// 10 words. A widget's own `icon_size` wins.
+    pub icon_size: Option<IconSize>,
     /// The pointer over the widget while it is live, a `cursor` word: a
     /// hand on every control, the way the web shows one. A node's own
     /// `cursor` wins, a disabled widget keeps the arrow, unset keeps it.
@@ -729,7 +730,14 @@ fn style_of(body: &toml::Table, tokens: &Tokens) -> Style {
         plate: colour(k::ICON_FILL),
         align: word(body, k::TEXT_ALIGN),
         direction: word(body, k::FLEX_DIRECTION),
-        icon_size: number(k::ICON_SIZE).filter(|size| *size > 0.0),
+        icon_size: number(k::ICON_SIZE)
+            .filter(|size| *size > 0.0)
+            .map(IconSize::Px)
+            .or_else(|| {
+                body.get(k::ICON_SIZE)
+                    .and_then(check::share_of)
+                    .map(IconSize::Share)
+            }),
         cursor: word(body, k::CURSOR),
         font_size: number(k::FONT_SIZE),
         // A font is written as one, or as the name of one `[fonts]` states.

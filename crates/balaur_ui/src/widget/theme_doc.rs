@@ -81,6 +81,8 @@ font_weight = 600                # a widget, never the pointer, so it is measure
 [roles.tab]
 flex_direction = "column"        # the caption under the icon, as a tab bar's; `row` unset
 icon_size = 24                   # the icon apart from the caption's size; a widget's own wins
+                                 # "50%" is a share of the width inside the padding, as CSS's w-1/2;
+                                 # a trailing_role chip's takes its words' size
 
 [roles.bar]
 stroke = "border_default"

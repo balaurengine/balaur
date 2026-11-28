@@ -48,9 +48,10 @@ fn face_of(
     width: f32,
 ) -> Face {
     let widget = &at.arena[index].widget;
-    // As tall as the button's icon (`icon_size`, else the caption's type),
-    // keeping the picture's own aspect: a brand's mark beside a glyph's.
-    let edge = crate::widget::text::icon_px(widget, style, font.size);
+    // As tall as the button's icon (`icon_size` or its share, else the
+    // caption's type), keeping the picture's own aspect: a brand's mark
+    // beside a glyph's.
+    let edge = crate::widget::text::icon_px(widget, style, font.size, width);
     let picture = (!widget.source.is_empty())
         .then(|| crate::images::texture_of(at.eng, ui.ctx(), &widget.source).ok())
         .flatten()
@@ -69,22 +70,16 @@ fn face_of(
         0.0
     };
     let look = at.look(index);
-    let (trailing, chip, tail_mark) = tail_of(ui, at, &look, widget, font);
-    let spinner = if widget.loading {
-        crate::widget::text::icon_px(widget, &look.style, font.size)
-    } else {
-        0.0
-    };
+    let px = crate::widget::text::icon_px(widget, &look.style, font.size, width);
+    let (trailing, chip, tail_mark) = tail_of(ui, at, &look, widget, (font, px));
+    let spinner = if widget.loading { px } else { 0.0 };
     let icon = (!widget.loading
         && !widget.icon.is_empty()
         && crate::widget::text::shows_icon(&look.style))
     .then(|| crate::widget::icons::Icons::of(at.eng, &look).glyph(&widget.icon))
     .flatten()
     .map(|glyph| {
-        let mark = egui::FontId::new(
-            crate::widget::text::icon_px(widget, &look.style, font.size),
-            look.icon.clone(),
-        );
+        let mark = egui::FontId::new(px, look.icon.clone());
         Brush::of(ui).line_of(glyph, mark, Color32::PLACEHOLDER)
     });
     let mark = icon
@@ -156,13 +151,13 @@ fn tail_of(
     at: &Painting<'_>,
     look: &crate::widget::arena::Look,
     widget: &Widget,
-    font: &egui::FontId,
+    (font, px): (&egui::FontId, f32),
 ) -> (Option<std::sync::Arc<egui::Galley>>, Option<Chip>, bool) {
     let icons = crate::widget::icons::Icons::of(at.eng, look);
     if let Some(chip) = chip_of(&Brush::of(ui), &icons, &at.theme, look, widget) {
         return (None, Some(chip), true);
     }
-    if let Some(glyph) = tail_glyph(ui, at, look, widget, font) {
+    if let Some(glyph) = tail_glyph(ui, at, look, widget, px) {
         return (Some(glyph), None, true);
     }
     // A shortcut draws itself the way the platform writes it, so a row that
@@ -180,22 +175,19 @@ fn tail_of(
 }
 
 /// A button's `trailing_icon` shaped in the icon font at its icon's size,
-/// or `None` where it names none the font has.
+/// `px`, or `None` where it names none the font has.
 fn tail_glyph(
     ui: &egui::Ui,
     at: &Painting<'_>,
     look: &crate::widget::arena::Look,
     widget: &Widget,
-    font: &egui::FontId,
+    px: f32,
 ) -> Option<std::sync::Arc<egui::Galley>> {
     if widget.trailing_icon.is_empty() {
         return None;
     }
     let glyph = crate::widget::icons::Icons::of(at.eng, look).glyph(&widget.trailing_icon)?;
-    let mark = egui::FontId::new(
-        crate::widget::text::icon_px(widget, &look.style, font.size),
-        look.icon.clone(),
-    );
+    let mark = egui::FontId::new(px, look.icon.clone());
     Some(Brush::of(ui).line_of(glyph, mark, Color32::PLACEHOLDER))
 }
 
@@ -226,7 +218,12 @@ pub(crate) fn chip_of(
     }
     let style = theme.resolved(w::LABEL, &widget.trailing_role);
     let size = style.font_size.unwrap_or(look.font.size);
-    let mark = egui::FontId::new(style.icon_size.unwrap_or(size), look.icon.clone());
+    // A chip is as wide as its words, so a share has nothing to be of.
+    let px = match style.icon_size {
+        Some(crate::widget::theme::IconSize::Px(px)) => px,
+        _ => size,
+    };
+    let mark = egui::FontId::new(px, look.icon.clone());
     let glyph = (!widget.trailing_icon.is_empty())
         .then(|| icons.glyph(&widget.trailing_icon))
         .flatten()
