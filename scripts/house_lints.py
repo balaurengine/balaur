@@ -64,15 +64,25 @@ VOCABULARY_LITERAL = re.compile(
     r'|\b(?:params|opts|table)\.get\("'
 )
 
-# A file written beside its target and moved over it by hand: a move on the
-# disk, `std::fs::rename` or `tempfile`'s `persist`, or a temporary's name,
-# `with_extension("part")` or `"partial"` or `.part` spelled in a string.
-HAND_WHOLE_MOVE = re.compile(r'(?<![\w.])(?:std::)?fs::rename\s*\(|\.persist(?:_noclobber)?\s*\(')
+# A file written over where it stands, which a crash mid-write cuts short.
+IN_PLACE_WRITE = re.compile(
+    r'(?<![\w.])fs::(?:write|copy)\s*\(|\bFile::create\s*\(|\.write_in_place\s*\('
+    r'|\.truncate\(\s*true\s*\)'
+)
+# A file moved over its target by hand, or a temporary named by hand.
+HAND_WHOLE_MOVE = re.compile(r'(?<![\w.])fs::rename\s*\(|\.persist(?:_noclobber)?\s*\(')
 HAND_PARTIAL_EXTENSION = re.compile(r'with_extension\(\s*"(?:part(?:ial)?|tmp|temp)"\s*\)')
 STRING_LITERAL = re.compile(r'"(?:[^"\\]|\\.)*"')
 PARTIAL_IN_STRING = re.compile(r'\.part(?:ial)?(?:[.{]|$)')
 WHOLE_OWNER = "crates/balaur_core/src/whole.rs"
 FILES_OWNER = "crates/balaur_core/src/files.rs"
+
+
+def scaffolding(rel) -> bool:
+    """A build script, or the crates that time and test the engine: what they
+    write a run makes again."""
+    p = rel.as_posix()
+    return rel.name == "build.rs" or p.startswith(("crates/balaur_bench/", "crates/balaur_testkit/"))
 
 
 def hand_made_partial(line: str) -> bool:
@@ -710,8 +720,21 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                             "unwrap/expect outside tests needs a justification comment "
                                             "or a descriptive expect message", "ERROR"))
 
-            # A temporary beside a file is `balaur_core::whole`'s to name: a
-            # name two writers or two targets share truncates another's.
+            # A file is written whole, through `balaur_core::whole`: written
+            # where it stands, a crash leaves it cut short; beside it under a
+            # name two writers or two targets share, one truncates another's.
+            if (not in_test_mod and not is_comment
+                    and "// whole:" not in raw
+                    and rel.as_posix() not in (WHOLE_OWNER, FILES_OWNER)
+                    and not scaffolding(rel)
+                    and IN_PLACE_WRITE.search(line)):
+                findings.append(Finding(rel, i, "in-place-write",
+                                        "a file written where it stands is cut short by a crash "
+                                        "mid-write: `balaur_core::whole::write`, `write_cached` or "
+                                        "`copy_cached` (a cache or an output a run rebuilds), "
+                                        "`Whole::create` for a stream, or a backend's `write`/"
+                                        "`write_cached`; a file appended to after, or a backend's "
+                                        "own commit, says why with `// whole:` on the line", "ERROR"))
             if (not in_test_mod and not is_comment
                     and "// whole:" not in raw
                     and rel.as_posix() not in (WHOLE_OWNER, FILES_OWNER)
@@ -720,7 +743,7 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                         "a file written beside its target and moved over it is "
                                         "`balaur_core::whole`'s: `Whole::create`/`Whole::private` "
                                         "then `finish`, `whole::write`, or a backend's "
-                                        "`write_whole`; a move that is no such write, a folder's "
+                                        "`write`; a move that is no such write, a folder's "
                                         "or a file another program made, says why with "
                                         "`// whole:` on the line", "ERROR"))
 

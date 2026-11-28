@@ -201,7 +201,7 @@ fn show(bytes: &[u8], name: &str) {
     use objc2_app_kit::{NSApplication, NSImage};
     use objc2_foundation::{MainThreadMarker, NSData};
     if let Ok(dump) = std::env::var("BALAUR_ICON_DUMP") {
-        let _ = std::fs::write(&dump, bytes); // os files: a macOS-only dump
+        let _ = balaur_core::whole::write_cached(&dump, bytes); // os files: a macOS-only dump
     }
     let data = NSData::with_bytes(bytes);
     let image = NSImage::initWithData(NSImage::alloc(), &data);

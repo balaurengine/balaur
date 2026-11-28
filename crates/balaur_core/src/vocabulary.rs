@@ -183,6 +183,8 @@ pub(crate) mod words {
 
 #[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod keys {
+    /// `fs.write`'s option for a cache's file, written unsynced.
+    pub(crate) const CACHED: &str = "cached";
     pub(crate) const IGNORE: &str = "ignore";
     pub(crate) const ROWS: &str = "rows";
     pub(crate) const POSITION: &str = "position";

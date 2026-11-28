@@ -257,7 +257,8 @@ fn mapped(_: &Path) -> Option<Vec<u8>> {
 /// executable bit, and inheriting that produces a game the player cannot
 /// launch. The execute bits go on regardless.
 pub fn write_executable(path: &Path, bytes: &[u8], template: &Path) -> Result<()> {
-    std::fs::write(path, bytes).with_context(|| format!("writing {}", path.display()))?;
+    crate::whole::write_cached(path, bytes)
+        .with_context(|| format!("writing {}", path.display()))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

@@ -94,7 +94,7 @@ fn copy_template(from: &Path, to: &Path, filled: &Filled) -> Result<()> {
         }
         let text = std::fs::read_to_string(entry.path())
             .with_context(|| format!("reading {}", entry.path().display()))?;
-        std::fs::write(&target, filled.fill(&text))?;
+        balaur_core::whole::write(&target, filled.fill(&text))?;
     }
     Ok(())
 }
@@ -155,7 +155,7 @@ pub(crate) fn create(path: &Path, template: Option<&str>, page: Option<(u32, u32
                 if let Some(dir) = target.parent() {
                     std::fs::create_dir_all(dir)?;
                 }
-                std::fs::write(&target, filled.fill(text))?;
+                balaur_core::whole::write(&target, filled.fill(text))?;
             }
         }
     }
@@ -175,7 +175,8 @@ pub(crate) fn keep_deps_out_of_git(project: &Path) -> Result<()> {
     let path = project.join(".gitignore");
     let text = std::fs::read_to_string(&path).unwrap_or_default();
     if let Some(text) = balaur::dependencies::gitignored(&text) {
-        std::fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
+        balaur_core::whole::write(&path, text)
+            .with_context(|| format!("writing {}", path.display()))?;
     }
     Ok(())
 }

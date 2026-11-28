@@ -641,7 +641,7 @@ fn write(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    std::fs::write(path, bytes).with_context(|| format!("writing {}", path.display()))
+    balaur::whole::write_cached(path, bytes).with_context(|| format!("writing {}", path.display()))
 }
 
 fn plist_string(keys: &mut String, key: &str, value: &str) {

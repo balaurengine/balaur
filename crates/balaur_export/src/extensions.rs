@@ -79,7 +79,7 @@ fn ship(libraries: &[PathBuf], suffix: &str, exe: &Path) -> Result<Vec<PathBuf>>
         // A game exported into its own project sits beside the source, and
         // copying a file onto itself truncates it.
         if to.canonicalize().ok() != library.canonicalize().ok() {
-            std::fs::copy(library, &to)
+            balaur::whole::copy_cached(library, &to)
                 .with_context(|| format!("copying {} to {}", library.display(), to.display()))?;
         }
         shipped.push(to);

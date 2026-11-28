@@ -28,14 +28,18 @@ use crate::engine::Engine;
 /// work of its own — it only has to answer for the paths it owns.
 pub trait FileBackend {
     fn read(&self, path: &Path) -> Result<Vec<u8>>;
-    fn write(&self, path: &Path, bytes: &[u8]) -> Result<()>;
+    /// `bytes` over the file where it stands, which a crash mid-write cuts
+    /// short: what [`FileBackend::write`] and [`FileBackend::write_cached`]
+    /// write a file of their own with, and a backend's own methods call.
+    /// The `in-place-write` house lint refuses it anywhere else.
+    fn write_in_place(&self, path: &Path, bytes: &[u8]) -> Result<()>;
     /// Add to the end of a file, making it when it is not there yet. The
     /// default rewrites the whole file; a backend that can do better says so,
     /// because a session recorder appends a line per frame.
     fn append(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         let mut all = self.read(path).unwrap_or_default();
         all.extend_from_slice(bytes);
-        self.write(path, &all)
+        self.write_cached(path, &all)
     }
     fn exists(&self, path: &Path) -> bool;
     fn is_dir(&self, path: &Path) -> bool;
@@ -73,24 +77,45 @@ pub trait FileBackend {
     /// folder synced, so a crash, a power cut or a second writer leaves the
     /// old file whole; a write that fails leaves nothing beside it. The disk
     /// does it with [`crate::whole::write`].
-    fn write_whole(&self, path: &Path, bytes: &[u8]) -> Result<()> {
-        let part = crate::whole::partial_of(path);
-        self.write(&part, bytes)
-            .with_context(|| format!("writing {}", part.display()))
-            .and_then(|()| {
-                // A rename alone survives a crash; the bytes survive a power cut only once synced.
-                self.sync(&part);
-                self.rename(&part, path)
-                    .with_context(|| format!("replacing {}", path.display()))
-            })
-            .inspect_err(|_| {
-                let _ = self.remove(&part);
-            })?;
-        if let Some(parent) = path.parent() {
-            self.sync(parent);
-        }
-        Ok(())
+    fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        through_own_file(self, path, bytes, true)
     }
+    /// `bytes` written whole as [`FileBackend::write`] writes them, but
+    /// unsynced: for a cache that checks what it reads, which a power cut may
+    /// cost a fetch or a build again. The disk does it with
+    /// [`crate::whole::write_cached`].
+    fn write_cached(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        through_own_file(self, path, bytes, false)
+    }
+}
+
+/// `bytes` written whole through `fs`, beside the file in one of this
+/// write's own and moved over it; `synced`, the bytes and the folder are
+/// seen onto the device first and after.
+fn through_own_file<B: FileBackend + ?Sized>(
+    fs: &B,
+    path: &Path,
+    bytes: &[u8],
+    synced: bool,
+) -> Result<()> {
+    let part = crate::whole::partial_of(path);
+    fs.write_in_place(&part, bytes)
+        .with_context(|| format!("writing {}", part.display()))
+        .and_then(|()| {
+            // A rename alone survives a crash; the bytes survive a power cut only once synced.
+            if synced {
+                fs.sync(&part);
+            }
+            fs.rename(&part, path)
+                .with_context(|| format!("replacing {}", path.display()))
+        })
+        .inspect_err(|_| {
+            let _ = fs.remove(&part);
+        })?;
+    if let Some(parent) = path.parent().filter(|_| synced) {
+        fs.sync(parent);
+    }
+    Ok(())
 }
 
 /// The backend in use, as an engine resource. Absent means the thread's
@@ -166,15 +191,20 @@ impl FileBackend for DiskFs {
         std::fs::read(path).with_context(|| format!("reading '{}'", path.display()))
     }
 
-    fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+    fn write_in_place(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(path, bytes).with_context(|| format!("writing '{}'", path.display()))
     }
 
-    fn write_whole(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+    fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         crate::whole::write(path, bytes)
+            .with_context(|| format!("writing '{}' whole", path.display()))
+    }
+
+    fn write_cached(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        crate::whole::write_cached(path, bytes)
             .with_context(|| format!("writing '{}' whole", path.display()))
     }
 
@@ -423,6 +453,15 @@ impl MemoryFs {
 }
 
 impl FileBackend for MemoryFs {
+    /// Memory holds a write whole the moment it is made.
+    fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        self.write_in_place(path, bytes)
+    }
+
+    fn write_cached(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        self.write_in_place(path, bytes)
+    }
+
     fn read(&self, path: &Path) -> Result<Vec<u8>> {
         self.inner
             .borrow()
@@ -432,7 +471,7 @@ impl FileBackend for MemoryFs {
             .ok_or_else(|| anyhow!("no file '{}'", path.display()))
     }
 
-    fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+    fn write_in_place(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         let now = self.now();
         let mut inner = self.inner.borrow_mut();
         let full = key(path);

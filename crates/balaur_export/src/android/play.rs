@@ -152,7 +152,7 @@ pub(crate) fn keep(
     for (n, path) in dex.iter().enumerate() {
         // classes.dex is the template's own shims; these follow it.
         let to = layout.join(format!("classes{}.dex", n + 2));
-        std::fs::copy(play.join(path), &to)
+        balaur::whole::copy_cached(play.join(path), &to)
             .with_context(|| format!("the template's play/{path} is missing"))?;
     }
     for (n, path) in resources.iter().enumerate() {
@@ -161,7 +161,7 @@ pub(crate) fn keep(
     }
     let ids = std::fs::read_to_string(play.join(IDS)).context("the template's play/ids.txt")?;
     let renamed = ids.replace(&format!("{TEMPLATE_PACKAGE}:"), &format!("{id}:"));
-    std::fs::write(staging.join(IDS), renamed)?;
+    balaur::whole::write_cached(staging.join(IDS), renamed)?;
     std::fs::remove_dir_all(&play)?;
     std::fs::rename(&staging, &play)?; // whole: a folder swapped in
     let mut entries = index
@@ -233,7 +233,7 @@ pub(crate) fn write_project_id(layout: &Path, games_project_id: &str) -> Result<
         .join(crate::vocabulary::words::android::VALUES);
     std::fs::create_dir_all(&values)?;
     let path = values.join("play_games.xml");
-    std::fs::write(
+    balaur::whole::write_cached(
         &path,
         format!(
             "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n  \

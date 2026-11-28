@@ -697,7 +697,7 @@ impl BsHost {
         }
         balaur_bs::runtime::cache_compiled_in(
             &balaur_core::engine_api::user_data_dir_of(&self.inner.engine).join(CACHE_DIR),
-            balaur_core::whole::write_cached,
+            |path, bytes| balaur_core::whole::write_cached(path, bytes),
         );
         let unit = self.unit(key)?;
         // A file the project cannot run yet runs beside it until it can.

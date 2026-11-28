@@ -791,7 +791,7 @@ fn compile_resources(sdk: &Sdk, layout: &Path, work: &Path) -> Result<Vec<std::f
 /// table at the names bundletool reads, the compiled resources under `res/`,
 /// and the payload under its own roots.
 fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
-    let mut zip = zip::ZipWriter::new(std::fs::File::create(module)?);
+    let mut zip = zip::ZipWriter::new(balaur::whole::Whole::create(module)?);
     let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .last_modified_time(zip::DateTime::default());
@@ -835,7 +835,7 @@ fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
             .with_context(|| format!("adding {name}"))?;
         zip.write_all(&std::fs::read(&path)?)?;
     }
-    zip.finish()?;
+    zip.finish()?.finish_cached()?;
     Ok(())
 }
 

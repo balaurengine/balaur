@@ -756,14 +756,17 @@ impl FileBackend for Mounted {
     fn read(&self, path: &Path) -> Result<Vec<u8>> {
         self.base.read(&self.real(path))
     }
+    fn write_in_place(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        self.base.write_in_place(&self.real(path), bytes) // whole: the base's own
+    }
     fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         self.base.write(&self.real(path), bytes)
     }
     fn append(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         self.base.append(&self.real(path), bytes)
     }
-    fn write_whole(&self, path: &Path, bytes: &[u8]) -> Result<()> {
-        self.base.write_whole(&self.real(path), bytes)
+    fn write_cached(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        self.base.write_cached(&self.real(path), bytes)
     }
     fn exists(&self, path: &Path) -> bool {
         self.base.exists(&self.real(path)) || !self.mounted_in(path).is_empty()

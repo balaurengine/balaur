@@ -191,7 +191,8 @@ pub(crate) fn export_bundle(
             icons.write_android(&output)?;
             xml = crate::android::name_icon(&xml);
         }
-        std::fs::write(&path, xml).with_context(|| format!("writing {}", path.display()))?;
+        balaur::whole::write_cached(&path, xml)
+            .with_context(|| format!("writing {}", path.display()))?;
     }
     let pack_path = match kind {
         Bundle::Ios | Bundle::Web => output.join(balaur::standalone::BUNDLED_PACK),
@@ -201,7 +202,8 @@ pub(crate) fn export_bundle(
             assets.join(balaur::standalone::BUNDLED_PACK)
         }
     };
-    std::fs::write(&pack_path, pack).with_context(|| format!("writing {}", pack_path.display()))?;
+    balaur::whole::write_cached(&pack_path, pack)
+        .with_context(|| format!("writing {}", pack_path.display()))?;
     if kind == Bundle::Web {
         let page = crate::icon::web_page(shell, name, balaur::standalone::BUNDLED_PACK, icons);
         for (file, bytes) in web_assets {
@@ -209,13 +211,16 @@ pub(crate) fn export_bundle(
             if let Some(dir) = path.parent() {
                 std::fs::create_dir_all(dir)?;
             }
-            std::fs::write(&path, bytes).with_context(|| format!("writing {}", path.display()))?;
+            balaur::whole::write_cached(&path, bytes)
+                .with_context(|| format!("writing {}", path.display()))?;
         }
         let index = output.join("index.html");
-        std::fs::write(&index, page).with_context(|| format!("writing {}", index.display()))?;
+        balaur::whole::write_cached(&index, page)
+            .with_context(|| format!("writing {}", index.display()))?;
         for (file, bytes) in icons.map(|i| i.web_files(name)).unwrap_or_default() {
             let path = output.join(&file);
-            std::fs::write(&path, bytes).with_context(|| format!("writing {}", path.display()))?;
+            balaur::whole::write_cached(&path, bytes)
+                .with_context(|| format!("writing {}", path.display()))?;
         }
         tracing::info!(
             "exported for the web -> {} (serve the directory; the page fetches the pack beside it)",
@@ -245,7 +250,7 @@ fn write_ios_plist(
         Some(icons) => icons.write_ios(output, &apple.min_ios, simulator)?,
         None => String::new(),
     };
-    std::fs::write(
+    balaur::whole::write_cached(
         &plist,
         apple.info_plist(Platform::Ios, &executable, &icon_keys)?,
     )
@@ -304,7 +309,7 @@ pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
         if entry.file_type()?.is_dir() {
             copy_dir(&entry.path(), &target)?;
         } else {
-            std::fs::copy(entry.path(), &target)?;
+            balaur::whole::copy_cached(entry.path(), &target)?;
             // The executable inside an .app has to stay executable, and a
             // runtime that came through an artifact store has already lost
             // the bit once.
@@ -405,9 +410,9 @@ pub(crate) fn export_macos_app(
         }
         None => false,
     };
-    std::fs::write(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
+    balaur::whole::write_cached(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
     let icon_keys = icons.write_macos(&app, &apple.min_macos)?;
-    std::fs::write(
+    balaur::whole::write_cached(
         app.join("Contents").join("Info.plist"),
         apple.info_plist(Platform::Macos, name, &icon_keys)?,
     )?;
@@ -457,7 +462,7 @@ fn sign_mac_app(
     // Inside the bundle before codesign seals it, where macOS looks for it.
     if let Some(path) = profile {
         let embedded = app.join("Contents").join(EMBEDDED_MAC_PROFILE);
-        std::fs::copy(path, &embedded)
+        balaur::whole::copy_cached(path, &embedded)
             .with_context(|| format!("copying the provisioning profile {}", path.display()))?;
     }
     let build = granted

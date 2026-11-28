@@ -375,7 +375,7 @@ Files on disk, project-relative unless the path is absolute. In a packed build `
 | `remove` | `(str) -> bool` |
 | `rename` | `(str, str)` |
 | `size` | `(str) -> int?` |
-| `write` | `(str, str)` |
+| `write` | `(str, str, fs::WriteOptions?)` |
 
 ## `geometry2d`
 

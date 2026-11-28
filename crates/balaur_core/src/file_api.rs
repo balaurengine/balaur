@@ -338,15 +338,34 @@ pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// `animations/` should not fail because the project has never had one.
 pub(crate) fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
     let path = writable(eng, args, 0)?;
-    write_whole(&*files::backend(eng), &path, text(args, 1)?.as_bytes())?;
+    let bytes = text(args, 1)?.as_bytes();
+    let cached = match args.get(2) {
+        None | Some(Value::Nil) => false,
+        Some(Value::Map(opts)) => {
+            if let Some((key, _)) = opts
+                .iter()
+                .find(|(key, _)| key != crate::vocabulary::keys::CACHED)
+            {
+                bail!("fs.write takes `{{ cached }}`, not `{key}`");
+            }
+            match crate::handler::opt(args.get(2), crate::vocabulary::keys::CACHED) {
+                None | Some(Value::Bool(false)) => false,
+                Some(Value::Bool(true)) => true,
+                Some(other) => bail!("fs.write's `cached` is a bool, not a {}", other.type_name()),
+            }
+        }
+        Some(other) => bail!(
+            "fs.write's options are a table, not a {}",
+            other.type_name()
+        ),
+    };
+    let fs = files::backend(eng);
+    if cached {
+        fs.write_cached(&path, bytes)?;
+    } else {
+        fs.write(&path, bytes)?;
+    }
     Ok(Value::Nil)
-}
-
-/// Write `bytes` to `path` whole, through the backend in force
-/// ([`FileBackend::write_whole`]), so a crash, a power cut or a second writer
-/// mid-write leaves the old file whole, never a truncated one or another's.
-pub fn write_whole(fs: &dyn FileBackend, path: &Path, bytes: &[u8]) -> Result<()> {
-    fs.write_whole(path, bytes)
 }
 
 pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -786,9 +805,9 @@ mod tests {
         fn read(&self, path: &Path) -> Result<Vec<u8>> {
             self.fs.read(path)
         }
-        fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        fn write_in_place(&self, path: &Path, bytes: &[u8]) -> Result<()> {
             self.note("write", path);
-            self.fs.write(path, bytes)
+            self.fs.write_in_place(path, bytes)
         }
         fn exists(&self, path: &Path) -> bool {
             self.fs.exists(path)
@@ -828,8 +847,8 @@ mod tests {
     fn a_whole_write_lands_beside_the_file_is_synced_then_renamed_over_it() {
         let fs = Recording::default();
         let path = Path::new("/data/saves/slot.toml");
-        fs.fs.write(path, b"old").unwrap();
-        write_whole(&fs, path, b"new").unwrap();
+        fs.fs.write_in_place(path, b"old").unwrap();
+        fs.write(path, b"new").unwrap();
         let asked = fs.asked.borrow().clone();
         let [write, sync, rename, folder] = asked.as_slice() else {
             panic!("four steps, not {asked:?}");
@@ -855,9 +874,9 @@ mod tests {
     fn a_whole_write_that_fails_leaves_nothing_beside_the_file() {
         let fs = Recording::default();
         let path = Path::new("/data/saves/slot.toml");
-        fs.fs.write(path, b"old").unwrap();
+        fs.fs.write_in_place(path, b"old").unwrap();
         fs.refuses_moves.set(true);
-        assert!(write_whole(&fs, path, b"new").is_err());
+        assert!(fs.write(path, b"new").is_err());
         assert_eq!(fs.read(path).unwrap(), b"old");
         let left: Vec<_> = fs
             .list(Path::new("/data/saves"))
@@ -865,6 +884,46 @@ mod tests {
             .map(|(name, _)| name)
             .collect();
         assert_eq!(left, ["slot.toml"], "the write left {left:?}");
+    }
+
+    // A cache's `fs.write(path, text, { cached: true })` lands whole and
+    // waits on no sync; a plain one syncs the file and its folder.
+    #[test]
+    fn a_cached_script_write_lands_whole_unsynced() {
+        let fs = std::rc::Rc::new(Recording::default());
+        let engine = crate::Engine::default();
+        files::set_backend(&engine, fs.clone());
+        engine.insert_resource(crate::project::ProjectRoot(PathBuf::from("/game")));
+        let write = |opts: Option<Value>| {
+            fs.asked.borrow_mut().clear();
+            let mut args = vec![Value::text("kept/answer.json"), Value::text("{}")];
+            args.extend(opts);
+            fs_write(&engine, &args).unwrap();
+            let asked = fs.asked.borrow().clone();
+            asked.iter().filter(|one| one.starts_with("sync")).count()
+        };
+        let cached = Value::Map(vec![(
+            crate::vocabulary::keys::CACHED.into(),
+            Value::Bool(true),
+        )]);
+        assert_eq!(write(Some(cached)), 0, "a cached write waited on a sync");
+        assert_eq!(
+            write(None),
+            2,
+            "a plain write syncs the file and its folder"
+        );
+        assert_eq!(fs.read(Path::new("/game/kept/answer.json")).unwrap(), b"{}");
+        let typo = Value::Map(vec![("cache".into(), Value::Bool(true))]);
+        let refused = fs_write(
+            &engine,
+            &[Value::text("kept/a.json"), Value::text("{}"), typo],
+        );
+        assert!(
+            refused.is_err(),
+            "a misspelled option was taken for a plain write"
+        );
+        let left = fs.list(Path::new("/game/kept"));
+        assert_eq!(left.len(), 1, "a write left {left:?} beside the file");
     }
 
     #[test]

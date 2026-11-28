@@ -53,7 +53,7 @@ fn write(path: &Path, engine: &str) -> Result<()> {
             application.insert(ENGINE, toml_edit::value(engine));
         }
     }
-    std::fs::write(&file, document.to_string())
+    balaur_core::whole::write(&file, document.to_string())
         .with_context(|| format!("writing {}", file.display()))
 }
 

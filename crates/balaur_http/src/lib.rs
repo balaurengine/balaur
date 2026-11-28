@@ -540,7 +540,7 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
         let (Some(path), Some(bytes)) = (path, bytes) else {
             continue;
         };
-        if let Err(why) = balaur_core::files::backend(eng).write_whole(&path, &bytes) {
+        if let Err(why) = balaur_core::files::backend(eng).write(&path, &bytes) {
             tracing::error!(
                 "replaying the file {} a request saved: {why:#}",
                 path.display()

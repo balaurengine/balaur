@@ -127,7 +127,7 @@ pub(crate) fn write(layout: &Path, firebase: &Firebase) -> Result<PathBuf> {
         );
     }
     let path = values.join("firebase.xml");
-    std::fs::write(
+    balaur::whole::write_cached(
         &path,
         format!("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n{body}</resources>\n"),
     )?;

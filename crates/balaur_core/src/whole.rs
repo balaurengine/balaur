@@ -5,7 +5,7 @@
 //! half a file, or another writer's, under the name a reader trusts, and a
 //! write that fails or is let go leaves nothing beside it. What a script
 //! writes goes through the files backend instead
-//! ([`crate::files::FileBackend::write_whole`]), named as this names it.
+//! ([`crate::files::FileBackend::write`]), named as this names it.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -65,13 +65,16 @@ fn sweep_stale(target: &Path) {
         return;
     };
     for entry in entries.flatten() {
+        if !entry.file_name().to_string_lossy().starts_with(&prefix) {
+            continue;
+        }
         let stale = entry
             .metadata()
             .and_then(|meta| meta.modified())
             .ok()
             .and_then(|at| at.elapsed().ok())
             .is_some_and(|idle| idle > STALE);
-        if stale && entry.file_name().to_string_lossy().starts_with(&prefix) {
+        if stale {
             let _ = std::fs::remove_file(entry.path());
         }
     }
@@ -167,7 +170,10 @@ impl Whole {
         options.write(true);
         let whole = Self::open(target, options)?;
         // The mode the file had, which a move over it would otherwise drop.
-        if let Ok(meta) = std::fs::metadata(&whole.target) {
+        if let Some(meta) = std::fs::metadata(&whole.target)
+            .ok()
+            .filter(|_| !whole.partial.0.as_os_str().is_empty())
+        {
             whole.file.set_permissions(meta.permissions())?;
         }
         Ok(whole)
@@ -187,6 +193,15 @@ impl Whole {
             Ok(meta) if meta.file_type().is_symlink() => std::fs::canonicalize(target)?,
             _ => target.to_path_buf(),
         };
+        // A device or a pipe, `/dev/stdout`, is written as it stands: it holds
+        // no file to keep whole, nor a folder to make one beside it in.
+        if std::fs::metadata(&target).is_ok_and(|meta| !meta.is_file() && !meta.is_dir()) {
+            return Ok(Self {
+                file: std::fs::OpenOptions::new().write(true).open(&target)?,
+                partial: Partial(PathBuf::new()),
+                target,
+            });
+        }
         std::fs::create_dir_all(folder_of(&target))?;
         options.create_new(true);
         // Made new, never one that was there, so its mode is the one asked
@@ -241,6 +256,9 @@ impl Whole {
     /// Where the bytes cannot be synced or moved; nothing is left beside the
     /// target then.
     pub fn finish(self) -> std::io::Result<()> {
+        if self.partial.0.as_os_str().is_empty() {
+            return self.put();
+        }
         self.file.sync_all()?;
         let target = self.target.clone();
         self.put()?;
@@ -266,7 +284,9 @@ impl Whole {
         } = self;
         // Closed before it takes the target's place.
         close(file);
-        std::fs::rename(&partial.0, &target)?;
+        if !partial.0.as_os_str().is_empty() {
+            std::fs::rename(&partial.0, &target)?;
+        }
         partial.keep();
         Ok(())
     }
@@ -285,14 +305,21 @@ impl Write for Whole {
     }
 }
 
+/// An archive writer goes back over what it wrote, as a zip's index does.
+impl std::io::Seek for Whole {
+    fn seek(&mut self, to: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.file.seek(to)
+    }
+}
+
 /// `bytes` written whole to `target`, on the disk.
 ///
 /// # Errors
 /// Where the file cannot be made, written, synced or moved; the target is as
 /// it was then.
-pub fn write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let mut whole = Whole::create(target)?;
-    whole.write_all(bytes)?;
+pub fn write(target: impl AsRef<Path>, bytes: impl AsRef<[u8]>) -> std::io::Result<()> {
+    let mut whole = Whole::create(target.as_ref())?;
+    whole.write_all(bytes.as_ref())?;
     whole.finish()
 }
 
@@ -302,10 +329,45 @@ pub fn write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// # Errors
 /// Where the file cannot be made, written or moved; the target is as it was
 /// then.
-pub fn write_cached(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let mut whole = Whole::create(target)?;
-    whole.write_all(bytes)?;
+pub fn write_cached(target: impl AsRef<Path>, bytes: impl AsRef<[u8]>) -> std::io::Result<()> {
+    let mut whole = Whole::create(target.as_ref())?;
+    whole.write_all(bytes.as_ref())?;
     whole.finish_cached()
+}
+
+/// `from` copied whole to `to` with its mode, as `std::fs::copy` copies, on
+/// the disk; how many bytes.
+///
+/// # Errors
+/// Where `from` cannot be read or `to` made, written, synced or moved; `to`
+/// is as it was then.
+pub fn copy(from: impl AsRef<Path>, to: impl AsRef<Path>) -> std::io::Result<u64> {
+    let (whole, copied) = copied(from.as_ref(), to.as_ref())?;
+    whole.finish()?;
+    Ok(copied)
+}
+
+/// [`copy`] unsynced: for an output a run makes again, a build's.
+///
+/// # Errors
+/// Where `from` cannot be read or `to` made, written or moved; `to` is as it
+/// was then.
+pub fn copy_cached(from: impl AsRef<Path>, to: impl AsRef<Path>) -> std::io::Result<u64> {
+    let (whole, copied) = copied(from.as_ref(), to.as_ref())?;
+    whole.finish_cached()?;
+    Ok(copied)
+}
+
+/// `from`'s bytes and mode in a write to `to`, file to file so the system
+/// copies them as it copies a file.
+fn copied(from: &Path, to: &Path) -> std::io::Result<(Whole, u64)> {
+    let mut source = std::fs::File::open(from)?;
+    let mut whole = Whole::create(to)?;
+    whole
+        .file
+        .set_permissions(source.metadata()?.permissions())?;
+    let copied = std::io::copy(&mut source, &mut whole.file)?;
+    Ok((whole, copied))
 }
 
 /// The folder `target` is in synced, so a move into it lasts a power cut;
@@ -370,7 +432,7 @@ mod tests {
                 let target = &target;
                 scope.spawn(move || {
                     for _ in 0..10 {
-                        write(target, &[writer; 4096]).unwrap();
+                        write(target, [writer; 4096]).unwrap();
                     }
                 });
             }
@@ -478,5 +540,35 @@ mod tests {
         assert_eq!(std::fs::read(&real).unwrap(), b"new");
         let mode = std::fs::metadata(&real).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o640, "the file lost its mode");
+    }
+
+    #[test]
+    fn a_copy_lands_whole_with_its_mode_and_nothing_beside_it() {
+        let home = tempfile::tempdir().unwrap();
+        let from = home.path().join("runtime");
+        std::fs::write(&from, b"the program").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&from, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let to = home.path().join("out/game");
+        assert_eq!(copy_cached(&from, &to).unwrap(), 11);
+        assert_eq!(std::fs::read(&to).unwrap(), b"the program");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&to).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o755, "the copy lost its mode");
+        }
+        assert_eq!(listed(to.parent().unwrap()), ["game"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_device_is_written_as_it_stands() {
+        write("/dev/null", b"nothing kept").unwrap();
+        let meta = std::fs::metadata("/dev/null").unwrap();
+        assert!(!meta.is_file(), "the device was replaced by a file");
     }
 }

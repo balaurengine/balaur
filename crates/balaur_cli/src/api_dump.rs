@@ -60,11 +60,11 @@ fn component_events(
 pub(crate) fn api_value() -> Result<serde_json::Value> {
     let dir = std::env::temp_dir().join("balaur-api-probe");
     std::fs::create_dir_all(dir.join("scenes"))?;
-    std::fs::write(
+    balaur_core::whole::write_cached(
         dir.join("project.toml"),
         "[application]\nname = \"api\"\nmain_scene = \"scenes/main.toml\"\n",
     )?;
-    std::fs::write(
+    balaur_core::whole::write_cached(
         dir.join("scenes/main.toml"),
         "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
     )?;

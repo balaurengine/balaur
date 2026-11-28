@@ -433,7 +433,7 @@ fn write_tail(dir: &Path, tail: Option<Vec<u8>>) -> Result<()> {
         return Ok(());
     };
     let path = dir.join(balaur::standalone::BUNDLED_TAIL);
-    std::fs::write(&path, tail).with_context(|| format!("writing {}", path.display()))
+    balaur::whole::write_cached(&path, tail).with_context(|| format!("writing {}", path.display()))
 }
 
 /// Write a `.bpak`, or a standalone game when a runtime is in play.
@@ -662,7 +662,7 @@ fn export_desktop(
         if let Some(dir) = output.parent().filter(|d| !d.as_os_str().is_empty()) {
             std::fs::create_dir_all(dir)?;
         }
-        std::fs::write(&output, pack.encode())?;
+        balaur::whole::write_cached(&output, pack.encode())?;
         tracing::info!(
             "exported {} scripts, {} scenes -> {}",
             pack.scripts.len(),
@@ -807,7 +807,7 @@ fn finish_bundle(
                     let granted = profile::Profile::read(path)?;
                     apple.check_profile(apple::Platform::Ios, &granted, path)?;
                     let embedded = written.join(bundle::EMBEDDED_IOS_PROFILE);
-                    std::fs::copy(path, &embedded).with_context(|| {
+                    balaur::whole::copy_cached(path, &embedded).with_context(|| {
                         format!("copying the provisioning profile {}", path.display())
                     })?;
                     Some(granted)

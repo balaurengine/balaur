@@ -377,7 +377,7 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
         if entry.file_type()?.is_dir() {
             copy_tree(&entry.path(), &target)?;
         } else {
-            std::fs::copy(entry.path(), &target)?;
+            balaur_core::whole::copy(entry.path(), &target)?;
         }
     }
     Ok(())
@@ -484,7 +484,7 @@ fn write_list(home: &Path, rows: &[Row]) {
     let mut doc = toml::Table::new();
     doc.insert(keys::PROJECT.into(), toml::Value::Array(items));
     let _ = balaur_core::whole::write(
-        &list_path(home),
+        list_path(home),
         toml::to_string_pretty(&doc).unwrap_or_default().as_bytes(),
     );
 }

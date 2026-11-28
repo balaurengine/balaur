@@ -453,8 +453,20 @@ impl FileBackend for ProjectFs {
         self.inner.read(path)
     }
 
+    /// The store mirrors each write as one commit, whole as it is made; a
+    /// synced one is issued at once and durably.
     fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
-        self.inner.write(path, bytes)?;
+        self.write_in_place(path, bytes)?; // whole: one commit
+        self.sync(path);
+        Ok(())
+    }
+
+    fn write_cached(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        self.write_in_place(path, bytes) // whole: one commit
+    }
+
+    fn write_in_place(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        self.inner.write_in_place(path, bytes)?; // whole: the store's own
         self.mark(path, Change::Wrote);
         Ok(())
     }

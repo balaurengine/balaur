@@ -142,7 +142,7 @@ pub(crate) fn ship_for(
     let to = exe.with_file_name(name);
     // An export beside its template would copy the library onto itself.
     if to.canonicalize().ok() != from.canonicalize().ok() {
-        std::fs::copy(&from, &to)
+        balaur::whole::copy_cached(&from, &to)
             .with_context(|| format!("copying {} to {}", from.display(), to.display()))?;
     }
     tracing::info!("shipped {name} -> {}", to.display());
@@ -156,7 +156,7 @@ fn write_app_id(steam: &Steam, run_from: &Path) -> Result<()> {
         return Ok(());
     }
     let path = run_from.join(words::steam::APP_ID_FILE);
-    std::fs::write(&path, steam.config.app_id.to_string())
+    balaur::whole::write_cached(&path, steam.config.app_id.to_string())
         .with_context(|| format!("writing {}", path.display()))
 }
 

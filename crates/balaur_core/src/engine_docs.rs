@@ -264,14 +264,21 @@ pub(crate) fn document_fs(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "Files on disk, project-relative unless the path is absolute. In a packed build `read`, `exists` and `list` reach what the pack holds.",
     );
-    m.records(&[(
-        "Entry",
-        "{ name: string, is_dir: bool }",
-        "One entry of a directory listing.",
-    )]);
+    m.records(&[
+        (
+            "Entry",
+            "{ name: string, is_dir: bool }",
+            "One entry of a directory listing.",
+        ),
+        (
+            "WriteOptions",
+            "{ cached: bool? }",
+            "`cached` writes a file a cache keeps, which checks what it reads: whole, but unsynced, so a power cut may cost it, where a synced write waits for the disk, ten milliseconds on a Mac against a fifth of one.",
+        ),
+    ]);
     m.describe(&[
         (words::functions::READ, &[], "(path: string) -> string?", "A whole file as text, project-relative unless absolute and found inside the pack in a packed run; nil when it cannot be read."),
-        (words::functions::WRITE, &[], "(path: string, text: string)", "Write text to a project-relative file, creating the directory it goes in. The text lands in a file beside it, synced, then renamed over it, so a crash mid-write keeps the old file whole."),
+        (words::functions::WRITE, &[], "(path: string, text: string, opts: WriteOptions?)", "Write text to a project-relative file, creating the directory it goes in. The text lands in a file of this write's own beside it, synced, then renamed over it and its folder synced, so a crash, a power cut or a second writer mid-write keeps the old file whole; `cached` skips both syncs."),
         (words::functions::EXISTS, &[], "(path: string) -> bool", "Whether a project-relative path has anything at it, file or directory."),
         (words::datatypes::LIST, &[], "(path: string) -> [Entry]", "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there."),
         (words::functions::REMOVE, &[], "(path: string) -> bool", "Delete a project-relative file, or a directory and everything under it; false when there was nothing there."),

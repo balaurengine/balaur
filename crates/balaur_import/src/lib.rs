@@ -74,7 +74,8 @@ impl Sink for ProjectSink {
         if let Some(parent) = path.parent() {
             fs.mkdir(parent)?;
         }
-        fs.write(&path, bytes)
+        // What an import makes again from the source the user keeps.
+        fs.write_cached(&path, bytes)
             .with_context(|| format!("writing {}", path.display()))?;
         self.written.push(relative.to_string());
         Ok(())

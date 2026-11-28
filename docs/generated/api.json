@@ -4639,7 +4639,7 @@
       },
       "fs::write": {
         "least": 2,
-        "signature": "(str, str)"
+        "signature": "(str, str, fs::WriteOptions?)"
       },
       "geometry2d::convex_decomposition": {
         "least": 1,
@@ -10997,6 +10997,9 @@
       "fs::Entry": {
         "is_dir": "bool",
         "name": "str"
+      },
+      "fs::WriteOptions": {
+        "cached": "bool?"
       },
       "geometry2d::BooleanOptions": {
         "clean_result": "bool?",
@@ -28614,7 +28617,7 @@
         "remove": "Delete a project-relative file, or a directory and everything under it; false when there was nothing there.",
         "rename": "Move a project-relative file or directory, creating the destination's parent first.",
         "size": "How many bytes a file holds, as a cache's \"free up space\" counts them; nil for one that is not there and for a directory.",
-        "write": "Write text to a project-relative file, creating the directory it goes in. The text lands in a file beside it, synced, then renamed over it, so a crash mid-write keeps the old file whole."
+        "write": "Write text to a project-relative file, creating the directory it goes in. The text lands in a file of this write's own beside it, synced, then renamed over it and its folder synced, so a crash, a power cut or a second writer mid-write keeps the old file whole; `cached` skips both syncs."
       },
       "editor": [],
       "functions": [
@@ -28641,7 +28644,7 @@
         "remove": "(str) -> bool",
         "rename": "(str, str)",
         "size": "(str) -> int?",
-        "write": "(str, str)"
+        "write": "(str, str, fs::WriteOptions?)"
       }
     },
     {

@@ -126,11 +126,11 @@ pub(crate) fn add(
         bail!("the project already has a dependency named `{alias}`; name this one with --as");
     }
     table.insert(&alias, toml_edit::value(entry));
-    std::fs::write(&manifest, document.to_string())?;
+    balaur_core::whole::write(&manifest, document.to_string())?;
     // A dependency that does not fetch is not added: the manifest goes back
     // to what it said.
     if let Err(why) = fetch(project, false, Some(&alias)) {
-        std::fs::write(&manifest, text)?;
+        balaur_core::whole::write(&manifest, text)?;
         return Err(why);
     }
     crate::new_project::keep_deps_out_of_git(project)?;
@@ -221,7 +221,7 @@ fn fetch_from(
     if entries.is_empty() {
         let _ = std::fs::remove_file(&lock_path);
     } else if std::fs::read_to_string(&lock_path).ok().as_deref() != Some(text.as_str()) {
-        std::fs::write(&lock_path, text)?;
+        balaur_core::whole::write(&lock_path, text)?;
         tracing::info!("wrote {}", dependencies::LOCK);
     }
     Ok(())
@@ -252,7 +252,7 @@ pub(crate) fn download(project: &str, parent: &Path) -> Result<PathBuf> {
         if let Some(dir) = target.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        std::fs::write(&target, bytes)?;
+        balaur_core::whole::write(&target, bytes)?;
     }
     if !folder.join("project.toml").is_file() {
         bail!("{project} has no project.toml at {}", short(&tree.commit));
@@ -346,7 +346,7 @@ fn install(project: &Path, alias: &str, files: &[(String, Vec<u8>)]) -> Result<(
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&target, bytes)?;
+        balaur_core::whole::write(&target, bytes)?;
     }
     std::fs::create_dir_all(&partial)?;
     if folder.exists() {

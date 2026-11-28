@@ -65,7 +65,8 @@ pub(crate) fn take_if_due(
             if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
                 let _ = fs.mkdir(dir);
             }
-            match fs.write(&path, &bytes) {
+            // A picture the run takes again, on the frame: no wait on the disk.
+            match fs.write_cached(&path, &bytes) {
                 Ok(()) => {
                     tracing::debug!("saved screenshot to {}", path.display());
                     let written = balaur_script::Value::text(path.display().to_string());

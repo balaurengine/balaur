@@ -40,7 +40,7 @@ pub(crate) fn run(paths: &[PathBuf], check: bool) -> Result<()> {
         if check {
             println!("{}", file.display());
         } else {
-            std::fs::write(file, &formatted)
+            balaur_core::whole::write(file, &formatted)
                 .with_context(|| format!("writing {}", file.display()))?;
         }
     }

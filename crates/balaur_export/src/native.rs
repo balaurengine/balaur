@@ -184,7 +184,7 @@ impl Work {
         let dir = std::env::temp_dir().join(format!("balaur-native-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
         let work = Self(dir);
-        std::fs::write(work.source(), &scripts.c)
+        balaur::whole::write_cached(work.source(), &scripts.c)
             .with_context(|| format!("writing {}", work.source().display()))?;
         Ok(work)
     }
@@ -255,7 +255,8 @@ fn link_coff(link: &Path, obj: &Path, out: &Path, arch: &str) -> Result<()> {
             .arg(obj),
         "linking the scripts",
     )?;
-    std::fs::copy(&staged, out).with_context(|| format!("writing {}", out.display()))?;
+    balaur::whole::copy_cached(&staged, out)
+        .with_context(|| format!("writing {}", out.display()))?;
     Ok(())
 }
 
@@ -422,7 +423,7 @@ pub(crate) fn build_desktop(
             if let Some(dir) = out.parent() {
                 std::fs::create_dir_all(dir)?;
             }
-            std::fs::write(&out, universal(&slices)?)
+            balaur::whole::write_cached(&out, universal(&slices)?)
                 .with_context(|| format!("writing {}", out.display()))?;
             (words::native::MACOS, out)
         }
@@ -565,9 +566,10 @@ pub(crate) fn build_framework(
         return missing(request, &why).map(|_| ());
     }
     std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
-    std::fs::copy(&staged, &file).with_context(|| format!("writing {}", file.display()))?;
+    balaur::whole::copy_cached(&staged, &file)
+        .with_context(|| format!("writing {}", file.display()))?;
     let name = balaur::standalone::NATIVE_SCRIPTS;
-    std::fs::write(
+    balaur::whole::write_cached(
         dir.join("Info.plist"),
         apple.framework_plist(name, plist_platform)?,
     )?;

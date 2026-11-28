@@ -29,7 +29,8 @@ pub(super) fn end_timings(
     }
     if let Some(path) = json {
         let text = serde_json::to_string_pretty(&log.borrow().json())?;
-        std::fs::write(path, text).with_context(|| format!("writing {}", path.display()))?;
+        balaur_core::whole::write_cached(path, text)
+            .with_context(|| format!("writing {}", path.display()))?;
     }
     Ok(())
 }
@@ -59,7 +60,7 @@ pub(super) fn log_timings(
 /// world the next tick starts from — the state a peer would be compared on.
 pub(super) fn trace_digest_to(app: &mut App, path: &Path) -> Result<()> {
     let mut out =
-        std::fs::File::create(path).with_context(|| format!("creating {}", path.display()))?;
+        std::fs::File::create(path).with_context(|| format!("creating {}", path.display()))?; // whole: a trace, appended to
     app.add_system(balaur::Stage::Last, move |eng, _| {
         if let Err(e) = writeln!(out, "{} {}", eng.tick(), balaur::digest::digest(eng)) {
             tracing::error!(error = %e, "writing digest trace");

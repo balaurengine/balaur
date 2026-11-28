@@ -669,7 +669,7 @@ fn save_rebindings(eng: &Engine, actions: &InputActions) {
         tracing::error!("creating {}: {err}", parent.display());
         return;
     }
-    if let Err(err) = fs.write_whole(&path, encoded.as_bytes()) {
+    if let Err(err) = fs.write(&path, encoded.as_bytes()) {
         tracing::error!("writing {}: {err}", path.display());
     }
 }

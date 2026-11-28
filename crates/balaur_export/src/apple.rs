@@ -655,7 +655,7 @@ impl AppleConfig {
             return Ok(None);
         }
         let path = beside.with_file_name(format!("{name}.ad-hoc.entitlements"));
-        std::fs::write(&path, plist_document(&body))
+        balaur::whole::write_cached(&path, plist_document(&body))
             .with_context(|| format!("writing {}", path.display()))?;
         Ok(Some(path))
     }
@@ -758,7 +758,8 @@ impl AppleConfig {
             return Ok(None);
         };
         let path = beside.with_file_name(format!("{name}.entitlements"));
-        std::fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
+        balaur::whole::write_cached(&path, text)
+            .with_context(|| format!("writing {}", path.display()))?;
         Ok(Some(path))
     }
 }
