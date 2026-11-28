@@ -337,6 +337,12 @@ pub(crate) struct WidgetProperties {
     /// How many times its width and its height the widget and what it holds are drawn, `[x, y]` about its middle, as CSS's `scale: x y`: the layout and what sits beside it stay. Times its role's own, axis by axis, in whatever state it is in; a tween pops a count with it, and `[0, 1]` draws nothing wide, a card turned to its edge
     #[property(default = [1.0, 1.0], min = 0.0, group = "placement")]
     pub(crate) scale: [f32; 2],
+    /// How far the widget and what it holds are drawn turned about its middle, clockwise in degrees, as CSS's `rotate`: the layout and what the pointer reaches stay; a tween turns it, as a chest shaking
+    #[property(group = "placement")]
+    pub(crate) rotation: f32,
+    /// How far the widget and what it holds are drawn turned about their upright axis, in degrees, as CSS's `rotateY` with no perspective: the width narrows to an edge at 90 and shows mirrored past it, as a card turned over
+    #[property(group = "placement")]
+    pub(crate) rotation_y: f32,
     /// The edges this root keeps clear of what a notch, a status bar or a home bar covers. A `fill` root's own colour still reaches the edge, and one with no children is a backdrop and reaches it whole
     #[property(flags, default = vec![Edge::new(w::LEFT), Edge::new(w::TOP), Edge::new(w::RIGHT), Edge::new(w::BOTTOM)], group = "placement")]
     pub(crate) safe_area: Vec<Edge>,
@@ -376,6 +382,15 @@ pub(crate) struct WidgetProperties {
     /// What is painted behind this widget, an `image`'s picture included, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own
     #[property(group = "paint")]
     pub(crate) fill: SmolStr,
+    /// A colour laid over the fill or the gradient at its own alpha, in every state, as `#rrggbbaa` or channels: what a tween fades in or out, a row's flash or a missed key's red; fully transparent lays nothing
+    #[property(color, default = [0.0, 0.0, 0.0, 0.0], group = "paint")]
+    pub(crate) fill_over: [f32; 4],
+    /// A shadow this one widget casts beside its role's, in every state, `[x, y, blur, spread]` in design pixels, in `shadow_color`: what a tween grows, a ring opening out of an edge
+    #[property(default = [0.0, 0.0, 0.0, 0.0], group = "paint")]
+    pub(crate) shadow: [f32; 4],
+    /// The colour of the widget's own `shadow`; fully transparent casts none
+    #[property(color, default = [0.0, 0.0, 0.0, 0.0], group = "paint")]
+    pub(crate) shadow_color: [f32; 4],
     /// The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own
     #[property(group = "paint")]
     pub(crate) stroke: SmolStr,

@@ -7,7 +7,7 @@ use std::rc::Rc;
 use egui::Color32;
 
 use crate::widget::layer::Painting;
-use crate::widget::theme::{Pointer, Shadow, Style, WidgetState};
+use crate::widget::theme::{Gradient, Pointer, Shadow, Style, WidgetState};
 
 /// Which pointer a widget's easing follows: the box the layout gave it, or
 /// the response a kind drew for itself.
@@ -229,6 +229,45 @@ impl Style {
         )
     }
 
+    /// `patch` laid over this style, then the node's own colour and shadow
+    /// laid again over what the patch put in their place.
+    #[must_use]
+    pub(crate) fn under(&self, patch: &Self) -> Self {
+        let mut made = patch.over(self);
+        made.lay_own(Some(patch));
+        made
+    }
+
+    /// The node's `fill_over` blended into the fill and each gradient stop,
+    /// and its own shadow cast with the shadows, as one more of CSS's list:
+    /// all of them with no `patch`, else only what `patch` states.
+    pub(crate) fn lay_own(&mut self, patch: Option<&Self>) {
+        let states = |part: fn(&Self) -> bool| patch.is_none_or(part);
+        if let Some(over) = self.fill_over {
+            if states(|p| p.fill.is_some()) {
+                self.fill = Some(self.fill.map_or(over, |fill| fill.blend(over)));
+            }
+            if let Some(gradient) = self
+                .gradient
+                .as_ref()
+                .filter(|_| states(|p| p.gradient.is_some()))
+            {
+                self.gradient = Some(Rc::new(Gradient {
+                    shape: gradient.shape,
+                    stops: gradient
+                        .stops
+                        .iter()
+                        .map(|&(at, color)| (at, color.blend(over)))
+                        .collect(),
+                }));
+            }
+        }
+        if let Some(own) = self.own_shadow.filter(|_| states(|p| p.shadows.is_some())) {
+            let held = self.shadows.iter().flat_map(|list| list.iter().copied());
+            self.shadows = Some(held.chain([own]).collect());
+        }
+    }
+
     /// The style with the tables for the widget's state over it: `checked`
     /// under everything, then disabled alone, or focus with the pointer's
     /// table over it.
@@ -244,19 +283,19 @@ impl Style {
             return self.in_states(held);
         }
         let on = match (&self.checked, state.checked) {
-            (Some(checked), true) => checked.over(self),
+            (Some(checked), true) => self.under(checked),
             _ => self.clone(),
         };
         if state.disabled {
             return on
                 .disabled
                 .as_ref()
-                .map_or_else(|| on.clone(), |patch| patch.over(&on));
+                .map_or_else(|| on.clone(), |patch| on.under(patch));
         }
         // `:focus` and `:hover` at once, as on the web; the pointer's table
         // wins what both state.
         let focused = match (&on.focus, state.focused) {
-            (Some(focus), true) => focus.over(&on),
+            (Some(focus), true) => on.under(focus),
             _ => on,
         };
         let pointer = match state.pointer {
@@ -264,7 +303,7 @@ impl Style {
             Pointer::Over => focused.hover.as_ref(),
             Pointer::Away => None,
         };
-        pointer.map_or_else(|| focused.clone(), |patch| patch.over(&focused))
+        pointer.map_or_else(|| focused.clone(), |patch| focused.under(patch))
     }
 
     /// The style `t` of the way from `self` to `to`, 0 to 1, as a state
@@ -302,6 +341,12 @@ impl Style {
         };
         let offset = pair(self.offset, to.offset, [0.0, 0.0]);
         let scale = pair(self.scale, to.scale, [1.0, 1.0]);
+        let turn = |from: Option<f32>, into: Option<f32>| {
+            (from.is_some() || into.is_some()).then(|| {
+                let (a, b) = (from.unwrap_or(0.0), into.unwrap_or(0.0));
+                a + (b - a) * t
+            })
+        };
         Self {
             fill: paint(self.fill, to.fill),
             stroke: paint(self.stroke, to.stroke),
@@ -311,6 +356,8 @@ impl Style {
             shadows,
             offset,
             scale,
+            rotation: turn(self.rotation, to.rotation),
+            rotation_y: turn(self.rotation_y, to.rotation_y),
             // The weight the box was measured at, which is the state's it eases to.
             weight: to.weight,
             ..if t < 0.5 { self.clone() } else { to.clone() }

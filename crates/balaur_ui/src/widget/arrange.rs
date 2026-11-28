@@ -802,8 +802,17 @@ pub(crate) fn lay_out_within(
     axis: Axis,
     viewport: egui::Rect,
 ) {
-    if crate::widget::node::scrolls_within(&at.arena[index].widget) {
+    let widget = &at.arena[index].widget;
+    if crate::widget::node::scrolls_within(widget) {
         scroll_held(ui, at, index, axis, viewport);
+    } else if crate::widget::node::clips_within(widget) {
+        // What it holds is cut at its padding box, inside the border, as
+        // CSS's `overflow: clip`.
+        let edge = padding_only(widget, &at.style(index)).around(viewport);
+        let held = ui.clip_rect();
+        ui.set_clip_rect(held.intersect(edge));
+        lay_out(ui, at, index, axis);
+        ui.set_clip_rect(held);
     } else {
         lay_out(ui, at, index, axis);
     }

@@ -245,6 +245,16 @@ pub struct Style {
     /// are drawn, `[x, y]` about its middle, as CSS's `scale: x y`: a count's
     /// pop. The layout and what sits beside it never move.
     pub scale: Option<[f32; 2]>,
+    /// How far the widget is drawn turned about its middle, clockwise in
+    /// degrees, as CSS's `rotate`, and about its upright axis, as `rotateY`:
+    /// a card tilted under the pointer. Added to the node's own.
+    pub rotation: Option<f32>,
+    pub rotation_y: Option<f32>,
+    /// A node's own colour over its fill and its gradient, and its own shadow
+    /// beside its role's, never a theme's: laid again over whatever a state
+    /// table puts in their place, as an inline style over `:hover`.
+    pub fill_over: Option<Color32>,
+    pub own_shadow: Option<Shadow>,
 }
 
 /// One of `shadows = [{ y = 2, blur = 8, spread = 0, color = "#00000040" }]`,
@@ -376,6 +386,10 @@ impl Style {
             transition: self.transition.or(base.transition),
             offset: self.offset.or(base.offset),
             scale: self.scale.or(base.scale),
+            rotation: self.rotation.or(base.rotation),
+            rotation_y: self.rotation_y.or(base.rotation_y),
+            fill_over: self.fill_over.or(base.fill_over),
+            own_shadow: self.own_shadow.or(base.own_shadow),
         }
     }
 
@@ -766,6 +780,11 @@ fn style_of(body: &toml::Table, tokens: &Tokens) -> Style {
         transition: number(k::TRANSITION).filter(|seconds| *seconds > 0.0),
         offset: body.get(k::OFFSET).and_then(pair_of),
         scale: body.get(k::SCALE).and_then(pair_of),
+        rotation: number(k::ROTATION),
+        rotation_y: number(k::ROTATION_Y),
+        // A node's own, never a theme's.
+        fill_over: None,
+        own_shadow: None,
     }
 }
 
@@ -962,8 +981,9 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget, words: Words) -> Rc<S
     // styles repeated.
     let border = widget.layout.border.map(crate::widget::node::Bits::get);
     let bordered = border.iter().any(|side| *side > 0.0);
-    // The node's `offset` and `scale` are not folded in: they compose with
-    // the state the role is in when it is drawn (`Brush::transform_since`).
+    // The node's `offset`, `scale` and `rotation` are not folded in: they
+    // compose with the state the role is in when it is drawn
+    // (`Brush::transform_since`).
     if widget.fill.is_empty()
         && widget.stroke.is_empty()
         && !widget.dashed
@@ -971,6 +991,8 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget, words: Words) -> Rc<S
         && widget.radius < 0.0
         && !bordered
         && weighed.is_none()
+        && widget.fill_over[3] <= 0.0
+        && widget.shadow_color[3] <= 0.0
     {
         return settled;
     }
@@ -991,6 +1013,21 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget, words: Words) -> Rc<S
     if widget.radius >= 0.0 {
         style.radius = Some(widget.radius);
     }
+    if widget.fill_over[3] > 0.0 {
+        style.fill_over = Some(crate::widget::node::rgba_color(widget.fill_over));
+    }
+    if widget.shadow_color[3] > 0.0 {
+        let [x, y, blur, spread] = widget.shadow;
+        style.own_shadow = Some(Shadow {
+            x,
+            y,
+            blur: blur.max(0.0),
+            spread,
+            color: crate::widget::node::rgba_color(widget.shadow_color),
+            inset: false,
+        });
+    }
+    style.lay_own(None);
     if bordered {
         style.border = Some(border);
     }

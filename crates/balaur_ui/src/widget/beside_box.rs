@@ -75,7 +75,7 @@ pub(crate) struct WidgetBox {
     /// What `width` and `height` measure: `border`, the whole box, or `content`, the box inside `padding` and `border`
     #[property(default = Sizing::new(w::sizing::BORDER))]
     pub(crate) box_sizing: Sizing,
-    /// What becomes of content past this widget's box. A `row`, `column`, `grid` or `panel` that says `scroll` scrolls it, as CSS's `overflow: auto`: as large as what it holds, giving way where its container leaves it less (its `shrink` is 1 unless stated) and scrolling what does not fit, by the rows of `widget_scroll`; it keeps `scrollbar_width` clear inside its edge. On any other kind, and for the other words, layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), and each kind clips as it draws
+    /// What becomes of content past this widget's box. A `row`, `column`, `grid` or `panel` that says `scroll` scrolls it, as CSS's `overflow: auto`: as large as what it holds, giving way where its container leaves it less (its `shrink` is 1 unless stated) and scrolling what does not fit, by the rows of `widget_scroll`; it keeps `scrollbar_width` clear inside its edge. `clip` and `hidden` on those cut what they hold at the box's edge, as CSS's do, so a box tweened from 0 to `ui::natural_size`'s height opens as a fold does. On any other kind, and for `visible`, layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), and each kind clips as it draws
     #[property(default = Overflow::new(w::overflow::VISIBLE))]
     pub(crate) overflow: Overflow,
     /// The room a box with `overflow = "scroll"` keeps clear inside its edge for a bar, in design pixels

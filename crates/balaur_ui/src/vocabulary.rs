@@ -447,6 +447,9 @@ pub(crate) mod keys {
     pub(crate) const CURRENT_FILL: &str = "current_fill";
     pub(crate) const DASHED: &str = "dashed";
     pub(crate) const FILL: &str = "fill";
+    pub(crate) const FILL_OVER: &str = "fill_over";
+    pub(crate) const SHADOW: &str = "shadow";
+    pub(crate) const SHADOW_COLOR: &str = "shadow_color";
     pub(crate) const NEIGHBOUR_UP: &str = "neighbour_up";
     pub(crate) const NEIGHBOUR_DOWN: &str = "neighbour_down";
     pub(crate) const NEIGHBOUR_LEFT: &str = "neighbour_left";
@@ -560,6 +563,8 @@ pub(crate) mod keys {
     /// How far a theme table draws a widget from its place, `[x, y]`.
     pub(crate) const OFFSET: &str = "offset";
     pub(crate) const SCALE: &str = "scale";
+    pub(crate) const ROTATION: &str = "rotation";
+    pub(crate) const ROTATION_Y: &str = "rotation_y";
     /// The colour of the ring a focused control draws outside its edge, as
     /// CSS's `outline`.
     pub(crate) const OUTLINE: &str = "outline";

@@ -76,6 +76,8 @@ const KEYS: &[(&str, Shape)] = &[
     (k::SLICE, Shape::Four),
     (k::BORDER, Shape::Four),
     (k::OFFSET, Shape::Pair),
+    (k::ROTATION, Shape::Number),
+    (k::ROTATION_Y, Shape::Number),
     (k::SCALE, Shape::Pair),
     (k::TEXT_ALIGN, Shape::Words(w::ALIGNS)),
     (k::FLEX_DIRECTION, Shape::Words(w::FLEX_DIRECTIONS)),

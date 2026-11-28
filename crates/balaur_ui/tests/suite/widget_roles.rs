@@ -856,6 +856,55 @@ fn a_transition_eases_a_hover_scale() {
     assert!((late.width() - 200.0).abs() < 1.0, "and arrives: {late:?}");
 }
 
+// A hover table's `rotation` turns the plate over the transition, and adds
+// to the node's own: 45 and 45 stand it upright.
+#[test]
+fn a_transition_eases_a_hover_rotation_onto_the_node_s() {
+    let theme = "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\ntransition = 0.2\n[button.hover]\nrotation = 45.0\n";
+    let (_, early) = hovered_plate(theme, toml::toml! { rotation = 45.0 }, 1);
+    assert!(
+        early.width() < 98.0 && early.width() > 41.5,
+        "on its way past 45 a frame in: {early:?}"
+    );
+    let (_, late) = hovered_plate(theme, toml::toml! { rotation = 45.0 }, 40);
+    assert!(
+        (late.width() - 40.0).abs() < 1.5 && (late.height() - 100.0).abs() < 1.5,
+        "and stands upright: {late:?}"
+    );
+}
+
+// A node's own `fill_over` is laid over its hover table's fill too, as an
+// inline style over `:hover`: a flash shows under the pointer.
+#[test]
+fn a_fill_over_is_laid_over_a_hover_table_s_fill() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/flash.toml"),
+        "type = \"widget_theme\"\n\n[button]\nfill = \"#000000\"\n[button.hover]\nfill = \"#0000ff\"\n",
+    )
+    .unwrap();
+    let button = add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "Go" theme = "themes/flash.toml" x = 20.0 y = 20.0 width = 100.0 height = 40.0 fill_over = [1.0, 0.0, 0.0, 0.5] }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rest = root_rect(&ctx, button);
+    let mut out = pass(&app, &ctx, vec![egui::Event::PointerMoved(rest.center())]);
+    for _ in 0..3 {
+        out = pass(&app, &ctx, vec![]);
+    }
+    let painted = fills(&out);
+    assert!(
+        painted
+            .iter()
+            .any(|fill| fill.r() > 100 && fill.b() > 100 && fill.g() < 10),
+        "blue under half red: {painted:?}"
+    );
+}
+
 // A scale is `[x, y]`: a bare number is no scale, and the plate keeps its size.
 #[test]
 fn a_scale_written_as_one_number_is_dropped() {

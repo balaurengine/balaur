@@ -421,6 +421,8 @@ cache_fields! {
         k::INSET => widget.inset = asked.inset;
         k::OFFSET => widget.offset = asked.offset;
         k::SCALE => widget.scale = asked.scale;
+        k::ROTATION => widget.rotation = asked.rotation;
+        k::ROTATION_Y => widget.rotation_y = asked.rotation_y;
         k::SAFE_AREA => widget.safe_area = edges(&asked.safe_area);
         k::MOVABLE => egui(widget).movable = asked.movable;
         k::CONSTRAIN => egui(widget).constrain = asked.constrain;
@@ -433,6 +435,9 @@ cache_fields! {
         k::THEME => widget.theme = asked.theme.clone();
         k::ROLE => widget.role = asked.role.clone();
         k::FILL => widget.fill = asked.fill.clone();
+        k::FILL_OVER => widget.fill_over = asked.fill_over;
+        k::SHADOW => widget.shadow = asked.shadow;
+        k::SHADOW_COLOR => widget.shadow_color = asked.shadow_color;
         k::STROKE => widget.stroke = asked.stroke.clone();
         k::TEXT_COLOR => widget.text_color = asked.text_color;
         k::CORNER_RADIUS => widget.radius = asked.corner_radius;

@@ -287,6 +287,10 @@ pub struct WidgetFields {
     /// middle, times its role's `scale` axis by axis; an axis of 0 draws
     /// nothing.
     pub scale: [f32; 2],
+    /// Drawn turned this many degrees clockwise about its middle.
+    pub rotation: f32,
+    /// Drawn turned this many degrees about its upright axis.
+    pub rotation_y: f32,
     /// The nine-patch borders of an `image`, in the picture's own pixels.
     pub slice: [f32; 4],
     /// How far a finger drags a `scroll` before it scrolls, in design pixels.
@@ -329,6 +333,11 @@ pub struct WidgetFields {
     /// from the theme's `[colors]`; empty takes the theme's own.
     pub fill: SmolStr,
     pub stroke: SmolStr,
+    /// A colour laid over the fill at its alpha.
+    pub fill_over: [f32; 4],
+    /// A shadow of its own, `[x, y, blur, spread]`, in `shadow_color`.
+    pub shadow: [f32; 4],
+    pub shadow_color: [f32; 4],
     /// Whether that outline is drawn in dashes rather than whole.
     pub dashed: bool,
     /// Corner radius in design pixels; below zero takes the theme's own.
@@ -495,6 +504,15 @@ pub(crate) fn may_scroll(kind: &str) -> bool {
 /// `overflow: auto`.
 pub(crate) fn scrolls_within(widget: &Widget) -> bool {
     widget.layout.overflow == w::overflow::SCROLL && may_scroll(&widget.kind)
+}
+
+/// Whether a box cuts what it holds at its edge: its `overflow` is `clip` or
+/// `hidden`.
+pub(crate) fn clips_within(widget: &Widget) -> bool {
+    matches!(
+        widget.layout.overflow.as_str(),
+        w::overflow::CLIP | w::overflow::HIDDEN
+    ) && may_scroll(&widget.kind)
 }
 
 /// Whether this kind lays its widget children out rather than ignoring them.

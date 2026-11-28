@@ -525,6 +525,7 @@ pub(crate) fn line2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
 
 /// Every line whose width is held on the screen, laid out again at the
 /// camera's zoom now.
+#[cfg(feature = "window")]
 pub(crate) fn lay_out_lines_on_screen(eng: &Engine) {
     let held: Vec<Entity> = eng
         .world()

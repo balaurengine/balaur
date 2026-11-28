@@ -380,8 +380,9 @@ impl Brush {
 
     /// What was drawn since `mark`, moved by its role's `offset` and its
     /// node's, then scaled by the two `scale`s about `about`, the widget's
-    /// middle, each axis on its own. An axis of 0 draws nothing: a tween
-    /// shrinks it out, or turns a card to its edge.
+    /// middle, each axis on its own, and turned by the two `rotation`s and
+    /// `rotation_y`s. An axis of 0 draws nothing: a tween shrinks it out, or
+    /// turns a card to its edge.
     pub(crate) fn transform_since(
         &self,
         mark: Slot,
@@ -399,7 +400,26 @@ impl Brush {
         }
         let [sx, sy] = style.scale.unwrap_or([1.0, 1.0]);
         let factor = egui::vec2(sx * widget.scale[0], sy * widget.scale[1]);
-        self.scale_since(mark, about + shift, factor);
+        let degrees = style.rotation.unwrap_or(0.0) + widget.rotation;
+        let upright = style.rotation_y.unwrap_or(0.0) + widget.rotation_y;
+        let turned =
+            degrees.is_finite() && upright.is_finite() && (degrees != 0.0 || upright != 0.0);
+        if !turned {
+            self.scale_since(mark, about + shift, factor);
+            return;
+        }
+        // Stretched, narrowed about the upright axis, then turned, as CSS's
+        // `scale`, `rotateY` with no perspective and `rotate`: one pass.
+        let factor = factor.max(egui::Vec2::ZERO);
+        let angle = degrees.to_radians();
+        let (sin, cos) = (libm::sinf(angle), libm::cosf(angle));
+        let across = libm::cosf(upright.to_radians()) * factor.x;
+        let down = factor.y;
+        self.map_since(
+            mark,
+            about + shift,
+            [cos * across, sin * across, -sin * down, cos * down],
+        );
     }
 
     /// What was drawn since `mark`, `factor` times its size about `about`,
@@ -431,6 +451,15 @@ impl Brush {
             });
             return;
         }
+        self.map_since(mark, about, [factor.x, 0.0, 0.0, factor.y]);
+    }
+
+    /// What was drawn since `mark` with each point moved by the 2x2 `matrix`
+    /// (its columns, x then y) about `about`: laid into triangles first, so
+    /// any shape moves with its points.
+    fn map_since(&self, mark: Slot, about: egui::Pos2, matrix: [f32; 4]) {
+        let layer = self.0.layer_id();
+        let ctx = self.0.ctx();
         // Read before the paint list is held: each takes the context's lock,
         // as `graphics_mut` does.
         #[allow(
@@ -440,7 +469,8 @@ impl Brush {
         let atlas = ctx.fonts(|fonts| fonts.font_image_size());
         let mut stretch = Stretch {
             about,
-            factor,
+            matrix,
+            held: self.0.clip_rect(),
             tessellator: egui::epaint::Tessellator::new(
                 ctx.pixels_per_point(),
                 ctx.tessellation_options(|options| *options),
@@ -620,22 +650,58 @@ impl Brush {
     }
 }
 
-/// A stretch of shapes about a point by two factors that differ. egui moves
-/// a shape by one factor only, so each is laid into triangles where it is,
-/// on the pixel grid, and the triangles are stretched.
+/// Shapes moved about a point by a 2x2 matrix: a stretch by two factors that
+/// differ, a turn. egui moves a shape by one factor only, so each is laid
+/// into triangles where it is, on the pixel grid, and the triangles are moved.
 struct Stretch {
     about: Pos2,
-    factor: egui::Vec2,
+    /// The 2x2 each point is moved by about `about`, its columns x then y.
+    matrix: [f32; 4],
+    /// The clip the widget is drawn under, its ancestors': it stays where it
+    /// is, as a scroll's viewport stays round a turned card.
+    held: Rect,
     tessellator: egui::epaint::Tessellator,
 }
 
 impl Stretch {
     fn point(&self, at: Pos2) -> Pos2 {
-        self.about + (at - self.about) * self.factor
+        let [a, b, c, d] = self.matrix;
+        let v = at - self.about;
+        self.about + egui::vec2(a * v.x + c * v.y, b * v.x + d * v.y)
     }
 
+    /// The box a moved box reaches: its four corners moved.
     fn rect(&self, rect: Rect) -> Rect {
-        Rect::from_two_pos(self.point(rect.min), self.point(rect.max))
+        Self::corners_by(rect, |corner| self.point(corner))
+    }
+
+    /// The box whose move reaches `rect`, nothing where the move flattens
+    /// every point onto a line.
+    fn reach(&self, rect: Rect) -> Rect {
+        let [a, b, c, d] = self.matrix;
+        let det = a * d - b * c;
+        if det.abs() <= f32::EPSILON {
+            return Rect::NOTHING;
+        }
+        let [a, b, c, d] = [d / det, -b / det, -c / det, a / det];
+        Self::corners_by(rect, |at| {
+            let v = at - self.about;
+            self.about + egui::vec2(a * v.x + c * v.y, b * v.x + d * v.y)
+        })
+    }
+
+    fn corners_by(rect: Rect, by: impl Fn(Pos2) -> Pos2) -> Rect {
+        if !rect.is_finite() {
+            return rect;
+        }
+        let corners = [
+            rect.left_top(),
+            rect.right_top(),
+            rect.left_bottom(),
+            rect.right_bottom(),
+        ]
+        .map(by);
+        Rect::from_points(&corners)
     }
 
     fn apply(&mut self, clipped: &mut egui::epaint::ClippedShape) {
@@ -649,11 +715,18 @@ impl Stretch {
         if !after.is_valid() {
             return;
         }
-        // Nothing outside the clip is laid into triangles, as egui culls; the
-        // clip is in the space the move after tessellation reaches.
+        // A clip set inside the widget moves with it, its ancestors' stays.
+        let clip = clipped.clip_rect;
+        let moved = if clip == self.held {
+            clip
+        } else {
+            self.rect(clip).intersect(self.held)
+        };
+        // Nothing the move leaves outside the clip is laid into triangles, as
+        // egui culls; the cull is in the space before both moves.
         self.tessellator
-            .set_clip_rect(after.inverse() * clipped.clip_rect);
-        clipped.clip_rect = self.rect(clipped.clip_rect);
+            .set_clip_rect(after.inverse() * self.reach(moved));
+        clipped.clip_rect = moved;
         let mut out = Vec::new();
         self.leaves(shape, after, &mut out);
         clipped.shape = if out.len() == 1 {

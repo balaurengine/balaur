@@ -55,6 +55,8 @@ fill = "primary_fill_hover"
 [button.active]
 offset = [0, 0.5]                # drawn this far from its place, as CSS's translate; the layout stays
 scale = [0.98, 0.98]             # drawn this many times its width and height about its middle, as CSS's scale
+rotation = 2                     # turned clockwise in degrees about its middle, as CSS's rotate; rotation_y
+                                 # about its upright axis, as rotateY; both add to the node's own
 
 [button.focus]                   # with the pointer's table over it when both apply, as on the web
 outline = "primary"              # the ring outside the edge, as CSS's outline; the edge stays
