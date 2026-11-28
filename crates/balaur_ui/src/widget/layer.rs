@@ -151,7 +151,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     };
     let shown = reachable(&placed, &roots, &live);
     let stops = focus_stops(&placed, &shown);
-    let accepted = advance(eng, &stops, asked, side);
+    let accepted = advance(eng, ctx, &stops, (asked, side));
     let turned = turned_fold(&placed, accepted);
     // A chord is a click by another name, as an `accept` is.
     let fired = shortcuts(ctx, &placed, &shown);
@@ -831,7 +831,8 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     click_sensor(ui, at, index);
     draw_kind(ui, at, index);
     let look = at.look(index);
-    if state.focused {
+    // A state's own `outline` rings it as focus does: a picked card's.
+    if state.focused || look.style.states_ring() != at.resting(index).style.states_ring() {
         crate::widget::ease::focus_ring(ui, &look.style);
     }
     // Moved and scaled once drawn, children and all, so the layout and what

@@ -15,7 +15,8 @@ pub(crate) const BY_BOX: u8 = 0;
 const BY_RESPONSE: u8 = 1;
 
 /// The ring a focused widget whose theme states an `outline` draws outside
-/// what it drew, as CSS's `outline`, `outline-width` and `outline-offset`.
+/// what it drew, as CSS's `outline`, `outline-width` and `outline-offset`;
+/// one a state table (`checked`, `hover`) states draws in that state too.
 pub(crate) fn focus_ring(ui: &egui::Ui, style: &Style) {
     let Some(colour) = style.outline else {
         return;
@@ -212,6 +213,12 @@ fn blend(base: &Style, state: WidgetState, turns: &[(Turn, f32)]) -> Style {
 }
 
 impl Style {
+    /// The outline as the table states it, to tell a state's own from rest's.
+    #[must_use]
+    pub fn states_ring(&self) -> (Option<Color32>, Option<f32>, Option<f32>) {
+        (self.outline, self.outline_width, self.outline_offset)
+    }
+
     /// The focus ring's gap from the edge and its width: the style's
     /// `outline_offset` and `outline_width`, 2 and 2 unset.
     #[must_use]

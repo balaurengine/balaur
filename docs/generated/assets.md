@@ -661,6 +661,7 @@ scale = [0.98, 0.98]             # drawn this many times its width and height ab
 [button.focus]                   # with the pointer's table over it when both apply, as on the web
 outline = "primary"              # the ring outside the edge, as CSS's outline; the edge stays
 outline_width = 2                # its width, and outline_offset its gap from the edge, 2 and 2 unset
+                                 # in another state's table, [button.checked], it rings that state
 
 [spinner]                        # three quarters of a ring, turning, in the text's colour
 height = 24                      # its side; a widget's own height wins

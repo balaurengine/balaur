@@ -616,3 +616,57 @@ fn focus_an_arrow_moves_is_scrolled_into_view() {
         "the focused row {shown:?} lies outside the scroll {held:?}"
     );
 }
+
+/// A field holding the keyboard, in a column, and the context it is typed in.
+fn typing_field() -> (tempfile::TempDir, balaur_core::App, Entity, egui::Context) {
+    let (dir, app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 }.into(),
+    );
+    let field = add_child_widget(
+        &app,
+        column,
+        "Query",
+        &toml::toml! { kind = "text_field" text = "" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    {
+        let focus = app.engine.resource::<balaur_ui::UiFocus>();
+        let mut focus = focus.borrow_mut();
+        focus.focused = Some(field);
+        focus.taking = true;
+    }
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    assert!(
+        ctx.egui_wants_keyboard_input(),
+        "the field took the keyboard"
+    );
+    (dir, app, field, ctx)
+}
+
+// `ui::clear_focus` is how a script takes focus off a field: the keyboard
+// goes with it, as it does from a field folded away.
+#[test]
+fn a_field_cleared_or_hidden_lets_the_keyboard_go() {
+    let (_dir, mut app, _field, ctx) = typing_field();
+    app.engine
+        .resource::<balaur_ui::UiFocus>()
+        .borrow_mut()
+        .pending = Some(balaur_ui::Move::Leave);
+    consume_input(&mut app);
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    assert!(!ctx.egui_wants_keyboard_input(), "cleared");
+    assert_eq!(focused(&app), None);
+
+    let (_dir, mut app, field, ctx) = typing_field();
+    set_shown(&app, field, false);
+    consume_input(&mut app);
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    assert!(!ctx.egui_wants_keyboard_input(), "hidden");
+    assert_eq!(focused(&app), None);
+}

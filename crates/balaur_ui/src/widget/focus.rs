@@ -229,15 +229,26 @@ fn is_function_key(key: egui::Key) -> bool {
         .is_some_and(|n| n.parse::<u8>().is_ok())
 }
 
+thread_local! {
+    /// The keyboard was taken off a field by a script this pass, not by the
+    /// reader, so leaving it submits nothing.
+    static LET_GO: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether a script took the keyboard off a field this pass, once.
+pub(crate) fn let_go() -> bool {
+    LET_GO.replace(false)
+}
+
 /// Move focus, or say which widget an `accept` activated.
 ///
 /// Order is the order the widgets are drawn in, which is the order the scene
 /// declares them — so focus walks a menu the way the tree reads.
 pub(super) fn advance(
     eng: &Engine,
+    ctx: &egui::Context,
     stops: &[Entity],
-    asked: Option<Move>,
-    side: Option<Side>,
+    (asked, side): (Option<Move>, Option<Side>),
 ) -> Option<Entity> {
     let focus = eng.try_resource::<UiFocus>()?;
     let mut focus = focus.borrow_mut();
@@ -246,6 +257,7 @@ pub(super) fn advance(
     if focus.focused.is_some_and(|e| !stops.contains(&e)) {
         focus.focused = None;
     }
+    LET_GO.set(false);
     let mut pending = focus.pending.take().or(asked);
     // A pad's direction is an arrow's.
     let side = match pending {
@@ -261,8 +273,16 @@ pub(super) fn advance(
     ) {
         pending = None;
     }
+    // Left, whatever holds the keyboard lets it go, and a field left so keeps
+    // what was typed unsubmitted (`field::left`).
     if pending == Some(Move::Leave) {
         focus.focused = None;
+        ctx.memory_mut(|memory| {
+            if let Some(id) = memory.focused() {
+                memory.surrender_focus(id);
+                LET_GO.set(true);
+            }
+        });
         return None;
     }
     if stops.is_empty() {

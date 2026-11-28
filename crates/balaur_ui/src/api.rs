@@ -329,7 +329,7 @@ fn install_focus(m: &mut Module<Engine>) {
             CLEAR_FOCUS,
             &[],
             "()",
-            "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `focus_exited`.",
+            "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `focus_exited`, and a field being typed into lets the keyboard go. A focused widget hidden or freed gives its focus up on its own, a field its keyboard too.",
         ),
     ]);
     m.function(FOCUSED_WIDGET, |eng: &Engine, ()| {

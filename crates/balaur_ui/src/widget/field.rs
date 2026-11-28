@@ -266,7 +266,7 @@ fn lead_icon(
 
 /// A field focus left: the submit chord and a click away both submit, and
 /// only the click away is a blur. Escape is a blur that keeps nothing, as it
-/// is on a number.
+/// is on a number, and so is `ui::clear_focus`.
 fn left(
     ui: &egui::Ui,
     at: &mut Painting<'_>,
@@ -274,7 +274,8 @@ fn left(
     text: &str,
     submit: egui::KeyboardShortcut,
 ) {
-    if !ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+    let kept = ui.input(|i| i.key_pressed(egui::Key::Escape)) || crate::widget::focus::let_go();
+    if !kept {
         at.edits.push((entity, Edit::Submit(text.to_owned())));
     }
     if ui.input(|i| i.key_pressed(submit.logical_key)) {

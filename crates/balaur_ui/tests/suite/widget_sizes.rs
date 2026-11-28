@@ -238,3 +238,42 @@ fn a_checked_role_s_weight_sizes_the_widget_it_draws() {
         wide(rest)
     );
 }
+
+/// Whether `out` strokes anything in `colour`.
+fn stroked_in(out: &egui::FullOutput, colour: egui::Color32) -> bool {
+    out.shapes.iter().any(|clipped| match &clipped.shape {
+        egui::epaint::Shape::Rect(rect) => rect.stroke.color == colour && rect.stroke.width > 0.0,
+        _ => false,
+    })
+}
+
+/// One pass over a `pick` button, checked or not, under a theme whose
+/// checked state names a red outline.
+fn picked_pass(checked: bool) -> egui::FullOutput {
+    let (dir, app) = app();
+    theme_in(
+        dir.path(),
+        "[roles.pick.checked]\noutline = \"#ff0000\"\noutline_width = 2\n",
+    );
+    add_widget(
+        &app,
+        &toml::toml! { kind = "button" theme = "themes/roles.toml" role = "pick" text = "Pick" x = 0.0 y = 0.0 widget_check = { checked = (checked) } }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![])
+}
+
+#[test]
+fn a_checked_role_s_outline_rings_the_checked_widget_alone() {
+    let red = egui::Color32::from_rgb(255, 0, 0);
+    assert!(
+        stroked_in(&picked_pass(true), red),
+        "the checked widget is ringed"
+    );
+    assert!(
+        !stroked_in(&picked_pass(false), red),
+        "an unchecked one is not"
+    );
+}

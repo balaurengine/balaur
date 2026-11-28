@@ -1510,7 +1510,7 @@ Source: `crates/balaur_ui/src/widget/node.rs` and `crates/balaur_ui/src/widget/f
 | any | An arrow, `Move::Up`, `Down`, `Left`, `Right` | a stop on that side | The named neighbor, else `toward`, else `around`. From nothing: last for up and left, first for down and right. |
 | `Some` | Enter, Space, `Move::Accept` | same | `advance` hands it to `clicked`, and a fold flips through `turned_fold`. |
 | `Some` | The widget stops being a stop: hidden, disabled, freed or unfocusable | `None` | Next tick it emits `focus_exited`. |
-| any | `Move::Leave`, script `clear_focus` | `None` | Next tick it emits `focus_exited`. |
+| any | `Move::Leave`, script `clear_focus` | `None` | Whatever holds the keyboard lets it go, a field without submitting. Next tick it emits `focus_exited`. |
 | any | A click into a field, `gained_focus` | `Some` | `edit` writes it. |
 | `Some` | A field left by Escape or a click away, `left` | `None` | A click away emits `submitted`, then `focus_exited`. Escape emits `focus_exited` only. |
 | `Some` | A field's submit chord, `left` | same | Emits `submitted`. |
