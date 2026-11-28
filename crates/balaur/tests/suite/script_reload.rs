@@ -49,6 +49,83 @@ fn a_reload_tells_the_instances_of_that_file_and_keeps_their_state() {
     );
 }
 
+const HOLDER: &str = "pub class Holder { node: Node, held: any, items: { str: { str: any } }, listed: [any], names: str, reloads: int }
+impl Holder {
+    pub fn init() {
+        let child = self.node.get_node(\"Child\");
+        self.held = { \"map\": child, \"list\": [child], \"nested\": { \"inner\": { \"node\": child } } };
+        let item: { str: any } = { \"node\": child };
+        self.items[\"one\"] = item;
+        self.listed = [child];
+    }
+    pub fn on_hot_reload() {
+        self.reloads += 1;
+        self.names = \"\";
+        self.read();
+    }
+    pub fn reload_from_a_call() {
+        engine::reload_scripts([\"scripts/holder.bs\"]);
+    }
+    pub fn read() {
+        let map = self.held[\"map\"].as_node().name();
+        let list = self.held[\"list\"][0].as_node().name();
+        let nested = self.held[\"nested\"][\"inner\"][\"node\"].as_node().name();
+        let one = self.items[\"one\"].unwrap();
+        let item = one[\"node\"].as_node().name();
+        let listed = self.listed[0].as_node().name();
+        self.names = \"{map} {list} {nested} {item} {listed}\";
+    }
+}
+";
+
+#[test]
+fn a_node_held_in_an_any_survives_a_reload_in_a_map_a_list_and_a_nested_map() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[nodes]]\nid = \"h\"\nname = \"Holder\"\nscript = { source = \"scripts/holder.bs\" }\n\n[[nodes]]\nid = \"c\"\nname = \"Child\"\nparent = \"h\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("scripts/holder.bs"), HOLDER).unwrap();
+    let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = balaur::standard_app(config).unwrap();
+    app.load_project().unwrap();
+    let host = app.engine.script_host().unwrap();
+    let holder = {
+        let world = app.engine.world();
+        balaur_core::ids::find(&world, app.engine.root(), "h").unwrap()
+    };
+    let names = || host.script_field(balaur::node_id_of(holder), "names");
+    let all = Some(balaur_script::Value::Str(
+        "Child Child Child Child Child".into(),
+    ));
+    // Built again with probes: every object carried across.
+    host.set_break_on_error(true);
+    host.call_on(balaur::node_id_of(holder), "read", &[]);
+    assert_eq!(names(), all, "built with probes");
+    host.reload(&["scripts/holder.bs"]).unwrap();
+    assert_eq!(names(), all, "reloaded");
+    // Asked while its own script runs: built now, swapped between frames.
+    host.set_break_on_error(false);
+    host.call_on(balaur::node_id_of(holder), "reload_from_a_call", &[]);
+    for _ in 0..3 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(names(), all, "swapped between frames");
+    assert_eq!(
+        host.script_field(balaur::node_id_of(holder), "reloads"),
+        Some(balaur_script::Value::Int(2)),
+        "both reloads heard"
+    );
+}
+
 fn fixture_project(dir: &std::path::Path) {
     std::fs::write(
         dir.join("project.toml"),

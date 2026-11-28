@@ -145,6 +145,11 @@ enum Command {
         /// frame time: the mode a replay or a networked peer reproduces.
         #[arg(long)]
         fixed_tick: bool,
+        /// Follow the project's files in a run with no window, `--headless`,
+        /// `--offscreen` or a build without one, which otherwise reloads
+        /// nothing: a test's run is not edited under it. A window follows them.
+        #[arg(long)]
+        watch: bool,
         /// Run as if a finger reached the screen: the `touch` tag, the touch
         /// target floor, and a long press where a hover was.
         #[arg(long)]
@@ -481,6 +486,7 @@ fn dispatch(command: Command) -> Result<()> {
             frames,
             offscreen,
             fixed_tick,
+            watch,
             touch,
             shot,
             size,
@@ -499,6 +505,7 @@ fn dispatch(command: Command) -> Result<()> {
             shot,
             size,
             fixed_tick,
+            watch,
             touch,
             trace_digest,
             timings,
@@ -622,6 +629,8 @@ struct RunOpts {
     /// An offscreen run's framebuffer, `WIDTHxHEIGHT`, over the project's window size.
     size: Option<String>,
     fixed_tick: bool,
+    /// A run with no window follows its files only when asked.
+    watch: bool,
     touch: bool,
     trace_digest: Option<PathBuf>,
     timings: bool,
@@ -704,6 +713,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         shot,
         size,
         fixed_tick,
+        watch,
         touch,
         trace_digest,
         timings: _,
@@ -722,6 +732,8 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     engine_pin::say_if_other(path);
     let mut config = AppConfig::dev(path.to_string_lossy().as_ref());
     config.script_args.clone_from(args);
+    // A run that opens a window is one somebody edits under; a test's is not.
+    config.watch = *watch || (display == Display::Windowed && cfg!(feature = "window"));
     let mut app = balaur::timings::boot(ENGINE, || balaur::standard_app(config))?;
     // Before the project loads, so a client that waits can have breakpoints
     // in place by the time `init` runs.

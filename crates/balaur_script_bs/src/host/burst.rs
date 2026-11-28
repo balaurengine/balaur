@@ -52,6 +52,27 @@ pub(super) struct Burst {
     last: Option<Instant>,
 }
 
+/// Whether `path` lies under one of `out`, as reported or with its folder's
+/// links resolved: a project's `_build/bs-cache` may be a link to the cache.
+/// Each folder is resolved once a drain.
+fn kept(
+    out: &[PathBuf],
+    resolved: &mut std::collections::HashMap<PathBuf, Option<PathBuf>>,
+    path: &Path,
+) -> bool {
+    if out.iter().any(|dir| path.starts_with(dir)) {
+        return true;
+    }
+    let Some(folder) = path.parent() else {
+        return false;
+    };
+    let real = resolved
+        .entry(folder.to_path_buf())
+        .or_insert_with(|| folder.canonicalize().ok());
+    real.as_ref()
+        .is_some_and(|real| out.iter().any(|dir| real.starts_with(dir)))
+}
+
 impl BsHost {
     fn hear(&self, burst: &mut Burst, asides: &[Aside], path: &Path) {
         let extension = path.extension().and_then(|e| e.to_str());
@@ -132,6 +153,7 @@ impl BsHost {
         let mut burst = self.inner.burst.borrow_mut();
         let mut heard = false;
         let mut kept_out: Option<Vec<PathBuf>> = None;
+        let mut resolved = std::collections::HashMap::new();
         while let Ok(event) = events.try_recv() {
             let Ok(event) = event else {
                 heard = true;
@@ -142,7 +164,7 @@ impl BsHost {
             let paths: Vec<&PathBuf> = event
                 .paths
                 .iter()
-                .filter(|path| !out.iter().any(|dir| path.starts_with(dir)))
+                .filter(|path| !kept(out, &mut resolved, path))
                 .collect();
             if paths.is_empty() && !event.need_rescan() {
                 continue;
@@ -166,16 +188,23 @@ impl BsHost {
         Some(std::mem::take(&mut *burst))
     }
 
-    /// The game's own user data folders, where its log and saves are written:
-    /// a project holding one (a test's `_build`) is not edited by the game.
+    /// The game's own user data folders, where its log and saves are written,
+    /// and the script cache, where a compile writes: a project holding one (a
+    /// test's `_build`) is not edited by the game. Each as written and as its
+    /// links resolve, so a cache linked from elsewhere is left out too.
     fn kept_out(&self) -> Vec<PathBuf> {
         let eng = &self.inner.engine;
+        let data = balaur_core::engine_api::user_data_dir_of(eng);
         [
-            balaur_core::engine_api::user_data_dir_of(eng),
+            data.join(super::CACHE_DIR),
+            data,
             balaur_core::engine_api::data_home(eng),
         ]
         .into_iter()
-        .map(|dir| dir.canonicalize().unwrap_or(dir))
+        .flat_map(|dir| {
+            let resolved = dir.canonicalize().ok();
+            std::iter::once(dir).chain(resolved)
+        })
         .collect()
     }
 

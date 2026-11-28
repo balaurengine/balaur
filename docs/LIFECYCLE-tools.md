@@ -743,7 +743,7 @@ Source: `crates/balaur_script_bs/src/host/burst.rs`, `Burst`, `settled_burst`, `
 
 Starts empty. Never ends.
 
-Refused or ignored: a run with no watcher gathers nothing.
+Refused or ignored: a run with no watcher gathers nothing. `balaur run` watches a windowed run only; a `--headless` or `--offscreen` one watches with `--watch`. A path under the game's data folders or its script cache (`bs-cache`), as written or as its links resolve, is never heard: a compile writing there is not an edit.
 
 ### Debug adapter client
 
