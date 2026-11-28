@@ -6,6 +6,7 @@
 
 use balaur_core::Engine;
 use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
+use smol_str::SmolStr;
 
 use crate::vocabulary::words as w;
 use crate::widget::arrange::{
@@ -68,11 +69,7 @@ pub(crate) fn dropdown(
             response
         })
         .inner;
-    let height = if widget.egui.list_height > 0.0 {
-        widget.egui.list_height
-    } else {
-        ui.spacing().combo_height
-    };
+    let height = list_height(widget, ui);
     let list = egui::Popup::menu(&button)
         .id(popup)
         .width(button.rect.width())
@@ -83,15 +80,11 @@ pub(crate) fn dropdown(
             egui::ScrollArea::vertical()
                 .max_height(height)
                 .show(ui, |ui| {
-                    // A narrow button would wrap its rows early; they run
-                    // as wide as they are.
-                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-                    for option in &widget.options {
-                        let label = rich(option.as_str(), font, color, slant, &widget.text_look);
-                        let on = chosen == *option;
-                        if crate::widget::button::text_button(ui, label, Some(on)).clicked() {
-                            chosen = option.clone();
-                        }
+                    let face = (font, color, slant, &*widget.text_look);
+                    let picked_row = |row: usize| widget.options[row] == chosen;
+                    let rows = option_rows(ui, &widget.options, face, picked_row);
+                    if let Some(row) = rows.clicked {
+                        chosen = widget.options[row].clone();
                     }
                 });
         })
@@ -102,6 +95,55 @@ pub(crate) fn dropdown(
     if chosen != widget.text {
         at.edits.push((entity, Edit::Choice(chosen.to_string())));
     }
+}
+
+/// The tallest a list of `options` grows before it scrolls: the widget's
+/// `list_height`, else egui's.
+pub(crate) fn list_height(widget: &Widget, ui: &egui::Ui) -> f32 {
+    if widget.egui.list_height > 0.0 {
+        widget.egui.list_height
+    } else {
+        ui.spacing().combo_height
+    }
+}
+
+/// What a pass over a list of `options` met: the row the pointer is over,
+/// and the row clicked.
+pub(crate) struct OptionRows {
+    pub(crate) hovered: Option<usize>,
+    pub(crate) clicked: Option<usize>,
+}
+
+/// A row for each of `options` in the widget's face, `lit` the ones drawn
+/// picked: a dropdown's list, a field's menu.
+pub(crate) fn option_rows(
+    ui: &mut egui::Ui,
+    options: &[SmolStr],
+    (font, color, slant, look): (
+        &egui::FontId,
+        Color32,
+        bool,
+        &crate::widget::text_look::TextLook,
+    ),
+    lit: impl Fn(usize) -> bool,
+) -> OptionRows {
+    // A narrow box would wrap its rows early; they run as wide as they are.
+    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+    let mut met = OptionRows {
+        hovered: None,
+        clicked: None,
+    };
+    for (row, option) in options.iter().enumerate() {
+        let label = rich(option.as_str(), font, color, slant, look);
+        let response = crate::widget::button::text_button(ui, label, Some(lit(row)));
+        if response.hovered() {
+            met.hovered = Some(row);
+        }
+        if response.clicked() {
+            met.clicked = Some(row);
+        }
+    }
+    met
 }
 
 /// A dropdown's button, sized and painted as egui's combo box: the picked

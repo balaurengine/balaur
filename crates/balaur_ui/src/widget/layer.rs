@@ -702,8 +702,9 @@ pub(crate) enum Edit {
     Value(f32),
     /// A fold shown or hidden.
     Open(bool),
-    /// A dropdown's pick.
+    /// A dropdown's pick, and one of a field's `options` picked from its menu.
     Choice(String),
+    OptionPicked(String),
     /// A row of a `list`, `tree` or `table` clicked, and everything the click
     /// leaves picked -- empty where the widget holds one row at a time.
     Picked(String, Vec<String>),

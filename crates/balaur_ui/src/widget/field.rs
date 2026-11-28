@@ -29,6 +29,9 @@ const ROOM: &str = "MMMMMMMMMMMM";
 /// A field's ids: its sensor's, one per layer, and its kept state's.
 const FIELD: &str = "balaur-field";
 
+/// The id of a field's menu of `options`, under its sensor's.
+const OPTIONS: &str = "balaur-field-options";
+
 /// The space between a field's edge and its text: its padding and border,
 /// and egui's margin round the text where it states no padding.
 pub(crate) fn margin_of(widget: &Widget, style: &Style) -> Pad {
@@ -170,13 +173,10 @@ pub(crate) fn edit(
         size.x = size.x.max(natural.x);
     }
     let rect = Rect::from_min_size(ui.max_rect().min, size);
-    let submit = crate::chord::chord(&widget.egui.submit_key).map_or(
-        egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Enter),
-        |(modifiers, key)| egui::KeyboardShortcut::new(modifiers, key),
-    );
+    let submit = submit_of(widget);
     // Mirrored, the line starts at the right and the icon sits there.
     let flip = crate::widget::direction::mirrored(at.arena, index);
-    let typing = Typing {
+    let mut typing = Typing {
         id: crate::widget::layer::sensor_id(ui, FIELD, entity),
         multiline,
         secret: widget.secret,
@@ -184,6 +184,7 @@ pub(crate) fn edit(
         clip: true,
         frame: true,
         tab_inserts: widget.egui.tab_inserts,
+        keeps_escape: false,
         numeric: widget.numeric,
         max_chars: widget.max_length as usize,
         submit: Some(submit),
@@ -220,8 +221,27 @@ pub(crate) fn edit(
         ui.memory_mut(|mem| mem.request_focus(typing.id));
         field.editing.select_all();
     }
-    let typed = typing.show(ui, at.eng, rect, &mut field, &setter);
+    let offers = !multiline && widget.egui.editable && !widget.options.is_empty();
+    let walked = offers
+        .then(|| walk_options(ui, typing.id, widget.options.len(), &mut field.offered))
+        .flatten();
+    // Escape is the menu's to fold while it hangs, not egui's to leave by.
+    typing.keeps_escape = offers && !field.offered.folded;
+    let keep = offers && field.offered.pressed_on(ui);
+    let typed = keeping_focus(ui, keep, |ui| {
+        typing.show(ui, at.eng, rect, &mut field, &setter)
+    });
     ui.advance_cursor_after_rect(rect);
+    if offers {
+        let faced = (&*look, font, color, at.slant(index));
+        offer(
+            ui,
+            at,
+            index,
+            ((rect, &typed), faced),
+            (&mut field.offered, walked),
+        );
+    }
     // A click into the field is focus arriving, as Tab reaching it is.
     if typed.response.gained_focus()
         && let Some(focus) = at.eng.try_resource::<crate::UiFocus>()
@@ -237,6 +257,177 @@ pub(crate) fn edit(
     }
     field.owner = Some(entity);
     state.borrow_mut().fields.insert(key, field);
+}
+
+/// The chord that submits a field: its `submit_key`, else Enter.
+fn submit_of(widget: &Widget) -> egui::KeyboardShortcut {
+    crate::chord::chord(&widget.egui.submit_key).map_or(
+        egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Enter),
+        |(modifiers, key)| egui::KeyboardShortcut::new(modifiers, key),
+    )
+}
+
+/// `show` with egui keeping the keyboard where `keep` says, as a press on a
+/// field's menu asks: egui would let go of it in the field's own sensor,
+/// for a press elsewhere, before the menu is drawn.
+fn keeping_focus<R>(ui: &mut egui::Ui, keep: bool, show: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    if !keep {
+        return show(ui);
+    }
+    let was = ui.ctx().options_mut(|options| {
+        std::mem::replace(
+            &mut options.input_options.surrender_focus_on,
+            egui::SurrenderFocusOn::Never,
+        )
+    });
+    let shown = show(ui);
+    ui.ctx()
+        .options_mut(|options| options.input_options.surrender_focus_on = was);
+    shown
+}
+
+/// The keys a field's menu of `options` takes before the field reads them,
+/// held alone: the arrows walk its rows, Escape folds it, and Enter picks
+/// the row walked to, which it answers. Tab folds it and moves on, so the
+/// keyboard reaches the next control rather than a row.
+fn walk_options(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    rows: usize,
+    offered: &mut crate::widget::typing::Offered,
+) -> Option<usize> {
+    use egui::{Key, Modifiers};
+    if !offered.hangs(ui, id) {
+        return None;
+    }
+    let last = rows - 1;
+    ui.input_mut(|i| {
+        if i.key_pressed(Key::Tab) {
+            offered.folded = true;
+        }
+        if !i.modifiers.is_none() {
+            return None;
+        }
+        if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
+            offered.pointed = false;
+            offered.walked = Some(offered.walked.map_or(0, |row| (row + 1).min(last)));
+        }
+        if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
+            offered.pointed = false;
+            offered.walked = offered.walked.and_then(|row| row.checked_sub(1));
+        }
+        if i.consume_key(Modifiers::NONE, Key::Escape) {
+            offered.folded = true;
+        }
+        offered
+            .walked
+            .filter(|row| *row <= last)
+            .filter(|_| i.consume_key(Modifiers::NONE, Key::Enter))
+    })
+}
+
+/// What a field's menu of `options` does once the field has drawn: typing,
+/// or the keyboard coming or going, unfolds it with nothing walked; it
+/// hangs; and the row `walked` picked by Enter or one a press picked folds
+/// it and says so.
+fn offer(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    ((rect, typed), faced): ((Rect, &crate::widget::typing::Typed), Faced<'_>),
+    (offered, walked): (&mut crate::widget::typing::Offered, Option<usize>),
+) {
+    let response = &typed.response;
+    if typed.changed || response.gained_focus() || response.lost_focus() {
+        *offered = crate::widget::typing::Offered::default();
+    }
+    let pressed = hang_options(ui, at, index, (rect, response, faced), offered);
+    if let Some(row) = walked.or(pressed) {
+        offered.folded = true;
+        let placed = &at.arena[index];
+        let option = placed.widget.options[row].to_string();
+        at.edits.push((placed.entity, Edit::OptionPicked(option)));
+    }
+}
+
+/// The face a field's menu draws its rows in: the field's look, font, ink
+/// and whether egui slants it.
+type Faced<'a> = (
+    &'a crate::widget::arena::Look,
+    &'a egui::FontId,
+    egui::Color32,
+    bool,
+);
+
+/// A field's menu of `options`, hung under it over what sits below while the
+/// field holds the keyboard, as wide as it and kept inside its screen as a
+/// dropdown's list is, in the role's `body` plate where it states one; the
+/// row a press picked. The pointer moving over a row walks to it, and off
+/// the rows lets go of the row it walked to.
+fn hang_options(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    (rect, response, (look, font, ink, slant)): (Rect, &egui::Response, Faced<'_>),
+    offered: &mut crate::widget::typing::Offered,
+) -> Option<usize> {
+    let placed = &at.arena[index];
+    let (widget, entity) = (&placed.widget, placed.entity);
+    let id = response.id;
+    offered.menu = None;
+    if !offered.hangs(ui, id) {
+        return None;
+    }
+    let body = look.style.body.as_deref();
+    let mut popup = egui::Popup::from_response(response)
+        .id(id.with(OPTIONS))
+        .open(true)
+        .width(rect.width())
+        .layout(egui::Layout::top_down_justified(egui::Align::Min))
+        .style(egui::containers::menu::menu_style)
+        .close_behavior(egui::PopupCloseBehavior::IgnoreClicks);
+    if body.is_some() {
+        popup = popup.frame(egui::Frame::NONE);
+    }
+    let mut met = None;
+    let shown = crate::widget::popups::kept_inside(popup, egui::RectAlign::BOTTOM_START, &[], 0.0)
+        .show(|ui| {
+            ui.set_min_width(rect.width());
+            crate::widget::sheet::on_plate(ui, at.eng, body, None, |ui| {
+                let height = crate::widget::kinds::list_height(widget, ui);
+                egui::ScrollArea::vertical()
+                    .max_height(height)
+                    .show(ui, |ui| {
+                        let lit = |row| offered.walked == Some(row);
+                        let face = (font, ink, slant, &*widget.text_look);
+                        met = Some(crate::widget::kinds::option_rows(
+                            ui,
+                            &widget.options,
+                            face,
+                            lit,
+                        ));
+                    });
+            });
+        });
+    if let Some(shown) = shown {
+        offered.menu = Some(shown.response.rect);
+        at.shown.push(entity);
+    }
+    let met = met?;
+    if ui.input(|i| i.pointer.delta() != Vec2::ZERO) {
+        match met.hovered {
+            Some(row) => {
+                offered.walked = Some(row);
+                offered.pointed = true;
+            }
+            None if offered.pointed => {
+                offered.walked = None;
+                offered.pointed = false;
+            }
+            None => {}
+        }
+    }
+    met.clicked
 }
 
 /// The field's `icon` in the theme's icon font at its text's size, in its

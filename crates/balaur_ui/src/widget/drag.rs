@@ -280,6 +280,7 @@ impl DragNumber<'_> {
             clip: true,
             frame: true,
             tab_inserts: false,
+            keeps_escape: false,
             numeric: false,
             max_chars: 0,
             submit: Some(egui::KeyboardShortcut::new(Modifiers::NONE, Key::Enter)),

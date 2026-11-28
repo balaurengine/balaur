@@ -14,11 +14,23 @@ fn focused_field(
     egui::Context,
     balaur_core::hecs::Entity,
 ) {
+    field_from(toml::toml! { text = text })
+}
+
+/// A field at the top left, 300 wide, its rows extended by `own`, holding
+/// the keyboard and ready for typing on the next pass.
+fn field_from(
+    own: toml::Table,
+) -> (
+    tempfile::TempDir,
+    balaur_core::App,
+    egui::Context,
+    balaur_core::hecs::Entity,
+) {
     let (dir, app) = app();
-    let field = add_widget(
-        &app,
-        &toml::toml! { kind = "text_field" text = text x = 0.0 y = 0.0 width = 300.0 }.into(),
-    );
+    let mut params = toml::toml! { kind = "text_field" x = 0.0 y = 0.0 width = 300.0 };
+    params.extend(own);
+    let field = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     {
@@ -258,5 +270,145 @@ fn a_focused_field_keeps_its_caret_when_it_moves_under_another_root() {
         focused(&app),
         Some(field),
         "the move took focus off the field"
+    );
+}
+
+/// A field holding the keyboard with `options` to offer, as a city search
+/// with its matches.
+fn offering_field() -> (
+    tempfile::TempDir,
+    balaur_core::App,
+    egui::Context,
+    balaur_core::hecs::Entity,
+) {
+    field_from(toml::toml! { text = "P" widget_dropdown = { options = ["Paris", "Porto"] } })
+}
+
+/// Where each line of text a pass drew sits, by what it says.
+fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
+    out.shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            egui::epaint::Shape::Text(text) => Some((
+                text.galley.text().to_owned(),
+                text.galley.rect.translate(text.pos.to_vec2()),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+fn said(
+    app: &balaur_core::App,
+    field: balaur_core::hecs::Entity,
+    event: &str,
+) -> Vec<balaur_script::Value> {
+    balaur_core::events::delivered_from(&app.engine, field, event)
+}
+
+// A field's `options` hang under it while it holds the keyboard; the arrows
+// walk them and Enter picks the one walked to, leaving the text and the
+// keyboard where they were.
+#[test]
+fn a_field_s_options_hang_under_it_and_the_arrows_pick_one() {
+    let (_dir, mut app, ctx, field) = offering_field();
+    let shown = texts(&pass(&app, &ctx, vec![]));
+    let below = balaur_ui::widget_rect(field).expect("it drew").max.y;
+    for city in ["Paris", "Porto"] {
+        let row = shown.iter().find(|(text, _)| text == city);
+        assert!(
+            row.is_some_and(|(_, at)| at.min.y >= below - 0.5),
+            "{city} hangs under the field: {shown:?}"
+        );
+    }
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    pass(&app, &ctx, key(egui::Key::Enter));
+    consume_input(&mut app);
+    assert_eq!(
+        said(&app, field, balaur_ui::OPTION_PICKED_EVENT),
+        vec![balaur_script::Value::Str("Porto".into())]
+    );
+    assert_eq!(text_of(&app, field), "P", "the text is the script's to set");
+    assert!(
+        balaur_core::events::delivered_from(&app.engine, field, balaur_ui::SUBMITTED_EVENT)
+            .is_empty(),
+        "Enter on a row picks it rather than submitting"
+    );
+    assert_eq!(focused(&app), Some(field), "the keyboard stays");
+    let folded = texts(&pass(&app, &ctx, vec![]));
+    assert!(
+        !folded.iter().any(|(text, _)| text == "Paris"),
+        "a pick folds the menu: {folded:?}"
+    );
+}
+
+// Escape folds the menu and keeps the keyboard; typing hangs it again.
+#[test]
+fn escape_folds_a_field_s_options_until_it_is_typed_into() {
+    let (_dir, mut app, ctx, field) = offering_field();
+    // A pass holding the keyboard, as any key after focus arrives is.
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, key(egui::Key::Escape));
+    let folded = texts(&pass(&app, &ctx, vec![]));
+    assert!(
+        !folded.iter().any(|(text, _)| text == "Paris"),
+        "{folded:?}"
+    );
+    consume_input(&mut app);
+    assert_eq!(
+        focused(&app),
+        Some(field),
+        "Escape folded the menu, not the field"
+    );
+    pass(&app, &ctx, vec![egui::Event::Text("a".into())]);
+    let again = texts(&pass(&app, &ctx, vec![]));
+    assert!(again.iter().any(|(text, _)| text == "Paris"), "{again:?}");
+}
+
+#[test]
+fn a_press_on_a_field_s_option_picks_it() {
+    let (_dir, mut app, ctx, field) = offering_field();
+    let shown = texts(&pass(&app, &ctx, vec![]));
+    let (_, paris) = shown
+        .iter()
+        .find(|(text, _)| text == "Paris")
+        .expect("the menu hangs");
+    let at = paris.center();
+    pass(&app, &ctx, vec![egui::Event::PointerMoved(at)]);
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    consume_input(&mut app);
+    assert_eq!(
+        said(&app, field, balaur_ui::OPTION_PICKED_EVENT),
+        vec![balaur_script::Value::Str("Paris".into())]
+    );
+    assert_eq!(
+        focused(&app),
+        Some(field),
+        "the keyboard stays on the field"
+    );
+    assert!(
+        balaur_core::events::delivered_from(&app.engine, field, balaur_ui::SUBMITTED_EVENT)
+            .is_empty(),
+        "a press on its menu is no leaving the field"
+    );
+}
+
+// Tab folds the menu and goes where it goes from a field with nothing to
+// offer: never to a row of the menu.
+#[test]
+fn tab_folds_a_field_s_options_and_never_reaches_a_row() {
+    let (_dir, app, ctx, _field) = offering_field();
+    pass(&app, &ctx, vec![]);
+    let held = ctx.memory(egui::Memory::focused);
+    assert!(held.is_some(), "the field holds the keyboard");
+    pass(&app, &ctx, key(egui::Key::Tab));
+    let after = texts(&pass(&app, &ctx, vec![]));
+    assert!(!after.iter().any(|(text, _)| text == "Paris"), "{after:?}");
+    let now = ctx.memory(egui::Memory::focused);
+    assert!(
+        now.is_none() || now == held,
+        "a row took the keyboard: {now:?}"
     );
 }

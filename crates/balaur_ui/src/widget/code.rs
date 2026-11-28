@@ -582,6 +582,7 @@ pub(crate) fn code_editor(
         clip: false,
         frame: false,
         tab_inserts: widget.egui.tab_inserts,
+        keeps_escape: false,
         numeric: false,
         max_chars: 0,
         submit: None,

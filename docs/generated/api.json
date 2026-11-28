@@ -14244,7 +14244,7 @@
     "widget_child": "What a child says to the parent it sits in, whatever its own kind: a `grid`'s cell, a `fold`'s header, a `menu`'s row.",
     "widget_code": "The rows a `code` widget reads: what it highlights and its gutter.",
     "widget_color_picker": "The rows a `color_picker` reads: the colour it holds and what it offers.",
-    "widget_dropdown": "The rows a `dropdown` reads: what it offers, how tall its list grows and what shuts it.",
+    "widget_dropdown": "The rows a `dropdown` reads: what it offers, how tall its list grows and what shuts it; and those a `text_field` hangs a menu of under itself.",
     "widget_field": "The rows a `text_field`, `text_area` or `code` reads: what may be typed and how the editor behaves.",
     "widget_fold": "The row a `fold` reads: whether it shows what is under its header.",
     "widget_grid": "The rows a `grid` reads: its tracks and its named areas.",
@@ -14485,6 +14485,10 @@
       [
         "submitted",
         "the text"
+      ],
+      [
+        "option_picked",
+        "the option"
       ],
       [
         "link_clicked",
@@ -26187,7 +26191,7 @@
     "widget_dropdown": {
       "close_on": {
         "default": "click",
-        "description": "What shuts a `dropdown`'s list: any click, a pick included, a click outside it, or nothing but Escape",
+        "description": "What shuts a `dropdown`'s list: any click, a pick included, a click outside it, or nothing but Escape. A `text_field`'s menu folds on a pick, on Escape and as the field lets the keyboard go, whatever this says",
         "options": [
           "click_outside",
           "click",
@@ -26197,13 +26201,13 @@
       },
       "list_height": {
         "default": 0.0,
-        "description": "The tallest a `dropdown`'s list grows before it scrolls, in design pixels; 0 takes egui's",
+        "description": "The tallest a `dropdown`'s list, or a `text_field`'s menu, grows before it scrolls, in design pixels; 0 takes egui's",
         "min": 0.0,
         "type": "float"
       },
       "options": {
         "default": [],
-        "description": "The words a `dropdown` offers; `text` is the one picked, and `value_changed` carries every pick",
+        "description": "The words a `dropdown` offers; `text` is the one picked, and `value_changed` carries every pick. On a `text_field`, the words it offers in a menu hung under it, over what sits below, while it holds the keyboard: a search's matches as they are typed. The arrows walk them, Enter or a press picks one, which `option_picked` carries, and Escape folds the menu until the text changes; the field says `opened` and `closed` as it hangs and folds, and the text stays the script's to set",
         "of": {
           "default": "",
           "type": "string"

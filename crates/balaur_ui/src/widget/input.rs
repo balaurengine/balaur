@@ -251,6 +251,9 @@ pub fn edit(eng: &Engine, entity: Entity, value: &Value) -> bool {
 /// connected in a scene does. A click is `pointer_click`, as a world node's.
 pub const VALUE_CHANGED_EVENT: &str = "value_changed";
 pub const SUBMITTED_EVENT: &str = "submitted";
+/// What a `text_field` emits when one of its `options` is picked from the
+/// menu under it, with the option.
+pub const OPTION_PICKED_EVENT: &str = "option_picked";
 
 /// What a `[url]` span emits when it is clicked, with its target.
 pub const LINK_CLICKED_EVENT: &str = "link_clicked";
@@ -423,6 +426,7 @@ fn pointer_edits(eng: &Engine, ctx: &egui::Context, under: &[Entity]) -> Vec<(En
 pub(crate) const EVENTS: &[(&str, &str)] = &[
     (VALUE_CHANGED_EVENT, "the new value"),
     (SUBMITTED_EVENT, "the text"),
+    (OPTION_PICKED_EVENT, "the option"),
     (LINK_CLICKED_EVENT, "the link's target"),
     (GUTTER_CLICKED_EVENT, "the line"),
     (
@@ -600,6 +604,7 @@ fn settle_one(
         Edit::Link(target) => Some((LINK_CLICKED_EVENT, Value::Str(target.clone()))),
         Edit::Gutter(line) => Some((GUTTER_CLICKED_EVENT, Value::Int(*line))),
         Edit::ViewClicked(point) => Some((VIEW_CLICKED_EVENT, Value::Vec2(*point))),
+        Edit::OptionPicked(option) => Some((OPTION_PICKED_EVENT, Value::Str(option.clone()))),
         _ => heard(edit),
     };
     if let Some((event, value)) = saying {

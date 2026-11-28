@@ -205,6 +205,39 @@ pub(crate) struct Field {
     pub(crate) kept: Kept,
     /// The id it was last drawn under, which egui keeps its focus by.
     drawn: Option<egui::Id>,
+    /// The menu of `options` under it.
+    pub(crate) offered: Offered,
+}
+
+/// A `text_field`'s menu of `options`, kept between passes: the row the
+/// arrows or the pointer walked to and whether the pointer did, whether
+/// Escape or a pick folded it, and where it was drawn last.
+#[derive(Default)]
+pub(crate) struct Offered {
+    pub(crate) walked: Option<usize>,
+    pub(crate) pointed: bool,
+    pub(crate) folded: bool,
+    pub(crate) menu: Option<egui::Rect>,
+}
+
+impl Offered {
+    /// Whether the menu hangs: the field under `id` holds the keyboard and
+    /// nothing folded it.
+    pub(crate) fn hangs(&self, ui: &egui::Ui, id: egui::Id) -> bool {
+        !self.folded && ui.memory(|mem| mem.has_focus(id))
+    }
+
+    /// Whether a press or a release lands on the menu as it was drawn last.
+    pub(crate) fn pressed_on(&self, ui: &egui::Ui) -> bool {
+        self.menu.is_some_and(|menu| {
+            ui.input(|i| {
+                (i.pointer.any_pressed() || i.pointer.any_released())
+                    && i.pointer
+                        .interact_pos()
+                        .is_some_and(|point| menu.contains(point))
+            })
+        })
+    }
 }
 
 impl Field {
@@ -260,6 +293,9 @@ pub(crate) struct Typing<'a> {
     /// The box behind the text, in egui's text edit look.
     pub(crate) frame: bool,
     pub(crate) tab_inserts: bool,
+    /// Escape is the field's own while it holds the keyboard, which egui
+    /// would otherwise let go of on it: a menu under it folds on it first.
+    pub(crate) keeps_escape: bool,
     pub(crate) numeric: bool,
     /// The most characters it holds; 0 is no limit.
     pub(crate) max_chars: usize,
@@ -608,7 +644,7 @@ impl Typing<'_> {
             tab: self.tab_inserts,
             horizontal_arrows: true,
             vertical_arrows: true,
-            escape: false,
+            escape: self.keeps_escape,
         };
         ui.memory_mut(|mem| mem.set_focus_lock_filter(self.id, filter));
         let events = ui.input(|i| i.filtered_events(&filter));

@@ -646,23 +646,23 @@ impl Beside for WidgetList {
     }
 }
 
-/// The rows a `dropdown` reads: what it offers, how tall its list grows and what shuts it.
+/// The rows a `dropdown` reads: what it offers, how tall its list grows and what shuts it; and those a `text_field` hangs a menu of under itself.
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_dropdown")]
 pub(crate) struct WidgetDropdown {
-    /// The words a `dropdown` offers; `text` is the one picked, and `value_changed` carries every pick
+    /// The words a `dropdown` offers; `text` is the one picked, and `value_changed` carries every pick. On a `text_field`, the words it offers in a menu hung under it, over what sits below, while it holds the keyboard: a search's matches as they are typed. The arrows walk them, Enter or a press picks one, which `option_picked` carries, and Escape folds the menu until the text changes; the field says `opened` and `closed` as it hangs and folds, and the text stays the script's to set
     pub(crate) options: Vec<SmolStr>,
-    /// The tallest a `dropdown`'s list grows before it scrolls, in design pixels; 0 takes egui's
+    /// The tallest a `dropdown`'s list, or a `text_field`'s menu, grows before it scrolls, in design pixels; 0 takes egui's
     #[property(min = 0.0)]
     pub(crate) list_height: f32,
-    /// What shuts a `dropdown`'s list: any click, a pick included, a click outside it, or nothing but Escape
+    /// What shuts a `dropdown`'s list: any click, a pick included, a click outside it, or nothing but Escape. A `text_field`'s menu folds on a pick, on Escape and as the field lets the keyboard go, whatever this says
     #[property(default = CloseOn::new(w::CLICK))]
     pub(crate) close_on: CloseOn,
 }
 
 impl Beside for WidgetDropdown {
     fn reads(kind: &str) -> bool {
-        kind == w::DROPDOWN
+        matches!(kind, w::DROPDOWN | w::TEXT_FIELD)
     }
 
     puts! { held, widget;

@@ -2605,6 +2605,7 @@ Announced from a node carrying `widget`:
 <tbody>
 <tr><td><code>value_changed</code></td><td>the new value</td></tr>
 <tr><td><code>submitted</code></td><td>the text</td></tr>
+<tr><td><code>option_picked</code></td><td>the option</td></tr>
 <tr><td><code>link_clicked</code></td><td>the link&#x27;s target</td></tr>
 <tr><td><code>gutter_clicked</code></td><td>the line</td></tr>
 <tr><td><code>view_clicked</code></td><td>where it landed, a <code>Vec2</code> in the window&#x27;s design pixels</td></tr>
@@ -2735,14 +2736,14 @@ The rows a `color_picker` reads: the colour it holds and what it offers.
 
 `ui` · 3 properties
 
-The rows a `dropdown` reads: what it offers, how tall its list grows and what shuts it.
+The rows a `dropdown` reads: what it offers, how tall its list grows and what shuts it; and those a `text_field` hangs a menu of under itself.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>options</code></td><td>list of string</td><td><code>[]</code></td><td>The words a `dropdown` offers; `text` is the one picked, and `value_changed` carries every pick</td></tr>
-<tr><td><code>list_height</code></td><td>float</td><td><code>0.0</code></td><td>The tallest a `dropdown`&#x27;s list grows before it scrolls, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
-<tr><td><code>close_on</code></td><td>enum</td><td><code>click</code></td><td>What shuts a `dropdown`&#x27;s list: any click, a pick included, a click outside it, or nothing but Escape One of <code>click_outside</code>, <code>click</code>, <code>never</code>.</td></tr>
+<tr><td><code>options</code></td><td>list of string</td><td><code>[]</code></td><td>The words a `dropdown` offers; `text` is the one picked, and `value_changed` carries every pick. On a `text_field`, the words it offers in a menu hung under it, over what sits below, while it holds the keyboard: a search&#x27;s matches as they are typed. The arrows walk them, Enter or a press picks one, which `option_picked` carries, and Escape folds the menu until the text changes; the field says `opened` and `closed` as it hangs and folds, and the text stays the script&#x27;s to set</td></tr>
+<tr><td><code>list_height</code></td><td>float</td><td><code>0.0</code></td><td>The tallest a `dropdown`&#x27;s list, or a `text_field`&#x27;s menu, grows before it scrolls, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
+<tr><td><code>close_on</code></td><td>enum</td><td><code>click</code></td><td>What shuts a `dropdown`&#x27;s list: any click, a pick included, a click outside it, or nothing but Escape. A `text_field`&#x27;s menu folds on a pick, on Escape and as the field lets the keyboard go, whatever this says One of <code>click_outside</code>, <code>click</code>, <code>never</code>.</td></tr>
 </tbody>
 </table>
 
