@@ -318,6 +318,9 @@ pub(crate) struct Batches {
     /// around it when it last was.
     order_again: bool,
     around: Around,
+    /// The scale a size held on the screen was last drawn at: a move draws
+    /// every one of them again.
+    held_at: f32,
 }
 
 impl Batches {
@@ -588,7 +591,10 @@ fn instance(
     if !appearance.visible {
         return None;
     }
-    let (at, deformation) = crate::batch_2d::pose(&renderable, &global);
+    let (at, mut deformation) = crate::batch_2d::pose(&renderable, &global);
+    if renderable.on_screen {
+        deformation *= crate::on_screen_scale(&app.engine);
+    }
     let color = crate::film::rgba(modulate(renderable.color, appearance.tint.to_array()));
     // A frame, a region or a flip is this instance's corner of the image the
     // whole run shares, so one sheet is still one call.
@@ -684,11 +690,13 @@ pub(crate) fn sync_2d(
                     .get(&entity)
                     .is_some_and(|key| *key != run_key(app, &world, entity))
         });
+    let rescaled = rescaled(app, &world, batches);
     if !everything {
         let mut visit: Vec<Entity> = dirty
             .nodes
             .iter()
             .chain(batches.live.iter())
+            .chain(rescaled.iter())
             .copied()
             .collect();
         visit.sort_unstable();
@@ -762,6 +770,26 @@ pub(crate) fn sync_2d(
         batches.recut |= built && slots.contains_key(&entity);
     }
     flush(batches, slots, Some(&seen));
+}
+
+/// Every node held on the screen when the scale they are drawn at moved since
+/// the last sync, which draws each of them again; none otherwise.
+fn rescaled(app: &App, world: &balaur_core::hecs::World, batches: &mut Batches) -> Vec<Entity> {
+    let held_at = crate::on_screen_scale(&app.engine);
+    #[allow(
+        clippy::float_cmp,
+        reason = "the same reading of the same zoom, or a new one"
+    )]
+    if held_at == batches.held_at {
+        return Vec::new();
+    }
+    batches.held_at = held_at;
+    world
+        .query::<(Entity, &Renderable2d)>()
+        .iter()
+        .filter(|(_, renderable)| renderable.on_screen)
+        .map(|(entity, _)| entity)
+        .collect()
 }
 
 /// What one frame's 2D sync reads the same for every node.
@@ -857,10 +885,18 @@ fn sync_one_2d(
     let visible = appearance.visible
         && draws(renderable, appearance.material)
         && draw_multimesh(app, world, entity, slot, renderable, global);
+    let held = if renderable.on_screen {
+        crate::on_screen_scale(&app.engine)
+    } else {
+        1.0
+    };
     slot.node
         .set_position(Vec2::new(global.position.x, global.position.y) + shift)
         .set_rotation(angle)
-        .set_local_scale(size.x * global.scale.x, size.y * global.scale.y)
+        .set_local_scale(
+            size.x * global.scale.x * held,
+            size.y * global.scale.y * held,
+        )
         .set_color(color)
         .set_visible(visible);
     let moving = slot.skin.is_some()

@@ -478,7 +478,7 @@ A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; t
 
 ### `line2d`
 
-`2d` · `render` · 14 properties
+`2d` · `render` · 15 properties
 
 A stroked line at the node through the points of a `mesh` or `path2d` asset, tinted by `color` and drawn with `texture`.
 
@@ -496,6 +496,7 @@ A stroked line at the node through the points of a `mesh` or `path2d` asset, tin
 <tr><td><code>cap</code></td><td>enum</td><td><code>round</code></td><td>How an open line ends One of <code>round</code>, <code>butt</code>, <code>square</code>.</td></tr>
 <tr><td><code>miter_limit</code></td><td>float</td><td><code>4.0</code></td><td>How far a miter join may reach, in half-widths, before its corner is cut to a bevel At least 1.0.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around a round join or cap At least 3.</td></tr>
+<tr><td><code>width_on_screen</code></td><td>bool</td><td><code>false</code></td><td>Hold its `width` on the screen: the camera&#x27;s pixels, a `view`&#x27;s design pixels or the window&#x27;s, whatever the camera&#x27;s zoom; the line&#x27;s points stay where they are</td></tr>
 <tr><td><code>dashes</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>A dash&#x27;s length and the gap after it, in world units, as SVG&#x27;s `stroke-dasharray`; each dash ends in `cap` (round on a tapered line), and [0, 0] draws the line whole</td></tr>
 <tr><td><code>gradient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The colour the line fades to at its far end, from `color` at its start; a zero alpha means no gradient</td></tr>
 <tr><td><code>gradient_steps</code></td><td>int</td><td><code>32</code></td><td>How many colours the gradient steps through along the line At least 1.</td></tr>
@@ -716,7 +717,7 @@ On a node carrying `screen_notifier2d`, as `node.screen_notifier2d.<method>`:
 
 ### `shape2d`
 
-`2d` · `render` · 4 properties
+`2d` · `render` · 5 properties
 
 A 2D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`, and the dimensions that kind reads. A stroked line is `line2d`.
 
@@ -727,6 +728,7 @@ A 2D primitive at the node, tinted by `color` and drawn with `texture`: `shape` 
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, the shape draws with over its own UVs</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
+<tr><td><code>on_screen</code></td><td>bool</td><td><code>false</code></td><td>Hold its size on the screen: its dimensions are the camera&#x27;s pixels, a `view`&#x27;s design pixels or the window&#x27;s, whatever the camera&#x27;s zoom, scaled about the node</td></tr>
 </tbody>
 </table>
 
@@ -1010,7 +1012,7 @@ A textured 2D quad at the node, sized by `pixels_per_unit`. A `sprite_sheet` in 
 
 ### `text2d`
 
-`2d` · `render` · 19 properties
+`2d` · `render` · 20 properties
 
 A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.
 
@@ -1036,6 +1038,7 @@ A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world 
 <tr><td><code>truncate</code></td><td>bool</td><td><code>false</code></td><td>End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line</td></tr>
 <tr><td><code>truncate_at</code></td><td>enum</td><td><code>end</code></td><td>Which part of a cut line the ellipsis stands in for One of <code>end</code>, <code>start</code>, <code>middle</code>.</td></tr>
 <tr><td><code>tab_size</code></td><td>int</td><td><code>8</code></td><td>Spaces between tab stops Range 1–64.</td></tr>
+<tr><td><code>on_screen</code></td><td>bool</td><td><code>false</code></td><td>Hold its size on the screen: a font pixel is the camera&#x27;s pixel, a `view`&#x27;s design pixel or the window&#x27;s, whatever the camera&#x27;s zoom, in place of `pixels_per_unit`</td></tr>
 </tbody>
 </table>
 

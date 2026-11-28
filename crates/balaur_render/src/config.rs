@@ -225,3 +225,10 @@ impl Default for CameraConfig3d {
         }
     }
 }
+
+/// How many of its own pixels the 2D scene's camera gives a world unit this
+/// frame: a camera drawing into a `view` that is drawn, in the view's design
+/// pixels, else the window's 2D camera, in logical pixels. What a size held on the screen
+/// (`on_screen`, `width_on_screen`) is divided by; 0 before a frame is drawn.
+#[derive(Default)]
+pub struct ScreenZoom2d(pub f32);

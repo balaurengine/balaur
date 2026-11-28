@@ -290,7 +290,7 @@ fn under_pointer_2d(eng: &Engine) -> Option<hecs::Entity> {
         if !visible {
             continue;
         }
-        let Some((hx, hy)) = half_extents_2d(renderable) else {
+        let Some((hx, hy)) = half_extents_2d(eng, renderable) else {
             continue;
         };
         let hx = hx * at.scale.x;
@@ -313,7 +313,21 @@ fn under_pointer_2d(eng: &Engine) -> Option<hecs::Entity> {
 
 /// A 2D renderable's half extents, or `None` for a shape with no box —
 /// a polyline and a polygon carry their points in a mesh asset.
-pub(crate) fn half_extents_2d(renderable: &crate::Renderable2d) -> Option<(f32, f32)> {
+pub(crate) fn half_extents_2d(
+    eng: &balaur_core::Engine,
+    renderable: &crate::Renderable2d,
+) -> Option<(f32, f32)> {
+    // One held on the screen is drawn at its size over the camera's zoom.
+    let held = if renderable.on_screen {
+        crate::on_screen_scale(eng)
+    } else {
+        1.0
+    };
+    let (hx, hy) = flat_extents(renderable)?;
+    Some((hx * held, hy * held))
+}
+
+fn flat_extents(renderable: &crate::Renderable2d) -> Option<(f32, f32)> {
     match renderable.shape {
         crate::Shape2d::Sprite { hx, hy } => Some((hx, hy)),
         crate::Shape2d::Flat(flat) => {

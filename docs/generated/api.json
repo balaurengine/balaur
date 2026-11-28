@@ -14955,6 +14955,7 @@
       "cap",
       "miter_limit",
       "segments",
+      "width_on_screen",
       "dashes",
       "gradient",
       "gradient_steps"
@@ -15145,7 +15146,8 @@
       "shape",
       "color",
       "texture",
-      "material"
+      "material",
+      "on_screen"
     ],
     "shape3d": [
       "shape",
@@ -15393,7 +15395,8 @@
       "line_break",
       "truncate",
       "truncate_at",
-      "tab_size"
+      "tab_size",
+      "on_screen"
     ],
     "text3d": [
       "text",
@@ -20390,6 +20393,11 @@
         "description": "Line thickness in world units",
         "min": 0.001,
         "type": "float"
+      },
+      "width_on_screen": {
+        "default": false,
+        "description": "Hold its `width` on the screen: the camera's pixels, a `view`'s design pixels or the window's, whatever the camera's zoom; the line's points stay where they are",
+        "type": "bool"
       }
     },
     "listener": {
@@ -21628,6 +21636,11 @@
         "default": "",
         "description": "The material this draws with; empty draws with the built-in one",
         "type": "asset"
+      },
+      "on_screen": {
+        "default": false,
+        "description": "Hold its size on the screen: its dimensions are the camera's pixels, a `view`'s design pixels or the window's, whatever the camera's zoom, scaled about the node",
+        "type": "bool"
       },
       "shape": {
         "default": {
@@ -24169,6 +24182,12 @@
         "group": "text",
         "min": 0.0,
         "type": "float"
+      },
+      "on_screen": {
+        "default": false,
+        "description": "Hold its size on the screen: a font pixel is the camera's pixel, a `view`'s design pixel or the window's, whatever the camera's zoom, in place of `pixels_per_unit`",
+        "group": "placement",
+        "type": "bool"
       },
       "pixels_per_unit": {
         "default": 100.0,

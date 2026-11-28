@@ -200,19 +200,57 @@ pub fn view_point(eng: &balaur_core::Engine, camera: Entity, at: [f32; 2]) -> Op
     let widget = scene::find_node(&world, camera, &cam.view)?;
     let rect = balaur_ui::widget_rect(widget)?;
     let center = world.get::<&GlobalTransform>(camera).ok()?.position;
-    // A unit's design pixels: its logical ones, or its window pixels where
-    // the camera does not count the display's scale.
-    let zoom = cam.pixels_per_unit.max(crate::camera::MIN_ZOOM_2D);
-    let zoom = if cam.hidpi {
-        zoom
-    } else {
-        zoom / balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON)
-    };
+    let zoom = design_zoom(&cam, balaur_core::facts::device(eng).ui_scale);
     let mid = rect.center();
     Some([
         center.x + (at[0] - mid.x) / zoom,
         center.y - (at[1] - mid.y) / zoom,
     ])
+}
+
+/// The camera's pixels a world unit takes this frame ([`crate::ScreenZoom2d`]):
+/// a camera drawing into a `view` that is drawn, in the view's design pixels,
+/// else the window's 2D camera, `window_zoom` logical pixels. One zoom for the
+/// whole 2D scene: where the window and a view both draw it, a held size is
+/// the view's. A move lays out again every line whose width is held.
+pub(crate) fn follow_screen_zoom(app: &App, window: &Window, window_zoom: f32) {
+    let scale = window.egui_pixels_per_point();
+    // Of several views drawn, the camera with the lowest id, so the choice
+    // is the same every frame.
+    let in_view = {
+        let world = app.engine.world();
+        world
+            .query::<(Entity, &Camera2d)>()
+            .iter()
+            .filter(|(camera, cam)| {
+                cam.current
+                    && !cam.view.is_empty()
+                    && scene::find_node(&world, *camera, &cam.view)
+                        .and_then(balaur_ui::widget_rect)
+                        .is_some_and(|rect| rect.area() > 0.0)
+            })
+            .min_by_key(|(camera, _)| camera.id())
+            .map(|(_, cam)| design_zoom(cam, scale))
+    };
+    let zoom = in_view.unwrap_or(window_zoom);
+    let Some(held) = app.engine.try_resource::<crate::ScreenZoom2d>() else {
+        return;
+    };
+    let was = std::mem::replace(&mut held.borrow_mut().0, zoom);
+    if (was - zoom).abs() > f32::EPSILON * zoom.abs().max(1.0) {
+        crate::shape::lay_out_lines_on_screen(&app.engine);
+    }
+}
+
+/// A view camera's design pixels a unit: its logical ones, or its window
+/// pixels over `ui_scale` where it does not count the display's scale.
+fn design_zoom(cam: &Camera2d, ui_scale: f32) -> f32 {
+    let zoom = cam.pixels_per_unit.max(crate::camera::MIN_ZOOM_2D);
+    if cam.hidpi {
+        zoom
+    } else {
+        zoom / ui_scale.max(f32::EPSILON)
+    }
 }
 
 fn wgpu_filter() -> kiss3d::wgpu::FilterMode {

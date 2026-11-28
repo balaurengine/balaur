@@ -105,6 +105,9 @@ pub struct Text2d {
     /// Spaces between tab stops
     #[property(default = 8, min = 1, max = 64, group = "text")]
     pub tab_size: i64,
+    /// Hold its size on the screen: a font pixel is the camera's pixel, a `view`'s design pixel or the window's, whatever the camera's zoom, in place of `pixels_per_unit`
+    #[property(group = "placement")]
+    pub on_screen: bool,
 }
 
 /// A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.
@@ -224,6 +227,7 @@ macro_rules! renderable_of {
                 },
             },
             pixels_per_unit: asked.pixels_per_unit.max(0.01),
+            on_screen: false,
             in_3d: $in_3d,
             in_space: $in_space,
             material: asked.material.clone(),
@@ -257,12 +261,15 @@ fn text2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
         let Ok(asked) = world.get::<&Text2d>(entity) else {
             return Ok(());
         };
-        renderable_of!(
-            &*asked,
-            false,
-            SpaceOptions::default(),
-            crate::overlay::Overlay3d::default()
-        )
+        TextRenderable {
+            on_screen: asked.on_screen,
+            ..renderable_of!(
+                &*asked,
+                false,
+                SpaceOptions::default(),
+                crate::overlay::Overlay3d::default()
+            )
+        }
     };
     set_text(eng, entity, next)
 }
@@ -666,10 +673,16 @@ fn place(
             crate::film::color([r, g, b, a])
         };
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
+        // Laid out at `pixels_per_unit`; held on the screen, at the camera's.
+        let held = if text.on_screen {
+            text.pixels_per_unit * crate::on_screen_scale(&app.engine)
+        } else {
+            1.0
+        };
         for (layer, node) in slot.two_d.iter_mut().enumerate() {
             node.set_position(glamx::Vec2::new(global.position.x, global.position.y));
             node.set_rotation(angle);
-            node.set_local_scale(global.scale.x, global.scale.y);
+            node.set_local_scale(global.scale.x * held, global.scale.y * held);
             node.set_visible(visible);
             node.set_color(tinted(layer));
         }
@@ -740,6 +753,9 @@ fn raster_size(
         // viewport, so this is pixels to the world unit.
         let half = libm::tanf(snapshot.fov / 2.0).max(1e-4) * distance;
         viewport_height / (2.0 * half)
+    } else if text.on_screen {
+        // Drawn at its size in the camera's pixels, whatever the zoom.
+        return balaur_text::bucket((text.style.size * global.scale.x.abs()).clamp(1.0, 512.0));
     } else {
         let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot2d>() else {
             return balaur_text::bucket(text.style.size);

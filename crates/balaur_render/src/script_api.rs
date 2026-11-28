@@ -166,7 +166,7 @@ pub(crate) fn install_camera_api(m: &mut Module<Engine>) {
             Err(_) => world
                 .get::<&crate::Renderable2d>(entity)
                 .ok()
-                .and_then(|renderable| crate::pick::half_extents_2d(&renderable))
+                .and_then(|renderable| crate::pick::half_extents_2d(eng, &renderable))
                 .map(|(hx, hy)| (glamx::Vec3::ZERO, glamx::Vec3::new(hx, hy, 0.0)))
                 .or_else(|| {
                     world

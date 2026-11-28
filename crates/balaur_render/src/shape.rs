@@ -342,6 +342,8 @@ pub struct Primitive2d {
     /// The material this draws with; empty draws with the built-in one
     #[property(asset = "material")]
     pub material: String,
+    /// Hold its size on the screen: its dimensions are the camera's pixels, a `view`'s design pixels or the window's, whatever the camera's zoom, scaled about the node
+    pub on_screen: bool,
 }
 
 /// A stroked line at the node through the points of a `mesh` or `path2d` asset, tinted by `color` and drawn with `texture`.
@@ -387,6 +389,8 @@ pub struct Line2d {
     /// Cuts around a round join or cap
     #[property(default = 32, min = 3)]
     pub segments: i64,
+    /// Hold its `width` on the screen: the camera's pixels, a `view`'s design pixels or the window's, whatever the camera's zoom; the line's points stay where they are
+    pub width_on_screen: bool,
     /// A dash's length and the gap after it, in world units, as SVG's `stroke-dasharray`; each dash ends in `cap` (round on a tapered line), and [0, 0] draws the line whole
     #[property(default = [0.0, 0.0])]
     pub dashes: [f32; 2],
@@ -450,7 +454,7 @@ fn shape2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()
 /// A `shape2d`'s shape, tint, texture and material, worked out again from
 /// what was written.
 fn shape2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
-    let (flat, color, texture, material) = {
+    let (flat, color, texture, material, on_screen) = {
         let world = eng.world();
         let Ok(asked) = world.get::<&Primitive2d>(entity) else {
             return Ok(());
@@ -460,9 +464,11 @@ fn shape2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
             asked.color,
             asked.texture.clone(),
             asked.material.clone(),
+            asked.on_screen,
         )
     };
     set_shape2d(eng, entity, Shape2d::Flat(flat?))?;
+    crate::set_on_screen_2d(eng, entity, on_screen);
     set_color(eng, entity, color)?;
     crate::set_texture_2d(eng, entity, &texture)?;
     crate::material::set_material_2d(eng, entity, &material)
@@ -475,14 +481,20 @@ fn line2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()>
 
 /// A `line2d`'s stroke, the points it follows, its tint, texture and
 /// material, worked out again from what was written.
-fn line2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+pub(crate) fn line2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
     let (stroke, source, style, color, texture, material) = {
         let world = eng.world();
         let Ok(asked) = world.get::<&Line2d>(entity) else {
             return Ok(());
         };
+        // A width held on the screen is the camera's pixels over its zoom.
+        let width = if asked.width_on_screen {
+            asked.width * crate::on_screen_scale(eng)
+        } else {
+            asked.width
+        };
         let stroke = Stroke {
-            width: asked.width.max(0.001),
+            width: width.max(0.001),
             closed: asked.closed,
             join: Join::from_word(asked.join.option()).unwrap_or_default(),
             cap: Cap::from_word(asked.cap.option()).unwrap_or_default(),
@@ -509,6 +521,25 @@ fn line2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
     set_color(eng, entity, color)?;
     crate::set_texture_2d(eng, entity, &texture)?;
     crate::material::set_material_2d(eng, entity, &material)
+}
+
+/// Every line whose width is held on the screen, laid out again at the
+/// camera's zoom now.
+pub(crate) fn lay_out_lines_on_screen(eng: &Engine) {
+    let held: Vec<Entity> = eng
+        .world()
+        .query::<(Entity, &Line2d)>()
+        .iter()
+        .filter(|(_, line)| line.width_on_screen)
+        .map(|(entity, _)| entity)
+        .collect();
+    for entity in held {
+        if let Err(why) = line2d_laid_out(eng, entity) {
+            tracing::error!("line2d: {why:#}");
+        }
+        // Written outside a component write: the mirror is told it moved.
+        crate::mirror::look_again(eng, entity);
+    }
 }
 
 /// What a removed `Primitive2d` leaves behind, taken with it.

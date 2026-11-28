@@ -312,6 +312,9 @@ impl Frontend {
         // what it placed last frame.
         crate::draw_2d::clear(&mut self.transients);
         self.text.clear_transients();
+        // Before the dirty set is read: a line held on the screen is laid out
+        // again at a new zoom, and drawn so this frame.
+        crate::view::follow_screen_zoom(app, window, self.camera_2d.logical_zoom(window));
         let dirty = self.since.read(&app.engine);
         sync_3d::sync(
             app,

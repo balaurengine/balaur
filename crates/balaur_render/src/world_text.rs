@@ -203,6 +203,8 @@ pub struct TextRenderable {
     /// 2D: font pixels to one world unit. 3D: the same, as Godot's
     /// `pixel_size` inverted, so a size reads the same in both.
     pub pixels_per_unit: f32,
+    /// 2D: a font pixel is the camera's pixel, whatever its zoom.
+    pub on_screen: bool,
     pub in_3d: bool,
     /// What only the 3D pass reads.
     pub in_space: SpaceOptions,
@@ -222,6 +224,7 @@ impl Default for TextRenderable {
             text_key: String::new(),
             style: TextStyle::default(),
             pixels_per_unit: 100.0,
+            on_screen: false,
             in_3d: false,
             in_space: SpaceOptions::default(),
             material: String::new(),

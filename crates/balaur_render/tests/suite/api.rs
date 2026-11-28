@@ -389,6 +389,40 @@ fn a_dashed_line_strokes_with_its_dashes() {
     assert_eq!(dashes, vec![0.5, 0.25]);
 }
 
+#[test]
+fn a_line_s_width_held_on_the_screen_is_its_pixels_over_the_zoom() {
+    let app = app();
+    app.engine
+        .resource::<balaur_render::ScreenZoom2d>()
+        .borrow_mut()
+        .0 = 20.0;
+    let e = node(&app);
+    let params: toml::Value =
+        toml::from_str("mesh = \"outline\"\nwidth = 4.0\nwidth_on_screen = true").unwrap();
+    components::add(&app.engine, e, "line2d", Some(&params)).unwrap();
+    let world = app.engine.world();
+    let drawn = world
+        .get::<&balaur_render::Renderable2d>(e)
+        .expect("it draws");
+    let balaur_render::Shape2d::Polyline(stroke) = &drawn.shape else {
+        panic!("a line2d draws a polyline");
+    };
+    assert!((stroke.width - 0.2).abs() < 1e-6, "{}", stroke.width);
+}
+
+#[test]
+fn a_text_held_on_the_screen_is_drawn_so() {
+    let app = app();
+    let e = node(&app);
+    let params: toml::Value = toml::from_str("text = \"Athens\"\non_screen = true").unwrap();
+    components::add(&app.engine, e, "text2d", Some(&params)).unwrap();
+    let world = app.engine.world();
+    let drawn = world
+        .get::<&balaur_render::world_text::TextRenderable>(e)
+        .expect("it draws");
+    assert!(drawn.on_screen);
+}
+
 // An unknown kind names itself rather than silently drawing a cuboid.
 #[test]
 fn an_unknown_shape_kind_is_refused_by_name() {

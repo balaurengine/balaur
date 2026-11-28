@@ -429,11 +429,17 @@ fn shape_outline(eng: &Engine, entity: Entity) -> Vec<Vec2> {
     let Ok(renderable) = world.get::<&Renderable2d>(entity) else {
         return Vec::new();
     };
-    match renderable.shape {
+    let held = if renderable.on_screen {
+        crate::on_screen_scale(eng)
+    } else {
+        1.0
+    };
+    let outline = match renderable.shape {
         // The same outline the shape fills from, so a shadow's edge and the
         // lit shape's edge are the same points.
         Shape2d::Flat(flat) => flat.outline(),
         Shape2d::Sprite { hx, hy } => Flat::rect(hx, hy).outline(),
         Shape2d::Polyline { .. } | Shape2d::Polygon => Vec::new(),
-    }
+    };
+    outline.into_iter().map(|point| point * held).collect()
 }

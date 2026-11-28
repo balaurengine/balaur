@@ -525,6 +525,9 @@ pub struct Renderable2d {
     pub material: String,
     /// The scale a sprite's size was derived at.
     pub pixels_per_unit: f32,
+    /// Drawn at its size in the camera's pixels, whatever the zoom
+    /// ([`crate::ScreenZoom2d`]), scaled about the node.
+    pub on_screen: bool,
     pub version: u64,
 }
 
@@ -542,8 +545,29 @@ impl Renderable2d {
             texture: String::new(),
             material: String::new(),
             pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
+            on_screen: false,
             version: 0,
         }
+    }
+}
+
+/// What a size held on the screen is drawn at: one camera pixel a unit, 1
+/// before the camera's zoom is known.
+pub(crate) fn on_screen_scale(eng: &Engine) -> f32 {
+    let zoom = eng
+        .try_resource::<crate::ScreenZoom2d>()
+        .map_or(0.0, |zoom| zoom.borrow().0);
+    if zoom > 0.0 { 1.0 / zoom } else { 1.0 }
+}
+
+/// Hold `entity`'s 2D shape at its size on the screen, or let it scale with
+/// the camera; a change draws it again.
+pub(crate) fn set_on_screen_2d(eng: &Engine, entity: Entity, on: bool) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable2d>(entity)
+        && r.on_screen != on
+    {
+        r.on_screen = on;
+        r.version += 1;
     }
 }
 
@@ -962,6 +986,7 @@ fn insert_render_resources(reg: &mut balaur_plugin::Registry<'_>) {
     reg.insert_resource(PostConfig::default());
     reg.insert_resource(post::EffectsRead::default());
     reg.insert_resource(ViewportSnapshot2d::default());
+    reg.insert_resource(ScreenZoom2d::default());
     reg.insert_resource(ViewportSnapshot3d::default());
     reg.insert_resource(stats::Stats::default());
     reg.insert_resource(stats::Measured::default());

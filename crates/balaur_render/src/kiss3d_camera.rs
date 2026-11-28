@@ -129,6 +129,13 @@ impl Camera3d for Eye {
 #[derive(Default)]
 pub(crate) struct Flat(PanZoomCamera2d, f32);
 
+impl Flat {
+    /// The logical pixels a world unit takes as the camera was last applied.
+    pub(crate) fn logical_zoom(&self, window: &Window) -> f32 {
+        self.0.zoom() / window.scale_factor() as f32
+    }
+}
+
 impl kiss3d::camera::Camera2d for Flat {
     fn handle_event(&mut self, canvas: &Canvas, event: &WindowEvent) {
         if matches!(event, WindowEvent::FramebufferSize(..)) {
