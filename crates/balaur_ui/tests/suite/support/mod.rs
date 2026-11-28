@@ -251,6 +251,25 @@ pub fn script_text(app: &App, node: Entity, name: &str) -> Option<String> {
     }
 }
 
+/// A wheel's turn of `dy` in `unit` at `at`, with `modifiers` held.
+pub fn wheel(
+    at: egui::Pos2,
+    unit: egui::MouseWheelUnit,
+    dy: f32,
+    modifiers: Modifiers,
+) -> Vec<egui::Event> {
+    vec![
+        egui::Event::PointerMoved(at),
+        egui::Event::MouseWheel {
+            unit,
+            delta: vec2(0.0, dy),
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
+            modifiers,
+        },
+    ]
+}
+
 pub fn key(k: egui::Key) -> Vec<egui::Event> {
     vec![egui::Event::Key {
         key: k,

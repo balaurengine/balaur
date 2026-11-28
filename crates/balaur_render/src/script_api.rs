@@ -241,7 +241,7 @@ pub(crate) fn install_camera_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         (CAMERA_2D, &[], "() -> Viewport2d", "The 2D camera this frame: its `center` and its `zoom` in logical pixels per world unit; all zeros with no window."),
         (MOUSE_WORLD_2D, &[], "", "The mouse position in 2D world coordinates, for picking."),
-        (VIEW_POINT, &[], "(camera: node, at: Vec2) -> Vec2?", "The point of the world a `camera2d` drawing into a `view` shows at `at`, in the window's design pixels as `ui::widget_rect` and `view_clicked` give it; nil while its view is not drawn, or in a run with no window."),
+        (VIEW_POINT, &[], "(camera: node, at: Vec2) -> Vec2?", "The point of the world a `camera2d` drawing into a `view` shows at `at`, in the window's design pixels as `ui::widget_rect`, `view_clicked` and `view_pointer` give it, with the offset, scale and rotation the view and what holds it are drawn with undone; nil while its view is not drawn, while one of them is scaled to nothing, or in a run with no window."),
     ]);
     m.function(
         VIEW_POINT,

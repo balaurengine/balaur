@@ -281,6 +281,14 @@ pub(crate) struct Brush(egui::Painter);
 #[derive(Clone, Copy)]
 pub(crate) struct Slot(egui::layers::ShapeIdx);
 
+/// Where a widget's drawing starts: its first shape, and the first `view`
+/// it holds, which its move is kept for.
+#[derive(Clone, Copy)]
+pub(crate) struct Mark {
+    shapes: Slot,
+    views: usize,
+}
+
 impl Brush {
     pub(crate) fn of(ui: &egui::Ui) -> Self {
         Self(ui.painter().clone())
@@ -353,11 +361,15 @@ impl Brush {
         balaur_text::paint_spans(&self.0, texture, shaped, origin, tint, spans);
     }
 
-    /// Where the next shape on this brush's layer goes, so what is painted
-    /// after it can be moved together: see [`Brush::shift_since`].
-    pub(crate) fn mark(&self) -> Slot {
+    /// Where the next shape on this brush's layer goes, and the next `view`
+    /// drawn, so what is painted after it can be moved together: see
+    /// [`Brush::transform_since`].
+    pub(crate) fn mark(&self) -> Mark {
         let layer = self.0.layer_id();
-        Slot(self.0.ctx().graphics_mut(|g| g.entry(layer).next_idx()))
+        Mark {
+            shapes: Slot(self.0.ctx().graphics_mut(|g| g.entry(layer).next_idx())),
+            views: crate::widget::arrange::views_drawn(),
+        }
     }
 
     /// Move every shape painted on this brush's layer since `mark` by `by`,
@@ -382,10 +394,11 @@ impl Brush {
     /// node's, then scaled by the two `scale`s about `about`, the widget's
     /// middle, each axis on its own, and turned by the two `rotation`s and
     /// `rotation_y`s. An axis of 0 draws nothing: a tween shrinks it out, or
-    /// turns a card to its edge.
+    /// turns a card to its edge. The move is kept for each `view` drawn
+    /// inside ([`Moved`]), so a point on the screen can be found in its box.
     pub(crate) fn transform_since(
         &self,
-        mark: Slot,
+        mark: Mark,
         style: &crate::widget::theme::Style,
         (widget, flip): (&crate::widget::node::Widget, bool),
         about: egui::Pos2,
@@ -395,31 +408,42 @@ impl Brush {
         let [rx, ry] = style.offset.unwrap_or_default();
         let across = rx + widget.offset[0];
         let shift = egui::vec2(if flip { -across } else { across }, ry + widget.offset[1]);
+        // Whole pixels of the screen, as `shift_since` moves by, so the move
+        // kept is the one drawn.
+        let pixels = self.0.ctx().pixels_per_point();
+        let shift = (shift * pixels).round() / pixels;
         if shift != egui::Vec2::ZERO {
-            self.shift_since(mark, shift);
+            self.shift_since(mark.shapes, shift);
         }
         let [sx, sy] = style.scale.unwrap_or([1.0, 1.0]);
-        let factor = egui::vec2(sx * widget.scale[0], sy * widget.scale[1]);
+        let factor = egui::vec2(sx * widget.scale[0], sy * widget.scale[1]).max(egui::Vec2::ZERO);
         let degrees = style.rotation.unwrap_or(0.0) + widget.rotation;
         let upright = style.rotation_y.unwrap_or(0.0) + widget.rotation_y;
         let turned =
             degrees.is_finite() && upright.is_finite() && (degrees != 0.0 || upright != 0.0);
-        if !turned {
-            self.scale_since(mark, about + shift, factor);
-            return;
+        let matrix = if turned {
+            // Stretched, narrowed about the upright axis, then turned, as
+            // CSS's `scale`, `rotateY` with no perspective and `rotate`: one
+            // pass.
+            let angle = degrees.to_radians();
+            let (sin, cos) = (libm::sinf(angle), libm::cosf(angle));
+            let across = libm::cosf(upright.to_radians()) * factor.x;
+            let down = factor.y;
+            let matrix = [cos * across, sin * across, -sin * down, cos * down];
+            self.map_since(mark.shapes, about + shift, matrix);
+            matrix
+        } else {
+            self.scale_since(mark.shapes, about + shift, factor);
+            [factor.x, 0.0, 0.0, factor.y]
+        };
+        let moved = Moved {
+            from: about,
+            to: about + shift,
+            matrix,
+        };
+        if moved != Moved::none(about) {
+            crate::widget::arrange::move_views_since(mark.views, self.0.layer_id(), moved);
         }
-        // Stretched, narrowed about the upright axis, then turned, as CSS's
-        // `scale`, `rotateY` with no perspective and `rotate`: one pass.
-        let factor = factor.max(egui::Vec2::ZERO);
-        let angle = degrees.to_radians();
-        let (sin, cos) = (libm::sinf(angle), libm::cosf(angle));
-        let across = libm::cosf(upright.to_radians()) * factor.x;
-        let down = factor.y;
-        self.map_since(
-            mark,
-            about + shift,
-            [cos * across, sin * across, -sin * down, cos * down],
-        );
     }
 
     /// What was drawn since `mark`, `factor` times its size about `about`,
@@ -468,8 +492,11 @@ impl Brush {
         )]
         let atlas = ctx.fonts(|fonts| fonts.font_image_size());
         let mut stretch = Stretch {
-            about,
-            matrix,
+            moved: Moved {
+                from: about,
+                to: about,
+                matrix,
+            },
             held: self.0.clip_rect(),
             tessellator: egui::epaint::Tessellator::new(
                 ctx.pixels_per_point(),
@@ -650,13 +677,51 @@ impl Brush {
     }
 }
 
+/// How a widget and what it holds are drawn moved from the box the layout
+/// gave them: each point `p` drawn at `to + matrix * (p - from)`, the
+/// matrix's columns x then y, in design pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Moved {
+    from: Pos2,
+    to: Pos2,
+    matrix: [f32; 4],
+}
+
+impl Moved {
+    /// No move, about `at`.
+    fn none(at: Pos2) -> Self {
+        Self {
+            from: at,
+            to: at,
+            matrix: [1.0, 0.0, 0.0, 1.0],
+        }
+    }
+
+    pub(crate) fn apply(&self, at: Pos2) -> Pos2 {
+        let [a, b, c, d] = self.matrix;
+        let v = at - self.from;
+        self.to + egui::vec2(a * v.x + c * v.y, b * v.x + d * v.y)
+    }
+
+    /// The point in the box that is drawn at `at`, `None` where the move
+    /// flattens the box onto a line.
+    pub(crate) fn undo(&self, at: Pos2) -> Option<Pos2> {
+        let [a, b, c, d] = self.matrix;
+        let det = a * d - b * c;
+        if !det.is_finite() || det.abs() <= f32::EPSILON {
+            return None;
+        }
+        let v = at - self.to;
+        Some(self.from + egui::vec2(d * v.x - c * v.y, a * v.y - b * v.x) / det)
+    }
+}
+
 /// Shapes moved about a point by a 2x2 matrix: a stretch by two factors that
 /// differ, a turn. egui moves a shape by one factor only, so each is laid
 /// into triangles where it is, on the pixel grid, and the triangles are moved.
 struct Stretch {
-    about: Pos2,
-    /// The 2x2 each point is moved by about `about`, its columns x then y.
-    matrix: [f32; 4],
+    /// The move each point takes, about a point it leaves where it is.
+    moved: Moved,
     /// The clip the widget is drawn under, its ancestors': it stays where it
     /// is, as a scroll's viewport stays round a turned card.
     held: Rect,
@@ -665,9 +730,7 @@ struct Stretch {
 
 impl Stretch {
     fn point(&self, at: Pos2) -> Pos2 {
-        let [a, b, c, d] = self.matrix;
-        let v = at - self.about;
-        self.about + egui::vec2(a * v.x + c * v.y, b * v.x + d * v.y)
+        self.moved.apply(at)
     }
 
     /// The box a moved box reaches: its four corners moved.
@@ -678,16 +741,10 @@ impl Stretch {
     /// The box whose move reaches `rect`, nothing where the move flattens
     /// every point onto a line.
     fn reach(&self, rect: Rect) -> Rect {
-        let [a, b, c, d] = self.matrix;
-        let det = a * d - b * c;
-        if det.abs() <= f32::EPSILON {
+        if self.moved.undo(rect.center()).is_none() {
             return Rect::NOTHING;
         }
-        let [a, b, c, d] = [d / det, -b / det, -c / det, a / det];
-        Self::corners_by(rect, |at| {
-            let v = at - self.about;
-            self.about + egui::vec2(a * v.x + c * v.y, b * v.x + d * v.y)
-        })
+        Self::corners_by(rect, |at| self.moved.undo(at).unwrap_or(at))
     }
 
     fn corners_by(rect: Rect, by: impl Fn(Pos2) -> Pos2) -> Rect {

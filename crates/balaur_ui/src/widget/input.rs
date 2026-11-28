@@ -6,6 +6,7 @@
 //! under `--headless`. The draw now only reports what it saw; this takes that
 //! report at the top of the next tick, from a resource a recording carries.
 
+use crate::widget::view::Pointed;
 use balaur_core::hecs::{Entity, World};
 use balaur_core::{Engine, Stage, hooks, replay};
 use balaur_script::Value;
@@ -48,14 +49,18 @@ pub(crate) struct ClickHearers(balaur_core::events::HearerWatch);
 fn hears_click(eng: &Engine, entity: Entity) -> bool {
     [hooks::POINTER_CLICK, VIEW_CLICKED_EVENT]
         .into_iter()
-        .any(|event| {
-            balaur_core::events::is_heard_on(eng, entity, event)
-                || crate::widget::write::hears(eng, entity, event)
-        })
+        .any(|event| heard_on(eng, entity, event))
+}
+
+/// Whether `event` from this node is heard: by its control table's handler,
+/// a row on it, its script, a listener or a waiter naming it.
+fn heard_on(eng: &Engine, entity: Entity, event: &str) -> bool {
+    crate::widget::write::hears(eng, entity, event)
+        || balaur_core::events::is_heard_on(eng, entity, event)
 }
 
 /// Bring each widget whose hearers may have changed to know whether its
-/// click is heard. Before the pass reads them, so a row written this tick
+/// click is heard, and a `view` whether its pointer is. Before the pass reads them, so a row written this tick
 /// is clicked this pass, and every tick, so a run that never draws keeps none.
 pub(crate) fn follow_hearers(eng: &Engine) {
     let Some(watch) = eng.try_resource::<ClickHearers>() else {
@@ -68,12 +73,14 @@ pub(crate) fn follow_hearers(eng: &Engine) {
             continue;
         }
         let hears = hears_click(eng, entity);
+        let pointer = heard_on(eng, entity, VIEW_POINTER_EVENT);
         let world = eng.world();
         let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
             continue;
         };
-        if widget.hears_click != hears {
+        if (widget.hears_click, widget.hears_pointer) != (hears, pointer) {
             widget.hears_click = hears;
+            widget.hears_pointer = pointer;
             crate::widget::arena::widget_changed(entity);
         }
     }
@@ -82,7 +89,7 @@ pub(crate) fn follow_hearers(eng: &Engine) {
 pub(crate) fn register(reg: &mut balaur_plugin::Registry<'_>) {
     let clicks = balaur_core::events::watch_hearers(
         reg.engine(),
-        &[hooks::POINTER_CLICK, VIEW_CLICKED_EVENT],
+        &[hooks::POINTER_CLICK, VIEW_CLICKED_EVENT, VIEW_POINTER_EVENT],
     );
     reg.insert_resource(ClickHearers(clicks));
     reg.insert_resource(WidgetInputBuffer::default());
@@ -182,7 +189,7 @@ pub fn click_at(eng: &Engine, entity: Entity, at: Option<[f32; 2]>, hidden: bool
                 .get::<&Widget>(entity)
                 .is_ok_and(|widget| widget.kind == w::VIEW)
         });
-        let edits = on_view.map(|point| (entity, Edit::ViewClicked(point)));
+        let edits = on_view.map(|point| (entity, Edit::View(Pointed::Click(point))));
         record(eng, &[entity], edits.into_iter().collect(), None);
     }
     clickable
@@ -264,6 +271,15 @@ pub const GUTTER_CLICKED_EVENT: &str = "gutter_clicked";
 /// where the click landed in the window's design pixels: what
 /// `render::view_point` turns into the point of the world its camera shows.
 pub const VIEW_CLICKED_EVENT: &str = "view_clicked";
+/// What a `view` emits as the pointer moves over it, the wheel turns over it
+/// and two fingers pinch on it, with `{ what, at, turn, unit, scale, shift,
+/// ctrl, alt, cmd }`: `what` is `move`, `wheel` or `pinch`, `at` where the
+/// pointer is in the window's design pixels, `turn` the wheel's `[x, y]` in
+/// its `unit`, `pixel`, `line` or `page`, `scale` the pinch's factor, as
+/// `pointer_gestured` says it, and the keys held. A view whose wheel is
+/// heard takes it from the page it scrolls in; it says the pointer leaving
+/// as any widget does, `pointer_exit`.
+pub const VIEW_POINTER_EVENT: &str = "view_pointer";
 /// What a `code` widget emits when its caret moved, with `{ x, y, index }`:
 /// where a completion list opens, and what it completes.
 pub const CARET_CHANGED_EVENT: &str = "caret_changed";
@@ -432,6 +448,10 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (
         VIEW_CLICKED_EVENT,
         "where it landed, a `Vec2` in the window's design pixels",
+    ),
+    (
+        VIEW_POINTER_EVENT,
+        "`{ what, at, turn, unit, scale, shift, ctrl, alt, cmd }`",
     ),
     (CARET_CHANGED_EVENT, "`{ x, y, index }`"),
     (MOVED_EVENT, "`[moved, target, side]`"),
@@ -603,7 +623,8 @@ fn settle_one(
         // Written nowhere: a link and a gutter mark are the script's to act on.
         Edit::Link(target) => Some((LINK_CLICKED_EVENT, Value::Str(target.clone()))),
         Edit::Gutter(line) => Some((GUTTER_CLICKED_EVENT, Value::Int(*line))),
-        Edit::ViewClicked(point) => Some((VIEW_CLICKED_EVENT, Value::Vec2(*point))),
+        Edit::View(Pointed::Click(point)) => Some((VIEW_CLICKED_EVENT, Value::Vec2(*point))),
+        Edit::View(Pointed::Over(said)) => Some((VIEW_POINTER_EVENT, said.clone())),
         Edit::OptionPicked(option) => Some((OPTION_PICKED_EVENT, Value::Str(option.clone()))),
         _ => heard(edit),
     };

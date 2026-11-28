@@ -728,8 +728,8 @@ pub(crate) enum Edit {
     Link(String),
     /// The 1-based line a click on a `code` widget's gutter landed on.
     Gutter(i64),
-    /// Where a click on a `view` landed, in the window's design pixels.
-    ViewClicked([f32; 2]),
+    /// What the pointer did on a `view`, where, in the window's design pixels.
+    View(crate::widget::view::Pointed),
     /// Where a `code` widget's caret moved to: its point in design pixels,
     /// and its index in characters.
     Caret(f32, f32, usize),

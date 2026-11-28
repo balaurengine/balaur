@@ -188,8 +188,9 @@ impl Views {
 }
 
 /// The world point `camera` shows at `at`, in the window's design pixels,
-/// as its view draws it in the box the layout gave it: `None` while it is not
-/// current or names no view that is drawn.
+/// as its view draws it in the box the layout gave it, moved, scaled or
+/// turned as it and what holds it are drawn: `None` while it is not current
+/// or names no view that is drawn.
 #[must_use]
 pub fn view_point(eng: &balaur_core::Engine, camera: Entity, at: [f32; 2]) -> Option<[f32; 2]> {
     let world = eng.world();
@@ -199,6 +200,7 @@ pub fn view_point(eng: &balaur_core::Engine, camera: Entity, at: [f32; 2]) -> Op
     }
     let widget = scene::find_node(&world, camera, &cam.view)?;
     let rect = balaur_ui::widget_rect(widget)?;
+    let at = balaur_ui::view_point_in(widget, at)?;
     let center = world.get::<&GlobalTransform>(camera).ok()?.position;
     let zoom = design_zoom(&cam, balaur_core::facts::device(eng).ui_scale);
     let mid = rect.center();

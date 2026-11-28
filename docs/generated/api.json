@@ -14503,6 +14503,10 @@
         "where it landed, a `Vec2` in the window's design pixels"
       ],
       [
+        "view_pointer",
+        "`{ what, at, turn, unit, scale, shift, ctrl, alt, cmd }`"
+      ],
+      [
         "caret_changed",
         "`{ x, y, index }`"
       ],
@@ -34379,7 +34383,7 @@
         "texture_size": "An image's width and height in pixels, read from the file's own header.",
         "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: each other island counter-clockwise and each hole clockwise; default false keeps the largest alone). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn.",
         "triangles_of": "The triangles `node` draws, from its mesh, its shape or its 2D polygon, as three corners each in the space of `space`, or of the world where it is left out.",
-        "view_point": "The point of the world a `camera2d` drawing into a `view` shows at `at`, in the window's design pixels as `ui::widget_rect` and `view_clicked` give it; nil while its view is not drawn, or in a run with no window."
+        "view_point": "The point of the world a `camera2d` drawing into a `view` shows at `at`, in the window's design pixels as `ui::widget_rect`, `view_clicked` and `view_pointer` give it, with the offset, scale and rotation the view and what holds it are drawn with undone; nil while its view is not drawn, while one of them is scaled to nothing, or in a run with no window."
       },
       "editor": [],
       "functions": [

@@ -27,6 +27,10 @@ thread_local! {
     /// page: the strip is painted inline and has no node to ask.
     static TAB_HEADS: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+    /// Each `view` drawn so far this pass, and the moves what holds it was
+    /// drawn with, innermost first; last frame's by the view.
+    static VIEWS_DRAWING: RefCell<Vec<(u64, egui::LayerId, Vec<crate::widget::paint::Moved>)>> = const { RefCell::new(Vec::new()) };
+    static VIEWS_DRAWN: RefCell<FxHashMap<u64, Vec<crate::widget::paint::Moved>>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     /// The size each widget asked for when it was last laid out, before its
     /// container grew or shrank it.
     static NATURAL: RefCell<FxHashMap<u64, egui::Vec2>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
@@ -115,6 +119,74 @@ pub(crate) fn placing_at(entity: Entity) -> Option<egui::Rect> {
     PLACING.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
 }
 
+/// How many `view`s were drawn so far this pass.
+pub(crate) fn views_drawn() -> usize {
+    VIEWS_DRAWING.with(|views| views.borrow().len())
+}
+
+/// A `view` drawn on `layer`, for the moves of what holds it to be kept for.
+pub(crate) fn record_view(entity: Entity, layer: egui::LayerId) {
+    VIEWS_DRAWING.with(|views| {
+        views
+            .borrow_mut()
+            .push((entity.to_bits().get(), layer, Vec::new()));
+    });
+}
+
+/// Every `view` drawn on `layer` since the `from`th moved as a widget
+/// holding it was: one a popup holds is drawn on its own layer, unmoved.
+pub(crate) fn move_views_since(
+    from: usize,
+    layer: egui::LayerId,
+    moved: crate::widget::paint::Moved,
+) {
+    VIEWS_DRAWING.with(|views| {
+        for (_, drawn_on, moves) in views.borrow_mut().iter_mut().skip(from) {
+            if *drawn_on == layer {
+                moves.push(moved);
+            }
+        }
+    });
+}
+
+/// The box a `view` laid out at `rect` reaches as it was drawn last frame:
+/// its corners moved as what holds it was, innermost first.
+pub(crate) fn view_reach(entity: Entity, rect: egui::Rect) -> egui::Rect {
+    VIEWS_DRAWN.with(|views| {
+        let views = views.borrow();
+        let Some(moves) = views
+            .get(&entity.to_bits().get())
+            .filter(|moves| !moves.is_empty())
+        else {
+            return rect;
+        };
+        let corners = [
+            rect.left_top(),
+            rect.right_top(),
+            rect.left_bottom(),
+            rect.right_bottom(),
+        ]
+        .map(|corner| moves.iter().fold(corner, |at, moved| moved.apply(at)));
+        egui::Rect::from_points(&corners)
+    })
+}
+
+/// The point of a `view`'s box drawn at `at` last frame: every move what
+/// holds it was drawn with undone, outermost first. `None` where one
+/// flattens it onto a line.
+pub(crate) fn view_point_in(entity: Entity, at: egui::Pos2) -> Option<egui::Pos2> {
+    VIEWS_DRAWN.with(|views| {
+        let views = views.borrow();
+        let moves = views
+            .get(&entity.to_bits().get())
+            .map_or(&[][..], Vec::as_slice);
+        moves
+            .iter()
+            .rev()
+            .try_fold(at, |point, moved| moved.undo(point))
+    })
+}
+
 pub(crate) fn record_rect(entity: Entity, rect: egui::Rect) {
     PLACING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), rect);
@@ -151,24 +223,36 @@ pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
 /// Last frame's measurements become this frame's; a widget that stopped
 /// drawing drops out rather than accumulating.
 pub(crate) fn roll_measurements() {
-    // Swapped rather than copied: the map holds an entry a widget, and
-    // copying it was an O(n) walk on top of the one that filled it.
-    MEASURING.with(|next| {
-        MEASURED.with(|now| {
-            std::mem::swap(&mut *now.borrow_mut(), &mut *next.borrow_mut());
-        });
-        next.borrow_mut().clear();
-    });
+    roll(&MEASURING, &MEASURED);
 }
 
 /// Publish this frame's rects, at the end of the draw rather than the start
 /// of the next one: a script reading them back is a frame behind either way,
 /// and this is the smaller frame.
 pub(crate) fn settle_rects() {
-    PLACING.with(|next| {
-        PLACED.with(|now| {
-            std::mem::swap(&mut *now.borrow_mut(), &mut *next.borrow_mut());
+    roll(&PLACING, &PLACED);
+    VIEWS_DRAWING.with(|drawing| {
+        VIEWS_DRAWN.with(|drawn| {
+            let mut drawn = drawn.borrow_mut();
+            drawn.clear();
+            drawn.extend(
+                drawing
+                    .borrow_mut()
+                    .drain(..)
+                    .map(|(view, _, moves)| (view, moves)),
+            );
         });
+    });
+}
+
+/// This frame's `next` becomes `now`, and `next` starts empty: swapped
+/// rather than copied, as the maps hold an entry a widget.
+fn roll<T>(
+    next: &'static std::thread::LocalKey<RefCell<FxHashMap<u64, T>>>,
+    now: &'static std::thread::LocalKey<RefCell<FxHashMap<u64, T>>>,
+) {
+    next.with(|next| {
+        now.with(|now| std::mem::swap(&mut *now.borrow_mut(), &mut *next.borrow_mut()));
         next.borrow_mut().clear();
     });
 }

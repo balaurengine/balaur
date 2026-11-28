@@ -97,6 +97,9 @@ pub struct WidgetFields {
     /// by `input::follow_hearers`. A kind that draws nothing clickable
     /// senses a click only where this is set.
     pub hears_click: bool,
+    /// Whether anything hears a `view`'s `view_pointer`, kept as
+    /// `hears_click` is.
+    pub hears_pointer: bool,
     /// Name of a `menu` node whose rows open at the pointer on a secondary
     /// click or a long touch. Empty means none.
     pub context: SmolStr,

@@ -47,8 +47,8 @@ pub use widget::input::{
     DOUBLE_CLICKED_EVENT, DROPPED_EVENT, FOCUS_ENTERED_EVENT, FOCUS_EXITED_EVENT, FOLDED_EVENT,
     GUTTER_CLICKED_EVENT, IMAGE_PASTED_EVENT, LINK_CLICKED_EVENT, MARKED_EVENT, MOVED_EVENT,
     OPENED_EVENT, OPTION_PICKED_EVENT, PASTED_EVENT, RESIZED_EVENT, SCROLLED_EVENT,
-    SUBMITTED_EVENT, VALUE_CHANGED_EVENT, VIEW_CLICKED_EVENT, WidgetInputBuffer,
-    WidgetInputSnapshot, click, click_at, edit, submit,
+    SUBMITTED_EVENT, VALUE_CHANGED_EVENT, VIEW_CLICKED_EVENT, VIEW_POINTER_EVENT,
+    WidgetInputBuffer, WidgetInputSnapshot, click, click_at, edit, submit,
 };
 pub use widget::node::{Move, UiFocus, Widget, WidgetFields, WidgetLayerConfig};
 pub use widget::scene_rows::{row_of, set_rows};
@@ -82,6 +82,16 @@ pub fn set_view_texture(
 #[must_use]
 pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget::arrange::drawn_at(entity)
+}
+
+/// The point of a `view`'s box drawn at `at`, in the window's design pixels
+/// as the pointer and [`widget_rect`] give them: `at` with the `offset`,
+/// `scale` and `rotation` the view and every widget holding it were drawn
+/// with last frame undone. `None` where one of them flattens what it holds
+/// onto a line, a scale of 0.
+#[must_use]
+pub fn view_point_in(view: balaur_core::hecs::Entity, at: [f32; 2]) -> Option<[f32; 2]> {
+    widget::arrange::view_point_in(view, egui::pos2(at[0], at[1])).map(|point| [point.x, point.y])
 }
 
 /// The screen the played content draws on, `[x, y, width, height]` in design

@@ -166,6 +166,7 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
         let held = world.get::<&Widget>(entity).ok();
         next.classes = held.as_ref().and_then(|held| held.classes.clone());
         next.hears_click = held.as_ref().is_some_and(|held| held.hears_click);
+        next.hears_pointer = held.as_ref().is_some_and(|held| held.hears_pointer);
         (next, held.is_none())
     };
     dress(eng, &mut next);
@@ -321,6 +322,7 @@ pub(crate) fn for_classes(
     drop(world);
     classed.classes.clone_from(&widget.classes);
     classed.hears_click = widget.hears_click;
+    classed.hears_pointer = widget.hears_pointer;
     dress(eng, &mut classed);
     Some(Widget::from(classed))
 }

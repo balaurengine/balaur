@@ -415,6 +415,19 @@ pub(crate) mod words {
     pub(crate) const HIDDEN: &str = "hidden";
     /// Where `ui::click` lands on a `view`.
     pub(crate) const AT: &str = "at";
+    /// What `view_pointer` says: what the pointer did, the wheel's turn and
+    /// what it is counted in.
+    pub(crate) mod view_pointer {
+        pub(crate) const WHAT: &str = "what";
+        pub(crate) const TURN: &str = "turn";
+        pub(crate) const UNIT: &str = "unit";
+        pub(crate) const MOVE: &str = "move";
+        pub(crate) const WHEEL: &str = "wheel";
+        pub(crate) const PINCH: &str = "pinch";
+        pub(crate) const PIXEL: &str = "pixel";
+        pub(crate) const LINE: &str = "line";
+        pub(crate) const PAGE: &str = "page";
+    }
 
     pub(crate) mod general {
         pub(crate) const UI: &str = "ui";

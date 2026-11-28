@@ -179,11 +179,8 @@ fn a_view_draws_light_colours_as_they_are_with_no_environment() {
     }
 }
 
-#[test]
-fn a_point_of_a_view_is_the_world_point_its_camera_shows_there() {
-    if !gpu_present() {
-        return;
-    }
+/// What `view_point` answers for `ats` in `scene`'s view, six frames in.
+fn view_points(scene: &str, ats: [[f32; 2]; 2]) -> Vec<Option<[f32; 2]>> {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
@@ -191,7 +188,7 @@ fn a_point_of_a_view_is_the_world_point_its_camera_shows_there() {
         "[application]\nname = \"view\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("scenes/main.toml"), SCENE).unwrap();
+    std::fs::write(dir.path().join("scenes/main.toml"), scene).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();
@@ -204,7 +201,7 @@ fn a_point_of_a_view_is_the_world_point_its_camera_shows_there() {
             *frame.borrow_mut() += 1;
             if *frame.borrow() == 6 {
                 let camera = scene::find_node(&eng.world(), eng.root(), "Root/Camera").unwrap();
-                for at in [[80.0, 40.0], [100.0, 20.0]] {
+                for at in ats {
                     seen.borrow_mut()
                         .push(balaur_render::view_point(eng, camera, at));
                 }
@@ -213,11 +210,35 @@ fn a_point_of_a_view_is_the_world_point_its_camera_shows_there() {
         });
     }
     balaur_render::kiss3d_backend::run_offscreen(app, "view", SIDE, SIDE).unwrap();
-    let seen = seen.borrow();
-    let near = |got: Option<[f32; 2]>, want: [f32; 2]| {
-        got.is_some_and(|[x, y]| (x - want[0]).abs() < 0.05 && (y - want[1]).abs() < 0.05)
-    };
+    seen.take()
+}
+
+fn near(got: Option<[f32; 2]>, want: [f32; 2]) -> bool {
+    got.is_some_and(|[x, y]| (x - want[0]).abs() < 0.05 && (y - want[1]).abs() < 0.05)
+}
+
+#[test]
+fn a_point_of_a_view_is_the_world_point_its_camera_shows_there() {
+    if !gpu_present() {
+        return;
+    }
+    let seen = view_points(SCENE, [[80.0, 40.0], [100.0, 20.0]]);
     // The box's middle is the camera's, and 20 design pixels a unit.
+    assert!(near(seen[0], [0.0, 0.0]), "{:?}", seen[0]);
+    assert!(near(seen[1], [1.0, 1.0]), "{:?}", seen[1]);
+}
+
+#[test]
+fn a_point_of_a_view_drawn_moved_is_found_where_it_was_drawn() {
+    if !gpu_present() {
+        return;
+    }
+    let moved = SCENE.replace(
+        "y = 0\nwidth = 160",
+        "y = 0\noffset = [40.0, 0.0]\nwidth = 160",
+    );
+    assert!(moved.contains("offset"));
+    let seen = view_points(&moved, [[120.0, 40.0], [140.0, 20.0]]);
     assert!(near(seen[0], [0.0, 0.0]), "{:?}", seen[0]);
     assert!(near(seen[1], [1.0, 1.0]), "{:?}", seen[1]);
 }
