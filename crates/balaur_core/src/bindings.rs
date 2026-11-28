@@ -44,7 +44,8 @@ pub enum Action {
     /// `events.emit(value)`.
     Emit,
     /// Call the method `value` on the target with the event's values, then
-    /// the bound node.
+    /// the bound node; with no target, on the nearest node at or above the
+    /// bound one whose script has the method.
     Call,
     /// Show or hide the target; `value` is read as a bool.
     Visible,
@@ -96,7 +97,8 @@ pub struct Binding {
     pub when_source: String,
     pub action: Action,
     /// A node path relative to the bound node, or a variable name for the
-    /// variable actions. Empty means the bound node itself.
+    /// variable actions. Empty means the bound node itself, and for `call`
+    /// the nearest at or above it whose script has the method.
     pub target: String,
     pub value: Value,
 }
@@ -497,6 +499,33 @@ fn target_of(eng: &Engine, entity: Entity, row: &Binding) -> Result<Entity> {
         .ok_or_else(|| anyhow!("`{}` names no node from here", row.target))
 }
 
+/// The node a row naming no target calls `method` on: the bound node where
+/// its script has it, else the nearest node above it whose script does, as
+/// a scene's buttons reach the script of the screen that holds them. Where
+/// none has it, the bound node, with a warning: a row that reaches nothing
+/// is a slip.
+fn answerer(
+    eng: &Engine,
+    host: &dyn balaur_script::ScriptHost<Engine>,
+    entity: Entity,
+    method: &str,
+) -> Entity {
+    let mut at = Some(entity);
+    while let Some(node) = at {
+        if host.has_method(crate::node_id_of(node), method) {
+            return node;
+        }
+        at = eng
+            .world()
+            .get::<&crate::scene::Parent>(node)
+            .ok()
+            .map(|p| p.0);
+    }
+    let path = crate::scene::node_path(&eng.world(), entity);
+    tracing::warn!("the binding at `{path}` calls `{method}`, which no script at or above it has");
+    entity
+}
+
 /// An event's values as a handler is handed them: `args`, then `source`, the
 /// node the event was said on.
 #[must_use]
@@ -554,7 +583,12 @@ fn run(eng: &Engine, entity: Entity, row: &Binding, args: &[Value]) -> Result<()
             let target = target_of(eng, entity, row)?;
             if let Some(host) = eng.script_host() {
                 let args = with_source(args, entity);
-                host.call_on(crate::node_id_of(target), &method, &args);
+                let on = if row.target.is_empty() {
+                    answerer(eng, host.as_ref(), entity, &method)
+                } else {
+                    target
+                };
+                host.call_on(crate::node_id_of(on), &method, &args);
             }
             Ok(())
         }

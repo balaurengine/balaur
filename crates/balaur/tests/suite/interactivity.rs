@@ -928,8 +928,36 @@ fn a_call_row_naming_no_target_calls_its_own_node() {
     assert_eq!(
         held(&app, "Screen", "calls"),
         Some(Value::Int(0)),
-        "nothing above it is searched for the method"
+        "its own node's method answers first; nothing above it is called"
     );
+}
+
+#[test]
+fn a_call_row_naming_no_target_on_a_node_without_the_method_reaches_the_nearest_above_that_has_it()
+{
+    // The button has no script and its part's is private: the screen's
+    // `chosen` answers, as a scene's buttons reach the screen holding them.
+    let scene = PART.replace(
+        "name = \"Part\"\nparent = \"n_screen\"\n",
+        "name = \"Part\"\nparent = \"n_screen\"\nscript = { source = \"scripts/part.bs\" }\n",
+    );
+    let (_dir, mut app) = app_with_scripts(
+        &scene,
+        &[
+            ("scripts/hearer.bs", HEARER),
+            ("scripts/part.bs", PRIVATE_PART),
+        ],
+    );
+    let button = node(&app, "Screen/Part/Button");
+    balaur_core::events::emit_from(&app.engine, button, "own", Value::Int(6));
+    app.tick(1.0 / 60.0);
+    assert_eq!(held(&app, "Screen", "calls"), Some(Value::Int(1)));
+    assert_eq!(held(&app, "Screen", "got"), Some(Value::Int(6)));
+    assert_eq!(
+        held(&app, "Screen", "from"),
+        Some(Value::Str("Button".into()))
+    );
+    assert_eq!(held(&app, "Screen/Part", "taken"), Some(Value::Int(0)));
 }
 
 #[test]
