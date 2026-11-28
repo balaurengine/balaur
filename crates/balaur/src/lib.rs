@@ -424,7 +424,7 @@ pub fn check_project_using(
     use balaur_script::ScriptCompiler as _;
     with_host(project_root, extra, |engine, host| {
         let ignored = text_of(&project_root.join("project.toml"))
-            .map(|manifest| balaur_core::ignore::from_manifest(&manifest))
+            .map(|manifest| balaur_core::ignore::from_manifest_every_target(&manifest))
             .unwrap_or_default();
         let mut found = scene_problems(engine, project_root);
         let mut linted = std::collections::HashSet::new();
@@ -585,9 +585,8 @@ fn ignored_uses(
         .iter()
         .filter_map(|file| {
             let pattern = balaur_core::ignore::matching(ignored, file)?;
-            let message = format!(
-                "uses {file}, which `[application] ignore` leaves out of an export (\"{pattern}\")"
-            );
+            let message =
+                format!("uses {file}, which an `ignore` leaves out of an export (\"{pattern}\")");
             Some(Finding::error(rel, 0, 0, message))
         })
         .collect()

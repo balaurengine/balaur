@@ -240,6 +240,30 @@ fn a_module_the_project_ignores_is_an_error_on_its_user() {
     );
 }
 
+// One target's `ignore` fails that target's export, so the check holds every
+// target's list.
+#[test]
+fn a_module_one_target_ignores_is_an_error_on_its_user() {
+    let dir = project(&format!(
+        "use addons::steps;\n{}",
+        script("        let n = steps::next(1);")
+    ));
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n\n[override.web.application]\nignore = [\"addons/**\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("addons")).unwrap();
+    std::fs::write(
+        dir.path().join("addons/steps.bs"),
+        "pub fn next(n: int) -> int { n + 1 }\n",
+    )
+    .unwrap();
+    let found = balaur::check_project(dir.path()).unwrap();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].message.contains("\"addons/**\""), "{found:?}");
+}
+
 #[test]
 fn a_trailing_nil_a_call_may_leave_out_is_a_warning() {
     let found = check(r#"self.node.set_component("transform", nil);"#);

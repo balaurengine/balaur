@@ -245,11 +245,28 @@ fn build(project: &Path) -> Result<balaur::Pack> {
     balaur::build_pack_using(project, false, &mut [])
 }
 
+/// The pack a web bundle carries: the scripts and files the `web` target
+/// answers to, its `[override.web.application] ignore` among them.
+fn build_for_web(project: &Path) -> Result<balaur::Pack> {
+    let manifest = balaur::files::default_backend()
+        .read(&project.join("project.toml"))
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .unwrap_or_default();
+    let declared = toml::from_str(&manifest)
+        .map_or_else(|_| Vec::new(), |doc| balaur::tags::declared_in(&doc));
+    let variants = balaur::packing::Variants {
+        tags: balaur::tags::Tags::for_target(words::targets::WEB),
+        declared,
+    };
+    balaur::build_pack_for(project, false, &mut [], false, Some(&variants))
+}
+
 /// A web bundle: the pack, the shell page, and the glue and module of the
 /// runtime `[export] runtime` names, zipped as one directory to drop on a
 /// static host.
 async fn bundle(project: &Path, runtimes: &str) -> Result<(String, Vec<u8>)> {
-    let pack = build(project)?;
+    let pack = build_for_web(project)?;
     let runtime = balaur_export::runtime_of(
         project,
         words::targets::WEB,

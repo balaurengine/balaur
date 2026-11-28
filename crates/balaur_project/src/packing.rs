@@ -121,7 +121,10 @@ pub fn build_with(
         manifest,
         ..Default::default()
     };
-    let ignored = balaur_core::ignore::from_manifest(&pack.manifest);
+    let ignored = match variants {
+        Some(variants) => balaur_core::ignore::from_manifest_for(&pack.manifest, &variants.tags),
+        None => balaur_core::ignore::from_manifest(&pack.manifest),
+    };
     let (fs, mut files, shipped) = gathered(fs, project_root, &pack.manifest, &ignored)?;
     files.retain(|rel| !editors(rel));
     let nested = nested_roots(&files);
@@ -834,7 +837,7 @@ fn every_import_ships(
         .map(|(rel, file)| {
             let why = balaur_core::ignore::matching(ignored, file).map_or_else(
                 || "the pack leaves it out".to_string(),
-                |pattern| format!("`[application] ignore` leaves it out (\"{pattern}\")"),
+                |pattern| format!("this target's `ignore` leaves it out (\"{pattern}\")"),
             );
             format!("{rel} uses {file}: {why}")
         })

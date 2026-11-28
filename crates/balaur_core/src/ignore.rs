@@ -16,6 +16,10 @@
 //! reaches a shipped game. A shipped script that `use`s a file it matches
 //! fails the export, which names the pattern, rather than the game.
 //!
+//! A target's override replaces the list for its export alone, as any
+//! setting's does: `[override.web.application] ignore = ["packs/**"]` leaves
+//! the word packs out of the web export, which fetches them.
+//!
 //! `tests/` is on every project's list: `balaur test` owns that folder.
 
 use crate::engine::Engine;
@@ -56,6 +60,44 @@ pub fn from_manifest(manifest: &str) -> Vec<String> {
             .and_then(|table| table.get(keys::IGNORE))
             .and_then(toml::Value::as_array),
     )
+}
+
+/// The list a build for `tags` holds to, read from a `project.toml`: the
+/// file's own with each tag's `[override.<tag>.application]` folded on, as a
+/// run on that target resolves the setting.
+pub fn from_manifest_for(manifest: &str, tags: &crate::tags::Tags) -> Vec<String> {
+    let resolved = crate::settings::resolve(manifest, tags).ok();
+    with_always(
+        resolved
+            .as_ref()
+            .and_then(|document| document.get(keys::APPLICATION))
+            .and_then(|table| table.get(keys::IGNORE))
+            .and_then(toml::Value::as_array),
+    )
+}
+
+/// Every pattern some target's export holds to: the file's own list and each
+/// `[override.<tag>.application] ignore`. What a check holds a script's `use`
+/// to, since a file one target leaves out fails that target's export.
+pub fn from_manifest_every_target(manifest: &str) -> Vec<String> {
+    let mut patterns = from_manifest(manifest);
+    let document = toml::from_str::<toml::Value>(manifest).ok();
+    let overrides = document
+        .as_ref()
+        .and_then(|document| document.get(crate::tags::OVERRIDE))
+        .and_then(toml::Value::as_table);
+    for layer in overrides.into_iter().flat_map(toml::value::Table::values) {
+        let listed = layer
+            .get(keys::APPLICATION)
+            .and_then(|table| table.get(keys::IGNORE))
+            .and_then(toml::Value::as_array);
+        for pattern in listed.into_iter().flatten().filter_map(toml::Value::as_str) {
+            if !patterns.iter().any(|held| held == pattern) {
+                patterns.push(pattern.to_string());
+            }
+        }
+    }
+    patterns
 }
 
 /// Whether a project-relative path is ignored: the path itself, or a

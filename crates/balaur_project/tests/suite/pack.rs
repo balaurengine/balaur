@@ -584,3 +584,21 @@ fn a_pack_leaves_out_a_projects_tests() {
         "`balaur test` owns that folder: {held:?}"
     );
 }
+
+// `[override.web.application] ignore` leaves a folder out of the web export
+// alone: the desktop's still carries it.
+#[test]
+fn a_target_s_ignore_leaves_a_folder_out_of_that_target_s_export_alone() {
+    let dir = project();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\n\n[override.web.application]\nignore = [\"packs/**\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("packs/words")).unwrap();
+    std::fs::write(dir.path().join("packs/words/index.json"), "{}").unwrap();
+    let web = exported_for(dir.path(), "web").unwrap();
+    assert!(!web.assets.contains_key("packs/words/index.json"));
+    let desktop = exported_for(dir.path(), "linux-x64").unwrap();
+    assert!(desktop.assets.contains_key("packs/words/index.json"));
+}

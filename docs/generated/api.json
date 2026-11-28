@@ -48364,7 +48364,7 @@
       "spec": {
         "applies": "restart",
         "default": [],
-        "help": "Project paths that are not the game's, as globs: `art/wip/**`, `**/*.blend1`. The asset index skips them and a pack leaves them out.",
+        "help": "Project paths that are not the game's, as globs: `art/wip/**`, `**/*.blend1`. The asset index skips them and a pack leaves them out; a target's override is its export's alone, `[override.web.application] ignore`.",
         "of": {
           "default": "",
           "type": "string"
