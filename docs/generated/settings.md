@@ -56,6 +56,7 @@ question as an old one is a second way to say it.
 <tr><td><code>schemes</code></td><td>list of string</td><td><code>[]</code></td><td></td><td>The custom URL schemes that open the game, as CFBundleURLTypes on iOS and a Mac: a link on one arrives as url_opened on platform_event. Named by [android] schemes&#x27; rule: lowercase, a letter first, then letters, digits, +, - or ., and not http or https.</td></tr>
 <tr><td><code>associated_domains</code></td><td>list of string</td><td><code>[]</code></td><td></td><td>com.apple.developer.associated-domains, each as Apple writes it (applinks:game.studio.com): a universal link to one opens the game, arriving as url_opened. Granted by the provisioning profile only, which the export checks, and the domain serves apple-app-site-association naming the app.</td></tr>
 <tr><td><code>macos_installer_identity</code></td><td>string</td><td><code>&quot;&quot;</code></td><td></td><td>The identity a Mac App Store .pkg is signed with, 3rd Party Mac Developer Installer: …. Empty derives it from an Apple Distribution macos_identity.</td></tr>
+<tr><td><code>devices</code></td><td>flags</td><td><code>[&quot;iphone&quot;]</code></td><td></td><td>UIDeviceFamily: the devices an iOS build installs on. With ipad the bundle multitasks there, turning to every orientation, or takes the whole screen where its orientations hold fewer. App Store Connect refuses an update that drops a device the last one ran on, so ipad is never added for a game.</td></tr>
 </tbody>
 </table>
 

@@ -94,6 +94,7 @@ ios_identity = { type = "string", default = "", order = 13, help = "The identity
 ios_provisioning_profile = { type = "string", default = "", order = 14, help = "A project-relative .mobileprovision, copied into the bundle. The export refuses one that does not grant what the capabilities write." }
 schemes = { type = "list", of = { type = "string" }, default = [], order = 15, help = "The custom URL schemes that open the game, as CFBundleURLTypes on iOS and a Mac: a link on one arrives as url_opened on platform_event. Named by [android] schemes' rule: lowercase, a letter first, then letters, digits, +, - or ., and not http or https." }
 associated_domains = { type = "list", of = { type = "string" }, default = [], order = 16, help = "com.apple.developer.associated-domains, each as Apple writes it (applinks:game.studio.com): a universal link to one opens the game, arriving as url_opened. Granted by the provisioning profile only, which the export checks, and the domain serves apple-app-site-association naming the app." }
+devices = { type = "flags", default = ["iphone"], options = ["iphone", "ipad"], order = 18, help = "UIDeviceFamily: the devices an iOS build installs on. With ipad the bundle multitasks there, turning to every orientation, or takes the whole screen where its orientations hold fewer. App Store Connect refuses an update that drops a device the last one ran on, so ipad is never added for a game." }
 "#,
         ),
     );

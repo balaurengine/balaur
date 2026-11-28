@@ -52413,6 +52413,23 @@
     },
     {
       "host": false,
+      "path": "apple/devices",
+      "scope": "project",
+      "spec": {
+        "default": [
+          "iphone"
+        ],
+        "help": "UIDeviceFamily: the devices an iOS build installs on. With ipad the bundle multitasks there, turning to every orientation, or takes the whole screen where its orientations hold fewer. App Store Connect refuses an update that drops a device the last one ran on, so ipad is never added for a game.",
+        "options": [
+          "iphone",
+          "ipad"
+        ],
+        "order": 18,
+        "type": "flags"
+      }
+    },
+    {
+      "host": false,
       "path": "windows/certificate",
       "scope": "project",
       "spec": {

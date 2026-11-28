@@ -109,12 +109,13 @@ fi
 
 case $base in
 ios | ios-sim)
-  app="$work/project.app"
+  # The bundle and its executable are named for `[application] name`, as
+  # Xcode names both for the product, and so is what the home screen shows.
+  title=$(awk -F'"' '/^name *=/ { print $2; exit }' "$work/project/project.toml")
+  app="$work/$title.app"
   [ -d "$app" ] || fail "no $app"
   [ -f "$app/game.bpak" ] || fail "the exported .app carries no pack"
-  [ -x "$app/Balaur" ] || fail "the .app's executable is missing or not executable"
-  # What the home screen shows is `[application] name`, never the folder.
-  title=$(awk -F'"' '/^name *=/ { print $2; exit }' "$work/project/project.toml")
+  [ -x "$app/$title" ] || fail "the .app's executable is missing or not executable"
   grep -q "<key>CFBundleDisplayName</key><string>$title</string>" "$app/Info.plist" ||
     fail "Info.plist does not name the game as [application] name does ($title)"
   # `file` says arm64 Mach-O for host and iOS alike, so ask the load command.
@@ -126,7 +127,7 @@ ios | ios-sim)
     built='platform +IOS( |$)|LC_VERSION_MIN_IPHONEOS'
   fi
   if command -v vtool >/dev/null 2>&1; then
-    build=$(vtool -show-build "$app/Balaur" 2>/dev/null || true)
+    build=$(vtool -show-build "$app/$title" 2>/dev/null || true)
     grep -qiE "$built" <<<"$build" ||
       fail "the .app executable was not built for $base: $(tr '\n' ' ' <<<"$build")"
   fi
@@ -154,7 +155,7 @@ ios | ios-sim)
     plutil -lint "$ent" >/dev/null || fail "the entitlements are not a valid plist"
   fi
   printf '\nexported %s\n' "$app"
-  (cd "$work" && tar -czf "$dist/balaur-example-$platform.tar.gz" "project.app")
+  (cd "$work" && tar -czf "$dist/balaur-example-$platform.tar.gz" "$title.app")
   ;;
 android)
   layout="$work/project-android"

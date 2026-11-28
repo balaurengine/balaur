@@ -38,6 +38,8 @@ pub(crate) mod words {
 
     pub(crate) mod bundle {
         pub(crate) const ASSETS: &str = "assets";
+        /// A game's file name where nothing else names one.
+        pub(crate) const GAME: &str = "game";
     }
 
     pub(crate) mod config {

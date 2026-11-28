@@ -194,19 +194,13 @@ pub(crate) fn notarize(bundle: &Path) -> Result<()> {
 }
 
 /// An `.ipa`: the App Store's shape for an iOS build, which is the `.app`
-/// inside a `Payload` directory, zipped. The entry is `<name>.app` even when
-/// `--output` named the bundle without the suffix: the App Store and every
-/// signer look for `Payload/*.app`.
+/// inside a `Payload` directory, zipped. The entry is named for the bundle's
+/// executable, `Payload/<product>.app`, as Xcode names it, whatever
+/// `--output` called the bundle: App Store Connect names it in what it says.
 pub(crate) fn build_ipa(app: &Path, output: &Path) -> Result<PathBuf> {
-    let name = app
-        .file_name()
-        .context("the exported .app has no name")?
-        .to_string_lossy()
-        .into_owned();
-    let bundled = Path::new(&name)
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("app"));
-    let name = if bundled { name } else { format!("{name}.app") };
+    let product = crate::bundle::bundle_executable(&app.join("Info.plist"))
+        .with_context(|| format!("{} names no executable", app.display()))?;
+    let name = format!("{product}.app");
     let staging = output.with_extension("ipa-staging");
     let payload = staging.join("Payload");
     let _ = std::fs::remove_dir_all(&staging);
@@ -330,17 +324,21 @@ mod tests {
     use super::{nested_code, pkg_command, which};
 
     // `--output /out/game` writes the bundle as `game`, which is how Forge
-    // exports; an ipa of it without `.app` is one no signer can find. Unix
+    // exports; the ipa names it for its executable, as Xcode would. Unix
     // only: Windows runners have no `zip`.
     #[cfg(unix)]
     #[test]
-    fn an_ipa_holds_a_dot_app_whatever_the_bundle_was_called() {
+    fn an_ipa_names_the_bundle_for_its_executable_whatever_the_folder_was_called() {
         use super::build_ipa;
 
         let work = tempfile::tempdir().unwrap();
         let app = work.path().join("game");
         std::fs::create_dir_all(&app).unwrap();
-        std::fs::write(app.join("Info.plist"), "<plist/>").unwrap();
+        std::fs::write(
+            app.join("Info.plist"),
+            "<plist><dict><key>CFBundleExecutable</key><string>Tide Pool</string></dict></plist>",
+        )
+        .unwrap();
 
         let ipa = build_ipa(&app, &app).unwrap();
         assert_eq!(ipa, work.path().join("game.ipa"));
@@ -354,7 +352,7 @@ mod tests {
         assert!(
             listing
                 .lines()
-                .any(|line| line == "Payload/game.app/Info.plist"),
+                .any(|line| line == "Payload/Tide Pool.app/Info.plist"),
             "{listing}"
         );
     }

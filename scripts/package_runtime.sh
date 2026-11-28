@@ -52,6 +52,17 @@ ios | ios-sim)
   chmod +x "$app/Balaur"
   code_by_crate native_crates.py "$app/Balaur" "balaur-runtime-$platform${variant:+-$variant}" "$dist"
   strip_template "$app/Balaur"
+  # What Xcode writes into every bundle it builds, read off the SDK and the
+  # Xcode this build linked with: App Store Connect refuses a bundle without
+  # them, and an export keeps them as they are here.
+  if [ "$platform" = ios-sim ]; then sdk=iphonesimulator; else sdk=iphoneos; fi
+  sdk_version=$(xcrun --sdk "$sdk" --show-sdk-version)
+  sdk_build=$(xcrun --sdk "$sdk" --show-sdk-build-version)
+  xcode_version=$(xcodebuild -version | awk 'NR == 1 { print $2 }')
+  xcode_build=$(xcodebuild -version | awk 'NR == 2 { print $3 }')
+  # Xcode 26.0.1 is 2601 and 9.4 is 0940: two digits of major, one each after.
+  IFS=. read -r major minor patch <<<"$xcode_version"
+  dt_xcode=$(printf '%02d%d%d' "$major" "${minor:-0}" "${patch:-0}")
   cat >"$app/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -67,6 +78,14 @@ ios | ios-sim)
   <key>LSRequiresIPhoneOS</key><true/>
   <key>UILaunchScreen</key><dict/>
   <key>MinimumOSVersion</key><string>$ios_min</string>
+  <key>BuildMachineOSBuild</key><string>$(sw_vers -buildVersion)</string>
+  <key>DTCompiler</key><string>com.apple.compilers.llvm.clang.1_0</string>
+  <key>DTPlatformName</key><string>$sdk</string>
+  <key>DTPlatformVersion</key><string>$sdk_version</string>
+  <key>DTSDKBuild</key><string>$sdk_build</string>
+  <key>DTSDKName</key><string>$sdk$sdk_version</string>
+  <key>DTXcode</key><string>$dt_xcode</string>
+  <key>DTXcodeBuild</key><string>$xcode_build</string>
 </dict>
 </plist>
 PLIST

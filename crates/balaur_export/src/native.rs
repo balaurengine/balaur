@@ -2,7 +2,7 @@
 // Xcode for an Apple target on a Mac that has it, or with clang and lld for
 // any, and put where the game loads it from (`standalone::native_scripts_beside`).
 
-use crate::apple::AppleConfig;
+use crate::apple::{AppleConfig, store};
 use crate::config::NativeScripts;
 use crate::vocabulary::words;
 use anyhow::{Context, Result, bail};
@@ -493,13 +493,10 @@ const CPU_X86_64: u32 = 0x0100_0007;
 const LC_BUILD_VERSION: u32 = 0x32;
 const PLATFORM_IOS_SIMULATOR: u32 = 7;
 
-/// Whether the iOS executable at `path` is the simulator's, which the
-/// bundle around it has to be built for too.
-pub(crate) fn built_for_simulator(path: &Path) -> bool {
-    std::fs::read(path)
-        .ok()
-        .and_then(|bin| slice_of(&bin))
-        .is_some_and(|slice| slice.simulator)
+/// Whether the iOS executable `bin` is the simulator's, which the bundle
+/// around it has to be built for too.
+pub(crate) fn built_for_simulator(bin: &[u8]) -> bool {
+    slice_of(bin).is_some_and(|slice| slice.simulator)
 }
 
 fn slice_of(bin: &[u8]) -> Option<Slice> {
@@ -542,13 +539,13 @@ pub(crate) fn build_framework(
     };
     let (sdk, platform, plist_platform, suffix) = if slice.simulator {
         (
-            "iphonesimulator",
+            store::SIMULATOR_SDK,
             "ios-simulator",
-            "iPhoneSimulator",
+            store::IPHONE_SIMULATOR,
             "-simulator",
         )
     } else {
-        ("iphoneos", words::targets::IOS, "iPhoneOS", "")
+        (store::DEVICE_SDK, words::targets::IOS, store::IPHONE_OS, "")
     };
     let file = native_scripts_beside(&app.join(executable), words::targets::IOS);
     let dir = file.parent().context("a framework with no directory")?;

@@ -13,14 +13,13 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
+use crate::plist;
+
 /// Where the plist starts inside the envelope, and where it ends.
 const PLIST_START: &[u8] = b"<?xml";
 const PLIST_END: &[u8] = b"</plist>";
 /// The profile's key holding what it grants.
 const ENTITLEMENTS: &str = "Entitlements";
-const DICT: &str = "dict";
-const KEY: &str = "key";
-const STRING: &str = "string";
 
 /// What a provisioning profile grants.
 #[derive(Debug)]
@@ -47,26 +46,15 @@ impl Profile {
             .map(|at| start + at + PLIST_END.len())
             .context("its plist is cut short")?;
         let text = std::str::from_utf8(&bytes[start..end]).context("its plist is not UTF-8")?;
-        let document = roxmltree::Document::parse_with_options(
-            text,
-            roxmltree::ParsingOptions {
-                allow_dtd: true,
-                ..roxmltree::ParsingOptions::default()
-            },
-        )
-        .context("its plist does not parse")?;
-        let top = document
-            .root_element()
-            .children()
-            .find(|node| node.has_tag_name(DICT))
-            .context("its plist holds no dictionary")?;
-        let entitlements = entry(top, ENTITLEMENTS)
-            .filter(|node| node.has_tag_name(DICT))
+        let document = plist::parse(text)?;
+        let top = plist::top(&document)?;
+        let entitlements = plist::entry(top, ENTITLEMENTS)
+            .filter(|node| node.has_tag_name(plist::DICT))
             .context("it grants no entitlements")?;
-        let granted = pairs(entitlements)
+        let granted = plist::pairs(entitlements)
             .map(|(key, value)| {
                 let text = value
-                    .has_tag_name(STRING)
+                    .has_tag_name(plist::STRING)
                     .then(|| value.text().unwrap_or_default().to_string());
                 (key.to_string(), text)
             })
@@ -83,33 +71,6 @@ impl Profile {
     pub(crate) fn value(&self, entitlement: &str) -> Option<&str> {
         self.granted.get(entitlement)?.as_deref()
     }
-}
-
-/// A plist dictionary's keys, each with the element after it.
-fn pairs<'a, 'input>(
-    dict: roxmltree::Node<'a, 'input>,
-) -> impl Iterator<Item = (&'a str, roxmltree::Node<'a, 'input>)> {
-    let mut elements = dict.children().filter(roxmltree::Node::is_element);
-    std::iter::from_fn(move || {
-        loop {
-            let key = elements.next()?;
-            if !key.has_tag_name(KEY) {
-                continue;
-            }
-            let value = elements.next()?;
-            return Some((key.text().unwrap_or_default(), value));
-        }
-    })
-}
-
-/// The value under `name` in a plist dictionary.
-fn entry<'a, 'input>(
-    dict: roxmltree::Node<'a, 'input>,
-    name: &str,
-) -> Option<roxmltree::Node<'a, 'input>> {
-    pairs(dict)
-        .find(|(key, _)| *key == name)
-        .map(|(_, value)| value)
 }
 
 fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {

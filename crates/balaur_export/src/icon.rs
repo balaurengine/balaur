@@ -113,9 +113,10 @@ impl Icons {
     /// a packager installs with it into `share/applications`.
     pub(crate) fn write_linux(&self, executable: &Path, fallback: &str) -> Result<()> {
         let display = self.title(fallback);
-        let stem = executable
-            .file_name()
-            .map_or_else(|| "game".into(), |n| n.to_string_lossy().into_owned());
+        let stem = executable.file_name().map_or_else(
+            || words::bundle::GAME.into(),
+            |n| n.to_string_lossy().into_owned(),
+        );
         let dir = executable.parent().unwrap_or_else(|| Path::new("."));
         write(&dir.join(format!("{stem}.png")), &png(&self.plain, 512))?;
         let entry = format!(

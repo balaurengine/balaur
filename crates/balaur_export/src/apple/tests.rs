@@ -1,6 +1,7 @@
 //! `[apple]`'s plist, entitlements and refusals.
 
-use super::{AppleConfig, Build, Capability, Platform};
+use super::store;
+use super::{AppleConfig, Build, Capability, IosTemplate, Platform};
 use crate::profile::Profile;
 use crate::profile::tests::profile_granting;
 
@@ -40,7 +41,9 @@ fn an_orientation_reaches_the_plist() {
         orientation: balaur::project::Orientation::Portrait,
         ..config("[apple]\nbundle_id = \"com.studio.game\"\n")
     };
-    let text = held.info_plist(Platform::Ios, "Balaur", "").unwrap();
+    let text = held
+        .ios_plist("Balaur", "", &IosTemplate::default())
+        .unwrap();
     assert!(
         text.contains("<key>UISupportedInterfaceOrientations</key>"),
         "{text}"
@@ -49,9 +52,12 @@ fn an_orientation_reaches_the_plist() {
     assert!(!text.contains("LandscapeLeft"), "{text}");
 
     let none = config("[apple]\nbundle_id = \"com.studio.game\"\n")
-        .info_plist(Platform::Ios, "Balaur", "")
+        .ios_plist("Balaur", "", &IosTemplate::default())
         .unwrap();
-    assert!(!none.contains("UISupportedInterfaceOrientations"), "{none}");
+    assert!(
+        !none.contains("<key>UISupportedInterfaceOrientations</key>"),
+        "{none}"
+    );
 
     let named = AppleConfig {
         orientation: balaur::project::Orientation::Portrait,
@@ -60,7 +66,9 @@ fn an_orientation_reaches_the_plist() {
              UISupportedInterfaceOrientations = [\"UIInterfaceOrientationLandscapeLeft\"]\n",
         )
     };
-    let text = named.info_plist(Platform::Ios, "Balaur", "").unwrap();
+    let text = named
+        .ios_plist("Balaur", "", &IosTemplate::default())
+        .unwrap();
     assert!(text.contains("LandscapeLeft"), "{text}");
     assert!(!text.contains("UIInterfaceOrientationPortrait"), "{text}");
 }
@@ -185,7 +193,9 @@ fn the_plist_carries_the_projects_identifier_and_its_own_keys() {
          [apple.plist]\nITSAppUsesNonExemptEncryption = false\n\
          UISupportedInterfaceOrientations = [\"UIInterfaceOrientationLandscapeLeft\"]\n",
     );
-    let text = config.info_plist(Platform::Ios, "Balaur", "").unwrap();
+    let text = config
+        .ios_plist("Balaur", "", &IosTemplate::default())
+        .unwrap();
     assert!(text.contains("<key>CFBundleIdentifier</key><string>com.studio.game</string>"));
     assert!(text.contains("<key>CFBundleDisplayName</key><string>My Game</string>"));
     assert!(text.contains("<key>CFBundleShortVersionString</key><string>2.1</string>"));
@@ -197,7 +207,7 @@ fn the_plist_carries_the_projects_identifier_and_its_own_keys() {
 #[test]
 fn a_macos_plist_declares_its_own_minimum_and_no_iphone_keys() {
     let config = config("[apple]\nbundle_id = \"com.studio.game\"\nmin_macos = \"13.0\"\n");
-    let text = config.info_plist(Platform::Macos, "game", "").unwrap();
+    let text = config.macos_plist("game", "").unwrap();
     assert!(text.contains("<key>LSMinimumSystemVersion</key><string>13.0</string>"));
     assert!(!text.contains("LSRequiresIPhoneOS"), "{text}");
 }
@@ -473,8 +483,12 @@ fn linked(extra: &str) -> AppleConfig {
 fn schemes_are_the_url_types_both_platforms_open_the_game_with() {
     let config = linked("schemes = [\"com.studio.game\", \"tide\"]\n");
     config.check(Platform::Ios).expect("two schemes");
-    for platform in [Platform::Ios, Platform::Macos] {
-        let text = config.info_plist(platform, "game", "").unwrap();
+    for text in [
+        config
+            .ios_plist("game", "", &IosTemplate::default())
+            .unwrap(),
+        config.macos_plist("game", "").unwrap(),
+    ] {
         assert!(
             text.contains(
                 "<key>CFBundleURLTypes</key>\n  <array><dict><key>CFBundleURLName</key>\
@@ -484,7 +498,9 @@ fn schemes_are_the_url_types_both_platforms_open_the_game_with() {
             "{text}"
         );
     }
-    let none = linked("").info_plist(Platform::Ios, "game", "").unwrap();
+    let none = linked("")
+        .ios_plist("game", "", &IosTemplate::default())
+        .unwrap();
     assert!(!none.contains("CFBundleURLTypes"), "{none}");
 }
 
@@ -625,4 +641,206 @@ fn the_installer_identity_is_named_or_the_application_ones_team() {
         .unwrap_err()
         .to_string();
     assert!(err.contains("--installer-identity"), "{err}");
+}
+
+/// A device template's toolchain keys, as `package_runtime.sh` writes them.
+fn device_template() -> IosTemplate {
+    IosTemplate {
+        toolchain: [
+            ("BuildMachineOSBuild", "26B131"),
+            ("DTCompiler", "com.apple.compilers.llvm.clang.1_0"),
+            ("DTPlatformName", "iphoneos"),
+            ("DTPlatformVersion", "27.1"),
+            ("DTSDKBuild", "24A94232"),
+            ("DTSDKName", "iphoneos27.1"),
+            ("DTXcode", "2710"),
+            ("DTXcodeBuild", "27A9275"),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect(),
+        simulator: false,
+        sdk: Some((27, 1)),
+        ..IosTemplate::default()
+    }
+}
+
+#[test]
+fn a_device_plist_carries_every_key_app_store_connect_requires() {
+    let config = linked("");
+    let template = device_template();
+    let text = config.ios_plist("Game", "", &template).unwrap();
+    for line in [
+        "<key>CFBundleSupportedPlatforms</key><array><string>iPhoneOS</string></array>",
+        "<key>UIDeviceFamily</key><array><integer>1</integer></array>",
+        "<key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>",
+        "<key>DTPlatformName</key><string>iphoneos</string>",
+        "<key>DTSDKName</key><string>iphoneos27.1</string>",
+        "<key>DTXcode</key><string>2710</string>",
+        "<key>BuildMachineOSBuild</key><string>26B131</string>",
+    ] {
+        assert!(text.contains(line), "{line}: {text}");
+    }
+    store::check(&text, &template).expect("a plist App Store Connect takes");
+}
+
+#[test]
+fn a_simulator_plist_names_its_platform_and_requires_no_arm64() {
+    let template = IosTemplate {
+        simulator: true,
+        ..IosTemplate::default()
+    };
+    let text = linked("").ios_plist("Game", "", &template).unwrap();
+    assert!(
+        text.contains("<array><string>iPhoneSimulator</string></array>"),
+        "{text}"
+    );
+    assert!(!text.contains("UIRequiredDeviceCapabilities"), "{text}");
+    store::check(&text, &template).expect("a simulator's bundle is never uploaded");
+}
+
+// The three App Store Connect named, each by its key, so a template built
+// without its toolchain's keys fails the export rather than the upload.
+#[test]
+fn a_device_plist_app_store_connect_would_refuse_names_each_key() {
+    let bare = IosTemplate::default();
+    let text =
+        linked("[apple.plist]\nUIRequiredDeviceCapabilities = [\"metal\"]\nUIDeviceFamily = []\n")
+            .ios_plist("Game", "", &bare)
+            .unwrap();
+    let why = store::check(&text, &bare).unwrap_err().to_string();
+    for named in [
+        "DTPlatformName",
+        "DTSDKName",
+        "DTXcodeBuild",
+        "BuildMachineOSBuild",
+        "package_runtime.sh",
+        "UIRequiredDeviceCapabilities does not list arm64",
+        "UIDeviceFamily names no device",
+    ] {
+        assert!(why.contains(named), "{named}: {why}");
+    }
+}
+
+#[test]
+fn a_template_whose_plist_names_another_sdk_than_its_binary_is_refused() {
+    let template = IosTemplate {
+        sdk: Some((26, 5)),
+        ..device_template()
+    };
+    let text = linked("").ios_plist("Game", "", &template).unwrap();
+    let why = store::check(&text, &template).unwrap_err().to_string();
+    assert!(
+        why.contains("27.1 SDK") && why.contains("linked against 26.5"),
+        "{why}"
+    );
+}
+
+#[test]
+fn the_template_keeps_its_toolchain_keys_and_nothing_else() {
+    let template = IosTemplate::read(
+        "<plist><dict><key>CFBundleExecutable</key><string>Balaur</string>\
+         <key>DTSDKName</key><string>iphoneos27.1</string>\
+         <key>BuildMachineOSBuild</key><string>26B131</string></dict></plist>",
+    )
+    .unwrap()
+    .built(b"\0runtime\0");
+    assert_eq!(template.executable.as_deref(), Some("Balaur"));
+    assert_eq!(
+        template.toolchain,
+        [
+            ("DTSDKName".to_string(), "iphoneos27.1".to_string()),
+            ("BuildMachineOSBuild".to_string(), "26B131".to_string()),
+        ]
+    );
+    assert!(!template.simulator);
+    assert_eq!(template.sdk, None);
+}
+
+#[test]
+fn a_project_names_its_devices_and_its_own_plist_keys_win() {
+    let phone = linked("devices = [\"iphone\"]\n");
+    let text = phone.ios_plist("Game", "", &device_template()).unwrap();
+    assert!(
+        text.contains("<key>UIDeviceFamily</key><array><integer>1</integer></array>"),
+        "{text}"
+    );
+    assert!(
+        !text.contains("~ipad") && !text.contains("UIRequiresFullScreen"),
+        "{text}"
+    );
+
+    let own = linked(
+        "[apple.plist]\nUIDeviceFamily = [2]\nCFBundleSupportedPlatforms = [\"iPhoneOS\"]\n\
+         DTXcode = \"2700\"\n",
+    );
+    let text = own.ios_plist("Game", "", &device_template()).unwrap();
+    assert_eq!(
+        text.matches("<key>UIDeviceFamily</key>").count(),
+        1,
+        "{text}"
+    );
+    assert_eq!(text.matches("<key>DTXcode</key>").count(), 1, "{text}");
+    assert!(text.contains("<string>2700</string>"), "{text}");
+
+    let none = linked("devices = []\n");
+    let why = none.check(Platform::Ios).unwrap_err().to_string();
+    assert!(why.contains("[apple] devices names none"), "{why}");
+    none.check(Platform::Macos)
+        .expect("a Mac has no device family");
+}
+
+// App Store Connect's 90474: an iPad build multitasks unless it takes the
+// whole screen, and one that multitasks turns every way.
+#[test]
+fn an_ipad_build_turns_every_way_or_takes_the_whole_screen() {
+    const IPAD: &str = "devices = [\"iphone\", \"ipad\"]\n";
+    let template = device_template();
+    let turning = linked(IPAD).ios_plist("Game", "", &template).unwrap();
+    assert!(
+        turning.contains(
+            "<key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>"
+        ) && turning.contains("<key>UISupportedInterfaceOrientations~ipad</key>")
+            && turning.contains("UIInterfaceOrientationLandscapeRight"),
+        "{turning}"
+    );
+    store::check(&turning, &template).unwrap();
+
+    let held = AppleConfig {
+        orientation: balaur::project::Orientation::Portrait,
+        ..linked(IPAD)
+    };
+    let portrait = "UISupportedInterfaceOrientations = [\"UIInterfaceOrientationPortrait\"]\n";
+    let named = linked(&format!("{IPAD}[apple.plist]\n{portrait}"));
+    for config in [held, named] {
+        let text = config.ios_plist("Game", "", &template).unwrap();
+        assert!(
+            text.contains("<key>UIRequiresFullScreen</key><true/>"),
+            "{text}"
+        );
+        store::check(&text, &template).unwrap();
+    }
+
+    let refused = linked(&format!(
+        "{IPAD}[apple.plist]\n{portrait}UIRequiresFullScreen = false\n"
+    ));
+    let text = refused.ios_plist("Game", "", &template).unwrap();
+    let why = store::check(&text, &template).unwrap_err().to_string();
+    assert!(why.contains("90474"), "{why}");
+}
+
+#[test]
+fn the_product_is_the_games_name_as_a_file_can_hold_it() {
+    let named = |title: &str| {
+        AppleConfig {
+            title: title.into(),
+            ..linked("")
+        }
+        .product_name()
+    };
+    assert_eq!(named("Polyglot Pirates"), "Polyglot Pirates");
+    assert_eq!(named("Tide: A/B?"), "Tide AB");
+    assert_eq!(named("海賊"), "海賊");
+    assert_eq!(named(".hidden."), "hidden");
+    assert_eq!(named("/?:"), "game", "the bundle id's last part");
 }

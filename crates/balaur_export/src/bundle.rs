@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::android::AndroidConfig;
-use crate::apple::{AppleConfig, Build, Platform};
+use crate::apple::{AppleConfig, Build, IosTemplate, Platform};
 use crate::icon::Icons;
 use crate::profile::Profile;
 use crate::roots_for_message;
@@ -162,11 +162,7 @@ pub(crate) fn export_bundle(
             apple.check_floor(Platform::Ios, floor)?;
         }
     }
-    let output = output.unwrap_or_else(|| match kind {
-        Bundle::Ios => PathBuf::from(format!("{name}.app")),
-        Bundle::Android => PathBuf::from(format!("{name}-android")),
-        Bundle::Web => PathBuf::from(format!("{name}-web")),
-    });
+    let output = output.unwrap_or_else(|| PathBuf::from(bundle_name(kind, name, apple)));
     let inside = match kind {
         Bundle::Ios | Bundle::Web => PathBuf::from(balaur::standalone::BUNDLED_PACK),
         Bundle::Android => Path::new(words::bundle::ASSETS).join(balaur::standalone::BUNDLED_PACK),
@@ -235,8 +231,20 @@ pub(crate) fn export_bundle(
     Ok(output)
 }
 
-/// An iOS bundle's own `Info.plist` over the template's, and the
-/// entitlements beside it for the identity the project declares.
+/// What a bundle is called when `--output` names nothing: an iOS one for its
+/// product, as Xcode names it, the others for the project.
+pub(crate) fn bundle_name(kind: Bundle, name: &str, apple: &AppleConfig) -> String {
+    match kind {
+        Bundle::Ios => format!("{}.app", apple.product_name()),
+        Bundle::Android => format!("{name}-android"),
+        Bundle::Web => format!("{name}-web"),
+    }
+}
+
+/// An iOS bundle's own `Info.plist` over the template's, its executable
+/// named for the product, and the entitlements beside it for the identity
+/// the project declares. A device bundle App Store Connect would refuse
+/// fails here, naming the keys.
 fn write_ios_plist(
     output: &Path,
     name: &str,
@@ -244,17 +252,32 @@ fn write_ios_plist(
     icons: Option<&Icons>,
 ) -> Result<()> {
     let plist = output.join("Info.plist");
-    let executable = runtime_executable(&plist).unwrap_or_else(|| "Balaur".to_string());
-    let simulator = crate::native::built_for_simulator(&output.join(&executable));
+    let staged =
+        std::fs::read_to_string(&plist).with_context(|| format!("reading {}", plist.display()))?;
+    let template = IosTemplate::read(&staged)
+        .with_context(|| format!("reading the template's {}", plist.display()))?;
+    let runtime = output.join(template.executable.as_deref().unwrap_or("Balaur"));
+    let template = template
+        .built(&std::fs::read(&runtime).with_context(|| format!("reading {}", runtime.display()))?);
+    let executable = apple.product_name();
+    let named = output.join(&executable);
+    if named != runtime {
+        anyhow::ensure!(
+            !named.exists(),
+            "[application] name names {executable}, which the iOS bundle already holds: \
+             the executable is named for the game"
+        );
+        let moved = std::fs::rename(&runtime, &named); // whole: one file moved inside the bundle
+        moved.with_context(|| format!("naming {} {executable}", runtime.display()))?;
+    }
     let icon_keys = match icons {
-        Some(icons) => icons.write_ios(output, &apple.min_ios, simulator)?,
+        Some(icons) => icons.write_ios(output, &apple.min_ios, template.simulator)?,
         None => String::new(),
     };
-    balaur::whole::write_cached(
-        &plist,
-        apple.info_plist(Platform::Ios, &executable, &icon_keys)?,
-    )
-    .with_context(|| format!("writing {}", plist.display()))?;
+    let text = apple.ios_plist(&executable, &icon_keys, &template)?;
+    crate::apple::store::check(&text, &template)?;
+    balaur::whole::write_cached(&plist, text)
+        .with_context(|| format!("writing {}", plist.display()))?;
     // The identity the project declares, which `--sign` may replace; the
     // signing step writes this file again for the one it signs with.
     let declared = (!apple.ios_identity.is_empty()).then_some(apple.ios_identity.as_str());
@@ -276,27 +299,20 @@ fn write_ios_plist(
     Ok(())
 }
 
-/// The binary inside the runtime bundle, read off the plist the exporter is
-/// about to replace: the executable file keeps the runtime's name, so the
-/// new plist has to name the same one.
-pub(crate) fn runtime_executable(plist: &Path) -> Option<String> {
-    plist_string(plist, "CFBundleExecutable")
+/// The executable a bundle's plist names: the template's before an export
+/// writes its own, the product's after.
+pub(crate) fn bundle_executable(plist: &Path) -> Option<String> {
+    crate::plist::string_at(plist, crate::apple::store::EXECUTABLE)
 }
 
 /// The OS the template was built for, from its own plist's
 /// `MinimumOSVersion`, which `package_runtime.sh` writes from the target it
 /// builds with.
 fn template_floor(plist: &Path) -> Option<(u32, u32)> {
-    crate::apple::version_of(&plist_string(plist, "MinimumOSVersion")?)
-}
-
-/// The string under `key` in a template's flat plist.
-fn plist_string(plist: &Path, key: &str) -> Option<String> {
-    let text = std::fs::read_to_string(plist).ok()?;
-    let after = text.split(&format!("<key>{key}</key>")).nth(1)?;
-    let open = after.find("<string>")? + "<string>".len();
-    let close = after.find("</string>")?;
-    Some(after[open..close].to_string())
+    crate::apple::version_of(&crate::plist::string_at(
+        plist,
+        crate::apple::store::MINIMUM_OS,
+    )?)
 }
 
 pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
@@ -414,7 +430,7 @@ pub(crate) fn export_macos_app(
     let icon_keys = icons.write_macos(&app, &apple.min_macos)?;
     balaur::whole::write_cached(
         app.join("Contents").join("Info.plist"),
-        apple.info_plist(Platform::Macos, name, &icon_keys)?,
+        apple.macos_plist(name, &icon_keys)?,
     )?;
     sign_mac_app(
         &app,

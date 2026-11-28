@@ -24,6 +24,7 @@ mod fits;
 mod icon;
 mod macho;
 mod native;
+mod plist;
 pub mod preview;
 mod profile;
 pub mod recode;
@@ -474,7 +475,12 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         let runtime = smallest_on_hand(wanted, full, |name| bundle_runtime(kind, name, opts))?;
         let shell = web_shell(&opts.path)?.replace("{{title}}", &title);
         let web_assets = bundle::web_files(&opts.path)?;
-        let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
+        let output = declared_output(
+            opts,
+            &config,
+            kind.platform(),
+            &bundle::bundle_name(kind, &name, &apple),
+        );
         let (head, tail) = pieces(kind, &mut pack, &config.later);
         let written = export_bundle(
             kind,
@@ -747,7 +753,7 @@ fn native_scripts(
     };
     match kind {
         Bundle::Ios => {
-            let executable = bundle::runtime_executable(&app.join("Info.plist"))
+            let executable = bundle::bundle_executable(&app.join("Info.plist"))
                 .unwrap_or_else(|| "Balaur".to_string());
             native::build_framework(app, &executable, request, apple)
         }
@@ -773,14 +779,6 @@ fn declared_output(
     opts.output
         .clone()
         .or_else(|| config.output_for(&opts.path, target, file))
-}
-
-fn bundle_name(kind: Bundle, name: &str) -> String {
-    match kind {
-        Bundle::Ios => format!("{name}.app"),
-        Bundle::Android => format!("{name}-android"),
-        Bundle::Web => format!("{name}-web"),
-    }
 }
 
 /// Signing and packaging, after the bundle itself is written: the identity
@@ -890,7 +888,7 @@ fn project_name(path: &Path) -> String {
     path.canonicalize()
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
-        .unwrap_or_else(|| "game".to_string())
+        .unwrap_or_else(|| words::bundle::GAME.to_string())
 }
 
 pub(crate) fn roots_for_message(roots: &[PathBuf]) -> String {

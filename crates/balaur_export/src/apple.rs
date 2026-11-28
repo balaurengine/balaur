@@ -14,6 +14,10 @@ use anyhow::{Context, Result, bail};
 
 use crate::profile::Profile;
 
+pub(crate) mod store;
+
+pub(crate) use store::IosTemplate;
+
 /// The entitlements a capability writes. Each is one Apple grants only
 /// through a provisioning profile, so each is also what a profile is checked
 /// for.
@@ -124,6 +128,24 @@ impl Capability {
     }
 }
 
+/// A device family an iOS build runs on, as `UIDeviceFamily` numbers it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum Device {
+    Iphone,
+    Ipad,
+}
+
+impl Device {
+    /// The number `UIDeviceFamily` names it by.
+    pub(crate) const fn family(self) -> u8 {
+        match self {
+            Self::Iphone => 1,
+            Self::Ipad => 2,
+        }
+    }
+}
+
 /// Which APNs a signed build's pushes come from, as `aps-environment` names
 /// it: the identity's own kind says, as Xcode's provisioning profile does,
 /// since a development certificate signs only for the sandbox.
@@ -195,6 +217,7 @@ pub(crate) enum PlistValue {
 /// bundle_id = "com.studio.game"
 /// team_id = "AB12CD34EF"
 /// min_ios = "15.0"
+/// devices = ["iphone", "ipad"]
 /// capabilities = ["sign-in-with-apple", "game-center", "icloud-kv"]
 /// schemes = ["com.studio.game"]
 /// associated_domains = ["applinks:game.studio.com"]
@@ -221,6 +244,8 @@ pub(crate) struct AppleConfig {
     pub min_ios: String,
     /// `LSMinimumSystemVersion` on macOS.
     pub min_macos: String,
+    /// `UIDeviceFamily`: the devices an iOS build installs on.
+    pub devices: Vec<Device>,
     /// macOS only: `LSApplicationCategoryType`.
     pub category: String,
     pub capabilities: Vec<Capability>,
@@ -281,6 +306,9 @@ impl Default for AppleConfig {
             // may not claim less than the binary was built for.
             min_ios: "15.0".into(),
             min_macos: "12.0".into(),
+            // iPad is the project's to ask for: App Store Connect refuses an
+            // update that drops a device the last one ran on.
+            devices: vec![Device::Iphone],
             category: String::new(),
             capabilities: Vec::new(),
             schemes: Vec::new(),
@@ -333,6 +361,28 @@ impl AppleConfig {
         }
     }
 
+    /// What the bundle and its executable are named, as Xcode names both
+    /// after the product: `[application] name`, less what a file name cannot
+    /// hold, else the bundle id's last part, else `game`.
+    pub(crate) fn product_name(&self) -> String {
+        let file_name = |source: &str| {
+            let kept: String = source
+                .chars()
+                .filter(|c| c.is_alphanumeric() || " -_.".contains(*c))
+                .collect();
+            let name = kept.trim_matches(|c| c == '.' || c == ' ');
+            (!name.is_empty()).then(|| name.to_string())
+        };
+        [
+            &self.title,
+            self.display(),
+            self.bundle_id.rsplit('.').next().unwrap_or_default(),
+        ]
+        .into_iter()
+        .find_map(file_name)
+        .unwrap_or_else(|| crate::vocabulary::words::bundle::GAME.to_string())
+    }
+
     /// Refuse an export that is missing what names it, or that would produce
     /// a bundle no capability can work in, naming what to fix.
     pub(crate) fn check(&self, platform: Platform) -> Result<()> {
@@ -359,6 +409,11 @@ impl AppleConfig {
             !self.build_number.is_empty(),
             "[apple] build_number is not set: what App Store Connect orders uploads by, \
              e.g. build_number = \"1\""
+        );
+        anyhow::ensure!(
+            platform == Platform::Macos || !self.devices.is_empty(),
+            "[apple] devices names none: the devices an iOS build installs on, \
+             e.g. devices = [\"iphone\", \"ipad\"]"
         );
         if self.app_store {
             anyhow::ensure!(
@@ -660,45 +715,110 @@ impl AppleConfig {
         Ok(Some(path))
     }
 
-    /// The `Info.plist` for a bundle, written whole rather than patched: the
+    /// An iOS bundle's `Info.plist`, written whole rather than patched: the
     /// template's is what the *template* runs with, and a key a project needs
-    /// goes in `[apple.plist]`.
+    /// goes in `[apple.plist]`. What the template keeps is its toolchain's
+    /// keys, which only the build that made it knows.
     ///
-    /// `executable` is the binary's file name inside the bundle, which on iOS
-    /// is still the template's. Call [`Self::check`] first.
+    /// `executable` is the binary's file name inside the bundle. Call
+    /// [`Self::check`] first, and [`store::check`] on what this answers.
     /// `icon_keys` are the lines the icon writer answered, already plist.
-    pub(crate) fn info_plist(
+    pub(crate) fn ios_plist(
         &self,
-        platform: Platform,
         executable: &str,
         icon_keys: &str,
+        template: &IosTemplate,
     ) -> Result<String> {
+        let mut own = String::new();
+        own.push_str("  <key>LSRequiresIPhoneOS</key><true/>\n");
+        own.push_str("  <key>UILaunchScreen</key><dict/>\n");
+        string_key(&mut own, store::MINIMUM_OS, &self.min_ios);
+        // A project naming a key itself keeps its own: it may want an order
+        // or a set the settings here cannot say.
+        let unnamed = |key: &str| !self.plist.contains_key(key);
+        if unnamed(store::SUPPORTED_PLATFORMS) {
+            array_key(&mut own, store::SUPPORTED_PLATFORMS, &[template.platform()]);
+        }
+        if unnamed(store::DEVICE_FAMILY) {
+            let _ = write!(own, "  <key>{}</key><array>", store::DEVICE_FAMILY);
+            for device in [Device::Iphone, Device::Ipad] {
+                if self.devices.contains(&device) {
+                    let _ = write!(own, "<integer>{}</integer>", device.family());
+                }
+            }
+            own.push_str("</array>\n");
+        }
+        if !template.simulator && unnamed(store::REQUIRED_CAPABILITIES) {
+            array_key(&mut own, store::REQUIRED_CAPABILITIES, &[store::ARM64]);
+        }
+        if unnamed(ORIENTATIONS) {
+            orientations(&mut own, self.orientation);
+        }
+        if self.devices.contains(&Device::Ipad) {
+            own.push_str(&self.ipad_orientations());
+        }
+        for (key, value) in &template.toolchain {
+            if unnamed(key) {
+                string_key(&mut own, key, value);
+            }
+        }
+        self.info_plist(executable, &own, icon_keys)
+    }
+
+    /// What an iPad build adds so it may multitask, as App Store Connect
+    /// requires: every orientation where the game turns with the device, or
+    /// the whole screen where its orientations, `[window] orientation`'s or
+    /// the project's own, hold it to fewer. A key the project names is its
+    /// own answer.
+    fn ipad_orientations(&self) -> String {
+        let mut out = String::new();
+        let named = |key: &str| self.plist.contains_key(key);
+        if named(store::IPAD_ORIENTATIONS) || named(store::REQUIRES_FULL_SCREEN) {
+            return out;
+        }
+        let turns = match self.plist.get(ORIENTATIONS) {
+            Some(PlistValue::List(faces)) => store::EVERY_ORIENTATION.iter().all(|face| {
+                faces
+                    .iter()
+                    .any(|named| matches!(named, PlistValue::Str(s) if s == face))
+            }),
+            Some(_) => false,
+            None => self.orientation == balaur::project::Orientation::Any,
+        };
+        if !turns {
+            let _ = writeln!(out, "  <key>{}</key><true/>", store::REQUIRES_FULL_SCREEN);
+        } else if !named(ORIENTATIONS) {
+            array_key(
+                &mut out,
+                store::IPAD_ORIENTATIONS,
+                &store::EVERY_ORIENTATION,
+            );
+        }
+        out
+    }
+
+    /// A Mac bundle's `Info.plist`, written whole as an iOS one is.
+    pub(crate) fn macos_plist(&self, executable: &str, icon_keys: &str) -> Result<String> {
+        let mut own = String::new();
+        string_key(&mut own, "LSMinimumSystemVersion", &self.min_macos);
+        if !self.category.is_empty() {
+            string_key(&mut own, "LSApplicationCategoryType", &self.category);
+        }
+        self.info_plist(executable, &own, icon_keys)
+    }
+
+    /// The keys every bundle carries, then `platform_keys`, the icon's and
+    /// the project's own.
+    fn info_plist(&self, executable: &str, platform_keys: &str, icon_keys: &str) -> Result<String> {
         let mut body = String::new();
-        string_key(&mut body, "CFBundleExecutable", executable);
+        string_key(&mut body, store::EXECUTABLE, executable);
         string_key(&mut body, "CFBundleIdentifier", self.identifier()?);
         string_key(&mut body, "CFBundleName", self.display());
         string_key(&mut body, "CFBundleDisplayName", self.display());
         string_key(&mut body, "CFBundlePackageType", "APPL");
         string_key(&mut body, "CFBundleShortVersionString", &self.version);
         string_key(&mut body, "CFBundleVersion", &self.build_number);
-        match platform {
-            Platform::Ios => {
-                body.push_str("  <key>LSRequiresIPhoneOS</key><true/>\n");
-                body.push_str("  <key>UILaunchScreen</key><dict/>\n");
-                string_key(&mut body, "MinimumOSVersion", &self.min_ios);
-                // A project naming the key itself is left alone: it may want
-                // an order or a set this one window setting cannot say.
-                if !self.plist.contains_key(ORIENTATIONS) {
-                    body.push_str(&orientations(self.orientation));
-                }
-            }
-            Platform::Macos => {
-                string_key(&mut body, "LSMinimumSystemVersion", &self.min_macos);
-                if !self.category.is_empty() {
-                    string_key(&mut body, "LSApplicationCategoryType", &self.category);
-                }
-            }
-        }
+        body.push_str(platform_keys);
         // A project naming the key itself keeps its own, as it does the
         // orientations.
         if !self.schemes.is_empty() && !self.plist.contains_key(URL_TYPES) {
@@ -723,7 +843,7 @@ impl AppleConfig {
     /// binary's name, `platform` the one `CFBundleSupportedPlatforms` names.
     pub(crate) fn framework_plist(&self, framework: &str, platform: &str) -> Result<String> {
         let mut body = String::new();
-        string_key(&mut body, "CFBundleExecutable", framework);
+        string_key(&mut body, store::EXECUTABLE, framework);
         string_key(
             &mut body,
             "CFBundleIdentifier",
@@ -734,12 +854,8 @@ impl AppleConfig {
         string_key(&mut body, "CFBundlePackageType", "FMWK");
         string_key(&mut body, "CFBundleShortVersionString", &self.version);
         string_key(&mut body, "CFBundleVersion", &self.build_number);
-        string_key(&mut body, "MinimumOSVersion", &self.min_ios);
-        let _ = writeln!(
-            body,
-            "  <key>CFBundleSupportedPlatforms</key><array><string>{}</string></array>",
-            escape(platform)
-        );
+        string_key(&mut body, store::MINIMUM_OS, &self.min_ios);
+        array_key(&mut body, store::SUPPORTED_PLATFORMS, &[platform]);
         Ok(plist_document(&body))
     }
 
@@ -803,10 +919,10 @@ fn check_domain(domain: &str) -> Result<()> {
 }
 
 /// A plist array of strings, on one line.
-fn string_array(items: &[String]) -> String {
+fn string_array(items: &[impl AsRef<str>]) -> String {
     let mut out = String::from("<array>");
     for item in items {
-        let _ = write!(out, "<string>{}</string>", escape(item));
+        let _ = write!(out, "<string>{}</string>", escape(item.as_ref()));
     }
     out.push_str("</array>");
     out
@@ -901,28 +1017,23 @@ fn parse_version(text: &str) -> Result<(u32, u32)> {
 }
 
 /// The plist key iOS reads a starting orientation from.
-const ORIENTATIONS: &str = "UISupportedInterfaceOrientations";
+pub(crate) const ORIENTATIONS: &str = "UISupportedInterfaceOrientations";
 
-/// `[window] orientation` as the two or three interface orientations iOS
-/// takes. `any` writes nothing, which leaves the device deciding.
-fn orientations(held: balaur::project::Orientation) -> String {
-    let faces: &[&str] = match held {
-        balaur::project::Orientation::Any => return String::new(),
-        balaur::project::Orientation::Portrait => &[
-            "UIInterfaceOrientationPortrait",
-            "UIInterfaceOrientationPortraitUpsideDown",
-        ],
-        balaur::project::Orientation::Landscape => &[
-            "UIInterfaceOrientationLandscapeLeft",
-            "UIInterfaceOrientationLandscapeRight",
-        ],
+/// `[window] orientation` as the two interface orientations iOS takes.
+/// `any` writes nothing, which leaves the device deciding.
+fn orientations(body: &mut String, held: balaur::project::Orientation) {
+    let [portrait, upside_down, left, right] = store::EVERY_ORIENTATION;
+    let faces = match held {
+        balaur::project::Orientation::Any => return,
+        balaur::project::Orientation::Portrait => [portrait, upside_down],
+        balaur::project::Orientation::Landscape => [left, right],
     };
-    let mut out = format!("  <key>{ORIENTATIONS}</key>\n  <array>\n");
-    for face in faces {
-        let _ = writeln!(out, "    <string>{face}</string>");
-    }
-    out.push_str("  </array>\n");
-    out
+    array_key(body, ORIENTATIONS, &faces);
+}
+
+/// `key` and an array of strings, on one line.
+fn array_key(body: &mut String, key: &str, items: &[impl AsRef<str>]) {
+    let _ = writeln!(body, "  <key>{key}</key>{}", string_array(items));
 }
 
 fn string_key(body: &mut String, key: &str, value: &str) {

@@ -71,14 +71,28 @@ fn export_mac(dir: &Path, sign: Option<&str>, profile: Option<PathBuf>) -> anyho
     Ok(app)
 }
 
-/// An iOS template: its plist, and a file standing for the executable.
-fn ios_runtime(dir: &Path) -> PathBuf {
+/// The keys `package_runtime.sh` writes from the SDK and the Xcode it built
+/// a template with.
+const TOOLCHAIN: &str = "<key>BuildMachineOSBuild</key><string>26B131</string>\
+    <key>DTCompiler</key><string>com.apple.compilers.llvm.clang.1_0</string>\
+    <key>DTPlatformName</key><string>iphoneos</string>\
+    <key>DTPlatformVersion</key><string>27.1</string>\
+    <key>DTSDKBuild</key><string>24A94232</string>\
+    <key>DTSDKName</key><string>iphoneos27.1</string>\
+    <key>DTXcode</key><string>2710</string>\
+    <key>DTXcodeBuild</key><string>27A9275</string>";
+
+/// An iOS template: its plist with `toolchain` in it, and a file standing
+/// for the executable.
+fn ios_runtime(dir: &Path, toolchain: &str) -> PathBuf {
     let app = dir.join("Balaur.app");
     std::fs::create_dir_all(&app).unwrap();
     std::fs::write(
         app.join("Info.plist"),
-        "<plist><dict><key>CFBundleExecutable</key><string>Balaur</string>\
-         <key>MinimumOSVersion</key><string>15.0</string></dict></plist>",
+        format!(
+            "<plist><dict><key>CFBundleExecutable</key><string>Balaur</string>\
+             <key>MinimumOSVersion</key><string>15.0</string>{toolchain}</dict></plist>"
+        ),
     )
     .unwrap();
     std::fs::write(app.join("Balaur"), b"\0runtime\0").unwrap();
@@ -91,7 +105,7 @@ fn export_ios(dir: &Path, profile: Option<PathBuf>) -> anyhow::Result<PathBuf> {
         path: dir.to_path_buf(),
         output: Some(app.clone()),
         target: Some("ios".into()),
-        runtime: Some(ios_runtime(dir)),
+        runtime: Some(ios_runtime(dir, TOOLCHAIN)),
         provisioning_profile: profile,
         ..Options::default()
     })?;
@@ -449,4 +463,62 @@ fn a_mac_app_store_build_is_neither_notarized_nor_a_steam_one() {
         export_store(dir.path(), None, Some(granted)).unwrap_err()
     );
     assert!(why.contains("notarized"), "{why}");
+}
+
+// Forge exports to `-o /out/game`; the bundle inside the ipa and its
+// executable are still the game's, as Xcode names them, and its plist
+// carries what App Store Connect reads. Unix only: Windows has no `zip`.
+#[cfg(unix)]
+#[test]
+fn an_ipa_holds_the_bundle_named_for_the_game_with_its_store_keys() {
+    let dir = project("");
+    let out = dir.path().join("out").join("game");
+    balaur_export::export(&Options {
+        path: dir.path().to_path_buf(),
+        output: Some(out.clone()),
+        target: Some("ios".into()),
+        runtime: Some(ios_runtime(dir.path(), TOOLCHAIN)),
+        ipa: true,
+        ..Options::default()
+    })
+    .unwrap();
+    assert!(out.join("t").is_file() && !out.join("Balaur").exists());
+    let plist = std::fs::read_to_string(out.join("Info.plist")).unwrap();
+    for line in [
+        "<key>CFBundleExecutable</key><string>t</string>",
+        "<key>DTSDKName</key><string>iphoneos27.1</string>",
+        "<key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>",
+    ] {
+        assert!(plist.contains(line), "{line}: {plist}");
+    }
+    let listing = std::process::Command::new("unzip")
+        .arg("-Z1")
+        .arg(dir.path().join("out").join("game.ipa"))
+        .output()
+        .unwrap();
+    let listing = String::from_utf8(listing.stdout).unwrap();
+    assert!(
+        listing.lines().any(|line| line == "Payload/t.app/t"),
+        "{listing}"
+    );
+}
+
+#[test]
+fn a_device_export_from_a_template_without_its_toolchain_keys_is_refused() {
+    let dir = project("");
+    let why = format!(
+        "{:#}",
+        balaur_export::export(&Options {
+            path: dir.path().to_path_buf(),
+            output: Some(dir.path().join("out").join("t.app")),
+            target: Some("ios".into()),
+            runtime: Some(ios_runtime(dir.path(), "")),
+            ..Options::default()
+        })
+        .unwrap_err()
+    );
+    assert!(
+        why.contains("DTPlatformName") && why.contains("package_runtime.sh"),
+        "{why}"
+    );
 }
