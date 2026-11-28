@@ -103,6 +103,7 @@ files_stream() {
   local bad=0
   step 'cargo fmt' cargo fmt --all --check || bad=1
   step 'house lints' python3 scripts/house_lints.py --fail-on-error || bad=1
+  step 'house lint fixtures' python3 scripts/house_lints_fixtures.py || bad=1
   step 'copy lints' python3 scripts/copy_lints.py --fail-on-error || bad=1
   step 'comment lints' python3 scripts/comment_lints.py --fail-on-error || bad=1
   step 'string lints' python3 scripts/string_lints.py --fail-on-error || bad=1

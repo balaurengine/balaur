@@ -245,17 +245,17 @@ pub(crate) fn download(project: &str, parent: &Path) -> Result<PathBuf> {
         n += 1;
     }
     let cache = cache_dir();
-    // Each folder of the copy synced once, after the last file written into it.
-    let mut batch = balaur_core::whole::Batch::new();
+    // Whole: a download cut short leaves no half a project behind.
+    let mut whole = balaur_core::whole::Folder::create(&folder)?;
     for file in &tree.files {
         check_path(&file.path)?;
         let bytes = forge.blob(&found.id, &file.sha, cache.as_deref())?;
-        batch.write(folder.join(&file.path), bytes)?;
+        whole.write(&file.path, bytes)?;
     }
-    batch.finish()?;
-    if !folder.join("project.toml").is_file() {
+    if !whole.path().join("project.toml").is_file() {
         bail!("{project} has no project.toml at {}", short(&tree.commit));
     }
+    whole.finish()?;
     fetch(&folder, false, None)?;
     Ok(folder)
 }
@@ -328,28 +328,18 @@ fn fetch_one(
     })
 }
 
-/// Replace `deps/<alias>` with `files`, whole: written beside it first, so a
-/// failed write leaves the old folder as it was.
+/// Replace `deps/<alias>` with `files`, whole ([`balaur_core::whole::Folder`]):
+/// a failed write leaves the old folder as it was.
 fn install(project: &Path, alias: &str, files: &[(String, Vec<u8>)]) -> Result<()> {
     let deps = project.join(dependencies::DIR);
     refuse_link(&deps)?;
-    std::fs::create_dir_all(&deps)?;
     let folder = deps.join(alias);
     refuse_link(&folder)?;
-    let partial = deps.join(format!(".{alias}.partial")); // whole: a folder, which `whole` does not write
-    if partial.exists() {
-        std::fs::remove_dir_all(&partial)?;
-    }
-    let mut batch = balaur_core::whole::Batch::new();
+    let mut whole = balaur_core::whole::Folder::create(&folder)?;
     for (path, bytes) in files {
-        batch.write(partial.join(path), bytes)?;
+        whole.write(path, bytes)?;
     }
-    batch.finish()?;
-    std::fs::create_dir_all(&partial)?;
-    if folder.exists() {
-        std::fs::remove_dir_all(&folder)?;
-    }
-    std::fs::rename(&partial, &folder)?; // whole: a folder swapped in
+    whole.finish()?;
     Ok(())
 }
 
@@ -720,7 +710,15 @@ mod tests {
             std::fs::read(dir.path().join("deps/kit/b/c.txt")).unwrap(),
             b"two"
         );
-        assert!(!dir.path().join("deps/.kit.partial").exists());
+        let beside: Vec<_> = std::fs::read_dir(dir.path().join("deps"))
+            .unwrap()
+            .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+            .collect();
+        assert_eq!(
+            beside,
+            ["kit"],
+            "the fetch left a folder beside the dependency"
+        );
     }
 
     /// A stand-in for Forge's three reads, answering one project, `ana/kit`,

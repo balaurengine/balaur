@@ -42,7 +42,7 @@ rules, and reads `scripts/showcase.sh` and `scripts/features.sh`. **ERROR**
 fails CI; **REPORT** prints only. `--stats FILE` appends what the size rules
 measured to `FILE`: per crate or top folder, the files, lines, test lines,
 functions, function length and branches, then the functions and files nearest
-a limit. CI writes it to the house-rules job's summary, and gates on none of it.
+a limit. CI writes it to the house-rules job's summary, and gates on none of it. `scripts/house_lints_fixtures.py` holds the file-writing rules, `in-place-write` and `hand-made-partial`, to a fixture of the spellings each catches and the ones it lets pass.
 
 | Rule | Fails on |
 | --- | --- |

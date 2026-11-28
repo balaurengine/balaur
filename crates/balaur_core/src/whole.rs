@@ -74,8 +74,29 @@ fn sweep_stale(target: &Path) {
             .ok()
             .and_then(|at| at.elapsed().ok())
             .is_some_and(|idle| idle > STALE);
-        if stale {
+        if stale && entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            let _ = std::fs::remove_dir_all(entry.path());
+        } else if stale {
             let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+/// A name of this writer's own beside `target`, made by `make`: one an
+/// earlier run left, its writer killed, is passed over.
+fn fresh<T>(
+    target: &Path,
+    mut make: impl FnMut(&Path) -> std::io::Result<T>,
+) -> std::io::Result<(PathBuf, T)> {
+    let mut tries = 0;
+    loop {
+        let partial = partial_of(target);
+        match make(&partial) {
+            Ok(value) => return Ok((partial, value)),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists && tries < 8 => {
+                tries += 1;
+            }
+            Err(err) => return Err(err),
         }
     }
 }
@@ -204,19 +225,8 @@ impl Whole {
         }
         std::fs::create_dir_all(folder_of(&target))?;
         options.create_new(true);
-        // Made new, never one that was there, so its mode is the one asked
-        // for; a name a writer killed in an earlier run left is passed over.
-        let mut tries = 0;
-        let (partial, file) = loop {
-            let partial = partial_of(&target);
-            match options.open(&partial) {
-                Ok(file) => break (partial, file),
-                Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists && tries < 8 => {
-                    tries += 1;
-                }
-                Err(err) => return Err(err),
-            }
-        };
+        // Made new, never one that was there, so its mode is the one asked for.
+        let (partial, file) = fresh(&target, |partial| options.open(partial))?;
         Ok(Self {
             file,
             partial: Partial(partial),
@@ -416,13 +426,20 @@ impl Sync {
 
 /// Files written whole in one step: each through a file of its own and
 /// moved over its target, and each folder they went into synced once, as
-/// the batch is let go or [`finish`](Batch::finish)es, where [`write`]
+/// the batch is let go or [`finish`](Batch::finish)es, where [`write`](fn@write)
 /// syncs it each time: a rename's rewrites, a formatter's sources, a
 /// fetched folder. On a Mac each file is ordered ahead of its move rather
-/// than flushed, and the folders' syncs flush them all.
+/// than flushed, and the folders' syncs flush them all. On Linux the files
+/// wait beside their targets until the step ends: one `syncfs` puts them
+/// all on the disk, a sync each for a step of a few, they take their
+/// targets' places, and the folders' syncs make the moves last; let go
+/// before then, a batch leaves its targets as they were.
 #[derive(Default)]
 pub struct Batch {
     folders: std::collections::BTreeSet<PathBuf>,
+    /// Files written and waiting to take their targets' places.
+    #[cfg(target_os = "linux")]
+    waiting: Vec<(Partial, PathBuf)>,
 }
 
 impl Batch {
@@ -444,8 +461,7 @@ impl Batch {
         self.made_for(target.as_ref());
         let mut whole = Whole::create(target.as_ref())?;
         whole.write_all(bytes.as_ref())?;
-        self.folders.extend(whole.land(Sync::Ordered)?);
-        Ok(())
+        self.landed(whole)
     }
 
     /// `from` copied whole to `to` with its mode, as [`copy`] copies it, its
@@ -457,8 +473,27 @@ impl Batch {
     pub fn copy(&mut self, from: impl AsRef<Path>, to: impl AsRef<Path>) -> std::io::Result<u64> {
         self.made_for(to.as_ref());
         let (whole, copied) = copied(from.as_ref(), to.as_ref())?;
-        self.folders.extend(whole.land(Sync::Ordered)?);
+        self.landed(whole)?;
         Ok(copied)
+    }
+
+    /// A file written for the batch put in its target's place, ordered ahead
+    /// of the move; on Linux kept to move at the step's end.
+    fn landed(&mut self, whole: Whole) -> std::io::Result<()> {
+        #[cfg(target_os = "linux")]
+        if !whole.in_place() {
+            let Whole {
+                file,
+                partial,
+                target,
+            } = whole;
+            close(file);
+            self.folders.insert(folder_of(&target).to_path_buf());
+            self.waiting.push((partial, target));
+            return Ok(());
+        }
+        self.folders.extend(whole.land(Sync::Ordered)?);
+        Ok(())
     }
 
     /// The folders a write to `target` is about to make, and the one that
@@ -480,29 +515,299 @@ impl Batch {
 
     /// The step's end: every folder written into synced, once each, the
     /// first that cannot be its error; on a Mac, the flush that makes the
-    /// step's files last.
+    /// step's files last; on Linux, the files put on the disk, moved into
+    /// place and the moves made to last.
     ///
     /// # Errors
-    /// Where a folder cannot be opened or synced.
+    /// Where a file cannot be synced or moved, or a folder opened or synced.
     pub fn finish(mut self) -> std::io::Result<()> {
-        for folder in std::mem::take(&mut self.folders) {
-            #[cfg(unix)]
-            std::fs::File::open(&folder)?.sync_all()?;
-            #[cfg(not(unix))]
-            let _ = folder;
+        let folders = std::mem::take(&mut self.folders);
+        #[cfg(target_os = "linux")]
+        if !self.waiting.is_empty() {
+            return move_waiting(std::mem::take(&mut self.waiting), &folders);
         }
-        Ok(())
+        sync_folders(&folders)
     }
 }
 
+/// How many files a step writes before one `syncfs` costs less than a sync
+/// each: it flushes all the file system holds, another program's writes too.
+#[cfg(target_os = "linux")]
+const SYNCFS_FROM: usize = 16;
+
+/// The waiting files on the disk, by one `syncfs` a file system for a step
+/// of many and a sync a file for one of few, moved into their targets'
+/// places, and the folders synced so the moves last.
+#[cfg(target_os = "linux")]
+fn move_waiting(
+    waiting: Vec<(Partial, PathBuf)>,
+    folders: &std::collections::BTreeSet<PathBuf>,
+) -> std::io::Result<()> {
+    if waiting.len() < SYNCFS_FROM || !syncfs_each(folders) {
+        for (partial, _) in &waiting {
+            std::fs::File::open(&partial.0)?.sync_all()?;
+        }
+    }
+    for (partial, target) in waiting {
+        std::fs::rename(&partial.0, &target)?;
+        partial.keep();
+        sweep_stale(&target);
+    }
+    sync_folders(folders)
+}
+
+/// One `syncfs` for each file system `folders` are on; false where one does
+/// not answer, a kernel or a mount that has none.
+#[cfg(target_os = "linux")]
+fn syncfs_each(folders: &std::collections::BTreeSet<PathBuf>) -> bool {
+    use std::os::fd::AsRawFd as _;
+    use std::os::unix::fs::MetadataExt as _;
+    let mut synced = std::collections::BTreeSet::new();
+    for folder in folders {
+        let Ok(opened) = std::fs::File::open(folder) else {
+            return false;
+        };
+        let Ok(meta) = opened.metadata() else {
+            return false;
+        };
+        if !synced.insert(meta.dev()) {
+            continue;
+        }
+        // SAFETY: a sync asked of the file system an open folder is on; it
+        // reads and writes no memory.
+        if unsafe { libc::syncfs(opened.as_raw_fd()) } == -1 {
+            return false;
+        }
+    }
+    true
+}
+
 /// A batch let go before its end, an error's early return, still syncs what
-/// it wrote, as far as it can.
+/// it wrote, as far as it can; on Linux what waited is let go unmoved.
 impl Drop for Batch {
     fn drop(&mut self) {
         for folder in &self.folders {
             sync_dir(folder);
         }
     }
+}
+
+/// A folder made whole: written in a folder of its own beside the target,
+/// `<name>.part.<pid>.<count>`, which nothing else reads, and which takes
+/// the target's place once every file in it is on the disk. The folder that
+/// was there stays until then; a step that fails or is let go leaves
+/// nothing beside it: a fetched project, a copied one, a dependency. Its
+/// files are written where they go, read back through [`Folder::path`] as
+/// they are, and put on the disk together at the end: by one `syncfs` on
+/// Linux, ordered as they are written and flushed with the folders on a
+/// Mac, each synced elsewhere.
+pub struct Folder {
+    partial: PartialFolder,
+    target: PathBuf,
+    /// The folders written into, to sync at the end.
+    folders: std::collections::BTreeSet<PathBuf>,
+    /// The files written, to sync one by one where the file system answers
+    /// no `syncfs`.
+    #[cfg(target_os = "linux")]
+    files: Vec<PathBuf>,
+}
+
+/// The folder a [`Folder`] is written in, removed with all it holds when it
+/// is let go, unless it took its target's place.
+struct PartialFolder(PathBuf);
+
+impl PartialFolder {
+    fn keep(mut self) {
+        self.0 = PathBuf::new();
+    }
+}
+
+impl Drop for PartialFolder {
+    fn drop(&mut self) {
+        if !self.0.as_os_str().is_empty() {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+}
+
+impl Folder {
+    /// A folder to write whole to `target`, the folder it goes in made where
+    /// it is not there, and what writers killed partway left beside it long
+    /// ago swept.
+    ///
+    /// # Errors
+    /// Where the folder it goes in, or the one it is written in, cannot be made.
+    pub fn create(target: impl AsRef<Path>) -> std::io::Result<Self> {
+        let target = target.as_ref().to_path_buf();
+        std::fs::create_dir_all(folder_of(&target))?;
+        sweep_stale(&target);
+        let (partial, ()) = fresh(&target, |partial| std::fs::create_dir(partial))?;
+        Ok(Self {
+            folders: std::collections::BTreeSet::from([partial.clone()]),
+            partial: PartialFolder(partial),
+            target,
+            #[cfg(target_os = "linux")]
+            files: Vec::new(),
+        })
+    }
+
+    /// Where the folder is written until it is whole, to read back what was
+    /// written so far.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.partial.0
+    }
+
+    /// A folder at `relative` in the folder, and every one it is in.
+    ///
+    /// # Errors
+    /// Where one cannot be made.
+    pub fn create_dir(&mut self, relative: impl AsRef<Path>) -> std::io::Result<()> {
+        let mut folder = self.partial.0.join(relative);
+        std::fs::create_dir_all(&folder)?;
+        while folder != self.partial.0 && self.folders.insert(folder.clone()) {
+            folder.pop();
+        }
+        Ok(())
+    }
+
+    /// `bytes` written at `relative` in the folder.
+    ///
+    /// # Errors
+    /// Where the file cannot be made, written or synced.
+    pub fn write(
+        &mut self,
+        relative: impl AsRef<Path>,
+        bytes: impl AsRef<[u8]>,
+    ) -> std::io::Result<()> {
+        let mut file = self.file(relative.as_ref())?;
+        file.write_all(bytes.as_ref())?;
+        self.written(&file, relative.as_ref())
+    }
+
+    /// `from` copied to `relative` in the folder with its mode; how many bytes.
+    ///
+    /// # Errors
+    /// Where `from` cannot be read or the copy made, written or synced.
+    pub fn copy(
+        &mut self,
+        from: impl AsRef<Path>,
+        relative: impl AsRef<Path>,
+    ) -> std::io::Result<u64> {
+        let mut source = std::fs::File::open(from.as_ref())?;
+        let mut file = self.file(relative.as_ref())?;
+        file.set_permissions(source.metadata()?.permissions())?;
+        let copied = std::io::copy(&mut source, &mut file)?;
+        self.written(&file, relative.as_ref())?;
+        Ok(copied)
+    }
+
+    /// A new file at `relative`, its folders made and kept to sync.
+    fn file(&mut self, relative: &Path) -> std::io::Result<std::fs::File> {
+        if let Some(parent) = relative.parent() {
+            self.create_dir(parent)?;
+        }
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(self.partial.0.join(relative))
+    }
+
+    /// A file written: ordered on a Mac, synced elsewhere but Linux, whose
+    /// `syncfs` at the end takes them all.
+    #[allow(
+        clippy::unused_self,
+        clippy::unnecessary_wraps,
+        reason = "Linux keeps the file to sync at the end; elsewhere it syncs now"
+    )]
+    fn written(&mut self, file: &std::fs::File, relative: &Path) -> std::io::Result<()> {
+        #[cfg(target_os = "linux")]
+        {
+            let _ = file;
+            self.files.push(self.partial.0.join(relative));
+            Ok(())
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = relative;
+            Sync::Ordered.file(file)
+        }
+    }
+
+    /// The folder on the disk and in its target's place, by [`swap_in`], and
+    /// the folder they are in synced.
+    ///
+    /// # Errors
+    /// Where a file or a folder cannot be synced or moved.
+    pub fn finish(self) -> std::io::Result<()> {
+        let Self {
+            partial,
+            target,
+            folders,
+            #[cfg(target_os = "linux")]
+            files,
+        } = self;
+        #[cfg(target_os = "linux")]
+        if !syncfs_each(&folders) {
+            for file in &files {
+                std::fs::File::open(file)?.sync_all()?;
+            }
+            sync_folders(&folders)?;
+        }
+        #[cfg(not(target_os = "linux"))]
+        sync_folders(&folders)?;
+        swap_in(&partial.0, &target)?;
+        partial.keep();
+        sync_dir(folder_of(&target));
+        Ok(())
+    }
+}
+
+/// `made` in `target`'s place: what was there moved aside, `made` moved in,
+/// and what was there removed, as far as it can be; where the move in fails,
+/// what was there goes back.
+///
+/// # Errors
+/// Where what was there cannot be moved aside, or `made` moved in.
+pub fn swap_in(made: &Path, target: &Path) -> std::io::Result<()> {
+    let aside = std::fs::symlink_metadata(target)
+        .is_ok()
+        .then(|| partial_of(target));
+    if let Some(aside) = &aside {
+        std::fs::rename(target, aside)?;
+    }
+    if let Err(err) = std::fs::rename(made, target) {
+        if let Some(aside) = &aside {
+            let _ = std::fs::rename(aside, target);
+        }
+        return Err(err);
+    }
+    if let Some(aside) = aside {
+        let removed = if aside.is_dir() {
+            std::fs::remove_dir_all(&aside)
+        } else {
+            std::fs::remove_file(&aside)
+        };
+        if let Err(err) = removed {
+            tracing::debug!("{} was left: {err}", aside.display());
+        }
+    }
+    Ok(())
+}
+
+/// Each of `folders` synced, the first that cannot be its error.
+#[cfg_attr(
+    not(unix),
+    allow(clippy::unnecessary_wraps, reason = "a folder syncs only on unix")
+)]
+fn sync_folders(folders: &std::collections::BTreeSet<PathBuf>) -> std::io::Result<()> {
+    for folder in folders {
+        #[cfg(unix)]
+        std::fs::File::open(folder)?.sync_all()?;
+        #[cfg(not(unix))]
+        let _ = folder;
+    }
+    Ok(())
 }
 
 /// `folder` synced; one that cannot be, as on Windows, fails nothing.
@@ -738,5 +1043,36 @@ mod tests {
         let mut a = listed(&home.path().join("a"));
         a.sort();
         assert_eq!(a, ["one.bs", "two.bs"]);
+    }
+
+    #[test]
+    fn a_folder_lands_whole_and_one_let_go_leaves_the_old_as_it_was() {
+        let home = tempfile::tempdir().unwrap();
+        let target = home.path().join("kit");
+        std::fs::create_dir_all(target.join("old")).unwrap();
+        std::fs::write(target.join("old/a.txt"), b"old").unwrap();
+        let mut cut_short = Folder::create(&target).unwrap();
+        cut_short.write("new/b.txt", b"half").unwrap();
+        drop(cut_short);
+        assert_eq!(std::fs::read(target.join("old/a.txt")).unwrap(), b"old");
+        assert_eq!(
+            listed(home.path()),
+            ["kit"],
+            "a folder let go left itself beside the old"
+        );
+        let mut whole = Folder::create(&target).unwrap();
+        whole.write("new/b.txt", b"new").unwrap();
+        assert!(whole.path().join("new/b.txt").is_file());
+        whole.finish().unwrap();
+        assert_eq!(std::fs::read(target.join("new/b.txt")).unwrap(), b"new");
+        assert!(
+            !target.join("old").exists(),
+            "the old folder stayed inside the new"
+        );
+        assert_eq!(
+            listed(home.path()),
+            ["kit"],
+            "the old folder was left beside the new"
+        );
     }
 }

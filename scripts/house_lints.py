@@ -772,7 +772,8 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                         "a crash mid-write: `balaur_core::whole::write`, "
                                         "`write_cached` or `copy_cached` (a cache or an output a run "
                                         "rebuilds), `whole::Batch` or a backend's `write_each` for "
-                                        "files written in one step, `Whole::create` for a stream, or "
+                                        "files written in one step, `whole::Folder` for a folder, "
+                                        "`Whole::create` for a stream, or "
                                         "a backend's `write`/`write_cached`; a file appended to "
                                         "after, or a backend's own commit, says why with `// whole:` "
                                         "on the line", "ERROR"))
@@ -783,7 +784,8 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                 findings.append(Finding(rel, i, "hand-made-partial",
                                         "a file written beside its target and moved over it is "
                                         "`balaur_core::whole`'s: `Whole::create`/`Whole::private` "
-                                        "then `finish`, `whole::write`, or a backend's "
+                                        "then `finish`, `whole::write`, `whole::Folder` or "
+                                        "`whole::swap_in` for a folder, or a backend's "
                                         "`write`; a move that is no such write, a folder's "
                                         "or a file another program made, says why with "
                                         "`// whole:` on the line", "ERROR"))

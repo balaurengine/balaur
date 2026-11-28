@@ -129,6 +129,9 @@ jobs:
       # sizes the run measured go to its summary.
       - name: scripts/house_lints.py
         run: python3 scripts/house_lints.py --fail-on-error --stats "$GITHUB_STEP_SUMMARY"
+      # The file-writing rules held to the spellings they catch and let pass.
+      - name: scripts/house_lints_fixtures.py
+        run: python3 scripts/house_lints_fixtures.py
       # Every language in the tree, not just Rust: scripts, the workflows and the
       # scripts themselves. Generated files are skipped by their banner.
       - name: scripts/comment_lints.py

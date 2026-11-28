@@ -355,9 +355,13 @@ fn copy(eng: &Engine, home: &Path, from: &str, into: &Path) -> Value {
     if into.exists() {
         return failed(format!("{} is there already", into.display()));
     }
-    let mut batch = balaur_core::whole::Batch::new();
-    // On the disk before the start screen lists it.
-    if let Err(e) = copy_tree(&from, into, &mut batch).and_then(|()| batch.finish()) {
+    // Whole, and on the disk before the start screen lists it: a copy that
+    // fails partway leaves nothing behind.
+    let copied = balaur_core::whole::Folder::create(into).and_then(|mut whole| {
+        copy_tree(&from, Path::new(""), &mut whole)?;
+        whole.finish()
+    });
+    if let Err(e) = copied {
         return failed(format!("{e:#}"));
     }
     let name = name_of(into);
@@ -371,16 +375,20 @@ fn copy(eng: &Engine, home: &Path, from: &str, into: &Path) -> Value {
     ])
 }
 
-/// `from` copied under `to`, each folder synced once with the batch.
-fn copy_tree(from: &Path, to: &Path, batch: &mut balaur_core::whole::Batch) -> std::io::Result<()> {
-    std::fs::create_dir_all(to)?;
+/// `from` copied to `relative` in the folder being written whole.
+fn copy_tree(
+    from: &Path,
+    relative: &Path,
+    whole: &mut balaur_core::whole::Folder,
+) -> std::io::Result<()> {
+    whole.create_dir(relative)?;
     for entry in std::fs::read_dir(from)? {
         let entry = entry?;
-        let target = to.join(entry.file_name());
+        let target = relative.join(entry.file_name());
         if entry.file_type()?.is_dir() {
-            copy_tree(&entry.path(), &target, batch)?;
+            copy_tree(&entry.path(), &target, whole)?;
         } else {
-            batch.copy(entry.path(), &target)?;
+            whole.copy(entry.path(), &target)?;
         }
     }
     Ok(())

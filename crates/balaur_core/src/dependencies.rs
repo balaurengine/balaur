@@ -899,6 +899,39 @@ pub fn gitignored(text: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    // Files written in one step under a mount land in the folder it maps to,
+    // and what sits outside every mount where it is named.
+    #[test]
+    fn files_written_in_one_step_land_where_the_mount_maps_them() {
+        let memory = Rc::new(files::MemoryFs::default());
+        let base: Rc<dyn FileBackend> = memory.clone();
+        let mounted = Mounted::new(
+            base,
+            vec![(PathBuf::from("/game/deps/kit"), PathBuf::from("/store/kit"))],
+        );
+        mounted
+            .write_each(vec![
+                (PathBuf::from("/game/deps/kit/art/a.toml"), b"a".to_vec()),
+                (PathBuf::from("/game/scenes/b.toml"), b"b".to_vec()),
+            ])
+            .unwrap();
+        assert_eq!(
+            memory.read(Path::new("/store/kit/art/a.toml")).unwrap(),
+            b"a"
+        );
+        assert!(
+            !memory.exists(Path::new("/game/deps/kit/art/a.toml")),
+            "written under the mount point itself"
+        );
+        assert_eq!(memory.read(Path::new("/game/scenes/b.toml")).unwrap(), b"b");
+        assert_eq!(
+            mounted
+                .read(Path::new("/game/deps/kit/art/a.toml"))
+                .unwrap(),
+            b"a"
+        );
+    }
+
     #[test]
     fn an_alias_is_a_use_path() {
         for good in ["ui_kit", "fonts", "a1", "kit_2", "x_y_z"] {
