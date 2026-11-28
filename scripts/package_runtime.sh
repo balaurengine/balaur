@@ -214,7 +214,7 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
         android:name="org.balaur.platform.Game"
         android:exported="true"
         android:launchMode="singleTop"
-        android:configChanges="orientation|keyboardHidden|screenSize">
+        android:configChanges="orientation|keyboardHidden|keyboard|navigation|screenSize|smallestScreenSize|screenLayout">
       <meta-data android:name="android.app.lib_name" android:value="main" />
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />

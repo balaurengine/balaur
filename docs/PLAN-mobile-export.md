@@ -42,3 +42,14 @@ the background runs no fixed step and holds its sounds until it comes back
    Store Connect takes only builds made with the iOS 27 SDK, so that runner
    needs Xcode 27 selected by then. Done: an `.ipa` App Store Connect
    accepts, installed from TestFlight.
+4. **Every device a game runs on.** An Android export declares
+   `android.hardware.touchscreen` and `android.hardware.faketouch` optional
+   unless `[android] features` names touch, and a held orientation's screen
+   optional, so Play offers it to Chromebooks and devices with a mouse
+   alone. The game's activity handles a fold, a resize and a keyboard
+   without being started again. `minSdkVersion` is 26, where AAudio
+   (cpal's Android backend) and notification channels begin. An iOS build
+   runs on iPhone and iPad by default, and either is offered on Apple
+   silicon Macs and Vision Pro. Still to add: Android TV, which takes a
+   `LEANBACK_LAUNCHER` category, a banner and D-pad play. Done: one export
+   installed from Play on a phone, a Chromebook without touch and a tablet.

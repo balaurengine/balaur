@@ -15,6 +15,7 @@ use crate::config::{ExportConfig, secret_or};
 use crate::sign::{run, tool};
 use crate::vocabulary::words;
 
+mod features;
 mod firebase;
 mod notification;
 pub(crate) use notification::DRAWABLE as NOTIFICATION_DRAWABLE;
@@ -117,6 +118,9 @@ pub(crate) struct AndroidConfig {
     /// draws in the status bar: written white from its alpha, since that is
     /// all Android reads of one. Empty shows the system's reminder icon.
     pub notification_icon: String,
+    /// Declared required; touch and a held orientation's screen are otherwise
+    /// declared optional.
+    pub features: Vec<String>,
     /// `[window] orientation`, which Android settles in the manifest rather
     /// than at startup. Not a key of `[android]`: it is the same window
     /// setting every platform reads, taken from the same resolved document.
@@ -154,6 +158,7 @@ impl Default for AndroidConfig {
             games_project_id: String::new(),
             google_services: String::new(),
             notification_icon: String::new(),
+            features: Vec::new(),
             orientation: balaur::project::Orientation::Any,
             title: String::new(),
             debug_key: false,
@@ -283,6 +288,7 @@ impl AndroidConfig {
         xml = shims::name_files(&xml, id)?;
         xml = permissions::declare(&xml, &self.permissions)?;
         xml = schemes::declare(&xml, &self.schemes)?;
+        xml = features::declare(&xml, &self.features, self.orientation)?;
         Ok(match self.orientation {
             balaur::project::Orientation::Any => xml,
             held => set_or_add_attr(
@@ -424,6 +430,30 @@ pub(crate) fn name_icon(xml: &str) -> String {
         "android:icon",
         crate::icon::ANDROID_ICON,
     )
+}
+
+/// Where the template's `<application>` opens, its indent included.
+///
+/// # Errors
+/// When the template has none.
+fn application_at(xml: &str) -> Result<usize> {
+    xml.find("  <application")
+        .or_else(|| xml.find("<application"))
+        .context(
+            "the template's manifest has no <application>; scripts/package_runtime.sh writes it",
+        )
+}
+
+/// `xml` with `lines` before its `<application>`, or as it is with none.
+///
+/// # Errors
+/// When the template has no `<application>`.
+fn before_application(xml: &str, lines: &str) -> Result<String> {
+    if lines.is_empty() {
+        return Ok(xml.to_string());
+    }
+    let at = application_at(xml)?;
+    Ok(format!("{}{lines}{}", &xml[..at], &xml[at..]))
 }
 
 /// One attribute on the element `opening` names, added when the template does

@@ -208,12 +208,7 @@ pub(crate) fn declare(
     for line in &entries.manifest {
         let _ = writeln!(beside, "  {line}");
     }
-    let Some(open) = xml
-        .find("  <application")
-        .or_else(|| xml.find("<application"))
-    else {
-        bail!("the template's manifest has no <application>; scripts/package_runtime.sh writes it");
-    };
+    let open = super::application_at(xml)?;
     let Some(close) = xml.rfind("</application>") else {
         bail!("the template's manifest has no </application>");
     };

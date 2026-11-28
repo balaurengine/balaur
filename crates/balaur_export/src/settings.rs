@@ -67,6 +67,7 @@ capabilities = { type = "flags", default = [], options = ["play-games", "in-app-
 games_project_id = { type = "string", default = "", order = 14, help = "The Play Games project id Play Console shows under Play Games Services, all digits. Required with play-games." }
 google_services = { type = "string", default = "", order = 15, help = "The project-relative google-services.json the Firebase console hands out, holding this application_id's app. Required with firebase-messaging, whose project, app id, API key and sender id it writes as the string resources Firebase starts from. The file itself stays out of the game's pack." }
 notification_icon = { type = "string", default = "", order = 16, help = "A project-relative square picture with transparency, the small icon Android draws in the status bar for the game's notifications, local and pushed. Only its alpha is read: the export writes it white at each density. Empty shows the system's reminder icon." }
+features = { type = "list", of = { type = "string" }, default = [], order = 17, help = "The hardware the game cannot run without, each declared required: touchscreen for android.hardware.touchscreen, or a whole name such as android.software.leanback. Touch and a held orientation's screen are declared optional unless named here, so Play offers the game to Chromebooks and devices with a mouse or a keyboard alone." }
 "#,
         ),
     );
@@ -94,7 +95,7 @@ ios_identity = { type = "string", default = "", order = 13, help = "The identity
 ios_provisioning_profile = { type = "string", default = "", order = 14, help = "A project-relative .mobileprovision, copied into the bundle. The export refuses one that does not grant what the capabilities write." }
 schemes = { type = "list", of = { type = "string" }, default = [], order = 15, help = "The custom URL schemes that open the game, as CFBundleURLTypes on iOS and a Mac: a link on one arrives as url_opened on platform_event. Named by [android] schemes' rule: lowercase, a letter first, then letters, digits, +, - or ., and not http or https." }
 associated_domains = { type = "list", of = { type = "string" }, default = [], order = 16, help = "com.apple.developer.associated-domains, each as Apple writes it (applinks:game.studio.com): a universal link to one opens the game, arriving as url_opened. Granted by the provisioning profile only, which the export checks, and the domain serves apple-app-site-association naming the app." }
-devices = { type = "flags", default = ["iphone"], options = ["iphone", "ipad"], order = 18, help = "UIDeviceFamily: the devices an iOS build installs on. With ipad the bundle multitasks there, turning to every orientation, or takes the whole screen where its orientations hold fewer. App Store Connect refuses an update that drops a device the last one ran on, so ipad is never added for a game." }
+devices = { type = "flags", default = ["iphone", "ipad"], options = ["iphone", "ipad"], order = 18, help = "UIDeviceFamily: the devices an iOS build installs on, every one by default. With ipad the bundle multitasks there, turning to every orientation, or takes the whole screen where its orientations hold fewer. Either one is offered on Apple silicon Macs and Vision Pro as well. App Store Connect refuses an update that drops a device the last one ran on." }
 "#,
         ),
     );

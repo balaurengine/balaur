@@ -56,7 +56,7 @@ android:versionName="1.0">
 <activity
     android:name="android.app.NativeActivity"
     android:exported="true"
-    android:configChanges="orientation|keyboardHidden|screenSize">
+    android:configChanges="orientation|keyboardHidden|keyboard|navigation|screenSize|smallestScreenSize|screenLayout">
 </activity>
   </application>
 </manifest>

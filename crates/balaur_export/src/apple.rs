@@ -310,9 +310,9 @@ impl Default for AppleConfig {
             // may not claim less than the binary was built for.
             min_ios: "15.0".into(),
             min_macos: "12.0".into(),
-            // iPad is the project's to ask for: App Store Connect refuses an
-            // update that drops a device the last one ran on.
-            devices: vec![Device::Iphone],
+            // Every device the runtime draws on: it fits any screen, and the
+            // icon carries an iPad's.
+            devices: vec![Device::Iphone, Device::Ipad],
             category: String::new(),
             capabilities: Vec::new(),
             schemes: Vec::new(),

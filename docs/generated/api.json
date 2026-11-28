@@ -52211,6 +52211,21 @@
     },
     {
       "host": false,
+      "path": "android/features",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "The hardware the game cannot run without, each declared required: touchscreen for android.hardware.touchscreen, or a whole name such as android.software.leanback. Touch and a held orientation's screen are declared optional unless named here, so Play offers the game to Chromebooks and devices with a mouse or a keyboard alone.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 17,
+        "type": "list"
+      }
+    },
+    {
+      "host": false,
       "path": "apple/bundle_id",
       "scope": "project",
       "spec": {
@@ -52417,9 +52432,10 @@
       "scope": "project",
       "spec": {
         "default": [
-          "iphone"
+          "iphone",
+          "ipad"
         ],
-        "help": "UIDeviceFamily: the devices an iOS build installs on. With ipad the bundle multitasks there, turning to every orientation, or takes the whole screen where its orientations hold fewer. App Store Connect refuses an update that drops a device the last one ran on, so ipad is never added for a game.",
+        "help": "UIDeviceFamily: the devices an iOS build installs on, every one by default. With ipad the bundle multitasks there, turning to every orientation, or takes the whole screen where its orientations hold fewer. Either one is offered on Apple silicon Macs and Vision Pro as well. App Store Connect refuses an update that drops a device the last one ran on.",
         "options": [
           "iphone",
           "ipad"

@@ -1,6 +1,6 @@
 //! The permissions an Android manifest declares (`[android] permissions`).
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 
 /// What a game that names none declares: without it no socket opens.
 pub(super) const INTERNET: &str = "INTERNET";
@@ -26,16 +26,7 @@ pub(super) fn declare(xml: &str, names: &[String]) -> Result<String> {
         lines.push_str(&full);
         lines.push_str("\" />\n");
     }
-    if lines.is_empty() {
-        return Ok(xml.to_string());
-    }
-    let at = xml
-        .find("  <application")
-        .or_else(|| xml.find("<application"))
-        .context(
-            "the template's manifest has no <application>; scripts/package_runtime.sh writes it",
-        )?;
-    Ok(format!("{}{lines}{}", &xml[..at], &xml[at..]))
+    super::before_application(xml, &lines)
 }
 
 /// A permission as the manifest names it: `INTERNET` is

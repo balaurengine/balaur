@@ -672,7 +672,8 @@ fn a_device_plist_carries_every_key_app_store_connect_requires() {
     let text = config.ios_plist("Game", "", &template).unwrap();
     for line in [
         "<key>CFBundleSupportedPlatforms</key><array><string>iPhoneOS</string></array>",
-        "<key>UIDeviceFamily</key><array><integer>1</integer></array>",
+        "<key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>",
+        "<key>UISupportedInterfaceOrientations~ipad</key>",
         "<key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>",
         "<key>DTPlatformName</key><string>iphoneos</string>",
         "<key>DTSDKName</key><string>iphoneos27.1</string>",
