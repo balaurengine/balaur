@@ -496,7 +496,7 @@ A stroked line at the node through the points of a `mesh` or `path2d` asset, tin
 <tr><td><code>cap</code></td><td>enum</td><td><code>round</code></td><td>How an open line ends One of <code>round</code>, <code>butt</code>, <code>square</code>.</td></tr>
 <tr><td><code>miter_limit</code></td><td>float</td><td><code>4.0</code></td><td>How far a miter join may reach, in half-widths, before its corner is cut to a bevel At least 1.0.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around a round join or cap At least 3.</td></tr>
-<tr><td><code>dashes</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>A dash&#x27;s length and the gap after it, in world units, as SVG&#x27;s `stroke-dasharray`; each dash ends in `cap`, and [0, 0] draws the line whole</td></tr>
+<tr><td><code>dashes</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>A dash&#x27;s length and the gap after it, in world units, as SVG&#x27;s `stroke-dasharray`; each dash ends in `cap` (round on a tapered line), and [0, 0] draws the line whole</td></tr>
 <tr><td><code>gradient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The colour the line fades to at its far end, from `color` at its start; a zero alpha means no gradient</td></tr>
 <tr><td><code>gradient_steps</code></td><td>int</td><td><code>32</code></td><td>How many colours the gradient steps through along the line At least 1.</td></tr>
 </tbody>

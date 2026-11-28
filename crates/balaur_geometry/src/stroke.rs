@@ -8,6 +8,7 @@
 use crate::triangulate::triangulate_shape;
 use glamx::Vec2;
 use i_overlay::core::fill_rule::FillRule;
+use i_overlay::float::simplify::SimplifyShape;
 use i_overlay::float::slice::FloatSlice;
 use i_overlay::mesh::float::stroke::offset::StrokeOffset;
 use i_overlay::mesh::float::style::{LineCap, LineJoin, StrokeStyle};
@@ -190,7 +191,7 @@ impl Chain {
     /// corner a hair from either end is left out, or the end's direction is
     /// that of a sliver.
     fn between(&self, from: f32, to: f32) -> Vec<Vec2> {
-        let hair = self.total.max(1.0) * 1e-5;
+        let hair = ((to - from) * 1e-3).min(self.total.max(1.0) * 1e-5);
         let mut points = vec![self.at(from).0];
         for (index, &start) in self.starts.iter().enumerate().skip(1) {
             if start > from + hair && start < to - hair {
@@ -216,18 +217,27 @@ impl Chain {
 
 /// The stroke of `points`, cut into at most `bands` pieces along its length.
 /// One band is one piece; more give a gradient somewhere to change colour.
-/// A dashed stroke is a piece a dash, each where its dash sits.
+/// A dashed stroke is one outline of all its dashes, cut into bands as a
+/// whole line is.
 #[must_use]
 pub fn stroke(points: &[Vec2], style: &Stroke, bands: u32) -> Vec<Piece> {
+    // A point or a width not finite has no place in the stroker's fixed point.
+    let finite = points.iter().all(|point| point.is_finite())
+        && style.width.is_finite()
+        && style.taper.iter().all(|end| end.is_finite());
+    if !finite {
+        return Vec::new();
+    }
     let chain = Chain::new(points, style.closed);
     if chain.points.len() < 2 || chain.total <= f32::EPSILON || style.width <= 0.0 {
         return Vec::new();
     }
     let [on, off] = style.dashes;
-    if on > 0.0 && off > 0.0 {
-        return dashed(&chain, style, (on, on + off), bands);
-    }
-    let outline = outline(&chain, style);
+    let outline = if on > 0.0 && off > 0.0 && (on + off).is_finite() {
+        dashed(&chain, style, (on, on + off))
+    } else {
+        outline(&chain, style)
+    };
     let width_at = |s: f32| style.width * taper_at(style.taper, s / chain.total);
     let shapes = if bands > 1 {
         outline.slice_by(&cuts(&chain, bands, &width_at), FillRule::NonZero)
@@ -246,41 +256,59 @@ pub fn stroke(points: &[Vec2], style: &Stroke, bands: u32) -> Vec<Piece> {
 }
 
 /// The most dashes a line is cut into; past it the pattern is drawn longer,
-/// so a pattern far finer than the line stays a few thousand meshes.
+/// so a pattern far finer than the line stays a few thousand outlines.
 const MOST_DASHES: f32 = 4096.0;
 
-/// Each dash of `chain` stroked as an open line, tapered as the whole line
-/// is there, its `u` and `along` counted on the whole chain; one piece in all
-/// unless a gradient asks for a piece a dash.
-fn dashed(chain: &Chain, style: &Stroke, (on, period): (f32, f32), bands: u32) -> Vec<Piece> {
+/// The outline of each dash of `chain`, stroked as an open line tapered as
+/// the whole line is there, all joined into one, so where two dashes' caps
+/// meet a translucent line is covered once. A closed line's last dash runs on
+/// through its seam.
+fn dashed(chain: &Chain, style: &Stroke, (on, period): (f32, f32)) -> Vec<Vec<Vec<[f32; 2]>>> {
     let total = chain.total;
     let stretch = (total / period / MOST_DASHES).max(1.0);
     let (on, period) = (on * stretch, period * stretch);
-    let mut pieces = Vec::new();
+    // Shorter than this, what is left past the last gap is rounding.
+    let crumb = total * 1e-6;
+    let mut paths: Vec<(Vec<Vec2>, [f32; 2])> = Vec::new();
     for index in 0.. {
         let from = index as f32 * period;
-        if from >= total {
+        if from >= total - crumb {
             break;
         }
-        let to = (from + on).min(total);
-        let dash = Stroke {
-            closed: false,
-            dashes: [0.0, 0.0],
-            taper: [from, to].map(|at| taper_at(style.taper, at / total)),
-            ..*style
-        };
-        for mut piece in stroke(&chain.between(from, to), &dash, 1) {
-            for uv in &mut piece.uvs {
-                uv.x += from;
-            }
-            piece.along = f32::midpoint(from, to) / total;
-            pieces.push(piece);
+        let end = from + on;
+        let to = end.min(total);
+        let mut path = chain.between(from, to);
+        if style.closed && end > total + crumb {
+            path.extend(
+                chain
+                    .between(0.0, (end - total).min(total))
+                    .into_iter()
+                    .skip(1),
+            );
+        }
+        paths.push((path, [from, to].map(|at| taper_at(style.taper, at / total))));
+    }
+    let open = Stroke {
+        closed: false,
+        dashes: [0.0, 0.0],
+        ..*style
+    };
+    if !tapers(style.taper) {
+        // One stroke of every dash at once, which joins them as it goes.
+        let flat: Vec<Vec<[f32; 2]>> = paths
+            .iter()
+            .map(|(path, _)| path.iter().map(Vec2::to_array).collect())
+            .collect();
+        return flat.stroke(stroke_style(&open), false);
+    }
+    let mut shapes = Vec::new();
+    for (path, taper) in paths {
+        let dash = Chain::new(&path, false);
+        if dash.points.len() >= 2 {
+            shapes.extend(outline(&dash, &Stroke { taper, ..open }));
         }
     }
-    if bands <= 1 {
-        return merged(pieces).into_iter().collect();
-    }
-    pieces
+    shapes.simplify_shape(FillRule::NonZero)
 }
 
 /// The widest step a round join or cap takes around its arc, in radians.
@@ -315,6 +343,16 @@ fn outline(chain: &Chain, style: &Stroke) -> Vec<Vec<Vec<[f32; 2]>>> {
             .collect();
         return vertices.variable_stroke(VariableStrokeStyle::new().round_angle(round_step(style)));
     }
+    let mut path: Vec<[f32; 2]> = chain.points.iter().map(Vec2::to_array).collect();
+    if style.closed {
+        // The stroker closes the loop itself.
+        path.pop();
+    }
+    path.stroke(stroke_style(style), style.closed)
+}
+
+/// The constant-width stroke's style: its width, joins and caps.
+fn stroke_style(style: &Stroke) -> StrokeStyle<[f32; 2]> {
     let join = match style.join {
         Join::Round => LineJoin::Round(round_step(style)),
         // A miter reaching `limit` half-widths turns through the interior
@@ -327,16 +365,10 @@ fn outline(chain: &Chain, style: &Stroke) -> Vec<Vec<Vec<[f32; 2]>>> {
         Cap::Butt => LineCap::Butt,
         Cap::Square => LineCap::Square,
     };
-    let stroke = StrokeStyle::new(style.width)
+    StrokeStyle::new(style.width)
         .line_join(join)
         .start_cap(cap.clone())
-        .end_cap(cap);
-    let mut path: Vec<[f32; 2]> = chain.points.iter().map(Vec2::to_array).collect();
-    if style.closed {
-        // The stroker closes the loop itself.
-        path.pop();
-    }
-    path.stroke(stroke, style.closed)
+        .end_cap(cap)
 }
 
 /// Short lines across the chain at even steps along it, reaching past the
@@ -552,25 +584,36 @@ mod tests {
             dashes: [1.0, 0.5],
             ..line(Join::Round, Cap::Butt)
         };
-        // 4 long: dashes at 0, 1.5 and 3, the last cut to 1 by the end; a
-        // gradient's bands keep a piece a dash.
-        let pieces = stroke(&ELBOW[..2], &dashed, 2);
-        assert_eq!(pieces.len(), 3);
-        let total: f32 = pieces.iter().map(area).sum();
-        assert!((total - 3.0).abs() < 1e-2, "{total}");
-        let starts: Vec<f32> = pieces
-            .iter()
-            .map(|piece| piece.coords.iter().map(|p| p.x).fold(f32::MAX, f32::min))
-            .collect();
+        // 4 long: dashes at 0, 1.5 and 3, the last cut to 1 by the end.
+        let pieces = stroke(&ELBOW[..2], &dashed, 1);
+        assert_eq!(pieces.len(), 1, "one mesh with no gradient");
         assert!(
-            (starts[1] - 1.5).abs() < 1e-3 && (starts[2] - 3.0).abs() < 1e-3,
-            "{starts:?}"
+            (area(&pieces[0]) - 3.0).abs() < 1e-2,
+            "{}",
+            area(&pieces[0])
         );
-        let alongs: Vec<f32> = pieces.iter().map(|piece| piece.along).collect();
+        let in_a_gap = |x: f32| (1.01..1.49).contains(&x) || (2.51..2.99).contains(&x);
         assert!(
-            alongs.windows(2).all(|pair| pair[0] < pair[1]),
-            "{alongs:?}"
+            !pieces[0].coords.iter().any(|p| in_a_gap(p.x)),
+            "{:?}",
+            pieces[0].coords
         );
+        let banded = stroke(&ELBOW[..2], &dashed, 4);
+        assert!(
+            banded.len() >= 3,
+            "a gradient's bands cut the dashes: {}",
+            banded.len()
+        );
+    }
+
+    #[test]
+    fn a_line_through_a_point_not_finite_draws_nothing() {
+        let bad = [
+            Vec2::new(0.0, 0.0),
+            Vec2::new(f32::NAN, 1.0),
+            Vec2::new(2.0, 0.0),
+        ];
+        assert!(stroke(&bad, &line(Join::Round, Cap::Round), 1).is_empty());
     }
 
     #[test]
@@ -580,13 +623,46 @@ mod tests {
             ..line(Join::Round, Cap::Butt)
         };
         let long = [Vec2::new(0.0, 0.0), Vec2::new(1000.0, 0.0)];
-        let pieces = stroke(&long, &fine, 2);
-        assert!(pieces.len() <= 4096, "{}", pieces.len());
-        assert_eq!(
-            stroke(&long, &fine, 1).len(),
-            1,
-            "one mesh with no gradient"
+        let whole = stroke(&long, &fine, 1).remove(0);
+        assert!((area(&whole) - 500.0).abs() < 5.0, "{}", area(&whole));
+    }
+
+    #[test]
+    fn dashes_whose_caps_meet_cover_the_meeting_once() {
+        let round = Stroke {
+            dashes: [1.0, 0.2],
+            ..line(Join::Round, Cap::Round)
+        };
+        let piece = stroke(&ELBOW[..2], &round, 1).remove(0);
+        // Caps of radius 0.5 close every 0.2 gap: the line is whole, once.
+        let whole = 4.0 + std::f32::consts::PI * 0.25;
+        assert!(
+            (area(&piece) - whole).abs() < 0.05,
+            "{} vs {whole}",
+            area(&piece)
         );
+    }
+
+    #[test]
+    fn a_closed_line_s_last_dash_turns_its_seam_with_a_join() {
+        let square = [
+            Vec2::new(0.0, 0.0),
+            Vec2::new(4.0, 0.0),
+            Vec2::new(4.0, 4.0),
+            Vec2::new(0.0, 4.0),
+        ];
+        let dashed = Stroke {
+            closed: true,
+            dashes: [5.0, 1.0],
+            ..line(Join::Miter, Cap::Butt)
+        };
+        let piece = stroke(&square, &dashed, 1).remove(0);
+        // The dash from 12 runs through the corner at the seam to 1: mitred.
+        let mitred = piece
+            .coords
+            .iter()
+            .any(|p| (p.x + 0.5).abs() < 1e-3 && (p.y + 0.5).abs() < 1e-3);
+        assert!(mitred, "{:?}", piece.coords);
     }
 
     #[test]
@@ -595,11 +671,18 @@ mod tests {
             dashes: [6.0, 1.0],
             ..line(Join::Miter, Cap::Butt)
         };
-        let piece = stroke(&ELBOW, &dashed, 2).remove(0);
-        let reach = piece.coords.iter().map(|p| p.y).fold(f32::MIN, f32::max);
+        // 8 long: 0 to 6, up to 2 on the second leg, then 7 to 8.
+        let piece = stroke(&ELBOW, &dashed, 1).remove(0);
+        let in_the_gap = |p: &Vec2| (p.x - 4.0).abs() < 0.6 && p.y > 2.01 && p.y < 2.99;
+        assert!(!piece.coords.iter().any(in_the_gap), "{:?}", piece.coords);
+        let corner = piece
+            .coords
+            .iter()
+            .any(|p| (p.x - 4.5).abs() < 1e-3 && (p.y + 0.5).abs() < 1e-3);
         assert!(
-            (reach - 2.0).abs() < 1e-3,
-            "the first dash ends 2 up the second leg: {reach}"
+            corner,
+            "the corner inside a dash is mitred: {:?}",
+            piece.coords
         );
     }
 

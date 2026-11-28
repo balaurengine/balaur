@@ -26,6 +26,13 @@ pub fn triangulate(points: &[Vec2], ring: &[u32]) -> Result<Vec<[u32; 3]>> {
             );
         }
     }
+    if let Some(bad) = ring
+        .iter()
+        .map(|&index| points[index as usize])
+        .find(|p| !p.is_finite())
+    {
+        bail!("a polygon's points are finite, and one is {bad}");
+    }
     let ring = without_repeats(points, ring);
     if ring.len() < 3 {
         bail!("a polygon needs at least three distinct vertices");
@@ -76,7 +83,17 @@ pub fn triangulate_shape(contours: &[Vec<[f32; 2]>]) -> (Vec<[f32; 2]>, Vec<[u32
     fill(contours)
 }
 
+/// Nothing for a contour holding a point that is not finite, which the
+/// triangulator's fixed point cannot hold and would end the process over.
 fn fill(contours: &[Vec<[f32; 2]>]) -> (Vec<[f32; 2]>, Vec<[u32; 3]>) {
+    let finite = contours
+        .iter()
+        .flatten()
+        .flatten()
+        .all(|axis| axis.is_finite());
+    if !finite {
+        return (Vec::new(), Vec::new());
+    }
     let mut triangulator: Triangulator<u32, i32> = Triangulator::default();
     // Delaunay flips away the slivers a plain fill leaves, which a bending
     // skin or a navmesh's path would otherwise follow.

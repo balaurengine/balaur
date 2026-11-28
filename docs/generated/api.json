@@ -20316,7 +20316,7 @@
           0.0,
           0.0
         ],
-        "description": "A dash's length and the gap after it, in world units, as SVG's `stroke-dasharray`; each dash ends in `cap`, and [0, 0] draws the line whole",
+        "description": "A dash's length and the gap after it, in world units, as SVG's `stroke-dasharray`; each dash ends in `cap` (round on a tapered line), and [0, 0] draws the line whole",
         "type": "vec2"
       },
       "gradient": {
@@ -28578,7 +28578,7 @@
         "convex_decomposition": "The polygon cut into convex pieces that overlap across their seams, so nothing wedges into one; `overlap` from 0 to 1 says how far each piece grows, 0.9 by default.",
         "convex_hull": "The smallest convex polygon around the points, counter-clockwise.",
         "difference": "Everything inside the first polygon and outside the second, shaped and tuned as `union` is.",
-        "fill": "The polygon filled however its outline runs, crossing itself included: the points the fill needed, the polygon's and one at each place it crosses itself, and counter-clockwise `[i, j, k]` triangles over them; a polygon with no area has none.",
+        "fill": "The polygon filled however its outline runs, crossing itself included: the points the fill needed, the polygon's as given and one at each place it crosses itself, and counter-clockwise `[i, j, k]` triangles over them; a polygon with no area has none.",
         "intersection": "Everything inside both polygons, shaped and tuned as `union` is.",
         "is_clockwise": "Whether the points run clockwise, with y up.",
         "segments_intersect": "Where two segments cross, or nil when they do not; touching at an endpoint counts.",

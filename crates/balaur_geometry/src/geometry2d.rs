@@ -21,10 +21,10 @@ use i_overlay::float::overlay::{FloatOverlay, OverlayOptions};
 
 use balaur_core::engine::Engine;
 
+use crate::vocabulary::keys;
+
 const TRIANGULATE: &str = "triangulate";
 const FILL: &str = "fill";
-const POINTS: &str = "points";
-const TRIANGLES: &str = "triangles";
 
 /// A pixel index as the coordinate the boundary walk counts in, which reaches
 /// one past the mask on every side.
@@ -224,11 +224,16 @@ fn point_of(value: &Value) -> Result<Vec2> {
     }
 }
 
+/// A polygon's points, each finite: a fill's fixed point cannot hold the rest.
 fn polygon_of(value: &Value) -> Result<Vec<Vec2>> {
     let Value::List(items) = value else {
         return Err(anyhow!("a polygon is a list of points, got {value:?}"));
     };
-    items.iter().map(point_of).collect()
+    let points: Vec<Vec2> = items.iter().map(point_of).collect::<Result<_>>()?;
+    if let Some(bad) = points.iter().find(|point| !point.is_finite()) {
+        return Err(anyhow!("a polygon's points are finite, got {bad}"));
+    }
+    Ok(points)
 }
 
 /// Triangles as `[i, j, k]` lists.
@@ -435,8 +440,9 @@ pub type Shapes2d = Vec<Vec<Vec<Vec2>>>;
 
 /// Two sets of shapes combined, as the shapes left.
 ///
-/// The one boolean the engine has: a `boolean2d` component and a script get
-/// the same answer out of the same outlines.
+/// The boolean a `boolean2d` component and a script share, so they get the
+/// same answer out of the same outlines; a dashed stroke joins its dashes
+/// with i_overlay's own union.
 #[must_use]
 pub fn combine(
     subject: &[Vec<Vec<Vec2>>],
@@ -444,6 +450,16 @@ pub fn combine(
     op: Op2d,
     options: BooleanOptions,
 ) -> Shapes2d {
+    // An outline not finite has no place in the overlay's fixed point.
+    let finite = subject
+        .iter()
+        .chain(clip)
+        .flatten()
+        .flatten()
+        .all(|p| p.is_finite());
+    if !finite {
+        return Shapes2d::new();
+    }
     let raw = |shapes: &[Vec<Vec<Vec2>>]| -> Vec<Vec<Vec<[f32; 2]>>> {
         shapes
             .iter()
@@ -583,7 +599,7 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
     );
     m.describe(&[
         (TRIANGULATE, &[], "(polygon: [Vec2]) -> [[int]]", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted. A polygon that crosses itself is refused, since filling it needs a vertex at each crossing: `fill` answers those too."),
-        (FILL, &[], "(polygon: [Vec2]) -> Fill", "The polygon filled however its outline runs, crossing itself included: the points the fill needed, the polygon's and one at each place it crosses itself, and counter-clockwise `[i, j, k]` triangles over them; a polygon with no area has none."),
+        (FILL, &[], "(polygon: [Vec2]) -> Fill", "The polygon filled however its outline runs, crossing itself included: the points the fill needed, the polygon's as given and one at each place it crosses itself, and counter-clockwise `[i, j, k]` triangles over them; a polygon with no area has none."),
     ]);
     m.records(&[(
         "Fill",
@@ -596,8 +612,8 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
         let (filled, triangles) = crate::triangulate::triangulate_shape(&[contour]);
         let filled: Vec<Vec2> = filled.into_iter().map(Vec2::from).collect();
         Ok(Value::Map(vec![
-            (POINTS.into(), polygon_value(&filled)),
-            (TRIANGLES.into(), triangles_value(triangles)),
+            (keys::POINTS.into(), polygon_value(&filled)),
+            (keys::TRIANGLES.into(), triangles_value(triangles)),
         ]))
     });
     m.function(TRIANGULATE, |_: &Engine, polygon: Value| {
@@ -611,7 +627,22 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{simplify, trace};
+    use super::{polygon_of, simplify, trace};
+    use balaur_script::Value;
+
+    // A fill's fixed point cannot hold an infinite or missing coordinate, and
+    // asked to, it would end the process rather than the call.
+    #[test]
+    fn a_polygon_with_a_point_not_finite_is_refused() {
+        for bad in [f32::NAN, f32::INFINITY] {
+            let ring = Value::List(vec![
+                Value::Vec2([0.0, 0.0]),
+                Value::Vec2([bad, 0.0]),
+                Value::Vec2([0.0, 1.0]),
+            ]);
+            assert!(polygon_of(&ring).is_err());
+        }
+    }
 
     // A filled square, traced and simplified, is four corners — not four
     // corners with the two cuts left in twice.

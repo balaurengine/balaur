@@ -387,7 +387,7 @@ pub struct Line2d {
     /// Cuts around a round join or cap
     #[property(default = 32, min = 3)]
     pub segments: i64,
-    /// A dash's length and the gap after it, in world units, as SVG's `stroke-dasharray`; each dash ends in `cap`, and [0, 0] draws the line whole
+    /// A dash's length and the gap after it, in world units, as SVG's `stroke-dasharray`; each dash ends in `cap` (round on a tapered line), and [0, 0] draws the line whole
     #[property(default = [0.0, 0.0])]
     pub dashes: [f32; 2],
     /// The colour the line fades to at its far end, from `color` at its start; a zero alpha means no gradient

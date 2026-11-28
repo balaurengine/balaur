@@ -37,8 +37,10 @@ pub(crate) mod keys {
     pub(crate) const FPS: &str = "fps";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const OUTSIDE: &str = "outside";
+    pub(crate) const POINTS: &str = "points";
     pub(crate) const QUARTERS: &str = "quarters";
     pub(crate) const TERRAIN: &str = "terrain";
     pub(crate) const TILE: &str = "tile";
     pub(crate) const TILES: &str = "tiles";
+    pub(crate) const TRIANGLES: &str = "triangles";
 }
