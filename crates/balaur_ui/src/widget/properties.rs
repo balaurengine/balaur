@@ -421,7 +421,7 @@ pub(crate) struct WidgetProperties {
     /// A screen reader reads its text out as it arrives and as it changes, as a status line
     #[property(group = "text")]
     pub(crate) announce: bool,
-    /// Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this
+    /// Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A button, picture, label, checkbox or switch senses no click of its own and is no focus stop, so a click on it is the widget's under it: a card's picture is pressed as the card. A full-screen container over the world wants this
     #[property(default = true, group = "events")]
     pub(crate) interactive: bool,
     /// Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be

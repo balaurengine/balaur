@@ -247,13 +247,13 @@ pub(crate) fn shaped_label(
     let take = column.unwrap_or(take);
     // A block with links or one a player may select answers the pointer;
     // every other label is a picture of its text.
-    let sense = if selectable {
+    let sense = widget.sense(if selectable {
         egui::Sense::click_and_drag()
     } else if shaped.links.is_empty() && shaped.hints.is_empty() {
         egui::Sense::hover()
     } else {
         egui::Sense::click()
-    };
+    });
     let (rect, response) = ui.allocate_exact_size(vec2(take, shaped.size.y), sense);
     let held = ui.clip_rect();
     if column.is_some() {

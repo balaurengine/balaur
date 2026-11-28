@@ -19,6 +19,7 @@ pub(crate) fn takes_focus(widget: &Widget) -> bool {
     widget.visible
         && !widget.disabled
         && widget.focusable
+        && !widget.pointer_through
         && (matches!(
             widget.kind.as_str(),
             // A line being typed into is where focus lands as much as a

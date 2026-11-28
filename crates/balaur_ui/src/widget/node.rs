@@ -48,6 +48,20 @@ impl std::ops::DerefMut for Widget {
     }
 }
 
+impl WidgetFields {
+    /// What the widget senses of the pointer, `wanted` unless it lets the
+    /// pointer through, when it senses nothing and wears no pointer's look
+    /// (`Painting::pointer`): a click on it is the widget's under it, as a
+    /// card's picture is pressed as the card.
+    pub(crate) fn sense(&self, wanted: egui::Sense) -> egui::Sense {
+        if self.pointer_through {
+            egui::Sense::hover()
+        } else {
+            wanted
+        }
+    }
+}
+
 impl From<WidgetFields> for Widget {
     fn from(fields: WidgetFields) -> Self {
         Self(Arc::new(fields))

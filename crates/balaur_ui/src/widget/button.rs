@@ -681,13 +681,8 @@ pub(crate) fn button(
         min.x = min.x.max(min.y);
     }
     let plate = Brush::of(ui).slot();
-    let response = sensor(
-        ui,
-        min,
-        sense_of(&widget.egui.sense),
-        egui::Role::Button,
-        caption,
-    );
+    let sense = widget.sense(sense_of(&widget.egui.sense));
+    let response = sensor(ui, min, sense, egui::Role::Button, caption);
     let pointer = at.pointer(index, &response);
     let down = pointer == Pointer::Held || widget.checked;
     let style = at.dressed(

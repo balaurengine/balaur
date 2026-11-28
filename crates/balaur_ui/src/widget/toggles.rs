@@ -30,6 +30,7 @@ pub(crate) fn check(
         (widget.checked, widget.egui.indeterminate),
         caption,
         (!widget.radio_group.is_empty(), &metrics, flip),
+        widget.sense(Sense::click()),
     );
     if response.clicked() {
         at.clicked.push(placed.entity);
@@ -57,6 +58,7 @@ fn tick_box(
     (on, either): (bool, bool),
     caption: &str,
     (round, metrics, flip): (bool, &crate::widget::sizing::Metrics, bool),
+    sense: Sense,
 ) -> egui::Response {
     let spacing = ui.spacing().clone();
     let side = metrics.mark;
@@ -64,7 +66,7 @@ fn tick_box(
         .then(|| crate::widget::sizing::control_galley(ui.ctx(), ui.style(), label));
     let want = crate::widget::sizing::tick_box_size(metrics, text.as_ref().map(|text| text.size()));
     let (id, rect) = ui.allocate_space(want);
-    let response = ui.interact(rect, id, Sense::click());
+    let response = ui.interact(rect, id, sense);
     let enabled = ui.is_enabled();
     response.widget_info(|| {
         let role = if round {
@@ -155,9 +157,10 @@ pub(crate) fn switch(
     color: Color32,
 ) {
     let slant = at.slant(index);
-    let (entity, on) = {
+    let (entity, on, sense) = {
         let placed = &at.arena[index];
-        (placed.entity, placed.widget.checked)
+        let widget = &placed.widget;
+        (placed.entity, widget.checked, widget.sense(Sense::click()))
     };
     let look = at.resting(index);
     let text = (!caption.is_empty()).then(|| {
@@ -175,7 +178,7 @@ pub(crate) fn switch(
     let size =
         crate::widget::sizing::switch_size(&look.style, gap, text.as_ref().map(|text| text.size()));
     let height = track_size.y;
-    let (whole, response) = ui.allocate_exact_size(size, Sense::click());
+    let (whole, response) = ui.allocate_exact_size(size, sense);
     // Mirrored, the track is at the right, on is its left end, and the
     // caption comes before it, as a phone's switch in Arabic.
     let flip = crate::widget::direction::mirrored(at.arena, index);

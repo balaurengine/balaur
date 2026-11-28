@@ -51,11 +51,11 @@ pub(crate) fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // A picture whose click is heard is a button made of a picture: it
     // senses the click, which `settle_clicks` says as it does any other.
     let entity = placed.entity;
-    let sense = if widget.hears_click {
+    let sense = widget.sense(if widget.hears_click {
         egui::Sense::click()
     } else {
         egui::Sense::hover()
-    };
+    });
     let ctx = ui.ctx().clone();
     let texture = match crate::images::texture_of(at.eng, &ctx, &widget.source) {
         Ok(texture) => texture,

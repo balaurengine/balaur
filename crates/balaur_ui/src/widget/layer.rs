@@ -610,7 +610,9 @@ impl Painting<'_> {
     /// Where the pointer is for the widget at `index`, which answers with the
     /// response it drew: where its `state` holds it, else where `response` says.
     pub(crate) fn pointer(&self, index: usize, response: &egui::Response) -> Pointer {
-        held_pointer(&self.arena[index].widget.state).unwrap_or_else(|| Pointer::of(response))
+        let widget = &self.arena[index].widget;
+        let free = (!widget.pointer_through).then(|| Pointer::of(response));
+        held_pointer(&widget.state).or(free).unwrap_or_default()
     }
 
     /// The style the widget at `index` is drawn with, in the state it is in here.
@@ -888,7 +890,7 @@ fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
             | w::PROGRESS_BAR
             | w::VIEWPORT
     );
-    if !passive || !widget.hears_click || widget.disabled {
+    if !passive || !widget.hears_click || widget.disabled || widget.pointer_through {
         return;
     }
     let id = sensor_id(ui, "balaur-click", placed.entity);

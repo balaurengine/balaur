@@ -8,7 +8,9 @@ use balaur_core::hecs::Entity;
 use balaur_script::Value;
 use egui::pos2;
 
-use crate::support::{add_widget, clicked, consume_input, pass_at, root_rect, settle};
+use crate::support::{
+    add_child_widget, add_widget, clicked, consume_input, pass_at, root_rect, settle,
+};
 use crate::widget_menus::{context_scene, rows_drawn};
 use crate::widget_scrolling::{as_touchscreen, list};
 
@@ -22,6 +24,11 @@ impl Finger {
 
 /// An app with an empty scene and a node whose script feeds a finger.
 fn app_with_finger() -> (tempfile::TempDir, App, Entity) {
+    app_feeding(FINGER)
+}
+
+/// The same, its script `source`, a class `Finger` with `touch`.
+fn app_feeding(source: &str) -> (tempfile::TempDir, App, Entity) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
@@ -30,7 +37,7 @@ fn app_with_finger() -> (tempfile::TempDir, App, Entity) {
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
-    std::fs::write(dir.path().join("scripts").join("finger.bs"), FINGER).unwrap();
+    std::fs::write(dir.path().join("scripts").join("finger.bs"), source).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let app = standard_app(config).unwrap();
@@ -148,4 +155,73 @@ fn a_fed_finger_dragged_up_a_scroll_moves_what_it_holds() {
     frame(&mut app, &ctx, None);
     let moved = before - balaur_ui::widget_rect(sixth).expect("the line drew").min.y;
     assert!(moved > 40.0, "a fed finger's drag did not scroll: {moved}");
+}
+
+/// A card as a game's tile is: a column whose click its binding hears,
+/// holding a picture button that takes no press and a wrapped name.
+fn card(app: &App) -> (Entity, Entity, Entity) {
+    let card = add_widget(
+        app,
+        &toml::toml! {
+            kind = "column" x = 0.0 y = 0.0 width = 160.0 height = 160.0
+            bindings = { rows = [{ event = "pointer_click", action = "call", target = "..", value = "on_go" }] }
+        }
+        .into(),
+    );
+    let icon = add_child_widget(
+        app,
+        card,
+        "Icon",
+        &toml::toml! { kind = "button" text = "*" interactive = false widget_button = { icon = "star" } }.into(),
+    );
+    let name = add_child_widget(
+        app,
+        card,
+        "Name",
+        &toml::toml! { kind = "label" text = "Word match" widget_text = { wrap = true } }.into(),
+    );
+    (card, icon, name)
+}
+
+const MOUSE: &str = "pub class Finger { node: Node }
+impl Finger {
+    pub fn touch(id: int, x: float, y: float, phase: str) {
+        input::set_mouse_position(vec2(x, y));
+        input::set_mouse_down(0, phase == \"start\");
+    }
+}
+";
+
+/// A fed tap at the centre of `at`, pressed and lifted a frame apart.
+fn tap(app: &mut App, ctx: &egui::Context, feeder: Entity, at: Entity) {
+    let at = balaur_ui::widget_rect(at)
+        .expect("the widget drew")
+        .center();
+    feed(app, feeder, at, "start");
+    frame(app, ctx, None);
+    feed(app, feeder, at, "end");
+    frame(app, ctx, None);
+}
+
+#[test]
+fn a_fed_finger_on_a_card_s_picture_or_name_clicks_the_card() {
+    for on_picture in [true, false] {
+        let (_dir, mut app, finger) = app_with_finger();
+        let (card, icon, name) = card(&app);
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        tap(&mut app, &ctx, finger, if on_picture { icon } else { name });
+        assert!(clicked(&app, card), "a tap on the picture: {on_picture}");
+        assert!(!clicked(&app, icon), "the picture lets the press through");
+    }
+}
+
+#[test]
+fn a_fed_mouse_click_on_a_card_s_picture_clicks_the_card() {
+    let (_dir, mut app, mouse) = app_feeding(MOUSE);
+    let (card, icon, _name) = card(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    tap(&mut app, &ctx, mouse, icon);
+    assert!(clicked(&app, card));
 }
