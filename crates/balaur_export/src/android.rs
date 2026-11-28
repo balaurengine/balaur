@@ -845,7 +845,7 @@ fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
 /// A `.so` goes in uncompressed: the loader maps it out of the APK, and a
 /// deflated one has to be extracted to disk first.
 fn add_payload(apk: &Path, layout: &Path) -> Result<()> {
-    let file = std::fs::OpenOptions::new()
+    let file = std::fs::OpenOptions::new() // whole: a linked APK appended to
         .read(true)
         .write(true)
         .open(apk)?;

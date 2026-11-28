@@ -83,18 +83,23 @@ impl Filled {
 ///
 /// Text only: every template is scenes, scripts and a manifest, and a binary
 /// starting point would be content rather than a template.
-fn copy_template(from: &Path, to: &Path, filled: &Filled) -> Result<()> {
+fn copy_template(
+    from: &Path,
+    to: &Path,
+    filled: &Filled,
+    batch: &mut balaur_core::whole::Batch,
+) -> Result<()> {
     std::fs::create_dir_all(to)?;
     for entry in std::fs::read_dir(from)? {
         let entry = entry?;
         let target = to.join(entry.file_name());
         if entry.file_type()?.is_dir() {
-            copy_template(&entry.path(), &target, filled)?;
+            copy_template(&entry.path(), &target, filled, batch)?;
             continue;
         }
         let text = std::fs::read_to_string(entry.path())
             .with_context(|| format!("reading {}", entry.path().display()))?;
-        balaur_core::whole::write(&target, filled.fill(&text))?;
+        batch.write(&target, filled.fill(&text))?;
     }
     Ok(())
 }
@@ -133,6 +138,8 @@ pub(crate) fn create(path: &Path, template: Option<&str>, page: Option<(u32, u32
         anyhow::bail!("no editor library beside this binary, so no templates to start from");
     }
     let template = template.unwrap_or("empty");
+    // Each folder of the project synced once, after its last file.
+    let mut batch = balaur_core::whole::Batch::new();
     match library {
         Some(library) => {
             let from = library.join(words::project_api::TEMPLATES).join(template);
@@ -147,18 +154,15 @@ pub(crate) fn create(path: &Path, template: Option<&str>, page: Option<(u32, u32
                     known.join(", ")
                 );
             }
-            copy_template(&from, path, &filled)?;
+            copy_template(&from, path, &filled, &mut batch)?;
         }
         None => {
             for (file, text) in EMPTY {
-                let target = path.join(file);
-                if let Some(dir) = target.parent() {
-                    std::fs::create_dir_all(dir)?;
-                }
-                balaur_core::whole::write(&target, filled.fill(text))?;
+                batch.write(path.join(file), filled.fill(text))?;
             }
         }
     }
+    batch.finish().context("syncing the new project")?;
     keep_deps_out_of_git(path)?;
     crate::engine_pin::pin_new(path)?;
     tracing::info!(

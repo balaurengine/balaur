@@ -245,15 +245,14 @@ pub(crate) fn download(project: &str, parent: &Path) -> Result<PathBuf> {
         n += 1;
     }
     let cache = cache_dir();
+    // Each folder of the copy synced once, after the last file written into it.
+    let mut batch = balaur_core::whole::Batch::new();
     for file in &tree.files {
         check_path(&file.path)?;
         let bytes = forge.blob(&found.id, &file.sha, cache.as_deref())?;
-        let target = folder.join(&file.path);
-        if let Some(dir) = target.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        balaur_core::whole::write(&target, bytes)?;
+        batch.write(folder.join(&file.path), bytes)?;
     }
+    batch.finish()?;
     if !folder.join("project.toml").is_file() {
         bail!("{project} has no project.toml at {}", short(&tree.commit));
     }
@@ -341,13 +340,11 @@ fn install(project: &Path, alias: &str, files: &[(String, Vec<u8>)]) -> Result<(
     if partial.exists() {
         std::fs::remove_dir_all(&partial)?;
     }
+    let mut batch = balaur_core::whole::Batch::new();
     for (path, bytes) in files {
-        let target = partial.join(path);
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        balaur_core::whole::write(&target, bytes)?;
+        batch.write(partial.join(path), bytes)?;
     }
+    batch.finish()?;
     std::fs::create_dir_all(&partial)?;
     if folder.exists() {
         std::fs::remove_dir_all(&folder)?;

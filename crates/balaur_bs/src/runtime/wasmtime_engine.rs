@@ -463,7 +463,7 @@ fn prune(dir: &std::path::Path) {
     reason = "a cache's housekeeping, never a simulation input"
 )]
 fn touch(path: &std::path::Path) {
-    let _ = std::fs::File::options()
+    let _ = std::fs::File::options() // whole: only its time is set
         .write(true)
         .open(path)
         .and_then(|file| file.set_modified(std::time::SystemTime::now()));

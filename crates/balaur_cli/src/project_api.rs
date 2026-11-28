@@ -355,7 +355,9 @@ fn copy(eng: &Engine, home: &Path, from: &str, into: &Path) -> Value {
     if into.exists() {
         return failed(format!("{} is there already", into.display()));
     }
-    if let Err(e) = copy_tree(&from, into) {
+    let mut batch = balaur_core::whole::Batch::new();
+    // On the disk before the start screen lists it.
+    if let Err(e) = copy_tree(&from, into, &mut batch).and_then(|()| batch.finish()) {
         return failed(format!("{e:#}"));
     }
     let name = name_of(into);
@@ -369,15 +371,16 @@ fn copy(eng: &Engine, home: &Path, from: &str, into: &Path) -> Value {
     ])
 }
 
-fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+/// `from` copied under `to`, each folder synced once with the batch.
+fn copy_tree(from: &Path, to: &Path, batch: &mut balaur_core::whole::Batch) -> std::io::Result<()> {
     std::fs::create_dir_all(to)?;
     for entry in std::fs::read_dir(from)? {
         let entry = entry?;
         let target = to.join(entry.file_name());
         if entry.file_type()?.is_dir() {
-            copy_tree(&entry.path(), &target)?;
+            copy_tree(&entry.path(), &target, batch)?;
         } else {
-            balaur_core::whole::copy(entry.path(), &target)?;
+            batch.copy(entry.path(), &target)?;
         }
     }
     Ok(())

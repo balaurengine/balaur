@@ -69,6 +69,32 @@ IN_PLACE_WRITE = re.compile(
     r'(?<![\w.])fs::(?:write|copy)\s*\(|\bFile::create\s*\(|\.write_in_place\s*\('
     r'|\.truncate\(\s*true\s*\)'
 )
+# `use std::fs::write;` or `use std::fs::{copy, write}`: the names a file
+# then calls bare, where `fs::write(` is out of sight.
+BARE_FS_IMPORT = re.compile(r'use\s+std::fs::(\{[^}]*\}|(?:write|copy)(?:\s+as\s+\w+)?\s*;)')
+BARE_FS_NAME = re.compile(r'\b(?:write|copy)\b(?:\s+as\s+(\w+))?')
+BARE_FS_CALL = re.compile(r'(?<![\w.:])(?<!fn )(\w+)\s*\(')
+# An `OpenOptions` chain or a variable it is built in: refused unless the
+# chain reaches its `.open(` appending, making the file new, or not writing.
+OPEN_OPTIONS = re.compile(r'\bOpenOptions::new\s*\(\)|\bFile::options\s*\(\)')
+
+
+def opens_in_place(lines, i) -> bool:
+    """Whether the `OpenOptions` chain starting at line `i` may write over a
+    file where it stands: it never reaches `.open(` in one chain (built in a
+    variable), or reaches it writing, neither appending nor making it new."""
+    chain = ""
+    for raw in lines[i - 1:i + 11]:
+        code = raw.split("//")[0]
+        chain += code
+        if ".open(" in code:
+            break
+        if ";" in code:
+            return True
+    return (".write(true)" in chain and ".append(true)" not in chain
+            and ".create_new(true)" not in chain)
+
+
 # A file moved over its target by hand, or a temporary named by hand.
 HAND_WHOLE_MOVE = re.compile(r'(?<![\w.])fs::rename\s*\(|\.persist(?:_noclobber)?\s*\(')
 HAND_PARTIAL_EXTENSION = re.compile(r'with_extension\(\s*"(?:part(?:ial)?|tmp|temp)"\s*\)')
@@ -631,6 +657,12 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
         and not is_test_file(rel)
     )
 
+    # `write` or `copy` from `std::fs` brought in by name, then called bare.
+    bare_fs = {alias or name.split()[0]
+               for found in BARE_FS_IMPORT.findall(text)
+               for name, alias in ((m.group(0), m.group(1)) for m in BARE_FS_NAME.finditer(found))}
+    opens_options = "OpenOptions::new" in text or "File::options" in text
+
     in_test_mod = False
     test_brace_depth = None
     test_attr_line = 0
@@ -727,14 +759,23 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                     and "// whole:" not in raw
                     and rel.as_posix() not in (WHOLE_OWNER, FILES_OWNER)
                     and not scaffolding(rel)
-                    and IN_PLACE_WRITE.search(line)):
+                    and (IN_PLACE_WRITE.search(line)
+                         or (bare_fs and not line.startswith("use ")
+                             and any(call.group(1) in bare_fs
+                                     for call in BARE_FS_CALL.finditer(line)))
+                         or (opens_options and OPEN_OPTIONS.search(line)
+                             and opens_in_place(lines, i)))):
                 findings.append(Finding(rel, i, "in-place-write",
-                                        "a file written where it stands is cut short by a crash "
-                                        "mid-write: `balaur_core::whole::write`, `write_cached` or "
-                                        "`copy_cached` (a cache or an output a run rebuilds), "
-                                        "`Whole::create` for a stream, or a backend's `write`/"
-                                        "`write_cached`; a file appended to after, or a backend's "
-                                        "own commit, says why with `// whole:` on the line", "ERROR"))
+                                        "a file written where it stands (a `fs::write` or `fs::copy`, "
+                                        "by path or called bare, a `File::create`, a truncating or "
+                                        "writing `OpenOptions`, a `write_in_place`) is cut short by "
+                                        "a crash mid-write: `balaur_core::whole::write`, "
+                                        "`write_cached` or `copy_cached` (a cache or an output a run "
+                                        "rebuilds), `whole::Batch` or a backend's `write_each` for "
+                                        "files written in one step, `Whole::create` for a stream, or "
+                                        "a backend's `write`/`write_cached`; a file appended to "
+                                        "after, or a backend's own commit, says why with `// whole:` "
+                                        "on the line", "ERROR"))
             if (not in_test_mod and not is_comment
                     and "// whole:" not in raw
                     and rel.as_posix() not in (WHOLE_OWNER, FILES_OWNER)

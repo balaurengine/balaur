@@ -23,6 +23,8 @@ pub(crate) fn run(paths: &[PathBuf], check: bool) -> Result<()> {
     files.sort();
     files.dedup();
     let mut changed = 0;
+    // Each folder synced once, after the last source written into it.
+    let mut batch = balaur_core::whole::Batch::new();
     for file in &files {
         let source =
             std::fs::read_to_string(file).with_context(|| format!("reading {}", file.display()))?;
@@ -40,10 +42,12 @@ pub(crate) fn run(paths: &[PathBuf], check: bool) -> Result<()> {
         if check {
             println!("{}", file.display());
         } else {
-            balaur_core::whole::write(file, &formatted)
+            batch
+                .write(file, &formatted)
                 .with_context(|| format!("writing {}", file.display()))?;
         }
     }
+    batch.finish().context("syncing what was formatted")?;
     if check && changed > 0 {
         println!("{changed} of {} files would change", files.len());
         std::process::exit(1);

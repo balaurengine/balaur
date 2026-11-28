@@ -267,6 +267,7 @@ fn point_references(
     is_dir: bool,
 ) -> Result<Vec<String>> {
     let mut rewritten = Vec::new();
+    let mut writes = Vec::new();
     for file in toml_files(backend, root) {
         let absolute = root.join(&file);
         let Ok(text) = backend
@@ -281,10 +282,12 @@ fn point_references(
         let mut changed = false;
         rewrite_item(document.as_item_mut(), from, to, is_dir, &mut changed);
         if changed {
-            backend.write(&absolute, document.to_string().as_bytes())?;
+            writes.push((absolute, document.to_string().into_bytes()));
             rewritten.push(file);
         }
     }
+    // One step: each folder synced once, after the last rewrite.
+    backend.write_each(writes)?;
     Ok(rewritten)
 }
 

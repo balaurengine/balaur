@@ -87,12 +87,42 @@ pub trait FileBackend {
     fn write_cached(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         through_own_file(self, path, bytes, false)
     }
+    /// Each of `files` written whole as [`FileBackend::write`] writes it, in
+    /// one step: each folder they go into synced once, after the last, a
+    /// rename's rewrites or a fetched folder. The disk does it with
+    /// [`crate::whole::Batch`].
+    fn write_each(&self, files: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+        let mut folders = std::collections::BTreeSet::new();
+        for (path, bytes) in &files {
+            put_beside(self, path, bytes, true)?;
+            folders.extend(path.parent().map(Path::to_path_buf));
+        }
+        for folder in folders {
+            self.sync(&folder);
+        }
+        Ok(())
+    }
 }
 
 /// `bytes` written whole through `fs`, beside the file in one of this
 /// write's own and moved over it; `synced`, the bytes and the folder are
 /// seen onto the device first and after.
 fn through_own_file<B: FileBackend + ?Sized>(
+    fs: &B,
+    path: &Path,
+    bytes: &[u8],
+    synced: bool,
+) -> Result<()> {
+    put_beside(fs, path, bytes, synced)?;
+    if let Some(parent) = path.parent().filter(|_| synced) {
+        fs.sync(parent);
+    }
+    Ok(())
+}
+
+/// `bytes` written beside `path` in a file of this write's own, synced where
+/// `synced` asks, and moved over it; removed when that fails.
+fn put_beside<B: FileBackend + ?Sized>(
     fs: &B,
     path: &Path,
     bytes: &[u8],
@@ -111,11 +141,7 @@ fn through_own_file<B: FileBackend + ?Sized>(
         })
         .inspect_err(|_| {
             let _ = fs.remove(&part);
-        })?;
-    if let Some(parent) = path.parent().filter(|_| synced) {
-        fs.sync(parent);
-    }
-    Ok(())
+        })
 }
 
 /// The backend in use, as an engine resource. Absent means the thread's
@@ -206,6 +232,17 @@ impl FileBackend for DiskFs {
     fn write_cached(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         crate::whole::write_cached(path, bytes)
             .with_context(|| format!("writing '{}' whole", path.display()))
+    }
+
+    fn write_each(&self, files: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+        let mut batch = crate::whole::Batch::new();
+        for (path, bytes) in &files {
+            batch
+                .write(path, bytes)
+                .with_context(|| format!("writing '{}' whole", path.display()))?;
+        }
+        batch.finish().context("syncing what was written")?;
+        Ok(())
     }
 
     /// A real append, and flushed: a recorder writes a line per frame, and a
@@ -460,6 +497,12 @@ impl FileBackend for MemoryFs {
 
     fn write_cached(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         self.write_in_place(path, bytes)
+    }
+
+    fn write_each(&self, files: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+        files
+            .iter()
+            .try_for_each(|(path, bytes)| self.write_in_place(path, bytes))
     }
 
     fn read(&self, path: &Path) -> Result<Vec<u8>> {

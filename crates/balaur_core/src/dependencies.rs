@@ -768,6 +768,13 @@ impl FileBackend for Mounted {
     fn write_cached(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         self.base.write_cached(&self.real(path), bytes)
     }
+    fn write_each(&self, files: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+        let real = files
+            .into_iter()
+            .map(|(path, bytes)| (self.real(&path), bytes))
+            .collect();
+        self.base.write_each(real)
+    }
     fn exists(&self, path: &Path) -> bool {
         self.base.exists(&self.real(path)) || !self.mounted_in(path).is_empty()
     }

@@ -172,7 +172,7 @@ impl Whole {
         // The mode the file had, which a move over it would otherwise drop.
         if let Some(meta) = std::fs::metadata(&whole.target)
             .ok()
-            .filter(|_| !whole.partial.0.as_os_str().is_empty())
+            .filter(|_| !whole.in_place())
         {
             whole.file.set_permissions(meta.permissions())?;
         }
@@ -256,15 +256,30 @@ impl Whole {
     /// Where the bytes cannot be synced or moved; nothing is left beside the
     /// target then.
     pub fn finish(self) -> std::io::Result<()> {
-        if self.partial.0.as_os_str().is_empty() {
-            return self.put();
+        if let Some(folder) = self.land(Sync::Full)? {
+            sync_dir(&folder);
         }
-        self.file.sync_all()?;
+        Ok(())
+    }
+
+    /// Whether the target is a device or a pipe, written as it stands.
+    fn in_place(&self) -> bool {
+        self.partial.0.as_os_str().is_empty()
+    }
+
+    /// The bytes synced as `sync` says and put in the target's place, and
+    /// what writers killed partway left beside it long ago swept; the folder
+    /// to sync for the move to last, none for a device.
+    fn land(self, sync: Sync) -> std::io::Result<Option<PathBuf>> {
+        if self.in_place() {
+            self.put()?;
+            return Ok(None);
+        }
+        sync.file(&self.file)?;
         let target = self.target.clone();
         self.put()?;
-        sync_folder(&target);
         sweep_stale(&target);
-        Ok(())
+        Ok(Some(folder_of(&target).to_path_buf()))
     }
 
     /// What was written put in the target's place unsynced: for a cache that
@@ -370,15 +385,134 @@ fn copied(from: &Path, to: &Path) -> std::io::Result<(Whole, u64)> {
     Ok((whole, copied))
 }
 
-/// The folder `target` is in synced, so a move into it lasts a power cut;
-/// a folder that cannot be synced, as on Windows, fails nothing.
-fn sync_folder(target: &Path) {
+/// How a file's bytes are seen onto the disk before it takes its target's
+/// place.
+#[derive(Clone, Copy)]
+enum Sync {
+    /// On the device, the drive's own cache flushed.
+    Full,
+    /// Ordered ahead of the move that follows, on a Mac: a power cut leaves
+    /// the old file or the new one whole, never one cut short, and a full
+    /// sync after the last write of a step makes them all last. Elsewhere,
+    /// as [`Sync::Full`].
+    Ordered,
+}
+
+impl Sync {
+    fn file(self, file: &std::fs::File) -> std::io::Result<()> {
+        #[cfg(target_vendor = "apple")]
+        if matches!(self, Self::Ordered) {
+            use std::os::fd::AsRawFd as _;
+            // SAFETY: a barrier asked of a file this holds open; it reads and
+            // writes no memory.
+            if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_BARRIERFSYNC) } != -1 {
+                return Ok(());
+            }
+        }
+        let _ = self;
+        file.sync_all()
+    }
+}
+
+/// Files written whole in one step: each through a file of its own and
+/// moved over its target, and each folder they went into synced once, as
+/// the batch is let go or [`finish`](Batch::finish)es, where [`write`]
+/// syncs it each time: a rename's rewrites, a formatter's sources, a
+/// fetched folder. On a Mac each file is ordered ahead of its move rather
+/// than flushed, and the folders' syncs flush them all.
+#[derive(Default)]
+pub struct Batch {
+    folders: std::collections::BTreeSet<PathBuf>,
+}
+
+impl Batch {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// `bytes` written whole to `target`, its folder synced with the rest.
+    ///
+    /// # Errors
+    /// Where the file cannot be made, written, synced or moved; the target is
+    /// as it was then.
+    pub fn write(
+        &mut self,
+        target: impl AsRef<Path>,
+        bytes: impl AsRef<[u8]>,
+    ) -> std::io::Result<()> {
+        self.made_for(target.as_ref());
+        let mut whole = Whole::create(target.as_ref())?;
+        whole.write_all(bytes.as_ref())?;
+        self.folders.extend(whole.land(Sync::Ordered)?);
+        Ok(())
+    }
+
+    /// `from` copied whole to `to` with its mode, as [`copy`] copies it, its
+    /// folder synced with the rest; how many bytes.
+    ///
+    /// # Errors
+    /// Where `from` cannot be read or `to` made, written, synced or moved;
+    /// `to` is as it was then.
+    pub fn copy(&mut self, from: impl AsRef<Path>, to: impl AsRef<Path>) -> std::io::Result<u64> {
+        self.made_for(to.as_ref());
+        let (whole, copied) = copied(from.as_ref(), to.as_ref())?;
+        self.folders.extend(whole.land(Sync::Ordered)?);
+        Ok(copied)
+    }
+
+    /// The folders a write to `target` is about to make, and the one that
+    /// holds the first of them, kept to sync: a new folder lasts once the
+    /// folder it was made in is synced.
+    fn made_for(&mut self, target: &Path) {
+        let mut folder = folder_of(target);
+        while !folder.exists() {
+            self.folders.insert(folder.to_path_buf());
+            let Some(parent) = folder.parent().filter(|p| !p.as_os_str().is_empty()) else {
+                return;
+            };
+            folder = parent;
+        }
+        if folder != folder_of(target) {
+            self.folders.insert(folder.to_path_buf());
+        }
+    }
+
+    /// The step's end: every folder written into synced, once each, the
+    /// first that cannot be its error; on a Mac, the flush that makes the
+    /// step's files last.
+    ///
+    /// # Errors
+    /// Where a folder cannot be opened or synced.
+    pub fn finish(mut self) -> std::io::Result<()> {
+        for folder in std::mem::take(&mut self.folders) {
+            #[cfg(unix)]
+            std::fs::File::open(&folder)?.sync_all()?;
+            #[cfg(not(unix))]
+            let _ = folder;
+        }
+        Ok(())
+    }
+}
+
+/// A batch let go before its end, an error's early return, still syncs what
+/// it wrote, as far as it can.
+impl Drop for Batch {
+    fn drop(&mut self) {
+        for folder in &self.folders {
+            sync_dir(folder);
+        }
+    }
+}
+
+/// `folder` synced; one that cannot be, as on Windows, fails nothing.
+fn sync_dir(folder: &Path) {
     #[cfg(unix)]
-    if let Err(err) = std::fs::File::open(folder_of(target)).and_then(|folder| folder.sync_all()) {
-        tracing::debug!("the folder of {} was not synced: {err}", target.display());
+    if let Err(err) = std::fs::File::open(folder).and_then(|opened| opened.sync_all()) {
+        tracing::debug!("{} was not synced: {err}", folder.display());
     }
     #[cfg(not(unix))]
-    let _ = target;
+    let _ = folder;
 }
 
 #[cfg(test)]
@@ -570,5 +704,39 @@ mod tests {
         write("/dev/null", b"nothing kept").unwrap();
         let meta = std::fs::metadata("/dev/null").unwrap();
         assert!(!meta.is_file(), "the device was replaced by a file");
+    }
+
+    #[test]
+    fn a_batch_lands_each_file_whole_in_every_folder() {
+        let home = tempfile::tempdir().unwrap();
+        let mut batch = Batch::new();
+        for (folder, name) in [("a", "one.bs"), ("a", "two.bs"), ("b/c", "three.bs")] {
+            batch
+                .write(home.path().join(folder).join(name), name)
+                .unwrap();
+        }
+        let program = home.path().join("tools/run");
+        let from = home.path().join("run");
+        std::fs::write(&from, b"#!").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&from, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        assert_eq!(batch.copy(&from, &program).unwrap(), 2);
+        batch.finish().unwrap();
+        assert_eq!(
+            std::fs::read(home.path().join("b/c/three.bs")).unwrap(),
+            b"three.bs"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&program).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o755, "the copy lost its mode");
+        }
+        let mut a = listed(&home.path().join("a"));
+        a.sort();
+        assert_eq!(a, ["one.bs", "two.bs"]);
     }
 }

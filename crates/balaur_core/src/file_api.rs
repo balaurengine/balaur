@@ -927,6 +927,27 @@ mod tests {
     }
 
     #[test]
+    fn files_written_in_one_step_sync_each_folder_once() {
+        let fs = Recording::default();
+        let files: Vec<(PathBuf, Vec<u8>)> = ["a.toml", "b.toml", "c.toml"]
+            .map(|name| (Path::new("/game/defs").join(name), b"x".to_vec()))
+            .into();
+        fs.write_each(files).unwrap();
+        let asked = fs.asked.borrow();
+        let folder = format!("sync {}", Path::new("/game/defs").display());
+        assert_eq!(
+            asked.iter().filter(|one| **one == folder).count(),
+            1,
+            "{asked:?}"
+        );
+        assert_eq!(
+            asked.iter().filter(|one| one.starts_with("rename")).count(),
+            3
+        );
+        assert_eq!(fs.read(Path::new("/game/defs/c.toml")).unwrap(), b"x");
+    }
+
+    #[test]
     fn a_judgment_resolves_each_root_once_until_one_is_added() {
         let fs = std::rc::Rc::new(Recording::default());
         let engine = crate::Engine::default();

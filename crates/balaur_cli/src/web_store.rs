@@ -465,6 +465,18 @@ impl FileBackend for ProjectFs {
         self.write_in_place(path, bytes) // whole: one commit
     }
 
+    /// One durable commit for them all.
+    fn write_each(&self, files: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
+        // What was written commits durably though a later write fails.
+        let written = files
+            .iter()
+            .try_for_each(|(path, bytes)| self.write_cached(path, bytes));
+        if let Some((last, _)) = files.last() {
+            self.sync(last);
+        }
+        written
+    }
+
     fn write_in_place(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         self.inner.write_in_place(path, bytes)?; // whole: the store's own
         self.mark(path, Change::Wrote);
