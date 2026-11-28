@@ -22,6 +22,9 @@ use i_overlay::float::overlay::{FloatOverlay, OverlayOptions};
 use balaur_core::engine::Engine;
 
 const TRIANGULATE: &str = "triangulate";
+const FILL: &str = "fill";
+const POINTS: &str = "points";
+const TRIANGLES: &str = "triangles";
 
 /// A pixel index as the coordinate the boundary walk counts in, which reaches
 /// one past the mask on every side.
@@ -226,6 +229,22 @@ fn polygon_of(value: &Value) -> Result<Vec<Vec2>> {
         return Err(anyhow!("a polygon is a list of points, got {value:?}"));
     };
     items.iter().map(point_of).collect()
+}
+
+/// Triangles as `[i, j, k]` lists.
+fn triangles_value(triangles: Vec<[u32; 3]>) -> Value {
+    Value::List(
+        triangles
+            .into_iter()
+            .map(|[i, j, k]| {
+                Value::List(vec![
+                    Value::Int(i64::from(i)),
+                    Value::Int(i64::from(j)),
+                    Value::Int(i64::from(k)),
+                ])
+            })
+            .collect(),
+    )
 }
 
 fn polygon_value(points: &[Vec2]) -> Value {
@@ -563,24 +582,29 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
         "Polygons on the plane as lists of `Vec2` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
     );
     m.describe(&[
-        (TRIANGULATE, &[], "(polygon: [Vec2]) -> [[int]]", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted."),
+        (TRIANGULATE, &[], "(polygon: [Vec2]) -> [[int]]", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted. A polygon that crosses itself is refused, since filling it needs a vertex at each crossing: `fill` answers those too."),
+        (FILL, &[], "(polygon: [Vec2]) -> Fill", "The polygon filled however its outline runs, crossing itself included: the points the fill needed, the polygon's and one at each place it crosses itself, and counter-clockwise `[i, j, k]` triangles over them; a polygon with no area has none."),
     ]);
+    m.records(&[(
+        "Fill",
+        "{ points: [Vec2], triangles: [[int]] }",
+        "A filled polygon: the points its triangles index, and the triangles.",
+    )]);
+    m.function(FILL, |_: &Engine, polygon: Value| {
+        let points = polygon_of(&polygon)?;
+        let contour: Vec<[f32; 2]> = points.iter().map(Vec2::to_array).collect();
+        let (filled, triangles) = crate::triangulate::triangulate_shape(&[contour]);
+        let filled: Vec<Vec2> = filled.into_iter().map(Vec2::from).collect();
+        Ok(Value::Map(vec![
+            (POINTS.into(), polygon_value(&filled)),
+            (TRIANGLES.into(), triangles_value(triangles)),
+        ]))
+    });
     m.function(TRIANGULATE, |_: &Engine, polygon: Value| {
         let points = polygon_of(&polygon)?;
         let ring: Vec<u32> = (0..points.len() as u32).collect();
         let triangles = crate::triangulate::triangulate(&points, &ring)?;
-        Ok(Value::List(
-            triangles
-                .into_iter()
-                .map(|[i, j, k]| {
-                    Value::List(vec![
-                        Value::Int(i64::from(i)),
-                        Value::Int(i64::from(j)),
-                        Value::Int(i64::from(k)),
-                    ])
-                })
-                .collect(),
-        ))
+        Ok(triangles_value(triangles))
     });
     install_boolean_api(m);
 }

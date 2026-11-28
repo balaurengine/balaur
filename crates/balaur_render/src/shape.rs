@@ -387,6 +387,9 @@ pub struct Line2d {
     /// Cuts around a round join or cap
     #[property(default = 32, min = 3)]
     pub segments: i64,
+    /// A dash's length and the gap after it, in world units, as SVG's `stroke-dasharray`; each dash ends in `cap`, and [0, 0] draws the line whole
+    #[property(default = [0.0, 0.0])]
+    pub dashes: [f32; 2],
     /// The colour the line fades to at its far end, from `color` at its start; a zero alpha means no gradient
     #[property(color, group = "gradient")]
     pub gradient: [f32; 4],
@@ -486,6 +489,7 @@ fn line2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
             miter_limit: asked.miter_limit,
             taper: asked.taper,
             segments: u32::try_from(asked.segments.max(1)).unwrap_or(u32::MAX),
+            dashes: asked.dashes.map(|side| side.max(0.0)),
         };
         // A gradient with no alpha is no gradient: the schema's default.
         let style = crate::LineStyle {

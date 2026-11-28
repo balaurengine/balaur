@@ -15,6 +15,10 @@ impl Subject {
         geometry2d::segments_intersect(a1, a2, b1, b2)
     }
     pub fn hull(points: [Vec2]) -> [Vec2] { geometry2d::convex_hull(points) }
+    pub fn fill(polygon: [Vec2]) -> any {
+        let filled = geometry2d::fill(polygon);
+        return [filled.points.len(), filled.triangles.len()];
+    }
 }
 ";
 
@@ -392,5 +396,22 @@ fn quat_answers_as_glam_does() {
     eprintln!(
         "furthest from glam: {:e}; opposite pairs glam left unturned: {glam_unturned}",
         drift.0
+    );
+}
+
+// A loop that crosses itself, as some coasts do, is filled with a point at
+// the crossing; `triangulate` refuses it.
+#[test]
+fn a_polygon_that_crosses_itself_fills_with_a_point_at_the_crossing() {
+    let fixture = Fixture::new(GEOMETRY);
+    let bow = Value::List(
+        [[0.0, 0.0], [3.0, 0.0], [0.0, 1.0], [1.0, 2.0]]
+            .into_iter()
+            .map(Value::Vec2)
+            .collect(),
+    );
+    assert_eq!(
+        fixture.call("fill", &[bow]),
+        Value::List(vec![Value::Int(5), Value::Int(2)])
     );
 }

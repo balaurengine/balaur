@@ -357,6 +357,38 @@ fn a_line_s_stroke_survives_the_round_trip() {
     }
 }
 
+// A line's dashes reach the stroke it draws with, and a save keeps them.
+#[test]
+fn a_dashed_line_strokes_with_its_dashes() {
+    let app = app();
+    let e = node(&app);
+    let params: toml::Value = toml::from_str("mesh = \"outline\"\ndashes = [0.5, 0.25]").unwrap();
+    components::add(&app.engine, e, "line2d", Some(&params)).unwrap();
+    let stroke = {
+        let world = app.engine.world();
+        let drawn = world
+            .get::<&balaur_render::Renderable2d>(e)
+            .expect("it draws");
+        match &drawn.shape {
+            balaur_render::Shape2d::Polyline(stroke) => *stroke,
+            _ => panic!("a line2d draws a polyline"),
+        }
+    };
+    let [on, off] = stroke.dashes;
+    assert!(
+        (on - 0.5).abs() < 1e-6 && (off - 0.25).abs() < 1e-6,
+        "{on} {off}"
+    );
+    let back = components::get(&app.engine, e, "line2d").expect("nothing read back");
+    let dashes: Vec<f64> = back["dashes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(toml::Value::as_float)
+        .collect();
+    assert_eq!(dashes, vec![0.5, 0.25]);
+}
+
 // An unknown kind names itself rather than silently drawing a cuboid.
 #[test]
 fn an_unknown_shape_kind_is_refused_by_name() {

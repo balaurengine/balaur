@@ -4649,6 +4649,10 @@
         "least": 2,
         "signature": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]"
       },
+      "geometry2d::fill": {
+        "least": 1,
+        "signature": "([Vec2]) -> geometry2d::Fill"
+      },
       "geometry2d::intersection": {
         "least": 2,
         "signature": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]"
@@ -10991,6 +10995,10 @@
       "geometry2d::DecompositionOptions": {
         "overlap": "float?"
       },
+      "geometry2d::Fill": {
+        "points": "[Vec2]",
+        "triangles": "[[int]]"
+      },
       "geometry3d::DecompositionOptions": {
         "max_concavity": "float?",
         "max_convex_hulls": "int?",
@@ -14929,6 +14937,7 @@
       "cap",
       "miter_limit",
       "segments",
+      "dashes",
       "gradient",
       "gradient_steps"
     ],
@@ -20275,6 +20284,14 @@
         ],
         "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
         "type": "color"
+      },
+      "dashes": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "A dash's length and the gap after it, in world units, as SVG's `stroke-dasharray`; each dash ends in `cap`, and [0, 0] draws the line whole",
+        "type": "vec2"
       },
       "gradient": {
         "default": [
@@ -28515,11 +28532,12 @@
         "convex_decomposition": "The polygon cut into convex pieces that overlap across their seams, so nothing wedges into one; `overlap` from 0 to 1 says how far each piece grows, 0.9 by default.",
         "convex_hull": "The smallest convex polygon around the points, counter-clockwise.",
         "difference": "Everything inside the first polygon and outside the second, shaped and tuned as `union` is.",
+        "fill": "The polygon filled however its outline runs, crossing itself included: the points the fill needed, the polygon's and one at each place it crosses itself, and counter-clockwise `[i, j, k]` triangles over them; a polygon with no area has none.",
         "intersection": "Everything inside both polygons, shaped and tuned as `union` is.",
         "is_clockwise": "Whether the points run clockwise, with y up.",
         "segments_intersect": "Where two segments cross, or nil when they do not; touching at an endpoint counts.",
         "symmetric_difference": "Everything inside exactly one of the two polygons, shaped and tuned as `union` is.",
-        "triangulate": "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted.",
+        "triangulate": "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted. A polygon that crosses itself is refused, since filling it needs a vertex at each crossing: `fill` answers those too.",
         "union": "Everything inside either polygon: a list of shapes, each a list of paths whose first is the outline and the rest holes. `opts` takes `fill_rule` (`even_odd`, `non_zero`, `positive`, `negative`; `even_odd` unless given), `min_area`, `keep_collinear` and `clean_result`, as `boolean2d` does."
       },
       "editor": [],
@@ -28529,6 +28547,7 @@
         "convex_decomposition",
         "convex_hull",
         "difference",
+        "fill",
         "intersection",
         "is_clockwise",
         "segments_intersect",
@@ -28544,6 +28563,7 @@
         "convex_decomposition": "([Vec2], geometry2d::DecompositionOptions?) -> [[Vec2]]",
         "convex_hull": "([Vec2]) -> [Vec2]",
         "difference": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]",
+        "fill": "([Vec2]) -> geometry2d::Fill",
         "intersection": "([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]",
         "is_clockwise": "([Vec2]) -> bool",
         "segments_intersect": "(Vec2, Vec2, Vec2, Vec2) -> Vec2?",

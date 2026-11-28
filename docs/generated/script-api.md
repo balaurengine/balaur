@@ -25,7 +25,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
 | [`fs`](#fs) | 10 | 0 |
-| [`geometry2d`](#geometry2d) | 11 | 0 |
+| [`geometry2d`](#geometry2d) | 12 | 0 |
 | [`geometry3d`](#geometry3d) | 7 | 0 |
 | [`google`](#google) | 1 | 4 |
 | [`hash`](#hash) | 2 | 0 |
@@ -388,6 +388,7 @@ Polygons on the plane as lists of `Vec2` points in outline order: triangulation,
 | `convex_decomposition` | `([Vec2], geometry2d::DecompositionOptions?) -> [[Vec2]]` |
 | `convex_hull` | `([Vec2]) -> [Vec2]` |
 | `difference` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
+| `fill` | `([Vec2]) -> geometry2d::Fill` |
 | `intersection` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
 | `is_clockwise` | `([Vec2]) -> bool` |
 | `segments_intersect` | `(Vec2, Vec2, Vec2, Vec2) -> Vec2?` |
