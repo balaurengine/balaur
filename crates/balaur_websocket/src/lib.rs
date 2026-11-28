@@ -237,7 +237,7 @@ impl WebsocketState {
         self.in_flight.insert(id);
         balaur_core::replay::event(
             eng,
-            "websocket.connect",
+            balaur_core::replay::WEBSOCKET_CONNECT,
             format!("connect {url}"),
             Some(serde_json::json!({ "id": id, "url": url })),
         );
@@ -382,6 +382,17 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
             host.wake(socket, &value);
         }
     }
+}
+
+/// A frame a script sends, for a recording to hold a replay's against.
+fn sent(eng: &Engine, socket: i64, frame: &[u8]) {
+    let body = balaur_core::replay::body_print(frame);
+    balaur_core::replay::event(
+        eng,
+        balaur_core::replay::WEBSOCKET_SEND,
+        format!("send {socket}"),
+        Some(serde_json::json!({ "id": socket, crate::vocabulary::keys::BODY: body })),
+    );
 }
 
 /// The `kind` each event map carries, and the `EVENT_*` constants of it.
@@ -552,12 +563,14 @@ fn install_websocket_api(m: &mut Module<Engine>) {
         },
     );
     m.function(SEND_TEXT, |eng: &Engine, (socket, text): (i64, String)| {
+        sent(eng, socket, text.as_bytes());
         let state = eng.resource::<WebsocketState>();
         let sent = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_text(id, &text));
         Ok(sent)
     });
     m.function(SEND_BYTES, |eng: &Engine, (socket, data): (i64, Value)| {
         let data = balaur_core::handler::bytes_of(&data)?;
+        sent(eng, socket, &data);
         let state = eng.resource::<WebsocketState>();
         let sent = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_bytes(id, data));
         Ok(sent)

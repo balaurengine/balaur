@@ -213,6 +213,11 @@ pub struct HttpState {
     cancelled: balaur_core::collections::DetHashSet<u64>,
     /// Cancelled since the last pump, whose waiters wake there.
     cancelled_now: Vec<u64>,
+    /// Where each request in flight that asked for a file saves it.
+    saving: DetHashMap<u64, std::path::PathBuf>,
+    /// The files this tick's replies saved, by request, read as each reply
+    /// was taken: what a recording keeps beside them.
+    saved_now: Vec<(u64, Vec<u8>)>,
     /// The workers, started with the first request.
     pool: Option<backend::Pool>,
 }
@@ -226,14 +231,23 @@ impl HttpState {
         call.id = id;
         // The outbound side, which no source records: a reply is captured
         // with the id it answers, and nothing else says the request went out.
+        let body = call.body.as_ref().map(|body| match body {
+            Body::Text(text) => balaur_core::replay::body_print(text.as_bytes()),
+            Body::Bytes(bytes) => balaur_core::replay::body_print(bytes),
+        });
         balaur_core::replay::event(
             eng,
-            "http.request",
+            balaur_core::replay::HTTP_REQUEST,
             format!("{} {}", call.method, call.url),
-            Some(serde_json::json!({ "id": id, "method": call.method, "url": call.url })),
+            Some(
+                serde_json::json!({ "id": id, "method": call.method, "url": call.url, "body": body }),
+            ),
         );
         let cancel = std::sync::Arc::<std::sync::atomic::AtomicBool>::default();
         self.in_flight.insert(id, cancel.clone());
+        if let Some(path) = &call.save_to {
+            self.saving.insert(id, path.clone());
+        }
         let parallel = HttpConfig::from_settings(eng).max_parallel;
         let pool = &mut self.pool;
         self.io.start(eng, |report| {
@@ -300,6 +314,7 @@ fn pump_http_system(eng: &Engine, _: f32) {
         let mut state = state.borrow_mut();
         let mut snapshot = snapshot.borrow_mut();
         snapshot.responses.clear();
+        state.saved_now.clear();
         for request in std::mem::take(&mut state.cancelled_now) {
             let value = Value::Map(vec![
                 (KIND.into(), Value::Str(kind::CANCELLED.into())),
@@ -327,6 +342,13 @@ fn pump_http_system(eng: &Engine, _: f32) {
             // shift_remove: keeps the remaining entries in insertion order,
             // so iteration stays deterministic.
             state.in_flight.shift_remove(&request);
+            let saving = state.saving.shift_remove(&request);
+            if let HttpEvent::Response { saved: Some(_), .. } = &event
+                && let Some(path) = saving.filter(|_| !balaur_core::replay::is_playing(eng))
+                && let Ok(bytes) = balaur_core::files::backend(eng).read(&path)
+            {
+                state.saved_now.push((request, bytes));
+            }
             let value = event_value(event);
             snapshot.responses.push(value.clone());
             finished.push((request, value));
@@ -467,15 +489,96 @@ max_parallel = {{ type = "int", default = {parallel}, min = {fewest}, max = {mos
     }
 }
 
-/// This tick's arrivals, raw. The pump has already stashed them.
+/// The key a recorded arrival keeps the file a `save_to` wrote under, beside
+/// the arrival itself, as hex.
+const SAVED_BYTES: &str = "saved_bytes";
+
+/// This tick's arrivals, raw. The pump has already stashed them. A body a
+/// `save_to` wrote to a file is kept too, as the reply was taken: a replay
+/// sends nothing, and what the run then read from that file is an input as
+/// the reply is.
 fn capture(eng: &Engine) -> serde_json::Value {
-    eng.resource::<HttpState>().borrow().io.capture()
+    let state = eng.resource::<HttpState>();
+    let state = state.borrow();
+    let mut captured = state.io.capture();
+    for arrival in captured.as_array_mut().into_iter().flatten() {
+        let request = request_of(arrival);
+        let kept = state.saved_now.iter().find(|(id, _)| Some(*id) == request);
+        if let (Some((_, bytes)), Some(fields)) = (kept, arrival.as_object_mut()) {
+            fields.insert(SAVED_BYTES.into(), serde_json::Value::String(hex(bytes)));
+        }
+    }
+    captured
 }
 
 /// Push recorded arrivals back down the same channel the worker threads use,
-/// so the pump dispatches them exactly as it did when they were real.
+/// so the pump dispatches them exactly as it did when they were real. A file
+/// a `save_to` wrote is written again first, where this run's request asked
+/// for it, never where the recording says.
 fn restore(eng: &Engine, value: &serde_json::Value) {
-    eng.resource::<HttpState>().borrow().io.restore(value);
+    let state = eng.resource::<HttpState>();
+    let saves = value.as_array().is_some_and(|arrivals| {
+        arrivals
+            .iter()
+            .any(|arrival| arrival.get(SAVED_BYTES).is_some())
+    });
+    if !saves {
+        state.borrow().io.restore(value);
+        return;
+    }
+    let mut arrivals = value.clone();
+    for arrival in arrivals.as_array_mut().into_iter().flatten() {
+        let kept = arrival
+            .as_object_mut()
+            .and_then(|fields| fields.remove(SAVED_BYTES));
+        // copy: the path outlives the state's borrow, which the write must not hold.
+        let path = request_of(arrival).and_then(|id| state.borrow().saving.get(&id).cloned());
+        let bytes = kept
+            .as_ref()
+            .and_then(serde_json::Value::as_str)
+            .and_then(unhex);
+        let (Some(path), Some(bytes)) = (path, bytes) else {
+            continue;
+        };
+        if let Err(why) = balaur_core::files::backend(eng).write(&path, &bytes) {
+            tracing::error!(
+                "replaying the file {} a request saved: {why:#}",
+                path.display()
+            );
+        }
+        if let Some(saved) = arrival
+            .get_mut(RESPONSE_TAG)
+            .and_then(|reply| reply.get_mut("saved"))
+        {
+            *saved = serde_json::Value::String(path.display().to_string());
+        }
+    }
+    state.borrow().io.restore(&arrivals);
+}
+
+/// How a recorded reply is tagged in the recording.
+const RESPONSE_TAG: &str = "Response";
+
+/// The request a recorded reply answers.
+fn request_of(arrival: &serde_json::Value) -> Option<u64> {
+    arrival.get(RESPONSE_TAG)?.get(REQUEST)?.as_u64()
+}
+
+fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut out, byte| {
+            let _ = write!(out, "{byte:02x}");
+            out
+        })
+}
+
+fn unhex(text: &str) -> Option<Vec<u8>> {
+    (0..text.len())
+        .step_by(2)
+        .map(|at| u8::from_str_radix(text.get(at..at + 2)?, 16).ok())
+        .collect()
 }
 
 fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {

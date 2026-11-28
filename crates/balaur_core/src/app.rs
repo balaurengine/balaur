@@ -819,9 +819,12 @@ impl App {
     /// plugins are added so their scene keys are known.
     /// Open `scene` (project-relative) when the project loads, instead of the
     /// manifest's `main_scene`: a test harness booting its own scene around
-    /// the game's.
+    /// the game's. A recording started after it keeps the scene for its replay.
     pub fn set_main_scene(&mut self, scene: impl Into<String>) -> &mut Self {
-        self.main_scene = Some(scene.into());
+        let scene = scene.into();
+        self.engine
+            .insert_resource(crate::replay::OpenedScene(Some(scene.clone())));
+        self.main_scene = Some(scene);
         self
     }
 

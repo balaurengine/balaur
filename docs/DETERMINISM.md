@@ -57,7 +57,12 @@ balaur replay session.blr --entries-at 25
 - The file is JSON Lines: a header, one line per tick (that tick's external
   input and the step it ran at), a trailer. It records **input, not state**.
 - `--verify` re-checks every tick and stops at the first mismatch with a
-  non-zero exit, naming the recorded and replayed digests.
+  non-zero exit, naming the recorded and replayed digests. It also holds what
+  each tick sent against what the recording's sent: each HTTP request with its
+  method, URL and body, each socket opened and each frame sent on one, a body
+  as its length and hash. The first tick they part on is named with both lists.
+- A run started with `--scene` keeps that scene in the header, and its replay
+  opens it in place of the project's `main_scene`.
 - `--entries-at <tick>` dumps that tick's parts, as
   `n_ball/transform 1e773bf22b6856a5`. Dump on both machines and `diff`: the
   differing line names the node and the component. Labels come from the scene's
@@ -123,6 +128,8 @@ scenes standing are world state.
 | Physics across platforms | Handled — rapier's `enhanced-determinism` |
 | Variable `dt` | Handled if you simulate in `fixed_update` |
 | Network replies | Handled — recorded and replayed, outbound suppressed |
+| A file a request's `save_to` wrote | Handled — its bytes are recorded with the reply, and the replay writes them again as the reply lands |
+| A worker's answer (`json::parse_async`, `ui::picture_async`, `image::encode`) | Handled — the tick each answer was taken on is recorded, and a replay waits for that worker on that tick |
 | `audio::device_ready`, `audio::devices` | Handled — the machine is asked once a tick and the answer recorded; a replay answers from the recording |
 | `engine::dark_mode()`, `focused()` and the rest of the device's facts | Handled — recorded each tick, and in the header as they stood when `init` read them |
 | `cmd` in an `[input.actions]` binding | Handled — whether it is ⌘ or Control is in the header, and a replay's bindings read that, not the replaying machine's |

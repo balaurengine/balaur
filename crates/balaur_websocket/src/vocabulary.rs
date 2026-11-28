@@ -7,3 +7,8 @@ pub(crate) mod words {
     pub(crate) const SERVER_MAX_WINDOW_BITS: &str = "server_max_window_bits";
     pub(crate) const SERVER_NO_CONTEXT_TAKEOVER: &str = "server_no_context_takeover";
 }
+
+pub(crate) mod keys {
+    /// What a frame sent carries in a recording's event, as its print.
+    pub(crate) const BODY: &str = "body";
+}

@@ -1113,6 +1113,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tracing",
  "ureq",
  "wasm-bindgen",
  "wasm-bindgen-futures",

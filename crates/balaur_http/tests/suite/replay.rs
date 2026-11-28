@@ -50,6 +50,14 @@ fn serve_one(response: &'static str) -> String {
 /// Record a session that fetches `url`, returning each tick's captured
 /// sources. The recording stops once the reply has landed.
 fn record_a_fetch(url: &str) -> Vec<serde_json::Map<String, serde_json::Value>> {
+    record_a_fetch_to(url, None)
+}
+
+/// [`record_a_fetch`], its body written to `save_to` when one is named.
+fn record_a_fetch_to(
+    url: &str,
+    save_to: Option<std::path::PathBuf>,
+) -> Vec<serde_json::Map<String, serde_json::Value>> {
     let mut app = app_with_http();
     app.engine.resource::<HttpState>().borrow_mut().request(
         &app.engine,
@@ -61,7 +69,7 @@ fn record_a_fetch(url: &str) -> Vec<serde_json::Map<String, serde_json::Value>> 
             headers: Vec::new(),
             body: None,
             timeout: Some(5.0),
-            save_to: None,
+            save_to,
         },
     );
 
@@ -70,7 +78,7 @@ fn record_a_fetch(url: &str) -> Vec<serde_json::Map<String, serde_json::Value>> 
         app.tick(1.0 / 60.0);
         frames.push(replay::capture(&app.engine));
         let snapshot = app.engine.resource::<HttpSnapshot>();
-        let landed = body_of(&snapshot.borrow()).is_some();
+        let landed = !snapshot.borrow().responses.is_empty();
         drop(snapshot);
         if landed {
             return frames;
@@ -162,4 +170,39 @@ fn replaying_does_not_reach_the_network() {
         rx.try_recv().is_err(),
         "a replayed request must not open a connection"
     );
+}
+
+// A replay sends nothing, so a file a `save_to` wrote has to come from the
+// recording, on the tick its reply lands, or what the run read from it parts.
+#[test]
+fn a_file_a_request_saved_is_written_again_by_its_replay() {
+    let dir = tempfile::tempdir().unwrap();
+    let saved = dir.path().join("pictures/one.png");
+    let url = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello");
+    let frames = record_a_fetch_to(&url, Some(saved.clone()));
+    assert_eq!(std::fs::read(&saved).unwrap(), b"hello");
+    std::fs::remove_file(&saved).unwrap();
+
+    let mut app = app_with_http();
+    *app.engine.resource::<ReplayMode>().borrow_mut() = ReplayMode::Playing;
+    app.engine.resource::<HttpState>().borrow_mut().request(
+        &app.engine,
+        1,
+        HttpCall {
+            id: 1,
+            method: "GET".into(),
+            url,
+            headers: Vec::new(),
+            body: None,
+            timeout: Some(5.0),
+            save_to: Some(saved.clone()),
+        },
+    );
+    let feed = app.engine.resource::<ReplayFeed>();
+    for (at, frame) in frames.iter().enumerate() {
+        assert!(!saved.exists(), "written before its reply's tick, at {at}");
+        feed.borrow_mut().0 = Some(frame.clone());
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(std::fs::read(&saved).unwrap(), b"hello");
 }

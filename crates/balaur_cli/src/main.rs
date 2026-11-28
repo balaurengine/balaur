@@ -738,14 +738,15 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     // Before the project loads, so a client that waits can have breakpoints
     // in place by the time `init` runs.
     let _debugger = debugger::start_debugger(&mut app, *debug, *debug_wait)?;
+    // Before the recording starts, so its header names the scene a replay opens.
+    if let Some(scene) = scene {
+        app.set_main_scene(scene.clone());
+    }
     // Before the project loads, for the same reason a replay sets its mode
     // there: a script's `init` already takes await tokens and draws from the
     // RNG, and the header has to hold the values it started from.
     if let Some(out) = record {
         record_to(&app, out, path)?;
-    }
-    if let Some(scene) = scene {
-        app.set_main_scene(scene.clone());
     }
     balaur::seed_device(&app);
     if *touch {

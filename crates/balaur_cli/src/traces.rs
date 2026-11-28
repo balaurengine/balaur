@@ -83,11 +83,24 @@ pub(super) fn record_to(app: &App, path: &Path, project: &Path) -> Result<()> {
     )
 }
 
+fn lines_or_nothing(lines: &[String]) -> String {
+    if lines.is_empty() {
+        "nothing".to_string()
+    } else {
+        lines.join("\n  ")
+    }
+}
+
 pub(super) fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<()> {
     let session = balaur::replay::Session::read(file)?;
     let frames = session.frames.len();
     let checked = session.frames.iter().filter(|f| f.digest.is_some()).count();
-    let mut app = balaur::standard_app(AppConfig::dev(&session.header.project))?;
+    let mut config = AppConfig::dev(&session.header.project);
+    config.watch = false;
+    let mut app = balaur::standard_app(config)?;
+    if let Some(scene) = &session.header.scene {
+        app.set_main_scene(scene.clone());
+    }
     // Before load_project: a script's `init` can open a socket, and that must
     // not reach the network either. It can also take an await token, and the
     // recorded replies are keyed by the ids it took.
@@ -104,6 +117,21 @@ pub(super) fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>)
                 println!("{} {}", entry.label, entry.digest);
             }
             return Ok(());
+        }
+        if verify
+            && let Some(sent) = app
+                .engine
+                .resource::<balaur::replay::ReplayPlayer>()
+                .borrow()
+                .sent_diverged
+                .clone()
+        {
+            anyhow::bail!(
+                "tick {}: the recording sent\n  {}\nand the replay sent\n  {}",
+                sent.tick,
+                lines_or_nothing(&sent.recorded),
+                lines_or_nothing(&sent.replayed)
+            );
         }
         if verify
             && let Some(d) = app
@@ -188,5 +216,77 @@ impl Walker {
 
         rate(60);
         replay_session(&file, true, None).unwrap();
+    }
+
+    /// A project at `dir` whose `main.toml` is empty and whose `walk.toml`
+    /// holds a Walker running `script`.
+    fn walker_project(dir: &Path, script: &str) {
+        std::fs::write(
+            dir.join("project.toml"),
+            "[application]\nname = \"scene\"\nmain_scene = \"main.toml\"\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.join("scripts")).unwrap();
+        std::fs::write(dir.join("main.toml"), "").unwrap();
+        std::fs::write(
+            dir.join("walk.toml"),
+            "[[nodes]]\nid = \"w\"\nname = \"Walker\"\nscript = { source = \"scripts/walker.bs\" }\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("scripts").join("walker.bs"), script).unwrap();
+    }
+
+    /// `ticks` of the project at `dir` recorded from `walk.toml`, as
+    /// `balaur run --scene walk.toml --record` makes it.
+    fn recorded_from_its_scene(dir: &Path, ticks: usize) -> std::path::PathBuf {
+        let file = dir.join("walk.blr");
+        let mut config = AppConfig::dev(dir.to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.set_main_scene("walk.toml");
+        record_to(&app, &file, dir).unwrap();
+        app.load_project().unwrap();
+        for _ in 0..ticks {
+            app.tick(balaur::fixed_dt());
+        }
+        balaur::replay::stop_recording(&app.engine, "stop").unwrap();
+        file
+    }
+
+    #[test]
+    fn a_replay_opens_the_scene_its_run_opened() {
+        let dir = tempfile::tempdir().unwrap();
+        walker_project(dir.path(), WALKER);
+        let file = recorded_from_its_scene(dir.path(), 20);
+        let session = balaur::replay::Session::read(&file).unwrap();
+        assert_eq!(session.header.scene.as_deref(), Some("walk.toml"));
+        replay_session(&file, true, None).unwrap();
+    }
+
+    const ASKER: &str = "pub class Walker { node: Node, asked: bool }
+impl Walker {
+    pub fn fixed_update(dt: float) {
+        if !self.asked {
+            self.asked = true;
+            http::request(\"http://127.0.0.1:9/{PATH}\", http::RequestOptions { method: \"POST\", body: \"{BODY}\" });
+        }
+    }
+}
+";
+
+    #[test]
+    fn a_replay_that_sends_other_than_its_recording_fails_its_verify() {
+        let dir = tempfile::tempdir().unwrap();
+        let asker = |path: &str, body: &str| ASKER.replace("{PATH}", path).replace("{BODY}", body);
+        walker_project(dir.path(), &asker("words", "a"));
+        let file = recorded_from_its_scene(dir.path(), 10);
+        replay_session(&file, true, None).unwrap();
+
+        std::fs::write(dir.path().join("scripts/walker.bs"), asker("words", "b")).unwrap();
+        let why = replay_session(&file, true, None).unwrap_err().to_string();
+        assert!(
+            why.contains("the recording sent") && why.contains("http.request"),
+            "{why}"
+        );
     }
 }

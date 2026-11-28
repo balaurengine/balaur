@@ -13,6 +13,7 @@ balaur_core.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
+tracing.workspace = true
 
 # No HTTP stack compiles for wasm; the browser backend takes over there.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]

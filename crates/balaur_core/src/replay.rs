@@ -32,6 +32,10 @@ use crate::vocabulary::words;
 /// Bumped when a change makes an older file unplayable.
 pub const FORMAT: u32 = 4;
 
+#[path = "replay_sent.rs"]
+mod sent;
+pub use sent::{HTTP_REQUEST, SENT, SentDivergence, WEBSOCKET_CONNECT, WEBSOCKET_SEND, body_print};
+
 /// How many log entries a frame scans for lines to record. The buffer holds
 /// 500 and a frame that produced more than this has other problems.
 const LOG_SCAN: usize = 200;
@@ -233,6 +237,11 @@ pub struct Event {
     pub data: Option<serde_json::Value>,
 }
 
+/// The scene a run opens in place of the project's `main_scene`, kept for a
+/// recording's header ([`crate::App::set_main_scene`]).
+#[derive(Default)]
+pub struct OpenedScene(pub Option<String>);
+
 /// This tick's events, refilled every frame.
 ///
 /// Cleared at the end of every frame whether or not anything is recording, so
@@ -283,6 +292,14 @@ pub struct Header {
     pub started: String,
     /// The rate the session ticked at.
     pub tick_hz: u32,
+    /// The scene the run opened in place of the project's `main_scene`
+    /// (`balaur run --scene`), which a replay opens too.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene: Option<String>,
+    /// Its ticks' events say what each sent ([`SENT`], bodies as
+    /// [`body_print`]), so a replay's sends are held to them.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sent: bool,
     /// Loaded state a plugin declared through `App::add_replay_setup`, keyed
     /// by its name. Restored before the first tick, so what a recording
     /// derives is what it derived when it was made.
@@ -651,6 +668,10 @@ pub fn start_recording(
         scripts: scripts.to_string(),
         started: timestamp(),
         tick_hz: crate::tick_hz(),
+        scene: eng
+            .try_resource::<OpenedScene>()
+            .and_then(|scene| scene.borrow().0.clone()),
+        sent: true,
         setup: capture_setup(eng),
     };
     let recorder = Recorder::create(
@@ -690,6 +711,10 @@ pub fn stop_recording(eng: &Engine, reason: &str) -> Option<PathBuf> {
 /// Core runs this at the end of every frame, after deferred destruction, so a
 /// digest describes the world the next tick starts from.
 pub(crate) fn record_frame_system(eng: &Engine, dt: f32) {
+    // A held frame runs no tick of the recording's, and sends nothing.
+    if is_playing(eng) && !eng.inner.replay_hold.get() {
+        sent::compare_sent(eng);
+    }
     let recording = eng.resource::<Recording>();
     if let Some(recorder) = recording.borrow_mut().0.as_mut() {
         if eng.tick() == recorder.born {
@@ -874,6 +899,7 @@ pub struct ReplayPlayer {
     /// While seeking, the tick to stop on.
     pub seek_to: u64,
     pub diverged: Option<Divergence>,
+    pub sent_diverged: Option<SentDivergence>,
     /// Set by [`begin`] and taken by the app, which zeroes its fixed-step
     /// accumulator: a replay that started mid-accumulation would take its
     /// fixed steps on different frames than the recording did.
@@ -972,6 +998,7 @@ pub fn begin(eng: &Engine, session: Session) {
     player.state = PlayState::Paused;
     player.seek_to = 0;
     player.diverged = None;
+    player.sent_diverged = None;
     player.restart = true;
     drop(player);
     // Held from here: `load` is called part-way through a frame, and the rest
@@ -1022,6 +1049,7 @@ pub fn end(eng: &Engine) {
     player.cursor = 0;
     player.state = PlayState::Stopped;
     player.diverged = None;
+    player.sent_diverged = None;
     eng.set_replay_hold(false);
     eng.resource::<ReplayFeed>().borrow_mut().0 = None;
     if *eng.resource::<ReplayMode>().borrow() == ReplayMode::Playing {
