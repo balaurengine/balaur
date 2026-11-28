@@ -1,8 +1,7 @@
-// A game's `.bs` scripts as native code: their C, built for the target with
-// Xcode for an Apple target on a Mac that has it, or with clang and lld for
-// any, and put where the game loads it from (`standalone::native_scripts_beside`).
+// A game's `.bs` scripts as native code, built with Xcode where it is, else
+// clang and lld for any target but an iOS device, beside the game.
 
-use crate::apple::{AppleConfig, store};
+use crate::apple::{AppleConfig, IosTemplate, store};
 use crate::config::NativeScripts;
 use crate::vocabulary::words;
 use anyhow::{Context, Result, bail};
@@ -558,18 +557,41 @@ pub(crate) fn build_framework(
         platform,
         min: &apple.min_ios,
     };
+    let xcode = has_xcode(sdk);
+    // lld links against no SDK, and App Store Connect refuses a device's
+    // code built without the one it checks for.
+    if !slice.simulator && !xcode {
+        let why =
+            "a device's scripts are linked against Xcode's iOS SDK, and there is no Xcode here";
+        if request.mode == NativeScripts::On {
+            bail!("[export] native_scripts = \"on\", but {why}: export on a Mac with Xcode");
+        }
+        tracing::info!(
+            "{} script(s) run on the target's engine, not as native code: {why}",
+            request.scripts.modules
+        );
+        return Ok(());
+    }
     let install = format!("@rpath/{}", native_scripts_file(words::targets::IOS));
     if let Some(why) = apple_slice(&Llvm::find(), &work, &ios, &install, &staged)? {
         return missing(request, &why).map(|_| ());
     }
+    let toolchain = match xcode.then(|| store::toolchain_here(sdk)).transpose() {
+        Ok(toolchain) => toolchain.unwrap_or_default(),
+        Err(why) => return missing(request, &format!("{why:#}")).map(|_| ()),
+    };
+    let name = balaur::standalone::NATIVE_SCRIPTS;
+    let plist = apple.framework_plist(name, plist_platform, &toolchain)?;
+    let built = IosTemplate {
+        simulator: slice.simulator,
+        sdk: crate::macho::sdk(&std::fs::read(&staged)?),
+        ..IosTemplate::default()
+    };
+    store::check(&plist, &built, store::Part::Framework)?;
     std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
     balaur::whole::copy_cached(&staged, &file)
         .with_context(|| format!("writing {}", file.display()))?;
-    let name = balaur::standalone::NATIVE_SCRIPTS;
-    balaur::whole::write_cached(
-        dir.join("Info.plist"),
-        apple.framework_plist(name, plist_platform)?,
-    )?;
+    balaur::whole::write_cached(dir.join("Info.plist"), plist)?;
     tracing::info!(
         "{} script(s) as native code for iOS -> {}",
         request.scripts.modules,
@@ -803,30 +825,41 @@ mod tests {
         assert!(!layout.join("lib/armeabi-v7a/libBalaurScripts.so").exists());
     }
 
+    // With Xcode the framework carries its toolchain's keys; without it a
+    // device's scripts are refused, since lld links against no SDK.
     #[test]
-    fn ios_builds_hello_as_a_framework() {
-        let llvm = Llvm::find();
-        if !has_xcode("iphoneos") && !found(&llvm, llvm.ld64.as_deref(), "ld64.lld") {
-            return;
-        }
+    fn ios_builds_hello_as_a_framework_with_xcode_alone() {
         let out = tempfile::tempdir().unwrap();
         let app = out.path().join("Run.app");
         std::fs::create_dir_all(&app).unwrap();
         std::fs::write(app.join("Run"), header(CPU_ARM64, Some(2))).unwrap();
         let apple = AppleConfig {
             bundle_id: "org.balaur.hello".into(),
+            version: "1.0".into(),
+            build_number: "1".into(),
             ..AppleConfig::default()
         };
-        build_framework(&app, "Run", &hello(), &apple).unwrap();
+        let built = build_framework(&app, "Run", &hello(), &apple);
+        if !has_xcode("iphoneos") {
+            let why = format!("{:#}", built.unwrap_err());
+            assert!(why.contains("export on a Mac with Xcode"), "{why}");
+            return;
+        }
+        built.unwrap();
         let framework = app.join("Frameworks/BalaurScripts.framework");
         assert_eq!(
             magic(&framework.join("BalaurScripts")),
             MH_MAGIC_64.to_le_bytes()
         );
-        assert!(framework.join("Info.plist").is_file());
+        let plist = std::fs::read_to_string(framework.join("Info.plist")).unwrap();
+        assert!(
+            plist.contains("<key>DTPlatformName</key><string>iphoneos</string>"),
+            "{plist}"
+        );
     }
 
-    // Where there is no Xcode, as in a Linux container: lld links the slice.
+    // Where there is no Xcode, as in a Linux container: lld links the
+    // simulator's slice.
     #[test]
     fn ios_builds_hello_with_lld_where_there_is_no_xcode() {
         let llvm = Llvm::find();
@@ -835,23 +868,23 @@ mod tests {
         }
         let out = tempfile::tempdir().unwrap();
         let work = Work::new(&hello().scripts).unwrap();
-        let device = AppleSlice {
+        let simulator = AppleSlice {
             arch: "arm64",
-            triple: "arm64-apple-ios15.0".into(),
+            triple: "arm64-apple-ios15.0-simulator".into(),
             sdk: "no-such-sdk",
-            platform: "ios",
+            platform: "ios-simulator",
             min: "15.0",
         };
         let linked = out.path().join("lld-ios");
         assert_eq!(
-            apple_slice(&llvm, &work, &device, "@rpath/x", &linked).unwrap(),
+            apple_slice(&llvm, &work, &simulator, "@rpath/x", &linked).unwrap(),
             None
         );
         assert_eq!(
             slice_of(&std::fs::read(&linked).unwrap()),
             Some(Slice {
                 arch: "arm64",
-                simulator: false
+                simulator: true
             })
         );
     }

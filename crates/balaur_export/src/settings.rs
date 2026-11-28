@@ -33,7 +33,7 @@ font_original = { type = "list", of = { type = "string" }, default = [], order =
 audio_recode = { type = "enum", default = "flac", options = ["original", "flac", "vorbis"], order = 9, help = "How uncompressed audio is re-encoded, kept only where it comes out smaller. flac keeps every sample; vorbis does not." }
 audio_quality = { type = "float", default = 0.5, min = -0.1, max = 1.0, order = 10, help = "libvorbis's quality, which audio_recode = \"vorbis\" reads and every other mode ignores." }
 later = { type = "list", of = { type = "string" }, default = [], order = 14, help = "Scenes, as globs, whose assets a web export ships in a second file the page fetches after the game starts. A switch to one waits until that file has arrived; no other scene may name what only these do." }
-native_scripts = { type = "enum", default = "auto", options = ["auto", "on", "off"], order = 13, help = "Ship the scripts as native code, built from their C with Xcode for an Apple target or clang and lld for any. auto falls back to the target's engine when no compiler is found, on fails the export instead, off never builds it. Per target through that target's override." }
+native_scripts = { type = "enum", default = "auto", options = ["auto", "on", "off"], order = 13, help = "Ship the scripts as native code, built from their C with Xcode for an Apple target or clang and lld for any. auto falls back to the target's engine when no compiler is found, on fails the export instead, off never builds it. An iOS device's scripts need Xcode, whose SDK App Store Connect checks they were linked against. Per target through that target's override." }
 "#;
 
 pub fn declare(eng: &Engine) {

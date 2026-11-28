@@ -48,8 +48,7 @@ const URL_TYPES: &str = "CFBundleURLTypes";
 /// identifiers Xcode writes from the team and the bundle id.
 const APP_SANDBOX: &str = "com.apple.security.app-sandbox";
 const NETWORK_CLIENT: &str = "com.apple.security.network.client";
-const APPLICATION_IDENTIFIER: &str = "com.apple.application-identifier";
-const TEAM_IDENTIFIER: &str = "com.apple.developer.team-identifier";
+use store::{APPLICATION_IDENTIFIER, TEAM_IDENTIFIER};
 /// The values `aps-environment` takes.
 const APS_DEVELOPMENT: &str = "development";
 const APS_PRODUCTION: &str = "production";
@@ -291,6 +290,11 @@ pub(crate) struct AppleConfig {
     /// exceptions. Not a key of `[apple]`: the same project is both builds.
     #[serde(skip)]
     pub(crate) app_store: bool,
+    /// The entitlements naming the app that a signature carries, as the
+    /// provisioning profile grants them ([`Self::signed_against`]). Not a key
+    /// of `[apple]`: the profile is what decides them.
+    #[serde(skip)]
+    pub(crate) identity: Vec<(&'static str, crate::plist::Value)>,
 }
 
 impl Default for AppleConfig {
@@ -323,6 +327,7 @@ impl Default for AppleConfig {
             orientation: balaur::project::Orientation::Any,
             title: String::new(),
             app_store: false,
+            identity: Vec::new(),
         }
     }
 }
@@ -615,6 +620,39 @@ impl AppleConfig {
         }
     }
 
+    /// This build signed against `profile`, as Xcode signs one: the
+    /// entitlements naming the app, its team, whether a debugger may attach
+    /// and TestFlight's, copied from what the profile grants. A wildcard
+    /// identifier, `<team>.com.studio.*`, names this bundle id where it
+    /// matches it.
+    pub(crate) fn signed_against(&self, platform: Platform, profile: &Profile) -> Self {
+        let identity = store::identity_keys(platform)
+            .into_iter()
+            .filter_map(|key| {
+                let value = match profile.granted(key)? {
+                    crate::plist::Value::Text(id) if store::is_identifier(key) => {
+                        crate::plist::Value::Text(store::named_by(id, &self.bundle_id))
+                    }
+                    value => value.clone(), // copy: the build keeps what the profile grants
+                };
+                Some((key, value))
+            })
+            .collect();
+        Self {
+            identity,
+            ..self.clone()
+        }
+    }
+
+    /// The team a signature is made for: the profile's, else the project's.
+    fn team(&self) -> &str {
+        self.identity
+            .iter()
+            .find(|(key, _)| *key == TEAM_IDENTIFIER)
+            .and_then(|(_, value)| value.text())
+            .unwrap_or(&self.team_id)
+    }
+
     /// Refuse to sign a Mac build whose capabilities write an entitlement
     /// with no provisioning profile, naming each: macOS kills a process that
     /// claims one no embedded profile grants.
@@ -652,14 +690,26 @@ impl AppleConfig {
         steam: bool,
     ) -> Option<String> {
         let mut body = exceptions(jit, steam);
+        for (key, value) in &self.identity {
+            if let Some(value) = value.written() {
+                let _ = writeln!(body, "  <key>{key}</key>\n  {value}");
+            }
+        }
         if self.app_store && platform == Platform::Macos {
             let _ = write!(
                 body,
-                "  <key>{APP_SANDBOX}</key>\n  <true/>\n  <key>{NETWORK_CLIENT}</key>\n  <true/>\n  \
-                 <key>{APPLICATION_IDENTIFIER}</key>\n  <string>{}.{}</string>\n  \
-                 <key>{TEAM_IDENTIFIER}</key>\n  <string>{}</string>\n",
-                self.team_id, self.bundle_id, self.team_id
+                "  <key>{APP_SANDBOX}</key>\n  <true/>\n  <key>{NETWORK_CLIENT}</key>\n  <true/>\n"
             );
+            // Unsigned, for a signer that brings the profile: what it will
+            // grant, from the team and the bundle id the project declares.
+            if self.identity.is_empty() {
+                let _ = write!(
+                    body,
+                    "  <key>{APPLICATION_IDENTIFIER}</key>\n  <string>{}.{}</string>\n  \
+                     <key>{TEAM_IDENTIFIER}</key>\n  <string>{}</string>\n",
+                    self.team_id, self.bundle_id, self.team_id
+                );
+            }
         }
         for capability in &self.capabilities {
             let Some(key) = capability.entitlement(platform) else {
@@ -672,7 +722,7 @@ impl AppleConfig {
                 Capability::Applesignin => body.push_str("<array><string>Default</string></array>"),
                 Capability::GameCenter => body.push_str("<true/>"),
                 Capability::IcloudKv => {
-                    let _ = write!(body, "<string>{}.{}</string>", self.team_id, self.bundle_id);
+                    let _ = write!(body, "<string>{}.{}</string>", self.team(), self.bundle_id);
                 }
                 Capability::InAppPurchase => {}
                 Capability::PushNotifications => {
@@ -840,8 +890,14 @@ impl AppleConfig {
     }
 
     /// The `Info.plist` of a framework the app carries: `framework` is its
-    /// binary's name, `platform` the one `CFBundleSupportedPlatforms` names.
-    pub(crate) fn framework_plist(&self, framework: &str, platform: &str) -> Result<String> {
+    /// binary's name, `platform` the one `CFBundleSupportedPlatforms` names,
+    /// `toolchain` the keys of the Xcode that built it.
+    pub(crate) fn framework_plist(
+        &self,
+        framework: &str,
+        platform: &str,
+        toolchain: &[(String, String)],
+    ) -> Result<String> {
         let mut body = String::new();
         string_key(&mut body, store::EXECUTABLE, framework);
         string_key(
@@ -856,6 +912,9 @@ impl AppleConfig {
         string_key(&mut body, "CFBundleVersion", &self.build_number);
         string_key(&mut body, store::MINIMUM_OS, &self.min_ios);
         array_key(&mut body, store::SUPPORTED_PLATFORMS, &[platform]);
+        for (key, value) in toolchain {
+            string_key(&mut body, key, value);
+        }
         Ok(plist_document(&body))
     }
 
@@ -1074,9 +1133,7 @@ fn plist_value(value: &PlistValue, depth: usize) -> String {
 }
 
 fn escape(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+    crate::plist::escape(text)
 }
 
 #[cfg(test)]

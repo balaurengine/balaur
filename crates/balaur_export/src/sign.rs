@@ -146,6 +146,16 @@ pub(crate) fn verify(bundle: &Path) -> Result<()> {
     Ok(())
 }
 
+/// The entitlements `bundle`'s signature carries, as a plist.
+pub(crate) fn signed_entitlements(bundle: &Path) -> Result<String> {
+    run(
+        Command::new(CODESIGN)
+            .args(["-d", "--entitlements", "-", "--xml"])
+            .arg(bundle),
+        "codesign -d --entitlements",
+    )
+}
+
 /// Submit a signed bundle to Apple's notary service and staple the ticket.
 ///
 /// The service takes an archive rather than a bundle, so the `.app` is zipped

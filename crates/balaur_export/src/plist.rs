@@ -6,11 +6,12 @@ use anyhow::{Context, Result};
 
 pub(crate) const DICT: &str = "dict";
 const KEY: &str = "key";
-pub(crate) const STRING: &str = "string";
+const STRING: &str = "string";
 const ARRAY: &str = "array";
 const INTEGER: &str = "integer";
 const REAL: &str = "real";
 const TRUE: &str = "true";
+const FALSE: &str = "false";
 
 /// A plist document, its DTD line allowed.
 pub(crate) fn parse(text: &str) -> Result<roxmltree::Document<'_>> {
@@ -63,7 +64,7 @@ pub(crate) fn entry<'a, 'input>(
 }
 
 /// A top-level value, as far as a check of it reads.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Value {
     /// A string or a number, as written.
     Text(String),
@@ -71,11 +72,12 @@ pub(crate) enum Value {
     /// `UIRequiredDeviceCapabilities` may be either.
     Items(Vec<String>),
     True,
+    False,
     Other,
 }
 
 impl Value {
-    fn of(node: roxmltree::Node<'_, '_>) -> Self {
+    pub(crate) fn of(node: roxmltree::Node<'_, '_>) -> Self {
         let text = |node: roxmltree::Node<'_, '_>| node.text().unwrap_or_default().to_string();
         match node.tag_name().name() {
             STRING | INTEGER | REAL => Self::Text(text(node)),
@@ -92,6 +94,7 @@ impl Value {
                     .collect(),
             ),
             TRUE => Self::True,
+            FALSE => Self::False,
             _ => Self::Other,
         }
     }
@@ -104,10 +107,27 @@ impl Value {
         }
     }
 
+    /// The value as a plist writes it, for the ones that are one line.
+    pub(crate) fn written(&self) -> Option<String> {
+        match self {
+            Self::Text(text) => Some(format!("<string>{}</string>", escape(text))),
+            Self::True => Some("<true/>".into()),
+            Self::False => Some("<false/>".into()),
+            Self::Items(_) | Self::Other => None,
+        }
+    }
+
     /// Whether this is a list naming `item`.
     pub(crate) fn lists(&self, item: &str) -> bool {
         matches!(self, Self::Items(items) if items.iter().any(|one| one == item))
     }
+}
+
+/// `text` as a plist string holds it.
+pub(crate) fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// Every top-level key of the plist `text`, in order, with its value.
@@ -142,6 +162,7 @@ mod tests {
              <key>UIRequiredDeviceCapabilities</key><dict><key>arm64</key><true/>\
              <key>metal</key><false/></dict>\
              <key>UIRequiresFullScreen</key><true/>\
+             <key>get-task-allow</key><false/>\
              <key>UILaunchScreen</key><dict/></dict></plist>",
         )
         .unwrap();
@@ -158,6 +179,7 @@ mod tests {
                     Value::Items(vec!["arm64".into()])
                 ),
                 ("UIRequiresFullScreen".into(), Value::True),
+                ("get-task-allow".into(), Value::False),
                 ("UILaunchScreen".into(), Value::Items(Vec::new())),
             ]
         );

@@ -51995,7 +51995,7 @@
       "scope": "project",
       "spec": {
         "default": "auto",
-        "help": "Ship the scripts as native code, built from their C with Xcode for an Apple target or clang and lld for any. auto falls back to the target's engine when no compiler is found, on fails the export instead, off never builds it. Per target through that target's override.",
+        "help": "Ship the scripts as native code, built from their C with Xcode for an Apple target or clang and lld for any. auto falls back to the target's engine when no compiler is found, on fails the export instead, off never builds it. An iOS device's scripts need Xcode, whose SDK App Store Connect checks they were linked against. Per target through that target's override.",
         "options": [
           "auto",
           "on",

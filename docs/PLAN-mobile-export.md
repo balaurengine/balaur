@@ -32,9 +32,13 @@ the background runs no fixed step and holds its sounds until it comes back
    the template from the SDK and the Xcode it built with. The bundle, its
    executable and its folder in the `.ipa` are named for `[application]
    name`, and a device bundle missing a key fails the export, naming it
-   (`crates/balaur_export/src/apple/store.rs`). The SDK is whichever Xcode
-   the `macos-latest` runner has selected when `build-platforms` builds the
-   templates. From April 2027 App Store Connect takes only builds made with
-   the iOS 27 SDK, so that runner needs Xcode 27 selected by then. Still to
-   add: the toolchain keys in the native scripts framework's plist. Done: an
-   `.ipa` App Store Connect accepts, installed from TestFlight.
+   (`crates/balaur_export/src/apple/store.rs`). The native scripts
+   framework carries the keys of the Xcode that built it, and a device's is
+   built with Xcode alone. A signature against a provisioning profile names
+   the app as the profile does: its identifier, its team, `get-task-allow`
+   and `beta-reports-active`, read back with `codesign -d` and refused where
+   they differ. The SDK is whichever Xcode the `macos-latest` runner has
+   selected when `build-platforms` builds the templates. From April 2027 App
+   Store Connect takes only builds made with the iOS 27 SDK, so that runner
+   needs Xcode 27 selected by then. Done: an `.ipa` App Store Connect
+   accepts, installed from TestFlight.

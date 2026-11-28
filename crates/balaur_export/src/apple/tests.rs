@@ -1,6 +1,6 @@
 //! `[apple]`'s plist, entitlements and refusals.
 
-use super::store;
+use super::store::{self, Part};
 use super::{AppleConfig, Build, Capability, IosTemplate, Platform};
 use crate::profile::Profile;
 use crate::profile::tests::profile_granting;
@@ -681,7 +681,7 @@ fn a_device_plist_carries_every_key_app_store_connect_requires() {
     ] {
         assert!(text.contains(line), "{line}: {text}");
     }
-    store::check(&text, &template).expect("a plist App Store Connect takes");
+    store::check(&text, &template, Part::App).expect("a plist App Store Connect takes");
 }
 
 #[test]
@@ -696,7 +696,7 @@ fn a_simulator_plist_names_its_platform_and_requires_no_arm64() {
         "{text}"
     );
     assert!(!text.contains("UIRequiredDeviceCapabilities"), "{text}");
-    store::check(&text, &template).expect("a simulator's bundle is never uploaded");
+    store::check(&text, &template, Part::App).expect("a simulator's bundle is never uploaded");
 }
 
 // The three App Store Connect named, each by its key, so a template built
@@ -708,7 +708,9 @@ fn a_device_plist_app_store_connect_would_refuse_names_each_key() {
         linked("[apple.plist]\nUIRequiredDeviceCapabilities = [\"metal\"]\nUIDeviceFamily = []\n")
             .ios_plist("Game", "", &bare)
             .unwrap();
-    let why = store::check(&text, &bare).unwrap_err().to_string();
+    let why = store::check(&text, &bare, Part::App)
+        .unwrap_err()
+        .to_string();
     for named in [
         "DTPlatformName",
         "DTSDKName",
@@ -729,7 +731,9 @@ fn a_template_whose_plist_names_another_sdk_than_its_binary_is_refused() {
         ..device_template()
     };
     let text = linked("").ios_plist("Game", "", &template).unwrap();
-    let why = store::check(&text, &template).unwrap_err().to_string();
+    let why = store::check(&text, &template, Part::App)
+        .unwrap_err()
+        .to_string();
     assert!(
         why.contains("27.1 SDK") && why.contains("linked against 26.5"),
         "{why}"
@@ -804,7 +808,7 @@ fn an_ipad_build_turns_every_way_or_takes_the_whole_screen() {
             && turning.contains("UIInterfaceOrientationLandscapeRight"),
         "{turning}"
     );
-    store::check(&turning, &template).unwrap();
+    store::check(&turning, &template, Part::App).unwrap();
 
     let held = AppleConfig {
         orientation: balaur::project::Orientation::Portrait,
@@ -818,14 +822,16 @@ fn an_ipad_build_turns_every_way_or_takes_the_whole_screen() {
             text.contains("<key>UIRequiresFullScreen</key><true/>"),
             "{text}"
         );
-        store::check(&text, &template).unwrap();
+        store::check(&text, &template, Part::App).unwrap();
     }
 
     let refused = linked(&format!(
         "{IPAD}[apple.plist]\n{portrait}UIRequiresFullScreen = false\n"
     ));
     let text = refused.ios_plist("Game", "", &template).unwrap();
-    let why = store::check(&text, &template).unwrap_err().to_string();
+    let why = store::check(&text, &template, Part::App)
+        .unwrap_err()
+        .to_string();
     assert!(why.contains("90474"), "{why}");
 }
 
@@ -843,4 +849,179 @@ fn the_product_is_the_games_name_as_a_file_can_hold_it() {
     assert_eq!(named("海賊"), "海賊");
     assert_eq!(named(".hidden."), "hidden");
     assert_eq!(named("/?:"), "game", "the bundle id's last part");
+}
+
+/// An App Store profile's entitlements as the portal writes them, the
+/// identifier a wildcard.
+fn store_profile() -> Profile {
+    Profile::parse(&profile_granting(
+        "    <key>application-identifier</key><string>AB12CD34EF.*</string>\n\
+         \x20   <key>com.apple.developer.team-identifier</key><string>AB12CD34EF</string>\n\
+         \x20   <key>get-task-allow</key><false/>\n\
+         \x20   <key>beta-reports-active</key><true/>\n",
+    ))
+    .expect("the stand-in profile parses")
+}
+
+// As Xcode signs: the profile is what names the app, its team, whether a
+// debugger attaches and TestFlight's, never the project.
+#[test]
+fn a_signed_ios_build_names_the_app_as_its_profile_does() {
+    let signed =
+        linked("team_id = \"ZZ99ZZ99ZZ\"\n").signed_against(Platform::Ios, &store_profile());
+    let text = signed
+        .entitlements(Platform::Ios, Build::Distribution, false, false)
+        .expect("the identity is four entitlements");
+    for line in [
+        "<key>application-identifier</key>\n  <string>AB12CD34EF.com.studio.game</string>",
+        "<key>com.apple.developer.team-identifier</key>\n  <string>AB12CD34EF</string>",
+        "<key>get-task-allow</key>\n  <false/>",
+        "<key>beta-reports-active</key>\n  <true/>",
+    ] {
+        assert!(text.contains(line), "{line}: {text}");
+    }
+    assert!(!text.contains("ZZ99ZZ99ZZ"), "{text}");
+    store::check_signature(&text, Platform::Ios, &signed).expect("what it was signed with");
+}
+
+#[test]
+fn a_signature_short_of_its_profile_is_refused_by_key() {
+    let signed = linked("").signed_against(Platform::Ios, &store_profile());
+    let short = "<plist><dict><key>application-identifier</key>\
+                 <string>AB12CD34EF.com.studio.game</string>\
+                 <key>get-task-allow</key><true/></dict></plist>";
+    let why = store::check_signature(short, Platform::Ios, &signed)
+        .unwrap_err()
+        .to_string();
+    for named in [
+        "lacks com.apple.developer.team-identifier (90046)",
+        "lacks beta-reports-active (90046)",
+        "claims get-task-allow as <true/>, and the profile grants <false/> (90164)",
+    ] {
+        assert!(why.contains(named), "{named}: {why}");
+    }
+    let bare = linked("").signed_against(
+        Platform::Ios,
+        &Profile::parse(&profile_granting("")).unwrap(),
+    );
+    let why = store::check_signature(short, Platform::Ios, &bare)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        why.contains("the provisioning profile grants no application-identifier"),
+        "{why}"
+    );
+}
+
+// A Mac App Store build names the app as its profile does.
+#[test]
+fn a_mac_app_store_build_takes_its_identifier_from_its_profile() {
+    let config = store("");
+    let signed = config.signed_against(
+        Platform::Macos,
+        &Profile::parse(&profile_granting(
+            "    <key>com.apple.developer.team-identifier</key><string>AB12CD34EF</string>\n",
+        ))
+        .unwrap(),
+    );
+    let text = signed
+        .entitlements(Platform::Macos, Build::Distribution, false, false)
+        .unwrap();
+    assert_eq!(
+        text.matches("<key>com.apple.application-identifier</key>")
+            .count(),
+        1,
+        "{text}"
+    );
+    store::check_signature(&text, Platform::Macos, &signed).unwrap();
+}
+
+#[test]
+fn dt_xcode_is_two_digits_of_major_then_one_each() {
+    assert_eq!(store::dt_xcode("26.0.1"), "2601");
+    assert_eq!(store::dt_xcode("9.4"), "0940");
+    assert_eq!(store::dt_xcode("27.1"), "2710");
+}
+
+// The scripts framework answers for its toolchain as the app does, and for
+// no device family: that is the app's.
+#[test]
+fn the_scripts_frameworks_plist_carries_its_toolchain() {
+    let config = linked("");
+    let template = device_template();
+    let bare = config
+        .framework_plist("BalaurScripts", "iPhoneOS", &[])
+        .unwrap();
+    let why = store::check(&bare, &template, Part::Framework)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        why.contains("native scripts framework") && why.contains("build the scripts with Xcode"),
+        "{why}"
+    );
+    let built = config
+        .framework_plist("BalaurScripts", "iPhoneOS", &template.toolchain)
+        .unwrap();
+    assert!(
+        built.contains("<key>DTSDKName</key><string>iphoneos27.1</string>"),
+        "{built}"
+    );
+    store::check(&built, &template, Part::Framework).expect("a framework names no device");
+}
+
+// What this Mac's Xcode says: the keys a framework it builds carries, each
+// set. A Mac with no Xcode skips it off CI.
+#[cfg(target_os = "macos")]
+#[test]
+fn the_toolchain_here_is_what_xcode_says() {
+    let toolchain = match store::toolchain_here("iphoneos") {
+        Ok(toolchain) => toolchain,
+        Err(_) if std::env::var_os("CI").is_none() => return,
+        Err(why) => panic!("{why:#}"),
+    };
+    assert_eq!(toolchain.len(), 8, "{toolchain:?}");
+    assert!(
+        toolchain.iter().all(|(_, value)| !value.is_empty()),
+        "{toolchain:?}"
+    );
+    assert!(
+        toolchain.contains(&("DTPlatformName".to_string(), "iphoneos".to_string())),
+        "{toolchain:?}"
+    );
+}
+
+#[test]
+fn a_wildcard_identifier_names_the_bundle_it_matches_and_no_other() {
+    assert_eq!(
+        store::named_by("AB12CD34EF.com.studio.*", "com.studio.game"),
+        "AB12CD34EF.com.studio.game"
+    );
+    assert_eq!(
+        store::named_by("AB12CD34EF.*", "com.studio.game"),
+        "AB12CD34EF.com.studio.game"
+    );
+    assert_eq!(
+        store::named_by("AB12CD34EF.org.other.*", "com.studio.game"),
+        "AB12CD34EF.org.other.*"
+    );
+    let other = Profile::parse(&profile_granting(
+        "    <key>application-identifier</key><string>AB12CD34EF.com.studio.other</string>\n\
+         \x20   <key>com.apple.developer.team-identifier</key><string>AB12CD34EF</string>\n",
+    ))
+    .unwrap();
+    let signed = linked("").signed_against(Platform::Ios, &other);
+    let text = signed
+        .entitlements(Platform::Ios, Build::Distribution, false, false)
+        .unwrap();
+    let why = store::check_signature(&text, Platform::Ios, &signed)
+        .unwrap_err()
+        .to_string();
+    assert!(why.contains("does not name com.studio.game"), "{why}");
+    assert!(
+        store::check_signature("", Platform::Ios, &signed)
+            .unwrap_err()
+            .to_string()
+            .contains("lacks application-identifier"),
+        "a signature claiming nothing"
+    );
 }

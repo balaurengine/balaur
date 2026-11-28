@@ -24,9 +24,8 @@ const ENTITLEMENTS: &str = "Entitlements";
 /// What a provisioning profile grants.
 #[derive(Debug)]
 pub(crate) struct Profile {
-    /// Each entitlement the profile grants, with its value where that value
-    /// is one string (`aps-environment`'s `development` or `production`).
-    granted: BTreeMap<String, Option<String>>,
+    /// Each entitlement the profile grants, with its value.
+    granted: BTreeMap<String, plist::Value>,
 }
 
 impl Profile {
@@ -52,12 +51,7 @@ impl Profile {
             .filter(|node| node.has_tag_name(plist::DICT))
             .context("it grants no entitlements")?;
         let granted = plist::pairs(entitlements)
-            .map(|(key, value)| {
-                let text = value
-                    .has_tag_name(plist::STRING)
-                    .then(|| value.text().unwrap_or_default().to_string());
-                (key.to_string(), text)
-            })
+            .map(|(key, value)| (key.to_string(), plist::Value::of(value)))
             .collect();
         Ok(Self { granted })
     }
@@ -69,7 +63,12 @@ impl Profile {
 
     /// The one string the profile grants `entitlement` with, if it is one.
     pub(crate) fn value(&self, entitlement: &str) -> Option<&str> {
-        self.granted.get(entitlement)?.as_deref()
+        self.granted.get(entitlement)?.text()
+    }
+
+    /// What the profile grants `entitlement` with, whatever its shape.
+    pub(crate) fn granted(&self, entitlement: &str) -> Option<&plist::Value> {
+        self.granted.get(entitlement)
     }
 }
 

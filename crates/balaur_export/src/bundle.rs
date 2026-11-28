@@ -275,7 +275,7 @@ fn write_ios_plist(
         None => String::new(),
     };
     let text = apple.ios_plist(&executable, &icon_keys, &template)?;
-    crate::apple::store::check(&text, &template)?;
+    crate::apple::store::check(&text, &template, crate::apple::store::Part::App)?;
     balaur::whole::write_cached(&plist, text)
         .with_context(|| format!("writing {}", plist.display()))?;
     // The identity the project declares, which `--sign` may replace; the
@@ -381,7 +381,12 @@ pub(crate) fn export_macos_app(
     let kept;
     let apple = match (&granted, profile) {
         (Some(granted), Some(path)) => {
-            kept = apple.granted_by(Platform::Macos, granted, path);
+            let narrowed = apple.granted_by(Platform::Macos, granted, path);
+            // An ad-hoc signature claims nothing only a profile names.
+            kept = match sign {
+                Some(_) => narrowed.signed_against(Platform::Macos, granted),
+                None => narrowed,
+            };
             &kept
         }
         _ if sign.is_some() => {
@@ -512,6 +517,13 @@ fn sign_mac_app(
     signed?;
     if sign.is_some() {
         crate::sign::verify(app)?;
+        if granted.is_some() && cfg!(target_os = "macos") {
+            crate::apple::store::check_signature(
+                &crate::sign::signed_entitlements(app)?,
+                Platform::Macos,
+                apple,
+            )?;
+        }
     }
     Ok(())
 }

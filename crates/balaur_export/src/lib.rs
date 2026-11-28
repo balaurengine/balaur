@@ -812,15 +812,16 @@ fn finish_bundle(
                 }
                 None => None,
             };
-            if identity.is_some() {
-                anyhow::ensure!(
-                    profile.is_some(),
-                    "signing an iOS build needs a provisioning profile: pass \
-                     --provisioning-profile, or name one in [apple] ios_provisioning_profile"
-                );
-                let build = granted
-                    .as_ref()
-                    .and_then(|granted| apple::Build::granted(granted, apple::Platform::Ios))
+            anyhow::ensure!(
+                identity.is_none() || granted.is_some(),
+                "signing an iOS build needs a provisioning profile: pass \
+                 --provisioning-profile, or name one in [apple] ios_provisioning_profile"
+            );
+            // Against the profile, the entitlements beside the bundle name the
+            // app as it does, for this signature or for a signer's later.
+            if let Some(granted) = &granted {
+                let apple = apple.signed_against(apple::Platform::Ios, granted);
+                let build = apple::Build::granted(granted, apple::Platform::Ios)
                     .unwrap_or_else(|| apple::Build::of(identity));
                 let entitlements = apple.write_entitlements(
                     written,
@@ -830,9 +831,16 @@ fn finish_bundle(
                     false,
                     false,
                 )?;
-                sign::codesign(written, identity, entitlements.as_deref(), true)?;
-                sign::verify(written)?;
-                tracing::info!("signed {}", written.display());
+                if identity.is_some() {
+                    sign::codesign(written, identity, entitlements.as_deref(), true)?;
+                    sign::verify(written)?;
+                    apple::store::check_signature(
+                        &sign::signed_entitlements(written)?,
+                        apple::Platform::Ios,
+                        &apple,
+                    )?;
+                    tracing::info!("signed {}", written.display());
+                }
             }
             if opts.ipa {
                 let ipa = sign::build_ipa(written, written)?;
