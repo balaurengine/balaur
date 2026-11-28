@@ -54,12 +54,12 @@ shape = { kind = "rectangle", size = [1.0, 1.0] }
 const SIDE: u32 = 320;
 
 fn shot() -> image::RgbaImage {
-    shot_resized(None)
+    shot_of(SCENE, None)
 }
 
-/// The window at the sixth frame; with `resized`, the view made taller at
+/// The window at the sixth frame of `scene`; with `resized`, the view made taller at
 /// that frame, so its surface is made again the frame it is pictured.
-fn shot_resized(resized: Option<f64>) -> image::RgbaImage {
+fn shot_of(scene: &str, resized: Option<f64>) -> image::RgbaImage {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
@@ -67,7 +67,7 @@ fn shot_resized(resized: Option<f64>) -> image::RgbaImage {
         "[application]\nname = \"view\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("scenes/main.toml"), SCENE).unwrap();
+    std::fs::write(dir.path().join("scenes/main.toml"), scene).unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let mut app = standard_app(config).unwrap();
@@ -152,9 +152,29 @@ fn a_view_resized_still_draws_the_frame_it_is_resized() {
     }
     // The frame's shapes were made with the surface before; freed under them,
     // the view showed nothing that frame (egui: "Missing texture").
-    let picture = shot_resized(Some(100.0));
+    let picture = shot_of(SCENE, Some(100.0));
     assert!(
         picture.enumerate_pixels().any(|(_, _, p)| red(*p)),
         "the view drew nothing the frame it was resized"
     );
+}
+
+#[test]
+fn a_view_draws_light_colours_as_they_are_with_no_environment() {
+    if !gpu_present() {
+        return;
+    }
+    for (hex, rgb) in [("#F8F8F8", [248, 248, 248]), ("#D6E4F3", [214, 228, 243])] {
+        let scene = SCENE
+            .replace(
+                "color = [1.0, 0.0, 0.0, 1.0]",
+                &format!("color = \"{hex}\""),
+            )
+            .replace("size = [1.0, 1.0]", "size = [4.0, 2.0]");
+        assert!(scene.contains(hex) && scene.contains("[4.0, 2.0]"));
+        let picture = shot_of(&scene, None);
+        let drawn = picture.get_pixel(80, 40).0;
+        let off = (0..3).map(|i| drawn[i].abs_diff(rgb[i])).max().unwrap();
+        assert!(off <= 1, "{hex} drew as {drawn:?}");
+    }
 }

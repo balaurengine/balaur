@@ -177,6 +177,9 @@ impl Views {
             } else {
                 want.zoom
             };
+            // The window's finish, so a view shows the colours the window
+            // would: no tonemap unless the scene's `environment` asks for one.
+            *held.surface.window_mut().hdr_settings_mut() = *window.hdr_settings();
             let mut camera = ViewCamera::new(want.center, zoom, size);
             held.surface.render_2d(scene_2d, &mut camera).await;
             balaur_ui::set_view_texture(&app.engine, want.widget, Some(held.texture));
