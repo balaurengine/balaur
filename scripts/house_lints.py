@@ -64,6 +64,23 @@ VOCABULARY_LITERAL = re.compile(
     r'|\b(?:params|opts|table)\.get\("'
 )
 
+# A file written beside its target and moved over it by hand: a move on the
+# disk, `std::fs::rename` or `tempfile`'s `persist`, or a temporary's name,
+# `with_extension("part")` or `"partial"` or `.part` spelled in a string.
+HAND_WHOLE_MOVE = re.compile(r'(?<![\w.])(?:std::)?fs::rename\s*\(|\.persist(?:_noclobber)?\s*\(')
+HAND_PARTIAL_EXTENSION = re.compile(r'with_extension\(\s*"(?:part(?:ial)?|tmp|temp)"\s*\)')
+STRING_LITERAL = re.compile(r'"(?:[^"\\]|\\.)*"')
+PARTIAL_IN_STRING = re.compile(r'\.part(?:ial)?(?:[.{]|$)')
+WHOLE_OWNER = "crates/balaur_core/src/whole.rs"
+FILES_OWNER = "crates/balaur_core/src/files.rs"
+
+
+def hand_made_partial(line: str) -> bool:
+    """Whether `line` writes a file whole by hand, or names its temporary."""
+    if HAND_WHOLE_MOVE.search(line) or HAND_PARTIAL_EXTENSION.search(line):
+        return True
+    return any(PARTIAL_IN_STRING.search(lit[1:-1]) for lit in STRING_LITERAL.findall(line))
+
 # A call that can re-enter the engine and ask for the resource whose `RefCell`
 # the caller still holds; the panic that follows names neither side.
 REENTRANT_CALL = re.compile(
@@ -509,7 +526,8 @@ def item_rules(rel, i, line) -> list[Finding]:
                                      "crates/balaur/"))
             and not is_test_file(rel)
             and "// os files:" not in line
-            and not str(rel).endswith(("files.rs", "standalone.rs"))):
+            and not str(rel).endswith(("files.rs", "standalone.rs"))
+            and rel.as_posix() != WHOLE_OWNER):
         out.append(Finding(rel, i, "std-fs",
                            "`std::fs` reaches a disk the web build has none of: read and write "
                            "through `files::backend`", "ERROR"))
@@ -691,6 +709,20 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                     findings.append(Finding(rel, i, "unjustified-unwrap",
                                             "unwrap/expect outside tests needs a justification comment "
                                             "or a descriptive expect message", "ERROR"))
+
+            # A temporary beside a file is `balaur_core::whole`'s to name: a
+            # name two writers or two targets share truncates another's.
+            if (not in_test_mod and not is_comment
+                    and "// whole:" not in raw
+                    and rel.as_posix() not in (WHOLE_OWNER, FILES_OWNER)
+                    and hand_made_partial(line)):
+                findings.append(Finding(rel, i, "hand-made-partial",
+                                        "a file written beside its target and moved over it is "
+                                        "`balaur_core::whole`'s: `Whole::create`/`Whole::private` "
+                                        "then `finish`, `whole::write`, or a backend's "
+                                        "`write_whole`; a move that is no such write, a folder's "
+                                        "or a file another program made, says why with "
+                                        "`// whole:` on the line", "ERROR"))
 
             if not in_test_mod and TIMED_WAIT.search(line):
                 commented = "//" in raw or (i > 1 and lines[i - 2].strip().startswith("//"))

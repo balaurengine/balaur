@@ -10,11 +10,6 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
-
-/// Numbers this process's writes of kept units, so no two share a temporary.
-#[cfg(feature = "compile")]
-static UNIT_WRITES: AtomicU32 = AtomicU32::new(0);
 
 /// Why a build without the compiler cannot run a file the pack holds no unit for.
 #[cfg(not(feature = "compile"))]
@@ -225,15 +220,8 @@ impl BsHost {
         let mut bytes = text.into_bytes();
         bytes.push(0);
         bytes.extend(unit.to_bytes());
-        // Processes sharing a data folder build the same unit at once: one
-        // renaming a temporary another is truncating would keep an empty file.
-        let write = UNIT_WRITES.fetch_add(1, Ordering::Relaxed);
-        let partial = path.with_extension(format!("{}-{write}.partial", std::process::id()));
-        let kept = path
-            .parent()
-            .map_or(Ok(()), std::fs::create_dir_all)
-            .and_then(|()| std::fs::write(&partial, &bytes))
-            .and_then(|()| std::fs::rename(&partial, &path));
+        // Processes sharing a data folder build the same unit at once.
+        let kept = balaur_core::whole::write(&path, &bytes);
         if let Err(e) = kept {
             tracing::debug!("{key}: keeping its unit: {e}");
         }

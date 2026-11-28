@@ -119,7 +119,12 @@ fn a_written_slot_reads_back_is_listed_and_leaves_no_part_file_beside_it() {
     let text = std::fs::read_to_string(saves.join("slot1.toml")).unwrap();
     let doc: toml::Value = toml::from_str(&text).unwrap();
     assert_eq!(doc["data"]["coins"].as_integer(), Some(120), "{text}");
-    assert!(!saves.join("slot1.toml.part").exists());
+    let beside: Vec<_> = std::fs::read_dir(&saves)
+        .unwrap()
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter(|name| name.contains(".part"))
+        .collect();
+    assert!(beside.is_empty(), "the save left {beside:?} beside it");
 }
 
 #[test]

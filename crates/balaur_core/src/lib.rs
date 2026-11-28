@@ -87,6 +87,7 @@ pub mod viewpoint;
 mod vocabulary;
 pub mod wake;
 pub mod warnings;
+pub mod whole;
 
 pub use app::{
     App, AppConfig, Builtins, DEFAULT_FIXED_DT, DEFAULT_TICK_HZ, MAX_SUBSTEPS, ScriptArgs,

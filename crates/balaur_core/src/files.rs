@@ -68,6 +68,29 @@ pub trait FileBackend {
     /// disk flushes it, a browser asks its store for a durable commit, and
     /// memory has nothing to promise. Best effort, never an error.
     fn sync(&self, _path: &Path) {}
+    /// `bytes` written whole: beside the file in one of this write's own,
+    /// named as [`crate::whole`] names it, synced and moved over it, then its
+    /// folder synced, so a crash, a power cut or a second writer leaves the
+    /// old file whole; a write that fails leaves nothing beside it. The disk
+    /// does it with [`crate::whole::write`].
+    fn write_whole(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        let part = crate::whole::partial_of(path);
+        self.write(&part, bytes)
+            .with_context(|| format!("writing {}", part.display()))
+            .and_then(|()| {
+                // A rename alone survives a crash; the bytes survive a power cut only once synced.
+                self.sync(&part);
+                self.rename(&part, path)
+                    .with_context(|| format!("replacing {}", path.display()))
+            })
+            .inspect_err(|_| {
+                let _ = self.remove(&part);
+            })?;
+        if let Some(parent) = path.parent() {
+            self.sync(parent);
+        }
+        Ok(())
+    }
 }
 
 /// The backend in use, as an engine resource. Absent means the thread's
@@ -148,6 +171,11 @@ impl FileBackend for DiskFs {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(path, bytes).with_context(|| format!("writing '{}'", path.display()))
+    }
+
+    fn write_whole(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        crate::whole::write(path, bytes)
+            .with_context(|| format!("writing '{}' whole", path.display()))
     }
 
     /// A real append, and flushed: a recorder writes a line per frame, and a

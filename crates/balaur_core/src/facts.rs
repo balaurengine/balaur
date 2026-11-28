@@ -231,7 +231,7 @@ fn device_id(eng: &Engine) -> String {
     if let Some(parent) = path.parent() {
         let _ = fs.mkdir(parent);
     }
-    if let Err(err) = fs.write(&path, id.as_bytes()) {
+    if let Err(err) = fs.write_whole(&path, id.as_bytes()) {
         tracing::warn!("the device id could not be kept: {err}");
     }
     id

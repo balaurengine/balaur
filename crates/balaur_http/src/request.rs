@@ -233,20 +233,14 @@ fn stream_to_file(
     cancel: &AtomicBool,
 ) -> Result<()> {
     use std::io::Write;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    // Written beside the target and moved over it at the end, so a download
-    // cut short never leaves half a file under the name a script trusts.
-    let partial = path.with_extension("part");
-    let mut file = std::fs::File::create(&partial)?;
+    // Written whole: a download cut short, cancelled or failed never leaves
+    // half a file under the name a script trusts, nor beside it.
+    let mut file = balaur_core::whole::Whole::create(path)?;
     let mut buffer = vec![0u8; 64 * 1024];
     let mut received = 0u64;
     let mut reported = 0u64;
     loop {
         if cancel.load(Ordering::Relaxed) {
-            drop(file);
-            let _ = std::fs::remove_file(&partial);
             return Err(anyhow!("cancelled"));
         }
         let read = reader.read(&mut buffer)?;
@@ -267,9 +261,7 @@ fn stream_to_file(
             );
         }
     }
-    file.flush()?;
-    drop(file);
-    std::fs::rename(&partial, path)?;
+    file.finish()?;
     balaur_core::replay::report(
         events,
         HttpEvent::Progress {

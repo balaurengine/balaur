@@ -307,7 +307,7 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &WindowsConfig) -
             command.arg("-in").arg(exe).arg("-out").arg(&signed),
             OSSLSIGNCODE,
         )?;
-        std::fs::rename(&signed, exe)?;
+        std::fs::rename(&signed, exe)?; // whole: a file osslsigncode wrote
     }
     tracing::info!("signed {}", exe.display());
     Ok(())

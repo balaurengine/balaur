@@ -385,7 +385,8 @@ fn engine(fuel: bool) -> Result<Engine, String> {
     .clone()
 }
 
-static CACHE: OnceLock<PathBuf> = OnceLock::new();
+/// Where compiled modules are kept between runs, and how one is written there.
+static CACHE: OnceLock<(PathBuf, super::Keep)> = OnceLock::new();
 
 /// Where Cranelift spreads a module's functions: a pool of its own, built on
 /// the first compile. Rayon's global pool is the physics solver's to size,
@@ -420,8 +421,8 @@ fn unit_module(eng: &Engine, wasm: &[u8], fuel: bool) -> Result<wasmtime::Module
     Ok(m)
 }
 
-pub(crate) fn cache_in(dir: PathBuf) {
-    if CACHE.set(dir.clone()).is_ok() {
+pub(crate) fn cache_in(dir: PathBuf, keep: super::Keep) {
+    if CACHE.set((dir.clone(), keep)).is_ok() {
         // Off the frame, once a run: the cache otherwise only ever grows.
         let _ = std::thread::Builder::new()
             .name("bs-cache-prune".into())
@@ -489,7 +490,7 @@ fn module_named(
             None => build(),
         }
     };
-    let Some(dir) = CACHE.get() else {
+    let Some((dir, keep)) = CACHE.get() else {
         return compile();
     };
     let name = format!("{hash}{}.cwasm", if fuel { "f" } else { "" });
@@ -510,10 +511,7 @@ fn module_named(
     if let Ok(body) = m.serialize() {
         let mut file = twox_hash::XxHash3_64::oneshot(&body).to_le_bytes().to_vec();
         file.extend(body);
-        let partial = path.with_extension("partial");
-        let _ = std::fs::create_dir_all(dir)
-            .and_then(|()| std::fs::write(&partial, file))
-            .and_then(|()| std::fs::rename(&partial, &path));
+        let _ = keep(&path, &file);
     }
     Ok(m)
 }

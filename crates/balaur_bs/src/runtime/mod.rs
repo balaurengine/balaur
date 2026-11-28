@@ -40,14 +40,19 @@ use std::rc::Rc;
 use std::sync::Arc;
 use values::{Reader, decode, has_heap, rd32, rd64, slots, width, zero};
 
-/// Keep what an engine compiles to machine code in `dir` between runs, so a
-/// script compiles once rather than on every load. The first call wins; a
-/// build with no such engine ignores it.
-pub fn cache_compiled_in(dir: &std::path::Path) {
+/// How a compiled module is written to the cache: whole, through a file of
+/// its own, as `balaur_core::whole::write_cached` does, which this crate
+/// builds without.
+pub type Keep = fn(&std::path::Path, &[u8]) -> std::io::Result<()>;
+
+/// Keep what an engine compiles to machine code in `dir` between runs,
+/// written there with `keep`, so a script compiles once rather than on every
+/// load. The first call wins; a build with no such engine ignores it.
+pub fn cache_compiled_in(dir: &std::path::Path, keep: Keep) {
     #[cfg(jit)]
-    wasmtime_engine::cache_in(dir.to_path_buf());
+    wasmtime_engine::cache_in(dir.to_path_buf(), keep);
     #[cfg(not(jit))]
-    let _ = dir;
+    let _ = (dir, keep);
 }
 
 /// Opens the native build of a game's scripts an export made (`crate::c`,

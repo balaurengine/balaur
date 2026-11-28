@@ -337,7 +337,7 @@ fn install(project: &Path, alias: &str, files: &[(String, Vec<u8>)]) -> Result<(
     std::fs::create_dir_all(&deps)?;
     let folder = deps.join(alias);
     refuse_link(&folder)?;
-    let partial = deps.join(format!(".{alias}.partial"));
+    let partial = deps.join(format!(".{alias}.partial")); // whole: a folder, which `whole` does not write
     if partial.exists() {
         std::fs::remove_dir_all(&partial)?;
     }
@@ -352,7 +352,7 @@ fn install(project: &Path, alias: &str, files: &[(String, Vec<u8>)]) -> Result<(
     if folder.exists() {
         std::fs::remove_dir_all(&folder)?;
     }
-    std::fs::rename(&partial, &folder)?;
+    std::fs::rename(&partial, &folder)?; // whole: a folder swapped in
     Ok(())
 }
 
@@ -630,10 +630,8 @@ impl Forge {
             bail!("blob {sha} arrived as other bytes; refused");
         }
         if let Some(path) = kept {
-            if let Some(dir) = path.parent() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-            let _ = std::fs::write(&path, &bytes);
+            // A cache whose blobs are checked by their id as they are read.
+            let _ = balaur_core::whole::write_cached(&path, &bytes);
         }
         Ok(bytes)
     }

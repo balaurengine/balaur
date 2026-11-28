@@ -342,18 +342,11 @@ pub(crate) fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-/// Write `bytes` beside `path` and rename them over it, so a crash or a power
-/// cut mid-write leaves the old file whole, never a truncated one.
+/// Write `bytes` to `path` whole, through the backend in force
+/// ([`FileBackend::write_whole`]), so a crash, a power cut or a second writer
+/// mid-write leaves the old file whole, never a truncated one or another's.
 pub fn write_whole(fs: &dyn FileBackend, path: &Path, bytes: &[u8]) -> Result<()> {
-    let mut name = path.file_name().unwrap_or_default().to_os_string();
-    name.push(".part");
-    let part = path.with_file_name(name);
-    fs.write(&part, bytes)
-        .with_context(|| format!("writing {}", part.display()))?;
-    // A rename alone survives a crash; the bytes survive a power cut only once synced.
-    fs.sync(&part);
-    fs.rename(&part, path)
-        .with_context(|| format!("replacing {}", path.display()))
+    fs.write_whole(path, bytes)
 }
 
 pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -777,6 +770,8 @@ mod tests {
     struct Recording {
         fs: files::MemoryFs,
         asked: std::cell::RefCell<Vec<String>>,
+        /// Every move refused, as a disk that fills up does.
+        refuses_moves: std::cell::Cell<bool>,
     }
 
     impl Recording {
@@ -809,6 +804,9 @@ mod tests {
         }
         fn rename(&self, from: &Path, to: &Path) -> Result<()> {
             self.note("rename", from);
+            if self.refuses_moves.get() {
+                anyhow::bail!("the disk is full");
+            }
             self.fs.rename(from, to)
         }
         fn mtime(&self, path: &Path) -> Option<f64> {
@@ -830,16 +828,43 @@ mod tests {
     fn a_whole_write_lands_beside_the_file_is_synced_then_renamed_over_it() {
         let fs = Recording::default();
         let path = Path::new("/data/saves/slot.toml");
-        // Joined as the code joins it: Windows puts its own separator there.
-        let part = Path::new("/data/saves").join("slot.toml.part");
         fs.fs.write(path, b"old").unwrap();
         write_whole(&fs, path, b"new").unwrap();
+        let asked = fs.asked.borrow().clone();
+        let [write, sync, rename, folder] = asked.as_slice() else {
+            panic!("four steps, not {asked:?}");
+        };
+        let part = write.strip_prefix("write ").expect("a write first");
+        assert!(
+            part.starts_with(&format!("{}.part.", path.display())),
+            "{part}"
+        );
         assert_eq!(
-            *fs.asked.borrow(),
-            ["write", "sync", "rename"].map(|step| format!("{step} {}", part.display()))
+            [sync, rename],
+            [&format!("sync {part}"), &format!("rename {part}")]
+        );
+        assert_eq!(
+            folder,
+            &format!("sync {}", Path::new("/data/saves").display())
         );
         assert_eq!(fs.read(path).unwrap(), b"new");
-        assert!(!fs.exists(&part));
+        assert!(!fs.exists(Path::new(part)));
+    }
+
+    #[test]
+    fn a_whole_write_that_fails_leaves_nothing_beside_the_file() {
+        let fs = Recording::default();
+        let path = Path::new("/data/saves/slot.toml");
+        fs.fs.write(path, b"old").unwrap();
+        fs.refuses_moves.set(true);
+        assert!(write_whole(&fs, path, b"new").is_err());
+        assert_eq!(fs.read(path).unwrap(), b"old");
+        let left: Vec<_> = fs
+            .list(Path::new("/data/saves"))
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        assert_eq!(left, ["slot.toml"], "the write left {left:?}");
     }
 
     #[test]

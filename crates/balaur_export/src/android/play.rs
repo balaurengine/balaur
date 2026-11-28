@@ -156,14 +156,14 @@ pub(crate) fn keep(
             .with_context(|| format!("the template's play/{path} is missing"))?;
     }
     for (n, path) in resources.iter().enumerate() {
-        std::fs::rename(play.join(path), staging.join(RES).join(format!("{n:02}")))
+        std::fs::rename(play.join(path), staging.join(RES).join(format!("{n:02}"))) // whole: a template's file moved
             .with_context(|| format!("the template's play/{path} is missing"))?;
     }
     let ids = std::fs::read_to_string(play.join(IDS)).context("the template's play/ids.txt")?;
     let renamed = ids.replace(&format!("{TEMPLATE_PACKAGE}:"), &format!("{id}:"));
     std::fs::write(staging.join(IDS), renamed)?;
     std::fs::remove_dir_all(&play)?;
-    std::fs::rename(&staging, &play)?;
+    std::fs::rename(&staging, &play)?; // whole: a folder swapped in
     let mut entries = index
         .manifests
         .into_iter()

@@ -762,6 +762,9 @@ impl FileBackend for Mounted {
     fn append(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         self.base.append(&self.real(path), bytes)
     }
+    fn write_whole(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        self.base.write_whole(&self.real(path), bytes)
+    }
     fn exists(&self, path: &Path) -> bool {
         self.base.exists(&self.real(path)) || !self.mounted_in(path).is_empty()
     }

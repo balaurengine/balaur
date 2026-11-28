@@ -472,10 +472,10 @@ mod imp {
             std::fs::remove_dir_all(&aside).ok();
             std::fs::remove_file(&aside).ok();
             if current.exists() || entry.file_name() == exe_name {
-                std::fs::rename(&current, &aside)
+                std::fs::rename(&current, &aside) // whole: a running install moved aside
                     .with_context(|| format!("moving {} aside", current.display()))?;
             }
-            std::fs::rename(&new, &current)
+            std::fs::rename(&new, &current) // whole: an unpacked install moved in
                 .with_context(|| format!("installing {}", current.display()))?;
             if std::fs::remove_dir_all(&aside).is_err() {
                 // The running executable on Windows: undeletable until exit.

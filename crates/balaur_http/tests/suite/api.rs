@@ -170,10 +170,12 @@ fn save_to_streams_a_body_to_disk_and_reports_progress() {
         Some(&Value::Str(target.display().to_string()))
     );
     assert_eq!(std::fs::read(&target).unwrap(), b"pack-of-data");
-    assert!(
-        !target.with_extension("part").exists(),
-        "the partial file was moved over"
-    );
+    let beside: Vec<_> = std::fs::read_dir(target.parent().unwrap())
+        .unwrap()
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter(|name| name.contains(".part"))
+        .collect();
+    assert!(beside.is_empty(), "the download left {beside:?} beside it");
     // The progress event landed in the same or an earlier tick's snapshot.
     let snapshot = app.engine.resource::<HttpSnapshot>();
     let progress = snapshot

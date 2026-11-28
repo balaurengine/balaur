@@ -212,7 +212,7 @@ mod fetch {
     }
 
     /// Stream `url` to `path`, verified against `expected`. The
-    /// bytes land in a sibling `.partial` first, so an interrupted or
+    /// bytes are written whole (`balaur_core::whole`), so an interrupted or
     /// rejected download never looks installed.
     pub(crate) fn download(url: &str, path: &Path, expected: &str) -> Result<()> {
         download_reporting(url, path, expected, &mut |_, _| {})
@@ -240,9 +240,8 @@ mod fetch {
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(0);
         let mut done = 0u64;
-        let partial = path.with_extension("partial");
-        let mut file = std::fs::File::create(&partial)
-            .with_context(|| format!("creating {}", partial.display()))?;
+        let mut file = balaur_core::whole::Whole::create(path)
+            .with_context(|| format!("writing {}", path.display()))?;
         let mut reader = response.body_mut().as_reader();
         let mut hasher = sha2::Sha256::new();
         let mut buf = vec![0u8; 64 * 1024];
@@ -256,7 +255,6 @@ mod fetch {
             done += n as u64;
             progress(done, total);
         }
-        drop(file);
         // sha2 0.11 hands back an `Array`, which has no `LowerHex`; folded
         // rather than mapped into Strings, as `pack::content_hash` does.
         let got = hasher.finalize().iter().fold(String::new(), |mut out, b| {
@@ -264,15 +262,10 @@ mod fetch {
             out
         });
         if got != expected {
-            std::fs::remove_file(&partial).ok();
             bail!("checksum mismatch for {url}: expected {expected}, got {got}");
         }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&partial, std::fs::Permissions::from_mode(0o755))?;
-        }
-        std::fs::rename(&partial, path)?;
+        file.set_mode(0o755)?;
+        file.finish()?;
         Ok(())
     }
 
@@ -366,7 +359,10 @@ mod fetch {
             };
             assert!(err.to_string().contains("checksum mismatch"), "{err}");
             assert!(!path.exists());
-            assert!(!path.with_extension("partial").exists());
+            let left = std::fs::read_dir(dir.path())
+                .expect("the folder is listed")
+                .count();
+            assert_eq!(left, 0, "the rejected download left a file beside it");
         }
     }
 }

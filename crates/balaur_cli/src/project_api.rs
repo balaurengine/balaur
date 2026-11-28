@@ -483,10 +483,9 @@ fn write_list(home: &Path, rows: &[Row]) {
         .collect();
     let mut doc = toml::Table::new();
     doc.insert(keys::PROJECT.into(), toml::Value::Array(items));
-    let _ = std::fs::create_dir_all(home);
-    let _ = std::fs::write(
-        list_path(home),
-        toml::to_string_pretty(&doc).unwrap_or_default(),
+    let _ = balaur_core::whole::write(
+        &list_path(home),
+        toml::to_string_pretty(&doc).unwrap_or_default().as_bytes(),
     );
 }
 
