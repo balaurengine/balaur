@@ -10689,6 +10689,10 @@
         "least": 0,
         "signature": "(ui::RepaintOptions?)"
       },
+      "ui::row_of": {
+        "least": 2,
+        "signature": "(Node, int) -> Node"
+      },
       "ui::save_pasted_image": {
         "least": 1,
         "signature": "(str) -> bool"
@@ -10708,6 +10712,10 @@
       "ui::set_load_progress": {
         "least": 1,
         "signature": "(float, str?)"
+      },
+      "ui::set_rows": {
+        "least": 2,
+        "signature": "(Node, [any]) -> bool"
       },
       "ui::set_scale": {
         "least": 1,
@@ -14188,6 +14196,7 @@
     "reflection_probe": "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
     "rope_joint2d": "How long a `joint2d` of kind rope may stretch.",
     "rope_joint3d": "How long a `joint3d` of kind rope may stretch.",
+    "scene_rows": "A `scroll`'s rows, each an instance of one scene part, built only while in view or `ahead` rows from it, at most `per_frame` a frame. `ui::set_rows` hands them their items, and each row's script hears its item through `show(data)` when it is bound to one; a row scrolled away is hidden and bound again to the next. Rows are as tall as their part lays them out, the theme's sizes included, and a row not built holds the space it last measured, or the rows' mean",
     "screen_notifier2d": "A box that announces `screen_entered` as it comes on screen and `screen_exited` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.",
     "shape2d": "A 2D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`, and the dimensions that kind reads. A stroked line is `line2d`.",
     "shape3d": "A 3D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`, and the dimensions that kind reads.",
@@ -15123,6 +15132,11 @@
     "rope_joint3d": [
       "max_length"
     ],
+    "scene_rows": [
+      "scene",
+      "ahead",
+      "per_frame"
+    ],
     "screen_notifier2d": [
       "size",
       "offset"
@@ -15969,6 +15983,9 @@
     "rope_joint3d": [
       "3d",
       "physics"
+    ],
+    "scene_rows": [
+      "ui"
     ],
     "screen_notifier2d": [
       "2d",
@@ -21555,6 +21572,26 @@
         "description": "The rope's greatest length",
         "min": 0.0,
         "type": "float"
+      }
+    },
+    "scene_rows": {
+      "ahead": {
+        "default": 4,
+        "description": "Rows kept built past each edge of the view",
+        "min": 0,
+        "type": "int"
+      },
+      "per_frame": {
+        "default": 4,
+        "description": "The most rows built in one frame; a row already built and scrolled away is bound again without counting",
+        "min": 1,
+        "type": "int"
+      },
+      "scene": {
+        "asset": "scene",
+        "default": "",
+        "description": "The part each row is an instance of; its root is a widget",
+        "type": "asset"
       }
     },
     "screen_notifier2d": {
@@ -47903,11 +47940,13 @@
         "picture_async": "`picture` decoded on a worker: the id `task::wait` answers the picture's name on, or nil, once it is done. The picture is held from then on, waited on or not.",
         "pixels_per_design": "How many of the window's own pixels a design pixel covers this frame: the UI scale, the display's scale and the reader's text size together. Divide `input::mouse_position()` by it for design pixels.",
         "request_repaint": "Run the frame and its UI pass under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead.",
+        "row_of": "The row a `scroll`'s `scene_rows` built for its item at `index`, while it is built: nil for one out of view or not built yet.",
         "save_pasted_image": "Write the image last pasted where no field took it, which the `image_pasted` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
         "set_clipboard": "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
         "set_load_progress": "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it.",
+        "set_rows": "Hand a `scroll`'s `scene_rows` their items: each row built is bound to the item at its place again, its script hearing it through `show(data)`, and the rows past the last are let go of. False for a node with no `scene_rows`.",
         "set_scale": "Set the global UI scale, clamped to between 0.25 and 3.0. It is egui's zoom factor, so it grows every control and every font; `screen_size` already answers in the design pixels it leaves.",
         "set_theme": "Put a theme in force over `[ui] theme` and `theme_dark`, for every widget and egui's own controls: a `widget_theme` file's path, or a theme document, with source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources. A root's own `theme` still dresses its subtree with that one, and nil goes back to the project's.",
         "tab_rect": "Where a `tabs` page's own button in the strip was last drawn, as `{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
@@ -47948,11 +47987,13 @@
         "picture_async",
         "pixels_per_design",
         "request_repaint",
+        "row_of",
         "save_pasted_image",
         "scale",
         "set_clipboard",
         "set_focus",
         "set_load_progress",
+        "set_rows",
         "set_scale",
         "set_theme",
         "tab_rect",
@@ -47994,11 +48035,13 @@
         "picture_async": "([int], ui::PictureOptions?) -> int",
         "pixels_per_design": "() -> float",
         "request_repaint": "(ui::RepaintOptions?)",
+        "row_of": "(Node, int) -> Node",
         "save_pasted_image": "(str) -> bool",
         "scale": "() -> float",
         "set_clipboard": "(str)",
         "set_focus": "(Node)",
         "set_load_progress": "(float, str?)",
+        "set_rows": "(Node, [any]) -> bool",
         "set_scale": "(float)",
         "set_theme": "(any)",
         "tab_rect": "(Node) -> ui::Rect?",

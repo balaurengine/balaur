@@ -63,7 +63,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 42 | 66 |
+| [`ui`](#ui) | 44 | 66 |
 | [`websocket`](#websocket) | 6 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -1376,11 +1376,13 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `picture_async` | `([int], ui::PictureOptions?) -> int` |
 | `pixels_per_design` | `() -> float` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
+| `row_of` | `(Node, int) -> Node` |
 | `save_pasted_image` | `(str) -> bool` |
 | `scale` | `() -> float` |
 | `set_clipboard` | `(str)` |
 | `set_focus` | `(Node)` |
 | `set_load_progress` | `(float, str?)` |
+| `set_rows` | `(Node, [any]) -> bool` |
 | `set_scale` | `(float)` |
 | `set_theme` | `(any)` |
 | `tab_rect` | `(Node) -> ui::Rect?` |

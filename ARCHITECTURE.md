@@ -1291,6 +1291,12 @@ write. It walks widgets in scene order and wraps.
   (`ScrollArea::show_rows`); each row is an item record named by its `key`.
   A row view owns no model: `sort` orders only the drawing, and a reorder drag
   announces `moved` and moves nothing.
+- A row that is a part is a `scroll`'s `scene_rows` (`widget/scene_rows.rs`):
+  instances of one scene, built only in view and `ahead` rows past it, at
+  most `per_frame` a frame, each told its item by its script's `show(data)`
+  after `ui::set_rows`. A row sits out of the column's run at its top, the
+  rows it holds no instance for keep the height last measured or the mean,
+  and a row scrolled away is hidden and bound to the next one in view.
 - There is no `popup` kind: a `menu` whose children are widgets is the popup,
   and its `placement` says where it opens.
 - While a screen reader listens, each pass builds an AccessKit tree of the

@@ -1,0 +1,45 @@
+# A thousand rows of a scene part in a scroll, built only in view:
+# `balaur run examples/interface --scene scenes/parts.toml`.
+
+[[nodes]]
+id = "n_screen"
+name = "Screen"
+[nodes.script]
+source = "scripts/parts.bs"
+
+[[nodes]]
+id = "sheet"
+name = "Sheet"
+parent = "n_screen"
+[nodes.widget]
+theme = "themes/panel.toml"
+kind = "panel"
+anchor = "center"
+x = 0
+y = 0
+width = 480
+height = 600
+padding = 16
+[nodes.widget_layout]
+gap = [12, 12]
+
+[[nodes]]
+id = "title"
+name = "Title"
+parent = "sheet"
+[nodes.widget]
+kind = "label"
+text = "A thousand rows of a scene part"
+role = "title"
+
+[[nodes]]
+id = "words"
+name = "Words"
+parent = "sheet"
+[nodes.widget]
+kind = "scroll"
+grow = 1
+[nodes.widget_scroll]
+axis = "vertical"
+[nodes.scene_rows]
+scene = "scenes/word_row.toml"

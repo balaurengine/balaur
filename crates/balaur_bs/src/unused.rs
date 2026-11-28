@@ -185,7 +185,8 @@ fn interpolated(text: &str, start: Pos) -> Vec<(Tok, Pos)> {
 
 /// A method the engine calls by its name on a node's script.
 fn is_hook(name: &str) -> bool {
-    [hooks::INIT, hooks::UPDATE, hooks::FIXED_UPDATE].contains(&name) || name.starts_with(hooks::ON)
+    [hooks::INIT, hooks::UPDATE, hooks::FIXED_UPDATE, hooks::SHOW].contains(&name)
+        || name.starts_with(hooks::ON)
 }
 
 /// The private functions and constants `src` never names, and each `use`

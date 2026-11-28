@@ -33,6 +33,7 @@ pub(crate) mod picture;
 pub(crate) mod popups;
 pub(crate) mod properties;
 pub(crate) mod rows;
+pub(crate) mod scene_rows;
 pub(crate) mod schema;
 pub(crate) mod screens;
 pub(crate) mod scroll;

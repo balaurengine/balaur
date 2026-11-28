@@ -1,0 +1,17 @@
+// A row of the parts list: told its item, it shows the word and its gloss.
+
+const WORD: str = "word";
+const GLOSS: str = "gloss";
+const WORD_NODE: str = "Word";
+const GLOSS_NODE: str = "Gloss";
+
+pub class WordRow {
+    node: Node,
+}
+
+impl WordRow {
+    pub fn show(data: any) {
+        self.node.get_node(WORD_NODE).widget.text = data[WORD].as_str();
+        self.node.get_node(GLOSS_NODE).widget.text = data[GLOSS].as_str();
+    }
+}

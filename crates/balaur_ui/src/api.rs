@@ -30,6 +30,8 @@ const PIXELS_PER_DESIGN: &str = "pixels_per_design";
 const SCALE: &str = "scale";
 const SET_CLIPBOARD: &str = "set_clipboard";
 const SET_FOCUS: &str = "set_focus";
+const SET_ROWS: &str = "set_rows";
+const ROW_OF: &str = "row_of";
 const SET_SCALE: &str = "set_scale";
 const SET_THEME: &str = "set_theme";
 const THEME_COLOR: &str = "theme_color";
@@ -373,6 +375,18 @@ fn install_driving(m: &mut Module<Engine>) {
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would, and `{ at: Vec2 }` lands on a `view` there, in the window's design pixels, which it says as `view_clicked`.",
         ),
         (
+            SET_ROWS,
+            &[],
+            "(node: node, items: [any]) -> bool",
+            "Hand a `scroll`'s `scene_rows` their items: each row built is bound to the item at its place again, its script hearing it through `show(data)`, and the rows past the last are let go of. False for a node with no `scene_rows`.",
+        ),
+        (
+            ROW_OF,
+            &[],
+            "(node: node, index: int) -> node?",
+            "The row a `scroll`'s `scene_rows` built for its item at `index`, while it is built: nil for one out of view or not built yet.",
+        ),
+        (
             EDIT,
             &[],
             "(node: node, value: any) -> bool",
@@ -384,6 +398,27 @@ fn install_driving(m: &mut Module<Engine>) {
         "{ hidden: bool?, at: Vec2? }",
         "How `click` clicks: `hidden` clicks a hidden widget too, as a test emitting its signal would, and `at` is where on a `view` it lands.",
     )]);
+    m.function(
+        SET_ROWS,
+        |eng: &Engine, (node, items): (balaur_script::NodeId, balaur_script::Value)| {
+            let items = match items {
+                balaur_script::Value::List(items) => items,
+                other => anyhow::bail!("the rows' items are a list, not a {}", other.type_name()),
+            };
+            Ok(crate::set_rows(eng, balaur_core::entity_of(node)?, items))
+        },
+    );
+    m.function(
+        ROW_OF,
+        |eng: &Engine, (node, index): (balaur_script::NodeId, i64)| {
+            let row = usize::try_from(index)
+                .ok()
+                .and_then(|index| crate::row_of(eng, balaur_core::entity_of(node).ok()?, index));
+            Ok(row.map_or(balaur_script::Value::Nil, |row| {
+                balaur_script::Value::Node(balaur_core::node_id_of(row).0)
+            }))
+        },
+    );
     m.function(
         EDIT,
         |eng: &Engine, (node, value): (balaur_script::NodeId, balaur_script::Value)| {

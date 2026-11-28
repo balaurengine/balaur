@@ -2480,6 +2480,21 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ## UI
 
+### `scene_rows`
+
+`ui` · 3 properties
+
+A `scroll`'s rows, each an instance of one scene part, built only while in view or `ahead` rows from it, at most `per_frame` a frame. `ui::set_rows` hands them their items, and each row's script hears its item through `show(data)` when it is bound to one; a row scrolled away is hidden and bound again to the next. Rows are as tall as their part lays them out, the theme's sizes included, and a row not built holds the space it last measured, or the rows' mean
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>scene</code></td><td>asset · <code>scene</code></td><td>—</td><td>The part each row is an instance of; its root is a widget</td></tr>
+<tr><td><code>ahead</code></td><td>int</td><td><code>4</code></td><td>Rows kept built past each edge of the view At least 0.</td></tr>
+<tr><td><code>per_frame</code></td><td>int</td><td><code>4</code></td><td>The most rows built in one frame; a row already built and scrolled away is bound again without counting At least 1.</td></tr>
+</tbody>
+</table>
+
 ### `shortcuts`
 
 `ui` · 1 property

@@ -51,6 +51,7 @@ pub use widget::input::{
     click_at, edit, submit,
 };
 pub use widget::node::{Move, UiFocus, Widget, WidgetFields, WidgetLayerConfig};
+pub use widget::scene_rows::{row_of, set_rows};
 pub use widget::theme::WidgetTheme;
 pub use widget::theme::dropped_theme_values;
 
@@ -363,6 +364,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         // its widget once, with their rows.
         widget::beside::register_all(reg);
         widget::shortcuts::register(reg);
+        widget::scene_rows::register(reg);
         widget::schema::register_widget_component(reg);
         // The two components holding a picture a widget draws.
         for component in [

@@ -80,6 +80,8 @@ pub(crate) mod words {
         pub(crate) const FIXED_UPDATE: &str = "fixed_update";
         pub(crate) const INIT: &str = "init";
         pub(crate) const ON: &str = "on_";
+        /// What a `scroll`'s `scene_rows` tells a row its item by.
+        pub(crate) const SHOW: &str = "show";
         pub(crate) const UPDATE: &str = "update";
     }
 

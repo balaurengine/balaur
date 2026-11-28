@@ -1,0 +1,26 @@
+// A thousand words in a scroll whose rows are a scene part: only the rows in
+// view and a few past them are built, and each is told its word by `show`.
+
+const WORD: str = "word";
+const GLOSS: str = "gloss";
+const COUNT: int = 1000;
+const WORDS: str = "Sheet/Words";
+
+pub class Parts {
+    node: Node,
+}
+
+impl Parts {
+    pub fn init() {
+        let items: [any] = [];
+        for n in 0..COUNT {
+            let lines = n % 3 + 1;
+            let gloss = "";
+            for line in 0..lines {
+                gloss = "{gloss}the meaning of word {n}, line {line + 1}. ";
+            }
+            items.push({ WORD: "word {n}", GLOSS: gloss });
+        }
+        ui::set_rows(self.node.get_node(WORDS), items);
+    }
+}

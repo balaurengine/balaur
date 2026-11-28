@@ -1,0 +1,32 @@
+# One row of the parts list: a word and its gloss, the gloss wrapping, so
+# rows differ in height. `scripts/word_row.bs` hears its item through `show`.
+
+[[nodes]]
+id = "row"
+name = "WordRow"
+[nodes.script]
+source = "scripts/word_row.bs"
+[nodes.widget]
+kind = "column"
+padding = 8
+[nodes.widget_layout]
+gap = [2, 2]
+
+[[nodes]]
+id = "word"
+name = "Word"
+parent = "row"
+[nodes.widget]
+kind = "label"
+role = "title"
+text = "word"
+
+[[nodes]]
+id = "gloss"
+name = "Gloss"
+parent = "row"
+[nodes.widget]
+kind = "label"
+text = "gloss"
+[nodes.widget_text]
+wrap = true

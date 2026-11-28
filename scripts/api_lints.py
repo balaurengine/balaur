@@ -489,6 +489,7 @@ ANY_ALLOWED = {
     "ui::complete_theme": ("(any) -> any", THEME),
     "ui::contrast_pairs": ("(any, str) -> [ui::ContrastPair]", THEME),
     "ui::edit": ("(Node, any) -> bool", "a widget's value follows its `kind`: a number, text, a flag or a colour"),
+    "ui::set_rows": ("(Node, [any]) -> bool", CALLERS_OWN),
     "ui::set_theme": ("(any)", THEME),
 }
 
