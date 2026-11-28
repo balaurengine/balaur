@@ -10,12 +10,17 @@ use balaur_platform::{PlatformPlugin, StandIns};
 use balaur_script::{Call, Declared, Module, Value, Values};
 
 fn app_with(stand_ins: &str) -> (App, tempfile::TempDir) {
+    let home = tempfile::tempdir().unwrap();
+    (app_at(stand_ins, home.path()), home)
+}
+
+/// An app whose user directory is `home`, which another may share.
+fn app_at(stand_ins: &str, home: &std::path::Path) -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PlatformPlugin).unwrap();
     balaur_platform::set_stand_ins(&app.engine, StandIns::parse(stand_ins).unwrap()).unwrap();
-    let home = tempfile::tempdir().unwrap();
-    balaur_core::engine_api::set_data_home(&app.engine, Some(home.path().to_path_buf()));
-    (app, home)
+    balaur_core::engine_api::set_data_home(&app.engine, Some(home.to_path_buf()));
+    app
 }
 
 fn declared() -> Rc<RefCell<Declared<Engine>>> {
@@ -141,4 +146,99 @@ fn a_picture_s_media_type_follows_its_extension_in_any_case() {
     assert_eq!(media_type(Path::new("a/b.JPG")), "image/jpeg");
     assert_eq!(media_type(Path::new("b.png")), "image/png");
     assert_eq!(media_type(Path::new("b")), "application/octet-stream");
+}
+
+const FILE_STORE: &str = r#"{ "secrets.backend": "file" }"#;
+
+// Games writing one file store at once, each its own keys, lose none of each
+// other's, and leave nothing they wrote through beside it.
+#[test]
+fn games_writing_one_file_store_at_once_lose_none_of_each_other_s_keys() {
+    const GAMES: usize = 4;
+    const KEYS: usize = 10;
+    let key = |game: usize, n: usize| text(&format!("g{game}.{n}"));
+    let home = tempfile::tempdir().unwrap();
+    std::thread::scope(|scope| {
+        for game in 0..GAMES {
+            let home = home.path();
+            scope.spawn(move || {
+                let app = app_at(FILE_STORE, home);
+                let secrets = declared();
+                for n in 0..KEYS {
+                    let set = call(&app, &secrets, "set", &[key(game, n), text("v")]).unwrap();
+                    assert_eq!(set, Value::Bool(true), "{game}.{n} refused");
+                }
+            });
+        }
+    });
+    let app = app_at(FILE_STORE, home.path());
+    let secrets = declared();
+    for game in 0..GAMES {
+        for n in 0..KEYS {
+            let got = call(&app, &secrets, "get", &[key(game, n)]).unwrap();
+            assert_eq!(got, text("v"), "{game}.{n} lost");
+        }
+    }
+    let left: Vec<_> = std::fs::read_dir(home.path())
+        .unwrap()
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter(|name| name.contains(".part"))
+        .collect();
+    assert!(left.is_empty(), "written files left beside it: {left:?}");
+}
+
+/// The mode a file is readable with, by its user, group and the rest.
+#[cfg(unix)]
+fn mode(path: &std::path::Path) -> u32 {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+}
+
+/// `text` at `path`, readable by everyone.
+#[cfg(unix)]
+fn loose(path: &std::path::Path, text: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::write(path, text).unwrap();
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644)).unwrap();
+}
+
+// A store open to all is made private by a write, or a value set again; what
+// a write that stopped partway left beside it is swept.
+#[cfg(unix)]
+#[test]
+fn a_file_store_open_to_all_is_made_private_and_what_a_stopped_write_left_is_swept() {
+    let (app, home) = app_with(FILE_STORE);
+    let secrets = declared();
+    let store = home.path().join("secrets.json");
+    loose(&store, "{}");
+    let stopped = [
+        home.path().join("secrets.json.part.1.0"),
+        home.path().join("secrets.part"),
+    ];
+    for left in &stopped {
+        loose(left, "{ \"token\": ");
+    }
+    let set = || call(&app, &secrets, "set", &[text("token"), text("t-1")]).unwrap();
+    assert_eq!(set(), Value::Bool(true));
+    assert_eq!(mode(&store), 0o600, "the store was left readable by others");
+    for left in &stopped {
+        assert!(
+            !left.exists(),
+            "{} was left beside the store",
+            left.display()
+        );
+    }
+    assert_eq!(
+        mode(&home.path().join("secrets.json.lock")),
+        0o600,
+        "the lock is others' to hold"
+    );
+    let held = std::fs::read_to_string(&store).unwrap();
+    loose(&store, &held);
+    assert_eq!(set(), Value::Bool(true));
+    assert_eq!(
+        mode(&store),
+        0o600,
+        "a value set again left the store readable by others"
+    );
 }

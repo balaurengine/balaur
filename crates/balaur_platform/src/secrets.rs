@@ -197,9 +197,12 @@ pub fn install(m: &mut Module<Engine>) {
 }
 
 /// A JSON object of key to value, written whole, readable by this user alone.
+/// A change reads, changes and writes it under a lock beside it, so two
+/// writers, threads or processes, never lose each other's keys.
 mod file {
     use super::{BTreeMap, Place, Result};
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     fn read(path: &Path) -> Result<BTreeMap<String, String>> {
         match std::fs::read_to_string(path) {
@@ -209,45 +212,164 @@ mod file {
         }
     }
 
-    /// Written beside the file and moved over it, so a write cut short never
-    /// leaves a file the next read refuses.
-    fn write(path: &Path, held: &BTreeMap<String, String>) -> Result<()> {
-        use std::io::Write;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+    /// `path` with `suffix` after its whole name: `a.json` and `a.toml`
+    /// never share a file beside them.
+    fn beside(path: &Path, suffix: &str) -> PathBuf {
+        let mut name = path.as_os_str().to_owned();
+        name.push(suffix);
+        PathBuf::from(name)
+    }
+
+    /// What a file a write goes through is named after `path`'s whole name.
+    const PARTIAL: &str = ".part.";
+
+    /// The file this write goes through, its own: the target's whole name,
+    /// the process and a count, so no writer reuses another's.
+    fn partial_of(path: &Path) -> PathBuf {
+        static WRITES: AtomicU64 = AtomicU64::new(0);
+        let count = WRITES.fetch_add(1, Ordering::Relaxed);
+        beside(path, &format!("{PARTIAL}{}.{count}", std::process::id()))
+    }
+
+    /// Every file a write to `path` went through and left, by a writer that
+    /// stopped partway, `<name>.part.<pid>.<count>` or `<stem>.part`: under
+    /// the lock no other writer has one open.
+    fn sweep_partials(path: &Path) {
+        let _ = std::fs::remove_file(path.with_extension("part"));
+        let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+            return;
+        };
+        let mut prefix = name.to_owned();
+        prefix.push(PARTIAL);
+        let prefix = prefix.to_string_lossy().into_owned();
+        let Ok(entries) = std::fs::read_dir(parent) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with(&prefix) {
+                let _ = std::fs::remove_file(entry.path());
+            }
         }
-        let partial = path.with_extension("part");
+    }
+
+    /// Options that make a file readable and writable by this user alone.
+    fn private() -> std::fs::OpenOptions {
         let mut options = std::fs::OpenOptions::new();
-        options.write(true).create(true).truncate(true);
+        options.write(true);
         #[cfg(unix)]
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        {
+        options
+    }
+
+    /// `path` made readable by this user alone, where it is there and its
+    /// folder keeps modes: one that keeps none, a FAT drive, fails nothing.
+    fn tighten(path: &Path) {
+        #[cfg(unix)]
+        match std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600)) {
+            Err(err) if err.kind() != std::io::ErrorKind::NotFound => {
+                tracing::debug!("secrets: {} kept its mode: {err}", path.display());
+            }
+            _ => {}
+        }
+        #[cfg(not(unix))]
+        let _ = path;
+    }
+
+    /// `path` opened to write from empty, readable by this user alone
+    /// whether it was there before or not: a new file takes the mode as it is
+    /// made, one that was there is made so.
+    fn open_private(path: &Path) -> Result<std::fs::File> {
+        match private().create_new(true).open(path) {
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                let file = private().truncate(true).open(path)?;
+                tighten(path);
+                Ok(file)
+            }
+            opened => Ok(opened?),
+        }
+    }
+
+    /// Written beside the file and moved over it, so a write cut short never
+    /// leaves a file the next read refuses, and the move is on the disk
+    /// before this answers.
+    fn write(path: &Path, held: &BTreeMap<String, String>) -> Result<()> {
+        use std::io::Write;
+        let partial = partial_of(path);
+        let fill = || -> Result<()> {
             // Closed before it takes the place of what was there.
-            let mut file = options.open(&partial)?;
+            let mut file = open_private(&partial)?;
             file.write_all(serde_json::to_string_pretty(held)?.as_bytes())?;
             file.sync_all()?;
+            Ok(std::fs::rename(&partial, path)?)
+        };
+        fill().inspect_err(|_| {
+            let _ = std::fs::remove_file(&partial);
+        })?;
+        // The move made lasting: the folder holds which file is the store. It
+        // has landed already, so a folder that cannot be synced fails nothing.
+        #[cfg(unix)]
+        {
+            let parent = path
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty());
+            let synced = std::fs::File::open(parent.unwrap_or(Path::new(".")))
+                .and_then(|folder| folder.sync_all());
+            if let Err(err) = synced {
+                tracing::debug!(
+                    "secrets: the folder of {} was not synced: {err}",
+                    path.display()
+                );
+            }
         }
-        std::fs::rename(&partial, path)?;
         Ok(())
     }
 
-    pub(super) fn set(path: &Path, place: &Place, value: &str) -> Result<()> {
+    /// `change` made to what the file holds under its lock, written back
+    /// where it answers true.
+    fn changed(
+        path: &Path,
+        change: impl FnOnce(&mut BTreeMap<String, String>) -> bool,
+    ) -> Result<bool> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        // Private too, so no other user can hold it and stop these writes.
+        let lock = private()
+            .create(true)
+            .truncate(false)
+            .open(beside(path, ".lock"))?;
+        lock.lock()?;
+        sweep_partials(path);
         let mut held = read(path)?;
-        held.insert(place.key.clone(), value.to_string());
-        write(path, &held)
+        let wrote = change(&mut held);
+        if wrote {
+            write(path, &held)?;
+        } else {
+            // Left as it is, but never readable by others.
+            tighten(path);
+        }
+        Ok(wrote)
+    }
+
+    /// Written only where it holds another value, or none.
+    pub(super) fn set(path: &Path, place: &Place, value: &str) -> Result<()> {
+        changed(path, |held| {
+            held.insert(place.key.clone(), value.to_string()).as_deref() != Some(value)
+        })
+        .map(drop)
     }
 
     pub(super) fn get(path: &Path, place: &Place) -> Result<Option<String>> {
         Ok(read(path)?.remove(&place.key))
     }
 
+    /// A key it holds removed under the lock; one it holds not, nothing
+    /// written and no lock taken, as a read sees a whole file.
     pub(super) fn remove(path: &Path, place: &Place) -> Result<bool> {
-        let mut held = read(path)?;
-        if held.remove(&place.key).is_none() {
+        if !read(path)?.contains_key(&place.key) {
             return Ok(false);
         }
-        write(path, &held)?;
-        Ok(true)
+        changed(path, |held| held.remove(&place.key).is_some())
     }
 }
 
