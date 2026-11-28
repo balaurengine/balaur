@@ -30,14 +30,14 @@ jobs:
           # that draw are left out there and counted skipped.
           - os: ubuntu-latest
             gamend: true
-            filter: 'not (package(balaur_render) & test(/^(film|mirror|no_present)::/))'
+            filter: 'not (package(balaur_render) & test(/^(film|mirror|no_present|view_widget|camera_frame|order_rebuild|preload_textures)::/))'
           - os: macos-latest
             gamend: true
             filter: 'all()'
           # Gamend's CLI has no Windows build, so the live suites stay out too.
           - os: windows-latest
             gamend: false
-            filter: 'not (package(balaur_render) & test(/^(film|mirror|no_present)::/)) & not (package(balaur) & test(/^gamend::live::/))'
+            filter: 'not (package(balaur_render) & test(/^(film|mirror|no_present|view_widget|camera_frame|order_rebuild|preload_textures)::/)) & not (package(balaur) & test(/^gamend::live::/))'
     env:
       BALAUR_E2E: ${{ matrix.gamend && '1' || '0' }}
     steps:

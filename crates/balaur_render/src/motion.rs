@@ -66,6 +66,10 @@ fn asked() -> Option<bool> {
 /// The subscription `appearance.rs` opens for dark mode hears this too; its
 /// first answer is waited for there.
 #[cfg(any(target_os = "linux", windows))]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the shape of the systems that cannot always ask"
+)]
 fn asked() -> Option<bool> {
     crate::appearance::watch();
     Some(REDUCE.get() == Some(true))

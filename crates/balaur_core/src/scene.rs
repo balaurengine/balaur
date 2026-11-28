@@ -380,7 +380,7 @@ impl Default for GlobalAppearance {
 /// A child composes by adding rotations and multiplying scales per axis, the
 /// usual engine rule, wherever that is exact; a 2D child under a shear or a
 /// parent whose two scales differ composes as Godot's `Transform2D` does, by
-/// the full matrix ([`composes_by_matrix`]).
+/// the full matrix (`composes_by_matrix`).
 #[derive(Clone, Copy)]
 pub struct GlobalTransform {
     pub position: Vec3,
