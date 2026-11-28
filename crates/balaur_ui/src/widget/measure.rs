@@ -118,17 +118,27 @@ impl<'a> Measure<'a> {
         }
         let theme = crate::widget::arena::theme_at(self.eng, self.arena, index, theme);
         let size = self.natural(index, &theme);
-        let floor = vec2(widget.min_width, widget.min_height);
         // What the node states, else its role: the size taffy gives it, so a
         // kind that measures its children (a stack) agrees with the layout.
         let look = crate::widget::arena::look_of(self.arena, index, &theme);
         let stated = crate::widget::arrange::size_of(widget, &look.style);
-        let size = vec2(
-            if stated.x > 0.0 { stated.x } else { size.x }.max(floor.x),
-            if stated.y > 0.0 { stated.y } else { size.y }.max(floor.y),
+        let bounds = crate::widget::arrange::bounds_of(widget, &look.style);
+        let size = crate::widget::arrange::held_within(
+            vec2(
+                if stated.x > 0.0 { stated.x } else { size.x },
+                if stated.y > 0.0 { stated.y } else { size.y },
+            ),
+            bounds,
         );
         self.seen.insert(index, size);
         size
+    }
+
+    /// The greatest box the widget at `index` takes: its own, else its role's,
+    /// under `theme`, the one in force at it.
+    fn most(&self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
+        crate::widget::arrange::bounds_of(&self.arena[index].widget, &look.style).1
     }
 
     /// The widget's whole box: its content, and the padding round it.
@@ -364,10 +374,7 @@ impl<'a> Measure<'a> {
     /// nothing with no cap at all. Kept for the pass ([`CAPPED`]).
     fn capped(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let widget = &self.arena[index].widget;
-        let cap = vec2(
-            widget.layout.max_width.get(),
-            widget.layout.max_height.get(),
-        );
+        let cap = self.most(index, theme);
         if cap.x <= 0.0 && cap.y <= 0.0 {
             // Uncapped, nothing along the way it scrolls and what it holds
             // across the other: a row that slides sideways is as tall as its
@@ -441,7 +448,7 @@ impl<'a> Measure<'a> {
             drawn += 1;
         }
         down += self.gap(index, &theme).y * (drawn.saturating_sub(1) as f32);
-        let most = arena[index].widget.layout.max_height.get() - self.pad(index, &theme).taken().y;
+        let most = self.most(index, &theme).y - self.pad(index, &theme).taken().y;
         vec2(room, down.min(most.max(0.0)))
     }
 
@@ -972,7 +979,10 @@ impl<'a> Measure<'a> {
         let arena = self.arena;
         let widget = &arena[index].widget;
         let kind = widget.kind.as_str();
-        let capped = kind == w::SCROLL && widget.layout.max_height.get() > 0.0;
+        let capped = kind == w::SCROLL && {
+            let at = crate::widget::arena::theme_at(self.eng, arena, index, theme);
+            self.most(index, &at).y > 0.0
+        };
         if !widget.visible
             || !(capped || (widget.wrap && matches!(kind, w::LABEL | w::BUTTON)))
             || width <= 0.0

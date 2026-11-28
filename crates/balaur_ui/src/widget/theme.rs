@@ -170,6 +170,13 @@ pub struct Style {
     /// states one of its own wins; this is not a floor.
     pub height: Option<f32>,
     pub width: Option<f32>,
+    /// The least and greatest box a role takes, in design pixels, as a
+    /// node's own `min_width`, `max_width`, `min_height` and `max_height`;
+    /// a node that states one wins on that side.
+    pub min_width: Option<f32>,
+    pub max_width: Option<f32>,
+    pub min_height: Option<f32>,
+    pub max_height: Option<f32>,
     /// The space inside the left and right edges, and inside the top and
     /// bottom ones, in design pixels: either side of a control's caption, and
     /// round a container's children. Each wins over `padding` on its axis,
@@ -286,6 +293,10 @@ impl Style {
             padding_y: None,
             height: None,
             width: None,
+            min_width: None,
+            max_width: None,
+            min_height: None,
+            max_height: None,
             font_size: None,
             font: None,
             weight: None,
@@ -336,6 +347,10 @@ impl Style {
             weight: self.weight.or(base.weight),
             height: self.height.or(base.height),
             width: self.width.or(base.width),
+            min_width: self.min_width.or(base.min_width),
+            max_width: self.max_width.or(base.max_width),
+            min_height: self.min_height.or(base.min_height),
+            max_height: self.max_height.or(base.max_height),
             padding_x: self.padding_x.or(base.padding_x),
             padding_y: self.padding_y.or(base.padding_y),
             gap: self.gap.or(base.gap),
@@ -711,6 +726,10 @@ fn style_of(body: &toml::Table, tokens: &Tokens) -> Style {
         weight: number(k::FONT_WEIGHT),
         height: number(k::HEIGHT),
         width: number(k::WIDTH),
+        min_width: number(k::MIN_WIDTH).filter(|side| *side > 0.0),
+        max_width: number(k::MAX_WIDTH).filter(|side| *side > 0.0),
+        min_height: number(k::MIN_HEIGHT).filter(|side| *side > 0.0),
+        max_height: number(k::MAX_HEIGHT).filter(|side| *side > 0.0),
         padding_x: number(k::PADDING_X),
         padding_y: number(k::PADDING_Y),
         gap: number(k::GAP),
@@ -790,6 +809,7 @@ fn checked_style(table: &toml::Table, tokens: &Tokens) -> Style {
         hover: full.hover.clone(),
         active: full.active.clone(),
         transition: None,
+        weight: full.weight,
         ..full.paint_only()
     }
 }
@@ -931,72 +951,12 @@ pub(crate) const ASSET_TYPE: &str = "widget_theme";
 /// that, and the `fill`, `stroke` and `corner_radius` it states over both.
 ///
 /// The measure pass calls this too, so a row is sized at the face it draws at.
-/// Dress the egui widgets a kind is drawn from in that kind's own style.
-///
-/// A `number_field`, a `slider`, a `text_field`, a `checkbox`, a `dropdown`
-/// and a `menu` are egui's widgets, so they wear egui's palette unless the
-/// theme is told to them here: a screen whose
-/// theme names a `[number_field]` would otherwise show egui's grey beside the
-/// buttons it dressed itself. A theme that names nothing changes nothing.
-pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
-    let radius = style
-        .radius
-        .map(|r| egui::CornerRadius::same(r.clamp(0.0, 255.0) as u8));
-    let edge = |style: &Style| {
-        style
-            .stroke
-            .map(|color| egui::Stroke::new(style.stroke_px(), color))
-    };
-    let visuals = ui.visuals_mut();
-    for (state, look) in [
-        (&mut visuals.widgets.inactive, Some(style)),
-        (
-            &mut visuals.widgets.hovered,
-            style.hover.as_deref().or(Some(style)),
-        ),
-        (
-            &mut visuals.widgets.active,
-            style
-                .active
-                .as_deref()
-                .or(style.hover.as_deref())
-                .or(Some(style)),
-        ),
-    ] {
-        let Some(look) = look else {
-            continue;
-        };
-        if let Some(fill) = look.fill {
-            state.bg_fill = fill;
-            state.weak_bg_fill = fill;
-        }
-        if let Some(stroke) = edge(look) {
-            state.bg_stroke = stroke;
-        }
-        if let Some(radius) = radius {
-            state.corner_radius = radius;
-        }
-        // What egui strokes in the widget's foreground: a checkbox's tick, a
-        // dropdown's arrow. Its `icon_color`, the mark a theme names apart
-        // from the caption, else its text's.
-        if let Some(color) = look.icon_color.or(look.text_color) {
-            state.fg_stroke.color = color;
-        }
-    }
-    // What a `text_field` draws its line on, which is not a widget state.
-    if let Some(fill) = style.fill {
-        visuals.extreme_bg_color = fill;
-    }
-    // The frame a focused `text_field` wears: egui draws it in the selection
-    // stroke, so a role's `focus` table reaches it there.
-    if let Some(stroke) = style.focus.as_deref().and_then(edge) {
-        visuals.selection.stroke = stroke;
-    }
-    visuals.override_text_color = Some(ink);
-}
-
 pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget, words: Words) -> Rc<Style> {
     let settled = theme.resolved_in(&widget.kind, &widget.role, words);
+    // A checked widget is measured at its checked weight (`theme_check::LAYOUT`).
+    let weighed = (settled.checked.as_ref())
+        .filter(|_| widget.checked)
+        .and_then(|checked| checked.weight);
     // The theme's own answer, shared, unless this widget overrides part of
     // it — which most do not, and a screen of widgets is mostly one of a few
     // styles repeated.
@@ -1010,10 +970,12 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget, words: Words) -> Rc<S
         && widget.icon_color.is_empty()
         && widget.radius < 0.0
         && !bordered
+        && weighed.is_none()
     {
         return settled;
     }
     let mut style = (*settled).clone();
+    style.weight = weighed.or(style.weight);
     if !widget.fill.is_empty() {
         style.fill = theme.token(&widget.fill);
     }
@@ -1171,7 +1133,11 @@ pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
 
 #[path = "theme_doc.rs"]
 mod doc;
+
+#[path = "theme_dress.rs"]
+mod dress_egui;
 pub(crate) use doc::ASSET_DOC;
+pub(crate) use dress_egui::dress;
 
 #[path = "theme_check.rs"]
 mod check;

@@ -678,10 +678,12 @@ pub(crate) fn solved_of(
     assigned: egui::Vec2,
 ) -> egui::Vec2 {
     let stated = size_of(widget, style);
-    let floor = vec2(widget.min_width, widget.min_height);
-    vec2(
-        if stated.x > 0.0 { stated.x } else { assigned.x }.max(floor.x),
-        if stated.y > 0.0 { stated.y } else { assigned.y }.max(floor.y),
+    held_within(
+        vec2(
+            if stated.x > 0.0 { stated.x } else { assigned.x },
+            if stated.y > 0.0 { stated.y } else { assigned.y },
+        ),
+        bounds_of(widget, style),
     )
 }
 
@@ -692,17 +694,45 @@ pub(crate) fn solved_of(
 /// something a node has to fight. Both sizing paths read this: `solved_of` for
 /// the kinds that place themselves, and `taffy::style_of` for the containers.
 pub(crate) fn size_of(widget: &Widget, style: &crate::widget::theme::Style) -> egui::Vec2 {
-    let pick = |stated: f32, role: Option<f32>| {
-        if stated > 0.0 {
-            stated
-        } else {
-            role.unwrap_or(0.0)
-        }
-    };
     vec2(
-        pick(widget.width, style.width),
-        pick(widget.height, style.height),
+        stated_or(widget.width, style.width),
+        stated_or(widget.height, style.height),
     )
+}
+
+/// The least and greatest box a widget takes, in design pixels: on each side
+/// what the node states, else its role's, and 0 for none.
+pub(crate) fn bounds_of(
+    widget: &Widget,
+    style: &crate::widget::theme::Style,
+) -> (egui::Vec2, egui::Vec2) {
+    let layout = &widget.layout;
+    (
+        vec2(
+            stated_or(widget.min_width, style.min_width),
+            stated_or(widget.min_height, style.min_height),
+        ),
+        vec2(
+            stated_or(layout.max_width.get(), style.max_width),
+            stated_or(layout.max_height.get(), style.max_height),
+        ),
+    )
+}
+
+/// `size` held at least `least` and, on a side that has one, at most `most`;
+/// the least wins where the two cross, as CSS's `min-width` does.
+pub(crate) fn held_within(size: egui::Vec2, (least, most): (egui::Vec2, egui::Vec2)) -> egui::Vec2 {
+    let held =
+        |size: f32, low: f32, high: f32| if high > 0.0 { size.min(high) } else { size }.max(low);
+    vec2(held(size.x, least.x, most.x), held(size.y, least.y, most.y))
+}
+
+fn stated_or(stated: f32, role: Option<f32>) -> f32 {
+    if stated > 0.0 {
+        stated
+    } else {
+        role.unwrap_or(0.0)
+    }
 }
 
 /// Hold a ui to a box on the axes the box names, so `available_size` inside it
@@ -896,9 +926,13 @@ fn drag_seam(
         return;
     }
     let widget = &at.arena[target].widget;
-    let floor = axis.along(vec2(widget.min_width, widget.min_height));
+    let (least, most) = bounds_of(widget, &at.style(target));
     let was = axis.along(vec2(widget.width, widget.height));
-    let now = (was + moved).max(floor.max(1.0));
+    let held = held_within(
+        vec2(was + moved, was + moved),
+        (least.max(vec2(1.0, 1.0)), most),
+    );
+    let now = axis.along(held);
     let entity = at.arena[target].entity;
     at.edits.push((
         entity,

@@ -230,13 +230,15 @@ fn style_key(
     let asked = crate::widget::arrange::size_of(widget, style);
     asked.x.to_bits().hash(&mut hasher);
     asked.y.to_bits().hash(&mut hasher);
+    let (least, most) = crate::widget::arrange::bounds_of(widget, style);
+    for side in [least.x, least.y, most.x, most.y] {
+        side.to_bits().hash(&mut hasher);
+    }
     shown.hash(&mut hasher);
     widget.kind.hash(&mut hasher);
     widget.grow.to_bits().hash(&mut hasher);
     widget.width.to_bits().hash(&mut hasher);
     widget.height.to_bits().hash(&mut hasher);
-    widget.min_width.to_bits().hash(&mut hasher);
-    widget.min_height.to_bits().hash(&mut hasher);
     widget.align.hash(&mut hasher);
     widget.justify.hash(&mut hasher);
     widget.reverse.hash(&mut hasher);
@@ -269,6 +271,7 @@ fn styled(
     fills: Fill,
 ) -> Style {
     let mut want = style_of(widget, style, shape);
+    let (least, _) = crate::widget::arrange::bounds_of(widget, style);
     // A menu's box is its button's; the rows it opens take only the room the
     // popup or sheet hands them, not the button's 40 points.
     if shape.is_root && widget.kind == w::MENU {
@@ -281,12 +284,12 @@ fn styled(
     match width {
         Side::Hug => {}
         Side::Whole(width) => want.size.width = length(width),
-        Side::AtLeast(width) => want.min_size.width = length(width.max(widget.min_width)),
+        Side::AtLeast(width) => want.min_size.width = length(width.max(least.x)),
     }
     match height {
         Side::Hug => {}
         Side::Whole(height) => want.size.height = length(height),
-        Side::AtLeast(height) => want.min_size.height = length(height.max(widget.min_height)),
+        Side::AtLeast(height) => want.min_size.height = length(height.max(least.y)),
     }
     want
 }
@@ -329,6 +332,7 @@ fn style_of(widget: &Widget, style: &crate::widget::theme::Style, shape: Shape) 
         }
     };
     let cap = |px: f32| if px > 0.0 { length(px) } else { auto() };
+    let (least, most) = crate::widget::arrange::bounds_of(widget, style);
     let [left, top, right, bottom] = layout.border.map(crate::widget::node::Bits::get);
     let margin = layout.margin.map(crate::widget::node::Bits::get);
     let safe = layout.safe_align;
@@ -345,12 +349,12 @@ fn style_of(widget: &Widget, style: &crate::widget::theme::Style, shape: Shape) 
             height: percent_or(layout.height_percent.get(), asked.y),
         },
         min_size: Size {
-            width: floor_or_none(widget.min_width.max(shape.heading)),
-            height: floor_or_none(widget.min_height),
+            width: floor_or_none(least.x.max(shape.heading)),
+            height: floor_or_none(least.y),
         },
         max_size: Size {
-            width: cap(layout.max_width.get()),
-            height: cap(layout.max_height.get()),
+            width: cap(most.x),
+            height: cap(most.y),
         },
         aspect_ratio: (layout.aspect_ratio.get() > 0.0).then(|| layout.aspect_ratio.get()),
         margin: Rect {
@@ -403,7 +407,7 @@ fn style_of(widget: &Widget, style: &crate::widget::theme::Style, shape: Shape) 
     // `min-width: 0` lets an ellipsis show.
     if style.truncate == Some(true) && layout.shrink.get() < 0.0 {
         out.flex_shrink = 1.0;
-        out.min_size.width = length(widget.min_width.max(0.0));
+        out.min_size.width = length(least.x);
     }
     out
 }
@@ -1117,20 +1121,19 @@ fn natural(
     measure: &mut Measure<'_>,
 ) -> f32 {
     let widget = &arena[index].widget;
-    let (stated, least) = if row {
-        (widget.width, widget.min_width)
-    } else {
-        (widget.height, widget.min_height)
-    };
+    let stated = if row { widget.width } else { widget.height };
     if stated > 0.0 {
         return stated;
     }
+    let at = crate::widget::arena::theme_at(measure.eng, arena, index, theme);
+    let look = crate::widget::arena::look_of(arena, index, &at);
+    let (floor, _) = crate::widget::arrange::bounds_of(widget, &look.style);
+    let least = if row { floor.x } else { floor.y };
     let Ok(layout) = held.tree.layout(node) else {
         return least;
     };
     let edge = sides(layout.padding, row) + sides(layout.border, row);
     let inner = if held.tree.child_count(node) == 0 {
-        let at = crate::widget::arena::theme_at(measure.eng, arena, index, theme);
         axis(measure.leaf(index, &at), row)
     } else {
         let same_way = held
@@ -1138,8 +1141,6 @@ fn natural(
             .style(node)
             .is_ok_and(|own| runs_across(own.flex_direction) == row);
         if same_way {
-            let at = crate::widget::arena::theme_at(measure.eng, arena, index, theme);
-            let look = crate::widget::arena::look_of(arena, index, &at);
             let gap = axis(crate::widget::arrange::gap_of(widget, &look.style), row);
             content_need(held, arena, (index, node), (row, gap), theme, measure)
         } else {

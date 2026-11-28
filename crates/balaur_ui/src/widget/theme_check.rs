@@ -55,6 +55,10 @@ const KEYS: &[(&str, Shape)] = &[
     (k::FONT_WEIGHT, Shape::Number),
     (k::HEIGHT, Shape::Number),
     (k::WIDTH, Shape::Number),
+    (k::MIN_WIDTH, Shape::Number),
+    (k::MAX_WIDTH, Shape::Number),
+    (k::MIN_HEIGHT, Shape::Number),
+    (k::MAX_HEIGHT, Shape::Number),
     (k::PADDING_X, Shape::Number),
     (k::PADDING_Y, Shape::Number),
     (k::GAP, Shape::Number),
@@ -89,12 +93,18 @@ const KEYS: &[(&str, Shape)] = &[
 ];
 
 /// The keys a state table drops: a state paints, and never moves the layout.
+/// `checked` alone keeps `font_weight`, since a write checks a widget, never
+/// the pointer, and a checked widget is measured with it.
 const LAYOUT: &[&str] = &[
     k::PADDING,
     k::PADDING_X,
     k::PADDING_Y,
     k::HEIGHT,
     k::WIDTH,
+    k::MIN_WIDTH,
+    k::MAX_WIDTH,
+    k::MIN_HEIGHT,
+    k::MAX_HEIGHT,
     k::FONT_SIZE,
     k::FONT,
     k::FONT_WEIGHT,
@@ -105,6 +115,11 @@ const LAYOUT: &[&str] = &[
     k::SHOW_ICON,
     k::TRUNCATE,
 ];
+
+fn is_state(key: &str) -> bool {
+    KEYS.iter()
+        .any(|(name, shape)| *name == key && matches!(shape, Shape::State))
+}
 
 /// Whether `key` is one a style table reads, rather than a class word's.
 pub(super) fn is_own(key: &str) -> bool {
@@ -208,7 +223,12 @@ fn style(body: &toml::Table, tokens: &Tokens, said: &mut Said, table: &str, stat
         if state && key == k::TRANSITION {
             continue;
         }
-        if state && LAYOUT.contains(&key.as_str()) {
+        // `checked` on a kind, a role or a class word; one inside a state is read by nothing.
+        let mut path = table.rsplit('.');
+        let checked_weight = key == k::FONT_WEIGHT
+            && path.next() == Some(k::CHECKED)
+            && !path.next().is_some_and(is_state);
+        if state && LAYOUT.contains(&key.as_str()) && !checked_weight {
             said.dropped(
                 table,
                 key,

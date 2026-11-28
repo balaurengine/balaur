@@ -68,6 +68,13 @@ duration = 0.75                  # seconds a turn takes; stroke_width is the rin
 [switch]
 height = 18                      # the track; width is 1.75 of it unset
 
+[roles.calendar]                 # a role's least and greatest box; a widget's own min_width wins on its side
+min_width = 300                  # max_width, min_height and max_height as well
+max_width = 384
+
+[roles.pick.checked]             # a state paints, and checked alone also takes font_weight: a write checks
+font_weight = 600                # a widget, never the pointer, so it is measured at that weight
+
 [roles.tab]
 flex_direction = "column"        # the caption under the icon, as a tab bar's; `row` unset
 icon_size = 24                   # the icon apart from the caption's size; a widget's own wins

@@ -415,3 +415,19 @@ fn a_theme_whose_every_value_reads_says_nothing() {
     );
     assert!(warned.is_empty(), "{warned:#?}");
 }
+
+#[test]
+fn a_role_s_least_and_greatest_size_and_a_checked_weight_read_as_written() {
+    let warned = warnings_of(
+        "type = \"widget_theme\"\n\n[roles.calendar]\nmin_width = 300\nmax_width = 384\n\n[roles.clue]\nmin_height = 44\nmax_height = 120\n\n[roles.clue.narrow]\nmin_height = 36\n\n[roles.pick.checked]\nfont_weight = 600\n",
+    );
+    assert!(warned.is_empty(), "{warned:#?}");
+    let warned = warnings_of(
+        "type = \"widget_theme\"\n\n[roles.pick.hover]\nfont_weight = 600\nmin_width = 10\n",
+    );
+    assert_eq!(
+        warned.len(),
+        2,
+        "a pointer's state still only paints: {warned:#?}"
+    );
+}

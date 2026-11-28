@@ -153,3 +153,88 @@ fn a_button_s_picture_takes_its_icon_s_size() {
     assert!(big.height() >= 40.0, "{big:?}");
     assert!(big.width() >= small.width() + 20.0, "{small:?} vs {big:?}");
 }
+
+/// A theme beside the project, `themes/roles.toml`, holding `roles`.
+fn theme_in(dir: &std::path::Path, roles: &str) {
+    std::fs::create_dir_all(dir.join("themes")).unwrap();
+    std::fs::write(
+        dir.join("themes/roles.toml"),
+        format!("type = \"widget_theme\"\n\n{roles}"),
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_role_holds_a_box_between_its_least_and_greatest_size() {
+    let (dir, app) = app();
+    theme_in(
+        dir.path(),
+        "[roles.calendar]\nmin_width = 300\nmax_width = 384\n\n[roles.clue]\nmin_height = 44\n",
+    );
+    let sheet = |width: f64| {
+        add_widget(
+            &app,
+            &toml::toml! { kind = "column" theme = "themes/roles.toml" x = 0.0 y = 0.0 width = (width) height = 400.0 }
+                .into(),
+        )
+    };
+    let (wide, narrow) = (sheet(1000.0), sheet(200.0));
+    let calendar = |parent| {
+        add_child_widget(
+            &app,
+            parent,
+            "Calendar",
+            &toml::toml! { kind = "row" role = "calendar" height = 20.0 }.into(),
+        )
+    };
+    let (capped, floored) = (calendar(wide), calendar(narrow));
+    let clue = add_child_widget(
+        &app,
+        wide,
+        "Clue",
+        &toml::toml! { kind = "row" role = "clue" }.into(),
+    );
+    add_child_widget(
+        &app,
+        clue,
+        "Word",
+        &toml::toml! { kind = "label" text = "Hi" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = |entity| balaur_ui::widget_rect(entity).expect("it drew");
+    assert!(
+        (rect(capped).width() - 384.0).abs() < 1.0,
+        "{:?}",
+        rect(capped)
+    );
+    assert!(
+        (rect(floored).width() - 300.0).abs() < 1.0,
+        "{:?}",
+        rect(floored)
+    );
+    assert!((rect(clue).height() - 44.0).abs() < 1.0, "{:?}", rect(clue));
+}
+
+#[test]
+fn a_checked_role_s_weight_sizes_the_widget_it_draws() {
+    let (dir, app) = app_with_editor_fonts();
+    theme_in(dir.path(), "[roles.pick.checked]\nfont_weight = 700\n");
+    let pick = |checked: bool| {
+        add_widget(
+            &app,
+            &toml::toml! { kind = "button" theme = "themes/roles.toml" role = "pick" text = "Snap every node to the grid" x = 0.0 y = 0.0 widget_check = { checked = (checked) } }
+                .into(),
+        )
+    };
+    let (rest, picked) = (pick(false), pick(true));
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let wide = |entity| balaur_ui::widget_rect(entity).expect("it drew").width();
+    assert!(
+        wide(picked) > wide(rest) + 2.0,
+        "the checked weight did not size the button: {} against {}",
+        wide(picked),
+        wide(rest)
+    );
+}

@@ -120,7 +120,8 @@ pub(crate) fn window(
         ),
     );
     if widget.egui.resizable && !folded_now {
-        grip(ui, at, entity, widget, background, color);
+        let bounds = crate::widget::arrange::bounds_of(widget, &style);
+        grip(ui, at, entity, bounds, background, color);
     }
     ui.advance_cursor_after_rect(background);
 }
@@ -224,7 +225,7 @@ fn grip(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
     entity: Entity,
-    widget: &Widget,
+    (least, most): (egui::Vec2, egui::Vec2),
     background: egui::Rect,
     color: Color32,
 ) {
@@ -252,21 +253,12 @@ fn grip(
         let now = now.max(low.max(1.0));
         if high > 0.0 { now.min(high) } else { now }
     };
-    let layout = &widget.layout;
     if moved.x != 0.0 {
-        let now = bound(
-            background.width() + moved.x,
-            widget.min_width,
-            layout.max_width.get(),
-        );
+        let now = bound(background.width() + moved.x, least.x, most.x);
         at.edits.push((entity, Edit::Width(now)));
     }
     if moved.y != 0.0 {
-        let now = bound(
-            background.height() + moved.y,
-            widget.min_height,
-            layout.max_height.get(),
-        );
+        let now = bound(background.height() + moved.y, least.y, most.y);
         at.edits.push((entity, Edit::Height(now)));
     }
 }

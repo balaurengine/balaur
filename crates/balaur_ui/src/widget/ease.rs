@@ -304,6 +304,8 @@ impl Style {
             shadows,
             offset,
             scale,
+            // The weight the box was measured at, which is the state's it eases to.
+            weight: to.weight,
             ..if t < 0.5 { self.clone() } else { to.clone() }
         }
     }
