@@ -221,10 +221,12 @@ mod file {
         options.write(true).create(true).truncate(true);
         #[cfg(unix)]
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        let mut file = options.open(&partial)?;
-        file.write_all(serde_json::to_string_pretty(held)?.as_bytes())?;
-        file.sync_all()?;
-        drop(file);
+        {
+            // Closed before it takes the place of what was there.
+            let mut file = options.open(&partial)?;
+            file.write_all(serde_json::to_string_pretty(held)?.as_bytes())?;
+            file.sync_all()?;
+        }
         std::fs::rename(&partial, path)?;
         Ok(())
     }

@@ -108,7 +108,7 @@ mod ios {
 
     /// Read the picked photo in a type `image.encode` reads, off the main
     /// thread, and answer.
-    fn load(provider: *mut AnyObject, request: u64, report: Sender<PlatformEvent>) {
+    fn load(provider: *mut AnyObject, request: u64, report: &Sender<PlatformEvent>) {
         let (kind, media_type) = KEPT
             .into_iter()
             .find(|(kind, _)| {
@@ -145,7 +145,7 @@ mod ios {
             msg_send![provider, loadDataRepresentationForTypeIdentifier: &*kind, completionHandler: &*loaded]
         };
         if progress.is_null() {
-            failed(request, "the photo could not be read", &report);
+            failed(request, "the photo could not be read", report);
         }
     }
 
@@ -193,7 +193,7 @@ mod ios {
                         failed(*request, "the photo could not be read", report);
                         return;
                     }
-                    load(provider, *request, report.clone());
+                    load(provider, *request, report);
                 }
             }
         }

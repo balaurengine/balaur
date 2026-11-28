@@ -73,10 +73,12 @@ impl Words {
             .iter()
             .filter(|(_, at)| !self.declares.contains(at))
             .filter_map(|(tok, _)| match tok {
-                Tok::Ident(word) => Some(word.clone()),
-                Tok::Str(text, _) if is_name(text) => Some(text.clone()),
+                Tok::Ident(word) => Some(word),
+                Tok::Str(text, _) if is_name(text) => Some(text),
                 _ => None,
             })
+            // copy: the names outlive the tokens, as `Exports` keeps them
+            .cloned()
             .collect()
     }
 
