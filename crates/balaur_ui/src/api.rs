@@ -370,7 +370,7 @@ fn install_driving(m: &mut Module<Engine>) {
             w::CLICK,
             &[],
             "(node: node, opts: ClickOptions?) -> bool",
-            "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
+            "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would, and `{ at: Vec2 }` lands on a `view` there, in the window's design pixels, which it says as `view_clicked`.",
         ),
         (
             EDIT,
@@ -381,8 +381,8 @@ fn install_driving(m: &mut Module<Engine>) {
     ]);
     m.records(&[(
         "ClickOptions",
-        "{ hidden: bool? }",
-        "How `click` clicks: `hidden` clicks a hidden widget too, as a test emitting its signal would.",
+        "{ hidden: bool?, at: Vec2? }",
+        "How `click` clicks: `hidden` clicks a hidden widget too, as a test emitting its signal would, and `at` is where on a `view` it lands.",
     )]);
     m.function(
         EDIT,
@@ -393,13 +393,27 @@ fn install_driving(m: &mut Module<Engine>) {
     m.function(
         w::CLICK,
         |eng: &Engine, (node, opts): (balaur_script::NodeId, Option<balaur_script::Value>)| {
-            let hidden = match opts {
-                Some(balaur_script::Value::Map(fields)) => fields
-                    .iter()
-                    .any(|(k, v)| k == w::HIDDEN && matches!(v, balaur_script::Value::Bool(true))),
-                _ => false,
+            let fields = match &opts {
+                Some(balaur_script::Value::Map(fields)) => fields.as_slice(),
+                _ => &[],
             };
-            Ok(crate::click(eng, balaur_core::entity_of(node)?, hidden))
+            let hidden = fields
+                .iter()
+                .any(|(k, v)| k == w::HIDDEN && matches!(v, balaur_script::Value::Bool(true)));
+            let at = match fields.iter().find(|(k, _)| k == w::AT).map(|(_, v)| v) {
+                None | Some(balaur_script::Value::Nil) => None,
+                Some(balaur_script::Value::Vec2(point)) => Some(*point),
+                Some(other) => anyhow::bail!("`at` is a Vec2, not a {}", other.type_name()),
+            };
+            let entity = balaur_core::entity_of(node)?;
+            let on_view = eng
+                .world()
+                .get::<&crate::Widget>(entity)
+                .is_ok_and(|widget| widget.kind == w::VIEW);
+            if at.is_some() && !on_view {
+                anyhow::bail!("`at` is where a click lands on a `view`, and this widget is none");
+            }
+            Ok(crate::click_at(eng, entity, at, hidden))
         },
     );
 }

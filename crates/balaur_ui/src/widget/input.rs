@@ -43,11 +43,15 @@ pub(crate) struct ClickHearers(balaur_core::events::HearerWatch);
 
 /// Whether a click on this widget is heard: by a row on its node, its
 /// script's `on_pointer_click`, a listener or a waiter naming it, or the
-/// handler its control table names. What a label, a panel or a picture
+/// handler its control table names; a `view`'s `view_clicked` too. What a label, a panel or a picture
 /// senses a click for.
 fn hears_click(eng: &Engine, entity: Entity) -> bool {
-    balaur_core::events::is_heard_on(eng, entity, hooks::POINTER_CLICK)
-        || crate::widget::write::hears(eng, entity, hooks::POINTER_CLICK)
+    [hooks::POINTER_CLICK, VIEW_CLICKED_EVENT]
+        .into_iter()
+        .any(|event| {
+            balaur_core::events::is_heard_on(eng, entity, event)
+                || crate::widget::write::hears(eng, entity, event)
+        })
 }
 
 /// Bring each widget whose hearers may have changed to know whether its
@@ -76,7 +80,10 @@ pub(crate) fn follow_hearers(eng: &Engine) {
 }
 
 pub(crate) fn register(reg: &mut balaur_plugin::Registry<'_>) {
-    let clicks = balaur_core::events::watch_hearers(reg.engine(), &[hooks::POINTER_CLICK]);
+    let clicks = balaur_core::events::watch_hearers(
+        reg.engine(),
+        &[hooks::POINTER_CLICK, VIEW_CLICKED_EVENT],
+    );
     reg.insert_resource(ClickHearers(clicks));
     reg.insert_resource(WidgetInputBuffer::default());
     reg.insert_resource(Hovered::default());
@@ -154,6 +161,12 @@ pub(crate) fn record(
 /// disabled, or no widget at all. `hidden` clicks a hidden one anyway, as a
 /// test emitting a button's signal does; a disabled one never.
 pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
+    click_at(eng, entity, None, hidden)
+}
+
+/// [`click`], landing at `at` in the window's design pixels: on a `view`, it
+/// says `view_clicked` there as a pointer's click does.
+pub fn click_at(eng: &Engine, entity: Entity, at: Option<[f32; 2]>, hidden: bool) -> bool {
     let clickable = {
         let world = eng.world();
         // Shown as the tree stands now, as `visible_in_tree` answers: a
@@ -164,7 +177,13 @@ pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
         shown && enabled
     };
     if clickable {
-        record(eng, &[entity], Vec::new(), None);
+        let on_view = at.filter(|_| {
+            eng.world()
+                .get::<&Widget>(entity)
+                .is_ok_and(|widget| widget.kind == w::VIEW)
+        });
+        let edits = on_view.map(|point| (entity, Edit::ViewClicked(point)));
+        record(eng, &[entity], edits.into_iter().collect(), None);
     }
     clickable
 }
@@ -238,6 +257,10 @@ pub const LINK_CLICKED_EVENT: &str = "link_clicked";
 
 /// What a `code` widget emits when its gutter is clicked, with the line.
 pub const GUTTER_CLICKED_EVENT: &str = "gutter_clicked";
+/// What a `view` emits when it is clicked, beside its `pointer_click`, with
+/// where the click landed in the window's design pixels: what
+/// `render::view_point` turns into the point of the world its camera shows.
+pub const VIEW_CLICKED_EVENT: &str = "view_clicked";
 /// What a `code` widget emits when its caret moved, with `{ x, y, index }`:
 /// where a completion list opens, and what it completes.
 pub const CARET_CHANGED_EVENT: &str = "caret_changed";
@@ -402,6 +425,10 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (SUBMITTED_EVENT, "the text"),
     (LINK_CLICKED_EVENT, "the link's target"),
     (GUTTER_CLICKED_EVENT, "the line"),
+    (
+        VIEW_CLICKED_EVENT,
+        "where it landed, a `Vec2` in the window's design pixels",
+    ),
     (CARET_CHANGED_EVENT, "`{ x, y, index }`"),
     (MOVED_EVENT, "`[moved, target, side]`"),
     (DROPPED_EVENT, "the card"),
@@ -572,6 +599,7 @@ fn settle_one(
         // Written nowhere: a link and a gutter mark are the script's to act on.
         Edit::Link(target) => Some((LINK_CLICKED_EVENT, Value::Str(target.clone()))),
         Edit::Gutter(line) => Some((GUTTER_CLICKED_EVENT, Value::Int(*line))),
+        Edit::ViewClicked(point) => Some((VIEW_CLICKED_EVENT, Value::Vec2(*point))),
         _ => heard(edit),
     };
     if let Some((event, value)) = saying {

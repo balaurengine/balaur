@@ -196,6 +196,8 @@ mod skinned_2d;
 mod skinned_3d;
 #[cfg(feature = "window")]
 mod view;
+#[cfg(feature = "window")]
+pub use view::view_point;
 
 /// Ask a rendering backend to save one frame as a PNG once `after_frame`
 /// frames have been rendered (debugging, CI golden images, editor

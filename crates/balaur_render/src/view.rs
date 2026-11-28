@@ -187,6 +187,34 @@ impl Views {
     }
 }
 
+/// The world point `camera` shows at `at`, in the window's design pixels,
+/// as its view draws it in the box the layout gave it: `None` while it is not
+/// current or names no view that is drawn.
+#[must_use]
+pub fn view_point(eng: &balaur_core::Engine, camera: Entity, at: [f32; 2]) -> Option<[f32; 2]> {
+    let world = eng.world();
+    let cam = world.get::<&Camera2d>(camera).ok()?;
+    if cam.view.is_empty() || !cam.current {
+        return None;
+    }
+    let widget = scene::find_node(&world, camera, &cam.view)?;
+    let rect = balaur_ui::widget_rect(widget)?;
+    let center = world.get::<&GlobalTransform>(camera).ok()?.position;
+    // A unit's design pixels: its logical ones, or its window pixels where
+    // the camera does not count the display's scale.
+    let zoom = cam.pixels_per_unit.max(crate::camera::MIN_ZOOM_2D);
+    let zoom = if cam.hidpi {
+        zoom
+    } else {
+        zoom / balaur_core::facts::device(eng).ui_scale.max(f32::EPSILON)
+    };
+    let mid = rect.center();
+    Some([
+        center.x + (at[0] - mid.x) / zoom,
+        center.y - (at[1] - mid.y) / zoom,
+    ])
+}
+
 fn wgpu_filter() -> kiss3d::wgpu::FilterMode {
     kiss3d::wgpu::FilterMode::Linear
 }

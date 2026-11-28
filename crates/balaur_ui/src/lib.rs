@@ -47,7 +47,8 @@ pub use widget::input::{
     DOUBLE_CLICKED_EVENT, DROPPED_EVENT, FOCUS_ENTERED_EVENT, FOCUS_EXITED_EVENT, FOLDED_EVENT,
     GUTTER_CLICKED_EVENT, IMAGE_PASTED_EVENT, LINK_CLICKED_EVENT, MARKED_EVENT, MOVED_EVENT,
     OPENED_EVENT, PASTED_EVENT, RESIZED_EVENT, SCROLLED_EVENT, SUBMITTED_EVENT,
-    VALUE_CHANGED_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
+    VALUE_CHANGED_EVENT, VIEW_CLICKED_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click,
+    click_at, edit, submit,
 };
 pub use widget::node::{Move, UiFocus, Widget, WidgetFields, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;

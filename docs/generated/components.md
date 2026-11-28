@@ -2584,6 +2584,7 @@ Announced from a node carrying `widget`:
 <tr><td><code>submitted</code></td><td>the text</td></tr>
 <tr><td><code>link_clicked</code></td><td>the link&#x27;s target</td></tr>
 <tr><td><code>gutter_clicked</code></td><td>the line</td></tr>
+<tr><td><code>view_clicked</code></td><td>where it landed, a <code>Vec2</code> in the window&#x27;s design pixels</td></tr>
 <tr><td><code>caret_changed</code></td><td><code>{ x, y, index }</code></td></tr>
 <tr><td><code>moved</code></td><td><code>[moved, target, side]</code></td></tr>
 <tr><td><code>dropped</code></td><td>the card</td></tr>

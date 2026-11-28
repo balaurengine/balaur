@@ -727,6 +727,8 @@ pub(crate) enum Edit {
     Link(String),
     /// The 1-based line a click on a `code` widget's gutter landed on.
     Gutter(i64),
+    /// Where a click on a `view` landed, in the window's design pixels.
+    ViewClicked([f32; 2]),
     /// Where a `code` widget's caret moved to: its point in design pixels,
     /// and its index in characters.
     Caret(f32, f32, usize),
@@ -980,11 +982,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         }
         // A camera's picture, rendered into its own texture before the
         // frame is presented, across the box the layout gives it.
-        w::VIEW => {
-            let size = solved_of(&at.arena[index].widget, &at.style(index), at.assigned);
-            let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
-            crate::widget::view::paint(at.eng, ui, at.arena[index].entity, rect);
-        }
+        w::VIEW => crate::widget::view::view(ui, at, index),
         w::FOLD => crate::widget::kinds::fold(ui, at, index, &caption, &font, color),
         // A picture from the project, sized by what it states or by itself.
         w::IMAGE => crate::widget::picture::image(ui, at, index),

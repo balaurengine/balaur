@@ -12,7 +12,32 @@ use rustc_hash::FxHashMap;
 #[derive(Default)]
 pub(crate) struct ViewTextures(pub(crate) FxHashMap<Entity, egui::TextureId>);
 
-pub(crate) fn paint(eng: &Engine, ui: &egui::Ui, entity: Entity, rect: egui::Rect) {
+/// A `view` across the box the layout gave it, sensing a click where one is
+/// heard: `pointer_click`, and `view_clicked` where it landed.
+pub(crate) fn view(ui: &mut egui::Ui, at: &mut crate::widget::layer::Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    let (entity, widget) = (placed.entity, &placed.widget);
+    let size = crate::widget::arrange::solved_of(widget, &at.style(index), at.assigned);
+    let sense = if widget.hears_click {
+        egui::Sense::click()
+    } else {
+        egui::Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(size, widget.sense(sense));
+    paint(at.eng, ui, entity, rect);
+    if let Some(point) = response
+        .interact_pointer_pos()
+        .filter(|_| response.clicked())
+    {
+        at.clicked.push(entity);
+        at.edits.push((
+            entity,
+            crate::widget::layer::Edit::ViewClicked(point.into()),
+        ));
+    }
+}
+
+fn paint(eng: &Engine, ui: &egui::Ui, entity: Entity, rect: egui::Rect) {
     let Some(texture) = eng
         .try_resource::<ViewTextures>()
         .and_then(|views| views.borrow().0.get(&entity).copied())

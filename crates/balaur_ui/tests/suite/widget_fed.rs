@@ -225,3 +225,38 @@ fn a_fed_mouse_click_on_a_card_s_picture_clicks_the_card() {
     tap(&mut app, &ctx, mouse, icon);
     assert!(clicked(&app, card));
 }
+
+#[test]
+fn a_click_on_a_view_says_where_it_landed() {
+    let (_dir, mut app, mouse) = app_feeding(MOUSE);
+    let view = add_widget(
+        &app,
+        &toml::toml! {
+            kind = "view" x = 0.0 y = 0.0 width = 200.0 height = 100.0
+            bindings = { rows = [{ event = "emitted:view_clicked", action = "call", target = "..", value = "on_go" }] }
+        }
+        .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    feed(&app, mouse, pos2(30.0, 60.0), "start");
+    frame(&mut app, &ctx, None);
+    feed(&app, mouse, pos2(30.0, 60.0), "end");
+    frame(&mut app, &ctx, None);
+    assert_eq!(
+        heard(&app, view, "view_clicked"),
+        vec![Value::Vec2([30.0, 60.0])]
+    );
+    assert!(clicked(&app, view));
+    assert!(balaur_ui::click_at(
+        &app.engine,
+        view,
+        Some([5.0, 6.0]),
+        false
+    ));
+    consume_input(&mut app);
+    assert_eq!(
+        heard(&app, view, "view_clicked"),
+        vec![Value::Vec2([5.0, 6.0])]
+    );
+}

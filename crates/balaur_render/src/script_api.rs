@@ -56,6 +56,7 @@ const PERSPECTIVE: &str = "perspective";
 const SCALE_FACTOR: &str = "scale_factor";
 const TARGET: &str = "target";
 const TO: &str = "to";
+const VIEW_POINT: &str = "view_point";
 const WIDTH: &str = "width";
 const ZOOM: &str = "zoom";
 
@@ -240,7 +241,25 @@ pub(crate) fn install_camera_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         (CAMERA_2D, &[], "() -> Viewport2d", "The 2D camera this frame: its `center` and its `zoom` in logical pixels per world unit; all zeros with no window."),
         (MOUSE_WORLD_2D, &[], "", "The mouse position in 2D world coordinates, for picking."),
+        (VIEW_POINT, &[], "(camera: node, at: Vec2) -> Vec2?", "The point of the world a `camera2d` drawing into a `view` shows at `at`, in the window's design pixels as `ui::widget_rect` and `view_clicked` give it; nil while its view is not drawn, or in a run with no window."),
     ]);
+    m.function(
+        VIEW_POINT,
+        |eng: &Engine, (camera, at): (balaur_script::NodeId, Value)| {
+            let camera = balaur_core::entity_of(camera)?;
+            let Value::Vec2(at) = at else {
+                anyhow::bail!("`at` is a Vec2, not a {}", at.type_name());
+            };
+            #[cfg(feature = "window")]
+            let point = crate::view::view_point(eng, camera, at).map(Value::Vec2);
+            #[cfg(not(feature = "window"))]
+            let point = {
+                let _ = (eng, camera, at);
+                None
+            };
+            Ok(point.unwrap_or(Value::Nil))
+        },
+    );
     // Center xy, zoom, from the published snapshot rather than the config —
     // so headless answers all zeros, zoom included, not the config's default.
     m.records(&[(

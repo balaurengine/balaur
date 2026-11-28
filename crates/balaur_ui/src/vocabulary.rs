@@ -413,6 +413,8 @@ pub(crate) mod words {
         ];
     }
     pub(crate) const HIDDEN: &str = "hidden";
+    /// Where `ui::click` lands on a `view`.
+    pub(crate) const AT: &str = "at";
 
     pub(crate) mod general {
         pub(crate) const UI: &str = "ui";

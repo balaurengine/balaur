@@ -6973,6 +6973,10 @@
         "least": 1,
         "signature": "(Node, Node?) -> [Vec3]"
       },
+      "render::view_point": {
+        "least": 2,
+        "signature": "(Node, Vec2) -> Vec2?"
+      },
       "replay::divergence_tick": {
         "least": 0,
         "signature": "() -> replay::Divergence?"
@@ -13989,6 +13993,7 @@
         "result": "bool"
       },
       "ui::ClickOptions": {
+        "at": "Vec2?",
         "hidden": "bool?"
       },
       "ui::ColorsApart": {
@@ -14479,6 +14484,10 @@
       [
         "gutter_clicked",
         "the line"
+      ],
+      [
+        "view_clicked",
+        "where it landed, a `Vec2` in the window's design pixels"
       ],
       [
         "caret_changed",
@@ -34259,7 +34268,8 @@
         "texture_pixels_per_unit": "How many of an image's pixels make a world unit when a sprite says 0: its own `pixels_per_unit` import setting, else 100.",
         "texture_size": "An image's width and height in pixels, read from the file's own header.",
         "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: each other island counter-clockwise and each hole clockwise; default false keeps the largest alone). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn.",
-        "triangles_of": "The triangles `node` draws, from its mesh, its shape or its 2D polygon, as three corners each in the space of `space`, or of the world where it is left out."
+        "triangles_of": "The triangles `node` draws, from its mesh, its shape or its 2D polygon, as three corners each in the space of `space`, or of the world where it is left out.",
+        "view_point": "The point of the world a `camera2d` drawing into a `view` shows at `at`, in the window's design pixels as `ui::widget_rect` and `view_clicked` give it; nil while its view is not drawn, or in a run with no window."
       },
       "editor": [],
       "functions": [
@@ -34307,7 +34317,8 @@
         "texture_pixels_per_unit",
         "texture_size",
         "trace_texture",
-        "triangles_of"
+        "triangles_of",
+        "view_point"
       ],
       "methods": {
         "built_mesh": {
@@ -34378,7 +34389,8 @@
         "texture_pixels_per_unit": "(str) -> float",
         "texture_size": "(str) -> Vec2",
         "trace_texture": "(str, render::TraceOptions?) -> [[Vec2]]",
-        "triangles_of": "(Node, Node?) -> [Vec3]"
+        "triangles_of": "(Node, Node?) -> [Vec3]",
+        "view_point": "(Node, Vec2) -> Vec2?"
       }
     },
     {
@@ -47867,7 +47879,7 @@
       "docs": {
         "chord_text": "A chord as a widget's `shortcut` and `[input.actions]` spell it, `cmd+shift+KeyS`, in the spelling the platform shows: `\u21e7\u2318S` on a Mac, `Ctrl+Shift+S` elsewhere. What a row naming a command writes beside it. A chord no key reads is an error.",
         "clear_focus": "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `focus_exited`.",
-        "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
+        "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would, and `{ at: Vec2 }` lands on a `view` there, in the window's design pixels, which it says as `view_clicked`.",
         "colors_apart": "Every pair of a `widget_theme` document's colours that say something by hue (`primary`, `success`, `warning`, `danger`), closest first, as `{ first, second, distance, vision }`: how far apart they stand in CIELAB for the colour vision that sees them closest. Under 10 the two read as one colour to that reader.",
         "complete_theme": "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         "contrast": "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",

@@ -50,7 +50,7 @@ Valve's Steamworks interfaces, 32 `steam_*` modules and 815 functions beside `st
 | [`random`](#random) | 6 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 4 | 0 |
-| [`render`](#render) | 38 | 41 |
+| [`render`](#render) | 39 | 41 |
 | [`replay`](#replay) | 16 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`scene`](#scene) | 26 | 0 |
@@ -1075,6 +1075,7 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `texture_size` | `(str) -> Vec2` |
 | `trace_texture` | `(str, render::TraceOptions?) -> [[Vec2]]` |
 | `triangles_of` | `(Node, Node?) -> [Vec3]` |
+| `view_point` | `(Node, Vec2) -> Vec2?` |
 
 Called on a node's component: `boolean3d`, `occluder2d`, `screen_notifier2d`, `tilemap`. See [components](components.md).
 

@@ -178,3 +178,46 @@ fn a_view_draws_light_colours_as_they_are_with_no_environment() {
         assert!(off <= 1, "{hex} drew as {drawn:?}");
     }
 }
+
+#[test]
+fn a_point_of_a_view_is_the_world_point_its_camera_shows_there() {
+    if !gpu_present() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"view\"\nmain_scene = \"scenes/main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("scenes/main.toml"), SCENE).unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    {
+        let seen = seen.clone();
+        let frame = Rc::new(RefCell::new(0u64));
+        app.add_system(Stage::Last, move |eng, _| {
+            *frame.borrow_mut() += 1;
+            if *frame.borrow() == 6 {
+                let camera = scene::find_node(&eng.world(), eng.root(), "Root/Camera").unwrap();
+                for at in [[80.0, 40.0], [100.0, 20.0]] {
+                    seen.borrow_mut()
+                        .push(balaur_render::view_point(eng, camera, at));
+                }
+                eng.request_quit();
+            }
+        });
+    }
+    balaur_render::kiss3d_backend::run_offscreen(app, "view", SIDE, SIDE).unwrap();
+    let seen = seen.borrow();
+    let near = |got: Option<[f32; 2]>, want: [f32; 2]| {
+        got.is_some_and(|[x, y]| (x - want[0]).abs() < 0.05 && (y - want[1]).abs() < 0.05)
+    };
+    // The box's middle is the camera's, and 20 design pixels a unit.
+    assert!(near(seen[0], [0.0, 0.0]), "{:?}", seen[0]);
+    assert!(near(seen[1], [1.0, 1.0]), "{:?}", seen[1]);
+}
